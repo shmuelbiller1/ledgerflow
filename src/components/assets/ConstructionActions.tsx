@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { db, getIdToken } from '../../firebase';
+import { db } from '../../firebase';
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import { doc, updateDoc } from '../../lib/db/firestore';
 import { useDialog } from '../../hooks/useDialog';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -42,20 +43,20 @@ export function ConstructionActions({ asset, accounts, workspaceId, today, curre
       toast.success(`${formatCurrency(cents, currency)} added to ${asset.name}`);
       setMode('');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(commandErrorMessage(err));
     } finally {
       setBusy(false);
     }
   };
 
-  const call = async (method: 'POST' | 'DELETE', body?: unknown) => {
-    const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/assets/${encodeURIComponent(asset.id)}/in-service`, {
-      method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, ...(body ? { body: JSON.stringify(body) } : {}),
+  // the address lives here, not in the screen: `runCommand` adds the token and reports the server's
+  // own refusal instead of a generic message
+  const call = async (method: 'POST' | 'DELETE', body?: unknown) =>
+    runCommand<{ description?: string }>({
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/assets/${encodeURIComponent(asset.id)}/in-service`,
+      method,
+      ...(body ? { body } : {}),
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || 'That did not work');
-    return data as { description?: string };
-  };
 
   const placeInService = async () => {
     if (salvage.trim() && !isAmountText(salvage, { complete: true })) { toast.error('Enter the salvage value as an amount'); return; }
@@ -65,7 +66,7 @@ export function ConstructionActions({ asset, accounts, workspaceId, today, curre
       toast.success(data.description || `${asset.name} is in service`);
       setMode('');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(commandErrorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -77,7 +78,7 @@ export function ConstructionActions({ asset, accounts, workspaceId, today, curre
       await call('DELETE');
       toast.success(`${asset.name} is being built again`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(commandErrorMessage(err));
     } finally {
       setBusy(false);
     }

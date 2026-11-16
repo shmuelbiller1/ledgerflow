@@ -11,10 +11,13 @@ async function start() {
   const url = process.env.LF_TEST_DATABASE_URL;
   if (!url) throw new Error('W13 real stock journey requires LF_TEST_DATABASE_URL (isolated test Postgres).');
   process.env.DATABASE_URL = url;
-  const [{ default: express }, { getDb }, { commandRouter }, { documentPostRouter }, { workspaceRouter }, { reportRouter }, { inventoryRouter }] = await Promise.all([
+  const [{ default: express }, { getDb }, { commandRouter }, { documentPostRouter }, { workspaceRouter }, { reportRouter }, { inventoryRouter }, { paymentRouter }] = await Promise.all([
     import('express'), import('../../src/server/db/firestore'), import('../../src/server/routes/commandRoutes'),
     import('../../src/server/routes/documentPostRoutes'), import('../../src/server/routes/workspaceRoutes'),
     import('../../src/server/routes/reportRoutes'), import('../../src/server/routes/inventoryRoutes'),
+    // payments: the receive-payment screen still posts to its own route, and a journey that records a
+    // payment has to go through the router that records payments
+    import('../../src/server/routes/paymentRoutes'),
   ]);
   const db = getDb();
   const app = express();
@@ -25,6 +28,7 @@ async function start() {
   app.use('/api/v1/workspaces', workspaceRouter);
   app.use('/api/v1/reports', reportRouter);
   app.use('/api/v1/inventory', inventoryRouter);
+  app.use('/api/v1/payments', paymentRouter);
   const server = app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

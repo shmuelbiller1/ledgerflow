@@ -95,8 +95,8 @@ export default function SelectionBar({
             ))}
           </datalist>
         </div>
-        <button type="button" onClick={apply} disabled={!match || accountBusy}
-          className="px-3 py-2 rounded-xl bg-indigo-600 text-[10px] font-bold uppercase tracking-wider disabled:opacity-30">
+        {/* one filled button per bar: Apply is the one the selection exists for, Set label beside it */}
+        <button type="button" onClick={apply} disabled={!match || accountBusy} className="btn-primary h-8 px-3">
           Apply
         </button>
         
@@ -113,8 +113,7 @@ export default function SelectionBar({
             <datalist id="selection-label-values">
               {labelValues.map(n => <option key={n.id} value={n.description} />)}
             </datalist>
-            <button type="button" onClick={applyLabel} disabled={!typedValue || labelBusy}
-              className="px-3 py-2 rounded-xl bg-indigo-600 text-[10px] font-bold uppercase tracking-wider disabled:opacity-30">
+            <button type="button" onClick={applyLabel} disabled={!typedValue || labelBusy} className="btn-tonal h-8 px-3">
               Set
             </button>
           </div>

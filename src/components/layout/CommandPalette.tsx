@@ -166,6 +166,10 @@ export default function CommandPalette({ isOpen, onClose, onAction }: CommandPal
       icon: <ArrowRight aria-hidden="true" size={16} />
     }));
     
+    // Note: these are navigation and utility actions, not the manifest's API commands — the palette
+    // never lists `invoice.create`, and a role filter here would key on ids that do not exist in the
+    // manifest. The role filter lives where commands are actually listed and run: the API hub sandbox
+    // and `useCommand`, both of which read `paletteRoleFilter`.
     return [...base, ...lenses];
   }, [language]);
 

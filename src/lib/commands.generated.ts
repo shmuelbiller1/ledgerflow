@@ -153,6 +153,12 @@ export const COMMAND_MANIFEST = [
           ]
         }
       },
+      "next": [
+        {
+          "command": "payment.receive",
+          "label": "Pay this bill"
+        }
+      ],
       "refusals": COMMAND_SCHEMA_PARTS.part107
     },
     "runPath": "/api/v1/commands/bill.create",
@@ -344,6 +350,12 @@ export const COMMAND_MANIFEST = [
           ]
         }
       },
+      "next": [
+        {
+          "command": "payment.receive",
+          "label": "Record a payment"
+        }
+      ],
       "refusals": COMMAND_SCHEMA_PARTS.part107
     },
     "runPath": "/api/v1/commands/invoice.create",

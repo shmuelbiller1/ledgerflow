@@ -1,7 +1,8 @@
+import { runCommand, commandErrorMessage, ServerCommandError } from '../../lib/runCommand';
 import { inlineRecordAdapter } from '../../lib/inlineRecordAdapter';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { doc, setDoc } from '../../lib/db/firestore';
-import { db, getIdToken } from '../../firebase';
+import { db } from '../../firebase';
 import { EmployeeInlineDetails } from './EmployeeInlineDetails';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useEffect, useState, useMemo, useRef } from 'react';
@@ -115,8 +116,8 @@ const PayrollViewContent: React.FC = () => {
     if (!anyHourly || !currentWorkspace?.id || !canRunPayroll) return;
     let live = true;
     (async () => {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(currentWorkspace.id)}/time`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      return res.ok ? ((await res.json()).entries || []) as PayableTime[] : [];
+      const answer = await runCommand<{ entries?: PayableTime[] }>({ path: `/api/v1/workspaces/${encodeURIComponent(currentWorkspace.id)}/time` });
+      return answer.entries || [];
     })().then(list => { if (live) setPayableTime(list); }).catch((err) => { console.warn('[PayrollView] Could not load payable time entries:', err); });
     return () => { live = false; };
   }, [anyHourly, currentWorkspace?.id, canRunPayroll]);
@@ -209,23 +210,29 @@ const PayrollViewContent: React.FC = () => {
     setPosting(true);
     setPostError('');
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(currentWorkspace.id)}/pay-runs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ date: runPayDate, bankAccountId: selectedBankAccountId, wagesAccountId, taxExpenseAccountId, liabilitiesAccountId, ...(runSchedule !== 'all' ? { schedule: runSchedule } : {}), ...(again ? { again } : {}) }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 409 && !again && /already (posted|waiting)/.test(String(data.message))) {
-        if (window.confirm(`${data.message}. ${needsApproval ? 'Prepare' : 'Post'} another pay run on ${runPayDate}?`)) { setPosting(false); await handlePostPayRunToLedger(true); }
-        return;
+      let data: PayRunAnswer;
+      try {
+        data = await runCommand<PayRunAnswer>({
+          path: `/api/v1/workspaces/${encodeURIComponent(currentWorkspace.id)}/pay-runs`,
+          method: 'POST',
+          body: { date: runPayDate, bankAccountId: selectedBankAccountId, wagesAccountId, taxExpenseAccountId, liabilitiesAccountId, ...(runSchedule !== 'all' ? { schedule: runSchedule } : {}), ...(again ? { again } : {}) },
+        });
+      } catch (err) {
+        // a 409 here is not a failure: it is the server saying a pay run for this date is already
+        // posted or waiting, and asking whether a second one is really wanted. That question keeps
+        // its own wording, so it is caught before the generic message.
+        if (err instanceof ServerCommandError && err.status === 409 && !again && /already (posted|waiting)/.test(err.message)) {
+          if (window.confirm(`${err.message}. ${needsApproval ? 'Prepare' : 'Post'} another pay run on ${runPayDate}?`)) { setPosting(false); await handlePostPayRunToLedger(true); }
+          return;
+        }
+        throw err;
       }
-      if (!res.ok) throw new Error(data.message || 'The pay run could not be posted');
       const waits = data.awaitingApproval === true;
       const record: PayRun = {
         id: data.payRunId, uid: user?.uid || '', workspaceId: currentWorkspace.id, date: runPayDate, totalAmountCents: data.costCents,
-        employeeCount: data.employees.length, status: waits ? 'awaiting_approval' : 'processed', createdAt: new Date().toISOString(),
+        employeeCount: (data.employees || []).length, status: waits ? 'awaiting_approval' : 'processed', createdAt: new Date().toISOString(),
         ...(waits ? { submittedByEmail: user?.email || '' } : { transactionId: data.transactionId }),
-        schedule: runSchedule, employees: data.employees, grossCents: data.grossCents, netCents: data.netCents, withheldCents: data.withheldCents,
+        schedule: runSchedule, employees: data.employees || [], grossCents: data.grossCents, netCents: data.netCents, withheldCents: data.withheldCents,
         employerTaxCents: data.employerTaxCents, deductionsCents: data.deductionsCents,
       };
       setPayRuns([...payRuns.filter(r => r.id !== record.id), record]);
@@ -235,7 +242,7 @@ const PayrollViewContent: React.FC = () => {
         : `Pay run of ${formatDate(runPayDate)} posted: ${formatCurrency(data.costCents)} total cost, ${formatCurrency(data.netCents)} paid out.`);
       setSafeTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
-      setPostError(err instanceof Error ? err.message : String(err));
+      setPostError(commandErrorMessage(err));
     } finally {
       setPosting(false);
     }
@@ -728,5 +735,20 @@ export const PayrollView: React.FC = () => {
   const uid = useAuthStore(state => state.user?.uid), workspace = useAuthStore(state => state.currentWorkspaceId);
   return <PayrollViewContent key={`${uid}:${workspace}`} />;
 };
+
+/** What posting a pay run answers: the run it made, or that an owner has to approve it first. */
+interface PayRunAnswer {
+  message?: string;
+  payRunId: string;
+  costCents: number;
+  awaitingApproval?: boolean;
+  transactionId?: string;
+  employees?: PayRun['employees'];
+  grossCents: number;
+  netCents: number;
+  withheldCents: number;
+  employerTaxCents: number;
+  deductionsCents: number;
+}
 
 export default PayrollView;

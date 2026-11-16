@@ -1,6 +1,6 @@
+import { runCommand } from '../../../lib/runCommand';
 import React, { useId, useState } from 'react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 
@@ -25,13 +25,11 @@ export default function RequireTwoStepPanel() {
     setBusy(true);
     setError('');
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/security/two-step`, {
+      await runCommand({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/security/two-step`,
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ required: next }),
+        body: { required: next },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The setting could not be saved');
       setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, requireTwoStep: next } : w)));
       toast.success(next ? 'Everyone in this workspace now signs in with two-step login' : 'Two-step login is no longer required here');
     } catch (err) {

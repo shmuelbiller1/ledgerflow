@@ -1,5 +1,5 @@
+import { runCommand } from '../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
-import { getIdToken } from '../../firebase';
 import { formatCurrency } from '../../lib/utils';
 import type { StockCheckReport } from '../../server/services/stockClosingService';
 
@@ -10,11 +10,10 @@ export const StockClosingPanel: React.FC<{ workspaceId: string | null | undefine
     if (!workspaceId) return;
     let live = true;
     (async () => {
-      const res = await fetch(`/api/v1/inventory/stock-closing?${new URLSearchParams({ workspaceId })}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.message || `The stock checks could not be read (${res.status})`);
+      const data = await runCommand<StockCheckReport>({ path: `/api/v1/inventory/stock-closing?${new URLSearchParams({ workspaceId })}` });
+      // both checks must be present, or the panel would draw a report that says nothing
       if (!data?.books?.message || !data?.negative?.message) throw new Error('The stock checks could not be read');
-      return data as StockCheckReport;
+      return data;
     })()
       .then(report => { if (live) setState({ key: workspaceId, report }); })
       .catch((error: unknown) => { if (live) setState({ key: workspaceId, error: error instanceof Error ? error.message : String(error) }); });

@@ -1,3 +1,4 @@
+import { runCommand } from '../../lib/runCommand';
 import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -5,7 +6,6 @@ import { useDialog } from '../../hooks/useDialog';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { getIdToken } from '../../firebase';
 import { detectDuplicateContacts } from '../../lib/contactUtils';
 import type { Customer, Vendor } from '../../types';
 import type { PartySide } from './PartyModal';
@@ -52,13 +52,11 @@ export default function MergePartyDialog({ side, party, onClose }: MergePartyDia
     if (!chosen || !workspaceId) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/contacts/merge`, {
+      await runCommand({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/contacts/merge`,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ side, keepId: party.id, mergeId: chosen.id }),
+        body: { side, keepId: party.id, mergeId: chosen.id },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The contacts were not merged');
       toast.success(`"${chosen.name}" merged into "${party.name}"`);
       onClose();
     } catch (err) {

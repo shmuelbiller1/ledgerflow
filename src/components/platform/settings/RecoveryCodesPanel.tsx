@@ -1,6 +1,6 @@
+import { runCommand } from '../../../lib/runCommand';
 import React, { useEffect, useId, useState } from 'react';
 import { toast } from 'sonner';
-import { getIdToken } from '../../../firebase';
 import { safeConfirm } from '../../../lib/utils';
 
 import { BRAND_NAME, BRAND } from '../../../config/brand';
@@ -10,9 +10,7 @@ import { BRAND_NAME, BRAND } from '../../../config/brand';
  * code step of sign-in, "Use a recovery code" takes one.
  */
 async function call(method: 'GET' | 'POST') {
-  const res = await fetch('/api/v1/account/recovery-codes', { method, headers: { Authorization: `Bearer ${await getIdToken()}` } });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'Recovery codes are not available right now');
+  const data = await runCommand<Record<string, unknown>>({ path: '/api/v1/account/recovery-codes', method: method as 'GET' | 'POST' });
   return data as { left?: number; total?: number; codes?: string[] };
 }
 

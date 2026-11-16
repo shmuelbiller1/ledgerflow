@@ -276,9 +276,18 @@ function commandDescription(collection: PostedDocumentType, action: DocumentActi
           ? { customerId: 'customer_123', customerName: 'Acme', number: 'CN-1001', invoiceId: 'invoice_123', date: '2026-11-15', status: 'open', amountCents: 11000, remainingCents: 11000, currency: 'USD' }
           : { vendorId: 'vendor_123', vendorName: 'Paper Co', number: 'VC-1001', billId: 'bill_123', date: '2026-11-15', status: 'open', amountCents: 11800, remainingCents: 11800, currency: 'USD' } }
     : { id: 'document_123', ...(action === 'update' ? { data: { status: 'draft' } } : {}) };
+  // What anyone does next, named as commands so the client can look each one up and check the role.
+  // Only where the sequence is real: an invoice is sent and paid, a bill is paid, a credit note is
+  // applied. Nothing is offered for a delete, because there is no next step after one.
+  const next = action === 'create' && collection === 'invoices'
+    ? [{ command: 'payment.receive', label: 'Record a payment' }]
+    : action === 'create' && collection === 'bills'
+      ? [{ command: 'payment.receive', label: 'Pay this bill' }]
+      : undefined;
   return {
     sentence,
     example,
+    ...(next ? { next } : {}),
     refusals: [
       { code: 'INVALID_INPUT', when: 'The document is missing required fields or contains an invalid amount, date, or line.', next: 'Correct the document details and retry with a new operation key.' },
       { code: 'PERIOD_LOCKED', when: 'The document date or a posting it would reverse is closed for this person.', next: 'Choose an open date or ask an authorized owner to reopen the period.' },

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
-import { getIdToken } from '../../firebase';
+import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import { describeTransfer, transferLines } from '../../lib/assetTransfer';
 import { formatCurrency } from '../../lib/utils';
 import type { ChartAccount, FixedAsset } from '../../types';
@@ -48,22 +48,20 @@ export default function TransferAssetDialog({ asset, accounts, workspaceId, toda
   const submit = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/assets/${encodeURIComponent(asset.id)}/transfer`, {
+      const data = await runCommand<{ description?: string }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/assets/${encodeURIComponent(asset.id)}/transfer`,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({
+        body: {
           date,
           ...(change.toLocation !== change.fromLocation ? { location: change.toLocation } : {}),
           ...(assetAccountId && assetAccountId !== asset.assetAccountId ? { assetAccountId } : {}),
           ...(accumulatedAccountId && accumulatedAccountId !== accumulatedNow ? { accumulatedAccountId } : {}),
-        }),
+        },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The asset could not be moved');
       toast.success(data.description || summary);
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(commandErrorMessage(err));
     } finally {
       setSaving(false);
     }

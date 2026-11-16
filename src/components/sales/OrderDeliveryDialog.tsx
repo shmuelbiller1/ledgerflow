@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { getIdToken } from '../../firebase';
+import { runCommand } from '../../lib/runCommand';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { getLocalDateISO, formatDate } from '../../lib/utils';
 import { findAccount, reversalDate } from '../../services/ledgerPost/postingKit';
@@ -48,12 +49,10 @@ export default function OrderDeliveryDialog({ order, canWrite, onClose }: { orde
   const anyDelivered = lines.some(l => l.delivered > 0);
   const name = order.number || order.id;
 
-  const request = async (path: string, body: Record<string, unknown>) => {
-    const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` }, body: JSON.stringify(body) });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'That did not work');
-    return data as { warnings?: string[] };
-  };
+  // the JSON calls go through the one place a screen talks to its server; the delivery-note download
+  // below stays a plain fetch because it reads a blob, not JSON
+  const request = (path: string, body: Record<string, unknown>) =>
+    runCommand<{ warnings?: string[] }>({ path, method: 'POST', body });
 
   const stockAccounts = () => {
     const mappings = workspace?.defaultAccountMappings || {};

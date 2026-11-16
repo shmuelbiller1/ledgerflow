@@ -1,3 +1,4 @@
+import { runCommand, commandErrorMessage } from '../../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
 import { PLANS, planFor } from '../../../lib/plans';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -20,12 +21,8 @@ export default function BillingSettings() {
 
     const fetchStatus = async () => {
       try {
-        const token = await auth.currentUser!.getIdToken();
-        const res = await fetch(`/api/v1/billing/status?workspaceId=${currentWorkspace.id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await res.json();
-        setBillingStatus(data);
+        const data = await runCommand<Record<string, unknown>>({ path: `/api/v1/billing/status?workspaceId=${encodeURIComponent(currentWorkspace.id)}` });
+        setBillingStatus(data as never);
       } catch {
         console.error("Failed to fetch billing status");
       }
@@ -40,19 +37,11 @@ export default function BillingSettings() {
         if (checkoutStatus === 'success' && session_id) {
           setIsVerifying(true);
           try {
-            const token = await auth.currentUser!.getIdToken();
-            const res = await fetch('/api/v1/billing/verify-session', {
+            const data = await runCommand<{ status?: string; message?: string }>({
+              path: '/api/v1/billing/verify-session',
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify({
-                workspaceId: currentWorkspace.id,
-                session_id
-              })
+              body: { workspaceId: currentWorkspace.id, session_id },
             });
-            const data = await res.json();
             if (data.status === 'success') {
               toast.success("Subscription payment successfully processed. Thank you!");
               await fetchStatus();
@@ -82,21 +71,11 @@ export default function BillingSettings() {
     if (!currentWorkspace?.id || !auth.currentUser) return;
     try {
       const toastId = toast.loading('Initiating secure checkout via Stripe...');
-      const token = await auth.currentUser.getIdToken();
-      
-      const res = await fetch('/api/v1/billing/checkout', {
+      const data = await runCommand<{ url?: string; message?: string }>({
+        path: '/api/v1/billing/checkout',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          workspaceId: currentWorkspace.id,
-          plan: plan
-        })
+        body: { workspaceId: currentWorkspace.id, plan },
       });
-      
-      const data = await res.json();
       if (data.url) {
         toast.dismiss(toastId);
         window.location.assign(data.url);
@@ -104,7 +83,7 @@ export default function BillingSettings() {
         throw new Error(data.message || 'Failed to create checkout session');
       }
     } catch (e) {
-      toast.error('Checkout Error', { description: (e as Error).message || String(e) });
+      toast.error('Checkout Error', { description: commandErrorMessage(e) });
     }
   };
 
@@ -112,16 +91,11 @@ export default function BillingSettings() {
     if (!currentWorkspace?.id || !auth.currentUser) return;
     try {
       const toastId = toast.loading('Opening customer portal...');
-      const token = await auth.currentUser.getIdToken();
-      const res = await fetch('/api/v1/billing/portal', {
+      const data = await runCommand<{ url?: string; message?: string }>({
+        path: '/api/v1/billing/portal',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ workspaceId: currentWorkspace.id })
+        body: { workspaceId: currentWorkspace.id },
       });
-      const data = await res.json();
       if (data.url) {
         toast.dismiss(toastId);
         window.location.assign(data.url);
@@ -129,7 +103,7 @@ export default function BillingSettings() {
         throw new Error(data.message || 'Customer portal unavailable');
       }
     } catch (e) {
-      toast.error('Portal Error', { description: (e as Error).message || String(e) });
+      toast.error('Portal Error', { description: commandErrorMessage(e) });
     }
   };
 
@@ -261,7 +235,7 @@ export default function BillingSettings() {
                     <RequireRole requiredRole="owner" disableOnly tooltip="Only the workspace owner can upgrade plans">
                       <button
                         onClick={() => handleCheckout(p.id)}
-                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="w-full py-2.5 btn-tonal hover:bg-indigo-500 font-bold text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         Upgrade to {p.name} <ChevronRight size={14} />
                       </button>
