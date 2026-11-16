@@ -64,7 +64,7 @@ export function freeInvoiceProblem(inv: FreeInvoice): string | null {
   if (used.some(l => !l.description.trim())) return 'Every line needs a description.';
   if (used.some(l => !(l.quantity > 0))) return 'Every line needs a quantity above zero.';
   // the invoice form takes quantities to 2 decimals: refuse more here rather than round a printed one
-  if (used.some(l => Math.round(l.quantity * 100) !== l.quantity * 100)) return 'Quantities can have at most 2 decimals.';
+  if (used.some(l => Math.abs(l.quantity * 100 - Math.round(l.quantity * 100)) > 1e-6)) return 'Quantities can have at most 2 decimals.';
   return null;
 }
 

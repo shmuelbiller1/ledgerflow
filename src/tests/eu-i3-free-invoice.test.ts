@@ -73,7 +73,9 @@ test('EU-I3: the rate is handed over as a fraction, so 1% and below keep their m
 
 test('EU-I3: quantities beyond 2 decimals are refused; a signed-in draft opens only for that person', () => {
   assert.equal(freeInvoiceProblem({ ...base, lines: [{ description: 'x', quantity: 0.125, rateCents: 100 }] }), 'Quantities can have at most 2 decimals.');
-  assert.equal(freeInvoiceProblem({ ...base, lines: [{ description: 'x', quantity: 1.25, rateCents: 100 }] }), null);
+  for (const q of [1.25, 1.15, 0.29, 0.57, 1.13, 2.01]) {
+    assert.equal(freeInvoiceProblem({ ...base, lines: [{ description: 'x', quantity: q, rateCents: 100 }] }), null, `${q} has 2 decimals`);
+  }
   const store = new Map<string, string>();
   const storage = { setItem: (k: string, v: string) => { store.set(k, v); }, getItem: (k: string) => store.get(k) ?? null };
   assert.ok(stashFreeInvoice(storage, base, 'u1'));
