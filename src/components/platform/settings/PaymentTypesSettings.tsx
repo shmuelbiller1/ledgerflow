@@ -6,7 +6,7 @@ import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from '../../../lib/accountDefaults';
 import { MAX_PAYMENT_TYPES, MAX_PAYMENT_TYPE_NAME, normalizePaymentTypes, paymentTypeNameKey, type PaymentType } from '../../../lib/paymentTypes';
 import InlineEdit from '../../ui/InlineEdit';
-import { commandErrorMessage, runCommand } from '../../../lib/runCommand';
+import { commandErrorMessage, runCommand, writeWasAccepted } from '../../../lib/runCommand';
 
 /**
  * CC-09: the workspace's own payment types (for example "PayPal" under Card). Record payment offers
@@ -46,6 +46,9 @@ export function PaymentTypesSettings() {
       method: 'POST',
       body: change,
     }).catch((error: unknown) => {
+      // A cut-off answer means the server took the change; only the echo of the new list was lost, and
+      // the screen re-reads it. Reporting it as refused would leave the old list up and invite a retry.
+      if (writeWasAccepted(error)) return {} as { paymentTypes?: unknown };
       throw Object.assign(new Error(commandErrorMessage(error) || 'Payment types could not be saved (owners and accountants can change them).'), { shown: true });
     }).then(async (data) => {
       const paymentTypes = normalizePaymentTypes(data.paymentTypes);

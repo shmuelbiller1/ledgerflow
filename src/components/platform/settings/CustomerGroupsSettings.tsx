@@ -6,7 +6,7 @@ import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { termOptions } from '../../../lib/paymentTerms';
 import { customerGroupNameKey, MAX_CUSTOMER_GROUPS, MAX_CUSTOMER_GROUP_NAME, normalizeCustomerGroups, type CustomerGroup } from '../../../lib/customerGroups';
 import InlineEdit from '../../ui/InlineEdit';
-import { commandErrorMessage, runCommand } from '../../../lib/runCommand';
+import { commandErrorMessage, runCommand, writeWasAccepted } from '../../../lib/runCommand';
 
 /**
  * CC-11: the workspace's customer groups and their defaults. A customer in a group starts each new
@@ -48,6 +48,9 @@ export function CustomerGroupsSettings() {
       method: 'POST',
       body: change,
     }).catch((error: unknown) => {
+      // A cut-off answer means the server took the change; only the echo of the new list was lost, and
+      // the screen re-reads it. Reporting it as refused would leave the old list up and invite a retry.
+      if (writeWasAccepted(error)) return {} as { customerGroups?: unknown };
       throw Object.assign(new Error(commandErrorMessage(error) || 'Customer groups could not be saved (owners and accountants can change them).'), { shown: true });
     }).then(async (data) => {
       const customerGroups = normalizeCustomerGroups(data.customerGroups);
