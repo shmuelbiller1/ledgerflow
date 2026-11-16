@@ -64,6 +64,11 @@ function createInvoiceFormState(initialInvoice?: Partial<Invoice>): Partial<Invo
 }
 
 /** Modal form for creating or editing a customer invoice or sales receipt and its line-level dimension labels. */
+/** The custom rate is a percent above 1 and a fraction from 0 to 1 (how customRateCode reads it):
+ *  show it as the percent it charges, and store a typed 1% or less as its fraction. */
+const percentShown = (rate: number | undefined) => { const r = Number(rate) || 0; return r > 0 && r <= 1 ? Math.round(r * 100_000) / 1000 : r; };
+const percentStored = (pct: number) => (pct > 0 && pct <= 1 ? pct / 100 : pct);
+
 export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], accounts = [], initialInvoice, receipt = false }: InvoiceModalProps) {
   const isGuest = useAuthStore(s => s.isGuest && !s.user);
   // Ensure we have arrays even if props were passed as null
@@ -109,7 +114,9 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
     // A new invoice opened for a chosen customer (e.g. from its row) starts with that customer's usual
     // terms, as picking the customer in the form does (I-23, CC-11: its own, its group's, its last);
     // terms the caller set, and every existing invoice, are kept as they are.
-    const preset = !initialInvoice.id && initialInvoice.customerId && !initialInvoice.paymentTerms
+    // a free-maker draft carries the due date already printed on it: the customer's terms don't move it
+    const fromFreeMaker = initialInvoice.metadata?.source === 'free-invoice-maker';
+    const preset = !initialInvoice.id && initialInvoice.customerId && !initialInvoice.paymentTerms && !fromFreeMaker
       ? termsForCustomer(safeCustomers.find(c => c.id === initialInvoice.customerId) as { id: string; paymentTerms?: string; groupId?: string } | undefined,
         pastInvoices, useAuthStore.getState().getCurrentWorkspace()?.customerGroups)
       : null;
@@ -132,9 +139,11 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   }
 
   const editingExisting = Boolean(initialInvoice?.id);
+  // EU-I3: an invoice written (and perhaps already printed) on the free maker keeps its number
+  const keepsOwnNumber = Boolean(initialInvoice?.number && initialInvoice?.metadata?.source === 'free-invoice-maker');
   useEffect(() => {
     // a new invoice gets the next number; an existing one keeps its own
-    if (isOpen && !editingExisting) {
+    if (isOpen && !editingExisting && !keepsOwnNumber) {
       const fetchNextNumber = async () => {
         try {
           const wsId = useAuthStore.getState().currentWorkspaceId;
@@ -147,7 +156,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
       };
       void fetchNextNumber();
     }
-  }, [isOpen, editingExisting]);
+  }, [isOpen, editingExisting, keepsOwnNumber]);
 
   // an edited invoice keeps its memo, terms and email text (they were saved in metadata)
   const savedText = (key: string) => {
@@ -243,7 +252,9 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
         taxCodeId: taxCode?.id,
         taxTreatment: taxCode?.treatment,
         taxBreakdown: totals.components,
-        taxRate: taxCode ? Math.round(effectiveRate(taxCode.components) * 100000) / 1000 : 0,
+        // stored the way customRateCode reads it back: a rate of 1% or less as its fraction, so 0.5%
+        // reopens as 0.5% and not 50%
+        taxRate: taxCode ? percentStored(Math.round(effectiveRate(taxCode.components) * 100000) / 1000) : 0,
         items: items.map(item => {
           const normalized = normalizeDimensionsMap(item.dimensions, useLedgerStore.getState().dimensionNodes || []);
           return normalized !== item.dimensions ? { ...item, dimensions: normalized } : item;
@@ -439,8 +450,8 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                 {taxChoice === 'custom' && (
                   <input id="inv-custom-tax-rate" aria-invalid={Boolean(fieldErrors['inv-custom-tax-rate'])} aria-describedby={fieldErrors['inv-custom-tax-rate'] ? 'inv-custom-tax-rate-error' : undefined}
                     aria-label="Tax rate (%)"
-                    type="number" step="0.001" min="0" max="100" value={invoice.taxRate || 0}
-                    onChange={(e) => setInvoice({ ...invoice, taxRate: Number.parseFloat(e.target.value || '0') })}
+                    type="number" step="0.001" min="0" max="100" value={percentShown(invoice.taxRate)}
+                    onChange={(e) => setInvoice({ ...invoice, taxRate: percentStored(Number.parseFloat(e.target.value || '0')) })}
                     className="w-full min-h-11 px-3 py-2 bg-[var(--ink)] border border-[var(--line)] rounded-xl outline-none font-mono"
                   />
                 )}

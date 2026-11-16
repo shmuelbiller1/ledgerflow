@@ -38,6 +38,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { translateScreenString } from '../../lib/i18n/screenTranslations';
+import { clearFreeInvoice, readFreeInvoice } from '../../lib/freeInvoice';
 import { computeCustomerBalanceSummary, toBaseCents } from '../../server/reports/partyReports';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -54,6 +55,16 @@ import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { inBackground } from '../../lib/inBackground';
 import { buildCustomerColumns, buildInvoiceColumns } from './salesColumns';
 import { runCommand } from '../../lib/runCommand';
+
+/** EU-I3: the maker's "Bill to" becomes an existing customer of that name, or a new one the form creates on save. */
+function withCustomer(draft: Partial<Invoice>, customers: Customer[]): Partial<Invoice> {
+  // the shared resolver: an exact name wins, a loose match counts only when it is the only one
+  const { party, ambiguous } = matchPartyByName(customers, (draft.customerName || '').trim());
+  if (party) return { ...draft, customerId: party.id, customerName: party.name };
+  // two customers fit the name: leave the choice to the person instead of guessing one
+  if (ambiguous) return { ...draft, customerId: undefined };
+  return { ...draft, customerId: `new-${crypto.randomUUID()}` };
+}
 
 /** Accounts receivable workspace screen for customer invoices, receipts, payments, and credit notes. */
 export default function Sales() {
@@ -83,10 +94,17 @@ export default function Sales() {
   const detailOpenerId = useDetailReturnFocus(selectedCustomerId);
 
   const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'customers'>('invoices');
-  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  // EU-I3: a draft from the free maker opens only in the sample company (a guest with no account)
+  const sampleSession = useAuthStore(st => st.isGuest && !st.user);
+  const signedInUid = useAuthStore(st => st.user?.uid);
+  const workspaceIdNow = useAuthStore(st => st.currentWorkspaceId);
+  const [freeDraft] = useState(() => (typeof window === 'undefined' || (!sampleSession && !signedInUid) ? null : readFreeInvoice(window.localStorage, { sample: sampleSession, uid: signedInUid, workspaceId: workspaceIdNow || undefined })));
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(Boolean(freeDraft));
   const [openingOpen, setOpeningOpen] = useState(false);
   const [receiptMode, setReceiptMode] = useState(false);
-  const [newInvoiceFor, setNewInvoiceFor] = useState<Partial<Invoice> | undefined>(undefined);
+  const [newInvoiceFor, setNewInvoiceFor] = useState<Partial<Invoice> | undefined>(() => (freeDraft ? withCustomer(freeDraft, customers) : undefined));
+  // the stored copy stays until the draft is saved or deliberately closed, so a reload keeps it
+  const finishFreeDraft = () => { if (freeDraft) clearFreeInvoice(window.localStorage); };
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [customerTag, setCustomerTag] = useState<string | null>(null);
   const [showArchivedCustomers, setShowArchivedCustomers] = useState(false);
@@ -318,8 +336,8 @@ export default function Sales() {
       {openingOpen && <OpeningDocumentsDialog side="customer" onClose={() => setOpeningOpen(false)} />}
       {isInvoiceModalOpen && (
         <InvoiceModal key={`${newInvoiceFor?.id || 'new'}${receiptMode ? '-receipt' : ''}`} isOpen={isInvoiceModalOpen} receipt={receiptMode}
-          onClose={() => { setIsInvoiceModalOpen(false); setNewInvoiceFor(undefined); setReceiptMode(false); }}
-          onSave={async (inv) => { await onAddInvoice(inv); setIsInvoiceModalOpen(false); setNewInvoiceFor(undefined); setReceiptMode(false); }}
+          onClose={() => { finishFreeDraft(); setIsInvoiceModalOpen(false); setNewInvoiceFor(undefined); setReceiptMode(false); }}
+          onSave={async (inv) => { await onAddInvoice(inv); finishFreeDraft(); setIsInvoiceModalOpen(false); setNewInvoiceFor(undefined); setReceiptMode(false); }}
           customers={customers} accounts={accounts} initialInvoice={newInvoiceFor} />
       )}
       <CustomerModal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)}
