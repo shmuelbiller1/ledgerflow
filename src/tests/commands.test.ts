@@ -182,7 +182,11 @@ test('API-key scopes validate exact, unique permissions and command paths use th
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/creditNote.create'), 'write:transactions');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/vendorCredit.update/preview'), 'write:transactions');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/payment.receive/preview'), 'write:transactions');
-  for (const name of ['period.balancesrebuild', 'period.close', 'period.closesteps', 'period.depreciation', 'period.fxrevaluation', 'period.fxrevaluationundo', 'period.relock', 'period.reopen', 'period.signoff', 'period.unlock', 'period.yearclose']) {
+  for (const name of ['period.close', 'period.closesteps', 'period.depreciation', 'period.relock', 'period.reopen', 'period.signoff', 'period.unlock']) {
+    assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:workspaces');
+  }
+  assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/period.unlock/preview'), 'write:workspaces');
+  for (const name of ['period.balancesrebuild', 'period.fxrevaluation', 'period.fxrevaluationundo', 'period.yearclose']) {
     assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:transactions');
   }
   assert.equal(requiredApiKeyScope('GET', '/api/v1/commands'), 'read:transactions');

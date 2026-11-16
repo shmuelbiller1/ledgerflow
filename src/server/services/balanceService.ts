@@ -116,20 +116,34 @@ export const snapshotId = (workspaceId: string, asOf: string) => `${workspaceId}
 let known: { exists: boolean; at: number } | null = null;
 let warned = false;
 
-/** Whether the periodBalances table exists (cached; looked for again after a minute when missing). */
-export async function periodBalancesReady(db: Firestore): Promise<boolean> {
-  if (known && (known.exists || Date.now() - known.at < 60_000)) return known.exists;
-  try {
-    const result = await db.pool.query(`select to_regclass('public."periodBalances"') is not null as ok`);
-    known = { exists: Boolean(result.rows[0]?.ok), at: Date.now() };
-  } catch {
-    known = { exists: false, at: Date.now() };
-  }
-  if (!known.exists && !warned) {
+function recordPeriodBalancesReady(exists: boolean): boolean {
+  known = { exists, at: Date.now() };
+  if (!exists && !warned) {
     warned = true;
     console.warn('[balances] the periodBalances table is missing: apply supabase/migrations/20261023000000_period_balances.sql. Balances are summed from every entry until then.');
   }
-  return known.exists;
+  return exists;
+}
+
+/** Whether the periodBalances table exists (cached; looked for again after a minute when missing). */
+export async function periodBalancesReady(db: Firestore, tx?: DbTransaction): Promise<boolean> {
+  // A command already owns this checked-out connection; probing through db.pool here deadlocks at PG_POOL_MAX=1.
+  if (tx && typeof tx.tablesExist === 'function') {
+    return recordPeriodBalancesReady(await tx.tablesExist('periodBalances'));
+  }
+  if (known && (known.exists || Date.now() - known.at < 60_000)) return known.exists;
+  try {
+    const result = await db.pool.query(`select to_regclass('public."periodBalances"') is not null as ok`);
+    return recordPeriodBalancesReady(Boolean(result.rows[0]?.ok));
+  } catch {
+    return recordPeriodBalancesReady(false);
+  }
+}
+
+/** @internal Resets cached periodBalances readiness state between unit tests. */
+export function resetPeriodBalancesReadyForTests(): void {
+  known = null;
+  warned = false;
 }
 
 const add = (map: Cents, key: string, cents: number) => { map[key] = (map[key] || 0) + cents; };
@@ -359,7 +373,7 @@ export async function snapshotRebuildPlan(db: Firestore, workspaceId: string): P
 
 /** Rebuild every stale/closed-year snapshot inside the command runner's single serializable transaction. */
 export async function rebuildSnapshotsInTransaction(db: Firestore, tx: DbTransaction, workspaceId: string, builtBy = 'server'): Promise<{ built: string[] }> {
-  if (!(await periodBalancesReady(db))) return { built: [] };
+  if (!(await periodBalancesReady(db, tx))) return { built: [] };
   const [snapshots, workspace, logs] = await Promise.all([
     tx.get(db.collection('periodBalances').where('workspaceId', '==', workspaceId)),
     tx.get(db.collection('workspaces').doc(workspaceId)),

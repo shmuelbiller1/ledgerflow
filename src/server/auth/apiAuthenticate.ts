@@ -24,6 +24,9 @@ export function requiredApiKeyScope(method: string, path: string): string {
     let name = match?.[1] || '';
     try { name = decodeURIComponent(name); } catch { /* an invalid name will be refused by the command router */ }
     if (/^autorule\./.test(name)) return 'write:rules';
+    // Period-management commands keep the legacy /workspaces/:id/periods restriction; in
+    // particular, transaction integrations must not gain permission to unlock or reopen books.
+    if (/^period\.(close|closesteps|depreciation|relock|reopen|signoff|unlock)$/.test(name)) return 'write:workspaces';
     // Workspace/team features use the same scope as their legacy /workspaces routes.
     if (/^(alerts|tasks|watches|entrylink|time|stages|workspace)\./.test(name)) return 'write:workspaces';
     if (/^(customer|warranty)\./.test(name)) return 'write:customers';

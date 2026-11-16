@@ -12,6 +12,8 @@ import {
 } from '../server/db/pgFirestore';
 import { resetStockMovesReadyForTests, stockMovesReady } from '../server/services/stockMoveService';
 import { allocationLedgerReady, resetAllocationLedgerReadyForTests } from '../server/services/allocationLedger';
+import { periodBalancesReady, rebuildSnapshotsInTransaction, resetPeriodBalancesReadyForTests } from '../server/services/balanceService';
+import { periodClosingsReady, resetPeriodClosingsReadyForTests } from '../server/services/periodClosingService';
 import type { Transaction } from '../types';
 
 /** Builds a balanced sample ledger transaction with full dimensional and line metadata. */
@@ -524,6 +526,41 @@ describe('pg.Pool concurrency-safe sizing and cold-start transaction safety', ()
     } finally {
       resetStockMovesReadyForTests();
       resetAllocationLedgerReadyForTests();
+      await pool.end();
+    }
+  });
+
+  test('period table readiness and snapshot rebuilds reuse the active connection on cold start at max=1', async () => {
+    resetPeriodBalancesReadyForTests();
+    resetPeriodClosingsReadyForTests();
+
+    let regclassQueries = 0;
+    const pool = new pg.Pool({
+      max: 1,
+      connectionTimeoutMillis: 200,
+      Client: makeSingleSlotClientClass({ onRegclass: () => { regclassQueries += 1; } }) as unknown as typeof pg.Client,
+    });
+    const db = new Firestore({ pool });
+
+    try {
+      const ready = await db.runTransaction(async (tx) => {
+        const [balances, closings] = await Promise.all([
+          periodBalancesReady(db, tx),
+          periodClosingsReady(db, tx),
+        ]);
+        return { balances, closings };
+      });
+      assert.deepEqual(ready, { balances: true, closings: true }, 'year-close readiness checks use the transaction client');
+      assert.equal(regclassQueries, 2);
+
+      resetPeriodBalancesReadyForTests();
+      regclassQueries = 0;
+      const rebuilt = await db.runTransaction(tx => rebuildSnapshotsInTransaction(db, tx, 'ws-1'));
+      assert.deepEqual(rebuilt, { built: [] });
+      assert.equal(regclassQueries, 1, 'snapshot rebuild readiness also uses the transaction client');
+    } finally {
+      resetPeriodBalancesReadyForTests();
+      resetPeriodClosingsReadyForTests();
       await pool.end();
     }
   });

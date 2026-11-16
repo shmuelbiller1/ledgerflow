@@ -83,8 +83,8 @@ export const periodYearCloseCommand: CommandDefinition<typeof periodYearCloseInp
 
     if (lockPeriod) {
       const [withSnapshot, withClosing] = await Promise.all([
-        periodBalancesReady(ctx.db),
-        periodClosingsReady(ctx.db),
+        periodBalancesReady(ctx.db, tx),
+        periodClosingsReady(ctx.db, tx),
       ]);
       const stored = withClosing ? await readClosings(ctx.db, tx, ctx.workspaceId) : [];
       const now = new Date().toISOString();
