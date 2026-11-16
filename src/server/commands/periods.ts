@@ -243,13 +243,26 @@ export const periodCloseStepsCommand: CommandDefinition<typeof periodCloseStepsI
   async preview(ctx, input) {
     const problem = closeStepsProblem(input.steps);
     if (problem) throw new PeriodCloseError(400, problem);
-    const before = Array.isArray(ctx.workspace.closeSteps) ? ctx.workspace.closeSteps as Array<{ id: string; title: string }> : [];
+    const before = Array.isArray(ctx.workspace.closeSteps)
+      ? ctx.workspace.closeSteps as Array<{ id: string; title: string; frequency: string }>
+      : [];
+    const beforeById = new Map(before.map(step => [step.id, step]));
     const afterIds = new Set(input.steps.flatMap(step => step.id ? [step.id] : []));
     const removed = before.filter(step => !afterIds.has(step.id)).map(step => `Remove “${step.title}”`);
-    const added = input.steps.filter(step => !step.id || !before.some(previous => previous.id === step.id)).map(step => `Add “${step.title.trim()}”`);
+    const added = input.steps.filter(step => !step.id || !beforeById.has(step.id)).map(step => `Add “${step.title.trim()}”`);
+    const edited = input.steps.flatMap(step => {
+      const previous = step.id ? beforeById.get(step.id) : undefined;
+      if (!previous) return [];
+      const title = step.title.trim();
+      const changes: string[] = [];
+      if (previous.title !== title) changes.push(`Rename “${previous.title}” to “${title}”`);
+      if (previous.frequency !== step.frequency) changes.push(`Change frequency of “${title}” from ${previous.frequency} to ${step.frequency}`);
+      return changes;
+    });
+    const lines = [...added, ...edited, ...removed];
     return {
       title: 'Save workspace month-end checklist steps',
-      lines: [...added, ...removed].length ? [...added, ...removed] : [`Keep ${input.steps.length} existing step${input.steps.length === 1 ? '' : 's'}.`],
+      lines: lines.length ? lines : [`Keep ${input.steps.length} existing step${input.steps.length === 1 ? '' : 's'}.`],
     };
   },
   audit() { return null; },

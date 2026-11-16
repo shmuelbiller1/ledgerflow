@@ -18,6 +18,7 @@ import { watchCreateCommand } from '../server/commands/watches';
 import { customerCreateCommand, customerCreateInput, customerUpdateCommand, customerUpdateInput, warrantyUpdateCommand, warrantyUpdateInput } from '../server/commands/customers';
 import { vendorCreateCommand, vendorCreateInput, vendorUpdateCommand, vendorUpdateInput } from '../server/commands/vendors';
 import { paymentReceiveCommand, paymentReceiveInput } from '../server/commands/payments';
+import { periodCloseStepsCommand } from '../server/commands/periods';
 import {
   billCreateCommand,
   billCreateInput,
@@ -305,6 +306,39 @@ test('previews call only the read-only preview hook and pass the effective date'
   assert.equal(counters.runs, 0);
   assert.equal(counters.audits, 0);
   assert.equal(db.entries('commandRecords').length, 0);
+});
+
+test('period.closesteps preview reports retained-step title and frequency edits', async () => {
+  const db = new MemoryDb();
+  const stepId = 'cs_abcdef';
+  seedWorkspace(db, workspaceId, {
+    closeSteps: [{ id: stepId, title: 'Review payroll report', frequency: 'monthly' }],
+  });
+  const input = { steps: [{ id: stepId, title: 'Review payroll summary', frequency: 'yearly' }] };
+  const outcome = await previewCommand(fakeRequest(owner, { workspaceId, input }),
+    { definition: periodCloseStepsCommand, workspaceId, input }, runnerDependencies(db));
+
+  assert.equal(outcome.ok, true);
+  if (outcome.ok) {
+    assert.equal(outcome.preview.title, 'Save workspace month-end checklist steps');
+    assert.deepEqual(outcome.preview.lines, [
+      'Rename “Review payroll report” to “Review payroll summary”',
+      'Change frequency of “Review payroll summary” from monthly to yearly',
+    ]);
+  }
+  assert.equal(db.directWriteCount, 0, 'the preview does not write to the workspace');
+});
+
+test('period.closesteps preview keeps unchanged retained steps distinct from edits', async () => {
+  const db = new MemoryDb();
+  const step = { id: 'cs_abcdef', title: 'Review payroll report', frequency: 'monthly' };
+  seedWorkspace(db, workspaceId, { closeSteps: [step] });
+  const input = { steps: [step] };
+  const outcome = await previewCommand(fakeRequest(owner, { workspaceId, input }),
+    { definition: periodCloseStepsCommand, workspaceId, input }, runnerDependencies(db));
+
+  assert.equal(outcome.ok, true);
+  if (outcome.ok) assert.deepEqual(outcome.preview.lines, ['Keep 1 existing step.']);
 });
 
 test('customer.create accepts the PartyModal fields, ignores client identity, and rejects unwriteable server fields', async () => {
