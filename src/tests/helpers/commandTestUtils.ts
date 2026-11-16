@@ -64,7 +64,7 @@ export class MemoryDb {
       .map(([path, data]) => ({ id: path.slice(prefix.length), data: clone(data) }));
   }
 
-  /** `getAll` over several references, the way the Postgres adapter offers it (account validation reads accounts so). */
+  /** `getAll` over several references, as the Postgres layer offers it (account validation reads accounts so). */
   async getAll(...refs: MemoryRef[]): Promise<MemorySnapshot[]> {
     return Promise.all(refs.map(ref => ref.get()));
   }

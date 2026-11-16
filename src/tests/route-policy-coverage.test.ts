@@ -237,7 +237,7 @@ describe('Route Policy Coverage Suite (D-30 / F-02: Per-Registration & Tenant Wa
       },
       'landedCostRoutes.ts': {
         parentFile: 'inventoryRoutes.ts',
-        mountCheck: "inventoryRouter.use('/landed-cost', landedCostRouter)",
+        mountCheck: "router.use('/landed-cost', landedCostRouter)",
       },
       'stockClosingRoutes.ts': {
         parentFile: 'inventoryRoutes.ts',

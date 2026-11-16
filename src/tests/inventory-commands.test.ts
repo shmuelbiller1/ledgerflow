@@ -29,6 +29,7 @@ import {
   inventoryTransferCommand,
   inventoryUndoDeliveryCommand,
 } from '../server/commands/inventory';
+import { resetStockMovesReadyForTests } from '../server/services/stockMoveService';
 import { MemoryDb, ReplayOnRetryMemoryDb, runnerDependencies, type TestCounters } from './helpers/commandTestUtils';
 
 const OWNER = 'owner-1';
@@ -80,7 +81,8 @@ function seed(db: MemoryDb): void {
 async function createHarness(options: { replay?: { key: string; data: Record<string, unknown> } } = {}) {
   const db = new (options.replay ? ReplayOnRetryMemoryDb : MemoryDb)() as MemoryDb;
   if (db instanceof ReplayOnRetryMemoryDb && options.replay) db.replayRecord = options.replay;
-  // this server keeps the stock history (stockMovesReady probes the tables once per process)
+  // this server keeps the stock history (stockMovesReady remembers its probe for the process)
+  resetStockMovesReadyForTests();
   (db as unknown as { pool: unknown }).pool = {
     async query(sql: string) {
       if (/to_regclass/.test(sql)) return { rows: [{ ok: true }] };
@@ -128,7 +130,11 @@ async function createHarness(options: { replay?: { key: string; data: Record<str
 
   return {
     db, counters, auditEntries, call, post, quantity, entries,
-    async close() { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); },
+    async close() {
+      // leave the process-wide probe as it was found, so the other suites' databases are probed themselves
+      resetStockMovesReadyForTests();
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    },
   };
 }
 

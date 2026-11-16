@@ -8,9 +8,13 @@ import { recordAuthEvent } from '../server/services/authAuditService';
 import type { Firestore } from '../server/db/firestore';
 
 describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON body limits', () => {
-  it('F-10: inventoryRoutes, leaseRoutes, and revenueRoutes all use executeIdempotent + payloadHash + ledgerCreate', () => {
+  it('F-10: inventoryRoutes delegates to the command runner; leaseRoutes and revenueRoutes use executeIdempotent + payloadHash + ledgerCreate', () => {
+    // the inventory writes are registered commands now: the runner owns the operation id, the payload
+    // hash, the single transaction with its ledger entry and the audit line (see inventory-commands.test.ts)
+    const inventory = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/inventoryRoutes.ts'), 'utf8');
+    assert.match(inventory, /\bexecuteCommand\s*\(\s*req\s*,\s*res\s*,\s*\{/, 'inventoryRoutes must run its writes through the command runner');
+    assert.match(inventory, /withLegacyInputIdempotencyHash\(/, 'and keep the legacy request fingerprint for a retry');
     for (const rel of [
-      'src/server/routes/inventoryRoutes.ts',
       'src/server/routes/leaseRoutes.ts',
       'src/server/routes/revenueRoutes.ts',
     ]) {
