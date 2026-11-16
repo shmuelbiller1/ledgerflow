@@ -18,6 +18,7 @@ import { afterPaymentRecorded } from './afterPayment';
 import { logger } from '../utils/logger';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { formatTzDate } from '../../lib/calendarDate';
+import { currencyDigits, minorToMajor } from '../../lib/currencyMinorUnits';
 
 export interface StripeInvoiceSession {
   id: string;
@@ -157,7 +158,8 @@ export async function recordStripeInvoicePayment(db: Firestore, eventId: string,
   if (!result) return { status: 'already_processed' };
   await afterPaymentRecorded(db, result.payment);
   if (result.overpaidCents > 0) {
-    const money = (cents: number) => `${(cents / 100).toFixed(2)} ${String(invoice.currency || workspace.currency || 'USD').toUpperCase()}`;
+    const cur = String(invoice.currency || workspace.currency || 'USD').toUpperCase();
+    const money = (cents: number) => `${minorToMajor(cents, cur).toFixed(currencyDigits(cur))} ${cur}`;
     await notify(db, {
       workspaceId, kind: 'payment.received', workspace, recordId: result.paymentId, eventKey: `refund-review:${result.paymentId}`,
       title: `Overpaid online: ${money(result.overpaidCents)} to review for a refund`,

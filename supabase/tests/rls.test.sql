@@ -961,5 +961,94 @@ begin
   end if;
 end $$;
 
+-- Agent #8 (2026-11-16): A8-010 (MFA two_step_login on all user tables), A8-009 (documents kind guard),
+-- and A7N-06 / A8-012 (assets server-managed accounting fields).
+do $a8$
+declare
+  missing_mfa text[];
+  mfa_uid text := '00000000-0000-4000-8000-00000000a810';
+begin
+  -- A8-010: Every user-accessible RLS table must enforce restrictive two_step_login
+  select array_agg(t.tablename order by t.tablename) into missing_mfa
+  from pg_tables t
+  where t.schemaname = 'public'
+    and t.rowsecurity = true
+    and t.tablename not in ('lf_rules', 'rateLimitEntries', 'recoveryCodes')
+    and not exists (
+      select 1 from pg_policies p
+      where p.schemaname = 'public' and p.tablename = t.tablename
+        and p.policyname = 'two_step_login' and p.permissive = 'RESTRICTIVE'
+    );
+  if coalesce(array_length(missing_mfa, 1), 0) > 0 then
+    raise exception 'FAIL A8-010: tables missing restrictive two_step_login policy: %', missing_mfa;
+  end if;
+
+  -- A8-010 behavioral proof: aal1 user with verified TOTP factor cannot read/write loans or purchaseOrders, aal2 can
+  perform set_config('request.jwt.claims', '', true);
+  insert into auth.users (id, email) values (mfa_uid::uuid, 'a8-mfa@test.local');
+  update public.workspaces
+     set data = jsonb_set(data, array['roles', mfa_uid], '"bookkeeper"'::jsonb, true)
+   where id = 'ws1';
+  insert into auth.mfa_factors (id, user_id, factor_type, status, created_at, updated_at)
+  values ('00000000-0000-4000-8000-00000000f810', mfa_uid::uuid, 'totp', 'verified', now(), now());
+  insert into public.loans (id, data)
+  values ('a8-mfa-loan', '{"workspaceId":"ws1","name":"Equipment Loan","principalCents":50000}'::jsonb);
+  insert into public."purchaseOrders" (id, data)
+  values ('a8-mfa-po', '{"workspaceId":"ws1","number":"PO-A8","status":"draft","totalCents":1000}'::jsonb);
+
+  if pg_temp.count_as(mfa_uid, 'aal1', $$select count(*) from public.loans where id = 'a8-mfa-loan'$$) <> 0 then
+    raise exception 'FAIL A8-010: aal1 session read public.loans despite verified TOTP';
+  end if;
+  if pg_temp.try_as(mfa_uid, $$insert into public.loans (id, data) values ('a8-mfa-loan-2', '{"workspaceId":"ws1","name":"Bypass","principalCents":100}'::jsonb)$$) then
+    raise exception 'FAIL A8-010: aal1 session inserted into public.loans despite verified TOTP';
+  end if;
+  if pg_temp.count_as(mfa_uid, 'aal1', $$select count(*) from public."purchaseOrders" where id = 'a8-mfa-po'$$) <> 0 then
+    raise exception 'FAIL A8-010: aal1 session read public.purchaseOrders despite verified TOTP';
+  end if;
+  if pg_temp.count_as(mfa_uid, 'aal2', $$select count(*) from public.loans where id = 'a8-mfa-loan'$$) <> 1 then
+    raise exception 'FAIL A8-010: aal2 session could not read public.loans';
+  end if;
+
+  -- A8-009: browser viewer/owner cannot forge server-managed kind records in public.documents,
+  -- while ordinary file attachments still succeed
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.documents (id, data)
+  values ('a8-srv-time', '{"workspaceId":"ws1","uid":"u-view","kind":"timeEntry","status":"open","minutes":60,"person":"u-view"}'::jsonb);
+
+  if pg_temp.try_as('u-view', $$insert into public.documents (id, data) values ('ws1_stageSets', '{"workspaceId":"ws1","uid":"u-view","kind":"stageSets","sets":[]}'::jsonb)$$) then
+    raise exception 'FAIL A8-009: viewer forged kind=stageSets row in public.documents';
+  end if;
+  if pg_temp.try_as('u-view', $$insert into public.documents (id, data) values ('a8-forged-time', '{"workspaceId":"ws1","uid":"u-view","kind":"timeEntry","status":"approved","paidRunId":"run1"}'::jsonb)$$) then
+    raise exception 'FAIL A8-009: viewer forged kind=timeEntry row in public.documents';
+  end if;
+  if pg_temp.try_as('u-view', $$update public.documents set data = data || '{"status":"approved"}'::jsonb where id = 'a8-srv-time'$$) then
+    raise exception 'FAIL A8-009: viewer updated server-managed timeEntry row in public.documents';
+  end if;
+  if not pg_temp.try_as('u-view', $$insert into public.documents (id, data) values ('a8-plain-file', '{"workspaceId":"ws1","uid":"u-view","name":"receipt.pdf","fileUrl":"https://example.test/r.pdf"}'::jsonb)$$) then
+    raise exception 'FAIL A8-009: plain file upload in public.documents was wrongly blocked';
+  end if;
+
+  -- A7N-06 / A8-012: browser cannot forge or mutate server-managed accounting fields on public.assets
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.assets (id, data)
+  values ('a8-srv-asset', '{"workspaceId":"ws1","name":"Server Laptop","purchasePriceCents":100000,"accumulatedDepreciationCents":20000,"depreciatedThrough":"2026-03","status":"active"}'::jsonb);
+
+  if not pg_temp.try_as('u-book', $$insert into public.assets (id, data) values ('a8-cli-asset', '{"workspaceId":"ws1","name":"Desk","purchasePriceCents":50000,"accumulatedDepreciationCents":0,"status":"active"}'::jsonb)$$) then
+    raise exception 'FAIL A7N-06: legitimate new asset insert was wrongly blocked';
+  end if;
+  if not pg_temp.try_as('u-book', $$update public.assets set data = data || '{"assetTag":"AST-001"}'::jsonb where id = 'a8-srv-asset'$$) then
+    raise exception 'FAIL A7N-06: legitimate asset metadata update (assetTag) was wrongly blocked';
+  end if;
+  if pg_temp.try_as('u-book', $$update public.assets set data = data || '{"status":"disposed","disposalTransactionId":"victim-tx-id"}'::jsonb where id = 'a8-srv-asset'$$) then
+    raise exception 'FAIL A8-012: browser bookkeeper forged disposalTransactionId on public.assets';
+  end if;
+  if pg_temp.try_as('u-book', $$update public.assets set data = data || '{"accumulatedDepreciationCents":0}'::jsonb where id = 'a8-srv-asset'$$) then
+    raise exception 'FAIL A7N-06: browser bookkeeper overwrote accumulatedDepreciationCents on public.assets';
+  end if;
+  if pg_temp.try_as('u-book', $$delete from public.assets where id = 'a8-srv-asset'$$) then
+    raise exception 'FAIL A7N-06: browser bookkeeper deleted depreciated asset directly';
+  end if;
+end $a8$;
+
 select 'ALL RLS TESTS PASSED' as result;
 rollback;

@@ -111,6 +111,9 @@ export async function undoPlaceInService(db: Firestore, input: Actor) {
     if (lock) throw new InServiceError(409, lockMessage(placed.date, lock));
     const entryRef = db.collection('transactions').doc(placed.transactionId);
     const entry = (await t.get(entryRef)).data();
+    if (entry && entry.workspaceId !== input.workspaceId) {
+      throw new InServiceError(403, 'Placed-in-service transaction does not belong to this workspace');
+    }
     const now = new Date().toISOString();
     if (entry && entry.status !== 'void') t.update(entryRef, { status: 'void', voidedReason: 'Placing in service undone', voidedAt: now, updatedAt: now });
     t.update(assetRef, { status: 'in_progress', purchaseDate: placed.startedOn, assetAccountId: placed.cipAccountId, placedInService: FieldValue.delete(), updatedAt: now });

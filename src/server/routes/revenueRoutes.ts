@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { FieldValue, getDb, assertPeriodOpen, isWorkspaceMemberData } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
+import { lockMessage, postingLock } from '../../lib/periodLock';
 import { mayPostEntries } from '../http/ledgerWriter';
 import { ledgerCreate } from '../services/ledgerDoor';
 import { writeServerAuditLog } from '../services/auditLogService';
@@ -53,6 +54,7 @@ revenueRouter.post('/recognize', async (req, res) => {
     // 2. Validate period lock
     await assertPeriodOpen(db, workspaceId, txDate, user.uid);
 
+    const wsCurrency = typeof wsData?.currency === 'string' && wsData.currency ? wsData.currency : 'USD';
     const tx = {
       id: db.collection('transactions').doc().id,
       workspaceId,
@@ -60,7 +62,7 @@ revenueRouter.post('/recognize', async (req, res) => {
       date: txDate,
       description: `ASC 606 Revenue Recognition for Contract ${contractId || 'Unknown'} (Period ${periodId || 'N/A'})`,
       totalAmountCents: amountCents,
-      currency: 'USD',
+      currency: wsCurrency,
       type: 'journal' as const,
       status: 'approved' as const,
       isCleared: true,
@@ -99,6 +101,8 @@ revenueRouter.post('/recognize', async (req, res) => {
       if (!isWorkspaceMemberData(wsNow, user, workspaceId) || !mayPostEntries(wsNow, user)) {
         throw Object.assign(new Error('Only owners, accountants and bookkeepers post entries'), { status: 403 });
       }
+      const lock = postingLock(txDate, wsNow as never, user.uid);
+      if (lock) throw Object.assign(new Error(lockMessage(txDate, lock)), { status: 409 });
       const txRef = db.collection('transactions').doc(validatedTx.id);
       ledgerCreate(t, txRef, { ...validatedTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
       await writeServerAuditLog({

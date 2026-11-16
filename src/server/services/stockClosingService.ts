@@ -14,7 +14,7 @@ import type { Firestore } from '../db/firestore';
 import type { StockMove } from '../../lib/stockMoves';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { buildStockClosing, checkStockAgainstBooks, closingFreshness, inventoryEntriesChecksum, negativeStockDays, type StockClosing } from '../../lib/stockInvariants';
-import { balancesAsOf } from './balanceService';
+import { balancesAsOf, snapshotFromEntries } from './balanceService';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const stockClosingId = (workspaceId: string, asOf: string) => `${workspaceId}_${asOf}`;
@@ -47,9 +47,6 @@ export async function inventoryBalanceAsOf(db: Firestore, workspaceId: string, d
   return inventory.reduce((s, a) => s + (balances.accounts[a.id] || 0) + (Number(a.openingBalanceCents) || 0), 0);
 }
 
-const itemsOf = async (db: Firestore, workspaceId: string) =>
-  (await db.collection('inventory').where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...(d.data() as { name?: string; quantityAtHand?: number; itemType?: string }), id: d.id }));
-
 const entriesThrough = async (db: Firestore, workspaceId: string, asOf: string) =>
   (await db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '<=', `${asOf}T23:59:59.999Z`).get()).docs.map(d => ({ ...d.data(), id: d.id }) as Transaction);
 
@@ -66,11 +63,20 @@ export async function writeStockClosing(db: Firestore, input: { workspaceId: str
     // a partial unlock reopens dates in the period: its stock and entries can still change
     const ex = ws.lockException as { fromDate?: string; toDate?: string } | null | undefined;
     if (ex?.fromDate && ex.fromDate <= asOf) throw new StockClosingError(409, `${ex.fromDate}${ex.toDate ? ` to ${ex.toDate}` : ''} is unlocked: lock it again before taking the stock closing of ${asOf}.`);
-    // every move, any date: an item's history start comes from its first move written, whatever its date
-    const moves = (await t.get(db.collection('stockMoves').where('workspaceId', '==', input.workspaceId))).docs
-      .map(d => ({ ...d.data(), id: d.id }) as StockMove);
-    const [entries, accounts, items] = await Promise.all([entriesThrough(db, input.workspaceId, asOf), accountsOf(db, input.workspaceId), itemsOf(db, input.workspaceId)]);
-    const inventoryBalanceCents = await inventoryBalanceAsOf(db, input.workspaceId, asOf, accounts);
+    // A8-021: read all inputs sequentially inside the serializable transaction (`t.get`) so stockMoves,
+    // transactions, chartAccounts, and inventory come from one consistent database snapshot on one client.
+    const movesSnap = await t.get(db.collection('stockMoves').where('workspaceId', '==', input.workspaceId));
+    const entriesSnap = await t.get(db.collection('transactions').where('workspaceId', '==', input.workspaceId).where('date', '<=', `${asOf}T23:59:59.999Z`));
+    const accountsSnap = await t.get(db.collection('chartAccounts').where('workspaceId', '==', input.workspaceId));
+    const itemsSnap = await t.get(db.collection('inventory').where('workspaceId', '==', input.workspaceId));
+    const moves = movesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as StockMove);
+    const entries = entriesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as Transaction);
+    const accounts = accountsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ChartAccount);
+    const items = itemsSnap.docs.map(d => ({ ...(d.data() as { name?: string; quantityAtHand?: number; itemType?: string }), id: d.id }));
+    const snapshot = snapshotFromEntries(input.workspaceId, asOf, accounts, entries, input.uid);
+    const inventoryBalanceCents = accounts
+      .filter(a => resolveAccountRole(a) === 'inventory')
+      .reduce((s, a) => s + (snapshot.accounts[a.id] || 0) + (Number(a.openingBalanceCents) || 0), 0);
     const booksChecksum = inventoryEntriesChecksum(entries, accounts, asOf);
     const closing = buildStockClosing({ workspaceId: input.workspaceId, asOf, moves, inventoryBalanceCents, booksChecksum, items, builtBy: input.uid, at: new Date().toISOString() });
     t.set(db.collection('stockClosings').doc(stockClosingId(input.workspaceId, asOf)), { ...closing });

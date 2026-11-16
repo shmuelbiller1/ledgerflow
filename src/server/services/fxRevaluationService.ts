@@ -120,7 +120,7 @@ function toRevaluable(
     .map((row) => {
       const account = ledgerAccountFor(
         accounts, side,
-        side === 'customer' ? String(row.arAccountId || '') || undefined : undefined,
+        side === 'customer' ? String(row.arAccountId || '') || undefined : String(row.apAccountId || '') || undefined,
         side === 'customer' ? mapping.ar : mapping.ap,
       );
       return {
@@ -246,7 +246,8 @@ export async function revaluateForeignBalances(db: Firestore, input: Revaluation
       .where('workspaceId', '==', input.workspaceId)
       .where('date', 'in', [date, reversalDate]))).docs
       .map(d => d.data() as DocumentData);
-    if (sameDay.some(tx => tx.metadata?.type === 'fx-revaluation' && tx.metadata?.revaluationDate === date)) {
+    // A8-001: ignore already-reversed/voided revaluations so re-running after undo succeeds
+    if (sameDay.some(tx => tx.metadata?.type === 'fx-revaluation' && tx.metadata?.revaluationDate === date && !tx.reversalEventId && tx.status !== 'void')) {
       throw new FxRevaluationError(409, `A revaluation for ${date} is already in the books and reverses on ${reversalDate}. Undo it first if you mean to run ${date} again.`);
     }
     if (input.dryRun) return result(date, reversalDate, base, plan, false, null, null, rateDate);
@@ -313,12 +314,13 @@ export async function undoRevaluation(db: Firestore, input: { workspaceId: strin
     if (!ADMIN_ROLES.includes(workspaceRole(workspace, input.user.uid))) {
       throw new FxRevaluationError(403, 'Only owners and accountants undo a currency revaluation');
     }
-    const found = (await t.get(db.collection('transactions')
+    const candidates = (await t.get(db.collection('transactions')
       .where('workspaceId', '==', input.workspaceId)
       .where('date', '==', date))).docs
       .map(d => ({ ...d.data(), id: d.id }) as DocumentData)
-      .find(tx => tx.metadata?.type === 'fx-revaluation' && String(tx.metadata?.revaluationDate || '') === date);
-    if (!found) throw new FxRevaluationError(404, `No revaluation for ${date} was found`);
+      .filter(tx => tx.metadata?.type === 'fx-revaluation' && String(tx.metadata?.revaluationDate || '') === date);
+    if (candidates.length === 0) throw new FxRevaluationError(404, `No revaluation for ${date} was found`);
+    const found = candidates.find(tx => !tx.reversalEventId && tx.status !== 'void') || candidates[candidates.length - 1];
     if (found.reversalEventId) throw new FxRevaluationError(409, `The revaluation for ${date} is already reversed`);
     const scheduledId = String(found.metadata?.reversalTransactionId || '');
     if (!scheduledId) throw new FxRevaluationError(409, `The revaluation for ${date} has no scheduled reversal, so it cannot be safely undone.`);

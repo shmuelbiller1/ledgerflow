@@ -155,7 +155,7 @@ describe('Client queries (database)', { skip: !url && 'LF_TEST_DATABASE_URL not 
   });
 
   test('the browser cannot write questions; members read them', async () => {
-    const policies = (await db.pool.query(`select cmd from pg_policies where tablename = 'clientQueries'`)).rows.map(r => r.cmd);
+    const policies = (await db.pool.query(`select cmd from pg_policies where tablename = 'clientQueries' and permissive = 'PERMISSIVE'`)).rows.map(r => r.cmd);
     assert.deepEqual(policies, ['SELECT']);
   });
 });

@@ -22,6 +22,7 @@ import { enforceDoubleEntrySafety, ifMatchVersion, isUpdatedAtMismatch } from '.
 import { FieldsError, parseFields, pickFields } from '../../http/sparseFields';
 import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels';
 import { auditSnapshot, documentEntryRefusal, isPostedEntry, postedDeletionRefusal, postedStatusRefusal } from '../../services/ledgerEditGuards';
+import { documentPostedByServer } from './bulkRoutes';
 
 /**
  * Audit F3: what a journal save checks inside its own transaction, against the workspace as it is now: the actor is
@@ -146,6 +147,8 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       if (!draft.totalAmountCents) draft.totalAmountCents = getAbsoluteTotal(draft);
       const parsed = TransactionSchema.safeParse(draft);
       if (!parsed.success) throw Object.assign(new HttpError('Schema validation failed', 400), { details: parsed.error.issues });
+      const docKey = documentPostedByServer({ transactions: [parsed.data] });
+      if (docKey) throw new HttpError(`${docKey} are saved and posted by the server: POST /api/v1/documents/:type/:id/post with the document`, 400);
       const transactionToSave = { ...parsed.data, id: parsed.data.id || db.collection("transactions").doc().id } as Transaction;
       const wsData = (await db.collection('workspaces').doc(transactionToSave.workspaceId).get()).data();
       if (!isWorkspaceMemberData(wsData, user, transactionToSave.workspaceId)) throw new HttpError('Not a member', 403);
@@ -175,7 +178,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       const txRef = db.collection('transactions').doc(validatedTx.id);
       const doc = await t.get(txRef);
       if (doc.exists) {
-         throw new Error('Duplicate request processing: Transaction ID already exists');
+        throw new HttpError('Duplicate request processing: Transaction ID already exists', 409);
       }
 
       ledgerCreate(t, txRef, { 
@@ -225,6 +228,8 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         if (!entry.totalAmountCents) entry.totalAmountCents = getAbsoluteTotal(entry as unknown as Transaction);
         const parsed = TransactionSchema.safeParse(entry);
         if (!parsed.success) throw Object.assign(new HttpError(`Entry ${index}: schema validation failed`, 400), { details: parsed.error.issues });
+        const docKey = documentPostedByServer({ transactions: [parsed.data] });
+        if (docKey) throw new HttpError(`Entry ${index}: ${docKey} are saved and posted by the server`, 400);
         const id = parsed.data.id || db.collection('transactions').doc().id;
         if (ids.has(id)) throw new HttpError(`Entry ${index}: the id ${id} is used twice in this request`, 400);
         ids.add(id);

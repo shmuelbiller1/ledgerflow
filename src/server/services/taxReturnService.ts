@@ -29,12 +29,13 @@ async function load(db: Firestore, table: string, workspaceId: string): Promise<
  * CON-4b: the documents of one VAT registration (their seller profile, by the entity label of their first line, PLAN
  * §6), as the Israel month journey counts them; without a registration, every document of the workspace.
  */
-export async function computeWorkspaceTaxReturn(db: Firestore, workspaceId: string, startDate: string, endDate: string, scope?: { registration: string; profiles: TaxProfiles; order: string[] }) {
+export async function computeWorkspaceTaxReturn(db: Firestore, workspaceId: string, startDate: string, endDate: string, scope?: { registration: string; profiles: TaxProfiles; order: string[] }, baseCurrency?: string) {
   if (!YMD.test(startDate) || !YMD.test(endDate) || startDate > endDate) throw new TaxReturnError(400, 'Choose a valid period');
+  const resolvedBase = baseCurrency || String((await db.collection('workspaces').doc(workspaceId).get()).data()?.currency || 'USD');
   const [invoices, bills, creditNotes, vendorCredits] = (await Promise.all(
     ['invoices', 'bills', 'creditNotes', 'vendorCredits'].map(t => load(db, t, workspaceId))))
     .map(docs => scope ? docs.filter(d => belongsTo(d, scope.profiles, scope.order, scope.registration)) : docs);
-  return buildTaxReturn({ invoices, bills, creditNotes, vendorCredits, startDate, endDate });
+  return buildTaxReturn({ invoices, bills, creditNotes, vendorCredits, startDate, endDate, baseCurrency: resolvedBase });
 }
 
 /**
@@ -141,8 +142,14 @@ export async function fileTaxReturn(db: Firestore, input: { workspaceId: string;
       documentCount: stateReturn.documentCount,
     };
   } else {
-    computed = await computeWorkspaceTaxReturn(db, input.workspaceId, input.startDate, input.endDate,
-      input.registration ? { registration: input.registration, profiles: profiles || {}, order: [worldId] } : undefined);
+    computed = await computeWorkspaceTaxReturn(
+      db,
+      input.workspaceId,
+      input.startDate,
+      input.endDate,
+      input.registration ? { registration: input.registration, profiles: profiles || {}, order: [worldId] } : undefined,
+      typeof workspace.currency === 'string' && workspace.currency ? workspace.currency : 'USD',
+    );
   }
   // CON-4b review: the period check and the create in one transaction (serializable, retried from the start), so a
   // whole-workspace filing and a registration's filing for the same period cannot both go through

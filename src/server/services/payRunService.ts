@@ -157,6 +157,9 @@ export async function postPayRun(db: Firestore, input: PostPayRunInput) {
     const runRef = db.collection('payRuns').doc();
 
     if ((workspace.payrollApproval === true && role !== 'owner') || twoPersonOn(workspace)) {
+      // A8-014: verify the pay date is in an open period before locking time entries in awaiting_approval
+      const submitLock = postingLock(input.date, workspace as never, input.uid);
+      if (submitLock) throw new PayRunError(409, lockMessage(input.date, submitLock));
       // U-10: kept with its amounts until an owner approves it; nothing is posted yet (with the
       // two-person rule, P-05, every run waits for someone other than whoever prepared it)
       const now = new Date().toISOString();
@@ -300,8 +303,14 @@ export async function undoPayRun(db: Firestore, input: Actor & { payRunId: strin
     if (run.status !== 'processed' || !run.transactionId) throw new PayRunError(409, 'This pay run is not posted');
     const lock = postingLock(String(run.date), workspace as never, input.uid);
     if (lock) throw new PayRunError(409, lockMessage(String(run.date), lock));
+    const txRef = db.collection('transactions').doc(String(run.transactionId));
+    const txSnap = await t.get(txRef);
+    const txData = txSnap.data();
+    if (txData && txData.workspaceId !== input.workspaceId) {
+      throw new PayRunError(403, 'Pay run ledger transaction does not belong to this workspace');
+    }
     const now = new Date().toISOString();
-    ledgerMark(t, db.collection('transactions').doc(String(run.transactionId)), { status: 'void', voidedReason: 'Pay run undone', voidedAt: now, updatedAt: now });
+    ledgerMark(t, txRef, { status: 'void', voidedReason: 'Pay run undone', voidedAt: now, updatedAt: now });
     t.update(runRef, { status: 'undone', undoneAt: now });
     markTime(t, db, (run.employees || []) as PayRunEmployeeLine[], null);
     await writeServerAuditLog({

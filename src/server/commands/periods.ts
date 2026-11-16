@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { calculateNetIncome } from '../../lib/txFilters';
+import { currencyDigits, minorToMajor } from '../../lib/currencyMinorUnits';
 import { lockMessage, monthCloseState, monthEnd, postingLock, type PeriodLockSettings } from '../../lib/periodLock';
 import { closeStepsProblem } from '../../lib/closeSteps';
 import { formatTzDate } from '../../lib/calendarDate';
@@ -65,6 +66,7 @@ type PeriodYearCloseResult = {
   lockPeriod: boolean;
   year: ReturnType<typeof calculateNetIncome>;
   closingVersion: number | null;
+  currency: string;
 };
 
 export const periodYearCloseCommand: CommandDefinition<typeof periodYearCloseInput, PeriodYearCloseResult> = {
@@ -99,27 +101,31 @@ export const periodYearCloseCommand: CommandDefinition<typeof periodYearCloseInp
       }
     }
 
-    return { workspaceId: ctx.workspaceId, yearStart, closingDate: input.closingDate, lockPeriod, year, closingVersion };
+    const currency = typeof ctx.workspace.currency === 'string' && ctx.workspace.currency ? ctx.workspace.currency : 'USD';
+    return { workspaceId: ctx.workspaceId, yearStart, closingDate: input.closingDate, lockPeriod, year, closingVersion, currency };
   },
   async preview(ctx, input) {
     assertYearCloseable(input.closingDate, ctx.workspace);
     const yearStart = fiscalYearStart(input.closingDate);
     const { accounts, entries } = await ctx.db.runTransaction(tx => readSnapshotInputs(ctx.db, tx, ctx.workspaceId, input.closingDate));
     const year = calculateNetIncome(entries as Transaction[], accounts, yearStart, input.closingDate);
+    const currency = typeof ctx.workspace.currency === 'string' && ctx.workspace.currency ? ctx.workspace.currency : 'USD';
+    const fmt = (cents: number) => minorToMajor(cents, currency).toFixed(currencyDigits(currency));
     return {
       title: `Close fiscal year ${yearStart} through ${input.closingDate}`,
       lines: [
-        `Net ${year.netIncome >= 0 ? 'profit' : 'loss'}: ${(Math.abs(year.netIncome) / 100).toFixed(2)} (income ${(year.income / 100).toFixed(2)}, costs ${((year.cogs + year.expense) / 100).toFixed(2)}).`,
+        `Net ${year.netIncome >= 0 ? 'profit' : 'loss'}: ${fmt(Math.abs(year.netIncome))} (income ${fmt(year.income)}, costs ${fmt(year.cogs + year.expense)}).`,
         `The year ${input.lockPeriod ? 'will be locked' : 'will remain open'} after the close.`,
         'No closing journal entry is posted; the balance sheet already carries past profit in retained earnings.',
       ],
     };
   },
   audit(input, result) {
-    const { year } = result;
+    const { year, currency } = result;
+    const fmt = (cents: number) => minorToMajor(cents, currency).toFixed(currencyDigits(currency));
     return {
       action: 'FISCAL_YEAR_CLOSE', entityType: 'workspace', entityId: result.workspaceId,
-      description: `Year ${result.yearStart} – ${result.closingDate} closed: net ${year.netIncome >= 0 ? 'profit' : 'loss'} of ${(Math.abs(year.netIncome) / 100).toFixed(2)} (income ${(year.income / 100).toFixed(2)}, costs ${((year.cogs + year.expense) / 100).toFixed(2)}), carried in retained earnings on the balance sheet${result.lockPeriod ? '; the year is locked' : ''}.`,
+      description: `Year ${result.yearStart} – ${result.closingDate} closed: net ${year.netIncome >= 0 ? 'profit' : 'loss'} of ${fmt(Math.abs(year.netIncome))} (income ${fmt(year.income)}, costs ${fmt(year.cogs + year.expense)}), carried in retained earnings on the balance sheet${result.lockPeriod ? '; the year is locked' : ''}.`,
       details: {
         closingDate: input.closingDate, yearStart: result.yearStart, netIncomeCents: year.netIncome,
         incomeCents: year.income, costsCents: year.cogs + year.expense, lockPeriod: result.lockPeriod,
