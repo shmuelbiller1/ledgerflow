@@ -131,6 +131,7 @@ const PublicInvoicePage = lazy(() => import('./components/sales/PublicInvoicePag
 const PublicEstimatePage = lazy(() => import('./components/sales/PublicEstimatePage'));
 const CustomerPortalPage = lazy(() => import('./components/sales/CustomerPortalPage'));
 const StatusPage = lazy(() => import('./components/system/StatusPage'));
+const FreeInvoiceMaker = lazy(() => import('./components/public/FreeInvoiceMaker'));
 const TwoStepSetupScreen = lazy(() => import('./core/auth/TwoStepSetupScreen'));
 const NewPasswordScreen = lazy(() => import('./core/auth/NewPasswordScreen'));
 const LegalModal = createRetryableLazy(() => import('./components/legal/LegalModal'));
@@ -374,7 +375,7 @@ const shortcutMap = useMemo(() => {
 
   useEffect(() => {
     const path = window.location.pathname;
-    const isPublicOnlyPath = path === '/status' || /^\/(?:c|e|i)\/[^/]+\/?$/.test(path);
+    const isPublicOnlyPath = path === '/status' || path === '/make-invoice' || /^\/(?:c|e|i)\/[^/]+\/?$/.test(path);
     if (!isPublicOnlyPath && (user || isGuest || path.startsWith('/invite/'))) {
       void loadRootLayout().catch((err) => { console.warn('[App] RootLayout preload deferred:', err); });
     }
@@ -485,6 +486,15 @@ const shortcutMap = useMemo(() => {
     return (
       <Suspense fallback={null}>
         <StatusPage />
+      </Suspense>
+    );
+  }
+
+  // EU-I3: the free invoice maker at the door, no sign-in
+  if (window.location.pathname === '/make-invoice') {
+    return (
+      <Suspense fallback={<InitializationScreen language={language} />}>
+        <FreeInvoiceMaker />
       </Suspense>
     );
   }

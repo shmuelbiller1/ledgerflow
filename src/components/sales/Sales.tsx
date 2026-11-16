@@ -2,7 +2,7 @@ import { useNewRecord } from '../../hooks/useNewRecord';
 import { PartyDetailButton } from '../common/PartyDetailButton';
 import { PageHeader } from '../ui/PageHeader';
 import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Customer, Invoice } from '../../types';
 import { Plus, AlertCircle, Activity, ShieldCheck, TrendingUp } from 'lucide-react';
@@ -38,6 +38,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { translateScreenString } from '../../lib/i18n/screenTranslations';
+import { clearFreeInvoice, readFreeInvoice } from '../../lib/freeInvoice';
 import { computeCustomerBalanceSummary, toBaseCents } from '../../server/reports/partyReports';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -83,10 +84,13 @@ export default function Sales() {
   const detailOpenerId = useDetailReturnFocus(selectedCustomerId);
 
   const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'customers'>('invoices');
-  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [freeDraft] = useState(() => (typeof window === 'undefined' ? null : readFreeInvoice(window.localStorage)));
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(Boolean(freeDraft));
   const [openingOpen, setOpeningOpen] = useState(false);
   const [receiptMode, setReceiptMode] = useState(false);
-  const [newInvoiceFor, setNewInvoiceFor] = useState<Partial<Invoice> | undefined>(undefined);
+  const [newInvoiceFor, setNewInvoiceFor] = useState<Partial<Invoice> | undefined>(freeDraft ?? undefined);
+  // EU-I3: an invoice written on the free maker (/make-invoice) opens here once, as a draft
+  useEffect(() => { if (freeDraft) clearFreeInvoice(window.localStorage); }, [freeDraft]);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [customerTag, setCustomerTag] = useState<string | null>(null);
   const [showArchivedCustomers, setShowArchivedCustomers] = useState(false);

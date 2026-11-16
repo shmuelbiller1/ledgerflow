@@ -656,3 +656,8 @@ Task SEC-SCAN-1 (AI #6): Schemathesis tests the API on every pull request, and a
 both against a local copy in CI, never the live site. *Still yours to decide:* scanning the live site.
 To allow it, write here "OK to scan <address>" (passive scan only). *Default:* not scanned.
 
+
+## 16 Nov — AI #9: two small defaults in the EU queue (no action needed unless you disagree)
+
+- **Record imports and labels (EU-E9):** customers, vendors, items and accounts have no label field, so their CSV imports do not read label columns. *Default:* left as is. Labels are on entries and lines only. Write here "add labels to records" to change it.
+- **Free invoice maker (EU-I3, `/make-invoice`):** "Save this and track who paid" opens the **sample company** with the invoice as a draft. Nothing is saved to a server until the person signs up. *Default:* this flow. Write here if you want it to go to sign-up first instead.
