@@ -42,6 +42,8 @@ import { CREDIT_LIMIT_METADATA_KEY } from '../lib/customerCreditLimits';
 import { deriveScopedOperationKey, requestPayloadHash } from '../server/utils/idempotency';
 import { RMAS_METADATA_FIELD, WARRANTIES_METADATA_FIELD, warrantyRecordKey } from '../lib/warehouseRecords';
 import { autoRuleCreateCommand, autoRuleCreateInput, autoRuleUpdateCommand, autoRuleUpdateInput, autoRuleGroupCommand, autoRuleGroupInput, autoRuleRecordHitsCommand, autoRuleRecordHitsInput, autoRuleDeleteCommand, autoRuleDeleteInput } from '../server/commands/autoRules';
+import { autoRuleLearnCommand, autoRuleLearnInput } from '../server/commands/rulePatterns';
+import { learnedPatternId } from '../lib/learnedPatterns';
 
 import {
   captureResponse, fakeRequest, invocationInput, MemoryDb, owner, recordingCommand, ReplayOnRetryMemoryDb,
@@ -54,7 +56,7 @@ test('the default registry is sorted and unique across the registered command do
   assert.deepEqual(registry.names(), [
     'account.makerecoverycodes', 'account.setnotificationemail', 'account.userecoverycode',
     'alerts.update',
-    'autorule.create', 'autorule.delete', 'autorule.group', 'autorule.recordhits', 'autorule.update',
+    'autorule.create', 'autorule.delete', 'autorule.group', 'autorule.learn', 'autorule.recordhits', 'autorule.update',
     'bill.create', 'bill.delete', 'bill.update',
     'creditnote.create', 'creditnote.delete', 'creditnote.update',
     'customer.create', 'customer.update',
@@ -663,6 +665,36 @@ test('warranty.update revalidates an issued invoice serial and writes an audited
     { definition: warrantyUpdateCommand, workspaceId, input }, runnerDependencies(staleDb));
   assert.equal(refused.ok, false);
   assert.equal(staleDb.read('customers/customer-1')?.metadata, undefined);
+});
+
+test('a learned pattern is counted and merged by the server, not by the copy the browser holds', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  const patternId = `${workspaceId}_${learnedPatternId('paper co')}`;
+  // the browser used to write the whole record with the count it had in cache, so two tabs both wrote 1
+  const first = autoRuleLearnInput.parse({ description: '  Paper Co ', accountId: 'expense-office', accountName: 'Office', tags: ['paper', 'office'] });
+  assert.equal(autoRuleLearnInput.safeParse({ description: 'Paper Co', accountId: 'expense-office', count: 99 }).success, false);
+  assert.equal(autoRuleLearnInput.safeParse({ description: 'Paper Co', accountId: 'expense-office', workspaceId: 'other' }).success, false);
+  const one = await executeCommand(fakeRequest(owner, { workspaceId, input: first }), captureResponse().response,
+    { definition: autoRuleLearnCommand, workspaceId, input: first }, runnerDependencies(db));
+  assert.equal(one.ok, true);
+  assert.equal(db.read(`rulePatterns/${patternId}`)?.count, 1);
+  assert.equal(db.read(`rulePatterns/${patternId}`)?.description, 'paper co', 'the description is cleaned once, on the server');
+  assert.equal(db.read(`rulePatterns/${patternId}`)?.workspaceId, workspaceId);
+  assert.equal(db.read(`learnedDeltas/${patternId}`)?.category, 'Office', 'the models read the same event');
+
+  const second = autoRuleLearnInput.parse({ description: 'paper co', accountId: 'expense-office', accountName: 'Office', tags: ['paper', 'stationery'], dimensions: { class: 'Admin' } });
+  const two = await executeCommand(fakeRequest(owner, { workspaceId, input: second }), captureResponse().response,
+    { definition: autoRuleLearnCommand, workspaceId, input: second }, runnerDependencies(db));
+  assert.equal(two.ok, true);
+  assert.equal(db.read(`rulePatterns/${patternId}`)?.count, 2, 'the second tab counts up, it does not overwrite 1');
+  assert.deepEqual(db.read(`rulePatterns/${patternId}`)?.tags, ['paper', 'office', 'stationery'], 'labels merge without repeating');
+  assert.deepEqual(db.read(`rulePatterns/${patternId}`)?.dimensions, { class: 'Admin' });
+
+  const many = autoRuleLearnInput.parse({ description: 'paper co', accountId: 'expense-office', tags: ['a', 'b', 'c', 'd', 'e', 'f'] });
+  await executeCommand(fakeRequest(owner, { workspaceId, input: many }), captureResponse().response,
+    { definition: autoRuleLearnCommand, workspaceId, input: many }, runnerDependencies(db));
+  assert.equal((db.read(`rulePatterns/${patternId}`)?.tags as string[]).length, 5, 'a long-lived pattern does not collect a whole chart of labels');
 });
 
 test('automation-rule commands validate workspace scope for CRUD, group changes, and server-owned match counters', async () => {

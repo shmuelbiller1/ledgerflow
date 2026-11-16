@@ -7,6 +7,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "autorule.create": "CommandInput_autorule_create",
   "autorule.delete": "CommandInput_autorule_delete",
   "autorule.group": "CommandInput_autorule_group",
+  "autorule.learn": "CommandInput_autorule_learn",
   "autorule.recordhits": "CommandInput_autorule_recordhits",
   "autorule.update": "CommandInput_autorule_update",
   "bill.create": "CommandInput_bill_create",

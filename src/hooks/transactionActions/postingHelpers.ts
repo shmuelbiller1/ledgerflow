@@ -1,7 +1,8 @@
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { learnedPatternId } from '../../lib/learnedPatterns';
 import { normalizeLabel } from '../../lib/dimensionUtils';
-import { collection, doc, setDoc, addDoc as firestoreAddDoc } from '../../lib/db/firestore';
+import { collection, addDoc as firestoreAddDoc } from '../../lib/db/firestore';
+import { localSet } from '../../lib/db/localStore';
 import { db } from '../../firebase';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { TransactionLine, ChartAccount } from '../../types';
@@ -37,25 +38,40 @@ export function createPostingHelpers(ctx: ActionContext, runCommand: RunRegister
     const patternId = learnedPatternId(cleanDesc);
     
     try {
-      const patternRef = doc(db, 'rulePatterns', `${currentWorkspaceId}_${patternId}`);
       const existingPattern = analyticalPatternCache[cleanDesc];
       const newCount = (existingPattern?.count || 0) + 1;
+      // what the workspace has seen: the browser's own count in the sample company, the server's afterwards
+      let occurrenceCount = newCount;
 
       // Merge tags and dimensions conservatively
       const combinedTags = Array.from(new Set([...(existingPattern?.tags || []), ...(tags || [])])).slice(0, 5);
       const combinedDimensions = { ...(existingPattern?.dimensions || {}), ...(dimensions || {}) };
 
-      await setDoc(patternRef, {
-        uid: user.uid,
-        workspaceId: currentWorkspaceId,
-        description: cleanDesc,
-        accountId,
-        accountName,
-        tags: combinedTags,
-        dimensions: Object.keys(combinedDimensions).length > 0 ? combinedDimensions : undefined,
-        count: newCount,
-        lastUpdated: new Date().toISOString()
-      }, { merge: true });
+      // the count and the merge are the workspace's record, so a live workspace asks the server for them:
+      // two tabs filing the same description used to both write "1" from the copy in their own cache
+      if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
+        await localSet('rulePatterns', `${currentWorkspaceId}_${patternId}`, {
+          uid: user.uid,
+          workspaceId: currentWorkspaceId,
+          description: cleanDesc,
+          accountId,
+          accountName,
+          tags: combinedTags,
+          dimensions: Object.keys(combinedDimensions).length > 0 ? combinedDimensions : undefined,
+          count: newCount,
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+      } else {
+        const learned = await runCommand('autorule.learn', {
+          description: cleanDesc,
+          accountId,
+          accountName,
+          tags: combinedTags,
+          ...(Object.keys(combinedDimensions).length > 0 ? { dimensions: combinedDimensions } : {}),
+        });
+        const counted = (learned.pattern as { count?: unknown } | undefined)?.count;
+        if (typeof counted === 'number' && Number.isFinite(counted)) occurrenceCount = counted;
+      }
 
       // the pattern is saved in the books it was learnt in; if other books were opened meanwhile, their
       // cache and rules must not take it (PREV-5)
@@ -72,7 +88,7 @@ export function createPostingHelpers(ctx: ActionContext, runCommand: RunRegister
       );
 
       // PROMOTION LOGIC: Auto-create a deterministic rule after 3 occurrences
-      if (newCount >= 3) {
+      if (occurrenceCount >= 3) {
         const { autoRules } = useLedgerStore.getState();
         const hasRule = autoRules.some(r => 
           r.condition.descriptionContains?.toLowerCase() === cleanDesc ||

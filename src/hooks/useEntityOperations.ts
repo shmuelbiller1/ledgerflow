@@ -1,6 +1,7 @@
 import { getIdToken } from '../firebase';
 import { runCommand as runServerCommand } from '../lib/runCommand';
 import { guestSession, assertGuestSession, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
+import { localSet } from '../lib/db/localStore';
 import { withSamplePosting } from '../lib/guestPosting';
 import { workspaceActor } from '../lib/guestActor';
 import { savedInOtherWorkspace, workspaceChangedSince } from '../lib/saveWorkspace';
@@ -245,31 +246,33 @@ export function useEntityOperations() {
     // N-14: collision-free (Hebrew included), same id as before for plain Latin text
     const patternId = learnedPatternId(cleanDesc);
     try {
-      const patternRef = doc(db, 'rulePatterns', `${currentWorkspaceId}_${patternId}`);
       const existing = analyticalPatternCache[cleanDesc];
-      
-      await setDoc(patternRef, {
-        uid: user.uid,
-        workspaceId: currentWorkspaceId,
-        description: cleanDesc,
-        accountId,
-        accountName,
-        count: (existing?.count || 0) + 1,
-        lastUpdated: new Date().toISOString()
-      }, { merge: true });
+      // the count and the delta are the workspace's record, so a live workspace asks the server for both in one
+      // command: two tabs filing the same description used to write the same "1" from their own caches
+      if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
+        await localSet('rulePatterns', `${currentWorkspaceId}_${patternId}`, {
+          uid: user.uid,
+          workspaceId: currentWorkspaceId,
+          description: cleanDesc,
+          accountId,
+          accountName,
+          count: (existing?.count || 0) + 1,
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
 
-      // Feed delta learning to learnedDeltas for AI and categorization models
-      const deltaId = `${currentWorkspaceId}_${patternId}`;
-      const deltaRef = doc(db, 'learnedDeltas', deltaId);
-      await setDoc(deltaRef, {
-        id: deltaId,
-        uid: user.uid,
-        workspaceId: currentWorkspaceId,
-        apiKeyId: "human_web_console",
-        description: cleanDesc.slice(0, 500),
-        category: (accountName || "General").slice(0, 100),
-        timestamp: new Date().toISOString()
-      }, { merge: true });
+        // Feed delta learning to learnedDeltas for AI and categorization models
+        await localSet('learnedDeltas', `${currentWorkspaceId}_${patternId}`, {
+          id: `${currentWorkspaceId}_${patternId}`,
+          uid: user.uid,
+          workspaceId: currentWorkspaceId,
+          apiKeyId: "human_web_console",
+          description: cleanDesc.slice(0, 500),
+          category: (accountName || "General").slice(0, 100),
+          timestamp: new Date().toISOString()
+        }, { merge: true });
+      } else {
+        await runDocumentCommand('autorule.learn', currentWorkspaceId, { description: cleanDesc, accountId, accountName });
+      }
     } catch (e) {
       console.warn("Soft learning deferred", e);
     }

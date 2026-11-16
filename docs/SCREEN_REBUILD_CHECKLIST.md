@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 96 | 96 | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 93 | 93 | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -140,12 +140,15 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **96** → 0. 51 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **93** → 0. 50 files. The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
       - **bootstrap** (`useLedgerData` 2) — the profile and the first personal workspace, written before any
         workspace exists to send a command to. Needs `user.provision` / `workspace.create`, not a rewrite.
-      - **derived maintenance** (`useEntityOperations` 6, `postingHelpers` 1, `dimensionNodeActions` 3) — the
-        `balanceCents` sync, `rulePatterns`/`learnedDeltas`, the workspace's dimension tree. 10 sites, 3 commands.
+      - **derived maintenance** — `rulePatterns`/`learnedDeltas` is done: `autorule.learn` is the server keeping the
+        count and the merge (two tabs filing the same description used to write the same "1" from their own
+        caches), and `postingHelpers`/`useEntityOperations` ask for it — 3 sites, and the browser's caching is
+        unchanged. What is left of this group is the `balanceCents` sync (`useEntityOperations` 2) and the
+        workspace's dimension tree (`dimensionNodeActions` 3): 5 sites, 2 commands.
       - **undo** (`projectUndo` 2) — `project.delete` / `project.restore`, which do not exist yet.
       - **the rest** (~82 sites in 44 files) — write routes that already have a command in most cases
         (`workspaceActions` 4, `Inventory` 5, `EstimatesView` 5, `SupportView` 5 …): one commit per hook, not per

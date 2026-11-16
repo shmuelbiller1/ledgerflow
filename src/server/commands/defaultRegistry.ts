@@ -15,6 +15,7 @@ import {
 import { customerCreateCommand, customerUpdateCommand, warrantyUpdateCommand } from './customers';
 import { vendorCreateCommand, vendorUpdateCommand } from './vendors';
 import { autoRuleCreateCommand, autoRuleUpdateCommand, autoRuleDeleteCommand, autoRuleGroupCommand, autoRuleRecordHitsCommand } from './autoRules';
+import { autoRuleLearnCommand } from './rulePatterns';
 import { journalCreateCommand } from './ledger';
 import { paymentReceiveCommand } from './payments';
 import { numberingUpdateCommand } from './numbering';
@@ -118,6 +119,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(autoRuleUpdateCommand);
   registry.register(autoRuleDeleteCommand);
   registry.register(autoRuleGroupCommand);
+  registry.register(autoRuleLearnCommand);
   registry.register(autoRuleRecordHitsCommand);
   registry.register(invoiceDeleteCommand);
   registry.register(billDeleteCommand);
