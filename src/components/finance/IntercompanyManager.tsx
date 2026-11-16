@@ -176,7 +176,7 @@ export default function IntercompanyManager() {
               { header: "Source Entity", className: "px-6 py-4", headClassName: "px-6 py-4 text-left", cell: (t) => <span className="text-sm font-black text-[var(--text)] uppercase tracking-tight">
                          {workspaces.find(w => w.id === t.workspaceId)?.name || 'Unknown'}
                        </span> },
-              { header: "Direction", className: "px-6 py-4 text-center", headClassName: "px-6 py-4 text-center", cell: (t) => <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 rounded-full text-[#0047AB]">
+              { header: "Direction", className: "px-6 py-4 text-center", headClassName: "px-6 py-4 text-center", cell: (_t) => <div className="inline-flex items-center justify-center w-8 h-8 bg-slate-100 rounded-full text-[#0047AB]">
                         <ArrowRight aria-hidden="true" size={16} />
                       </div> },
               { header: "Target Entity", className: "px-6 py-4", headClassName: "px-6 py-4 text-left", cell: (t) => <span className="text-sm font-black text-[var(--text)] uppercase tracking-tight">
@@ -184,7 +184,7 @@ export default function IntercompanyManager() {
                        </span> },
               { header: "Description", className: "px-6 py-4", headClassName: "px-6 py-4 text-left", cell: (t) => <p className="text-sm font-medium text-slate-600 truncate max-w-xs">{t.description}</p> },
               { header: "Amount", align: 'right', className: "px-6 py-4", headClassName: "px-6 py-4", cell: (t) => <span className="text-sm font-black text-[var(--text)]">{formatCurrency(t.totalAmountCents || 0)}</span> },
-              { header: "Status", className: "px-6 py-4", headClassName: "px-6 py-4 text-center", cell: (t) => <div className="flex justify-center">
+              { header: "Status", className: "px-6 py-4", headClassName: "px-6 py-4 text-center", cell: (_t) => <div className="flex justify-center">
                          <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-100">
                            Synchronized
                          </span>

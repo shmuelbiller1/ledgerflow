@@ -116,7 +116,7 @@ export function Vendor1099ReadinessPanel({ report, currency = 'USD', taxYearText
             { header: "Over threshold", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.overThreshold ? 'Yes' : 'No' },
             { header: "Tax ID", className: "py-1 px-2 font-mono", headClassName: "text-left py-1 px-2", cell: (row) => row.taxId.masked || 'Not recorded' },
             { header: "Address", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.addressRecorded ? 'Recorded' : 'Missing' },
-            { header: "W-9", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>Not recorded here</>) },
+            { header: "W-9", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (_row) => (<>Not recorded here</>) },
             { header: "Readiness", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.state === 'needs-tax-details' ? 'Missing details' : row.state === 'over-threshold' ? 'Details recorded — review' : 'Below the threshold' },
             { header: "What to check", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.missing.join(' ') },
           ]}

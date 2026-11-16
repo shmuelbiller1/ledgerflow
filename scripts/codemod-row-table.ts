@@ -503,6 +503,16 @@ function headerNames(list: string): string[] | undefined {
   return names;
 }
 
+/**
+ * `cell: (row) => …`, with the row named `_row` when the cell never reads it — an unused argument is a lint
+ * warning, and the sweep may not add one. The argument stays, because a column that drops it is the one the
+ * component has to infer `over`'s item type from.
+ */
+function cellArrow(row: string, content: string): string {
+  const value = jsxValue(content);
+  return new RegExp(`\\b${row}\\b`).test(value) ? `(${row}) => ${value}` : `(_${row}) => ${value}`;
+}
+
 /** The `{…}` groups a body is made of, or `undefined` when it is not only those. */
 function splitExpressions(source: string): string[] | undefined {
   const chunks: string[] = [];
@@ -825,7 +835,7 @@ export function attemptConvert(source: string, start: number): Attempt {
       alignEntry(header.classes, cell.classes),
       ...classesOf(header.raw, cell.rawClass, header.classes, cell.classes),
       cellPropsEntry(cell.extra, row),
-      `cell: (${row}) => ${jsxValue(cell.content)}`,
+      `cell: ${cellArrow(row, cell.content)}`,
     ]));
   });
 
@@ -856,7 +866,7 @@ export function attemptConvert(source: string, start: number): Attempt {
         alignEntry(classOf(head.headTag), cell.classes),
         ...classesOf(classSource(head.headTag), cell.rawClass, classOf(head.headTag), cell.classes),
         cellPropsEntry(cell.extra, row),
-        `cell: (${row}) => ${jsxValue(cell.content)}`,
+        `cell: ${cellArrow(row, cell.content)}`,
       ]));
     });
   } else if (head.kind === 'computed') {
