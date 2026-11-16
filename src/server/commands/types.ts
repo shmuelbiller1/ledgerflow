@@ -60,6 +60,8 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
   name: `${string}.${string}`;
   input: Schema;
   roles: readonly CommandRole[];
+  /** Permit platform admins outside the workspace roles list; never grants this override to API keys. */
+  allowPlatformAdmin?: boolean;
   /** Dot path into the validated input; the runner checks this date against the workspace period lock. */
   dated?: string;
   /** Resolve an effective date when the command's input omits one (for example, today's workspace-local date). */

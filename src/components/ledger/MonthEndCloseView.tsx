@@ -1,5 +1,5 @@
 import { runCommand } from '../../lib/runCommand';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, ArrowRight, BookOpen, CheckCircle2, Circle, Lock, LockOpen, ShieldCheck, Undo2, XCircle } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -59,8 +59,8 @@ function previousMonth(today: string): string {
 }
 
 // one wrapper behind six calls; it now names the command instead of typing an address and a token
-function post<T>(path: string, body: unknown): Promise<T> {
-  return runCommand<T>({ path, method: 'POST', body });
+function post<T>(path: string, body: unknown, headers?: Record<string, string>): Promise<T> {
+  return runCommand<T>({ path, method: 'POST', body, ...(headers ? { headers } : {}) });
 }
 
 
@@ -91,6 +91,7 @@ export default function MonthEndCloseView() {
   const [month, setMonth] = useState(() => previousMonth(getLocalDateISO()));
   const [period, setPeriod] = useState<PeriodStatus | null>(null);
   const [busy, setBusy] = useState(false);
+  const yearCloseOperation = useRef<{ fingerprint: string; id: string } | null>(null);
   const [blockedDrafts, setBlockedDrafts] = useState<Array<{ collection: string; id: string; date: string; label: string }>>([]);
   const [reopenReason, setReopenReason] = useState('');
   const [unlock, setUnlock] = useState({ fromDate: '', toDate: '', reason: '' });
@@ -187,10 +188,23 @@ export default function MonthEndCloseView() {
 
   // CA-07: closing the year records it (and its profit) without posting an entry; the balance
   // sheet carries the profit in retained earnings by itself
-  const postYearEnd = () => run(
-    () => post<{ message?: string }>('/api/v1/transactions/close-year', { workspaceId, closingDate: end, lockPeriod: false }),
-    'Year closed: its profit stays in retained earnings on the balance sheet.',
-  );
+  const postYearEnd = () => {
+    const fingerprint = `${workspaceId}:${end}:false`;
+    if (yearCloseOperation.current?.fingerprint !== fingerprint) {
+      yearCloseOperation.current = {
+        fingerprint,
+        id: globalThis.crypto.randomUUID(),
+      };
+    }
+    const operationId = yearCloseOperation.current.id;
+    return run(
+      () => post<{ status: string; data: unknown }>('/api/v1/commands/period.yearclose',
+        { workspaceId, input: { closingDate: end, lockPeriod: false } },
+        { 'Idempotency-Key': operationId }),
+      'Year closed: its profit stays in retained earnings on the balance sheet.',
+      () => { yearCloseOperation.current = null; },
+    );
+  };
 
   const exportPackage = async () => {
     const toastId = toast.loading('Building the close package…');

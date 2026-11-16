@@ -270,7 +270,8 @@ async function runRegisteredCommand(
     const data = snapshot.data() || {};
     if (!isWorkspaceMemberData(data, user, workspaceId)) throw new CommandRefusal('Not a member of this workspace', 403, 'NOT_A_MEMBER');
     role = roleInWorkspace(data, user.uid);
-    if (!command.roles.includes(role as CommandRole)) {
+    const platformAdminOverride = command.allowPlatformAdmin === true && user.admin === true && !user.developerWorkspaceId;
+    if (!command.roles.includes(role as CommandRole) && !platformAdminOverride) {
       throw new CommandRefusal(`Forbidden: command ${command.name} requires one of [${command.roles.join(', ')}]`, 403, 'ROLE_REQUIRED');
     }
     workspace = data;
@@ -372,7 +373,8 @@ async function runRegisteredCommand(
     }
     const latestWorkspace = latest.data() || {};
     const latestRole = roleInWorkspace(latestWorkspace, user.uid);
-    if (!command.roles.includes(latestRole as CommandRole)) {
+    const platformAdminOverride = command.allowPlatformAdmin === true && user.admin === true && !user.developerWorkspaceId;
+    if (!command.roles.includes(latestRole as CommandRole) && !platformAdminOverride) {
       throw new CommandRefusal('Your workspace role changed before the command committed', 403, 'ROLE_REQUIRED');
     }
     if (date) {
@@ -458,7 +460,8 @@ export async function previewCommand(
     const data = snapshot.data() || {};
     if (!isWorkspaceMemberData(data, user, workspaceId)) throw new CommandRefusal('Not a member of this workspace', 403, 'NOT_A_MEMBER');
     role = roleInWorkspace(data, user.uid);
-    if (!command.roles.includes(role as CommandRole)) {
+    const platformAdminOverride = command.allowPlatformAdmin === true && user.admin === true && !user.developerWorkspaceId;
+    if (!command.roles.includes(role as CommandRole) && !platformAdminOverride) {
       throw new CommandRefusal(`Forbidden: command ${command.name} requires one of [${command.roles.join(', ')}]`, 403, 'ROLE_REQUIRED');
     }
     workspace = data;

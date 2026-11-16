@@ -1,5 +1,5 @@
 {
-  "writeRoutes": 186,
+  "writeRoutes": 182,
   "directBrowserWrites": 106,
   "routeSites": {
     "src/server/routes/accountMergeRoutes.ts": 2,
@@ -59,7 +59,7 @@
     "src/server/routes/telemetryRoutes.ts": 1,
     "src/server/routes/transactions/bulkRoutes.ts": 4,
     "src/server/routes/transactions/crudRoutes.ts": 3,
-    "src/server/routes/transactions/periodRoutes.ts": 7,
+    "src/server/routes/transactions/periodRoutes.ts": 3,
     "src/server/routes/transactions/reconcileRoutes.ts": 11,
     "src/server/routes/transactions/reverseRoutes.ts": 2,
     "src/server/routes/twoStepPolicyRoutes.ts": 2,

@@ -1,17 +1,20 @@
 import express from 'express';
 import { z } from 'zod';
-import { calculateNetIncome } from '../../../lib/txFilters';
-import type { Transaction } from '../../../types';
 import { getDb, validateWorkspaceMember } from '../../db/firestore';
 import { writeServerAuditLog } from '../../services/auditLogService';
 import { executeCommand } from '../../utils/commandExecutor';
 import type { CommandExecutionOutcome, CommandInvocation } from '../../commands/types';
-import { periodCloseCommand } from '../../commands/periods';
+import {
+  periodBalancesRebuildCommand,
+  periodCloseCommand,
+  periodFxRevaluationCommand,
+  periodFxRevaluationUndoCommand,
+  periodYearCloseCommand,
+  fiscalYearStart,
+} from '../../commands/periods';
 import { errorMessage, requestUser } from '../../auth/requestUser';
-import { FxRevaluationError, revaluateForeignBalances, undoRevaluation } from '../../services/fxRevaluationService';
-import { formatTzDate } from './helpers';
-import { listClosings, periodClosingsReady, readClosings, writeClosing } from '../../services/periodClosingService';
-import { periodBalancesReady, readSnapshotInputs, rebuildSnapshots, snapshotFromEntries, writeSnapshot } from '../../services/balanceService';
+import { FxRevaluationError, revaluateForeignBalances } from '../../services/fxRevaluationService';
+import { listClosings } from '../../services/periodClosingService';
 
 const revaluationBodySchema = z.object({
   workspaceId: z.string().min(1).max(200),
@@ -52,13 +55,32 @@ function revaluationRoute(dryRun: boolean) {
   };
 }
 
-/** The day after the same date one year earlier: the first day of the year ending on `closingDate`. */
-export function fiscalYearStart(closingDate: string): string {
-  const [y, md] = [Number(closingDate.slice(0, 4)), closingDate.slice(5)];
-  const yearBefore = Date.parse(`${y - 1}-${md}T00:00:00Z`);
-  const base = Number.isNaN(yearBefore) || new Date(yearBefore).toISOString().slice(5, 10) !== md ? Date.parse(`${y - 1}-02-28T00:00:00Z`) : yearBefore;
-  return new Date(base + 86400000).toISOString().slice(0, 10);
+function revaluationCommandResponse(outcome: CommandExecutionOutcome, action: 'run' | 'undo') {
+  if (outcome.ok) return { status: 200, body: { status: 'ok', ...(outcome.data as Record<string, unknown>) } };
+  if (outcome.error instanceof z.ZodError || outcome.code === 'WORKSPACE_REQUIRED') {
+    return { status: 400, body: { status: 'error', message: 'This needs the workspace to revalue, and a date as YYYY-MM-DD if you name one.' } };
+  }
+  if (outcome.code === 'ROLE_REQUIRED' || outcome.code === 'NOT_A_MEMBER') {
+    return {
+      status: 403,
+      body: { status: 'error', message: action === 'run' ? 'Only owners and accountants run the currency revaluation' : 'Only owners and accountants undo a currency revaluation' },
+    };
+  }
+  if (outcome.code === 'WORKSPACE_NOT_FOUND') return { status: 404, body: { status: 'error', message: 'Workspace not found' } };
+  if (outcome.error instanceof FxRevaluationError) {
+    return { status: outcome.error.status, body: { status: 'error', message: outcome.error.message } };
+  }
+  if (outcome.status >= 500) {
+    return { status: outcome.status, body: { status: 'error', message: 'The revaluation could not be run.', details: errorMessage(outcome.error ?? outcome.message) } };
+  }
+  return { status: outcome.status, body: { status: 'error', message: outcome.message } };
 }
+
+function revaluationInvocation(definition: CommandInvocation['definition'], workspaceId: string, input: unknown, action: 'run' | 'undo'): CommandInvocation {
+  return { definition, workspaceId, input, formatResponse: outcome => revaluationCommandResponse(outcome, action) };
+}
+
+export { fiscalYearStart };
 
 /** Adapt the legacy hard-close endpoint to the shared period command and its established wire shape. */
 export function closeMonthInvocation(workspaceId: string, month: string): CommandInvocation {
@@ -107,109 +129,62 @@ export function registerPeriodRoutes(transactionRouter: express.Router): void {
   // liability account, home-currency ones included, on invented rates when the rate service was down
   // (L-187). It is gone: the flag no longer means anything.
   transactionRouter.post('/revaluation/preview', revaluationRoute(true));
-  transactionRouter.post('/revaluation/run', revaluationRoute(false));
+  transactionRouter.post('/revaluation/run', async (req, res) => {
+    try {
+      const parsed = revaluationBodySchema.parse(req.body);
+      await executeCommand(req, res, revaluationInvocation(
+        periodFxRevaluationCommand, parsed.workspaceId, { date: parsed.date, rates: parsed.rates }, 'run',
+      ));
+    } catch (err) {
+      revaluationError(res, err);
+    }
+  });
   transactionRouter.post('/revaluation/undo', async (req, res) => {
     try {
-      const { workspaceId, date } = revaluationBodySchema.parse(req.body);
-      const user = requestUser(req);
-      const result = await undoRevaluation(getDb(), { workspaceId: String(workspaceId), user: { uid: user.uid, email: user.email, admin: user.admin }, date: String(date || '') });
-      res.json({ status: 'ok', ...result });
+      const parsed = revaluationBodySchema.parse(req.body);
+      await executeCommand(req, res, revaluationInvocation(
+        periodFxRevaluationUndoCommand, parsed.workspaceId, { date: parsed.date }, 'undo',
+      ));
     } catch (err) {
-      return revaluationError(res, err);
+      revaluationError(res, err);
     }
   });
 
   transactionRouter.post('/close-year', async (req, res) => {
-    try {
-      const { workspaceId, closingDate, lockPeriod } = req.body;
-      const user = requestUser(req);
-      if (!workspaceId || !closingDate) {
-        return res.status(400).json({ error: 'Missing required parameters: workspaceId and closingDate (YYYY-MM-DD).' });
-      }
-
-      const db = getDb();
-      const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-      if (!wsDoc.exists) {
-        return res.status(404).json({ error: 'Workspace not found.' });
-      }
-
-      const wsData = wsDoc.data();
-      const isOwnerOrAdmin = wsData?.uid === user.uid || user.admin;
-      if (!isOwnerOrAdmin) {
-        return res.status(403).json({ error: 'Forbidden: Insufficient permissions to execute fiscal year close.' });
-      }
-
-      // Check if period is already locked past or on this date
-      if (wsData?.lockDate && wsData.lockDate >= closingDate) {
-        return res.status(400).json({ error: `Cannot close year: Period is already locked through ${wsData.lockDate}.` });
-      }
-
-      const today = formatTzDate(new Date(), wsData?.timezone);
-      if (closingDate > today) {
-        return res.status(400).json({ error: `Cannot close future accounting period. Closing date (${closingDate}) is ahead of current date (${today}).` });
-      }
-
-      // The year's profit, for the record: the twelve months ending on the closing date.
-      // No closing entry is posted (CA-07): the balance sheet already carries every past year's profit
-      // in retained earnings, and an entry moving revenue and expenses to retained earnings made the
-      // closed year's profit and loss show zero. Closing a year locks it (when asked) and records it.
-      // L-123: a locked close also writes the year end's balance snapshot, in the same serializable
-      // transaction that moves the lock date, from the same entries (everything is returned from the
-      // callback, so a retried attempt starts afresh).
-      const yearStart = fiscalYearStart(closingDate);
-      const withSnapshot = Boolean(lockPeriod) && await periodBalancesReady(db);
-      // EG-3: and the closing document, from the same entries in the same transaction (no entry is posted)
-      const withClosing = Boolean(lockPeriod) && await periodClosingsReady(db);
-      const { year, locked, closingVersion } = await db.runTransaction(async (t) => {
-        const wsNow = (await t.get(db.collection('workspaces').doc(workspaceId))).data() || {};
-        if (wsNow.lockDate && wsNow.lockDate >= closingDate) return { year: null, locked: String(wsNow.lockDate), closingVersion: null };
-        const { accounts, entries } = await readSnapshotInputs(db, t, workspaceId, closingDate);
-        const transactions = entries as Transaction[];
-        const stored = withClosing ? await readClosings(db, t, workspaceId) : [];
-        const yearFigures = calculateNetIncome(transactions, accounts, yearStart, closingDate);
-        if (lockPeriod) {
-          t.update(db.collection('workspaces').doc(workspaceId), { lockDate: closingDate, updatedAt: new Date().toISOString() });
-          const snapshot = snapshotFromEntries(workspaceId, closingDate, accounts, entries, user.uid);
-          if (withSnapshot) writeSnapshot(db, t, snapshot);
-          if (withClosing) {
-            const closing = writeClosing(db, t, stored, { workspaceId, yearStart, yearEnd: closingDate, accounts, entries: transactions, snapshot, uid: user.uid, email: user.email, at: new Date().toISOString() });
-            return { year: yearFigures, locked: null, closingVersion: closing.version };
-          }
-        }
-        return { year: yearFigures, locked: null, closingVersion: null };
-      });
-      if (!year) {
-        return res.status(400).json({ error: `Cannot close year: Period is already locked through ${locked}.` });
-      }
-
-      await writeServerAuditLog({
-        workspaceId,
-        uid: user.uid,
-        email: user.email || 'authenticated-user',
-        action: 'FISCAL_YEAR_CLOSE',
-        entityType: 'workspace',
-        entityId: workspaceId,
-        details: {
-          description: `Year ${yearStart} – ${closingDate} closed: net ${year.netIncome >= 0 ? 'profit' : 'loss'} of ${(Math.abs(year.netIncome) / 100).toFixed(2)} (income ${(year.income / 100).toFixed(2)}, costs ${((year.cogs + year.expense) / 100).toFixed(2)}), carried in retained earnings on the balance sheet${lockPeriod ? '; the year is locked' : ''}.`,
-          closingDate,
-          yearStart,
-          netIncomeCents: year.netIncome,
-          incomeCents: year.income,
-          costsCents: year.cogs + year.expense,
-          lockPeriod: !!lockPeriod,
-        }
-      }, { db });
-
-      res.json({
-        status: 'ok',
-        message: `Year ${yearStart} – ${closingDate} closed. Its net ${year.netIncome >= 0 ? 'profit' : 'loss'} of ${(Math.abs(year.netIncome) / 100).toFixed(2)} is carried in retained earnings on the balance sheet${lockPeriod ? ', and the year is locked' : ''}.`,
-        netIncomeCents: year.netIncome,
-        yearStart,
-        closingVersion,
-      });
-    } catch (e) {
-      res.status(500).json({ error: errorMessage(e) });
+    const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
+    const { workspaceId, closingDate, lockPeriod } = body;
+    if (!workspaceId || !closingDate) {
+      return res.status(400).json({ error: 'Missing required parameters: workspaceId and closingDate (YYYY-MM-DD).' });
     }
+    await executeCommand(req, res, {
+      definition: periodYearCloseCommand,
+      workspaceId: typeof workspaceId === 'string' ? workspaceId : '',
+      input: { closingDate, lockPeriod },
+      formatResponse(outcome) {
+        if (outcome.ok) {
+          const result = outcome.data as { yearStart: string; closingDate: string; lockPeriod: boolean; year: { netIncome: number }; closingVersion: number | null };
+          return {
+            status: 200,
+            body: {
+              status: 'ok',
+              message: `Year ${result.yearStart} – ${result.closingDate} closed. Its net ${result.year.netIncome >= 0 ? 'profit' : 'loss'} of ${(Math.abs(result.year.netIncome) / 100).toFixed(2)} is carried in retained earnings on the balance sheet${result.lockPeriod ? ', and the year is locked' : ''}.`,
+              netIncomeCents: result.year.netIncome,
+              yearStart: result.yearStart,
+              closingVersion: result.closingVersion,
+            },
+          };
+        }
+        if (outcome.code === 'WORKSPACE_NOT_FOUND') return { status: 404, body: { error: 'Workspace not found.' } };
+        if (outcome.code === 'ROLE_REQUIRED' || outcome.code === 'NOT_A_MEMBER') {
+          return { status: 403, body: { error: 'Forbidden: Insufficient permissions to execute fiscal year close.' } };
+        }
+        if (outcome.code === 'INVALID_INPUT') {
+          return { status: 400, body: { error: 'Missing required parameters: workspaceId and closingDate (YYYY-MM-DD).' } };
+        }
+        const error = outcome.error;
+        return { status: outcome.status, body: { error: error instanceof Error ? error.message : outcome.message } };
+      },
+    });
   });
 
   // EG-3: the period-closing documents, every version (superseded ones too), read-only; any member, a viewer too
@@ -229,21 +204,30 @@ export function registerPeriodRoutes(transactionRouter: express.Router): void {
     }
   });
 
-  // L-123: "Recalculate opening balances": the snapshots of years closed before L-123, and every stale one,
-  // rebuilt by the server (balanceService.rebuildSnapshots). Owners and platform admins, like /close-year.
+  // L-123: the named command rebuilds missing closed-year and stale snapshots in the runner transaction;
+  // keep the historical URL and response shape for existing clients.
   transactionRouter.post('/period-balances/rebuild', async (req, res) => {
-    try {
-      const workspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId : '';
-      const user = requestUser(req);
-      if (!workspaceId) return res.status(400).json({ error: 'Missing required parameter: workspaceId.' });
-      const db = getDb();
-      const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-      if (!wsDoc.exists) return res.status(404).json({ error: 'Workspace not found.' });
-      if (wsDoc.data()?.uid !== user.uid && !user.admin) return res.status(403).json({ error: 'Only the owner can recalculate the opening balances.' });
-      res.json({ status: 'ok', ...(await rebuildSnapshots(db, workspaceId, user.uid)) });
-    } catch (e) {
-      res.status(500).json({ error: errorMessage(e) });
-    }
+    const workspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId : '';
+    if (!workspaceId) return res.status(400).json({ error: 'Missing required parameter: workspaceId.' });
+    await executeCommand(req, res, {
+      definition: periodBalancesRebuildCommand,
+      workspaceId,
+      input: {},
+      formatResponse(outcome) {
+        if (outcome.ok) {
+          const result = outcome.data as { built: string[] };
+          return { status: 200, body: { status: 'ok', built: result.built } };
+        }
+        if (outcome.code === 'WORKSPACE_NOT_FOUND') return { status: 404, body: { error: 'Workspace not found.' } };
+        if (outcome.code === 'ROLE_REQUIRED' || outcome.code === 'NOT_A_MEMBER') {
+          return { status: 403, body: { error: 'Only the owner can recalculate the opening balances.' } };
+        }
+        return {
+          status: outcome.status,
+          body: { error: outcome.error instanceof Error ? outcome.error.message : outcome.message },
+        };
+      },
+    });
   });
 
   // Hard close through the end of a month. Same service as the Month-End Close screen

@@ -24,6 +24,7 @@ function publicDefinition(command: ReturnType<CommandRegistry['list']>[number]) 
     name: command.name,
     area: command.name.split('.')[0],
     roles: command.roles,
+    ...(command.allowPlatformAdmin ? { allowPlatformAdmin: true } : {}),
     risk: command.risk,
     description: command.describe,
     inputSchema: z.toJSONSchema(command.input, { io: 'input', unrepresentable: 'any' }),

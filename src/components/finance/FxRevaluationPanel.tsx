@@ -1,5 +1,5 @@
 import { runCommand } from '../../lib/runCommand';
-import React, { useId, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -11,10 +11,10 @@ import { byCodeUnit } from '../../lib/codeUnitOrder';
  * The month-end currency revaluation (R-07), shown in the currency tool.
  *
  * Nothing here does arithmetic: the panel asks the server for the plan (`/revaluation/preview`, which
- * posts nothing), shows the same numbers it computed, and only posts when the person presses "Post
- * it". That is also why there is no date to choose — the plan is today's, because today's rate is the
- * rate the exchange service gives, and the entry reverses the next day so the documents keep their
- * own rates.
+ * posts nothing), shows the same numbers it computed, and only runs `period.fxrevaluation` or
+ * `period.fxrevaluationundo` when the person presses the matching button. That is also why there is
+ * no date to choose by default — the plan uses today's rate and the entry reverses the next day, so
+ * the documents keep their own rates.
  */
 
 interface Detail {
@@ -57,8 +57,12 @@ function normalizePlan(value: unknown): Plan {
   };
 }
 
-async function ask(path: string, body: Record<string, unknown>, method: 'POST' = 'POST'): Promise<unknown> {
-  return runCommand<Record<string, unknown>>({ path, method, body });
+async function ask(path: string, body: Record<string, unknown>, headers?: Record<string, string>): Promise<unknown> {
+  return runCommand<Record<string, unknown>>({ path, method: 'POST', body, ...(headers ? { headers } : {}) });
+}
+
+function newOperationId(): string {
+  return globalThis.crypto?.randomUUID?.() || `fx-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function FxRevaluationPanel() {
@@ -75,6 +79,7 @@ export function FxRevaluationPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const operationId = useRef<string | null>(null);
   const historical = valuationDate < today;
 
   const requestRates = (): Record<string, number> => Object.fromEntries(rateCurrencies.flatMap(currency => {
@@ -88,11 +93,28 @@ export function FxRevaluationPanel() {
     setError('');
     setSuccess('');
     try {
-      const body = kind === 'undo'
-        ? { workspaceId, date: plan?.date || valuationDate }
-        : { workspaceId, date: valuationDate, ...(historical ? { rates: requestRates() } : {}) };
-      const response = await ask(`/api/v1/transactions/revaluation/${kind}`, body);
+      const date = kind === 'undo' ? plan?.date || valuationDate : valuationDate;
+      const rates = kind === 'undo' || !historical ? undefined : requestRates();
+      let path: string;
+      let body: Record<string, unknown>;
+      let headers: Record<string, string> | undefined;
+      if (kind === 'preview') {
+        path = '/api/v1/transactions/revaluation/preview';
+        body = { workspaceId, date, ...(rates ? { rates } : {}) };
+      } else {
+        operationId.current ||= newOperationId();
+        headers = { 'Idempotency-Key': operationId.current };
+        if (kind === 'run') {
+          path = '/api/v1/commands/period.fxrevaluation';
+          body = { workspaceId, input: { date, ...(rates ? { rates } : {}) } };
+        } else {
+          path = '/api/v1/commands/period.fxrevaluationundo';
+          body = { workspaceId, input: { date } };
+        }
+      }
+      const response = await ask(path, body, headers);
       if (kind === 'undo') {
+        operationId.current = null;
         setPlan(null);
         setRateCurrencies([]);
         setManualRates({});
@@ -100,7 +122,11 @@ export function FxRevaluationPanel() {
         toast.success('The revaluation is reversed.');
         return;
       }
-      const data = normalizePlan(response);
+      const result = kind === 'run' && response && typeof response === 'object'
+        ? (response as Record<string, unknown>).data
+        : response;
+      const data = normalizePlan(result);
+      if (kind === 'run') operationId.current = null;
       setPlan(data);
       if (historical) {
         setRateCurrencies(previous => [...new Set([...previous, ...data.currencies, ...data.unpriced])].sort(byCodeUnit));
@@ -120,6 +146,7 @@ export function FxRevaluationPanel() {
   };
 
   const chooseDate = (value: string) => {
+    operationId.current = null;
     setValuationDate(value);
     setPlan(null);
     setRateCurrencies([]);
@@ -129,6 +156,7 @@ export function FxRevaluationPanel() {
   };
 
   const setRate = (currency: string, value: string) => {
+    operationId.current = null;
     setManualRates(previous => ({ ...previous, [currency]: value }));
     setPlan(null);
     setError('');

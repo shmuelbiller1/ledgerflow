@@ -21,6 +21,10 @@ import {
   periodCloseCommand,
   periodCloseStepsCommand,
   periodDepreciationCommand,
+  periodFxRevaluationCommand,
+  periodFxRevaluationUndoCommand,
+  periodBalancesRebuildCommand,
+  periodYearCloseCommand,
   periodRelockCommand,
   periodReopenCommand,
   periodSignOffCommand,
@@ -64,6 +68,10 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(periodRelockCommand);
   registry.register(periodSignOffCommand);
   registry.register(periodCloseStepsCommand);
+  registry.register(periodBalancesRebuildCommand);
+  registry.register(periodFxRevaluationCommand);
+  registry.register(periodFxRevaluationUndoCommand);
+  registry.register(periodYearCloseCommand);
   registry.register(entryLinkCreateCommand);
   registry.register(entryLinkRemoveCommand);
   registry.register(stageDefineCommand);

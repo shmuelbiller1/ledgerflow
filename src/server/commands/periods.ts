@@ -1,8 +1,12 @@
 import { z } from 'zod';
+import { calculateNetIncome } from '../../lib/txFilters';
 import { lockMessage, monthCloseState, monthEnd, postingLock, type PeriodLockSettings } from '../../lib/periodLock';
 import { closeStepsProblem } from '../../lib/closeSteps';
 import { formatTzDate } from '../../lib/calendarDate';
-import { rebuildSnapshots } from '../services/balanceService';
+import { periodBalancesReady, readSnapshotInputs, rebuildSnapshots, rebuildSnapshotsInTransaction, snapshotRebuildPlan, snapshotFromEntries, writeSnapshot } from '../services/balanceService';
+import { periodClosingsReady, readClosings, writeClosing } from '../services/periodClosingService';
+import { revaluateForeignBalances, undoRevaluation } from '../services/fxRevaluationService';
+import type { Transaction } from '../../types';
 import { DepreciationError, runDepreciation } from '../services/depreciationService';
 import {
   closePeriod,
@@ -28,6 +32,244 @@ const actor = (ctx: { workspaceId: string; actor: string; email?: string }) => (
   uid: ctx.actor,
   email: ctx.email,
 });
+
+const ISO_DATE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const fiscalYearCloseDate = z.string().regex(ISO_DATE).refine((date) => {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
+}, 'Closing date must be a real calendar date');
+
+/** The day after the same date one year earlier: the first day of the year ending on `closingDate`. */
+export function fiscalYearStart(closingDate: string): string {
+  const [y, md] = [Number(closingDate.slice(0, 4)), closingDate.slice(5)];
+  const yearBefore = Date.parse(`${y - 1}-${md}T00:00:00Z`);
+  const base = Number.isNaN(yearBefore) || new Date(yearBefore).toISOString().slice(5, 10) !== md ? Date.parse(`${y - 1}-02-28T00:00:00Z`) : yearBefore;
+  return new Date(base + 86400000).toISOString().slice(0, 10);
+}
+
+function assertYearCloseable(closingDate: string, workspace: Record<string, unknown>): void {
+  const lockDate = typeof workspace.lockDate === 'string' ? workspace.lockDate : '';
+  if (lockDate && lockDate >= closingDate) throw new PeriodCloseError(400, `Cannot close year: Period is already locked through ${lockDate}.`);
+  const today = formatTzDate(new Date(), typeof workspace.timezone === 'string' ? workspace.timezone : 'UTC');
+  if (closingDate > today) {
+    throw new PeriodCloseError(400, `Cannot close future accounting period. Closing date (${closingDate}) is ahead of current date (${today}).`);
+  }
+}
+
+export const periodYearCloseInput = z.object({ closingDate: fiscalYearCloseDate, lockPeriod: z.boolean().optional() }).strict();
+type PeriodYearCloseInput = z.output<typeof periodYearCloseInput>;
+type PeriodYearCloseResult = {
+  workspaceId: string;
+  yearStart: string;
+  closingDate: string;
+  lockPeriod: boolean;
+  year: ReturnType<typeof calculateNetIncome>;
+  closingVersion: number | null;
+};
+
+export const periodYearCloseCommand: CommandDefinition<typeof periodYearCloseInput, PeriodYearCloseResult> = {
+  name: 'period.yearclose',
+  input: periodYearCloseInput,
+  roles: ['owner'],
+  allowPlatformAdmin: true,
+  async handler(ctx, tx, input: PeriodYearCloseInput) {
+    assertYearCloseable(input.closingDate, ctx.workspace);
+    const yearStart = fiscalYearStart(input.closingDate);
+    const { accounts, entries } = await readSnapshotInputs(ctx.db, tx, ctx.workspaceId, input.closingDate);
+    const transactions = entries as Transaction[];
+    const year = calculateNetIncome(transactions, accounts, yearStart, input.closingDate);
+    const lockPeriod = Boolean(input.lockPeriod);
+    let closingVersion: number | null = null;
+
+    if (lockPeriod) {
+      const [withSnapshot, withClosing] = await Promise.all([
+        periodBalancesReady(ctx.db),
+        periodClosingsReady(ctx.db),
+      ]);
+      const stored = withClosing ? await readClosings(ctx.db, tx, ctx.workspaceId) : [];
+      const now = new Date().toISOString();
+      tx.update(ctx.db.collection('workspaces').doc(ctx.workspaceId), { lockDate: input.closingDate, updatedAt: now });
+      const snapshot = snapshotFromEntries(ctx.workspaceId, input.closingDate, accounts, transactions, ctx.actor);
+      if (withSnapshot) writeSnapshot(ctx.db, tx, snapshot);
+      if (withClosing) {
+        closingVersion = writeClosing(ctx.db, tx, stored, {
+          workspaceId: ctx.workspaceId, yearStart, yearEnd: input.closingDate, accounts, entries: transactions,
+          snapshot, uid: ctx.actor, email: ctx.email, at: now,
+        }).version;
+      }
+    }
+
+    return { workspaceId: ctx.workspaceId, yearStart, closingDate: input.closingDate, lockPeriod, year, closingVersion };
+  },
+  async preview(ctx, input) {
+    assertYearCloseable(input.closingDate, ctx.workspace);
+    const yearStart = fiscalYearStart(input.closingDate);
+    const { accounts, entries } = await ctx.db.runTransaction(tx => readSnapshotInputs(ctx.db, tx, ctx.workspaceId, input.closingDate));
+    const year = calculateNetIncome(entries as Transaction[], accounts, yearStart, input.closingDate);
+    return {
+      title: `Close fiscal year ${yearStart} through ${input.closingDate}`,
+      lines: [
+        `Net ${year.netIncome >= 0 ? 'profit' : 'loss'}: ${(Math.abs(year.netIncome) / 100).toFixed(2)} (income ${(year.income / 100).toFixed(2)}, costs ${((year.cogs + year.expense) / 100).toFixed(2)}).`,
+        `The year ${input.lockPeriod ? 'will be locked' : 'will remain open'} after the close.`,
+        'No closing journal entry is posted; the balance sheet already carries past profit in retained earnings.',
+      ],
+    };
+  },
+  audit(input, result) {
+    const { year } = result;
+    return {
+      action: 'FISCAL_YEAR_CLOSE', entityType: 'workspace', entityId: result.workspaceId,
+      description: `Year ${result.yearStart} – ${result.closingDate} closed: net ${year.netIncome >= 0 ? 'profit' : 'loss'} of ${(Math.abs(year.netIncome) / 100).toFixed(2)} (income ${(year.income / 100).toFixed(2)}, costs ${((year.cogs + year.expense) / 100).toFixed(2)}), carried in retained earnings on the balance sheet${result.lockPeriod ? '; the year is locked' : ''}.`,
+      details: {
+        closingDate: input.closingDate, yearStart: result.yearStart, netIncomeCents: year.netIncome,
+        incomeCents: year.income, costsCents: year.cogs + year.expense, lockPeriod: result.lockPeriod,
+      },
+    };
+  },
+  inverse() { return null; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Record the profit or loss for a completed fiscal year and optionally lock through its closing date; no closing journal entry is posted.',
+    example: { closingDate: '2026-06-30', lockPeriod: true },
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'The closing date is malformed, invalid, or in the future.', next: 'Provide a real ended date in YYYY-MM-DD format.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is not the workspace owner or a platform administrator.', next: 'Ask the owner or a platform administrator to close the fiscal year.' },
+      { code: 'CONFLICT', when: 'The period is already locked through or beyond the requested closing date.', next: 'Choose a date after the current lock or reopen the later period first.' },
+      { code: 'WORKSPACE_NOT_FOUND', when: 'The workspace no longer exists.', next: 'Choose an existing workspace.' },
+    ],
+  },
+};
+
+export const periodBalancesRebuildInput = z.object({}).strict();
+type PeriodBalancesRebuildResult = Awaited<ReturnType<typeof rebuildSnapshotsInTransaction>> & { workspaceId: string };
+
+export const periodBalancesRebuildCommand: CommandDefinition<typeof periodBalancesRebuildInput, PeriodBalancesRebuildResult> = {
+  name: 'period.balancesrebuild',
+  input: periodBalancesRebuildInput,
+  roles: ['owner'],
+  allowPlatformAdmin: true,
+  async handler(ctx, tx) {
+    return { workspaceId: ctx.workspaceId, ...(await rebuildSnapshotsInTransaction(ctx.db, tx, ctx.workspaceId, ctx.actor)) };
+  },
+  async preview(ctx) {
+    const dates = await snapshotRebuildPlan(ctx.db, ctx.workspaceId);
+    return {
+      title: 'Rebuild period balance snapshots',
+      lines: dates.length
+        ? [`Rebuild the snapshots for ${dates.join(', ')}.`]
+        : ['No closed-year or stale balance snapshots need rebuilding.'],
+    };
+  },
+  audit(_input, result) {
+    if (!result.built.length) return null;
+    return {
+      action: 'PERIOD_BALANCES_REBUILT', entityType: 'workspace', entityId: result.workspaceId,
+      description: `Rebuilt ${result.built.length} balance snapshot${result.built.length === 1 ? '' : 's'}: ${result.built.join(', ')}`,
+      details: { dates: result.built, count: result.built.length },
+    };
+  },
+  inverse() { return null; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Rebuild stale and missing closed-year balance snapshots from the ledger without changing entries; do not use this to edit accounting records.',
+    example: {},
+    refusals: [
+      { code: 'ROLE_REQUIRED', when: 'The caller is not the workspace owner or a platform administrator.', next: 'Ask the owner or a platform administrator to rebuild the snapshots.' },
+      { code: 'WORKSPACE_NOT_FOUND', when: 'The workspace no longer exists.', next: 'Choose an existing workspace.' },
+    ],
+  },
+};
+
+export const periodFxRevaluationInput = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  rates: z.record(z.string(), z.number().positive()).optional(),
+}).strict();
+type PeriodFxRevaluationInput = z.output<typeof periodFxRevaluationInput>;
+type PeriodFxRevaluationResult = Awaited<ReturnType<typeof revaluateForeignBalances>>;
+
+export const periodFxRevaluationCommand: CommandDefinition<typeof periodFxRevaluationInput, PeriodFxRevaluationResult> = {
+  name: 'period.fxrevaluation',
+  input: periodFxRevaluationInput,
+  roles: ['owner', 'accountant'],
+  async handler(ctx, tx, input: PeriodFxRevaluationInput) {
+    return revaluateForeignBalances(ctx.db, {
+      workspaceId: ctx.workspaceId,
+      user: { uid: ctx.actor, email: ctx.email, admin: ctx.user.admin },
+      ...input,
+      dryRun: false,
+    }, tx);
+  },
+  async preview(ctx, input) {
+    const plan = await revaluateForeignBalances(ctx.db, {
+      workspaceId: ctx.workspaceId,
+      user: { uid: ctx.actor, email: ctx.email, admin: ctx.user.admin },
+      ...input,
+      dryRun: true,
+    });
+    return {
+      title: `Preview currency revaluation at ${plan.date}`,
+      lines: [plan.summary, ...plan.skipped.map(item => `${item.number}: ${item.reason}`), ...plan.unpriced.map(currency => `Enter a ${currency} rate before posting.`)],
+      accounts: plan.lines.map(line => ({ accountId: line.accountId, accountName: line.accountName, amountCents: line.amountCents, description: line.description })),
+    };
+  },
+  audit() { return null; },
+  inverse(_input, result) {
+    return result.posted ? { command: 'period.fxrevaluationundo', input: { date: result.date } } : null;
+  },
+  risk: 'normal',
+  describe: {
+    sentence: 'Post a month-end foreign-currency revaluation of open invoices and bills with its next-day reversal; use the preview before posting and do not revalue home-currency documents.',
+    example: { date: '2026-03-31', rates: { EUR: 1.15 } },
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'The date or a provided exchange rate is invalid, or a historical month-end is missing rates.', next: 'Use an ended month-end and provide a positive rate for every open foreign currency.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is not an owner or accountant.', next: 'Ask an owner or accountant to run the currency revaluation.' },
+      { code: 'PERIOD_LOCKED', when: 'The revaluation date or its reversal date is closed.', next: 'Choose an open month or ask the owner to reopen it.' },
+      { code: 'CONFLICT', when: 'A revaluation already exists for that date.', next: 'Undo the existing revaluation before running it again.' },
+      { code: 'WORKSPACE_NOT_FOUND', when: 'The workspace no longer exists.', next: 'Choose an existing workspace.' },
+    ],
+  },
+};
+
+export const periodFxRevaluationUndoInput = z.object({ date: z.string().optional() }).strict();
+type PeriodFxRevaluationUndoInput = z.output<typeof periodFxRevaluationUndoInput>;
+type PeriodFxRevaluationUndoResult = Awaited<ReturnType<typeof undoRevaluation>>;
+
+export const periodFxRevaluationUndoCommand: CommandDefinition<typeof periodFxRevaluationUndoInput, PeriodFxRevaluationUndoResult> = {
+  name: 'period.fxrevaluationundo',
+  input: periodFxRevaluationUndoInput,
+  roles: ['owner', 'accountant'],
+  async handler(ctx, tx, input: PeriodFxRevaluationUndoInput) {
+    return undoRevaluation(ctx.db, {
+      workspaceId: ctx.workspaceId,
+      user: { uid: ctx.actor, email: ctx.email, admin: ctx.user.admin },
+      date: input.date || '',
+    }, tx);
+  },
+  async preview(_ctx, input) {
+    const date = input.date || 'the selected date';
+    return {
+      title: `Undo currency revaluation from ${date}`,
+      lines: [
+        `Post an exact reversal of the revaluation dated ${date} today.`,
+        'Void its scheduled next-day reversal so it cannot reverse the ledger twice.',
+        'The undo is refused if the original entry or scheduled reversal has changed or is already reversed.',
+      ],
+    };
+  },
+  audit() { return null; },
+  inverse() { return null; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Undo one currency revaluation by posting its mirror and voiding the paired next-day reversal; do not use this to reverse unrelated journals.',
+    example: { date: '2026-03-31' },
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'The original date is malformed or omitted.', next: 'Provide the original revaluation date in YYYY-MM-DD format.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is not an owner or accountant.', next: 'Ask an owner or accountant to undo the revaluation.' },
+      { code: 'CONFLICT', when: 'The original entry or scheduled reversal is missing, changed, or already reversed.', next: 'Check the existing ledger entries before making another correction.' },
+      { code: 'WORKSPACE_NOT_FOUND', when: 'The workspace no longer exists.', next: 'Choose an existing workspace.' },
+    ],
+  },
+};
 
 /** Body-only schemas are shared with the legacy routes so their request contract cannot drift. */
 export const periodCloseBodySchema = z.object({ mode: z.enum(['soft', 'hard']) }).strict();

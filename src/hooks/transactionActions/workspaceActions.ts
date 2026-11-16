@@ -16,6 +16,21 @@ import { errorMessage } from './shared';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 
 /** Workspace and period work: reset, year and month close, export, delete an account, recurring entries. (F-05, moved from useTransactionActions.) */
+const yearCloseOperationIds = new Map<string, string>();
+
+function yearCloseOperationId(fingerprint: string): string {
+  let id = yearCloseOperationIds.get(fingerprint);
+  if (!id) {
+    id = globalThis.crypto.randomUUID();
+    yearCloseOperationIds.set(fingerprint, id);
+  }
+  return id;
+}
+
+function clearYearCloseOperationId(fingerprint: string, id: string): void {
+  if (yearCloseOperationIds.get(fingerprint) === id) yearCloseOperationIds.delete(fingerprint);
+}
+
 export function createWorkspaceActions(ctx: ActionContext) {
   const { user, currentWorkspaceId, setIsSyncing } = ctx;
 
@@ -41,36 +56,25 @@ export function createWorkspaceActions(ctx: ActionContext) {
 
   const handleCloseYear = async (closingDate: string, lockPeriod: boolean = true) => {
     if (!user || !currentWorkspaceId) return;
+    const fingerprint = JSON.stringify([user.uid, currentWorkspaceId, closingDate, lockPeriod]);
+    const operationId = yearCloseOperationId(fingerprint);
     const loader = toast.loading('Initiating fiscal year close protocol...');
     try {
       setIsSyncing(true);
-      const data = await runCommand<{
-        transaction?: Transaction;
-        generatedAccount?: Parameters<ReturnType<typeof useLedgerStore.getState>['setAccounts']>[0][number];
-        message?: string;
+      const response = await runCommand<{
+        status: string;
+        data: { yearStart: string; closingDate: string; lockPeriod: boolean; year: { netIncome: number }; closingVersion: number | null };
       }>({
-        path: '/api/v1/transactions/close-year',
+        path: '/api/v1/commands/period.yearclose',
         method: 'POST',
-        body: { workspaceId: currentWorkspaceId, closingDate, lockPeriod },
+        body: { workspaceId: currentWorkspaceId, input: { closingDate, lockPeriod } },
+        headers: { 'Idempotency-Key': operationId },
       });
-
-      // Add the new transaction to the client-side store
-      if (data.transaction) {
-        const currentTxs = useLedgerStore.getState().transactions;
-        useLedgerStore.getState().setTransactions([...currentTxs, data.transaction]);
-      }
-
-      // Add the generated synthetic account if it exists
-      if (data.generatedAccount) {
-        const currentAccs = useLedgerStore.getState().accounts;
-        useLedgerStore.getState().setAccounts([...currentAccs, data.generatedAccount]);
-      }
-
-      if (lockPeriod) {
-        useLedgerStore.getState().setLockDate(closingDate);
-      }
-
-      toast.success(data.message || `Fiscal year closed successfully.`, { id: loader });
+      const data = response.data;
+      clearYearCloseOperationId(fingerprint, operationId);
+      if (lockPeriod) useLedgerStore.getState().setLockDate(closingDate);
+      const net = `${(Math.abs(data.year.netIncome) / 100).toFixed(2)}`;
+      toast.success(`Year ${data.yearStart} closed with a net ${data.year.netIncome >= 0 ? 'profit' : 'loss'} of ${net}${lockPeriod ? ' and is now locked' : ''}.`, { id: loader });
       return data;
     } catch (error) {
       console.error('Close Year Error:', error);
