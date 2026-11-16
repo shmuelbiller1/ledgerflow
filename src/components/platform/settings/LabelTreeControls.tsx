@@ -46,6 +46,7 @@ export function SlashConversionOffer({ dimensionId, plan, onChanged }: { dimensi
     const created = new Map<string, string>();
     const createFailures: string[] = [];
     await toCreate.reduce<Promise<void>>((previous, name) => previous.then(async () => {
+      if (!scope.isCurrent()) return; // stale: the workspace changed, create nothing in the new one
       const res = await attempt(() => registerDimensionNodeInline(dimensionId, name));
       if (res.ok) created.set(name, res.value.id); else createFailures.push(`${name}: ${res.error}`);
     }), Promise.resolve());

@@ -63,10 +63,30 @@ test('EU-E3: setting a parent writes parentId (and the new name in a conversion)
   } as unknown as DimensionNodeActionAdapter;
   await setDimensionNodeParentInline('property', 'R2', 'R1', 'South coast', adapter);
   assert.equal(writes.length, 1);
-  assert.deepEqual({ ...writes[0], updatedAt: 'x' }, { id: 'R2', parentId: 'R1', description: 'South coast', updatedAt: 'x' });
+  const { aliases, ...first } = writes[0] as { aliases: string[] };
+  assert.deepEqual({ ...first, updatedAt: 'x' }, { id: 'R2', parentId: 'R1', description: 'South coast', updatedAt: 'x' });
+  assert.ok(aliases.includes(nodes.find(x => x.id === 'R2')!.description), 'the old name stays an alias');
   assert.equal(store.find(x => x.id === 'R2')?.parentId, 'R1');
   await setDimensionNodeParentInline('property', 'R2', null, undefined, adapter);
   assert.equal(store.find(x => x.id === 'R2')?.parentId, undefined, 'cleared');
   await assert.rejects(setDimensionNodeParentInline('property', 'R1', 'U1', undefined, adapter), /loop/);
   assert.equal(writes.length, 2, 'nothing written for the refused loop');
+});
+
+test('EU-E3: a conversion name another value uses is refused; overlapping changes cannot make a loop', async () => {
+  let store = [...nodes];
+  let release: () => void = () => {};
+  const adapter = {
+    session: () => ({ workspaceId: 'w1', uid: 'u1', canWriteNodes: true }),
+    getNodes: () => store,
+    setNodes: (next: DimensionNode[]) => { store = next; },
+    updateNode: () => new Promise<void>(r => { release = r; }),
+  } as unknown as DimensionNodeActionAdapter;
+  await assert.rejects(setDimensionNodeParentInline('property', 'R2', 'R1', nodes.find(x => x.id === 'R1')!.description, adapter), /already uses/);
+  const first = setDimensionNodeParentInline('property', 'R2', 'R1', undefined, adapter);
+  const second = setDimensionNodeParentInline('property', 'R1', 'R2', undefined, adapter);
+  await new Promise(r => setTimeout(r, 0));
+  release();
+  await first;
+  await assert.rejects(second, /loop/, 'the second change is checked after the first is saved');
 });
