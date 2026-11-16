@@ -18,7 +18,7 @@ import { useHandOvers } from '../collaboration/useHandOvers';
 import { inBackground } from '../../lib/inBackground';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { isPostable, lineAmount } from '../../lib/txFilters';
-import { commandErrorMessage, runCommand as sendCommand } from '../../lib/runCommand';
+import { commandErrorMessage, runCommand as sendCommand, writeWasAccepted } from '../../lib/runCommand';
 import {
   buildConnectedAlgorithmSignals,
   evaluateCalibratedAutoPost,
@@ -152,9 +152,12 @@ export default function InboxView() {
         body: { workspaceId: currentWorkspaceId, updates },
       });
     } catch (error) {
-      // the server's own words; nothing below runs, so the screen keeps the entries unaccepted
-      toast.error(commandErrorMessage(error));
-      return false;
+      // A cut-off answer means the batch was applied; only a refusal leaves the entries unaccepted. Carrying
+      // on below with the patch we sent is the honest reading of a 2xx whose body was cut in half.
+      if (!writeWasAccepted(error)) {
+        toast.error(commandErrorMessage(error));
+        return false;
+      }
     }
     const patchMap = new Map(updates.map(u => [u.id, u.data]));
     useLedgerStore.getState().setTransactions(

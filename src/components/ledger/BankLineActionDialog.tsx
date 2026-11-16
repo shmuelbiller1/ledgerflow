@@ -8,7 +8,7 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { formatCurrency } from '../../lib/utils';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useDialog } from '../../hooks/useDialog';
-import { runCommand } from '../../lib/runCommand';
+import { runCommand, writeWasAccepted } from '../../lib/runCommand';
 
 export interface BankLineActionTarget {
   mode: 'pay' | 'split';
@@ -78,6 +78,13 @@ export default function BankLineActionDialog({ target, onClose }: { target: Bank
       toast.success(mode === 'pay' ? 'Payment recorded and bank line matched' : 'Bank line split and matched');
       onClose();
     } catch (err) {
+      // the server recorded the payment and only the answer was cut off — closing is correct here, and an
+      // open dialog with an error would invite paying the same line twice
+      if (writeWasAccepted(err)) {
+        toast.success(mode === 'pay' ? 'Payment recorded and bank line matched' : 'Bank line split and matched');
+        onClose();
+        return;
+      }
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);

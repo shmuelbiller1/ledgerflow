@@ -1,5 +1,5 @@
 import { recategorizeLines } from '../../lib/accountChoices';
-import { commandErrorMessage, runCommand, ServerCommandError } from '../../lib/runCommand';
+import { commandErrorMessage, runCommand, runWrite, writeWasAccepted, ServerCommandError } from '../../lib/runCommand';
 import { identityScope } from '../../lib/serverAction';
 import { currentIdentity, useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -144,12 +144,14 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       finalTx.id = optimisticTx.id;
       
       // `x-operation-id` is the idempotency key: a retry of this entry is recorded once, not twice
-      const answer = (await runCommand<Record<string, unknown>>({
+      // `runWrite`, not `runCommand`: an answer cut off mid-body still means the entry is committed, and
+      // reporting that as a failure is what makes a person submit it a second time. A refusal still throws.
+      const answer = await runWrite<Record<string, unknown>>({
         path: '/api/v1/transactions',
         method: 'POST',
         headers: { 'x-operation-id': finalTx.id },
         body: { transaction: finalTx }
-      })) ?? {};
+      });
       // EG-4: a refusal over the budget comes as a 409 that `runCommand` throws with the server's own
       // words; an entry *posted* over it still succeeds and lists budgetWarnings here
       showBudgetWarnings(answer);
@@ -321,7 +323,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
                 }
               }
               if (undoPayload.length > 0) {
-                await runCommand({
+                await runWrite({
                   path: '/api/v1/transactions/batch',
                   method: 'POST',
                   body: { workspaceId: currentWorkspaceId, updates: undoPayload }
@@ -366,11 +368,14 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
         },
       });
     } catch (error) {
-      // A refusal is a line on the screen rather than an exception, but it is still a *failure*: the flag did
-      // not change, and the caller must be able to tell (returning normally here reads as success).
-      if (!scope.isCurrent()) return false;
-      toast.error(commandErrorMessage(error) || 'Could not update transaction flag');
-      return false;
+      // Two different outcomes, and the person needs to know which one this is. A *refusal* means the flag
+      // did not change, and returning normally here would read as success. An answer cut off mid-body means
+      // the server took the change — so the read below completes the work instead of inviting a second click.
+      if (!writeWasAccepted(error)) {
+        if (!scope.isCurrent()) return false;
+        toast.error(commandErrorMessage(error) || 'Could not update transaction flag');
+        return false;
+      }
     }
     if (!scope.isCurrent()) return false;
     // The partial-update API does not include the committed row. Read it to

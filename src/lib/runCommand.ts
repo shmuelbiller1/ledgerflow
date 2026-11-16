@@ -128,6 +128,33 @@ export async function runCommand<T = unknown>(request: CommandRequest<T>): Promi
 }
 
 /**
+ * Did the server take this request, even though the answer could not be read?
+ *
+ * A 2xx with a body cut in half throws `ServerCommandError(accepted)`. The write is **committed**. A write
+ * path that reports it as failed tells the person to try again, and trying again posts it a second time —
+ * which is how the same invoice gets recorded twice. So every write path that cannot dedupe by itself asks
+ * this before showing the error, and treats `true` as saved.
+ */
+export function writeWasAccepted(error: unknown): boolean {
+  return error instanceof ServerCommandError && error.accepted;
+}
+
+/**
+ * A write whose answer is only read for its optional extras (a list of budget warnings, a new version).
+ *
+ * The write matters; the answer barely does. So a cut-off answer is `{}` — the request went through — while
+ * a refusal still throws, because there the write did *not* happen and the person has to know why.
+ */
+export async function runWrite<T = CommandBody>(request: CommandRequest<Record<string, unknown>>): Promise<Partial<T>> {
+  try {
+    return ((await runCommand<Record<string, unknown>>(request)) ?? {}) as Partial<T>;
+  } catch (error) {
+    if (writeWasAccepted(error)) return {};
+    throw error;
+  }
+}
+
+/**
  * The server's own explanation of a refusal. This app's routes answer in more than one shape and both
  * are real: most say `{ message }`, and the inventory routes say `{ error }` (a delivery refused because
  * more was sent than was left answers `{ error: 'Only 3 left' }`, which is the one sentence that tells
