@@ -29,7 +29,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The payment amount, date, cash account, payment type, or allocation is invalid.",
           "next": "Correct the payment details and choose an existing cash account and open document."
         },
-        COMMAND_SCHEMA_PARTS.part102,
+        COMMAND_SCHEMA_PARTS.part103,
         {
           "code": "PERIOD_LOCKED",
           "when": "The payment date is in a closed period.",

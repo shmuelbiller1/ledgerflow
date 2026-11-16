@@ -27,7 +27,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
           "isHardened": true
         }
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part125
+      "refusals": COMMAND_SCHEMA_PARTS.part126
     },
     "runPath": "/api/v1/commands/autorule.create",
     "previewPath": "/api/v1/commands/autorule.create/preview",
@@ -43,7 +43,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
       "example": {
         "id": "rule_123"
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part122
+      "refusals": COMMAND_SCHEMA_PARTS.part123
     },
     "runPath": "/api/v1/commands/autorule.delete",
     "previewPath": "/api/v1/commands/autorule.delete/preview",
@@ -60,7 +60,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
         "groupName": "General",
         "groupIsActive": false
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part125
+      "refusals": COMMAND_SCHEMA_PARTS.part126
     },
     "runPath": "/api/v1/commands/autorule.group",
     "previewPath": "/api/v1/commands/autorule.group/preview",
@@ -81,7 +81,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
           }
         ]
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part122
+      "refusals": COMMAND_SCHEMA_PARTS.part123
     },
     "runPath": "/api/v1/commands/autorule.recordhits",
     "previewPath": "/api/v1/commands/autorule.recordhits/preview",
@@ -101,7 +101,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
           "isActive": true
         }
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part122
+      "refusals": COMMAND_SCHEMA_PARTS.part123
     },
     "runPath": "/api/v1/commands/autorule.update",
     "previewPath": "/api/v1/commands/autorule.update/preview",

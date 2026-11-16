@@ -40,6 +40,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "warranty.update": "CommandInput_warranty_update",
   "watches.create": "CommandInput_watches_create",
   "watches.remove": "CommandInput_watches_remove",
+  "workspace.canceldeletion": "CommandInput_workspace_canceldeletion",
   "workspace.importmap": "CommandInput_workspace_importmap",
   "workspace.modules": "CommandInput_workspace_modules",
   "workspace.nextnumber": "CommandInput_workspace_nextnumber",

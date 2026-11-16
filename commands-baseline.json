@@ -1,5 +1,5 @@
 {
-  "writeRoutes": 197,
+  "writeRoutes": 194,
   "directBrowserWrites": 106,
   "routeSites": {
     "src/server/routes/accountMergeRoutes.ts": 2,
@@ -65,7 +65,7 @@
     "src/server/routes/transactions/reverseRoutes.ts": 2,
     "src/server/routes/twoStepPolicyRoutes.ts": 2,
     "src/server/routes/workspaceApiRoutes.ts": 4,
-    "src/server/routes/workspaceRoutes.ts": 10
+    "src/server/routes/workspaceRoutes.ts": 7
   },
   "browserSites": {
     "src/components/assets/ConstructionActions.tsx": 1,

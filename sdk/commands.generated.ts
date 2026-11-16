@@ -41,6 +41,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "warranty.update",
   "watches.create",
   "watches.remove",
+  "workspace.canceldeletion",
   "workspace.importmap",
   "workspace.modules",
   "workspace.nextnumber",

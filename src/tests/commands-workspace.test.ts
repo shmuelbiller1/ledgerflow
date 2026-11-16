@@ -5,6 +5,7 @@ import type { CommandDefinition } from '../server/commands/types';
 import { alertSettingsUpdateCommand, alertSettingsUpdateInput } from '../server/commands/alerts';
 import { importMapRestoreCommand, importMapSaveCommand, importMapSaveInput } from '../server/commands/importMaps';
 import { workspaceInviteRevokeCommand } from '../server/commands/workspaceInvites';
+import { workspaceCancelDeletionCommand } from '../server/commands/workspaceLifecycle';
 import {
   workspaceModulesCommand,
   workspaceNextNumberCommand,
@@ -100,7 +101,7 @@ test('workspace import-map commands preview saves and can restore their full pri
 });
 
 test('workspace setup/settings commands publish validated examples and refusal guides', () => {
-  for (const command of [workspaceModulesCommand, workspaceNextNumberCommand, workspaceOpeningBalancesCommand, workspaceRetentionCommand, workspaceSetupCompleteCommand, workspaceInviteRevokeCommand]) {
+  for (const command of [workspaceModulesCommand, workspaceNextNumberCommand, workspaceOpeningBalancesCommand, workspaceRetentionCommand, workspaceSetupCompleteCommand, workspaceInviteRevokeCommand, workspaceCancelDeletionCommand]) {
     assert.equal(command.input.safeParse(command.describe.example).success, true, `${command.name} example matches its schema`);
     assert.ok(command.describe.sentence.trim(), `${command.name} has a description`);
     assert.ok(command.describe.refusals.length > 0, `${command.name} lists refusals`);
@@ -112,6 +113,36 @@ test('workspace setup/settings commands publish validated examples and refusal g
   assert.deepEqual(workspaceRetentionCommand.roles, ['owner']);
   assert.deepEqual(workspaceSetupCompleteCommand.roles, ['owner', 'accountant']);
   assert.deepEqual(workspaceInviteRevokeCommand.roles, ['owner']);
+  assert.deepEqual(workspaceCancelDeletionCommand.roles, ['owner']);
+});
+
+test('workspace.canceldeletion previews a pending workspace, restores it transactionally, and refuses an already-active workspace', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId, {
+    status: 'pending_deletion',
+    deletedAt: '2026-11-01T00:00:00.000Z',
+    scheduledPurgeAt: '2026-12-01T00:00:00.000Z',
+  });
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const input = {};
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceCancelDeletionCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.deepEqual(preview.preview.lines, ['Cancel the scheduled deletion and return the workspace to active status']);
+  assert.equal(db.read(`workspaces/${workspaceId}`)?.status, 'pending_deletion');
+
+  const restored = await executeCommand(fakeRequest(owner, input), captureResponse().response,
+    { definition: workspaceCancelDeletionCommand, workspaceId, input }, dependencies);
+  assert.equal(restored.ok, true);
+  assert.equal(db.read(`workspaces/${workspaceId}`)?.status, 'active');
+  assert.equal(counters.audits, 1);
+
+  const repeated = await executeCommand(fakeRequest(owner, input), captureResponse().response,
+    { definition: workspaceCancelDeletionCommand, workspaceId, input }, dependencies);
+  assert.equal(repeated.ok, false);
+  if (!repeated.ok) assert.equal(repeated.status, 400);
+  assert.equal(counters.audits, 1);
 });
 
 test('workspace.revokeinvite previews pending invites, rechecks workspace scope, and audits only a real change', async () => {

@@ -17,6 +17,7 @@ describe('Workspace setup/settings command routes', { skip: !url && 'LF_TEST_DAT
     retention: `ws_cmd_retention_${suffix}`,
     numbering: `ws_cmd_numbering_${suffix}`,
     invites: `ws_cmd_invites_${suffix}`,
+    restoration: `ws_cmd_restoration_${suffix}`,
   };
   let db: Firestore;
   let server: Server;
@@ -54,6 +55,7 @@ describe('Workspace setup/settings command routes', { skip: !url && 'LF_TEST_DAT
         members: ['owner-1', 'acct-1', 'book-1', 'viewer-1'],
         roles: { 'acct-1': 'accountant', 'book-1': 'bookkeeper', 'viewer-1': 'viewer' },
         ...(key === 'retention' ? { retention: { deletionGraceDays: 30, emailLogDays: 90, errorLogDays: 90, legalHold: false } } : {}),
+        ...(key === 'restoration' ? { status: 'pending_deletion', deletedAt: '2026-11-01T00:00:00.000Z', scheduledPurgeAt: '2026-12-01T00:00:00.000Z' } : {}),
       });
     }
     await db.collection('chartAccounts').doc(`${workspaces.opening}_cash`).set({
@@ -84,6 +86,30 @@ describe('Workspace setup/settings command routes', { skip: !url && 'LF_TEST_DAT
       await db.pool.query(`delete from public."${table}" where workspace_id = any($1) or id = any($1)`, [ids]);
     }
     await db.terminate();
+  });
+
+  test('cancel-deletion keeps the legacy response, restores atomically, and audits one idempotent restore', async () => {
+    const workspaceId = workspaces.restoration;
+    const activeWorkspace = workspaces.modules;
+    const notPending = await send('POST', activeWorkspace, 'cancel-deletion', 'owner-1', {});
+    assert.equal(notPending.status, 400);
+    const missing = await send('POST', `${workspaceId}_missing`, 'cancel-deletion', 'owner-1', {});
+    assert.deepEqual(missing, { status: 404, body: { status: 'error', message: 'Workspace not found' } });
+    const denied = await send('POST', workspaceId, 'cancel-deletion', 'book-1', {});
+    assert.equal(denied.status, 403);
+
+    const operationId = 'workspace-cancel-deletion-route';
+    const first = await send('POST', workspaceId, 'cancel-deletion', 'owner-1', {}, operationId);
+    assert.deepEqual(first, { status: 200, body: { status: 'success', message: 'Workspace restored successfully.' } });
+    const retry = await send('POST', workspaceId, 'cancel-deletion', 'owner-1', {}, operationId);
+    assert.deepEqual(retry, first);
+
+    const workspace = (await db.collection('workspaces').doc(workspaceId).get()).data();
+    assert.equal(workspace?.status, 'active');
+    assert.equal(workspace?.deletedAt, undefined);
+    assert.equal(workspace?.scheduledPurgeAt, undefined);
+    const audits = await db.collection('auditLogs').where('workspaceId', '==', workspaceId).get();
+    assert.equal(audits.docs.filter(doc => doc.data().action === 'WORKSPACE_RESTORED').length, 1);
   });
 
   test('invite revocation keeps the legacy response, refuses accepted or foreign invites, and hashes the path target', async () => {

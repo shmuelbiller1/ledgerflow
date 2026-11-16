@@ -64,7 +64,7 @@ test('the default registry is sorted and unique across the registered command do
     'vendorcredit.create', 'vendorcredit.delete', 'vendorcredit.update',
     'warranty.update',
     'watches.create', 'watches.remove',
-    'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
+    'workspace.canceldeletion', 'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
     'workspace.retention', 'workspace.revokeinvite', 'workspace.setupcomplete',
   ]);
   assert.deepEqual(registry.areaNames(), ['alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'invoice', 'journal', 'payment', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
@@ -152,7 +152,7 @@ test('API-key scopes validate exact, unique permissions and command paths use th
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/autorule.create'), 'write:rules');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/autorule.group'), 'write:rules');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/alerts.update'), 'write:workspaces');
-  for (const name of ['tasks.create', 'watches.create', 'entrylink.create', 'time.log', 'stages.move', 'workspace.importmap', 'workspace.restoremaps']) {
+  for (const name of ['tasks.create', 'watches.create', 'entrylink.create', 'time.log', 'stages.move', 'workspace.importmap', 'workspace.restoremaps', 'workspace.canceldeletion']) {
     assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:workspaces');
   }
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/vendor.create'), 'write:vendors');

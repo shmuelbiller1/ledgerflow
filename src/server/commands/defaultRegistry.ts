@@ -33,6 +33,7 @@ import {
 } from './documents';
 import { CommandRegistry } from './registry';
 import { workspaceInviteRevokeCommand } from './workspaceInvites';
+import { workspaceCancelDeletionCommand } from './workspaceLifecycle';
 
 /** Construct the built-in command set; tests and alternate server entry points get an isolated registry. */
 export function createDefaultCommandRegistry(): CommandRegistry {
@@ -46,6 +47,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(workspaceRetentionCommand);
   registry.register(workspaceSetupCompleteCommand);
   registry.register(workspaceInviteRevokeCommand);
+  registry.register(workspaceCancelDeletionCommand);
   registry.register(entryLinkCreateCommand);
   registry.register(entryLinkRemoveCommand);
   registry.register(stageDefineCommand);

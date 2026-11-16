@@ -33,7 +33,7 @@ export const WARRANTY_COMMAND_MANIFEST = [
           "when": "The customer, invoice line, or serial changed before the update.",
           "next": "Reload the warranty register and select the current serial row."
         },
-        COMMAND_SCHEMA_PARTS.part102
+        COMMAND_SCHEMA_PARTS.part103
       ]
     },
     "runPath": "/api/v1/commands/warranty.update",

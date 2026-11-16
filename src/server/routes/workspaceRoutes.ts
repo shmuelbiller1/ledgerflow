@@ -3,7 +3,7 @@ import { notify } from '../services/notificationService';
 import express from 'express';
 import type { DecodedIdToken } from '../auth/supabaseAuth';
 import { z } from 'zod';
-import { getDb, validateWorkspaceMember, FieldValue, type Firestore } from '../db/firestore';
+import { getDb, validateWorkspaceMember, type Firestore } from '../db/firestore';
 import { writeServerAuditLog } from '../services/auditLogService';
 import { applyAccountTemplate, TemplateError } from '../services/templateService';
 import { importRecords, undoImport, ImportError } from '../services/recordImportService';
@@ -31,6 +31,7 @@ import { AlertSettingsError } from '../services/bookAlertService';
 import { alertSettingsUpdateCommand } from '../commands/alerts';
 import { importMapSaveCommand } from '../commands/importMaps';
 import { workspaceInviteRevokeCommand, WorkspaceInviteError } from '../commands/workspaceInvites';
+import { workspaceCancelDeletionCommand, WorkspaceLifecycleError } from '../commands/workspaceLifecycle';
 import {
   workspaceModulesCommand,
   workspaceNextNumberCommand,
@@ -738,48 +739,30 @@ workspaceRouter.delete('/:workspaceId', requireWorkspaceRole(['owner']), async (
  * (Its own path: POST /:workspaceId/restore is the backup import in server.ts, L-130.)
  */
 workspaceRouter.post('/:workspaceId/cancel-deletion', requireWorkspaceRole(['owner']), async (req, res) => {
-  const { workspaceId } = req.params as Record<string, string>;
-  try {
-    const db = getDb();
-    const wsRef = db.collection('workspaces').doc(workspaceId);
-    const wsSnap = await wsRef.get();
-    if (!wsSnap.exists) {
-      return sendError(res, 'Workspace not found', 404);
-    }
-
-    const wsData = wsSnap.data() || {};
-    if (wsData.status !== 'pending_deletion') {
-      return sendError(res, 'Workspace is not pending deletion', 400);
-    }
-
-    const now = new Date();
-    await wsRef.update({
-      status: 'active',
-      deletedAt: FieldValue.delete(),
-      scheduledPurgeAt: FieldValue.delete(),
-      updatedAt: now.toISOString()
-    });
-
-    // Audit log entry
-    await writeServerAuditLog({
-      workspaceId,
-      uid: requestUser(req).uid,
-      email: requestUser(req).email || '',
-      action: 'WORKSPACE_RESTORED',
-      entityType: 'workspace',
-      entityId: workspaceId,
-      details: {
-        description: 'Workspace restored from pending deletion'
+  await executeCommand(req, res, {
+    definition: workspaceCancelDeletionCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: {},
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        return { status: outcome.status, body: { status: 'success', message: 'Workspace restored successfully.' } };
       }
-    }, { db });
-
-    res.json({
-      status: 'success',
-      message: 'Workspace restored successfully.'
-    });
-  } catch (err) {
-    sendError(res, 'Failed to restore workspace', 500, errorMessage(err));
-  }
+      if (outcome.error instanceof WorkspaceLifecycleError) {
+        return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return { status: 400, body: { status: 'error', message: 'Invalid workspace restoration request', details: outcome.error.issues } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: { status: 'error', message: 'Failed to restore workspace', details: error instanceof Error ? errorMessage(error) : outcome.message },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 // #656: the demo-seed route was removed: no screen called it, and it wrote demo entries into real books, even a closed
