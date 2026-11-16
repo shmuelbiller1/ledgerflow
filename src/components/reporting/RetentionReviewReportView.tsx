@@ -245,25 +245,29 @@ export function RetentionReviewPanel({ report, asOfDate, loading = false, partia
         <p><b>Unclassified:</b> {report.unclassifiedCount}</p>
       </div>
       <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption>Document review status as of {report.asOfDate}; no deletion action is available here</caption>
-          <thead><tr>
-            {['Type', 'Document / file', 'Date', 'Status', 'Entity', 'Country', 'Period', 'Review due', 'Review status', 'Reason', 'Source record'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-          </tr></thead>
-          <tbody>{rows.map(row => <tr key={row.key} className="border-b border-[var(--line)]/50 align-top">
-            <th scope="row" className="text-left font-normal py-1 px-2">{row.recordType}</th>
-            <td className="py-1 px-2"><bdi>{row.recordNumber}</bdi><div className="text-xs text-[var(--muted)]"><code>{row.recordId}</code></div></td>
-            <td className="py-1 px-2">{row.recordDate || '—'}</td>
-            <td className="py-1 px-2">{row.recordStatus || '—'}</td>
-            <td className="py-1 px-2"><bdi>{row.entity}</bdi><div className="text-xs text-[var(--muted)]">{row.profileSource}</div></td>
-            <td className="py-1 px-2">{row.countryName}{row.countryCode && row.countryName !== row.countryCode ? ` (${row.countryCode === 'GB' ? 'UK' : row.countryCode})` : ''}</td>
-            <td className="py-1 px-2">{row.periodYears === undefined ? '—' : `${row.periodYears} years`}</td>
-            <td className="py-1 px-2">{row.reviewDueOn || '—'}</td>
-            <td className="py-1 px-2">{row.reviewState === 'due' ? 'Due for review' : row.reviewState === 'not-due' ? 'Not yet due' : 'Unclassified'}</td>
-            <td className="py-1 px-2">{row.reason || '—'}</td>
-            <td className="py-1 px-2"><bdi>{row.relatedRecord || '—'}</bdi></td>
-          </tr>)}</tbody>
-        </table>
+        <RowTable
+          rowClassName="border-b border-[var(--line)]/50 align-top"
+          caption={(<>Document review status as of {report.asOfDate}; no deletion action is available here</>)}
+          rows={rows}
+          rowKey={row => row.key}
+          captionClassName=""
+          tableClassName="w-full text-sm"
+          headRowClassName=""
+          bodyClassName=""
+          columns={[
+            { header: "Type", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.recordType },
+            { header: "Document / file", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<><bdi>{row.recordNumber}</bdi><div className="text-xs text-[var(--muted)]"><code>{row.recordId}</code></div></>) },
+            { header: "Date", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.recordDate || '—' },
+            { header: "Status", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.recordStatus || '—' },
+            { header: "Entity", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<><bdi>{row.entity}</bdi><div className="text-xs text-[var(--muted)]">{row.profileSource}</div></>) },
+            { header: "Country", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>{row.countryName}{row.countryCode && row.countryName !== row.countryCode ? ` (${row.countryCode === 'GB' ? 'UK' : row.countryCode})` : ''}</>) },
+            { header: "Period", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.periodYears === undefined ? '—' : `${row.periodYears} years` },
+            { header: "Review due", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.reviewDueOn || '—' },
+            { header: "Review status", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.reviewState === 'due' ? 'Due for review' : row.reviewState === 'not-due' ? 'Not yet due' : 'Unclassified' },
+            { header: "Reason", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.reason || '—' },
+            { header: "Source record", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.relatedRecord || '—'}</bdi> },
+          ]}
+        />
         {!loading && !rows.length && <p className="text-sm text-[var(--muted)]">No record matches this review filter.</p>}
       </ReportTableScroll>
     </>}

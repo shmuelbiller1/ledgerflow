@@ -481,6 +481,28 @@ function readCells(rowInner: string): Cell[] | undefined {
   return cells;
 }
 
+/** The names of `['Date', 'Day']`, or `undefined` when the list is not written out. */
+function headerNames(list: string): string[] | undefined {
+  const text = list.trim();
+  if (!text.startsWith('[') || !text.endsWith(']')) return undefined;
+  const names: string[] = [];
+  const inner = text.slice(1, -1);
+  let at = 0;
+  while (at < inner.length) {
+    const quote = inner[at];
+    if (quote === ',' || /\s/.test(quote)) {
+      at++;
+      continue;
+    }
+    if (quote !== "'" && quote !== '"') return undefined; // an identifier, a template, a spread
+    const end = inner.indexOf(quote, at + 1);
+    if (end === -1) return undefined;
+    names.push(inner.slice(at + 1, end));
+    at = end + 1;
+  }
+  return names;
+}
+
 /** The `{…}` groups a body is made of, or `undefined` when it is not only those. */
 function splitExpressions(source: string): string[] | undefined {
   const chunks: string[] = [];
@@ -636,6 +658,12 @@ export function attemptConvert(source: string, start: number): Attempt {
   // a class that reads the row (`cn('p-3', m.amountCents < 0 ? …)`) is computed per row: it has to stay inside
   // the cell, because a column-level `className` is evaluated once, outside the row's scope
   const readsRow = new RegExp(`\\b${row}\\.`);
+  // and a *header* class that reads the header's own item (`\`${head === 'Amount' ? 'text-right' : 'text-left'}\``)
+  // is the same problem one level up: the item exists inside the header's map, not in the column list
+  const headClassSource = 'cellTag' in head ? classSource(head.cellTag) ?? '' : '';
+  if ('parameter' in head && headClassSource.includes('${') && new RegExp(`\\b${head.parameter}\\b`).test(headClassSource)) {
+    return { reason: 'a header class that reads the header item, which a column cannot see' };
+  }
   if (cells.some(cell => cell.rawClass && readsRow.test(cell.rawClass))) {
     return { reason: 'a class computed from the row, which belongs inside the cell' };
   }
@@ -677,7 +705,17 @@ export function attemptConvert(source: string, start: number): Attempt {
   if (nestedCells.length === 1 && cells.indexOf(nestedCells[0]) !== cells.length - 1) {
     return { reason: 'a nested map that is not the last column' };
   }
-  if (literalCells.length !== fixedHeaders.length) {
+  // the columns a header declares: its own cells, or the names it maps over when the header is a literal list.
+  // The array shape used to be compared against an empty list, so every one of them was refused
+  const arrayNames = head.kind === 'array' ? headerNames(head.list) : undefined;
+  if (head.kind === 'array' && arrayNames === undefined) {
+    return { reason: 'a header list that is computed, not written out' };
+  }
+  const declaredColumns = head.kind === 'array'
+    // one of the header's columns is the repeated one, and its cell is the nested map
+    ? (arrayNames!.length - (nestedCells.length === 1 ? 1 : 0))
+    : fixedHeaders.length;
+  if (literalCells.length !== declaredColumns) {
     return { reason: 'a row that does not line up with its header' };
   }
 
@@ -713,13 +751,7 @@ export function attemptConvert(source: string, start: number): Attempt {
     ]));
   } else if (head.kind === 'array') {
     // `{['Date', 'Day', 'Holiday'].map(head => <th>{head}</th>)}`: the columns are the literal list itself
-    const items = list.match(/^\[([\s\S]*)\]$/);
-    if (!items) return { reason: 'a header list that is computed, not written out' };
-    const names = [...items[1].matchAll(/'([^']*)'|"([^"]*)"/g)].map(match => match[1] ?? match[2]);
-    if (names.length !== literalCells.length || names.some(name => name === undefined)) {
-      return { reason: 'a header list that does not match the cells of a row' };
-    }
-    names.forEach((name, index) => {
+    (arrayNames ?? []).forEach((name, index) => {
       const cell = literalCells[index];
       entries.push(entry([
         `header: ${literal(name)}`,

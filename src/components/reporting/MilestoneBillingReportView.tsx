@@ -10,6 +10,7 @@ import {
   milestoneBilling, milestoneBillingCsvRows, MILESTONE_BILLING_CSV_HEADERS,
   type MilestoneBilling,
 } from '../../lib/milestoneBilling';
+import { RowTable } from '../ui/RowTable';
 
 const statusLabels: Record<string, string> = { invoiced: 'Invoiced', due: 'Due', upcoming: 'Upcoming' };
 
@@ -129,31 +130,30 @@ export default function MilestoneBillingReportView() {
         {selected.est.number || selected.est.id}: {selected.billing.rows.length} milestone(s)
       </h3>
       <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption>Milestones of {selected.est.number || selected.est.id}</caption>
-          <thead>
-            <tr>{['Milestone', 'Percent', 'Amount', 'Due', 'Status', 'Invoiced on'].map(head =>
-              <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-          </thead>
-          <tbody>
-            {selected.billing.rows.map(row => <tr key={`${row.label}|${row.percent}|${row.due || ''}|${row.invoicedAt || ''}`} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.label}</bdi></th>
-              <td className="py-1 px-2">{row.percent}%</td>
-              <td className="py-1 px-2">{formatCurrency(row.amountCents, home)}</td>
-              <td className="py-1 px-2">{row.due || '—'}</td>
-              <td className="py-1 px-2">{statusLabels[row.status]}</td>
-              <td className="py-1 px-2">{row.invoicedAt || '—'}</td>
-            </tr>)}
-          </tbody>
-          <tfoot>
-            <tr className="font-semibold">
+        <RowTable
+          rowClassName="border-b border-[var(--line)]/50"
+          caption={(<>Milestones of {selected.est.number || selected.est.id}</>)}
+          rows={selected.billing.rows}
+          rowKey={row => `${row.label}|${row.percent}|${row.due || ''}|${row.invoicedAt || ''}`}
+          captionClassName=""
+          tableClassName="w-full text-sm"
+          headRowClassName=""
+          bodyClassName=""
+          footer={<tr className="font-semibold">
               <th scope="row" className="text-left py-1 px-2">Total</th>
               <td className="py-1 px-2">{selected.billing.unscheduledPercent ? `${100 - selected.billing.unscheduledPercent}% scheduled` : '100%'}</td>
               <td className="py-1 px-2">{formatCurrency(selected.billing.orderTotalCents, home)}</td>
               <td className="py-1 px-2" colSpan={3}>invoiced {formatCurrency(selected.billing.invoicedCents, home)} · left {formatCurrency(selected.billing.leftCents, home)}</td>
-            </tr>
-          </tfoot>
-        </table>
+            </tr>}
+          columns={[
+            { header: "Milestone", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.label}</bdi> },
+            { header: "Percent", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>{row.percent}%</>) },
+            { header: "Amount", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.amountCents, home) },
+            { header: "Due", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.due || '—' },
+            { header: "Status", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => statusLabels[row.status] },
+            { header: "Invoiced on", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.invoicedAt || '—' },
+          ]}
+        />
       </ReportTableScroll>
     </div>}
   </section>;

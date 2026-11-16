@@ -6,6 +6,7 @@ import {
   searchIsraeliBanks, type IsraeliBankKind,
 } from '../../lib/israeliBankCodes';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 const KINDS: Array<'all' | IsraeliBankKind> = ['all', 'bank', 'foreign bank', 'bank group brand', 'postal bank', 'clearing', 'central bank', 'payment service provider', 'retired'];
 
@@ -102,27 +103,24 @@ export default function IsraeliBankCodesReportView() {
     </div>
 
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>Israeli bank identification codes ({rows.length} shown)</caption>
-        <thead>
-          <tr>
-            {['Code', 'Bank', 'Name (Hebrew)', 'Kind', 'Note'].map(head =>
-              <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(row => (
-            <tr key={row.code} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2 tabular-nums">{row.code}</th>
-              <td className="py-1 px-2">{row.name}</td>
-              <td className="py-1 px-2">{row.nameHe ? <bdi lang="he">{row.nameHe}</bdi> : '—'}</td>
-              <td className="py-1 px-2">{row.kind}</td>
-              <td className="py-1 px-2">{row.note || '—'}</td>
-            </tr>
-          ))}
-          {!rows.length && <tr><td colSpan={5} className="py-2 px-2">No bank in the table matches — a code the table does not know is not guessed; check the Bank of Israel&apos;s list of identification codes.</td></tr>}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>Israeli bank identification codes ({rows.length} shown)</>)}
+        rows={rows}
+        rowKey={row => row.code}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        emptyRow={<tr><td colSpan={5} className="py-2 px-2">No bank in the table matches — a code the table does not know is not guessed; check the Bank of Israel&apos;s list of identification codes.</td></tr>}
+        columns={[
+          { header: "Code", className: "text-left font-normal py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.code },
+          { header: "Bank", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.name },
+          { header: "Name (Hebrew)", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.nameHe ? <bdi lang="he">{row.nameHe}</bdi> : '—' },
+          { header: "Kind", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.kind },
+          { header: "Note", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.note || '—' },
+        ]}
+      />
     </ReportTableScroll>
 
     <p className="text-xs text-[var(--muted)]">{israeliBankCodesSourceText()}</p>

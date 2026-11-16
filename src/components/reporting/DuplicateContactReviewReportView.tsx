@@ -8,6 +8,7 @@ import { normalizeSearchText } from '../../lib/textNormalization';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import type { Customer, Vendor } from '../../types';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const SIGNAL_LABEL: Record<DuplicateMatchSignal, string> = {
@@ -97,20 +98,22 @@ export function DuplicateContactReviewPanel({ report, loading = false, partial =
 
     <p className="text-sm"><b>Suggestions shown:</b> {visible.length} of {report.pairs.length}</p>
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>Customer and vendor pairs to review; no record is changed</caption>
-        <thead><tr>
-          {['First record', 'Second record', 'Match reasons', 'Review strength'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-        </tr></thead>
-        <tbody>
-          {visible.map(pair => <tr key={pair.key} className="border-b border-[var(--line)]/50 align-top">
-            <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{pair.left.name || 'No name recorded'}</bdi><div className="text-xs text-[var(--muted)]">{pair.left.kind} · <code>{pair.left.id}</code></div></th>
-            <td className="py-1 px-2"><bdi>{pair.right.name || 'No name recorded'}</bdi><div className="text-xs text-[var(--muted)]">{pair.right.kind} · <code>{pair.right.id}</code></div></td>
-            <td className="py-1 px-2">{pair.signals.map(signal => SIGNAL_LABEL[signal]).join(' · ')}</td>
-            <td className="py-1 px-2">{pair.strength === 'name-only' ? 'Weak name suggestion' : 'Identifier match — still review'}</td>
-          </tr>)}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50 align-top"
+        caption={(<>Customer and vendor pairs to review; no record is changed</>)}
+        rows={visible}
+        rowKey={pair => pair.key}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        columns={[
+          { header: "First record", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (pair) => (<><bdi>{pair.left.name || 'No name recorded'}</bdi><div className="text-xs text-[var(--muted)]">{pair.left.kind} · <code>{pair.left.id}</code></div></>) },
+          { header: "Second record", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (pair) => (<><bdi>{pair.right.name || 'No name recorded'}</bdi><div className="text-xs text-[var(--muted)]">{pair.right.kind} · <code>{pair.right.id}</code></div></>) },
+          { header: "Match reasons", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (pair) => pair.signals.map(signal => SIGNAL_LABEL[signal]).join(' · ') },
+          { header: "Review strength", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (pair) => pair.strength === 'name-only' ? 'Weak name suggestion' : 'Identifier match — still review' },
+        ]}
+      />
       {!loading && !visible.length && <p className="text-sm text-[var(--muted)]">No candidate pair matches this filter. A match is not proof that two records are the same person or business.</p>}
     </ReportTableScroll>
   </section>;

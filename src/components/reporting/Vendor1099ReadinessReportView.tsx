@@ -11,6 +11,7 @@ import { formatCurrency } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import type { Payment } from '../../types';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const YEAR = /^\d{4}$/;
@@ -99,26 +100,27 @@ export function Vendor1099ReadinessPanel({ report, currency = 'USD', taxYearText
       </p>}
 
       <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption className="text-left font-semibold text-[var(--text)] pb-1">Vendors with posted payments in {report.taxYear}, and what their record is missing</caption>
-          <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-            {['Vendor', 'Tax country', 'Paid', 'Over threshold', 'Tax ID', 'Address', 'W-9', 'Readiness', 'What to check'].map(head =>
-              <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-          </tr></thead>
-          <tbody>
-            {visible.map(row => <tr key={row.vendorId} className="border-b border-[var(--line)]/50 align-top">
-              <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.vendor}</bdi><div className="text-xs text-[var(--muted)]"><code>{row.vendorId}</code></div></th>
-              <td className="py-1 px-2">{row.country}</td>
-              <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(row.paidCents, currency)}</td>
-              <td className="py-1 px-2">{row.overThreshold ? 'Yes' : 'No'}</td>
-              <td className="py-1 px-2 font-mono">{row.taxId.masked || 'Not recorded'}</td>
-              <td className="py-1 px-2">{row.addressRecorded ? 'Recorded' : 'Missing'}</td>
-              <td className="py-1 px-2">Not recorded here</td>
-              <td className="py-1 px-2">{row.state === 'needs-tax-details' ? 'Missing details' : row.state === 'over-threshold' ? 'Details recorded — review' : 'Below the threshold'}</td>
-              <td className="py-1 px-2">{row.missing.join(' ')}</td>
-            </tr>)}
-          </tbody>
-        </table>
+        <RowTable
+          rowClassName="border-b border-[var(--line)]/50 align-top"
+          caption={(<>Vendors with posted payments in {report.taxYear}, and what their record is missing</>)}
+          rows={visible}
+          rowKey={row => row.vendorId}
+          captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+          tableClassName="w-full text-sm"
+          headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+          bodyClassName=""
+          columns={[
+            { header: "Vendor", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<><bdi>{row.vendor}</bdi><div className="text-xs text-[var(--muted)]"><code>{row.vendorId}</code></div></>) },
+            { header: "Tax country", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.country },
+            { header: "Paid", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.paidCents, currency) },
+            { header: "Over threshold", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.overThreshold ? 'Yes' : 'No' },
+            { header: "Tax ID", className: "py-1 px-2 font-mono", headClassName: "text-left py-1 px-2", cell: (row) => row.taxId.masked || 'Not recorded' },
+            { header: "Address", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.addressRecorded ? 'Recorded' : 'Missing' },
+            { header: "W-9", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>Not recorded here</>) },
+            { header: "Readiness", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.state === 'needs-tax-details' ? 'Missing details' : row.state === 'over-threshold' ? 'Details recorded — review' : 'Below the threshold' },
+            { header: "What to check", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.missing.join(' ') },
+          ]}
+        />
         {!loading && !visible.length && <p className="text-sm text-[var(--muted)]">No posted vendor payment in {report.taxYear}{needsAttention ? ' needs attention' : ''}. A year with no payments owes no 1099 from this data.</p>}
       </ReportTableScroll>
     </>}

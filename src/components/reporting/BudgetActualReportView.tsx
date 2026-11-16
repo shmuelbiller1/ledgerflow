@@ -14,6 +14,7 @@ import { formatCurrency } from '../../lib/utils';
 import { Labelled } from '../ui/Labelled';
 import DrillDownModal, { type ExplainRequest } from '../layout/DrillDownModal';
 import { isDebitNatureType } from '../../lib/accountUtils';
+import { RowTable } from '../ui/RowTable';
 
 type History = { key: string; budgets: SavedBudget[]; accounts: ChartAccount[]; transactions: Transaction[] };
 export default function BudgetActualReportView({ selectedYear = new Date().getFullYear(), startDate, endDate }: { selectedYear?: number; startDate?: string; endDate?: string }) {
@@ -74,7 +75,22 @@ export default function BudgetActualReportView({ selectedYear = new Date().getFu
     </div>
     {!current && !activeServer && <p role="status">{guest ? 'Guest sample: figures use the loaded demonstration records.' : 'Provisional: loaded records may be incomplete. Load full history before relying on these figures.'}</p>}
     {error?.key === key && <p role="alert">{error.message}</p>}
-    {!budget ? <p>No saved account budgets. Define an account target in Planning → Budgets.</p> : !report ? <p>Choose a budget with one unambiguous chart account.</p> : <div className="overflow-x-auto" role="region" aria-label="Budget vs actual figures" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<table className="w-full text-right"><caption className="text-left">{report.account.code} · {report.account.name}</caption><thead><tr>{['Period', 'Budget', 'Actual', 'Difference', '% used'].map(label => <th scope="col" key={label} className="p-3">{label}</th>)}</tr></thead><tbody>{report.columns.map(column => <tr key={column.period.id}><th scope="row" className="p-3">{column.period.label}</th><td className="p-3">{formatCurrency(column.budgetCents)}</td><td><button type="button" className="min-h-11 px-3 underline tabular-nums" aria-label={`${formatCurrency(column.actualCents)}: entries for ${report.account.name}, ${column.period.label}`} onClick={() => setDrill({ key, name: report.account.name, transactions: column.drillTransactions, explain: { accountIds: [report.account.id], startDate: column.period.startDate, endDate: column.period.endDate, expectedCents: column.actualCents, sign: isDebitNatureType(report.account.type) ? 1 : -1, label: column.period.label } })}>{formatCurrency(column.actualCents)}</button></td><td className="p-3">{formatCurrency(column.differenceCents)}</td><td className="p-3">{column.percentUsed === null ? '—' : `${column.percentUsed.toFixed(1)}%`}</td></tr>)}</tbody></table></div>}
+    {!budget ? <p>No saved account budgets. Define an account target in Planning → Budgets.</p> : !report ? <p>Choose a budget with one unambiguous chart account.</p> : <div className="overflow-x-auto" role="region" aria-label="Budget vs actual figures" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<RowTable
+      caption={(<>{report.account.code} · {report.account.name}</>)}
+      rows={report.columns}
+      rowKey={column => column.period.id}
+      captionClassName="text-left"
+      tableClassName="w-full text-right"
+      headRowClassName=""
+      bodyClassName=""
+      columns={[
+        { header: "Period", className: "p-3", headClassName: "p-3", cell: (column) => column.period.label },
+        { header: "Budget", className: "p-3", headClassName: "p-3", cell: (column) => formatCurrency(column.budgetCents) },
+        { header: "Actual", headClassName: "p-3", cell: (column) => <button type="button" className="min-h-11 px-3 underline tabular-nums" aria-label={`${formatCurrency(column.actualCents)}: entries for ${report.account.name}, ${column.period.label}`} onClick={() => setDrill({ key, name: report.account.name, transactions: column.drillTransactions, explain: { accountIds: [report.account.id], startDate: column.period.startDate, endDate: column.period.endDate, expectedCents: column.actualCents, sign: isDebitNatureType(report.account.type) ? 1 : -1, label: column.period.label } })}>{formatCurrency(column.actualCents)}</button> },
+        { header: "Difference", className: "p-3", headClassName: "p-3", cell: (column) => formatCurrency(column.differenceCents) },
+        { header: "% used", className: "p-3", headClassName: "p-3", cell: (column) => column.percentUsed === null ? '—' : `${column.percentUsed.toFixed(1)}%` },
+      ]}
+    /></div>}
     <DrillDownModal key={key} isOpen={drill?.key === key} onClose={() => setDrill(null)} accountName={drill?.name || ''} transactions={drill?.key === key ? drill.transactions : []} explain={drill?.key === key ? drill.explain : undefined} formatCurrency={formatCurrency} from="Budget vs Actual" />
   </section>;
 }

@@ -16,7 +16,7 @@ the truth.
 
 | counter | before this PR | now | target | what it counts |
 |---|---|---|---|---|
-| `rawTables` | 184 | **152** | 0 | screen files drawing a hand-written `<table>` |
+| `rawTables` | 184 | **127** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
 | `directDbWrites` | 93 | 93 | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
@@ -24,7 +24,7 @@ the truth.
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
 | `suppressionCount` | 0 | 0 | 0 | `eslint-disable` / `@ts-ignore` in source |
 
-`rawTables` is a count of **files**, so converting 57 tables in 50 files moved it 184 → 152: the first table in
+`rawTables` is a count of **files**, so converting 106 tables in 94 files moved it 184 → 127: the first table in
 a file is the one the counter sees, and a second table in a file is free. 14 of those 50 files still draw a second
 table the codemod refuses, which is why 50 files moved the counter by 32. The plan below is ordered by that fact.
 
@@ -81,13 +81,20 @@ table the codemod refuses, which is why 50 files moved the counter by 32. The pl
 - [x] **45 tables in 41 files converted**, `rawTables` 184 → 158, 41 screen files −60 lines net (the explicit
       class props cost lines and buy exactness), `npx tsc --noEmit` clean, `eslint . --max-warnings 2` still at the
       two pre-existing warnings, **5315/5315 unit tests green**.
-- [x] **The ratchet lowered** — `quality-baseline.json` `rawTables: 152`, so a new hand-written table fails CI.
+- [x] **The ratchet lowered** — `quality-baseline.json` `rawTables: 127`, so a new hand-written table fails CI.
 - [x] **Two lists told the truth again.** `StockClosingPanel` and `JournalSheetReportView` left
       `raw-table-decisions.test.ts` (they no longer draw a table, so their reasons were false) and
       `PickPackShipPanel` left the H-8 date backlog (its dates now go through the resolver).
 
 ## 2. One list — what is left, in the order that moves the counter
 
+- [x] **The shape most report tables are written in, which the codemod could never convert.** A header that
+      maps a literal list of names (`{['Date', 'Day'].map(head => <th>{head}</th>)}`) declares its columns by
+      *mapping*, so the count check compared the row against an empty header list and refused every one of them —
+      41 tables. Read the names and compare against those (minus the repeated column when the last cell is a
+      nested map), and reuse them for the emitted headers. 37 tables in 30 files. A header whose *class* reads the
+      header item (`\`${head === 'Amount' ? …}\``) is refused: that name lives inside the header's map, which a
+      column list is outside of.
 - [x] **The two shapes the component already had a prop for, taught to the codemod.** A `<tfoot>` totals row is
       `footer` (and `footerClassName` when the `<tfoot>` carried `sticky bottom-0` or a rule), and the row a report
       prints when its list is empty is `emptyRow` — rendered *inside* the body, so the table, its head and its
@@ -96,21 +103,20 @@ table the codemod refuses, which is why 50 files moved the counter by 32. The pl
 - [x] A conditional row that is not about the list being empty (`{canAdd && <tr>…}`) is still refused: it is not
       an empty state, and moving it would delete it.
 
-Measured now by `npx tsx scripts/codemod-row-table.ts` → **187 tables in 152 files still refused**, by reason:
+Measured now by `npx tsx scripts/codemod-row-table.ts` → **150 tables in 127 files still refused**, by reason:
 
 | # | reason (the codemod's own refusal) | tables | route | est. files moved |
 |---|---|---|---|---|
-| 1 | a header row that is not one of the four shapes the table can take | 47 | ✋ sort these first: most are `{cond && <th>}` + a hand body | ~40 |
-| 2 | a row that does not line up with its header | 41 | ✋ usually a nested list, or a cell that spans — name which | ~38 |
-| 3 | a map that does not return a row | 31 | ✋ the map returns a fragment or a component (`<AssetInlineDetails>`); a fragment of rows is `rows` flat-mapped | ~30 |
-| 4 | a body that is not a map (a ternary between two maps) | 16 | ✋ the list is one expression away: `const rows = cond ? a : b` above the table | ~14 |
-| 5 | a body that is not one expression (a literal row, or a second conditional row) | 16 | ✋ name the second expression: it is a row, a fragment, or a second map | ~14 |
-| 6 | a cell this script could not read as one column | 8 | ✋ look at each; some are two cells the scanner merged | 8 |
-| 7 | a row class that reads the row | 7 | ✋ `rowClassName` is fixed; keep the conditional inside the cell, or keep the table | 7 |
-| 8 | a class computed from the row | 7 | ✋ same: the class belongs inside the cell | 7 |
-| 9 | something outside the caption, header and body that a rewrite would drop / a row header after the first column | 8 | ✋ individually | 8 |
-| 10 | a table attribute a rewrite would drop (`aria-label`) | 3 | ✋ `PeriodClosingPanel`'s three totals tables: give `RowTable` the name, or keep the table | 1 |
-| 11 | more than one map, no header row, one-row key, nested-cell edge cases | 3 | ✋ individually | 3 |
+| 1 | a header row that is not one of the four shapes the table can take | 47 | ✋ mostly `{cond && <th>}` action columns and sortable headers (`onClick`) — the grid's work, or a hand column list | ~40 |
+| 2 | a map that does not return a row | 31 | ✋ the map returns a fragment (`<React.Fragment key>` with a details row) or a component; a fragment of *two rows* is not one row | ~30 |
+| 3 | a body that is not a map (a ternary between two maps) | 16 | ✋ one expression away: `const rows = cond ? a : b` above the table | ~14 |
+| 4 | a body that is not one expression | 16 | ✋ name the second expression: a literal row, a fragment, or a second map | ~14 |
+| 5 | a cell this script could not read as one column | 8 | ✋ look at each; some are two cells the scanner merged | 8 |
+| 6 | a row class that reads the row | 7 | ✋ `rowClassName` is fixed; keep the conditional inside the cell, or keep the table | 7 |
+| 7 | a class computed from the row | 7 | ✋ same: the class belongs inside the cell | 7 |
+| 8 | something outside the caption/header/body, or a row header after the first column | 8 | ✋ individually | 8 |
+| 9 | a table attribute (`aria-label`), a computed header list, a header class that reads its item | 7 | ✋ the table name, or a header whose class is decided per column by hand | 7 |
+| 10 | no header row / no key / nested-cell edge cases | 3 | ✋ individually | 3 |
 
 **Fast order.** The footer and empty-state buckets are done, which is the free 12. What is left is the hand work,
 and it is done by directory starting with `reporting` (the largest bucket), re-running the codemod after every

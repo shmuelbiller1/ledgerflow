@@ -6,6 +6,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const CSV_HEADERS = ['Tax year', 'Form', 'Box', 'Vendor', 'Name', 'TIN (masked/missing)', 'Amount', 'Note'] as const;
@@ -119,20 +120,24 @@ export default function Us1099PreviewReportView() {
       </div>
 
       <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption className="text-left font-semibold text-[var(--text)] pb-1">1099 drafts that meet the threshold — review only, NOT IRIS</caption>
-          <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">{['Vendor', 'Form/Box', 'Amount', 'Threshold', 'TIN (last 4)', 'Needs details'].map(h => <th key={h} scope="col" className="text-left py-1 px-2">{h}</th>)}</tr></thead>
-          <tbody>
-            {preview.forms.map(row => <tr key={`${row.vendorId}-${row.form}-${row.box}`} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.vendorName}</bdi><div className="text-xs text-[var(--muted)]"><code>{row.vendorId}</code></div></th>
-              <td className="py-1 px-2">{row.form} · {row.box}</td>
-              <td className="py-1 px-2 tabular-nums">{formatCurrency(row.amountCents, workspace?.currency || 'USD')}</td>
-              <td className="py-1 px-2 tabular-nums">{formatCurrency(row.thresholdCents, workspace?.currency || 'USD')}</td>
-              <td className="py-1 px-2 font-mono">{row.tinLastFour ? `****${row.tinLastFour}` : 'MISSING'}</td>
-              <td className="py-1 px-2 text-xs">{row.needsTaxDetails ? 'Yes — needs payer/recipient details, state, corrections before filing' : 'No'}</td>
-            </tr>)}
-          </tbody>
-        </table>
+        <RowTable
+          rowClassName="border-b border-[var(--line)]/50"
+          caption={(<>1099 drafts that meet the threshold — review only, NOT IRIS</>)}
+          rows={preview.forms}
+          rowKey={row => `${row.vendorId}-${row.form}-${row.box}`}
+          captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+          tableClassName="w-full text-sm"
+          headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+          bodyClassName=""
+          columns={[
+            { header: "Vendor", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<><bdi>{row.vendorName}</bdi><div className="text-xs text-[var(--muted)]"><code>{row.vendorId}</code></div></>) },
+            { header: "Form/Box", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>{row.form} · {row.box}</>) },
+            { header: "Amount", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.amountCents, workspace?.currency || 'USD') },
+            { header: "Threshold", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.thresholdCents, workspace?.currency || 'USD') },
+            { header: "TIN (last 4)", className: "py-1 px-2 font-mono", headClassName: "text-left py-1 px-2", cell: (row) => row.tinLastFour ? `****${row.tinLastFour}` : 'MISSING' },
+            { header: "Needs details", className: "py-1 px-2 text-xs", headClassName: "text-left py-1 px-2", cell: (row) => row.needsTaxDetails ? 'Yes — needs payer/recipient details, state, corrections before filing' : 'No' },
+          ]}
+        />
       </ReportTableScroll>
 
       {/* Manual totals editor for demo/review */}

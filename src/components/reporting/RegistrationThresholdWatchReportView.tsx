@@ -141,22 +141,26 @@ export default function RegistrationThresholdWatchReportView({ endDate = '' }: {
         never zero, and the three years the comparison above uses are built from these rows rather than typed twice.
       </p>
       <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>Osek patur annual turnover ceiling by tax year (₪)</caption>
-        <thead><tr>
-          {['Tax year', 'Ceiling', 'From', 'Until', "How the year's figure came about", 'Read from'].map(head => <th key={head} scope="col" className="text-left">{head}</th>)}
-        </tr></thead>
-        <tbody>{IL_OSEK_PATUR_CEILINGS.map(row => <tr key={row.year} className="border-t border-[var(--line)] align-top">
-          <th scope="row" className="text-left font-normal">{row.year}</th>
-          <td className="text-right tabular-nums">{formatCurrency(row.ceilingCents, 'ILS')}</td>
-          <td>{row.validFrom}</td>
-          <td>{row.validTo || 'open — the Authority sets each year'}</td>
-          <td>{row.basis === 'indexed' ? 'indexed to the consumer price index on 1 January' : row.basis === 'statute' ? 'fixed in the definition of "עוסק פטור"' : 'the published figure did not move for that January'}</td>
-          <td><a className="underline" href={row.source.url} target="_blank" rel="noopener noreferrer">{row.source.authority}</a>
+      <RowTable
+        rowClassName="border-t border-[var(--line)] align-top"
+        caption={(<>Osek patur annual turnover ceiling by tax year (₪)</>)}
+        rows={IL_OSEK_PATUR_CEILINGS}
+        rowKey={row => row.year}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        columns={[
+          { header: "Tax year", className: "text-left font-normal", headClassName: "text-left", cell: (row) => row.year },
+          { header: "Ceiling", className: "text-right tabular-nums", headClassName: "text-left", cell: (row) => formatCurrency(row.ceilingCents, 'ILS') },
+          { header: "From", headClassName: "text-left", cell: (row) => row.validFrom },
+          { header: "Until", headClassName: "text-left", cell: (row) => row.validTo || 'open — the Authority sets each year' },
+          { header: "How the year's figure came about", headClassName: "text-left", cell: (row) => row.basis === 'indexed' ? 'indexed to the consumer price index on 1 January' : row.basis === 'statute' ? 'fixed in the definition of "עוסק פטור"' : 'the published figure did not move for that January' },
+          { header: "Read from", headClassName: "text-left", cell: (row) => (<><a className="underline" href={row.source.url} target="_blank" rel="noopener noreferrer">{row.source.authority}</a>
             {row.corroboratedBy ? <> · <a className="underline" href={row.corroboratedBy} target="_blank" rel="noopener noreferrer">also cited</a></> : null}
-            <div className="text-xs text-[var(--muted)]"><bdi>{row.note}</bdi></div></td>
-        </tr>)}</tbody>
-      </table>
+            <div className="text-xs text-[var(--muted)]"><bdi>{row.note}</bdi></div></>) },
+        ]}
+      />
       </ReportTableScroll>
     </details>
 

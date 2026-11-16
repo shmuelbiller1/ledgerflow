@@ -9,6 +9,7 @@ import {
 } from '../../lib/documentNumberGaps';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 /** Drafts, voids and cancelled documents are not part of the issued sequence. */
 const NOT_ISSUED = new Set(['draft', 'void', 'cancelled', 'canceled', 'rejected']);
@@ -105,22 +106,24 @@ export function DocumentNumberGapsPanel({ report, documents = 0, excludedDrafts 
     </p>
 
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption className="text-left font-semibold text-[var(--text)] pb-1">Number series with their first and last number, the numbers missing between them and any repeated number</caption>
-        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-          {['Document type', 'Series', 'Documents', 'First–last', 'Missing', 'Repeated'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-        </tr></thead>
-        <tbody>
-          {visible.map(series => <tr key={`${series.collection}-${series.prefix}`} className="border-b border-[var(--line)]/50 align-top">
-            <th scope="row" className="text-left font-normal py-1 px-2">{series.collection}</th>
-            <td className="py-1 px-2 font-mono">{series.prefix || '(no prefix)'}</td>
-            <td className="py-1 px-2 tabular-nums">{series.documents}</td>
-            <td className="py-1 px-2 tabular-nums">{series.first}–{series.last}</td>
-            <td className="py-1 px-2 tabular-nums">{series.missingCount === 0 ? 'None' : missingText(series)}</td>
-            <td className="py-1 px-2">{series.duplicates.length === 0 ? 'None' : series.duplicates.map(duplicate => duplicate.number).join(', ')}</td>
-          </tr>)}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50 align-top"
+        caption={(<>Number series with their first and last number, the numbers missing between them and any repeated number</>)}
+        rows={visible}
+        rowKey={series => `${series.collection}-${series.prefix}`}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        bodyClassName=""
+        columns={[
+          { header: "Document type", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (series) => series.collection },
+          { header: "Series", className: "py-1 px-2 font-mono", headClassName: "text-left py-1 px-2", cell: (series) => series.prefix || '(no prefix)' },
+          { header: "Documents", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (series) => series.documents },
+          { header: "First–last", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (series) => (<>{series.first}–{series.last}</>) },
+          { header: "Missing", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (series) => series.missingCount === 0 ? 'None' : missingText(series) },
+          { header: "Repeated", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (series) => series.duplicates.length === 0 ? 'None' : series.duplicates.map(duplicate => duplicate.number).join(', ') },
+        ]}
+      />
       {!loading && !visible.length && <p className="text-sm text-[var(--muted)]">No series to show{onlyGaps ? ' with a gap' : ''}.</p>}
     </ReportTableScroll>
 

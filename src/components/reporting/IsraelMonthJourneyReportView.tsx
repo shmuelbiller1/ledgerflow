@@ -13,6 +13,7 @@ import { monthCloseState, workspaceRole } from '../../lib/periodLock';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
 import { runCommand } from '../../lib/runCommand';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const MONTH_TEXT = /^\d{4}-\d{2}$/;
@@ -281,38 +282,42 @@ export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', mo
       </p>
       {preview.problem && <p role="status" className="text-sm text-amber-700 dark:text-amber-400">{preview.problem}</p>}
       {preview.unmapped.length > 0 && <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption className="text-left font-semibold text-[var(--text)] pb-1">Documents that cannot be written in this historical layout</caption>
-          <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-            {['Document', 'Kind', 'Number', 'Why it cannot be written'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-          </tr></thead>
-          <tbody>
-            {preview.unmapped.map(row => <tr key={`${row.kind}:${row.documentId}`} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2">{row.documentId}</th>
-              <td className="py-1 px-2">{row.kind}</td>
-              <td className="py-1 px-2">{row.number || '—'}</td>
-              <td className="py-1 px-2">{row.reason}</td>
-            </tr>)}
-          </tbody>
-        </table>
+        <RowTable
+          rowClassName="border-b border-[var(--line)]/50"
+          caption={(<>Documents that cannot be written in this historical layout</>)}
+          rows={preview.unmapped}
+          rowKey={row => `${row.kind}:${row.documentId}`}
+          captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+          tableClassName="w-full text-sm"
+          headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+          bodyClassName=""
+          columns={[
+            { header: "Document", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.documentId },
+            { header: "Kind", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.kind },
+            { header: "Number", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.number || '—' },
+            { header: "Why it cannot be written", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.reason },
+          ]}
+        />
       </ReportTableScroll>}
       {preview.comparison.some(row => row.differenceNis !== 0) && <>
         <p className="text-sm">The draft’s whole-shekel totals differ from the VAT report; the difference is shown, never smoothed away. Per-document rounding to whole shekels can explain one shekel per row.</p>
         <ReportTableScroll>
-          <table className="w-full text-sm">
-            <caption className="text-left font-semibold text-[var(--text)] pb-1">The draft beside the VAT report</caption>
-            <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-              {['Figure', 'Draft (NIS)', 'VAT report (NIS)', 'Difference (NIS)'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-            </tr></thead>
-            <tbody>
-              {preview.comparison.map(row => <tr key={row.label} className="border-b border-[var(--line)]/50">
-                <th scope="row" className="text-left font-normal py-1 px-2">{row.label}</th>
-                <td className="py-1 px-2 tabular-nums">{row.draftNis.toLocaleString('en-US')}</td>
-                <td className="py-1 px-2 tabular-nums">{row.returnNis.toLocaleString('en-US')}</td>
-                <td className="py-1 px-2 tabular-nums">{row.differenceNis.toLocaleString('en-US')}</td>
-              </tr>)}
-            </tbody>
-          </table>
+          <RowTable
+            rowClassName="border-b border-[var(--line)]/50"
+            caption={(<>The draft beside the VAT report</>)}
+            rows={preview.comparison}
+            rowKey={row => row.label}
+            captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+            tableClassName="w-full text-sm"
+            headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+            bodyClassName=""
+            columns={[
+              { header: "Figure", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.label },
+              { header: "Draft (NIS)", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.draftNis.toLocaleString('en-US') },
+              { header: "VAT report (NIS)", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.returnNis.toLocaleString('en-US') },
+              { header: "Difference (NIS)", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.differenceNis.toLocaleString('en-US') },
+            ]}
+          />
         </ReportTableScroll>
       </>}
       {preview.draft && <p className="text-sm">
@@ -335,52 +340,54 @@ function VatReturnTable({ returns, currency, onRecordFiled }: { returns: IsraelM
   };
   return <ReportTableScroll>
     {problem && <p role="alert" className="text-sm text-[var(--danger)]">{problem}</p>}
-    <table className="w-full text-sm">
-      <caption className="text-left font-semibold text-[var(--text)] pb-1">The VAT report each registration files for this month (its own monthly or two-month period), as the return screen computes it</caption>
-      <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-        {['Registration', 'Documents', 'Taxable sales', 'Output VAT', 'Zero-rated', 'Input VAT, other', 'Input VAT, equipment', 'To pay / reclaim', 'Due date', 'Recorded as filed'].map(head =>
-          <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-      </tr></thead>
-      <tbody>
-        {returns.map(r => <tr key={r.registration} className="border-b border-[var(--line)]/50">
-          <th scope="row" className="text-left font-normal py-1 px-2"><span className="block">{r.registration.split(':').pop()}</span><span className="block text-xs text-[var(--muted)]">{r.startMonth === r.endMonth ? r.startMonth : `${r.startMonth} to ${r.endMonth}`}</span></th>
-          <td className="py-1 px-2 tabular-nums">{r.documentCount}</td>
-          <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(r.taxableSalesCents, currency)}</td>
-          <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(r.outputVatCents, currency)}</td>
-          <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(r.zeroRatedSalesCents, currency)}</td>
-          <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(r.otherInputVatCents, currency)}</td>
-          <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(r.fixedAssetInputVatCents, currency)}</td>
-          <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(Math.abs(r.toPayCents), currency)}{r.toPayCents < 0 ? ' (reclaim)' : ''}</td>
-          <td className="py-1 px-2 whitespace-nowrap">{r.dueDate || (r.filing ? `${r.filing} report` : 'not stated')}</td>
-          <td className="py-1 px-2">{r.filed ? 'Yes' : onRecordFiled && !r.pending
+    <RowTable
+      rowClassName="border-b border-[var(--line)]/50"
+      caption={(<>The VAT report each registration files for this month (its own monthly or two-month period), as the return screen computes it</>)}
+      rows={returns}
+      rowKey={r => r.registration}
+      captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+      tableClassName="w-full text-sm"
+      headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+      bodyClassName=""
+      columns={[
+        { header: "Registration", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => (<><span className="block">{r.registration.split(':').pop()}</span><span className="block text-xs text-[var(--muted)]">{r.startMonth === r.endMonth ? r.startMonth : `${r.startMonth} to ${r.endMonth}`}</span></>) },
+        { header: "Documents", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (r) => r.documentCount },
+        { header: "Taxable sales", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.taxableSalesCents, currency) },
+        { header: "Output VAT", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.outputVatCents, currency) },
+        { header: "Zero-rated", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.zeroRatedSalesCents, currency) },
+        { header: "Input VAT, other", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.otherInputVatCents, currency) },
+        { header: "Input VAT, equipment", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.fixedAssetInputVatCents, currency) },
+        { header: "To pay / reclaim", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => (<>{formatCurrency(Math.abs(r.toPayCents), currency)}{r.toPayCents < 0 ? ' (reclaim)' : ''}</>) },
+        { header: "Due date", className: "py-1 px-2 whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => r.dueDate || (r.filing ? `${r.filing} report` : 'not stated') },
+        { header: "Recorded as filed", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.filed ? 'Yes' : onRecordFiled && !r.pending
             ? <button type="button" className="min-h-11 px-3 rounded border border-[var(--line)]" disabled={saving === r.registration}
               onClick={() => { void record(r); }}>{saving === r.registration ? 'Recording…' : `Record ${r.registration.split(':').pop()} as filed`}</button>
-            : 'Not recorded here'}</td>
-        </tr>)}
-      </tbody>
-    </table>
+            : 'Not recorded here' },
+      ]}
+    />
   </ReportTableScroll>;
 }
 
 function AllocationTable({ cases, currency }: { cases: IsraelMonth['steps'][number]['allocation']; currency: string }) {
   return <ReportTableScroll>
-    <table className="w-full text-sm">
-      <caption className="text-left font-semibold text-[var(--text)] pb-1">Invoices that need an allocation number</caption>
-      <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-        {['Invoice', 'Customer', 'Date', 'Before VAT', 'Threshold', 'Recorded number', 'What to do'].map(head =>
-          <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-      </tr></thead>
-      <tbody>
-        {cases.map(c => <tr key={c.invoiceId} className="border-b border-[var(--line)]/50">
-          <th scope="row" className="text-left font-normal py-1 px-2">{c.number || c.invoiceId}</th>
-          <td className="py-1 px-2">{c.customerName || '—'}</td>
-          <td className="py-1 px-2 whitespace-nowrap">{c.date}</td>
-          <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(c.netCents, currency)}</td>
-          <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(c.thresholdCents, currency)}</td>
-          <td className="py-1 px-2">{c.recorded || 'none'}</td>
-          <td className="py-1 px-2">{c.problem || 'Recorded and 9 digits.'}</td>
-        </tr>)}
-      </tbody>
-    </table>
+    <RowTable
+      rowClassName="border-b border-[var(--line)]/50"
+      caption={(<>Invoices that need an allocation number</>)}
+      rows={cases}
+      rowKey={c => c.invoiceId}
+      captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+      tableClassName="w-full text-sm"
+      headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+      bodyClassName=""
+      columns={[
+        { header: "Invoice", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => c.number || c.invoiceId },
+        { header: "Customer", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => c.customerName || '—' },
+        { header: "Date", className: "py-1 px-2 whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (c) => c.date },
+        { header: "Before VAT", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (c) => formatCurrency(c.netCents, currency) },
+        { header: "Threshold", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (c) => formatCurrency(c.thresholdCents, currency) },
+        { header: "Recorded number", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => c.recorded || 'none' },
+        { header: "What to do", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => c.problem || 'Recorded and 9 digits.' },
+      ]}
+    />
   </ReportTableScroll>;
 }

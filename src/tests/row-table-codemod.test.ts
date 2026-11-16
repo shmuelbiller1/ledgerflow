@@ -55,6 +55,43 @@ describe('the codemod only takes the tables it can reproduce exactly', () => {
     assert.doesNotMatch(conversion.after, /<t[hd]\b|<table\b/);
   });
 
+  test('a header that maps a literal list of names becomes one column per name', () => {
+    const { conversion } = convert(page(`      <table className="w-full text-sm">
+        <caption>Bank holidays</caption>
+        <thead>
+          <tr>{['Date', 'Day', 'Holiday'].map(head => <th key={head} scope="col" className="text-left py-1">{head}</th>)}</tr>
+        </thead>
+        <tbody>{rows.map(row => (
+          <tr key={row.date}>
+            <th scope="row" className="text-left py-1">{row.date}</th>
+            <td className="py-1">{row.day}</td>
+            <td className="py-1">{row.name}</td>
+          </tr>
+        ))}</tbody>
+      </table>`));
+    assert.ok(conversion, 'the array header is the shape most report tables are written in');
+    assert.match(conversion.after, /\{ header: "Date",/);
+    assert.match(conversion.after, /\{ header: "Holiday",/);
+    assert.match(conversion.after, /rows=\{rows\}/);
+  });
+
+  test('a header class that reads the header item is refused: a column cannot see it', () => {
+    const { conversion, reason } = convert(page(`      <table className="w-full text-sm">
+        <caption>Claims</caption>
+        <thead>
+          <tr>{['Employee', 'Amount'].map(head => <th key={head} scope="col" className={\`\${head === 'Amount' ? 'text-right' : 'text-left'} py-1\`}>{head}</th>)}</tr>
+        </thead>
+        <tbody>{rows.map(row => (
+          <tr key={row.id}>
+            <th scope="row">{row.employee}</th>
+            <td>{money(row.cents)}</td>
+          </tr>
+        ))}</tbody>
+      </table>`));
+    assert.equal(conversion, undefined);
+    assert.match(reason, /a header class that reads the header item/);
+  });
+
   test('a totals row in the footer becomes the footer, not a column', () => {
     const { conversion } = convert(page(`      <table>
         <caption>Per vendor</caption>
