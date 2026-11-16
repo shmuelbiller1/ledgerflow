@@ -232,7 +232,7 @@ export default function Purchases() {
       header: purchasesText('col.vendor', 'Vendor'),
       cell: ({ row }) => (
         <span className="font-semibold text-slate-900 dark:text-white">
-          {row.original.vendorName || 'Unknown Vendor'}
+          {row.original.vendorName || purchasesText('fallback.unknownVendor', 'Unknown Vendor')}
         </span>
       ),
     },
@@ -245,7 +245,7 @@ export default function Purchases() {
           <InlineEdit
             value={b.number}
             display={b.number || b.id.slice(0, 8).toUpperCase()}
-            label={`Number of bill from ${b.vendorName || 'vendor'}`}
+            label={`${purchasesText('label.billNumberFrom', 'Number of bill from')} ${b.vendorName || purchasesText('fallback.vendor', 'vendor')}`}
             canEdit={canEditContacts && b.status !== 'void'}
             onSave={x => updateEntity('bills', b.id, { number: String(x) }, 'Bill number saved')}
             className="text-slate-600 dark:text-slate-400 font-mono text-xs"
@@ -302,7 +302,7 @@ export default function Purchases() {
                   : 'bg-amber-100 text-amber-800'
             }`}>
               {b.status === 'paid' ? <CheckCircle size={10} aria-hidden="true" /> : <AlertCircle size={10} aria-hidden="true" />}
-              {b.status || 'Unpaid'}
+              {b.status || purchasesText('status.unpaid', 'Unpaid')}
             </span>
             {b.prepaidSchedule && <div className="mt-1 text-[10px] text-[var(--muted)]">{spreadProgress(b.prepaidSchedule, getLocalDateISO())}</div>}
             <StageChip kind="bill" id={b.id} label={`bill ${b.number || ''}`.trim()} />
@@ -336,7 +336,7 @@ export default function Purchases() {
               type="button"
               onClick={e => { e.stopPropagation(); setPreviewBill(b); }}
               className="p-1 text-[var(--muted)] hover:text-slate-800 rounded-lg"
-              title="Preview / download PDF"
+              title={purchasesText('title.preview', 'Preview / download PDF')}
               aria-label={purchasesText('aria.pdf', 'PDF of bill {n}').replace('{n}', b.number || '').trim()}
             >
               <Printer className="w-4 h-4" aria-hidden="true" />
@@ -346,7 +346,7 @@ export default function Purchases() {
                 type="button"
                 onClick={e => { e.stopPropagation(); setEditingBill(b); setIsBillModalOpen(true); }}
                 className="p-1 text-[var(--muted)] hover:text-slate-800 rounded-lg"
-                title="Edit bill"
+                title={purchasesText('title.edit', 'Edit bill')}
                 aria-label={purchasesText('aria.edit', 'Edit bill {n}').replace('{n}', b.number || '').trim()}
               >
                 <Pencil className="w-4 h-4" aria-hidden="true" />
@@ -366,7 +366,7 @@ export default function Purchases() {
                 type="button"
                 onClick={e => { e.stopPropagation(); setSpreadingBill(b); }}
                 className="px-2 py-1 text-xs text-indigo-700 dark:text-indigo-300 hover:underline rounded-md"
-                title="A prepaid expense: spread the cost over the months it covers"
+                title={purchasesText('title.spread', 'A prepaid expense: spread the cost over the months it covers')}
                 aria-label={purchasesText('aria.spread', 'Spread bill {n} over months').replace('{n}', b.number || '').replace('  ', ' ')}
               >
                 {purchasesText('action.spread', 'Spread')}
@@ -408,7 +408,7 @@ export default function Purchases() {
                   inBackground(handleDeleteBill(b));
                 }}
                 className="text-rose-500 hover:text-rose-700 p-1 rounded-lg"
-                title="Delete draft"
+                title={purchasesText('title.deleteDraft', 'Delete draft')}
                 aria-label={purchasesText('aria.deleteDraft', 'Delete draft bill {n}').replace('{n}', b.number || '').trim()}
               >
                 <Trash2 className="w-4 h-4" aria-hidden="true" />
@@ -431,7 +431,7 @@ export default function Purchases() {
             <div>
               <InlineEdit
                 value={v.name}
-                label={`Name of ${v.name}`}
+                label={`${purchasesText('label.nameOf', 'Name of')} ${v.name}`}
                 canEdit={canEditContacts}
                 validate={x => (String(x) ? null : 'A vendor needs a name')}
                 onSave={x => updateEntity('vendors', v.id, { name: x }, 'Name saved')}
@@ -451,8 +451,8 @@ export default function Purchases() {
           return (
             <InlineEdit
               value={v.category}
-              label={`Category of ${v.name}`}
-              placeholder="Standard"
+              label={`${purchasesText('label.categoryOf', 'Category of')} ${v.name}`}
+              placeholder={purchasesText('fallback.standard', 'Standard')}
               canEdit={canEditContacts}
               suggestions={vendorCategories}
               onSave={x => updateEntity('vendors', v.id, { category: x }, 'Category saved')}
@@ -469,8 +469,8 @@ export default function Purchases() {
             <InlineEdit
               kind="email"
               value={v.email}
-              label={`Email of ${v.name}`}
-              placeholder="Add email"
+              label={`${purchasesText('label.emailOf', 'Email of')} ${v.name}`}
+              placeholder={purchasesText('placeholder.email', 'Add email')}
               canEdit={canEditContacts}
               onSave={x => updateEntity('vendors', v.id, { email: x }, 'Email saved')}
             />
@@ -486,8 +486,8 @@ export default function Purchases() {
             <InlineEdit
               kind="tel"
               value={v.phone}
-              label={`Phone of ${v.name}`}
-              placeholder="Add phone"
+              label={`${purchasesText('label.phoneOf', 'Phone of')} ${v.name}`}
+              placeholder={purchasesText('placeholder.phone', 'Add phone')}
               canEdit={canEditContacts}
               onSave={x => updateEntity('vendors', v.id, { phone: x }, 'Phone saved')}
             />
@@ -528,17 +528,17 @@ export default function Purchases() {
 
   return (
     <div className="w-full space-y-6 p-4 sm:p-6 lg:p-8">
-      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this screen" />
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what={purchasesText('what.screen', 'this screen')} />
       <PageHeader
         icon={<ShoppingBag className="w-6 h-6 text-emerald-500" aria-hidden="true" />}
-        title="Purchases & AP"
-        description="Bills from vendors, the vendors themselves and what you owe them."
+        title={purchasesText('page.title', 'Purchases & AP')}
+        description={purchasesText('page.description', 'Bills from vendors, the vendors themselves and what you owe them.')}
       >
         {activeSubTab === 'bills' && canEditContacts && (
           <button
             type="button"
             onClick={() => setPaymentRunOpen(true)}
-            title="Pay every bill due by a date and download the bank file"
+            title={purchasesText('title.payRun', 'Pay every bill due by a date and download the bank file')}
             className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-lg flex items-center gap-2 text-sm shadow-sm transition-colors border border-slate-200 dark:border-slate-800"
           >
             <DollarSign className="w-4 h-4" aria-hidden="true" />
@@ -549,7 +549,7 @@ export default function Purchases() {
           <button
             type="button"
             onClick={() => setOpeningOpen(true)}
-            title="The bills still unpaid when you started: paste them from a spreadsheet"
+            title={purchasesText('title.openBills', 'The bills still unpaid when you started: paste them from a spreadsheet')}
             className="px-3 py-2 text-slate-500 dark:text-slate-400 text-sm font-semibold hover:underline"
           >
             {purchasesText('action.openingBills', 'Opening bills')}
@@ -568,7 +568,7 @@ export default function Purchases() {
           className="px-4 py-2 bg-[#018669] hover:bg-emerald-700 text-white font-semibold rounded-lg flex items-center gap-2 text-sm shadow-sm transition-colors"
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
-          {activeSubTab === 'bills' ? 'Record Bill' : 'Add Vendor'}
+          {activeSubTab === 'bills' ? purchasesText('action.recordBill', 'Record Bill') : purchasesText('action.addVendor', 'Add Vendor')}
         </button>
       </PageHeader>
 
@@ -614,7 +614,7 @@ export default function Purchases() {
             totalCount={bills.length}
             loading={loading}
             loadingWhat="bills"
-            loadingState={<LoadingState what="bills" />}
+            loadingState={<LoadingState what={purchasesText('what.bills', 'bills')} />}
             searchValue={searchTerm}
             onSearchChange={setSearchTerm}
             manualFilter
@@ -665,16 +665,16 @@ export default function Purchases() {
             ) : undefined}
             emptyState={(
               <EmptyState
-                title="No bills yet"
-                description="Record your first bill to track what the business owes."
+                title={purchasesText('empty.noBills', 'No bills yet')}
+                description={purchasesText('empty.noBillsHint', 'Record your first bill to track what the business owes.')}
                 actionLabel="Record first bill"
                 onAction={() => setIsBillModalOpen(true)}
               />
             )}
             filteredEmptyState={(
               <EmptyState
-                title="No bills match your search"
-                description="Try another vendor, number, or clear the search."
+                title={purchasesText('empty.noBillMatch', 'No bills match your search')}
+                description={purchasesText('empty.noBillMatchHint', 'Try another vendor, number, or clear the search.')}
                 actionLabel="Clear search"
                 onAction={() => setSearchTerm('')}
               />
@@ -684,14 +684,14 @@ export default function Purchases() {
           <div className="space-y-3">
             {vendors.length > 0 && (
               <div className="space-y-2">
-                <TagFilter tags={vendorTags} value={vendorTag} onChange={setVendorTag} label="Show vendors with the tag" />
+                <TagFilter tags={vendorTags} value={vendorTag} onChange={setVendorTag} label={purchasesText('label.vendorTag', 'Show vendors with the tag')} />
                 <ShowArchivedToggle count={archivedVendors} on={showArchivedVendors} onChange={setShowArchivedVendors} noun="vendor" />
               </div>
             )}
             {canEditContacts && (
               <InlineAdd
-                label="New vendor name"
-                placeholder="Add a vendor: type a name and press Enter"
+                label={purchasesText('label.newVendor', 'New vendor name')}
+                placeholder={purchasesText('placeholder.newVendor', 'Add a vendor: type a name and press Enter')}
                 existing={vendors.map(v => v.name)}
                 onAdd={name => addEntity('vendors', { name }, `Vendor "${name}" added`)}
               />
@@ -703,7 +703,7 @@ export default function Purchases() {
               totalCount={vendors.length}
               loading={loading}
               loadingWhat="vendors"
-              loadingState={<LoadingState what="vendors" />}
+              loadingState={<LoadingState what={purchasesText('what.vendors', 'vendors')} />}
               searchValue={searchTerm}
               onSearchChange={setSearchTerm}
               manualFilter
@@ -720,14 +720,14 @@ export default function Purchases() {
                     <div className="min-w-0">
                       <InlineEdit
                         value={v.name}
-                        label={`Name of ${v.name}`}
+                        label={`${purchasesText('label.nameOf', 'Name of')} ${v.name}`}
                         canEdit={canEditContacts}
                         validate={x => (String(x) ? null : 'A vendor needs a name')}
                         onSave={x => updateEntity('vendors', v.id, { name: x }, 'Name saved')}
                         className="font-semibold text-slate-900 dark:text-white"
                       />
                       <ArchivedBadge party={v} />
-                      <p className="text-xs text-[var(--muted)] truncate">{v.email || v.phone || v.category || 'Standard'}</p>
+                      <p className="text-xs text-[var(--muted)] truncate">{v.email || v.phone || v.category || purchasesText('fallback.standard', 'Standard')}</p>
                     </div>
                     <span className="font-mono font-bold text-sm tabular-nums text-slate-900 dark:text-white shrink-0">
                       {formatCurrency(v.balanceCents || 0)}
@@ -741,16 +741,16 @@ export default function Purchases() {
               )}
               emptyState={(
                 <EmptyState
-                  title="No vendors yet"
-                  description="Add a vendor before recording their first bill."
+                  title={purchasesText('empty.noVendors', 'No vendors yet')}
+                  description={purchasesText('empty.noVendorsHint', 'Add a vendor before recording their first bill.')}
                   actionLabel="Add first vendor"
                   onAction={() => setIsVendorModalOpen(true)}
                 />
               )}
               filteredEmptyState={(
                 <EmptyState
-                  title="No vendors match your search"
-                  description="Try another name or clear the search."
+                  title={purchasesText('empty.noVendorMatch', 'No vendors match your search')}
+                  description={purchasesText('empty.noVendorMatchHint', 'Try another name or clear the search.')}
                   actionLabel="Clear search"
                   onAction={() => setSearchTerm('')}
                 />
@@ -791,7 +791,7 @@ export default function Purchases() {
         />
       )}
       {previewBill && pdfWorkspaceId && (
-        <PdfPreviewModal isOpen onClose={() => setPreviewBill(null)} title={`Bill ${previewBill.number || previewBill.id}`}
+        <PdfPreviewModal isOpen onClose={() => setPreviewBill(null)} title={`${purchasesText('title.bill', 'Bill')} ${previewBill.number || previewBill.id}`}
           documentType="bill" documentId={previewBill.id} workspaceId={pdfWorkspaceId} filename={`bill_${previewBill.number || previewBill.id}.pdf`} />
       )}
     </div>
