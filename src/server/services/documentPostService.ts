@@ -130,6 +130,9 @@ function assertDocumentMutationAllowed(
         throw new BulkRefusal(409, { error: `Cannot delete ${NAMES[collection]} with an active revenue or prepaid recognition schedule.` });
       }
     } else {
+      // Known gap (#746 review, owner to decide): creditService records an application only by
+      // lowering remainingCents, never in appliedTo, so a partly applied, unrefunded credit passes this
+      // guard and can still be edited or deleted. main's l94-step2b tests rely on that today.
       const appliedCount = Array.isArray(existing.appliedTo) ? existing.appliedTo.length : 0;
       const refundTxCount = Array.isArray(existing.refundTransactionIds) ? existing.refundTransactionIds.length : 0;
       if (appliedCount > 0 || asNonNegativeNumber(existing.refundedCents) > 0 || refundTxCount > 0) {

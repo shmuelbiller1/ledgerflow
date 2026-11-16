@@ -16,6 +16,7 @@
  * - A8-003 / A8-004: CMD-1 freeze/pending_deletion guards & manual journal document metadata forgery guard
  * - A8-021: Stock closing reads inside serializable transaction
  */
+import { workspaceRetentionCommand } from '../server/commands/workspaceSettings';
 import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'crypto';
@@ -670,6 +671,13 @@ describe('Agent #8 (2026-11-16) — Live PostgreSQL P0/P1 Security & Accounting 
     assert.equal(pendingBlocked.ok, false);
     assert.equal(pendingBlocked.status, 409);
     if (!pendingBlocked.ok) assert.equal(pendingBlocked.code, 'WORKSPACE_PENDING_DELETION');
+
+    // A legal hold or a longer grace period must stay possible until the purge runs.
+    const held = await executeCommand(fakeReq(owner, {}), fakeRes(), {
+      definition: workspaceRetentionCommand, workspaceId: ws,
+      input: { deletionGraceDays: 60, emailLogDays: 90, errorLogDays: 30, legalHold: true },
+    }, { getDb: () => db });
+    assert.equal(held.ok, true, `workspace.retention must still work on a pending_deletion workspace: ${JSON.stringify(held)}`);
 
     const restored = await executeCommand(fakeReq(owner, {}), fakeRes(), {
       definition: workspaceCancelDeletionCommand, workspaceId: ws, input: {},

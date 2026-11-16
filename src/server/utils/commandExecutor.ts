@@ -247,11 +247,17 @@ function previewErrorOutcome(error: unknown, command: string): Exclude<CommandPr
     : outcome;
 }
 
+/**
+ * Commands a workspace scheduled for deletion still accepts: cancelling the deletion, and retention
+ * (a legal hold or a longer grace period), which must stay possible until the purge runs.
+ */
+const PENDING_DELETION_ALLOWED = new Set(['workspace.canceldeletion', 'workspace.retention']);
+
 function assertWorkspaceActiveForCommand(workspace: Record<string, unknown>, commandName: string): void {
   if (workspace.concurrentUserLimit === 0) {
     throw new CommandRefusal('Forbidden: This workspace is administratively suspended/frozen by Systems Administration.', 403, 'WORKSPACE_FROZEN');
   }
-  if (workspace.status === 'pending_deletion' && commandName !== 'workspace.canceldeletion') {
+  if (workspace.status === 'pending_deletion' && !PENDING_DELETION_ALLOWED.has(commandName)) {
     throw new CommandRefusal('This workspace is scheduled for deletion and cannot accept changes. Restore it first.', 409, 'WORKSPACE_PENDING_DELETION');
   }
 }
