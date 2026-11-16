@@ -4,7 +4,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { LABEL_ROLES, labelRole } from '../../lib/labelRoles';
-import { runCommand, type CommandBody } from '../../lib/runCommand';
+import { runCommand } from '../../lib/runCommand';
 
 type Kind = 'asset' | 'liability' | 'equity';
 interface Sheet { assets: Record<string, number>; liabilities: Record<string, number>; equity: Record<string, number>; totalAssets: number; totalLiabilities: number; totalEquity: number; netIncome: number; totalClaims: number; isBalanced: boolean }
@@ -36,8 +36,8 @@ export default function LabelBalanceSheetReportView() {
     if (!key) return;
     let live = true;
     (async () => {
-      const body = await runCommand<CommandBody>({ path: `/api/v1/reports/balance-sheet-by-label?${key}` }) ?? {};
-      if (!body.sheet || !Array.isArray(body.rows)) throw new Error(body.message || body.error || 'The report could not be made');
+      const body = await runCommand<Partial<Report>>({ path: `/api/v1/reports/balance-sheet-by-label?${key}` }) ?? {};
+      if (!body.sheet || !Array.isArray(body.rows)) throw new Error('The report could not be made');
       return body as Report;
     })().then(report => { if (live) setResult({ key, report }); }).catch(err => { if (live) setResult({ key, error: err instanceof Error ? err.message : String(err) }); });
     return () => { live = false; };

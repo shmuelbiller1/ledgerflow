@@ -6,7 +6,7 @@ import { compareImport, readSourceTrialBalance, type LedgerRow, type SourceTrial
 import ReportEmptyState from './ReportEmptyState';
 
 import { BRAND_NAME } from '../../config/brand';
-import { runCommand, type CommandBody } from '../../lib/runCommand';
+import { runCommand } from '../../lib/runCommand';
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
 /**
@@ -28,8 +28,8 @@ export default function ImportAcceptanceView() {
     if (!key) return;
     let live = true;
     (async () => {
-      const body = await runCommand<CommandBody>({ path: `/api/v1/reports/trial-balance?${key}` }) ?? {};
-      if (!Array.isArray(body.accounts)) throw new Error(body.message || body.error || 'The trial balance could not be read');
+      const body = await runCommand<{ accounts?: LedgerRow[] }>({ path: `/api/v1/reports/trial-balance?${key}` }) ?? {};
+      if (!Array.isArray(body.accounts)) throw new Error('The trial balance could not be read');
       return body.accounts as LedgerRow[];
     })().then(rows => { if (live) setResult({ key, rows }); }).catch(err => { if (live) setResult({ key, error: err instanceof Error ? err.message : String(err) }); });
     return () => { live = false; };

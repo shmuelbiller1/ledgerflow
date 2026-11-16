@@ -31,13 +31,14 @@ export class ServerCommandError extends Error {
 /**
  * An answer whose shape the caller already knows, e.g. `{ items: … }` from a report route.
  *
- * This exists because the calls it replaces read `res.json()` as `any` and then reached into the body. The
+ * This exists because the calls it replaces read `res.json()` untyped and then reached into the body. The
  * reads are still unchecked — the point is that the *transport* moved, not that every response type was
- * suddenly discovered. Typing a body precisely is an improvement a caller can make one route at a time by
- * passing its own `T` instead of this.
+ * suddenly discovered. A caller that knows its type passes it and gets more than this.
+ *
+ * It is `unknown` on purpose: a repo-wide `any` is forbidden here (the suppression count must stay at zero),
+ * and a codemod cannot invent the real type of an answer it has never parsed.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type CommandBody = Record<string, any>;
+export type CommandBody = Record<string, unknown>;
 
 export interface CommandRequest<T> {
   /** The API path, e.g. `/api/v1/workspaces/${id}/assets/${id}/in-service`. One place knows this. */

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { AGE_BUCKETS, type StockAge } from '../../lib/stockMoves';
-import { runCommand, type CommandBody } from '../../lib/runCommand';
+import { runCommand } from '../../lib/runCommand';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 const qty = (n: number) => (n ? String(Math.round(n * 1e6) / 1e6) : '');
@@ -23,8 +23,8 @@ export default function StockAgingReportView() {
     if (!key) return;
     let live = true;
     (async () => {
-      const body = await runCommand<CommandBody>({ path: `/api/v1/reports/stock-aging?${key}` }) ?? {};
-      if (!Array.isArray(body.items)) throw new Error(body.message || body.error || 'The stock history could not be read');
+      const body = await runCommand<{ items?: StockAge[] }>({ path: `/api/v1/reports/stock-aging?${key}` }) ?? {};
+      if (!Array.isArray(body.items)) throw new Error('The stock history could not be read');
       return body.items as StockAge[];
     })().then(items => { if (live) setResult({ key, items }); }).catch(err => { if (live) setResult({ key, error: err instanceof Error ? err.message : String(err) }); });
     return () => { live = false; };

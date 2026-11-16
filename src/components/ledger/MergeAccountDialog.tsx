@@ -5,7 +5,7 @@ import { useDialog } from '../../hooks/useDialog';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { describeChanges, mergeProblem } from '../../lib/accountMerge';
 import type { ChartAccount } from '../../types';
-import { runCommand, type CommandBody } from '../../lib/runCommand';
+import { runCommand } from '../../lib/runCommand';
 
 /**
  * Merge this account into another (CA-33): pick the account to keep (same kind), see what moves
@@ -22,8 +22,7 @@ interface Props {
 interface Preview { into: string; changes: Record<string, number>; total: number }
 
 async function call(workspaceId: string, path: string, body: unknown) {
-  const data = await runCommand<CommandBody>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/chart-accounts${path}`, method: 'POST', body: body }) ?? {};
-  return data as Preview;
+  return runCommand<Preview>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/chart-accounts${path}`, method: 'POST', body });
 }
 
 export default function MergeAccountDialog({ account, accounts, onClose }: Props) {
