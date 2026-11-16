@@ -1,3 +1,4 @@
+import { fill, useReportText } from '../reporting/useReportText';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import type { Transaction } from '../../types';
 import React, { useId, useState, useMemo, useEffect, useCallback, useRef } from 'react';
@@ -60,6 +61,7 @@ interface ProfitAndLossViewProps {
 }
 
 const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDate, compareStartDate, compareEndDate }) => {
+  const reportText = useReportText();
   // A-235: the P&L reads the entries and the chart of accounts
   const dataHealth = useScreenDataHealth(['transactions', 'accounts']);
   const formId = useId();
@@ -344,7 +346,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
 
   return (
     <div className="space-y-6">
-      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this report" />
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what={reportText('r.this-report-lower', 'this report')} />
       {/* AUD-10: where these figures come from */}
       <ReportProvenanceNote id="pl-statement-provenance" provenance={provenance} onRefresh={loadServerReport} busy={loadingStates.pl} />
 
@@ -356,7 +358,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
         endDate={dateRange.end}
       />
 
-      <div data-testid="report-controls" role="region" aria-label="Report filters" className="p-4 sm:p-5 bg-[var(--surface)] border border-[var(--line)]/80 rounded-xl shadow-3xs space-y-4">
+      <div data-testid="report-controls" role="region" aria-label={reportText('r.report-filters', 'Report filters')} className="p-4 sm:p-5 bg-[var(--surface)] border border-[var(--line)]/80 rounded-xl shadow-3xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <MonthNavigator 
             className="[&_button]:min-h-11 [&_button]:min-w-11 [&_button]:text-[var(--text)]"
@@ -366,43 +368,43 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
           {(basis === 'cash' || !columnsActive) && <button data-report-primary-action
           onClick={exportToExcel}
           className="flex min-h-11 items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg font-bold uppercase text-[10px] tracking-wider hover:bg-slate-800 transition-all shadow-sm active:scale-95 group/btn w-full sm:w-auto cursor-pointer"
-         aria-label="Export to Excel">
+         aria-label={reportText('r.export-to-excel', 'Export to Excel')}>
           <FileSpreadsheet aria-hidden="true" size={13} className="text-emerald-400 group-hover/btn:text-emerald-300 transition-colors shrink-0" />
-          <span>Export to Excel</span>
+          <span>{reportText('r.export-to-excel', 'Export to Excel')}</span>
         </button>}
         </div>
         <div data-testid="report-filter-grid" className={cn("grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(276px,2fr)_minmax(104px,1fr)_minmax(146px,1.2fr)_minmax(126px,1fr)] gap-2 items-start", basis === 'cash' && "lg:grid-cols-[minmax(276px,2fr)_minmax(146px,1fr)_minmax(126px,1fr)]")}>
           <div data-filter-group className="flex min-w-0 flex-col gap-1 text-[9px] font-bold text-[var(--text)]">
-            <span>Period</span>
+            <span>{reportText('r.period', 'Period')}</span>
             <div className="grid grid-cols-2 gap-2">
-              <input aria-label="Reporting period start date" type="date" value={dateRange.start} onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal" />
-              <input aria-label="Reporting period end date" type="date" value={dateRange.end} onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal" />
+              <input aria-label={reportText('r.reporting-period-start-date', 'Reporting period start date')} type="date" value={dateRange.start} onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal" />
+              <input aria-label={reportText('r.reporting-period-end-date', 'Reporting period end date')} type="date" value={dateRange.end} onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal" />
             </div>
           </div>
           {basis === 'accrual' && <div data-filter-group className="flex min-w-0 flex-col gap-1 text-[9px] font-bold text-[var(--text)]">
-            <label htmlFor={`${formId}-label-kind`}>Label</label>
-            <select id={`${formId}-label-kind`} aria-label="Label kind" value={labelDimension} onChange={e => setLabelDimension(e.target.value)} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal">
-              <option value="">All</option><option value="location">Location</option><option value="class">Class</option><option value="project">Project</option><option value="department">Department</option>
+            <label htmlFor={`${formId}-label-kind`}>{reportText('r.label', 'Label')}</label>
+            <select id={`${formId}-label-kind`} aria-label={reportText('r.label-kind', 'Label kind')} value={labelDimension} onChange={e => setLabelDimension(e.target.value)} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal">
+              <option value="">{reportText('r.all', 'All')}</option><option value="location">{reportText('r.location', 'Location')}</option><option value="class">{reportText('r.class', 'Class')}</option><option value="project">{reportText('r.project', 'Project')}</option><option value="department">{reportText('r.department', 'Department')}</option>
             </select>
-            {labelDimension && <><label htmlFor={`${formId}-label-value`}>Label value</label><input id={`${formId}-label-value`} aria-label="Label value" value={labelValue} onChange={e => setLabelValue(e.target.value)} placeholder="e.g. Tel Aviv" className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal" /></>}
+            {labelDimension && <><label htmlFor={`${formId}-label-value`}>{reportText('r.label-value', 'Label value')}</label><input id={`${formId}-label-value`} aria-label={reportText('r.label-value', 'Label value')} value={labelValue} onChange={e => setLabelValue(e.target.value)} placeholder={reportText('r.e-g-tel-aviv', 'e.g. Tel Aviv')} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal" /></>}
           </div>}
-          <label data-filter-group className="flex min-w-0 flex-col gap-1 text-[9px] font-bold text-[var(--text)]">Basis
-            <select aria-label="Basis" value={basis} onChange={e => chooseBasis(e.target.value === 'cash' ? 'cash' : 'accrual')} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal">
-              <option value="accrual">Accrual (as posted)</option><option value="cash">Cash (when paid)</option>
+          <label data-filter-group className="flex min-w-0 flex-col gap-1 text-[9px] font-bold text-[var(--text)]">{reportText('r.basis', 'Basis')}
+            <select aria-label={reportText('r.basis', 'Basis')} value={basis} onChange={e => chooseBasis(e.target.value === 'cash' ? 'cash' : 'accrual')} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal">
+              <option value="accrual">{reportText('r.accrual-as-posted', 'Accrual (as posted)')}</option><option value="cash">{reportText('r.cash-when-paid', 'Cash (when paid)')}</option>
             </select>
           </label>
           <div data-filter-group className="flex min-w-0 flex-col gap-1 text-[9px] font-bold text-[var(--text)]">
-            <span>Comparison</span>
-            <label htmlFor={`${formId}-comparative`} aria-label="Comparative Mode" className="flex min-h-11 items-center gap-2 cursor-pointer rounded focus-within:outline focus-within:outline-2 focus-within:outline-[var(--brass)]">
+            <span>{reportText('r.comparison', 'Comparison')}</span>
+            <label htmlFor={`${formId}-comparative`} aria-label={reportText('r.comparative-mode-sp', 'Comparative Mode')} className="flex min-h-11 items-center gap-2 cursor-pointer rounded focus-within:outline focus-within:outline-2 focus-within:outline-[var(--brass)]">
               <input id={`${formId}-comparative`} type="checkbox" className="sr-only" checked={isComparative} disabled={basis === 'cash'} onChange={(e) => setIsComparative(e.target.checked)} />
               <span aria-hidden="true" className={cn("w-8 h-4 shrink-0 rounded-full flex items-center p-0.5", isComparative ? "bg-indigo-500" : "bg-slate-300")}>
                 <span className={cn("w-3 h-3 bg-[var(--surface)] rounded-full shadow-sm", isComparative ? "translate-x-4" : "translate-x-0")} />
               </span>
-              <span className="text-[10px] text-[var(--text)]">{compareTo === 'budget' ? 'Budget' : 'Prior period'}</span>
+              <span className="text-[10px] text-[var(--text)]">{compareTo === 'budget' ? reportText('r.budget', 'Budget') : reportText('r.prior-period-b', 'Prior period')}</span>
             </label>
             {isComparative && basis === 'accrual' && (
-              <select aria-label="Compare to" value={compareTo} onChange={e => setCompareTo(e.target.value === 'budget' ? 'budget' : 'previous')} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal">
-                <option value="previous">Previous period</option><option value="budget">Budget</option>
+              <select aria-label={reportText('r.compare-to', 'Compare to')} value={compareTo} onChange={e => setCompareTo(e.target.value === 'budget' ? 'budget' : 'previous')} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal">
+                <option value="previous">{reportText('r.previous-period', 'Previous period')}</option><option value="budget">{reportText('r.budget', 'Budget')}</option>
               </select>
             )}
           </div>
@@ -410,7 +412,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
       </div>
 
       {incomeGroups.rows.length === 0 && expenseGroups.rows.length === 0 && Object.keys(data.cogs?.accounts || {}).length === 0 && (
-        <ReportEmptyState title="No report rows in this period" description="Add an entry, clear any label filter, or choose another period." />
+        <ReportEmptyState title={reportText('r.no-report-rows-in-this-period', 'No report rows in this period')} description={reportText('r.add-an-entry-clear-any-label-filter-or-choose-an', 'Add an entry, clear any label filter, or choose another period.')} />
       )}
 
       {/* KPI Matrix */}
@@ -437,16 +439,16 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                  "text-[9px] font-bold", 
                  (data.income?.total || 0) >= prevData.income?.total ? "text-emerald-500" : "text-rose-500"
                )}>
-                 {(((data.income?.total || 0) - prevData.income.total) / Math.abs(prevData.income.total) * 100).toFixed(1)}% vs {vsBudget ? 'Budget' : 'Prior'}
+                 {(((data.income?.total || 0) - prevData.income.total) / Math.abs(prevData.income.total) * 100).toFixed(1)}{reportText('r.vs', '% vs ')}{vsBudget ? reportText('r.budget', 'Budget') : reportText('r.prior', 'Prior')}
                </span>
             )}
           </div>
           <button
             type="button"
             onClick={() => drillTotal({ name: labels.inflowLabel, accountIds: sectionIds(data.income), expectedCents: data.income?.total || 0, sign: -1, startDate: dateRange.start, endDate: dateRange.end, ...(labelFilter ? { labelFilter } : {}) })}
-            aria-label={`See the entries behind ${labels.inflowLabel}`}
+            aria-label={fill(reportText('r.see-entries-behind', 'See the entries behind {what}'), { what: labels.inflowLabel })}
             className={totalCell}
-          >Entries</button>
+          >{reportText('r.entries', 'Entries')}</button>
         </motion.div>
 
         <motion.div 
@@ -472,16 +474,16 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                  "text-[9px] font-bold", 
                  (data.expense?.total || 0) <= prevData.expense?.total ? "text-emerald-500" : "text-rose-500"
                )}>
-                 {(((data.expense?.total || 0) - prevData.expense.total) / Math.abs(prevData.expense.total) * 100).toFixed(1)}% vs {vsBudget ? 'Budget' : 'Prior'}
+                 {(((data.expense?.total || 0) - prevData.expense.total) / Math.abs(prevData.expense.total) * 100).toFixed(1)}{reportText('r.vs', '% vs ')}{vsBudget ? reportText('r.budget', 'Budget') : reportText('r.prior', 'Prior')}
                </span>
             )}
           </div>
           <button
             type="button"
             onClick={() => drillTotal({ name: labels.outflowLabel, accountIds: sectionIds(data.expense), expectedCents: data.expense?.total || 0, sign: 1, startDate: dateRange.start, endDate: dateRange.end, ...(labelFilter ? { labelFilter } : {}) })}
-            aria-label={`See the entries behind ${labels.outflowLabel}`}
+            aria-label={fill(reportText('r.see-entries-behind', 'See the entries behind {what}'), { what: labels.outflowLabel })}
             className={cn(totalCell, 'self-start mt-0 pt-1')}
-          >Entries</button>
+          >{reportText('r.entries', 'Entries')}</button>
         </motion.div>
 
         <motion.div 
@@ -504,20 +506,20 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
           </div>
           <div className="flex items-center gap-2 mt-auto">
             <p className="text-[8px] font-bold uppercase tracking-wider text-white/60">
-              {(data.netIncome || 0) >= 0 ? "Profit" : "Loss"}
+              {(data.netIncome || 0) >= 0 ? reportText('r.profit', 'Profit') : reportText('r.loss', 'Loss')}
             </p>
             <button
               type="button"
               onClick={() => drillTotal({ name: labels.netLabel, accountIds: [...sectionIds(data.income), ...sectionIds(data.cogs), ...sectionIds(data.expense)], expectedCents: data.netIncome || 0, sign: -1, startDate: dateRange.start, endDate: dateRange.end, ...(labelFilter ? { labelFilter } : {}) })}
-              aria-label={`See the entries behind ${labels.netLabel}`}
+              aria-label={fill(reportText('r.see-entries-behind', 'See the entries behind {what}'), { what: labels.netLabel })}
               className="min-h-11 px-1 text-[9px] font-bold uppercase tracking-wider underline decoration-dotted underline-offset-2 text-white/70 hover:text-white focus-visible:text-white"
-            >Entries</button>
+            >{reportText('r.entries', 'Entries')}</button>
             {isComparative && prevData.netIncome !== 0 && (
                <span className={cn(
                  "text-[9px] font-bold ml-auto", 
                  (data.netIncome || 0) >= prevData.netIncome ? "text-emerald-400" : "text-rose-400"
                )}>
-                 {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}% vs {vsBudget ? 'Budget' : 'Prior'}
+                 {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}{reportText('r.vs', '% vs ')}{vsBudget ? reportText('r.budget', 'Budget') : reportText('r.prior', 'Prior')}
                </span>
             )}
           </div>
@@ -527,13 +529,13 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
       {basis === 'cash' && (
         <p role="status" className="text-xs text-[var(--muted)]">
           {cashReady
-            ? <>Cash basis: invoices count when they are paid and bills when they are paid, in proportion to what was paid, on the payment's date; other entries count as posted.{serverData?.leftOut ? ` ${serverData.leftOut} ${serverData.leftOut === 1 ? 'entry' : 'entries'} on receivables or payables without cash (credit notes, write-offs) ${serverData.leftOut === 1 ? 'is' : 'are'} left out.` : ''} Payments not yet applied to an invoice or bill are not counted.</>
-            : loadingStates.pl ? 'Calculating on cash basis…' : 'Cash basis is calculated by the server, and it could not be reached: try again in a moment.'}
+            ? <>{reportText('r.cash-basis-invoices-count-when-they-are-paid-and', 'Cash basis: invoices count when they are paid and bills when they are paid, in proportion to what was paid, on the payment\'s date; other entries count as posted.')}{serverData?.leftOut ? ' ' + fill(serverData.leftOut === 1 ? reportText('r.left-out-one', '{n} entry on receivables or payables without cash (credit notes, write-offs) is left out.') : reportText('r.left-out-many', '{n} entries on receivables or payables without cash (credit notes, write-offs) are left out.'), { n: serverData.leftOut }) : ''} {reportText('r.payments-not-yet-applied-to-an-invoice-or-bill-a', 'Payments not yet applied to an invoice or bill are not counted.')}</>
+            : loadingStates.pl ? reportText('r.calculating-on-cash-basis', 'Calculating on cash basis…') : reportText('r.cash-basis-is-calculated-by-the-server-and-it-co', 'Cash basis is calculated by the server, and it could not be reached: try again in a moment.')}
         </p>
       )}
       {/* R-4: the note for the dates on screen */}<ReportNote key={`pnl|${dateRange.start}|${dateRange.end}`} report="pnl" startDate={dateRange.start} endDate={dateRange.end} />
       {vsBudget && <BudgetComparisonNotice labelFiltered={Boolean(labelFilter)} />}
-      {vsBudget && columnMode !== 'total' && <p role="status" className="text-sm">The budget comparison is shown for the whole period: choose Columns → Total to see it beside the actual figures.</p>}
+      {vsBudget && columnMode !== 'total' && <p role="status" className="text-sm">{reportText('r.the-budget-comparison-is-shown-for-the-whole-per', 'The budget comparison is shown for the whole period: choose Columns → Total to see it beside the actual figures.')}</p>}
       {basis === 'accrual' && <StatementColumns kind="pl" title={labels.title} accounts={accounts} transactions={transactions}
         startDate={dateRange.start} endDate={dateRange.end} compare={isComparative && (!vsBudget || columnMode === 'total')} compareLabel={vsBudget ? 'Budget' : undefined}
         compareStartDate={prevRange.start} compareEndDate={prevRange.end}
@@ -548,10 +550,10 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
         <div className="p-4 border-b border-slate-150 bg-[var(--ink)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-xs font-bold text-[var(--text)] uppercase tracking-wider">{labels.title}</h2>
-            <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mt-0.5">Income and expenses for the period</p>
+            <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mt-0.5">{reportText('r.income-and-expenses-for-the-period', 'Income and expenses for the period')}</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider">Sort By:</span>
+            <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider">{reportText('r.sort-by', 'Sort By:')}</span>
             <div className="flex items-center gap-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg p-0.5">
               {(['balance', 'name', 'code'] as const).map(field => (
                 <button
@@ -585,7 +587,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                 <span className="font-mono text-base font-black text-emerald-700 dark:text-[#009e44] tabular-nums"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(data.income?.total || 0)}</bdi></span>
                 {isComparative && prevData.income?.total !== 0 && (
                   <div className="flex items-center gap-1.5 mt-0.5">
-                     <span className="font-mono text-[9px] text-[var(--muted)] font-medium tabular-nums">prev: <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prevData.income?.total)}</bdi></span>
+                     <span className="font-mono text-[9px] text-[var(--muted)] font-medium tabular-nums">{reportText('r.prev', 'prev: ')}<bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prevData.income?.total)}</bdi></span>
                      <span className={cn(
                        "text-[10px] font-bold", 
                        (data.income?.total || 0) >= prevData.income?.total ? "text-emerald-500" : "text-rose-500"
@@ -626,7 +628,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                         explain: { accountIds: [id], startDate: dateRange.start || undefined, endDate: dateRange.end || undefined, expectedCents: balance, sign: -1, ...(labelFilter ? { labelFilter } : {}) }
                       });
                     }}
-                    title={`Click to drill down into ${acc.name}`}
+                    title={fill(reportText('r.drill-into', 'Click to drill down into {name}'), { name: acc.name })}
                     className="w-full text-left flex items-center justify-between p-3 bg-[var(--ink)]/50 rounded-lg border border-transparent hover:border-indigo-300 dark:hover:border-indigo-800 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-all group gap-4 min-w-0 cursor-pointer"
                   >
                     <div className="flex items-center gap-2 min-w-0">
@@ -640,7 +642,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                       <span className="font-mono text-[var(--text)] text-xs font-semibold tabular-nums"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(balance)}</bdi></span>
                       {isComparative && (
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono text-[8px] text-[var(--muted)] tabular-nums">prev: <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prevBalance)}</bdi></span>
+                          <span className="font-mono text-[8px] text-[var(--muted)] tabular-nums">{reportText('r.prev', 'prev: ')}<bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prevBalance)}</bdi></span>
                           {variance !== null && (
                             <span className={cn("text-[9px] font-bold", variance >= 0 ? "text-emerald-500" : "text-rose-500")}>
                               {variance >= 0 ? '+' : ''}{variance.toFixed(1)}%
@@ -667,7 +669,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                  <span className="font-mono text-base font-black text-rose-700 tabular-nums"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(data.expense?.total || 0)}</bdi></span>
                  {isComparative && prevData.expense?.total !== 0 && (
                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="font-mono text-[9px] text-[var(--muted)] font-medium tabular-nums">prev: <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prevData.expense?.total)}</bdi></span>
+                      <span className="font-mono text-[9px] text-[var(--muted)] font-medium tabular-nums">{reportText('r.prev', 'prev: ')}<bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prevData.expense?.total)}</bdi></span>
                       <span className={cn(
                         "text-[10px] font-bold", 
                         (data.expense?.total || 0) <= prevData.expense?.total ? "text-emerald-500" : "text-rose-500"
@@ -708,7 +710,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                         explain: { accountIds: [id], startDate: dateRange.start || undefined, endDate: dateRange.end || undefined, expectedCents: balance, sign: 1, ...(labelFilter ? { labelFilter } : {}) }
                       });
                     }}
-                    title={`Click to drill down into ${acc.name}`}
+                    title={fill(reportText('r.drill-into', 'Click to drill down into {name}'), { name: acc.name })}
                     className="w-full text-left flex items-center justify-between p-3 bg-[var(--ink)]/50 rounded-lg border border-transparent hover:border-indigo-300 dark:hover:border-indigo-800 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-all group gap-4 min-w-0 cursor-pointer"
                   >
                     <div className="flex items-center gap-2 min-w-0">
@@ -722,7 +724,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                       <span className="font-mono text-[var(--text)] text-xs font-semibold tabular-nums"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(balance)}</bdi></span>
                       {isComparative && (
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono text-[8px] text-[var(--muted)] tabular-nums">prev: <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prevBalance)}</bdi></span>
+                          <span className="font-mono text-[8px] text-[var(--muted)] tabular-nums">{reportText('r.prev', 'prev: ')}<bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prevBalance)}</bdi></span>
                           {variance !== null && (
                             <span className={cn("text-[9px] font-bold", variance <= 0 ? "text-emerald-500" : "text-rose-500")}>
                               {variance >= 0 ? '+' : ''}{variance.toFixed(1)}%
@@ -747,7 +749,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
             <div className="flex flex-col items-end sm:items-center sm:flex-row gap-4 text-right tabular-nums">
               {isComparative && prevData.netIncome !== 0 && (
                 <div className="flex flex-col sm:items-end items-end mr-4">
-                  <span className="text-[9px] font-bold text-[var(--muted)] font-medium tracking-wider mb-1">PRIOR PERIOD</span>
+                  <span className="text-[9px] font-bold text-[var(--muted)] font-medium tracking-wider mb-1">{reportText('r.prior-period', 'PRIOR PERIOD')}</span>
                   <span className="font-mono text-sm text-slate-300 line-through opacity-70">
                     <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prevData.netIncome)}</bdi>
                   </span>
@@ -755,7 +757,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                     "text-[10px] font-bold mt-0.5 px-1.5 py-0.5 rounded", 
                     (data.netIncome || 0) >= prevData.netIncome ? "bg-emerald-950 text-emerald-400" : "bg-rose-950 text-rose-400"
                   )}>
-                    {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}% vs {vsBudget ? 'Budget' : 'Prior'}
+                    {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}{reportText('r.vs', '% vs ')}{vsBudget ? reportText('r.budget', 'Budget') : reportText('r.prior', 'Prior')}
                   </span>
                 </div>
               )}

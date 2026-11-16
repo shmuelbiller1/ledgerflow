@@ -1,3 +1,4 @@
+import { useReportText } from '../reporting/useReportText';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import type { ExplainRequest } from '../layout/DrillDownModal';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -378,12 +379,13 @@ function useBalanceSheetModel({ accounts = [], formatCurrency, asOfDate: pageAsO
 export type BalanceSheetModel = ReturnType<typeof useBalanceSheetModel>;
 
 export default function BalanceSheetView(props: BalanceSheetViewProps) {
+  const reportText = useReportText();
   const model = useBalanceSheetModel(props);
   // A-235: the balance sheet reads the entries and the chart of accounts
   const dataHealth = useScreenDataHealth(['transactions', 'accounts']);
   return (
     <>
-      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this report" />
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what={reportText('r.this-report-lower', 'this report')} />
       <BalanceSheetReport {...model} />
     </>
   );
