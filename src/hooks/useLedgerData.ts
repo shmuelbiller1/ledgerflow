@@ -28,6 +28,7 @@ import { LEDGER_COLLECTIONS, closedThroughFrom, entryListPartial, keysToStart } 
 import type { LedgerCollectionSpec, LedgerKey } from "../lib/ledgerCollections";
 import { effectiveLockDate } from '../lib/periodLock';
 import { LedgerEngine } from '../kernel/ledger/LedgerEngine';
+import { runCommand, type CommandBody } from '../lib/runCommand';
 
 type LedgerState = ReturnType<typeof useLedgerStore.getState>;
 type AnalyticalPattern = LedgerState['analyticalPatternCache'][string];
@@ -392,8 +393,8 @@ const CLOSED_THROUGH_RECHECK_MS = 5 * 60 * 1000;
 /** The newest fresh year-end snapshot's day; null when there is none; undefined when there is no answer (offline, a guest). */
 async function closedThroughDay(workspaceId: string): Promise<string | null | undefined> {
   try {
-    const res = await fetch(`/api/v1/balances/closed-through?${new URLSearchParams({ workspaceId })}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-    return res.ok ? closedThroughFrom(await res.json().catch(() => null)) : undefined;
+    // best-effort: runCommand throws on a refusal, which the catch below already treats as "unknown"
+    return closedThroughFrom(await runCommand<CommandBody>({ path: `/api/v1/balances/closed-through?${new URLSearchParams({ workspaceId })}` }));
   } catch {
     return undefined;
   }

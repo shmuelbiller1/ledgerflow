@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { TASK_KIND, type Task } from '../../lib/tasks';
 import type { RecordRef } from '../../lib/recordLinks';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 interface Person { uid: string; role: string; email?: string }
 
@@ -18,8 +18,7 @@ export function useHandOvers() {
     if (!workspaceId) return;
     let live = true;
     (async () => {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tasks`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      return res.ok ? await res.json() : {};
+      return await runCommand<CommandBody>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tasks` }) ?? {};
     })().then(data => { if (live) { setTasks(Array.isArray(data.tasks) ? data.tasks : []); setPeople(Array.isArray(data.people) ? data.people : []); } }).catch((err) => { console.warn('[useHandOvers] Could not load handover tasks:', err); });
     return () => { live = false; };
   }, [workspaceId]);
