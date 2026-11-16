@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getIdToken } from '../../firebase';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -11,6 +10,7 @@ import {
 } from '../../lib/timeByPersonProject';
 import ReportTableScroll from './ReportTableScroll';
 import { inBackground } from '../../lib/inBackground';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 const hoursText = (minutes: number) => `${formatDuration(minutes)} h`;
 
@@ -33,12 +33,10 @@ export default function TimeByProjectReportView() {
     let alive = true;
     inBackground((async () => {
       try {
-        const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/time`, {
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.message || data.error || `The time entries could not be read (${res.status})`);
-        if (alive) setState({ workspaceId, entries: data.entries || [] });
+        const data = await runCommand<CommandBody>({
+          path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/time`,
+        }) ?? {};
+        if (alive) setState({ workspaceId, entries: (data.entries || []) as TimeEntry[] });
       } catch (error) {
         if (alive) setState({ workspaceId, error: error instanceof Error ? error.message : String(error) });
       }
