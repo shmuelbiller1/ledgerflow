@@ -9,6 +9,7 @@ import { postingToday, registerPostingHost } from './postingCore';
 import { getLocalDateISO } from '../../lib/utils';
 import type { EntityMutation, LedgerPostContext, PostableTransaction } from './postingCore';
 import { reportCreditLimitRefusal } from '../../lib/creditLimitPrompt';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 // The browser's side of posting (L-94 step 0): the pure helpers are in postingCore.ts; this file
 // gives them the screen's data (the stores) and the one call that sends entries to the server, and
@@ -53,23 +54,16 @@ async function sendToServer(
   // Ids are chosen here so the entries added to the local store below carry the same ids as the
   // server copies; a quick second edit can then link its reversals to them.
   txs = (txs || []).map(tx => (tx.id ? tx : { ...tx, id: crypto.randomUUID() }));
-  const token = await getIdToken().catch(() => null);
   const idempotencyKey = context?.idempotencyKey || (txs.length > 0 ? txs[0].id : null) || crypto.randomUUID();
-  const response = await fetch('/api/v1/transactions/bulk', {
+  const data = await runCommand<CommandBody>({
+    path: '/api/v1/transactions/bulk',
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Idempotency-Key': idempotencyKey,
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-    },
-    // the day this posting counted as today, so the server's check rebuilds it with the same day (L-94)
-    body: JSON.stringify({ transactions: txs, workspaceId, entityMutation, postingDay: postingToday(context) })
-  });
+    // the key is what makes a retried posting one posting; the day is what lets the server's check rebuild
+    // it with the same day (L-94)
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: { transactions: txs, workspaceId, entityMutation, postingDay: postingToday(context) }
+  }) ?? {};
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.error || 'Server rejected transaction posting');
-  }
   if (Array.isArray(data.warnings)) data.warnings.forEach((w: unknown) => toast.warning(String(w)));
   showBudgetWarnings(data);
 
