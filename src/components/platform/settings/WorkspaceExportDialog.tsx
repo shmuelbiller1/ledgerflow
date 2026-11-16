@@ -14,7 +14,7 @@ import {generateOFX} from '../../../lib/ofx-exporter';
 import {computeGeneralLedger} from '../../../server/reports/computeReports';
 import type {ChartAccount,Customer,Vendor,Transaction} from '../../../types';
 import { BRAND } from '../../../config/brand';
-import { runCommand } from '../../../lib/runCommand';
+import { readVerifiedBackup } from '../../../hooks/useServerExport';
 interface Source {accounts:ChartAccount[];customers:Customer[];vendors:Vendor[];transactions:Transaction[]}
 export default function WorkspaceExportDialog({onClose}:{onClose:()=>void}){
  const {dialogProps,titleId}=useDialog(onClose);
@@ -46,7 +46,8 @@ export default function WorkspaceExportDialog({onClose}:{onClose:()=>void}){
    if(isGuest){const state=useLedgerStore.getState();source={accounts:state.accounts,customers:state.customers,vendors:state.vendors,transactions:state.transactions};}
    else{
     if(!current())return;
-    const data:unknown=await runCommand<unknown>({path:`/api/v1/workspaces/${encodeURIComponent(workspace)}/export`,signal:abort.current.signal});
+    // the refusal is wrapped: the first thing this person needs to know is that no half-written file landed
+    const data:unknown=await readVerifiedBackup(workspace,abort.current.signal,'The complete workspace export was refused or unavailable. Try again; no partial file was downloaded.');
     if(!data||typeof data!=='object')throw new Error('Invalid workspace export response.');
     const value=data as Record<string,unknown>;
     if(!['accounts','customers','vendors','transactions'].every(key=>Array.isArray(value[key])))throw new Error('The export response is missing record collections.');

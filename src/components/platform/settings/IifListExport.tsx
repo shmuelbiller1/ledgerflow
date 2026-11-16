@@ -7,7 +7,7 @@
  * No journals, invoices, bills or payments (an IIF with transaction rows posts money in
  * QuickBooks on import); no balances; the skipped list names what was left out and why.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Download, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -17,7 +17,7 @@ import { verifiedBackupCollections } from '../../../lib/workspaceArchive';
 import { buildIifExport } from '../../../lib/iifExport';
 import type { ChartAccount, Customer, InventoryItem, Vendor } from '../../../types';
 import { BRAND } from '../../../config/brand';
-import { runCommand, type CommandBody } from '../../../lib/runCommand';
+import { readVerifiedBackup, saveBlob, useServerExport } from '../../../hooks/useServerExport';
 
 export default function IifListExport() {
   const scope = useAuthStore(s => String(s.user?.uid || 'guest') + ':' + String(s.currentWorkspaceId || 'none'));
@@ -32,79 +32,37 @@ function IifListExportBody() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [lastSkipped, setLastSkipped] = useState<Array<{ section: string; name: string; reason: string }>>([]);
-  const abortRef = useRef<AbortController | null>(null);
-  const pending = useRef(false);
+  const allowed = !isGuest && role === 'owner' && Boolean(uid && workspaceId);
+  const failure = 'The server export failed. No incomplete IIF was downloaded.';
 
-  useEffect(() => () => { abortRef.current?.abort(); }, []);
-
-  const download = async () => {
-    if (pending.current) return;
-    const auth = useAuthStore.getState();
-    const selectedId = auth.currentWorkspaceId;
-    const user = auth.user;
-    if (role !== 'owner' || isGuest || !selectedId || !user) {
-      setError('Only a signed-in workspace owner may download the QuickBooks list export.');
-      return;
-    }
-    pending.current = true;
-    setBusy(true);
-    setError('');
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const scopeValid = () => !controller.signal.aborted
-      && useAuthStore.getState().currentWorkspaceId === selectedId
-      && useAuthStore.getState().user?.uid === user.uid;
-    try {
-      if (!scopeValid()) return;
-      // The refusal is wrapped rather than shown as-is: what the person needs to know first is that nothing
-      // partial was written to disk.
-      let source: unknown;
-      try {
-        source = await runCommand<CommandBody>({
-          path: `/api/v1/workspaces/${encodeURIComponent(selectedId)}/export`,
-          signal: controller.signal,
-        });
-      } catch (error) {
-        throw new Error('The server export failed. No incomplete IIF was downloaded.', { cause: error });
-      }
-      if (!scopeValid()) return;
+  const { start } = useServerExport({
+    allowed, setBusy, setError, failure,
+    run: async ({ workspaceId: selectedId, signal, stillHere }) => {
+      const source = await readVerifiedBackup(selectedId, signal, failure);
+      if (!stillHere()) return;
       // Format, workspace and SHA-256 checksum checked — same gate as the archive (E-21).
       const collections = await verifiedBackupCollections(source, selectedId);
-      if (!scopeValid()) return;
-      // Backup keys follow RESTORE_COLLECTIONS (workspaceRestoreService.ts): the chart of
-      // accounts travels under `accounts`, the item catalogue under `inventory`.
+      if (!stillHere()) return;
+      // Backup keys follow RESTORE_COLLECTIONS (workspaceRestoreService.ts): the chart of accounts travels
+      // under `accounts`, the item catalogue under `inventory`.
       const file = buildIifExport({
         accounts: collections.accounts as ChartAccount[] | undefined,
         customers: collections.customers as Customer[] | undefined,
         vendors: collections.vendors as Vendor[] | undefined,
         items: collections.inventory as InventoryItem[] | undefined,
       });
-      const blob = new Blob([file.text], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${BRAND.fileSlug}-lists-` + selectedId.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + getLocalDateISO() + '.iif';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
+      saveBlob(
+        new Blob([file.text], { type: 'text/plain;charset=utf-8' }),
+        `${BRAND.fileSlug}-lists-` + selectedId.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + getLocalDateISO() + '.iif',
+      );
       setLastSkipped(file.skipped);
       toast.success(
         `IIF written: ${file.counts.accounts} accounts, ${file.counts.customers} customers, `
         + `${file.counts.vendors} vendors, ${file.counts.items} items`
         + (file.skipped.length ? ` (${file.skipped.length} records left out — see the list below)` : '') + '.',
       );
-    } catch (err) {
-      if (scopeValid()) {
-        setError(err instanceof Error ? err.message : 'Could not create the IIF file.');
-      }
-    } finally {
-      pending.current = false;
-      if (scopeValid()) setBusy(false);
-    }
-  };
-
-  const allowed = !isGuest && role === 'owner' && Boolean(uid && workspaceId);
+    },
+  });
   return (
     <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6">
       <div className="mb-4 flex items-center gap-3">
@@ -126,7 +84,7 @@ function IifListExportBody() {
         for non-English names.
       </p>
       {error && <p role="alert" className="mb-3 text-xs text-[var(--neg)]">{error}</p>}
-      <button type="button" onClick={() => void download()} disabled={!allowed || busy}
+      <button type="button" onClick={() => void start()} disabled={!allowed || busy}
         className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40">
         <Download size={16} aria-hidden="true" />
         {busy ? 'Preparing verified lists…' : 'Download QuickBooks lists (.iif)'}

@@ -3,7 +3,7 @@
  * No browser-cache fallback: a ZIP cannot be described as complete when the
  * workspace's older rows may not be loaded.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Archive, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -12,7 +12,7 @@ import { getLocalDateISO } from '../../../lib/utils';
 import { buildWorkspaceArchive } from '../../../lib/workspaceArchive';
 import { recordBackupCompleted } from '../../../lib/ledgerBackupHealth';
 import { BRAND } from '../../../config/brand';
-import { runCommand, type CommandBody } from '../../../lib/runCommand';
+import { readVerifiedBackup, saveBlob, useServerExport } from '../../../hooks/useServerExport';
 
 export default function WorkspaceArchiveExport() {
   const scope = useAuthStore(s => String(s.user?.uid || 'guest') + ':' + String(s.currentWorkspaceId || 'none'));
@@ -26,67 +26,21 @@ function WorkspaceArchiveExportBody() {
   const role = useCurrentRole();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const abortRef = useRef<AbortController | null>(null);
-  const pending = useRef(false);
+  const allowed = !isGuest && role === 'owner' && Boolean(uid && workspaceId);
+  const failure = 'The server export failed. No incomplete archive was downloaded.';
 
-  // The outer keyed component remounts when the user or workspace changes.
-  // Cleanup cancels in-flight reads; no stale archive can download afterwards.
-  useEffect(() => () => { abortRef.current?.abort(); }, []);
-
-  const download = async () => {
-    if (pending.current) return;
-    const auth = useAuthStore.getState();
-    const selectedId = auth.currentWorkspaceId;
-    const user = auth.user;
-    if (role !== 'owner' || isGuest || !selectedId || !user) {
-      setError('Only a signed-in workspace owner may download the verified archive.');
-      return;
-    }
-    pending.current = true;
-    setBusy(true);
-    setError('');
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const scopeValid = () => !controller.signal.aborted
-      && useAuthStore.getState().currentWorkspaceId === selectedId
-      && useAuthStore.getState().user?.uid === user.uid;
-    try {
-      if (!scopeValid()) return;
-      // The refusal is wrapped rather than shown as-is: what the person needs to know first is that nothing
-      // partial was written to disk.
-      let source: unknown;
-      try {
-        source = await runCommand<CommandBody>({
-          path: `/api/v1/workspaces/${encodeURIComponent(selectedId)}/export`,
-          signal: controller.signal,
-        });
-      } catch (error) {
-        throw new Error('The server export failed. No incomplete archive was downloaded.', { cause: error });
-      }
-      if (!scopeValid()) return;
+  const { start } = useServerExport({
+    allowed, setBusy, setError, failure,
+    run: async ({ workspaceId: selectedId, signal, stillHere }) => {
+      const source = await readVerifiedBackup(selectedId, signal, failure);
+      if (!stillHere()) return;
       const archive = await buildWorkspaceArchive(source, selectedId);
-      if (!scopeValid()) return;
-      const url = URL.createObjectURL(archive.blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${BRAND.fileSlug}-archive-` + selectedId.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + getLocalDateISO() + '.zip';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
+      if (!stillHere()) return;
+      saveBlob(archive.blob, `${BRAND.fileSlug}-archive-` + selectedId.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + getLocalDateISO() + '.zip');
       recordBackupCompleted(selectedId);
       toast.success('Archived ' + archive.collections.length + ' server-backup collections as JSON and CSV.');
-    } catch (err) {
-      if (scopeValid()) {
-        setError(err instanceof Error ? err.message : 'Could not create the archive.');
-      }
-    } finally {
-      pending.current = false;
-      if (scopeValid()) setBusy(false);
-    }
-  };
-
-  const allowed = !isGuest && role === 'owner' && Boolean(uid && workspaceId);
+    },
+  });
   return (
     <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6">
       <div className="mb-4 flex items-center gap-3">
@@ -104,7 +58,7 @@ function WorkspaceArchiveExportBody() {
         Only a signed-in workspace owner can start this download; no demo or browser-cache fallback.
       </p>
       {error && <p role="alert" className="mb-3 text-xs text-[var(--neg)]">{error}</p>}
-      <button type="button" onClick={() => void download()} disabled={!allowed || busy}
+      <button type="button" onClick={() => void start()} disabled={!allowed || busy}
         className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600 disabled:opacity-40">
         <Download size={16} aria-hidden="true" />
         {busy ? 'Preparing verified archive…' : 'Download workspace ZIP archive'}
