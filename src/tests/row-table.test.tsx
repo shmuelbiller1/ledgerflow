@@ -175,6 +175,7 @@ describe('RowTable', () => {
       />,
     );
     const footer = document.querySelector('tfoot');
+    assert.ok(footer, 'the totals row is a footer');
     assert.match(footer.className, /sticky bottom-0/);
     assert.match(footer.className, /border-t-2/);
   });
