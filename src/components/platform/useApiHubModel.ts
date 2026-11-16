@@ -94,19 +94,11 @@ export function useApiHubModel() {
   const handleCheckout = async (plan: string) => {
     if (!currentWorkspace?.id || !user) return;
     try {
-      const token = await getIdToken();
-      const res = await fetch('/api/v1/billing/checkout', {
+      const data = await runCommand<{ url?: string; message?: string }>({
+        path: '/api/v1/billing/checkout',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          workspaceId: currentWorkspace.id,
-          plan: plan
-        })
-      });
-      const data = await res.json();
+        body: { workspaceId: currentWorkspace.id, plan },
+      }) ?? {};
       if (data.url) {
         window.location.href = data.url;
       } else {
@@ -205,30 +197,20 @@ export function useApiHubModel() {
     if (!currentWorkspace?.id || !user) return;
     setIsRegenerating(true);
     try {
-      const token = await getIdToken();
-      const res = await fetch('/api/v1/keys/provision', {
+      // a refusal throws with the server's own message, which is the sentence this toast was built from
+      const data = await runCommand<{ apiKey?: string }>({
+        path: '/api/v1/keys/provision',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
+        body: {
           workspaceId: currentWorkspace.id,
           name: newKeyName || 'Production Integration Key',
           scopes: selectedScopes,
-          expiration: expiration,
-          rateLimitPerMinute: perMinute
-        })
+          expiration,
+          rateLimitPerMinute: perMinute,
+        },
       });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.message || 'Key generation endpoint rejected request.');
-      }
-
-      const data = await res.json();
       keyGeneration.current += 1;
-      setApiKey(data.apiKey);
+      setApiKey(data.apiKey ?? '');
       setIsCopied(false);
       toast.success('Developer API Key Provisioned', {
         description: 'New deep authentication token is ready for use. Store this safely.'
