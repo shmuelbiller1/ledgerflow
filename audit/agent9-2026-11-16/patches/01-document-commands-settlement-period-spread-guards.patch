@@ -1,0 +1,169 @@
+diff --git a/src/server/services/documentPostService.ts b/src/server/services/documentPostService.ts
+index 1ea6de8..914e3cd 100644
+--- a/src/server/services/documentPostService.ts
++++ b/src/server/services/documentPostService.ts
+@@ -1,4 +1,6 @@
+ import crypto from 'crypto';
++import { isDeepStrictEqual } from 'node:util';
++import { ALLOCATIONS, allocationLedgerReady } from './allocationLedger';
+ import { itemsExceedTotal } from '../../lib/documentItemsCheck';
+ import { isWorkspaceMemberData, type Firestore, type Transaction as FirestoreTransaction } from '../db/firestore';
+ import type { RequestUser } from '../auth/requestUser';
+@@ -103,9 +105,107 @@ export async function prepareDocumentPost(db: Firestore, user: RequestUser, inpu
+   const context: LedgerPostContext = await loadPostingContext(db, { workspaceId, uid: user.uid, collection, docId, document, workspace: wsRecord, lockChecked: true });
+   context.today = agreedPostingDay(context.today || todayIn(wsRecord.timezone as string | undefined), input.postingDay);
+   const key = DOCUMENT_ENTRY_KEY[collection];
+-  const dates = action === 'delete'
+-    ? (context.transactions || []).filter(tx => tx.metadata?.[key] === docId && isPostable(tx) && !tx.metadata?.isReversal).map(tx => String(tx.date))
+-    : [String(document.date || context.today)];
++  const priorLiveDates = (context.transactions || [])
++    .filter(tx => tx.metadata?.[key] === docId && isPostable(tx) && !tx.metadata?.isReversal)
++    .map(tx => String(tx.date || ''))
++    .filter(Boolean);
++
++  // B1–B3 & B5: Reject client tampering with server-managed settlement/schedule fields and protect settled/spread docs
++  if ((collection === 'invoices' || collection === 'bills') && action !== 'delete') {
++    const serverManagedFields = [
++      'settledByRecordsCents',
++      'creditedCents',
++      'refundedCents',
++      'writtenOffCents',
++      'depositAppliedCents',
++      'revenueSchedule',
++      'prepaidSchedule',
++    ] as const;
++    for (const field of serverManagedFields) {
++      if (field in input.data) {
++        const incomingVal = input.data[field];
++        const prevVal = existing?.[field];
++        if (action === 'create') {
++          if (incomingVal !== undefined && incomingVal !== null && incomingVal !== 0) {
++            throw new BulkRefusal(400, { error: `Field '${field}' is server-managed and cannot be set directly.` });
++          }
++        } else if (!isDeepStrictEqual(incomingVal, prevVal)) {
++          throw new BulkRefusal(409, { error: `Field '${field}' is server-managed and cannot be modified directly.` });
++        }
++      }
++    }
++  }
++  if ((collection === 'creditNotes' || collection === 'vendorCredits') && action !== 'delete' && 'refundedCents' in input.data) {
++    const incomingVal = input.data.refundedCents;
++    const prevVal = existing?.refundedCents;
++    if ((action === 'create' && Number(incomingVal || 0) > 0) || (action === 'update' && !isDeepStrictEqual(incomingVal, prevVal))) {
++      throw new BulkRefusal(409, { error: `Field 'refundedCents' is server-managed and cannot be modified directly.` });
++    }
++  }
++
++  const ledgerReady = await allocationLedgerReady(db);
++  const liveAllocSnap = existing && ledgerReady
++    ? await db.collection(ALLOCATIONS)
++      .where('workspaceId', '==', workspaceId)
++      .where(collection === 'invoices' || collection === 'bills' ? 'documentId' : 'sourceId', '==', docId)
++      .get()
++    : null;
++  const liveAllocCents = (liveAllocSnap?.docs || [])
++    .map(d => d.data())
++    .filter(a => a.kind !== 'reversal' && !a.reversedBy)
++    .reduce((sum, a) => sum + (Number(a.amountCents) || 0), 0);
++
++  if (existing && (collection === 'invoices' || collection === 'bills')) {
++    const schedule = collection === 'invoices' ? existing.revenueSchedule : existing.prepaidSchedule;
++    if (action === 'delete' && (schedule as { id?: string } | undefined)?.id) {
++      const targetScreen = collection === 'invoices' ? 'Sales → Undo spread' : 'Purchases → Undo spread';
++      throw new BulkRefusal(409, { error: `This ${NAMES[collection]} is spread over months: undo the spread first (${targetScreen})` });
++    }
++    const recordedSettled = Number(existing.settledByRecordsCents || 0) + Number(existing.writtenOffCents || 0);
++    if (liveAllocCents > 0 || recordedSettled > 0) {
++      const nextStatus = String(document.status || existing.status || '');
++      if (action === 'delete' || ['draft', 'void', 'cancelled', 'rejected'].includes(nextStatus)) {
++        throw new BulkRefusal(409, { error: `This ${NAMES[collection]} has recorded payments, credits, or write-offs; reverse or unapply them first.` });
++      }
++      if (Number(document.amountCents || 0) < Math.max(liveAllocCents, Number(existing.settledByRecordsCents || 0))) {
++        throw new BulkRefusal(409, { error: `This ${NAMES[collection]} total cannot be reduced below its recorded settlements.` });
++      }
++      if ('amountPaidCents' in input.data && Number(input.data.amountPaidCents || 0) < Math.max(liveAllocCents, Number(existing.settledByRecordsCents || 0))) {
++        throw new BulkRefusal(409, { error: `Recorded settlements cannot be cleared via document update.` });
++      }
++    }
++  }
++
++  if (existing && (collection === 'creditNotes' || collection === 'vendorCredits')) {
++    const refunded = Number(existing.refundedCents || 0);
++    if (liveAllocCents > 0 || refunded > 0) {
++      const nextStatus = String(document.status || existing.status || '');
++      if (action === 'delete' || nextStatus === 'draft' || nextStatus === 'void') {
++        throw new BulkRefusal(409, { error: `This ${NAMES[collection]} has been applied or refunded and can no longer be deleted, voided, or moved back to draft.` });
++      }
++      if ('remainingCents' in input.data && !isDeepStrictEqual(input.data.remainingCents, existing.remainingCents)) {
++        throw new BulkRefusal(409, { error: `This ${NAMES[collection]} remaining balance is server-managed after applications or refunds.` });
++      }
++      if ('status' in input.data && input.data.status === 'open') {
++        throw new BulkRefusal(409, { error: `This ${NAMES[collection]} has been applied or refunded and cannot be reset to open.` });
++      }
++      if (Number(document.amountCents || 0) < liveAllocCents + refunded) {
++        throw new BulkRefusal(409, { error: `This ${NAMES[collection]} total cannot be reduced below the amount already applied or refunded.` });
++      }
++    }
++  }
++
++  // B4: Check BOTH existing date (when previously posted or redated) and new date against period locks
++  const existingDateChanged = action === 'update' && Boolean(existing?.date) && (priorLiveDates.length > 0 || (input.data.date !== undefined && input.data.date !== existing?.date));
++  const dates = Array.from(new Set(
++    (action === 'delete'
++      ? priorLiveDates
++      : [
++          ...(existingDateChanged ? [String(existing?.date)] : []),
++          ...priorLiveDates,
++          String(document.date || context.today),
++        ]).filter(Boolean),
++  ));
+   try {
+     for (const date of dates) assertPostingOpen(date, workspace as never, user.uid);
+   } catch (err) {
+diff --git a/src/server/services/ledgerBulkCommit.ts b/src/server/services/ledgerBulkCommit.ts
+index e5a3611..865e342 100644
+--- a/src/server/services/ledgerBulkCommit.ts
++++ b/src/server/services/ledgerBulkCommit.ts
+@@ -17,6 +17,7 @@ import { writeServerAuditLog, type AuditLogEntryInput } from './auditLogService'
+ import { deletionSentence, deletionSnapshot } from './deletionRecord';
+ import { refusedLabels, refusedLabelsMessage } from '../../lib/requiredLabels';
+ import { DELIVERY_COGS_TYPE, DELIVERY_RETURN_TYPE } from '../../lib/deliveries';
++import { ALLOCATIONS, allocationLedgerReady } from './allocationLedger';
+ import { BudgetBlocked, budgetWarningsFor, enforceBudgetControl, type BudgetWarning } from './budgetGuard';
+ import { existingImportIdentities, prepareBankRuleSuggestions } from './bankRuleService';
+ 
+@@ -233,6 +234,34 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
+       if (existingDoc.exists && existingDoc.data()?.workspaceId !== wsId) {
+         throw new LedgerPostingError(403, `Forbidden: Entity ${entityMutation.docId} does not belong to authorized workspace.`);
+       }
++      if (existingEntity && ['invoices', 'bills', 'creditNotes', 'vendorCredits'].includes(entityMutation.collection)) {
++        if (entityMutation.action === 'update' && typeof existingEntity.date === 'string' && existingEntity.date) {
++          const hadPostings = validatedTransactions.some(tx => tx.metadata?.isReversal) || entityMutation.data?.date !== undefined && entityMutation.data.date !== existingEntity.date;
++          if (hadPostings) {
++            try { assertPostingOpen(existingEntity.date, wsNow as never, user.uid); } catch (err) { throw new LedgerPostingError(409, errorMessage(err)); }
++          }
++        }
++        if (entityMutation.action === 'delete') {
++          if (entityMutation.collection === 'invoices' && (existingEntity.revenueSchedule as { id?: string } | undefined)?.id) {
++            throw new LedgerPostingError(409, 'This invoice is spread over months: undo the spread first (Sales → Undo spread)');
++          }
++          if (entityMutation.collection === 'bills' && (existingEntity.prepaidSchedule as { id?: string } | undefined)?.id) {
++            throw new LedgerPostingError(409, 'This bill is spread over months: undo the spread first (Purchases → Undo spread)');
++          }
++        }
++        const allocReady = await allocationLedgerReady(db, t);
++        if (allocReady) {
++          const allocField = (entityMutation.collection === 'invoices' || entityMutation.collection === 'bills') ? 'documentId' : 'sourceId';
++          const allocSnap = await t.get(db.collection(ALLOCATIONS).where('workspaceId', '==', wsId).where(allocField, '==', entityMutation.docId));
++          const liveAlloc = allocSnap.docs.map(d => d.data()).filter(a => a.kind !== 'reversal' && !a.reversedBy);
++          if (liveAlloc.length > 0) {
++            const nextStatus = String((entityMutation.data?.status ?? existingEntity.status) || '');
++            if (entityMutation.action === 'delete' || ['draft', 'void', 'cancelled', 'rejected'].includes(nextStatus)) {
++              throw new LedgerPostingError(409, 'This document has recorded settlements and cannot be deleted, voided, or returned to draft.');
++            }
++          }
++        }
++      }
+     }
+     // EG-5: the credit limit (documentPostService), with what this transaction reads; fresh on each attempt
+     const extra = options.beforeWrite ? await options.beforeWrite(t, { existingEntity, workspace: wsNow }) : {};

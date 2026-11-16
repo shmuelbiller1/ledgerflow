@@ -8,7 +8,8 @@ export async function fetchDocumentPdfBlob(
   type: PdfDocumentKind,
   id: string,
   workspaceId: string,
-  period?: { startDate?: string; endDate?: string }
+  period?: { startDate?: string; endDate?: string },
+  options?: { preview?: boolean }
 ): Promise<Blob> {
   if (!workspaceId) throw new Error('Workspace ID is required to generate PDF');
   if (!id) throw new Error('Document ID is required');
@@ -22,6 +23,7 @@ export async function fetchDocumentPdfBlob(
   const query = new URLSearchParams({ workspaceId });
   if (period?.startDate) query.set('startDate', period.startDate);
   if (period?.endDate) query.set('endDate', period.endDate);
+  if (options?.preview) query.set('preview', '1');
   const res = await fetch(`/api/v1/documents/${type}/${encodeURIComponent(id)}/pdf?${query}`, {
     headers
   });

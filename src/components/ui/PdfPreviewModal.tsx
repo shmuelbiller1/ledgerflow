@@ -1,7 +1,6 @@
 import { useDialog } from '../../hooks/useDialog';
 import React, { useEffect, useState } from 'react';
 import { X, Download, ExternalLink, Loader2, AlertCircle, FileText } from 'lucide-react';
-import { toast } from 'sonner';
 import { downloadDocumentPdf, fetchDocumentPdfBlob, type PdfDocumentKind } from '../../services/documentDownloads';
 
 export type { PdfDocumentKind };
@@ -48,7 +47,7 @@ export default function PdfPreviewModal({
       setIsLoading(true);
       setError(null);
       try {
-        const blob = await fetchDocumentPdfBlob(documentType, documentId, workspaceId, { startDate: periodStartDate, endDate: periodEndDate });
+        const blob = await fetchDocumentPdfBlob(documentType, documentId, workspaceId, { startDate: periodStartDate, endDate: periodEndDate }, { preview: true });
         if (!isMounted) return;
         setBlobUrl(URL.createObjectURL(blob));
         setIsLoading(false);
@@ -72,17 +71,7 @@ export default function PdfPreviewModal({
   const downloadName = filename || `${documentType}_${documentId}.pdf`;
 
   const handleDownload = () => {
-    if (blobUrl) {
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = downloadName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      toast.success('PDF downloaded');
-    } else {
-      void downloadDocumentPdf(documentType, documentId, workspaceId, downloadName, period);
-    }
+    void downloadDocumentPdf(documentType, documentId, workspaceId, downloadName, period);
   };
 
   const handleOpenNewTab = () => {
@@ -155,7 +144,7 @@ export default function PdfPreviewModal({
                 onClick={() => {
                   setError(null);
                   setIsLoading(true);
-                  void fetchDocumentPdfBlob(documentType, documentId, workspaceId, period)
+                  void fetchDocumentPdfBlob(documentType, documentId, workspaceId, period, { preview: true })
                     .then((blob) => {
                       const url = URL.createObjectURL(blob);
                       setBlobUrl(url);

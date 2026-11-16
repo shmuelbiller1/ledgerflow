@@ -1,0 +1,204 @@
+diff --git a/src/server/routes/brainRoutes.ts b/src/server/routes/brainRoutes.ts
+index 7433c5d..d5ff898 100644
+--- a/src/server/routes/brainRoutes.ts
++++ b/src/server/routes/brainRoutes.ts
+@@ -1,7 +1,7 @@
+ import { trainClassifierWithWorkspaceData } from '../services/classifierTraining';
+ import type { Transaction as LedgerTransaction } from "../../types";
+ import { errorMessage, requestUser } from "../auth/requestUser";
+-import { calculateWorkspaceCharges, sendError, authorizeWorkspace, getReportContext, resolveUserGeminiApiKey } from "../http/serverKit";
++import { calculateWorkspaceCharges, handleApiError, sendError, authorizeWorkspace, getReportContext, resolveUserGeminiApiKey } from "../http/serverKit";
+ import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
+ import { apiAuthenticate } from "../auth/apiAuthenticate";
+ import { incrementShardedCounter, getShardedCounterValue } from "../services/shardedCounterService";
+@@ -212,7 +212,12 @@ You MUST output a valid JSON object matching this schema exactly:
+         analysis: validatedResponse.analysis
+       });
+     } catch (err) {
+-      sendError(res, errorMessage(err), 500);
++      const msg = errorMessage(err);
++      if (msg.includes("PAYMENT_REQUIRED") || msg.includes("QUOTA_EXCEEDED")) return sendError(res, msg, 402);
++      if (/FORBIDDEN|Unauthorized|not a member/i.test(msg)) return sendError(res, msg, 403);
++      if (/NOT_FOUND|not found/i.test(msg)) return sendError(res, msg, 404);
++      if (err instanceof z.ZodError) return sendError(res, msg, 400);
++      handleApiError(res, err);
+     }
+   });
+ 
+@@ -303,7 +308,12 @@ You MUST output a valid JSON object matching this schema exactly:
+         }
+       });
+     } catch (err) {
+-      sendError(res, errorMessage(err), 500);
++      const msg = errorMessage(err);
++      if (msg.includes("PAYMENT_REQUIRED") || msg.includes("QUOTA_EXCEEDED")) return sendError(res, msg, 402);
++      if (/FORBIDDEN|Unauthorized|not a member/i.test(msg)) return sendError(res, msg, 403);
++      if (/NOT_FOUND|not found/i.test(msg)) return sendError(res, msg, 404);
++      if (err instanceof z.ZodError) return sendError(res, msg, 400);
++      handleApiError(res, err);
+     }
+   });
+ }
+diff --git a/src/server/routes/documentRoutes.ts b/src/server/routes/documentRoutes.ts
+index d31d429..31f0c9b 100644
+--- a/src/server/routes/documentRoutes.ts
++++ b/src/server/routes/documentRoutes.ts
+@@ -96,7 +96,8 @@ export async function handleZipRequest(req: express.Request, res: express.Respon
+     await assertWorkspaceAccess(db, body.workspaceId, user);
+     const wsSnap = await db.collection('workspaces').doc(body.workspaceId).get();
+     const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: `${BRAND_NAME} Workspace` };
+-    const readOnlyCopy = !user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsSnap.data() as never, user.uid));
++    const isPreview = req.query.preview === '1' || req.query.preview === 'true' || req.query.readOnly === '1' || req.query.readOnly === 'true';
++    const readOnlyCopy = isPreview || (!user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsSnap.data() as never, user.uid)));
+     const files: Array<{ name: string; data: Buffer }> = [];
+     const used = new Set<string>();
+     for (const id of [...new Set(body.ids)]) {
+@@ -143,7 +144,8 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
+     // Fetch workspace
+     const wsSnap = await db.collection('workspaces').doc(workspaceId).get();
+     const workspace: PdfWorkspace = wsSnap.exists ? (wsSnap.data() as PdfWorkspace) : { name: `${BRAND_NAME} Workspace` };
+-    const readOnlyCopy = !user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsSnap.data() as never, user.uid));
++    const isPreview = req.query.preview === '1' || req.query.preview === 'true' || req.query.readOnly === '1' || req.query.readOnly === 'true';
++    const readOnlyCopy = isPreview || (!user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsSnap.data() as never, user.uid)));
+ 
+     let docData: PdfDocument | null = null;
+     let paymentUrl: string | undefined;
+diff --git a/src/server/routes/operationalReportRoutes.ts b/src/server/routes/operationalReportRoutes.ts
+index 0ed707d..0a31c12 100644
+--- a/src/server/routes/operationalReportRoutes.ts
++++ b/src/server/routes/operationalReportRoutes.ts
+@@ -42,8 +42,8 @@ function sendReportError(res: express.Response, message: string, status = 500, d
+ 
+ function handleCommonError(res: express.Response, error: unknown, fallback: string) {
+   const msg = errorMessage(error);
+-  if (msg === 'FORBIDDEN') return sendReportError(res, 'Forbidden', 403);
+-  if (msg === 'NOT_FOUND' || msg.includes('NOT_FOUND')) return sendReportError(res, 'Workspace not found', 404);
++  if (/not a member|Unauthorized|FORBIDDEN/i.test(msg)) return sendReportError(res, 'Forbidden', 403);
++  if (/not found|NOT_FOUND/i.test(msg)) return sendReportError(res, 'Workspace not found', 404);
+   return sendReportError(res, fallback, 500, msg);
+ }
+ 
+diff --git a/src/server/routes/reportRoutes.ts b/src/server/routes/reportRoutes.ts
+index 2578769..c1cfe79 100644
+--- a/src/server/routes/reportRoutes.ts
++++ b/src/server/routes/reportRoutes.ts
+@@ -52,9 +52,14 @@ function withProvenance<T extends object>(data: T, cachedAt?: number): T & { pro
+ export const REPORT_CACHE_LIMIT = 500;
+ 
+ export function rememberReport(key: string, data: object, now = Date.now()) {
++  if (REPORT_CACHE.has(key)) REPORT_CACHE.delete(key);
+   if (REPORT_CACHE.size >= REPORT_CACHE_LIMIT) {
+     for (const [k, v] of REPORT_CACHE) if (v.expiry <= now) REPORT_CACHE.delete(k);
+-    if (REPORT_CACHE.size >= REPORT_CACHE_LIMIT) REPORT_CACHE.clear();
++    while (REPORT_CACHE.size >= REPORT_CACHE_LIMIT) {
++      const oldest = REPORT_CACHE.keys().next().value;
++      if (oldest === undefined) break;
++      REPORT_CACHE.delete(oldest);
++    }
+   }
+   REPORT_CACHE.set(key, { data, expiry: now + CACHE_TTL_MS, at: now });
+ }
+@@ -135,7 +140,7 @@ reportRouter.get(["/profit-and-loss", "/pl"], async (req, res) => {
+     const { data: plWsData } = await authorizeWorkspace(authReq, workspaceId);
+     const cacheKey = getCacheKey(req, 'none', { workspaceId, startDate, endDate, basis: req.query.basis === 'cash' ? 'cash' : 'accrual' });
+     const cached = REPORT_CACHE.get(cacheKey);
+-    if (cached && cached.expiry > Date.now()) return res.json(withProvenance(cached.data, cached.at));
++    if (cached && cached.expiry > Date.now()) { REPORT_CACHE.delete(cacheKey); REPORT_CACHE.set(cacheKey, cached); return res.json(withProvenance(cached.data, cached.at)); }
+     // N-08: on cash basis, invoices and bills count when paid (cashBasis.ts): their postings may be
+     // older than the period, so the whole history up to the end is read, with the payments
+     if (req.query.basis === 'cash') {
+@@ -154,7 +159,7 @@ reportRouter.get(["/profit-and-loss", "/pl"], async (req, res) => {
+     res.json(withProvenance(pl));
+   } catch (error) {
+     if (/not a member|Unauthorized|FORBIDDEN/i.test(errorMessage(error))) return sendError(res, "Forbidden", 403);
+-    if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
++    if (/not found|NOT_FOUND/i.test(errorMessage(error))) return sendError(res, "Workspace not found", 404);
+     sendError(res, "Internal Reporting Error", 500, errorMessage(error));
+   }
+ });
+@@ -170,7 +175,7 @@ reportRouter.get("/balance-sheet", async (req, res) => {
+     const { data: bsWsData } = await authorizeWorkspace(authReq, workspaceId);
+     const cacheKey = getCacheKey(req, cash ? 'none' : await openingKey(getDb(), workspaceId, endDate), { workspaceId, endDate, basis: cash ? 'cash' : 'accrual' });
+     const cached = REPORT_CACHE.get(cacheKey);
+-    if (cached && cached.expiry > Date.now()) return res.json(withProvenance(cached.data, cached.at));
++    if (cached && cached.expiry > Date.now()) { REPORT_CACHE.delete(cacheKey); REPORT_CACHE.set(cacheKey, cached); return res.json(withProvenance(cached.data, cached.at)); }
+     if (!cash && endDate) {
+       const { accounts, transactions } = await getReportContext(authReq, workspaceId, endDate, endDate);
+       const opening = await openingBefore(getDb(), workspaceId, accounts, endDate, { gross: true });
+@@ -192,8 +197,8 @@ reportRouter.get("/balance-sheet", async (req, res) => {
+     remember(cacheKey, bs);
+     res.json(withProvenance(bs));
+   } catch (error) {
+-    if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+-    if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
++    if (/not a member|Unauthorized|FORBIDDEN/i.test(errorMessage(error))) return sendError(res, "Forbidden", 403);
++    if (/not found|NOT_FOUND/i.test(errorMessage(error))) return sendError(res, "Workspace not found", 404);
+     sendError(res, "Internal Reporting Error", 500, errorMessage(error));
+   }
+ });
+@@ -239,8 +244,8 @@ reportRouter.get("/aging", async (req, res) => {
+ 
+     res.json(aging);
+   } catch (error) {
+-    if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+-    if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
++    if (/not a member|Unauthorized|FORBIDDEN/i.test(errorMessage(error))) return sendError(res, "Forbidden", 403);
++    if (/not found|NOT_FOUND/i.test(errorMessage(error))) return sendError(res, "Workspace not found", 404);
+     sendError(res, "Failed to generate aging report", 500, errorMessage(error));
+   }
+ });
+@@ -421,8 +426,8 @@ reportRouter.get("/trial-balance", async (req, res) => {
+     const tb = computeTrialBalance(accounts, transactions, asOfDate);
+     res.json(withProvenance(tb));
+   } catch (error) {
+-    if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+-    if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
++    if (/not a member|Unauthorized|FORBIDDEN/i.test(errorMessage(error))) return sendError(res, "Forbidden", 403);
++    if (/not found|NOT_FOUND/i.test(errorMessage(error))) return sendError(res, "Workspace not found", 404);
+     sendError(res, "Trial Balance Failure", 500, errorMessage(error));
+   }
+ });
+@@ -442,8 +447,8 @@ reportRouter.get("/cash-flow", async (req, res) => {
+     const openingCashCents = accounts.filter(isCashFlowCashAccount).reduce((sum, acc) => sum + openingDebitCents(acc) + (before[acc.id] || 0), 0);
+     res.json(withProvenance({ ...cf, openingCashCents, closingCashCents: openingCashCents + cf.netChange }));
+   } catch (error) {
+-    if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+-    if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
++    if (/not a member|Unauthorized|FORBIDDEN/i.test(errorMessage(error))) return sendError(res, "Forbidden", 403);
++    if (/not found|NOT_FOUND/i.test(errorMessage(error))) return sendError(res, "Workspace not found", 404);
+     sendError(res, "Failed to generate cash flow statement", 500, errorMessage(error));
+   }
+ });
+@@ -537,8 +542,8 @@ reportRouter.get("/budget-vs-actual", async (req, res) => {
+ 
+     res.json(report);
+   } catch (error) {
+-    if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+-    if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
++    if (/not a member|Unauthorized|FORBIDDEN/i.test(errorMessage(error))) return sendError(res, "Forbidden", 403);
++    if (/not found|NOT_FOUND/i.test(errorMessage(error))) return sendError(res, "Workspace not found", 404);
+     sendError(res, "Failed to generate budget vs actual report", 500, errorMessage(error));
+   }
+ });
+@@ -560,8 +565,8 @@ reportRouter.get("/general-ledger", async (req, res) => {
+     const gl = computeGeneralLedger(accounts, transactions, startDate, endDate, accountId);
+     res.json(withProvenance(gl));
+   } catch (error) {
+-    if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+-    if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
++    if (/not a member|Unauthorized|FORBIDDEN/i.test(errorMessage(error))) return sendError(res, "Forbidden", 403);
++    if (/not found|NOT_FOUND/i.test(errorMessage(error))) return sendError(res, "Workspace not found", 404);
+     sendError(res, "Failed to generate General Ledger report", 500, errorMessage(error));
+   }
+ });
+@@ -586,8 +591,8 @@ reportRouter.get("/statement", async (req, res) => {
+     res.json(loaded.statement);
+   } catch (error) {
+     if (error instanceof StatementScopeError) return sendError(res, error.message, 400);
+-    if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+-    if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
++    if (/not a member|Unauthorized|FORBIDDEN/i.test(errorMessage(error))) return sendError(res, "Forbidden", 403);
++    if (/not found|NOT_FOUND/i.test(errorMessage(error))) return sendError(res, "Workspace not found", 404);
+     sendError(res, "Failed to generate Statement", 500, errorMessage(error));
+   }
+ });
