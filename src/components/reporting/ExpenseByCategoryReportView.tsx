@@ -1,3 +1,4 @@
+import { useReportText } from './useReportText';
 import React, { useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency } from '../../lib/utils';
@@ -27,6 +28,7 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
   startDate,
   endDate
 }) => {
+  const reportText = useReportText();
   const accounts = useLedgerStore(s => s.accounts);
   const bills = useLedgerStore(s => s.bills);
   const { loading } = useLedgerCollections('bills');
@@ -76,14 +78,14 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
         <div>
           <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
             <PieChart className="w-5 h-5 text-rose-600" />
-            Expense Breakdown by Category
+            {reportText('r.expense-breakdown-by-category', 'Expense Breakdown by Category')}
           </h2>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Distribution of all operating and non-operating expenditures across chart of account categories.
+            {reportText('r.distribution-of-all-operating-and-non-operating-', 'Distribution of all operating and non-operating expenditures across chart of account categories.')}
           </p>
         </div>
         <div className="text-right">
-          <div className="text-xs text-neutral-500 uppercase font-semibold">Total Expenses</div>
+          <div className="text-xs text-neutral-500 uppercase font-semibold">{reportText('r.total-expenses', 'Total Expenses')}</div>
           <div className="text-lg font-mono font-bold text-rose-600">
             {formatCurrency(totalExpenseCents)}
           </div>
@@ -96,7 +98,7 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
         accounts={accounts} bills={bills} startDate={start} endDate={end}
         loading={loading} incomplete={listIncomplete} currency={currency} />
 
-      {loading && <LoadingState what="expenses by category" rows={4} />}
+      {loading && <LoadingState what={reportText('r.expenses-by-category', 'expenses by category')} rows={4} />}
 
       <TanStackDataGrid
         caption="Expenses by category"
@@ -115,8 +117,8 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
           headers: ['Category', 'Transactions', 'Share %', 'Total Outflow'],
           mapRow: row => [row.category, row.transactionCount, row.percentage.toFixed(1), csvMoney(row.totalAmountCents)],
         }}
-        emptyState={<EmptyState title="No posted expenses in this period" description="Try a wider period." />}
-        filteredEmptyState={<EmptyState title="No category matches your search" description="Try another category name." />}
+        emptyState={<EmptyState title={reportText('r.no-posted-expenses-in-this-period', 'No posted expenses in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
+        filteredEmptyState={<EmptyState title={reportText('r.no-category-matches-your-search', 'No category matches your search')} description={reportText('r.try-another-category-name', 'Try another category name.')} />}
       />
     </div>
   );

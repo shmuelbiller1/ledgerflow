@@ -1,3 +1,4 @@
+import { useReportText } from '../reporting/useReportText';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import React, { useId, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -23,6 +24,7 @@ interface CashFlowViewProps {
 }
 
 export default function CashFlowView({ startDate, endDate, compareStartDate, compareEndDate }: CashFlowViewProps = {}) {
+  const reportText = useReportText();
   const formId = useId();
   const transactions = useLedgerStore(s => s.transactions);
   const rawAccounts = useLedgerStore(s => s.accounts);
@@ -237,10 +239,10 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
       {/* AUD-10: where these figures come from */}
       <ReportProvenanceNote id="cf-statement-provenance" provenance={provenance} onRefresh={() => loadServerReport()} busy={loadingStates.cf} />
       {noCashMovement && (historyComplete
-        ? <ReportEmptyState title="No cash movement in this period"
-          description="Choose another period, or record a posted receipt or payment on a cash or bank account. This statement reads posted cash movements only." />
-        : <ReportEmptyState title="No cash movement in the loaded records"
-          description="The complete server report is not available and the browser ledger may be capped or partial. Load the full server report above before treating this period as empty; an older posted cash movement may not be loaded." />)}
+        ? <ReportEmptyState title={reportText('r.no-cash-movement-in-this-period', 'No cash movement in this period')}
+          description={reportText('r.choose-another-period-or-record-a-posted-receipt', 'Choose another period, or record a posted receipt or payment on a cash or bank account. This statement reads posted cash movements only.')} />
+        : <ReportEmptyState title={reportText('r.no-cash-movement-in-the-loaded-records', 'No cash movement in the loaded records')}
+          description={reportText('r.the-complete-server-report-is-not-available-and-', 'The complete server report is not available and the browser ledger may be capped or partial. Load the full server report above before treating this period as empty; an older posted cash movement may not be loaded.')} />)}
 
 
       {/* Date Range & Controls */}
@@ -256,10 +258,10 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
                <Calendar aria-hidden="true" size={13} />
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">Period</span>
+              <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">{reportText('r.period', 'Period')}</span>
               <div className="flex flex-wrap items-center gap-2">
                 <input 
-                  aria-label="Reporting period start date"
+                  aria-label={reportText('r.reporting-period-start-date', 'Reporting period start date')}
                   type="date" 
                   value={dateRange.start}
                   onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
@@ -267,7 +269,7 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
                 />
                 <span className="text-slate-300 font-mono text-sm leading-none">/</span>
                 <input 
-                  aria-label="Reporting period end date"
+                  aria-label={reportText('r.reporting-period-end-date', 'Reporting period end date')}
                   type="date" 
                   value={dateRange.end}
                   onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
@@ -277,7 +279,7 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
             </div>
           </div>
           <div className="hidden sm:block w-px h-8 bg-slate-200" />
-          <label htmlFor={`${formId}-comparative`} aria-label="Comparative Mode" className="flex items-center gap-2 cursor-pointer group/toggle">
+          <label htmlFor={`${formId}-comparative`} aria-label={reportText('r.comparative-mode-sp', 'Comparative Mode')} className="flex items-center gap-2 cursor-pointer group/toggle">
             <input 
                id={`${formId}-comparative`}
                type="checkbox" 
@@ -296,9 +298,9 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
             </div>
             <div className="flex flex-col">
               <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider group-hover/toggle:text-[var(--text)] transition-colors flex items-center gap-1">
-                Comparative Mode <SplitSquareHorizontal aria-hidden="true" size={10} className={cn(isComparative ? "text-indigo-500" : "text-[var(--muted)]")} />
+                {reportText('r.comparative-mode', 'Comparative Mode ')}<SplitSquareHorizontal aria-hidden="true" size={10} className={cn(isComparative ? "text-indigo-500" : "text-[var(--muted)]")} />
               </span>
-              <span className="text-[8px] font-bold text-[var(--muted)] uppercase tracking-widest">Compare to Prior Prev</span>
+              <span className="text-[8px] font-bold text-[var(--muted)] uppercase tracking-widest">{reportText('r.compare-to-prior-prev', 'Compare to Prior Prev')}</span>
             </div>
           </label>
         </div>
@@ -307,7 +309,7 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
           className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg font-bold uppercase text-[10px] tracking-wider hover:bg-slate-800 transition-all shadow-sm active:scale-95 group/btn w-full lg:w-auto cursor-pointer"
         >
           <FileSpreadsheet aria-hidden="true" size={13} className="text-emerald-400 group-hover/btn:text-emerald-300 transition-colors shrink-0" />
-          <span>Export to Excel</span>
+          <span>{reportText('r.export-to-excel', 'Export to Excel')}</span>
         </button>
       </div>
 
@@ -320,7 +322,7 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
            <div className="border-b border-slate-900 pb-4 flex items-end justify-between">
               <div>
                 <h2 className="text-xl font-bold text-[var(--text)] tracking-tight uppercase italic">{labels.title}</h2>
-                <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest">For period ending {dateRange.end}</p>
+                <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest">{reportText('r.for-period-ending', 'For period ending ')}{dateRange.end}</p>
               </div>
               <Waves aria-hidden="true" size={24} className="text-slate-200" />
            </div>
@@ -339,11 +341,11 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
                      
                      <div className="pl-4 space-y-3">
                         <div className="flex justify-between items-center text-sm">
-                           <span className="text-slate-600 font-medium">Cash Inflows</span>
+                           <span className="text-slate-600 font-medium">{reportText('r.cash-inflows', 'Cash Inflows')}</span>
                            <span className="font-mono tabular-nums">{formatCurrency(section.data.inflow)}</span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
-                           <span className="text-slate-600 font-medium">Cash Outflows</span>
+                           <span className="text-slate-600 font-medium">{reportText('r.cash-outflows', 'Cash Outflows')}</span>
                            <span className="font-mono tabular-nums text-rose-600/80">({formatCurrency(section.data.outflow)})</span>
                         </div>
                         <div className="flex justify-between items-center border-t border-[var(--line)] pt-2 font-bold cursor-default hover:bg-[var(--ink)] p-1 -mx-1 px-1 rounded transition-colors group">
@@ -351,7 +353,7 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
                            <div className="flex items-center gap-4">
                              {isComparative && section.prev.total !== 0 && (
                                 <span className={cn("text-[10px] opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity", section.data.total >= section.prev.total ? "text-emerald-500" : "text-rose-500")}>
-                                   {(((section.data.total - section.prev.total) / Math.abs(section.prev.total)) * 100).toFixed(1)}% vs Prior
+                                   {(((section.data.total - section.prev.total) / Math.abs(section.prev.total)) * 100).toFixed(1)}{reportText('r.vs-prior', '% vs Prior')}
                                 </span>
                              )}
                              <span className="font-mono tabular-nums text-[var(--text)]">{formatCurrency(section.data.total)}</span>
@@ -370,7 +372,7 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
                <div className="flex items-center gap-6 tabular-nums">
                  {isComparative && prevData.netChange !== 0 && (
                     <div className="text-right">
-                       <span className="block text-[8px] font-bold text-[var(--muted)] uppercase tracking-widest">Prior Delta</span>
+                       <span className="block text-[8px] font-bold text-[var(--muted)] uppercase tracking-widest">{reportText('r.prior-delta', 'Prior Delta')}</span>
                        <span className="font-mono text-sm text-[var(--muted)]">{formatCurrency(prevData.netChange)}</span>
                     </div>
                  )}
