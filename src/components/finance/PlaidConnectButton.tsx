@@ -4,19 +4,16 @@ import { toast } from 'sonner';
 import { Link2 } from 'lucide-react';
 import { getIdToken } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
-async function plaidPost(path: string, body: Record<string, unknown>, signal?: AbortSignal) {
-  const idToken = await getIdToken();
+async function plaidPost<T = CommandBody>(path: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
+  // Asked twice: once before anything happens, and once more after the token is in hand. The second one is what
+  // stops an unmounted reconnect from starting a request with credentials it waited for — `fetch` would reject
+  // an already-aborted signal too, but by then the token has been fetched for nothing.
   signal?.throwIfAborted();
-  const response = await fetch(`/api/v1/plaid/${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify(body),
-    signal,
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.message || 'Bank connection failed');
-  return data;
+  const token = await getIdToken();
+  signal?.throwIfAborted();
+  return await runCommand<T>({ path: `/api/v1/plaid/${path}`, method: 'POST', body, signal, token }) ?? {} as T;
 }
 
 /**
@@ -60,7 +57,7 @@ function PlaidLauncher({ onSuccessSync, bankId, label, onClosed }: { onSuccessSy
   useEffect(() => {
     if (!workspaceId) return;
     const controller = new AbortController();
-    plaidPost('create_link_token', { workspaceId, ...(bankId ? { bankId } : {}) }, controller.signal)
+    plaidPost<{ link_token: string }>('create_link_token', { workspaceId, ...(bankId ? { bankId } : {}) }, controller.signal)
       .then(data => { if (!controller.signal.aborted) setToken({ workspaceId, bankId, value: data.link_token }); })
       .catch(err => {
         if (controller.signal.aborted) return;
