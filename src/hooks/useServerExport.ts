@@ -60,9 +60,12 @@ export function useServerExport({ allowed, setBusy, setError, failure, run }: Us
     pending.current = true;
     setBusy(true);
     setError('');
+    // Only this hook's own previous request is cancelled. A sibling guard on the same card (preview vs download)
+    // must not have its in-flight read aborted by the other one starting.
     const controller = new AbortController();
-    abortRef.current?.abort();
+    const previous = abortRef.current;
     abortRef.current = controller;
+    previous?.abort();
     const stillHere = () => alive.current
       && !controller.signal.aborted
       && useAuthStore.getState().currentWorkspaceId === workspaceId
