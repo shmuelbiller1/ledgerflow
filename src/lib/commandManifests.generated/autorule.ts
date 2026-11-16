@@ -2,8 +2,9 @@
 import { COMMAND_INPUT_SCHEMA as commandInputSchema4 } from '../commandSchemas.generated/autorule_create';
 import { COMMAND_INPUT_SCHEMA as commandInputSchema5 } from '../commandSchemas.generated/autorule_delete';
 import { COMMAND_INPUT_SCHEMA as commandInputSchema6 } from '../commandSchemas.generated/autorule_group';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema7 } from '../commandSchemas.generated/autorule_recordhits';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema8 } from '../commandSchemas.generated/autorule_update';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema7 } from '../commandSchemas.generated/autorule_learn';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema8 } from '../commandSchemas.generated/autorule_recordhits';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema9 } from '../commandSchemas.generated/autorule_update';
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const AUTORULE_COMMAND_MANIFEST = [
@@ -67,6 +68,44 @@ export const AUTORULE_COMMAND_MANIFEST = [
     inputSchema: commandInputSchema6
   },
   {
+    "name": "autorule.learn",
+    "area": "autorule",
+    "roles": COMMAND_SCHEMA_PARTS.part39,
+    "risk": "normal",
+    "description": {
+      "sentence": "Count a description that was filed to an account, so the next entry with that description is suggested the same account; do not use it to change an entry that was already posted.",
+      "example": {
+        "description": "Paper Co",
+        "accountId": "expense_supplies",
+        "accountName": "Office supplies",
+        "tags": [
+          "supplies"
+        ]
+      },
+      "refusals": [
+        {
+          "code": "INVALID_INPUT",
+          "when": "The description is shorter than three characters, or a label is longer than the record allows.",
+          "next": "Use the description as the bank or the person wrote it, and keep labels short."
+        },
+        COMMAND_SCHEMA_PARTS.part112
+      ],
+      "next": [
+        {
+          "command": "autorule.create",
+          "label": "Turn this into a rule"
+        },
+        {
+          "command": "autorule.recordhits",
+          "label": "Record what it matched"
+        }
+      ]
+    },
+    "runPath": "/api/v1/commands/autorule.learn",
+    "previewPath": "/api/v1/commands/autorule.learn/preview",
+    inputSchema: commandInputSchema7
+  },
+  {
     "name": "autorule.recordhits",
     "area": "autorule",
     "roles": COMMAND_SCHEMA_PARTS.part39,
@@ -85,7 +124,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/autorule.recordhits",
     "previewPath": "/api/v1/commands/autorule.recordhits/preview",
-    inputSchema: commandInputSchema7
+    inputSchema: commandInputSchema8
   },
   {
     "name": "autorule.update",
@@ -105,6 +144,6 @@ export const AUTORULE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/autorule.update",
     "previewPath": "/api/v1/commands/autorule.update/preview",
-    inputSchema: commandInputSchema8
+    inputSchema: commandInputSchema9
   },
 ] as const;

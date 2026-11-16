@@ -8,6 +8,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "autorule.create",
   "autorule.delete",
   "autorule.group",
+  "autorule.learn",
   "autorule.recordhits",
   "autorule.update",
   "bill.create",

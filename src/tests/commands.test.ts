@@ -54,7 +54,7 @@ test('the default registry is sorted and unique across the registered command do
   assert.deepEqual(registry.names(), [
     'account.makerecoverycodes', 'account.setnotificationemail', 'account.userecoverycode',
     'alerts.update',
-    'autorule.create', 'autorule.delete', 'autorule.group', 'autorule.recordhits', 'autorule.update',
+    'autorule.create', 'autorule.delete', 'autorule.group', 'autorule.learn', 'autorule.recordhits', 'autorule.update',
     'bill.create', 'bill.delete', 'bill.update',
     'creditnote.create', 'creditnote.delete', 'creditnote.update',
     'customer.create', 'customer.update',
