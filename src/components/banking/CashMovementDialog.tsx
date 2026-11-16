@@ -110,7 +110,7 @@ const CashMovementDialog: React.FC<CashMovementDialogProps> = ({ isOpen, onClose
             {direction === 'in'
               ? <ArrowDownToLine aria-hidden="true" className="h-4 w-4 text-emerald-700" />
               : <ArrowUpFromLine aria-hidden="true" className="h-4 w-4 text-rose-700" />}
-            <h2 id={titleId} className="text-sm font-bold text-neutral-900">{labels.title}</h2>
+            <h2 id={titleId} className="text-sm font-bold text-neutral-900">{direction === 'in' ? bankText('cash.titleIn', 'Money In') : bankText('cash.titleOut', 'Money Out')}</h2>
           </div>
           <button onClick={onClose} aria-label={bankText('cash.close', 'Close dialog')} className="rounded-md p-1.5 text-neutral-400 hover:text-neutral-700">
             <X aria-hidden="true" className="h-4 w-4" />
@@ -142,7 +142,7 @@ const CashMovementDialog: React.FC<CashMovementDialogProps> = ({ isOpen, onClose
             </select>
           </Labelled>
 
-          <Labelled label={labels.whatFor}>
+          <Labelled label={direction === 'in' ? bankText('cash.whatForIn', 'What is it for?') : bankText('cash.whatForOut', 'What was it for?')}>
             <select value={counterAccountId} onChange={e => setCounterAccountId(e.target.value)} className="h-9 w-full rounded-lg border border-neutral-200 bg-white px-2 text-sm">
               <option value="">{bankText('cash.chooseAccount', 'Choose an account…')}</option>
               {counterAccounts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
@@ -196,7 +196,7 @@ const CashMovementDialog: React.FC<CashMovementDialogProps> = ({ isOpen, onClose
               disabled={!!problem || !amountCents}
               className="h-9 w-full rounded-lg bg-neutral-900 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-neutral-300"
             >
-              {labels.button}
+              {direction === 'in' ? bankText('cash.buttonIn', 'Record money in') : bankText('cash.buttonOut', 'Record money out')}
             </button>
           )}
         </div>

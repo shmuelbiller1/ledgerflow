@@ -268,6 +268,12 @@ export const SCREEN_TRANSLATION_TABLE: readonly ScreenTranslationBundle[] = [
       { key: 'transfer.none', en: 'No unmatched inter-account transfer pairs detected in the current ledger.', he: 'לא נמצאו זוגות העברה בין חשבונות שעדיין לא הותאמו.' },
       { key: 'transfer.days', en: 'days', he: 'ימים' },
       { key: 'transfer.link', en: 'Link as Transfer', he: 'קישור כהעברה' },
+      { key: 'cash.titleIn', en: 'Money In', he: 'כסף נכנס' },
+      { key: 'cash.titleOut', en: 'Money Out', he: 'כסף יוצא' },
+      { key: 'cash.whatForIn', en: 'What is it for?', he: 'על מה הכסף?' },
+      { key: 'cash.whatForOut', en: 'What was it for?', he: 'על מה שולם?' },
+      { key: 'cash.buttonIn', en: 'Record money in', he: 'רישום כסף נכנס' },
+      { key: 'cash.buttonOut', en: 'Record money out', he: 'רישום כסף יוצא' },
     ],
   },
   {

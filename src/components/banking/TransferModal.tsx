@@ -11,7 +11,7 @@ import { createAccountTransfer, detectPotentialTransfers, TransferMatchCandidate
 import { getLocalDateISO, formatCurrency } from '../../lib/utils';
 import { isCashAccount } from '../../lib/txFilters';
 import { useTimeout } from '../../hooks/useTimeout';
-import { ArrowRightLeft, Check, X, Sparkles, HelpCircle, DollarSign } from 'lucide-react';
+import { ArrowRightLeft, Check, X, Sparkles, HelpCircle } from 'lucide-react';
 import { useTransactionActions } from '../../hooks/useTransactionActions';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
@@ -243,7 +243,6 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                 <div>
                   <label htmlFor={amountId} className="block font-semibold text-neutral-700 mb-1">{bankText('transfer.amount', 'Amount')}</label>
                   <div className="relative">
-                    <DollarSign aria-hidden="true" className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-neutral-400" />
                     <input
                       id={amountId}
                       type="number"
@@ -252,7 +251,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                       placeholder="0.00"
                       value={amount}
                       onChange={e => setAmount(e.target.value)}
-                      className="w-full pl-7 pr-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs focus:ring-1 focus:ring-neutral-500 focus:outline-hidden font-mono"
+                      className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-xs focus:ring-1 focus:ring-neutral-500 focus:outline-hidden font-mono"
                     />
                   </div>
                 </div>
