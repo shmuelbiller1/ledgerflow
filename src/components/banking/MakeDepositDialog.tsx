@@ -1,4 +1,6 @@
 import { runCommand } from '../../lib/runCommand';
+import { useUIStore } from '../../stores/useUIStore';
+import { translateScreenString } from '../../lib/i18n/screenTranslations';
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -22,6 +24,8 @@ export default function MakeDepositDialog({ onClose }: { onClose: () => void }) 
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const { dialogProps, titleId } = useDialog(onClose);
+  const language = useUIStore(st => st.language);
+  const bankText = (key: string, fallback: string) => translateScreenString('banking', key, language, fallback);
 
   const holdingIds = useMemo(() => new Set((accounts || []).filter(isUndepositedFundsAccount).map(a => a.id)), [accounts]);
   const bankAccounts = useMemo(() => (accounts || []).filter(a => resolveAccountRole(a) === 'cash'), [accounts]);
@@ -65,16 +69,16 @@ export default function MakeDepositDialog({ onClose }: { onClose: () => void }) 
     <div {...dialogProps} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <form onSubmit={submit} className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-6 text-[var(--text)]">
         <div>
-          <h2 id={titleId} className="text-lg font-bold">Make deposit</h2>
-          <p className="text-xs text-[var(--muted)]">Payments received into Undeposited Funds, taken to the bank together.</p>
+          <h2 id={titleId} className="text-lg font-bold">{bankText('deposit.title', 'Make deposit')}</h2>
+          <p className="text-xs text-[var(--muted)]">{bankText('deposit.intro', 'Payments received into Undeposited Funds, taken to the bank together.')}</p>
         </div>
         {holdingIds.size === 0 ? (
-          <p className="text-sm text-[var(--muted)]">Add an asset account named “Undeposited Funds” in the Chart of Accounts, then receive payments into it.</p>
+          <p className="text-sm text-[var(--muted)]">{bankText('deposit.noHolding', 'Add an asset account named “Undeposited Funds” in the Chart of Accounts, then receive payments into it.')}</p>
         ) : (
           <>
             <fieldset className="space-y-2">
-              <legend className="text-xs font-bold">Waiting to be deposited</legend>
-              {waiting.length === 0 && <p className="text-xs text-[var(--muted)]">Nothing is waiting.</p>}
+              <legend className="text-xs font-bold">{bankText('deposit.waiting', 'Waiting to be deposited')}</legend>
+              {waiting.length === 0 && <p className="text-xs text-[var(--muted)]">{bankText('deposit.nothing', 'Nothing is waiting.')}</p>}
               {waiting.map(p => (
                 <div key={p.id} className="flex items-center gap-2 text-sm">
                   <input id={`dep-${p.id}`} type="checkbox" checked={chosen.has(p.id)} onChange={() => toggle(p.id)} />
@@ -85,23 +89,23 @@ export default function MakeDepositDialog({ onClose }: { onClose: () => void }) 
             </fieldset>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label htmlFor="deposit-bank" className="text-xs font-bold">Bank account</label>
+                <label htmlFor="deposit-bank" className="text-xs font-bold">{bankText('deposit.bank', 'Bank account')}</label>
                 <select id="deposit-bank" value={bankAccountId} onChange={e => setBankAccountId(e.target.value)} className="w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm">
-                  <option value="">Choose…</option>
+                  <option value="">{bankText('deposit.choose', 'Choose…')}</option>
                   {bankAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
-                <label htmlFor="deposit-date" className="text-xs font-bold">Date</label>
+                <label htmlFor="deposit-date" className="text-xs font-bold">{bankText('deposit.date', 'Date')}</label>
                 <input id="deposit-date" type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm" />
               </div>
             </div>
-            <p className="text-sm font-bold">Deposit total: <span className="font-mono">{formatCurrency(total)}</span></p>
+            <p className="text-sm font-bold">{bankText('deposit.total', 'Deposit total:')} <span className="font-mono">{formatCurrency(total)}</span></p>
           </>
         )}
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-[var(--line)] px-4 py-2 text-sm">Cancel</button>
-          <button type="submit" disabled={busy || holdingIds.size === 0} className="rounded-lg bg-[var(--brass)] px-4 py-2 text-sm font-bold text-black disabled:opacity-50">{busy ? 'Saving…' : 'Record deposit'}</button>
+          <button type="button" onClick={onClose} className="rounded-lg border border-[var(--line)] px-4 py-2 text-sm">{bankText('action.cancel', 'Cancel')}</button>
+          <button type="submit" disabled={busy || holdingIds.size === 0} className="rounded-lg bg-[var(--brass)] px-4 py-2 text-sm font-bold text-black disabled:opacity-50">{busy ? bankText('deposit.saving', 'Saving…') : bankText('deposit.record', 'Record deposit')}</button>
         </div>
       </form>
     </div>

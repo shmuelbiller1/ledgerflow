@@ -10,6 +10,7 @@ import { IL_OSEK_PATUR_CEILINGS } from '../../lib/tax/ilOsekPaturThresholds';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 interface DimensionSelection { key: string; entity: string; activity: string }
 
@@ -102,31 +103,33 @@ export default function RegistrationThresholdWatchReportView({ endDate = '' }: {
     {report && report.unclassifiedRevenueLineCount > 0 && <p role="alert">{report.unclassifiedRevenueLineCount} posted revenue line(s) have no supported activity label and are excluded from threshold comparisons.</p>}
     {report && report.invalidSplitLineCount > 0 && <p role="alert">{report.invalidSplitLineCount} posted revenue line(s) have invalid split-allocation weights and are excluded.</p>}
 
-    {report && report.rows.length > 0 && <ReportTableScroll><table className="w-full text-sm">
-      <caption>Posted-sales threshold comparisons as of {asOf}</caption>
-      <thead><tr>
-        <th scope="col">Entity</th><th scope="col">Threshold / test</th><th scope="col">Period</th>
-        <th scope="col">Posted sales</th><th scope="col">Threshold</th><th scope="col">Progress</th><th scope="col">Comparison</th><th scope="col">Official sources</th>
-      </tr></thead>
-      <tbody>{report.rows.map(row => <tr key={row.id} className="border-t border-[var(--line)] align-top">
-        <th scope="row" className="text-left"><bdi>{row.entityName}</bdi><div className="text-xs text-[var(--muted)]">{row.activityLabel}</div></th>
-        <td><bdi>{row.rule.name}</bdi><div className="text-xs text-[var(--muted)]">{row.rule.source.authority}</div><div className="text-xs text-[var(--muted)]"><bdi>Effective {row.rule.validFrom}{row.rule.validTo ? ` – ${row.rule.validTo}` : ' onward'}</bdi></div></td>
-        <td><bdi>{row.periodLabel}</bdi><div className="text-xs text-[var(--muted)]">{row.periodStart} – {row.periodEnd}</div></td>
-        <td className="text-right tabular-nums">{money(row.salesCents, row.baseCurrency)}</td>
-        <td className="text-right tabular-nums">{formatCurrency(row.thresholdCents, row.thresholdCurrency)}</td>
-        <td className="text-right tabular-nums">{row.progressPercent === null ? 'Not comparable' : `${row.progressPercent.toFixed(1)}%`}</td>
-        <td>{row.result === 'currency-mismatch'
+    {report && report.rows.length > 0 && <ReportTableScroll><RowTable
+      rowClassName="border-t border-[var(--line)] align-top"
+      caption={(<>Posted-sales threshold comparisons as of {asOf}</>)}
+      rows={report.rows}
+      rowKey={row => row.id}
+      captionClassName=""
+      tableClassName="w-full text-sm"
+      headRowClassName=""
+      bodyClassName=""
+      columns={[
+        { header: "Entity", className: "text-left", headClassName: "", cell: (row) => (<><bdi>{row.entityName}</bdi><div className="text-xs text-[var(--muted)]">{row.activityLabel}</div></>) },
+        { header: "Threshold / test", headClassName: "", cell: (row) => (<><bdi>{row.rule.name}</bdi><div className="text-xs text-[var(--muted)]">{row.rule.source.authority}</div><div className="text-xs text-[var(--muted)]"><bdi>Effective {row.rule.validFrom}{row.rule.validTo ? ` – ${row.rule.validTo}` : ' onward'}</bdi></div></>) },
+        { header: "Period", headClassName: "", cell: (row) => (<><bdi>{row.periodLabel}</bdi><div className="text-xs text-[var(--muted)]">{row.periodStart} – {row.periodEnd}</div></>) },
+        { header: "Posted sales", className: "text-right tabular-nums", headClassName: "", cell: (row) => money(row.salesCents, row.baseCurrency) },
+        { header: "Threshold", className: "text-right tabular-nums", headClassName: "", cell: (row) => formatCurrency(row.thresholdCents, row.thresholdCurrency) },
+        { header: "Progress", className: "text-right tabular-nums", headClassName: "", cell: (row) => row.progressPercent === null ? 'Not comparable' : `${row.progressPercent.toFixed(1)}%` },
+        { header: "Comparison", headClassName: "", cell: (row) => row.result === 'currency-mismatch'
           ? `Not compared: ledger base ${row.baseCurrency || 'unknown'}, threshold ${row.thresholdCurrency}`
           : row.result === 'over'
             ? `${money(Math.abs(row.remainingCents || 0), row.baseCurrency)} over — review scope and dates`
             : row.result === 'at'
               ? 'At threshold — review scope and dates'
-              : `${money(row.remainingCents || 0, row.baseCurrency)} below`}</td>
-        <td className="whitespace-nowrap"><a className="underline" href={row.rule.source.url} target="_blank" rel="noopener noreferrer">Rule source</a>
-          {row.rule.effect.kind === 'registration-threshold' && row.rule.effect.guidanceUrl && <> · <a className="underline" href={row.rule.effect.guidanceUrl} target="_blank" rel="noopener noreferrer">Scope guidance</a></>}
-        </td>
-      </tr>)}</tbody>
-    </table></ReportTableScroll>}
+              : `${money(row.remainingCents || 0, row.baseCurrency)} below` },
+        { header: "Official sources", className: "whitespace-nowrap", headClassName: "", cell: (row) => (<><a className="underline" href={row.rule.source.url} target="_blank" rel="noopener noreferrer">Rule source</a>
+          {row.rule.effect.kind === 'registration-threshold' && row.rule.effect.guidanceUrl && <> · <a className="underline" href={row.rule.effect.guidanceUrl} target="_blank" rel="noopener noreferrer">Scope guidance</a></>}</>) },
+      ]}
+    /></ReportTableScroll>}
     {report && report.rows.length === 0 && !waiting && <p>No threshold comparison can be made from the recognized posted sales. Configure an entity country in Tax profiles and assign a supported activity label to revenue lines; unclassified or absent activity is not assumed to be zero.</p>}
     <details className="text-sm" data-osek-patur-history>
       <summary className="min-h-11 cursor-pointer">Israel: the osek patur ceiling, year by year (A-100)</summary>

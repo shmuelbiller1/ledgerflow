@@ -656,3 +656,5 @@ Task SEC-SCAN-1 (AI #6): Schemathesis tests the API on every pull request, and a
 both against a local copy in CI, never the live site. *Still yours to decide:* scanning the live site.
 To allow it, write here "OK to scan <address>" (passive scan only). *Default:* not scanned.
 
+
+- **EU-A4b, Israeli importers (AI #9, 16 Nov).** Hashavshevet, Rivhit and Priority don't publish their export columns, and I won't guess them. If you can, export one small file from each (chart of accounts and customers) and put it in the repo or the tracker. Until then, their exports can still come in through "Standard spreadsheet", which already reads Hebrew headings. Odoo is done.

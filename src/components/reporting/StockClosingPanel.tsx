@@ -2,6 +2,7 @@ import { runCommand } from '../../lib/runCommand';
 import React, { useEffect, useState } from 'react';
 import { formatCurrency } from '../../lib/utils';
 import type { StockCheckReport } from '../../server/services/stockClosingService';
+import { RowTable } from '../ui/RowTable';
 
 /** EG-7: the latest stock closing and the stock checks, read only (GET /api/v1/inventory/stock-closing). */
 export const StockClosingPanel: React.FC<{ workspaceId: string | null | undefined; currency?: string }> = ({ workspaceId, currency }) => {
@@ -40,15 +41,21 @@ export const StockClosingPanel: React.FC<{ workspaceId: string | null | undefine
               {closing.complete === false && (
                 <p>Incomplete: the stock value leaves out {(closing.incompleteItems || []).map(i => `${i.itemName} (${i.reason || `the history starts with ${i.quantity} units it has no value for`})`).join('; ')}.</p>
               )}
-              <table className="mt-1 w-full">
-                <caption className="sr-only">Stock at the closing of {closing.asOf}, by item and location</caption>
-                <thead><tr className="text-left text-[var(--muted)]"><th scope="col">Item</th><th scope="col">Location</th><th scope="col" className="text-right">Quantity</th><th scope="col" className="text-right">Value</th></tr></thead>
-                <tbody>
-                  {closing.rows.map(r => (
-                    <tr key={`${r.itemId}|${r.locationId}`}><td>{r.itemName}</td><td>{r.locationId || 'No location'}</td><td className="text-right">{r.quantity}</td><td className="text-right">{money(r.valueCents)}</td></tr>
-                  ))}
-                </tbody>
-              </table>
+              <RowTable
+                rowHeaderColumn={false}
+                caption={(<>Stock at the closing of {closing.asOf}, by item and location</>)}
+                rows={closing.rows}
+                rowKey={r => `${r.itemId}|${r.locationId}`}
+                tableClassName="mt-1 w-full"
+                headRowClassName="text-left text-[var(--muted)]"
+                bodyClassName=""
+                columns={[
+                  { header: "Item", headClassName: "", cell: (r) => r.itemName },
+                  { header: "Location", headClassName: "", cell: (r) => r.locationId || 'No location' },
+                  { header: "Quantity", align: 'right', headClassName: "", cell: (r) => r.quantity },
+                  { header: "Value", align: 'right', headClassName: "", cell: (r) => money(r.valueCents) },
+                ]}
+              />
             </div>
           ) : <p className="text-[var(--muted)]">No stock closing yet: an owner takes one after closing and locking a period.</p>}
           <ul className="space-y-1">

@@ -11,6 +11,7 @@ import { retentionReview, retentionReviewCsvRows, RECORD_RETENTION_REVIEW_PERIOD
 import ReportTableScroll from './ReportTableScroll';
 import type { AttachmentCollection } from '../../lib/attachments';
 import type { Bill, CreditNote, DimensionNode, Estimate, Invoice, PurchaseOrder, VendorCredit } from '../../types';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const RETENTION_COLLECTIONS: AttachmentCollection[] = ['invoices', 'bills', 'estimates', 'purchaseOrders'];
@@ -197,15 +198,21 @@ export function RetentionReviewPanel({ report, asOfDate, loading = false, partia
     </p>
 
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>Owner-specified country review timetable — verify before acting</caption>
-        <thead><tr><th scope="col" className="text-left">Country</th><th scope="col" className="text-left">Review period</th><th scope="col" className="text-left">Basis</th></tr></thead>
-        <tbody>{RECORD_RETENTION_REVIEW_PERIODS.map(period => <tr key={period.countryCode} className="border-b border-[var(--line)]/50">
-          <th scope="row" className="text-left font-normal py-1 px-2">{period.countryName} ({period.countryCode === 'GB' ? 'UK' : period.countryCode})</th>
-          <td className="py-1 px-2">{period.years} years</td>
-          <td className="py-1 px-2">{period.source}</td>
-        </tr>)}</tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>Owner-specified country review timetable — verify before acting</>)}
+        rows={RECORD_RETENTION_REVIEW_PERIODS}
+        rowKey={period => period.countryCode}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        columns={[
+          { header: "Country", className: "text-left font-normal py-1 px-2", headClassName: "text-left", cell: (period) => (<>{period.countryName} ({period.countryCode === 'GB' ? 'UK' : period.countryCode})</>) },
+          { header: "Review period", className: "py-1 px-2", headClassName: "text-left", cell: (period) => (<>{period.years} years</>) },
+          { header: "Basis", className: "py-1 px-2", headClassName: "text-left", cell: (period) => period.source },
+        ]}
+      />
     </ReportTableScroll>
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
