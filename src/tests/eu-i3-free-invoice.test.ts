@@ -38,7 +38,7 @@ test('EU-I3: what stops an invoice from being saved', () => {
 test('EU-I3: the hand-off is a draft with the same lines and total', () => {
   assert.deepEqual(toInvoiceDraft(base), {
     customerName: 'Acme Ltd', number: '7', date: '2026-11-16', dueDate: '2026-11-30', currency: 'USD', status: 'draft',
-    taxRate: 17, amountCents: 33_930,
+    taxRate: 0.17, amountCents: 33_930,
     items: [
       { id: 'free-1', description: 'Logo design', quantity: 2, rateCents: 12_050, amountCents: 24_100, accountId: '' },
       { id: 'free-2', description: 'Business cards', quantity: 1, rateCents: 4_900, amountCents: 4_900, accountId: '' },
@@ -61,4 +61,11 @@ test('EU-I3: the draft travels once through browser storage, and other data is i
   assert.equal(readFreeInvoice(storage), null);
   const blocked = { setItem: () => { throw new Error('QuotaExceeded'); } };
   assert.equal(stashFreeInvoice(blocked, base), false);
+});
+
+test('EU-I3: the rate is handed over as a fraction, so 1% and below keep their meaning', () => {
+  assert.equal(toInvoiceDraft({ ...base, taxRate: 1 }).taxRate, 0.01);
+  assert.equal(toInvoiceDraft({ ...base, taxRate: 0.5 }).taxRate, 0.005);
+  assert.equal(toInvoiceDraft({ ...base, taxRate: 250 }).taxRate, 1, 'capped at 100% like the maker\'s own total');
+  assert.equal(toInvoiceDraft({ ...base, taxRate: 0 }).taxRate, 0);
 });

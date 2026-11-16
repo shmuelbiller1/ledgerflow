@@ -56,7 +56,8 @@ export default function FreeInvoiceMaker() {
 
   return (
     <main className="min-h-screen bg-[var(--ink)] text-[var(--text)] px-4 py-6 sm:py-10">
-      <div className="mx-auto max-w-3xl space-y-6">
+      {/* #main-content: the print rules keep only this child of <main> on paper */}
+      <div id="main-content" className="mx-auto max-w-3xl space-y-6">
         <header data-print-hide className="space-y-1">
           <h1 className="text-2xl sm:text-3xl font-bold">Make an invoice — free, no account</h1>
           <p className="text-sm text-[var(--muted)]">Fill it in, print it or save it as a PDF. Nothing is sent anywhere from this page.</p>

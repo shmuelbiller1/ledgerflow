@@ -23,6 +23,8 @@ export const FREE_INVOICE_CURRENCIES = ['USD', 'EUR', 'GBP', 'ILS', 'CAD', 'AUD'
 export const FREE_INVOICE_STORAGE_KEY = 'ledgerflow_free_invoice_draft';
 
 const round = (n: number) => Math.round(n);
+/** The tax percent the maker works with: 0–100. */
+export const cappedRate = (rate: number) => Math.min(100, Math.max(0, Number(rate) || 0));
 
 /** One line's amount in minor units: quantity × rate, rounded to a whole unit. */
 export function lineAmount(line: FreeInvoiceLine): number {
@@ -31,7 +33,7 @@ export function lineAmount(line: FreeInvoiceLine): number {
 
 export function freeInvoiceTotals(inv: Pick<FreeInvoice, 'lines' | 'taxRate'>) {
   const subtotal = inv.lines.reduce((s, l) => s + lineAmount(l), 0);
-  const rate = Math.min(100, Math.max(0, Number(inv.taxRate) || 0));
+  const rate = cappedRate(inv.taxRate);
   const tax = round(subtotal * rate / 100);
   return { subtotal, tax, total: subtotal + tax };
 }
@@ -69,7 +71,9 @@ export function toInvoiceDraft(inv: FreeInvoice): Partial<Invoice> {
     dueDate: inv.dueDate || inv.date,
     currency: inv.currency,
     status: 'draft',
-    taxRate: inv.taxRate,
+    // as a fraction (17% → 0.17): the invoice form reads 0–1 as a fraction and above 1 as a
+    // percent, so a fraction has one meaning for every rate, including 1% and below
+    taxRate: cappedRate(inv.taxRate) / 100,
     amountCents: totals.total,
     items: used.map((l, i) => ({
       id: `free-${i + 1}`,

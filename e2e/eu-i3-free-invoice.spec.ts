@@ -19,6 +19,12 @@ for (const width of [390, 1280]) {
     const form = page.getByRole('dialog');
     await expect(form).toBeVisible({ timeout: 20_000 });
     await expect(form.getByText('Logo design').or(form.locator('input[value="Logo design"]'))).toBeVisible();
-    expect(await page.evaluate(() => localStorage.getItem('ledgerflow_free_invoice_draft'))).toBeNull();
+    // the stored copy survives a reload until the draft is saved or closed
+    await page.reload();
+    const again = page.getByRole('dialog');
+    await expect(again).toBeVisible({ timeout: 20_000 });
+    await expect(again.locator('input[value="1"]').first()).toBeVisible(); // the maker's number is kept
+    await again.getByRole('button', { name: /^Close/ }).first().click();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('ledgerflow_free_invoice_draft'))).toBeNull();
   });
 }

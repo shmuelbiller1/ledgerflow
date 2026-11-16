@@ -132,9 +132,11 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
   }
 
   const editingExisting = Boolean(initialInvoice?.id);
+  // EU-I3: an invoice written (and perhaps already printed) on the free maker keeps its number
+  const keepsOwnNumber = Boolean(initialInvoice?.number && initialInvoice?.metadata?.source === 'free-invoice-maker');
   useEffect(() => {
     // a new invoice gets the next number; an existing one keeps its own
-    if (isOpen && !editingExisting) {
+    if (isOpen && !editingExisting && !keepsOwnNumber) {
       const fetchNextNumber = async () => {
         try {
           const wsId = useAuthStore.getState().currentWorkspaceId;
@@ -147,7 +149,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
       };
       void fetchNextNumber();
     }
-  }, [isOpen, editingExisting]);
+  }, [isOpen, editingExisting, keepsOwnNumber]);
 
   // an edited invoice keeps its memo, terms and email text (they were saved in metadata)
   const savedText = (key: string) => {

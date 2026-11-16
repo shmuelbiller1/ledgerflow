@@ -2,7 +2,7 @@ import { useNewRecord } from '../../hooks/useNewRecord';
 import { PartyDetailButton } from '../common/PartyDetailButton';
 import { PageHeader } from '../ui/PageHeader';
 import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Customer, Invoice } from '../../types';
 import { Plus, AlertCircle, Activity, ShieldCheck, TrendingUp } from 'lucide-react';
@@ -56,6 +56,13 @@ import { inBackground } from '../../lib/inBackground';
 import { buildCustomerColumns, buildInvoiceColumns } from './salesColumns';
 import { runCommand } from '../../lib/runCommand';
 
+/** EU-I3: the maker's "Bill to" becomes an existing customer of that name, or a new one the form creates on save. */
+function withCustomer(draft: Partial<Invoice>, customers: Customer[]): Partial<Invoice> {
+  const name = (draft.customerName || '').trim().toLowerCase();
+  const match = customers.find(c => (c.name || '').trim().toLowerCase() === name);
+  return { ...draft, customerId: match ? match.id : `new-${crypto.randomUUID()}`, ...(match ? { customerName: match.name } : {}) };
+}
+
 /** Accounts receivable workspace screen for customer invoices, receipts, payments, and credit notes. */
 export default function Sales() {
   const language = useUIStore(s => s.language);
@@ -84,13 +91,15 @@ export default function Sales() {
   const detailOpenerId = useDetailReturnFocus(selectedCustomerId);
 
   const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'customers'>('invoices');
-  const [freeDraft] = useState(() => (typeof window === 'undefined' ? null : readFreeInvoice(window.localStorage)));
+  // EU-I3: a draft from the free maker opens only in the sample company (a guest with no account)
+  const sampleSession = useAuthStore(st => st.isGuest && !st.user);
+  const [freeDraft] = useState(() => (typeof window === 'undefined' || !sampleSession ? null : readFreeInvoice(window.localStorage)));
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(Boolean(freeDraft));
   const [openingOpen, setOpeningOpen] = useState(false);
   const [receiptMode, setReceiptMode] = useState(false);
-  const [newInvoiceFor, setNewInvoiceFor] = useState<Partial<Invoice> | undefined>(freeDraft ?? undefined);
-  // EU-I3: an invoice written on the free maker (/make-invoice) opens here once, as a draft
-  useEffect(() => { if (freeDraft) clearFreeInvoice(window.localStorage); }, [freeDraft]);
+  const [newInvoiceFor, setNewInvoiceFor] = useState<Partial<Invoice> | undefined>(() => (freeDraft ? withCustomer(freeDraft, customers) : undefined));
+  // the stored copy stays until the draft is saved or deliberately closed, so a reload keeps it
+  const finishFreeDraft = () => { if (freeDraft) clearFreeInvoice(window.localStorage); };
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [customerTag, setCustomerTag] = useState<string | null>(null);
   const [showArchivedCustomers, setShowArchivedCustomers] = useState(false);
@@ -322,8 +331,8 @@ export default function Sales() {
       {openingOpen && <OpeningDocumentsDialog side="customer" onClose={() => setOpeningOpen(false)} />}
       {isInvoiceModalOpen && (
         <InvoiceModal key={`${newInvoiceFor?.id || 'new'}${receiptMode ? '-receipt' : ''}`} isOpen={isInvoiceModalOpen} receipt={receiptMode}
-          onClose={() => { setIsInvoiceModalOpen(false); setNewInvoiceFor(undefined); setReceiptMode(false); }}
-          onSave={async (inv) => { await onAddInvoice(inv); setIsInvoiceModalOpen(false); setNewInvoiceFor(undefined); setReceiptMode(false); }}
+          onClose={() => { finishFreeDraft(); setIsInvoiceModalOpen(false); setNewInvoiceFor(undefined); setReceiptMode(false); }}
+          onSave={async (inv) => { await onAddInvoice(inv); finishFreeDraft(); setIsInvoiceModalOpen(false); setNewInvoiceFor(undefined); setReceiptMode(false); }}
           customers={customers} accounts={accounts} initialInvoice={newInvoiceFor} />
       )}
       <CustomerModal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)}
