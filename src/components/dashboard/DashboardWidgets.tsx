@@ -23,6 +23,7 @@ import { isPostable, isTransactionInDateRange } from '../../lib/txFilters';
 import { useScenarioStore } from '../../lib/scenarioStore';
 import BankFeedHealth from './BankFeedHealth';
 import DashboardTrendChart from './DashboardTrendChart';
+import { RowTable } from '../ui/RowTable';
 
 /**
  * D-85/D-82: plain words for the first four cards. The rest keep the accounting names.
@@ -197,7 +198,18 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
       const targetReport = ['cash', 'networth'].includes(metric) ? 'balance-sheet' : 'pnl';
       return <><a href={reportLink(targetReport)} onPointerEnter={() => preloadReportView(targetReport)} onFocus={() => preloadReportView(targetReport)} onClick={event => openReportInSpa(event, targetReport)} className="min-h-11 flex items-center text-2xl font-bold tabular-nums">{formatCurrency(widgetData.current[metric], currency)}<span className="sr-only"> Open {LABELS[id]} report</span></a>
         <p className="text-sm">{['cash', 'networth'].includes(metric) ? `As of ${period.endDate}` : 'Selected period activity'}</p><p className="text-sm">Vs previous period: {formatCurrency(delta.amount, currency)} ({reportPercent(delta.percent)})</p>
-        <DashboardTrendChart chartId={`dashboard-${metric}`} rows={widgetData.months.map(month => ({ label: month.label, cents: month[metric] }))} label={LABELS[id]} currency={currency} /><details><summary className="cursor-pointer min-h-11 flex items-center">Monthly values</summary><table className="w-full text-sm"><caption className="sr-only">{LABELS[id]} last 12 months, last month through {period.endDate}</caption><thead><tr><th scope="col" className="text-left">Month</th><th scope="col" className="text-right">Amount</th></tr></thead><tbody>{widgetData.months.map(month => <tr key={month.label}><th scope="row" className="text-left font-normal">{month.label}</th><td className="text-right tabular-nums">{formatCurrency(month[metric], currency)}</td></tr>)}</tbody></table></details></>;
+        <DashboardTrendChart chartId={`dashboard-${metric}`} rows={widgetData.months.map(month => ({ label: month.label, cents: month[metric] }))} label={LABELS[id]} currency={currency} /><details><summary className="cursor-pointer min-h-11 flex items-center">Monthly values</summary><RowTable
+          caption={(<>{LABELS[id]} last 12 months, last month through {period.endDate}</>)}
+          rows={widgetData.months}
+          rowKey={month => month.label}
+          tableClassName="w-full text-sm"
+          headRowClassName=""
+          bodyClassName=""
+          columns={[
+            { header: "Month", className: "text-left font-normal", headClassName: "text-left", cell: (month) => month.label },
+            { header: "Amount", align: 'right', className: "tabular-nums", headClassName: "", cell: (month) => formatCurrency(month[metric], currency) },
+          ]}
+        /></details></>;
     }
     if (id === 'receivables') return aging(widgetAr, 'customer');
     if (id === 'payables') return aging(widgetAp, 'vendor');

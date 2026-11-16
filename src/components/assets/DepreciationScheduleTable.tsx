@@ -4,6 +4,7 @@ import { depreciationSchedule, scheduleByYear } from '../../lib/depreciationEngi
 import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency } from '../../lib/utils';
 import type { FixedAsset } from '../../types';
+import { RowTable } from '../ui/RowTable';
 
 /**
  * An asset's depreciation schedule (X-02): by year on screen (depreciation, accumulated and book
@@ -27,29 +28,18 @@ export default function DepreciationScheduleTable({ asset }: { asset: FixedAsset
           <Download className="w-3.5 h-3.5" aria-hidden="true" /> Monthly schedule (.csv)
         </button>
       </div>
-      <table className="w-full text-xs">
-        <caption className="sr-only">Depreciation schedule of {asset.name} by year</caption>
-        <thead className="text-[var(--muted)]">
-          <tr>
-            <th scope="col" className="py-1 text-left">Year</th>
-            <th scope="col" className="py-1 text-right">Depreciation</th>
-            <th scope="col" className="py-1 text-right">Accumulated</th>
-            <th scope="col" className="py-1 text-right">Book value</th>
-            <th scope="col" className="py-1 text-left pl-3">Posted</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[var(--line)]">
-          {years.map(y => (
-            <tr key={y.year}>
-              <th scope="row" className="py-1 text-left font-semibold">{y.year}{y.months < 12 ? ` (${y.months} mo)` : ''}</th>
-              <td className="py-1 text-right font-mono">{formatCurrency(y.amountCents)}</td>
-              <td className="py-1 text-right font-mono">{formatCurrency(y.accumulatedCents)}</td>
-              <td className="py-1 text-right font-mono">{formatCurrency(y.bookValueCents)}</td>
-              <td className="py-1 pl-3 text-[var(--muted)]">{y.posted ? 'yes' : 'not yet'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <RowTable
+        caption={(<>Depreciation schedule of {asset.name} by year</>)}
+        rows={years}
+        rowKey={y => y.year}
+        columns={[
+          { header: "Year", className: "py-1 text-left font-semibold", headClassName: "py-1 text-left", cell: (y) => (<>{y.year}{y.months < 12 ? ` (${y.months} mo)` : ''}</>) },
+          { header: "Depreciation", align: 'right', className: "py-1 font-mono", headClassName: "py-1", cell: (y) => formatCurrency(y.amountCents) },
+          { header: "Accumulated", align: 'right', className: "py-1 font-mono", headClassName: "py-1", cell: (y) => formatCurrency(y.accumulatedCents) },
+          { header: "Book value", align: 'right', className: "py-1 font-mono", headClassName: "py-1", cell: (y) => formatCurrency(y.bookValueCents) },
+          { header: "Posted", className: "py-1 pl-3 text-[var(--muted)]", headClassName: "py-1 text-left pl-3", cell: (y) => y.posted ? 'yes' : 'not yet' },
+        ]}
+      />
     </div>
   );
 }

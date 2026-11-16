@@ -9,6 +9,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import type { Bill, Vendor } from '../../types';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 
@@ -68,23 +69,25 @@ export default function ImportServicesReportView({ endDate = '' }: { endDate?: s
       <p className="text-sm text-[var(--muted)]">Not listed: {review.skipped.israeliVendor} bill(s) from vendors recorded in Israel · {review.skipped.countryNotRecorded} whose vendor's country is not recorded (review them — they cannot be told from here) · {review.skipped.otherCurrency} in another currency (counted, never converted) · {review.skipped.undated} without a date · {review.skipped.notRecorded} draft, void or cancelled.</p>
     </>}
 
-    {review.rows.length > 0 && <ReportTableScroll><table className="w-full text-sm">
-      <caption>Bills dated {from} to {to} from vendors whose recorded country is not Israel</caption>
-      <thead><tr>
-        <th scope="col">Bill</th><th scope="col">Vendor</th><th scope="col">Country</th>
-        <th scope="col" className="text-right">Amount</th><th scope="col" className="text-right">VAT on the bill</th>
-        <th scope="col" className="text-right">IL rate</th><th scope="col" className="text-right">Reference VAT</th>
-      </tr></thead>
-      <tbody>{review.rows.map(row => <tr key={row.billId} className="border-t border-[var(--line)] align-top">
-        <th scope="row" className="text-left"><bdi>{row.date} · {row.billNumber || row.billId}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.note}</bdi></div></th>
-        <td><bdi>{row.vendor || '—'}</bdi></td>
-        <td>{row.vendorCountry}</td>
-        <td className="text-right tabular-nums">{money(row.amountCents)}</td>
-        <td className="text-right tabular-nums">{row.vatOnBillCents > 0 ? money(row.vatOnBillCents) : '—'}</td>
-        <td className="text-right tabular-nums">{row.ilRate !== undefined ? `${(row.ilRate * 100).toFixed(0)}%` : '—'}</td>
-        <td className="text-right tabular-nums">{money(row.referenceVatCents)}</td>
-      </tr>)}</tbody>
-    </table></ReportTableScroll>}
+    {review.rows.length > 0 && <ReportTableScroll><RowTable
+      rowClassName="border-t border-[var(--line)] align-top"
+      caption={(<>Bills dated {from} to {to} from vendors whose recorded country is not Israel</>)}
+      rows={review.rows}
+      rowKey={row => row.billId}
+      captionClassName=""
+      tableClassName="w-full text-sm"
+      headRowClassName=""
+      bodyClassName=""
+      columns={[
+        { header: "Bill", className: "text-left", headClassName: "", cell: (row) => (<><bdi>{row.date} · {row.billNumber || row.billId}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.note}</bdi></div></>) },
+        { header: "Vendor", headClassName: "", cell: (row) => <bdi>{row.vendor || '—'}</bdi> },
+        { header: "Country", headClassName: "", cell: (row) => row.vendorCountry },
+        { header: "Amount", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => money(row.amountCents) },
+        { header: "VAT on the bill", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => row.vatOnBillCents > 0 ? money(row.vatOnBillCents) : '—' },
+        { header: "IL rate", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => row.ilRate !== undefined ? `${(row.ilRate * 100).toFixed(0)}%` : '—' },
+        { header: "Reference VAT", align: 'right', className: "tabular-nums", headClassName: "", cell: (row) => money(row.referenceVatCents) },
+      ]}
+    /></ReportTableScroll>}
 
     {!loading && !review.problem && review.rows.length === 0 && <p>No recorded bill in this period is from a vendor whose recorded country is not Israel. A vendor's country comes from its recorded tax place; vendors without one are counted above, never assumed.</p>}
   </section>;

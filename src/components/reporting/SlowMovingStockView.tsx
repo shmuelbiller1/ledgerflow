@@ -5,6 +5,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import { SLOW_MOVING_BUCKETS, noSaleInDays, slowMovingRows, slowMovingTotals } from '../../lib/slowMovingStock';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
@@ -62,29 +63,22 @@ export const SlowMovingStockView: React.FC = () => {
             <li className="px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] font-semibold">Total: <span className="font-mono">{formatCurrency(totals.totalCents)}</span></li>
           </ul>
           <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
-            <table className="w-full text-sm">
-              <caption className="sr-only">Stock items with units on hand, oldest sale first</caption>
-              <thead>
-                <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                  <th scope="col" className="text-left font-semibold py-1 px-2">Item</th>
-                  <th scope="col" className="text-right font-semibold py-1 px-2">On hand</th>
-                  <th scope="col" className="text-right font-semibold py-1 px-2">Value</th>
-                  <th scope="col" className="text-left font-semibold py-1 px-2">Age</th>
-                  <th scope="col" className="text-right font-semibold py-1 px-2">Last sold</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map(r => (
-                  <tr key={r.itemId} className="border-b border-[var(--line)]/50">
-                    <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{r.name}</bdi>{r.sku && <span className="text-xs text-[var(--muted)]"> · {r.sku}</span>}</th>
-                    <td className="text-right font-mono py-1 px-2">{r.quantity}</td>
-                    <td className="text-right font-mono py-1 px-2">{formatCurrency(r.valueCents)}</td>
-                    <td className="py-1 px-2">{SLOW_MOVING_BUCKETS.find(b => b.key === r.bucket)?.label}</td>
-                    <td className="text-right py-1 px-2 text-xs">{r.lastSold ? `${r.lastSold} (${r.daysSinceSold} days ago)` : 'never'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <RowTable
+              rowClassName="border-b border-[var(--line)]/50"
+              caption={(<>Stock items with units on hand, oldest sale first</>)}
+              rows={shown}
+              rowKey={r => r.itemId}
+              tableClassName="w-full text-sm"
+              headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+              bodyClassName=""
+              columns={[
+                { header: "Item", className: "text-left font-normal py-1 px-2", headClassName: "text-left font-semibold py-1 px-2", cell: (r) => (<><bdi>{r.name}</bdi>{r.sku && <span className="text-xs text-[var(--muted)]"> · {r.sku}</span>}</>) },
+                { header: "On hand", align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => r.quantity },
+                { header: "Value", align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => formatCurrency(r.valueCents) },
+                { header: "Age", className: "py-1 px-2", headClassName: "text-left font-semibold py-1 px-2", cell: (r) => SLOW_MOVING_BUCKETS.find(b => b.key === r.bucket)?.label },
+                { header: "Last sold", align: 'right', className: "py-1 px-2 text-xs", headClassName: "font-semibold py-1 px-2", cell: (r) => r.lastSold ? `${r.lastSold} (${r.daysSinceSold} days ago)` : 'never' },
+              ]}
+            />
           </div>
         </>
       )}
