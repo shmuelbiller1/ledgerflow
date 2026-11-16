@@ -94,3 +94,8 @@ test('EU-I3: tax is rounded the receiving books\' way', () => {
   assert.equal(freeInvoiceTotals(inv, 'half_even').tax, 1000, 'half even: 1000.5 → 1000');
   assert.equal(freeInvoiceTotals(inv, 'down').tax, 1000);
 });
+
+test('EU-I3: a tax % beyond 3 decimals is refused, 3 is accepted', () => {
+  assert.equal(freeInvoiceProblem({ ...base, taxRate: 7.1255 }), 'The tax % can have at most 3 decimals.');
+  assert.equal(freeInvoiceProblem({ ...base, taxRate: 7.125 }), null);
+});

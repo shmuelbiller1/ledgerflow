@@ -60,6 +60,8 @@ export function parseRate(text: string, currency: string): number | null {
 export function freeInvoiceProblem(inv: FreeInvoice): string | null {
   if (!inv.to.trim()) return 'Add who the invoice is for.';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(inv.date)) return 'Choose the invoice date.';
+  // the invoice form takes the tax % to 3 decimals: refuse more rather than hand over a rate it can't save
+  if (Math.abs(inv.taxRate * 1000 - Math.round(inv.taxRate * 1000)) > 1e-6) return 'The tax % can have at most 3 decimals.';
   if (inv.dueDate && inv.dueDate < inv.date) return 'The due date is before the invoice date.';
   const used = inv.lines.filter(l => l.description.trim() || l.rateCents);
   if (!used.length) return 'Add at least one line.';

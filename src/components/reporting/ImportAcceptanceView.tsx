@@ -7,6 +7,7 @@ import ReportEmptyState from './ReportEmptyState';
 
 import { BRAND_NAME } from '../../config/brand';
 import { runCommand } from '../../lib/runCommand';
+import { RowTable } from '../ui/RowTable';
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
 /**
@@ -85,21 +86,23 @@ export default function ImportAcceptanceView() {
           </div>
           {acceptance.differences.length > 0 && (
             <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
-              <table className="w-full text-sm">
-                <caption className="text-left font-semibold text-[var(--text)] pb-1">Accounts that differ (balances as debits; credits are negative). {acceptance.agreeing} agree.</caption>
-                <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                  <th scope="col" className="text-left font-semibold py-1">Account</th><th scope="col" className="text-left font-semibold py-1">Why</th>
-                  <th scope="col" className="text-right font-semibold py-1">Source</th><th scope="col" className="text-right font-semibold py-1">{BRAND_NAME}</th>
-                  <th scope="col" className="text-right font-semibold py-1">Difference</th>
-                </tr></thead>
-                <tbody>{acceptance.differences.map(d => (
-                  <tr key={d.label} className="border-b border-[var(--line)]/50">
-                    <th scope="row" className="text-left font-normal py-1"><bdi>{d.label}</bdi></th><td className="py-1">{d.why}</td>
-                    <td className="text-right font-mono py-1">{money(d.sourceCents)}</td><td className="text-right font-mono py-1">{money(d.ledgerCents)}</td>
-                    <td className="text-right font-mono py-1 text-rose-600">{money(d.differenceCents)}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
+              <RowTable
+                rowClassName="border-b border-[var(--line)]/50"
+                caption={(<>Accounts that differ (balances as debits; credits are negative). {acceptance.agreeing} agree.</>)}
+                rows={acceptance.differences}
+                rowKey={d => d.label}
+                captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+                tableClassName="w-full text-sm"
+                headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+                bodyClassName=""
+                columns={[
+                  { header: "Account", className: "text-left font-normal py-1", headClassName: "text-left font-semibold py-1", cell: (d) => <bdi>{d.label}</bdi> },
+                  { header: "Why", className: "py-1", headClassName: "text-left font-semibold py-1", cell: (d) => d.why },
+                  { header: "Source", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (d) => money(d.sourceCents) },
+                  { header: BRAND_NAME, align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (d) => money(d.ledgerCents) },
+                  { header: "Difference", align: 'right', className: "font-mono py-1 text-rose-600", headClassName: "font-semibold py-1", cell: (d) => money(d.differenceCents) },
+                ]}
+              />
             </div>
           )}
         </div>
