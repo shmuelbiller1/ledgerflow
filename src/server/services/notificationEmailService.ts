@@ -1,4 +1,4 @@
-import type { Firestore } from '../db/firestore';
+import type { Firestore, Transaction } from '../db/firestore';
 import { digestEmail, emailMode, noticeEmail, type NotificationEmailMode } from '../../lib/notificationEmail';
 import { isMailConfigured, sendMail } from './mailer';
 import { getTrustedAppUrl } from '../utils/urlHelper';
@@ -15,9 +15,17 @@ export async function getNotificationEmail(db: Firestore, uid: string): Promise<
   return emailMode((await db.collection('users').doc(uid).get()).data()?.notificationEmail);
 }
 
+/** The write of setNotificationEmail inside a given transaction (registered command `account.setnotificationemail`). */
+export async function setNotificationEmailInTransaction(db: Firestore, tx: Transaction, uid: string, mode: NotificationEmailMode): Promise<{ mode: NotificationEmailMode; previousMode: NotificationEmailMode }> {
+  const ref = db.collection('users').doc(uid);
+  const current = (await tx.get(ref)).data();
+  const previousMode = emailMode(current?.notificationEmail);
+  tx.set(ref, { ...(current || {}), uid, notificationEmail: mode, updatedAt: new Date().toISOString() });
+  return { mode, previousMode };
+}
+
 export async function setNotificationEmail(db: Firestore, uid: string, mode: NotificationEmailMode): Promise<NotificationEmailMode> {
-  await db.collection('users').doc(uid).set({ uid, notificationEmail: mode, updatedAt: new Date().toISOString() }, { merge: true });
-  return mode;
+  return (await db.runTransaction(t => setNotificationEmailInTransaction(db, t, uid, mode))).mode;
 }
 
 const appUrl = () => { try { return getTrustedAppUrl(); } catch { return 'https://ledgerflow.app'; } };

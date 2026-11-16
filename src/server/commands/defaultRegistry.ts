@@ -48,6 +48,16 @@ import {
 import { CommandRegistry } from './registry';
 import { workspaceInviteRevokeCommand } from './workspaceInvites';
 import { workspaceCancelDeletionCommand } from './workspaceLifecycle';
+import { accountMakeRecoveryCodesCommand, accountSetNotificationEmailCommand, accountUseRecoveryCodeCommand } from './account';
+import {
+  groupCreateCommand,
+  groupDeleteCommand,
+  groupKeepRatesCommand,
+  groupSetLineMergesCommand,
+  groupShareCommand,
+  groupUnshareCommand,
+  groupUpdateCommand,
+} from './groups';
 
 /** Construct the built-in command set; tests and alternate server entry points get an isolated registry. */
 export function createDefaultCommandRegistry(): CommandRegistry {
@@ -113,6 +123,16 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(billDeleteCommand);
   registry.register(creditNoteDeleteCommand);
   registry.register(vendorCreditDeleteCommand);
+  registry.register(accountMakeRecoveryCodesCommand);
+  registry.register(accountSetNotificationEmailCommand);
+  registry.register(accountUseRecoveryCodeCommand);
+  registry.register(groupCreateCommand);
+  registry.register(groupUpdateCommand);
+  registry.register(groupDeleteCommand);
+  registry.register(groupShareCommand);
+  registry.register(groupUnshareCommand);
+  registry.register(groupSetLineMergesCommand);
+  registry.register(groupKeepRatesCommand);
   return registry;
 }
 

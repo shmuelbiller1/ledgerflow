@@ -34,6 +34,9 @@ test('generated SDK inputs follow command schemas while remaining browser-safe',
   const linkInput: CommandInput<'entrylink.create'> = { a: 'transaction_1', b: 'transaction_2', note: 'Correction' };
   const timeInput: CommandInput<'time.log'> = { entry: { date: '2026-11-15', minutes: 60, description: 'Close the month' } };
   const stageInput: CommandInput<'stages.move'> = { kind: 'bill', id: 'bill_1', stage: 'Checked' };
+  const notifyEmailInput: CommandInput<'account.setnotificationemail'> = { mode: 'daily' };
+  const groupShareInput: CommandInput<'groups.share'> = { groupId: 'grp_0123456789abcdef0123', email: 'accountant@example.test' };
+  const groupDeleteInput: CommandInput<'groups.delete'> = { groupId: 'grp_0123456789abcdef0123' };
   assert.equal(alertInput.cashLowCents, 50000);
   assert.equal(customerInput.customer.name, 'Acme');
   assert.equal(customerUpdate.data.email, 'billing@example.test');
@@ -54,6 +57,12 @@ test('generated SDK inputs follow command schemas while remaining browser-safe',
   assert.equal(linkInput.note, 'Correction');
   assert.equal(timeInput.entry.description, 'Close the month');
   assert.equal(stageInput.stage, 'Checked');
+  assert.equal(notifyEmailInput.mode, 'daily');
+  assert.equal(groupShareInput.email, 'accountant@example.test');
+  assert.equal(groupDeleteInput.groupId, 'grp_0123456789abcdef0123');
+  // @ts-expect-error the notice-email mode is the registry's enum, not arbitrary text.
+  const invalidNotifyMode: CommandInput<'account.setnotificationemail'> = { mode: 'weekends' };
+  void invalidNotifyMode;
   // @ts-expect-error customer names are strings in the registry schema.
   const invalidCustomer: CommandInput<'customer.create'> = { customer: { name: 42 } };
   // @ts-expect-error a customer balance is server-managed, not an editable profile field.
@@ -86,6 +95,11 @@ test('generated command metadata, OpenAPI schemas, and SDK names match the regis
     assert.ok(registered, `${definition.name} is missing from the server registry`);
     assert.deepEqual(definition.roles, registered.roles, `${definition.name} role metadata is stale`);
     assert.equal('allowPlatformAdmin' in definition ? definition.allowPlatformAdmin : undefined, registered.allowPlatformAdmin || undefined, `${definition.name} platform-admin metadata is stale`);
+    assert.equal(
+      (definition as { scope?: string }).scope,
+      registered.scope === 'person' ? 'person' : undefined,
+      `${definition.name} scope metadata is stale`,
+    );
     assert.deepEqual(definition.inputSchema, z.toJSONSchema(registered.input, { io: 'input', unrepresentable: 'any' }), `${definition.name} input schema is stale`);
     assert.deepEqual(schemas[COMMAND_INPUT_SCHEMA_NAMES[definition.name]], definition.inputSchema,
       `${definition.name} OpenAPI input schema is stale`);

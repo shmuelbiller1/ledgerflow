@@ -47,7 +47,8 @@ function newCode(): string {
   return `${chars.slice(0, 5)}-${chars.slice(5)}`;
 }
 
-async function verifiedFactors(db: Firestore, uid: string): Promise<string[]> {
+/** The ids of the person's confirmed authenticators (reads Supabase's auth tables, read-only). */
+export async function verifiedFactors(db: Firestore, uid: string): Promise<string[]> {
   const { rows } = await db.pool.query<{ id: string }>(
     `select id::text from auth.mfa_factors where user_id = $1::uuid and factor_type::text = 'totp' and status::text = 'verified'`, [uid]);
   return rows.map(r => r.id);
@@ -69,11 +70,17 @@ export async function recoveryStatus(db: Firestore, uid: string): Promise<{ left
   return { left: stored.codes.filter(c => !c.usedAt).length, total: stored.codes.length, createdAt: stored.createdAt };
 }
 
+/** Ten new codes and the keyed-hash record that replaces any earlier one (no database write here). */
+export function buildRecoveryCodes(uid: string): { codes: string[]; stored: Stored } {
+  const codes = Array.from({ length: CODE_COUNT }, newCode);
+  const stored: Stored = { uid, codes: codes.map(c => ({ hash: keyedHash(uid, c) })), createdAt: new Date().toISOString() };
+  return { codes, stored };
+}
+
 /** Ten new codes, replacing any earlier ones. Only for someone who has two-step login on. */
 export async function makeRecoveryCodes(db: Firestore, uid: string): Promise<string[]> {
   if ((await verifiedFactors(db, uid)).length === 0) throw new RecoveryError(409, 'Turn on two-step login first; recovery codes are for when the authenticator is lost');
-  const codes = Array.from({ length: CODE_COUNT }, newCode);
-  const stored: Stored = { uid, codes: codes.map(c => ({ hash: keyedHash(uid, c) })), createdAt: new Date().toISOString() };
+  const { codes, stored } = buildRecoveryCodes(uid);
   await db.collection('recoveryCodes').doc(uid).set(stored);
   return codes;
 }
