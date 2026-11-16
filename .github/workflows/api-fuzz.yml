@@ -23,7 +23,6 @@ jobs:
     name: Schemathesis OpenAPI fuzzing (Phase 1 report-only)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    continue-on-error: true
 
     services:
       postgres:
@@ -57,7 +56,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Install pinned Schemathesis
         run: python -m pip install --disable-pip-version-check schemathesis==4.33.4
@@ -73,6 +71,8 @@ jobs:
         run: npm run db:test-setup
 
       - name: Seed ephemeral fuzz workspace and API key, start local server, and run Schemathesis
+        # Phase 1 report-only: remove `continue-on-error: true` once main passes 3 consecutive runs cleanly.
+        continue-on-error: true
         run: |
           set -euo pipefail
 
@@ -182,6 +182,17 @@ jobs:
             --max-examples 25 \
             --report junit \
             --report-junit-path schemathesis-junit.xml 2>&1 | tee schemathesis-output.txt
+
+      - name: Verify OpenAPI server booted and Schemathesis produced JUnit report
+        run: |
+          test -s openapi-snapshot.json
+          test -s schemathesis-junit.xml
+          {
+            echo "### Schemathesis Phase 1 Summary"
+            echo '```'
+            tail -n 35 schemathesis-output.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Schemathesis reports and server logs
         if: ${{ !cancelled() }}
