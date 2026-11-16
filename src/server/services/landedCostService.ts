@@ -240,7 +240,7 @@ async function readCharge(db: Firestore, t: DbTransaction, input: LandedCostInpu
 }
 
 /** Works out (and unless a dry run, writes) one allocation in the transaction `t`. Every read is made again per attempt. */
-async function landInTransaction(db: Firestore, t: DbTransaction, input: LandedCostInput): Promise<LandedCostResult> {
+export async function landInTransaction(db: Firestore, t: DbTransaction, input: LandedCostInput): Promise<LandedCostResult> {
   const { workspaceId, user } = input;
   const ws = (await t.get(db.collection('workspaces').doc(workspaceId))).data() || {};
   const currency = String(ws.currency || 'USD');
@@ -386,19 +386,31 @@ async function landInTransaction(db: Firestore, t: DbTransaction, input: LandedC
 
 /** POST /api/v1/inventory/landed-cost: the allocation's plan (dryRun) or its posting, in one transaction. */
 export async function postLandedCost(db: Firestore, input: LandedCostInput): Promise<LandedCostResult> {
+  await prepareLandedCost(db, input);
+  return db.runTransaction(t => landInTransaction(db, t, input));
+}
+
+/** The input and stock-history checks ahead of the write (read-only). */
+export async function prepareLandedCost(db: Firestore, input: LandedCostInput): Promise<void> {
   if (!['value', 'quantity', 'weight'].includes(input.basis)) throw new LandedCostError(400, 'Spread the costs by value, by quantity or by weight');
   if (input.charge.kind === 'manual' && !/^[A-Za-z0-9_-]{8,80}$/.test(input.charge.allocationId)) throw new LandedCostError(400, 'A manual landed cost needs an allocation id (8–80 letters, digits, - or _)');
   await stockMovesReady(db);
-  return db.runTransaction(t => landInTransaction(db, t, input));
 }
 
 export interface LandedCostUndoResult { entryId: string; undoEntryId: string; date: string; movedToOpenDay: boolean; replayed: boolean }
 
 /** POST /api/v1/inventory/landed-cost/:entryId/undo: reverses the entry and its stock moves together. */
-export async function undoLandedCost(db: Firestore, input: { workspaceId: string; user: LandedCostInput['user']; entryId: string }): Promise<LandedCostUndoResult> {
-  const { workspaceId, user, entryId } = input;
+export interface LandedCostUndoInput { workspaceId: string; user: LandedCostInput['user']; entryId: string }
+
+export async function undoLandedCost(db: Firestore, input: LandedCostUndoInput): Promise<LandedCostUndoResult> {
   await stockMovesReady(db);
-  return db.runTransaction(async t => {
+  return db.runTransaction(t => undoLandedCostInTransaction(db, t, input));
+}
+
+/** The write, inside a transaction the caller owns. */
+export async function undoLandedCostInTransaction(db: Firestore, t: DbTransaction, input: LandedCostUndoInput): Promise<LandedCostUndoResult> {
+  const { workspaceId, user, entryId } = input;
+  {
     const ref = db.collection('transactions').doc(entryId);
     const undoRef = db.collection('transactions').doc(landedCostUndoId(entryId));
     const [snap, undoSnap] = await t.getAll(ref, undoRef);
@@ -464,5 +476,5 @@ export async function undoLandedCost(db: Firestore, input: { workspaceId: string
       details: { description: `Landed cost ${entryId} undone (${undoRef.id})`, date, movedToOpenDay: Boolean(lock) },
     }, { db, tx: t });
     return { entryId, undoEntryId: undoRef.id, date, movedToOpenDay: Boolean(lock), replayed: false };
-  });
+  }
 }

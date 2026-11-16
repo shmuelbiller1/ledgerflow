@@ -10,7 +10,7 @@
  * moves and entries can't change while it stays locked, so taking it right after the close is the same figures.
  */
 import type { ChartAccount, Transaction } from '../../types';
-import type { Firestore } from '../db/firestore';
+import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import type { StockMove } from '../../lib/stockMoves';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { buildStockClosing, checkStockAgainstBooks, closingFreshness, inventoryEntriesChecksum, negativeStockDays, type StockClosing } from '../../lib/stockInvariants';
@@ -50,10 +50,21 @@ export async function inventoryBalanceAsOf(db: Firestore, workspaceId: string, d
 const entriesThrough = async (db: Firestore, workspaceId: string, asOf: string) =>
   (await db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '<=', `${asOf}T23:59:59.999Z`).get()).docs.map(d => ({ ...d.data(), id: d.id }) as Transaction);
 
-/** Takes (or takes again) the stock closing at `asOf` (default: the lock date), which must be locked. */
-export async function writeStockClosing(db: Firestore, input: { workspaceId: string; asOf?: string; uid: string }): Promise<StockClosing> {
+export interface StockClosingInput { workspaceId: string; asOf?: string; uid: string }
+
+export async function writeStockClosing(db: Firestore, input: StockClosingInput): Promise<StockClosing> {
+  await prepareStockClosing(db);
+  return db.runTransaction(t => writeStockClosingInTransaction(db, t, input));
+}
+
+/** The setup check ahead of the write (read-only). */
+export async function prepareStockClosing(db: Firestore): Promise<void> {
   if (!(await stockClosingsReady(db))) throw new StockClosingError(503, 'Stock closings are not set up in this database yet (apply supabase/migrations/20261025000000_stock_closings.sql).');
-  return db.runTransaction(async t => {
+}
+
+/** Takes (or takes again) the stock closing at `asOf` (default: the lock date), which must be locked. */
+export async function writeStockClosingInTransaction(db: Firestore, t: DbTransaction, input: StockClosingInput): Promise<StockClosing> {
+  {
     // everything is built inside the callback: a retried attempt starts afresh
     const ws = (await t.get(db.collection('workspaces').doc(input.workspaceId))).data() || {};
     const lockDate = typeof ws.lockDate === 'string' ? ws.lockDate : '';
@@ -81,7 +92,7 @@ export async function writeStockClosing(db: Firestore, input: { workspaceId: str
     const closing = buildStockClosing({ workspaceId: input.workspaceId, asOf, moves, inventoryBalanceCents, booksChecksum, items, builtBy: input.uid, at: new Date().toISOString() });
     t.set(db.collection('stockClosings').doc(stockClosingId(input.workspaceId, asOf)), { ...closing });
     return closing;
-  });
+  }
 }
 
 export interface StockCheckReport {

@@ -7,10 +7,9 @@
  */
 import express from 'express';
 import { z } from 'zod';
-import { errorMessage, requestUser } from '../auth/requestUser';
 import { getDb } from '../db/firestore';
 import { requireWorkspaceRole } from './workspaceRoutes';
-import { LandedCostError, postLandedCost, undoLandedCost } from '../services/landedCostService';
+import { inventoryLandedCostCommand, inventoryLandedCostInput, inventoryLandedCostUndoCommand, inventoryLandedCostUndoInput } from '../commands/inventory';
 
 export const landedCostRouter = express.Router();
 
@@ -36,31 +35,39 @@ export const LandedCostSchema = z.object({
   dryRun: z.boolean().optional(),
 });
 
-const fail = (res: express.Response, e: unknown) => {
-  if (e instanceof LandedCostError) return res.status(e.status).json({ error: e.message, ...(e.plan ? { plan: e.plan } : {}) });
-  res.status(/Unauthorized|not a member|FORBIDDEN/i.test(errorMessage(e)) ? 403 : 400).json({ error: errorMessage(e) });
-};
-
-landedCostRouter.post('/', requireWorkspaceRole(['owner', 'accountant']), async (req, res) => {
-  try {
-    const parsed = LandedCostSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Check the fields', details: parsed.error.issues });
-    const user = requestUser(req);
-    const result = await postLandedCost(getDb(), { ...parsed.data, user: { uid: user.uid, email: user.email, admin: user.admin } });
-    res.json({ status: 'ok', ...result });
-  } catch (e) {
-    fail(res, e);
-  }
+landedCostRouter.post('/', async (req, res) => {
+  const parsed = inventoryLandedCostInput.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Check the fields', details: parsed.error.issues });
+  // Import lazily to avoid the executor's existing workspaceRoutes role-helper cycle during router setup.
+  const { executeCommand, withLegacyInputIdempotencyHash } = await import('../utils/commandExecutor');
+  await executeCommand(req, res, {
+    definition: withLegacyInputIdempotencyHash(inventoryLandedCostCommand),
+    workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+    input: parsed.data,
+    formatResponse: outcome => (outcome.ok
+      ? { status: 200, body: { status: 'ok', ...(outcome.data as Record<string, unknown>) } }
+      : {
+        status: outcome.status,
+        body: { error: outcome.message, ...((outcome.error as { plan?: unknown } | undefined)?.plan ? { plan: (outcome.error as { plan?: unknown }).plan } : {}) },
+      }),
+  });
 });
 
-landedCostRouter.post('/:entryId/undo', requireWorkspaceRole(['owner', 'accountant']), async (req, res) => {
-  try {
-    const workspaceId = String(req.body?.workspaceId || '');
-    if (!workspaceId) return res.status(400).json({ error: 'Workspace ID required' });
-    const user = requestUser(req);
-    const result = await undoLandedCost(getDb(), { workspaceId, user: { uid: user.uid, email: user.email, admin: user.admin }, entryId: String(req.params.entryId) });
-    res.json({ status: 'ok', ...result });
-  } catch (e) {
-    fail(res, e);
-  }
+landedCostRouter.post('/:entryId/undo', async (req, res) => {
+  const workspaceId = String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || '');
+  if (!workspaceId) return res.status(400).json({ error: 'Workspace ID required' });
+  const parsed = inventoryLandedCostUndoInput.safeParse({ entryId: String((req.params as Record<string, string>).entryId || '') });
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Check the fields' });
+  const { executeCommand, withLegacyInputIdempotencyHash } = await import('../utils/commandExecutor');
+  await executeCommand(req, res, {
+    definition: withLegacyInputIdempotencyHash(inventoryLandedCostUndoCommand),
+    workspaceId,
+    input: parsed.data,
+    formatResponse: outcome => (outcome.ok
+      ? { status: 200, body: { status: 'ok', ...(outcome.data as Record<string, unknown>) } }
+      : {
+        status: outcome.status,
+        body: { error: outcome.message, ...((outcome.error as { plan?: unknown } | undefined)?.plan ? { plan: (outcome.error as { plan?: unknown }).plan } : {}) },
+      }),
+  });
 });

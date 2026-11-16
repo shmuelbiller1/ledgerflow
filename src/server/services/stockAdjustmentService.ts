@@ -1,7 +1,7 @@
 import { ledgerWrite } from './ledgerDoor';
 import Decimal from 'decimal.js';
 import { FieldValue } from '../db/firestore';
-import type { Firestore } from '../db/firestore';
+import type { Firestore, Transaction } from '../db/firestore';
 import { assertPeriodOpen, validateWorkspaceAccounts } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import type { ValidationContext } from '../../kernel/validation/TransactionValidator';
@@ -58,18 +58,41 @@ export interface StockAdjustmentResult {
 
 const KIND_LABEL = { purchase: 'Stock purchase', opening: 'Opening stock', adjustment: 'Stock adjustment', count: 'Stock count' } as const;
 
-export async function adjustStock(db: Firestore, input: StockAdjustmentInput): Promise<StockAdjustmentResult> {
-  const { workspaceId, date, kind } = input;
+export interface StockAdjustmentAccounts {
+  inventoryAcc: { id: string; name: string };
+  offsetAcc: { id: string; name: string };
+  currency: string;
+  /** W-02: whether the stock history is set up (a count at a location needs it). */
+  historyKept: boolean;
+}
+
+/** The checks and reads ahead of the write (read-only); the command runner and `adjustStock` share them. */
+export async function prepareAdjustStock(db: Firestore, input: StockAdjustmentInput): Promise<StockAdjustmentAccounts> {
+  const { workspaceId, date } = input;
   if (input.inventoryAccountId === input.offsetAccountId) throw new StockAdjustmentError(400, 'Choose an offset account other than the Inventory account');
   await assertPeriodOpen(db, workspaceId, date, input.user.uid);
   const accounts = await validateWorkspaceAccounts(db, workspaceId, [input.inventoryAccountId, input.offsetAccountId]);
   const inventoryAcc = accounts.get(input.inventoryAccountId);
   const offsetAcc = accounts.get(input.offsetAccountId);
   if (!inventoryAcc || !offsetAcc) throw new StockAdjustmentError(400, 'Choose accounts from this workspace');
-  const currency = String(input.wsData?.currency || 'USD');
-  const historyKept = await stockMovesReady(db);
+  return {
+    inventoryAcc: { id: inventoryAcc.id, name: inventoryAcc.name },
+    offsetAcc: { id: offsetAcc.id, name: offsetAcc.name },
+    currency: String(input.wsData?.currency || 'USD'),
+    historyKept: await stockMovesReady(db),
+  };
+}
 
-  return db.runTransaction(async t => {
+export async function adjustStock(db: Firestore, input: StockAdjustmentInput): Promise<StockAdjustmentResult> {
+  const prepared = await prepareAdjustStock(db, input);
+  return db.runTransaction(t => adjustStockInTransaction(db, t, input, prepared));
+}
+
+/** The write, inside a transaction the caller owns: quantities, the entry and the history together. */
+export async function adjustStockInTransaction(db: Firestore, t: Transaction, input: StockAdjustmentInput, prepared: StockAdjustmentAccounts): Promise<StockAdjustmentResult> {
+  const { workspaceId, date, kind } = input;
+  const { inventoryAcc, offsetAcc, currency, historyKept } = prepared;
+  {
     const refs = input.changes.map(c => db.collection('inventory').doc(c.itemId));
     const snaps = await Promise.all(refs.map(r => t.get(r)));
     // W-01: a count at one location is compared with what is there, not with the item's total
@@ -150,5 +173,5 @@ export async function adjustStock(db: Firestore, input: StockAdjustmentInput): P
       ...(typeof input.reason === 'string' && input.reason.trim() ? { purpose: input.reason.trim().slice(0, 200) } : {}),
     })));
     return { transactionId, valueCents, items: moves };
-  });
+  }
 }

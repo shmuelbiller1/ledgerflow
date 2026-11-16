@@ -8,7 +8,7 @@ export const BILL_COMMAND_MANIFEST = [
   {
     "name": "bill.create",
     "area": "bill",
-    "roles": COMMAND_SCHEMA_PARTS.part39,
+    "roles": COMMAND_SCHEMA_PARTS.part42,
     "risk": "normal",
     "description": {
       "sentence": "Create a bill and let the server build its ledger entries from the saved document; do not use this command to record a payment or edit an existing bill.",
@@ -32,8 +32,8 @@ export const BILL_COMMAND_MANIFEST = [
           ]
         }
       },
-      "next": COMMAND_SCHEMA_PARTS.part66,
-      "refusals": COMMAND_SCHEMA_PARTS.part142
+      "next": COMMAND_SCHEMA_PARTS.part71,
+      "refusals": COMMAND_SCHEMA_PARTS.part155
     },
     "runPath": "/api/v1/commands/bill.create",
     "previewPath": "/api/v1/commands/bill.create/preview",
@@ -42,12 +42,12 @@ export const BILL_COMMAND_MANIFEST = [
   {
     "name": "bill.delete",
     "area": "bill",
-    "roles": COMMAND_SCHEMA_PARTS.part39,
+    "roles": COMMAND_SCHEMA_PARTS.part42,
     "risk": "normal",
     "description": {
       "sentence": "Delete a bill and let the server reverse its live ledger entries; do not use this command to void or write off a document.",
-      "example": COMMAND_SCHEMA_PARTS.part14,
-      "refusals": COMMAND_SCHEMA_PARTS.part142
+      "example": COMMAND_SCHEMA_PARTS.part15,
+      "refusals": COMMAND_SCHEMA_PARTS.part155
     },
     "runPath": "/api/v1/commands/bill.delete",
     "previewPath": "/api/v1/commands/bill.delete/preview",
@@ -56,13 +56,13 @@ export const BILL_COMMAND_MANIFEST = [
   {
     "name": "bill.update",
     "area": "bill",
-    "roles": COMMAND_SCHEMA_PARTS.part39,
+    "roles": COMMAND_SCHEMA_PARTS.part42,
     "risk": "normal",
     "description": {
       "sentence": "Update an existing bill and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
-      "example": COMMAND_SCHEMA_PARTS.part53,
-      "next": COMMAND_SCHEMA_PARTS.part66,
-      "refusals": COMMAND_SCHEMA_PARTS.part142
+      "example": COMMAND_SCHEMA_PARTS.part56,
+      "next": COMMAND_SCHEMA_PARTS.part71,
+      "refusals": COMMAND_SCHEMA_PARTS.part155
     },
     "runPath": "/api/v1/commands/bill.update",
     "previewPath": "/api/v1/commands/bill.update/preview",

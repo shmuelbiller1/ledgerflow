@@ -19,7 +19,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "minimum": 1,
       "maximum": 10
     },
-    "type": COMMAND_SCHEMA_PARTS.part92
+    "type": COMMAND_SCHEMA_PARTS.part97
   },
   "required": [
     "prefix",
