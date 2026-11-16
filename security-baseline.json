@@ -1,0 +1,471 @@
+{
+  "publicRoutes": [
+    "GET /api/health",
+    "GET /api/v1/openapi.json",
+    "GET /api/v1/public/registration-status",
+    "GET /api/v1/public/status",
+    "POST /api/csp-report"
+  ],
+  "selfRoutes": [
+    "DELETE /api/v1/auth/delete-account",
+    "GET /api/v1/account/groups",
+    "GET /api/v1/account/my-data",
+    "GET /api/v1/account/notification-email",
+    "GET /api/v1/account/practice",
+    "GET /api/v1/account/recovery-codes",
+    "GET /api/v1/account/two-step",
+    "GET /api/v1/auth/login-audits",
+    "GET /api/v1/commands/",
+    "GET /api/v1/fx/rate",
+    "GET /api/v1/user/ai-key-status",
+    "GET /api/v1/workspaces",
+    "GET /api/v1/workspaces/",
+    "POST /api/v1/auth/revoke-sessions",
+    "POST /api/v1/math/kpi",
+    "POST /api/v1/math/valuation"
+  ],
+  "viewerWriteRoutes": [],
+  "serverErrors": {
+    "GET /api/activity-feed": "stranger: 500 {\"status\":\"error\",\"message\":\"Failed to fetch activity feed\",\"details\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/reports/balance-sheet": "stranger: 500 {\"status\":\"error\",\"message\":\"Internal Reporting Error\",\"details\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/reports/budget-vs-actual": "stranger: 500 {\"status\":\"error\",\"message\":\"Failed to generate budget vs actual report\",\"details\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/reports/cash-flow": "stranger: 500 {\"status\":\"error\",\"message\":\"Failed to generate cash flow statement\",\"details\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/reports/general-ledger": "stranger: 500 {\"status\":\"error\",\"message\":\"Failed to generate General Ledger report\",\"details\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/reports/trial-balance": "stranger: 500 {\"status\":\"error\",\"message\":\"Trial Balance Failure\",\"details\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/v1/audit/jobs/:job_id": "stranger: 500 {\"status\":\"error\",\"message\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/v1/fx/rate": "viewer: 503 {\"error\":\"The exchange rate USD → EUR is not available right now\"}",
+    "GET /api/v1/fx/rates/:base": "viewer: 503 {\"error\":\"Invalid currency code for base\"}",
+    "GET /api/v1/ledger": "stranger: 500 {\"status\":\"error\",\"message\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/v1/logs": "stranger: 500 {\"status\":\"error\",\"message\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/v1/metrics": "stranger: 500 {\"status\":\"error\",\"message\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/v1/metrics/summary": "stranger: 500 {\"status\":\"error\",\"message\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/v1/reports/balance-sheet": "stranger: 500 {\"status\":\"error\",\"message\":\"Internal Reporting Error\",\"details\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/v1/reports/budget-vs-actual": "stranger: 500 {\"status\":\"error\",\"message\":\"Failed to generate budget vs actual report\",\"details\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/v1/reports/cash-flow": "stranger: 500 {\"status\":\"error\",\"message\":\"Failed to generate cash flow statement\",\"details\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/v1/reports/general-ledger": "stranger: 500 {\"status\":\"error\",\"message\":\"Failed to generate General Ledger report\",\"details\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/v1/reports/trial-balance": "stranger: 500 {\"status\":\"error\",\"message\":\"Trial Balance Failure\",\"details\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/v1/status": "stranger: 500 {\"status\":\"error\",\"message\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "GET /api/v1/workspaces/:workspaceId/roles": "stranger: 500 {\"status\":\"error\",\"message\":\"Failed to fetch roles\",\"details\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "POST /api/ai/process": "viewer: 503 {\"status\":\"error\",\"message\":\"AI service is currently unavailable. Gemini API key is missing.\"}",
+    "POST /api/v1/ai/process": "viewer: 503 {\"status\":\"error\",\"message\":\"AI service is currently unavailable. Gemini API key is missing.\"}",
+    "POST /api/v1/audit/deep": "viewer: 500 {\"status\":\"error\",\"message\":\"FORBIDDEN: your role in this workspace is read-only.\"}",
+    "POST /api/v1/brain/analyze": "viewer: 500 {\"status\":\"error\",\"message\":\"FORBIDDEN: your role in this workspace is read-only.\"}",
+    "POST /api/v1/brain/classify": "viewer: 500 {\"status\":\"error\",\"message\":\"FORBIDDEN: your role in this workspace is read-only.\"}",
+    "POST /api/v1/forensics/anomaly-scan": "viewer: 500 {\"status\":\"error\",\"message\":\"Failed to run anomaly scan\",\"details\":\"FORBIDDEN: your role in this workspace is read-only.\"}",
+    "POST /api/v1/ledger": "stranger: 500 {\"status\":\"error\",\"message\":\"Unauthorized: You are not a member of this workspace.\"}",
+    "POST /api/v1/ledger/match": "viewer: 500 {\"status\":\"error\",\"message\":\"FORBIDDEN: your role in this workspace is read-only.\"}"
+  },
+  "tables": {
+    "admins": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "allocationOperations": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "apiKeys": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "assets": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "auditLogs": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "ri"
+    },
+    "autoRules": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "bankLines": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "banks": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "billingLedgerTraces": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "bills": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "budgets": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "chartAccounts": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "r"
+    },
+    "clientQueries": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "creditNotes": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "customTemplates": {
+      "anon": "",
+      "stranger": "i",
+      "viewer": "i",
+      "bookkeeper": "i"
+    },
+    "customers": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "deepAuditJobs": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "dimensionNodes": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "documents": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "ri",
+      "bookkeeper": "ri"
+    },
+    "emailEvents": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "employees": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "errorLogs": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "r"
+    },
+    "estimates": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "external_api_cache": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "fixedAssets": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "idempotencyKeys": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "inventory": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "invites": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "invoices": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "jobRuns": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "journalEntries": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "learnedDeltas": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "r"
+    },
+    "loans": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "loginAudits": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "members": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "notifications": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "numberingSeries": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "partners": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "payRuns": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "paymentAllocations": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "payments": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "periodBalances": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "periodClosings": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "periods": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "r"
+    },
+    "presence": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "projects": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "purchaseOrders": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "rateLimitEntries": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "reconciliations": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "recoveryCodes": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "recurring": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "repostQueue": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "rulePatterns": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "scenarios": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "stockClosings": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "stockMoves": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "stripeProcessedEvents": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "supportMessages": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "r"
+    },
+    "supportTickets": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "ru",
+      "bookkeeper": "ru"
+    },
+    "taxRates": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "taxReturns": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "transactions": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "users": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "vendorCredits": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "vendors": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "r",
+      "bookkeeper": "riud"
+    },
+    "workspaceGroups": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "workspaceShards": {
+      "anon": "",
+      "stranger": "",
+      "viewer": "",
+      "bookkeeper": ""
+    },
+    "workspaces": {
+      "anon": "",
+      "stranger": "i",
+      "viewer": "ri",
+      "bookkeeper": "ri"
+    }
+  },
+  "otherTables": {
+    "lf_rules": "no browser grants; row security on"
+  }
+}

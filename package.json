@@ -22,6 +22,8 @@
     "test": "NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic tsx --test --test-force-exit src/tests/*.test.ts src/tests/*.test.tsx src/lib/*.test.ts src/server/utils/*.test.ts",
     "test:bundle": "LF_REQUIRE_BUILT_DIST=1 NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic tsx --test src/tests/server-bundle-boundary.test.ts src/tests/pwa-bundle-optimization.test.ts src/tests/stage6-footprint-optimization.test.ts",
     "test:rules": "tsx scripts/db-test.ts rls",
+    "test:security": "NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic tsx --test --test-force-exit src/tests/security-sweep.test.ts",
+    "security:baseline": "LF_SECURITY_WRITE_BASELINE=1 npm run test:security",
     "test:e2e": "playwright test",
     "verify": "npm ci --dry-run --ignore-scripts && npm run lint && npm test && npm run test:rules && npm audit --audit-level=high && npm run test:e2e",
     "preview": "vite preview",

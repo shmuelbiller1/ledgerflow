@@ -13,7 +13,16 @@ test('Bank: no visible English outside bankText (text, markup strings, label/tit
 
 test('Bank: every bankText key has its English fallback and Hebrew in the table', () => {
   assert.deepEqual(report.badKeys, []);
-  assert.equal(report.calls, 23, 'counted from the syntax tree, so a fallback with an apostrophe is not skipped');
+  assert.equal(report.calls, 28, 'counted from the syntax tree, so a fallback with an apostrophe is not skipped');
   assert.equal(translateScreenString('banking', 'error.loadTitle', 'he', ''), 'לא הצלחנו לטעון את חשבונות הבנק');
   assert.equal(translateScreenString('banking', 'action.syncFeed', 'en', 'Sync Feed'), 'Sync Feed');
 });
+
+for (const dialog of ['TransferModal', 'MakeDepositDialog', 'CashMovementDialog', 'ConnectedBanks']) {
+  test(`Bank ${dialog}: no visible English outside bankText, and every key has Hebrew`, () => {
+    const r = checkTranslatedScreen(fileURLToPath(new URL(`../components/banking/${dialog}.tsx`, import.meta.url)), 'banking', 'bankText');
+    assert.deepEqual(r.untranslated, []);
+    assert.deepEqual(r.badKeys, []);
+    assert.ok(r.calls > 0);
+  });
+}
