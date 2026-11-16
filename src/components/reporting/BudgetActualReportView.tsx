@@ -77,7 +77,7 @@ export default function BudgetActualReportView({ selectedYear = new Date().getFu
     </div>
     {!current && !activeServer && <p role="status">{guest ? reportText('r.guest-sample-figures-use-the-loaded-demonstratio', 'Guest sample: figures use the loaded demonstration records.') : reportText('r.provisional-loaded-records-may-be-incomplete-loa', 'Provisional: loaded records may be incomplete. Load full history before relying on these figures.')}</p>}
     {error?.key === key && <p role="alert">{error.message}</p>}
-    {!budget ? <p>No saved account budgets. Define an account target in Planning → Budgets.</p> : !report ? <p>Choose a budget with one unambiguous chart account.</p> : <div className="overflow-x-auto" role="region" aria-label={reportText('r.budget-vs-actual-figures', 'Budget vs actual figures')} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<RowTable
+    {!budget ? <p>{reportText('r.no-saved-account-budgets-define-an-account-targe', 'No saved account budgets. Define an account target in Planning → Budgets.')}</p> : !report ? <p>{reportText('r.choose-a-budget-with-one-unambiguous-chart-accou', 'Choose a budget with one unambiguous chart account.')}</p> : <div className="overflow-x-auto" role="region" aria-label={reportText('r.budget-vs-actual-figures', 'Budget vs actual figures')} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<RowTable
       caption={(<>{report.account.code} · {report.account.name}</>)}
       rows={report.columns}
       rowKey={column => column.period.id}
