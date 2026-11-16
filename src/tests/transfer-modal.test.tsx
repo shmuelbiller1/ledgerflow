@@ -41,7 +41,7 @@ describe('Transfer between your own accounts', () => {
     render(<TransferModal isOpen onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText('From Account (Source)'), { target: { value: 'checking' } });
     fireEvent.change(screen.getByLabelText('To Account (Destination)'), { target: { value: 'savings' } });
-    fireEvent.change(screen.getByLabelText('Amount ($)'), { target: { value: '125.50' } });
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '125.50' } });
     fireEvent.change(screen.getByLabelText('Transfer Date'), { target: { value: '2026-10-03' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Post Transfer/ })); });
     await waitFor(() => assert.ok(calls.some(c => c.url === '/api/v1/transactions' && c.method === 'POST')));
