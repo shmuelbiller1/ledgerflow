@@ -1,5 +1,5 @@
 {
-  "writeRoutes": 182,
+  "writeRoutes": 181,
   "directBrowserWrites": 106,
   "routeSites": {
     "src/server/routes/accountMergeRoutes.ts": 2,
@@ -35,7 +35,6 @@
     "src/server/routes/logsUploadRoutes.ts": 1,
     "src/server/routes/mathRoutes.ts": 7,
     "src/server/routes/metricsAuditRoutes.ts": 1,
-    "src/server/routes/numberingRoutes.ts": 1,
     "src/server/routes/openItemImportRoutes.ts": 1,
     "src/server/routes/paymentRoutes.ts": 8,
     "src/server/routes/payrollImportRoutes.ts": 1,

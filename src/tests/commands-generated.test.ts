@@ -22,6 +22,7 @@ test('generated SDK inputs follow command schemas while remaining browser-safe',
   };
   const autoRuleCreate: CommandInput<'autorule.create'> = { rule: { condition: { descriptionContains: 'Shell' }, action: { targetAccountId: 'expense' } } };
   const autoRuleGroup: CommandInput<'autorule.group'> = { groupName: 'General', groupIsActive: false };
+  const numberingUpdate: CommandInput<'numbering.update'> = { type: 'invoice', prefix: 'INV-2027-', nextNumber: 1, padding: 4 };
   const invoiceInput: CommandInput<'invoice.create'> = { invoice: { status: 'sent' } };
   const billInput: CommandInput<'bill.create'> = { bill: { vendorId: 'vendor-1', amountCents: 1200, dueDate: '2026-12-15', status: 'pending' } };
   const invoiceUpdate: CommandInput<'invoice.update'> = { id: 'invoice-1', data: { status: 'sent' } };
@@ -41,6 +42,7 @@ test('generated SDK inputs follow command schemas while remaining browser-safe',
   assert.equal(warrantyUpdate.candidate.serial, 'SN-100');
   assert.equal(autoRuleCreate.rule.action.targetAccountId, 'expense');
   assert.equal(autoRuleGroup.groupIsActive, false);
+  assert.equal(numberingUpdate.type, 'invoice');
   assert.equal(invoiceInput.invoice.status, 'sent');
   assert.equal(billInput.bill.dueDate, '2026-12-15');
   assert.equal(invoiceUpdate.data.status, 'sent');

@@ -64,14 +64,14 @@ export const COMMAND_INPUT_SCHEMA = {
             "properties": {
               "accountId": COMMAND_SCHEMA_PARTS.part22,
               "accountName": COMMAND_SCHEMA_PARTS.part10,
-              "amountCents": COMMAND_SCHEMA_PARTS.part74,
-              "baseAmountCents": COMMAND_SCHEMA_PARTS.part74,
+              "amountCents": COMMAND_SCHEMA_PARTS.part75,
+              "baseAmountCents": COMMAND_SCHEMA_PARTS.part75,
               "exchangeRate": COMMAND_SCHEMA_PARTS.part58,
               "description": COMMAND_SCHEMA_PARTS.part32,
               "class": COMMAND_SCHEMA_PARTS.part10,
               "location": COMMAND_SCHEMA_PARTS.part10,
               "project": COMMAND_SCHEMA_PARTS.part10,
-              "dimensions": COMMAND_SCHEMA_PARTS.part76,
+              "dimensions": COMMAND_SCHEMA_PARTS.part77,
               "tags": COMMAND_SCHEMA_PARTS.part43,
               "splitAllocations": {
                 "type": "array",
@@ -93,8 +93,8 @@ export const COMMAND_INPUT_SCHEMA = {
               "taxRate": COMMAND_SCHEMA_PARTS.part45,
               "taxAmountCents": COMMAND_SCHEMA_PARTS.part64,
               "taxCodeId": COMMAND_SCHEMA_PARTS.part30,
-              "taxTreatment": COMMAND_SCHEMA_PARTS.part83,
-              "taxBreakdown": COMMAND_SCHEMA_PARTS.part120,
+              "taxTreatment": COMMAND_SCHEMA_PARTS.part84,
+              "taxBreakdown": COMMAND_SCHEMA_PARTS.part122,
               "quantity": COMMAND_SCHEMA_PARTS.part41,
               "unitPriceCents": COMMAND_SCHEMA_PARTS.part64
             },
@@ -117,7 +117,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "parentEventId": COMMAND_SCHEMA_PARTS.part10,
         "eventId": COMMAND_SCHEMA_PARTS.part10,
         "reversalEventId": COMMAND_SCHEMA_PARTS.part10,
-        "metadata": COMMAND_SCHEMA_PARTS.part76
+        "metadata": COMMAND_SCHEMA_PARTS.part77
       },
       "required": [
         "workspaceId",

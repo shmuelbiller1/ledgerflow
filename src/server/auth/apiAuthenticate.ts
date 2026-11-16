@@ -28,7 +28,7 @@ export function requiredApiKeyScope(method: string, path: string): string {
     // particular, transaction integrations must not gain permission to unlock or reopen books.
     if (/^period\.(close|closesteps|depreciation|relock|reopen|signoff|unlock)$/.test(name)) return 'write:workspaces';
     // Workspace/team features use the same scope as their legacy /workspaces routes.
-    if (/^(alerts|tasks|watches|entrylink|time|stages|workspace)\./.test(name)) return 'write:workspaces';
+    if (/^(alerts|tasks|watches|entrylink|time|stages|workspace|numbering)\./.test(name)) return 'write:workspaces';
     if (/^(customer|warranty)\./.test(name)) return 'write:customers';
     if (/^vendor\./.test(name)) return 'write:vendors';
     if (/^(journal|payment|invoice|bill|creditnote|vendorcredit)\./.test(name)) return 'write:transactions';

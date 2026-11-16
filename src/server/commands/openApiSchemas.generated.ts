@@ -20,6 +20,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "invoice.delete": "CommandInput_invoice_delete",
   "invoice.update": "CommandInput_invoice_update",
   "journal.create": "CommandInput_journal_create",
+  "numbering.update": "CommandInput_numbering_update",
   "payment.receive": "CommandInput_payment_receive",
   "period.balancesrebuild": "CommandInput_period_balancesrebuild",
   "period.close": "CommandInput_period_close",

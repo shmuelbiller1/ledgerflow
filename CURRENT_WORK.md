@@ -5,6 +5,8 @@ product is in [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md) (14 workflows: conn
 figures / browser-tested). Full task wording is in your queue in [`docs/COORDINATION.md`](docs/COORDINATION.md).
 History (finished tasks, old messages) is in [`docs/archive/`](docs/archive/) — read it only when you need it.
 
+> **CMD-1 status supersedes this 28 Oct snapshot.** Batch 0 (#719) and the period batch (#731) are now merged. For the current, `main`-reconciled CMD-1 counts, per-domain checklist, and acceptance order, use [`docs/prompts/CMD-1-checklist.md`](docs/prompts/CMD-1-checklist.md); do not use old CMD-1 branch/PR counts elsewhere in this file.
+
 ## Not done yet — the short list (updated every merge)
 
 Everything below is open. Finished items leave this list. Full wording is in COORDINATION (other AIs) and TRACKER (AI #1).

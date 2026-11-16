@@ -644,10 +644,11 @@ way, and keyboard movement between rows. All three are in this pull request; thr
 ## ~~15 Nov — migration from PR #719 (commands, Batch 0): wait for the deploy~~ **Done 15 Nov** — applied by the owner after #719 was live
 
 `supabase/migrations/20261115000000_document_commands_server_only.sql` stops the browser writing
-invoices, bills, credit notes, estimates and automation rules directly; they go through the server
-commands instead. **Run it only after #719 is merged and Vercel has finished deploying `main`** (check
-that saving an invoice works on the live site first). Run before that, and saving documents breaks.
-The plan for the whole commands and assistant work is at the top of `docs/TRACKER.md`.
+invoices, bills, credit notes, vendor credits, and automation rules directly; it also protects warranty
+history from browser changes. Those writes go through the server commands instead. **Run it only after
+#719 is merged and Vercel has finished deploying `main`** (check that saving an invoice works on the
+live site first). Run before that, and saving documents breaks. Estimates are not covered by this
+migration and remain in the CMD-1 write inventory. The current plan is [`docs/prompts/CMD-1-checklist.md`](prompts/CMD-1-checklist.md).
 
 ## 15 Nov — outside security scans (your OK given: "so add it")
 
