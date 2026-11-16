@@ -111,3 +111,29 @@ test('EU-E3: a parent change still queued when the workspace changes is refused,
   await assert.rejects(queued, /changed/);
   assert.deepEqual(written, ['w1'], 'nothing is written into the new workspace');
 });
+
+test('EU-E3: parent changes are refused while the label list is only partly loaded', async () => {
+  let written = 0;
+  const adapter = {
+    session: () => ({ workspaceId: 'w1', uid: 'u1', canWriteNodes: true }),
+    getNodes: () => nodes, setNodes: () => {},
+    updateNode: async () => { written++; },
+  } as unknown as DimensionNodeActionAdapter;
+  await assert.rejects(setDimensionNodeParentInline('property', 'R2', 'R1', undefined, adapter, () => true), /more label values than were loaded/);
+  assert.equal(written, 0);
+});
+
+test('EU-E3: roll-up of a large tree is quick (children indexed once)', () => {
+  const big: DimensionNode[] = [];
+  for (let r = 0; r < 30; r++) {
+    big.push(n(`R${r}`, `Region ${r}`));
+    for (let p = 0; p < 30; p++) {
+      big.push(n(`P${r}-${p}`, `Property ${r}-${p}`, `R${r}`));
+      for (let u = 0; u < 9; u++) big.push(n(`U${r}-${p}-${u}`, `Unit ${r}-${p}-${u}`, `P${r}-${p}`));
+    }
+  }
+  const start = performance.now();
+  const rows = rollUp(big, 'property', () => 1);
+  assert.equal(rows.find(x => x.id === 'R0')?.children, 300);
+  assert.ok(performance.now() - start < 1000, `took ${performance.now() - start} ms`);
+});

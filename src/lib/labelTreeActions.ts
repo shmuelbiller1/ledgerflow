@@ -2,6 +2,7 @@
 import type { DimensionNode } from '../types';
 import { assertSameSession, defaultDimensionNodeAdapter, type DimensionNodeActionAdapter } from './dimensionNodeActions';
 import { updateDimensionNodeDescription } from './dimensionUtils';
+import { useLedgerStore } from '../stores/useLedgerStore';
 import { parentProblem } from './labelTree';
 
 const norm = (value: string) => value.normalize('NFC').toLowerCase().trim();
@@ -20,7 +21,12 @@ export function setDimensionNodeParentInline(
   parentId: string | null,
   rename?: string,
   adapter: DimensionNodeActionAdapter = defaultDimensionNodeAdapter,
+  /** True when only part of the label list is loaded: a loop could hide in the missing part. */
+  partial: () => boolean = () => Boolean(useLedgerStore.getState().truncatedCollections.dimensionNodes),
 ): Promise<void> {
+  if (partial()) {
+    return Promise.reject(new Error('This workspace has more label values than were loaded, so parents can\'t be checked for loops. Parents can\'t be changed here yet.'));
+  }
   // the session is taken when the change is asked for: a change still queued when the workspace
   // or user changes is refused, never written into the new workspace
   const session = adapter.session();

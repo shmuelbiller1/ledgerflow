@@ -22,16 +22,30 @@ export function ancestors(nodes: readonly DimensionNode[], dimensionId: string, 
 
 /** Every value below this one, at any depth. */
 export function descendants(nodes: readonly DimensionNode[], dimensionId: string, nodeId: string): DimensionNode[] {
-  const own = inLabel(nodes, dimensionId);
+  return walkBelow(childIndex(nodes, dimensionId), nodeId);
+}
+
+/** Each parent id → its children in the label, built once (a lookup instead of a scan per value). */
+function childIndex(nodes: readonly DimensionNode[], dimensionId: string): Map<string, DimensionNode[]> {
+  const byParent = new Map<string, DimensionNode[]>();
+  for (const n of inLabel(nodes, dimensionId)) {
+    if (!n.parentId) continue;
+    const list = byParent.get(n.parentId);
+    if (list) list.push(n); else byParent.set(n.parentId, [n]);
+  }
+  return byParent;
+}
+
+function walkBelow(byParent: Map<string, DimensionNode[]>, nodeId: string): DimensionNode[] {
   const out: DimensionNode[] = [];
-  const queue = [nodeId];
-  const seen = new Set(queue);
-  while (queue.length) {
-    const id = queue.shift()!;
-    for (const child of own.filter(n => n.parentId === id && !seen.has(n.id))) {
+  const stack = [nodeId];
+  const seen = new Set(stack);
+  while (stack.length) {
+    for (const child of byParent.get(stack.pop()!) || []) {
+      if (seen.has(child.id)) continue;
       seen.add(child.id);
       out.push(child);
-      queue.push(child.id);
+      stack.push(child.id);
     }
   }
   return out;
@@ -54,11 +68,12 @@ export function treeOrder(nodes: readonly DimensionNode[], dimensionId: string):
   const ids = new Set(own.map(n => n.id));
   const out: Array<{ node: DimensionNode; depth: number }> = [];
   const placed = new Set<string>();
+  const byParent = childIndex(nodes, dimensionId);
   const visit = (node: DimensionNode, depth: number) => {
     if (placed.has(node.id)) return;
     placed.add(node.id);
     out.push({ node, depth });
-    for (const child of own.filter(n => n.parentId === node.id)) visit(child, depth + 1);
+    for (const child of byParent.get(node.id) || []) visit(child, depth + 1);
   };
   // a value whose parent is missing (or part of a loop) is shown at the top level, never dropped
   for (const n of own) if (!n.parentId || !ids.has(n.parentId)) visit(n, 0);
@@ -74,8 +89,10 @@ export interface RollUpRow { id: string; name: string; own: number; children: nu
  * counted once even when reached by two paths.
  */
 export function rollUp(nodes: readonly DimensionNode[], dimensionId: string, amountOf: (valueId: string) => number): RollUpRow[] {
+  const byParent = childIndex(nodes, dimensionId);
   return treeOrder(nodes, dimensionId)
-    .map(({ node }) => ({ node, below: descendants(nodes, dimensionId, node.id) }))
+    .filter(({ node }) => byParent.has(node.id))
+    .map(({ node }) => ({ node, below: walkBelow(byParent, node.id) }))
     .filter(({ below }) => below.length > 0)
     .map(({ node, below }) => {
       const own = amountOf(node.id);
