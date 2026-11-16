@@ -3,9 +3,9 @@ import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { getIdToken } from '../../firebase';
 import { describeChanges, mergeProblem } from '../../lib/accountMerge';
 import type { ChartAccount } from '../../types';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 /**
  * Merge this account into another (CA-33): pick the account to keep (same kind), see what moves
@@ -22,13 +22,7 @@ interface Props {
 interface Preview { into: string; changes: Record<string, number>; total: number }
 
 async function call(workspaceId: string, path: string, body: unknown) {
-  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/chart-accounts${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'The accounts were not merged');
+  const data = await runCommand<CommandBody>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/chart-accounts${path}`, method: 'POST', body: body }) ?? {};
   return data as Preview;
 }
 

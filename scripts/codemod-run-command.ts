@@ -252,6 +252,27 @@ export function rewrite(source: string, file: string): { source: string; changed
     changed++;
   }
 
+
+  // (d) a write: `method`, the two headers typed by hand, and the body serialised by hand. This is the
+  // most common remaining shape. The body expression is carried across untouched — it is the caller's.
+  while (true) {
+    const match = /const res = await fetch\((`[^`]*`|'[^']*'), \{\n[ \t]*method: '(POST|PUT|PATCH|DELETE)',\n[ \t]*headers: \{ 'Content-Type': 'application\/json', Authorization: `Bearer \$\{await getIdToken\(\)\}` \},\n[ \t]*body: JSON\.stringify\(([\s\S]*?)\),\n[ \t]*\}\);\n/.exec(next);
+    if (!match) break;
+    // a call that carries an AbortSignal is not this shape; leave it for a person
+    if (/\bsignal\b/.test(match[0])) break;
+    const after = next.slice(match.index + match[0].length);
+    const tail = /^[ \t]*const (\w+) = await res\.json\(\)\.catch\(\(\) => \(\{\}\)\);\n(?:[ \t]*if \(!res\.ok\) throw[^\n]*;\n)?/.exec(after);
+    if (!tail) break;
+    const [whole, pathArg, method, body] = match;
+    // a body that is never read afterwards needs no binding — and reading it was never the point of the call
+    const rest = next.slice(match.index + match[0].length + tail[0].length);
+    const usedLater = new RegExp(`\\b${tail[1]}\\b`).test(rest);
+    const call = `runCommand<CommandBody>({ path: ${pathArg}, method: '${method}', body: ${body.trim()} })`;
+    const replacement = usedLater ? `const ${tail[1]} = await ${call} ?? {};\n` : `await ${call};\n`;
+    next = next.slice(0, match.index) + replacement + next.slice(match.index + match[0].length + tail[0].length);
+    changed++;
+  }
+
   if (!changed) return { source, changed };
 
   // A site that still reads `res.ok` further down is not the shape these rules were written for (the

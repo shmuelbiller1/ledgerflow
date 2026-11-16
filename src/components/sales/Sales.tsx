@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 import { Customer, Invoice } from '../../types';
 import { Plus, AlertCircle, Activity, ShieldCheck, TrendingUp } from 'lucide-react';
 import { parseLocalDate, cn, formatCurrency, getLocalDateISO } from '../../lib/utils';
-import { getIdToken } from '../../firebase';
 import { isOpenInvoice } from '../../lib/txFilters';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { csvMoney } from '../../lib/csvExport';
@@ -54,6 +53,7 @@ import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { inBackground } from '../../lib/inBackground';
 import { buildCustomerColumns, buildInvoiceColumns } from './salesColumns';
+import { runCommand } from '../../lib/runCommand';
 
 /** Accounts receivable workspace screen for customer invoices, receipts, payments, and credit notes. */
 export default function Sales() {
@@ -213,13 +213,8 @@ export default function Sales() {
   const reverseWriteOff = useCallback(async (inv: Invoice) => {
     if (!currentWorkspaceId) return;
     try {
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}/invoices/${encodeURIComponent(inv.id)}/write-off/reverse`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await getIdToken()}` },
-        body: JSON.stringify({ reason: 'Customer paid after all' }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'The write-off could not be reversed');
+      // the write-off reversal answers with the invoice; the screen shows its own success line
+      await runCommand({ path: `/api/v1/workspaces/${encodeURIComponent(currentWorkspaceId)}/invoices/${encodeURIComponent(inv.id)}/write-off/reverse`, method: 'POST', body: { reason: 'Customer paid after all' } });
       toast.success(`Write-off reversed: ${formatCurrency(inv.writtenOffCents || 0)} is due again. Record the payment now.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'The write-off could not be reversed');
