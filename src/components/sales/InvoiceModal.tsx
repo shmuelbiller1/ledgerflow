@@ -252,7 +252,9 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
         taxCodeId: taxCode?.id,
         taxTreatment: taxCode?.treatment,
         taxBreakdown: totals.components,
-        taxRate: taxCode ? Math.round(effectiveRate(taxCode.components) * 100000) / 1000 : 0,
+        // stored the way customRateCode reads it back: a rate of 1% or less as its fraction, so 0.5%
+        // reopens as 0.5% and not 50%
+        taxRate: taxCode ? percentStored(Math.round(effectiveRate(taxCode.components) * 100000) / 1000) : 0,
         items: items.map(item => {
           const normalized = normalizeDimensionsMap(item.dimensions, useLedgerStore.getState().dimensionNodes || []);
           return normalized !== item.dimensions ? { ...item, dimensions: normalized } : item;

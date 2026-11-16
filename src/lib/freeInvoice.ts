@@ -5,6 +5,7 @@
  */
 import type { Invoice } from '../types';
 import { currencyDigits } from './currencyMinorUnits';
+import { roundTaxCents, type TaxRounding } from './taxCodes';
 
 export interface FreeInvoiceLine { description: string; quantity: number; rateCents: number }
 export interface FreeInvoice {
@@ -37,10 +38,11 @@ export function lineAmount(line: FreeInvoiceLine): number {
   return round((Number(line.quantity) || 0) * (Number(line.rateCents) || 0));
 }
 
-export function freeInvoiceTotals(inv: Pick<FreeInvoice, 'lines' | 'taxRate'>) {
+/** `rounding`: the receiving books' tax rounding, so the printed tax is the one the invoice form works out. */
+export function freeInvoiceTotals(inv: Pick<FreeInvoice, 'lines' | 'taxRate'>, rounding: TaxRounding = 'half_up') {
   const subtotal = inv.lines.reduce((s, l) => s + lineAmount(l), 0);
   const rate = cappedRate(inv.taxRate);
-  const tax = round(subtotal * rate / 100);
+  const tax = roundTaxCents(subtotal * rate / 100, rounding);
   return { subtotal, tax, total: subtotal + tax };
 }
 
@@ -69,9 +71,9 @@ export function freeInvoiceProblem(inv: FreeInvoice): string | null {
 }
 
 /** The invoice form's starting values in the sample company: a draft, never posted by itself. */
-export function toInvoiceDraft(inv: FreeInvoice): Partial<Invoice> {
+export function toInvoiceDraft(inv: FreeInvoice, rounding: TaxRounding = 'half_up'): Partial<Invoice> {
   const used = inv.lines.filter(l => l.description.trim());
-  const totals = freeInvoiceTotals({ lines: used, taxRate: inv.taxRate });
+  const totals = freeInvoiceTotals({ lines: used, taxRate: inv.taxRate }, rounding);
   return {
     customerName: inv.to.trim(),
     ...(inv.number.trim() ? { number: inv.number.trim() } : {}),
@@ -96,9 +98,9 @@ export function toInvoiceDraft(inv: FreeInvoice): Partial<Invoice> {
 }
 
 /** Put the draft where the sample company's Sales screen will pick it up once. */
-export function stashFreeInvoice(storage: Pick<Storage, 'setItem'>, inv: FreeInvoice, forUid?: string, forWorkspace?: string): boolean {
+export function stashFreeInvoice(storage: Pick<Storage, 'setItem'>, inv: FreeInvoice, forUid?: string, forWorkspace?: string, rounding: TaxRounding = 'half_up'): boolean {
   try {
-    const draft = toInvoiceDraft(inv);
+    const draft = toInvoiceDraft(inv, rounding);
     // signed in: the draft is for that person's own books, and only theirs
     // signed in: for that person's books, in the workspace they were in, and only there
     if (forUid) draft.metadata = { ...draft.metadata, forUid, ...(forWorkspace ? { forWorkspace } : {}) };

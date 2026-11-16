@@ -31,6 +31,8 @@ export default function FreeInvoiceMaker() {
   const [error, setError] = useState('');
   const uid = useAuthStore(st => st.user?.uid);
   const workspaceId = useAuthStore(st => st.currentWorkspaceId);
+  // signed in: tax is rounded the way their own books round it; the sample company rounds half up
+  const rounding = useAuthStore(st => (st.user ? st.getCurrentWorkspace()?.taxRounding : undefined)) || 'half_up';
 
   const parsed = lines.map(l => ({ description: l.description, quantity: Number(l.quantity), rateCents: parseRate(l.rate, currency) }));
   const badRate = parsed.findIndex(l => l.rateCents === null);
@@ -38,7 +40,7 @@ export default function FreeInvoiceMaker() {
     from, to, number, date, dueDate, currency, taxRate: Number(tax) || 0,
     lines: parsed.map(l => ({ ...l, rateCents: l.rateCents ?? 0 })),
   };
-  const totals = freeInvoiceTotals(invoice);
+  const totals = freeInvoiceTotals(invoice, rounding);
   const problem = badRate >= 0 ? `Line ${badRate + 1}: type the price as a number, for example 120.50.` : freeInvoiceProblem(invoice);
   const money = (cents: number) => formatCurrency(cents, currency);
   const setLine = (i: number, patch: Partial<LineDraft>) => setLines(ls => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
@@ -48,7 +50,7 @@ export default function FreeInvoiceMaker() {
     let carried: boolean;
     try {
       // signed in: it opens in their own books; otherwise in the sample company
-      carried = stashFreeInvoice(window.localStorage, invoice, uid, workspaceId || undefined);
+      carried = stashFreeInvoice(window.localStorage, invoice, uid, workspaceId || undefined, rounding);
       if (!uid) {
         window.localStorage.setItem('isGuest', 'true');
         window.localStorage.setItem('has_seen_onboarding', 'true');

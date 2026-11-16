@@ -87,3 +87,10 @@ test('EU-I3: quantities beyond 2 decimals are refused; a signed-in draft opens o
   assert.ok(readFreeInvoice(storage, { sample: true }));
   assert.equal(readFreeInvoice(storage, { sample: false, uid: 'u1', workspaceId: 'w1' }), null, 'an unclaimed draft never opens in real books');
 });
+
+test('EU-I3: tax is rounded the receiving books\' way', () => {
+  const inv = { lines: [{ description: 'x', quantity: 1, rateCents: 10_005 }], taxRate: 10 };
+  assert.equal(freeInvoiceTotals(inv).tax, 1001, 'half up: 1000.5 → 1001');
+  assert.equal(freeInvoiceTotals(inv, 'half_even').tax, 1000, 'half even: 1000.5 → 1000');
+  assert.equal(freeInvoiceTotals(inv, 'down').tax, 1000);
+});

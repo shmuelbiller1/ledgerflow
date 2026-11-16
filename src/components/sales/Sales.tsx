@@ -58,9 +58,12 @@ import { runCommand } from '../../lib/runCommand';
 
 /** EU-I3: the maker's "Bill to" becomes an existing customer of that name, or a new one the form creates on save. */
 function withCustomer(draft: Partial<Invoice>, customers: Customer[]): Partial<Invoice> {
-  const name = (draft.customerName || '').trim().toLowerCase();
-  const match = customers.find(c => (c.name || '').trim().toLowerCase() === name);
-  return { ...draft, customerId: match ? match.id : `new-${crypto.randomUUID()}`, ...(match ? { customerName: match.name } : {}) };
+  // the shared resolver: an exact name wins, a loose match counts only when it is the only one
+  const { party, ambiguous } = matchPartyByName(customers, (draft.customerName || '').trim());
+  if (party) return { ...draft, customerId: party.id, customerName: party.name };
+  // two customers fit the name: leave the choice to the person instead of guessing one
+  if (ambiguous) return { ...draft, customerId: undefined };
+  return { ...draft, customerId: `new-${crypto.randomUUID()}` };
 }
 
 /** Accounts receivable workspace screen for customer invoices, receipts, payments, and credit notes. */
