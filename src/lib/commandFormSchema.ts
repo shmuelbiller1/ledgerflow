@@ -134,6 +134,7 @@ export function formForCommand(command: string): CommandForm {
   const schema = entry.inputSchema;
   const properties = (schema.properties || {}) as Record<string, JsonSchema>;
   const rootRequired = new Set((schema.required as string[] | undefined) || []);
+  if (Object.keys(properties).length === 0) notes.push('This command takes no input fields.');
 
   for (const [name, field] of Object.entries(properties)) {
     const isRequired = rootRequired.has(name);
@@ -151,6 +152,8 @@ export function formForCommand(command: string): CommandForm {
         if (!built) {
           if (innerField.type === 'object' || innerField.type === 'array' || innerField.$ref) {
             notes.push(`"${name}.${innerName}" is a list or a nested record; it is edited on its own screen.`);
+          } else {
+            notes.push(`"${name}.${innerName}" is not a plain field, so the form leaves it out.`);
           }
           continue;
         }
