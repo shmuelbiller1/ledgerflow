@@ -1,6 +1,7 @@
 import { addDoc, collection, getDocs, query, where } from '../lib/db/firestore';
-import { db, getIdToken } from '../firebase';
+import { db } from '../firebase';
 import { getSupabase } from '../lib/db/client';
+import { runCommand } from '../lib/runCommand';
 import { type Attachment, type AttachmentCollection, type AttachmentTarget, MAX_FILES_AT_ONCE, attachmentProblem, attachmentRecord, attachmentsOf } from '../lib/attachments';
 
 /** The file as a data address ("data:application/pdf;base64,…"), the way the Vault keeps files. */
@@ -168,15 +169,10 @@ export async function loadAttachmentLinkIndex(
 
 /** Remove a file (through the server: it checks who may, and keeps an audit line). */
 export async function removeAttachment(workspaceId: string, attachmentId: string): Promise<void> {
-  const token = await getIdToken().catch(() => null);
-  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/attachments/${encodeURIComponent(attachmentId)}`, {
+  await runCommand({
+    path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/attachments/${encodeURIComponent(attachmentId)}`,
     method: 'DELETE',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.message || 'The file could not be removed');
-  }
 }
 
 /** One line saying what happened, for a toast. */

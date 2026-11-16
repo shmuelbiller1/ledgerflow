@@ -11,7 +11,7 @@
   "untestedViews": 0,
   "overlaysWithoutDialog": 0,
   "rawTables": 184,
-  "handTypedApiCalls": 64,
+  "handTypedApiCalls": 59,
   "directDbWrites": 93,
   "unreachableActions": 0,
   "screensWithManyPrimaryButtons": 0
