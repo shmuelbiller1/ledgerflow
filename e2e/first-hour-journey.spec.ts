@@ -105,9 +105,7 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
     await expect(addInvoice).toBeVisible();
     await addInvoice.focus();
     await page.keyboard.press('Enter');
-    const numbered = await numbering;
-    // name the reason if the server refused the number, instead of an unexplained status
-    expect(numbered.status(), `next-number said: ${(await numbered.text()).slice(0, 300)}`).toBe(200);
+    expect((await numbering).status()).toBe(200);
 
     const invoice = page.getByRole('dialog');
     await expect(invoice).toBeVisible();
@@ -141,7 +139,7 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
 
     await expect.poll(() => postings.length).toBeGreaterThanOrEqual(1);
     expect(postings[0].path).toBe('/api/v1/commands/invoice.create');
-    expect(postings[0].status).toBe(200);
+    expect(postings[0].status, `invoice.create said: ${JSON.stringify(postings[0].body).slice(0, 400)}`).toBe(200);
     await expect.poll(async () => (await server.all('invoices')).length).toBe(1);
     const savedInvoice = (await server.all('invoices'))[0];
     expect(savedInvoice.amountCents).toBe(90000);
@@ -169,7 +167,7 @@ test('a first-time user at 390px, keyboard only: customer → invoice → paymen
 
     await expect.poll(() => postings.length).toBe(2);
     expect(postings[1].path).toBe('/api/v1/payments');
-    expect(postings[1].status).toBe(200);
+    expect(postings[1].status, `payments said: ${JSON.stringify(postings[1].body).slice(0, 400)}`).toBe(200);
     await expect.poll(async () => (await server.all('invoices'))[0]?.status).toBe('paid');
 
     // ---- 4. Open the profit and loss --------------------------------------------------------------
