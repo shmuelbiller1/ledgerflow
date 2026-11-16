@@ -3,7 +3,7 @@
  * workspace. Only the server writes the setting (`modules` on the workspace), with an audit line.
  * Turning a module off hides its screens; it never deletes anything.
  */
-import type { Firestore } from '../db/firestore';
+import type { Firestore, Transaction } from '../db/firestore';
 import { workspaceRole } from '../../lib/periodLock';
 import { MODULES, modulesProblem, type Modules } from '../../lib/modules';
 import { writeServerAuditLog } from './auditLogService';
@@ -15,27 +15,62 @@ export class ModuleSettingError extends Error {
   }
 }
 
-export async function setModules(db: Firestore, input: { workspaceId: string; uid: string; email?: string; modules: Modules }) {
+export interface ModuleWriteResult {
+  workspaceId: string;
+  modules: Modules;
+  /** The effective prior values, including defaults for modules with no saved setting. */
+  previousModules: Modules;
+  changed: string[];
+}
+
+/** Apply a module change inside the command runner's transaction. */
+export async function setModulesInTransaction(
+  db: Firestore,
+  tx: Transaction,
+  input: { workspaceId: string; uid: string; modules: Modules },
+): Promise<ModuleWriteResult> {
   const problem = modulesProblem(input.modules);
   if (problem) throw new ModuleSettingError(400, problem);
-  return db.runTransaction(async t => {
-    const ref = db.collection('workspaces').doc(input.workspaceId);
-    const workspace = (await t.get(ref)).data();
-    if (!workspace) throw new ModuleSettingError(404, 'Workspace not found');
-    const role = workspaceRole(workspace, input.uid);
-    if (role !== 'owner' && role !== 'accountant') throw new ModuleSettingError(403, 'Only owners and accountants choose the modules');
-    const before = (workspace.modules || {}) as Modules;
-    const modules = { ...before, ...input.modules };
-    t.update(ref, { modules, updatedAt: new Date().toISOString() });
-    const changed = Object.entries(input.modules).filter(([id, on]) => (before[id] !== false) !== on)
-      .map(([id, on]) => `${MODULES.find(m => m.id === id)?.name || id} ${on ? 'on' : 'off'}`);
-    if (changed.length > 0) {
+  const ref = db.collection('workspaces').doc(input.workspaceId);
+  const workspace = (await tx.get(ref)).data();
+  if (!workspace) throw new ModuleSettingError(404, 'Workspace not found');
+  const role = workspaceRole(workspace, input.uid);
+  if (role !== 'owner' && role !== 'accountant') throw new ModuleSettingError(403, 'Only owners and accountants choose the modules');
+  const before = (workspace.modules || {}) as Modules;
+  const previousModules = Object.fromEntries(MODULES.map(module => [module.id, before[module.id] !== false]));
+  const modules = { ...before, ...input.modules };
+  tx.update(ref, { modules, updatedAt: new Date().toISOString() });
+  const changed = Object.entries(input.modules).filter(([id, on]) => (before[id] !== false) !== on)
+    .map(([id, on]) => `${MODULES.find(m => m.id === id)?.name || id} ${on ? 'on' : 'off'}`);
+  return { workspaceId: input.workspaceId, modules, previousModules, changed };
+}
+
+export function moduleAuditSummary(result: ModuleWriteResult) {
+  if (result.changed.length === 0) return null;
+  return {
+    action: 'MODULES_SET',
+    entityType: 'workspaces',
+    entityId: result.workspaceId,
+    description: `Modules: ${result.changed.join(', ')}`,
+  };
+}
+
+/** Service compatibility wrapper; command callers use setModulesInTransaction via the shared runner. */
+export async function setModules(db: Firestore, input: { workspaceId: string; uid: string; email?: string; modules: Modules }) {
+  return db.runTransaction(async tx => {
+    const result = await setModulesInTransaction(db, tx, input);
+    const summary = moduleAuditSummary(result);
+    if (summary) {
+      const { description, ...audit } = summary;
       await writeServerAuditLog({
-        workspaceId: input.workspaceId, uid: input.uid, email: input.email, action: 'MODULES_SET', entityType: 'workspaces', entityId: input.workspaceId,
-        details: { description: `Modules: ${changed.join(', ')}` },
-      }, { db, tx: t });
+        workspaceId: input.workspaceId,
+        uid: input.uid,
+        email: input.email,
+        ...audit,
+        details: { description },
+      }, { db, tx });
     }
-    return { modules };
+    return { modules: result.modules };
   });
 }
 

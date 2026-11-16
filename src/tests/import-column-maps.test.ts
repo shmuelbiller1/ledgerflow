@@ -42,11 +42,17 @@ describe('Saving a column layout', { skip: !url && 'LF_TEST_DATABASE_URL not set
   let server: Server;
   let base = '';
   let db: Firestore;
-  const save = async (uid: string, body: Record<string, unknown>) => {
+  const save = async (uid: string, body: Record<string, unknown>, operationId?: string) => {
     const res = await fetch(`${base}/api/v1/workspaces/${ws}/import-maps`, {
-      method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': uid }, body: JSON.stringify(body),
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-uid': uid,
+        ...(operationId ? { 'idempotency-key': operationId } : {}),
+      },
+      body: JSON.stringify(body),
     });
-    return res.status;
+    return { status: res.status, body: await res.json() as Record<string, unknown> };
   };
 
   before(async () => {
@@ -66,17 +72,40 @@ describe('Saving a column layout', { skip: !url && 'LF_TEST_DATABASE_URL not set
 
   after(async () => {
     server?.close();
+    await db.pool.query('delete from public."idempotencyKeys" where workspace_id = $1', [ws]);
+    await db.pool.query('delete from public."auditLogs" where workspace_id = $1', [ws]);
     await db.pool.query('delete from public.workspaces where id = $1', [ws]);
     await db.terminate();
   });
 
-  test('a bookkeeper saves a layout; a viewer cannot; bad layouts are refused', async () => {
+  test('a bookkeeper saves a layout with the legacy response; refusals and exact retries keep their contract', async () => {
     const body = { signature: headerSignature(header), ...mappingToSaved(mapping, header) };
-    assert.equal(await save('view-1', body), 403);
-    assert.equal(await save('book-1', { ...body, signature: 'x' }), 400);
-    assert.equal(await save('book-1', { ...body, columns: { ...body.columns, hack: 'x' } }), 400);
-    assert.equal(await save('book-1', body), 200);
+    const viewer = await save('view-1', body);
+    assert.equal(viewer.status, 403);
+    assert.equal(viewer.body.status, 'error');
+
+    const invalidSignature = await save('book-1', { ...body, signature: 'x' });
+    assert.equal(invalidSignature.status, 400);
+    assert.equal(invalidSignature.body.status, 'error');
+    assert.equal(invalidSignature.body.message, 'Invalid column layout');
+    const unexpectedColumn = await save('book-1', { ...body, columns: { ...body.columns, hack: 'x' } });
+    assert.equal(unexpectedColumn.status, 400);
+    assert.equal(unexpectedColumn.body.message, 'Invalid column layout');
+
+    const first = await save('book-1', body, 'import-map-retry-1');
+    assert.deepEqual(first, { status: 200, body: { status: 'success' } });
+    const retry = await save('book-1', body, 'import-map-retry-1');
+    assert.deepEqual(retry, first, 'a retried save retains the original response envelope');
+    const conflict = await save('book-1', { ...body, columns: { ...body.columns, date: 'Transaction Date' } }, 'import-map-retry-1');
+    assert.equal(conflict.status, 409, 'the same operation key cannot be reused for a different layout');
+    assert.equal(conflict.body.status, 'error');
+
     const maps = (await db.collection('workspaces').doc(ws).get()).data()?.importColumnMaps;
     assert.deepEqual(maps[body.signature].columns, body.columns);
+    const audit = await db.pool.query<{ count: number }>(
+      `select count(*)::int as count from public."auditLogs" where workspace_id = $1 and data->>'action' = 'IMPORT_MAP_SAVED' and data->'details'->>'signature' = $2`,
+      [ws, body.signature],
+    );
+    assert.equal(audit.rows[0]?.count, 1, 'an exact retry must not duplicate the audit record');
   });
 });

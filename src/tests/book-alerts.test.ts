@@ -91,9 +91,13 @@ describe('Book alerts (database)', { skip: !url && 'LF_TEST_DATABASE_URL not set
   let check: typeof import('../server/services/bookAlertService').checkBookAlerts;
   const kinds = async () => (await db.pool.query(
     `select data->>'kind' as kind, count(*)::int as n from public.notifications where workspace_id = $1 group by 1 order by 1`, [ws])).rows.map(r => `${r.kind}:${r.n}`);
-  const put = async (uid: string, body: unknown) => {
-    const res = await fetch(`${base}/api/v1/workspaces/${ws}/alerts`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-test-uid': uid }, body: JSON.stringify(body) });
-    return { status: res.status, body: await res.json() as { message?: string } };
+  const put = async (uid: string, body: unknown, operationId?: string) => {
+    const res = await fetch(`${base}/api/v1/workspaces/${ws}/alerts`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'x-test-uid': uid, ...(operationId ? { 'idempotency-key': operationId } : {}) },
+      body: JSON.stringify(body),
+    });
+    return { status: res.status, body: await res.json() as { status?: string; message?: string; alerts?: Record<string, unknown> } };
   };
   const spend = (name: string, date: string, cents: number) => db.collection('transactions').doc(id(name)).set({
     workspaceId: ws, uid: 'owner-1', date, description: name, status: 'posted', currency: 'USD', totalAmountCents: cents,
@@ -127,12 +131,28 @@ describe('Book alerts (database)', { skip: !url && 'LF_TEST_DATABASE_URL not set
     await db.terminate();
   });
 
-  test('only owners and accountants change the alerts; a bad amount is refused', async () => {
+  test('only owners and accountants change alerts; refusals, saved response and idempotent retry stay stable', async () => {
     assert.equal((await put('book-1', { cashLowCents: 90000 })).status, 403);
     const bad = await put('acct-1', { cashLowCents: -5 });
     assert.equal(bad.status, 400);
-    assert.equal((await put('acct-1', { cashLowCents: 80000, closeReminderDay: 5, budgetAlerts: true })).status, 200);
-    assert.deepEqual((await db.collection('workspaces').doc(ws).get()).data()?.alerts, { cashLowCents: 80000, closeReminderDay: 5, budgetAlerts: true });
+    assert.equal(bad.body.message, 'The cash amount must be a positive amount');
+
+    const settings = { cashLowCents: 80000, closeReminderDay: 5, budgetAlerts: true };
+    const operationId = `${ws}-save-alerts`;
+    const saved = await put('acct-1', settings, operationId);
+    assert.equal(saved.status, 200);
+    assert.deepEqual(saved.body, { status: 'success', alerts: settings });
+    assert.deepEqual((await db.collection('workspaces').doc(ws).get()).data()?.alerts, settings);
+
+    const replay = await put('acct-1', settings, operationId);
+    assert.equal(replay.status, 200);
+    assert.deepEqual(replay.body, { status: 'success', alerts: settings });
+    const changedRetry = await put('acct-1', { ...settings, budgetAlerts: false }, operationId);
+    assert.equal(changedRetry.status, 409);
+    assert.deepEqual((await db.collection('workspaces').doc(ws).get()).data()?.alerts, settings, 'a reused id cannot change settings');
+    const auditRows = await db.pool.query(
+      `select count(*)::int as n from public."auditLogs" where workspace_id = $1 and data->>'action' = 'ALERTS_SAVED'`, [ws]);
+    assert.equal(auditRows.rows[0].n, 1, 'the replay does not duplicate the audit entry');
   });
 
   test('the 4th: nothing; the 7th: the close reminder once; cash and budget fine so far', async () => {

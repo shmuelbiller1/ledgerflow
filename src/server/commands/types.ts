@@ -69,7 +69,8 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
   prepare?(ctx: Omit<CommandContext, 'prepared' | 'afterCommit'>, input: z.output<Schema>): Promise<Prepared>;
   handler(ctx: CommandContext, tx: Transaction, input: z.output<Schema>): Promise<Result>;
   preview(ctx: Omit<CommandContext, 'prepared' | 'afterCommit'>, input: z.output<Schema>): Promise<CommandPreview>;
-  audit(input: z.output<Schema>, result: Result): CommandAuditSummary;
+  /** Return null for an idempotent no-op that made no change, so retries do not create misleading audit entries. */
+  audit(input: z.output<Schema>, result: Result): CommandAuditSummary | null;
   inverse?(input: z.output<Schema>, result: Result): { command: string; input: unknown } | null;
   risk: CommandRisk;
   describe: CommandDescription;

@@ -66,8 +66,12 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
   let server: Server;
   let base = '';
   let db: import('../server/db/pgFirestore').Firestore;
-  const put = async (uid: string, body: unknown) => {
-    const res = await fetch(`${base}/api/v1/workspaces/${ws}/modules`, { method: 'PUT', headers: { 'content-type': 'application/json', 'x-test-uid': uid }, body: JSON.stringify(body) });
+  const put = async (uid: string, body: unknown, operationId?: string) => {
+    const res = await fetch(`${base}/api/v1/workspaces/${ws}/modules`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-test-uid': uid, ...(operationId ? { 'x-operation-id': operationId } : {}) },
+      body: JSON.stringify(body),
+    });
     return { status: res.status, body: await res.json() as Record<string, unknown> };
   };
   const saved = async () => (await db.collection('workspaces').doc(ws).get()).data()?.modules;
@@ -98,9 +102,16 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
     assert.equal((await put('owner-1', { modules: { payroll: 'off' } })).status, 400);
     assert.equal((await put('owner-1', { modules: { rockets: true } })).status, 400);
     assert.equal(await saved(), undefined);
-    const off = await put('owner-1', { modules: { payroll: false } });
+    const operationId = 'modules-payroll-off';
+    const off = await put('owner-1', { modules: { payroll: false } }, operationId);
     assert.equal(off.status, 200, JSON.stringify(off.body));
     assert.deepEqual(off.body.modules, { payroll: false });
+    const retried = await put('owner-1', { modules: { payroll: false } }, operationId);
+    assert.equal(retried.status, 200, JSON.stringify(retried.body));
+    assert.deepEqual(retried.body.modules, { payroll: false }, 'the old address replays the established response');
+    const conflict = await put('owner-1', { modules: { payroll: true } }, operationId);
+    assert.equal(conflict.status, 409, JSON.stringify(conflict.body));
+    assert.deepEqual(await saved(), { payroll: false }, 'reusing an operation id for another module change is refused');
     const on = await put('acct-1', { modules: { loans: false, payroll: true } });
     assert.equal(on.status, 200, JSON.stringify(on.body));
     assert.deepEqual(await saved(), { payroll: true, loans: false }, 'other modules keep their setting');

@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import CommandForm from '../components/common/CommandForm';
+import { COMMAND_MANIFEST } from '../lib/commands.generated';
 import { buildCommandInput, formForCommand, formSummary, labelForCamelCase } from '../lib/commandFormSchema';
 
 test.afterEach(() => cleanup());
@@ -26,7 +27,7 @@ describe('a form generated from a command schema', () => {
 
   test('every command in the manifest produces a form, and none drops a field silently', () => {
     const summary = formSummary();
-    assert.equal(summary.length, 24);
+    assert.deepEqual(summary.map(entry => entry.command), COMMAND_MANIFEST.map(entry => entry.name));
     // a field the schema cannot render becomes a note, not a hole in the form
     for (const entry of summary) {
       const form = formForCommand(entry.command);
