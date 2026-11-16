@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getIdToken } from '../firebase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { workspaceScope } from '../lib/serverAction';
 import { openingCutoff } from '../lib/serverBalances';
 import { linesNeedServer, rangeRevision } from '../lib/serverTopLines';
+import { runCommand } from '../lib/runCommand';
 
 export type RangeReportSource = 'loaded' | 'server' | 'loaded-incomplete';
 
@@ -45,10 +45,9 @@ export function useServerRangeReport<T>(opts: {
     const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
     let live = true;
     (async () => {
-      const res = await fetch(`/api/v1/balances/${path}?${queryText}`, { headers: { Authorization: `Bearer ${await getIdToken()}` } });
-      const body = await res.json().catch(() => ({})) as Record<string, unknown>;
-      const report = res.ok ? parse(body) : null;
-      if (!report) throw new Error(`${path} ${res.status}`);
+      const body = await runCommand<Record<string, unknown>>({ path: `/api/v1/balances/${path}?${queryText}` }) ?? {};
+      const report = parse(body);
+      if (!report) throw new Error(`${path}: the answer was not a report`);
       return report;
     })().then(report => {
       if (live && scope.isCurrent()) setAnswer({ key, workspaceId, report });
