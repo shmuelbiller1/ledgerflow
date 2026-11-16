@@ -32,6 +32,7 @@ import { alertSettingsUpdateCommand } from '../commands/alerts';
 import { importMapSaveCommand } from '../commands/importMaps';
 import {
   workspaceModulesCommand,
+  workspaceNextNumberCommand,
   workspaceOpeningBalancesCommand,
   workspaceRetentionCommand,
   workspaceSetupCompleteCommand,
@@ -42,7 +43,7 @@ import { taxRouter } from './taxRoutes';
 import { brandingRouter } from './brandingRoutes';
 import { contactMergeRouter } from './contactMergeRoutes';
 import { numberingRouter } from './numberingRoutes';
-import { allocateNextNumber, NUMBERED_TYPES, type NumberedType } from '../services/numberingService';
+import { NUMBERED_TYPES } from '../services/numberingService';
 import { retentionFor, scheduledPurgeAt as purgeDate } from '../../lib/retention';
 import { RetentionError } from '../services/retentionService';
 import { budgetControlRouter } from './budgetControlRoutes';
@@ -333,24 +334,40 @@ workspaceRouter.post('/:workspaceId/import-records/:batchId/undo', requireWorksp
 });
 
 workspaceRouter.post('/:workspaceId/next-number', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper']), async (req, res) => {
-  const { workspaceId } = req.params as Record<string, string>;
-  const rawType = req.body?.type;
-
-  const schema = z.enum(NUMBERED_TYPES as unknown as [NumberedType, ...NumberedType[]]);
-  const parsed = schema.safeParse(rawType);
-  if (!parsed.success) return sendError(res, `Invalid request parameters. "type" (${NUMBERED_TYPES.join(', ')}) is required in request body.`, 400, parsed.error.issues);
-  const type = parsed.data;
-
-  try {
-    const db = getDb();
-    const formattedNumber = await allocateNextNumber(db, workspaceId, type);
-
-    res.json({ number: formattedNumber });
-  } catch (err) {
-    if (errorMessage(err) === 'FORBIDDEN') return sendError(res, 'Forbidden', 403);
-    if (errorMessage(err) === 'NOT_FOUND') return sendError(res, 'Workspace not found', 404);
-    sendError(res, 'Failed to allocate next document number', 500, errorMessage(err));
-  }
+  await executeCommand(req, res, {
+    definition: workspaceNextNumberCommand,
+    workspaceId: String(req.params.workspaceId),
+    input: { type: req.body?.type },
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        return { status: outcome.status, body: { number: (outcome.data as { number: string }).number } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return {
+          status: 400,
+          body: {
+            status: 'error',
+            message: `Invalid request parameters. "type" (${NUMBERED_TYPES.join(', ')}) is required in request body.`,
+            details: outcome.error.issues,
+          },
+        };
+      }
+      if (outcome.status === 403) return { status: 403, body: { status: 'error', message: 'Forbidden' } };
+      if (outcome.status === 404) return { status: 404, body: { status: 'error', message: 'Workspace not found' } };
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: {
+            status: 'error',
+            message: 'Failed to allocate next document number',
+            details: error instanceof Error ? errorMessage(error) : outcome.message,
+          },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 // Explicit 405 Method Not Allowed for GET/other methods on /:workspaceId/next-number

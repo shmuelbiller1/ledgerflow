@@ -6,6 +6,7 @@ import { alertSettingsUpdateCommand, alertSettingsUpdateInput } from '../server/
 import { importMapRestoreCommand, importMapSaveCommand, importMapSaveInput } from '../server/commands/importMaps';
 import {
   workspaceModulesCommand,
+  workspaceNextNumberCommand,
   workspaceOpeningBalancesCommand,
   workspaceRetentionCommand,
   workspaceSetupCompleteCommand,
@@ -98,16 +99,52 @@ test('workspace import-map commands preview saves and can restore their full pri
 });
 
 test('workspace setup/settings commands publish validated examples and refusal guides', () => {
-  for (const command of [workspaceModulesCommand, workspaceOpeningBalancesCommand, workspaceRetentionCommand, workspaceSetupCompleteCommand]) {
+  for (const command of [workspaceModulesCommand, workspaceNextNumberCommand, workspaceOpeningBalancesCommand, workspaceRetentionCommand, workspaceSetupCompleteCommand]) {
     assert.equal(command.input.safeParse(command.describe.example).success, true, `${command.name} example matches its schema`);
     assert.ok(command.describe.sentence.trim(), `${command.name} has a description`);
     assert.ok(command.describe.refusals.length > 0, `${command.name} lists refusals`);
     assert.ok(command.roles.length > 0, `${command.name} lists roles`);
   }
   assert.deepEqual(workspaceModulesCommand.roles, ['owner', 'accountant']);
+  assert.deepEqual(workspaceNextNumberCommand.roles, ['owner', 'accountant', 'bookkeeper']);
   assert.deepEqual(workspaceOpeningBalancesCommand.roles, ['owner', 'accountant']);
   assert.deepEqual(workspaceRetentionCommand.roles, ['owner']);
   assert.deepEqual(workspaceSetupCompleteCommand.roles, ['owner', 'accountant']);
+});
+
+test('workspace.nextnumber previews without reserving, audits once, and replays an operation ID without allocating twice', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId);
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const input = { type: 'invoice' as const };
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceNextNumberCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) {
+    assert.deepEqual(preview.preview.lines, [`INV-${new Date().getUTCFullYear()}-0001`, 'Preview only; execution reserves this number.']);
+  }
+  assert.equal(db.read(`numberingSeries/${workspaceId}_invoice`), undefined, 'preview does not reserve a number');
+
+  const saved = await executeCommand(fakeRequest(owner, input, 'workspace-next-number'), captureResponse().response,
+    { definition: workspaceNextNumberCommand, workspaceId, input }, dependencies);
+  assert.equal(saved.ok, true);
+  if (!saved.ok) return;
+  assert.deepEqual(saved.data, { type: 'invoice', number: `INV-${new Date().getUTCFullYear()}-0001` });
+  assert.equal(counters.audits, 1);
+
+  const replayed = await executeCommand(fakeRequest(owner, input, 'workspace-next-number'), captureResponse().response,
+    { definition: workspaceNextNumberCommand, workspaceId, input }, dependencies);
+  assert.equal(replayed.ok, true);
+  if (replayed.ok) assert.equal(replayed.replayed, true);
+  assert.equal(counters.audits, 1);
+  assert.equal(db.read(`numberingSeries/${workspaceId}_invoice`)?.nextNumber, 2);
+
+  const conflict = await executeCommand(fakeRequest(owner, { type: 'bill' }, 'workspace-next-number'), captureResponse().response,
+    { definition: workspaceNextNumberCommand, workspaceId, input: { type: 'bill' } }, dependencies);
+  assert.equal(conflict.ok, false);
+  if (!conflict.ok) assert.equal(conflict.status, 409);
+  assert.equal(counters.audits, 1, 'changed input with a reused operation ID is refused before reserving another number');
 });
 
 test('workspace.modules previews changes, audits once, and restores its previous effective settings', async () => {

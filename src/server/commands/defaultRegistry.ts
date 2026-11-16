@@ -7,6 +7,7 @@ import { timeInvoiceCommand, timeLogCommand, timeMoveCommand, timeRatesCommand, 
 import { watchCreateCommand, watchRemoveCommand } from './watches';
 import {
   workspaceModulesCommand,
+  workspaceNextNumberCommand,
   workspaceOpeningBalancesCommand,
   workspaceRetentionCommand,
   workspaceSetupCompleteCommand,
@@ -39,6 +40,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(importMapSaveCommand);
   registry.register(importMapRestoreCommand);
   registry.register(workspaceModulesCommand);
+  registry.register(workspaceNextNumberCommand);
   registry.register(workspaceOpeningBalancesCommand);
   registry.register(workspaceRetentionCommand);
   registry.register(workspaceSetupCompleteCommand);

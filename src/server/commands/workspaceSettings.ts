@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { formatTzDate } from '../../lib/calendarDate';
 import { MODULES, modulesProblem, type Modules } from '../../lib/modules';
 import { RetentionSettingsSchema, retentionFor } from '../../lib/retention';
+import { allocateInTransaction, formatDocumentNumber, NUMBERED_TYPES, resolveSeries, type NumberedType } from '../services/numberingService';
 import { moduleAuditSummary, ModuleSettingError, setModulesInTransaction } from '../services/moduleService';
 import {
   completeSetupInTransaction,
@@ -211,6 +213,54 @@ export const workspaceRetentionCommand: CommandDefinition<typeof workspaceRetent
     refusals: [
       { code: 'INVALID_INPUT', when: 'A retention period is outside its allowed range or an unsupported field is supplied.', next: 'Use whole-day values within the documented limits and set emailLogDays to 0 to keep the email log indefinitely.' },
       { code: 'ROLE_REQUIRED', when: 'The caller is not the workspace owner.', next: 'Ask the workspace owner to change retention settings.' },
+      { code: 'WORKSPACE_NOT_FOUND', when: 'The workspace no longer exists.', next: 'Choose an existing workspace.' },
+    ],
+  },
+};
+
+export const workspaceNextNumberInput = z.object({
+  type: z.enum(NUMBERED_TYPES as unknown as [NumberedType, ...NumberedType[]]),
+}).strict();
+type WorkspaceNextNumberInput = z.output<typeof workspaceNextNumberInput>;
+type WorkspaceNextNumberResult = { type: NumberedType; number: string };
+
+function numberingDate(): string {
+  return formatTzDate();
+}
+
+export const workspaceNextNumberCommand: CommandDefinition<typeof workspaceNextNumberInput, WorkspaceNextNumberResult> = {
+  name: 'workspace.nextnumber',
+  input: workspaceNextNumberInput,
+  roles: ['owner', 'accountant', 'bookkeeper'],
+  async handler(ctx, tx, input: WorkspaceNextNumberInput) {
+    const number = await allocateInTransaction(ctx.db, tx, ctx.workspaceId, input.type, numberingDate());
+    return { type: input.type, number };
+  },
+  async preview(ctx, input) {
+    const today = numberingDate();
+    const stored = await ctx.db.collection('numberingSeries').doc(`${ctx.workspaceId}_${input.type}`).get();
+    const series = resolveSeries(input.type, stored.data(), ctx.workspace, today);
+    return {
+      title: `Preview the next ${input.type} number`,
+      lines: [formatDocumentNumber(series), 'Preview only; execution reserves this number.'],
+    };
+  },
+  audit(_input, result) {
+    return {
+      action: 'DOCUMENT_NUMBER_ALLOCATED',
+      entityType: 'numberingSeries',
+      entityId: result.type,
+      description: `Reserved ${result.type} number ${result.number}`,
+      details: { type: result.type, number: result.number },
+    };
+  },
+  risk: 'normal',
+  describe: {
+    sentence: 'Reserve the next number in a document series; do not execute it merely to preview a number, because unused allocations remain consumed.',
+    example: { type: 'invoice' },
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'The requested document type is not a supported numbering series.', next: `Choose one of: ${NUMBERED_TYPES.join(', ')}.` },
+      { code: 'ROLE_REQUIRED', when: 'The caller is not an owner, accountant, or bookkeeper.', next: 'Ask a workspace bookkeeper or above to reserve a document number.' },
       { code: 'WORKSPACE_NOT_FOUND', when: 'The workspace no longer exists.', next: 'Choose an existing workspace.' },
     ],
   },

@@ -43,6 +43,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "watches.remove",
   "workspace.importmap",
   "workspace.modules",
+  "workspace.nextnumber",
   "workspace.openingbalances",
   "workspace.restoremaps",
   "workspace.retention",

@@ -15,6 +15,7 @@ describe('Workspace setup/settings command routes', { skip: !url && 'LF_TEST_DAT
     opening: `ws_cmd_opening_${suffix}`,
     setup: `ws_cmd_setup_${suffix}`,
     retention: `ws_cmd_retention_${suffix}`,
+    numbering: `ws_cmd_numbering_${suffix}`,
   };
   let db: Firestore;
   let server: Server;
@@ -78,10 +79,33 @@ describe('Workspace setup/settings command routes', { skip: !url && 'LF_TEST_DAT
   after(async () => {
     server?.close();
     const ids = Object.values(workspaces);
-    for (const table of ['transactions', 'chartAccounts', 'idempotencyKeys', 'auditLogs', 'workspaces']) {
+    for (const table of ['transactions', 'chartAccounts', 'numberingSeries', 'idempotencyKeys', 'auditLogs', 'workspaces']) {
       await db.pool.query(`delete from public."${table}" where workspace_id = any($1) or id = any($1)`, [ids]);
     }
     await db.terminate();
+  });
+
+  test('next-number keeps the legacy response, reserves atomically, and replays operation IDs once', async () => {
+    const workspaceId = workspaces.numbering;
+    const invalid = await send('POST', workspaceId, 'next-number', 'owner-1', { type: 'not-a-series' });
+    assert.equal(invalid.status, 400);
+    assert.match(String(invalid.body.message), /invoice.*bill.*estimate/);
+
+    const operationId = 'workspace-next-number-route';
+    const input = { type: 'invoice' };
+    const first = await send('POST', workspaceId, 'next-number', 'book-1', input, operationId);
+    assert.equal(first.status, 200, JSON.stringify(first.body));
+    assert.deepEqual(Object.keys(first.body), ['number']);
+    assert.match(String(first.body.number), /^INV-\d{4}-0001$/);
+    const retried = await send('POST', workspaceId, 'next-number', 'book-1', input, operationId);
+    assert.deepEqual(retried, first);
+    const conflict = await send('POST', workspaceId, 'next-number', 'book-1', { type: 'bill' }, operationId);
+    assert.equal(conflict.status, 409);
+
+    const series = await db.collection('numberingSeries').doc(`${workspaceId}_invoice`).get();
+    assert.equal(series.data()?.nextNumber, 2);
+    const audits = await db.collection('auditLogs').where('workspaceId', '==', workspaceId).get();
+    assert.equal(audits.docs.filter(doc => doc.data().action === 'DOCUMENT_NUMBER_ALLOCATED').length, 1);
   });
 
   test('modules keeps the old URL/response and refuses invalid, unauthorized, and conflicting retries', async () => {

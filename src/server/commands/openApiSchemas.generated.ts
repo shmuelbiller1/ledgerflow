@@ -42,6 +42,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "watches.remove": "CommandInput_watches_remove",
   "workspace.importmap": "CommandInput_workspace_importmap",
   "workspace.modules": "CommandInput_workspace_modules",
+  "workspace.nextnumber": "CommandInput_workspace_nextnumber",
   "workspace.openingbalances": "CommandInput_workspace_openingbalances",
   "workspace.restoremaps": "CommandInput_workspace_restoremaps",
   "workspace.retention": "CommandInput_workspace_retention",
