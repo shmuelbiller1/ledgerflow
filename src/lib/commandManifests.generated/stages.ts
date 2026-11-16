@@ -7,7 +7,7 @@ export const STAGES_COMMAND_MANIFEST = [
   {
     "name": "stages.define",
     "area": "stages",
-    "roles": COMMAND_SCHEMA_PARTS.part14,
+    "roles": COMMAND_SCHEMA_PARTS.part15,
     "risk": "normal",
     "description": {
       "sentence": "Define the workspace-specific invoice and bill progress stages without changing document status or the books; do not use it to mark an invoice paid.",
@@ -50,7 +50,7 @@ export const STAGES_COMMAND_MANIFEST = [
   {
     "name": "stages.move",
     "area": "stages",
-    "roles": COMMAND_SCHEMA_PARTS.part36,
+    "roles": COMMAND_SCHEMA_PARTS.part37,
     "risk": "normal",
     "description": {
       "sentence": "Move an invoice or bill to one of its configured progress stages, or clear the stage; do not use it to change its accounting status.",

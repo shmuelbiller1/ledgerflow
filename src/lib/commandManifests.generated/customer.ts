@@ -7,7 +7,7 @@ export const CUSTOMER_COMMAND_MANIFEST = [
   {
     "name": "customer.create",
     "area": "customer",
-    "roles": COMMAND_SCHEMA_PARTS.part36,
+    "roles": COMMAND_SCHEMA_PARTS.part37,
     "risk": "normal",
     "description": {
       "sentence": "Create a customer profile for sales documents; do not use this command to change a balance or record a payment.",
@@ -43,7 +43,7 @@ export const CUSTOMER_COMMAND_MANIFEST = [
   {
     "name": "customer.update",
     "area": "customer",
-    "roles": COMMAND_SCHEMA_PARTS.part36,
+    "roles": COMMAND_SCHEMA_PARTS.part37,
     "risk": "normal",
     "description": {
       "sentence": "Update a customer profile without changing its server-managed identity or balance; metadata keys merge, and send null to remove one. Do not use this command to record a payment.",

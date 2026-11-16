@@ -4,6 +4,7 @@ import type { RequestUser } from '../server/auth/requestUser';
 import type { CommandDefinition } from '../server/commands/types';
 import { alertSettingsUpdateCommand, alertSettingsUpdateInput } from '../server/commands/alerts';
 import { importMapRestoreCommand, importMapSaveCommand, importMapSaveInput } from '../server/commands/importMaps';
+import { workspaceInviteRevokeCommand } from '../server/commands/workspaceInvites';
 import {
   workspaceModulesCommand,
   workspaceNextNumberCommand,
@@ -99,7 +100,7 @@ test('workspace import-map commands preview saves and can restore their full pri
 });
 
 test('workspace setup/settings commands publish validated examples and refusal guides', () => {
-  for (const command of [workspaceModulesCommand, workspaceNextNumberCommand, workspaceOpeningBalancesCommand, workspaceRetentionCommand, workspaceSetupCompleteCommand]) {
+  for (const command of [workspaceModulesCommand, workspaceNextNumberCommand, workspaceOpeningBalancesCommand, workspaceRetentionCommand, workspaceSetupCompleteCommand, workspaceInviteRevokeCommand]) {
     assert.equal(command.input.safeParse(command.describe.example).success, true, `${command.name} example matches its schema`);
     assert.ok(command.describe.sentence.trim(), `${command.name} has a description`);
     assert.ok(command.describe.refusals.length > 0, `${command.name} lists refusals`);
@@ -110,6 +111,50 @@ test('workspace setup/settings commands publish validated examples and refusal g
   assert.deepEqual(workspaceOpeningBalancesCommand.roles, ['owner', 'accountant']);
   assert.deepEqual(workspaceRetentionCommand.roles, ['owner']);
   assert.deepEqual(workspaceSetupCompleteCommand.roles, ['owner', 'accountant']);
+  assert.deepEqual(workspaceInviteRevokeCommand.roles, ['owner']);
+});
+
+test('workspace.revokeinvite previews pending invites, rechecks workspace scope, and audits only a real change', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId);
+  db.seed('invites/pending-invite', { workspaceId, email: 'invitee@example.test', status: 'pending' });
+  db.seed('invites/accepted-invite', { workspaceId, email: 'joined@example.test', status: 'accepted' });
+  db.seed('invites/foreign-invite', { workspaceId: 'ws-other', email: 'other@example.test', status: 'pending' });
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const input = { inviteId: 'pending-invite' };
+
+  const preview = await previewCommand(fakeRequest(owner, input),
+    { definition: workspaceInviteRevokeCommand, workspaceId, input }, dependencies);
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.deepEqual(preview.preview.lines, ['Revoke the invite for invitee@example.test']);
+  assert.equal(db.read('invites/pending-invite')?.status, 'pending', 'preview does not revoke');
+
+  const saved = await executeCommand(fakeRequest(owner, input), captureResponse().response,
+    { definition: workspaceInviteRevokeCommand, workspaceId, input }, dependencies);
+  assert.equal(saved.ok, true);
+  assert.equal(db.read('invites/pending-invite')?.status, 'revoked');
+  assert.equal(counters.audits, 1);
+  const repeated = await executeCommand(fakeRequest(owner, input), captureResponse().response,
+    { definition: workspaceInviteRevokeCommand, workspaceId, input }, dependencies);
+  assert.equal(repeated.ok, true);
+  if (repeated.ok) assert.equal((repeated.data as { changed: boolean }).changed, false);
+  assert.equal(counters.audits, 1, 'repeating a revocation does not emit a duplicate audit');
+
+  const acceptedInput = { inviteId: 'accepted-invite' };
+  const accepted = await executeCommand(fakeRequest(owner, acceptedInput), captureResponse().response,
+    { definition: workspaceInviteRevokeCommand, workspaceId, input: acceptedInput }, dependencies);
+  assert.equal(accepted.ok, false);
+  if (!accepted.ok) assert.equal(accepted.status, 409);
+  assert.equal(db.read('invites/accepted-invite')?.status, 'accepted');
+
+  const foreignInput = { inviteId: 'foreign-invite' };
+  const foreign = await executeCommand(fakeRequest(owner, foreignInput), captureResponse().response,
+    { definition: workspaceInviteRevokeCommand, workspaceId, input: foreignInput }, dependencies);
+  assert.equal(foreign.ok, false);
+  if (!foreign.ok) assert.equal(foreign.status, 403);
+  assert.equal(db.read('invites/foreign-invite')?.status, 'pending');
+  assert.equal(counters.audits, 1);
 });
 
 test('workspace.nextnumber previews without reserving, audits once, and replays an operation ID without allocating twice', async () => {

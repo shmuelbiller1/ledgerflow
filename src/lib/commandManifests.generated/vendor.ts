@@ -7,7 +7,7 @@ export const VENDOR_COMMAND_MANIFEST = [
   {
     "name": "vendor.create",
     "area": "vendor",
-    "roles": COMMAND_SCHEMA_PARTS.part36,
+    "roles": COMMAND_SCHEMA_PARTS.part37,
     "risk": "normal",
     "description": {
       "sentence": "Create a vendor contact for bills and payments; do not use this command to record a bill payment or change a vendor balance.",
@@ -38,7 +38,7 @@ export const VENDOR_COMMAND_MANIFEST = [
   {
     "name": "vendor.update",
     "area": "vendor",
-    "roles": COMMAND_SCHEMA_PARTS.part36,
+    "roles": COMMAND_SCHEMA_PARTS.part37,
     "risk": "normal",
     "description": {
       "sentence": "Update a vendor profile without changing its server-managed balance or recording a bill payment.",

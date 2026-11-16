@@ -5,14 +5,15 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema42 } from '../commandSchemas.
 import { COMMAND_INPUT_SCHEMA as commandInputSchema43 } from '../commandSchemas.generated/workspace_openingbalances';
 import { COMMAND_INPUT_SCHEMA as commandInputSchema44 } from '../commandSchemas.generated/workspace_restoremaps';
 import { COMMAND_INPUT_SCHEMA as commandInputSchema45 } from '../commandSchemas.generated/workspace_retention';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema46 } from '../commandSchemas.generated/workspace_setupcomplete';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema46 } from '../commandSchemas.generated/workspace_revokeinvite';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema47 } from '../commandSchemas.generated/workspace_setupcomplete';
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.importmap",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part36,
+    "roles": COMMAND_SCHEMA_PARTS.part37,
     "risk": "normal",
     "description": {
       "sentence": "Remember how a bank CSV header maps to statement fields for the next import; do not use this to import or change ledger entries.",
@@ -37,7 +38,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to save the mapping."
         },
-        COMMAND_SCHEMA_PARTS.part93
+        COMMAND_SCHEMA_PARTS.part94
       ]
     },
     "runPath": "/api/v1/commands/workspace.importmap",
@@ -47,7 +48,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.modules",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part14,
+    "roles": COMMAND_SCHEMA_PARTS.part15,
     "risk": "normal",
     "description": {
       "sentence": "Turn workspace screens on or off without deleting their records; do not use this to change or remove data in a module.",
@@ -68,7 +69,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to change module settings."
         },
-        COMMAND_SCHEMA_PARTS.part87
+        COMMAND_SCHEMA_PARTS.part88
       ]
     },
     "runPath": "/api/v1/commands/workspace.modules",
@@ -78,7 +79,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.nextnumber",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part36,
+    "roles": COMMAND_SCHEMA_PARTS.part37,
     "risk": "normal",
     "description": {
       "sentence": "Reserve the next number in a document series; do not execute it merely to preview a number, because unused allocations remain consumed.",
@@ -96,7 +97,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to reserve a document number."
         },
-        COMMAND_SCHEMA_PARTS.part87
+        COMMAND_SCHEMA_PARTS.part88
       ]
     },
     "runPath": "/api/v1/commands/workspace.nextnumber",
@@ -106,7 +107,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.openingbalances",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part14,
+    "roles": COMMAND_SCHEMA_PARTS.part15,
     "risk": "normal",
     "description": {
       "sentence": "Post the workspace’s starting balance-sheet amounts as one balanced opening entry on the selected date; receivables and payables come from their unpaid documents instead.",
@@ -149,7 +150,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The workspace has no active Opening Balance Equity account, or an amount or account cannot be used for an opening balance.",
           "next": "Add an active Opening Balance Equity account and choose eligible balance-sheet accounts."
         },
-        COMMAND_SCHEMA_PARTS.part91
+        COMMAND_SCHEMA_PARTS.part92
       ]
     },
     "runPath": "/api/v1/commands/workspace.openingbalances",
@@ -159,7 +160,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.restoremaps",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part36,
+    "roles": COMMAND_SCHEMA_PARTS.part37,
     "risk": "normal",
     "description": {
       "sentence": "Restore a saved snapshot of bank CSV column layouts when undoing a layout change; do not use this to import or change ledger entries.",
@@ -177,7 +178,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to restore the layout snapshot."
         },
-        COMMAND_SCHEMA_PARTS.part93
+        COMMAND_SCHEMA_PARTS.part94
       ]
     },
     "runPath": "/api/v1/commands/workspace.restoremaps",
@@ -187,9 +188,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.retention",
     "area": "workspace",
-    "roles": [
-      "owner"
-    ],
+    "roles": COMMAND_SCHEMA_PARTS.part3,
     "risk": "normal",
     "description": {
       "sentence": "Set workspace log-retention periods, deletion recovery window, and legal hold; do not use this to change accounting-record retention or delete business records.",
@@ -210,7 +209,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not the workspace owner.",
           "next": "Ask the workspace owner to change retention settings."
         },
-        COMMAND_SCHEMA_PARTS.part87
+        COMMAND_SCHEMA_PARTS.part88
       ]
     },
     "runPath": "/api/v1/commands/workspace.retention",
@@ -218,9 +217,46 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     inputSchema: commandInputSchema45
   },
   {
+    "name": "workspace.revokeinvite",
+    "area": "workspace",
+    "roles": COMMAND_SCHEMA_PARTS.part3,
+    "risk": "normal",
+    "description": {
+      "sentence": "Revoke a pending workspace invite; do not use this to remove a person who has already joined the workspace.",
+      "example": {
+        "inviteId": "invite_123"
+      },
+      "refusals": [
+        {
+          "code": "INVITE_NOT_FOUND",
+          "when": "The invite does not exist.",
+          "next": "Reload the workspace invites and select a current invite."
+        },
+        {
+          "code": "WORKSPACE_MISMATCH",
+          "when": "The invite belongs to another workspace.",
+          "next": "Choose an invite from the selected workspace."
+        },
+        {
+          "code": "INVITE_NOT_PENDING",
+          "when": "The invite has already been accepted or otherwise finalized.",
+          "next": "Use workspace member management for an accepted invite; only pending invites can be revoked."
+        },
+        {
+          "code": "ROLE_REQUIRED",
+          "when": "The caller is not the workspace owner.",
+          "next": "Ask the workspace owner to revoke the invite."
+        }
+      ]
+    },
+    "runPath": "/api/v1/commands/workspace.revokeinvite",
+    "previewPath": "/api/v1/commands/workspace.revokeinvite/preview",
+    inputSchema: commandInputSchema46
+  },
+  {
     "name": "workspace.setupcomplete",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part14,
+    "roles": COMMAND_SCHEMA_PARTS.part15,
     "risk": "normal",
     "description": {
       "sentence": "Finish first-run setup when the workspace is starting from zero; do not use this if you need to record opening balances.",
@@ -231,11 +267,11 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to finish setup."
         },
-        COMMAND_SCHEMA_PARTS.part87
+        COMMAND_SCHEMA_PARTS.part88
       ]
     },
     "runPath": "/api/v1/commands/workspace.setupcomplete",
     "previewPath": "/api/v1/commands/workspace.setupcomplete/preview",
-    inputSchema: commandInputSchema46
+    inputSchema: commandInputSchema47
   },
 ] as const;

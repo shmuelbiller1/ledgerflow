@@ -8,7 +8,7 @@ export const INVOICE_COMMAND_MANIFEST = [
   {
     "name": "invoice.create",
     "area": "invoice",
-    "roles": COMMAND_SCHEMA_PARTS.part36,
+    "roles": COMMAND_SCHEMA_PARTS.part37,
     "risk": "normal",
     "description": {
       "sentence": "Create a invoice and let the server build its ledger entries from the saved document; do not use this command to record a payment or edit an existing invoice.",
@@ -33,7 +33,7 @@ export const INVOICE_COMMAND_MANIFEST = [
           ]
         }
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part127
+      "refusals": COMMAND_SCHEMA_PARTS.part128
     },
     "runPath": "/api/v1/commands/invoice.create",
     "previewPath": "/api/v1/commands/invoice.create/preview",
@@ -42,12 +42,12 @@ export const INVOICE_COMMAND_MANIFEST = [
   {
     "name": "invoice.delete",
     "area": "invoice",
-    "roles": COMMAND_SCHEMA_PARTS.part36,
+    "roles": COMMAND_SCHEMA_PARTS.part37,
     "risk": "normal",
     "description": {
       "sentence": "Delete a invoice and let the server reverse its live ledger entries; do not use this command to void or write off a document.",
-      "example": COMMAND_SCHEMA_PARTS.part12,
-      "refusals": COMMAND_SCHEMA_PARTS.part127
+      "example": COMMAND_SCHEMA_PARTS.part13,
+      "refusals": COMMAND_SCHEMA_PARTS.part128
     },
     "runPath": "/api/v1/commands/invoice.delete",
     "previewPath": "/api/v1/commands/invoice.delete/preview",
@@ -56,12 +56,12 @@ export const INVOICE_COMMAND_MANIFEST = [
   {
     "name": "invoice.update",
     "area": "invoice",
-    "roles": COMMAND_SCHEMA_PARTS.part36,
+    "roles": COMMAND_SCHEMA_PARTS.part37,
     "risk": "normal",
     "description": {
       "sentence": "Update an existing invoice and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
-      "example": COMMAND_SCHEMA_PARTS.part50,
-      "refusals": COMMAND_SCHEMA_PARTS.part127
+      "example": COMMAND_SCHEMA_PARTS.part51,
+      "refusals": COMMAND_SCHEMA_PARTS.part128
     },
     "runPath": "/api/v1/commands/invoice.update",
     "previewPath": "/api/v1/commands/invoice.update/preview",

@@ -46,5 +46,6 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "workspace.openingbalances": "CommandInput_workspace_openingbalances",
   "workspace.restoremaps": "CommandInput_workspace_restoremaps",
   "workspace.retention": "CommandInput_workspace_retention",
+  "workspace.revokeinvite": "CommandInput_workspace_revokeinvite",
   "workspace.setupcomplete": "CommandInput_workspace_setupcomplete"
 } as const;

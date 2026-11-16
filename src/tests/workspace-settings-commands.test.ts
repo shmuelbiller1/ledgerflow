@@ -16,13 +16,14 @@ describe('Workspace setup/settings command routes', { skip: !url && 'LF_TEST_DAT
     setup: `ws_cmd_setup_${suffix}`,
     retention: `ws_cmd_retention_${suffix}`,
     numbering: `ws_cmd_numbering_${suffix}`,
+    invites: `ws_cmd_invites_${suffix}`,
   };
   let db: Firestore;
   let server: Server;
   let base = '';
 
   async function send(
-    method: 'POST' | 'PUT',
+    method: 'POST' | 'PUT' | 'DELETE',
     workspaceId: string,
     path: string,
     uid: string,
@@ -79,10 +80,39 @@ describe('Workspace setup/settings command routes', { skip: !url && 'LF_TEST_DAT
   after(async () => {
     server?.close();
     const ids = Object.values(workspaces);
-    for (const table of ['transactions', 'chartAccounts', 'numberingSeries', 'idempotencyKeys', 'auditLogs', 'workspaces']) {
+    for (const table of ['transactions', 'chartAccounts', 'numberingSeries', 'invites', 'idempotencyKeys', 'auditLogs', 'workspaces']) {
       await db.pool.query(`delete from public."${table}" where workspace_id = any($1) or id = any($1)`, [ids]);
     }
     await db.terminate();
+  });
+
+  test('invite revocation keeps the legacy response, refuses accepted or foreign invites, and hashes the path target', async () => {
+    const workspaceId = workspaces.invites;
+    const pendingId = `${workspaceId}_pending`;
+    const secondId = `${workspaceId}_second`;
+    const acceptedId = `${workspaceId}_accepted`;
+    await db.collection('invites').doc(pendingId).set({ id: pendingId, workspaceId, email: 'pending@example.test', role: 'viewer', status: 'pending' });
+    await db.collection('invites').doc(secondId).set({ id: secondId, workspaceId, email: 'second@example.test', role: 'viewer', status: 'pending' });
+    await db.collection('invites').doc(acceptedId).set({ id: acceptedId, workspaceId, email: 'accepted@example.test', role: 'viewer', status: 'accepted' });
+
+    const denied = await send('DELETE', workspaceId, `invites/${pendingId}`, 'acct-1', {});
+    assert.equal(denied.status, 403);
+    const missing = await send('DELETE', workspaceId, 'invites/missing-invite', 'owner-1', {});
+    assert.equal(missing.status, 404);
+    const accepted = await send('DELETE', workspaceId, `invites/${acceptedId}`, 'owner-1', {});
+    assert.equal(accepted.status, 409);
+
+    const operationId = 'workspace-invite-revoke-route';
+    const first = await send('DELETE', workspaceId, `invites/${pendingId}`, 'owner-1', {}, operationId);
+    assert.deepEqual(first, { status: 200, body: { status: 'success', message: 'Invite revoked successfully' } });
+    const retried = await send('DELETE', workspaceId, `invites/${pendingId}`, 'owner-1', {}, operationId);
+    assert.deepEqual(retried, first);
+    const changedTarget = await send('DELETE', workspaceId, `invites/${secondId}`, 'owner-1', {}, operationId);
+    assert.equal(changedTarget.status, 409);
+    assert.equal((await db.collection('invites').doc(secondId).get()).data()?.status, 'pending');
+
+    const audits = await db.collection('auditLogs').where('workspaceId', '==', workspaceId).get();
+    assert.equal(audits.docs.filter(doc => doc.data().action === 'INVITE_REVOKED').length, 1);
   });
 
   test('next-number keeps the legacy response, reserves atomically, and replays operation IDs once', async () => {

@@ -4,7 +4,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "date": COMMAND_SCHEMA_PARTS.part57,
+    "date": COMMAND_SCHEMA_PARTS.part58,
     "balances": {
       "maxItems": 300,
       "type": "array",
@@ -16,9 +16,9 @@ export const COMMAND_INPUT_SCHEMA = {
             "minLength": 1,
             "maxLength": 127
           },
-          "amountCents": COMMAND_SCHEMA_PARTS.part71
+          "amountCents": COMMAND_SCHEMA_PARTS.part72
         },
-        "required": COMMAND_SCHEMA_PARTS.part17,
+        "required": COMMAND_SCHEMA_PARTS.part18,
         "additionalProperties": false
       }
     }

@@ -30,6 +30,7 @@ import { twoStepPolicyRouter } from './twoStepPolicyRoutes';
 import { AlertSettingsError } from '../services/bookAlertService';
 import { alertSettingsUpdateCommand } from '../commands/alerts';
 import { importMapSaveCommand } from '../commands/importMaps';
+import { workspaceInviteRevokeCommand, WorkspaceInviteError } from '../commands/workspaceInvites';
 import {
   workspaceModulesCommand,
   workspaceNextNumberCommand,
@@ -37,7 +38,7 @@ import {
   workspaceRetentionCommand,
   workspaceSetupCompleteCommand,
 } from '../commands/workspaceSettings';
-import { executeCommand } from '../utils/commandExecutor';
+import { executeCommand, withLegacyInputIdempotencyHash } from '../utils/commandExecutor';
 import { emailRouter } from './emailRoutes';
 import { taxRouter } from './taxRoutes';
 import { brandingRouter } from './brandingRoutes';
@@ -572,26 +573,30 @@ workspaceRouter.post('/:workspaceId/invites', requireWorkspaceRole(['owner']), a
 });
 
 workspaceRouter.delete('/:workspaceId/invites/:inviteId', requireWorkspaceRole(['owner']), async (req, res) => {
-  const { workspaceId, inviteId } = req.params as Record<string, string>;
-  try {
-    const db = getDb();
-    const inviteRef = db.collection('invites').doc(inviteId);
-    const snap = await inviteRef.get();
-    if (!snap.exists) return sendError(res, 'Invite not found', 404);
-
-    if (snap.data()?.workspaceId !== workspaceId) {
-      return sendError(res, 'Forbidden', 403);
-    }
-
-    await inviteRef.update({
-      status: 'revoked',
-      updatedAt: new Date().toISOString()
-    });
-
-    res.json({ status: 'success', message: 'Invite revoked successfully' });
-  } catch (err) {
-    sendError(res, 'Failed to revoke invite', 500, errorMessage(err));
-  }
+  await executeCommand(req, res, {
+    definition: withLegacyInputIdempotencyHash(workspaceInviteRevokeCommand),
+    workspaceId: String(req.params.workspaceId),
+    input: { inviteId: String(req.params.inviteId) },
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        return { status: outcome.status, body: { status: 'success', message: 'Invite revoked successfully' } };
+      }
+      if (outcome.error instanceof WorkspaceInviteError) {
+        return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
+      }
+      if (outcome.error instanceof z.ZodError) {
+        return { status: 400, body: { status: 'error', message: 'Invalid invite ID', details: outcome.error.issues } };
+      }
+      if (outcome.status >= 500) {
+        const error = outcome.error;
+        return {
+          status: outcome.status,
+          body: { status: 'error', message: 'Failed to revoke invite', details: error instanceof Error ? errorMessage(error) : outcome.message },
+        };
+      }
+      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 /** First-run setup (L-19): opening balances as one balanced entry, or "start from zero". */
