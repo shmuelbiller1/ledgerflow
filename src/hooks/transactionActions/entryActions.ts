@@ -1,4 +1,5 @@
 import { recategorizeLines } from '../../lib/accountChoices';
+import { runCommand } from '../../lib/runCommand';
 import { identityScope } from '../../lib/serverAction';
 import { currentIdentity, useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -125,8 +126,6 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     // Deferred to ledger integrity stream
     setIsSyncing(true);
 
-    
-    const token = await user?.getIdToken();
     let err;
     try {
       const finalTx = {
@@ -144,18 +143,15 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       // Let's preserve the optimistic ID
       finalTx.id = optimisticTx.id;
       
-      const res = await fetch('/api/v1/transactions', {
+      // `x-operation-id` is the idempotency key: a retry of this entry is recorded once, not twice
+      const answer = (await runCommand<Record<string, unknown>>({
+        path: '/api/v1/transactions',
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${token}`,
-          'x-operation-id': finalTx.id
-        },
-        body: JSON.stringify({ transaction: finalTx })
-      });
-      const answer = await res.json().catch(() => ({}));
-      // EG-4: a refusal over the budget comes as { message } (409); an entry posted over it lists budgetWarnings
-      if (!res.ok) throw new Error(answer.error || answer.message || 'Failed to save transaction');
+        headers: { 'x-operation-id': finalTx.id },
+        body: { transaction: finalTx }
+      })) ?? {};
+      // EG-4: a refusal over the budget comes as a 409 that `runCommand` throws with the server's own
+      // words; an entry *posted* over it still succeeds and lists budgetWarnings here
       showBudgetWarnings(answer);
       err = null;
     } catch(e) {
@@ -274,22 +270,11 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       }
 
       if (updatesPayload.length > 0) {
-        const token = await user.getIdToken();
-        const res = await fetch('/api/v1/transactions/batch', {
+        await runCommand({
+          path: '/api/v1/transactions/batch',
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            workspaceId: currentWorkspaceId,
-            updates: updatesPayload
-          })
+          body: { workspaceId: currentWorkspaceId, updates: updatesPayload }
         });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Server rejected batch updates');
-        }
       }
 
       // Update local state atomically
@@ -336,22 +321,11 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
                 }
               }
               if (undoPayload.length > 0) {
-                const token = await user.getIdToken();
-                const res = await fetch('/api/v1/transactions/batch', {
+                await runCommand({
+                  path: '/api/v1/transactions/batch',
                   method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                  },
-                  body: JSON.stringify({
-                    workspaceId: currentWorkspaceId,
-                    updates: undoPayload
-                  })
+                  body: { workspaceId: currentWorkspaceId, updates: undoPayload }
                 });
-                if (!res.ok) {
-                  const errData = await res.json().catch(() => ({}));
-                  throw new Error(errData.error || 'Server rejected undo batch updates');
-                }
               }
               // Revert store state
               useLedgerStore.setState(state => ({
