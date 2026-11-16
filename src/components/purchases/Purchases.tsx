@@ -245,7 +245,7 @@ export default function Purchases() {
           <InlineEdit
             value={b.number}
             display={b.number || b.id.slice(0, 8).toUpperCase()}
-            label={purchasesText('label.billNumberFrom', 'Number of bill from {vendor}').replace('{vendor}', b.vendorName || purchasesText('fallback.vendor', 'vendor'))}
+            label={purchasesText('label.billNumberFrom', 'Number of bill from {vendor}').replace('{vendor}', () => b.vendorName || purchasesText('fallback.vendor', 'vendor'))}
             canEdit={canEditContacts && b.status !== 'void'}
             onSave={x => updateEntity('bills', b.id, { number: String(x) }, 'Bill number saved')}
             className="text-slate-600 dark:text-slate-400 font-mono text-xs"
