@@ -1,3 +1,4 @@
+import { fill, useReportText } from './useReportText';
 import { budgetLabel } from '../../lib/budgetByLabel';
 import { useMemo, useRef, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -18,6 +19,7 @@ import { RowTable } from '../ui/RowTable';
 
 type History = { key: string; budgets: SavedBudget[]; accounts: ChartAccount[]; transactions: Transaction[] };
 export default function BudgetActualReportView({ selectedYear = new Date().getFullYear(), startDate, endDate }: { selectedYear?: number; startDate?: string; endDate?: string }) {
+  const reportText = useReportText();
   useLedgerCollections('budgets');
   const cachedBudgets = useLedgerStore(s => s.budgets);
   const cachedAccounts = useLedgerStore(s => s.accounts);
@@ -64,18 +66,18 @@ export default function BudgetActualReportView({ selectedYear = new Date().getFu
     } catch { setError({ key, message: 'Could not load complete history. Retry; the figures below remain provisional.' }); }
     finally { pending.current = false; setBusyKey(previous => previous === key ? null : previous); }
   }
-  return <section aria-label="Budget vs Actual" className="space-y-4 p-4 max-w-full">
-    <h2 className="text-xl font-bold">Budget vs Actual</h2>
-    <p>Posted account movement for {from} through {to}. Difference is budget less actual; openings are excluded.</p>
-    <p className="text-sm text-[var(--muted)]">Recurring caps are spread evenly across their months, with remainder cents in the final month. Partial months retain a full monthly cap. Credits reduce actuals; unsupported category/project or ambiguous account targets require an account budget.</p>
+  return <section aria-label={reportText('r.budget-vs-actual', 'Budget vs Actual')} className="space-y-4 p-4 max-w-full">
+    <h2 className="text-xl font-bold">{reportText('r.budget-vs-actual', 'Budget vs Actual')}</h2>
+    <p>{reportText('r.posted-account-movement-for', 'Posted account movement for ')}{from} {reportText('r.through', 'through ')}{to}{reportText('r.difference-is-budget-less-actual-openings-are-ex', '. Difference is budget less actual; openings are excluded.')}</p>
+    <p className="text-sm text-[var(--muted)]">{reportText('r.recurring-caps-are-spread-evenly-across-their-mo', 'Recurring caps are spread evenly across their months, with remainder cents in the final month. Partial months retain a full monthly cap. Credits reduce actuals; unsupported category/project or ambiguous account targets require an account budget.')}</p>
     <div className="flex flex-wrap gap-4">
-      <Labelled label="Budget"><select className="min-h-11" value={budget?.id || ''} onChange={event => setSelection(event.target.value)}>{budgets.filter(b => b.targetType === 'account').map(b => <option key={b.id} value={b.id}>{(b as SavedBudget).name || b.targetId} · {b.period}</option>)}</select></Labelled>
-      <Labelled label="Columns"><select className="min-h-11" value={mode} onChange={event => setMode(event.target.value as 'total' | 'months')}><option value="total">Total</option><option value="months">Months</option></select></Labelled>
-      {!guest && <button type="button" className="btn-secondary min-h-11" disabled={busyKey === key || !workspaceId} onClick={() => void load()}>{busyKey === key ? 'Loading…' : 'Load / refresh full history'}</button>}
+      <Labelled label={reportText('r.budget', 'Budget')}><select className="min-h-11" value={budget?.id || ''} onChange={event => setSelection(event.target.value)}>{budgets.filter(b => b.targetType === 'account').map(b => <option key={b.id} value={b.id}>{(b as SavedBudget).name || b.targetId} · {b.period}</option>)}</select></Labelled>
+      <Labelled label={reportText('r.columns', 'Columns')}><select className="min-h-11" value={mode} onChange={event => setMode(event.target.value as 'total' | 'months')}><option value="total">{reportText('r.total', 'Total')}</option><option value="months">{reportText('r.months', 'Months')}</option></select></Labelled>
+      {!guest && <button type="button" className="btn-secondary min-h-11" disabled={busyKey === key || !workspaceId} onClick={() => void load()}>{busyKey === key ? reportText('r.loading', 'Loading…') : reportText('r.load-refresh-full-history', 'Load / refresh full history')}</button>}
     </div>
-    {!current && !activeServer && <p role="status">{guest ? 'Guest sample: figures use the loaded demonstration records.' : 'Provisional: loaded records may be incomplete. Load full history before relying on these figures.'}</p>}
+    {!current && !activeServer && <p role="status">{guest ? reportText('r.guest-sample-figures-use-the-loaded-demonstratio', 'Guest sample: figures use the loaded demonstration records.') : reportText('r.provisional-loaded-records-may-be-incomplete-loa', 'Provisional: loaded records may be incomplete. Load full history before relying on these figures.')}</p>}
     {error?.key === key && <p role="alert">{error.message}</p>}
-    {!budget ? <p>No saved account budgets. Define an account target in Planning → Budgets.</p> : !report ? <p>Choose a budget with one unambiguous chart account.</p> : <div className="overflow-x-auto" role="region" aria-label="Budget vs actual figures" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<RowTable
+    {!budget ? <p>No saved account budgets. Define an account target in Planning → Budgets.</p> : !report ? <p>Choose a budget with one unambiguous chart account.</p> : <div className="overflow-x-auto" role="region" aria-label={reportText('r.budget-vs-actual-figures', 'Budget vs actual figures')} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<RowTable
       caption={(<>{report.account.code} · {report.account.name}</>)}
       rows={report.columns}
       rowKey={column => column.period.id}
@@ -86,7 +88,7 @@ export default function BudgetActualReportView({ selectedYear = new Date().getFu
       columns={[
         { header: "Period", className: "p-3", headClassName: "p-3", cell: (column) => column.period.label },
         { header: "Budget", className: "p-3", headClassName: "p-3", cell: (column) => formatCurrency(column.budgetCents) },
-        { header: "Actual", headClassName: "p-3", cell: (column) => <button type="button" className="min-h-11 px-3 underline tabular-nums" aria-label={`${formatCurrency(column.actualCents)}: entries for ${report.account.name}, ${column.period.label}`} onClick={() => setDrill({ key, name: report.account.name, transactions: column.drillTransactions, explain: { accountIds: [report.account.id], startDate: column.period.startDate, endDate: column.period.endDate, expectedCents: column.actualCents, sign: isDebitNatureType(report.account.type) ? 1 : -1, label: column.period.label } })}>{formatCurrency(column.actualCents)}</button> },
+        { header: "Actual", headClassName: "p-3", cell: (column) => <button type="button" className="min-h-11 px-3 underline tabular-nums" aria-label={fill(reportText('r.budget-drill', '{amount}: entries for {account}, {period}'), { amount: formatCurrency(column.actualCents), account: report.account.name, period: column.period.label })} onClick={() => setDrill({ key, name: report.account.name, transactions: column.drillTransactions, explain: { accountIds: [report.account.id], startDate: column.period.startDate, endDate: column.period.endDate, expectedCents: column.actualCents, sign: isDebitNatureType(report.account.type) ? 1 : -1, label: column.period.label } })}>{formatCurrency(column.actualCents)}</button> },
         { header: "Difference", className: "p-3", headClassName: "p-3", cell: (column) => formatCurrency(column.differenceCents) },
         { header: "% used", className: "p-3", headClassName: "p-3", cell: (column) => column.percentUsed === null ? '—' : `${column.percentUsed.toFixed(1)}%` },
       ]}

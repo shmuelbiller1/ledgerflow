@@ -274,6 +274,10 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
                 >
                   Continue as Guest
                 </button>
+                {/* EU-I3: write one invoice without an account */}
+                <a href="/make-invoice" className="h-11 text-[#525252] hover:text-[#0A0A0A] rounded-xl font-semibold text-sm flex items-center justify-center underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A] focus-visible:ring-offset-2">
+                  Just need an invoice? Make one free
+                </a>
               </div>
 
               <p className="mt-8 text-center text-sm font-medium text-[#525252]">

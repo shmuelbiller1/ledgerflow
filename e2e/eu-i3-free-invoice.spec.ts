@@ -1,0 +1,37 @@
+/** EU-I3: write an invoice with no account, then carry it into the sample company's invoice form. */
+import { test, expect } from '@playwright/test';
+
+for (const width of [390, 1280]) {
+  test(`EU-I3: free invoice maker → sample company (${width}px)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.addInitScript(() => localStorage.setItem('ledgerflow-cookie-consent', 'accepted'));
+    await page.goto('/make-invoice');
+    await expect(page.getByRole('heading', { name: /Make an invoice/ })).toBeVisible({ timeout: 15_000 });
+    await page.getByLabel('Bill to').fill('Acme Ltd');
+    await page.getByLabel('Line 1 description').fill('Logo design');
+    await page.getByLabel('Line 1 quantity').fill('2');
+    await page.getByLabel('Line 1 price').fill('120.50');
+    await page.getByLabel('Tax %').fill('17');
+    await expect(page.getByTestId('free-invoice-total')).toContainText('281.97'); // 241.00 + 17% 40.97
+    // on paper the fields become their full text, so a long description is not cut off
+    const long = 'Logo design, three rounds of changes, and the final files in every size';
+    await page.getByLabel('Line 1 description').fill(long);
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.getByText(long, { exact: true })).toBeVisible();
+    await page.emulateMedia({ media: 'screen' });
+    await page.getByLabel('Line 1 description').fill('Logo design');
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+    await page.getByRole('button', { name: 'Save this and track who paid' }).click();
+    await expect(page).toHaveURL(/#sales/);
+    const form = page.getByRole('dialog');
+    await expect(form).toBeVisible({ timeout: 20_000 });
+    await expect(form.getByText('Logo design').or(form.locator('input[value="Logo design"]'))).toBeVisible();
+    // the stored copy survives a reload until the draft is saved or closed
+    await page.reload();
+    const again = page.getByRole('dialog');
+    await expect(again).toBeVisible({ timeout: 20_000 });
+    await expect(again.locator('input[value="1"]').first()).toBeVisible(); // the maker's number is kept
+    await again.getByRole('button', { name: /^Close/ }).first().click();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('ledgerflow_free_invoice_draft'))).toBeNull();
+  });
+}

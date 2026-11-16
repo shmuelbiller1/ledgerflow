@@ -123,7 +123,10 @@ describe('AF11-01 & AF11-02: YearEndArchiveExport stale-async & AbortSignal safe
       fireEvent.click(screen.getByRole('button', { name: /Show what will be in it/i }));
       await waitFor(() => assert.match(document.body.textContent || '', /collections\/accounts-2026\.csv/), { timeout: 15_000 });
 
-      fireEvent.click(screen.getByRole('button', { name: /Download everything for 2026/i }));
+      // The preview can render while the button is still disabled (busy clearing); a click then is ignored.
+      const downloadButton = screen.getByRole('button', { name: /Download everything for 2026/i }) as HTMLButtonElement;
+      await waitFor(() => assert.equal(downloadButton.disabled, false, 'download button enabled'), { timeout: 15_000 });
+      fireEvent.click(downloadButton);
       await waitFor(() => assert.ok(pdfSignal, 'PDF fetch started with AbortSignal'), { timeout: 15_000 });
 
       // Switch workspace while the PDF fetch is still in flight
