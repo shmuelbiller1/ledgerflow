@@ -527,17 +527,21 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
           body: { transaction: payload, expectedUpdatedAt },
         });
       } catch (error) {
-        // A conflict is not a failure: someone else saved this entry, and the screen offers to
-        // reload theirs. `runCommand` keeps the status and body so that branch can still be told apart.
-        const body = (error instanceof ServerCommandError ? error.body : null) as { error?: string; message?: string; currentTransaction?: Transaction } | null;
-        const status = error instanceof ServerCommandError ? error.status : 0;
-        if (status === 409 || body?.error === 'version_conflict') {
-          const err: TransactionConflictError = new Error(body?.message || 'This transaction was modified by another user.');
-          err.isConflict = true;
-          err.currentTransaction = body?.currentTransaction;
-          throw err;
+        // The server took the save and only the answer was cut off. Rolling the row back would show the old
+        // version while the new one is committed, and the stale `updatedAt` makes this person's next save a 409.
+        if (!writeWasAccepted(error)) {
+          // A conflict is not a failure: someone else saved this entry, and the screen offers to reload theirs.
+          // `runCommand` keeps the status and body so that branch can still be told apart.
+          const body = (error instanceof ServerCommandError ? error.body : null) as { error?: string; message?: string; currentTransaction?: Transaction } | null;
+          const status = error instanceof ServerCommandError ? error.status : 0;
+          if (status === 409 || body?.error === 'version_conflict') {
+            const err: TransactionConflictError = new Error(body?.message || 'This transaction was modified by another user.');
+            err.isConflict = true;
+            err.currentTransaction = body?.currentTransaction;
+            throw err;
+          }
+          throw error;
         }
-        throw error;
       }
       // The full-update response echoes the request's transaction, including
       // its browser-generated updatedAt, NOT the persisted server timestamp.
@@ -659,7 +663,9 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
     if (!user || !currentWorkspaceId) return null;
     const loader = toast.loading('Executing reverse & correct...');
     try {
-      const data = await runCommand<{ reversal?: Transaction; replacement?: Transaction }>({
+      // A reversal that went through and lost only its answer must not be reported as failed: the person would
+      // try again and reverse the same entry twice. `{}` means "committed, nothing to show" — the list reloads.
+      const data = await runWrite<{ reversal?: Transaction; replacement?: Transaction }>({
         path: `/api/v1/transactions/${id}/reverse`,
         method: 'POST',
         body: {
@@ -668,7 +674,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
           replacement,
           workspaceId: currentWorkspaceId
         }
-      }) ?? {};
+      });
       const store = useLedgerStore.getState();
       const currentTxs = store.transactions;
       const updatedTxs = currentTxs.map(t => t.id === id ? { ...t, reversalEventId: data.reversal?.id || 'reversed' } : t);

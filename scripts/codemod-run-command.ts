@@ -131,6 +131,19 @@ export function findCandidates(file: string, source: string): Candidate[] {
       if (/method:\s*`/.test(call)) blockers.push('method is computed');
     }
     if (!/headers:\s*\{/.test(call)) blockers.push('no headers object');
+    // A header other than the two `runCommand` writes itself is a decision a person has to make. The one that
+    // matters is an idempotency key (`Idempotency-Key`, `x-operation-id`): it is what stops a retry from being
+    // recorded twice, and a rewrite that dropped it would change how money is posted. The original report
+    // counted these as mechanical, which is why the 82/16 split was too high.
+    const headerBlock = /headers:\s*\{([\s\S]*?)\}/.exec(call)?.[1] ?? '';
+    const extraHeaders = [...headerBlock.matchAll(/(?:'([\w-]+)'|"([\w-]+)"|([\w-]+))\s*:/g)]
+      .map(m => (m[1] || m[2] || m[3] || '').toLowerCase())
+      .filter(k => k && k !== 'content-type' && k !== 'authorization');
+    if (extraHeaders.length) blockers.push(`sends its own header(s): ${[...new Set(extraHeaders)].join(', ')}`);
+    // no auth header at all: a public or token-less route, where `runCommand` would attach a session by default
+    if (!/authorization/i.test(headerBlock) && !/getIdToken|Bearer/.test(call)) {
+      reasons.push('sends no session (pass `token: null` so runCommand does not attach one)');
+    }
     if (/responseType|blob|arrayBuffer|\.text\(\)/.test(call)) blockers.push('reads the response as something other than JSON');
     // `runCommand` takes a signal and passes it to fetch, so this is not a blocker. It is listed because a
     // call that carries one usually has an abort path nearby that the rewrite must not disturb.

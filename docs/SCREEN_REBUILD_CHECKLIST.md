@@ -24,7 +24,7 @@ ticked only when the number moved or the named test passes.
 
 | lever | what it does | expected |
 |---|---|---|
-| `scripts/codemod-run-command.ts` | `--report` inventories every hand-typed call and names the blocker; `--write` applies **eight confirmed rewrite shapes** and **reverts a file it cannot finish**, so `tsc` is never what notices | done the boring half, not guessed it |
+| `scripts/codemod-run-command.ts` | `--report` inventories every hand-typed call and names the blocker — including **its own header**: any key other than `Content-Type`/`Authorization` (an idempotency key above all) is a decision for a person, pinned by `codemod-run-command-classification.test.ts`. `--write` applies only blocker-free calls and **reverts a file it cannot finish** | done the boring half, not guessed it |
 | `scripts/codemod-table-to-grid.ts` | sorts every raw table into mechanical / by hand / stays with the reason | **139 / 31 / 73** |
 | `npm run ratchet:update` | moves the baseline after each batch | seconds |
 | one commit per **group**, not per file | the commit message carries the batch | ~6 commits, not 60 |

@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import { commandErrorMessage, runCommand } from '../lib/runCommand';
+import { commandErrorMessage, runCommand, writeWasAccepted } from '../lib/runCommand';
 import { calculateAmountDue } from '../lib/documentMath';
 
 /**
@@ -28,6 +28,9 @@ export async function recordReceiptPayment(
       },
     });
   } catch (error) {
+    // A 2xx whose body was cut off still means the payment was recorded. Saying otherwise would send the person to
+    // "Receive payment", which does not carry the `sale-receipt:` key — and the invoice would be paid twice.
+    if (writeWasAccepted(error)) { toast.success(`Sale receipt ${invoice.number || ''} saved and paid`.replace('  ', ' ')); return true; }
     // the invoice is saved; only the payment failed, and the reason is the server's
     toast.error(`Saved as an open invoice, but the payment was not recorded (${commandErrorMessage(error)}): record it with Receive payment.`);
     return false;
