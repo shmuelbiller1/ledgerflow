@@ -96,10 +96,11 @@ table the codemod refuses, which is why 50 files moved the counter by 32. The pl
 - [x] **The shape most report tables are written in, which the codemod could never convert.** A header that
       maps a literal list of names (`{['Date', 'Day'].map(head => <th>{head}</th>)}`) declares its columns by
       *mapping*, so the count check compared the row against an empty header list and refused every one of them —
-      41 tables. Read the names and compare against those (minus the repeated column when the last cell is a
-      nested map), and reuse them for the emitted headers. 37 tables in 30 files. A header whose *class* reads the
-      header item (`\`${head === 'Amount' ? …}\``) is refused: that name lives inside the header's map, which a
-      column list is outside of.
+      41 tables. Read the names and compare the row against those, and reuse them for the emitted headers: 37
+      tables in 30 files. Two things it may not do, and says so instead: a header whose *class* reads the header
+      item (`\`${head === 'Amount' ? …}\``) — that name lives inside the header's map, which a column list is
+      outside of — and a row that mixes written-out cells with a nested map, because the array branch has no
+      entry to put those cells in.
 - [x] **The two shapes the component already had a prop for, taught to the codemod.** A `<tfoot>` totals row is
       `footer` (and `footerClassName` when the `<tfoot>` carried `sticky bottom-0` or a rule), and the row a report
       prints when its list is empty is `emptyRow` — rendered *inside* the body, so the table, its head and its
@@ -114,16 +115,16 @@ Measured now by `npx tsx scripts/codemod-row-table.ts` → **149 tables in 126 f
 |---|---|---|---|---|
 | 1 | a header row that is not one of the four shapes the table can take | 47 | ✋ mostly `{cond && <th>}` action columns and sortable headers (`onClick`) — the grid's work, or a hand column list | ~40 |
 | 2 | a map that does not return a row | 31 | ✋ the map returns a fragment (`<React.Fragment key>` with a details row) or a component; a fragment of *two rows* is not one row | ~30 |
-| 3 | a body that is not a map (a ternary between two maps) | 16 | ✋ one expression away: `const rows = cond ? a : b` above the table | ~14 |
-| 4 | a body that is not one expression | 16 | ✋ name the second expression: a literal row, a fragment, or a second map | ~14 |
+| 3 | a body that is not a map | 13 | ✋ one expression away: `const rows = cond ? a : b` above the table | ~14 |
+| 4 | a body that is not one expression: an empty-state row beside the rows, or a literal row | 16 | ✋ name the second expression: a literal row, a fragment, or a second map | ~14 |
 | 5 | a cell this script could not read as one column | 8 | ✋ look at each; some are two cells the scanner merged | 8 |
 | 6 | a row class that reads the row | 7 | ✋ `rowClassName` is fixed; keep the conditional inside the cell, or keep the table | 7 |
 | 7 | a class computed from the row | 7 | ✋ same: the class belongs inside the cell | 7 |
 | 8 | something outside the caption/header/body, or a row header after the first column | 8 | ✋ individually | 8 |
-| 9 | a table attribute (`aria-label`), a computed header list, a header class that reads its item | 7 | ✋ the table name, or a header whose class is decided per column by hand | 7 |
-| 10 | no header row / no key / nested-cell edge cases | 3 | ✋ individually | 3 |
+| 9 | a table attribute (`aria-label`), a computed header list, a header class that reads its item, an empty state whose condition is not this list | 9 | ✋ the table name, or a header whose class is decided per column by hand | 9 |
+| 10 | no header row / no key / a nested map under a header that does not declare it | 3 | ✋ individually | 3 |
 
-**Fast order.** The footer and empty-state buckets are done, which is the free 12. What is left is the hand work,
+**Fast order.** The footer, empty-state and array-header buckets are done — the free 50. What is left is the hand work,
 and it is done by directory starting with `reporting` (the largest bucket), re-running the codemod after every
 batch: a file that stops being refused is free, and every batch so far has made the next one smaller. Do **not**
 hand-convert a table the codemod still refuses.
