@@ -682,6 +682,7 @@ test('a learned pattern is counted and merged by the server, not by the copy the
   assert.equal(db.read(`rulePatterns/${patternId}`)?.description, 'paper co', 'the description is cleaned once, on the server');
   assert.equal(db.read(`rulePatterns/${patternId}`)?.workspaceId, workspaceId);
   assert.equal(db.read(`learnedDeltas/${patternId}`)?.category, 'Office', 'the models read the same event');
+  assert.equal(db.read(`learnedDeltas/${patternId}`)?.apiKeyId, 'human_web_console', 'the classifier only trains on this id');
 
   const second = autoRuleLearnInput.parse({ description: 'paper co', accountId: 'expense-office', accountName: 'Office', tags: ['paper', 'stationery'], dimensions: { class: 'Admin' } });
   const two = await executeCommand(fakeRequest(owner, { workspaceId, input: second }), captureResponse().response,
@@ -690,6 +691,14 @@ test('a learned pattern is counted and merged by the server, not by the copy the
   assert.equal(db.read(`rulePatterns/${patternId}`)?.count, 2, 'the second tab counts up, it does not overwrite 1');
   assert.deepEqual(db.read(`rulePatterns/${patternId}`)?.tags, ['paper', 'office', 'stationery'], 'labels merge without repeating');
   assert.deepEqual(db.read(`rulePatterns/${patternId}`)?.dimensions, { class: 'Admin' });
+
+  // a description the matcher left with two inner spaces keeps its own id: the server must not merge it into
+  // "paper co", or an existing pattern stops counting and a new row starts again at 1
+  const spaced = autoRuleLearnInput.parse({ description: 'paper  co', accountId: 'expense-office' });
+  await executeCommand(fakeRequest(owner, { workspaceId, input: spaced }), captureResponse().response,
+    { definition: autoRuleLearnCommand, workspaceId, input: spaced }, runnerDependencies(db));
+  assert.equal(db.read(`rulePatterns/${workspaceId}_${learnedPatternId('paper  co')}`)?.count, 1);
+  assert.equal(db.read(`rulePatterns/${patternId}`)?.count, 2, 'and the pattern with one space is untouched');
 
   const many = autoRuleLearnInput.parse({ description: 'paper co', accountId: 'expense-office', tags: ['a', 'b', 'c', 'd', 'e', 'f'] });
   await executeCommand(fakeRequest(owner, { workspaceId, input: many }), captureResponse().response,

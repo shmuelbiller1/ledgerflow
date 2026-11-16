@@ -46,8 +46,10 @@ export const autoRuleLearnCommand: CommandDefinition<typeof autoRuleLearnInput, 
   input: autoRuleLearnInput,
   roles: ROLES,
   async handler(ctx: CommandContext, tx, input: LearnInput) {
-    // the same cleaning the matcher does, so "  Paper Co. " and "paper co" count as one pattern
-    const description = input.description.toLowerCase().trim().replace(/\s+/g, ' ');
+    // the same cleaning the matcher does — lower-case and trimmed, and nothing else: the id is derived from these
+    // characters, so collapsing inner spaces here would start a second pattern for a description that already has
+    // one, and would disagree with the key the screen's own cache is filed under
+    const description = input.description.toLowerCase().trim();
     const patternId = learnedPatternId(description);
     const id = `${ctx.workspaceId}_${patternId}`;
     const ref = ctx.db.collection('rulePatterns').doc(id);
@@ -80,7 +82,9 @@ export const autoRuleLearnCommand: CommandDefinition<typeof autoRuleLearnInput, 
       id,
       uid: ctx.actor,
       workspaceId: ctx.workspaceId,
-      apiKeyId: 'server_command',
+      // the classifier reads `human_web_console` for everything the web console teaches; a delta under any other
+      // id would be written and never trained on, and would relabel an existing one out of the training set
+      apiKeyId: 'human_web_console',
       description: description.slice(0, 500),
       category: (input.accountName || 'General').slice(0, 100),
       timestamp: now,
@@ -89,7 +93,7 @@ export const autoRuleLearnCommand: CommandDefinition<typeof autoRuleLearnInput, 
     return { pattern: { id, description, accountId: input.accountId, accountName: record.accountName as string, count, tags, dimensions: Object.keys(dimensions).length ? dimensions : undefined, lastUpdated: now } };
   },
   async preview(ctx: CommandContext, input: LearnInput) {
-    const description = input.description.toLowerCase().trim().replace(/\s+/g, ' ');
+    const description = input.description.toLowerCase().trim();
     const snapshot = await ctx.db.collection('rulePatterns').doc(`${ctx.workspaceId}_${learnedPatternId(description)}`).get();
     const count = snapshot.exists && typeof snapshot.data()?.count === 'number' ? snapshot.data()!.count as number : 0;
     return {
