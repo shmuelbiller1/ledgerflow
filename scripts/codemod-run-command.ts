@@ -273,6 +273,40 @@ export function rewrite(source: string, file: string): { source: string; changed
     changed++;
   }
 
+
+  // (e) the same writes, but with the token spread conditionally instead of typed inline. Same edits.
+  while (true) {
+    const match = /const res = await fetch\((`[^`]*`|'[^']*'), \{\n[ \t]*method: '(POST|PUT|PATCH|DELETE)',\n[ \t]*headers: \{ 'Content-Type': 'application\/json', \.\.\.\(token \? \{ Authorization: `Bearer \$\{token\}` \} : \{\}\) \},\n[ \t]*body: JSON\.stringify\(([\s\S]*?)\),\n[ \t]*\}\);\n/.exec(next);
+    if (!match) break;
+    const after = next.slice(match.index + match[0].length);
+    const tail = /^[ \t]*const (\w+) = await res\.json\(\)\.catch\(\(\) => \(\{\}\)\);\n(?:[ \t]*if \(!res\.ok\)[^\n]*\n)?/.exec(after);
+    if (!tail) break;
+    const [, pathArg, method, body] = match;
+    const rest = next.slice(match.index + match[0].length + tail[0].length);
+    const usedLater = new RegExp(`\\b${tail[1]}\\b`).test(rest);
+    const call = `runCommand<CommandBody>({ path: ${pathArg}, method: '${method}', body: ${body.trim()} })`;
+    next = next.slice(0, match.index) +
+      (usedLater ? `const ${tail[1]} = await ${call} ?? {};\n` : `await ${call};\n`) +
+      next.slice(match.index + match[0].length + tail[0].length);
+    changed++;
+  }
+
+  // (f) a GET with the conditional token spread and no body
+  while (true) {
+    const match = /const res = await fetch\((`[^`]*`|'[^']*'), \{\n[ \t]*headers: \{ \.\.\.\(token \? \{ Authorization: `Bearer \$\{token\}` \} : \{\}\) \},\n[ \t]*\}\);\n/.exec(next);
+    if (!match) break;
+    const after = next.slice(match.index + match[0].length);
+    const tail = /^[ \t]*const (\w+) = await res\.json\(\)\.catch\(\(\) => \(\{\}\)\);\n(?:[ \t]*if \(!res\.ok\)[^\n]*\n)?/.exec(after);
+    if (!tail) break;
+    const rest = next.slice(match.index + match[0].length + tail[0].length);
+    const usedLater = new RegExp(`\\b${tail[1]}\\b`).test(rest);
+    const call = `runCommand<CommandBody>({ path: ${match[1]} })`;
+    next = next.slice(0, match.index) +
+      (usedLater ? `const ${tail[1]} = await ${call} ?? {};\n` : `await ${call};\n`) +
+      next.slice(match.index + match[0].length + tail[0].length);
+    changed++;
+  }
+
   if (!changed) return { source, changed };
 
   // A site that still reads `res.ok` further down is not the shape these rules were written for (the

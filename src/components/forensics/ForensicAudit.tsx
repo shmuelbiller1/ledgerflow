@@ -18,6 +18,7 @@ import { isPostable, lineAmount } from '../../lib/txFilters';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { LoadedEntriesOnlyNote } from '../common/LoadedEntriesOnlyNote';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 
 
@@ -70,13 +71,11 @@ const ForensicAudit = React.memo(() => {
       if (isGuest || transactions.length < 5 || !currentWorkspaceId) return;
       setIsScanning(true);
       try {
-        const res = await fetch('/api/v1/forensics/anomaly-scan', {
+        const data = await runCommand<CommandBody>({
+          path: '/api/v1/forensics/anomaly-scan',
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId: currentWorkspaceId })
-        });
-        if (!res.ok) return;
-        const data = await res.json();
+          body: { workspaceId: currentWorkspaceId },
+        }) ?? {};
         if (data.anomalies) {
           setAnomalies(data.anomalies);
         }

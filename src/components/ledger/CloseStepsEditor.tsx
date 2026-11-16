@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { workspaceRole } from '../../lib/periodLock';
 import { closeStepsProblem, FREQUENCY_LABEL, MAX_CLOSE_STEPS, type CloseStep, type CloseStepFrequency } from '../../lib/closeSteps';
 import type { Workspace } from '../../types';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 /**
  * A checklist per client (BD-10): owners and accountants keep this workspace's own month-end steps
@@ -19,13 +20,7 @@ const FREQUENCIES = Object.keys(FREQUENCY_LABEL) as CloseStepFrequency[];
 
 async function saveSteps(workspaceId: string, steps: Draft[]): Promise<CloseStep[]> {
   const token = await getIdToken().catch(() => null);
-  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/periods/close-steps`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify({ steps }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'The steps could not be saved');
+  const data = await runCommand<CommandBody>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/periods/close-steps`, method: 'PUT', body: { steps } }) ?? {};
   return data.closeSteps as CloseStep[];
 }
 

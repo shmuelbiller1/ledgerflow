@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { getIdToken } from '../../firebase';
+import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 type BudgetControl = 'off' | 'warn' | 'block';
 const CHOICES: Array<{ value: BudgetControl; label: string }> = [
@@ -30,13 +31,7 @@ export default function BudgetControlSetting() {
     setPending(next);
     try {
       const token = await getIdToken().catch(() => null);
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/budget-control`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ budgetControl: next }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.message || 'The budget control could not be saved');
+      await runCommand<CommandBody>({ path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/budget-control`, method: 'PUT', body: { budgetControl: next } });
       // patch the store as it is now: if the user signed out or switched account meanwhile, the
       // workspace is no longer there and nothing is written back
       const { workspaces: latest, setWorkspaces } = useAuthStore.getState();
