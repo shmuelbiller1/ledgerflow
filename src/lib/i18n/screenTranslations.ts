@@ -204,6 +204,11 @@ export const SCREEN_TRANSLATION_TABLE: readonly ScreenTranslationBundle[] = [
       { key: 'label.asset', en: 'Asset', he: 'נכס' },
       { key: 'status.syncing', en: 'Syncing...', he: 'מסנכרן...' },
       { key: 'action.syncFeed', en: 'Sync Feed', he: 'סנכרון תנועות' },
+      { key: 'status.loading', en: 'Loading bank accounts…', he: 'טוען חשבונות בנק…' },
+      { key: 'type.bank', en: 'Bank', he: 'בנק' },
+      { key: 'type.cash', en: 'Cash', he: 'מזומן' },
+      { key: 'type.creditCard', en: 'Credit card', he: 'כרטיס אשראי' },
+      { key: 'type.asset', en: 'Asset', he: 'נכס' },
     ],
   },
   {
