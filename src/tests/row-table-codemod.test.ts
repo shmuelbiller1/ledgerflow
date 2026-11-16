@@ -92,6 +92,33 @@ describe('the codemod only takes the tables it can reproduce exactly', () => {
     assert.match(reason, /a header class that reads the header item/);
   });
 
+  test('an empty-state row whose condition is not this list being empty is refused', () => {
+    // `!loading && rows.length === 0` contains an emptiness test but is not one: the row also waits for loading,
+    // and an `emptyRow` would be shown by the component as soon as the list is empty
+    const { conversion, reason } = convert(page(`      <table className="w-full">
+        <caption>Rows</caption>
+        <thead><tr><th scope="col">Name</th></tr></thead>
+        <tbody>
+          {!loading && rows.length === 0 && <tr><td>Nothing yet.</td></tr>}
+          {rows.map(row => (<tr key={row.id}><td>{row.name}</td></tr>))}
+        </tbody>
+      </table>`));
+    assert.equal(conversion, undefined);
+    assert.match(reason, /not one expression/);
+  });
+
+  test('an empty row about a different list than the one the body maps is refused', () => {
+    const { conversion } = convert(page(`      <table className="w-full">
+        <caption>Rows</caption>
+        <thead><tr><th scope="col">Name</th></tr></thead>
+        <tbody>
+          {others.length === 0 && <tr><td>Nothing yet.</td></tr>}
+          {rows.map(row => (<tr key={row.id}><td>{row.name}</td></tr>))}
+        </tbody>
+      </table>`));
+    assert.equal(conversion, undefined);
+  });
+
   test('an empty-state row and the rows as one ternary become the empty row and the rows', () => {
     const { conversion } = convert(page(`      <table className="w-full">
         <caption>Transfers</caption>

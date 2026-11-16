@@ -564,10 +564,27 @@ function matchingColon(text: string, from: number): number {
 }
 
 /**
+ * `list.length === 0`, with the `&&` or `?` that follows it — the *whole* condition of an empty state. A
+ * condition that only contains an emptiness test (`!loading && rows.length === 0`, or `other.length === 0` above
+ * a different list) would show the sentence at the wrong time once the component decides when to show it, so it
+ * is not an empty state at all.
+ */
+function isEmptyTestOf(condition: string, list: string): boolean {
+  const test = condition
+    .trim()
+    .replace(/(&&|\?)$/, '')
+    .trim()
+    .replace(/^\(([\s\S]*)\)$/, '$1')
+    .trim();
+  const escaped = list.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^(?:${escaped}\\.length\\s*===?\\s*0|!\\s*${escaped}\\.length)$`).test(test);
+}
+
+/**
  * `{list.length === 0 ? <tr>…</tr> : list.map(row => <tr>…</tr>)}` — the sentence and the rows as one
  * expression, in either order — read as the map and the row it stands in for.
  */
-function readEmptyStateTernary(chunk: string): { map: string; row: string } | undefined {
+function readEmptyStateTernary(chunk: string): { map: string; row: string; condition: string } | undefined {
   const text = chunk.slice(1, -1).trim();
   const questionAt = topLevelIndexOf(text, '?');
   if (questionAt === -1) return undefined;
@@ -589,7 +606,7 @@ function readEmptyStateTernary(chunk: string): { map: string; row: string } | un
     if (!/^<tr\b/.test(row)) continue;
     const end = skipElement(row, 0, 'tr');
     if (end === 0 || row.slice(end).trim() !== '') continue;
-    return { map: mapped, row: row.slice(0, end) };
+    return { map: mapped, row: row.slice(0, end), condition };
   }
   return undefined;
 }
@@ -599,7 +616,7 @@ function readEmptyStateTernary(chunk: string): { map: string; row: string } | un
  * the row itself. A row that appears conditionally for another reason is not an empty state and is refused: the
  * condition has to be about the list being empty.
  */
-function readEmptyStateRow(chunk: string): string | undefined {
+function readEmptyStateRow(chunk: string, list: string): string | undefined {
   const text = chunk.slice(1, -1).trim();
   const rowAt = text.search(/\(?\s*<tr\b/);
   if (rowAt <= 0) return undefined;
@@ -610,8 +627,7 @@ function readEmptyStateRow(chunk: string): string | undefined {
   // `{cond && <tr>…</tr>}`, `{cond ? <tr>…</tr> : null}`, and either of those inside parentheses
   const trailing = body.slice(end).trim().replace(/^\)/, '').trim();
   if (trailing !== '' && trailing !== ': null' && trailing !== ':null') return undefined;
-  if (!condition.endsWith('&&') && !condition.endsWith('?')) return undefined;
-  if (!/(\.length\s*===?\s*0|!\s*[A-Za-z_$][\w$.]*\s*\.length)/.test(condition)) return undefined;
+  if (!isEmptyTestOf(condition, list)) return undefined;
   return body.slice(0, end);
 }
 
@@ -687,14 +703,19 @@ export function attemptConvert(source: string, start: number): Attempt {
   if (maps.length === 0 && !ternary) return { reason: 'a body that is not a map' };
   const extra = maps.length > 0 ? chunks.filter(chunk => chunk !== maps[0]) : [];
   if (extra.length > 1) return { reason: 'a body with more than one map' };
-  // the row a report shows when its list is empty stays a row inside the body: the component renders it in place
-  // of the rows, so the table, its head and its columns are still there to say what the sentence is about
-  const emptyRow = ternary ? ternary.row : extra.length === 1 ? readEmptyStateRow(extra[0]) : undefined;
-  if (!ternary && extra.length === 1 && emptyRow === undefined) return notOneExpression;
+  const emptyChunk = ternary ? undefined : extra.length === 1 ? extra[0] : undefined;
   const expression = (ternary ? ternary.map : maps[0].slice(1, -1).trim()).trim();
   const mapAt = expression.indexOf('.map(');
   if (mapAt === -1) return { reason: 'a body that is not a map' };
   const list = expression.slice(0, mapAt).trim();
+  // the row a report shows when its list is empty stays a row inside the body: the component renders it in place
+  // of the rows, so the table, its head and its columns are still there to say what the sentence is about. The
+  // condition has to be *this* list being empty — that is the whole of it, not a part of `!loading && …`
+  if (ternary && !isEmptyTestOf(ternary.condition, list)) {
+    return { reason: 'an empty state whose condition is not this list being empty' };
+  }
+  const emptyRow = ternary ? ternary.row : emptyChunk === undefined ? undefined : readEmptyStateRow(emptyChunk, list);
+  if (emptyChunk !== undefined && emptyRow === undefined) return notOneExpression;
   // the map's own callback: everything from its `(` to the `)` that closes it, found by balance so a nested
   // `map` inside a cell does not end the body
   const close = closingParen(expression, mapAt + 4);
@@ -785,9 +806,12 @@ export function attemptConvert(source: string, start: number): Attempt {
   if (head.kind === 'array' && arrayNames === undefined) {
     return { reason: 'a header list that is computed, not written out' };
   }
+  // the repeated column is one column, and an array header has no other written-out cells to put beside it
+  if (head.kind === 'array' && nestedCells.length === 1 && literalCells.length > 0) {
+    return { reason: 'an array header whose row mixes written-out cells with a nested map' };
+  }
   const declaredColumns = head.kind === 'array'
-    // one of the header's columns is the repeated one, and its cell is the nested map
-    ? (arrayNames!.length - (nestedCells.length === 1 ? 1 : 0))
+    ? (nestedCells.length === 1 ? 0 : arrayNames!.length)
     : fixedHeaders.length;
   if (literalCells.length !== declaredColumns) {
     return { reason: 'a row that does not line up with its header' };
