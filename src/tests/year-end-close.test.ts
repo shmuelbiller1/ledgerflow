@@ -13,7 +13,7 @@ import type { Server } from 'node:http';
 import type { Firestore } from '../server/db/pgFirestore';
 import { calculateNetIncome, isPostable } from '../lib/txFilters';
 import { computeBalanceSheet, computeProfitAndLoss } from '../server/reports/computeReports';
-import { fiscalYearStart } from '../server/routes/transactions/periodRoutes';
+import { closeMonthInvocation, fiscalYearStart } from '../server/routes/transactions/periodRoutes';
 import { makeChartAccount, makeTransaction } from './fixtures';
 
 const accounts = [
@@ -30,6 +30,38 @@ const year = [
 const oldClose = makeTransaction({
   id: 'close', date: '2026-12-31', type: 'adjustment' as never, metadata: { isYearEndClose: true },
   lines: [{ accountId: 'sales', accountName: 'Sales', amountCents: 100000 }, { accountId: 'rent', accountName: 'Rent', amountCents: -30000 }, { accountId: 're', accountName: 'Retained Earnings', amountCents: -70000 }],
+});
+
+test('legacy close-month formatting preserves success, retry, and refusal responses from the command runner', () => {
+  const invocation = closeMonthInvocation('workspace-1', '2026-07');
+  const format = invocation.formatResponse!;
+  const success = format({
+    ok: true, status: 200, command: 'period.close', replayed: false,
+    data: { month: '2026-07', mode: 'hard', lockDate: '2026-07-31', softLockDate: '2026-07-31' },
+  });
+  assert.deepEqual(success, {
+    status: 200,
+    body: {
+      status: 'ok', month: '2026-07', closingDate: '2026-07-31', lockDate: '2026-07-31',
+      message: 'Period 2026-07 locked through 2026-07-31.',
+    },
+  });
+  assert.deepEqual(format({
+    ok: true, status: 200, command: 'period.close', replayed: true,
+    data: { month: '2026-07', mode: 'hard', lockDate: '2026-07-31', softLockDate: '2026-07-31' },
+  }), success, 'a retry returns the same legacy success shape');
+  assert.deepEqual(format({
+    ok: false, status: 403, command: 'period.close', message: 'Forbidden: command period.close requires one of [owner, accountant]', code: 'ROLE_REQUIRED',
+  }), { status: 403, body: { error: 'Only owner or accountant can close a period' } });
+  assert.deepEqual(format({
+    ok: false, status: 403, command: 'period.close', message: 'Not a member of this workspace', code: 'NOT_A_MEMBER',
+  }), { status: 403, body: { error: 'Only owner or accountant can close a period' } });
+  assert.deepEqual(format({
+    ok: false, status: 409, command: 'period.close', message: 'Drafts block the close.', details: [{ id: 'draft-1' }],
+  }), { status: 409, body: { error: 'Drafts block the close.', details: [{ id: 'draft-1' }] } });
+  assert.deepEqual(format({
+    ok: false, status: 500, command: 'period.close', message: 'An internal server error occurred.', error: new Error('database unavailable'),
+  }), { status: 500, body: { error: 'database unavailable' } });
 });
 
 describe('Past closing entries', () => {
@@ -63,6 +95,17 @@ describe('Closing a year through the route (database)', { skip: !url && 'LF_TEST
     const res = await fetch(`${base}/api/v1/transactions/close-year`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': uid }, body: JSON.stringify({ workspaceId: ws, ...body }) });
     return { status: res.status, body: await res.json() as { message?: string; netIncomeCents?: number; error?: string } };
   };
+  const closeMonth = async (uid: string, month: string, operationId?: string) => {
+    const res = await fetch(`${base}/api/v1/transactions/close-month`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json', 'x-test-uid': uid,
+        ...(operationId ? { 'x-operation-id': operationId } : {}),
+      },
+      body: JSON.stringify({ workspaceId: ws, month }),
+    });
+    return { status: res.status, body: await res.json() as Record<string, unknown> };
+  };
 
   before(async () => {
     process.env.DATABASE_URL = url;
@@ -70,7 +113,7 @@ describe('Closing a year through the route (database)', { skip: !url && 'LF_TEST
     const { transactionRouter } = await import('../server/routes/transactionRoutes');
     const { getDb } = await import('../server/db/firestore');
     db = getDb();
-    await db.collection('workspaces').doc(ws).set({ uid: 'owner-1', name: 'YEC', currency: 'USD', members: ['owner-1', 'acc-1'], roles: { 'acc-1': 'accountant' } });
+    await db.collection('workspaces').doc(ws).set({ uid: 'owner-1', name: 'YEC', currency: 'USD', members: ['owner-1', 'acc-1', 'view-1'], roles: { 'acc-1': 'accountant', 'view-1': 'viewer' } });
     for (const a of accounts) await db.collection('chartAccounts').doc(id(a.id)).set({ ...a, id: id(a.id), workspaceId: ws });
     for (const t of year) await db.collection('transactions').doc(id(t.id)).set({ ...t, id: id(t.id), workspaceId: ws, lines: t.lines.map(l => ({ ...l, accountId: id(l.accountId) })) });
     // another workspace's sale in the same year must not count in this one's profit
@@ -87,7 +130,7 @@ describe('Closing a year through the route (database)', { skip: !url && 'LF_TEST
 
   after(async () => {
     server?.close();
-    for (const table of ['transactions', 'chartAccounts', 'auditLogs', 'workspaces']) await db.pool.query(`delete from public."${table}" where workspace_id = any($1) or id = any($1)`, [[ws, other]]);
+    for (const table of ['transactions', 'chartAccounts', 'periods', 'idempotencyKeys', 'auditLogs', 'workspaces']) await db.pool.query(`delete from public."${table}" where workspace_id = any($1) or id = any($1)`, [[ws, other]]);
     await db.terminate();
   });
 
@@ -102,5 +145,29 @@ describe('Closing a year through the route (database)', { skip: !url && 'LF_TEST
     assert.equal((await db.collection('workspaces').doc(ws).get()).data()?.lockDate, '2026-06-30');
     const audit = (await db.collection('auditLogs').where('workspaceId', '==', ws).get()).docs.map(d => d.data()).find(a => a.action === 'FISCAL_YEAR_CLOSE');
     assert.equal((audit?.details as { netIncomeCents: number }).netIncomeCents, 70000);
+  });
+
+  test('legacy month-close route uses the period command and preserves its response and retry behavior', async () => {
+    const invalid = await closeMonth('owner-1', 'not-a-month');
+    assert.equal(invalid.status, 400);
+    assert.deepEqual(invalid.body, { error: 'Missing or invalid parameters: workspaceId and month (YYYY-MM) required.' });
+    const invalidMonth = await closeMonth('owner-1', '2026-13');
+    assert.equal(invalidMonth.status, 400);
+    assert.deepEqual(invalidMonth.body, { error: 'Month must be YYYY-MM' });
+
+    const refused = await closeMonth('view-1', '2026-08');
+    assert.equal(refused.status, 403);
+    assert.deepEqual(refused.body, { error: 'Only owner or accountant can close a period' });
+
+    const operationId = 'legacy-close-month-retry';
+    const first = await closeMonth('owner-1', '2026-07', operationId);
+    assert.equal(first.status, 200, JSON.stringify(first.body));
+    assert.deepEqual(first.body, {
+      status: 'ok', month: '2026-07', closingDate: '2026-07-31', lockDate: '2026-07-31',
+      message: 'Period 2026-07 locked through 2026-07-31.',
+    });
+    assert.deepEqual(await closeMonth('owner-1', '2026-07', operationId), first, 'same operation replays the established success response');
+    const changedRetry = await closeMonth('owner-1', '2026-08', operationId);
+    assert.equal(changedRetry.status, 409, 'reusing the operation ID for changed input is refused');
   });
 });

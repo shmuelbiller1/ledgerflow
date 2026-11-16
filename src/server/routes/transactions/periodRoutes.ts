@@ -4,7 +4,9 @@ import { calculateNetIncome } from '../../../lib/txFilters';
 import type { Transaction } from '../../../types';
 import { getDb, validateWorkspaceMember } from '../../db/firestore';
 import { writeServerAuditLog } from '../../services/auditLogService';
-import { closePeriod, PeriodCloseError } from '../../services/periodCloseService';
+import { executeCommand } from '../../utils/commandExecutor';
+import type { CommandExecutionOutcome, CommandInvocation } from '../../commands/types';
+import { periodCloseCommand } from '../../commands/periods';
 import { errorMessage, requestUser } from '../../auth/requestUser';
 import { FxRevaluationError, revaluateForeignBalances, undoRevaluation } from '../../services/fxRevaluationService';
 import { formatTzDate } from './helpers';
@@ -56,6 +58,38 @@ export function fiscalYearStart(closingDate: string): string {
   const yearBefore = Date.parse(`${y - 1}-${md}T00:00:00Z`);
   const base = Number.isNaN(yearBefore) || new Date(yearBefore).toISOString().slice(5, 10) !== md ? Date.parse(`${y - 1}-02-28T00:00:00Z`) : yearBefore;
   return new Date(base + 86400000).toISOString().slice(0, 10);
+}
+
+/** Adapt the legacy hard-close endpoint to the shared period command and its established wire shape. */
+export function closeMonthInvocation(workspaceId: string, month: string): CommandInvocation {
+  return {
+    definition: periodCloseCommand,
+    workspaceId,
+    input: { month, mode: 'hard' },
+    formatResponse(outcome: CommandExecutionOutcome) {
+      if (outcome.ok) {
+        const result = outcome.data as { lockDate: string };
+        return {
+          status: 200,
+          body: {
+            status: 'ok', month,
+            closingDate: result.lockDate,
+            lockDate: result.lockDate,
+            message: `Period ${month} locked through ${result.lockDate}.`,
+          },
+        };
+      }
+      const message = outcome.code === 'ROLE_REQUIRED' || outcome.code === 'NOT_A_MEMBER'
+        ? 'Only owner or accountant can close a period'
+        : outcome.status >= 500
+          ? outcome.error instanceof Error ? outcome.error.message : outcome.error === undefined ? outcome.message : String(outcome.error)
+          : outcome.message;
+      return {
+        status: outcome.status,
+        body: { error: message, ...(outcome.details !== undefined ? { details: outcome.details } : {}) },
+      };
+    },
+  };
 }
 
 /** Period work: currency revaluation, year-end and month-end close, workspace reset. Part of /api/v1/transactions (F-06), registered in the original order. */
@@ -220,14 +254,10 @@ export function registerPeriodRoutes(transactionRouter: express.Router): void {
     if (!workspaceId || !month || !/^\d{4}-\d{2}$/.test(month)) {
       return res.status(400).json({ error: 'Missing or invalid parameters: workspaceId and month (YYYY-MM) required.' });
     }
-    const user = (req as unknown as { user: { uid: string; email?: string } }).user;
-    try {
-      const result = await closePeriod(getDb(), { workspaceId, uid: user.uid, email: user.email, month, mode: 'hard' });
-      res.json({ status: 'ok', month, closingDate: result.lockDate, lockDate: result.lockDate, message: `Period ${month} locked through ${result.lockDate}.` });
-    } catch (e) {
-      if (e instanceof PeriodCloseError) return res.status(e.status).json({ error: e.message, details: e.details });
-      res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+      return res.status(400).json({ error: 'Month must be YYYY-MM' });
     }
+    await executeCommand(req, res, closeMonthInvocation(workspaceId, month));
   });
 
   transactionRouter.post('/reset', async (req, res) => {
