@@ -15,6 +15,7 @@
     "GET /api/v1/account/recovery-codes",
     "GET /api/v1/account/two-step",
     "GET /api/v1/auth/login-audits",
+    "GET /api/v1/commands/",
     "GET /api/v1/user/ai-key-status",
     "GET /api/v1/workspaces",
     "GET /api/v1/workspaces/",
@@ -87,8 +88,8 @@
     "autoRules": {
       "anon": "",
       "stranger": "",
-      "viewer": "r",
-      "bookkeeper": "riud"
+      "viewer": "",
+      "bookkeeper": ""
     },
     "bankLines": {
       "anon": "",
@@ -111,8 +112,8 @@
     "bills": {
       "anon": "",
       "stranger": "",
-      "viewer": "r",
-      "bookkeeper": "riud"
+      "viewer": "",
+      "bookkeeper": ""
     },
     "budgets": {
       "anon": "",
@@ -135,8 +136,8 @@
     "creditNotes": {
       "anon": "",
       "stranger": "",
-      "viewer": "r",
-      "bookkeeper": "riud"
+      "viewer": "",
+      "bookkeeper": ""
     },
     "customTemplates": {
       "anon": "",
@@ -225,8 +226,8 @@
     "invoices": {
       "anon": "",
       "stranger": "",
-      "viewer": "r",
-      "bookkeeper": "riud"
+      "viewer": "",
+      "bookkeeper": ""
     },
     "jobRuns": {
       "anon": "",
@@ -435,8 +436,8 @@
     "vendorCredits": {
       "anon": "",
       "stranger": "",
-      "viewer": "r",
-      "bookkeeper": "riud"
+      "viewer": "",
+      "bookkeeper": ""
     },
     "vendors": {
       "anon": "",

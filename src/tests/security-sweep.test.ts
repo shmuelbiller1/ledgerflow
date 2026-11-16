@@ -395,6 +395,9 @@ describe('Security sweep (database)', { skip: !url && 'LF_TEST_DATABASE_URL not 
     }
 
     // never allowed, whatever the baseline says
+    // A table with no test row has had its read, update and delete checks skipped. That must never pass quietly.
+    const unseeded = Object.entries(observed.tables).filter(([, c]) => Object.values(c).some(v => v.endsWith('?'))).map(([t]) => t);
+    assert.deepEqual(unseeded, [], `No test row could be put in these tables, so reading, changing and deleting were not checked:\n  ${unseeded.join('\n  ')}`);
     const signedOut = Object.entries(observed.tables).filter(([, c]) => c.anon.replace('?', '') !== '').map(([t, c]) => `${t}: ${c.anon}`);
     assert.deepEqual(signedOut, [], `A signed-out browser can touch these tables:\n  ${signedOut.join('\n  ')}`);
     const crossTenant = Object.entries(observed.tables).filter(([, c]) => /[rud]/.test(c.stranger)).map(([t, c]) => `${t}: ${c.stranger}`);

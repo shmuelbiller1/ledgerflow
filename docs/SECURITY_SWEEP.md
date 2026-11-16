@@ -29,8 +29,10 @@ nothing anywhere, and a stranger must never read, change or delete another busin
 carry `x-content-type-options: nosniff` and do not announce the server software; another website is
 not allowed to read answers.
 
-**Two controls on the test itself**, so it cannot pass by accident: a real member's token must be
-accepted by at least one route, and that member must still have access when the sweep ends.
+**Three controls on the test itself**, so it cannot pass by accident: a real member's token must be
+accepted by at least one route, that member must still have access when the sweep ends, and every
+table must have accepted a test row (a table with no row cannot be checked for reading, changing
+or deleting, so the sweep fails instead of skipping it).
 
 ## The approved list
 
