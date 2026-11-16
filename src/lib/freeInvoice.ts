@@ -26,6 +26,12 @@ const round = (n: number) => Math.round(n);
 /** The tax percent the maker works with: 0–100. */
 export const cappedRate = (rate: number) => Math.min(100, Math.max(0, Number(rate) || 0));
 
+/** The capped percent in the one form the invoice form cannot misread (see toInvoiceDraft). */
+export const handOverRate = (rate: number) => {
+  const pct = cappedRate(rate);
+  return pct > 1 ? pct : pct / 100;
+};
+
 /** One line's amount in minor units: quantity × rate, rounded to a whole unit. */
 export function lineAmount(line: FreeInvoiceLine): number {
   return round((Number(line.quantity) || 0) * (Number(line.rateCents) || 0));
@@ -71,9 +77,9 @@ export function toInvoiceDraft(inv: FreeInvoice): Partial<Invoice> {
     dueDate: inv.dueDate || inv.date,
     currency: inv.currency,
     status: 'draft',
-    // as a fraction (17% → 0.17): the invoice form reads 0–1 as a fraction and above 1 as a
-    // percent, so a fraction has one meaning for every rate, including 1% and below
-    taxRate: cappedRate(inv.taxRate) / 100,
+    // the invoice form reads above 1 as a percent and 0–1 as a fraction: 17% goes over as 17 (so
+    // the form's percent field shows 17), and 1% or less as its fraction (1% → 0.01)
+    taxRate: handOverRate(inv.taxRate),
     amountCents: totals.total,
     items: used.map((l, i) => ({
       id: `free-${i + 1}`,

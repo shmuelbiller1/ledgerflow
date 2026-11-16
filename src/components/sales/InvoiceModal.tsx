@@ -64,6 +64,11 @@ function createInvoiceFormState(initialInvoice?: Partial<Invoice>): Partial<Invo
 }
 
 /** Modal form for creating or editing a customer invoice or sales receipt and its line-level dimension labels. */
+/** The custom rate is a percent above 1 and a fraction from 0 to 1 (how customRateCode reads it):
+ *  show it as the percent it charges, and store a typed 1% or less as its fraction. */
+const percentShown = (rate: number | undefined) => { const r = Number(rate) || 0; return r > 0 && r <= 1 ? Math.round(r * 100_000) / 1000 : r; };
+const percentStored = (pct: number) => (pct > 0 && pct <= 1 ? pct / 100 : pct);
+
 export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], accounts = [], initialInvoice, receipt = false }: InvoiceModalProps) {
   const isGuest = useAuthStore(s => s.isGuest && !s.user);
   // Ensure we have arrays even if props were passed as null
@@ -441,8 +446,8 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
                 {taxChoice === 'custom' && (
                   <input id="inv-custom-tax-rate" aria-invalid={Boolean(fieldErrors['inv-custom-tax-rate'])} aria-describedby={fieldErrors['inv-custom-tax-rate'] ? 'inv-custom-tax-rate-error' : undefined}
                     aria-label="Tax rate (%)"
-                    type="number" step="0.001" min="0" max="100" value={invoice.taxRate || 0}
-                    onChange={(e) => setInvoice({ ...invoice, taxRate: Number.parseFloat(e.target.value || '0') })}
+                    type="number" step="0.001" min="0" max="100" value={percentShown(invoice.taxRate)}
+                    onChange={(e) => setInvoice({ ...invoice, taxRate: percentStored(Number.parseFloat(e.target.value || '0')) })}
                     className="w-full min-h-11 px-3 py-2 bg-[var(--ink)] border border-[var(--line)] rounded-xl outline-none font-mono"
                   />
                 )}

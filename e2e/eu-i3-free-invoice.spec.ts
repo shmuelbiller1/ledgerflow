@@ -13,6 +13,13 @@ for (const width of [390, 1280]) {
     await page.getByLabel('Line 1 price').fill('120.50');
     await page.getByLabel('Tax %').fill('17');
     await expect(page.getByTestId('free-invoice-total')).toContainText('281.97'); // 241.00 + 17% 40.97
+    // on paper the fields become their full text, so a long description is not cut off
+    const long = 'Logo design, three rounds of changes, and the final files in every size';
+    await page.getByLabel('Line 1 description').fill(long);
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.getByText(long, { exact: true })).toBeVisible();
+    await page.emulateMedia({ media: 'screen' });
+    await page.getByLabel('Line 1 description').fill('Logo design');
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     await page.getByRole('button', { name: 'Save this and track who paid' }).click();
     await expect(page).toHaveURL(/#sales/);

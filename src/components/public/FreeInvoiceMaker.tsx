@@ -67,11 +67,13 @@ export default function FreeInvoiceMaker() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="min-w-0 space-y-1">
               <label htmlFor={ids.from} className="text-sm font-medium">From (your business)</label>
-              <textarea id={ids.from} rows={3} value={from} onChange={e => setFrom(e.target.value)} className="w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] p-2" />
+              <textarea id={ids.from} rows={3} value={from} onChange={e => setFrom(e.target.value)} className="print:hidden w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] p-2" />
+              <span className="hidden print:block whitespace-pre-wrap break-words">{from}</span>
             </div>
             <div className="min-w-0 space-y-1">
               <label htmlFor={ids.to} className="text-sm font-medium">Bill to</label>
-              <textarea id={ids.to} rows={3} value={to} onChange={e => setTo(e.target.value)} className="w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] p-2" />
+              <textarea id={ids.to} rows={3} value={to} onChange={e => setTo(e.target.value)} className="print:hidden w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] p-2" />
+              <span className="hidden print:block whitespace-pre-wrap break-words">{to}</span>
             </div>
           </div>
           <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
@@ -102,7 +104,10 @@ export default function FreeInvoiceMaker() {
             </div>
             {lines.map((l, i) => (
               <div key={l.id} role="group" aria-label={`Line ${i + 1}`} className="grid grid-cols-[minmax(0,1fr)_3rem_4.5rem_4.5rem_2.75rem] sm:grid-cols-[1fr_5rem_8rem_8rem_2.75rem] items-center gap-2 border-t border-[var(--line)] pt-2">
-                <input aria-label={`Line ${i + 1} description`} value={l.description} onChange={e => setLine(i, { description: e.target.value })} className="min-w-0 min-h-11 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2" />
+                <span className="min-w-0">
+                  <input aria-label={`Line ${i + 1} description`} value={l.description} onChange={e => setLine(i, { description: e.target.value })} className="print:hidden w-full min-w-0 min-h-11 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2" />
+                  <span className="hidden print:block whitespace-pre-wrap break-words">{l.description}</span>
+                </span>
                 <input aria-label={`Line ${i + 1} quantity`} inputMode="decimal" value={l.quantity} onChange={e => setLine(i, { quantity: e.target.value })} className="min-w-0 min-h-11 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2" />
                 <input aria-label={`Line ${i + 1} price`} inputMode="decimal" placeholder="0.00" value={l.rate} onChange={e => setLine(i, { rate: e.target.value })} className="min-w-0 min-h-11 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2" />
                 <span className="text-right font-mono tabular-nums break-all">{money(lineAmount(invoice.lines[i]))}</span>
