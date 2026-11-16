@@ -4,6 +4,7 @@ import { AlertCircle, Building2 } from 'lucide-react';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { customerOpenQuotes, type CustomerQuoteItem } from '../../lib/customerQuotes';
 import type { Estimate } from '../../types';
+import { runCommand } from '../../lib/runCommand';
 
 /**
  * Customer portal (K-27, A-49 / A-175, G-16): what a customer sees at `/c/<token>`: their invoices
@@ -49,11 +50,10 @@ export default function CustomerPortalPage() {
     let live = true;
     void (async () => {
       try {
-        const res = await fetch(`/api/v1/invoices/public/portal/${encodeURIComponent(token)}`);
-        const body = await res.json().catch(() => ({}));
+        // a customer's link: no session token, by design
+        const body = await runCommand<PortalData>({ path: `/api/v1/invoices/public/portal/${encodeURIComponent(token)}`, token: null });
         if (!live) return;
-        if (!res.ok) throw new Error(body.message || 'This link is not valid any more. Ask for a new one.');
-        setData(body as PortalData);
+        setData(body);
       } catch (err) {
         if (live) setError(err instanceof Error ? err.message : String(err));
       }

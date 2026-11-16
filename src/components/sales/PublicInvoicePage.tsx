@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { useTimeout } from '../../hooks/useTimeout';
 
 import { BRAND_NAME } from '../../config/brand';
+import { runCommand, ServerCommandError } from '../../lib/runCommand';
 /** The invoice as the public link returns it, with what is still due. */
 type PublicInvoice = Invoice & { remainingBalanceCents?: number };
 
@@ -24,18 +25,17 @@ export default function PublicInvoicePage() {
       return;
     }
 
-    fetch(`/api/v1/invoices/public/${token}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.error) {
-          setError(data.error);
-        } else {
-          setInvoice(data.invoice);
-        }
-      })
+    // `token: null` is the explicit "no session": this is a customer's link, and sending the signed-in person's
+    // credentials from this browser to a public route would be worse than useless.
+    //
+    // A dead link is answered 404 *with a sentence for the customer in it* ("Invoice not found", "This invoice was
+    // cancelled"), so the refusal body is what the page shows — not a generic failure line.
+    runCommand<{ invoice?: Invoice }>({ path: `/api/v1/invoices/public/${token}`, token: null })
+      .then(data => setInvoice(data?.invoice as Invoice))
       .catch(err => {
-        console.error(err);
-        setError('Failed to load invoice');
+        const said = err instanceof ServerCommandError ? (err.body as { error?: string } | null)?.error : null;
+        if (!said) console.error(err);
+        setError(said || 'Failed to load invoice');
       })
       .finally(() => {
         setLoading(false);
@@ -46,16 +46,12 @@ export default function PublicInvoicePage() {
     if (!invoice) return;
     setIsPaying(true);
     try {
-      const res = await fetch(`/api/v1/invoices/public/${invoice.paymentToken}/pay`, {
+      const data = await runCommand<{ url?: string; error?: string }>({
+        path: `/api/v1/invoices/public/${invoice.paymentToken}/pay`,
         method: 'POST',
-        ...(paymentMethod
-          ? {
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentMethod }),
-            }
-          : {}),
-      });
-      const data = await res.json();
+        token: null,
+        ...(paymentMethod ? { body: { paymentMethod } } : {}),
+      }) ?? {};
       if (data.url) {
         window.location.href = data.url;
       } else {

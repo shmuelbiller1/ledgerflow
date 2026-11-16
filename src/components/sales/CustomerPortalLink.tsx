@@ -4,9 +4,9 @@ import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { getIdToken } from '../../firebase';
 import { safeConfirm } from '../../lib/utils';
 import type { Customer } from '../../types';
+import { runCommand } from '../../lib/runCommand';
 
 /**
  * The customer's portal link (K-27) on their page: make one (the customer sees their invoices and pays
@@ -23,12 +23,10 @@ export default function CustomerPortalLink({ customer }: { customer: Customer })
   const call = async (method: 'POST' | 'DELETE') => {
     setBusy(true);
     try {
-      const auth = await getIdToken().catch(() => null);
-      const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/customers/${encodeURIComponent(customer.id)}/portal-link`, {
-        method, headers: auth ? { Authorization: `Bearer ${auth}` } : {},
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'That did not work');
+      const data = await runCommand<{ token?: string }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/customers/${encodeURIComponent(customer.id)}/portal-link`,
+        method,
+      }) ?? {};
       const next = method === 'POST' ? String(data.token) : null;
       useLedgerStore.setState(s => ({ customers: s.customers.map(c => (c.id === customer.id ? { ...c, portalToken: next } : c)) }));
       if (next) {
