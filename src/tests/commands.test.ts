@@ -18,6 +18,8 @@ import { watchCreateCommand } from '../server/commands/watches';
 import { customerCreateCommand, customerCreateInput, customerUpdateCommand, customerUpdateInput, warrantyUpdateCommand, warrantyUpdateInput } from '../server/commands/customers';
 import { vendorCreateCommand, vendorCreateInput, vendorUpdateCommand, vendorUpdateInput } from '../server/commands/vendors';
 import { paymentReceiveCommand, paymentReceiveInput } from '../server/commands/payments';
+import { periodBalancesRebuildCommand, periodCloseStepsCommand, periodFxRevaluationCommand, periodFxRevaluationUndoCommand, periodYearCloseCommand } from '../server/commands/periods';
+import { snapshotRebuildDates, type PeriodBalances } from '../server/services/balanceService';
 import {
   billCreateCommand,
   billCreateInput,
@@ -57,6 +59,7 @@ test('the default registry is sorted and unique across the registered command do
     'entrylink.create', 'entrylink.remove',
     'invoice.create', 'invoice.delete', 'invoice.update',
     'journal.create', 'payment.receive',
+    'period.balancesrebuild', 'period.close', 'period.closesteps', 'period.depreciation', 'period.fxrevaluation', 'period.fxrevaluationundo', 'period.relock', 'period.reopen', 'period.signoff', 'period.unlock', 'period.yearclose',
     'stages.define', 'stages.move',
     'tasks.create', 'tasks.remove', 'tasks.status',
     'time.invoice', 'time.log', 'time.move', 'time.rates', 'time.remove', 'time.update',
@@ -67,9 +70,22 @@ test('the default registry is sorted and unique across the registered command do
     'workspace.canceldeletion', 'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
     'workspace.retention', 'workspace.revokeinvite', 'workspace.setupcomplete',
   ]);
-  assert.deepEqual(registry.areaNames(), ['alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'invoice', 'journal', 'payment', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
+  assert.deepEqual(registry.areaNames(), ['alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'invoice', 'journal', 'payment', 'period', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
+  assert.equal(registry.get('period.balancesrebuild'), periodBalancesRebuildCommand);
+  assert.equal(periodBalancesRebuildCommand.allowPlatformAdmin, true);
+  assert.ok(registry.get('period.close'));
+  assert.ok(registry.get('period.closesteps'));
+  assert.ok(registry.get('period.depreciation'));
+  assert.ok(registry.get('period.relock'));
+  assert.ok(registry.get('period.reopen'));
+  assert.ok(registry.get('period.signoff'));
+  assert.ok(registry.get('period.unlock'));
+  assert.equal(registry.get('period.fxrevaluation'), periodFxRevaluationCommand);
+  assert.equal(registry.get('period.fxrevaluationundo'), periodFxRevaluationUndoCommand);
+  assert.equal(registry.get('period.yearclose'), periodYearCloseCommand);
+  assert.equal(periodYearCloseCommand.allowPlatformAdmin, true);
   assert.equal(registry.get('workspace.importmap'), importMapSaveCommand);
   assert.equal(registry.get('workspace.restoremaps'), importMapRestoreCommand);
   assert.equal(registry.get('tasks.create'), taskCreateCommand);
@@ -166,6 +182,13 @@ test('API-key scopes validate exact, unique permissions and command paths use th
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/creditNote.create'), 'write:transactions');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/vendorCredit.update/preview'), 'write:transactions');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/payment.receive/preview'), 'write:transactions');
+  for (const name of ['period.close', 'period.closesteps', 'period.depreciation', 'period.relock', 'period.reopen', 'period.signoff', 'period.unlock']) {
+    assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:workspaces');
+  }
+  assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/period.unlock/preview'), 'write:workspaces');
+  for (const name of ['period.balancesrebuild', 'period.fxrevaluation', 'period.fxrevaluationundo', 'period.yearclose']) {
+    assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:transactions');
+  }
   assert.equal(requiredApiKeyScope('GET', '/api/v1/commands'), 'read:transactions');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/transactions'), 'write:transactions');
 });
@@ -281,6 +304,38 @@ test('API-key workspace binding and high-risk two-step rules are enforced before
   assert.equal(counters.runs, 0);
 });
 
+test('platform administrators can use only commands that explicitly allow the override, never through API keys', async () => {
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const command = { ...recordingCommand(counters, 'demo.admin'), allowPlatformAdmin: true };
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  const deps = runnerDependencies(db, counters);
+  const administrator: RequestUser = { uid: 'platform-admin', email: 'admin@example.test', admin: true, aal: 'aal2' };
+  const input = invocationInput('platform-admin');
+  const outcome = await executeCommand(fakeRequest(administrator, { workspaceId, input }), captureResponse().response,
+    { definition: command, workspaceId, input }, deps);
+  assert.equal(outcome.ok, true, 'the explicit platform-admin capability applies outside workspace membership');
+  assert.equal(counters.runs, 1);
+
+  const preview = await previewCommand(fakeRequest(administrator, { workspaceId, input }),
+    { definition: command, workspaceId, input }, deps);
+  assert.equal(preview.ok, true, 'the same capability is honored by read-only previews');
+
+  const scopedAdministrator = { ...administrator, developerWorkspaceId: workspaceId };
+  const apiKeyOutcome = await executeCommand(fakeRequest(scopedAdministrator, { workspaceId, input }), captureResponse().response,
+    { definition: command, workspaceId, input }, deps);
+  assert.equal(apiKeyOutcome.ok, false, 'API-key callers cannot inherit platform-admin authority');
+  if (!apiKeyOutcome.ok) assert.equal(apiKeyOutcome.code, 'ROLE_REQUIRED');
+  assert.equal(counters.runs, 1);
+
+  const ordinary = recordingCommand(counters, 'demo.ordinary');
+  const ordinaryOutcome = await executeCommand(fakeRequest(administrator, { workspaceId, input }), captureResponse().response,
+    { definition: ordinary, workspaceId, input }, deps);
+  assert.equal(ordinaryOutcome.ok, false, 'platform-admin bypass is opt-in per command');
+  if (!ordinaryOutcome.ok) assert.equal(ordinaryOutcome.code, 'ROLE_REQUIRED');
+  assert.equal(counters.runs, 1);
+});
+
 test('previews call only the read-only preview hook and pass the effective date', async () => {
   const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
   const command = recordingCommand(counters);
@@ -294,6 +349,134 @@ test('previews call only the read-only preview hook and pass the effective date'
   assert.equal(counters.runs, 0);
   assert.equal(counters.audits, 0);
   assert.equal(db.entries('commandRecords').length, 0);
+});
+
+test('period.closesteps preview reports retained-step title and frequency edits', async () => {
+  const db = new MemoryDb();
+  const stepId = 'cs_abcdef';
+  seedWorkspace(db, workspaceId, {
+    closeSteps: [{ id: stepId, title: 'Review payroll report', frequency: 'monthly' }],
+  });
+  const input = { steps: [{ id: stepId, title: 'Review payroll summary', frequency: 'yearly' }] };
+  const outcome = await previewCommand(fakeRequest(owner, { workspaceId, input }),
+    { definition: periodCloseStepsCommand, workspaceId, input }, runnerDependencies(db));
+
+  assert.equal(outcome.ok, true);
+  if (outcome.ok) {
+    assert.equal(outcome.preview.title, 'Save workspace month-end checklist steps');
+    assert.deepEqual(outcome.preview.lines, [
+      'Rename “Review payroll report” to “Review payroll summary”',
+      'Change frequency of “Review payroll summary” from monthly to yearly',
+    ]);
+  }
+  assert.equal(db.directWriteCount, 0, 'the preview does not write to the workspace');
+});
+
+test('period.closesteps preview keeps unchanged retained steps distinct from edits', async () => {
+  const db = new MemoryDb();
+  const step = { id: 'cs_abcdef', title: 'Review payroll report', frequency: 'monthly' };
+  seedWorkspace(db, workspaceId, { closeSteps: [step] });
+  const input = { steps: [step] };
+  const outcome = await previewCommand(fakeRequest(owner, { workspaceId, input }),
+    { definition: periodCloseStepsCommand, workspaceId, input }, runnerDependencies(db));
+
+  assert.equal(outcome.ok, true);
+  if (outcome.ok) assert.deepEqual(outcome.preview.lines, ['Keep 1 existing step.']);
+});
+
+test('period.fxrevaluation previews without writes and executes inside the runner transaction', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  db.seed(`chartAccounts/${workspaceId}_fx`, { id: `${workspaceId}_fx`, workspaceId, name: 'Unrealized FX Gain/Loss', type: 'income' });
+  let transactions = 0;
+  db.beforeTransaction = () => { transactions++; };
+  const input = {};
+  const deps = runnerDependencies(db);
+  const preview = await previewCommand(fakeRequest(owner, { workspaceId, input }),
+    { definition: periodFxRevaluationCommand, workspaceId, input }, deps);
+
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.match(preview.preview.title, /^Preview currency revaluation at /);
+  assert.equal(db.directWriteCount, 0);
+  assert.equal(transactions, 1);
+
+  const outcome = await executeCommand(fakeRequest(owner, { workspaceId, input }), captureResponse().response,
+    { definition: periodFxRevaluationCommand, workspaceId, input }, deps);
+  assert.equal(outcome.ok, true);
+  if (outcome.ok) assert.equal((outcome.data as { posted: boolean }).posted, false, 'no foreign balances means no ledger entry');
+  assert.equal(transactions, 2, 'the service reuses the runner transaction instead of opening a nested one');
+  assert.equal(db.directWriteCount, 0);
+});
+
+test('period.balancesrebuild targets only missing closed-year snapshots and stale snapshots', () => {
+  const snapshot = (asOf: string, stale = false): PeriodBalances => ({
+    workspaceId, asOf, accounts: {}, byLabel: {}, retainedEarnings: 0, entryCount: 0, checksum: 'test',
+    builtAt: '2026-11-15T00:00:00.000Z', builtBy: 'test', ...(stale ? { stale: true } : {}),
+  });
+  const close = (closingDate: string, lockPeriod = true) => ({ data: () => ({ details: { closingDate, lockPeriod } }) });
+  const existing = [snapshot('2024-12-31'), snapshot('2025-12-31', true), snapshot('2026-12-31')];
+  const logs = [
+    close('2023-12-31'), close('2024-12-31'), close('2025-12-31'), close('2026-12-31'),
+    close('bad-date'), close('2024-12-31', false),
+  ];
+  assert.equal(periodBalancesRebuildCommand.input.safeParse({}).success, true);
+  assert.equal(periodBalancesRebuildCommand.input.safeParse({ workspaceId }).success, false,
+    'workspace scope is supplied by the command envelope, not by mutable input');
+  assert.equal(periodBalancesRebuildCommand.input.safeParse(periodBalancesRebuildCommand.describe.example).success, true);
+  assert.deepEqual(snapshotRebuildDates(existing, { lockDate: '2025-12-31' }, logs), ['2023-12-31', '2025-12-31']);
+  assert.deepEqual(snapshotRebuildDates([snapshot('2025-06-30', true)], undefined, []), ['2025-06-30'],
+    'a stale snapshot is rebuilt even if no year-end close remains locked');
+});
+
+test('period.balancesrebuild writes stale snapshots in the command transaction and replays safely', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  Object.assign(db, { pool: { query: async () => ({ rows: [{ ok: true }] }) } });
+  db.seed(`periodBalances/${workspaceId}_2025-12-31`, {
+    workspaceId, asOf: '2025-12-31', accounts: { old: 1 }, byLabel: {}, retainedEarnings: 0,
+    entryCount: 1, checksum: 'stale', builtAt: '2026-01-01T00:00:00.000Z', builtBy: 'old-build', stale: true,
+  });
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const deps = runnerDependencies(db, counters);
+  const input = {};
+  const body = { workspaceId, input };
+  const request = fakeRequest(owner, body, 'balances-rebuild-1');
+  const outcome = await executeCommand(request, captureResponse().response,
+    { definition: periodBalancesRebuildCommand, workspaceId, input }, deps);
+  assert.equal(outcome.ok, true);
+  if (outcome.ok) assert.deepEqual((outcome.data as { built: string[] }).built, ['2025-12-31']);
+  assert.equal(db.read(`periodBalances/${workspaceId}_2025-12-31`)?.stale, false);
+  assert.equal(counters.audits, 1);
+  assert.equal(db.directWriteCount, 0, 'the snapshot is written through the runner transaction');
+
+  const replay = await executeCommand(request, captureResponse().response,
+    { definition: periodBalancesRebuildCommand, workspaceId, input }, deps);
+  assert.equal(replay.ok, true);
+  if (replay.ok) assert.equal(replay.replayed, true);
+  assert.equal(counters.audits, 1, 'idempotent replay does not write a second audit');
+});
+
+test('period.yearclose preview is read-only and execution returns year figures through the command runner', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const deps = runnerDependencies(db, counters);
+  const input = { closingDate: '2024-12-31', lockPeriod: false };
+  const preview = await previewCommand(fakeRequest(owner, { workspaceId, input }),
+    { definition: periodYearCloseCommand, workspaceId, input }, deps);
+  assert.equal(preview.ok, true);
+  if (preview.ok) assert.ok(preview.preview.lines.some(line => line.includes('No closing journal entry')));
+  assert.equal(db.directWriteCount, 0, 'previewing the fiscal close does not write');
+
+  const outcome = await executeCommand(fakeRequest(owner, { workspaceId, input }), captureResponse().response,
+    { definition: periodYearCloseCommand, workspaceId, input }, deps);
+  assert.equal(outcome.ok, true);
+  if (outcome.ok) {
+    const result = outcome.data as { yearStart: string; closingDate: string; year: { netIncome: number }; closingVersion: number | null };
+    assert.deepEqual([result.yearStart, result.closingDate, result.year.netIncome, result.closingVersion], ['2024-01-01', '2024-12-31', 0, null]);
+  }
+  assert.equal(counters.audits, 1, 'the fiscal-year close produces its command audit summary');
+  assert.equal(db.directWriteCount, 0);
 });
 
 test('customer.create accepts the PartyModal fields, ignores client identity, and rejects unwriteable server fields', async () => {

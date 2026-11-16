@@ -12,7 +12,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "type": "object",
         "properties": {
           "id": COMMAND_SCHEMA_PARTS.part54,
-          "hits": COMMAND_SCHEMA_PARTS.part67
+          "hits": COMMAND_SCHEMA_PARTS.part69
         },
         "required": [
           "id",

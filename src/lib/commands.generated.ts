@@ -8,6 +8,7 @@ import { ENTRYLINK_COMMAND_MANIFEST } from './commandManifests.generated/entryli
 import { INVOICE_COMMAND_MANIFEST } from './commandManifests.generated/invoice';
 import { JOURNAL_COMMAND_MANIFEST } from './commandManifests.generated/journal';
 import { PAYMENT_COMMAND_MANIFEST } from './commandManifests.generated/payment';
+import { PERIOD_COMMAND_MANIFEST } from './commandManifests.generated/period';
 import { STAGES_COMMAND_MANIFEST } from './commandManifests.generated/stages';
 import { TASKS_COMMAND_MANIFEST } from './commandManifests.generated/tasks';
 import { TIME_COMMAND_MANIFEST } from './commandManifests.generated/time';
@@ -27,6 +28,7 @@ export const COMMAND_MANIFEST = [
   ...INVOICE_COMMAND_MANIFEST,
   ...JOURNAL_COMMAND_MANIFEST,
   ...PAYMENT_COMMAND_MANIFEST,
+  ...PERIOD_COMMAND_MANIFEST,
   ...STAGES_COMMAND_MANIFEST,
   ...TASKS_COMMAND_MANIFEST,
   ...TIME_COMMAND_MANIFEST,

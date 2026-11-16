@@ -5,7 +5,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part22,
-    "amountCents": COMMAND_SCHEMA_PARTS.part67,
+    "amountCents": COMMAND_SCHEMA_PARTS.part69,
     "paymentDate": COMMAND_SCHEMA_PARTS.part10,
     "cashAccountId": COMMAND_SCHEMA_PARTS.part22,
     "paymentMethod": COMMAND_SCHEMA_PARTS.part10,
@@ -30,7 +30,7 @@ export const COMMAND_INPUT_SCHEMA = {
               "bill"
             ]
           },
-          "amountCents": COMMAND_SCHEMA_PARTS.part67
+          "amountCents": COMMAND_SCHEMA_PARTS.part69
         },
         "required": [
           "documentId",
@@ -56,7 +56,7 @@ export const COMMAND_INPUT_SCHEMA = {
       ]
     },
     "estimateId": COMMAND_SCHEMA_PARTS.part54,
-    "withheldCents": COMMAND_SCHEMA_PARTS.part62,
+    "withheldCents": COMMAND_SCHEMA_PARTS.part64,
     "withholdingRatePercent": COMMAND_SCHEMA_PARTS.part45,
     "withholdingCertificate": COMMAND_SCHEMA_PARTS.part25
   },

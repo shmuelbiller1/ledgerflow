@@ -116,20 +116,34 @@ export const snapshotId = (workspaceId: string, asOf: string) => `${workspaceId}
 let known: { exists: boolean; at: number } | null = null;
 let warned = false;
 
-/** Whether the periodBalances table exists (cached; looked for again after a minute when missing). */
-export async function periodBalancesReady(db: Firestore): Promise<boolean> {
-  if (known && (known.exists || Date.now() - known.at < 60_000)) return known.exists;
-  try {
-    const result = await db.pool.query(`select to_regclass('public."periodBalances"') is not null as ok`);
-    known = { exists: Boolean(result.rows[0]?.ok), at: Date.now() };
-  } catch {
-    known = { exists: false, at: Date.now() };
-  }
-  if (!known.exists && !warned) {
+function recordPeriodBalancesReady(exists: boolean): boolean {
+  known = { exists, at: Date.now() };
+  if (!exists && !warned) {
     warned = true;
     console.warn('[balances] the periodBalances table is missing: apply supabase/migrations/20261023000000_period_balances.sql. Balances are summed from every entry until then.');
   }
-  return known.exists;
+  return exists;
+}
+
+/** Whether the periodBalances table exists (cached; looked for again after a minute when missing). */
+export async function periodBalancesReady(db: Firestore, tx?: DbTransaction): Promise<boolean> {
+  // A command already owns this checked-out connection; probing through db.pool here deadlocks at PG_POOL_MAX=1.
+  if (tx && typeof tx.tablesExist === 'function') {
+    return recordPeriodBalancesReady(await tx.tablesExist('periodBalances'));
+  }
+  if (known && (known.exists || Date.now() - known.at < 60_000)) return known.exists;
+  try {
+    const result = await db.pool.query(`select to_regclass('public."periodBalances"') is not null as ok`);
+    return recordPeriodBalancesReady(Boolean(result.rows[0]?.ok));
+  } catch {
+    return recordPeriodBalancesReady(false);
+  }
+}
+
+/** @internal Resets cached periodBalances readiness state between unit tests. */
+export function resetPeriodBalancesReadyForTests(): void {
+  known = null;
+  warned = false;
 }
 
 const add = (map: Cents, key: string, cents: number) => { map[key] = (map[key] || 0) + cents; };
@@ -321,17 +335,69 @@ export async function balancesAsOf(db: Firestore, workspaceId: string, date: str
 }
 
 /** The year ends a workspace closed and still has locked: each FISCAL_YEAR_CLOSE that locked the year, up to today's lock date. */
+function closedYearEndsFromLogs(lockDate: string, logs: Array<{ data(): unknown }>): string[] {
+  if (!lockDate) return [];
+  const ends = new Set<string>();
+  for (const d of logs) {
+    const data = d.data() as Record<string, unknown>;
+    const details = (data.details || {}) as { closingDate?: unknown; lockPeriod?: unknown };
+    if (details.lockPeriod === true && typeof details.closingDate === 'string' && DATE.test(details.closingDate) && details.closingDate <= lockDate) ends.add(details.closingDate);
+  }
+  return [...ends].sort(byCodeUnit);
+}
+
+export function snapshotRebuildDates(existing: PeriodBalances[], workspace: Record<string, unknown> | undefined, logs: Array<{ data(): unknown }>): string[] {
+  const lockDate = typeof workspace?.lockDate === 'string' ? workspace.lockDate : '';
+  const have = new Map(existing.map(snapshot => [snapshot.asOf, snapshot]));
+  const wanted = new Set([
+    ...closedYearEndsFromLogs(lockDate, logs),
+    ...existing.filter(snapshot => snapshot.stale === true).map(snapshot => snapshot.asOf),
+  ]);
+  return [...wanted].filter(asOf => !have.has(asOf) || have.get(asOf)?.stale === true).sort(byCodeUnit);
+}
+
+/** Read-only plan for the dates that the snapshot rebuild command would write. */
+export async function snapshotRebuildPlan(db: Firestore, workspaceId: string): Promise<string[]> {
+  if (!(await periodBalancesReady(db))) return [];
+  const [snapshots, workspace, logs] = await Promise.all([
+    db.collection('periodBalances').where('workspaceId', '==', workspaceId).get(),
+    db.collection('workspaces').doc(workspaceId).get(),
+    db.collection('auditLogs').where('workspaceId', '==', workspaceId).where('action', '==', 'FISCAL_YEAR_CLOSE').get(),
+  ]);
+  return snapshotRebuildDates(
+    snapshots.docs.map(doc => doc.data() as PeriodBalances),
+    workspace.data(),
+    logs.docs,
+  );
+}
+
+/** Rebuild every stale/closed-year snapshot inside the command runner's single serializable transaction. */
+export async function rebuildSnapshotsInTransaction(db: Firestore, tx: DbTransaction, workspaceId: string, builtBy = 'server'): Promise<{ built: string[] }> {
+  if (!(await periodBalancesReady(db, tx))) return { built: [] };
+  const [snapshots, workspace, logs] = await Promise.all([
+    tx.get(db.collection('periodBalances').where('workspaceId', '==', workspaceId)),
+    tx.get(db.collection('workspaces').doc(workspaceId)),
+    tx.get(db.collection('auditLogs').where('workspaceId', '==', workspaceId).where('action', '==', 'FISCAL_YEAR_CLOSE')),
+  ]);
+  const built = snapshotRebuildDates(
+    snapshots.docs.map(doc => doc.data() as PeriodBalances),
+    workspace.data(),
+    logs.docs,
+  );
+  const inputs = await Promise.all(built.map(asOf => readSnapshotInputs(db, tx, workspaceId, asOf)));
+  const rebuilt = built.map((asOf, index) => snapshotFromEntries(
+    workspaceId, asOf, inputs[index].accounts, inputs[index].entries, builtBy,
+  ));
+  for (const snapshot of rebuilt) writeSnapshot(db, tx, snapshot);
+  return { built };
+}
+
 async function closedYearEnds(db: Firestore, workspaceId: string): Promise<string[]> {
   const ws = (await db.collection('workspaces').doc(workspaceId).get()).data() || {};
   const lockDate = typeof ws.lockDate === 'string' ? ws.lockDate : '';
   if (!lockDate) return [];
   const logs = await db.collection('auditLogs').where('workspaceId', '==', workspaceId).where('action', '==', 'FISCAL_YEAR_CLOSE').get();
-  const ends = new Set<string>();
-  for (const d of logs.docs) {
-    const details = (d.data().details || {}) as { closingDate?: unknown; lockPeriod?: unknown };
-    if (details.lockPeriod === true && typeof details.closingDate === 'string' && DATE.test(details.closingDate) && details.closingDate <= lockDate) ends.add(details.closingDate);
-  }
-  return [...ends].sort(byCodeUnit);
+  return closedYearEndsFromLogs(lockDate, logs.docs);
 }
 
 /**

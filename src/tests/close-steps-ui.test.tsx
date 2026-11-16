@@ -14,7 +14,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { getSupabase } from '../lib/db/client';
 import type { CloseStep } from '../lib/closeSteps';
 
-type Call = { url: string; method: string; body: Record<string, unknown> };
+type Call = { url: string; method: string; body: Record<string, unknown>; headers?: Record<string, string> };
 const steps: CloseStep[] = [
   { id: 'cs_payroll01', title: 'Get the payroll report', frequency: 'monthly' },
   { id: 'cs_vatfile01', title: 'File the VAT return', frequency: 'yearly' },
@@ -27,8 +27,14 @@ describe('Month-End Close: this client\'s own steps', () => {
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const body = typeof init?.body === 'string' ? JSON.parse(init.body) : {};
-      calls.push({ url, method: init?.method || 'GET', body });
+      calls.push({
+        url, method: init?.method || 'GET', body,
+        ...(init?.headers ? { headers: init.headers as Record<string, string> } : {}),
+      });
       let answer: unknown = url.includes('/rest/v1/') ? [] : null;
+      if (url.endsWith('/api/v1/commands/period.yearclose')) {
+        answer = { status: 'success', command: 'period.yearclose', data: { yearStart: '2025-01-01', closingDate: '2025-12-31', lockPeriod: false, year: { netIncome: 25_000 }, closingVersion: null } };
+      }
       if (url.includes('/sign-off')) answer = { status: 'success', signOffs: { [body.itemId]: { by: 'test@example.test', at: '2026-10-06T10:00:00Z' } } };
       if (url.endsWith('/periods/close-steps')) answer = { status: 'success', closeSteps: (body.steps as CloseStep[]).map((s, i) => ({ id: s.id || `cs_saved0${i}`, title: s.title, frequency: s.frequency })) };
       return new Response(JSON.stringify(answer), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -36,13 +42,23 @@ describe('Month-End Close: this client\'s own steps', () => {
   });
   afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
 
-  const open = (role: 'accountant' | 'bookkeeper', extra: Array<Record<string, unknown>> = []) => {
+  const open = (role: 'owner' | 'accountant' | 'bookkeeper', extra: Array<Record<string, unknown>> = []) => {
     const ws = setComponentWorkspace(role);
     useAuthStore.setState({ workspaces: [{ ...ws, closeSteps: steps } as never, ...extra as never[]] });
     markComponentCollectionsLoaded('assets', 'bankLines', 'bills', 'invoices');
     render(<MonthEndCloseView />);
     fireEvent.change(screen.getByLabelText('Month'), { target: { value: '2026-05' } });
   };
+
+  test('year-end close uses the named command with its idempotency key', async () => {
+    open('owner');
+    fireEvent.change(screen.getByLabelText('Month'), { target: { value: '2025-12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Record the year as closed' }));
+    await waitFor(() => assert.ok(calls.some(call => call.url.endsWith('/api/v1/commands/period.yearclose'))));
+    const close = calls.find(call => call.url.endsWith('/api/v1/commands/period.yearclose'))!;
+    assert.deepEqual(close.body, { workspaceId: 'component-workspace', input: { closingDate: '2025-12-31', lockPeriod: false } });
+    assert.ok(close.headers?.['Idempotency-Key']);
+  });
 
   test('the steps due that month are in the checklist and signed off through the server', async () => {
     open('bookkeeper');

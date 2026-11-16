@@ -16,6 +16,14 @@ import { depreciationThrough } from '../lib/depreciationEngine';
 import type { FixedAsset } from '../types';
 import { makeBill, makeInvoice, makeTransaction } from './fixtures';
 import type { DocumentData, Firestore } from '../server/db/pgFirestore';
+import {
+  PeriodCloseError,
+  validateClosePeriodInput,
+  validateCloseSteps,
+  validatePartialUnlockInput,
+  validateReopenPeriodInput,
+  validateSignOffInput,
+} from '../server/services/periodCloseService';
 
 const ws = { uid: 'owner-1', roles: { 'acct-1': 'accountant', 'book-1': 'bookkeeper' }, lockDate: '2026-01-31', softLockDate: '2026-03-31' };
 
@@ -66,6 +74,25 @@ describe('Closed periods', () => {
   });
 });
 
+test('period mutation validators keep legacy path/body errors ahead of stateful authorization', () => {
+  const invalid = (work: () => unknown, message: string) => {
+    assert.throws(work, (error: unknown) => {
+      assert.ok(error instanceof PeriodCloseError);
+      assert.equal(error.status, 400);
+      assert.equal(error.code, 'INVALID_INPUT');
+      assert.equal(error.message, message);
+      return true;
+    });
+  };
+
+  invalid(() => validateClosePeriodInput({ month: '2026-13', mode: 'soft' }), 'Month must be YYYY-MM');
+  invalid(() => validateReopenPeriodInput({ month: '2026-03', reason: ' no ' }), 'Say why the period is reopened (at least 5 characters)');
+  invalid(() => validatePartialUnlockInput({ fromDate: '2026-99-01', toDate: '2026-99-02', reason: 'Fix a date' }), 'Choose a date range (from ≤ to)');
+  invalid(() => validateSignOffInput({ month: '2026-03', itemId: 'unknown' }), 'Unknown checklist item');
+  invalid(() => validateCloseSteps([{ title: 'x', frequency: 'monthly' }]), 'Each step needs a name of 2 to 120 characters');
+  assert.equal(validatePartialUnlockInput({ fromDate: '2026-01-01', toDate: '2026-01-02', reason: '  Fix a date  ' }), 'Fix a date');
+});
+
 describe('Close checklist', () => {
   const lines = (cents: number) => [{ id: 'l1', accountId: 'cash', amountCents: cents }, { id: 'l2', accountId: 'rev', amountCents: -cents }];
 
@@ -113,9 +140,20 @@ describe('Closing and reopening a month', { skip: !url && 'LF_TEST_DATABASE_URL 
   let server: Server;
   let base = '';
   let db: Firestore;
-  const call = async (uid: string, path: string, body: Record<string, unknown> = {}) => {
+  const call = async (
+    uid: string,
+    path: string,
+    body: Record<string, unknown> = {},
+    options: { method?: 'POST' | 'PUT'; operationId?: string } = {},
+  ) => {
     const res = await fetch(`${base}/api/v1/workspaces/${wsId}/periods${path}`, {
-      method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': uid }, body: JSON.stringify(body),
+      method: options.method || 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-uid': uid,
+        ...(options.operationId ? { 'x-operation-id': options.operationId } : {}),
+      },
+      body: JSON.stringify(body),
     });
     return { status: res.status, body: await res.json() as Record<string, unknown> };
   };
@@ -142,7 +180,7 @@ describe('Closing and reopening a month', { skip: !url && 'LF_TEST_DATABASE_URL 
 
   after(async () => {
     server?.close();
-    for (const table of ['invoices', 'periods', 'auditLogs', 'workspaces']) {
+    for (const table of ['invoices', 'periods', 'idempotencyKeys', 'auditLogs', 'workspaces']) {
       await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [wsId]);
     }
     await db.terminate();
@@ -151,8 +189,32 @@ describe('Closing and reopening a month', { skip: !url && 'LF_TEST_DATABASE_URL 
   test('only owners and accountants close; a month that has not ended cannot be closed', async () => {
     assert.equal((await call('view-1', '/2026-03/close', { mode: 'soft' })).status, 403);
     assert.equal((await call('book-1', '/2026-03/close', { mode: 'soft' })).status, 403);
+    assert.equal((await call('book-1', '/2026-13/close', { mode: 'soft' })).status, 400, 'legacy route validates the month before checking the close role');
     assert.equal((await call('acct-1', '/2999-01/close', { mode: 'soft' })).status, 400);
     assert.equal((await call('acct-1', '/2026-13/close', { mode: 'soft' })).status, 400);
+  });
+
+  test('custom close steps keep the PUT route, validate roles, and replay one generated step set', async () => {
+    const input = { steps: [{ title: 'Review payroll report', frequency: 'monthly' }] };
+    assert.equal((await call('book-1', '/close-steps', input, { method: 'PUT' })).status, 403);
+    assert.equal((await call('book-1', '/close-steps', { steps: [{ title: 'x', frequency: 'monthly' }] }, { method: 'PUT' })).status, 400, 'legacy route validates steps before role refusals');
+    assert.equal((await call('acct-1', '/close-steps', { steps: [{ title: 'x', frequency: 'monthly' }] }, { method: 'PUT' })).status, 400);
+
+    const operationId = 'period-close-steps-route';
+    const saved = await call('acct-1', '/close-steps', input, { method: 'PUT', operationId });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.equal(saved.body.status, 'success');
+    const closeSteps = saved.body.closeSteps as Array<{ id: string; title: string; frequency: string }>;
+    assert.equal(closeSteps.length, 1);
+    assert.match(closeSteps[0].id, /^cs_[a-f0-9]{12}$/);
+    assert.deepEqual(closeSteps[0], { id: closeSteps[0].id, title: 'Review payroll report', frequency: 'monthly' });
+
+    const retried = await call('acct-1', '/close-steps', input, { method: 'PUT', operationId });
+    assert.deepEqual(retried, saved);
+    assert.equal((await call('acct-1', '/close-steps', { steps: [] }, { method: 'PUT', operationId })).status, 409);
+    assert.deepEqual((await workspace()).closeSteps, closeSteps);
+    const audits = await db.collection('auditLogs').where('workspaceId', '==', wsId).get();
+    assert.equal(audits.docs.filter(doc => doc.data().action === 'CLOSE_STEPS_SAVED').length, 1);
   });
 
   test('drafts dated in the month block the close and are listed', async () => {
@@ -163,15 +225,23 @@ describe('Closing and reopening a month', { skip: !url && 'LF_TEST_DATABASE_URL 
   });
 
   test('soft close, sign-offs, hard close; sign-offs are final once hard-closed', async () => {
-    const soft = await call('acct-1', '/2026-03/close', { mode: 'soft' });
+    const closeOperationId = 'period-close-soft-route';
+    const soft = await call('acct-1', '/2026-03/close', { mode: 'soft' }, { operationId: closeOperationId });
     assert.equal(soft.status, 200, JSON.stringify(soft.body));
+    assert.deepEqual(await call('acct-1', '/2026-03/close', { mode: 'soft' }, { operationId: closeOperationId }), soft);
+    assert.equal((await call('acct-1', '/2026-03/close', { mode: 'hard' }, { operationId: closeOperationId })).status, 409, 'the same operation ID cannot close in a different mode');
     assert.equal((await workspace()).softLockDate, '2026-03-31');
     assert.equal((await workspace()).lockDate, undefined);
     assert.equal((await call('acct-1', '/2026-03/close', { mode: 'soft' })).status, 409, 'already closed');
 
+    assert.equal((await call('book-1', '/2026-13/sign-off', { itemId: 'reconcile' })).status, 400);
     assert.equal((await call('book-1', '/2026-03/sign-off', { itemId: 'nope' })).status, 400);
-    const signed = await call('book-1', '/2026-03/sign-off', { itemId: 'reconcile', note: 'Two card fees, fine' });
+    const signOffInput = { itemId: 'reconcile', note: 'Two card fees, fine' };
+    const signOffOperationId = 'period-signoff-route';
+    const signed = await call('book-1', '/2026-03/sign-off', signOffInput, { operationId: signOffOperationId });
     assert.equal(signed.status, 200, JSON.stringify(signed.body));
+    assert.deepEqual(await call('book-1', '/2026-03/sign-off', signOffInput, { operationId: signOffOperationId }), signed);
+    assert.equal((await call('book-1', '/2026-03/sign-off', { ...signOffInput, note: 'Different review' }, { operationId: signOffOperationId })).status, 409);
     const period = (await db.collection('periods').doc(`${wsId}_2026-03`).get()).data();
     assert.equal(period?.signOffs.reconcile.by, 'book-1@test.local');
     assert.equal(period?.status, 'soft_closed');
@@ -185,8 +255,12 @@ describe('Closing and reopening a month', { skip: !url && 'LF_TEST_DATABASE_URL 
   test('reopening a hard-closed month needs the owner and a reason; later months reopen too', async () => {
     assert.equal((await call('acct-1', '/2026-02/reopen', { reason: 'Missed a bill' })).status, 403);
     assert.equal((await call('owner-1', '/2026-02/reopen', { reason: 'no' })).status, 400);
-    const res = await call('owner-1', '/2026-02/reopen', { reason: 'Missed a supplier bill' });
+    const reopenInput = { reason: 'Missed a supplier bill' };
+    const reopenOperationId = 'period-reopen-route';
+    const res = await call('owner-1', '/2026-02/reopen', reopenInput, { operationId: reopenOperationId });
     assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.deepEqual(await call('owner-1', '/2026-02/reopen', reopenInput, { operationId: reopenOperationId }), res);
+    assert.equal((await call('owner-1', '/2026-02/reopen', { reason: 'Missed another supplier bill' }, { operationId: reopenOperationId })).status, 409);
     const w = await workspace();
     assert.equal(w.lockDate, '2026-01-31');
     assert.equal(w.softLockDate, '2026-01-31');
@@ -195,16 +269,29 @@ describe('Closing and reopening a month', { skip: !url && 'LF_TEST_DATABASE_URL 
 
   test('partial unlock: owner only for hard-closed dates; closing again removes it', async () => {
     assert.equal((await call('acct-1', '/unlock', { fromDate: '2026-01-10', toDate: '2026-01-20', reason: 'Fix a date' })).status, 403);
+    assert.equal((await call('book-1', '/unlock', { fromDate: '2026-99-01', toDate: '2026-99-02', reason: 'Fix a date' })).status, 400, 'legacy route validates unlock dates before role refusals');
     assert.equal((await call('owner-1', '/unlock', { fromDate: '2026-02-10', toDate: '2026-02-20', reason: 'Fix a date' })).status, 400, 'not closed');
-    const res = await call('owner-1', '/unlock', { fromDate: '2026-01-10', toDate: '2026-01-20', reason: 'Fix a date' });
+    const unlockInput = { fromDate: '2026-01-10', toDate: '2026-01-20', reason: 'Fix a date' };
+    const unlockOperationId = 'period-unlock-route';
+    const res = await call('owner-1', '/unlock', unlockInput, { operationId: unlockOperationId });
     assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.deepEqual(await call('owner-1', '/unlock', unlockInput, { operationId: unlockOperationId }), res);
+    assert.equal((await call('owner-1', '/unlock', { ...unlockInput, reason: 'Correct a date' }, { operationId: unlockOperationId })).status, 409);
     assert.deepEqual({ ...(await workspace()).lockException, at: undefined, byUid: undefined }, { fromDate: '2026-01-10', toDate: '2026-01-20', reason: 'Fix a date', by: 'owner-1@test.local', at: undefined, byUid: undefined });
-    assert.equal((await call('acct-1', '/relock')).status, 200);
+
+    const relockOperationId = 'period-relock-route';
+    const relocked = await call('acct-1', '/relock', {}, { operationId: relockOperationId });
+    assert.equal(relocked.status, 200, JSON.stringify(relocked.body));
+    assert.deepEqual(await call('acct-1', '/relock', {}, { operationId: relockOperationId }), relocked);
     assert.equal((await workspace()).lockException, null);
     assert.equal((await call('acct-1', '/relock')).status, 409);
 
-    const actions = (await db.collection('auditLogs').where('workspaceId', '==', wsId).get()).docs.map(d => d.get('action')).sort();
-    assert.deepEqual([...new Set(actions)], ['PERIOD_CLOSED', 'PERIOD_PARTIAL_UNLOCK', 'PERIOD_RELOCKED', 'PERIOD_REOPENED', 'PERIOD_SIGN_OFF']);
+    const audits = (await db.collection('auditLogs').where('workspaceId', '==', wsId).get()).docs;
+    const actions = audits.map(d => d.get('action')).sort();
+    assert.deepEqual([...new Set(actions)], ['CLOSE_STEPS_SAVED', 'PERIOD_CLOSED', 'PERIOD_PARTIAL_UNLOCK', 'PERIOD_RELOCKED', 'PERIOD_REOPENED', 'PERIOD_SIGN_OFF']);
+    assert.equal(actions.filter(action => action === 'PERIOD_CLOSED').length, 2, 'soft and hard close each commit once');
+    assert.equal(actions.filter(action => action === 'PERIOD_PARTIAL_UNLOCK').length, 1);
+    assert.equal(actions.filter(action => action === 'PERIOD_RELOCKED').length, 1);
   });
 });
 
@@ -245,8 +332,16 @@ describe('Depreciation run', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, (
   let server: Server;
   let base = '';
   let db: Firestore;
-  const run = async (uid: string, month: string) => {
-    const res = await fetch(`${base}/api/v1/workspaces/${wsId}/periods/${month}/depreciation`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': uid }, body: '{}' });
+  const run = async (uid: string, month: string, operationId?: string) => {
+    const res = await fetch(`${base}/api/v1/workspaces/${wsId}/periods/${month}/depreciation`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-uid': uid,
+        ...(operationId ? { 'x-operation-id': operationId } : {}),
+      },
+      body: '{}',
+    });
     return { status: res.status, body: await res.json() as Record<string, unknown> };
   };
   const entries = async () => (await db.collection('transactions').where('workspaceId', '==', wsId).get()).docs.map(d => d.data());
@@ -273,20 +368,23 @@ describe('Depreciation run', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, (
 
   after(async () => {
     server?.close();
-    for (const table of ['assets', 'chartAccounts', 'transactions', 'auditLogs', 'workspaces']) {
+    for (const table of ['assets', 'chartAccounts', 'transactions', 'idempotencyKeys', 'auditLogs', 'workspaces']) {
       await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [wsId]);
     }
     await db.terminate();
   });
 
-  test('viewers cannot run it; a month that has not ended cannot be run', async () => {
+  test('viewers cannot run it; malformed and unended months cannot be run', async () => {
     assert.equal((await run('view-1', '2026-03')).status, 403);
+    assert.equal((await run('owner-1', '2026-13')).status, 400);
     assert.equal((await run('owner-1', '2999-01')).status, 400);
   });
 
-  test('one entry for all assets through the month (catching up missed months), then nothing the second time', async () => {
-    const res = await run('owner-1', '2026-03');
+  test('one entry for all assets through the month (catching up missed months), replay once, then a plain no-op', async () => {
+    const operationId = 'period-depreciation-route';
+    const res = await run('owner-1', '2026-03', operationId);
     assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.deepEqual(await run('owner-1', '2026-03', operationId), res);
     // Van: Feb + Mar = 2 × 10000; Laptop (bought in Feb): Mar = 1000; the disposed desk is skipped
     assert.equal(res.body.totalCents, 21000);
     assert.equal(res.body.assets, 2);
@@ -300,6 +398,8 @@ describe('Depreciation run', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, (
     const again = await run('owner-1', '2026-03');
     assert.equal(again.body.totalCents, 0);
     assert.equal((await entries()).length, 1);
+    const audits = await db.collection('auditLogs').where('workspaceId', '==', wsId).get();
+    assert.equal(audits.docs.filter(doc => doc.data().action === 'DEPRECIATION_RUN').length, 1);
   });
 
   test('a locked month is refused', async () => {

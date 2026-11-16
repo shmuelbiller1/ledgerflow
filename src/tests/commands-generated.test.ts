@@ -83,6 +83,7 @@ test('generated command metadata, OpenAPI schemas, and SDK names match the regis
     const registered = commandRegistry.get(definition.name);
     assert.ok(registered, `${definition.name} is missing from the server registry`);
     assert.deepEqual(definition.roles, registered.roles, `${definition.name} role metadata is stale`);
+    assert.equal('allowPlatformAdmin' in definition ? definition.allowPlatformAdmin : undefined, registered.allowPlatformAdmin || undefined, `${definition.name} platform-admin metadata is stale`);
     assert.deepEqual(definition.inputSchema, z.toJSONSchema(registered.input, { io: 'input', unrepresentable: 'any' }), `${definition.name} input schema is stale`);
     assert.deepEqual(schemas[COMMAND_INPUT_SCHEMA_NAMES[definition.name]], definition.inputSchema,
       `${definition.name} OpenAPI input schema is stale`);

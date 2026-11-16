@@ -1,4 +1,4 @@
-import type { DocumentReference, Firestore } from '../db/firestore';
+import type { DocumentReference, Firestore, Transaction } from '../db/firestore';
 import { ledgerCreate } from './ledgerDoor';
 import { FieldValue } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
@@ -18,9 +18,16 @@ import { writeServerAuditLog } from './auditLogService';
  */
 
 export class DepreciationError extends Error {
+  readonly code: string;
+
   constructor(readonly status: number, message: string) {
     super(message);
     this.name = 'DepreciationError';
+    this.code = status === 400 ? 'INVALID_INPUT'
+      : status === 403 ? 'ROLE_REQUIRED'
+        : status === 404 ? 'WORKSPACE_NOT_FOUND'
+          : status === 409 ? 'PERIOD_LOCKED'
+            : 'DEPRECIATION_FAILED';
   }
 }
 
@@ -36,11 +43,11 @@ export function defaultDepreciationAccounts(accounts: ChartAccount[]) {
   };
 }
 
-export async function runDepreciation(db: Firestore, input: { workspaceId: string; uid: string; email?: string; month: string }) {
+export async function runDepreciation(db: Firestore, input: { workspaceId: string; uid: string; email?: string; month: string }, tx?: Transaction) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(input.month)) throw new DepreciationError(400, 'Month must be YYYY-MM');
   const date = monthEnd(input.month);
 
-  return db.runTransaction(async (t) => {
+  const run = async (t: Transaction) => {
     const workspace = (await t.get(db.collection('workspaces').doc(input.workspaceId))).data();
     if (!workspace) throw new DepreciationError(404, 'Workspace not found');
     if (!WRITER_ROLES.includes(workspaceRole(workspace, input.uid))) throw new DepreciationError(403, 'Viewers cannot post depreciation');
@@ -120,5 +127,6 @@ export async function runDepreciation(db: Firestore, input: { workspaceId: strin
       details: { description: `${description}: ${totalCents} cents`, month: input.month, totalCents, assets: due.length },
     }, { db, tx: t });
     return { month: input.month, transactionId: ledgerTx.id, totalCents, assets: due.length };
-  });
+  };
+  return tx ? run(tx) : db.runTransaction(run);
 }
