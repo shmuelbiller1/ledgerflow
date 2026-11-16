@@ -80,6 +80,123 @@ function assertWorkspaceScope(user: RequestUser, workspaceId: string): void {
   }
 }
 
+const SERVER_MANAGED_DOCUMENT_FIELDS = [
+  'settledByRecordsCents',
+  'writtenOffCents',
+  'writeOffTransactionId',
+  'writeOffReversalTransactionId',
+  'writeOffReason',
+  'writtenOffAt',
+  'refundedCents',
+  'refundTransactionIds',
+  'revenueSchedule',
+  'prepaidSchedule',
+  'appliedTo',
+] as const;
+
+const UNPOSTED_DOCUMENT_STATUSES = new Set(['draft', 'void', 'cancelled', 'rejected']);
+
+function stripServerManagedFields(data: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!data) return {};
+  const cleaned: Record<string, unknown> = { ...data };
+  for (const key of SERVER_MANAGED_DOCUMENT_FIELDS) {
+    if (key in cleaned) delete cleaned[key];
+  }
+  return cleaned;
+}
+
+function asNonNegativeNumber(value: unknown): number {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : 0;
+}
+
+function assertDocumentMutationAllowed(
+  collection: PostedDocumentType,
+  action: DocumentPostInput['action'],
+  existing: Record<string, unknown> | undefined,
+  incoming: Record<string, unknown>,
+): void {
+  const isCredit = collection === 'creditNotes' || collection === 'vendorCredits';
+  if (action === 'delete') {
+    if (!existing) return;
+    if (!isCredit) {
+      if (asNonNegativeNumber(existing.settledByRecordsCents) > 0) {
+        throw new BulkRefusal(409, { error: `Cannot delete ${NAMES[collection]} with recorded payments or credit applications. Void or unapply settlements first.` });
+      }
+      if (asNonNegativeNumber(existing.writtenOffCents) > 0 || Boolean(existing.writeOffTransactionId)) {
+        throw new BulkRefusal(409, { error: `Cannot delete ${NAMES[collection]} that has a bad-debt write-off. Reverse the write-off first.` });
+      }
+      if (existing.revenueSchedule || existing.prepaidSchedule) {
+        throw new BulkRefusal(409, { error: `Cannot delete ${NAMES[collection]} with an active revenue or prepaid recognition schedule.` });
+      }
+    } else {
+      const appliedCount = Array.isArray(existing.appliedTo) ? existing.appliedTo.length : 0;
+      const refundTxCount = Array.isArray(existing.refundTransactionIds) ? existing.refundTransactionIds.length : 0;
+      if (appliedCount > 0 || asNonNegativeNumber(existing.refundedCents) > 0 || refundTxCount > 0) {
+        throw new BulkRefusal(409, { error: `Cannot delete ${NAMES[collection]} that has already been applied or refunded.` });
+      }
+    }
+    return;
+  }
+
+  if (isCredit) {
+    const incomingAmount = typeof incoming.amountCents === 'number' ? incoming.amountCents : undefined;
+    const incomingRemaining = typeof incoming.remainingCents === 'number' ? incoming.remainingCents : undefined;
+    if (action === 'create') {
+      if (incomingAmount !== undefined && incomingRemaining !== undefined && incomingRemaining > incomingAmount) {
+        throw new BulkRefusal(400, { error: 'Credit remaining amount cannot exceed the credit total.' });
+      }
+      return;
+    }
+    if (existing) {
+      const appliedCount = Array.isArray(existing.appliedTo) ? existing.appliedTo.length : 0;
+      const refundTxCount = Array.isArray(existing.refundTransactionIds) ? existing.refundTransactionIds.length : 0;
+      const oldAmount = asNonNegativeNumber(existing.amountCents);
+      const oldRemaining = typeof existing.remainingCents === 'number' ? existing.remainingCents : oldAmount;
+      const hasSettlement = appliedCount > 0 || asNonNegativeNumber(existing.refundedCents) > 0 || refundTxCount > 0;
+      if (typeof incoming.status === 'string' && UNPOSTED_DOCUMENT_STATUSES.has(incoming.status) && (hasSettlement || oldRemaining < oldAmount)) {
+        throw new BulkRefusal(409, { error: `An applied or refunded ${NAMES[collection]} cannot go back to ${incoming.status}.` });
+      }
+      if (hasSettlement) {
+        if (incomingAmount !== undefined && incomingAmount !== existing.amountCents) {
+          throw new BulkRefusal(409, { error: `Cannot change the total of a ${NAMES[collection]} that has already been applied or refunded.` });
+        }
+        if (incomingRemaining !== undefined && incomingRemaining !== existing.remainingCents) {
+          throw new BulkRefusal(409, { error: `Cannot overwrite remaining balance on a ${NAMES[collection]} that has already been applied or refunded.` });
+        }
+        if ((incoming.currency !== undefined && incoming.currency !== existing.currency) ||
+            (incoming.exchangeRate !== undefined && incoming.exchangeRate !== existing.exchangeRate)) {
+          throw new BulkRefusal(409, { error: `Cannot change currency or exchange rate on a ${NAMES[collection]} that has already been applied or refunded.` });
+        }
+      } else if (incomingRemaining !== undefined) {
+        const newAmount = incomingAmount !== undefined ? incomingAmount : oldAmount;
+        const maxRemaining = Math.min(newAmount, oldRemaining + Math.max(0, newAmount - oldAmount));
+        if (incomingRemaining > maxRemaining) {
+          throw new BulkRefusal(409, { error: 'Credit remaining balance cannot be increased above its unapplied amount.' });
+        }
+      }
+    }
+    return;
+  }
+
+  // Invoices and bills: protect settled / written-off documents on update
+  if (action === 'update' && existing) {
+    const settled = asNonNegativeNumber(existing.settledByRecordsCents);
+    const writtenOff = asNonNegativeNumber(existing.writtenOffCents);
+    if (settled > 0 || writtenOff > 0) {
+      if (typeof incoming.status === 'string' && UNPOSTED_DOCUMENT_STATUSES.has(incoming.status)) {
+        throw new BulkRefusal(409, { error: `Cannot change a settled or written-off ${NAMES[collection]} to ${incoming.status}.` });
+      }
+      if (typeof incoming.amountPaidCents === 'number' && incoming.amountPaidCents < settled) {
+        throw new BulkRefusal(409, { error: `amountPaidCents (${incoming.amountPaidCents}) cannot be reduced below recorded settlements (${settled}).` });
+      }
+      if (typeof incoming.amountCents === 'number' && incoming.amountCents < settled + writtenOff) {
+        throw new BulkRefusal(409, { error: `Document total cannot be reduced below recorded settlements and write-offs (${settled + writtenOff}).` });
+      }
+    }
+  }
+}
+
 /**
  * Read and run the existing posting builders without committing. Both the command preview and the
  * eventual commit use this preparation path, so previews show the exact server-built ledger lines.
@@ -96,18 +213,42 @@ export async function prepareDocumentPost(db: Firestore, user: RequestUser, inpu
     throw new BulkRefusal(403, { error: `Forbidden: Entity ${docId} does not belong to authorized workspace.` });
   }
 
+  // A8-005 / A8-008: strip server-managed settlement/schedule fields from client payloads and block
+  // destructive edits or deletions of settled, written-off, refunded, or scheduled documents.
+  const sanitizedData = action === 'delete' ? {} : stripServerManagedFields(input.data);
+  assertDocumentMutationAllowed(collection, action, existing, sanitizedData);
+
   // as /transactions/bulk: the save merges into what is saved (an update of a document not saved yet makes it); a
   // second live posting of the same document is refused at commit (INT-2)
-  const document: Record<string, unknown> = { ...(existing || {}), ...(action === 'delete' ? {} : input.data), id: docId, workspaceId };
+  const document: Record<string, unknown> = { ...(existing || {}), ...(action === 'delete' ? {} : sanitizedData), id: docId, workspaceId };
   const wsRecord = workspace || {};
   const context: LedgerPostContext = await loadPostingContext(db, { workspaceId, uid: user.uid, collection, docId, document, workspace: wsRecord, lockChecked: true });
   context.today = agreedPostingDay(context.today || todayIn(wsRecord.timezone as string | undefined), input.postingDay);
   const key = DOCUMENT_ENTRY_KEY[collection];
-  const dates = action === 'delete'
-    ? (context.transactions || []).filter(tx => tx.metadata?.[key] === docId && isPostable(tx) && !tx.metadata?.isReversal).map(tx => String(tx.date))
-    : [String(document.date || context.today)];
+  const reversedIds = new Set(
+    (context.transactions || [])
+      .filter(tx => tx.metadata?.isReversal && typeof tx.metadata?.reversesTxId === 'string')
+      .map(tx => String(tx.metadata?.reversesTxId)),
+  );
+  const liveExistingDates = (context.transactions || [])
+    .filter(tx => tx.metadata?.[key] === docId && isPostable(tx) && !tx.metadata?.isReversal && !reversedIds.has(tx.id))
+    .map(tx => String(tx.date));
+  // A8-007: check period lock on BOTH existing live posted dates (so locked documents cannot be re-dated
+  // into an open period or mutated) AND the target document date. Drafts with no posted entries may still move.
+  const dateSet = new Set<string>();
+  if (action !== 'create') {
+    for (const d of liveExistingDates) if (d) dateSet.add(d);
+    if (existing && !UNPOSTED_DOCUMENT_STATUSES.has(String(existing.status || '')) && typeof existing.date === 'string' && existing.date) {
+      dateSet.add(existing.date);
+    }
+  }
+  if (action !== 'delete') {
+    const targetDate = String(document.date || context.today);
+    if (targetDate) dateSet.add(targetDate);
+  }
+  const datesToCheck = Array.from(dateSet);
   try {
-    for (const date of dates) assertPostingOpen(date, workspace as never, user.uid);
+    for (const date of datesToCheck) assertPostingOpen(date, workspace as never, user.uid);
   } catch (err) {
     throw new BulkRefusal(409, { error: err instanceof Error ? err.message : String(err) });
   }
@@ -118,7 +259,7 @@ export async function prepareDocumentPost(db: Firestore, user: RequestUser, inpu
     if (contradiction) throw new BulkRefusal(400, { error: contradiction });
   }
 
-  const mutation = mutationOf(collection, docId, action, action === 'delete' ? undefined : input.data);
+  const mutation = mutationOf(collection, docId, action, action === 'delete' ? undefined : sanitizedData);
   let cogsPendingReason: string | undefined;
   try {
     if (action === 'delete') await deletePostings(docId, key as 'invoiceId', workspaceId, mutation, context);
@@ -146,10 +287,23 @@ export async function prepareDocumentPost(db: Firestore, user: RequestUser, inpu
   // EG-4: budget reads happen before the command runner opens its database transaction.
   const plannedBudgetWarnings: BudgetWarning[] = await budgetWarningsFor(db, workspaceId, wsRecord, validatedTransactions);
   const preflight: LedgerBulkPreflight = { workspace: wsRecord, transactions: validatedTransactions, budgetWarnings: plannedBudgetWarnings };
-  // EG-5: an invoice saved as issued stays within the customer's credit limit, checked inside the commit's transaction
-  const beforeWrite: BeforeWrite | undefined = collection === 'invoices'
-    ? (t, state) => enforceCreditLimit(db, t, { user, workspaceId, workspace: state.workspace, docId, action, data: input.data, existing: state.existingEntity, override: input.creditLimitOverride })
-    : undefined;
+  // EG-5 + A8-005/A8-007/A8-008: re-verify settlement guards, lock dates, and credit limit against fresh
+  // in-transaction workspace and entity snapshots so concurrent payments/closes cannot race.
+  const beforeWrite: BeforeWrite = async (t, state) => {
+    assertDocumentMutationAllowed(collection, action, state.existingEntity, sanitizedData);
+    try {
+      for (const date of datesToCheck) assertPostingOpen(date, state.workspace as never, user.uid);
+      if (action !== 'create' && state.existingEntity && !UNPOSTED_DOCUMENT_STATUSES.has(String(state.existingEntity.status || '')) && typeof state.existingEntity.date === 'string' && state.existingEntity.date) {
+        assertPostingOpen(state.existingEntity.date, state.workspace as never, user.uid);
+      }
+    } catch (err) {
+      throw new BulkRefusal(409, { error: err instanceof Error ? err.message : String(err) });
+    }
+    if (collection === 'invoices') {
+      return enforceCreditLimit(db, t, { user, workspaceId, workspace: state.workspace, docId, action, data: sanitizedData, existing: state.existingEntity, override: input.creditLimitOverride });
+    }
+    return {};
+  };
 
   const hashOf = { collection, docId, workspaceId, action, data: input.data };
   const hashed = input.creditLimitOverride ? { ...hashOf, creditLimitOverride: input.creditLimitOverride } : hashOf;
@@ -160,7 +314,7 @@ export async function prepareDocumentPost(db: Firestore, user: RequestUser, inpu
     hashOf: hashed,
     transactions: validatedTransactions,
     entityMutation: (captured[0].entityMutation || mutation) as EntityMutation,
-    ...(beforeWrite ? { beforeWrite } : {}),
+    beforeWrite,
     preflight,
     ...(cogsPendingReason ? { cogsPendingReason } : {}),
   };

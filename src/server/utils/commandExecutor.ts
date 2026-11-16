@@ -247,6 +247,15 @@ function previewErrorOutcome(error: unknown, command: string): Exclude<CommandPr
     : outcome;
 }
 
+function assertWorkspaceActiveForCommand(workspace: Record<string, unknown>, commandName: string): void {
+  if (workspace.concurrentUserLimit === 0) {
+    throw new CommandRefusal('Forbidden: This workspace is administratively suspended/frozen by Systems Administration.', 403, 'WORKSPACE_FROZEN');
+  }
+  if (workspace.status === 'pending_deletion' && commandName !== 'workspace.canceldeletion') {
+    throw new CommandRefusal('This workspace is scheduled for deletion and cannot accept changes. Restore it first.', 409, 'WORKSPACE_PENDING_DELETION');
+  }
+}
+
 async function runRegisteredCommand(
   req: Request,
   invocation: CommandInvocation,
@@ -274,6 +283,7 @@ async function runRegisteredCommand(
     if (!command.roles.includes(role as CommandRole) && !platformAdminOverride) {
       throw new CommandRefusal(`Forbidden: command ${command.name} requires one of [${command.roles.join(', ')}]`, 403, 'ROLE_REQUIRED');
     }
+    assertWorkspaceActiveForCommand(data, command.name);
     workspace = data;
   } catch (error) {
     return errorOutcome(error, command.name);
@@ -377,6 +387,7 @@ async function runRegisteredCommand(
     if (!command.roles.includes(latestRole as CommandRole) && !platformAdminOverride) {
       throw new CommandRefusal('Your workspace role changed before the command committed', 403, 'ROLE_REQUIRED');
     }
+    assertWorkspaceActiveForCommand(latestWorkspace, command.name);
     if (date) {
       const lock = postingLock(date, latestWorkspace, user.uid);
       if (lock) throw new CommandRefusal(lockMessage(date, lock), 400, 'PERIOD_LOCKED', { lockDate: lock.through });

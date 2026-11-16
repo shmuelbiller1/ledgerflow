@@ -145,6 +145,11 @@ export async function reverseWriteOff(db: Firestore, input: Input) {
     if (!writtenOff || !invoice.writeOffTransactionId) throw new BadDebtError(409, 'This invoice is not written off');
     const original = (await t.get(db.collection('transactions').doc(String(invoice.writeOffTransactionId)))).data();
     if (!original || original.workspaceId !== input.workspaceId) throw new BadDebtError(409, 'The write-off entry was not found');
+    if (original.reversalEventId) throw new BadDebtError(409, 'This bad-debt write-off has already been reversed');
+    const originalDate = String(original.date || '').slice(0, 10);
+    if (originalDate && date < originalDate) {
+      throw new BadDebtError(400, `Recovery date (${date}) cannot be earlier than the write-off date (${originalDate})`);
+    }
     // the write-off's live row (none for one made before the payment ledger): read before any write
     const rows = ledgerReady
       ? (await liveStoredRowsOf(db, t, input.workspaceId, input.invoiceId)).filter(r => r.data.kind === 'write_off' && r.data.sourceId === invoice.writeOffTransactionId)
@@ -152,10 +157,16 @@ export async function reverseWriteOff(db: Firestore, input: Input) {
 
     const reason = String(input.reason || '').trim().slice(0, 300);
     const description = `Bad debt recovered: invoice ${invoice.number || input.invoiceId}${reason ? `: ${reason}` : ''}`;
-    const lines = (original.lines as Array<{ accountId: string; accountName?: string; amountCents: number }>).map(l => ({ accountId: l.accountId, accountName: l.accountName, amountCents: -l.amountCents, description }));
+    const lines = (original.lines as Array<{ accountId: string; accountName?: string; amountCents: number; baseAmountCents?: number }>).map(l => ({
+      accountId: l.accountId,
+      accountName: l.accountName,
+      amountCents: -l.amountCents,
+      ...(typeof l.baseAmountCents === 'number' && Number.isFinite(l.baseAmountCents) ? { baseAmountCents: -l.baseAmountCents } : {}),
+      description,
+    }));
     const ledgerTx = await post(db, t, input, workspace, {
       date, description, totalAmountCents: Number(original.totalAmountCents) || 0,
-      metadata: { type: 'invoice-bad-debt-recovery', invoiceId: input.invoiceId, reversesTxId: invoice.writeOffTransactionId },
+      metadata: { type: 'invoice-bad-debt-recovery', invoiceId: input.invoiceId, reversesTxId: invoice.writeOffTransactionId, isReversal: true },
       lines,
     });
 

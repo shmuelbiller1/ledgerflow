@@ -42,7 +42,8 @@ export async function recomputeDocumentTax(db: Firestore, input: TaxRecomputeInp
   ]);
 
   const only = input.documentIds ? new Set(input.documentIds) : null;
-  const differences = findTaxDifferences({ invoices, bills, transactions }).filter(d => !only || only.has(d.id));
+  const baseCurrency = typeof workspace.currency === 'string' && workspace.currency ? workspace.currency : 'USD';
+  const differences = findTaxDifferences({ invoices, bills, transactions, baseCurrency }).filter(d => !only || only.has(d.id));
   const result: TaxRecomputeResult = { differences, posted: [], failed: [] };
   if (!input.apply) return result;
 

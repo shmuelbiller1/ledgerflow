@@ -381,10 +381,10 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
       const sent = { ...(entityMutation.data || {}), workspaceId: wsId };
       const parsed = (entityMutation.action === 'update' ? schema.partial() : schema).parse(sent);
       const validatedData = entityMutation.action === 'update' ? Object.fromEntries(Object.entries(parsed).filter(([k]) => k in sent)) : parsed;
-      // who approved an invoice is decided here, not by the request (BE-04, L-191)
+      // who approved an invoice is decided here, not by the request (BE-04, L-191; A8-006: use fresh in-tx wsNow)
       if (entityMutation.collection === 'invoices') {
         try {
-          Object.assign(validatedData, serverApproval(existingEntity, validatedData, wsData || {}, user.uid, new Date().toISOString()));
+          Object.assign(validatedData, serverApproval(existingEntity, validatedData, wsNow || {}, user.uid, new Date().toISOString()));
           const event = approvalEvent(existingEntity?.approval as InvoiceApprovalRecord | undefined, validatedData.approval as InvoiceApprovalRecord | undefined);
           if (event && entityRef) approvalNotice = { invoiceId: entityRef.id, invoice: { ...(existingEntity || {}), ...validatedData }, event };
         } catch (err) {

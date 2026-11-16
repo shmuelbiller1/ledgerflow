@@ -170,7 +170,11 @@ export async function undoDisposal(db: Firestore, input: Actor & { assetId: stri
       }
       const now = new Date().toISOString();
       const shareTx = db.collection('transactions').doc(last.transactionId);
-      if ((await t.get(shareTx)).data()?.status !== 'void') t.update(shareTx, { status: 'void', voidedReason: 'Partial disposal undone', voidedAt: now, updatedAt: now });
+      const shareEntry = (await t.get(shareTx)).data();
+      if (shareEntry && shareEntry.workspaceId !== input.workspaceId) {
+        throw new DisposalError(403, 'Disposal transaction does not belong to this workspace');
+      }
+      if (shareEntry && shareEntry.status !== 'void') t.update(shareTx, { status: 'void', voidedReason: 'Partial disposal undone', voidedAt: now, updatedAt: now });
       t.update(assetRef, { ...last.before, partialDisposals: shares.slice(0, -1), updatedAt: now });
       await writeServerAuditLog({
         workspaceId: input.workspaceId, uid: input.uid, email: input.email, action: 'ASSET_PARTIAL_DISPOSAL_UNDONE', entityType: 'assets', entityId: input.assetId,
@@ -181,6 +185,9 @@ export async function undoDisposal(db: Firestore, input: Actor & { assetId: stri
     if (asset.status !== 'disposed' || !asset.disposalTransactionId) throw new DisposalError(409, 'This asset was not disposed of here');
     const txRef = db.collection('transactions').doc(String(asset.disposalTransactionId));
     const entry = (await t.get(txRef)).data();
+    if (entry && entry.workspaceId !== input.workspaceId) {
+      throw new DisposalError(403, 'Disposal transaction does not belong to this workspace');
+    }
     const lock = postingLock(String(entry?.date || asset.disposedOn || ''), workspace as never, input.uid);
     if (lock) throw new DisposalError(409, lockMessage(String(entry?.date || asset.disposedOn), lock));
     const before = (entry?.metadata?.before || {}) as Record<string, unknown>;

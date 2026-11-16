@@ -56,16 +56,16 @@ export default function TaxLiabilityView({ startDate: pageStartDate, endDate: pa
     bills: (bills || []) as unknown as TaxableDocument[],
     creditNotes: (creditNotes || []) as unknown as TaxableDocument[],
     vendorCredits: (vendorCredits || []) as unknown as TaxableDocument[],
-    startDate, endDate,
-  }), [invoices, bills, creditNotes, vendorCredits, startDate, endDate]);
+    startDate, endDate, baseCurrency: currency,
+  }), [invoices, bills, creditNotes, vendorCredits, startDate, endDate, currency]);
 
   const byRate = useMemo(() => taxByRate({
     invoices: (invoices || []) as unknown as TaxableDocument[],
     bills: (bills || []) as unknown as TaxableDocument[],
     creditNotes: (creditNotes || []) as unknown as TaxableDocument[],
     vendorCredits: (vendorCredits || []) as unknown as TaxableDocument[],
-    startDate, endDate,
-  }), [invoices, bills, creditNotes, vendorCredits, startDate, endDate]);
+    startDate, endDate, baseCurrency: currency,
+  }), [invoices, bills, creditNotes, vendorCredits, startDate, endDate, currency]);
 
   const [filed, setFiled] = useState<FiledReturn[] | null>(null);
   const [version, setVersion] = useState(0);

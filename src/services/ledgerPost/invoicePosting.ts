@@ -63,8 +63,10 @@ export async function postInvoiceLedger(
   );
 
   // Find prior active non-reversal postings for this invoice to generate reversing entries
-  // Improved logic: exclude any transaction that has ALREADY been reversed
-  const allTxs = getTransactions(context).filter(t => t.metadata?.invoiceId === invoiceId);
+  // Improved logic: exclude any transaction that has ALREADY been reversed, and exclude
+  // separate-lifecycle bad-debt write-off/recovery entries managed exclusively by badDebtService (A8-013)
+  const BAD_DEBT_TYPES = new Set(['invoice-bad-debt-writeoff', 'invoice-bad-debt-recovery']);
+  const allTxs = getTransactions(context).filter(t => t.metadata?.invoiceId === invoiceId && !BAD_DEBT_TYPES.has(String(t.metadata?.type || '')));
   const reversedIds = new Set(allTxs.filter(t => t.metadata?.isReversal).map(t => t.metadata?.reversesTxId || t.metadata?.reversedTransactionId));
   
   const existingTxs = allTxs.filter(t => 
