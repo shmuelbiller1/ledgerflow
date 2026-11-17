@@ -116,7 +116,9 @@ export const contactMergeCommand: CommandDefinition<typeof contactMergeInput, Re
   },
 };
 
-export const contactDeleteInput = identity.extend({ side: contactSide, id }).strict();
+// `checkOnly` is the address's ?check=1: may this be deleted? Nothing is deleted, so it changes the
+// answer only, never the permission (the same roles delete for real).
+export const contactDeleteInput = identity.extend({ side: contactSide, id, checkOnly: z.boolean().optional() }).strict();
 
 export const contactDeleteCommand: CommandDefinition<typeof contactDeleteInput, Record<string, unknown>> = {
   name: 'contact.delete',
@@ -125,7 +127,7 @@ export const contactDeleteCommand: CommandDefinition<typeof contactDeleteInput, 
   async handler(ctx, _tx, input) {
     // the address also answers "may this be deleted?" (?check=1) without deleting; the handler keeps
     // that choice, because it only changes the answer, not the permission
-    const checkOnly = Boolean((input as { checkOnly?: unknown }).checkOnly);
+    const checkOnly = Boolean(input.checkOnly);
     await deleteContact(ctx.db, {
       workspaceId: ctx.workspaceId, uid: ctx.actor, email: ctx.email, side: input.side, id: input.id, checkOnly,
     });

@@ -292,3 +292,46 @@ test('a high-risk setting keeps its established answer on its old address and th
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }
 });
+
+test('the contact delete address still answers "may this be deleted?" without deleting', async () => {
+  // ?check=1 asks the question and preserves the contact (the screen then offers Undo before deleting);
+  // it changes the answer only, never who may ask it.
+  const harness = await createHarness();
+  try {
+    const checkOnly = contactDeleteCommand.input.safeParse({ side: 'customer', id: 'c1', checkOnly: true });
+    assert.equal(checkOnly.success, true, 'the query flag is part of the accepted input');
+    assert.equal(contactDeleteCommand.input.safeParse({ side: 'customer', id: 'c1' }).success, true, 'and it is optional');
+
+    const db = new MemoryDb();
+    seed(db);
+    db.seed(`customers/c1`, { workspaceId: WS, name: 'Unused Customer' });
+    const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+    const dependencies = runnerDependencies(db, counters);
+    const outcome = await runRegisteredCommand(
+      { user: { uid: ACCOUNTANT, aal: 'aal2' } } as never,
+      { definition: contactDeleteCommand, workspaceId: WS, input: { workspaceId: WS, side: 'customer', id: 'c1', checkOnly: true } },
+      dependencies,
+    );
+    assert.equal(outcome.ok, true, JSON.stringify(outcome));
+    assert.deepEqual((outcome as { data: unknown }).data, { deletable: true }, 'it answers that it may be deleted');
+    assert.notEqual(await db.collection('customers').doc('c1').get().then(snap => snap.data()), undefined, 'and the customer is still there');
+  } finally {
+    await harness.close();
+  }
+});
+
+test('a refusal keeps the details the service attached (the closed-period list)', () => {
+  const closed: CommandExecutionOutcome = {
+    ok: false, status: 409, command: 'account.merge',
+    message: 'The books are closed for 2026-09-02, 2026-09-03',
+    code: 'CONFLICT', details: { closed: ['2026-09-02', '2026-09-03'] },
+  };
+  assert.deepEqual(legacyAnswer({ badBody: 'Choose the account to merge and the one to keep', failed: 'The accounts could not be merged' })(closed), {
+    status: 409,
+    body: { status: 'error', message: 'The books are closed for 2026-09-02, 2026-09-03', details: { closed: ['2026-09-02', '2026-09-03'] } },
+  });
+  // a refusal with no details stays as short as it was
+  const bare: CommandExecutionOutcome = { ok: false, status: 403, command: 'x', message: 'Only owners and accountants merge accounts' };
+  assert.deepEqual(legacyAnswer({ badBody: 'b', failed: 'f' })(bare),
+    { status: 403, body: { status: 'error', message: 'Only owners and accountants merge accounts' } });
+});

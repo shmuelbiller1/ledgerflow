@@ -21,8 +21,8 @@ contactMergeRouter.post('/merge', async (req, res) => {
 contactMergeRouter.delete('/:side/:id', async (req, res) => {
   const params = req.params as Record<string, string>;
   await executeCommand(req, res, {
-    ...workspaceInvocation(req, contactDeleteCommand, { side: params.side, id: params.id }),
     // ?check=1: may it be deleted? (nothing is deleted; the screen then offers Undo before deleting)
+    ...workspaceInvocation(req, contactDeleteCommand, { side: params.side, id: params.id, checkOnly: req.query.check === '1' }),
     formatResponse: (outcome) => {
       if (outcome.ok) return { status: 200, body: { status: 'success', ...(outcome.data as Record<string, unknown>) } };
       return legacyAnswer({ badBody: 'Invalid request', failed: 'The contact could not be deleted', issues: true })(outcome);

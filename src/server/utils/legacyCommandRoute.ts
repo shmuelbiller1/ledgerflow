@@ -38,7 +38,11 @@ export function legacyAnswer(answer: LegacyAnswer) {
         },
       };
     }
-    if (outcome.status < 500) return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    if (outcome.status < 500) {
+      // a service's own details come back too: the account merge explains a closed period as
+      // `details.closed`, which the dialog names in its answer
+      return { status: outcome.status, body: { status: 'error', message: outcome.message, ...(outcome.details !== undefined ? { details: outcome.details } : {}) } };
+    }
     const cause = outcome.error instanceof Error ? outcome.error.message : String(outcome.error ?? outcome.message);
     return { status: 500, body: { status: 'error', message: answer.failed, details: cause } };
   };
