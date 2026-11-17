@@ -224,10 +224,10 @@ test('SEC-SCAN-1: api-fuzz.yml, zap-baseline.yml, and .zap/rules.tsv satisfy pin
   const scannerActionRefs = [apiFuzz, zapBaseline]
     .flatMap(workflow => [...workflow.matchAll(/^\s*uses:\s*(\S+)/gm)].map(match => match[1]));
   const expectedPinnedActions = [
-    'actions/checkout@11d5960a326750d5838078e36cf38b85af677262',
-    'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020',
-    'actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065',
-    'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+    'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
+    'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1',
+    'actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0',
+    'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9',
   ];
   assert.equal(scannerActionRefs.length, 7);
   for (const actionRef of scannerActionRefs) {
