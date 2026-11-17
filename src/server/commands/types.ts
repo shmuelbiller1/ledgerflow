@@ -71,6 +71,12 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
   scope?: 'workspace' | 'person';
   /** Permit platform admins outside the workspace roles list; never grants this override to API keys. */
   allowPlatformAdmin?: boolean;
+  /**
+   * Refuse a request that arrived on an API key (`lf_...`), so only a signed-in person runs it. The
+   * addresses these commands replaced were person-only (minting or revoking a key, saving an AI
+   * provider key), and an API key that could mint keys would grant itself more than it was given.
+   */
+  peopleOnly?: boolean;
   /** Dot path into the validated input; the runner checks this date against the workspace period lock. */
   dated?: string;
   /** Resolve an effective date when the command's input omits one (for example, today's workspace-local date). */

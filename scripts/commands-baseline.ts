@@ -54,8 +54,11 @@ function stringValues(node: ts.Expression | undefined): string[] {
 
 function containsCommandRunnerCall(node: ts.Node): boolean {
   let found = false;
-  // `runLegacyCommand` is the task/time/stage compatibility adapter; its implementation delegates to executeCommand.
-  const commandRunners = new Set(['executeCommand', 'previewCommand', 'runLegacyCommand']);
+  // `runLegacyCommand` is the task/time/stage compatibility adapter; its implementation delegates to
+  // executeCommand. `handleCreatePayment` is the same shape in paymentRoutes.ts: the handler is exported
+  // for the two suites that call it directly, and its body is the runner invocation. Naming an
+  // unconverted helper here would not help it: the ratchet can only shrink, and the file's count fell.
+  const commandRunners = new Set(['executeCommand', 'previewCommand', 'runLegacyCommand', 'handleCreatePayment']);
   const visit = (child: ts.Node) => {
     if (ts.isCallExpression(child) && commandRunners.has(callName(child) || '')) found = true;
     if (!found) ts.forEachChild(child, visit);
@@ -88,7 +91,29 @@ export const READ_ONLY_ROUTE_EXCEPTIONS: readonly ReadOnlyRouteException[] = [
       + 'reads the workspace and answers suggestions; nothing is marked, written or audited, so a '
       + 'command would add a transaction around a read.',
   },
+  {
+    file: 'src/server/routes/paymentRoutes.ts',
+    route: '/payout-run',
+    why: 'Sends real money: one processor transfer per vendor before any payment is recorded, and it '
+      + 'answers 503 when the processor is not configured. The transfer is an external side effect '
+      + 'that cannot be rolled back by a books transaction, so the route owns the per-item order '
+      + '(replay, transfer, then the payment) and the per-vendor failures it reports. Each payment '
+      + 'it records already goes through createPaymentIdempotent; wrapping the batch in a command '
+      + 'would promise an atomicity the processor does not offer.',
+  },
 ];
+
+/**
+ * A route registration is a call with a path and a handler: `.post(path, handler)`. A call with one
+ * argument cannot be one — `FieldValue.delete()`, `ref.delete()` and `t.delete(ref)` in a transaction
+ * are all document or field operations that happen to share the method names routes use. Counting them
+ * made the ratchet measure every `delete` in the route folder, so apiKeys' four field deletions read as
+ * four unconverted writes. Requiring the path and the handler keeps real routes (including the few
+ * whose path is a constant or an array) and drops the false ones.
+ */
+function isRouteRegistration(node: ts.CallExpression): boolean {
+  return WRITE_METHODS.has(callName(node) || '') && node.arguments.length >= 2;
+}
 
 function countWriteRoutes(): { total: number; sites: Record<string, number> } {
   const sites: Record<string, number> = {};
@@ -98,7 +123,7 @@ function countWriteRoutes(): { total: number; sites: Record<string, number> } {
     let count = 0;
     const relativeFile = path.relative(ROOT, file).split(path.sep).join('/');
     const visit = (node: ts.Node) => {
-      if (ts.isCallExpression(node) && WRITE_METHODS.has(callName(node) || '')) {
+      if (ts.isCallExpression(node) && isRouteRegistration(node)) {
         const pathNames = stringValues(node.arguments[0]);
         const excluded = pathNames.some(value => /(?:^|\/)\/?(?:admin|system)(?:\/|$)/.test(value.replace(/^\/+/, '')));
         // a POST that only reads is not a write: see READ_ONLY_ROUTE_EXCEPTIONS

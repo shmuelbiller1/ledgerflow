@@ -9,17 +9,17 @@ export const COMMAND_INPUT_SCHEMA = {
       "minLength": 3,
       "maxLength": 500
     },
-    "accountId": COMMAND_SCHEMA_PARTS.part64,
-    "accountName": COMMAND_SCHEMA_PARTS.part38,
+    "accountId": COMMAND_SCHEMA_PARTS.part71,
+    "accountName": COMMAND_SCHEMA_PARTS.part42,
     "tags": {
       "maxItems": 20,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part64
+      "items": COMMAND_SCHEMA_PARTS.part71
     },
     "dimensions": {
       "type": "object",
-      "propertyNames": COMMAND_SCHEMA_PARTS.part38,
-      "additionalProperties": COMMAND_SCHEMA_PARTS.part38
+      "propertyNames": COMMAND_SCHEMA_PARTS.part42,
+      "additionalProperties": COMMAND_SCHEMA_PARTS.part42
     }
   },
   "required": [

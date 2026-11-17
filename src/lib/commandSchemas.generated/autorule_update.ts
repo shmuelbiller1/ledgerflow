@@ -4,20 +4,20 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part64,
+    "id": COMMAND_SCHEMA_PARTS.part71,
     "data": {
       "type": "object",
       "properties": {
-        "name": COMMAND_SCHEMA_PARTS.part38,
-        "groupName": COMMAND_SCHEMA_PARTS.part63,
-        "groupIsActive": COMMAND_SCHEMA_PARTS.part15,
-        "condition": COMMAND_SCHEMA_PARTS.part170,
-        "action": COMMAND_SCHEMA_PARTS.part173,
-        "confidence": COMMAND_SCHEMA_PARTS.part51,
-        "isHardened": COMMAND_SCHEMA_PARTS.part15,
-        "priority": COMMAND_SCHEMA_PARTS.part96,
-        "isActive": COMMAND_SCHEMA_PARTS.part15,
-        "stopProcessingOnMatch": COMMAND_SCHEMA_PARTS.part15
+        "name": COMMAND_SCHEMA_PARTS.part42,
+        "groupName": COMMAND_SCHEMA_PARTS.part70,
+        "groupIsActive": COMMAND_SCHEMA_PARTS.part17,
+        "condition": COMMAND_SCHEMA_PARTS.part186,
+        "action": COMMAND_SCHEMA_PARTS.part189,
+        "confidence": COMMAND_SCHEMA_PARTS.part55,
+        "isHardened": COMMAND_SCHEMA_PARTS.part17,
+        "priority": COMMAND_SCHEMA_PARTS.part104,
+        "isActive": COMMAND_SCHEMA_PARTS.part17,
+        "stopProcessingOnMatch": COMMAND_SCHEMA_PARTS.part17
       },
       "additionalProperties": false
     }

@@ -5,7 +5,28 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-11-17.
+Last updated: 2026-11-16.
+
+## Payments, saved lists, API keys and workspace administration now run through registered commands (nothing for you to do)
+
+The last writes in four areas now go through the same registered commands as the period, account,
+inventory and reconciliation batches: recording a payment and applying it to open documents, applying
+or refunding a credit note or vendor credit, applying every open credit at once, a bank deposit,
+applying a payment's unapplied part later and voiding a payment; the eight saved lists in Settings
+(allocation rules, price lists, sales reps, dashboards, approval delegates, tax profiles, payment types
+and customer groups); minting and revoking API keys and keeping or removing your own AI provider key;
+and applying a chart-of-accounts template, importing records from a spreadsheet (and undoing an
+import), changing someone's role, inviting a person and scheduling a workspace for deletion.
+
+Every screen and API call keeps exactly the same request and answer, so nothing changes for you. An
+API key's secret is still shown once and never stored or replayed, the key keeps its
+`lf_id_<workspace>_<16 hex>` shape, the seat cap still answers 402 before an invitation is made, the
+last owner still cannot be demoted, and a bookkeeper still cannot import a chart of accounts. One
+thing is stricter, never looser: an import's audit line and the records it creates now commit together,
+so an import that fails halfway leaves neither.
+
+The measured count of server write routes not yet on a command fell from 148 to 111 (the demo in the
+browser is unchanged). The next batch takes the remaining route areas, starting with the largest ones.
 
 ## Bank reconciliation now runs through registered commands (nothing for you to do)
 

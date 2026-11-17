@@ -4,7 +4,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "deletionGraceDays": COMMAND_SCHEMA_PARTS.part58,
+    "deletionGraceDays": COMMAND_SCHEMA_PARTS.part64,
     "emailLogDays": {
       "anyOf": [
         {
@@ -18,8 +18,8 @@ export const COMMAND_INPUT_SCHEMA = {
         }
       ]
     },
-    "errorLogDays": COMMAND_SCHEMA_PARTS.part58,
-    "legalHold": COMMAND_SCHEMA_PARTS.part15
+    "errorLogDays": COMMAND_SCHEMA_PARTS.part64,
+    "legalHold": COMMAND_SCHEMA_PARTS.part17
   },
   "required": [
     "deletionGraceDays",

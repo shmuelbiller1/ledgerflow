@@ -53,7 +53,18 @@ async function postingPeriodError<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
-export async function importRecords(db: Firestore, input: ImportRecordsInput) {
+/** What an import's write needs: the checked rows and the definition of the kind of record. */
+export interface PreparedImport {
+  definition: (typeof IMPORT_DEFINITIONS)[ImportKind];
+  prepared: ReturnType<typeof prepareImport>;
+}
+
+/**
+ * The checks and the reading an import needs, read-only, before its transaction: every row is
+ * checked again here (src/lib/recordImport.ts) and one bad row means nothing is saved. The command
+ * runner then holds the write, and its audit line, in its own transaction.
+ */
+export async function prepareImportRecords(db: Firestore, input: ImportRecordsInput): Promise<PreparedImport> {
   const definition = IMPORT_DEFINITIONS[input.kind];
   if (!definition) throw new ImportError(400, 'Unknown kind of record');
   if (!Array.isArray(input.rows) || input.rows.length === 0) throw new ImportError(400, 'The file has no rows to import');
@@ -68,102 +79,109 @@ export async function importRecords(db: Firestore, input: ImportRecordsInput) {
     throw new ImportError(400, 'Choose the date of the opening stock');
   }
 
-  const workspaceRef = db.collection('workspaces').doc(input.workspaceId);
   if (input.kind === 'items') await stockMovesReady(db);
-  return db.runTransaction(async (t) => {
-    const workspace = (await t.get(workspaceRef)).data();
-    if (!workspace) throw new ImportError(404, 'Workspace not found');
+  return { definition, prepared };
+}
 
-    const existing = (await t.get(db.collection(definition.collection).where('workspaceId', '==', input.workspaceId))).docs;
-    const taken = new Set(existing.flatMap(d => identityKeys(input.kind, d.data())));
-    const skipped: ImportIssue[] = [];
-    const toCreate = prepared.records.filter(r => {
-      if (!r.keys.some(k => taken.has(k))) return true;
-      skipped.push({ row: r.row, message: `${r.label} already exists` });
-      return false;
-    });
+export async function importRecords(db: Firestore, input: ImportRecordsInput) {
+  const prepared = await prepareImportRecords(db, input);
+  return db.runTransaction(t => importRecordsInTransaction(db, t, input, prepared));
+}
 
-    const batchId = `imp_${crypto.randomBytes(8).toString('hex')}`;
-    const itemRefs = toCreate.map(() => db.collection(definition.collection).doc());
-    const stockValues = input.kind === 'items'
-      ? toCreate.map((r, i) => ({ itemId: itemRefs[i].id, valueCents: (Number(r.data.quantityAtHand) || 0) * (Number(r.data.unitCostCents) || 0) }))
-          .filter(v => v.valueCents > 0)
-      : [];
-    const stockCents = stockValues.reduce((sum, v) => sum + v.valueCents, 0);
-    if (!Number.isSafeInteger(stockCents)) throw new ImportError(400, 'The opening stock value is too large');
+export async function importRecordsInTransaction(db: Firestore, t: Transaction, input: ImportRecordsInput, prepped: PreparedImport) {
+  const { definition, prepared } = prepped;
+  const workspace = (await t.get(db.collection('workspaces').doc(input.workspaceId))).data();
+  if (!workspace) throw new ImportError(404, 'Workspace not found');
 
-    let openingTx: DocumentData | null = null;
-    if (stockCents > 0) {
-      const accounts = (await t.get(db.collection('chartAccounts').where('workspaceId', '==', input.workspaceId))).docs
-        .map(d => ({ ...d.data(), id: d.id }) as ChartAccount).filter(active);
-      const inventory = accounts.find(a => resolveAccountRole(a) === 'inventory');
-      const equity = accounts.find(isOpeningEquity);
-      if (!inventory || !equity) {
-        throw new ImportError(400, `To record the opening stock, add ${!inventory ? 'an Inventory account' : ''}${!inventory && !equity ? ' and ' : ''}${!equity ? 'an Opening Balance Equity account' : ''} to the chart of accounts, or import the items without quantities`);
-      }
-      const description = `Opening stock: ${stockValues.length} imported item${stockValues.length === 1 ? '' : 's'}`;
-      if (!input.dryRun) {
-        openingTx = await postingPeriodError(() => TransactionValidator.validateAndPrepare({
-          id: db.collection('transactions').doc().id,
-          workspaceId: input.workspaceId,
-          uid: input.uid,
-          date: input.openingDate,
-          description,
-          totalAmountCents: stockCents,
-          currency: workspace.currency || 'USD',
-          exchangeRate: 1,
-          status: 'completed',
-          type: 'actual',
-          metadata: { type: OPENING_STOCK_TYPE, importBatchId: batchId, items: stockValues },
-          lines: [
-            { accountId: inventory.id, accountName: inventory.name, amountCents: stockCents, description },
-            { accountId: equity.id, accountName: equity.name, amountCents: -stockCents, description },
-          ],
-        }, { workspaceId: input.workspaceId, user: { uid: input.uid }, wsData: workspace }, undefined, t));
-      }
-    }
-
-    const summary = { kind: input.kind, created: toCreate.length, skipped, errors: prepared.errors, openingStockCents: stockCents };
-    if (input.dryRun) return { ...summary, dryRun: true as const, batchId: null, openingTransactionId: null };
-
-    const now = new Date().toISOString();
-    toCreate.forEach((record, i) => {
-      const extra = input.kind === 'accounts' ? { balanceCents: 0, isArchived: false } : {};
-      t.create(itemRefs[i], { ...record.data, ...extra, id: itemRefs[i].id, uid: input.uid, workspaceId: input.workspaceId, importBatchId: batchId, createdAt: now, updatedAt: now });
-    });
-    if (openingTx) {
-      ledgerCreate(t, db.collection('transactions').doc(String(openingTx.id)), { ...openingTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-    }
-    // W-02: each imported item's opening quantity starts its stock history
-    if (input.kind === 'items') {
-      writeStockMoves(db, t, toCreate.flatMap((record, i) => {
-        const quantity = Number(record.data.quantityAtHand) || 0;
-        if (quantity === 0) return [];
-        const unitCostCents = Number(record.data.unitCostCents) || 0;
-        return [{
-          workspaceId: input.workspaceId, itemId: itemRefs[i].id, itemName: String(record.data.name || ''), date: input.openingDate || now.slice(0, 10),
-          kind: 'opening' as const, quantity, quantityBefore: 0, quantityAfter: quantity, unitCostCents, valueCents: Math.round(quantity * unitCostCents),
-          transactionId: openingTx ? String(openingTx.id) : null, documentType: 'import' as const, documentId: batchId, uid: input.uid,
-        }];
-      }));
-    }
-    await writeServerAuditLog({
-      workspaceId: input.workspaceId,
-      uid: input.uid,
-      email: input.email,
-      action: 'records_imported',
-      entityType: input.kind,
-      entityId: batchId,
-      details: {
-        description: `Imported ${toCreate.length} ${definition.label.toLowerCase()} from a spreadsheet${skipped.length ? ` (${skipped.length} already existed)` : ''}`,
-        batchId,
-        kind: input.kind,
-        created: toCreate.length,
-        skipped: skipped.length,
-      },
-    }, { db, tx: t });
-    return { ...summary, dryRun: false as const, batchId, openingTransactionId: openingTx ? String(openingTx.id) : null };
+  const existing = (await t.get(db.collection(definition.collection).where('workspaceId', '==', input.workspaceId))).docs;
+  const taken = new Set(existing.flatMap(d => identityKeys(input.kind, d.data())));
+  const skipped: ImportIssue[] = [];
+  const toCreate = prepared.records.filter(r => {
+    if (!r.keys.some(k => taken.has(k))) return true;
+    skipped.push({ row: r.row, message: `${r.label} already exists` });
+    return false;
   });
+
+  const batchId = `imp_${crypto.randomBytes(8).toString('hex')}`;
+  const itemRefs = toCreate.map(() => db.collection(definition.collection).doc());
+  const stockValues = input.kind === 'items'
+    ? toCreate.map((r, i) => ({ itemId: itemRefs[i].id, valueCents: (Number(r.data.quantityAtHand) || 0) * (Number(r.data.unitCostCents) || 0) }))
+        .filter(v => v.valueCents > 0)
+    : [];
+  const stockCents = stockValues.reduce((sum, v) => sum + v.valueCents, 0);
+  if (!Number.isSafeInteger(stockCents)) throw new ImportError(400, 'The opening stock value is too large');
+
+  let openingTx: DocumentData | null = null;
+  if (stockCents > 0) {
+    const accounts = (await t.get(db.collection('chartAccounts').where('workspaceId', '==', input.workspaceId))).docs
+      .map(d => ({ ...d.data(), id: d.id }) as ChartAccount).filter(active);
+    const inventory = accounts.find(a => resolveAccountRole(a) === 'inventory');
+    const equity = accounts.find(isOpeningEquity);
+    if (!inventory || !equity) {
+      throw new ImportError(400, `To record the opening stock, add ${!inventory ? 'an Inventory account' : ''}${!inventory && !equity ? ' and ' : ''}${!equity ? 'an Opening Balance Equity account' : ''} to the chart of accounts, or import the items without quantities`);
+    }
+    const description = `Opening stock: ${stockValues.length} imported item${stockValues.length === 1 ? '' : 's'}`;
+    if (!input.dryRun) {
+      openingTx = await postingPeriodError(() => TransactionValidator.validateAndPrepare({
+        id: db.collection('transactions').doc().id,
+        workspaceId: input.workspaceId,
+        uid: input.uid,
+        date: input.openingDate,
+        description,
+        totalAmountCents: stockCents,
+        currency: workspace.currency || 'USD',
+        exchangeRate: 1,
+        status: 'completed',
+        type: 'actual',
+        metadata: { type: OPENING_STOCK_TYPE, importBatchId: batchId, items: stockValues },
+        lines: [
+          { accountId: inventory.id, accountName: inventory.name, amountCents: stockCents, description },
+          { accountId: equity.id, accountName: equity.name, amountCents: -stockCents, description },
+        ],
+      }, { workspaceId: input.workspaceId, user: { uid: input.uid }, wsData: workspace }, undefined, t));
+    }
+  }
+
+  const summary = { kind: input.kind, created: toCreate.length, skipped, errors: prepared.errors, openingStockCents: stockCents };
+  if (input.dryRun) return { ...summary, dryRun: true as const, batchId: null, openingTransactionId: null };
+
+  const now = new Date().toISOString();
+  toCreate.forEach((record, i) => {
+    const extra = input.kind === 'accounts' ? { balanceCents: 0, isArchived: false } : {};
+    t.create(itemRefs[i], { ...record.data, ...extra, id: itemRefs[i].id, uid: input.uid, workspaceId: input.workspaceId, importBatchId: batchId, createdAt: now, updatedAt: now });
+  });
+  if (openingTx) {
+    ledgerCreate(t, db.collection('transactions').doc(String(openingTx.id)), { ...openingTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+  }
+  // W-02: each imported item's opening quantity starts its stock history
+  if (input.kind === 'items') {
+    writeStockMoves(db, t, toCreate.flatMap((record, i) => {
+      const quantity = Number(record.data.quantityAtHand) || 0;
+      if (quantity === 0) return [];
+      const unitCostCents = Number(record.data.unitCostCents) || 0;
+      return [{
+        workspaceId: input.workspaceId, itemId: itemRefs[i].id, itemName: String(record.data.name || ''), date: input.openingDate || now.slice(0, 10),
+        kind: 'opening' as const, quantity, quantityBefore: 0, quantityAfter: quantity, unitCostCents, valueCents: Math.round(quantity * unitCostCents),
+        transactionId: openingTx ? String(openingTx.id) : null, documentType: 'import' as const, documentId: batchId, uid: input.uid,
+      }];
+    }));
+  }
+  await writeServerAuditLog({
+    workspaceId: input.workspaceId,
+    uid: input.uid,
+    email: input.email,
+    action: 'records_imported',
+    entityType: input.kind,
+    entityId: batchId,
+    details: {
+      description: `Imported ${toCreate.length} ${definition.label.toLowerCase()} from a spreadsheet${skipped.length ? ` (${skipped.length} already existed)` : ''}`,
+      batchId,
+      kind: input.kind,
+      created: toCreate.length,
+      skipped: skipped.length,
+    },
+  }, { db, tx: t });
+  return { ...summary, dryRun: false as const, batchId, openingTransactionId: openingTx ? String(openingTx.id) : null };
 }
 
 // ----- undo -----
@@ -218,10 +236,22 @@ async function usedIds(db: Firestore, t: Transaction, workspaceId: string, kind:
   return used;
 }
 
-export async function undoImport(db: Firestore, input: { workspaceId: string; uid: string; email?: string; batchId: string; allowAccounts: boolean }) {
+export type UndoImportInput = { workspaceId: string; uid: string; email?: string; batchId: string; allowAccounts: boolean };
+
+/** What an undo needs before its transaction (read-only): the batch id's shape and a ready stock store. */
+export async function prepareUndoImport(db: Firestore, input: UndoImportInput): Promise<void> {
   if (!/^imp_[0-9a-f]{16}$/.test(input.batchId)) throw new ImportError(400, 'Unknown import');
+  await stockMovesReady(db);
+}
+
+export async function undoImport(db: Firestore, input: UndoImportInput) {
+  await prepareUndoImport(db, input);
+  return db.runTransaction(t => undoImportInTransaction(db, t, input));
+}
+
+export async function undoImportInTransaction(db: Firestore, t: Transaction, input: UndoImportInput) {
   const historyKept = await stockMovesReady(db);
-  return db.runTransaction(async (t) => {
+  {
     const workspace = (await t.get(db.collection('workspaces').doc(input.workspaceId))).data();
     if (!workspace) throw new ImportError(404, 'Workspace not found');
 
@@ -294,5 +324,5 @@ export async function undoImport(db: Firestore, input: { workspaceId: string; ui
       },
     }, { db, tx: t });
     return { kind, removed: removable.length, kept, reversalTransactionId: reversal ? String(reversal.id) : null };
-  });
+  }
 }
