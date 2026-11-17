@@ -57,7 +57,7 @@ test('the default registry is sorted and unique across the registered command do
     'autorule.create', 'autorule.delete', 'autorule.group', 'autorule.learn', 'autorule.recordhits', 'autorule.update',
     'bill.create', 'bill.delete', 'bill.update',
     'creditnote.create', 'creditnote.delete', 'creditnote.update',
-    'customer.create', 'customer.update',
+    'customer.balance', 'customer.create', 'customer.update',
     'entrylink.create', 'entrylink.remove',
     'groups.create', 'groups.delete', 'groups.keeprates', 'groups.setlinemerges', 'groups.share', 'groups.unshare', 'groups.update',
     'inventory.adjust', 'inventory.cogs', 'inventory.count', 'inventory.deliver', 'inventory.landedcost', 'inventory.landedcostundo',
@@ -68,11 +68,11 @@ test('the default registry is sorted and unique across the registered command do
     'stages.define', 'stages.move',
     'tasks.create', 'tasks.remove', 'tasks.status',
     'time.invoice', 'time.log', 'time.move', 'time.rates', 'time.remove', 'time.update',
-    'vendor.create', 'vendor.update',
+    'vendor.balance', 'vendor.create', 'vendor.update',
     'vendorcredit.create', 'vendorcredit.delete', 'vendorcredit.update',
     'warranty.update',
     'watches.create', 'watches.remove',
-    'workspace.canceldeletion', 'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
+    'workspace.canceldeletion', 'workspace.dimensionaxes', 'workspace.dimensionnode', 'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
     'workspace.retention', 'workspace.revokeinvite', 'workspace.setupcomplete',
   ]);
   assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'groups', 'inventory', 'invoice', 'journal', 'numbering', 'payment', 'period', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);

@@ -2,7 +2,10 @@ import { workspaceActor } from './guestActor';
 import { guestSession, guestRows, writeGuestBatch } from './db/guestDatabase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
-import { doc, getDoc, setDoc, updateDoc } from './db/firestore';
+import { doc, getDoc } from './db/firestore';
+import { localSet, localUpdate } from './db/localStore';
+import { COMMAND_MANIFEST } from './commands.generated';
+import { runCommand } from './runCommand';
 import { db } from '../firebase';
 import { DEFAULT_WORKSPACE_DIMENSIONS, resolveDimensionLabel, setLineDimension, suggestNextDimensionNodeId, updateDimensionNodeDescription } from './dimensionUtils';
 import { normalizeSearchText } from './textNormalization';
@@ -100,6 +103,16 @@ export interface DimensionNodeActionAdapter {
 const nodeDocId = (workspaceId: string, dimensionId: string, nodeId: string) =>
   `${workspaceId}_${dimensionId}_${nodeId}`;
 
+/**
+ * One command by name, from a module that is not a React hook: the manifest holds the path, so the call cannot
+ * drift from the route the server serves. The workspace travels in the envelope, as `useCommand` sends it.
+ */
+async function runDimensionCommand(workspaceId: string, name: string, input: Record<string, unknown>): Promise<void> {
+  const entry = COMMAND_MANIFEST.find(command => command.name === name);
+  if (!entry) throw new Error(`"${name}" is not a registered command.`);
+  await runCommand({ path: entry.runPath, method: 'POST', body: { workspaceId, input } });
+}
+
 export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
   session: () => {
     const auth = useAuthStore.getState();
@@ -125,11 +138,13 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
     }));
   },
   writeNode: async (workspaceId, node) => {
-    if (!db) return;
-    await setDoc(doc(db, 'dimensionNodes', nodeDocId(workspaceId, node.dimensionId, node.id)), {
-      ...node,
-      workspaceId,
-    });
+    // the sample company writes its own row; a workspace on the server asks the command, so a value saved from a
+    // stale screen cannot arrive with a different workspace on it
+    if (guestSession()) {
+      await localSet('dimensionNodes', nodeDocId(workspaceId, node.dimensionId, node.id), { ...node, workspaceId });
+      return;
+    }
+    await runDimensionCommand(workspaceId, 'workspace.dimensionnode', { node });
   },
   createOnlyNode: async (workspaceId, node) => {
     if (!db) return 'created';
@@ -156,8 +171,11 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
     return snap.exists() ? (snap.data() as Record<string, unknown>) : undefined;
   },
   updateNode: async (workspaceId, dimensionId, nodeId, fields) => {
-    if (!db) return;
-    await updateDoc(doc(db, 'dimensionNodes', nodeDocId(workspaceId, dimensionId, nodeId)), fields);
+    if (guestSession()) {
+      await localUpdate('dimensionNodes', nodeDocId(workspaceId, dimensionId, nodeId), fields);
+      return;
+    }
+    await runDimensionCommand(workspaceId, 'workspace.dimensionnode', { dimensionId, nodeId, fields });
   },
   readWorkspace: async workspaceId => {
     if (!db) return undefined;
@@ -165,8 +183,11 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
     return snap.exists() ? (snap.data() as { dimensions?: DimensionDefinition[] }) : undefined;
   },
   updateWorkspace: async (workspaceId, dimensions) => {
-    if (!db) return;
-    await updateDoc(doc(db, 'workspaces', workspaceId), { dimensions });
+    if (guestSession()) {
+      await localUpdate('workspaces', workspaceId, { dimensions });
+      return;
+    }
+    await runDimensionCommand(workspaceId, 'workspace.dimensionaxes', { dimensions });
   },
 };
 

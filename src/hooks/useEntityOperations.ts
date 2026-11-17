@@ -1,7 +1,7 @@
 import { getIdToken } from '../firebase';
 import { runCommand as runServerCommand } from '../lib/runCommand';
 import { guestSession, assertGuestSession, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
-import { localSet } from '../lib/db/localStore';
+import { localSet, localUpdate } from '../lib/db/localStore';
 import { withSamplePosting } from '../lib/guestPosting';
 import { workspaceActor } from '../lib/guestActor';
 import { savedInOtherWorkspace, workspaceChangedSince } from '../lib/saveWorkspace';
@@ -204,8 +204,14 @@ export function useEntityOperations() {
   const syncEntityBalance = async (entityType: 'customers' | 'vendors', entityId: string, sampleSession: object | null) => {
     if (!entityId || !currentWorkspaceId) return;
     try {
-      if (sampleSession) assertGuestSession(sampleSession);
-      const entityRef = doc(db, entityType, entityId);
+      // a live workspace asks the server, which reads every open document for this contact — the tab's own copy
+      // is only what it has seen, so two tabs synced a moment apart used to write different balances for the
+      // same contact, and neither was wrong about the rows it could see
+      if (!sampleSession) {
+        await runDocumentCommand(entityType === 'customers' ? 'customer.balance' : 'vendor.balance', currentWorkspaceId, { id: entityId });
+        return;
+      }
+      assertGuestSession(sampleSession);
       let balanceCents = 0;
 
       if (entityType === 'customers') {
@@ -229,7 +235,7 @@ export function useEntityOperations() {
         balanceCents = vendorBills.reduce((sum, b) => sum + toBaseCents(calculateAmountDue(b), b.exchangeRate, b.currency, homeCurrency), 0);
       }
 
-      await updateDoc(entityRef, {
+      await localUpdate(entityType, entityId, {
         balanceCents,
         updatedAt: new Date().toISOString()
       });
