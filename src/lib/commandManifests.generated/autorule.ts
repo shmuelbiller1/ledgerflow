@@ -28,7 +28,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
           "isHardened": true
         }
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part163
+      "refusals": COMMAND_SCHEMA_PARTS.part164
     },
     "runPath": "/api/v1/commands/autorule.create",
     "previewPath": "/api/v1/commands/autorule.create/preview",
@@ -44,7 +44,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
       "example": {
         "id": "rule_123"
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part159
+      "refusals": COMMAND_SCHEMA_PARTS.part160
     },
     "runPath": "/api/v1/commands/autorule.delete",
     "previewPath": "/api/v1/commands/autorule.delete/preview",
@@ -61,7 +61,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
         "groupName": "General",
         "groupIsActive": false
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part163
+      "refusals": COMMAND_SCHEMA_PARTS.part164
     },
     "runPath": "/api/v1/commands/autorule.group",
     "previewPath": "/api/v1/commands/autorule.group/preview",
@@ -88,7 +88,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
           "when": "The description is shorter than three characters, or a label is longer than the record allows.",
           "next": "Use the description as the bank or the person wrote it, and keep labels short."
         },
-        COMMAND_SCHEMA_PARTS.part134
+        COMMAND_SCHEMA_PARTS.part135
       ],
       "next": [
         {
@@ -120,7 +120,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
           }
         ]
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part159
+      "refusals": COMMAND_SCHEMA_PARTS.part160
     },
     "runPath": "/api/v1/commands/autorule.recordhits",
     "previewPath": "/api/v1/commands/autorule.recordhits/preview",
@@ -140,7 +140,7 @@ export const AUTORULE_COMMAND_MANIFEST = [
           "isActive": true
         }
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part159
+      "refusals": COMMAND_SCHEMA_PARTS.part160
     },
     "runPath": "/api/v1/commands/autorule.update",
     "previewPath": "/api/v1/commands/autorule.update/preview",

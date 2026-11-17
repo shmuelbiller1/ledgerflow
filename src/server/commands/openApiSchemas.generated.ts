@@ -57,6 +57,8 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "period.signoff": "CommandInput_period_signoff",
   "period.unlock": "CommandInput_period_unlock",
   "period.yearclose": "CommandInput_period_yearclose",
+  "project.delete": "CommandInput_project_delete",
+  "project.restore": "CommandInput_project_restore",
   "stages.define": "CommandInput_stages_define",
   "stages.move": "CommandInput_stages_move",
   "tasks.create": "CommandInput_tasks_create",

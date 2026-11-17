@@ -33,7 +33,7 @@ export const BILL_COMMAND_MANIFEST = [
         }
       },
       "next": COMMAND_SCHEMA_PARTS.part78,
-      "refusals": COMMAND_SCHEMA_PARTS.part166
+      "refusals": COMMAND_SCHEMA_PARTS.part167
     },
     "runPath": "/api/v1/commands/bill.create",
     "previewPath": "/api/v1/commands/bill.create/preview",
@@ -47,7 +47,7 @@ export const BILL_COMMAND_MANIFEST = [
     "description": {
       "sentence": "Delete a bill and let the server reverse its live ledger entries; do not use this command to void or write off a document.",
       "example": COMMAND_SCHEMA_PARTS.part16,
-      "refusals": COMMAND_SCHEMA_PARTS.part166
+      "refusals": COMMAND_SCHEMA_PARTS.part167
     },
     "runPath": "/api/v1/commands/bill.delete",
     "previewPath": "/api/v1/commands/bill.delete/preview",
@@ -62,7 +62,7 @@ export const BILL_COMMAND_MANIFEST = [
       "sentence": "Update an existing bill and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
       "example": COMMAND_SCHEMA_PARTS.part60,
       "next": COMMAND_SCHEMA_PARTS.part78,
-      "refusals": COMMAND_SCHEMA_PARTS.part166
+      "refusals": COMMAND_SCHEMA_PARTS.part167
     },
     "runPath": "/api/v1/commands/bill.update",
     "previewPath": "/api/v1/commands/bill.update/preview",

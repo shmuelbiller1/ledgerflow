@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **86** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **84** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,7 +147,7 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **86** → 0. 48 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **84** → 0. 47 files. The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
@@ -161,11 +161,17 @@ hand-convert a table the codemod still refuses.
         `workspace.dimensionnode` / `workspace.dimensionaxes` own the label rows and the axis list
         (`dimensionNodeActions`). The adapter that the dimension screens call now talks to the commands and keeps
         its guest path on the local store, so the module's own logic and its tests are untouched.
-      - **undo** (`projectUndo` 2) — `project.delete` / `project.restore`, which do not exist yet.
+      - **undo** — **done, 2 sites.** `project.delete` answers with the row it removed and its `inverse()` names
+        `project.restore` with that row, so the step back is a command rather than a snapshot held in a closure: a
+        reload no longer loses the undo, a second tab cannot recreate the id without the restore refusing
+        (`CONFLICT`, "not overwritten"), and a project deleted in one tab can be put back from another. The toast
+        keeps the ten-second window and the workspace checks — those are about *this* toast, not about permission.
       - **the rest** (~82 sites in 44 files) — write routes that already have a command in most cases
         (`workspaceActions` 4, `Inventory` 5, `EstimatesView` 5, `SupportView` 5 …): one commit per hook, not per
         call, because a hook that writes has one shape.
-- [ ] Undo on the result: `deleteWithUndo` into `useCommand` where the command's inverse exists.
+- [x] **Undo on the result.** `projectUndo` runs the command's own `inverse()`: delete answers with the row,
+      restore takes it back. The generic `useCommand` route takes the same shape from `entry.inverse`, so a screen
+      that deletes through the hook gets the same step back without a second mechanism.
 - [ ] The offered next step in the toast ("Invoice saved. Send it · Record a payment · New invoice").
 
 ## 4. One record page

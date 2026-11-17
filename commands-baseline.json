@@ -1,6 +1,6 @@
 {
   "writeRoutes": 159,
-  "directBrowserWrites": 86,
+  "directBrowserWrites": 84,
   "routeSites": {
     "src/server/routes/accountMergeRoutes.ts": 2,
     "src/server/routes/aiRoutes.ts": 1,
@@ -106,7 +106,6 @@
     "src/lib/feedbackTicket.ts": 1,
     "src/lib/inlineRecordAdapter.ts": 1,
     "src/lib/migrations/dimensionNodesMigration.ts": 3,
-    "src/lib/projectUndo.ts": 2,
     "src/lib/recordDetailsAdapter.ts": 1,
     "src/lib/reportPreferencesDb.ts": 1,
     "src/services/attachmentActions.ts": 1

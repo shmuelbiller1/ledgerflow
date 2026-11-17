@@ -5,7 +5,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "signature": COMMAND_SCHEMA_PARTS.part80,
-    "columns": COMMAND_SCHEMA_PARTS.part160,
+    "columns": COMMAND_SCHEMA_PARTS.part161,
     "skipRows": COMMAND_SCHEMA_PARTS.part54
   },
   "required": [
