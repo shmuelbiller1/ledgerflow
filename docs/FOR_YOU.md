@@ -5,7 +5,7 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-11-16.
+Last updated: 2026-11-17.
 
 ## The ledger screen cannot become a plain list (default taken: keep it as it is)
 
@@ -653,8 +653,18 @@ migration and remain in the CMD-1 write inventory. The current plan is [`docs/pr
 ## 15 Nov — outside security scans (your OK given: "so add it")
 
 Task SEC-SCAN-1 (AI #6): Schemathesis tests the API on every pull request, and a ZAP scan runs nightly,
-both against a local copy in CI, never the live site. *Still yours to decide:* scanning the live site.
-To allow it, write here "OK to scan <address>" (passive scan only). *Default:* not scanned.
+both against a local copy in CI, never the live site. Schemathesis is still **Phase 1 report-only**; do not
+make it a merge blocker until it has completed **three consecutive clean runs on `main` with reports uploaded**,
+then update this note and remove its `continue-on-error` setting. Investigation found the zero-job cause:
+the pip install command used unquoted `--only-binary :all:` in a YAML plain scalar, where `: ` is parsed as a
+mapping delimiter. A local YAML parse reproduces the error; GitHub registered the workflow under its file path,
+started no jobs, and rejected manual dispatch as if `workflow_dispatch` were absent. The install command now
+shell-quotes the value as `--only-binary=':all:'`, preserving pip's argument while keeping the YAML valid; the
+contract test guards against reintroducing the invalid form. As of 17 Nov, main runs `43981616172`,
+`43983831337` and `43991078303` failed before starting jobs and have no logs or reports; none count. Earlier
+PR runs `43978220182` and `43978793029` did execute, but do not satisfy the main-run promotion gate. The fix
+still needs a GitHub run that executes the job and uploads reports. *Still yours to decide:* scanning the live
+site. To allow it, write here "OK to scan <address>" (passive scan only). *Default:* not scanned.
 
 
 ## 16 Nov — AI #9: two small defaults in the EU queue (no action needed unless you disagree)

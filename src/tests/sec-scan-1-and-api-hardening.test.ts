@@ -190,16 +190,53 @@ test('SEC-SCAN-1: api-fuzz.yml, zap-baseline.yml, and .zap/rules.tsv satisfy pin
   const zapRules = fs.readFileSync(path.join(root, '.zap/rules.tsv'), 'utf8');
 
   assert.match(apiFuzz, /schemathesis==4\.33\.4/);
+  const schemathesisInstall = apiFuzz.match(/^\s*run:\s*python -m pip install.*$/m)?.[0] || '';
+  // YAML reads the colon-space in `--only-binary :all:` as a mapping delimiter and rejects this workflow.
+  assert.match(schemathesisInstall, /--only-binary=['"]:all:['"]/);
+  assert.doesNotMatch(schemathesisInstall, /--only-binary\s+:all:/);
   assert.match(apiFuzz, /continue-on-error:\s*true/);
   assert.match(apiFuzz, /http:\/\/127\.0\.0\.1:3000\/api\/v1\/openapi\.json/);
-  assert.match(apiFuzz, /actions\/upload-artifact@v4/);
+  const apiFuzzTriggers = apiFuzz.match(/^on:\r?\n([\s\S]*?)(?=^[A-Za-z_][A-Za-z0-9_-]*:)/m)?.[1] || '';
+  assert.match(apiFuzzTriggers, /^ {2}push:\s*$/m);
+  assert.match(apiFuzzTriggers, /^ {2}pull_request:\s*$/m);
+  assert.match(apiFuzzTriggers, /^ {2}workflow_dispatch:\s*$/m);
+  assert.match(apiFuzzTriggers, /^ {4}branches:\s*\[main\]\s*$/m);
 
   assert.match(zapBaseline, /ghcr\.io\/zaproxy\/zaproxy:2\.16\.1/);
-  assert.match(zapBaseline, /schedule:/);
-  assert.match(zapBaseline, /workflow_dispatch:/);
-  assert.doesNotMatch(zapBaseline, /^\s*pull_request:/m);
+  const zapTriggers = zapBaseline.match(/^on:\r?\n([\s\S]*?)(?=^[A-Za-z_][A-Za-z0-9_-]*:)/m)?.[1] || '';
+  assert.match(zapTriggers, /^ {2}schedule:\s*$/m);
+  assert.match(zapTriggers, /^ {2}workflow_dispatch:\s*$/m);
+  assert.doesNotMatch(zapTriggers, /^ {2}pull_request:\s*$/m);
+  assert.match(zapBaseline, /APP_URL=http:\/\/127\.0\.0\.1:3000/);
+  assert.match(zapBaseline, /node build\/server\.cjs/);
+  assert.doesNotMatch(zapBaseline, /tsx server\.ts/);
   assert.match(zapBaseline, /http:\/\/127\.0\.0\.1:3000/);
   assert.doesNotMatch(zapBaseline, /https:\/\/.*ledgerflow/i);
+
+  assert.match(apiFuzz, /runs-on:\s*ubuntu-24\.04/);
+  assert.match(zapBaseline, /runs-on:\s*ubuntu-24\.04/);
+  assert.match(apiFuzz, /image:\s*postgres:17\.12\b/);
+  assert.match(zapBaseline, /image:\s*postgres:17\.12\b/);
+  assert.match(apiFuzz, /node-version:\s*24\.22\.3\b/);
+  assert.match(zapBaseline, /node-version:\s*24\.22\.3\b/);
+  assert.match(apiFuzz, /python-version:\s*'3\.11\.18'/);
+
+  const scannerActionRefs = [apiFuzz, zapBaseline]
+    .flatMap(workflow => [...workflow.matchAll(/^\s*uses:\s*(\S+)/gm)].map(match => match[1]));
+  const expectedPinnedActions = [
+    'actions/checkout@11d5960a326750d5838078e36cf38b85af677262',
+    'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020',
+    'actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065',
+    'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+  ];
+  assert.equal(scannerActionRefs.length, 7);
+  for (const actionRef of scannerActionRefs) {
+    assert.match(actionRef, /^[^@]+@[0-9a-f]{40}$/,
+      `Scanner action reference must be pinned to a full commit SHA: ${actionRef}`);
+  }
+  for (const expectedRef of expectedPinnedActions) {
+    assert.ok(scannerActionRefs.includes(expectedRef), `Missing immutable scanner action pin ${expectedRef}`);
+  }
 
   const ruleLines = zapRules.split('\n');
   let activeRuleCount = 0;

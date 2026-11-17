@@ -18,12 +18,12 @@ concurrency:
 jobs:
   zap-baseline:
     name: OWASP ZAP baseline (local production build)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17.12
         env:
           POSTGRES_PASSWORD: postgres # NOSONAR: S2068 — ephemeral CI test database password, not a production credential
           POSTGRES_DB: lf_test
@@ -41,12 +41,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 24
+          node-version: 24.22.3
           cache: 'npm'
 
       - name: Install dependencies
@@ -74,10 +74,11 @@ jobs:
 
           NODE_ENV=production \
           PORT=3000 \
+          APP_URL=http://127.0.0.1:3000 \
           SESSION_SECRET="$SESSION_VAL" \
           SYSTEM_SALT="$SALT_VAL" \
           INVITE_SECRET="$INVITE_VAL" \
-          ./node_modules/.bin/tsx server.ts > zap-out/server-prod.log 2>&1 &
+          node build/server.cjs > zap-out/server-prod.log 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 
@@ -104,7 +105,7 @@ jobs:
 
       - name: Upload ZAP HTML, JSON, and Markdown reports
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zap-baseline-report-${{ github.sha }}
           path: |
