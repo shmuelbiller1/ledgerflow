@@ -1,6 +1,5 @@
 // Keep form helpers reachable for the structural component guard.
 import { Field as _Field } from '../common/Field';
-import { SchemaForm as _SchemaForm } from '../common/SchemaForm';
 import React, { useState } from 'react';
 import { ChartAccount } from '../../types';
 import { Archive, ArchiveRestore, GitMerge, MoreVertical, Trash2 } from 'lucide-react';

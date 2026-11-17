@@ -217,7 +217,7 @@ projects (V 9), fixed assets (X 9), inventory depth (W 8).
 | 4 | Report engine + shell | ◐ `PartyReportLayout` + report math in `computeReports.ts` with tests; next: one shared shell (compare, export, permalink) |
 | 5 | Event bus | ☐ |
 | 6 | `useCollection` data hook | ◐ 1 screen (Audit Log) |
-| 7 | Field / SchemaForm | ◐ 1 screen (Chart of Accounts) |
+| 7 | Field / CommandForm | ◐ one form, generated from the command's own schema |
 | 8 | Registry smoke + accessibility | ✔ every view mounts and passes its accessibility limit |
 | 9 | Delete / defer decisions | ⏸ **waiting for you** (~71 items) |
 | 10 | Mechanical cleanup via ratchet | ◐ (22 Oct, `quality-baseline.json`) `any` 1,287 → **50** · UTC dates 40 → **35** · array keys 64 → **0** · console.log 8 → **0** · files > 800 lines 15 → **0** · views without a registry smoke test 77 → **44** (the one still open) |
@@ -608,7 +608,7 @@ Lines: debits positive, credits negative, sum 0 → `LedgerPostService` → `/ap
 | 4 | Report engine | `reporting/PartyReportLayout.tsx` (166), the 4 new reports, `src/server/reports/computeReports.ts`, `src/lib/reportGenerators.ts` (370), `src/lib/excelExport.ts`, `ledger/PivotSheet.tsx`, `src/lib/TransactionQueryEngine.ts` (638); **18 screens each hand-build a CSV export** (search `text/csv`) | `src/lib/reports/defineReport.ts`, one `ReportShell` (dates, compare, export, print, permalink), one shared CSV helper | `REPORT_TABS_REGISTRY` |
 | 5 | Event bus | `LedgerPostService.ts`, `useEntityOperations.ts`; audit-log writes in `server.ts`, `src/server/routes/transactionRoutes.ts`, `src/hooks/useLedgerData.ts`, `src/hooks/useTransactionActions.ts`; `src/stores/useNotificationStore.ts` (130); `src/server/services/emailService.ts` | `src/server/events/bus.ts` + subscribers (audit, notifications, webhooks, email) | one audit subscriber replaces the hand-written writes |
 | 6 | Data hook | `src/hooks/useCollection.ts` (used by `admin/AuditLogViewer.tsx`), `src/hooks/useLedgerData.ts` (598) | — | one screen per commit; keep truncation flags |
-| 7 | Forms | `common/Field.tsx`, `common/SchemaForm.tsx` (used by `ledger/ChartOfAccountsView.tsx`) | — | move one modal per commit; a11y baseline goes down |
+| 7 | Forms | `common/Field.tsx`, `common/CommandForm.tsx` (used by `platform/ApiHubSandbox.tsx`) | — | one form per case: a command's schema, never a second hand-rolled field list |
 | 8 | Registry tests | `e2e/view-registry-coverage.spec.ts`, `e2e/a11y-baseline.json` | a `help` field on registry entries | lower the baseline as screens are fixed |
 | 10 | Ratchet | `scripts/quality-metrics.ts`, `quality-baseline.json`, `src/tests/quality-ratchet.test.ts` | — | `npm run ratchet:update` after every cleanup |
 | 11 | Data-health checks | `src/modules/integrity/TruthEngine.ts`, `system/DataHealthView.tsx` (316), `ledger/MonthEndCloseView.tsx` | `src/lib/checks/defineCheck.ts` + one file per check | DataHealthView lists the registry |
