@@ -219,7 +219,12 @@ function stockGate(
   roles: readonly string[],
 ): express.RequestHandler {
   return async (req, res, next) => {
-    const workspaceId = String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || (req.params as Record<string, string>).workspaceId || '');
+    const workspaceId = String(
+      (req.body as { workspaceId?: unknown } | undefined)?.workspaceId
+      || (req.params as Record<string, string>).workspaceId
+      || (req.query as Record<string, unknown> | undefined)?.workspaceId
+      || '',
+    );
     if (!workspaceId) return void res.status(400).json({ error: 'Workspace ID required' });
     try {
       const db = (dependencies.getDb || getDb)();
