@@ -6,7 +6,7 @@ import { useAuthStore } from '../../../stores/useAuthStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { registerDimensionNodeInline } from '../../../lib/dimensionNodeActions';
 import { setDimensionNodeParentInline } from '../../../lib/labelTreeActions';
-import { descendants, type SlashConversion } from '../../../lib/labelTree';
+import { descendants, slashConversionSkipped, type SlashConversion } from '../../../lib/labelTree';
 import { allSettledWrites, attempt, identityScope } from '../../../lib/serverAction';
 import type { DimensionNode } from '../../../types';
 
@@ -51,7 +51,10 @@ export function LabelParentSelect({ dimensionId, node, nodes, canWrite, onChange
  * next id), then links and renames every child, and says exactly which ones did not go through.
  */
 export function SlashConversionOffer({ dimensionId, plan, onChanged }: { dimensionId: string; plan: SlashConversion[]; onChanged: () => void }) {
-  if (!plan.length) return null;
+  const nodes = useLedgerStore(st => st.dimensionNodes);
+  const skipped = slashConversionSkipped(nodes, dimensionId);
+  if (!plan.length && !skipped.length) return null;
+  const keyOf = (s: string) => s.normalize('NFC').trim().toLowerCase();
   const convert = async (): Promise<boolean> => {
     // refused before anything is created: with a partial label list a "missing" parent may exist
     if (useLedgerStore.getState().truncatedCollections.dimensionNodes) {
@@ -59,17 +62,22 @@ export function SlashConversionOffer({ dimensionId, plan, onChanged }: { dimensi
       return false;
     }
     const scope = sessionScope();
-    const toCreate = [...new Set(plan.filter(p => !p.parentId).map(p => p.parentName))];
+    const toCreateByKey = new Map<string, string>();
+    for (const p of plan) {
+      if (!p.parentId && !toCreateByKey.has(keyOf(p.parentName))) {
+        toCreateByKey.set(keyOf(p.parentName), p.parentName);
+      }
+    }
     const created = new Map<string, string>();
     const createFailures: string[] = [];
-    await toCreate.reduce<Promise<void>>((previous, name) => previous.then(async () => {
+    await [...toCreateByKey.entries()].reduce<Promise<void>>((previous, [parentKey, name]) => previous.then(async () => {
       if (!scope.isCurrent()) return; // stale: the workspace changed, create nothing in the new one
       const res = await attempt(() => registerDimensionNodeInline(dimensionId, name));
-      if (res.ok) created.set(name, res.value.id); else createFailures.push(`${name}: ${res.error}`);
+      if (res.ok) created.set(parentKey, res.value.id); else createFailures.push(`${name}: ${res.error}`);
     }), Promise.resolve());
     if (!scope.isCurrent()) return false;
-    const links = plan.filter(p => p.parentId || created.has(p.parentName));
-    const { failures } = await allSettledWrites(links, p => setDimensionNodeParentInline(dimensionId, p.nodeId, p.parentId || created.get(p.parentName)!, p.newName));
+    const links = plan.filter(p => p.parentId || created.has(keyOf(p.parentName)));
+    const { failures } = await allSettledWrites(links, p => setDimensionNodeParentInline(dimensionId, p.nodeId, p.parentId || created.get(keyOf(p.parentName))!, p.newName));
     if (!scope.isCurrent()) return false;
     onChanged();
     const problems = [...createFailures, ...failures.map(f => `${f.item.from}: ${f.error}`)];
@@ -80,12 +88,23 @@ export function SlashConversionOffer({ dimensionId, plan, onChanged }: { dimensi
   return (
     <details className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3 text-xs">
       <summary className="cursor-pointer min-h-11 flex items-center font-semibold">
-        {plan.length} value{plan.length === 1 ? '' : 's'} named like “Parent / Child” — turn them into real parents?
+        {plan.length > 0
+          ? `${plan.length} value${plan.length === 1 ? '' : 's'} named like “Parent / Child” — turn them into real parents?`
+          : `${skipped.length} “Parent / Child” value${skipped.length === 1 ? '' : 's'} need unique names before converting`}
       </summary>
-      <ul className="mt-2 space-y-1">
-        {plan.map(p => <li key={p.nodeId}><bdi>{p.from}</bdi> → <bdi>{p.newName}</bdi>, under <bdi>{p.parentName}</bdi>{p.parentId ? '' : ' (new)'}</li>)}
-      </ul>
-      <AsyncButton onClick={convert} className="mt-3 min-h-11 rounded-lg border border-[var(--line)] px-3 font-semibold">Convert these {plan.length}</AsyncButton>
+      {plan.length > 0 && (
+        <>
+          <ul className="mt-2 space-y-1">
+            {plan.map(p => <li key={p.nodeId}><bdi>{p.from}</bdi> → <bdi>{p.newName}</bdi>, under <bdi>{p.parentName}</bdi>{p.parentId ? '' : ' (new)'}</li>)}
+          </ul>
+          <AsyncButton onClick={convert} className="mt-3 min-h-11 rounded-lg border border-[var(--line)] px-3 font-semibold">Convert these {plan.length}</AsyncButton>
+        </>
+      )}
+      {skipped.length > 0 && (
+        <ul className="mt-2 space-y-1 text-[var(--muted)]">
+          {skipped.map(s => <li key={s.nodeId}>Skipped <bdi>{s.from}</bdi>: {s.reason}.</li>)}
+        </ul>
+      )}
       <p className="mt-2 text-[var(--muted)]">Nothing changes until you press Convert. Entries keep their value ids, so reports and history are not affected.</p>
     </details>
   );

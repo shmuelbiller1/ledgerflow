@@ -4,6 +4,7 @@
  * this and track who paid" opens the sample company with the draft in the invoice form.
  */
 import type { Invoice } from '../types';
+import { civilDateParts } from './calendarDate';
 import { currencyDigits } from './currencyMinorUnits';
 import { roundTaxCents, type TaxRounding } from './taxCodes';
 
@@ -46,20 +47,44 @@ export function freeInvoiceTotals(inv: Pick<FreeInvoice, 'lines' | 'taxRate'>, r
   return { subtotal, tax, total: subtotal + tax };
 }
 
-/** Typed text as minor units of `currency`; null when it is not an amount. */
+/** Typed text as minor units of `currency`; null when it is not an amount or exceeds safe integer bounds. */
 export function parseRate(text: string, currency: string): number | null {
   const digits = currencyDigits(currency);
   const t = text.trim().replace(/[\s,](?=\d{3}(\D|$))/g, '');
   if (!t) return 0;
   const m = /^(\d+)(?:\.(\d+))?$/.exec(t);
   if (!m || (m[2] || '').length > digits) return null;
-  return Number(m[1]) * 10 ** digits + Number((m[2] || '').padEnd(digits, '0') || 0);
+  const major = Number(m[1]);
+  const minor = Number((m[2] || '').padEnd(digits, '0') || 0);
+  if (!Number.isSafeInteger(major) || !Number.isSafeInteger(minor)) return null;
+  const cents = major * 10 ** digits + minor;
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
+/** Typed tax percent (0–100); null when malformed (e.g. comma decimal or non-numeric text). */
+export function parseTaxPercent(text: string): number | null {
+  const t = text.trim();
+  if (!t) return 0;
+  if (!/^-?\d+(?:\.\d+)?$/.test(t)) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Typed line quantity; null when malformed. */
+export function parseQuantity(text: string): number | null {
+  const t = text.trim();
+  if (!t) return 0;
+  if (!/^-?\d+(?:\.\d+)?$/.test(t)) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
 }
 
 /** Why the invoice is not ready to save or print, or null. */
 export function freeInvoiceProblem(inv: FreeInvoice): string | null {
   if (!inv.to.trim()) return 'Add who the invoice is for.';
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(inv.date)) return 'Choose the invoice date.';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(inv.date) || !civilDateParts(inv.date)) return 'Choose the invoice date.';
+  if (inv.dueDate && (!/^\d{4}-\d{2}-\d{2}$/.test(inv.dueDate) || !civilDateParts(inv.dueDate))) return 'Choose a real due date.';
+  if (!Number.isFinite(inv.taxRate) || inv.taxRate < 0 || inv.taxRate > 100) return 'Enter a tax % between 0 and 100.';
   // the invoice form takes the tax % to 3 decimals: refuse more rather than hand over a rate it can't save
   if (Math.abs(inv.taxRate * 1000 - Math.round(inv.taxRate * 1000)) > 1e-6) return 'The tax % can have at most 3 decimals.';
   if (inv.dueDate && inv.dueDate < inv.date) return 'The due date is before the invoice date.';
@@ -69,6 +94,7 @@ export function freeInvoiceProblem(inv: FreeInvoice): string | null {
   if (used.some(l => !(l.quantity > 0))) return 'Every line needs a quantity above zero.';
   // the invoice form takes quantities to 2 decimals: refuse more here rather than round a printed one
   if (used.some(l => Math.abs(l.quantity * 100 - Math.round(l.quantity * 100)) > 1e-6)) return 'Quantities can have at most 2 decimals.';
+  if (used.some(l => !Number.isSafeInteger(lineAmount(l)))) return 'Line amount is too large.';
   return null;
 }
 
