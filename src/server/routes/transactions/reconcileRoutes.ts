@@ -61,6 +61,29 @@ function reconcileInvocation(req: express.Request, input: z.output<typeof reconc
   };
 }
 
+/**
+ * A bank-line command takes its line id from the path: parse the body with the id merged in, and
+ * answer 400 here when the body is not valid (the same refusal both routes already gave).
+ */
+function parseBankLineCommand(
+  req: express.Request,
+  res: express.Response,
+  definition: typeof bankLinePayCommand | typeof bankLineSplitCommand,
+): CommandInvocation | null {
+  const id = String((req.params as Record<string, string>).id || '');
+  const parsed = definition.input.safeParse({ ...(req.body as Record<string, unknown>), id });
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    return null;
+  }
+  return {
+    definition,
+    workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+    input: parsed.data,
+    formatResponse: legacyAnswer,
+  };
+}
+
 /** Bank reconciliation: match and clear bank lines, pay or split a bank line. Part of /api/v1/transactions (F-06), registered in the original order. */
 export function registerReconcileRoutes(transactionRouter: express.Router): void {
   transactionRouter.post('/reconcile', async (req, res) => {
@@ -72,30 +95,16 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
 
   // Clear a pending bank line: pay invoices/bills with it, or split it over accounts (bankLineService)
   transactionRouter.post('/bank-lines/:id/pay', async (req, res) => {
-    const definition = bankLinePayCommand;
-    const id = String((req.params as Record<string, string>).id || '');
-    const parsed = definition.input.safeParse({ ...(req.body as Record<string, unknown>), id });
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    const invocation = parseBankLineCommand(req, res, bankLinePayCommand);
+    if (!invocation) return;
     const { executeCommand } = await import('../../utils/commandExecutor');
-    await executeCommand(req, res, {
-      definition,
-      workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
-      input: parsed.data,
-      formatResponse: legacyAnswer,
-    });
+    await executeCommand(req, res, invocation);
   });
   transactionRouter.post('/bank-lines/:id/split', async (req, res) => {
-    const definition = bankLineSplitCommand;
-    const id = String((req.params as Record<string, string>).id || '');
-    const parsed = definition.input.safeParse({ ...(req.body as Record<string, unknown>), id });
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    const invocation = parseBankLineCommand(req, res, bankLineSplitCommand);
+    if (!invocation) return;
     const { executeCommand } = await import('../../utils/commandExecutor');
-    await executeCommand(req, res, {
-      definition,
-      workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
-      input: parsed.data,
-      formatResponse: legacyAnswer,
-    });
+    await executeCommand(req, res, invocation);
   });
 
   // EG-9: the bank rules again over the lines not yet matched (suggestions only; owners and accountants)

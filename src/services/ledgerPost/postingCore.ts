@@ -3,6 +3,8 @@ import type { LineAccountWeight } from '../../kernel/templates/TransactionTempla
 import { isLockedDate } from '../../lib/periodLock';
 import { rateUsedFor, rateUsedId, type RateUsed } from '../../lib/rateUsed';
 import { minorUnitRate } from '../../lib/currencyMinorUnits';
+import { isPostable } from '../../lib/txFilters';
+import { TransactionTemplates } from '../../kernel/templates/TransactionTemplates';
 
 // What every posting needs (F-11, moved from LedgerPostService): the data to post against, the
 // period-lock check, account lookup and the one call that sends entries to the server.
@@ -70,6 +72,63 @@ let host: PostingHost | null = null;
 
 export function registerPostingHost(next: PostingHost | null): void {
   host = next;
+}
+
+/**
+ * The document's own postings that still stand: postable, not a reversal, and not already reversed.
+ * A reversal that was itself replaced does not count either (its `reversesTxId` names the posting).
+ */
+export function liveDocumentPostings(
+  transactions: Transaction[],
+  matches: (tx: Transaction) => boolean,
+  options: { excludeTypes?: Set<string> } = {},
+): Transaction[] {
+  const own = transactions.filter(tx => matches(tx) && !options.excludeTypes?.has(String(tx.metadata?.type || '')));
+  const reversedIds = new Set(own.filter(tx => tx.metadata?.isReversal).map(tx => tx.metadata?.reversesTxId || tx.metadata?.reversedTransactionId));
+  return own.filter(tx => isPostable(tx) && !tx.metadata?.isReversal && !reversedIds.has(tx.id));
+}
+
+/**
+ * One reversing entry per standing posting: the same amounts the other way (TransactionTemplates
+ * builds the lines), dated by the period lock, and carrying whatever metadata the document type needs
+ * so the entries it reverses are found again.
+ */
+export function reversalEntries(
+  previous: Transaction[],
+  options: {
+    uid: string;
+    workspaceId: string;
+    today: string;
+    context?: LedgerPostContext;
+    /** the entry's description for the posting it reverses */
+    describe: (previous: Transaction) => string;
+    /** the document link and reason, merged into the entry's metadata */
+    metadata: (previous: Transaction) => Record<string, unknown>;
+    /** refuse a posting whose own date is in a closed period (the one-key delete does) */
+    verifyLock?: boolean;
+  },
+): PostableTransaction[] {
+  return previous.map(prevTx => {
+    if (options.verifyLock) verifyLockDate(prevTx.date, options.context);
+    return {
+      uid: options.uid,
+      workspaceId: options.workspaceId,
+      date: reversalDate(prevTx.date, options.today, options.context),
+      description: options.describe(prevTx),
+      totalAmountCents: prevTx.totalAmountCents,
+      currency: prevTx.currency || 'USD',
+      exchangeRate: prevTx.exchangeRate || 1,
+      status: 'completed',
+      type: 'actual',
+      createdAt: new Date().toISOString(),
+      metadata: {
+        ...options.metadata(prevTx),
+        reversesTxId: prevTx.id,
+        isReversal: true
+      },
+      lines: TransactionTemplates.buildReversalLines(prevTx.lines || [], prevTx.description)
+    };
+  });
 }
 
 /** Today for a posting: the caller's day, else the host's (the workspace's time zone), else UTC. */

@@ -1,10 +1,10 @@
 import { trainClassifierWithWorkspaceData } from '../services/classifierTraining';
 import type { ChartAccount, Transaction as LedgerTransaction } from "../../types";
 import { errorMessage, requestUser } from "../auth/requestUser";
-import { calculateWorkspaceCharges, sendError, handleApiError, authorizeWorkspace } from "../http/serverKit";
+import { sendError, handleApiError, authorizeWorkspace, loadQueriedWorkspaceLedger } from "../http/serverKit";
+import { chargeUsageAndTrace } from "../services/usageBilling";
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
 import { apiAuthenticate } from "../auth/apiAuthenticate";
-import { incrementShardedCounter } from "../services/shardedCounterService";
 import express from "express";
 import crypto from "crypto";
 import { ChartAccountSchema, BankMappingRequestSchema } from "../../schemas";
@@ -220,21 +220,9 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
 
   app.get("/api/v1/ledger/diagnostics", apiAuthenticate, async (req: express.Request, res: express.Response) => {
     try {
-      const workspaceId = (req.query.workspaceId as string) || requestUser(req).developerWorkspaceId;
-      if (!workspaceId) return sendError(res, "Missing workspaceId parameter in query", 400);
-
-      const authReq = req as AuthenticatedRequest;
-      await authorizeWorkspace(authReq, workspaceId);
-
-      const db = getDb();
-      
-      const [accountsSnap, transactionsSnap] = await Promise.all([
-        db.collection("chartAccounts").where("workspaceId", "==", workspaceId).get(),
-        db.collection("transactions").where("workspaceId", "==", workspaceId).get()
-      ]);
-
-      const accounts = accountsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as ChartAccount);
-      const transactions = transactionsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id }) as LedgerTransaction);
+      const loaded = await loadQueriedWorkspaceLedger(req, "Missing workspaceId parameter in query");
+      if ('error' in loaded) return sendError(res, loaded.error, 400);
+      const { workspaceId, accounts, transactions } = loaded;
 
       // Trial balance double-entry cross checking
       let globalNetBalanceCents = 0;
@@ -383,39 +371,20 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
       const baseWeight = Math.max(1, Math.min(descriptions.length, 100)); // 1 credit per transaction item classified (max 100)
       const baseCents = Math.max(1, Math.min(Math.round(descriptions.length * 0.5), 50)); // 0.5 cents per item (max 50)
       try {
-        const wsRef = db.collection("workspaces").doc(workspaceId);
-        const wsDoc = await wsRef.get();
-        if (wsDoc.exists) {
-          const wsData = wsDoc.data() || {};
-          
-          // Centralized custom billing multiplier & private API key controller (batch classification is standard)
-          const { credits: weightScore, cents: deltaCents } = calculateWorkspaceCharges(wsData, baseWeight, baseCents, false);
-
-          const currentCents = wsData.apiQuotaTotalCentsUsed || 0;
-          const currentHardness = wsData.computeHardnessScore || 0;
-
-          await wsRef.update({
-            apiQuotaTotalCentsUsed: currentCents + deltaCents,
-            computeHardnessScore: currentHardness + weightScore
-          });
-
-          await incrementShardedCounter(db, workspaceId, 'totalQueriesThisMonth', 1);
-          await incrementShardedCounter(db, workspaceId, 'computeCreditBalance', -weightScore);
-
-          // Log trace audit record
-          const traceId = `trace-${crypto.randomUUID()}`;
-          await db.collection("billingLedgerTraces").doc(traceId).set({
-            id: traceId,
-            workspaceId,
-            uid: (req as AuthenticatedRequest).user.uid || "api_user",
-            userEmail: (req as AuthenticatedRequest).user.email || 'developer@ledgerflow.io',
+        await chargeUsageAndTrace({
+          db,
+          workspaceId,
+          baseWeight,
+          baseCents,
+          isCustomKeyUsed: false,
+          uid: (req as AuthenticatedRequest).user.uid,
+          userEmail: (req as AuthenticatedRequest).user.email,
+          trace: {
             algorithmName: 'ALGO_CLASSIFIER_BAYESIAN_BATCH',
             complexityFormat: `O(${descriptions.length} * V * C)`,
-            weightScore,
             executionTimeMs: 120,
-            timestamp: new Date().toISOString()
-          });
-        }
+          },
+        });
       } catch (billingErr) {
         console.error("[Classifier Batch Billing Status Bypassed]: ", billingErr);
       }

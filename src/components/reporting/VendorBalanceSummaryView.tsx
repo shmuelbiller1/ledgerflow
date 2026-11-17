@@ -1,10 +1,11 @@
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import React, { useState, useMemo } from 'react';
-import { Building, Mail, Phone } from 'lucide-react';
+import { Building } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useServerOperationalReport, collectionStamp } from '../../hooks/useServerOperationalReport';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
+import { filterPartyBalanceRows, partyBalanceCell, partyNameCell, partyOpenCountCell, partyPaidCell } from './partyBalanceCells';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { computeVendorBalanceSummary, VendorBalanceSummaryRow } from '../../server/reports/partyReports';
 import { toast } from 'sonner';
@@ -44,15 +45,7 @@ export const VendorBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOf
   }, [vendors, bills, payments, vendorCredits, asOfDate, currency]);
   const vendorRows = serverRows || localVendorRows;
 
-  const filteredRows = useMemo(() => {
-    if (!searchTerm.trim()) return vendorRows;
-    const term = searchTerm.toLowerCase();
-    return vendorRows.filter(r => 
-      r.name.toLowerCase().includes(term) || 
-      (r.email && r.email.toLowerCase().includes(term)) ||
-      (r.phone && r.phone.includes(term))
-    );
-  }, [vendorRows, searchTerm]);
+  const filteredRows = useMemo(() => filterPartyBalanceRows(vendorRows, searchTerm), [vendorRows, searchTerm]);
 
   const totalOutstandingCents = useMemo(() => {
     return vendorRows.reduce((sum, r) => sum + r.balanceCents, 0);
@@ -70,59 +63,15 @@ export const VendorBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOf
   };
 
   const columns: ColumnDef<VendorBalanceSummaryRow>[] = [
-    {
-      key: 'name',
-      header: 'Vendor',
-      render: (item) => (
-        <div>
-          <div className="font-semibold text-neutral-900 dark:text-white">{item.name}</div>
-          <div className="flex items-center gap-3 text-[10px] text-neutral-400 mt-0.5">
-            {item.email && <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" />{item.email}</span>}
-            {item.phone && <span className="flex items-center gap-1"><Phone className="w-2.5 h-2.5" />{item.phone}</span>}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'openBillsCount',
-      header: 'Open Bills',
-      align: 'center',
-      render: (item) => (
-        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-          item.openBillsCount > 0 
-            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' 
-            : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
-        }`}>
-          {item.openBillsCount}
-        </span>
-      )
-    },
-    {
-      key: 'totalBilledCents',
-      header: 'Total Billed',
-      align: 'right',
-      render: (item) => formatCurrency(item.totalBilledCents, currency)
-    },
-    {
-      key: 'totalPaidCents',
-      header: 'Total Paid',
-      align: 'right',
-      render: (item) => (
-        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-          {formatCurrency(item.totalPaidCents, currency)}
-        </span>
-      )
-    },
-    {
-      key: 'balanceCents',
-      header: 'Balance Due',
-      align: 'right',
-      render: (item) => (
-        <span className={`font-bold ${item.balanceCents > 0 ? 'text-amber-600 dark:text-amber-400' : item.balanceCents < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500'}`}>
-          {formatCurrency(item.balanceCents, currency)}
-        </span>
-      )
-    }
+    { key: 'name', header: 'Vendor', render: partyNameCell },
+    { key: 'openBillsCount', header: 'Open Bills', align: 'center',
+      render: (item) => partyOpenCountCell(item.openBillsCount) },
+    { key: 'totalBilledCents', header: 'Total Billed', align: 'right',
+      render: (item) => formatCurrency(item.totalBilledCents, currency) },
+    { key: 'totalPaidCents', header: 'Total Paid', align: 'right',
+      render: (item) => partyPaidCell(item.totalPaidCents, currency) },
+    { key: 'balanceCents', header: 'Balance Due', align: 'right',
+      render: (item) => partyBalanceCell(item.balanceCents, currency, 'amber') },
   ];
 
   return (

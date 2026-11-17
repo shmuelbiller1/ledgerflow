@@ -8,7 +8,7 @@ import path from "path";
 import os from "os";
 import multer from "multer";
 import type { ChartAccount, Transaction as LedgerTransaction } from "../../types";
-import { errorMessage } from "../auth/requestUser";
+import { errorMessage, requestUser } from "../auth/requestUser";
 import { LEDGER_WRITER_ROLES, roleInWorkspace } from "../middleware/requireLedgerWriter";
 import { getShardedCounterValue } from "../services/shardedCounterService";
 import { writeServerAuditLog } from "../services/auditLogService";
@@ -232,6 +232,37 @@ export async function authorizeWorkspace(req: AuthenticatedRequest, workspaceId:
     }
     throw err;
   }
+}
+
+/**
+ * The AI and diagnostics reads all start the same way: the workspace in `?workspaceId` (or the one
+ * the API key belongs to), authorized, with its chart of accounts and its entries. One helper keeps
+ * those reads from loading the ledger three different ways.
+ */
+export type QueriedWorkspaceLedger =
+  | { error: string }
+  | { workspaceId: string; db: ReturnType<typeof getDb>; accounts: ChartAccount[]; transactions: LedgerTransaction[] };
+
+export async function loadQueriedWorkspaceLedger(
+  req: express.Request,
+  missingWorkspaceMessage = 'Missing workspaceId query parameter',
+): Promise<QueriedWorkspaceLedger> {
+  const workspaceId = (req.query.workspaceId as string) || requestUser(req).developerWorkspaceId;
+  if (!workspaceId) return { error: missingWorkspaceMessage };
+
+  await authorizeWorkspace(req as AuthenticatedRequest, workspaceId);
+
+  const db = getDb();
+  const [accountsSnap, transactionsSnap] = await Promise.all([
+    db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get(),
+    db.collection('transactions').where('workspaceId', '==', workspaceId).get(),
+  ]);
+  return {
+    workspaceId,
+    db,
+    accounts: accountsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as ChartAccount),
+    transactions: transactionsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as LedgerTransaction),
+  };
 }
 
 /**
