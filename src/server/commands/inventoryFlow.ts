@@ -76,16 +76,8 @@ export const inventoryStockPolicyCommand: CommandDefinition<typeof inventoryStoc
       ],
     };
   },
-  audit(_input, result) {
-    return {
-      action: 'STOCK_POLICY_SET',
-      entityType: 'workspaces',
-      entityId: '',
-      description: 'goodsLeaveWith' in result
-        ? (result.goodsLeaveWith === 'delivery' ? 'Stock now leaves with deliveries (invoices book no cost of goods)' : 'Stock leaves with the invoice again')
-        : (result.refuseNegativeStock ? 'Sales that would take stock below zero are now refused' : 'Sales may take stock below zero again (with a warning)'),
-    };
-  },
+  // the service writes the audit line itself (inside the same transaction), so the runner adds none
+  audit() { return null; },
   inverse() { return null; },
   risk: 'normal',
   describe: {
@@ -341,7 +333,9 @@ export const inventoryStockClosingCommand: CommandDefinition<typeof inventorySto
   name: 'inventory.stockclosing',
   input: inventoryStockClosingInput,
   roles: ['owner'],
-  dated: 'asOf',
+  // the stock closing itself decides whether its day is locked (409 from the service, with its own reason),
+  // so the runner does not pre-empt it with the generic period-lock gate
+  resolveDate() { return undefined; },
   async prepare(ctx) {
     await prepareStockClosing(ctx.db);
   },
@@ -419,7 +413,8 @@ export const inventoryLandedCostCommand: CommandDefinition<typeof inventoryLande
   name: 'inventory.landedcost',
   input: inventoryLandedCostInput,
   roles: ['owner', 'accountant'],
-  dated: 'date',
+  // a locked day is not a refusal here: the service moves the landing to today and says so (movedToOpenDay)
+  resolveDate() { return undefined; },
   async prepare(ctx, input: InventoryLandedCostInput) {
     // a dry run only calculates the plan: it writes nothing, so the command runner treats it as a preview
     if (!input.dryRun) await prepareLandedCost(ctx.db, landedCostFor(ctx, input));

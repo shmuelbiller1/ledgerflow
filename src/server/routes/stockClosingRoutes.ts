@@ -15,7 +15,7 @@ const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
  * - GET /stock-closing: every member reads it with the stock invariant checks (read only).
  */
 export function registerStockClosingRoutes(router: express.Router): void {
-  router.post('/stock-closing', async (req, res) => {
+  router.post('/stock-closing', requireWorkspaceRole(['owner']), async (req, res) => {
     const parsed = z.object({ workspaceId: z.string().min(1).max(200), asOf: day.optional() }).strict().safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Say the workspace and, if not the lock date, the period end (YYYY-MM-DD)' });
     // Import lazily to avoid the executor's existing workspaceRoutes role-helper cycle during router setup.

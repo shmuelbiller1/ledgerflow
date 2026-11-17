@@ -88,7 +88,8 @@ export async function cogsInTransaction(db: Firestore, t: Transaction, input: Co
   const currentItemData = (await t.get(db.collection('inventory').doc(itemId))).data();
   const currentQty = typeof currentItemData?.quantityAtHand === 'number' ? currentItemData.quantityAtHand : 0;
   if (quantitySold > currentQty) {
-    throw Object.assign(new CogsError(409, `Insufficient inventory stock. Requested ${quantitySold}, available ${currentQty}.`), { code: 'CONFLICT' });
+    // the legacy route answered a plain error here, which the handler turned into 400
+    throw new CogsError(400, `Insufficient inventory stock. Requested ${quantitySold}, available ${currentQty}.`);
   }
 
   const validatedTx = await TransactionValidator.validateAndPrepare({

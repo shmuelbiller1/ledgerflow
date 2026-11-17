@@ -8,6 +8,9 @@
  */
 import express from 'express';
 import { errorMessage } from '../auth/requestUser';
+import { getWorkspaceUserRole } from './workspaceRoutes';
+import { validateWorkspaceMember } from '../db/firestore';
+import type { RequestUser } from '../auth/requestUser';
 import { getDb } from '../db/firestore';
 import { DELIVERY_ID } from '../../lib/deliveries';
 import { generateDeliveryNotePdf, layoutDeliveryNote } from '../services/deliveryNotePdf';
@@ -70,7 +73,7 @@ export function createInventoryRouter(dependencies: CommandRunnerDependencies = 
   router.use('/landed-cost', landedCostRouter);
 
   /** Recognizes COGS for a sale. Reduces quantity on hand. */
-  router.post('/cogs', async (req, res) => {
+  router.post('/cogs', stockGate(dependencies, STOCK_ROLES), async (req, res) => {
     const input = inventoryCogsInput.safeParse(req.body);
     if (!input.success) return res.status(400).json({ error: input.error.issues[0]?.message || 'Check the fields', details: input.error.issues });
     const { executeCommand, withLegacyInputIdempotencyHash } = await import('../utils/commandExecutor');
@@ -81,7 +84,7 @@ export function createInventoryRouter(dependencies: CommandRunnerDependencies = 
   });
 
   /** Adds or removes stock of one item with the books (K-13 BA-04): a purchase, opening stock or an adjustment. */
-  router.post('/adjust', async (req, res) => {
+  router.post('/adjust', stockGate(dependencies, STOCK_ROLES), async (req, res) => {
     const input = inventoryAdjustInput.safeParse(req.body);
     if (!input.success) return res.status(400).json({ error: input.error.issues[0]?.message || 'Check the fields', details: input.error.issues });
     const { executeCommand, withLegacyInputIdempotencyHash } = await import('../utils/commandExecutor');
@@ -92,7 +95,7 @@ export function createInventoryRouter(dependencies: CommandRunnerDependencies = 
   });
 
   /** A stock count (W-04 W-05): the counted quantities; differences go to the variance account in one entry. */
-  router.post('/count', async (req, res) => {
+  router.post('/count', stockGate(dependencies, STOCK_ROLES), async (req, res) => {
     const input = inventoryCountInput.safeParse(req.body);
     if (!input.success) return res.status(400).json({ error: input.error.issues[0]?.message || 'Check the fields', details: input.error.issues });
     const { executeCommand, withLegacyInputIdempotencyHash } = await import('../utils/commandExecutor');
@@ -103,7 +106,7 @@ export function createInventoryRouter(dependencies: CommandRunnerDependencies = 
   });
 
   /** ISS-130: revalues the stock on hand of one item to a new unit cost. Owners and accountants. */
-  router.post('/revalue', async (req, res) => {
+  router.post('/revalue', stockGate(dependencies, ['owner', 'accountant']), async (req, res) => {
     const input = inventoryRevalueInput.safeParse(req.body);
     if (!input.success) return res.status(400).json({ error: input.error.issues[0]?.message || 'Check the fields', details: input.error.issues });
     const { executeCommand, withLegacyInputIdempotencyHash } = await import('../utils/commandExecutor');
@@ -114,7 +117,7 @@ export function createInventoryRouter(dependencies: CommandRunnerDependencies = 
   });
 
   /** W-06, BF-08 step 2: the stock policy (refuse sales beyond stock) and when stock leaves. Owners. */
-  router.put('/stock-policy', async (req, res) => {
+  router.put('/stock-policy', stockGate(dependencies, ['owner']), async (req, res) => {
     const input = inventoryStockPolicyInput.safeParse(req.body);
     if (!input.success) {
       return res.status(400).json({ error: 'Say whether to refuse sales beyond stock (true or false), or when stock leaves (invoice or delivery)' });
@@ -127,7 +130,7 @@ export function createInventoryRouter(dependencies: CommandRunnerDependencies = 
   });
 
   /** BF-08 step 2: deliver items from an order: stock leaves and its cost is booked, once. */
-  router.post('/deliveries', async (req, res) => {
+  router.post('/deliveries', stockGate(dependencies, STOCK_ROLES), async (req, res) => {
     const input = inventoryDeliverInput.safeParse(req.body);
     if (!input.success) return res.status(400).json({ error: input.error.issues[0]?.message || 'Check the fields' });
     const { executeCommand, withLegacyInputIdempotencyHash } = await import('../utils/commandExecutor');
@@ -138,7 +141,7 @@ export function createInventoryRouter(dependencies: CommandRunnerDependencies = 
   });
 
   /** M-12: the delivery note of one delivery, as a PDF to go with the goods. Read only. */
-  router.get('/deliveries/:deliveryId/note', async (req, res) => {
+  router.get('/deliveries/:deliveryId/note', stockGate(dependencies, ['owner', 'accountant', 'bookkeeper', 'viewer']), async (req, res) => {
     try {
       const { deliveryId } = req.params as Record<string, string>;
       const workspaceId = String(req.query.workspaceId || '');
@@ -164,7 +167,7 @@ export function createInventoryRouter(dependencies: CommandRunnerDependencies = 
   });
 
   /** BF-08: goods that came back after a delivery. */
-  router.post('/deliveries/returns', async (req, res) => {
+  router.post('/deliveries/returns', stockGate(dependencies, STOCK_ROLES), async (req, res) => {
     const input = inventoryReturnInput.safeParse(req.body);
     if (!input.success) return res.status(400).json({ error: input.error.issues[0]?.message || 'Check the fields' });
     const { executeCommand, withLegacyInputIdempotencyHash } = await import('../utils/commandExecutor');
@@ -175,7 +178,7 @@ export function createInventoryRouter(dependencies: CommandRunnerDependencies = 
   });
 
   /** BF-08 step 2: undo a delivery: its entries are reversed and the units come back. */
-  router.post('/deliveries/:deliveryId/undo', async (req, res) => {
+  router.post('/deliveries/:deliveryId/undo', stockGate(dependencies, STOCK_ROLES), async (req, res) => {
     const deliveryId = String((req.params as Record<string, string>).deliveryId || '');
     const input = inventoryUndoDeliveryInput.safeParse({ ...(req.body as Record<string, unknown>), deliveryId });
     if (!input.success) {
@@ -190,7 +193,7 @@ export function createInventoryRouter(dependencies: CommandRunnerDependencies = 
   });
 
   /** W-01: move units of an item between locations; nothing is posted. */
-  router.post('/transfer', async (req, res) => {
+  router.post('/transfer', stockGate(dependencies, STOCK_ROLES), async (req, res) => {
     const input = inventoryTransferInput.safeParse(req.body);
     if (!input.success) return res.status(400).json({ error: input.error.issues[0]?.message || 'Check the fields' });
     const { executeCommand, withLegacyInputIdempotencyHash } = await import('../utils/commandExecutor');
@@ -201,6 +204,35 @@ export function createInventoryRouter(dependencies: CommandRunnerDependencies = 
   });
 
   return router;
+}
+
+/** The stock writes' roles, as the legacy router gated them. */
+const STOCK_ROLES = ['owner', 'accountant', 'bookkeeper'] as const;
+
+/**
+ * The legacy routing gate, before the body is read: a caller who is not a member of the named
+ * workspace is refused with the old 403, and one whose role may not write with the old 403, so a
+ * malformed body never answers before the membership does. The command runner checks both again.
+ */
+function stockGate(
+  dependencies: CommandRunnerDependencies,
+  roles: readonly string[],
+): express.RequestHandler {
+  return async (req, res, next) => {
+    const workspaceId = String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || (req.params as Record<string, string>).workspaceId || '');
+    if (!workspaceId) return void res.status(400).json({ error: 'Workspace ID required' });
+    try {
+      const db = (dependencies.getDb || getDb)();
+      await validateWorkspaceMember(db, workspaceId, (req as unknown as { user: RequestUser }).user);
+      const role = await getWorkspaceUserRole(db, workspaceId, (req as unknown as { user: RequestUser }).user.uid);
+      if (!roles.includes(role)) return void res.status(403).json({ error: `Forbidden: requires one of roles [${roles.join(', ')}]` });
+      next();
+    } catch (error) {
+      if (/Unauthorized|not a member|FORBIDDEN/i.test(errorMessage(error))) return void res.status(403).json({ error: 'Forbidden' });
+      if (errorMessage(error) === 'NOT_FOUND' || /Workspace not found/i.test(errorMessage(error))) return void res.status(404).json({ error: 'Workspace not found' });
+      res.status(500).json({ error: 'Role Authorization Error', details: errorMessage(error) });
+    }
+  };
 }
 
 export const inventoryRouter = createInventoryRouter();

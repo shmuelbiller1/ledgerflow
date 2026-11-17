@@ -6,10 +6,30 @@
  * POST /api/v1/inventory/landed-cost/:entryId/undo  { workspaceId }: reverses the entry and its stock moves together.
  */
 import express from 'express';
+import { getDb, validateWorkspaceMember } from '../db/firestore';
 import { z } from 'zod';
+import { errorMessage, type RequestUser } from '../auth/requestUser';
+import { getWorkspaceUserRole } from './workspaceRoutes';
 import { inventoryLandedCostCommand, inventoryLandedCostInput, inventoryLandedCostUndoCommand, inventoryLandedCostUndoInput } from '../commands/inventory';
 
 export const landedCostRouter = express.Router();
+
+/** The legacy gate before the body is read: a non-member answers 403 (the command runner checks again). */
+const membersGate = (roles: readonly string[]): express.RequestHandler => async (req, res, next) => {
+  const workspaceId = String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || '');
+  if (!workspaceId) return void res.status(400).json({ error: 'Workspace ID required' });
+  try {
+    const db = getDb();
+    await validateWorkspaceMember(db, workspaceId, (req as unknown as { user: RequestUser }).user);
+    const role = await getWorkspaceUserRole(db, workspaceId, (req as unknown as { user: RequestUser }).user.uid);
+    if (!roles.includes(role)) return void res.status(403).json({ error: `Forbidden: requires one of roles [${roles.join(', ')}]` });
+    next();
+  } catch (error) {
+    if (/Unauthorized|not a member|FORBIDDEN/i.test(errorMessage(error))) return void res.status(403).json({ error: 'Forbidden' });
+    if (errorMessage(error) === 'NOT_FOUND' || /Workspace not found/i.test(errorMessage(error))) return void res.status(404).json({ error: 'Workspace not found' });
+    res.status(500).json({ error: 'Role Authorization Error', details: errorMessage(error) });
+  }
+};
 
 const ChargeSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('bill'), billId: z.string().min(1), line: z.number().int().nonnegative() }),
@@ -33,7 +53,7 @@ export const LandedCostSchema = z.object({
   dryRun: z.boolean().optional(),
 });
 
-landedCostRouter.post('/', async (req, res) => {
+landedCostRouter.post('/', membersGate(['owner', 'accountant']), async (req, res) => {
   const parsed = inventoryLandedCostInput.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Check the fields', details: parsed.error.issues });
   // Import lazily to avoid the executor's existing workspaceRoutes role-helper cycle during router setup.
@@ -51,7 +71,7 @@ landedCostRouter.post('/', async (req, res) => {
   });
 });
 
-landedCostRouter.post('/:entryId/undo', async (req, res) => {
+landedCostRouter.post('/:entryId/undo', membersGate(['owner', 'accountant']), async (req, res) => {
   const workspaceId = String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || '');
   if (!workspaceId) return res.status(400).json({ error: 'Workspace ID required' });
   const parsed = inventoryLandedCostUndoInput.safeParse({ entryId: String((req.params as Record<string, string>).entryId || '') });
