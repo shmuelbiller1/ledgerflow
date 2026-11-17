@@ -11,6 +11,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
+import { offeredSteps } from '../../hooks/useCommand';
 import InlineEdit from '../ui/InlineEdit';
 import AttachmentsPanel from '../common/AttachmentsPanel';
 import RecordNotesPanel from '../common/RecordNotesPanel';
@@ -164,6 +165,11 @@ export default function InvoiceRecordPage({
     { id: 'paid', label: 'Paid', done: isSettled && !isClosed, current: isSettled && !isClosed },
   ];
 
+  // What comes after a draft is sent is not a decision this page makes: the manifest names it
+  // (`invoice.update` offers `payment.receive`, "Record a payment"), so the button cannot promise a step the
+  // command does not offer, and the same sentence appears here and in the refusal that points at it. Sending is
+  // the page's own action — it is an email, not a ledger command — so it keeps its own words.
+  const paymentStep = offeredSteps('invoice.update').find(step => step.command === 'payment.receive');
   let nextStepAction: RecordNextAction | undefined;
   if (canEdit && !isClosed) {
     if (isDraft) {
@@ -173,7 +179,7 @@ export default function InvoiceRecordPage({
       };
     } else if (!isSettled) {
       nextStepAction = {
-        label: 'Record payment',
+        label: paymentStep?.label ?? 'Record payment',
         onClick: () => onReceivePayment(invoice),
       };
     }

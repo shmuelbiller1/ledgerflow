@@ -28,7 +28,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The caller is not the workspace owner or a platform administrator.",
           "next": "Ask the owner or a platform administrator to rebuild the snapshots."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/period.balancesrebuild",
@@ -47,7 +47,7 @@ export const PERIOD_COMMAND_MANIFEST = [
         "mode": "soft"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part104,
+        COMMAND_SCHEMA_PARTS.part108,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner or accountant.",
@@ -58,7 +58,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The month is already closed or contains drafts that would be trapped.",
           "next": "Choose an open month and post, re-date, or remove the listed drafts first."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/period.close",
@@ -91,7 +91,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask an owner or accountant to edit the month-end checklist."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/period.closesteps",
@@ -109,7 +109,7 @@ export const PERIOD_COMMAND_MANIFEST = [
         "month": "2026-03"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part104,
+        COMMAND_SCHEMA_PARTS.part108,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner, accountant, or bookkeeper.",
@@ -125,7 +125,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "An eligible asset has no usable depreciation accounts.",
           "next": "Choose an expense account and an accumulated-depreciation asset account for each affected asset."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/period.depreciation",
@@ -166,7 +166,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "A revaluation already exists for that date.",
           "next": "Undo the existing revaluation before running it again."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/period.fxrevaluation",
@@ -199,7 +199,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The original entry or scheduled reversal is missing, changed, or already reversed.",
           "next": "Check the existing ledger entries before making another correction."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/period.fxrevaluationundo",
@@ -225,7 +225,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask an owner or accountant to re-lock the dates."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/period.relock",
@@ -259,7 +259,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The month is already open.",
           "next": "Choose a closed month."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/period.reopen",
@@ -294,7 +294,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The period is hard-closed and sign-offs are final.",
           "next": "Do not alter the closed-period record; ask the owner to reopen it if correction is necessary."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/period.signoff",
@@ -324,7 +324,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant, or an accountant tries to unlock hard-closed dates.",
           "next": "Ask the workspace owner to unlock hard-closed dates."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/period.unlock",
@@ -359,7 +359,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The period is already locked through or beyond the requested closing date.",
           "next": "Choose a date after the current lock or reopen the later period first."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/period.yearclose",

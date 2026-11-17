@@ -25,7 +25,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The workspace is not scheduled for deletion.",
           "next": "Choose a workspace currently marked pending deletion."
         },
-        COMMAND_SCHEMA_PARTS.part94,
+        COMMAND_SCHEMA_PARTS.part98,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not the workspace owner.",
@@ -65,7 +65,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to save the mapping."
         },
-        COMMAND_SCHEMA_PARTS.part103
+        COMMAND_SCHEMA_PARTS.part107
       ]
     },
     "runPath": "/api/v1/commands/workspace.importmap",
@@ -96,7 +96,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to change module settings."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/workspace.modules",
@@ -124,7 +124,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to reserve a document number."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/workspace.nextnumber",
@@ -177,7 +177,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The workspace has no active Opening Balance Equity account, or an amount or account cannot be used for an opening balance.",
           "next": "Add an active Opening Balance Equity account and choose eligible balance-sheet accounts."
         },
-        COMMAND_SCHEMA_PARTS.part99
+        COMMAND_SCHEMA_PARTS.part103
       ]
     },
     "runPath": "/api/v1/commands/workspace.openingbalances",
@@ -205,7 +205,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to restore the layout snapshot."
         },
-        COMMAND_SCHEMA_PARTS.part103
+        COMMAND_SCHEMA_PARTS.part107
       ]
     },
     "runPath": "/api/v1/commands/workspace.restoremaps",
@@ -236,7 +236,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not the workspace owner.",
           "next": "Ask the workspace owner to change retention settings."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/workspace.retention",
@@ -294,7 +294,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to finish setup."
         },
-        COMMAND_SCHEMA_PARTS.part94
+        COMMAND_SCHEMA_PARTS.part98
       ]
     },
     "runPath": "/api/v1/commands/workspace.setupcomplete",

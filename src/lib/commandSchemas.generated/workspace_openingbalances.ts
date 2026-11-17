@@ -16,7 +16,7 @@ export const COMMAND_INPUT_SCHEMA = {
             "minLength": 1,
             "maxLength": 127
           },
-          "amountCents": COMMAND_SCHEMA_PARTS.part77
+          "amountCents": COMMAND_SCHEMA_PARTS.part81
         },
         "required": COMMAND_SCHEMA_PARTS.part19,
         "additionalProperties": false

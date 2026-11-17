@@ -279,9 +279,12 @@ function commandDescription(collection: PostedDocumentType, action: DocumentActi
   // What anyone does next, named as commands so the client can look each one up and check the role.
   // Only where the sequence is real: an invoice is sent and paid, a bill is paid, a credit note is
   // applied. Nothing is offered for a delete, because there is no next step after one.
-  const next = action === 'create' && collection === 'invoices'
+  // An issued document is paid, a draft is sent and then paid, so the step is the same one whether the
+  // document was just created or has been updated since: a record page reads it from here rather than
+  // deciding for itself that "not a draft" means "offer a payment".
+  const next = (action === 'create' || action === 'update') && collection === 'invoices'
     ? [{ command: 'payment.receive', label: 'Record a payment' }]
-    : action === 'create' && collection === 'bills'
+    : (action === 'create' || action === 'update') && collection === 'bills'
       ? [{ command: 'payment.receive', label: 'Pay this bill' }]
       : undefined;
   return {

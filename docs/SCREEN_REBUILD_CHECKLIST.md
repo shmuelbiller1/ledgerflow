@@ -158,8 +158,13 @@ hand-convert a table the codemod still refuses.
 
 ## 4. One record page
 
-- [ ] `InvoiceRecordPage` takes its next step from the manifest (`useCommand('invoice.update').next`), not a
-      hard-coded `if (isDraft)`.
+- [x] `InvoiceRecordPage` takes its next step from the manifest, not a hard-coded `if (isDraft)`. `invoice.update`
+      offers `payment.receive` ("Record a payment") the same way `invoice.create` does — the step after a document
+      does not depend on how it got there — and the page reads the label with `offeredSteps('invoice.update')`.
+      Sending keeps the page's own words: it is an email, not a ledger command. `record-next-step.test.ts` holds
+      every offered step in the manifest to the registry (a step that names an unregistered command is a button
+      that goes nowhere) and holds the page to the manifest.
+- [ ] The rest of the record pages: the same step list, the same shell.
 - [ ] `CustomerRecordPage`, `BillRecordPage` on the same shell — column definitions, not new layout.
 
 ## 5. One screen shape, one form
