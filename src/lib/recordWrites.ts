@@ -15,7 +15,7 @@
  * invented a field would still be refused by the server.
  */
 import { runNamedCommand } from './commandByName';
-import { localAdd, localDelete, localSet, localUpdate } from './db/localStore';
+import { localAdd, localDelete, localSet, localUpdate, localUpdateMany } from './db/localStore';
 import { guestSession } from './db/guestDatabase';
 
 /** The sample company's own copy of a row: a patch when it exists, a full write when it does not. */
@@ -223,4 +223,13 @@ export async function addAssetCost(
     return { purchasePriceCents };
   }
   return runNamedCommand<{ purchasePriceCents: number }>('asset.costaddition', { assetId: asset.id, ...cost }, { workspaceId });
+}
+
+/** Rename one item category across the items that carry it; an empty `to` removes it. */
+export async function renameItemCategory(workspaceId: string, from: string, to: string, ids: string[]): Promise<void> {
+  if (guestSession()) {
+    await localUpdateMany('inventory', ids.map(id => ({ id, data: { category: to, updatedAt: new Date().toISOString() } })));
+    return;
+  }
+  await runNamedCommand('inventory.categoryrename', { from, to }, { workspaceId });
 }

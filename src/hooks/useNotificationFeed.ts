@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, doc, getDoc, limit, onSnapshot, orderBy, query, where, writeBatch } from '../lib/db/firestore';
+import { collection, doc, getDoc, limit, onSnapshot, orderBy, query, where } from '../lib/db/firestore';
 import { runNamedCommand } from '../lib/commandByName';
-import { localUpdate } from '../lib/db/localStore';
+import { localUpdate, localUpdateMany } from '../lib/db/localStore';
 import { guestSession } from '../lib/db/guestDatabase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
@@ -28,12 +28,24 @@ export function useNotificationFeed() {
   }, [uid, workspaceId, setNotifications]);
 }
 
+/**
+ * Mark notifications as read.
+ *
+ * `notification.read` marks the caller's own rows and stamps the time on the server; the tab used to batch the
+ * writes itself, with the device's clock and no check that the row was its own. The store is only brought in line
+ * with the answer once the server has taken it.
+ */
 export async function markNotificationsRead(ids: string[]) {
   if (!ids.length) return;
   const readAt = new Date().toISOString();
-  const batch = writeBatch(db);
-  ids.forEach(id => batch.update(doc(db, 'notifications', id), { read: true, readAt }));
-  await batch.commit();
+  let marked = ids.length;
+  if (guestSession()) {
+    // the sample company's rows are the tab's own, so it marks them the same way it reads them
+    await localUpdateMany('notifications', ids.map(id => ({ id, data: { read: true, readAt } })));
+  } else {
+    ({ marked } = await runNamedCommand<{ marked: number; readAt: string }>('notification.read', { ids }));
+  }
+  if (marked === 0) return;
   const { notifications, setNotifications } = useNotificationStore.getState();
   setNotifications(notifications.map(n => (ids.includes(n.id) ? { ...n, read: true, readAt } : n)));
 }

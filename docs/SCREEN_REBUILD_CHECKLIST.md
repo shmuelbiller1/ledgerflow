@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **21** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **18** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,7 +147,7 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **21** → 0. 13 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **18** → 0. 9 files. The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
@@ -278,7 +278,20 @@ hand-convert a table the codemod still refuses.
           transaction, so a total can never describe a list it no longer has. A cost of zero is refused.
         - Pinned by `loan-asset-commands.test.ts` (7 cases), and `construction-in-progress`' Add-cost suite now
           asserts the command's `input` — the tab sends neither the old list nor the new total.
-      - **the rest** (~21 sites in 13 files) — write routes that already have a command in most cases
+      - **three batches that were the tab's own** — **done, 3 sites.** `markNotificationsRead` built a `writeBatch`
+        over the ids on screen (device clock, no check that the row was the caller's); `CategoryManagerDialog`
+        renamed a category with a batch built from the items the open page had loaded (an item the list had not
+        scrolled to kept the old name, so the "renamed" category came back on reload); and the AI settings screen
+        deleted the learned patterns it happened to have paged in.
+        - `notification.read` is `scope: 'person'`: it marks the caller's own rows, skips ids that are not theirs
+          instead of failing the whole click, and answers with how many were actually marked.
+        - `inventory.categoryrename` reads the workspace's cards inside the transaction and renames the ones that
+          carry the name (trimmed, case-insensitive — the same comparison the screen used); an empty name removes
+          the category rather than storing a space.
+        - `autorule.reset` clears every pattern of the workspace in one transaction and answers with how many went,
+          so "memory purged" is a fact rather than a page.
+        - Pinned by `notification-category-rule-commands.test.ts` (5 cases).
+      - **the rest** (~18 sites in 9 files) — write routes that already have a command in most cases
         (`SupportView` 5, `useEntityOperations` 3, `useCollaborators` 3, `Ledger` 2, `Vault` 2 …): one commit per
         hook, not per call, because a hook that writes has one shape. Three are deliberately *not* converted yet:
         `useCollaborators`' presence rows (ephemeral, one row per open tab, nothing to audit), `shared.ts`'

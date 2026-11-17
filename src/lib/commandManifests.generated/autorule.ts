@@ -4,7 +4,8 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema9 } from '../commandSchemas.g
 import { COMMAND_INPUT_SCHEMA as commandInputSchema10 } from '../commandSchemas.generated/autorule_group';
 import { COMMAND_INPUT_SCHEMA as commandInputSchema11 } from '../commandSchemas.generated/autorule_learn';
 import { COMMAND_INPUT_SCHEMA as commandInputSchema12 } from '../commandSchemas.generated/autorule_recordhits';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema13 } from '../commandSchemas.generated/autorule_update';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema13 } from '../commandSchemas.generated/autorule_reset';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema14 } from '../commandSchemas.generated/autorule_update';
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const AUTORULE_COMMAND_MANIFEST = [
@@ -127,6 +128,37 @@ export const AUTORULE_COMMAND_MANIFEST = [
     inputSchema: commandInputSchema12
   },
   {
+    "name": "autorule.reset",
+    "area": "autorule",
+    "roles": COMMAND_SCHEMA_PARTS.part56,
+    "risk": "normal",
+    "description": {
+      "sentence": "Forget every learned pattern the workspace has kept about how descriptions were filed; do not use it to change a rule — autorule.delete and autorule.update do that.",
+      "example": COMMAND_SCHEMA_PARTS.part1,
+      "refusals": [
+        {
+          "code": "INVALID_INPUT",
+          "when": "The input carries any field.",
+          "next": "Send an empty object: the patterns are the workspace’s own."
+        },
+        {
+          "code": "ROLE_REQUIRED",
+          "when": "The caller is a viewer.",
+          "next": "Ask an owner, accountant or bookkeeper to clear them."
+        }
+      ],
+      "next": [
+        {
+          "command": "autorule.learn",
+          "label": "Start learning from the next filing"
+        }
+      ]
+    },
+    "runPath": "/api/v1/commands/autorule.reset",
+    "previewPath": "/api/v1/commands/autorule.reset/preview",
+    inputSchema: commandInputSchema13
+  },
+  {
     "name": "autorule.update",
     "area": "autorule",
     "roles": COMMAND_SCHEMA_PARTS.part56,
@@ -144,6 +176,6 @@ export const AUTORULE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/autorule.update",
     "previewPath": "/api/v1/commands/autorule.update/preview",
-    inputSchema: commandInputSchema13
+    inputSchema: commandInputSchema14
   },
 ] as const;

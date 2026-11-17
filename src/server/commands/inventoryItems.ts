@@ -286,3 +286,79 @@ export const inventoryItemDeleteCommand: CommandDefinition<typeof inventoryItemD
     next: [{ command: 'inventory.count', label: 'Count the stock first' }],
   },
 };
+
+/**
+ * Rename an item category across the items that carry it — or clear it by renaming it to nothing.
+ *
+ * `CategoryManagerDialog` did this with a `writeBatch` built from the items the open page had loaded: an item in the
+ * category that the list had not scrolled to kept the old name, so a "renamed" category came back on the next load,
+ * and the `updatedAt` on each row was the browser's clock.
+ *
+ * The command reads the workspace's item cards inside the transaction, renames the ones whose category is the one
+ * named (compared the way the screen compares them: trimmed, case-insensitive), and rewrites the same field on each.
+ * An empty `to` clears the category rather than storing `""`, which is what the screen's "removed" message says.
+ */
+export const inventoryCategoryRenameInput = z.object({
+  from: text(120).min(1),
+  /** absent or empty removes the category from those items */
+  to: text(120).optional(),
+}).strict();
+
+type RenameInput = z.output<typeof inventoryCategoryRenameInput>;
+export type CategoryRenamed = { renamed: number; from: string; to: string };
+
+export const inventoryCategoryRenameCommand: CommandDefinition<typeof inventoryCategoryRenameInput, CategoryRenamed> = {
+  name: 'inventory.categoryrename',
+  input: inventoryCategoryRenameInput,
+  roles: ROLES,
+  async handler(ctx: CommandContext, tx, input: RenameInput) {
+    const source = input.from.trim().toLowerCase();
+    const target = (input.to || '').trim();
+    if (source === target.toLowerCase() && target !== '') {
+      throw Object.assign(new HttpError('The category already has that name.', 409), { code: 'CONFLICT' });
+    }
+    const rows = await tx.get(ctx.db.collection('inventory').where('workspaceId', '==', ctx.workspaceId));
+    const now = new Date().toISOString();
+    let renamed = 0;
+    for (const row of rows.docs) {
+      const category = String((row.data() as { category?: unknown }).category || '').trim().toLowerCase();
+      if (category !== source) continue;
+      // the reference is rebuilt from the id rather than taken off the snapshot: a query snapshot's own ref is not
+      // part of the interface every database layer offers
+      tx.update(ctx.db.collection('inventory').doc(row.id), { category: target, updatedAt: now });
+      renamed += 1;
+    }
+    return { renamed, from: input.from.trim(), to: target };
+  },
+  async preview(ctx: CommandContext, input: RenameInput) {
+    const rows = await ctx.db.collection('inventory').where('workspaceId', '==', ctx.workspaceId).get();
+    const source = input.from.trim().toLowerCase();
+    const count = rows.docs.filter(row => String((row.data() as { category?: unknown }).category || '').trim().toLowerCase() === source).length;
+    return {
+      title: input.to ? `Rename the category “${input.from}” to “${input.to}”` : `Remove the category “${input.from}”`,
+      lines: [`${count} item(s)`, 'No stock and no price changes'],
+    };
+  },
+  audit(_input: RenameInput, result: CategoryRenamed) {
+    return {
+      action: 'INVENTORY_CATEGORY_RENAMED',
+      entityType: 'inventory',
+      entityId: result.from,
+      description: result.to
+        ? `Renamed the item category “${result.from}” to “${result.to}” on ${result.renamed} item(s)`
+        : `Removed the item category “${result.from}” from ${result.renamed} item(s)`,
+      details: { renamed: result.renamed, to: result.to },
+    };
+  },
+  inverse() { return null; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Rename one item category across every item that carries it, or remove it; do not use it to change an item’s price, cost or stock.',
+    example: { from: 'Furniture', to: 'Office furniture' },
+    refusals: [
+      { code: 'CONFLICT', when: 'The new name is the same as the old one.', next: 'Give the category a different name, or leave the field empty to remove it.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is a viewer.', next: 'Ask an owner, accountant or bookkeeper to rename the category.' },
+    ],
+    next: [{ command: 'inventoryitem.field', label: 'Correct one item’s category' }],
+  },
+};

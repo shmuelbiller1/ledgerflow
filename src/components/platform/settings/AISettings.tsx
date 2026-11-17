@@ -4,9 +4,8 @@ import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { Key, AlertCircle, RefreshCw, CheckCircle2, Lock, Eye, EyeOff, Database, Cpu as CpuIcon, Activity, ExternalLink, Sliders, Sparkles, BrainCircuit } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { toast } from 'sonner';
-import { db } from '../../../firebase';
 import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
-import { collection, query, where, getDocs, deleteDoc } from '../../../lib/db/firestore';
+import { runNamedCommand } from '../../../lib/commandByName';
 import AsyncButton from '../../ui/AsyncButton';
 import { useTimeout } from '../../../hooks/useTimeout';
 
@@ -114,13 +113,9 @@ export default function AISettings() {
     }
     const loader = toast.loading("Wiping algorithm neuromatrix persistently from cloud storage...");
     try {
-      const q = query(
-        collection(db, 'rulePatterns'),
-        where('workspaceId', '==', currentWorkspaceId)
-      );
-      const snapshot = await getDocs(q);
-      const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-      await Promise.all(deletePromises);
+      // `autorule.reset` clears the workspace's patterns in one transaction and answers with how many went; the
+      // screen used to delete whatever page it had loaded with a batch of its own
+      await runNamedCommand('autorule.reset', {});
       
       useLedgerStore.getState().setAnalyticalPatternCache({});
       

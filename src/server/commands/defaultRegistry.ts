@@ -16,7 +16,7 @@ import { customerCreateCommand, customerUpdateCommand, warrantyUpdateCommand } f
 import { customerBalanceCommand, vendorBalanceCommand } from './contactBalances';
 import { vendorCreateCommand, vendorUpdateCommand } from './vendors';
 import { autoRuleCreateCommand, autoRuleUpdateCommand, autoRuleDeleteCommand, autoRuleGroupCommand, autoRuleRecordHitsCommand } from './autoRules';
-import { autoRuleLearnCommand } from './rulePatterns';
+import { autoRuleLearnCommand, autoRuleResetCommand } from './rulePatterns';
 import { dimensionAxesCommand, dimensionNodeCommand, dimensionNodesCommand, dimensionNodesMigrateCommand } from './dimensions';
 import { userProvisionCommand, workspaceCreateCommand } from './bootstrap';
 import { userPreferencesCommand } from './userPreferences';
@@ -26,9 +26,10 @@ import { chartAccountCreateCommand, chartAccountUpdateCommand } from './chartAcc
 import { documentSaveCommand } from './attachments';
 import { assetCostAdditionCommand } from './assets';
 import { loanPaymentCommand } from './loans';
+import { notificationsReadCommand } from './notifications';
 import { employeeCreateCommand, employeeUpdateCommand } from './employees';
 import { estimateSaveCommand, estimateStatusCommand } from './estimates';
-import { inventoryItemDeleteCommand, inventoryItemFieldCommand, inventoryItemSaveCommand } from './inventoryItems';
+import { inventoryCategoryRenameCommand, inventoryItemDeleteCommand, inventoryItemFieldCommand, inventoryItemSaveCommand } from './inventoryItems';
 import { workspaceSettingsCommand } from './workspaceSettingsPanel';
 import {
   bankLinePayCommand,
@@ -138,9 +139,12 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(inventoryItemSaveCommand);
   registry.register(inventoryItemFieldCommand);
   registry.register(inventoryItemDeleteCommand);
+  registry.register(inventoryCategoryRenameCommand);
   registry.register(documentSaveCommand);
   registry.register(assetCostAdditionCommand);
+  registry.register(autoRuleResetCommand);
   registry.register(loanPaymentCommand);
+  registry.register(notificationsReadCommand);
   registry.register(chartAccountCreateCommand);
   registry.register(chartAccountUpdateCommand);
   registry.register(budgetSaveCommand);

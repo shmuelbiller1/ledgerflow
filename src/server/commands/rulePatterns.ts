@@ -125,3 +125,55 @@ export const autoRuleLearnCommand: CommandDefinition<typeof autoRuleLearnInput, 
     ],
   },
 };
+
+/**
+ * Forget every learned pattern in the workspace: the "wipe the algorithm's memory" button on the AI settings screen.
+ *
+ * The screen deleted them itself: it read the collection, then `deleteDoc`'d every row of the page it happened to
+ * have loaded. A workspace with more patterns than one page kept the rest, the deletions were not audited, and
+ * nothing checked whose patterns they were beyond the query the tab ran.
+ *
+ * The command clears the workspace's rows in one transaction and answers with how many went, so the button's own
+ * message ("memory purged") describes what actually happened. Nothing in the books changes: a learned pattern only
+ * suggests an account, and forgetting them means the next filing is suggested from scratch.
+ */
+export const autoRuleResetInput = z.object({}).strict();
+
+export const autoRuleResetCommand: CommandDefinition<typeof autoRuleResetInput, { removed: number }> = {
+  name: 'autorule.reset',
+  input: autoRuleResetInput,
+  roles: ROLES,
+  async handler(ctx: CommandContext, tx) {
+    const rows = await tx.get(ctx.db.collection('rulePatterns').where('workspaceId', '==', ctx.workspaceId));
+    let removed = 0;
+    for (const row of rows.docs) {
+      tx.delete(ctx.db.collection('rulePatterns').doc(row.id));
+      removed += 1;
+    }
+    return { removed };
+  },
+  async preview(ctx: CommandContext) {
+    const rows = await ctx.db.collection('rulePatterns').where('workspaceId', '==', ctx.workspaceId).get();
+    return { title: 'Forget the learned patterns', lines: [`${rows.size} pattern(s)`, 'No ledger entry changes'] };
+  },
+  audit(_input, result) {
+    return {
+      action: 'AUTO_RULE_PATTERNS_CLEARED',
+      entityType: 'rulePatterns',
+      entityId: '',
+      description: `Forgot ${result.removed} learned pattern(s)`,
+      details: { removed: result.removed },
+    };
+  },
+  inverse() { return null; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Forget every learned pattern the workspace has kept about how descriptions were filed; do not use it to change a rule — autorule.delete and autorule.update do that.',
+    example: {},
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'The input carries any field.', next: 'Send an empty object: the patterns are the workspace’s own.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is a viewer.', next: 'Ask an owner, accountant or bookkeeper to clear them.' },
+    ],
+    next: [{ command: 'autorule.learn', label: 'Start learning from the next filing' }],
+  },
+};

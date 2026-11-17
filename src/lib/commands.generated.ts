@@ -19,6 +19,7 @@ import { INVENTORYITEM_COMMAND_MANIFEST } from './commandManifests.generated/inv
 import { INVOICE_COMMAND_MANIFEST } from './commandManifests.generated/invoice';
 import { JOURNAL_COMMAND_MANIFEST } from './commandManifests.generated/journal';
 import { LOAN_COMMAND_MANIFEST } from './commandManifests.generated/loan';
+import { NOTIFICATION_COMMAND_MANIFEST } from './commandManifests.generated/notification';
 import { NUMBERING_COMMAND_MANIFEST } from './commandManifests.generated/numbering';
 import { PAYMENT_COMMAND_MANIFEST } from './commandManifests.generated/payment';
 import { PERIOD_COMMAND_MANIFEST } from './commandManifests.generated/period';
@@ -56,6 +57,7 @@ export const COMMAND_MANIFEST = [
   ...INVOICE_COMMAND_MANIFEST,
   ...JOURNAL_COMMAND_MANIFEST,
   ...LOAN_COMMAND_MANIFEST,
+  ...NOTIFICATION_COMMAND_MANIFEST,
   ...NUMBERING_COMMAND_MANIFEST,
   ...PAYMENT_COMMAND_MANIFEST,
   ...PERIOD_COMMAND_MANIFEST,
