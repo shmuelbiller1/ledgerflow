@@ -564,7 +564,7 @@ export function TanStackDataGrid<TData extends object>({
           ref={gridRef}
           role="region"
           aria-label={caption}
-          tabIndex={0}
+          tabIndex={0 /* NOSONAR: S6845 — this labelled scrolling region needs keyboard focus for scrolling */}
           className="lg:overflow-auto lg:max-h-[70vh] print:max-h-none print:overflow-visible border border-[var(--line)] rounded-2xl bg-[var(--surface)] shadow-2xs focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none"
         >
           <table className="w-full text-start border-collapse">

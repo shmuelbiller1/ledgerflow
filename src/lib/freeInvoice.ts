@@ -23,6 +23,7 @@ export interface FreeInvoice {
 
 export const FREE_INVOICE_CURRENCIES = ['USD', 'EUR', 'GBP', 'ILS', 'CAD', 'AUD'] as const;
 export const FREE_INVOICE_STORAGE_KEY = 'ledgerflow_free_invoice_draft';
+const SAMPLE_FREE_INVOICE_SESSION: Readonly<{ sample: boolean }> = Object.freeze({ sample: true });
 
 const round = (n: number) => Math.round(n);
 /** The tax percent the maker works with: 0–100. */
@@ -141,7 +142,7 @@ export function stashFreeInvoice(storage: Pick<Storage, 'setItem'>, inv: FreeInv
 
 /** A waiting draft for this session, or null. A sample-company session takes only an unclaimed
  *  draft; a signed-in person only one made while signed in as them. Reading does not clear it. */
-export function readFreeInvoice(storage: Pick<Storage, 'getItem'>, session: { sample: boolean; uid?: string; workspaceId?: string } = { sample: true }): Partial<Invoice> | null {
+export function readFreeInvoice(storage: Pick<Storage, 'getItem'>, session: { sample: boolean; uid?: string; workspaceId?: string } = SAMPLE_FREE_INVOICE_SESSION): Partial<Invoice> | null {
   try {
     const raw = storage.getItem(FREE_INVOICE_STORAGE_KEY);
     if (!raw) return null;
