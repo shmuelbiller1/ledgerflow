@@ -182,6 +182,17 @@ test('a key of another workspace is not found, and a viewer may not revoke at al
   assert.ok(db.read('apiKeys/mine'), 'the key is untouched');
 });
 
+test('removing an AI key a person never saved says so instead of failing', async () => {
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const db = new MemoryDb(); // no user document at all: a stranger with a session token
+  const req = fakeRequest(owner, { input: {} }) as Request;
+  const outcome = await executeCommand(req, captureResponse().response, { definition: userAiKeyRemoveCommand, workspaceId: '', input: {} },
+    { ...deps(db, counters), getDb: () => db as unknown as Firestore });
+  assert.equal(outcome.ok, false);
+  // 404 through the runner's own wording (the legacy route's handleApiError said the same status)
+  if (!outcome.ok) assert.equal(outcome.status, 404);
+});
+
 test('removing the personal AI key deletes the stored fields', async () => {
   const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
   const db = new MemoryDb();

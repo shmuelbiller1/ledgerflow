@@ -256,6 +256,12 @@ export const userAiKeyRemoveCommand: CommandDefinition<typeof userAiKeyRemoveInp
   scope: 'person',
   peopleOnly: true,
   async handler(ctx, tx) {
+    // A person with no user record yet has no key to remove: the legacy route answered 404 through
+    // handleApiError (an `update` of a missing document), and a stranger must not get a 500 for it.
+    const profile = await tx.get(ctx.db.collection('users').doc(ctx.actor));
+    if (!profile.exists) {
+      throw Object.assign(new Error('Resource not found: no saved key to remove'), { status: 404 });
+    }
     // FieldValue.delete() removes a field; setting it to undefined would store nothing at all
     tx.update(ctx.db.collection('users').doc(ctx.actor), {
       geminiApiKeyEncrypted: FieldValue.delete(),

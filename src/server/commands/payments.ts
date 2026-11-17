@@ -11,6 +11,7 @@ import {
 import { voidPayment } from '../services/paymentVoidService';
 import { applyCredit, autoApplyCredits, refundCredit } from '../services/creditService';
 import { createDeposit } from '../services/depositService';
+import { writeServerAuditLog } from '../services/auditLogService';
 import type { CommandContext, CommandDefinition } from './types';
 
 const paymentAllocationSchema = z.object({
@@ -133,6 +134,8 @@ export const paymentReceiveCommand: CommandDefinition<typeof paymentReceiveInput
   name: 'payment.receive',
   input: paymentReceiveInput,
   roles: ['owner', 'accountant', 'bookkeeper'],
+  // the legacy route skipped its role check for a platform admin (audit F4/F5 pin that)
+  allowPlatformAdmin: true,
   dated: 'paymentDate',
   resolveDate(ctx, input) {
     return input.paymentDate || getDateInTimezoneISO(new Date(), typeof ctx.workspace.timezone === 'string' ? ctx.workspace.timezone : undefined);
@@ -309,8 +312,25 @@ export const paymentCreditsAutoApplyCommand: CommandDefinition<typeof creditAuto
   name: 'payment.creditsautoapply',
   input: creditAutoApplyInput,
   roles: [...LEDGER_WRITERS],
-  async handler(ctx, _tx, input) {
-    return autoApplyCredits(ctx.db, { workspaceId: ctx.workspaceId, kind: input.kind, partyId: input.partyId, uid: ctx.actor });
+  async handler(ctx, tx, input) {
+    // the service applies each credit in its own transaction; the route wrote one summary line
+    // afterwards, so it is written here with the runner's transaction: the same line, same place
+    const result = await autoApplyCredits(ctx.db, { workspaceId: ctx.workspaceId, kind: input.kind, partyId: input.partyId, uid: ctx.actor });
+    if (result.applications.length) {
+      await writeServerAuditLog({
+        workspaceId: ctx.workspaceId,
+        uid: ctx.actor,
+        email: ctx.email || '',
+        action: 'CREDITS_AUTO_APPLIED',
+        entityType: input.kind === 'vendor' ? 'vendorCredit' : 'creditNote',
+        entityId: input.partyId || 'all',
+        details: {
+          applications: result.applications,
+          description: `Applied ${result.totalCents} cents of open credits to ${result.applications.length} ${input.kind === 'vendor' ? 'bill' : 'invoice'} line(s)`,
+        },
+      }, { db: ctx.db, tx });
+    }
+    return result;
   },
   async preview(_ctx, input) {
     return {

@@ -30,7 +30,8 @@ export const paymentRouter = express.Router();
  * two suites that call it directly (atomicity, audit F4/F5).
  */
 function paymentAnswer(outcome: CommandExecutionOutcome, sendRemittance: boolean, workspaceId: unknown): { status: number; body: unknown } {
-  if (outcome.ok) return { status: 200, body: { status: 'success', data: outcome.data } };
+  // `replayed` is part of the answer: a retry says so, as the route's own idempotent path did
+  if (outcome.ok) return { status: 200, body: { status: 'success', data: { ...(outcome.data as Record<string, unknown>), replayed: outcome.replayed } } };
   const message = outcome.message;
   if (outcome.error instanceof z.ZodError) {
     return { status: 400, body: { status: 'error', message: 'Invalid payment payload', details: outcome.error.issues } };
