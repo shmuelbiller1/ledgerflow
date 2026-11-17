@@ -40,7 +40,9 @@ function merge(current: Record<string, unknown>, patch: Record<string, unknown>)
 
 class MemorySnapshot {
   readonly id: string;
-  constructor(private readonly value: Record<string, unknown> | undefined, id: string) { this.id = id; }
+  /** The document this snapshot came from: services mark entries through `snap.ref`, as they do in production. */
+  readonly ref: MemoryRef | undefined;
+  constructor(private readonly value: Record<string, unknown> | undefined, id: string, ref?: MemoryRef) { this.id = id; this.ref = ref; }
   get exists(): boolean { return this.value !== undefined; }
   data(): Record<string, unknown> | undefined { return this.value ? clone(this.value) : undefined; }
 }
@@ -118,7 +120,7 @@ export class ReplayOnRetryMemoryDb extends MemoryDb {
 class MemoryRef {
   readonly path: string;
   constructor(private readonly db: MemoryDb, readonly collectionName: string, readonly id: string) { this.path = `${collectionName}/${id}`; }
-  async get(): Promise<MemorySnapshot> { return new MemorySnapshot(this.db.read(this.path), this.id); }
+  async get(): Promise<MemorySnapshot> { return new MemorySnapshot(this.db.read(this.path), this.id, this); }
   async set(data: Record<string, unknown>): Promise<void> { this.db.recordDirectWrite({ method: 'set', path: this.path, data }); }
   async create(data: Record<string, unknown>): Promise<void> { this.db.recordDirectWrite({ method: 'create', path: this.path, data }); }
   async update(data: Record<string, unknown>): Promise<void> { this.db.recordDirectWrite({ method: 'update', path: this.path, data }); }
@@ -157,8 +159,9 @@ class MemoryTransaction {
     if (ref instanceof MemoryQuery) return ref.get();
     const path = String((ref as { path?: unknown }).path || '');
     const pending = this.writes.get(path);
-    if (pending) return new MemorySnapshot(pending.method === 'delete' ? undefined : pending.data, path.split('/').at(-1) || '');
-    return new MemorySnapshot(this.db.read(path), path.split('/').at(-1) || '');
+    const source = ref instanceof MemoryRef ? ref : undefined;
+    if (pending) return new MemorySnapshot(pending.method === 'delete' ? undefined : pending.data, path.split('/').at(-1) || '', source);
+    return new MemorySnapshot(this.db.read(path), path.split('/').at(-1) || '', source);
   }
   async getAll(...refs: unknown[]): Promise<unknown[]> { return Promise.all(refs.map(ref => this.get(ref))); }
   set(ref: unknown, data: Record<string, unknown>): this { this.stage('set', ref, data); return this; }

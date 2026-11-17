@@ -8,12 +8,12 @@ export const ACCOUNT_COMMAND_MANIFEST = [
   {
     "name": "account.makerecoverycodes",
     "area": "account",
-    "roles": COMMAND_SCHEMA_PARTS.part56,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "scope": "person",
     "risk": "normal",
     "description": {
       "sentence": "Make ten new one-time recovery codes for two-step login, replacing any earlier ones; do not use it to sign in — that is account.userecoverycode.",
-      "example": COMMAND_SCHEMA_PARTS.part0,
+      "example": COMMAND_SCHEMA_PARTS.part1,
       "refusals": [
         {
           "code": "CONFLICT",
@@ -25,7 +25,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
           "when": "The input carries unexpected fields.",
           "next": "Send an empty input object."
         },
-        COMMAND_SCHEMA_PARTS.part118
+        COMMAND_SCHEMA_PARTS.part121
       ],
       "next": [
         {
@@ -41,7 +41,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
   {
     "name": "account.setnotificationemail",
     "area": "account",
-    "roles": COMMAND_SCHEMA_PARTS.part56,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "scope": "person",
     "risk": "normal",
     "description": {
@@ -55,7 +55,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
           "when": "The mode is not off, immediate or daily.",
           "next": "Choose off, immediate or daily."
         },
-        COMMAND_SCHEMA_PARTS.part118
+        COMMAND_SCHEMA_PARTS.part121
       ]
     },
     "runPath": "/api/v1/commands/account.setnotificationemail",
@@ -65,7 +65,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
   {
     "name": "account.userecoverycode",
     "area": "account",
-    "roles": COMMAND_SCHEMA_PARTS.part56,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "scope": "person",
     "risk": "normal",
     "description": {

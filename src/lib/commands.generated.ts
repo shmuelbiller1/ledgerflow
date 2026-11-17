@@ -14,6 +14,7 @@ import { NUMBERING_COMMAND_MANIFEST } from './commandManifests.generated/numberi
 import { PAYMENT_COMMAND_MANIFEST } from './commandManifests.generated/payment';
 import { PERIOD_COMMAND_MANIFEST } from './commandManifests.generated/period';
 import { PROJECT_COMMAND_MANIFEST } from './commandManifests.generated/project';
+import { RECONCILIATIONS_COMMAND_MANIFEST } from './commandManifests.generated/reconciliations';
 import { STAGES_COMMAND_MANIFEST } from './commandManifests.generated/stages';
 import { TASKS_COMMAND_MANIFEST } from './commandManifests.generated/tasks';
 import { TIME_COMMAND_MANIFEST } from './commandManifests.generated/time';
@@ -40,6 +41,7 @@ export const COMMAND_MANIFEST = [
   ...PAYMENT_COMMAND_MANIFEST,
   ...PERIOD_COMMAND_MANIFEST,
   ...PROJECT_COMMAND_MANIFEST,
+  ...RECONCILIATIONS_COMMAND_MANIFEST,
   ...STAGES_COMMAND_MANIFEST,
   ...TASKS_COMMAND_MANIFEST,
   ...TIME_COMMAND_MANIFEST,
