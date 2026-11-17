@@ -59,7 +59,8 @@ against the unpatched and the patched tree; the unpatched run reproduces the def
 | `check:layers` | pass |
 | `test:security` | 4 pass, 0 fail, 1 skipped by the script |
 | `test:rules` with the proposed migration applied | `ALL RLS TESTS PASSED` |
-| `git apply --check` on patches 08–11 | clean |
+| `git apply --check` on patches 08–11 (detached worktree of `3a4ad7d`) | clean |
+| full suite `npm test` (6,229 tests) | 6,226 pass, 1 skipped, **2 fail** — both are wall-clock perf budgets (`R-5`, `A-206`) that fail identically on the untouched base `3a4ad7d` in this sandbox; GitHub Actions on the pull request is green end to end (4 unit shards, 6 timezone shards, 5 browser shards, Playwright smoke, lint/types/DB rules, build, SonarCloud, CodeQL) |
 
 ## 5. Files
 

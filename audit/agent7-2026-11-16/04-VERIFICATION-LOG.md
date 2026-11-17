@@ -58,10 +58,32 @@ run, restore), so the test is known to fail where the defect exists:
 ## 5. Full suite
 
 `NODE_OPTIONS=--max-old-space-size=4096 npm test` (the four-glob run: `src/tests/*.test.ts`, `src/tests/*.test.tsx`,
-`src/lib/*.test.ts`, `src/server/utils/*.test.ts`) was started as a background process at the end of the session
-and, at ~45 minutes, was still working through the file list (the runner spawns one child per file, so it is
-progressing, not hung). Every suite this session touches was run individually (§2), so no result in this
-document depends on the full run. Its exit code and tail are appended to this section when it finishes.
+`src/lib/*.test.ts`, `src/server/utils/*.test.ts`):
+
+```
+# tests 6229   # pass 6226   # fail 2   # skipped 1   # duration 1,384,416 ms (~23 min)
+```
+
+The two failures are **wall-clock performance budgets**, and both fail on the untouched base commit in this
+sandbox as well:
+
+| Test | Failure | Same on `3a4ad7d`? |
+|---|---|---|
+| `R-5: all 151 report views open under 1000 ms …` (`src/tests/r5-every-report-speed.test.tsx:91`) | `reporting/TopPartiesReportView.tsx 1249.76 ms` (budget 1000) | **yes** — `TopPartiesReportView.tsx 1164.5 ms` in a clean `git worktree` of `3a4ad7d` |
+| `A-206: AI #3 heaviest reports load well under 1,000 ms on the 12-month fixture` (`src/tests/report-speed-12m.test.tsx:258`) | one subtest over its budget | **yes** — same file fails on `3a4ad7d` (`A-206` and `A-229`) |
+
+Neither file touches anything this branch changed, and GitHub Actions on the same commit is green end to end
+(see §7): all 4 unit shards, all 6 timezone shards, browser shards 1–5, Playwright smoke, lint/typecheck/DB
+rules, build, SonarCloud and CodeQL. The conclusion recorded here is "this sandbox's CPU is slower than the
+budget assumes", not "the branch regresses report rendering".
+
+## 7. CI on the pull request
+
+`CI` run [43984640500](https://github.com/shmuelbiller1/ledgerflow/actions/runs/43984640500) on
+`arena/93656b5f-ledgerflow` (`724ffb2`-equivalent tree): **success** — Unit tests 1/4 … 4/4, Unit tests in
+`America/Los_Angeles` 1–3/3, Unit tests in `Pacific/Auckland` 1–3/3, Browser shards 1–5/5, Playwright E2E
+Smoke, Lint/Typecheck/Database rules, Production build, Accounting & Security Test Suites, SonarCloud, CodeQL,
+CycloneDX SBOM.
 
 ## 6. Sandbox incidents worth recording
 
