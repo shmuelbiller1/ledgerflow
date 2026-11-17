@@ -7,6 +7,23 @@ removed from this list.
 
 Last updated: 2026-11-17.
 
+## Bank reconciliation now runs through registered commands (nothing for you to do)
+
+The eleven reconciliation writes under `/api/v1/transactions` — the batch that matches, unmatches
+and corrects bank lines and entries in one request, marking entries cleared (and taking that back),
+editing one bank line, completing a reconciliation against a statement, paying invoices or bills
+with a bank line, splitting a line over several accounts, and re-running the bank rules — now go
+through the same registered commands as the period, account and inventory batches. Every screen and
+API call keeps exactly the same request and answer (`{ status: 'ok', ... }`, the same error messages
+and status codes: a closed period stays a 400, a closed statement stays a 409, a line in another
+currency stays a 400, a missing entry stays a 404), so nothing changes for you, and a retried request
+still never marks or posts anything twice.
+
+One route deliberately did **not** become a command: `POST /reconciliation/match` only suggests which
+entry an outside bank line probably matches. It writes nothing, so it stays an ordinary read route,
+and the ratchet records it as a read-only exception with the reason beside it rather than wrapping a
+read in a transaction.
+
 ## Inventory writes now run through registered commands (nothing for you to do)
 
 The twelve stock writes under `/api/v1/inventory` — recording cost of goods sold, adjusting or

@@ -16,19 +16,19 @@ export const PERIOD_COMMAND_MANIFEST = [
   {
     "name": "period.balancesrebuild",
     "area": "period",
-    "roles": COMMAND_SCHEMA_PARTS.part3,
+    "roles": COMMAND_SCHEMA_PARTS.part4,
     "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {
       "sentence": "Rebuild stale and missing closed-year balance snapshots from the ledger without changing entries; do not use this to edit accounting records.",
-      "example": COMMAND_SCHEMA_PARTS.part0,
+      "example": COMMAND_SCHEMA_PARTS.part1,
       "refusals": [
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not the workspace owner or a platform administrator.",
           "next": "Ask the owner or a platform administrator to rebuild the snapshots."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part116
       ]
     },
     "runPath": "/api/v1/commands/period.balancesrebuild",
@@ -38,7 +38,7 @@ export const PERIOD_COMMAND_MANIFEST = [
   {
     "name": "period.close",
     "area": "period",
-    "roles": COMMAND_SCHEMA_PARTS.part18,
+    "roles": COMMAND_SCHEMA_PARTS.part19,
     "risk": "normal",
     "description": {
       "sentence": "Soft- or hard-close an ended accounting month after checking that no drafts would be trapped; do not use this to post or reverse a ledger entry.",
@@ -47,7 +47,7 @@ export const PERIOD_COMMAND_MANIFEST = [
         "mode": "soft"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part123,
+        COMMAND_SCHEMA_PARTS.part127,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner or accountant.",
@@ -58,7 +58,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The month is already closed or contains drafts that would be trapped.",
           "next": "Choose an open month and post, re-date, or remove the listed drafts first."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part116
       ]
     },
     "runPath": "/api/v1/commands/period.close",
@@ -68,7 +68,7 @@ export const PERIOD_COMMAND_MANIFEST = [
   {
     "name": "period.closesteps",
     "area": "period",
-    "roles": COMMAND_SCHEMA_PARTS.part18,
+    "roles": COMMAND_SCHEMA_PARTS.part19,
     "risk": "normal",
     "description": {
       "sentence": "Replace the workspace’s custom month-end checklist steps; do not use this to change built-in checks or their sign-offs.",
@@ -91,7 +91,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask an owner or accountant to edit the month-end checklist."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part116
       ]
     },
     "runPath": "/api/v1/commands/period.closesteps",
@@ -101,7 +101,7 @@ export const PERIOD_COMMAND_MANIFEST = [
   {
     "name": "period.depreciation",
     "area": "period",
-    "roles": COMMAND_SCHEMA_PARTS.part45,
+    "roles": COMMAND_SCHEMA_PARTS.part46,
     "risk": "normal",
     "description": {
       "sentence": "Post month-end depreciation for active fixed assets through a specified ended month; do not use this to dispose of an asset or change its depreciation method.",
@@ -109,7 +109,7 @@ export const PERIOD_COMMAND_MANIFEST = [
         "month": "2026-03"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part123,
+        COMMAND_SCHEMA_PARTS.part127,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner, accountant, or bookkeeper.",
@@ -125,7 +125,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "An eligible asset has no usable depreciation accounts.",
           "next": "Choose an expense account and an accumulated-depreciation asset account for each affected asset."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part116
       ]
     },
     "runPath": "/api/v1/commands/period.depreciation",
@@ -135,7 +135,7 @@ export const PERIOD_COMMAND_MANIFEST = [
   {
     "name": "period.fxrevaluation",
     "area": "period",
-    "roles": COMMAND_SCHEMA_PARTS.part18,
+    "roles": COMMAND_SCHEMA_PARTS.part19,
     "risk": "normal",
     "description": {
       "sentence": "Post a month-end foreign-currency revaluation of open invoices and bills with its next-day reversal; use the preview before posting and do not revalue home-currency documents.",
@@ -166,7 +166,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "A revaluation already exists for that date.",
           "next": "Undo the existing revaluation before running it again."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part116
       ]
     },
     "runPath": "/api/v1/commands/period.fxrevaluation",
@@ -176,7 +176,7 @@ export const PERIOD_COMMAND_MANIFEST = [
   {
     "name": "period.fxrevaluationundo",
     "area": "period",
-    "roles": COMMAND_SCHEMA_PARTS.part18,
+    "roles": COMMAND_SCHEMA_PARTS.part19,
     "risk": "normal",
     "description": {
       "sentence": "Undo one currency revaluation by posting its mirror and voiding the paired next-day reversal; do not use this to reverse unrelated journals.",
@@ -199,7 +199,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The original entry or scheduled reversal is missing, changed, or already reversed.",
           "next": "Check the existing ledger entries before making another correction."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part116
       ]
     },
     "runPath": "/api/v1/commands/period.fxrevaluationundo",
@@ -209,11 +209,11 @@ export const PERIOD_COMMAND_MANIFEST = [
   {
     "name": "period.relock",
     "area": "period",
-    "roles": COMMAND_SCHEMA_PARTS.part18,
+    "roles": COMMAND_SCHEMA_PARTS.part19,
     "risk": "normal",
     "description": {
       "sentence": "Close a temporarily unlocked date range again and rebuild affected balance snapshots; do not use this to change the workspace close date.",
-      "example": COMMAND_SCHEMA_PARTS.part0,
+      "example": COMMAND_SCHEMA_PARTS.part1,
       "refusals": [
         {
           "code": "CONFLICT",
@@ -225,7 +225,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask an owner or accountant to re-lock the dates."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part116
       ]
     },
     "runPath": "/api/v1/commands/period.relock",
@@ -235,7 +235,7 @@ export const PERIOD_COMMAND_MANIFEST = [
   {
     "name": "period.reopen",
     "area": "period",
-    "roles": COMMAND_SCHEMA_PARTS.part18,
+    "roles": COMMAND_SCHEMA_PARTS.part19,
     "risk": "normal",
     "description": {
       "sentence": "Reopen a closed accounting month with a recorded reason; do not use this to change or reverse any ledger entries.",
@@ -259,7 +259,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The month is already open.",
           "next": "Choose a closed month."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part116
       ]
     },
     "runPath": "/api/v1/commands/period.reopen",
@@ -269,7 +269,7 @@ export const PERIOD_COMMAND_MANIFEST = [
   {
     "name": "period.signoff",
     "area": "period",
-    "roles": COMMAND_SCHEMA_PARTS.part45,
+    "roles": COMMAND_SCHEMA_PARTS.part46,
     "risk": "normal",
     "description": {
       "sentence": "Record or remove a month-end checklist sign-off; do not use this to close a period or certify an unreviewed item.",
@@ -294,7 +294,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The period is hard-closed and sign-offs are final.",
           "next": "Do not alter the closed-period record; ask the owner to reopen it if correction is necessary."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part116
       ]
     },
     "runPath": "/api/v1/commands/period.signoff",
@@ -304,7 +304,7 @@ export const PERIOD_COMMAND_MANIFEST = [
   {
     "name": "period.unlock",
     "area": "period",
-    "roles": COMMAND_SCHEMA_PARTS.part18,
+    "roles": COMMAND_SCHEMA_PARTS.part19,
     "risk": "normal",
     "description": {
       "sentence": "Temporarily unlock up to three months inside a closed period with a reason; do not use this to reopen the entire period.",
@@ -324,7 +324,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant, or an accountant tries to unlock hard-closed dates.",
           "next": "Ask the workspace owner to unlock hard-closed dates."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part116
       ]
     },
     "runPath": "/api/v1/commands/period.unlock",
@@ -334,7 +334,7 @@ export const PERIOD_COMMAND_MANIFEST = [
   {
     "name": "period.yearclose",
     "area": "period",
-    "roles": COMMAND_SCHEMA_PARTS.part3,
+    "roles": COMMAND_SCHEMA_PARTS.part4,
     "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {
@@ -359,7 +359,7 @@ export const PERIOD_COMMAND_MANIFEST = [
           "when": "The period is already locked through or beyond the requested closing date.",
           "next": "Choose a date after the current lock or reopen the later period first."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part116
       ]
     },
     "runPath": "/api/v1/commands/period.yearclose",

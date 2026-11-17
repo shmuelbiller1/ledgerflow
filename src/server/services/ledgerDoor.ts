@@ -73,6 +73,16 @@ export const LEDGER_MARK_FIELDS = new Set([
 
 interface Updatable { update(ref: unknown, data: Record<string, unknown>): unknown }
 
+/**
+ * For an existing entry that is read again and fully re-validated before it is rewritten in place: the
+ * same check a new entry gets, then the update inside `t`. A reconciliation batch corrects an entry's
+ * status and flags this way, and refuses the write if the corrected entry would not be valid.
+ */
+export function ledgerRewrite(t: Updatable, ref: unknown, entry: Record<string, unknown>): void {
+  checkLedgerEntry(entry);
+  t.update(ref, entry);
+}
+
 /** Marks an existing entry (void, reversed by…) inside `t`; refuses any change to its amounts or lines. */
 export function ledgerMark(t: Updatable, ref: unknown, patch: Record<string, unknown>): void {
   for (const key of Object.keys(patch)) {

@@ -7,13 +7,13 @@ export const COMMAND_INPUT_SCHEMA = {
     "task": {
       "type": "object",
       "properties": {
-        "title": COMMAND_SCHEMA_PARTS.part0,
-        "note": COMMAND_SCHEMA_PARTS.part0,
-        "assignee": COMMAND_SCHEMA_PARTS.part0,
-        "due": COMMAND_SCHEMA_PARTS.part0,
-        "record": COMMAND_SCHEMA_PARTS.part0
+        "title": COMMAND_SCHEMA_PARTS.part1,
+        "note": COMMAND_SCHEMA_PARTS.part1,
+        "assignee": COMMAND_SCHEMA_PARTS.part1,
+        "due": COMMAND_SCHEMA_PARTS.part1,
+        "record": COMMAND_SCHEMA_PARTS.part1
       },
-      "additionalProperties": COMMAND_SCHEMA_PARTS.part0
+      "additionalProperties": COMMAND_SCHEMA_PARTS.part1
     }
   },
   "required": [

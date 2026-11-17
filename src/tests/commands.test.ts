@@ -65,6 +65,8 @@ test('the default registry is sorted and unique across the registered command do
     'invoice.create', 'invoice.delete', 'invoice.update',
     'journal.create', 'numbering.update', 'payment.receive',
     'period.balancesrebuild', 'period.close', 'period.closesteps', 'period.depreciation', 'period.fxrevaluation', 'period.fxrevaluationundo', 'period.relock', 'period.reopen', 'period.signoff', 'period.unlock', 'period.yearclose',
+    'reconciliations.bankline', 'reconciliations.banklinepay', 'reconciliations.banklinesplit', 'reconciliations.bankrules',
+    'reconciliations.clear', 'reconciliations.complete', 'reconciliations.reconcile',
     'stages.define', 'stages.move',
     'tasks.create', 'tasks.remove', 'tasks.status',
     'time.invoice', 'time.log', 'time.move', 'time.rates', 'time.remove', 'time.update',
@@ -76,7 +78,7 @@ test('the default registry is sorted and unique across the registered command do
     'workspace.canceldeletion', 'workspace.create', 'workspace.dimensionaxes', 'workspace.dimensionnode', 'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
     'workspace.retention', 'workspace.revokeinvite', 'workspace.setupcomplete',
   ]);
-  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'groups', 'inventory', 'invoice', 'journal', 'numbering', 'payment', 'period', 'stages', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
+  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'groups', 'inventory', 'invoice', 'journal', 'numbering', 'payment', 'period', 'reconciliations', 'stages', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
   assert.equal(registry.get('numbering.update'), numberingUpdateCommand);

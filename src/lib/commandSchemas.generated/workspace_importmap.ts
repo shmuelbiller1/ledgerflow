@@ -4,9 +4,9 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "signature": COMMAND_SCHEMA_PARTS.part80,
-    "columns": COMMAND_SCHEMA_PARTS.part160,
-    "skipRows": COMMAND_SCHEMA_PARTS.part54
+    "signature": COMMAND_SCHEMA_PARTS.part82,
+    "columns": COMMAND_SCHEMA_PARTS.part165,
+    "skipRows": COMMAND_SCHEMA_PARTS.part55
   },
   "required": [
     "signature",
