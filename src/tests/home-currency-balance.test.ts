@@ -130,3 +130,12 @@ test('same decimals (EUR into USD) behave exactly as before: balanced lines get 
   settleHomeCurrency(t, 'USD');
   assert.deepEqual(t.lines!.map(l => l.baseAmountCents), [undefined, undefined]);
 });
+
+test('books with no currency are USD: a yen journal still converts by the digits', () => {
+  const t = { currency: 'JPY', exchangeRate: 0.0067, lines: [
+    { accountId: 'bank', amountCents: 1_000_000 },
+    { accountId: 'sales', amountCents: -1_000_000 },
+  ] } as unknown as Parameters<typeof settleHomeCurrency>[0];
+  settleHomeCurrency(t, undefined);
+  assert.deepEqual(t.lines!.map(l => l.baseAmountCents), [670_000, -670_000]);
+});

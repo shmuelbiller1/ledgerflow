@@ -126,8 +126,10 @@ export function settleHomeCurrency(t: Pick<Transaction, 'lines' | 'exchangeRate'
   // A rate is quoted per major unit (1 JPY = 0.0067 USD) and amounts are minor units, so an entry in a
   // currency with other decimals than the books' converts by rate × 10^(home digits − entry digits):
   // ¥1,000,000 at 0.0067 is 670,000 cents, not 6,700. Rate-1 lines are already in the home currency.
-  const shifted = Boolean(t.currency && homeCurrency) && currencyDigits(t.currency) !== currencyDigits(homeCurrency);
-  const factorOf = (l: TransactionLine) => (rateOf(l) !== 1 && shifted ? minorUnitRate(rateOf(l), t.currency, homeCurrency) : rateOf(l));
+  // books without a currency are in USD, as documentMinorRate and every other caller assume
+  const home = homeCurrency || 'USD';
+  const shifted = Boolean(t.currency) && currencyDigits(t.currency) !== currencyDigits(home);
+  const factorOf = (l: TransactionLine) => (rateOf(l) !== 1 && shifted ? minorUnitRate(rateOf(l), t.currency, home) : rateOf(l));
   const base = lines.map(l => Math.round((l.amountCents || 0) * factorOf(l)));
   const residual = base.reduce((a, b) => a + b, 0);
   if (residual === 0) {
