@@ -5,7 +5,6 @@ import {
   where, 
   onSnapshot, 
   doc, 
-  setDoc,
   limit,
   orderBy,
   getDocs
@@ -29,6 +28,7 @@ import type { LedgerCollectionSpec, LedgerKey } from "../lib/ledgerCollections";
 import { effectiveLockDate } from '../lib/periodLock';
 import { LedgerEngine } from '../kernel/ledger/LedgerEngine';
 import { runCommand, type CommandBody } from '../lib/runCommand';
+import { runNamedCommand } from '../lib/commandByName';
 
 type LedgerState = ReturnType<typeof useLedgerStore.getState>;
 type AnalyticalPattern = LedgerState['analyticalPatternCache'][string];
@@ -84,8 +84,14 @@ export function useLedgerData() {
           createdAt: new Date().toISOString(),
           currency: 'USD'
         };
+        // One workspace, whichever tab opened first: both tabs send the same idempotency key with the same
+        // payload, so the second is answered by the first one's record instead of opening a second empty book.
         await safeAsync(
-          setDoc(doc(collection(db, 'workspaces')), defaultWorkspace),
+          runNamedCommand('workspace.create', {
+            name: defaultWorkspace.name,
+            businessType: defaultWorkspace.businessType,
+            currency: defaultWorkspace.currency,
+          }, { operationId: `bootstrap-workspace-${userUid}` }),
           OperationType.CREATE,
           'workspaces',
           { userId: userUid }
@@ -109,18 +115,16 @@ export function useLedgerData() {
         const data = snap.data() as UserProfile;
         setUserProfile(data);
       } else {
-        const profileData: UserProfile = {
-          uid: userUid,
-          email: userEmail,
-          role: 'client',
-          createdAt: new Date().toISOString()
-        };
-        await safeAsync(
-          setDoc(doc(db, 'users', userUid), profileData),
+        // The command returns the row it kept: an existing profile is never overwritten, and the screen shows
+        // the stored one rather than the one this tab guessed.
+        const [provisioned] = await safeAsync(
+          runNamedCommand<{ profile: UserProfile }>('user.provision', {}, {
+            operationId: `bootstrap-profile-${userUid}`,
+          }),
           OperationType.CREATE,
           `users/${userUid}`
         );
-        setUserProfile(profileData);
+        if (provisioned) setUserProfile(provisioned.profile);
       }
     }, (err) => handleFirestoreError(err, OperationType.GET, `users/${userUid}`));
   }, [userUid, userEmail, setUserProfile]);

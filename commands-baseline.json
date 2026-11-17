@@ -1,6 +1,6 @@
 {
   "writeRoutes": 159,
-  "directBrowserWrites": 88,
+  "directBrowserWrites": 86,
   "routeSites": {
     "src/server/routes/accountMergeRoutes.ts": 2,
     "src/server/routes/aiRoutes.ts": 1,
@@ -101,7 +101,6 @@
     "src/hooks/transactionActions/workspaceActions.ts": 4,
     "src/hooks/useCollaborators.ts": 3,
     "src/hooks/useEntityOperations.ts": 3,
-    "src/hooks/useLedgerData.ts": 2,
     "src/hooks/useNotificationFeed.ts": 2,
     "src/hooks/useSystemActions.ts": 2,
     "src/lib/feedbackTicket.ts": 1,

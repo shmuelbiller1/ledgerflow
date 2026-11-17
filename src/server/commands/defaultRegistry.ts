@@ -18,6 +18,7 @@ import { vendorCreateCommand, vendorUpdateCommand } from './vendors';
 import { autoRuleCreateCommand, autoRuleUpdateCommand, autoRuleDeleteCommand, autoRuleGroupCommand, autoRuleRecordHitsCommand } from './autoRules';
 import { autoRuleLearnCommand } from './rulePatterns';
 import { dimensionAxesCommand, dimensionNodeCommand } from './dimensions';
+import { userProvisionCommand, workspaceCreateCommand } from './bootstrap';
 import { journalCreateCommand } from './ledger';
 import { paymentReceiveCommand } from './payments';
 import { numberingUpdateCommand } from './numbering';
@@ -82,6 +83,8 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(alertSettingsUpdateCommand);
   registry.register(importMapSaveCommand);
   registry.register(importMapRestoreCommand);
+  registry.register(userProvisionCommand);
+  registry.register(workspaceCreateCommand);
   registry.register(workspaceModulesCommand);
   registry.register(workspaceNextNumberCommand);
   registry.register(workspaceOpeningBalancesCommand);

@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { doc, getDoc } from './db/firestore';
 import { localSet, localUpdate } from './db/localStore';
-import { runDimensionCommand } from './dimensionCommandClient';
+import { runNamedCommand } from './commandByName';
 import { db } from '../firebase';
 import { DEFAULT_WORKSPACE_DIMENSIONS, resolveDimensionLabel, setLineDimension, suggestNextDimensionNodeId, updateDimensionNodeDescription } from './dimensionUtils';
 import { normalizeSearchText } from './textNormalization';
@@ -132,7 +132,7 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
       await localSet('dimensionNodes', nodeDocId(workspaceId, node.dimensionId, node.id), { ...node, workspaceId });
       return;
     }
-    await runDimensionCommand(workspaceId, 'workspace.dimensionnode', { node });
+    await runNamedCommand('workspace.dimensionnode', { node }, { workspaceId });
   },
   createOnlyNode: async (workspaceId, node) => {
     if (!db) return 'created';
@@ -164,7 +164,7 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
       return;
     }
     const { updatedAt: _sentAt, ...named } = fields; // the server stamps when the label changed, not the screen
-    await runDimensionCommand(workspaceId, 'workspace.dimensionnode', { dimensionId, nodeId, fields: named });
+    await runNamedCommand('workspace.dimensionnode', { dimensionId, nodeId, fields: named }, { workspaceId });
   },
   readWorkspace: async workspaceId => {
     if (!db) return undefined;
@@ -176,7 +176,7 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
       await localUpdate('workspaces', workspaceId, { dimensions });
       return;
     }
-    await runDimensionCommand(workspaceId, 'workspace.dimensionaxes', { dimensions });
+    await runNamedCommand('workspace.dimensionaxes', { dimensions }, { workspaceId });
   },
 };
 
