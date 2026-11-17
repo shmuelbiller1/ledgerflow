@@ -46,9 +46,15 @@ export const projectDeleteCommand: CommandDefinition<typeof projectDeleteInput, 
     }
     const deletedAt = new Date().toISOString();
     tx.delete(ref);
-    // the row is kept on the server, not only in the answer: a reload must not be the end of the undo
+    // the row is kept on the server, not only in the answer: a reload must not be the end of the undo. It is kept
+    // whole under `project`, so the database's allowlist for this table stays a handful of keys and a project field
+    // added later is still restored.
     tx.set(ctx.db.collection('deletedProjects').doc(tombstoneId(ctx.workspaceId, input.id)), {
-      ...row, id: input.id, workspaceId: ctx.workspaceId, deletedAt, deletedBy: ctx.actor,
+      id: input.id,
+      workspaceId: ctx.workspaceId,
+      project: { ...row, id: input.id },
+      deletedAt,
+      deletedBy: ctx.actor,
     });
     return { project: { ...row, id: input.id, deletedAt } };
   },
@@ -99,8 +105,8 @@ export const projectRestoreCommand: CommandDefinition<typeof projectRestoreInput
     // the tombstone is scoped by workspace in its id, so another workspace's deleted project is simply not found
     const tombstoneRef = ctx.db.collection('deletedProjects').doc(tombstoneId(ctx.workspaceId, input.id));
     const tombstone = await tx.get(tombstoneRef);
-    const kept = tombstone.data() as ProjectRow | undefined;
-    if (!tombstone.exists || kept?.workspaceId !== ctx.workspaceId) {
+    const kept = tombstone.data() as { project?: ProjectRow; workspaceId?: string } | undefined;
+    if (!tombstone.exists || kept?.workspaceId !== ctx.workspaceId || !kept?.project) {
       throw Object.assign(new HttpError('Nothing is on record for this project id.', 404), { code: 'NOT_FOUND' });
     }
     const ref = ctx.db.collection('projects').doc(input.id);
@@ -109,7 +115,7 @@ export const projectRestoreCommand: CommandDefinition<typeof projectRestoreInput
       // the browser's undo could overwrite a row that had been recreated under the same id; restoring must not
       throw Object.assign(new HttpError('A record already uses this ID. It was not overwritten.', 409), { code: 'CONFLICT' });
     }
-    const { id: _rowId, deletedAt: _deletedAt, deletedBy: _deletedBy, ...fields } = kept;
+    const { id: _rowId, ...fields } = kept.project;
     const row = { ...fields, workspaceId: ctx.workspaceId };
     tx.set(ref, row);
     tx.delete(tombstoneRef);
@@ -121,7 +127,7 @@ export const projectRestoreCommand: CommandDefinition<typeof projectRestoreInput
     const taken = await ctx.db.collection('projects').doc(input.id).get();
     return taken.exists
       ? { title: `A record already uses the id ${input.id}`, lines: ['Nothing will be written'] }
-      : { title: `Put the project “${String((kept.data() as ProjectRow)?.name || input.id)}” back`, lines: ['It returns under the same id, as it was'] };
+      : { title: `Put the project “${String(((kept.data() as { project?: ProjectRow })?.project)?.name || input.id)}” back`, lines: ['It returns under the same id, as it was'] };
   },
   audit(_input: RestoreInput, result: { project: ProjectRow }) {
     return {

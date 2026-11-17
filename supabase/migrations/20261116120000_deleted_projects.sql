@@ -20,11 +20,12 @@ create index "deletedProjects_ws_idx" on public."deletedProjects" (workspace_id)
 create index "deletedProjects_deletedAt_idx" on public."deletedProjects" (workspace_id, (data->>'deletedAt'));
 alter table public."deletedProjects" enable row level security;
 
--- the row is a copy of a project, and a project may carry fields this table does not know about: the copy must
--- keep them, so the rule bounds the number of keys instead of naming them (the server writes it; lf_guard's key
--- rules only bind browser sessions)
-insert into public.lf_rules (table_name, max_keys, immutable_keys) values
-  ('deletedProjects', 80, '{id,workspaceId,deletedAt,deletedBy}');
+-- the deleted project is kept whole *inside* `project`, so the allowlist stays five keys and the copy still keeps
+-- every field the project had (a project row is free-form; naming its keys here would silently drop the ones that
+-- arrive later)
+insert into public.lf_rules (table_name, allowed_keys, immutable_keys) values
+  ('deletedProjects', '{id,workspaceId,project,deletedAt,deletedBy}',
+                      '{id,workspaceId,deletedAt,deletedBy}');
 
 create trigger lf_guard before insert or update or delete on public."deletedProjects"
   for each row execute function public.lf_guard();

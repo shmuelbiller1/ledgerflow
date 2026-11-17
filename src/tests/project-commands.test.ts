@@ -39,8 +39,9 @@ test('deleting a project keeps the row on the server, and the step back is the i
   assert.equal(db.read('projects/proj_web'), undefined, 'the row is gone from the projects');
   const kept = db.read(`deletedProjects/${workspaceId}_proj_web`);
   assert.ok(kept, 'the deleted row is kept on the server, not only in the answer');
-  assert.equal(kept.name, 'Website Redesign');
-  assert.deepEqual(kept.metadata, { nested: ['א', 7] });
+  // the project is kept whole inside `project`, so the table's key allowlist stays short and nothing is dropped
+  assert.equal((kept.project as Record<string, unknown>).name, 'Website Redesign');
+  assert.deepEqual((kept.project as Record<string, unknown>).metadata, { nested: ['א', 7] });
   assert.equal(kept.deletedBy, owner.uid);
   assert.equal(typeof kept.deletedAt, 'string');
 
