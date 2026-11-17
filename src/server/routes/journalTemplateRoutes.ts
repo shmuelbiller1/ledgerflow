@@ -32,7 +32,7 @@ journalTemplateRouter.get('/', async (req, res) => {
 journalTemplateRouter.post('/', async (req, res) => {
   await executeCommand(req, res, {
     ...workspaceInvocation(req, journalTemplateSaveCommand),
-    formatResponse: legacyAnswer({ badBody: 'Invalid template', failed: 'The template could not be saved', issues: true }),
+    formatResponse: legacyAnswer({ badBody: 'Invalid template', failed: 'The template could not be saved', issues: true, insideData: true }),
   });
 });
 

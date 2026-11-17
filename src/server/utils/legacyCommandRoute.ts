@@ -16,11 +16,19 @@ export interface LegacyAnswer {
   failed: string;
   /** The handler attached the schema's issues to a malformed body (the contact and template addresses did). */
   issues?: boolean;
+  /**
+   * The handler wrapped its result in `data` (`{ status, data: { template, replaced } }`) instead of
+   * spreading it into the answer. Only the journal-template save did.
+   */
+  insideData?: boolean;
 }
 
 export function legacyAnswer(answer: LegacyAnswer) {
   return (outcome: CommandExecutionOutcome): { status: number; body: unknown } => {
-    if (outcome.ok) return { status: 200, body: { status: 'success', ...(outcome.data as Record<string, unknown>) } };
+    if (outcome.ok) {
+      const result = outcome.data as Record<string, unknown>;
+      return { status: 200, body: { status: 'success', ...(answer.insideData ? { data: result } : result) } };
+    }
     if (outcome.code === 'INVALID_INPUT') {
       return {
         status: 400,
@@ -45,5 +53,7 @@ export function workspaceInvocation(
   const params = (req.params || {}) as Record<string, string>;
   const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
   const workspaceId = String(params.workspaceId || '');
-  return { definition, workspaceId, input: { ...body, ...extra, workspaceId } };
+  // The address was reachable, with its own role check, before two-step gating existed on commands:
+  // it keeps answering (a signed-in person, an owner or accountant) rather than returning a 403.
+  return { definition, workspaceId, legacyRoute: true, input: { ...body, ...extra, workspaceId } };
 }

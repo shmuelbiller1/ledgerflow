@@ -26,6 +26,7 @@ import {
   reportSchedulePreviewCommand, reportScheduleSendCommand, twoPersonCommand, twoStepCommand,
 } from '../server/commands/workspaceHousekeeping';
 import { legacyAnswer } from '../server/utils/legacyCommandRoute';
+import { runRegisteredCommand } from '../server/utils/commandExecutor';
 import { MemoryDb, runnerDependencies, type TestCounters } from './helpers/commandTestUtils';
 
 const OWNER = 'owner-1';
@@ -243,4 +244,51 @@ test('each address keeps its own words for a malformed body and a server fault',
   // and a success spreads the result under `status: 'success'`
   assert.deepEqual(legacyAnswer({ badBody: 'x', failed: 'y' })({ ok: true, status: 200, command: 'x', data: { changed: 2 }, replayed: false }),
     { status: 200, body: { status: 'success', changed: 2 } });
+  // the journal-template save wrapped its result in `data` (the other addresses spread it)
+  assert.deepEqual(legacyAnswer({ badBody: 'x', failed: 'y', insideData: true })({ ok: true, status: 200, command: 'x', data: { replaced: false }, replayed: false }),
+    { status: 200, body: { status: 'success', data: { replaced: false } } });
+});
+
+test('a high-risk setting keeps its established answer on its old address and the two-step gate on the command router', async () => {
+  // The security routes answered an owner who had signed in without a code; the command router does not.
+  // The wrapper says so with `legacyRoute`, so a moved route does not start refusing working requests.
+  const db = new MemoryDb();
+  seed(db);
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const registry = new CommandRegistry();
+  registry.register(twoStepCommand);
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    (req as unknown as { user: RequestUser }).user = { uid: OWNER, aal: 'aal1' };
+    next();
+  });
+  app.use('/api/v1/commands', createCommandRouter(registry, dependencies));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise<void>(resolve => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const viaRouter = await fetch(`${base}/api/v1/commands/security.twostep`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId: WS, input: { required: true } }),
+    });
+    assert.equal(viaRouter.status, 403, 'the command router still needs a code-confirmed session');
+    assert.match(((await viaRouter.json()) as { message: string }).message, /two-step verification/);
+
+    // what the old address does: the same runner, told this is the route it has always been
+    const outcome = await runRegisteredCommand(
+      { user: { uid: OWNER, aal: 'aal1' } } as never,
+      { definition: twoStepCommand, workspaceId: WS, legacyRoute: true, input: { workspaceId: WS, required: true } },
+      dependencies,
+    );
+    // past the gate, the service's own rule answers — here an owner who has not set up two-step
+    // login yet gets the service's 409 sentence, exactly as the route answered it before
+    assert.deepEqual(legacyAnswer({ badBody: 'Say whether two-step login is required', failed: 'The setting could not be saved' })(outcome), {
+      status: 409,
+      body: { status: 'error', message: 'Turn on two-step login for your own account first (Settings → Security), then sign in again with a code' },
+    });
+    assert.equal(counters.runs, 0, 'the service refused before the handler wrote anything');
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
 });
