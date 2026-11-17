@@ -433,7 +433,8 @@ export async function groupSummary(db: Firestore, input: { uid: string; groupId:
         m.currency, reportCurrency,
       ));
       const translated = members[i].translated;
-      const equityLines = Object.values(m.sections.equity).reduce((sum, cents) => sum + toReport(m, cents, 'historical'), 0);
+      // the same rounding groupAccountLines applies to each equity line, so the lines add up to totalEquity exactly
+      const equityLines = Object.values(m.sections.equity).reduce((sum, cents) => sum + Math.round(cents * rate('equity')), 0);
       const cta = translated?.cta || 0;
       const totalEquity = translated ? translated.totalEquity : m.totalEquity;
       return [{ workspaceId: m.workspaceId, accounts: m.chart, sections: m.sections, rate, extraEquity: { profit: totalEquity - cta - equityLines, cta } }];
