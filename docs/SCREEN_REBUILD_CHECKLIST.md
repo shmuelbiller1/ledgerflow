@@ -173,7 +173,10 @@ hand-convert a table the codemod still refuses.
         Monday/report-note panels) each patched the `workspaces` document by hand, with `updatedAt` typed by the
         browser. They send `workspace.settings` now: one allowlisted schema, owner or accountant only, the report
         notes merged per key so a note another report saved meanwhile is not erased, an emptied note removed rather
-        than stored as `""`, and one audit line per save (`WORKSPACE_SETTINGS_CHANGED`). The currency is accepted only
+        than stored as `""`, and one audit line per save (`WORKSPACE_SETTINGS_CHANGED`). `saveWorkspaceSettings` /
+        `saveWorkspaceAxes` keep the demo's half: the sample company has no workspace on the server, so its screens
+        write their own copy (`localUpdate`) instead of asking — the branch those `updateDoc` calls used to get for
+        free, and the one the sample company's own tests insist on. The currency is accepted only
         while the books are empty, which is the set-up wizard's step and nothing else: with a document in the
         workspace the command refuses (`CONFLICT`) instead of re-reading every stored amount in a new unit. The
         label axes that three of those screens also wrote went to `workspace.dimensionaxes`, and the wizard's

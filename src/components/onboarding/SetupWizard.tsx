@@ -6,7 +6,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { runNamedCommand } from '../../lib/commandByName';
+import { saveWorkspaceSettings, saveWorkspaceAxes } from '../../lib/workspaceSettingsSave';
 import { BUSINESS_TEMPLATES } from '../../lib/businessTemplates';
 import { describeError } from '../../lib/errorRemedies';
 import { modulesForBusiness } from '../../lib/modules';
@@ -86,8 +86,8 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
     const changed = businessType !== workspace.businessType || axesChanged || fields.name !== workspace.name || currency !== workspace.currency || timezone !== workspace.timezone
       || fiscalStart !== (workspace.fiscalYearStartMonth || 1);
     if (changed) {
-      if (axesChanged) await runNamedCommand('workspace.dimensionaxes', { dimensions }, { workspaceId });
-      await runNamedCommand('workspace.settings', fields, { workspaceId });
+      if (axesChanged) await saveWorkspaceAxes(workspaceId, dimensions);
+      await saveWorkspaceSettings(workspaceId, fields);
       const nextModules = businessType && businessType !== workspace.businessType ? modulesForBusiness(businessType) : workspace.modules;
       if (businessType && businessType !== workspace.businessType) {
         await runCommand({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/modules`, method: 'PUT', body: { modules: nextModules } });
@@ -102,7 +102,7 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
   const applyChart = () => run(async () => {
     if (templateId) {
       await call('apply-template', { templateId });
-      if (templateId !== businessType) await runNamedCommand('workspace.settings', { businessType }, { workspaceId: workspace.id });
+      if (templateId !== businessType) await saveWorkspaceSettings(workspace.id, { businessType });
       const store = useAuthStore.getState();
       store.setWorkspaces(store.workspaces.map(w => w.id === workspace.id ? { ...w, businessType } : w));
     }

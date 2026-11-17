@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Mail, RotateCcw } from 'lucide-react';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { runNamedCommand } from '../../../lib/commandByName';
+import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
 import { clearDirtyTracking, registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
 import {
   EMAIL_TEMPLATE_KEYS, MAX_BODY, MAX_SUBJECT, PLACEHOLDERS, TEMPLATE_LABELS,
@@ -77,7 +77,7 @@ export default function EmailSettings() {
     if (!workspace?.id) return;
     setSaving(true);
     try {
-      await runNamedCommand('workspace.settings', fields, { workspaceId: workspace.id });
+      await saveWorkspaceSettings(workspace.id, fields);
       setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, ...fields } : w)));
       clearDirtyTracking(sectionContainer ?? null);
       toast.success(message);

@@ -22,6 +22,9 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency, getLocalDateISO, safeConfirm } from '../../lib/utils';
 import { runNamedCommand } from '../../lib/commandByName';
+import { localAdd, localDelete, localUpdate } from '../../lib/db/localStore';
+import { guestSession } from '../../lib/db/guestDatabase';
+import { workspaceActor } from '../../lib/guestActor';
 import { toast } from 'sonner';
 import AsyncButton from '../ui/AsyncButton';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -39,6 +42,7 @@ import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 
 export default function BudgetManager() {
   const formId = useId();
+  const user = useAuthStore(workspaceActor);
   // the open workspace lives in the auth store (reading it from the ledger store always gave nothing)
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const budgets = useLedgerStore((s) => s.budgets);
@@ -82,15 +86,21 @@ export default function BudgetManager() {
     try {
       // EU-E5: the label the plan is kept against; `null` on a change takes an existing one away
       const label = budgetLabelId && budgetLabelValue ? { dimensionId: budgetLabelId, value: budgetLabelValue } : null;
-      await runNamedCommand('budget.save', {
-        ...(editingBudget ? { id: editingBudget } : {}),
+      const fields = {
         targetId: newBudget.targetId,
         targetType: newBudget.targetType,
         amountCents: newBudget.amountCents,
         period: newBudget.period,
         startDate: newBudget.startDate || getLocalDateISO(),
-        ...(editingBudget ? { label } : (label ? { label } : {})),
-      }, { workspaceId });
+        ...(editingBudget || label ? { label } : {}),
+      };
+      // the sample company has no workspace on the server, so it changes its own copy and nothing leaves the tab
+      if (guestSession()) {
+        if (editingBudget) await localUpdate('budgets', editingBudget, { ...fields, updatedAt: new Date().toISOString() });
+        else await localAdd('budgets', { ...fields, workspaceId, uid: user?.uid || '', createdAt: new Date().toISOString() });
+      } else {
+        await runNamedCommand('budget.save', { ...fields, ...(editingBudget ? { id: editingBudget } : {}) }, { workspaceId });
+      }
       toast.success(editingBudget ? 'Objective Updated' : 'Objective Synchronized');
       setIsAdding(false);
       setEditingBudget(null);
@@ -228,7 +238,8 @@ export default function BudgetManager() {
                         return;
                       }
                       if (await safeConfirm('Delete budget?')) {
-                        await runNamedCommand('budget.delete', { id: b.id }, { workspaceId: currentWorkspaceId ?? undefined });
+                        if (guestSession()) await localDelete('budgets', b.id);
+                        else await runNamedCommand('budget.delete', { id: b.id }, { workspaceId: currentWorkspaceId ?? undefined });
                         toast.success('Budget deleted');
                       }
                     }}

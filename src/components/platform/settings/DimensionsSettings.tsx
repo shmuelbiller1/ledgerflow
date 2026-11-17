@@ -19,7 +19,7 @@ import { hasRoleAtLeast, useCurrentRole } from '../../../hooks/useCurrentRole';
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Archive, Check, Database, Layers, RefreshCw, ShieldCheck, Lock } from 'lucide-react';
 import { toast } from 'sonner';
-import { runNamedCommand } from '../../../lib/commandByName';
+import { saveWorkspaceAxes } from '../../../lib/workspaceSettingsSave';
 import { doc, writeBatch } from '../../../lib/db/firestore';
 import { db } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -281,7 +281,7 @@ function DimensionsSettingsContent() {
     setIsSaving(true);
     try {
       if (db) {
-        await runNamedCommand('workspace.dimensionaxes', { dimensions }, { workspaceId: currentWorkspaceId });
+        await saveWorkspaceAxes(currentWorkspaceId, dimensions);
 
         // Write individual nodes in batch
         const batch = writeBatch(db);

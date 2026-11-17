@@ -23,7 +23,7 @@ import InstallAppPanel from './InstallAppPanel';
 import { PaymentTermsSettings } from './PaymentTermsSettings';
 import { PaymentTypesSettings } from './PaymentTypesSettings';
 import { CustomerGroupsSettings } from './CustomerGroupsSettings';
-import { runNamedCommand } from '../../../lib/commandByName';
+import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
 
 export default function AppearanceSettings() {
   const settingsId = useId();
@@ -60,7 +60,7 @@ export default function AppearanceSettings() {
     if (!currentWorkspaceId) return;
     setIsUpdatingZone(true);
     try {
-      await runNamedCommand('workspace.settings', { timezone: newZone }, { workspaceId: currentWorkspaceId });
+      await saveWorkspaceSettings(currentWorkspaceId, { timezone: newZone });
       const updated = workspaces.map(w => {
         if (w.id === currentWorkspaceId) {
           return { ...w, timezone: newZone };
@@ -81,7 +81,7 @@ export default function AppearanceSettings() {
   const handleFiscalStartChange = async (month: number) => {
     if (!currentWorkspaceId) return;
     try {
-      await runNamedCommand('workspace.settings', { fiscalYearStartMonth: month, fiscalYearStartDay: 1 }, { workspaceId: currentWorkspaceId });
+      await saveWorkspaceSettings(currentWorkspaceId, { fiscalYearStartMonth: month, fiscalYearStartDay: 1 });
       setWorkspaces(workspaces.map(w => (w.id === currentWorkspaceId ? { ...w, fiscalYearStartMonth: month, fiscalYearStartDay: 1 } : w)));
       toast.success('Fiscal year start saved');
     } catch (err) {
@@ -103,7 +103,7 @@ export default function AppearanceSettings() {
     if (!workspaceId || isSavingTaxRounding || !canSetTaxRounding) return;
     setIsSavingTaxRounding(true);
     const startedBy = useAuthStore.getState().user?.uid;
-    runNamedCommand('workspace.settings', { taxRounding: mode }, { workspaceId }).then(() => {
+    saveWorkspaceSettings(workspaceId, { taxRounding: mode }).then(() => {
       // a reply that arrives after a sign-out or account switch must not write the old account's workspaces back
       const now = useAuthStore.getState();
       if (now.user?.uid !== startedBy) return;

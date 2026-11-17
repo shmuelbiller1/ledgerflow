@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { getIdToken } from '../../../firebase';
-import { runNamedCommand } from '../../../lib/commandByName';
+import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
 import {
   MAX_SCHEDULES, SCHEDULED_REPORTS, WEEKDAYS, lastFinishedPeriod, parseRecipients, scheduleProblem, sendDayLabel,
   type ReportFrequency, type ScheduledReport, type ScheduledReportKind } from '../../../lib/scheduledReports';
@@ -68,7 +68,7 @@ export default function ScheduledReportsSettings() {
     if (!workspace?.id) return false;
     setBusy('save');
     try {
-      await runNamedCommand('workspace.settings', { scheduledReports: next }, { workspaceId: workspace.id });
+      await saveWorkspaceSettings(workspace.id, { scheduledReports: next });
       setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, scheduledReports: next } : w)));
       toast.success(message);
       return true;

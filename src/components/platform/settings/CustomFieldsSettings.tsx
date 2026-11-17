@@ -13,7 +13,7 @@ import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useEntityOperations } from '../../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { useLedgerCollections } from '../../../hooks/useLedgerCollections';
-import { runNamedCommand } from '../../../lib/commandByName';
+import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
 import InlineEdit from '../../ui/InlineEdit';
 import { downloadCsv } from '../../../lib/csvExport';
 import { secureId } from '../../../lib/secureId';
@@ -74,7 +74,7 @@ export default function CustomFieldsSettings() {
     if (!workspace?.id) return;
     setBusy(true);
     try {
-      await runNamedCommand('workspace.settings', { customFields: defs }, { workspaceId: workspace.id });
+      await saveWorkspaceSettings(workspace.id, { customFields: defs });
       setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, customFields: defs } : w)));
       setDraft(null);
       toast.success('Custom fields saved');

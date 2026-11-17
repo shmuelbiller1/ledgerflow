@@ -1,7 +1,7 @@
 import React, { useId, useState } from 'react';
 import { toast } from 'sonner';
 import { X } from 'lucide-react';
-import { runNamedCommand } from '../../../lib/commandByName';
+import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { MAX_TERM_DAYS, STANDARD_TERM_DAYS, normalizeTermDays } from '../../../lib/paymentTerms';
@@ -30,7 +30,7 @@ export function PaymentTermsSettings() {
     setSaving(true);
     const startedBy = useAuthStore.getState().user?.uid;
     const paymentTermDays = normalizeTermDays(next);
-    runNamedCommand('workspace.settings', { paymentTermDays }, { workspaceId }).then(() => {
+    saveWorkspaceSettings(workspaceId, { paymentTermDays }).then(() => {
       const now = useAuthStore.getState();
       if (now.user?.uid !== startedBy) return;
       now.setWorkspaces(now.workspaces.map(w => (w.id === workspaceId ? { ...w, paymentTermDays } : w)));
