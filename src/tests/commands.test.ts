@@ -10,6 +10,7 @@ import { API_KEY_SCOPE_IDS, validateApiKeyScopes } from '../lib/apiScopes';
 import { AVAILABLE_SCOPES } from '../components/platform/ApiHubShared';
 import type { Firestore } from '../server/db/firestore';
 import { CommandRegistry } from '../server/commands/registry';
+import { workspaceSettingsCommand } from '../server/commands/workspaceSettingsPanel';
 import { createDefaultCommandRegistry } from '../server/commands/defaultRegistry';
 import { alertSettingsUpdateCommand } from '../server/commands/alerts';
 import { importMapRestoreCommand, importMapSaveCommand } from '../server/commands/importMaps';
@@ -77,7 +78,7 @@ test('the default registry is sorted and unique across the registered command do
     'warranty.update',
     'watches.create', 'watches.remove',
     'workspace.canceldeletion', 'workspace.create', 'workspace.dimensionaxes', 'workspace.dimensionnode', 'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
-    'workspace.retention', 'workspace.revokeinvite', 'workspace.setupcomplete',
+    'workspace.retention', 'workspace.revokeinvite', 'workspace.settings', 'workspace.setupcomplete',
   ]);
   assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'groups', 'inventory', 'invoice', 'journal', 'numbering', 'payment', 'period', 'project', 'reconciliations', 'stages', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
@@ -98,6 +99,7 @@ test('the default registry is sorted and unique across the registered command do
   assert.equal(periodYearCloseCommand.allowPlatformAdmin, true);
   assert.equal(registry.get('workspace.importmap'), importMapSaveCommand);
   assert.equal(registry.get('workspace.restoremaps'), importMapRestoreCommand);
+  assert.equal(registry.get('workspace.settings'), workspaceSettingsCommand);
   assert.equal(registry.get('tasks.create'), taskCreateCommand);
   assert.equal(registry.get('watches.create'), watchCreateCommand);
   assert.equal(registry.get('unknown.create'), undefined);

@@ -19,18 +19,19 @@ afterEach(async () => { cleanup(); await getSupabase().auth.dispose(); });
 test('an accountant chooses Germany and brackets: saved on the workspace, and amounts everywhere follow', async () => {
   const ws = setComponentWorkspace('accountant');
   useAuthStore.setState({ workspaces: [{ ...ws, currency: 'EUR', moneyDisplay: {} }] });
-  const writes: Array<{ p_id?: string; p_set?: Record<string, unknown> }> = [];
+  const writes: Array<{ input?: Record<string, unknown> }> = [];
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (String(input).includes('lf_update') && typeof init?.body === 'string') writes.push(JSON.parse(init.body));
+    // the style is saved through `workspace.settings` now, so the test reads the command's input
+    if (String(input).includes('/commands/workspace.settings') && typeof init?.body === 'string') writes.push(JSON.parse(init.body));
     return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }) as typeof fetch;
   render(<MoneyDisplayPanel />);
   await act(async () => { fireEvent.change(screen.getByLabelText('Number style'), { target: { value: 'de-DE' } }); });
   await waitFor(() => assert.equal(writes.length, 1));
-  assert.deepEqual(writes[0].p_set, { moneyDisplay: { locale: 'de-DE' } });
+  assert.deepEqual(writes[0].input, { moneyDisplay: { locale: 'de-DE' } });
   await act(async () => { fireEvent.change(screen.getByLabelText('Negative amounts'), { target: { value: 'accounting' } }); });
   await waitFor(() => assert.equal(writes.length, 2));
-  assert.deepEqual(writes[1].p_set, { moneyDisplay: { locale: 'de-DE', negativeStyle: 'accounting' } });
+  assert.deepEqual(writes[1].input, { moneyDisplay: { locale: 'de-DE', negativeStyle: 'accounting' } });
   assert.match(screen.getByTestId('money-sample').textContent || '', /^1\.234\.567,89\s€ · \(1\.234,56\s€\)$/);
   assert.match(formatCurrency(-50, 'EUR'), /^\(0,50\s€\)$/, 'amounts elsewhere follow');
 });

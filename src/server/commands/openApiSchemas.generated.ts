@@ -98,5 +98,6 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "workspace.restoremaps": "CommandInput_workspace_restoremaps",
   "workspace.retention": "CommandInput_workspace_retention",
   "workspace.revokeinvite": "CommandInput_workspace_revokeinvite",
+  "workspace.settings": "CommandInput_workspace_settings",
   "workspace.setupcomplete": "CommandInput_workspace_setupcomplete"
 } as const;

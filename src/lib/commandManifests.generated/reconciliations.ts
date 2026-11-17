@@ -12,14 +12,14 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
   {
     "name": "reconciliations.bankline",
     "area": "reconciliations",
-    "roles": COMMAND_SCHEMA_PARTS.part57,
+    "roles": COMMAND_SCHEMA_PARTS.part59,
     "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {
       "sentence": "Change a bank line the feed brought in — its note, its suggestion or its matched entry; do not use it to edit a posted entry — that is reconciliations.reconcile.",
       "example": {
         "id": "bankline_123",
-        "data": COMMAND_SCHEMA_PARTS.part74
+        "data": COMMAND_SCHEMA_PARTS.part77
       },
       "refusals": [
         {
@@ -27,7 +27,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
           "when": "The caller is not a member of the workspace.",
           "next": "Ask a member of the workspace."
         },
-        COMMAND_SCHEMA_PARTS.part126,
+        COMMAND_SCHEMA_PARTS.part132,
         {
           "code": "INVALID_INPUT",
           "when": "A field is not one a bank line allows, or a value has the wrong shape.",
@@ -42,7 +42,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
   {
     "name": "reconciliations.banklinepay",
     "area": "reconciliations",
-    "roles": COMMAND_SCHEMA_PARTS.part47,
+    "roles": COMMAND_SCHEMA_PARTS.part49,
     "risk": "normal",
     "description": {
       "sentence": "Pay one or more invoices or bills with a deposit a bank line brought in; do not use it to spread a line over accounts — that is reconciliations.banklinesplit.",
@@ -56,8 +56,8 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
         ]
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part126,
-        COMMAND_SCHEMA_PARTS.part135,
+        COMMAND_SCHEMA_PARTS.part132,
+        COMMAND_SCHEMA_PARTS.part141,
         {
           "code": "INVALID_INPUT",
           "when": "The documents are not all for the same customer or vendor, or they add up to more than the line.",
@@ -72,7 +72,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
   {
     "name": "reconciliations.banklinesplit",
     "area": "reconciliations",
-    "roles": COMMAND_SCHEMA_PARTS.part47,
+    "roles": COMMAND_SCHEMA_PARTS.part49,
     "risk": "normal",
     "description": {
       "sentence": "Spread one bank line over several accounts, such as a card payment that is part supplies and part fuel; do not use it to pay an invoice — that is reconciliations.banklinepay.",
@@ -90,8 +90,8 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
         ]
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part126,
-        COMMAND_SCHEMA_PARTS.part135,
+        COMMAND_SCHEMA_PARTS.part132,
+        COMMAND_SCHEMA_PARTS.part141,
         {
           "code": "INVALID_INPUT",
           "when": "The splits do not add up to the line, or one names the bank account itself.",
@@ -119,7 +119,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or an accountant.",
           "next": "Ask an owner or an accountant."
         },
-        COMMAND_SCHEMA_PARTS.part105
+        COMMAND_SCHEMA_PARTS.part110
       ]
     },
     "runPath": "/api/v1/commands/reconciliations.bankrules",
@@ -129,7 +129,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
   {
     "name": "reconciliations.clear",
     "area": "reconciliations",
-    "roles": COMMAND_SCHEMA_PARTS.part47,
+    "roles": COMMAND_SCHEMA_PARTS.part49,
     "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {
@@ -171,7 +171,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
   {
     "name": "reconciliations.complete",
     "area": "reconciliations",
-    "roles": COMMAND_SCHEMA_PARTS.part47,
+    "roles": COMMAND_SCHEMA_PARTS.part49,
     "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {
@@ -214,7 +214,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
   {
     "name": "reconciliations.reconcile",
     "area": "reconciliations",
-    "roles": COMMAND_SCHEMA_PARTS.part47,
+    "roles": COMMAND_SCHEMA_PARTS.part49,
     "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {
@@ -224,7 +224,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
           {
             "id": "bankline_123",
             "type": "updateBankLine",
-            "data": COMMAND_SCHEMA_PARTS.part74
+            "data": COMMAND_SCHEMA_PARTS.part77
           }
         ]
       },
@@ -234,7 +234,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
           "when": "An operation has no id, an unknown type, or the batch is empty or over 250.",
           "next": "Send between 1 and 250 operations, each with an id and a known type."
         },
-        COMMAND_SCHEMA_PARTS.part105,
+        COMMAND_SCHEMA_PARTS.part110,
         {
           "code": "FORBIDDEN",
           "when": "The caller is not an owner, accountant or bookkeeper of the workspace.",

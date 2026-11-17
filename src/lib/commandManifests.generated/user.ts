@@ -18,7 +18,7 @@ export const USER_COMMAND_MANIFEST = [
           "when": "The input carries any field.",
           "next": "Send an empty object: the profile is built from the signed-in person."
         },
-        COMMAND_SCHEMA_PARTS.part121
+        COMMAND_SCHEMA_PARTS.part127
       ],
       "next": [
         {

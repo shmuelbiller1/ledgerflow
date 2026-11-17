@@ -8,7 +8,7 @@ export const VENDORCREDIT_COMMAND_MANIFEST = [
   {
     "name": "vendorcredit.create",
     "area": "vendorcredit",
-    "roles": COMMAND_SCHEMA_PARTS.part47,
+    "roles": COMMAND_SCHEMA_PARTS.part49,
     "risk": "normal",
     "description": {
       "sentence": "Create a vendor credit and let the server build its ledger entries from the saved document; do not use this command to record a payment or edit an existing vendor credit.",
@@ -25,7 +25,7 @@ export const VENDORCREDIT_COMMAND_MANIFEST = [
           "currency": "USD"
         }
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part173
+      "refusals": COMMAND_SCHEMA_PARTS.part179
     },
     "runPath": "/api/v1/commands/vendorcredit.create",
     "previewPath": "/api/v1/commands/vendorcredit.create/preview",
@@ -34,12 +34,12 @@ export const VENDORCREDIT_COMMAND_MANIFEST = [
   {
     "name": "vendorcredit.delete",
     "area": "vendorcredit",
-    "roles": COMMAND_SCHEMA_PARTS.part47,
+    "roles": COMMAND_SCHEMA_PARTS.part49,
     "risk": "normal",
     "description": {
       "sentence": "Delete a vendor credit and let the server reverse its live ledger entries; do not use this command to void or write off a document.",
       "example": COMMAND_SCHEMA_PARTS.part18,
-      "refusals": COMMAND_SCHEMA_PARTS.part173
+      "refusals": COMMAND_SCHEMA_PARTS.part179
     },
     "runPath": "/api/v1/commands/vendorcredit.delete",
     "previewPath": "/api/v1/commands/vendorcredit.delete/preview",
@@ -48,12 +48,12 @@ export const VENDORCREDIT_COMMAND_MANIFEST = [
   {
     "name": "vendorcredit.update",
     "area": "vendorcredit",
-    "roles": COMMAND_SCHEMA_PARTS.part47,
+    "roles": COMMAND_SCHEMA_PARTS.part49,
     "risk": "normal",
     "description": {
       "sentence": "Update an existing vendor credit and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
-      "example": COMMAND_SCHEMA_PARTS.part62,
-      "refusals": COMMAND_SCHEMA_PARTS.part173
+      "example": COMMAND_SCHEMA_PARTS.part65,
+      "refusals": COMMAND_SCHEMA_PARTS.part179
     },
     "runPath": "/api/v1/commands/vendorcredit.update",
     "previewPath": "/api/v1/commands/vendorcredit.update/preview",

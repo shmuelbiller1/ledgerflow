@@ -6,8 +6,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { doc, updateDoc } from '../../lib/db/firestore';
-import { db } from '../../firebase';
+import { runNamedCommand } from '../../lib/commandByName';
 import { BUSINESS_TEMPLATES } from '../../lib/businessTemplates';
 import { describeError } from '../../lib/errorRemedies';
 import { modulesForBusiness } from '../../lib/modules';
@@ -80,18 +79,22 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
 
   const saveBusiness = () => run(async () => {
     const workspaceId = workspace.id;
-    const fields = { businessType, dimensions: presetDimensions(workspace.dimensions, businessType), name: name.trim() || workspace.name, currency, timezone, fiscalYearStartMonth: fiscalStart, fiscalYearStartDay: 1 };
-    const changed = businessType !== workspace.businessType || JSON.stringify(fields.dimensions) !== JSON.stringify(workspace.dimensions) || fields.name !== workspace.name || currency !== workspace.currency || timezone !== workspace.timezone
+    // the axes are not a setting (they have their own command); the rest of the step is
+    const dimensions = presetDimensions(workspace.dimensions, businessType);
+    const fields = { businessType, name: name.trim() || workspace.name, currency, timezone, fiscalYearStartMonth: fiscalStart, fiscalYearStartDay: 1 };
+    const axesChanged = JSON.stringify(dimensions) !== JSON.stringify(workspace.dimensions);
+    const changed = businessType !== workspace.businessType || axesChanged || fields.name !== workspace.name || currency !== workspace.currency || timezone !== workspace.timezone
       || fiscalStart !== (workspace.fiscalYearStartMonth || 1);
     if (changed) {
-      await updateDoc(doc(db, 'workspaces', workspaceId), { ...fields, updatedAt: new Date().toISOString() });
+      if (axesChanged) await runNamedCommand('workspace.dimensionaxes', { dimensions }, { workspaceId });
+      await runNamedCommand('workspace.settings', fields, { workspaceId });
       const nextModules = businessType && businessType !== workspace.businessType ? modulesForBusiness(businessType) : workspace.modules;
       if (businessType && businessType !== workspace.businessType) {
         await runCommand({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/modules`, method: 'PUT', body: { modules: nextModules } });
       }
       const store = useAuthStore.getState();
       if (store.currentWorkspaceId && store.currentWorkspaceId !== workspaceId) return;
-      store.setWorkspaces(store.workspaces.map(w => (w.id === workspaceId ? { ...w, ...fields, ...(nextModules ? { modules: nextModules } : {}) } : w)));
+      store.setWorkspaces(store.workspaces.map(w => (w.id === workspaceId ? { ...w, ...fields, dimensions, ...(nextModules ? { modules: nextModules } : {}) } : w)));
     }
     setStep(1);
   });
@@ -99,7 +102,7 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
   const applyChart = () => run(async () => {
     if (templateId) {
       await call('apply-template', { templateId });
-      if (templateId !== businessType) await updateDoc(doc(db, 'workspaces', workspace.id), { businessType });
+      if (templateId !== businessType) await runNamedCommand('workspace.settings', { businessType }, { workspaceId: workspace.id });
       const store = useAuthStore.getState();
       store.setWorkspaces(store.workspaces.map(w => w.id === workspace.id ? { ...w, businessType } : w));
     }

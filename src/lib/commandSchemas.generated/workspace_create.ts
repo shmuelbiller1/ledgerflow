@@ -4,13 +4,9 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "name": COMMAND_SCHEMA_PARTS.part38,
-    "businessType": COMMAND_SCHEMA_PARTS.part33,
-    "currency": {
-      "type": "string",
-      "minLength": 3,
-      "maxLength": 3
-    },
+    "name": COMMAND_SCHEMA_PARTS.part40,
+    "businessType": COMMAND_SCHEMA_PARTS.part34,
+    "currency": COMMAND_SCHEMA_PARTS.part61,
     "personal": COMMAND_SCHEMA_PARTS.part16
   },
   "additionalProperties": false

@@ -31,9 +31,12 @@ for (const preset of BUSINESS_PRESETS) {
     render(<SetupWizard onStarted={() => {}} onDone={() => {}} />);
     fireEvent.click(screen.getByLabelText(preset.name, { exact: true }));
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Next' })); });
-    const workspaceWrite = calls.find(c => c.url.includes('lf_update'))!.body as { p_set: Record<string, unknown> };
-    assert.equal(workspaceWrite.p_set.businessType, preset.id);
-    const stored = workspaceWrite.p_set.dimensions as typeof preset.labels;
+    // the business step is two commands now: the settings it changes, and the label preset it chooses
+    const settingsWrite = calls.find(c => c.url.includes('/commands/workspace.settings'))!.body as { input: Record<string, unknown> };
+    assert.equal(settingsWrite.input.businessType, preset.id);
+    assert.equal('dimensions' in settingsWrite.input, false, 'the axes are not a setting');
+    const axesWrite = calls.find(c => c.url.includes('/commands/workspace.dimensionaxes'))!.body as { input: { dimensions: typeof preset.labels } };
+    const stored = axesWrite.input.dimensions;
     for (const dimension of preset.labels) assert.deepEqual(stored.find(d => d.id === dimension.id), dimension);
     assert.ok((screen.getByLabelText(BUSINESS_TEMPLATES[preset.id].name) as HTMLInputElement).checked);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Next' })); });

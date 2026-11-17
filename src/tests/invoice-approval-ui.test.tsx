@@ -73,12 +73,13 @@ describe('the approval rule in the settings', () => {
     fireEvent.click(screen.getByLabelText('Require approval on invoices over a set amount'));
     fireEvent.change(screen.getByLabelText(/The amount, in/), { target: { value: '2,500' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save approval rule' }));
-    await waitFor(() => assert.ok(calls.some(c => (c.body as { p_table?: string } | undefined)?.p_table === 'workspaces'), 'the save reached the database layer'));
-    const body = calls.find(c => (c.body as { p_table?: string } | undefined)?.p_table === 'workspaces')?.body as
-      { p_table?: string; p_id?: string; p_set?: Record<string, unknown> };
-    assert.equal(body.p_table, 'workspaces');
-    assert.deepEqual(Object.keys(body.p_set || {}).sort(), ['invoiceApproval', 'updatedAt'], 'no other field of the workspace is touched');
-    assert.deepEqual(body.p_set?.invoiceApproval, { enabled: true, thresholdCents: 250000 });
+    // the settings row is a command now: what reaches the server is `input.invoiceApproval` and nothing else
+    await waitFor(() => assert.ok(calls.some(c => c.url.includes('/commands/workspace.settings')), 'the save reached the server'));
+    const body = calls.find(c => c.url.includes('/commands/workspace.settings'))?.body as
+      { workspaceId?: string; input?: Record<string, unknown> };
+    assert.equal(body.workspaceId, 'component-workspace');
+    assert.deepEqual(Object.keys(body.input || {}), ['invoiceApproval'], 'no other field of the workspace is touched');
+    assert.deepEqual(body.input?.invoiceApproval, { enabled: true, thresholdCents: 250000 });
     assert.equal(useAuthStore.getState().getCurrentWorkspace()?.invoiceApproval?.thresholdCents, 250000, 'the screen shows what was just saved');
   });
 
@@ -88,10 +89,10 @@ describe('the approval rule in the settings', () => {
     render(<EmailSettings />);
     fireEvent.change(screen.getByLabelText(/The amount, in/), { target: { value: 'soon' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save approval rule' }));
-    await waitFor(() => assert.ok(calls.some(c => (c.body as { p_table?: string } | undefined)?.p_table === 'workspaces')));
-    const body = calls.find(c => (c.body as { p_table?: string } | undefined)?.p_table === 'workspaces')?.body as
-      { p_set?: { invoiceApproval?: InvoiceApprovalSettings } };
-    assert.deepEqual(body.p_set?.invoiceApproval, { enabled: false, thresholdCents: 0 });
+    await waitFor(() => assert.ok(calls.some(c => c.url.includes('/commands/workspace.settings'))));
+    const body = calls.find(c => c.url.includes('/commands/workspace.settings'))?.body as
+      { input?: { invoiceApproval?: InvoiceApprovalSettings } };
+    assert.deepEqual(body.input?.invoiceApproval, { enabled: false, thresholdCents: 0 });
     assert.equal(useAuthStore.getState().getCurrentWorkspace()?.invoiceApproval?.enabled, false, 'and the box says so straight away');
   });
 

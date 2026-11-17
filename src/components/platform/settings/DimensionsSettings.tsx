@@ -7,8 +7,7 @@ import {
   matchDimensionNode,
   registerDimensionNodeInline,
   setDimensionNodeAliasesInline,
-  setDimensionNodeStatusInline,
-} from '../../../lib/dimensionNodeActions';
+  setDimensionNodeStatusInline } from '../../../lib/dimensionNodeActions';
 import { slashConversionPlan, treeOrder } from '../../../lib/labelTree';
 import { LabelParentSelect, SlashConversionOffer } from './LabelTreeControls';
 import { attempt, identityScope } from '../../../lib/serverAction';
@@ -20,7 +19,8 @@ import { hasRoleAtLeast, useCurrentRole } from '../../../hooks/useCurrentRole';
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Archive, Check, Database, Layers, RefreshCw, ShieldCheck, Lock } from 'lucide-react';
 import { toast } from 'sonner';
-import { doc, updateDoc, writeBatch } from '../../../lib/db/firestore';
+import { runNamedCommand } from '../../../lib/commandByName';
+import { doc, writeBatch } from '../../../lib/db/firestore';
 import { db } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
@@ -281,10 +281,7 @@ function DimensionsSettingsContent() {
     setIsSaving(true);
     try {
       if (db) {
-        const wsRef = doc(db, 'workspaces', currentWorkspaceId);
-        await updateDoc(wsRef, {
-          dimensions
-        });
+        await runNamedCommand('workspace.dimensionaxes', { dimensions }, { workspaceId: currentWorkspaceId });
 
         // Write individual nodes in batch
         const batch = writeBatch(db);

@@ -129,8 +129,15 @@ class MemoryRef {
 
 class MemoryQuery {
   private readonly filters: Array<{ field: string; op: string; value: unknown }>;
-  constructor(private readonly db: MemoryDb, private readonly collectionName: string, filters: Array<{ field: string; op: string; value: unknown }> = []) { this.filters = filters; }
-  where(field: string, op: string, value: unknown): MemoryQuery { return new MemoryQuery(this.db, this.collectionName, [...this.filters, { field, op, value }]); }
+  constructor(
+    private readonly db: MemoryDb,
+    private readonly collectionName: string,
+    filters: Array<{ field: string; op: string; value: unknown }> = [],
+    /** `limit(1)` is how a command asks "is there any of these?" without reading the collection */
+    private readonly max?: number,
+  ) { this.filters = filters; }
+  where(field: string, op: string, value: unknown): MemoryQuery { return new MemoryQuery(this.db, this.collectionName, [...this.filters, { field, op, value }], this.max); }
+  limit(count: number): MemoryQuery { return new MemoryQuery(this.db, this.collectionName, this.filters, count); }
   async get(): Promise<{ docs: MemorySnapshot[]; size: number; empty: boolean }> {
     const matches = (row: Record<string, unknown>, filter: { field: string; op: string; value: unknown }) => {
       const current = row[filter.field];
@@ -138,6 +145,7 @@ class MemoryQuery {
       return current === filter.value;
     };
     const docs = this.db.entries(this.collectionName).filter(row => this.filters.every(filter => matches(row.data, filter)))
+      .slice(0, this.max ?? undefined)
       .map(row => new MemorySnapshot(row.data, row.id));
     return { docs, size: docs.length, empty: docs.length === 0 };
   }

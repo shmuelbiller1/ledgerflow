@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **84** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **65** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -168,7 +168,18 @@ hand-convert a table the codemod still refuses.
         taken again is refused (`CONFLICT`, "not overwritten") instead of overwritten, and the kept row is cleared
         once the project returns. The toast keeps its ten-second window because that is about *this* toast — the
         window decides whether to offer the step, not whether it is allowed.
-      - **the rest** (~82 sites in 44 files) — write routes that already have a command in most cases
+      - **the settings row** — **done, 19 sites.** Sixteen screens under `Settings` (appearance, defaults, money
+        display, payment terms, custom fields, scheduled reports, email, AI, blueprint, the set-up wizard and the
+        Monday/report-note panels) each patched the `workspaces` document by hand, with `updatedAt` typed by the
+        browser. They send `workspace.settings` now: one allowlisted schema, owner or accountant only, the report
+        notes merged per key so a note another report saved meanwhile is not erased, an emptied note removed rather
+        than stored as `""`, and one audit line per save (`WORKSPACE_SETTINGS_CHANGED`). The currency is accepted only
+        while the books are empty, which is the set-up wizard's step and nothing else: with a document in the
+        workspace the command refuses (`CONFLICT`) instead of re-reading every stored amount in a new unit. The
+        label axes that three of those screens also wrote went to `workspace.dimensionaxes`, and the wizard's
+        business step splits its payload in two for the same reason. The tests that asserted the old `lf_update`
+        body assert the command's `input` instead, which is the same promise stated where the guard now lives.
+      - **the rest** (~63 sites in 34 files) — write routes that already have a command in most cases
         (`workspaceActions` 4, `Inventory` 5, `EstimatesView` 5, `SupportView` 5 …): one commit per hook, not per
         call, because a hook that writes has one shape.
 - [x] **Undo on the result.** `deleteProjectWithUndo` offers the command's own step back (`project.restore` with the

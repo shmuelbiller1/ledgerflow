@@ -20,6 +20,7 @@ import { autoRuleLearnCommand } from './rulePatterns';
 import { dimensionAxesCommand, dimensionNodeCommand } from './dimensions';
 import { userProvisionCommand, workspaceCreateCommand } from './bootstrap';
 import { projectDeleteCommand, projectRestoreCommand } from './projects';
+import { workspaceSettingsCommand } from './workspaceSettingsPanel';
 import {
   bankLinePayCommand,
   bankLineSplitCommand,
@@ -98,6 +99,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(projectDeleteCommand);
   registry.register(projectRestoreCommand);
   registry.register(workspaceModulesCommand);
+  registry.register(workspaceSettingsCommand);
   registry.register(workspaceNextNumberCommand);
   registry.register(workspaceOpeningBalancesCommand);
   registry.register(workspaceRetentionCommand);

@@ -99,6 +99,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "workspace.restoremaps",
   "workspace.retention",
   "workspace.revokeinvite",
+  "workspace.settings",
   "workspace.setupcomplete"
 ] as const;
 export type RegisteredCommandName = typeof REGISTERED_COMMAND_NAMES[number];

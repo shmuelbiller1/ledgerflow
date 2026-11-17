@@ -26,7 +26,7 @@ export const ALERTS_COMMAND_MANIFEST = [
           "when": "The cash amount or reminder day is outside its allowed range.",
           "next": "Use a nonnegative whole-cent cash amount and a reminder day from 1 to 28, or null to turn a setting off."
         },
-        COMMAND_SCHEMA_PARTS.part122,
+        COMMAND_SCHEMA_PARTS.part128,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner or accountant.",

@@ -5,7 +5,8 @@ import { Key, AlertCircle, RefreshCw, CheckCircle2, Lock, Eye, EyeOff, Database,
 import { cn } from '../../../lib/utils';
 import { toast } from 'sonner';
 import { db } from '../../../firebase';
-import { collection, query, where, getDocs, deleteDoc, doc, updateDoc } from '../../../lib/db/firestore';
+import { runNamedCommand } from '../../../lib/commandByName';
+import { collection, query, where, getDocs, deleteDoc } from '../../../lib/db/firestore';
 import AsyncButton from '../../ui/AsyncButton';
 import { useTimeout } from '../../../hooks/useTimeout';
 
@@ -84,10 +85,9 @@ export default function AISettings() {
       
       // 2. Update Workspace-level settings (Model choice + Bayes threshold)
       if (currentWorkspaceId) {
-        await updateDoc(doc(db, 'workspaces', currentWorkspaceId), {
+        await runNamedCommand('workspace.settings', {
           matchingThreshold: Number(threshold),
-          aiModel: selectedModel
-        });
+          aiModel: selectedModel }, { workspaceId: currentWorkspaceId });
       }
 
       // 3. Local persistence update

@@ -6,13 +6,14 @@ import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { inlineRecordAdapter } from '../../../lib/inlineRecordAdapter';
 import { saveDimensionAxisLabel, type DimensionAxisAdapter } from '../../../lib/dimensionAxisLabel';
-import { doc, getDoc, updateDoc } from '../../../lib/db/firestore';
+import { doc, getDoc } from '../../../lib/db/firestore';
+import { runNamedCommand } from '../../../lib/commandByName';
 import { db } from '../../../firebase';
 import type { DimensionDefinition } from '../../../types';
 const adapter: DimensionAxisAdapter = {
  session: inlineRecordAdapter.session,
  readWorkspace: async id => { const snapshot = await getDoc(doc(db, 'workspaces', id)); return snapshot.exists() ? { ...snapshot.data(), id: snapshot.id } : undefined; },
- updateWorkspace: async (id, dimensions) => { await updateDoc(doc(db, 'workspaces', id), { dimensions }); },
+ updateWorkspace: async (id, dimensions) => { await runNamedCommand('workspace.dimensionaxes', { dimensions }, { workspaceId: id }); },
 };
 function ScopedDimensionName({ axis, onSaved }: { axis: DimensionDefinition; onSaved: (value: string) => void }) {
  const role = useCurrentRole();

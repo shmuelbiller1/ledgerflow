@@ -36,11 +36,7 @@ export const STAGES_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to define stages."
         },
-        {
-          "code": "NOT_FOUND",
-          "when": "The workspace no longer exists.",
-          "next": "Choose an existing workspace."
-        }
+        COMMAND_SCHEMA_PARTS.part118
       ]
     },
     "runPath": "/api/v1/commands/stages.define",
@@ -50,7 +46,7 @@ export const STAGES_COMMAND_MANIFEST = [
   {
     "name": "stages.move",
     "area": "stages",
-    "roles": COMMAND_SCHEMA_PARTS.part47,
+    "roles": COMMAND_SCHEMA_PARTS.part49,
     "risk": "normal",
     "description": {
       "sentence": "Move an invoice or bill to one of its configured progress stages, or clear the stage; do not use it to change its accounting status.",

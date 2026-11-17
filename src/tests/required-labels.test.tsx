@@ -101,8 +101,9 @@ describe('Settings → Dimensions: required labels', () => {
     assert.equal(screen.queryByLabelText('Require Category on an account'), null, 'Category is the account itself');
     await act(async () => { fireEvent.change(screen.getByLabelText('Require Property on an account'), { target: { value: 'util' } }); });
     await waitFor(() => assert.ok(saved.length > 0));
-    const write = calls.find(c => /\/rpc\/lf_/.test(c.url) && (c.body as { p_table?: string }).p_table === 'workspaces')!;
-    const sent = ((write.body as { p_set?: { dimensions: DimensionDefinition[] } }).p_set)!.dimensions;
+    // the axis list is a command now: the payload is the `input.dimensions` the server receives
+    const write = calls.find(c => c.url.includes('/commands/workspace.dimensionaxes'))!;
+    const sent = (write.body as { input: { dimensions: DimensionDefinition[] } }).input.dimensions;
     assert.deepEqual(sent.find(d => d.id === 'property')!.requiredOn!.accountIds, ['util']);
     assert.match(sent.find(d => d.id === 'property')!.requiredOn!.since, /^\d{4}-\d{2}-\d{2}$/);
     assert.equal(useAuthStore.getState().getCurrentWorkspace()!.dimensions!.find(d => d.id === 'property')!.requiredOn!.accountIds[0], 'util');

@@ -4,6 +4,7 @@ import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useTransactionActions } from '../../../hooks/useTransactionActions';
 import { db } from '../../../firebase';
+import { runNamedCommand } from '../../../lib/commandByName';
 import { doc, updateDoc } from '../../../lib/db/firestore';
 import { APP_TABS, SYSTEM_GLOSSARY } from '../../../config/registry';
 import { Sliders, Eye, EyeOff, Search, Save, Calendar, Globe, Check, SlidersHorizontal, FolderLock, Plus, Trash2, AlertTriangle, Zap } from 'lucide-react';
@@ -89,9 +90,7 @@ export default function BlueprintSettings() {
     if (!currentWorkspaceId) return;
     setIsSavingMappings(true);
     try {
-      await updateDoc(doc(db, 'workspaces', currentWorkspaceId), {
-        defaultAccountMappings: mappings
-      });
+      await runNamedCommand('workspace.settings', { defaultAccountMappings: mappings }, { workspaceId: currentWorkspaceId });
       toast.success('Ingestion Mappings Active', {
         description: 'Default transaction split and fallback routing channels updated.'
       });
