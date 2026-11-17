@@ -103,27 +103,22 @@ describe('EG-3 period-closing document', { skip: !url && 'LF_TEST_DATABASE_URL n
     await db.terminate();
   });
 
-  test('A7S-01: a draft dated inside the year blocks locking it (409), so it is never left unpostable', async () => {
-    const draftId = `${ws}_draft_in_year`;
-    const saved = await send('POST', '/api/v1/transactions/bulk', { workspaceId: ws, transactions: [{
-      id: draftId, uid: OWNER, workspaceId: ws, date: '2025-09-01', description: 'draft', totalAmountCents: 1_000, currency: 'USD', status: 'draft', type: 'journal',
+  test('A7S-01: a draft the lock would cover blocks locking the year (409), so it is never left unpostable', async () => {
+    const draft = (id: string, date: string) => send('POST', '/api/v1/transactions/bulk', { workspaceId: ws, transactions: [{
+      id, uid: OWNER, workspaceId: ws, date, description: id, totalAmountCents: 1_000, currency: 'USD', status: 'draft', type: 'journal',
       lines: [{ accountId: acct['6000'].id, amountCents: 1_000 }, { accountId: acct['1000'].id, amountCents: -1_000 }],
     }] });
-    assert.equal(saved.status, 200, JSON.stringify(saved.body));
-    const refused = await close();
-    assert.equal(refused.status, 409, JSON.stringify(refused.body));
-    assert.match(JSON.stringify(refused.body), /draft/);
-    assert.equal((await closings()).length, 0, 'nothing was closed');
-    await db.pool.query('delete from public."transactions" where id = $1', [draftId]);
-    // a draft from an earlier year that was never closed is behind the same lock (Gitar on #772)
-    const oldDraftId = `${ws}_draft_earlier_year`;
-    const savedOld = await send('POST', '/api/v1/transactions/bulk', { workspaceId: ws, transactions: [{
-      id: oldDraftId, uid: OWNER, workspaceId: ws, date: '2023-05-01', description: 'old draft', totalAmountCents: 1_000, currency: 'USD', status: 'draft', type: 'journal',
-      lines: [{ accountId: acct['6000'].id, amountCents: 1_000 }, { accountId: acct['1000'].id, amountCents: -1_000 }],
-    }] });
-    assert.equal(savedOld.status, 200, JSON.stringify(savedOld.body));
-    assert.equal((await close()).status, 409);
-    await db.pool.query('delete from public."transactions" where id = $1', [oldDraftId]);
+    // inside the year, and from an earlier year that was never closed: the lock covers both (Gitar on #772)
+    for (const [suffix, date] of [['draft_in_year', '2025-09-01'], ['draft_earlier_year', '2023-05-01']] as const) {
+      const draftId = `${ws}_${suffix}`;
+      const saved = await draft(draftId, date);
+      assert.equal(saved.status, 200, JSON.stringify(saved.body));
+      const refused = await close();
+      assert.equal(refused.status, 409, JSON.stringify(refused.body));
+      assert.match(JSON.stringify(refused.body), /draft/);
+      assert.equal((await closings()).length, 0, 'nothing was closed');
+      await db.pool.query('delete from public."transactions" where id = $1', [draftId]);
+    }
   });
 
   test('close: one current document whose figures equal the P&L and the balance sheet at the year end; no entry posted', async () => {
