@@ -98,6 +98,15 @@ export const estimateSaveCommand: CommandDefinition<typeof estimateSaveInput, Es
           400,
         ), { code: 'INVALID_INPUT' });
       }
+      // the create branch took any stage: `status: 'accepted'` would open an order with no acceptance date, no
+      // accepter and no invoice behind it, walking around every rule `estimate.status` keeps. A quote is born a
+      // draft (or already sent, if it was issued straight away); the rest is the stage command's.
+      if (input.status !== undefined && !EDITABLE.has(input.status)) {
+        throw Object.assign(new HttpError(
+          'A new quote starts as a draft; accept, decline or convert it with estimate.status.',
+          409,
+        ), { code: 'CONFLICT' });
+      }
       const ref = ctx.db.collection('estimates').doc();
       const id = (ref as unknown as { id: string }).id;
       const { id: _id, ...fields } = input;

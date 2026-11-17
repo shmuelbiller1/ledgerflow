@@ -239,3 +239,20 @@ test('a save cannot move a quote’s stage: accepting, declining and converting 
   assert.equal(sameStage.ok, true);
   assert.equal(db.read(`estimates/${id}`)!.description, 'Three chairs, delivered');
 });
+
+test('a quote cannot be born accepted or converted: it starts as a draft, or sent if it goes out at once', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+
+  const accepted = await runEstimateSave(estimateSaveInput.parse({ ...quote, status: 'accepted' }), db);
+  assert.equal(accepted.ok, false);
+  assert.equal((accepted as unknown as { code: string }).code, 'CONFLICT');
+  assert.deepEqual(db.entries('estimates'), [], 'no order is opened with a status and no acceptance behind it');
+
+  const converted = await runEstimateSave(estimateSaveInput.parse({ ...quote, status: 'converted' }), db);
+  assert.equal((converted as unknown as { code: string }).code, 'CONFLICT');
+
+  const sent = await runEstimateSave(estimateSaveInput.parse({ ...quote, status: 'sent' }), db);
+  assert.equal(sent.ok, true, 'a quote issued straight away is still a quote');
+  assert.equal((sent as unknown as { data: { status: string } }).data.status, 'sent');
+});

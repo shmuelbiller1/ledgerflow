@@ -49,8 +49,12 @@ type AccountRow = Record<string, unknown> & { id?: string; name?: string; type?:
 export type AccountSaved = { id: string; fields: string[] };
 
 /** The chart as the grouping rule reads it: id, name, type and where each account currently sits. */
-async function chartOf(ctx: CommandContext): Promise<AccountGroupMember[]> {
-  const rows = await ctx.db.collection('chartAccounts').where('workspaceId', '==', ctx.workspaceId).get();
+async function chartOf(ctx: CommandContext, tx?: { get: (ref: never) => Promise<unknown> }): Promise<AccountGroupMember[]> {
+  const query = ctx.db.collection('chartAccounts').where('workspaceId', '==', ctx.workspaceId);
+  // read through the caller's transaction when there is one, so the group check sees the chart the write will land on
+  const rows = (tx
+    ? await (tx.get as unknown as (ref: unknown) => Promise<unknown>)(query)
+    : await query.get()) as { docs: Array<{ id: string; data: () => unknown }> };
   return rows.docs.map(doc => {
     const row = doc.data() as AccountRow;
     return {
@@ -204,7 +208,7 @@ export const chartAccountCreateCommand: CommandDefinition<typeof chartAccountCre
       ), { code: 'CONFLICT' });
     }
     if (input.parentId) {
-      const chart = await chartOf(ctx);
+      const chart = await chartOf(ctx, tx);
       const problem = accountParentProblem(chart, { id: '', name: input.name, type: input.type }, input.parentId);
       if (problem) throw Object.assign(new HttpError(problem, 409), { code: 'CONFLICT' });
     }
