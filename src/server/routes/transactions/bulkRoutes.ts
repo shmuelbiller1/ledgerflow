@@ -145,7 +145,7 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
              const lines = updateData.lines as Array<{ accountId?: string; amountCents?: number }>;
              if (!Array.isArray(lines) || lines.length < 2) throw new Error(`Entry ${id} needs at least two lines`);
              const settled = { ...txData, ...updateData, lines: lines.map(l => ({ ...l })) } as Transaction;
-             settleHomeCurrency(settled);
+             settleHomeCurrency(settled, (wsNow as { currency?: string } | undefined)?.currency);
              updateData.lines = settled.lines;
              checkLedgerEntry(settled as unknown as Record<string, unknown>);
              const unknown = lines.filter(l => !l.accountId || !ownAccounts.has(String(l.accountId)));
