@@ -6,7 +6,7 @@ export const JOURNAL_COMMAND_MANIFEST = [
   {
     "name": "journal.create",
     "area": "journal",
-    "roles": COMMAND_SCHEMA_PARTS.part55,
+    "roles": COMMAND_SCHEMA_PARTS.part56,
     "risk": "normal",
     "description": {
       "sentence": "Create a balanced journal entry when recording a bookkeeping adjustment, and do not use it to issue invoices, receive payments, or bypass a source document.",
@@ -33,7 +33,7 @@ export const JOURNAL_COMMAND_MANIFEST = [
           "when": "The entry is missing required fields, has invalid cents, or does not balance.",
           "next": "Correct the entry and make sure its lines add to zero."
         },
-        COMMAND_SCHEMA_PARTS.part174,
+        COMMAND_SCHEMA_PARTS.part178,
         {
           "code": "PERIOD_LOCKED",
           "when": "The entry date is in a closed period.",

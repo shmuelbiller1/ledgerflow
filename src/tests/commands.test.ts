@@ -84,7 +84,7 @@ test('the default registry is sorted and unique across the registered command do
     'time.remove', 'time.update', 'user.aikeyremove', 'user.aikeyset', 'user.preferences', 'user.provision', 'vendor.balance',
     'vendor.create', 'vendor.update', 'vendorcredit.create', 'vendorcredit.delete', 'vendorcredit.update',
     'warranty.update', 'watches.create', 'watches.remove', 'workspace.applytemplate', 'workspace.canceldeletion',
-    'workspace.create', 'workspace.dimensionaxes', 'workspace.dimensionnode', 'workspace.dimensionnodesmigrate', 'workspace.importmap',
+    'workspace.create', 'workspace.dimensionaxes', 'workspace.dimensionnode', 'workspace.dimensionnodes', 'workspace.dimensionnodesmigrate', 'workspace.importmap',
     'workspace.importrecords', 'workspace.invite', 'workspace.modules', 'workspace.nextnumber',
     'workspace.openingbalances', 'workspace.restoremaps', 'workspace.retention', 'workspace.revokeinvite',
     'workspace.scheduledeletion', 'workspace.settings', 'workspace.setupcomplete', 'workspace.undoimport',

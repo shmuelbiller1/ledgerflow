@@ -4,15 +4,15 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part80,
-    "accountId": COMMAND_SCHEMA_PARTS.part34,
-    "statementDate": COMMAND_SCHEMA_PARTS.part92,
-    "statementBalanceCents": COMMAND_SCHEMA_PARTS.part119,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part81,
+    "accountId": COMMAND_SCHEMA_PARTS.part35,
+    "statementDate": COMMAND_SCHEMA_PARTS.part93,
+    "statementBalanceCents": COMMAND_SCHEMA_PARTS.part122,
     "reconciledTransactionIds": {
       "default": COMMAND_SCHEMA_PARTS.part0,
       "maxItems": 5000,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part34
+      "items": COMMAND_SCHEMA_PARTS.part35
     }
   },
   "required": [

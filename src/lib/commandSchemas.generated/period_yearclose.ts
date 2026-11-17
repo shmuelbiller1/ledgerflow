@@ -8,7 +8,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "type": "string",
       "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
     },
-    "lockPeriod": COMMAND_SCHEMA_PARTS.part18
+    "lockPeriod": COMMAND_SCHEMA_PARTS.part19
   },
   "required": [
     "closingDate"

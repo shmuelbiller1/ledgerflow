@@ -8,15 +8,15 @@ export const VENDOR_COMMAND_MANIFEST = [
   {
     "name": "vendor.balance",
     "area": "vendor",
-    "roles": COMMAND_SCHEMA_PARTS.part55,
+    "roles": COMMAND_SCHEMA_PARTS.part56,
     "risk": "normal",
     "description": {
       "sentence": "Recompute the stored balance of a vendor (what we still owe) from the open documents the workspace holds, so a cached total cannot disagree with the records; do not use it to post, pay or settle anything.",
       "example": {
         "id": "vendor_123"
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part196,
-      "next": COMMAND_SCHEMA_PARTS.part90
+      "refusals": COMMAND_SCHEMA_PARTS.part200,
+      "next": COMMAND_SCHEMA_PARTS.part91
     },
     "runPath": "/api/v1/commands/vendor.balance",
     "previewPath": "/api/v1/commands/vendor.balance/preview",
@@ -25,7 +25,7 @@ export const VENDOR_COMMAND_MANIFEST = [
   {
     "name": "vendor.create",
     "area": "vendor",
-    "roles": COMMAND_SCHEMA_PARTS.part55,
+    "roles": COMMAND_SCHEMA_PARTS.part56,
     "risk": "normal",
     "description": {
       "sentence": "Create a vendor contact for bills and payments; do not use this command to record a bill payment or change a vendor balance.",
@@ -56,7 +56,7 @@ export const VENDOR_COMMAND_MANIFEST = [
   {
     "name": "vendor.update",
     "area": "vendor",
-    "roles": COMMAND_SCHEMA_PARTS.part55,
+    "roles": COMMAND_SCHEMA_PARTS.part56,
     "risk": "normal",
     "description": {
       "sentence": "Update a vendor profile without changing its server-managed balance or recording a bill payment.",

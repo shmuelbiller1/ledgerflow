@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **25** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **23** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,7 +147,7 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **25** → 0. 20 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **23** → 0. 18 files. The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
@@ -261,7 +261,13 @@ hand-convert a table the codemod still refuses.
         session and stamps the time; it takes `id` for the link half, which is why linking a receipt to the draft
         bill it became does not re-send the file. `documents-ui`' suite asserts the command's `input` now (and that
         `uid` never appears in it).
-      - **the rest** (~25 sites in 20 files) — write routes that already have a command in most cases
+      - **the label values, in bulk** — **done, 2 sites.** `DimensionsSettings` wrote the tree twice with a
+        `writeBatch` — on save, and when it backfilled values from the free-text paths on old transactions. A batch
+        is atomic inside one tab and nothing else: no role, no audit line, `updatedAt` from the browser, and
+        `workspaceId` on every row whatever the tab held. `workspace.dimensionnodes` writes up to 450 values in one
+        transaction with the workspace from the session, and deliberately does *not* touch the legacy field — that is
+        `workspace.dimensionnodesmigrate`'s job, and a save must not look like a migration.
+      - **the rest** (~23 sites in 18 files) — write routes that already have a command in most cases
         (`SupportView` 5, `useEntityOperations` 3, `useCollaborators` 3, `Ledger` 2, `Vault` 2 …): one commit per
         hook, not per call, because a hook that writes has one shape. Three are deliberately *not* converted yet:
         `useCollaborators`' presence rows (ephemeral, one row per open tab, nothing to audit), `shared.ts`'

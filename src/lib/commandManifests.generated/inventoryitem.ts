@@ -8,7 +8,7 @@ export const INVENTORYITEM_COMMAND_MANIFEST = [
   {
     "name": "inventoryitem.delete",
     "area": "inventoryitem",
-    "roles": COMMAND_SCHEMA_PARTS.part55,
+    "roles": COMMAND_SCHEMA_PARTS.part56,
     "risk": "normal",
     "description": {
       "sentence": "Remove an item card that has no stock on hand; do not use it to take stock out of the books, which a count or adjustment does.",
@@ -21,7 +21,7 @@ export const INVENTORYITEM_COMMAND_MANIFEST = [
           "when": "The item still has stock on hand, which the books count as value.",
           "next": "Record the stock out with a count or an adjustment, then remove the card."
         },
-        COMMAND_SCHEMA_PARTS.part164,
+        COMMAND_SCHEMA_PARTS.part168,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is a viewer.",
@@ -42,7 +42,7 @@ export const INVENTORYITEM_COMMAND_MANIFEST = [
   {
     "name": "inventoryitem.field",
     "area": "inventoryitem",
-    "roles": COMMAND_SCHEMA_PARTS.part55,
+    "roles": COMMAND_SCHEMA_PARTS.part56,
     "risk": "normal",
     "description": {
       "sentence": "Correct one field of an item card from the list — its name, SKU, category, price or cost; do not use it to add or remove an item.",
@@ -57,7 +57,7 @@ export const INVENTORYITEM_COMMAND_MANIFEST = [
           "when": "The field is not one a list cell corrects, or the value does not fit it.",
           "next": "Send one of name, sku, category, unitPriceCents, unitCostCents, standardCostCents."
         },
-        COMMAND_SCHEMA_PARTS.part164,
+        COMMAND_SCHEMA_PARTS.part168,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is a viewer.",
@@ -78,7 +78,7 @@ export const INVENTORYITEM_COMMAND_MANIFEST = [
   {
     "name": "inventoryitem.save",
     "area": "inventoryitem",
-    "roles": COMMAND_SCHEMA_PARTS.part55,
+    "roles": COMMAND_SCHEMA_PARTS.part56,
     "risk": "normal",
     "description": {
       "sentence": "Add an item card or change its name, price, cost, category, tax code, bundle parts, bin levels or sale defaults; do not use it to move stock, which needs a receipt, count or adjustment.",

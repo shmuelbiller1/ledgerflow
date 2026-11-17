@@ -7,7 +7,7 @@ export const CHARTACCOUNT_COMMAND_MANIFEST = [
   {
     "name": "chartaccount.create",
     "area": "chartaccount",
-    "roles": COMMAND_SCHEMA_PARTS.part23,
+    "roles": COMMAND_SCHEMA_PARTS.part24,
     "risk": "normal",
     "description": {
       "sentence": "Add one account to the chart; do not use it to open an account with a balance — an opening figure is a transaction, and the account itself starts at zero.",
@@ -48,7 +48,7 @@ export const CHARTACCOUNT_COMMAND_MANIFEST = [
   {
     "name": "chartaccount.update",
     "area": "chartaccount",
-    "roles": COMMAND_SCHEMA_PARTS.part23,
+    "roles": COMMAND_SCHEMA_PARTS.part24,
     "risk": "normal",
     "description": {
       "sentence": "Change one account's name, code, description, category, group, archived state or workpapers; do not use it to change a balance, which comes from the entries that name the account.",

@@ -4,13 +4,13 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part80,
-    "number": COMMAND_SCHEMA_PARTS.part38,
-    "customerId": COMMAND_SCHEMA_PARTS.part80,
-    "customerName": COMMAND_SCHEMA_PARTS.part80,
-    "date": COMMAND_SCHEMA_PARTS.part92,
-    "expiryDate": COMMAND_SCHEMA_PARTS.part92,
-    "amountCents": COMMAND_SCHEMA_PARTS.part102,
+    "id": COMMAND_SCHEMA_PARTS.part81,
+    "number": COMMAND_SCHEMA_PARTS.part39,
+    "customerId": COMMAND_SCHEMA_PARTS.part81,
+    "customerName": COMMAND_SCHEMA_PARTS.part81,
+    "date": COMMAND_SCHEMA_PARTS.part93,
+    "expiryDate": COMMAND_SCHEMA_PARTS.part93,
+    "amountCents": COMMAND_SCHEMA_PARTS.part103,
     "currency": {
       "type": "string",
       "minLength": 3,
@@ -37,15 +37,15 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "itemId": COMMAND_SCHEMA_PARTS.part45,
+          "itemId": COMMAND_SCHEMA_PARTS.part46,
           "description": {
             "type": "string",
             "minLength": 1,
             "maxLength": 300
           },
-          "quantity": COMMAND_SCHEMA_PARTS.part100,
-          "unitPriceCents": COMMAND_SCHEMA_PARTS.part102,
-          "amountCents": COMMAND_SCHEMA_PARTS.part102
+          "quantity": COMMAND_SCHEMA_PARTS.part101,
+          "unitPriceCents": COMMAND_SCHEMA_PARTS.part103,
+          "amountCents": COMMAND_SCHEMA_PARTS.part103
         },
         "required": [
           "description",
@@ -62,15 +62,15 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part78,
-          "label": COMMAND_SCHEMA_PARTS.part75,
+          "id": COMMAND_SCHEMA_PARTS.part79,
+          "label": COMMAND_SCHEMA_PARTS.part76,
           "percent": {
             "type": "number",
             "exclusiveMinimum": 0,
             "maximum": 100
           },
-          "due": COMMAND_SCHEMA_PARTS.part92,
-          "invoicedAt": COMMAND_SCHEMA_PARTS.part38
+          "due": COMMAND_SCHEMA_PARTS.part93,
+          "invoicedAt": COMMAND_SCHEMA_PARTS.part39
         },
         "required": [
           "id",

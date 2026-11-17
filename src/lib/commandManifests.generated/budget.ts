@@ -7,7 +7,7 @@ export const BUDGET_COMMAND_MANIFEST = [
   {
     "name": "budget.delete",
     "area": "budget",
-    "roles": COMMAND_SCHEMA_PARTS.part55,
+    "roles": COMMAND_SCHEMA_PARTS.part56,
     "risk": "normal",
     "description": {
       "sentence": "Remove one budget line; do not use it to remove a posting or an account, which have their own commands.",
@@ -20,7 +20,7 @@ export const BUDGET_COMMAND_MANIFEST = [
           "when": "The objective is not in the selected workspace.",
           "next": "Reload the plan and choose an objective in this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part158
+        COMMAND_SCHEMA_PARTS.part162
       ],
       "next": [
         {
@@ -36,7 +36,7 @@ export const BUDGET_COMMAND_MANIFEST = [
   {
     "name": "budget.save",
     "area": "budget",
-    "roles": COMMAND_SCHEMA_PARTS.part55,
+    "roles": COMMAND_SCHEMA_PARTS.part56,
     "risk": "normal",
     "description": {
       "sentence": "Add or change a budget line — a plan for one account over one cycle; do not use it to record spending, which is a posting.",
@@ -58,7 +58,7 @@ export const BUDGET_COMMAND_MANIFEST = [
           "when": "The objective being changed is not in the selected workspace.",
           "next": "Reload the plan and choose an objective in this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part158
+        COMMAND_SCHEMA_PARTS.part162
       ],
       "next": [
         {

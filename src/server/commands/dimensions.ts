@@ -258,3 +258,67 @@ export const dimensionNodesMigrateCommand: CommandDefinition<typeof dimensionNod
     next: [{ command: 'workspace.dimensionnode', label: 'Change a value' }],
   },
 };
+
+/**
+ * Many values at once: the settings screen's own two writes.
+ *
+ * `DimensionsSettings` wrote the label tree with a `writeBatch` from the tab, twice — once when the person saved
+ * their edits, and once when it backfilled values from the free-text paths on old transactions. A batch is atomic
+ * inside one tab and nothing more: `uid` and the workspace were whatever the tab held, `updatedAt` was its clock, and
+ * forty new values left no audit line at all.
+ *
+ * This is the same per-value write `workspace.dimensionnode` makes, for up to 450 values, in one transaction. It
+ * deliberately does **not** touch the workspace's legacy `dimensionNodes` field — that is
+ * `workspace.dimensionnodesmigrate`'s job, and a save must not look like a migration.
+ */
+export const dimensionNodesInput = z.object({
+  nodes: z.array(nodeSchema).min(1).max(450),
+}).strict();
+
+type NodesInput = z.output<typeof dimensionNodesInput>;
+export type DimensionNodesSaved = { saved: number; axes: string[] };
+
+export const dimensionNodesCommand: CommandDefinition<typeof dimensionNodesInput, DimensionNodesSaved> = {
+  name: 'workspace.dimensionnodes',
+  input: dimensionNodesInput,
+  roles: NODE_ROLES,
+  async handler(ctx: CommandContext, tx, input: NodesInput) {
+    const now = new Date().toISOString();
+    for (const node of input.nodes) {
+      const { updatedAt: _sentAt, ...rest } = node;
+      tx.set(ctx.db.collection('dimensionNodes').doc(nodeRowId(ctx.workspaceId, node.dimensionId, node.id)), {
+        ...rest,
+        workspaceId: ctx.workspaceId,
+        updatedAt: now,
+      });
+    }
+    const axes = [...new Set(input.nodes.map(node => node.dimensionId))];
+    return { saved: input.nodes.length, axes };
+  },
+  async preview(_ctx: CommandContext, input: NodesInput) {
+    return {
+      title: `Save ${input.nodes.length} label value(s)`,
+      lines: [...new Set(input.nodes.map(node => node.dimensionId))].map(axis => `${axis}: ${input.nodes.filter(node => node.dimensionId === axis).length}`),
+    };
+  },
+  audit(_input: NodesInput, result: DimensionNodesSaved) {
+    return {
+      action: 'DIMENSION_NODES_SAVED',
+      entityType: 'dimensionNodes',
+      entityId: result.axes.join(','),
+      description: `Saved ${result.saved} label value(s)`,
+      details: { saved: result.saved, axes: result.axes },
+    };
+  },
+  inverse() { return null; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Save a batch of label values the workspace groups by (at most 450 at once); do not use it to move a legacy tree off the workspace row, which workspace.dimensionnodesmigrate does.',
+    example: { nodes: [{ id: 'n1', dimensionId: 'property', description: 'North tower' }] },
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'A value has no axis or no code, or more than 450 arrive at once.', next: 'Send at most 450 values, each with its axis and its code.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is a viewer.', next: 'Ask an owner, accountant or bookkeeper to save the values.' },
+    ],
+    next: [{ command: 'workspace.dimensionaxes', label: 'Change which labels the workspace groups by' }],
+  },
+};

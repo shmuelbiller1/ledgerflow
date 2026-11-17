@@ -165,3 +165,23 @@ export async function saveDocument(workspaceId: string, row: Record<string, unkn
   }
   return runNamedCommand<{ id: string }>('document.save', fields, { workspaceId });
 }
+
+/** Many label values at once (the settings screen's save and its backfill), up to the command's own 450. */
+export async function saveDimensionNodes<T extends { id: string; dimensionId: string }>(workspaceId: string, nodes: T[]): Promise<void> {
+  if (nodes.length === 0) return;
+  if (guestSession()) {
+    for (const node of nodes) {
+      await localSet('dimensionNodes', `${workspaceId}_${node.dimensionId}_${node.id}`, { ...node, workspaceId });
+    }
+    return;
+  }
+  // the screen's nodes came out of the collection, so they carry `workspaceId` and whatever else was stored: the
+  // command's allowlist is what a value *is*, and the rest is the row's own bookkeeping
+  const value = (node: Record<string, unknown>) => {
+    const { id, dimensionId, description, aliases, status, parentId, createdAt } = node;
+    return { id, dimensionId, description, aliases, status, parentId, createdAt };
+  };
+  for (let i = 0; i < nodes.length; i += 450) {
+    await runNamedCommand('workspace.dimensionnodes', { nodes: nodes.slice(i, i + 450).map(node => value(node as unknown as Record<string, unknown>)) }, { workspaceId });
+  }
+}

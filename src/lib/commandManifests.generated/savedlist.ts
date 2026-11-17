@@ -13,7 +13,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
   {
     "name": "savedlist.allocationrules",
     "area": "savedlist",
-    "roles": COMMAND_SCHEMA_PARTS.part23,
+    "roles": COMMAND_SCHEMA_PARTS.part24,
     "risk": "normal",
     "description": {
       "sentence": "Replace the workspace's split rules, which decide how an expense is spread over accounts; do not use it to change one bill — set its lines instead.",
@@ -24,8 +24,8 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
             "name": "Half and half",
             "match": "rent",
             "shares": [
-              COMMAND_SCHEMA_PARTS.part10,
-              COMMAND_SCHEMA_PARTS.part10
+              COMMAND_SCHEMA_PARTS.part11,
+              COMMAND_SCHEMA_PARTS.part11
             ]
           }
         ]
@@ -36,8 +36,8 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "when": "A rule has no name or match, or its shares do not add up.",
           "next": "Fix the named rule; shares add up to 100."
         },
-        COMMAND_SCHEMA_PARTS.part129,
-        COMMAND_SCHEMA_PARTS.part149
+        COMMAND_SCHEMA_PARTS.part133,
+        COMMAND_SCHEMA_PARTS.part153
       ]
     },
     "runPath": "/api/v1/commands/savedlist.allocationrules",
@@ -47,7 +47,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
   {
     "name": "savedlist.approvaldelegate",
     "area": "savedlist",
-    "roles": COMMAND_SCHEMA_PARTS.part23,
+    "roles": COMMAND_SCHEMA_PARTS.part24,
     "risk": "normal",
     "description": {
       "sentence": "Hand your invoice approvals to another person until a date, or take the hand-over back; do not use it to give someone a role.",
@@ -66,7 +66,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "when": "The workspace, or the person in it, is not found.",
           "next": "Choose a member of this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part149
+        COMMAND_SCHEMA_PARTS.part153
       ]
     },
     "runPath": "/api/v1/commands/savedlist.approvaldelegate",
@@ -76,7 +76,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
   {
     "name": "savedlist.customergroup",
     "area": "savedlist",
-    "roles": COMMAND_SCHEMA_PARTS.part23,
+    "roles": COMMAND_SCHEMA_PARTS.part24,
     "risk": "normal",
     "description": {
       "sentence": "Add, rename, re-price or remove one of the workspace's customer groups; do not use it to move a customer to another group.",
@@ -96,7 +96,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "when": "The name is already a group, or the group still has customers.",
           "next": "Choose another name, or move its customers first."
         },
-        COMMAND_SCHEMA_PARTS.part149
+        COMMAND_SCHEMA_PARTS.part153
       ]
     },
     "runPath": "/api/v1/commands/savedlist.customergroup",
@@ -106,7 +106,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
   {
     "name": "savedlist.paymenttype",
     "area": "savedlist",
-    "roles": COMMAND_SCHEMA_PARTS.part23,
+    "roles": COMMAND_SCHEMA_PARTS.part24,
     "risk": "normal",
     "description": {
       "sentence": "Add, rename or remove one of the workspace's payment types; do not use it to record a payment.",
@@ -126,7 +126,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "when": "The name is already a payment type, or the type is in use.",
           "next": "Choose another name, or keep a type that payments use."
         },
-        COMMAND_SCHEMA_PARTS.part149
+        COMMAND_SCHEMA_PARTS.part153
       ]
     },
     "runPath": "/api/v1/commands/savedlist.paymenttype",
@@ -136,7 +136,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
   {
     "name": "savedlist.pricelists",
     "area": "savedlist",
-    "roles": COMMAND_SCHEMA_PARTS.part23,
+    "roles": COMMAND_SCHEMA_PARTS.part24,
     "risk": "normal",
     "description": {
       "sentence": "Replace the workspace's price lists, which set an item's price for a customer group or currency; do not use it to change one invoice line.",
@@ -161,8 +161,8 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "when": "A list has no name, or an entry has no price.",
           "next": "Fix the named list."
         },
-        COMMAND_SCHEMA_PARTS.part129,
-        COMMAND_SCHEMA_PARTS.part149
+        COMMAND_SCHEMA_PARTS.part133,
+        COMMAND_SCHEMA_PARTS.part153
       ]
     },
     "runPath": "/api/v1/commands/savedlist.pricelists",
@@ -172,7 +172,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
   {
     "name": "savedlist.roledashboard",
     "area": "savedlist",
-    "roles": COMMAND_SCHEMA_PARTS.part23,
+    "roles": COMMAND_SCHEMA_PARTS.part24,
     "risk": "normal",
     "description": {
       "sentence": "Set the dashboard a role starts on when someone opens the workspace; do not use it to change a person's own layout.",
@@ -189,8 +189,8 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "when": "The role is missing or unknown, or the layout is not a list.",
           "next": "Name a real role and send a layout array."
         },
-        COMMAND_SCHEMA_PARTS.part129,
-        COMMAND_SCHEMA_PARTS.part149
+        COMMAND_SCHEMA_PARTS.part133,
+        COMMAND_SCHEMA_PARTS.part153
       ]
     },
     "runPath": "/api/v1/commands/savedlist.roledashboard",
@@ -200,7 +200,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
   {
     "name": "savedlist.salesreps",
     "area": "savedlist",
-    "roles": COMMAND_SCHEMA_PARTS.part23,
+    "roles": COMMAND_SCHEMA_PARTS.part24,
     "risk": "normal",
     "description": {
       "sentence": "Replace the workspace's sales reps, whom an invoice can credit; do not use it to change a person's sign-in — that is a workspace role.",
@@ -218,8 +218,8 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "when": "A rep has no name.",
           "next": "Give each rep a name."
         },
-        COMMAND_SCHEMA_PARTS.part129,
-        COMMAND_SCHEMA_PARTS.part149
+        COMMAND_SCHEMA_PARTS.part133,
+        COMMAND_SCHEMA_PARTS.part153
       ]
     },
     "runPath": "/api/v1/commands/savedlist.salesreps",
@@ -229,7 +229,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
   {
     "name": "savedlist.taxprofiles",
     "area": "savedlist",
-    "roles": COMMAND_SCHEMA_PARTS.part23,
+    "roles": COMMAND_SCHEMA_PARTS.part24,
     "risk": "normal",
     "description": {
       "sentence": "Replace the tax profiles the books and label values use, each a rate and the accounts it posts to; do not use it to re-file a tax return.",
@@ -249,8 +249,8 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "when": "A profile has no name or rate, or names an account that is not in the books.",
           "next": "Fix the named profile and its account."
         },
-        COMMAND_SCHEMA_PARTS.part129,
-        COMMAND_SCHEMA_PARTS.part149
+        COMMAND_SCHEMA_PARTS.part133,
+        COMMAND_SCHEMA_PARTS.part153
       ]
     },
     "runPath": "/api/v1/commands/savedlist.taxprofiles",

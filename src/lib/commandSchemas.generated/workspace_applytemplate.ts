@@ -12,7 +12,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "accounts": {
       "maxItems": 500,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part121
+      "items": COMMAND_SCHEMA_PARTS.part125
     }
   }
 } as const;
