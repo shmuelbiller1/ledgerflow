@@ -735,3 +735,10 @@ retry is rare; when it happens the answer now tells you what to do instead of pr
 One more detail of that flow: if the authenticator cannot be removed (Supabase auth tables briefly
 unavailable), the code is put back and the answer is an error telling you to try again — not a
 success that has quietly used up a code while your old authenticator is still the one signing you in.
+
+## 17 Nov — migration waiting: `20261116120000_deleted_projects.sql` (#759, AI #1)
+
+PR #759 (undo for deleting a project) is merged. Its migration creates the `deletedProjects` table, and until it runs
+on the live database, deleting a project and then undoing it can fail on the live site. Either run the file in the
+Supabase SQL editor, or tell me and I will apply it through the connector (you approve the prompt). **Default:** not
+applied until you choose.
