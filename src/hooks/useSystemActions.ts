@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { toast } from 'sonner';
-import { db, auth } from '../firebase';
-import { collection, addDoc } from '../lib/db/firestore';
+import { auth } from '../firebase';
 import { signOut } from '../lib/db/auth';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
@@ -93,14 +92,9 @@ export function useSystemActions() {
     const name = window.prompt("Enter template name:", `${currentWorkspace.name} Clone`);
     if (!name) return;
     try {
-      await addDoc(collection(db, 'customTemplates'), {
-        name,
-        industry: currentWorkspace.businessType || 'generic',
-        accounts: useLedgerStore.getState().accounts.map(a => ({ code: a.code, name: a.name, type: a.type, category: a.category })),
-        analyticalTopology: currentWorkspace.analyticalTopology || {},
-        uid: user.uid,
-        createdAt: new Date().toISOString()
-      });
+      // the accounts are read on the server at the moment of the save, so a tab that has not seen the newest
+      // account (or has not seen one archived) cannot capture the wrong chart
+      await runNamedCommand('workspace.savetemplate', { name }, { workspaceId: currentWorkspaceId });
       toast.success('TEMPLATE SAVED');
     } catch {
       toast.error('SNAPSHOT FAILED');

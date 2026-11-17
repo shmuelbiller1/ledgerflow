@@ -1,6 +1,6 @@
 {
   "writeRoutes": 111,
-  "directBrowserWrites": 12,
+  "directBrowserWrites": 8,
   "routeSites": {
     "src/server/routes/accountMergeRoutes.ts": 2,
     "src/server/routes/aiRoutes.ts": 1,
@@ -57,11 +57,8 @@
     "src/server/routes/workspaceApiRoutes.ts": 4
   },
   "browserSites": {
-    "src/hooks/transactionActions/shared.ts": 1,
-    "src/hooks/transactionActions/workspaceActions.ts": 2,
     "src/hooks/useCollaborators.ts": 3,
     "src/hooks/useEntityOperations.ts": 3,
-    "src/hooks/useSystemActions.ts": 1,
     "src/lib/inlineRecordAdapter.ts": 1,
     "src/lib/recordDetailsAdapter.ts": 1
   },

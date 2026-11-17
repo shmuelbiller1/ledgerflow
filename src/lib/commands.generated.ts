@@ -3,6 +3,7 @@ import { ACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/account';
 import { ALERTS_COMMAND_MANIFEST } from './commandManifests.generated/alerts';
 import { APIKEY_COMMAND_MANIFEST } from './commandManifests.generated/apikey';
 import { ASSET_COMMAND_MANIFEST } from './commandManifests.generated/asset';
+import { AUDIT_COMMAND_MANIFEST } from './commandManifests.generated/audit';
 import { AUTORULE_COMMAND_MANIFEST } from './commandManifests.generated/autorule';
 import { BILL_COMMAND_MANIFEST } from './commandManifests.generated/bill';
 import { BUDGET_COMMAND_MANIFEST } from './commandManifests.generated/budget';
@@ -42,6 +43,7 @@ export const COMMAND_MANIFEST = [
   ...ALERTS_COMMAND_MANIFEST,
   ...APIKEY_COMMAND_MANIFEST,
   ...ASSET_COMMAND_MANIFEST,
+  ...AUDIT_COMMAND_MANIFEST,
   ...AUTORULE_COMMAND_MANIFEST,
   ...BILL_COMMAND_MANIFEST,
   ...BUDGET_COMMAND_MANIFEST,

@@ -23,7 +23,8 @@ import {
   type ImportRecordsInput, type PreparedImport,
 } from '../services/recordImportService';
 import { countWorkspaceOwners } from '../services/workspaceOwners';
-import type { CommandDefinition } from './types';
+import { HttpError } from '../auth/requestUser';
+import type { CommandContext, CommandDefinition } from './types';
 
 const ROLE_LABEL: Record<string, string> = { owner: 'Owner', accountant: 'Accountant', bookkeeper: 'Bookkeeper', viewer: 'Viewer' };
 
@@ -391,5 +392,74 @@ export const workspaceScheduleDeletionCommand: CommandDefinition<typeof workspac
       { code: 'NOT_FOUND', when: 'The workspace does not exist.', next: 'Choose an existing workspace.' },
       { code: 'ROLE_REQUIRED', when: 'The caller is not an owner.', next: 'Ask an owner to schedule it.' },
     ],
+  },
+};
+
+/**
+ * The chart as a template, kept for the next workspace.
+ *
+ * "Save current workspace as template" was `addDoc(collection(db, 'customTemplates'), …)` from the tab: the `uid`, the
+ * `createdAt` and the whole account list were whatever the open page had in memory — an account added in another tab
+ * ten seconds ago was missing, and an account archived there was still in the snapshot. The template is then offered
+ * by `workspace.applytemplate`, so a stale capture becomes a wrong chart in a *new* workspace.
+ *
+ * So the accounts are read here, at the moment of the save, from the workspace's own chart (active ones only — a
+ * template of an archived account would resurrect it), and the owner and the clock come from the session.
+ */
+export const workspaceSaveTemplateInput = z.object({
+  name: z.string().trim().min(1).max(120),
+}).strict();
+
+type SaveTemplateInput = z.output<typeof workspaceSaveTemplateInput>;
+export type TemplateSaved = { id: string; name: string; accounts: number };
+
+export const workspaceSaveTemplateCommand: CommandDefinition<typeof workspaceSaveTemplateInput, TemplateSaved> = {
+  name: 'workspace.savetemplate',
+  input: workspaceSaveTemplateInput,
+  roles: ['owner', 'accountant'],
+  async handler(ctx: CommandContext, tx, input: SaveTemplateInput) {
+    const workspaceSnapshot = await tx.get(ctx.db.collection('workspaces').doc(ctx.workspaceId));
+    const workspace = (workspaceSnapshot.data() || {}) as Record<string, unknown>;
+    const chart = await ctx.db.collection('chartAccounts').where('workspaceId', '==', ctx.workspaceId).get();
+    const accounts = chart.docs
+      .map((doc: { data: () => unknown }) => doc.data() as Record<string, unknown>)
+      .filter((account: Record<string, unknown>) => !account.archived && account.isActive !== false)
+      .map((account: Record<string, unknown>) => ({ code: account.code, name: account.name, type: account.type, category: account.category }));
+    if (accounts.length === 0) {
+      throw Object.assign(new HttpError('An empty chart cannot be saved as a template.', 409), { code: 'CONFLICT' });
+    }
+    const ref = ctx.db.collection('customTemplates').doc();
+    tx.set(ref, {
+      name: input.name,
+      industry: String(workspace.businessType || 'generic'),
+      accounts,
+      analyticalTopology: workspace.analyticalTopology || {},
+      uid: ctx.actor,
+      createdAt: new Date().toISOString(),
+    });
+    return { id: ref.id, name: input.name, accounts: accounts.length };
+  },
+  async preview(_ctx: CommandContext, input: SaveTemplateInput) {
+    return { title: `Save this chart as “${input.name}”`, lines: ['Only active accounts are kept.'] };
+  },
+  audit(_input: SaveTemplateInput, result: TemplateSaved) {
+    return {
+      action: 'WORKSPACE_TEMPLATE_SAVED',
+      entityType: 'customTemplates',
+      entityId: result.id,
+      description: `Saved the chart as the template ${result.name}`,
+      details: { name: result.name, accounts: result.accounts },
+    };
+  },
+  inverse() { return null; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Capture this workspace’s active chart as a reusable template; do not use it to change the chart — saving a template writes nothing to the books.',
+    example: { name: 'Signed-up clone' },
+    refusals: [
+      { code: 'CONFLICT', when: 'The workspace has no active accounts to capture.', next: 'Add accounts first, or start the new workspace from a built-in template.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is not an owner or an accountant.', next: 'Ask a workspace owner or accountant to save the template.' },
+    ],
+    next: [{ command: 'workspace.applytemplate', label: 'Start a new workspace from it' }],
   },
 };

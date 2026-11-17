@@ -8,7 +8,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "inventoryAccountId": COMMAND_SCHEMA_PARTS.part35,
     "offsetAccountId": COMMAND_SCHEMA_PARTS.part35,
     "reason": COMMAND_SCHEMA_PARTS.part46,
-    "date": COMMAND_SCHEMA_PARTS.part94,
+    "date": COMMAND_SCHEMA_PARTS.part95,
     "locationId": COMMAND_SCHEMA_PARTS.part46,
     "counts": {
       "minItems": 1,

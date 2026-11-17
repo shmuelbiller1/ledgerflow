@@ -4,13 +4,13 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part81,
-    "name": COMMAND_SCHEMA_PARTS.part81,
+    "id": COMMAND_SCHEMA_PARTS.part82,
+    "name": COMMAND_SCHEMA_PARTS.part82,
     "sku": COMMAND_SCHEMA_PARTS.part45,
-    "description": COMMAND_SCHEMA_PARTS.part54,
-    "unitPriceCents": COMMAND_SCHEMA_PARTS.part104,
-    "unitCostCents": COMMAND_SCHEMA_PARTS.part104,
-    "standardCostCents": COMMAND_SCHEMA_PARTS.part104,
+    "description": COMMAND_SCHEMA_PARTS.part55,
+    "unitPriceCents": COMMAND_SCHEMA_PARTS.part105,
+    "unitCostCents": COMMAND_SCHEMA_PARTS.part105,
+    "standardCostCents": COMMAND_SCHEMA_PARTS.part105,
     "reorderPoint": {
       "type": "integer",
       "minimum": 0,
@@ -44,7 +44,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "itemId": COMMAND_SCHEMA_PARTS.part81,
+          "itemId": COMMAND_SCHEMA_PARTS.part82,
           "quantity": {
             "type": "number",
             "minimum": 0,
@@ -65,7 +65,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "locationId": COMMAND_SCHEMA_PARTS.part79,
+          "locationId": COMMAND_SCHEMA_PARTS.part80,
           "quantityAtHand": {
             "type": "number",
             "minimum": 0,
@@ -80,7 +80,7 @@ export const COMMAND_INPUT_SCHEMA = {
     },
     "documentDefaults": {
       "anyOf": [
-        COMMAND_SCHEMA_PARTS.part126,
+        COMMAND_SCHEMA_PARTS.part127,
         COMMAND_SCHEMA_PARTS.part13
       ]
     },

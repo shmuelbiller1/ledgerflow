@@ -4,18 +4,18 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part79,
-    "name": COMMAND_SCHEMA_PARTS.part80,
-    "email": COMMAND_SCHEMA_PARTS.part185,
+    "id": COMMAND_SCHEMA_PARTS.part80,
+    "name": COMMAND_SCHEMA_PARTS.part81,
+    "email": COMMAND_SCHEMA_PARTS.part187,
     "role": COMMAND_SCHEMA_PARTS.part45,
-    "salaryCents": COMMAND_SCHEMA_PARTS.part104,
-    "payFrequency": COMMAND_SCHEMA_PARTS.part119,
+    "salaryCents": COMMAND_SCHEMA_PARTS.part105,
+    "payFrequency": COMMAND_SCHEMA_PARTS.part120,
     "filingStatus": COMMAND_SCHEMA_PARTS.part39,
-    "workerType": COMMAND_SCHEMA_PARTS.part88,
+    "workerType": COMMAND_SCHEMA_PARTS.part89,
     "state": COMMAND_SCHEMA_PARTS.part39,
     "status": {
       "type": "string",
-      "enum": COMMAND_SCHEMA_PARTS.part50
+      "enum": COMMAND_SCHEMA_PARTS.part51
     },
     "payType": {
       "type": "string",
@@ -24,7 +24,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "hourly"
       ]
     },
-    "hourlyRateCents": COMMAND_SCHEMA_PARTS.part104,
+    "hourlyRateCents": COMMAND_SCHEMA_PARTS.part105,
     "timeUid": COMMAND_SCHEMA_PARTS.part45,
     "deductions": {
       "maxItems": 40,
@@ -32,8 +32,8 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part79,
-          "name": COMMAND_SCHEMA_PARTS.part79,
+          "id": COMMAND_SCHEMA_PARTS.part80,
+          "name": COMMAND_SCHEMA_PARTS.part80,
           "kind": {
             "type": "string",
             "enum": [
@@ -42,9 +42,9 @@ export const COMMAND_INPUT_SCHEMA = {
               "garnishment"
             ]
           },
-          "amountCents": COMMAND_SCHEMA_PARTS.part104,
-          "percent": COMMAND_SCHEMA_PARTS.part66,
-          "maxPercent": COMMAND_SCHEMA_PARTS.part66
+          "amountCents": COMMAND_SCHEMA_PARTS.part105,
+          "percent": COMMAND_SCHEMA_PARTS.part67,
+          "maxPercent": COMMAND_SCHEMA_PARTS.part67
         },
         "required": [
           "id",
@@ -79,8 +79,8 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part79,
-          "date": COMMAND_SCHEMA_PARTS.part94,
+          "id": COMMAND_SCHEMA_PARTS.part80,
+          "date": COMMAND_SCHEMA_PARTS.part95,
           "hours": {
             "type": "number",
             "minimum": -1000,

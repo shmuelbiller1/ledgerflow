@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **12** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **8** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,7 +147,7 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **12** → 0. 7 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **8** → 0. 4 files. The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
@@ -298,7 +298,16 @@ hand-convert a table the codemod still refuses.
         `support.status` triages. A reply reads the same whichever path wrote it, because the fields are the route's.
         - Pinned by `support-commands.test.ts` (7 cases); `support-ticket-ids` and `feedback-widget` rewritten to
           assert the command.
-      - **the rest** (~12 sites in 7 files) — write routes that already have a command in most cases
+      - **an audit note, an empty account and a template, 4 sites.** `transactionActions` recorded "entry updated"
+        and "entry reversed" with `addDoc` into `auditLogs` — the one collection where a browser write is actively
+        wrong, because the trail is a hash chain and a client row has no position in it. `audit.append` takes only
+        *what* happened; the actor, the clock, `seq` and the hashes come from the session and the trail.
+        `workspaceActions` deleted a chart account and then wrote its own audit line: `chartaccount.delete` now refuses
+        an account that a transaction, entry, budget, line or rule names (archive it instead) and writes the line in the
+        same transaction. "Save as template" captured whatever the tab had loaded; `workspace.savetemplate` reads the
+        active chart on the server, so an archived account is not resurrected in the new workspace.
+        - Pinned by `audit-account-template-commands.test.ts` (7 cases).
+      - **the rest** (~8 sites in 4 files) — write routes that already have a command in most cases
         (`SupportView` 5, `useEntityOperations` 3, `useCollaborators` 3, `Ledger` 2, `Vault` 2 …): one commit per
         hook, not per call, because a hook that writes has one shape. Three are deliberately *not* converted yet:
         `useCollaborators`' presence rows (ephemeral, one row per open tab, nothing to audit), `shared.ts`'

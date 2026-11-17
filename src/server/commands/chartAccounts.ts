@@ -263,3 +263,92 @@ export const chartAccountCreateCommand: CommandDefinition<typeof chartAccountCre
     next: [{ command: 'chartaccount.update', label: 'Rename it or give it a description' }],
   },
 };
+
+/**
+ * An empty account taken off the chart.
+ *
+ * `workspaceActions` deleted the row and then wrote its own audit line from the tab — the account gone, and the record
+ * of who removed it stamped by the browser. The refusal that matters it did not have: an account is only deletable
+ * while **nothing names it**. A transaction line, a bank-feed rule, a budget, a starting balance — any of them would
+ * be left pointing at an account that no longer exists, and the reports would silently total one account short.
+ *
+ * So the check runs on the server, over the collections that hold an account reference, inside the transaction that
+ * deletes: either the account had no entries a moment ago and is gone, or it has one and is archived instead. Archiving
+ * exists for exactly that case, and the command says so in its refusal.
+ */
+export const chartAccountDeleteInput = z.object({ id: idSchema }).strict();
+type DeleteInput = z.output<typeof chartAccountDeleteInput>;
+export type AccountRemoved = { id: string; name: string };
+
+/** The collections whose rows point at an account, and the field each one uses. */
+const ACCOUNT_REFERENCES: ReadonlyArray<{ collection: string; fields: readonly string[] }> = [
+  { collection: 'transactions', fields: ['accountId', 'categoryId', 'fromAccountId', 'toAccountId'] },
+  { collection: 'journalEntries', fields: ['accountId'] },
+  { collection: 'budgets', fields: ['accountId'] },
+  { collection: 'billLines', fields: ['accountId'] },
+  { collection: 'invoiceLines', fields: ['accountId'] },
+  { collection: 'bankRules', fields: ['accountId'] },
+];
+
+export const chartAccountDeleteCommand: CommandDefinition<typeof chartAccountDeleteInput, AccountRemoved> = {
+  name: 'chartaccount.delete',
+  input: chartAccountDeleteInput,
+  roles: ['owner', 'accountant'],
+  async handler(ctx: CommandContext, tx, input: DeleteInput) {
+    const ref = ctx.db.collection('chartAccounts').doc(input.id);
+    const snapshot = await tx.get(ref);
+    const account = snapshot.data() as AccountRow | undefined;
+    if (!snapshot.exists || (account as Record<string, unknown>)?.workspaceId !== ctx.workspaceId) {
+      throw Object.assign(new HttpError('This account is not in the selected workspace.', 404), { code: 'NOT_FOUND' });
+    }
+    if (account?.isSystem) {
+      throw Object.assign(new HttpError('A system account cannot be deleted; archive it instead.', 409), { code: 'CONFLICT' });
+    }
+    for (const { collection, fields } of ACCOUNT_REFERENCES) {
+      const rows = await ctx.db.collection(collection).where('workspaceId', '==', ctx.workspaceId).get();
+      const named = rows.docs.find(doc => {
+        const row = doc.data() as Record<string, unknown>;
+        return fields.some(field => row[field] === input.id);
+      });
+      if (named) {
+        throw Object.assign(
+          new HttpError(`This account is named by ${collection}, so it cannot be deleted. Archive it instead.`, 409),
+          { code: 'CONFLICT' },
+        );
+      }
+    }
+    const name = String(account?.name || '');
+    tx.delete(ref);
+    return { id: input.id, name };
+  },
+  async preview(ctx: CommandContext, input: DeleteInput) {
+    const snapshot = await ctx.db.collection('chartAccounts').doc(input.id).get();
+    const account = snapshot.data() as AccountRow | undefined;
+    if (!snapshot.exists) throw new HttpError('This account is not in the selected workspace.', 404);
+    return {
+      title: `Delete the account ${String(account?.code || '')} ${String(account?.name || '')}`,
+      lines: ['This cannot be undone — it is only allowed while nothing names the account.'],
+    };
+  },
+  audit(_input: DeleteInput, result: AccountRemoved) {
+    return {
+      action: 'DELETE_EMPTY_ACCOUNT',
+      entityType: 'account',
+      entityId: result.id,
+      description: `Deleted the empty account ${result.name}`,
+      details: { name: result.name },
+    };
+  },
+  inverse() { return null; },
+  risk: 'high',
+  describe: {
+    sentence: 'Delete an account that nothing names; do not use it to retire an account that has history — archiving keeps the history and hides the account from pickers.',
+    example: { id: 'acc-1010' },
+    refusals: [
+      { code: 'NOT_FOUND', when: 'The account is not in the selected workspace.', next: 'Reload the chart and choose an account in this workspace.' },
+      { code: 'CONFLICT', when: 'The account is a system account, or a transaction, entry, budget, line or rule names it.', next: 'Archive the account instead — chartaccount.update with archived: true.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is not an owner or an accountant.', next: 'Ask a workspace owner or accountant to delete the account.' },
+    ],
+    next: [{ command: 'chartaccount.update', label: 'Archive it instead' }],
+  },
+};

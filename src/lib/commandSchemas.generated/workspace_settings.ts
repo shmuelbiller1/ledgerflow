@@ -6,7 +6,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "name": COMMAND_SCHEMA_PARTS.part45,
     "businessType": COMMAND_SCHEMA_PARTS.part39,
-    "currency": COMMAND_SCHEMA_PARTS.part71,
+    "currency": COMMAND_SCHEMA_PARTS.part72,
     "timezone": COMMAND_SCHEMA_PARTS.part42,
     "fiscalYearStartMonth": {
       "type": "integer",
@@ -19,7 +19,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "maximum": 28
     },
     "taxRounding": COMMAND_SCHEMA_PARTS.part38,
-    "moneyDisplay": COMMAND_SCHEMA_PARTS.part126,
+    "moneyDisplay": COMMAND_SCHEMA_PARTS.part127,
     "paymentTermDays": {
       "type": "integer",
       "minimum": 0,
@@ -30,23 +30,23 @@ export const COMMAND_INPUT_SCHEMA = {
       "type": "array",
       "items": COMMAND_SCHEMA_PARTS.part1
     },
-    "defaultAccountMappings": COMMAND_SCHEMA_PARTS.part126,
+    "defaultAccountMappings": COMMAND_SCHEMA_PARTS.part127,
     "scheduledReports": {
       "maxItems": 50,
       "type": "array",
       "items": COMMAND_SCHEMA_PARTS.part1
     },
-    "matchingThreshold": COMMAND_SCHEMA_PARTS.part61,
+    "matchingThreshold": COMMAND_SCHEMA_PARTS.part62,
     "aiModel": COMMAND_SCHEMA_PARTS.part42,
-    "emailTemplates": COMMAND_SCHEMA_PARTS.part126,
-    "reminderSettings": COMMAND_SCHEMA_PARTS.part126,
-    "invoiceApproval": COMMAND_SCHEMA_PARTS.part126,
+    "emailTemplates": COMMAND_SCHEMA_PARTS.part127,
+    "reminderSettings": COMMAND_SCHEMA_PARTS.part127,
+    "invoiceApproval": COMMAND_SCHEMA_PARTS.part127,
     "reportNotes": {
       "type": "object",
       "propertyNames": COMMAND_SCHEMA_PARTS.part16,
       "additionalProperties": {
         "anyOf": [
-          COMMAND_SCHEMA_PARTS.part54,
+          COMMAND_SCHEMA_PARTS.part55,
           COMMAND_SCHEMA_PARTS.part13
         ]
       }

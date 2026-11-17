@@ -59,9 +59,9 @@ test('the default registry is sorted and unique across the registered command do
   const registry = createDefaultCommandRegistry();
   assert.deepEqual(registry.names(), [
     'account.makerecoverycodes', 'account.setnotificationemail', 'account.userecoverycode', 'alerts.update',
-    'apikey.provision', 'apikey.revoke', 'apikey.revokepersonal', 'asset.costaddition', 'autorule.create', 'autorule.delete',
+    'apikey.provision', 'apikey.revoke', 'apikey.revokepersonal', 'asset.costaddition', 'audit.append', 'autorule.create', 'autorule.delete',
     'autorule.group', 'autorule.learn', 'autorule.recordhits', 'autorule.reset', 'autorule.update', 'bill.create', 'bill.delete',
-    'bill.update', 'budget.delete', 'budget.save', 'chartaccount.create', 'chartaccount.update', 'creditnote.create',
+    'bill.update', 'budget.delete', 'budget.save', 'chartaccount.create', 'chartaccount.delete', 'chartaccount.update', 'creditnote.create',
     'creditnote.delete', 'creditnote.update',
     'customer.balance', 'customer.create', 'customer.update', 'document.save',
     'employee.create', 'employee.update',
@@ -88,10 +88,10 @@ test('the default registry is sorted and unique across the registered command do
     'workspace.create', 'workspace.dimensionaxes', 'workspace.dimensionnode', 'workspace.dimensionnodes', 'workspace.dimensionnodesmigrate', 'workspace.importmap',
     'workspace.importrecords', 'workspace.invite', 'workspace.modules', 'workspace.nextnumber',
     'workspace.openingbalances', 'workspace.restoremaps', 'workspace.retention', 'workspace.revokeinvite',
-    'workspace.scheduledeletion', 'workspace.settings', 'workspace.setupcomplete', 'workspace.undoimport',
+    'workspace.savetemplate', 'workspace.scheduledeletion', 'workspace.settings', 'workspace.setupcomplete', 'workspace.undoimport',
     'workspace.updaterole',
   ]);
-  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'apikey', 'asset', 'autorule', 'bill', 'budget', 'chartaccount', 'creditnote', 'customer', 'document', 'employee', 'entrylink', 'estimate', 'groups', 'inventory', 'inventoryitem', 'invoice', 'journal', 'loan', 'notification', 'numbering', 'payment', 'period', 'project', 'reconciliations', 'savedlist', 'stages', 'support', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
+  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'apikey', 'asset', 'audit', 'autorule', 'bill', 'budget', 'chartaccount', 'creditnote', 'customer', 'document', 'employee', 'entrylink', 'estimate', 'groups', 'inventory', 'inventoryitem', 'invoice', 'journal', 'loan', 'notification', 'numbering', 'payment', 'period', 'project', 'reconciliations', 'savedlist', 'stages', 'support', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
   assert.equal(registry.get('numbering.update'), numberingUpdateCommand);

@@ -7,7 +7,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "workspaceId": COMMAND_SCHEMA_PARTS.part35,
     "itemId": COMMAND_SCHEMA_PARTS.part35,
     "quantityChange": COMMAND_SCHEMA_PARTS.part15,
-    "unitCostCents": COMMAND_SCHEMA_PARTS.part104,
+    "unitCostCents": COMMAND_SCHEMA_PARTS.part105,
     "inventoryAccountId": COMMAND_SCHEMA_PARTS.part35,
     "offsetAccountId": COMMAND_SCHEMA_PARTS.part35,
     "type": {
@@ -20,7 +20,7 @@ export const COMMAND_INPUT_SCHEMA = {
       ]
     },
     "reason": COMMAND_SCHEMA_PARTS.part46,
-    "date": COMMAND_SCHEMA_PARTS.part94,
+    "date": COMMAND_SCHEMA_PARTS.part95,
     "locationId": COMMAND_SCHEMA_PARTS.part46
   },
   "required": [

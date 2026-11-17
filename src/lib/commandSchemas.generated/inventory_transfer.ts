@@ -8,8 +8,8 @@ export const COMMAND_INPUT_SCHEMA = {
     "itemId": COMMAND_SCHEMA_PARTS.part35,
     "from": COMMAND_SCHEMA_PARTS.part46,
     "to": COMMAND_SCHEMA_PARTS.part46,
-    "quantity": COMMAND_SCHEMA_PARTS.part60,
-    "date": COMMAND_SCHEMA_PARTS.part94,
+    "quantity": COMMAND_SCHEMA_PARTS.part61,
+    "date": COMMAND_SCHEMA_PARTS.part95,
     "note": COMMAND_SCHEMA_PARTS.part46
   },
   "required": [

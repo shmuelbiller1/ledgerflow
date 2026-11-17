@@ -4,8 +4,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "cashLowCents": COMMAND_SCHEMA_PARTS.part145,
-    "closeReminderDay": COMMAND_SCHEMA_PARTS.part145,
+    "cashLowCents": COMMAND_SCHEMA_PARTS.part146,
+    "closeReminderDay": COMMAND_SCHEMA_PARTS.part146,
     "budgetAlerts": COMMAND_SCHEMA_PARTS.part19
   },
   "additionalProperties": false

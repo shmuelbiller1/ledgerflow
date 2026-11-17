@@ -1,4 +1,5 @@
 import { alertSettingsUpdateCommand } from './alerts';
+import { auditAppendCommand } from './audit';
 import { importMapRestoreCommand, importMapSaveCommand } from './importMaps';
 import { entryLinkCreateCommand, entryLinkRemoveCommand } from './entryLinks';
 import { stageDefineCommand, stageMoveCommand } from './stages';
@@ -22,7 +23,7 @@ import { userProvisionCommand, workspaceCreateCommand } from './bootstrap';
 import { userPreferencesCommand } from './userPreferences';
 import { projectDeleteCommand, projectRestoreCommand } from './projects';
 import { budgetDeleteCommand, budgetSaveCommand } from './budgets';
-import { chartAccountCreateCommand, chartAccountUpdateCommand } from './chartAccounts';
+import { chartAccountCreateCommand, chartAccountDeleteCommand, chartAccountUpdateCommand } from './chartAccounts';
 import { documentSaveCommand } from './attachments';
 import { assetCostAdditionCommand } from './assets';
 import { loanPaymentCommand } from './loans';
@@ -53,7 +54,7 @@ import {
 } from './savedLists';
 import { journalCreateCommand } from './ledger';
 import {
-  workspaceApplyTemplateCommand, workspaceImportRecordsCommand, workspaceInviteCommand,
+  workspaceApplyTemplateCommand, workspaceImportRecordsCommand, workspaceInviteCommand, workspaceSaveTemplateCommand,
   workspaceScheduleDeletionCommand, workspaceUndoImportCommand, workspaceUpdateRoleCommand,
 } from './workspaceAdmin';
 import {
@@ -149,7 +150,9 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(supportTicketCommand);
   registry.register(supportMessageCommand);
   registry.register(supportStatusCommand);
+  registry.register(auditAppendCommand);
   registry.register(chartAccountCreateCommand);
+  registry.register(chartAccountDeleteCommand);
   registry.register(chartAccountUpdateCommand);
   registry.register(budgetSaveCommand);
   registry.register(budgetDeleteCommand);
@@ -248,6 +251,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(bankLineSplitCommand);
   registry.register(bankRulesRerunCommand);
   registry.register(workspaceApplyTemplateCommand);
+  registry.register(workspaceSaveTemplateCommand);
   registry.register(workspaceImportRecordsCommand);
   registry.register(workspaceUndoImportCommand);
   registry.register(workspaceUpdateRoleCommand);
