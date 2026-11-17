@@ -4,8 +4,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { doc, getDoc } from './db/firestore';
 import { localSet, localUpdate } from './db/localStore';
-import { COMMAND_MANIFEST } from './commands.generated';
-import { runCommand } from './runCommand';
+import { runDimensionCommand } from './dimensionCommandClient';
 import { db } from '../firebase';
 import { DEFAULT_WORKSPACE_DIMENSIONS, resolveDimensionLabel, setLineDimension, suggestNextDimensionNodeId, updateDimensionNodeDescription } from './dimensionUtils';
 import { normalizeSearchText } from './textNormalization';
@@ -103,16 +102,6 @@ export interface DimensionNodeActionAdapter {
 const nodeDocId = (workspaceId: string, dimensionId: string, nodeId: string) =>
   `${workspaceId}_${dimensionId}_${nodeId}`;
 
-/**
- * One command by name, from a module that is not a React hook: the manifest holds the path, so the call cannot
- * drift from the route the server serves. The workspace travels in the envelope, as `useCommand` sends it.
- */
-async function runDimensionCommand(workspaceId: string, name: string, input: Record<string, unknown>): Promise<void> {
-  const entry = COMMAND_MANIFEST.find(command => command.name === name);
-  if (!entry) throw new Error(`"${name}" is not a registered command.`);
-  await runCommand({ path: entry.runPath, method: 'POST', body: { workspaceId, input } });
-}
-
 export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
   session: () => {
     const auth = useAuthStore.getState();
@@ -138,8 +127,7 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
     }));
   },
   writeNode: async (workspaceId, node) => {
-    // the sample company writes its own row; a workspace on the server asks the command, so a value saved from a
-    // stale screen cannot arrive with a different workspace on it
+    // the sample company writes its own row; a live workspace asks the command, so a stale screen cannot misplace it
     if (guestSession()) {
       await localSet('dimensionNodes', nodeDocId(workspaceId, node.dimensionId, node.id), { ...node, workspaceId });
       return;
@@ -175,7 +163,8 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
       await localUpdate('dimensionNodes', nodeDocId(workspaceId, dimensionId, nodeId), fields);
       return;
     }
-    await runDimensionCommand(workspaceId, 'workspace.dimensionnode', { dimensionId, nodeId, fields });
+    const { updatedAt: _sentAt, ...named } = fields; // the server stamps when the label changed, not the screen
+    await runDimensionCommand(workspaceId, 'workspace.dimensionnode', { dimensionId, nodeId, fields: named });
   },
   readWorkspace: async workspaceId => {
     if (!db) return undefined;

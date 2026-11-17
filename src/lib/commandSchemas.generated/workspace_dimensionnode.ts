@@ -13,7 +13,8 @@ export const COMMAND_INPUT_SCHEMA = {
         "aliases": COMMAND_SCHEMA_PARTS.part91,
         "status": COMMAND_SCHEMA_PARTS.part58,
         "parentId": COMMAND_SCHEMA_PARTS.part62,
-        "createdAt": COMMAND_SCHEMA_PARTS.part31
+        "createdAt": COMMAND_SCHEMA_PARTS.part31,
+        "updatedAt": COMMAND_SCHEMA_PARTS.part31
       },
       "required": [
         "id",
@@ -35,7 +36,8 @@ export const COMMAND_INPUT_SCHEMA = {
             COMMAND_SCHEMA_PARTS.part62,
             COMMAND_SCHEMA_PARTS.part10
           ]
-        }
+        },
+        "updatedAt": COMMAND_SCHEMA_PARTS.part31
       },
       "additionalProperties": false
     }

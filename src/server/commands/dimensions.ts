@@ -23,6 +23,8 @@ const nodeSchema = z.object({
   status: z.enum(['active', 'archived']).optional(),
   parentId: idSchema.optional(),
   createdAt: z.string().max(40).optional(),
+  // accepted and ignored: the server stamps the time, so a screen's clock cannot date a row
+  updatedAt: z.string().max(40).optional(),
 }).strict();
 
 const axisSchema = z.object({
@@ -50,6 +52,8 @@ export const dimensionNodeInput = z.object({
     aliases: z.array(text(300)).max(50).optional(),
     status: z.enum(['active', 'archived']).optional(),
     parentId: idSchema.nullable().optional(),
+    // the screens send the moment they changed the row; the server's own clock is what is kept
+    updatedAt: z.string().max(40).optional(),
   }).strict().optional(),
 }).strict()
   .refine(input => (input.node === undefined) !== (input.fields === undefined), 'Write a value or change one, not both.')
@@ -78,7 +82,8 @@ export const dimensionNodeCommand: CommandDefinition<typeof dimensionNodeInput, 
     if (input.node) {
       const node = input.node;
       const ref = ctx.db.collection('dimensionNodes').doc(nodeRowId(ctx.workspaceId, node.dimensionId, node.id));
-      tx.set(ref, { ...node, workspaceId: ctx.workspaceId });
+      const { updatedAt: _sentAt, ...rest } = node;
+      tx.set(ref, { ...rest, workspaceId: ctx.workspaceId, updatedAt: new Date().toISOString() });
       return { id: node.id, dimensionId: node.dimensionId, status: node.status };
     }
     const rowId = nodeRowId(ctx.workspaceId, input.dimensionId!, input.nodeId!);
@@ -88,9 +93,11 @@ export const dimensionNodeCommand: CommandDefinition<typeof dimensionNodeInput, 
       throw Object.assign(new HttpError('This label is not in the selected workspace.', 404), { code: 'NOT_FOUND' });
     }
     // `null` empties the field, `undefined` leaves it alone — the difference the screen's own patch made
-    const patch = Object.fromEntries(Object.entries(input.fields || {}).filter(([, value]) => value !== undefined));
+    const { updatedAt: _sentAt, ...named } = input.fields || {};
+    const patch = Object.fromEntries(Object.entries(named).filter(([, value]) => value !== undefined));
     if (Object.keys(patch).length === 0) return { id: input.nodeId!, dimensionId: input.dimensionId! };
-    tx.update(ref, patch);
+    // the caller's timestamp is thrown away: a phone with the wrong date must not decide when a label changed
+    tx.update(ref, { ...patch, updatedAt: new Date().toISOString() });
     return { id: input.nodeId!, dimensionId: input.dimensionId!, status: patch.status as string | undefined };
   },
   async preview(ctx: CommandContext, input: NodeInput) {

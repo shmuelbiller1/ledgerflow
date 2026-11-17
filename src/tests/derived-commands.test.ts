@@ -75,6 +75,31 @@ test('a label value is saved whole, or changed by the fields named — never by 
   assert.equal(db.read(`dimensionNodes/${workspaceId}_property_P1`)?.dimensionId, 'property', 'a patch leaves the rest alone');
 });
 
+test('the timestamp a screen sends is thrown away, and the server stamps the change', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  const save = dimensionNodeInput.parse({
+    node: { id: 'P1', dimensionId: 'property', description: 'One', updatedAt: '1999-01-01T00:00:00.000Z' },
+  });
+  await executeCommand(fakeRequest(owner, { workspaceId, input: save }), captureResponse().response,
+    { definition: dimensionNodeCommand, workspaceId, input: save }, runnerDependencies(db));
+  const savedAt = db.read(`dimensionNodes/${workspaceId}_property_P1`)?.updatedAt as string;
+  assert.notEqual(savedAt, '1999-01-01T00:00:00.000Z', 'a screen clock does not date the row');
+  assert.ok(Date.now() - Date.parse(savedAt) < 60_000);
+
+  // the payload the real callers send: the fields they changed plus the moment they changed them
+  const change = dimensionNodeInput.parse({
+    dimensionId: 'property',
+    nodeId: 'P1',
+    fields: { description: 'One again', updatedAt: '1999-01-01T00:00:00.000Z' },
+  });
+  const changed = await executeCommand(fakeRequest(owner, { workspaceId, input: change }), captureResponse().response,
+    { definition: dimensionNodeCommand, workspaceId, input: change }, runnerDependencies(db));
+  assert.equal(changed.ok, true, 'a timestamp in the patch is accepted, not refused as an unknown field');
+  assert.equal(db.read(`dimensionNodes/${workspaceId}_property_P1`)?.description, 'One again');
+  assert.notEqual(db.read(`dimensionNodes/${workspaceId}_property_P1`)?.updatedAt, '1999-01-01T00:00:00.000Z');
+});
+
 test('a label value in another workspace cannot be changed through this one', async () => {
   const db = new MemoryDb();
   seedWorkspace(db);
