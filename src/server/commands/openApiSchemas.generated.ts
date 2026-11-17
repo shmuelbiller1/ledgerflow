@@ -66,6 +66,8 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "period.signoff": "CommandInput_period_signoff",
   "period.unlock": "CommandInput_period_unlock",
   "period.yearclose": "CommandInput_period_yearclose",
+  "project.delete": "CommandInput_project_delete",
+  "project.restore": "CommandInput_project_restore",
   "reconciliations.bankline": "CommandInput_reconciliations_bankline",
   "reconciliations.banklinepay": "CommandInput_reconciliations_banklinepay",
   "reconciliations.banklinesplit": "CommandInput_reconciliations_banklinesplit",

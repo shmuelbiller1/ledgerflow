@@ -1,0 +1,319 @@
+diff --git a/src/components/forensics/Vault.tsx b/src/components/forensics/Vault.tsx
+index 20d4472..7723ea5 100644
+--- a/src/components/forensics/Vault.tsx
++++ b/src/components/forensics/Vault.tsx
+@@ -16,17 +16,14 @@ import {
+   Brain,
+   Sparkles
+ } from 'lucide-react';
+-import { cn, safeConfirm, formatCurrency } from '../../lib/utils';
++import { cn, safeConfirm, formatCurrency, getLocalDateISO } from '../../lib/utils';
+ import AsyncButton from '../ui/AsyncButton';
+ import { 
+   collection, 
+   query, 
+   where, 
+   onSnapshot, 
+-  addDoc, 
+-  deleteDoc, 
+-  doc,
+-  updateDoc
++  addDoc
+ } from '../../lib/db/firestore';
+ import { db } from '../../firebase';
+ import { CloudDocument, Transaction } from '../../types';
+@@ -45,7 +42,8 @@ import { buildBalancedReceiptTransaction, validateReceiptPayload } from '../../l
+ import { useAuthStore } from '../../stores/useAuthStore';
+ import { useLedgerStore } from '../../stores/useLedgerStore';
+ import { inBackground } from '../../lib/inBackground';
+-import { runCommand } from '../../lib/runCommand';
++import { runWrite } from '../../lib/runCommand';
++import { removeAttachment } from '../../services/attachmentActions';
+ 
+ export default function Vault() {
+   const uploadId = useId();
+@@ -200,6 +198,10 @@ export default function Vault() {
+ 
+   const handleInjectTransaction = async () => {
+     if (!selectedDoc || !extractedData) return;
++    if (selectedDoc.linkedTransactionId) {
++      toast.info('This document is already linked to a ledger entry.');
++      return;
++    }
+ 
+     const toastId = toast.loading('Injecting into ledger...');
+ 
+@@ -231,17 +233,20 @@ export default function Vault() {
+ 
+       const balancedTx = buildBalancedReceiptTransaction(receiptPayload, accounts);
+       const finalLines = balancedTx.lines;
++      const homeCurrency = useAuthStore.getState().getCurrentWorkspace()?.currency || 'USD';
++      const receiptOpId = `vault-receipt-${selectedDoc.id}`.slice(0, 128);
+ 
+       const newTx: Partial<Transaction> = {
++        id: receiptOpId,
+         uid: uid || "",
+         workspaceId: workspaceId || "",
+-        date: extractedData.date || format(new Date(), 'yyyy-MM-dd'),
++        date: extractedData.date || getLocalDateISO(),
+         description: vendor,
+         totalAmountCents: amountCents,
+-        currency: 'USD',
++        currency: homeCurrency,
+         status: 'completed',
+         type: 'actual',
+-        createdAt: new Date().toISOString(),
++        createdAt: selectedDoc.createdAt || '1970-01-01T00:00:00.000Z',
+         fileUrls: selectedDoc.fileUrl ? [selectedDoc.fileUrl] : [],
+         lines: finalLines,
+         metadata: {
+@@ -251,22 +256,26 @@ export default function Vault() {
+       };
+ 
+       // the entry's own id is the idempotency key: injecting the same document twice posts one entry
+-      const resData = await runCommand<{ transaction?: { id?: string }; id?: string }>({
++      const resData = await runWrite<{ transaction?: { id?: string }; id?: string }>({
+         path: '/api/v1/transactions',
+         method: 'POST',
+-        headers: { 'x-operation-id': newTx.id || '' },
++        headers: { 'x-operation-id': receiptOpId },
+         body: { transaction: newTx }
+       }) ?? {};
+-      const createdTxId = resData.transaction?.id || resData.id;
++      const createdTxId = resData.transaction?.id || resData.id || receiptOpId;
+ 
+       if (createdTxId) {
+         setDocuments(prev => prev.map(d => d.id === selectedDoc.id ? { ...d, linkedTransactionId: createdTxId } : d));
+         try {
+-          await updateDoc(doc(db, 'documents', selectedDoc.id), {
+-            linkedTransactionId: createdTxId
++          // the ledger link is the server's to write (documents refuses a client change to it): the route
++          // checks the entry is in this workspace and posted, and writes an audit line
++          await runWrite({
++            path: `/api/v1/workspaces/${workspaceId}/attachments/${selectedDoc.id}/link`,
++            method: 'POST',
++            body: { transactionId: createdTxId },
+           });
+         } catch {
+-          // Local state updated; non-blocking for guest/offline
++          // the entry is posted and the local row shows the link; a guest session has no server to ask
+         }
+       }
+ 
+@@ -280,13 +289,21 @@ export default function Vault() {
+ 
+   const handleDelete = async (id: string) => {
+     if (!safeConfirm('Are you sure you want to delete this document?')) return;
+-    setDocuments(prev => prev.filter(d => d.id !== id));
+-    if (selectedDoc?.id === id) setSelectedDoc(null);
++    if (!workspaceId || !uid) {
++      setDocuments(prev => prev.filter(d => d.id !== id));
++      // the delete button sits inside the card that opens the document, and the click can still land
++      // there; the functional form closes the overlay even when this handler captured no selection
++      setSelectedDoc(prev => (prev?.id === id ? null : prev));
++      toast.success('Document removed from this screen');
++      return;
++    }
+     try {
+-      await deleteDoc(doc(db, 'documents', id));
++      await removeAttachment(workspaceId, id);
++      setDocuments(prev => prev.filter(d => d.id !== id));
++      setSelectedDoc(prev => (prev?.id === id ? null : prev));
+       toast.success('Document deleted');
+-    } catch {
+-      toast.success('Document removed locally');
++    } catch (err) {
++      toast.error(err instanceof Error && err.message ? err.message : 'The document could not be removed.');
+     }
+   };
+ 
+@@ -457,7 +474,7 @@ export default function Vault() {
+                 </button>
+                  <AsyncButton 
+                   aria-label={`Delete document ${docItem.name}`}
+-                  onClick={async () => { inBackground(handleDelete(docItem.id)); }}
++                  onClick={async event => { event.stopPropagation(); inBackground(handleDelete(docItem.id)); }}
+                   className="w-10 h-10 flex items-center justify-center bg-rose-50 text-rose-500 rounded-[32px] hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-rose-100"
+                 >
+                   <Trash2 aria-hidden="true" size={18} />
+diff --git a/src/server/routes/attachmentRoutes.ts b/src/server/routes/attachmentRoutes.ts
+index 5cd556b8..ff3e6319 100644
+--- a/src/server/routes/attachmentRoutes.ts
++++ b/src/server/routes/attachmentRoutes.ts
+@@ -9,6 +9,11 @@ import { mayRemoveAttachment } from '../../lib/attachments';
+  * add their own files but never delete one, so removing goes through here: owners, accountants and
+  * bookkeepers may remove any file of the workspace, others only the ones they added. The audit
+  * trail keeps what was removed, from which record, and by whom.
++ *
++ * POST /:attachmentId/link (A7S-04) is the only door to a document's linkedTransactionId: the file is
++ * the evidence for a posted entry, and the database refuses a client change to that field, so the screen
++ * that reads a receipt into the ledger asks here. The entry must be in the same workspace and posted;
++ * who may link is the same rule as removing (writers, or the person who added the file).
+  */
+ export const attachmentRouter = express.Router({ mergeParams: true });
+ 
+@@ -40,3 +45,39 @@ attachmentRouter.delete('/:attachmentId', async (req, res) => {
+     res.status(500).json({ status: 'error', message: 'The file could not be removed', details: err instanceof Error ? err.message : String(err) });
+   }
+ });
++
++attachmentRouter.post('/:attachmentId/link', async (req, res) => {
++  const { workspaceId, attachmentId } = req.params as Record<string, string>;
++  const { user, userRole } = req as unknown as AuthedRequest;
++  const transactionId = typeof req.body?.transactionId === 'string' ? req.body.transactionId.trim() : '';
++  if (!transactionId) return res.status(400).json({ status: 'error', message: 'Name the ledger entry to link' });
++  try {
++    const db = getDb();
++    const docRef = db.collection('documents').doc(attachmentId);
++    const txRef = db.collection('transactions').doc(transactionId);
++    const outcome = await db.runTransaction(async t => {
++      const [docSnap, txSnap] = await t.getAll(docRef, txRef);
++      const file = docSnap.exists ? docSnap.data() as { uid?: string; workspaceId?: string; name?: string } : undefined;
++      if (!file || file.workspaceId !== workspaceId) return 'missing' as const;
++      if (!mayRemoveAttachment(userRole, user.uid, { uid: String(file.uid || '') })) return 'forbidden' as const;
++      const entry = txSnap.exists ? txSnap.data() as { workspaceId?: string; status?: string; date?: string } : undefined;
++      // the evidence never points at another workspace's books, and never at something unposted
++      if (!entry || entry.workspaceId !== workspaceId) return 'entry-missing' as const;
++      if (entry.status === 'void' || entry.status === 'draft') return 'entry-unposted' as const;
++      t.update(docRef, { linkedTransactionId: transactionId, updatedAt: new Date().toISOString() });
++      await writeServerAuditLog({
++        workspaceId, uid: user.uid, email: user.email, action: 'attachment.linked',
++        entityType: 'transactions', entityId: transactionId,
++        details: { description: `Linked the file "${file.name || attachmentId}" to entry ${transactionId}`, attachmentId },
++      }, { db, tx: t });
++      return 'linked' as const;
++    });
++    if (outcome === 'missing') return res.status(404).json({ status: 'error', message: 'That file is not in this workspace' });
++    if (outcome === 'forbidden') return res.status(403).json({ status: 'error', message: 'Only the person who added it, or an owner, accountant or bookkeeper, can link it' });
++    if (outcome === 'entry-missing') return res.status(404).json({ status: 'error', message: 'That ledger entry is not in this workspace' });
++    if (outcome === 'entry-unposted') return res.status(409).json({ status: 'error', message: 'A file cannot be the evidence for a draft or void entry' });
++    res.json({ status: 'success', transactionId });
++  } catch (err) {
++    res.status(500).json({ status: 'error', message: 'The file could not be linked', details: err instanceof Error ? err.message : String(err) });
++  }
++});
+diff --git a/supabase/migrations/20261116120000_document_link_tickets_and_pay_visibility.sql b/supabase/migrations/20261116120000_document_link_tickets_and_pay_visibility.sql
+new file mode 100644
+index 00000000..14e72e0c
+--- /dev/null
++++ b/supabase/migrations/20261116120000_document_link_tickets_and_pay_visibility.sql
+@@ -0,0 +1,119 @@
++-- A7S-03 (+ the ledger link of A7S-04): the two rules that let a workspace member read or rewrite what
++-- the screen never shows them — other people's support tickets, and the ledger link of a file.
++--
++-- 1. public.documents: linkedTransactionId is what makes a file the evidence for a posted entry, and it
++--    is written by the browser (own_update: any member, viewers included; Vault's link write, and before
++--    this migration an allowlist field). lf_documents_kind_guard (20261116000000) already refuses a
++--    client change to kind/sets/lines/status/paidRunId by comparing the old and the new row — the same
++--    comparison is extended here to linkedTransactionId. The attachment links (linkedCollection,
++--    linkedId, linkedLabel) stay writable, because uploading a file already writes them and the snap
++--    receipt links a photo to the bill it just created; only the pointer to a ledger entry moves.
++--    The write that sets it moves behind a writer role: POST /workspaces/:id/attachments/:id/link
++--    (attachmentRoutes.ts, in this patch), which refuses an entry of another workspace and needs
++--    lf_can_write — Vault's own 'link this receipt to the entry I just posted' call uses it.
++-- 2. public.supportTickets: ticket_read and ticket_update let every member of the workspace read and
++--    change every ticket. Both are narrowed to the person's own ticket (platform admins keep all).
++-- 3. public.employees: member_read lets a viewer select every employee row, including salaryCents,
++--    hourlyRateCents, preTaxDeductionsCents and the bank routing/account used for ACH. The isolation
++--    suite (supabase/tests/rls.test.sql) asserts that a viewer CAN read an employee row, so narrowing
++--    that policy is a product decision, not a hardening patch: this migration only adds the directory
++--    view a screen could use for that, without pay or bank details. The policy narrowing itself is
++--    written down (not applied) in audit/agent7-2026-11-16/03-RESERVED-LANE-FINDINGS.md.
++--
++-- Idempotent: the function is created or replaced, every policy and view is dropped before it is
++-- created, and the allowlist edits use array_remove, so a rerun neither fails nor needs the old value.
++
++-- ---------------------------------------------------------------------------
++-- 1. Documents: the ledger link is not a client field
++-- ---------------------------------------------------------------------------
++-- create or replace, so the keys 20261116000000 introduced stay forbidden exactly as they are.
++create or replace function public.lf_documents_kind_guard() returns trigger
++language plpgsql set search_path = ''
++as $$
++declare
++  forbidden_keys text[] := array[
++    'kind', 'sets', 'record', 'stage', 'lines', 'assignee', 'dueDate',
++    'paidRunId', 'hours', 'minutes', 'person', 'billable', 'invoiceId',
++    'employeeId', 'rateCents', 'status'
++  ];
++  -- the pointer to a ledger entry: changing it moves the evidence from one entry to another
++  ledger_link_keys text[] := array['linkedTransactionId'];
++  k text;
++begin
++  if public.lf_is_client() then
++    if tg_op = 'UPDATE' and coalesce(old.data->>'kind', '') <> '' then
++      raise exception 'Server-managed document records (%) can only be changed through the server', old.data->>'kind'
++        using errcode = '42501';
++    end if;
++    if coalesce(new.data->>'kind', '') <> '' then
++      raise exception 'Server-managed document records (%) can only be created through the server', new.data->>'kind'
++        using errcode = '42501';
++    end if;
++    foreach k in array forbidden_keys loop
++      if tg_op = 'INSERT' and (new.data ? k) and new.data->k is not null then
++        raise exception 'Field "%" on documents is managed by the server', k
++          using errcode = '42501';
++      end if;
++      if tg_op = 'UPDATE' and (new.data->k is distinct from old.data->k) then
++        raise exception 'Field "%" on documents is managed by the server', k
++          using errcode = '42501';
++      end if;
++    end loop;
++    -- the ledger link may be set when the file is uploaded, never changed afterwards
++    foreach k in array ledger_link_keys loop
++      if tg_op = 'UPDATE' and (new.data->k is distinct from old.data->k) then
++        raise exception 'The ledger link (%) of a document is set through the server (POST /attachments/:id/link)', k
++          using errcode = '42501';
++      end if;
++    end loop;
++  end if;
++  return new;
++end;
++$$;
++
++-- ---------------------------------------------------------------------------
++-- 2. Support tickets: the person's own ticket
++-- ---------------------------------------------------------------------------
++drop policy if exists ticket_read on public."supportTickets";
++create policy ticket_read on public."supportTickets" for select to authenticated
++  using (public.lf_is_platform_admin() or data->>'uid' = public.lf_uid());
++
++-- unreadForAdmin, lastMessageBy, errorLogId and errorDiagnostics stay on the allowlist: lf_enforce_rules
++-- checks every key of the new row, and SupportView still writes all four when a ticket is opened or
++-- answered. With the two policies above a client can only set them on its own ticket. Taking them off
++-- the allowlist waits for the server route that opens and answers tickets.
++
++-- a client may open its own ticket and close it; who it belongs to and when it was opened never move
++-- each key is added once, so a rerun changes nothing
++update public.lf_rules
++   set immutable_keys = array(
++         select distinct k
++           from unnest(coalesce(immutable_keys, '{}') || array['uid', 'workspaceId', 'createdAt']) as k
++          order by k)
++ where table_name = 'supportTickets';
++
++drop policy if exists ticket_update on public."supportTickets";
++create policy ticket_update on public."supportTickets" for update to authenticated
++  using (public.lf_is_platform_admin() or data->>'uid' = public.lf_uid())
++  with check (public.lf_is_platform_admin() or data->>'uid' = public.lf_uid());
++
++-- ---------------------------------------------------------------------------
++-- 3. Employees: a directory view for every member, with no pay or bank details
++-- ---------------------------------------------------------------------------
++-- Additive only: employee read keeps its current scope (a viewer may read a row), so nothing that works
++-- today stops working. A screen that only needs the directory can read this view instead, and the day
++-- the row policy is narrowed (see the findings document) it already exists.
++drop view if exists public.lf_employee_directory;
++create view public.lf_employee_directory as
++  select e.id,
++         e.workspace_id,
++         e.updated_at,
++         e.data - 'salaryCents' - 'hourlyRateCents' - 'payRateCents' - 'preTaxDeductionsCents'
++                - 'deductions' - 'bankRouting' - 'bankAccount' - 'bankAccountType'
++                - 'ssn' - 'taxId' as data
++    from public.employees e
++   where public.lf_is_member(e.workspace_id);
++
++comment on view public.lf_employee_directory is
++  'The employee directory every member may read: no pay, deductions, tax ids or bank instructions.';
++grant select on public.lf_employee_directory to authenticated;

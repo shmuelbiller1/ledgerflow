@@ -12,7 +12,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
   {
     "name": "payment.apply",
     "area": "payment",
-    "roles": COMMAND_SCHEMA_PARTS.part50,
+    "roles": COMMAND_SCHEMA_PARTS.part51,
     "risk": "normal",
     "description": {
       "sentence": "Apply the unapplied part of a payment — a deposit or prepayment — to invoices or bills later; do not use it to record a new payment.",
@@ -43,7 +43,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The payment or a document is not in this workspace.",
           "next": "Check the payment and document ids."
         },
-        COMMAND_SCHEMA_PARTS.part143
+        COMMAND_SCHEMA_PARTS.part144
       ]
     },
     "runPath": "/api/v1/commands/payment.apply",
@@ -53,7 +53,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
   {
     "name": "payment.creditapply",
     "area": "payment",
-    "roles": COMMAND_SCHEMA_PARTS.part50,
+    "roles": COMMAND_SCHEMA_PARTS.part51,
     "risk": "normal",
     "description": {
       "sentence": "Apply a credit note to a customer's invoice, or a vendor credit to a bill; do not use it to refund the credit as cash — that is payment.creditrefund.",
@@ -74,7 +74,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The credit has no entry in the books, is smaller than the amount, or the document is settled.",
           "next": "Apply no more than the credit and the document still allow."
         },
-        COMMAND_SCHEMA_PARTS.part143
+        COMMAND_SCHEMA_PARTS.part144
       ]
     },
     "runPath": "/api/v1/commands/payment.creditapply",
@@ -84,7 +84,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
   {
     "name": "payment.creditrefund",
     "area": "payment",
-    "roles": COMMAND_SCHEMA_PARTS.part50,
+    "roles": COMMAND_SCHEMA_PARTS.part51,
     "risk": "normal",
     "description": {
       "sentence": "Refund a credit note or vendor credit as money, out of a bank or cash account; do not use it to settle an invoice — that is payment.creditapply.",
@@ -106,7 +106,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The credit has no entry in the books, or is smaller than the refund.",
           "next": "Refund no more than the credit still allows."
         },
-        COMMAND_SCHEMA_PARTS.part143
+        COMMAND_SCHEMA_PARTS.part144
       ]
     },
     "runPath": "/api/v1/commands/payment.creditrefund",
@@ -116,7 +116,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
   {
     "name": "payment.creditsautoapply",
     "area": "payment",
-    "roles": COMMAND_SCHEMA_PARTS.part50,
+    "roles": COMMAND_SCHEMA_PARTS.part51,
     "risk": "normal",
     "description": {
       "sentence": "Apply every open credit to the open invoices or bills of one contact, or of the whole workspace, oldest first; do not use it to refund a credit.",
@@ -130,7 +130,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The kind is missing or unknown.",
           "next": "Send kind customer or vendor."
         },
-        COMMAND_SCHEMA_PARTS.part143
+        COMMAND_SCHEMA_PARTS.part144
       ]
     },
     "runPath": "/api/v1/commands/payment.creditsautoapply",
@@ -140,7 +140,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
   {
     "name": "payment.deposit",
     "area": "payment",
-    "roles": COMMAND_SCHEMA_PARTS.part50,
+    "roles": COMMAND_SCHEMA_PARTS.part51,
     "risk": "normal",
     "description": {
       "sentence": "Take the payments waiting in Undeposited Funds to a bank account in one entry; do not use it to record a payment from a customer.",
@@ -163,7 +163,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "A payment is void, already deposited, or waiting in another Undeposited Funds account.",
           "next": "Deposit only the payments still waiting in the same account."
         },
-        COMMAND_SCHEMA_PARTS.part143
+        COMMAND_SCHEMA_PARTS.part144
       ]
     },
     "runPath": "/api/v1/commands/payment.deposit",
@@ -173,7 +173,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
   {
     "name": "payment.receive",
     "area": "payment",
-    "roles": COMMAND_SCHEMA_PARTS.part50,
+    "roles": COMMAND_SCHEMA_PARTS.part51,
     "risk": "normal",
     "description": {
       "sentence": "Record money received from a customer or paid to a vendor and apply it to open documents, and do not use it to create an invoice or bill.",
@@ -196,7 +196,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The payment amount, date, cash account, payment type, or allocation is invalid.",
           "next": "Correct the payment details and choose an existing cash account and open document."
         },
-        COMMAND_SCHEMA_PARTS.part152,
+        COMMAND_SCHEMA_PARTS.part154,
         {
           "code": "PERIOD_LOCKED",
           "when": "The payment date is in a closed period.",
@@ -216,7 +216,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
   {
     "name": "payment.void",
     "area": "payment",
-    "roles": COMMAND_SCHEMA_PARTS.part50,
+    "roles": COMMAND_SCHEMA_PARTS.part51,
     "risk": "normal",
     "description": {
       "sentence": "Void a payment so its entry and its ledger rows are reversed and its documents are due again; do not use it to correct one line — void and record the payment again.",
@@ -236,7 +236,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The payment is already void, is inside a bank deposit, or the void date is before the payment or in a closed period.",
           "next": "Undo the deposit first, and choose an open date on or after the payment."
         },
-        COMMAND_SCHEMA_PARTS.part143
+        COMMAND_SCHEMA_PARTS.part144
       ]
     },
     "runPath": "/api/v1/commands/payment.void",

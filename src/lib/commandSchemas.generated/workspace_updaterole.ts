@@ -6,9 +6,9 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "role": {
       "type": "string",
-      "enum": COMMAND_SCHEMA_PARTS.part62
+      "enum": COMMAND_SCHEMA_PARTS.part63
     },
-    "targetUid": COMMAND_SCHEMA_PARTS.part71
+    "targetUid": COMMAND_SCHEMA_PARTS.part72
   },
   "required": [
     "role"

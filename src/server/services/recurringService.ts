@@ -277,7 +277,7 @@ async function generateEntry(db: Firestore, rule: RecurringTransaction, generate
       totalAmountCents: rule.template!.lines!.reduce((sum, l) => sum + Math.max(0, l.amountCents), 0),
       createdAt: new Date().toISOString(),
     } as Transaction;
-    settleHomeCurrency(entryToPost);
+    settleHomeCurrency(entryToPost, String(wsNow.currency || "USD"));
     // #654: the total is the settled home-currency debits, as every validated entry's is
     entryToPost.totalAmountCents = getAbsoluteTotal(entryToPost);
     await ledgerWrite(tx, txRef, entryToPost as unknown as Record<string, unknown>);

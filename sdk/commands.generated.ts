@@ -67,6 +67,8 @@ export const REGISTERED_COMMAND_NAMES = [
   "period.signoff",
   "period.unlock",
   "period.yearclose",
+  "project.delete",
+  "project.restore",
   "reconciliations.bankline",
   "reconciliations.banklinepay",
   "reconciliations.banklinesplit",
