@@ -1,6 +1,5 @@
 import { lineAmount } from '../../lib/txFilters';
-import { collection, addDoc, updateDoc, deleteDoc, doc } from '../../lib/db/firestore';
-import { db } from '../../firebase';
+import { runNamedCommand } from '../../lib/commandByName';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { runCommand } from '../../lib/runCommand';
@@ -10,6 +9,7 @@ import { formatDate } from '../../lib/utils';
 import { describeError } from '../../lib/errorRemedies';
 import { safeConfirm, getLocalDateISO } from '../../lib/utils';
 import { retentionFor } from '../../lib/retentionPolicy';
+import { saveChartAccount } from '../../lib/recordWrites';
 import { handleFirestoreError, OperationType } from '../../lib/firebaseUtils';
 import type { ActionContext } from './shared';
 import { errorMessage } from './shared';
@@ -123,25 +123,10 @@ export function createWorkspaceActions(ctx: ActionContext) {
           }
         }
 
-        // Safely archive account to preserve accounting integrity and prevent security rule violations
-        // isArchived (not "status", which accounts don't have: the database refused it, L-179)
-        await updateDoc(doc(db, 'chartAccounts', id), {
-          isActive: false,
-          isArchived: true,
-          updatedAt: new Date().toISOString()
-        });
-
-        await addDoc(collection(db, 'auditLogs'), {
-          uid: user.uid,
-          workspaceId: currentWorkspaceId,
-          email: user.email,
-          action: 'DEACTIVATE_ACCOUNT',
-          entityType: 'account',
-          entityId: id,
-          details: { linkedTransactionsCount: linkedTxs.length },
-          timestamp: new Date().toISOString()
-        });
-
+        // Safely archive account to preserve accounting integrity and prevent security rule violations.
+        // `chartaccount.update` takes ONE `archived` flag and derives `isActive`/`isArchived` from it, so the two
+        // can never disagree, and it writes the audit line the tab used to try to write itself.
+        await saveChartAccount(currentWorkspaceId, { id, archived: true });
         toast.success('Account deactivated and archived (transaction history preserved)');
       } else {
         if (!force) {
@@ -152,18 +137,9 @@ export function createWorkspaceActions(ctx: ActionContext) {
           }
         }
 
-        await deleteDoc(doc(db, 'chartAccounts', id));
-
-        await addDoc(collection(db, 'auditLogs'), {
-          uid: user.uid,
-          workspaceId: currentWorkspaceId,
-          email: user.email,
-          action: 'DELETE_EMPTY_ACCOUNT',
-          entityType: 'account',
-          entityId: id,
-          details: { description: 'Empty account deleted' },
-          timestamp: new Date().toISOString()
-        });
+        // `chartaccount.delete` refuses an account that anything names (a line, a budget, a rule) and writes the
+        // audit line itself, so "empty account removed" cannot be said about an account that was not empty
+        await runNamedCommand('chartaccount.delete', { id }, { workspaceId: currentWorkspaceId });
 
         toast.success('Account node decommissioned');
       }

@@ -119,6 +119,12 @@ describe('On the estimates screen', () => {
       const document = commandName === 'invoice' ? body.input?.invoice : body.input?.bill;
       return document ? [document] : [];
     }
+    // estimates are saved through their command, so the row is the command's `input`; who accepted it and when
+    // are stamped by the server from the session, not sent by the tab (estimate-commands.test.ts holds that)
+    if (c.url.endsWith('/api/v1/commands/estimate.save') || c.url.endsWith('/api/v1/commands/estimate.status')) {
+      const input = (body.input || {}) as Row;
+      return [{ ...input, orderedAt: input.status === 'accepted' ? 'stamped-by-server' : input.orderedAt }];
+    }
     if (c.url.endsWith('/transactions/bulk')) return body.entityMutation?.collection === table ? [body.entityMutation.data] : [];
     return /\/rpc\/lf_\w+/.test(c.url) && body.p_table === table ? [(body.p_set || body.p_data)!] : [];
   });
@@ -134,7 +140,7 @@ describe('On the estimates screen', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Make it an order' })); });
     await waitFor(() => assert.ok(written(calls, 'estimates').some(d => d.orderedAt)));
     const saved = written(calls, 'estimates').find(d => d.orderedAt)!;
-    assert.deepEqual([saved.status, saved.customerReference, saved.orderedBy], ['accepted', 'PO-77', 'test-user']);
+    assert.deepEqual([saved.status, saved.customerReference], ['accepted', 'PO-77']);
   });
 
   test('an order shows what is invoiced and left; a part becomes a draft invoice', async () => {

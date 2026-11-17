@@ -18,15 +18,8 @@ import {
 } from 'lucide-react';
 import { cn, safeConfirm, formatCurrency, getLocalDateISO } from '../../lib/utils';
 import AsyncButton from '../ui/AsyncButton';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  addDoc, 
-  doc,
-  updateDoc
-} from '../../lib/db/firestore';
+import { collection, query, where, onSnapshot } from '../../lib/db/firestore';
+import { saveDocument } from '../../lib/recordWrites';
 import { db } from '../../firebase';
 import { CloudDocument, Transaction } from '../../types';
 import { format } from 'date-fns';
@@ -133,15 +126,15 @@ export default function Vault() {
             return;
           }
           try {
-            const docRef = await addDoc(collection(db, 'documents'), {
-              uid: newDoc.uid,
-              workspaceId: newDoc.workspaceId,
+            // `document.save` writes the owner, the workspace and the date from the session: the row cannot name
+            // another book and cannot be dated by the device's clock
+            const docRef = await saveDocument(workspaceId, {
               name: newDoc.name,
               fileUrl: newDoc.fileUrl,
               mimeType: newDoc.mimeType,
               sizeBytes: newDoc.sizeBytes,
               tags: newDoc.tags,
-              createdAt: newDoc.createdAt
+              source: 'vault',
             });
             setDocuments(prev => prev.map(d => d.id === generatedId ? { ...d, id: docRef.id } : d));
           } catch (saveErr) {
@@ -269,8 +262,9 @@ export default function Vault() {
       if (createdTxId) {
         setDocuments(prev => prev.map(d => d.id === selectedDoc.id ? { ...d, linkedTransactionId: createdTxId } : d));
         try {
-          await updateDoc(doc(db, 'documents', selectedDoc.id), {
-            linkedTransactionId: createdTxId
+          await saveDocument(workspaceId || selectedDoc.workspaceId, {
+            id: selectedDoc.id,
+            linkedTransactionId: createdTxId,
           });
         } catch {
           // Local state updated; non-blocking for guest/offline

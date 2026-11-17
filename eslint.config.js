@@ -62,5 +62,11 @@ export default tseslint.config(
         }
       ]
     }
-  }
+  },
+  // generated sources are machine output: their length is the generator's business, not a reviewer's, and the
+  // generator splits per command. Every other rule still applies, so a generated file cannot smuggle a real defect.
+  {
+    files: ['**/*.generated.ts', '**/*.generated/**', 'sdk/**/*.ts'],
+    rules: { 'max-lines': 'off' },
+  },
 );

@@ -10,13 +10,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Package, Plus, Trash2, Edit2, BarChart3, Database, Zap,
-  ShieldAlert, ShoppingCart, SlidersHorizontal, ClipboardList, History,
-} from 'lucide-react';
+  ShieldAlert, ShoppingCart, SlidersHorizontal, ClipboardList, History } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useTimeout } from '../../hooks/useTimeout';
 import {
-  collection, query, where, onSnapshot, addDoc, deleteDoc, doc, updateDoc, deleteField,
-} from '../../lib/db/firestore';
+  collection, query, where, onSnapshot } from '../../lib/db/firestore';
 import { db } from '../../firebase';
 import { InventoryItem } from '../../types';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -48,6 +46,7 @@ import { isConsignment } from '../../lib/consignmentStock';
 import { deleteWithUndo, isDeletePending } from '../../lib/undoableDelete';
 import { BRAND_NAME } from '../../config/brand';
 import { buildInventoryColumns, type InventoryRowItem } from './inventoryColumns';
+import { removeInventoryItem, saveInventoryItem, saveInventoryItemField } from '../../lib/recordWrites';
 
 /** A-19: the bundle parts the item dialog wrote into the form (a bad value means no parts, never a crash). */
 const parseBundleParts = (raw: FormDataEntryValue | null): BundlePart[] | undefined => {
@@ -141,16 +140,15 @@ export default function Inventory() {
       bundleParts: parseBundleParts(formData.get('bundleParts')),
       assembleOnDemand: formData.get('assembleOnDemand') === 'on',
       consignment: (formData.get('consignment') as string) || undefined,
-      locationLevels: parseLocationLevelsJson(formData.get('locationLevels')),
-    };
+      locationLevels: parseLocationLevelsJson(formData.get('locationLevels')) };
 
     try {
       const defaults = cleanDocumentDefaults(JSON.parse(String(formData.get('documentDefaults') || '{}')));
-      await updateDoc(doc(db, 'inventory', editingItem.id), {
+      await saveInventoryItem(workspaceId || '', {
+        id: editingItem.id,
         ...updates,
-        'metadata.documentDefaults': Object.keys(defaults).length ? defaults : deleteField(),
-        defaultTaxCodeId: String(formData.get('defaultTaxCodeId') || '') || deleteField(),
-      });
+        documentDefaults: Object.keys(defaults).length ? defaults : null,
+        defaultTaxCodeId: String(formData.get('defaultTaxCodeId') || '') || null });
       setEditingItem(null);
       toast.success('Inventory item updated');
     } catch {
@@ -199,15 +197,14 @@ export default function Inventory() {
       assembleOnDemand: formData.get('assembleOnDemand') === 'on',
       consignment: (formData.get('consignment') as string) || undefined,
       locationLevels: parseLocationLevelsJson(formData.get('locationLevels')),
-      createdAt: new Date().toISOString(),
-    };
+      createdAt: new Date().toISOString() };
 
     const openingQty = newItem.itemType === 'service' ? 0 : Number(formData.get('quantity')) || 0;
     if (isGuest && openingQty !== 0) { toast.error('Opening stock needs a signed-in workspace. The item was not saved.'); return; }
     try {
-      const ref = await addDoc(collection(db, 'inventory'), newItem);
+      const saved = await saveInventoryItem(workspaceId || '', newItem as unknown as Record<string, unknown>) as { id?: string } | undefined;
       setIsAdding(false);
-      if (openingQty > 0) await recordOpeningStock(ref.id, newItem.name, openingQty);
+      if (openingQty > 0 && saved?.id) await recordOpeningStock(saved.id, newItem.name, openingQty);
       else toast.success('Inventory item added');
     } catch {
       toast.error('Failed to add item');
@@ -215,17 +212,16 @@ export default function Inventory() {
   };
 
   const quickAddItem = async (name: string) => {
-    await addDoc(collection(db, 'inventory'), {
-      uid: uid || '', workspaceId: workspaceId || '', name, sku: '', unitPriceCents: 0, unitCostCents: 0,
-      quantityAtHand: 0, reorderPoint: 0, ...(categoryFilter ? { category: categoryFilter } : {}), createdAt: new Date().toISOString(),
-    });
+    await saveInventoryItem(workspaceId || '', {
+      name, sku: '', description: '', unitPriceCents: 0, unitCostCents: 0, reorderPoint: 0,
+      category: categoryFilter || '' });
     toast.success(`"${name}" added`);
   };
 
   const saveItemField = useCallback(async (item: InventoryItem, field: 'name' | 'sku' | 'category' | 'unitPriceCents' | 'unitCostCents' | 'standardCostCents', value: string | number) => {
-    await updateDoc(doc(db, 'inventory', item.id), { [field]: value, updatedAt: new Date().toISOString() });
+    await saveInventoryItemField(workspaceId || '', item.id, field, value);
     toast.success('Saved');
-  }, []);
+  }, [workspaceId]);
 
   const countItem = useCallback(async (item: InventoryItem, counted: number) => {
     if (isGuest) throw new Error('Stock counts need a signed-in workspace.');
@@ -250,9 +246,8 @@ export default function Inventory() {
         rows.splice(at < 0 ? rows.length : Math.min(at, rows.length), 0, item);
         return rows;
       }),
-      commit: () => deleteDoc(doc(db, 'inventory', id)),
-    });
-  }, [items]);
+      commit: () => removeInventoryItem(workspaceId || '', id) });
+  }, [items, workspaceId]);
 
   const categories = useMemo(() => categoryCounts(items).map(c => c.name), [items]);
   const displayItems = useMemo<InventoryRowItem[]>(() => {
@@ -285,8 +280,7 @@ export default function Inventory() {
     onAdjustItem: setAdjustItem,
     onHistoryItem: setHistoryItem,
     onEditItem: setEditingItem,
-    onDeleteItem: handleDelete,
-  }), [workspaceId, items, categories, imageRefresh, showRuleIntel, canChangeStock, canPostStock, canRevalue, saveItemField, countItem, setRevalueItem, handleDelete]);
+    onDeleteItem: handleDelete }), [workspaceId, items, categories, imageRefresh, showRuleIntel, canChangeStock, canPostStock, canRevalue, saveItemField, countItem, setRevalueItem, handleDelete]);
 
   const closeItemDialog = () => { setIsAdding(false); setEditingItem(null); };
 

@@ -129,10 +129,14 @@ describe('Construction in progress on the register', () => {
     fireEvent.change(within(dialog).getByLabelText('Amount'), { target: { value: '1250.50' } });
     fireEvent.change(within(dialog).getByLabelText('What for (optional)'), { target: { value: 'Roof' } });
     await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Add' })); });
-    await waitFor(() => assert.equal(calls.filter(c => c.url.includes('/rpc/lf_update')).length, 1));
-    const body = calls.find(c => c.url.includes('/rpc/lf_update'))!.body as { p_set: { purchasePriceCents: number; costAdditions: Array<{ amountCents: number; note?: string }> } };
-    assert.equal(body.p_set.purchasePriceCents, 5_125_050);
-    assert.deepEqual(body.p_set.costAdditions.map(c => [c.amountCents, c.note]), [[125_050, 'Roof']]);
+    // `asset.costaddition` takes the ONE cost: the command reads the list and derives the basis, so the tab sends
+    // neither the previous list nor the new total
+    await waitFor(() => assert.equal(calls.filter(c => c.url.includes('/commands/asset.costaddition')).length, 1));
+    const body = calls.find(c => c.url.includes('/commands/asset.costaddition'))!.body as { input: { assetId: string; amountCents: number; note?: string } };
+    assert.equal(body.input.assetId, building.id);
+    assert.equal(body.input.amountCents, 125_050);
+    assert.equal(body.input.note, 'Roof');
+    assert.equal('purchasePriceCents' in body.input, false, 'the basis is derived by the command');
   });
 
   test('Place in service asks the server with the account it belongs in', async () => {

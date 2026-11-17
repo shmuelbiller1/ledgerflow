@@ -20,7 +20,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Archive, Check, Database, Layers, RefreshCw, ShieldCheck, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { saveWorkspaceAxes } from '../../../lib/workspaceSettingsSave';
-import { doc, writeBatch } from '../../../lib/db/firestore';
+import { saveDimensionNodes } from '../../../lib/recordWrites';
 import { db } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
@@ -283,17 +283,9 @@ function DimensionsSettingsContent() {
       if (db) {
         await saveWorkspaceAxes(currentWorkspaceId, dimensions);
 
-        // Write individual nodes in batch
-        const batch = writeBatch(db);
-        dimensionNodes.forEach(node => {
-          const docId = `${currentWorkspaceId}_${node.dimensionId}_${node.id}`;
-          const nodeRef = doc(db, 'dimensionNodes', docId);
-          batch.set(nodeRef, {
-            ...node,
-            workspaceId: currentWorkspaceId
-          });
-        });
-        await batch.commit();
+        // one command for the values: the batch was atomic inside this tab and nothing more — no workspace check
+        // on each row, no audit line, and `updatedAt` from the browser's clock
+        await saveDimensionNodes(currentWorkspaceId, dimensionNodes);
       }
 
       // Update store slice
@@ -405,18 +397,7 @@ function DimensionsSettingsContent() {
 
       setDimensionNodes(allNodes);
 
-      if (db) {
-        const batch = writeBatch(db);
-        allNodes.forEach(node => {
-          const docId = `${currentWorkspaceId}_${node.dimensionId}_${node.id}`;
-          const nodeRef = doc(db, 'dimensionNodes', docId);
-          batch.set(nodeRef, {
-            ...node,
-            workspaceId: currentWorkspaceId
-          });
-        });
-        await batch.commit();
-      }
+      if (db) await saveDimensionNodes(currentWorkspaceId, allNodes);
 
       // Update store slice
       storeSetDimensionNodes(allNodes);

@@ -3,25 +3,35 @@ import { ACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/account';
 import { ALERTS_COMMAND_MANIFEST } from './commandManifests.generated/alerts';
 import { APIKEY_COMMAND_MANIFEST } from './commandManifests.generated/apikey';
 import { ASSET_COMMAND_MANIFEST } from './commandManifests.generated/asset';
+import { AUDITLOG_COMMAND_MANIFEST } from './commandManifests.generated/auditlog';
 import { AUTORULE_COMMAND_MANIFEST } from './commandManifests.generated/autorule';
 import { BILL_COMMAND_MANIFEST } from './commandManifests.generated/bill';
 import { BUDGET_COMMAND_MANIFEST } from './commandManifests.generated/budget';
+import { CHARTACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/chartaccount';
 import { CREDITNOTE_COMMAND_MANIFEST } from './commandManifests.generated/creditnote';
 import { CUSTOMER_COMMAND_MANIFEST } from './commandManifests.generated/customer';
+import { DOCUMENT_COMMAND_MANIFEST } from './commandManifests.generated/document';
+import { EMPLOYEE_COMMAND_MANIFEST } from './commandManifests.generated/employee';
 import { ENTRYLINK_COMMAND_MANIFEST } from './commandManifests.generated/entrylink';
+import { ESTIMATE_COMMAND_MANIFEST } from './commandManifests.generated/estimate';
 import { GROUPS_COMMAND_MANIFEST } from './commandManifests.generated/groups';
 import { INVENTORY_COMMAND_MANIFEST } from './commandManifests.generated/inventory';
+import { INVENTORYITEM_COMMAND_MANIFEST } from './commandManifests.generated/inventoryitem';
 import { INVOICE_COMMAND_MANIFEST } from './commandManifests.generated/invoice';
 import { JOURNAL_COMMAND_MANIFEST } from './commandManifests.generated/journal';
+import { LOAN_COMMAND_MANIFEST } from './commandManifests.generated/loan';
+import { NOTIFICATION_COMMAND_MANIFEST } from './commandManifests.generated/notification';
 import { NUMBERING_COMMAND_MANIFEST } from './commandManifests.generated/numbering';
 import { PAYMENT_COMMAND_MANIFEST } from './commandManifests.generated/payment';
 import { PERIOD_COMMAND_MANIFEST } from './commandManifests.generated/period';
+import { PRESENCE_COMMAND_MANIFEST } from './commandManifests.generated/presence';
 import { PROJECT_COMMAND_MANIFEST } from './commandManifests.generated/project';
 import { QUERY_COMMAND_MANIFEST } from './commandManifests.generated/query';
 import { RECONCILIATIONS_COMMAND_MANIFEST } from './commandManifests.generated/reconciliations';
 import { RMA_COMMAND_MANIFEST } from './commandManifests.generated/rma';
 import { SAVEDLIST_COMMAND_MANIFEST } from './commandManifests.generated/savedlist';
 import { STAGES_COMMAND_MANIFEST } from './commandManifests.generated/stages';
+import { SUPPORT_COMMAND_MANIFEST } from './commandManifests.generated/support';
 import { TASKS_COMMAND_MANIFEST } from './commandManifests.generated/tasks';
 import { TIME_COMMAND_MANIFEST } from './commandManifests.generated/time';
 import { USER_COMMAND_MANIFEST } from './commandManifests.generated/user';
@@ -36,25 +46,35 @@ export const COMMAND_MANIFEST = [
   ...ALERTS_COMMAND_MANIFEST,
   ...APIKEY_COMMAND_MANIFEST,
   ...ASSET_COMMAND_MANIFEST,
+  ...AUDITLOG_COMMAND_MANIFEST,
   ...AUTORULE_COMMAND_MANIFEST,
   ...BILL_COMMAND_MANIFEST,
   ...BUDGET_COMMAND_MANIFEST,
+  ...CHARTACCOUNT_COMMAND_MANIFEST,
   ...CREDITNOTE_COMMAND_MANIFEST,
   ...CUSTOMER_COMMAND_MANIFEST,
+  ...DOCUMENT_COMMAND_MANIFEST,
+  ...EMPLOYEE_COMMAND_MANIFEST,
   ...ENTRYLINK_COMMAND_MANIFEST,
+  ...ESTIMATE_COMMAND_MANIFEST,
   ...GROUPS_COMMAND_MANIFEST,
   ...INVENTORY_COMMAND_MANIFEST,
+  ...INVENTORYITEM_COMMAND_MANIFEST,
   ...INVOICE_COMMAND_MANIFEST,
   ...JOURNAL_COMMAND_MANIFEST,
+  ...LOAN_COMMAND_MANIFEST,
+  ...NOTIFICATION_COMMAND_MANIFEST,
   ...NUMBERING_COMMAND_MANIFEST,
   ...PAYMENT_COMMAND_MANIFEST,
   ...PERIOD_COMMAND_MANIFEST,
+  ...PRESENCE_COMMAND_MANIFEST,
   ...PROJECT_COMMAND_MANIFEST,
   ...QUERY_COMMAND_MANIFEST,
   ...RECONCILIATIONS_COMMAND_MANIFEST,
   ...RMA_COMMAND_MANIFEST,
   ...SAVEDLIST_COMMAND_MANIFEST,
   ...STAGES_COMMAND_MANIFEST,
+  ...SUPPORT_COMMAND_MANIFEST,
   ...TASKS_COMMAND_MANIFEST,
   ...TIME_COMMAND_MANIFEST,
   ...USER_COMMAND_MANIFEST,

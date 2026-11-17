@@ -10,6 +10,9 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ChartOfAccountsView from '../components/ledger/ChartOfAccountsView';
+
+/** the chart's own writes, which are a command now rather than a row edited in the tab */
+const commandCalls = (calls: Array<{ url: string; body?: unknown }>) => calls.filter(call => call.url.includes('/commands/chartaccount.'));
 import TrialBalanceView from '../components/ledger/TrialBalanceView';
 import BalanceSheetView from '../components/ledger/BalanceSheetView';
 import ProfitAndLossView from '../components/ledger/ProfitAndLossView';
@@ -102,10 +105,12 @@ describe('the chart of accounts', () => {
     );
     fireEvent.change(picker, { target: { value: 'overhead' } });
     await act(async () => { fireEvent.keyDown(picker, { key: 'Enter' }); });
-    await waitFor(() => assert.equal(calls.filter(call => call.url.includes('/rpc/lf_update')).length, 1));
-    const saved = calls.find(call => call.url.includes('/rpc/lf_update'))!.body as { p_table: string; p_id: string; p_set: Record<string, unknown> };
-    assert.deepEqual([saved.p_table, saved.p_id, saved.p_set.parentId], ['chartAccounts', 'rent', 'overhead']);
-    assert.equal(typeof saved.p_set.updatedAt, 'string');
+    // the group is saved by `chartaccount.update`: the tab names the account and its new parent, the server stamps
+    // `updatedAt` and writes the audit line
+    await waitFor(() => assert.equal(commandCalls(calls).length, 1));
+    const saved = commandCalls(calls)[0] as { url: string; body: { input: { id: string; parentId: unknown } } };
+    assert.match(saved.url, /\/commands\/chartaccount\.update$/);
+    assert.deepEqual([saved.body.input.id, saved.body.input.parentId], ['rent', 'overhead']);
   });
 
   test('taking an account out of its group saves no parent, and a viewer only reads the group', async () => {
@@ -125,15 +130,15 @@ describe('the chart of accounts', () => {
     assert.equal(picker.value, 'overhead');
     fireEvent.change(picker, { target: { value: '' } });
     await act(async () => { fireEvent.keyDown(picker, { key: 'Enter' }); });
-    await waitFor(() => assert.equal(calls.filter(call => call.url.includes('/rpc/lf_update')).length, 1));
-    const saved = calls.find(call => call.url.includes('/rpc/lf_update'))!.body as { p_id: string; p_set: Record<string, unknown> };
-    assert.deepEqual([saved.p_id, saved.p_set.parentId], ['rent', null]);
+    await waitFor(() => assert.equal(commandCalls(calls).length, 1));
+    const saved = commandCalls(calls)[0] as { body: { input: { id: string; parentId: unknown } } };
+    assert.deepEqual([saved.body.input.id, saved.body.input.parentId], ['rent', null], 'the top level is written as an empty parent, not a removed field');
     cleanup();
     setComponentWorkspace('viewer');
     chart();
     assert.equal(screen.queryByRole('button', { name: /^Edit Parent account/ }), null, 'a viewer cannot move an account');
     assert.ok(screen.getByRole('button', { name: 'Show the accounts inside Overheads' }), 'a viewer can still open the group');
-    assert.equal(calls.filter(call => call.url.includes('/rpc/lf_update')).length, 1, 'reading a group writes nothing');
+    assert.equal(commandCalls(calls).length, 1, 'reading a group writes nothing');
   });
 });
 

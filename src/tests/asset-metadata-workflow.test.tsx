@@ -230,12 +230,12 @@ test('workspace switch clears maintenance draft and ignores a late successful sa
 
 test('maintenance files load on expansion and attach to the real assets collection', async () => {
   setup();
-  const writes: Array<{ p_data: Record<string, unknown> }> = [];
+  const writes: Array<{ workspaceId: string; input: Record<string, unknown> }> = [];
   let reads = 0;
   globalThis.fetch = (async (input, init) => {
     const url = String(input);
     if (url.includes('/documents?')) reads += 1;
-    if (url.includes('/lf_set')) writes.push(JSON.parse(String(init?.body)));
+    if (url.includes('/commands/document.save')) writes.push(JSON.parse(String(init?.body)));
     return response([]);
   }) as typeof fetch;
   const view = render(<MaintenanceLog asset={asset} currency="USD" />);
@@ -246,10 +246,13 @@ test('maintenance files load on expansion and attach to the real assets collecti
   const file = new window.File(['service'], 'receipt.txt', { type: 'text/plain' });
   fireEvent.change(screen.getByLabelText('Attach files to Asset maintenance: ציוד'), { target: { files: [file] } });
   await waitFor(() => assert.equal(writes.length, 1));
-  assert.equal(writes[0].p_data.linkedCollection, 'assets');
-  assert.equal(writes[0].p_data.linkedId, asset.id);
-  assert.equal(writes[0].p_data.linkedLabel, 'Asset maintenance: ציוד');
-  assert.equal(writes[0].p_data.workspaceId, asset.workspaceId);
+  // one command for the row: the collection, the record it hangs from and the workspace the file is filed into
+  const [sent] = writes;
+  assert.equal(sent.input.linkedCollection, 'assets');
+  assert.equal(sent.input.linkedId, asset.id);
+  assert.equal(sent.input.linkedLabel, 'Asset maintenance: ציוד');
+  assert.equal(sent.workspaceId, asset.workspaceId);
+  assert.equal('workspaceId' in sent.input, false, 'document.save stamps the workspace from the session');
 });
 
 test('labels retain QR support, add SVG Code 128 and purchase date, and isolate the print root', async () => {

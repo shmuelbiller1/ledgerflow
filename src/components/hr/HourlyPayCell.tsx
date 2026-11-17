@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { db } from '../../firebase';
-import { doc, updateDoc } from '../../lib/db/firestore';
 import { useDialog } from '../../hooks/useDialog';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -8,6 +6,7 @@ import { formatCurrency } from '../../lib/utils';
 import { hourlyProblem, isHourly } from '../../lib/hourlyPay';
 import { useHandOvers } from '../collaboration/useHandOvers';
 import type { Employee } from '../../types';
+import { saveEmployee } from '../../lib/recordWrites';
 
 /**
  * How an employee is paid (U-11): a yearly salary, or by the hour from their approved time on Time.
@@ -35,9 +34,10 @@ export function HourlyPayCell({ employee, canWrite }: { employee: Employee; canW
     if (problem) { setError(problem); return; }
     setBusy(true);
     try {
-      const fields = hourly ? { payType: 'hourly' as const, hourlyRateCents: draft.hourlyRateCents, timeUid, updatedAt: new Date().toISOString() } : { payType: 'salary' as const, updatedAt: new Date().toISOString() };
-      await updateDoc(doc(db, 'employees', employee.id), fields);
-      setEmployees(employees.map(e => (e.id === employee.id ? { ...e, ...fields } as Employee : e)));
+      const fields = hourly ? { payType: 'hourly' as const, hourlyRateCents: draft.hourlyRateCents, timeUid } : { payType: 'salary' as const };
+      await saveEmployee(employee.workspaceId, employee.id, fields);
+      const stamped = { ...fields, updatedAt: new Date().toISOString() };
+      setEmployees(employees.map(e => (e.id === employee.id ? { ...e, ...stamped } as Employee : e)));
       setOpen(false);
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }
   };

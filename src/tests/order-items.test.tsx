@@ -136,6 +136,11 @@ describe('On the estimates screen', () => {
     };
     const post = c.url.match(/\/api\/v1\/documents\/(invoices|bills)\/[^/]+\/post$/);
     if (post) return post[1] === table ? [(body as { data: Row }).data] : [];
+    // a quote's lines and total are saved through its command, so the row is the command's `input`
+    if (c.url.endsWith('/api/v1/commands/estimate.save') || c.url.endsWith('/api/v1/commands/estimate.status')) {
+      const input = (body.input || {}) as Row;
+      return table === 'estimates' ? [input] : [];
+    }
     const commandName = c.url.endsWith('/api/v1/commands/invoice.create') ? 'invoice' : c.url.endsWith('/api/v1/commands/bill.create') ? 'bill' : null;
     if (commandName && `${commandName}s` === table) {
       const document = commandName === 'invoice' ? body.input?.invoice : body.input?.bill;

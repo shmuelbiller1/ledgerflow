@@ -7,17 +7,16 @@
  */
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { db } from '../../firebase';
-import { doc, updateDoc } from '../../lib/db/firestore';
 import { useDialog } from '../../hooks/useDialog';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { computePeriodPayroll } from '../../lib/payroll-engine';
 import { DEFAULT_GARNISHMENT_PERCENT, deductionProblem, KIND_LABEL, type DeductionKind, type EmployeeDeduction } from '../../lib/payrollDeductions';
 import { formatCurrency } from '../../lib/utils';
 import type { Employee } from '../../types';
+import { saveEmployee } from '../../lib/recordWrites';
 
 async function save(employee: Employee, deductions: EmployeeDeduction[]) {
-  await updateDoc(doc(db, 'employees', employee.id), { deductions, updatedAt: new Date().toISOString() });
+  await saveEmployee(employee.workspaceId, employee.id, { deductions });
   useLedgerStore.setState(state => ({ employees: state.employees.map(e => (e.id === employee.id ? { ...e, deductions } : e)) }));
 }
 
@@ -74,8 +73,7 @@ export function DeductionsCell({ employee, canWrite }: { employee: Employee; can
       id: `ded_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
       name: name.trim(), kind,
       ...(how === 'amount' ? { amountCents: Math.round(number * 100) } : { percent: number }),
-      ...(kind === 'garnishment' ? { maxPercent: Number(limit) } : {}),
-    };
+      ...(kind === 'garnishment' ? { maxPercent: Number(limit) } : {}) };
     if (!value.trim() || !Number.isFinite(number)) { setError(how === 'amount' ? 'Enter the amount a pay period' : 'Enter the percent'); return; }
     const problem = deductionProblem(entry);
     if (problem) { setError(problem); return; }

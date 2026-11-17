@@ -4,7 +4,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "groupId": COMMAND_SCHEMA_PARTS.part36,
+    "groupId": COMMAND_SCHEMA_PARTS.part38,
     "name": COMMAND_SCHEMA_PARTS.part1,
     "workspaceIds": COMMAND_SCHEMA_PARTS.part1,
     "parentId": COMMAND_SCHEMA_PARTS.part1,
@@ -12,6 +12,6 @@ export const COMMAND_INPUT_SCHEMA = {
     "investments": COMMAND_SCHEMA_PARTS.part1,
     "acquired": COMMAND_SCHEMA_PARTS.part1
   },
-  "required": COMMAND_SCHEMA_PARTS.part9,
+  "required": COMMAND_SCHEMA_PARTS.part10,
   "additionalProperties": false
 } as const;

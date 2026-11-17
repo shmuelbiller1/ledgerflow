@@ -1,5 +1,4 @@
-import { collection, addDoc } from '../../lib/db/firestore';
-import { db } from '../../firebase';
+import { runNamedCommand } from '../../lib/commandByName';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
@@ -75,17 +74,19 @@ export function useActionContext() {
     if (!user || !currentWorkspaceId) return;
     try {
       setIsSyncing(true);
+      // the trail is a hash chain: a row `addDoc`-ed from the tab has no chain position, so the sequence and the
+      // hashes (and the actor and the clock) come from the server. The screen only says what happened.
       const auditDetails = typeof details === 'string' ? { description: details } : (details || {});
-      await retryWithBackoff(() => addDoc(collection(db, 'auditLogs'), {
-        uid: user.uid,
-        workspaceId: currentWorkspaceId,
-        email: user.email,
+      const description = typeof (auditDetails as { description?: unknown }).description === 'string'
+        ? String((auditDetails as { description?: unknown }).description)
+        : undefined;
+      await retryWithBackoff(() => runNamedCommand('auditlog.append', {
         action,
         entityType,
         entityId,
-        details: auditDetails,
-        timestamp: new Date().toISOString()
-      }));
+        ...(description ? { description } : {}),
+        ...(auditDetails as Record<string, unknown> && Object.keys(auditDetails).length ? { details: auditDetails as Record<string, string | number | boolean | null> } : {}),
+      }, { workspaceId: currentWorkspaceId }));
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'auditLogs');
     }

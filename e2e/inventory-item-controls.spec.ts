@@ -11,12 +11,15 @@ import { test, expect } from '@playwright/test';
 test('item bundle and unit settings retain mixed text, validate quantities and work in a scrollable dialog',async({page})=>{
  const documentWrites: Array<Record<string, unknown>> = [];
  await page.route('**/api/**',route=>route.fulfill({status:200,json:{}}));
+ // the image is filed with `document.save` — one command for the row, which stamps the owner and the workspace from
+ // the session — so the specific route is registered after the blanket one and wins for that path
+ await page.route('**/api/v1/commands/document.save',async route=>{
+  const body=JSON.parse(route.request().postData()||'{}');
+  documentWrites.push({ workspaceId: body.workspaceId, ...(body.input as Record<string,unknown>) });
+  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,data:{id:'file-1'}})});
+ });
  await page.route('**/rest/v1/**',async route=>{
-  const url=route.request().url();
-  if(url.includes('/rpc/lf_set')){
-   documentWrites.push(JSON.parse(route.request().postData()||'{}'));
-   await route.fulfill({status:200,contentType:'application/json',body:'null'});
-  }else await route.fulfill({status:200,json:[]});
+  await route.fulfill({status:200,json:[]});
  });
  await page.route('**/inventory-item-controls-fixture',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Inventory item controls</title><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>'}));
  await page.addInitScript(()=>{localStorage.setItem('isGuest','true');localStorage.setItem('has_seen_onboarding','true');localStorage.setItem('ledgerflow-cookie-consent','accepted');});
@@ -49,11 +52,10 @@ test('item bundle and unit settings retain mixed text, validate quantities and w
  await imageInput.setInputFiles({name:'כיסא.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j1wAAAABJRU5ErkJggg==','base64')});
  await expect(dialog.getByRole('img',{name:'ערכה Kit'})).toHaveAttribute('src',/^data:image\/png;base64,/);
  await expect.poll(()=>documentWrites.length).toBe(1);
- expect(documentWrites[0].p_table).toBe('documents');
- expect((documentWrites[0].p_data as Record<string,unknown>).linkedCollection).toBe('inventory');
- expect((documentWrites[0].p_data as Record<string,unknown>).linkedId).toBe('kit');
- expect((documentWrites[0].p_data as Record<string,unknown>).workspaceId).toBe('inventory-image-browser');
- expect((documentWrites[0].p_data as Record<string,unknown>).mimeType).toBe('image/png');
+ expect(documentWrites[0].linkedCollection).toBe('inventory');
+ expect(documentWrites[0].linkedId).toBe('kit');
+ expect(documentWrites[0].workspaceId).toBe('inventory-image-browser');
+ expect(documentWrites[0].mimeType).toBe('image/png');
  await expect(dialog.getByLabel('Item Name',{exact:true})).toHaveValue('ערכה Kit');
  const choice=dialog.getByLabel('Item to add as a bundle part');await choice.selectOption('part');
  const quantity=dialog.getByLabel('How many of the part one bundle holds');await quantity.fill('1.5');

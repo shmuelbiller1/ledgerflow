@@ -111,10 +111,10 @@ describe('Deductions on the Payroll screen', () => {
     fireEvent.change(screen.getByLabelText('How much'), { target: { value: 'percent' } });
     fireEvent.change(screen.getByLabelText('Percent'), { target: { value: '50' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add' })); });
-    await waitFor(() => assert.equal(calls.filter(c => c.url.includes('/rpc/lf_update')).length, 1));
-    const body = calls.find(c => c.url.includes('/rpc/lf_update'))!.body as { p_table: string; p_set: { deductions: EmployeeDeduction[] } };
-    assert.equal(body.p_table, 'employees');
-    assert.deepEqual(body.p_set.deductions.map(d => [d.name, d.kind, d.percent, d.maxPercent]), [['Levy', 'garnishment', 50, 25]]);
+    await waitFor(() => assert.equal(calls.filter(c => c.url.includes('/commands/employee.update')).length, 1));
+    const body = calls.find(c => c.url.includes('/commands/employee.update'))!.body as { workspaceId: string; input: { deductions: EmployeeDeduction[] } };
+    assert.equal(body.workspaceId, 'component-workspace');
+    assert.deepEqual(body.input.deductions.map(d => [d.name, d.kind, d.percent, d.maxPercent]), [['Levy', 'garnishment', 50, 25]]);
     await waitFor(() => assert.match(screen.getByRole('list', { name: 'Deductions of Ann' }).textContent || '', /This period takes .* of .*: the limit or the pay left allows no more/));
   });
 

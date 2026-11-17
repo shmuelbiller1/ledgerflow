@@ -4,16 +4,11 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "email": {
-      "type": "string",
-      "maxLength": 200,
-      "format": "email",
-      "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-    },
+    "email": COMMAND_SCHEMA_PARTS.part198,
     "role": {
       "default": "viewer",
       "type": "string",
-      "enum": COMMAND_SCHEMA_PARTS.part68
+      "enum": COMMAND_SCHEMA_PARTS.part73
     }
   },
   "required": [

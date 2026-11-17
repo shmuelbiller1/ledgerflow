@@ -1,4 +1,6 @@
 import { alertSettingsUpdateCommand } from './alerts';
+import { presenceBeatCommand, presenceLeaveCommand } from './presence';
+import { auditAppendCommand } from './audit';
 import { importMapRestoreCommand, importMapSaveCommand } from './importMaps';
 import { entryLinkCreateCommand, entryLinkRemoveCommand } from './entryLinks';
 import { stageDefineCommand, stageMoveCommand } from './stages';
@@ -16,11 +18,21 @@ import { customerCreateCommand, customerUpdateCommand, warrantyUpdateCommand } f
 import { customerBalanceCommand, vendorBalanceCommand } from './contactBalances';
 import { vendorCreateCommand, vendorUpdateCommand } from './vendors';
 import { autoRuleCreateCommand, autoRuleUpdateCommand, autoRuleDeleteCommand, autoRuleGroupCommand, autoRuleRecordHitsCommand } from './autoRules';
-import { autoRuleLearnCommand } from './rulePatterns';
-import { dimensionAxesCommand, dimensionNodeCommand } from './dimensions';
+import { autoRuleLearnCommand, autoRuleResetCommand } from './rulePatterns';
+import { dimensionAxesCommand, dimensionNodeCommand, dimensionNodesCommand, dimensionNodesMigrateCommand } from './dimensions';
 import { userProvisionCommand, workspaceCreateCommand } from './bootstrap';
+import { userPreferencesCommand } from './userPreferences';
 import { projectDeleteCommand, projectRestoreCommand } from './projects';
 import { budgetDeleteCommand, budgetSaveCommand } from './budgets';
+import { chartAccountCreateCommand, chartAccountDeleteCommand, chartAccountUpdateCommand } from './chartAccounts';
+import { documentSaveCommand } from './attachments';
+import { ASSET_COMMANDS, assetCostAdditionCommand } from './assets';
+import { loanPaymentCommand } from './loans';
+import { notificationsReadCommand } from './notifications';
+import { supportMessageCommand, supportStatusCommand, supportTicketCommand } from './support';
+import { employeeCreateCommand, employeeUpdateCommand } from './employees';
+import { estimateSaveCommand, estimateStatusCommand } from './estimates';
+import { inventoryCategoryRenameCommand, inventoryItemDeleteCommand, inventoryItemFieldCommand, inventoryItemSaveCommand } from './inventoryItems';
 import { workspaceSettingsCommand } from './workspaceSettingsPanel';
 import {
   bankLinePayCommand,
@@ -43,7 +55,7 @@ import {
 } from './savedLists';
 import { journalCreateCommand } from './ledger';
 import {
-  workspaceApplyTemplateCommand, workspaceImportRecordsCommand, workspaceInviteCommand,
+  workspaceApplyTemplateCommand, workspaceImportRecordsCommand, workspaceInviteCommand, workspaceSaveTemplateCommand,
   workspaceScheduleDeletionCommand, workspaceUndoImportCommand, workspaceUpdateRoleCommand,
 } from './workspaceAdmin';
 import {
@@ -95,7 +107,6 @@ import {
   vendorCreditDeleteCommand,
   vendorCreditUpdateCommand,
 } from './documents';
-import { ASSET_COMMANDS } from './assets';
 import { DOCUMENT_ADJUSTMENT_COMMANDS } from './documentAdjustments';
 import { RMA_COMMANDS } from './returns';
 import { CLIENT_QUERY_COMMANDS } from './clientQueries';
@@ -120,10 +131,36 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(importMapSaveCommand);
   registry.register(importMapRestoreCommand);
   registry.register(userProvisionCommand);
+  registry.register(userPreferencesCommand);
   registry.register(workspaceCreateCommand);
+  registry.register(dimensionNodesCommand);
+  registry.register(dimensionNodesMigrateCommand);
   registry.register(projectDeleteCommand);
   registry.register(projectRestoreCommand);
   registry.register(workspaceModulesCommand);
+  registry.register(employeeCreateCommand);
+  registry.register(employeeUpdateCommand);
+  registry.register(estimateSaveCommand);
+  registry.register(estimateStatusCommand);
+  registry.register(inventoryItemSaveCommand);
+  registry.register(inventoryItemFieldCommand);
+  registry.register(inventoryItemDeleteCommand);
+  registry.register(inventoryCategoryRenameCommand);
+  registry.register(documentSaveCommand);
+  ASSET_COMMANDS.forEach(command => registry.register(command));
+  registry.register(assetCostAdditionCommand);
+  registry.register(autoRuleResetCommand);
+  registry.register(loanPaymentCommand);
+  registry.register(notificationsReadCommand);
+  registry.register(supportTicketCommand);
+  registry.register(supportMessageCommand);
+  registry.register(supportStatusCommand);
+  registry.register(auditAppendCommand);
+  registry.register(presenceBeatCommand);
+  registry.register(presenceLeaveCommand);
+  registry.register(chartAccountCreateCommand);
+  registry.register(chartAccountDeleteCommand);
+  registry.register(chartAccountUpdateCommand);
   registry.register(budgetSaveCommand);
   registry.register(budgetDeleteCommand);
   registry.register(workspaceSettingsCommand);
@@ -221,6 +258,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(bankLineSplitCommand);
   registry.register(bankRulesRerunCommand);
   registry.register(workspaceApplyTemplateCommand);
+  registry.register(workspaceSaveTemplateCommand);
   registry.register(workspaceImportRecordsCommand);
   registry.register(workspaceUndoImportCommand);
   registry.register(workspaceUpdateRoleCommand);
@@ -243,7 +281,6 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(inventoryStockClosingCommand);
   registry.register(inventoryLandedCostCommand);
   registry.register(inventoryLandedCostUndoCommand);
-  ASSET_COMMANDS.forEach(command => registry.register(command));
   DOCUMENT_ADJUSTMENT_COMMANDS.forEach(command => registry.register(command));
   RMA_COMMANDS.forEach(command => registry.register(command));
   CLIENT_QUERY_COMMANDS.forEach(command => registry.register(command));

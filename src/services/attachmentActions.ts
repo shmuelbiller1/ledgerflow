@@ -1,4 +1,5 @@
-import { addDoc, collection, getDocs, query, where } from '../lib/db/firestore';
+import { collection, getDocs, query, where } from '../lib/db/firestore';
+import { saveDocument } from '../lib/recordWrites';
 import { db } from '../firebase';
 import { getSupabase } from '../lib/db/client';
 import { runCommand } from '../lib/runCommand';
@@ -48,13 +49,20 @@ export async function attachFiles(
         break;
       }
       const record = attachmentRecord(file, fileUrl, target, { uid, workspaceId });
-      const ref = await addDoc(collection(db, 'documents'), record);
+      // one file, one command: `putAttachment` is the per-file step, so the loop below carries each file's own
+      // outcome (a refusal is recorded and the next file still goes) rather than pretending the batch is atomic
+      const ref = await putAttachment(workspaceId, record);
       result.saved.push({ ...record, id: ref.id });
     } catch (err) {
       result.refused.push({ name: file.name, reason: err instanceof Error ? err.message : String(err) });
     }
   }
   return result;
+}
+
+/** Write one attachment; the caller keeps the outcome, which is why the loop above is sequential per file. */
+async function putAttachment(workspaceId: string, record: Omit<Attachment, 'id'> & { id?: string }): Promise<{ id: string }> {
+  return saveDocument(workspaceId, record);
 }
 
 /** The files kept with one record, newest first. */

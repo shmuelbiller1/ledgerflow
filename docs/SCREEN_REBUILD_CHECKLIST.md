@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **62** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **5** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,7 +147,7 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **84** → 0. 47 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **5** → 0. 3 files — all of them the same open question (below). The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
@@ -188,9 +188,144 @@ hand-convert a table the codemod still refuses.
         (a plan is compared with posted amounts), and put the "viewers cannot change budgets" rule on the server
         rather than on a hidden button. The label the plan is kept against (EU-E5) is set, changed or taken away
         through the command, and the rest of the row's metadata is kept.
-      - **the rest** (~60 sites in 33 files) — write routes that already have a command in most cases
-        (`workspaceActions` 4, `Inventory` 5, `EstimatesView` 5, `SupportView` 5 …): one commit per hook, not per
-        call, because a hook that writes has one shape.
+      - **the roster, the shelf, the quote, the chart** — **done, 29 sites.** Four screens wrote their own
+        collection by hand: the payroll screens (`PayrollView`, `DeductionsCell`, `TimeOffCell`, `HourlyPayCell`,
+        `DirectDepositDialog`), the inventory screen (`Inventory`, five sites), the sales screens (`EstimatesView`,
+        `MilestoneSchedule`, `OrderInvoiceDialog`) and the ledger's own (`ChartOfAccountsView`, `WorkpapersPanel`).
+        Eight commands now own those rows — `employee.create` / `employee.update`, `inventoryitem.save` /
+        `inventoryitem.field` / `inventoryitem.delete`, `estimate.save` / `estimate.status`, `chartaccount.update`
+        — and each screen writes through one helper in `src/lib/recordWrites.ts` that *is* the whole guest/command
+        branch: the sample company writes its own copy on the local store, a signed-in tab sends the command.
+        - A new employee is one `employee.create` carrying the id the tab generated, so a retry after a refusal
+          reuses it and the server answers the repeat instead of hiring twice; `workspaceId` comes from the
+          session, so a draft cannot be posted into another book. `employee.update` names only the fields the
+          person changed — a raise cell never rewrites the bank account it did not see.
+        - `inventoryitem.save` strips the server-owned counters out of whatever the form sends (`quantityAtHand`
+          is derived from the movements, not typed), and the screen's opening stock is a second call to the
+          movement command with the id the save answered with — so the item and its opening count are two facts
+          with two audit lines, not one row the tab guessed at.
+        - `estimate.save` writes the quote and its milestone schedule (the schedule is part of the terms), and
+          `estimate.status` moves it: accepted stamps `orderedAt`/`orderedBy` from the session rather than taking
+          them from the tab, and `converted` is one way — a quote that became an invoice cannot go back to being
+          a quote. `chartaccount.update` takes **one** `archived` flag and derives `isArchived`/`isActive`, because
+          the two halves have to agree and the screens used to send them separately.
+        - Tests: `employee-commands.test.ts`, `inventory-item-commands.test.ts`, `estimate-chart-account-commands`
+          `.test.ts` (22 cases: the fields each command accepts, the refusals — a viewer, another workspace, a
+          system account's code, an accepted quote's lines, a repeat creation — and the audit line each writes).
+          The screens' own suites (`payroll-deductions`, `pto-accrual`, `direct-deposit`, `employee-creation`,
+          `estimates-view`, `sales-orders`, `milestones`, `chart-of-accounts-inline`, `workpapers-ui`, inventory ×4)
+          now assert the command's `input` where they asserted `lf_update`'s `p_set`: same promise, stated where
+          the guard lives.
+      - **the person's own settings, and the second workspace** — **done, 4 sites.** Three files wrote the caller's
+        profile row and one built a workspace row by hand: `useNotificationFeed.saveNotificationPrefs` and
+        `reportPreferencesDb.save` (both `updateDoc(users/{uid})`), `useSystemActions.handleCreateWorkspace` (a
+        `setDoc` of a row it had just built, with both timestamps typed in the tab) and `BlueprintSettings`'
+        currency switch (a bare `updateDoc` on `workspaces`, which is exactly the write `workspace.settings`
+        refuses once a document exists).
+        - `user.preferences` is `scope: 'person'`: the row is always `ctx.actor`'s, so there is no workspace to name
+          and no role to check. Notices merge per key (a save that mentions one toggle cannot clear the rest);
+          a report's layout is written into the map this transaction read, so saving one book's layout leaves the
+          other books' alone, and the layout's `uid`/`workspaceId`/`updatedAt` come from the session — a payload
+          cannot claim a report belongs to someone else. A person whose profile row was never written gets the same
+          skeleton `user.provision` writes instead of a `NOT_FOUND` for a row they never asked for.
+        - `handleCreateWorkspace` sends `workspace.create` (the command `useLedgerData`'s bootstrap already uses)
+          instead of minting the row and both timestamps itself.
+        - The currency switch asks `workspace.settings`, and says why when the command refuses: before a document
+          exists it is a setting, afterwards it is a migration of every stored amount.
+        - Pinned by `user-preferences-command.test.ts` (6 cases: the merge, the untouched other book, the owner
+          fields coming from the session, the empty save refused, the audit line).
+      - **the legacy label tree, and an archived account** — **done, 4 sites.** `dimensionNodesMigration` moved a
+        legacy `workspace.dimensionNodes` tree into the collection with a `writeBatch` + `updateDoc(deleteField())`
+        from the browser, in the background, with no answer: a tab that went away halfway left half the tree in the
+        collection and half on the row, and the next load migrated the same values again. `workspace
+        .dimensionnodesmigrate` writes the values and clears the legacy field **in one transaction**, refuses a
+        label with no axis (the row id is derived from it, so it would land where no screen reads), and takes at
+        most 450 rows — the screen's own chunk. `handleDeleteAccount`'s deactivate branch is one
+        `chartaccount.update` with `archived: true`; the two `addDoc(auditLogs)` calls that sat beside them are
+        gone, because the command writes the line.
+        - Pinned by `dimension-nodes-migration-command.test.ts` (6 cases).
+      - **a new account in the chart** — **done, 2 sites.** `Ledger`'s add-account form wrote the row with `addDoc`
+        — its own `createdAt`, whatever `type` the select held, and no check that the code was free, so the same code
+        could be added twice and every report that groups by code read two accounts as one. `chartaccount.create`
+        owns the row now: the code is unique inside the workspace (`CONFLICT` naming the account that already has
+        it), the group rule is the same one the picker uses, and `balanceCents`/`openingBalanceCents` are written as
+        zero by the command — an opening figure is the transaction this flow records next, not a number typed on the
+        account. The offset account the flow creates when the chart has none goes through the same command.
+        - Pinned by three more cases in `estimate-chart-account-commands.test.ts` (a free code is written with the
+          workspace from the request; a taken code is refused and nothing is added; a balance or a sixth type is not
+          input; a bookkeeper is refused).
+      - **files: the Vault, a snapped receipt, an attachment** — **done, 5 sites.** Three screens `addDoc`'d the
+        `documents` collection and one `updateDoc`'d it, each sending `uid`, `workspaceId` and `createdAt` from the
+        tab. That collection is the one place a tab could file something into a book it could not otherwise write,
+        and date a receipt before the bill it justifies. `document.save` writes the owner and the workspace from the
+        session and stamps the time; it takes `id` for the link half, which is why linking a receipt to the draft
+        bill it became does not re-send the file. `documents-ui`' suite asserts the command's `input` now (and that
+        `uid` never appears in it).
+      - **the label values, in bulk** — **done, 2 sites.** `DimensionsSettings` wrote the tree twice with a
+        `writeBatch` — on save, and when it backfilled values from the free-text paths on old transactions. A batch
+        is atomic inside one tab and nothing else: no role, no audit line, `updatedAt` from the browser, and
+        `workspaceId` on every row whatever the tab held. `workspace.dimensionnodes` writes up to 450 values in one
+        transaction with the workspace from the session, and deliberately does *not* touch the legacy field — that is
+        `workspace.dimensionnodesmigrate`'s job, and a save must not look like a migration.
+      - **a loan payment and a capitalised cost** — **done, 2 sites.** `LoansView` appended a paid instalment to the
+        loan, and `ConstructionActions` replaced an asset's `costAdditions` list together with its
+        `purchasePriceCents`. Both are lists the screens read back, both were read-modify-written in the browser
+        (two tabs keeping only the last one's list), and neither was checked against a workspace.
+        - `loan.payment` records one instalment against the loan the server reads; a repeat answers `CONFLICT`
+          ("instalment 2 is already recorded") instead of appending a second line, and the entry that posted it is
+          kept as the payment's `transactionId`.
+        - `asset.costaddition` appends the one cost and derives the basis from the list it read in the same
+          transaction, so a total can never describe a list it no longer has. A cost of zero is refused.
+        - Pinned by `loan-asset-commands.test.ts` (7 cases), and `construction-in-progress`' Add-cost suite now
+          asserts the command's `input` — the tab sends neither the old list nor the new total.
+      - **three batches that were the tab's own** — **done, 3 sites.** `markNotificationsRead` built a `writeBatch`
+        over the ids on screen (device clock, no check that the row was the caller's); `CategoryManagerDialog`
+        renamed a category with a batch built from the items the open page had loaded (an item the list had not
+        scrolled to kept the old name, so the "renamed" category came back on reload); and the AI settings screen
+        deleted the learned patterns it happened to have paged in.
+        - `notification.read` is `scope: 'person'`: it marks the caller's own rows, skips ids that are not theirs
+          instead of failing the whole click, and answers with how many were actually marked.
+        - `inventory.categoryrename` reads the workspace's cards inside the transaction and renames the ones that
+          carry the name (trimmed, case-insensitive — the same comparison the screen used); an empty name removes
+          the category rather than storing a space.
+        - `autorule.reset` clears every pattern of the workspace in one transaction and answers with how many went,
+          so "memory purged" is a fact rather than a page.
+        - Pinned by `notification-category-rule-commands.test.ts` (5 cases).
+      - **support, 6 sites.** `SupportView` opened a ticket with `setDoc`, then asked the API for the message and
+        wrote it from the browser when that answer did not arrive; the feedback widget wrote ticket and message in a
+        tab-side batch. Now `support.ticket` writes both rows in one transaction with the owner and the workspace
+        from the session, `support.message` appends a reply and moves the unread flags and stage together, and
+        `support.status` triages. A reply reads the same whichever path wrote it, because the fields are the route's.
+        - Pinned by `support-commands.test.ts` (7 cases); `support-ticket-ids` and `feedback-widget` rewritten to
+          assert the command.
+      - **an audit note, an empty account and a template, 4 sites.** `transactionActions` recorded "entry updated"
+        and "entry reversed" with `addDoc` into `auditLogs` — the one collection where a browser write is actively
+        wrong, because the trail is a hash chain and a client row has no position in it. `auditlog.append` takes only
+        *what* happened; the actor, the clock, `seq` and the hashes come from the session and the trail.
+        `workspaceActions` deleted a chart account and then wrote its own audit line: `chartaccount.delete` now refuses
+        an account that a transaction, entry, budget, line or rule names (archive it instead) and writes the line in the
+        same transaction. "Save as template" captured whatever the tab had loaded; `workspace.savetemplate` reads the
+        active chart on the server, so an archived account is not resurrected in the new workspace.
+        - Pinned by `audit-account-template-commands.test.ts` (7 cases).
+      - **presence, 3 sites.** `useCollaborators` wrote `presence/{uid}` with `setDoc` every thirty seconds and
+        `deleteDoc`-ed it on unmount — the row named its own owner and its own clock, and the workspace was whatever
+        the tab had loaded. `presence.beat` writes the caller's own row (session `uid`, email, workspace, server
+        clock) and `presence.leave` can only remove that row. Neither writes an audit line: a heartbeat is not a
+        record.
+      - **the rest** — **5 sites in 3 files, one open question.** `useEntityOperations` (3) and the two inline-edit
+        adapters (`recordDetailsAdapter`, `inlineRecordAdapter`) write `updateDoc`/`setDoc`/`deleteDoc` on whatever
+        `path`/`collection`/`kind` the caller passes. Every collection with a ledger meaning already branches to its
+        own command before reaching them, so what is left is the long tail of ordinary records — but a command for
+        them has to answer a policy question the code cannot answer for itself: an **allow-list** (fail closed, and a
+        screen added later breaks until it is listed) or a **deny-list** (fail open, and a new ledger collection is
+        writable by mistake). That is a product decision, not a mechanical conversion, so it is deliberately left
+        here rather than guessed. — write routes that already have a command in most cases
+        (`SupportView` 5, `useEntityOperations` 3, `useCollaborators` 3, `Ledger` 2, `Vault` 2 …): one commit per
+        hook, not per call, because a hook that writes has one shape. Three are deliberately *not* converted yet:
+        `useCollaborators`' presence rows (ephemeral, one row per open tab, nothing to audit), `shared.ts`'
+        `recordAudit` (the browser still writes the audit line for screen-level acts such as an export) and
+        `SupportView`'s offline fallbacks, which stand beside the support routes and need a support command pair
+        first.
 - [x] **Undo on the result.** `deleteProjectWithUndo` offers the command's own step back (`project.restore` with the
       id `project.delete` answered with), and the deleted row is kept by the server rather than by the tab. Still
       open: wiring `entry.inverse` through `useCommand` so a screen that deletes through the hook gets the same
