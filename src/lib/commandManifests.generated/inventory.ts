@@ -18,7 +18,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
   {
     "name": "inventory.adjust",
     "area": "inventory",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Add or remove the stock of one item with its entry (a purchase, opening stock, or a damaged or found adjustment); do not use it to move units between locations — that is inventory.transfer.",
@@ -29,7 +29,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
         "offsetAccountId": "acc_cash",
         "type": "purchase"
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part227
+      "refusals": COMMAND_SCHEMA_PARTS.part229
     },
     "runPath": "/api/v1/commands/inventory.adjust",
     "previewPath": "/api/v1/commands/inventory.adjust/preview",
@@ -38,7 +38,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
   {
     "name": "inventory.categoryrename",
     "area": "inventory",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Rename one item category across every item that carries it, or remove it; do not use it to change an item’s price, cost or stock.",
@@ -72,7 +72,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
   {
     "name": "inventory.cogs",
     "area": "inventory",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Recognize the cost of goods sold for units already sold from one item, lowering the quantity on hand; do not use it to add stock or record a purchase — that is inventory.adjust.",
@@ -98,7 +98,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
           "when": "There are fewer units on hand than the quantity sold.",
           "next": "Check the quantity on hand, or adjust the stock first."
         },
-        COMMAND_SCHEMA_PARTS.part158
+        COMMAND_SCHEMA_PARTS.part160
       ]
     },
     "runPath": "/api/v1/commands/inventory.cogs",
@@ -108,7 +108,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
   {
     "name": "inventory.count",
     "area": "inventory",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Record the quantities a stock count found, posting the differences to the chosen variance account in one entry; do not use it to add a purchase.",
@@ -122,7 +122,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
           }
         ]
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part227
+      "refusals": COMMAND_SCHEMA_PARTS.part229
     },
     "runPath": "/api/v1/commands/inventory.count",
     "previewPath": "/api/v1/commands/inventory.count/preview",
@@ -131,7 +131,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
   {
     "name": "inventory.deliver",
     "area": "inventory",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Deliver units from an accepted order: stock leaves and the cost of those units is booked, never more than is left to deliver; do not use it in a workspace where the invoice ships the goods.",
@@ -164,7 +164,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
           "when": "The workspace ships with invoices, the order is still a quote, or more is sent than is left.",
           "next": "Check the shipping setting and the quantity left on the line."
         },
-        COMMAND_SCHEMA_PARTS.part158
+        COMMAND_SCHEMA_PARTS.part160
       ]
     },
     "runPath": "/api/v1/commands/inventory.deliver",
@@ -174,7 +174,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
   {
     "name": "inventory.landedcost",
     "area": "inventory",
-    "roles": COMMAND_SCHEMA_PARTS.part26,
+    "roles": COMMAND_SCHEMA_PARTS.part27,
     "risk": "normal",
     "description": {
       "sentence": "Spread a freight, duty or other cost over the bills whose goods it brought in, raising those items' cost; do not use it to pay the charge — that is a bill or a payment.",
@@ -211,7 +211,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
   {
     "name": "inventory.landedcostundo",
     "area": "inventory",
-    "roles": COMMAND_SCHEMA_PARTS.part26,
+    "roles": COMMAND_SCHEMA_PARTS.part27,
     "risk": "normal",
     "description": {
       "sentence": "Undo a landed cost, reversing its entry and its stock moves together; do not use it to undo an ordinary bill or journal entry.",
@@ -233,7 +233,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
   {
     "name": "inventory.return",
     "area": "inventory",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Record goods that came back after a delivery: the units come back in and the cost booked for them is taken back; do not use it to deliver new units.",
@@ -261,7 +261,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
           "when": "More comes back than was delivered and kept.",
           "next": "Check what that line still has out."
         },
-        COMMAND_SCHEMA_PARTS.part158
+        COMMAND_SCHEMA_PARTS.part160
       ]
     },
     "runPath": "/api/v1/commands/inventory.return",
@@ -271,7 +271,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
   {
     "name": "inventory.revalue",
     "area": "inventory",
-    "roles": COMMAND_SCHEMA_PARTS.part26,
+    "roles": COMMAND_SCHEMA_PARTS.part27,
     "risk": "normal",
     "description": {
       "sentence": "Set the cost of the stock on hand to a new unit cost, posting the difference to a gain or loss account; do not use it to change a quantity — that is inventory.adjust.",
@@ -299,7 +299,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
           "when": "The cost already is that, no stock is on hand, the change is under a cent, or the stock moved after the date.",
           "next": "Date the revaluation on or after the last stock change."
         },
-        COMMAND_SCHEMA_PARTS.part158
+        COMMAND_SCHEMA_PARTS.part160
       ]
     },
     "runPath": "/api/v1/commands/inventory.revalue",
@@ -373,7 +373,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
   {
     "name": "inventory.transfer",
     "area": "inventory",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Move units of an item between two locations; the total on hand and the books do not change. Do not use it to add or remove stock — that is inventory.adjust.",
@@ -409,7 +409,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
   {
     "name": "inventory.undodelivery",
     "area": "inventory",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Undo a delivery: its cost entries are reversed and the units come back; do not use it once the delivery has been invoiced.",
@@ -424,7 +424,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
           "when": "That delivery is not on this order.",
           "next": "Check the delivery id on the order."
         },
-        COMMAND_SCHEMA_PARTS.part158
+        COMMAND_SCHEMA_PARTS.part160
       ]
     },
     "runPath": "/api/v1/commands/inventory.undodelivery",

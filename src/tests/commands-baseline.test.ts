@@ -47,9 +47,9 @@ test('every read-only route exception still names a real POST route that writes 
   for (const exception of READ_ONLY_ROUTE_EXCEPTIONS) {
     assert.equal(fs.existsSync(exception.file), true, `${exception.file} still exists`);
     const source = fs.readFileSync(exception.file, 'utf8');
-    const literal = `'${exception.route}'`;
-    const backtick = '`' + exception.route + '`';
-    assert.ok(source.includes(literal) || source.includes(backtick), `${exception.file} still declares ${exception.route}`);
+    // a router may write its path with any quote; the check is that the address is still declared there
+    const quoted = ['\'', '"', '`'].map(quote => `${quote}${exception.route}${quote}`);
+    assert.ok(quoted.some(literal => source.includes(literal)), `${exception.file} still declares ${exception.route}`);
     assert.ok(exception.why.length > 40, `${exception.route} says why it is read-only`);
   }
   assert.equal(new Set(READ_ONLY_ROUTE_EXCEPTIONS.map(e => `${e.file}:${e.route}`)).size, READ_ONLY_ROUTE_EXCEPTIONS.length,

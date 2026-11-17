@@ -91,6 +91,14 @@ export const READ_ONLY_ROUTE_EXCEPTIONS: readonly ReadOnlyRouteException[] = [
       + 'reads the workspace and answers suggestions; nothing is marked, written or audited, so a '
       + 'command would add a transaction around a read.',
   },
+  ...['/depreciation', '/inventory/wac', '/amortization', '/inventory/eoq', '/kpi', '/temporal', '/valuation'].map(route => ({
+    file: 'src/server/routes/mathRoutes.ts',
+    route,
+    why: 'A calculator: it reads the numbers in the request body, hands them to TruthEngine and answers '
+      + 'the result. The file opens no database at all — no workspace, no ledger and no audit entry — so '
+      + 'a command would add a transaction, a workspace check and an idempotency record around arithmetic '
+      + 'that changes nothing.',
+  })),
   {
     file: 'src/server/routes/paymentRoutes.ts',
     route: '/payout-run',

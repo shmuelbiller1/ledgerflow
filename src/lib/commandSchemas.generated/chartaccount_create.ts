@@ -4,8 +4,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "code": COMMAND_SCHEMA_PARTS.part81,
-    "name": COMMAND_SCHEMA_PARTS.part87,
+    "code": COMMAND_SCHEMA_PARTS.part83,
+    "name": COMMAND_SCHEMA_PARTS.part89,
     "type": {
       "type": "string",
       "enum": [
@@ -16,10 +16,10 @@ export const COMMAND_INPUT_SCHEMA = {
         "expense"
       ]
     },
-    "category": COMMAND_SCHEMA_PARTS.part48,
-    "description": COMMAND_SCHEMA_PARTS.part58,
-    "parentId": COMMAND_SCHEMA_PARTS.part116,
-    "asOfDate": COMMAND_SCHEMA_PARTS.part42
+    "category": COMMAND_SCHEMA_PARTS.part50,
+    "description": COMMAND_SCHEMA_PARTS.part60,
+    "parentId": COMMAND_SCHEMA_PARTS.part118,
+    "asOfDate": COMMAND_SCHEMA_PARTS.part44
   },
   "required": [
     "code",

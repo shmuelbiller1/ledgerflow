@@ -8,7 +8,7 @@ export const CHARTACCOUNT_COMMAND_MANIFEST = [
   {
     "name": "chartaccount.create",
     "area": "chartaccount",
-    "roles": COMMAND_SCHEMA_PARTS.part26,
+    "roles": COMMAND_SCHEMA_PARTS.part27,
     "risk": "normal",
     "description": {
       "sentence": "Add one account to the chart; do not use it to open an account with a balance — an opening figure is a transaction, and the account itself starts at zero.",
@@ -49,7 +49,7 @@ export const CHARTACCOUNT_COMMAND_MANIFEST = [
   {
     "name": "chartaccount.delete",
     "area": "chartaccount",
-    "roles": COMMAND_SCHEMA_PARTS.part26,
+    "roles": COMMAND_SCHEMA_PARTS.part27,
     "risk": "high",
     "description": {
       "sentence": "Delete an account that nothing names; do not use it to retire an account that has history — archiving keeps the history and hides the account from pickers.",
@@ -57,7 +57,7 @@ export const CHARTACCOUNT_COMMAND_MANIFEST = [
         "id": "acc-1010"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part187,
+        COMMAND_SCHEMA_PARTS.part189,
         {
           "code": "CONFLICT",
           "when": "The account is a system account, or a transaction, entry, budget, line or rule names it.",
@@ -83,7 +83,7 @@ export const CHARTACCOUNT_COMMAND_MANIFEST = [
   {
     "name": "chartaccount.update",
     "area": "chartaccount",
-    "roles": COMMAND_SCHEMA_PARTS.part26,
+    "roles": COMMAND_SCHEMA_PARTS.part27,
     "risk": "normal",
     "description": {
       "sentence": "Change one account's name, code, description, category, group, archived state or workpapers; do not use it to change a balance, which comes from the entries that name the account.",
@@ -103,7 +103,7 @@ export const CHARTACCOUNT_COMMAND_MANIFEST = [
           "when": "The payload names a field the account does not keep (a balance or `isSystem` is one), or a workpaper month is not YYYY-MM.",
           "next": "Send only the account's own fields."
         },
-        COMMAND_SCHEMA_PARTS.part187,
+        COMMAND_SCHEMA_PARTS.part189,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner or an accountant.",

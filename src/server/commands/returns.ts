@@ -48,7 +48,16 @@ export const rmaRequestCommand: CommandDefinition<typeof rmaRequestInput, Record
   audit() { return null; },
   inverse(_input, result) {
     const record = (result as { record?: { id?: string; customerId?: string } }).record;
-    return record?.id ? { command: 'rma.move', input: { rmaId: record.id, customerId: record.customerId, action: 'decline', expectedStatus: 'requested' } } : null;
+    if (!record?.id) return null;
+    // an RMA move needs its own request key; one derived from the record makes the undo repeatable
+    // (a retried undo answers the same transition instead of declining a second time)
+    return {
+      command: 'rma.move',
+      input: {
+        rmaId: record.id, customerId: record.customerId, action: 'decline', expectedStatus: 'requested',
+        requestKey: `undo_${record.id}`.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 100),
+      },
+    };
   },
   risk: 'normal',
   describe: {

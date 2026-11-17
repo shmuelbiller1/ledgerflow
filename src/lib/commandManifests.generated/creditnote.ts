@@ -8,7 +8,7 @@ export const CREDITNOTE_COMMAND_MANIFEST = [
   {
     "name": "creditnote.create",
     "area": "creditnote",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Create a credit note and let the server build its ledger entries from the saved document; do not use this command to record a payment or edit an existing credit note.",
@@ -25,7 +25,7 @@ export const CREDITNOTE_COMMAND_MANIFEST = [
           "currency": "USD"
         }
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part232
+      "refusals": COMMAND_SCHEMA_PARTS.part234
     },
     "runPath": "/api/v1/commands/creditnote.create",
     "previewPath": "/api/v1/commands/creditnote.create/preview",
@@ -34,12 +34,12 @@ export const CREDITNOTE_COMMAND_MANIFEST = [
   {
     "name": "creditnote.delete",
     "area": "creditnote",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Delete a credit note and let the server reverse its live ledger entries; do not use this command to void or write off a document.",
-      "example": COMMAND_SCHEMA_PARTS.part24,
-      "refusals": COMMAND_SCHEMA_PARTS.part232
+      "example": COMMAND_SCHEMA_PARTS.part25,
+      "refusals": COMMAND_SCHEMA_PARTS.part234
     },
     "runPath": "/api/v1/commands/creditnote.delete",
     "previewPath": "/api/v1/commands/creditnote.delete/preview",
@@ -48,12 +48,12 @@ export const CREDITNOTE_COMMAND_MANIFEST = [
   {
     "name": "creditnote.update",
     "area": "creditnote",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Update an existing credit note and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
-      "example": COMMAND_SCHEMA_PARTS.part83,
-      "refusals": COMMAND_SCHEMA_PARTS.part232
+      "example": COMMAND_SCHEMA_PARTS.part85,
+      "refusals": COMMAND_SCHEMA_PARTS.part234
     },
     "runPath": "/api/v1/commands/creditnote.update",
     "previewPath": "/api/v1/commands/creditnote.update/preview",

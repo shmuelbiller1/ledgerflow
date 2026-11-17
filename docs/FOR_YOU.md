@@ -5,7 +5,36 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-11-16.
+Last updated: 2026-11-17.
+
+## Payroll, mass entry edits, tags and tax returns now run through registered commands (nothing for you to do)
+
+Four more areas now go through the same registered commands as the period, account, inventory,
+reconciliation and payment batches: running payroll for a pay date, undoing a run while its month is
+still open, turning the owner's approval on or off, approving a run that is waiting, and sending one
+back with a note; moving the non-bank side of many bank entries to another account at once, and changing
+the notes, labels, flags or review state of up to two thousand entries in one go; renaming, merging or
+removing a tag everywhere it is used; and filing a tax return for a period.
+
+Every screen and API call keeps exactly the same request and answer, including the two things people
+notice most: a run in a closed month is still answered by the rule that owns it (a 409 in its own
+words, not a 400), and a batch that hits a version conflict still answers 409 with the entry as another
+person left it, having saved nothing. Payroll's approval rule is unchanged — an accountant can prepare
+a run, only an owner can approve it, and nobody can approve their own run.
+
+Two pieces of that work moved out of the route file into named services without changing a line of
+their logic: the mass entry update, so that its read-check-then-write transaction is one thing a command
+can call, and the small version comparison it uses, which a service may not import from the routes
+folder. Nothing observable changed.
+
+The seven calculation endpoints under `/api/v1/math` (depreciation, inventory averages and order
+quantity, amortization, KPIs, time-value maths and valuation) are deliberately *not* commands. They open
+no database at all — you send numbers, they send answers — so wrapping them would add a transaction and
+an audit line for arithmetic that changes nothing. They are now recorded as read-only with that reason
+written down, and a test checks the record still matches the code.
+
+The measured count of server write routes not yet on a command fell from 94 to 78 (the demo in the
+browser is unchanged at 62).
 
 ## Assets, bad debt, spreads, returns and client questions now run through registered commands (nothing for you to do)
 

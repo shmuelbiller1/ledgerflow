@@ -12,7 +12,7 @@ export const INVOICE_COMMAND_MANIFEST = [
   {
     "name": "invoice.create",
     "area": "invoice",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Create a invoice and let the server build its ledger entries from the saved document; do not use this command to record a payment or edit an existing invoice.",
@@ -37,8 +37,8 @@ export const INVOICE_COMMAND_MANIFEST = [
           ]
         }
       },
-      "next": COMMAND_SCHEMA_PARTS.part113,
-      "refusals": COMMAND_SCHEMA_PARTS.part232
+      "next": COMMAND_SCHEMA_PARTS.part115,
+      "refusals": COMMAND_SCHEMA_PARTS.part234
     },
     "runPath": "/api/v1/commands/invoice.create",
     "previewPath": "/api/v1/commands/invoice.create/preview",
@@ -47,12 +47,12 @@ export const INVOICE_COMMAND_MANIFEST = [
   {
     "name": "invoice.delete",
     "area": "invoice",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Delete a invoice and let the server reverse its live ledger entries; do not use this command to void or write off a document.",
-      "example": COMMAND_SCHEMA_PARTS.part24,
-      "refusals": COMMAND_SCHEMA_PARTS.part232
+      "example": COMMAND_SCHEMA_PARTS.part25,
+      "refusals": COMMAND_SCHEMA_PARTS.part234
     },
     "runPath": "/api/v1/commands/invoice.delete",
     "previewPath": "/api/v1/commands/invoice.delete/preview",
@@ -61,7 +61,7 @@ export const INVOICE_COMMAND_MANIFEST = [
   {
     "name": "invoice.spread",
     "area": "invoice",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Spread an issued invoice's income over the months it is earned; do not use it on a draft invoice or to change what the invoice bills.",
@@ -82,7 +82,7 @@ export const INVOICE_COMMAND_MANIFEST = [
           "when": "The amount is more than the invoice, the months are outside 2–60, or the account is not income.",
           "next": "Choose an income account and no more than the invoice over 2 to 60 months."
         },
-        COMMAND_SCHEMA_PARTS.part154
+        COMMAND_SCHEMA_PARTS.part156
       ]
     },
     "runPath": "/api/v1/commands/invoice.spread",
@@ -92,7 +92,7 @@ export const INVOICE_COMMAND_MANIFEST = [
   {
     "name": "invoice.spreadundo",
     "area": "invoice",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Undo spreading an invoice over months while none of its months is closed; do not use it to void the invoice.",
@@ -114,13 +114,13 @@ export const INVOICE_COMMAND_MANIFEST = [
   {
     "name": "invoice.update",
     "area": "invoice",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Update an existing invoice and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
-      "example": COMMAND_SCHEMA_PARTS.part83,
-      "next": COMMAND_SCHEMA_PARTS.part113,
-      "refusals": COMMAND_SCHEMA_PARTS.part232
+      "example": COMMAND_SCHEMA_PARTS.part85,
+      "next": COMMAND_SCHEMA_PARTS.part115,
+      "refusals": COMMAND_SCHEMA_PARTS.part234
     },
     "runPath": "/api/v1/commands/invoice.update",
     "previewPath": "/api/v1/commands/invoice.update/preview",
@@ -129,7 +129,7 @@ export const INVOICE_COMMAND_MANIFEST = [
   {
     "name": "invoice.writeoff",
     "area": "invoice",
-    "roles": COMMAND_SCHEMA_PARTS.part26,
+    "roles": COMMAND_SCHEMA_PARTS.part27,
     "risk": "normal",
     "description": {
       "sentence": "Write off what an invoice still owes as a bad debt, one entry out of Accounts Receivable; do not use it to change the invoice or to record a payment that arrived.",
@@ -149,7 +149,7 @@ export const INVOICE_COMMAND_MANIFEST = [
           "when": "The invoice is a draft, void, cancelled or already paid, or nothing is left to write off.",
           "next": "Write off only an open invoice that still owes money."
         },
-        COMMAND_SCHEMA_PARTS.part163,
+        COMMAND_SCHEMA_PARTS.part165,
         {
           "code": "PERIOD_LOCKED",
           "when": "The write-off date is in a closed period.",
@@ -164,7 +164,7 @@ export const INVOICE_COMMAND_MANIFEST = [
   {
     "name": "invoice.writeoffreverse",
     "area": "invoice",
-    "roles": COMMAND_SCHEMA_PARTS.part26,
+    "roles": COMMAND_SCHEMA_PARTS.part27,
     "risk": "normal",
     "description": {
       "sentence": "Reverse a bad-debt write-off when the money turns out to be collectable after all; do not use it to record the payment — that is payment.receive.",

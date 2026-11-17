@@ -4,12 +4,12 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part38,
-    "itemId": COMMAND_SCHEMA_PARTS.part38,
-    "quantityChange": COMMAND_SCHEMA_PARTS.part17,
-    "unitCostCents": COMMAND_SCHEMA_PARTS.part112,
-    "inventoryAccountId": COMMAND_SCHEMA_PARTS.part38,
-    "offsetAccountId": COMMAND_SCHEMA_PARTS.part38,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part40,
+    "itemId": COMMAND_SCHEMA_PARTS.part40,
+    "quantityChange": COMMAND_SCHEMA_PARTS.part18,
+    "unitCostCents": COMMAND_SCHEMA_PARTS.part114,
+    "inventoryAccountId": COMMAND_SCHEMA_PARTS.part40,
+    "offsetAccountId": COMMAND_SCHEMA_PARTS.part40,
     "type": {
       "default": "adjustment",
       "type": "string",
@@ -19,9 +19,9 @@ export const COMMAND_INPUT_SCHEMA = {
         "adjustment"
       ]
     },
-    "reason": COMMAND_SCHEMA_PARTS.part49,
-    "date": COMMAND_SCHEMA_PARTS.part102,
-    "locationId": COMMAND_SCHEMA_PARTS.part49
+    "reason": COMMAND_SCHEMA_PARTS.part51,
+    "date": COMMAND_SCHEMA_PARTS.part104,
+    "locationId": COMMAND_SCHEMA_PARTS.part51
   },
   "required": [
     "itemId",

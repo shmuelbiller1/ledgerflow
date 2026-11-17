@@ -11,12 +11,12 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part85,
-          "name": COMMAND_SCHEMA_PARTS.part48,
-          "label": COMMAND_SCHEMA_PARTS.part48,
-          "isWorld": COMMAND_SCHEMA_PARTS.part21,
-          "sortOrder": COMMAND_SCHEMA_PARTS.part17,
-          "systemDefault": COMMAND_SCHEMA_PARTS.part21,
+          "id": COMMAND_SCHEMA_PARTS.part87,
+          "name": COMMAND_SCHEMA_PARTS.part50,
+          "label": COMMAND_SCHEMA_PARTS.part50,
+          "isWorld": COMMAND_SCHEMA_PARTS.part22,
+          "sortOrder": COMMAND_SCHEMA_PARTS.part18,
+          "systemDefault": COMMAND_SCHEMA_PARTS.part22,
           "role": {
             "type": "string",
             "enum": [
@@ -31,10 +31,10 @@ export const COMMAND_INPUT_SCHEMA = {
               "accountIds": {
                 "maxItems": 5000,
                 "type": "array",
-                "items": COMMAND_SCHEMA_PARTS.part85
+                "items": COMMAND_SCHEMA_PARTS.part87
               },
-              "since": COMMAND_SCHEMA_PARTS.part42,
-              "refuse": COMMAND_SCHEMA_PARTS.part21
+              "since": COMMAND_SCHEMA_PARTS.part44,
+              "refuse": COMMAND_SCHEMA_PARTS.part22
             },
             "required": [
               "accountIds",

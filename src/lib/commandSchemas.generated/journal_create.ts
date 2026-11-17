@@ -7,23 +7,23 @@ export const COMMAND_INPUT_SCHEMA = {
     "transaction": {
       "type": "object",
       "properties": {
-        "id": COMMAND_SCHEMA_PARTS.part18,
-        "uid": COMMAND_SCHEMA_PARTS.part18,
-        "workspaceId": COMMAND_SCHEMA_PARTS.part18,
-        "date": COMMAND_SCHEMA_PARTS.part102,
+        "id": COMMAND_SCHEMA_PARTS.part19,
+        "uid": COMMAND_SCHEMA_PARTS.part19,
+        "workspaceId": COMMAND_SCHEMA_PARTS.part19,
+        "date": COMMAND_SCHEMA_PARTS.part104,
         "description": {
           "default": "",
           "type": "string",
           "maxLength": 2000
         },
-        "totalAmountCents": COMMAND_SCHEMA_PARTS.part112,
+        "totalAmountCents": COMMAND_SCHEMA_PARTS.part114,
         "currency": {
           "type": "string",
           "pattern": "^[A-Z]{3}$"
         },
-        "originalCurrency": COMMAND_SCHEMA_PARTS.part18,
-        "exchangeRate": COMMAND_SCHEMA_PARTS.part93,
-        "payee": COMMAND_SCHEMA_PARTS.part18,
+        "originalCurrency": COMMAND_SCHEMA_PARTS.part19,
+        "exchangeRate": COMMAND_SCHEMA_PARTS.part95,
+        "payee": COMMAND_SCHEMA_PARTS.part19,
         "status": {
           "default": "pending",
           "type": "string",
@@ -62,62 +62,62 @@ export const COMMAND_INPUT_SCHEMA = {
           "items": {
             "type": "object",
             "properties": {
-              "accountId": COMMAND_SCHEMA_PARTS.part38,
-              "accountName": COMMAND_SCHEMA_PARTS.part18,
-              "amountCents": COMMAND_SCHEMA_PARTS.part131,
-              "baseAmountCents": COMMAND_SCHEMA_PARTS.part131,
-              "exchangeRate": COMMAND_SCHEMA_PARTS.part93,
-              "description": COMMAND_SCHEMA_PARTS.part53,
-              "class": COMMAND_SCHEMA_PARTS.part18,
-              "location": COMMAND_SCHEMA_PARTS.part18,
-              "project": COMMAND_SCHEMA_PARTS.part18,
-              "dimensions": COMMAND_SCHEMA_PARTS.part134,
-              "tags": COMMAND_SCHEMA_PARTS.part66,
+              "accountId": COMMAND_SCHEMA_PARTS.part40,
+              "accountName": COMMAND_SCHEMA_PARTS.part19,
+              "amountCents": COMMAND_SCHEMA_PARTS.part133,
+              "baseAmountCents": COMMAND_SCHEMA_PARTS.part133,
+              "exchangeRate": COMMAND_SCHEMA_PARTS.part95,
+              "description": COMMAND_SCHEMA_PARTS.part55,
+              "class": COMMAND_SCHEMA_PARTS.part19,
+              "location": COMMAND_SCHEMA_PARTS.part19,
+              "project": COMMAND_SCHEMA_PARTS.part19,
+              "dimensions": COMMAND_SCHEMA_PARTS.part136,
+              "tags": COMMAND_SCHEMA_PARTS.part68,
               "splitAllocations": {
                 "type": "array",
                 "items": {
                   "type": "object",
                   "properties": {
-                    "id": COMMAND_SCHEMA_PARTS.part18,
-                    "accountId": COMMAND_SCHEMA_PARTS.part18,
-                    "projectId": COMMAND_SCHEMA_PARTS.part18,
-                    "weight": COMMAND_SCHEMA_PARTS.part65,
-                    "amountCents": COMMAND_SCHEMA_PARTS.part112,
-                    "notes": COMMAND_SCHEMA_PARTS.part53
+                    "id": COMMAND_SCHEMA_PARTS.part19,
+                    "accountId": COMMAND_SCHEMA_PARTS.part19,
+                    "projectId": COMMAND_SCHEMA_PARTS.part19,
+                    "weight": COMMAND_SCHEMA_PARTS.part67,
+                    "amountCents": COMMAND_SCHEMA_PARTS.part114,
+                    "notes": COMMAND_SCHEMA_PARTS.part55
                   },
                   "required": [
                     "weight"
                   ]
                 }
               },
-              "taxRate": COMMAND_SCHEMA_PARTS.part70,
-              "taxAmountCents": COMMAND_SCHEMA_PARTS.part112,
-              "taxCodeId": COMMAND_SCHEMA_PARTS.part49,
-              "taxTreatment": COMMAND_SCHEMA_PARTS.part145,
-              "taxBreakdown": COMMAND_SCHEMA_PARTS.part215,
-              "quantity": COMMAND_SCHEMA_PARTS.part64,
-              "unitPriceCents": COMMAND_SCHEMA_PARTS.part112
+              "taxRate": COMMAND_SCHEMA_PARTS.part72,
+              "taxAmountCents": COMMAND_SCHEMA_PARTS.part114,
+              "taxCodeId": COMMAND_SCHEMA_PARTS.part51,
+              "taxTreatment": COMMAND_SCHEMA_PARTS.part147,
+              "taxBreakdown": COMMAND_SCHEMA_PARTS.part217,
+              "quantity": COMMAND_SCHEMA_PARTS.part66,
+              "unitPriceCents": COMMAND_SCHEMA_PARTS.part114
             },
-            "required": COMMAND_SCHEMA_PARTS.part32
+            "required": COMMAND_SCHEMA_PARTS.part34
           }
         },
         "tags": {
           "maxItems": 10,
           "type": "array",
-          "items": COMMAND_SCHEMA_PARTS.part18
+          "items": COMMAND_SCHEMA_PARTS.part19
         },
-        "reference": COMMAND_SCHEMA_PARTS.part47,
-        "projectId": COMMAND_SCHEMA_PARTS.part18,
+        "reference": COMMAND_SCHEMA_PARTS.part49,
+        "projectId": COMMAND_SCHEMA_PARTS.part19,
         "isCleared": {
           "default": false,
           "type": "boolean"
         },
-        "createdAt": COMMAND_SCHEMA_PARTS.part18,
-        "updatedAt": COMMAND_SCHEMA_PARTS.part18,
-        "parentEventId": COMMAND_SCHEMA_PARTS.part18,
-        "eventId": COMMAND_SCHEMA_PARTS.part18,
-        "reversalEventId": COMMAND_SCHEMA_PARTS.part18,
-        "metadata": COMMAND_SCHEMA_PARTS.part134
+        "createdAt": COMMAND_SCHEMA_PARTS.part19,
+        "updatedAt": COMMAND_SCHEMA_PARTS.part19,
+        "parentEventId": COMMAND_SCHEMA_PARTS.part19,
+        "eventId": COMMAND_SCHEMA_PARTS.part19,
+        "reversalEventId": COMMAND_SCHEMA_PARTS.part19,
+        "metadata": COMMAND_SCHEMA_PARTS.part136
       },
       "required": [
         "workspaceId",

@@ -6,7 +6,7 @@ export const AUDITLOG_COMMAND_MANIFEST = [
   {
     "name": "auditlog.append",
     "area": "auditlog",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Add one hash-chained line to the workspace audit trail, stamped with the caller and the server clock; do not use it to write books — a posting is its own command and writes its own line.",

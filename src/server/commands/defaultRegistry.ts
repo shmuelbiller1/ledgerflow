@@ -110,6 +110,9 @@ import {
 import { DOCUMENT_ADJUSTMENT_COMMANDS } from './documentAdjustments';
 import { RMA_COMMANDS } from './returns';
 import { CLIENT_QUERY_COMMANDS } from './clientQueries';
+import { PAYROLL_COMMANDS } from './payroll';
+import { TRANSACTION_COMMANDS } from './transactions';
+import { TAX_COMMANDS } from './tagAndTax';
 import { CommandRegistry } from './registry';
 import { workspaceInviteRevokeCommand } from './workspaceInvites';
 import { workspaceCancelDeletionCommand } from './workspaceLifecycle';
@@ -284,6 +287,9 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   DOCUMENT_ADJUSTMENT_COMMANDS.forEach(command => registry.register(command));
   RMA_COMMANDS.forEach(command => registry.register(command));
   CLIENT_QUERY_COMMANDS.forEach(command => registry.register(command));
+  PAYROLL_COMMANDS.forEach(command => registry.register(command));
+  TRANSACTION_COMMANDS.forEach(command => registry.register(command));
+  TAX_COMMANDS.forEach(command => registry.register(command));
   return registry;
 }
 

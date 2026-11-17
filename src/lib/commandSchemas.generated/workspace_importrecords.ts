@@ -19,12 +19,12 @@ export const COMMAND_INPUT_SCHEMA = {
       "type": "array",
       "items": {
         "type": "object",
-        "propertyNames": COMMAND_SCHEMA_PARTS.part18,
-        "additionalProperties": COMMAND_SCHEMA_PARTS.part59
+        "propertyNames": COMMAND_SCHEMA_PARTS.part19,
+        "additionalProperties": COMMAND_SCHEMA_PARTS.part61
       }
     },
-    "openingDate": COMMAND_SCHEMA_PARTS.part102,
-    "dryRun": COMMAND_SCHEMA_PARTS.part21
+    "openingDate": COMMAND_SCHEMA_PARTS.part104,
+    "dryRun": COMMAND_SCHEMA_PARTS.part22
   },
   "required": [
     "kind",

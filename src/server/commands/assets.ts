@@ -65,7 +65,8 @@ export const assetDisposeCommand: CommandDefinition<typeof assetDisposeInput, Di
   },
   // the service writes ASSET_DISPOSED inside its own transaction: one write, one record
   audit() { return null; },
-  inverse(_input, result) { return result ? { command: 'asset.undispose', input: {} } : null; },
+  // the undo needs the asset it undoes: an inverse that only names the command is refused as INVALID_INPUT
+  inverse(input, result) { return result ? { command: 'asset.undispose', input: { assetId: input.assetId } } : null; },
   risk: 'normal',
   describe: {
     sentence: 'Sell or scrap a fixed asset, wholly or in part, in one entry with the gain or loss; do not use it to move an asset to another location — that is asset.transfer.',
@@ -131,7 +132,7 @@ export const assetTransferCommand: CommandDefinition<typeof assetTransferInput, 
     };
   },
   audit() { return null; },
-  inverse(_input, result) { return result ? { command: 'asset.undotransfer', input: {} } : null; },
+  inverse(input, result) { return result ? { command: 'asset.undotransfer', input: { assetId: input.assetId } } : null; },
   risk: 'normal',
   describe: {
     sentence: 'Move a fixed asset to another location or another balance-sheet account, posting the move when the accounts change; do not use it to sell the asset — that is asset.dispose.',
@@ -192,7 +193,7 @@ export const assetPlaceInServiceCommand: CommandDefinition<typeof assetPlaceInSe
     };
   },
   audit() { return null; },
-  inverse(_input, result) { return result ? { command: 'asset.undoplaceservice', input: {} } : null; },
+  inverse(input, result) { return result ? { command: 'asset.undoplaceservice', input: { assetId: input.assetId } } : null; },
   risk: 'normal',
   describe: {
     sentence: 'Place an asset that was built rather than bought in service, starting its depreciation; do not use it to buy an asset.',

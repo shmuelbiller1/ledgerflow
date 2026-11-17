@@ -23,6 +23,7 @@ import { LOAN_COMMAND_MANIFEST } from './commandManifests.generated/loan';
 import { NOTIFICATION_COMMAND_MANIFEST } from './commandManifests.generated/notification';
 import { NUMBERING_COMMAND_MANIFEST } from './commandManifests.generated/numbering';
 import { PAYMENT_COMMAND_MANIFEST } from './commandManifests.generated/payment';
+import { PAYROLL_COMMAND_MANIFEST } from './commandManifests.generated/payroll';
 import { PERIOD_COMMAND_MANIFEST } from './commandManifests.generated/period';
 import { PRESENCE_COMMAND_MANIFEST } from './commandManifests.generated/presence';
 import { PROJECT_COMMAND_MANIFEST } from './commandManifests.generated/project';
@@ -32,7 +33,9 @@ import { RMA_COMMAND_MANIFEST } from './commandManifests.generated/rma';
 import { SAVEDLIST_COMMAND_MANIFEST } from './commandManifests.generated/savedlist';
 import { STAGES_COMMAND_MANIFEST } from './commandManifests.generated/stages';
 import { SUPPORT_COMMAND_MANIFEST } from './commandManifests.generated/support';
+import { TAG_COMMAND_MANIFEST } from './commandManifests.generated/tag';
 import { TASKS_COMMAND_MANIFEST } from './commandManifests.generated/tasks';
+import { TAX_COMMAND_MANIFEST } from './commandManifests.generated/tax';
 import { TIME_COMMAND_MANIFEST } from './commandManifests.generated/time';
 import { USER_COMMAND_MANIFEST } from './commandManifests.generated/user';
 import { VENDOR_COMMAND_MANIFEST } from './commandManifests.generated/vendor';
@@ -66,6 +69,7 @@ export const COMMAND_MANIFEST = [
   ...NOTIFICATION_COMMAND_MANIFEST,
   ...NUMBERING_COMMAND_MANIFEST,
   ...PAYMENT_COMMAND_MANIFEST,
+  ...PAYROLL_COMMAND_MANIFEST,
   ...PERIOD_COMMAND_MANIFEST,
   ...PRESENCE_COMMAND_MANIFEST,
   ...PROJECT_COMMAND_MANIFEST,
@@ -75,7 +79,9 @@ export const COMMAND_MANIFEST = [
   ...SAVEDLIST_COMMAND_MANIFEST,
   ...STAGES_COMMAND_MANIFEST,
   ...SUPPORT_COMMAND_MANIFEST,
+  ...TAG_COMMAND_MANIFEST,
   ...TASKS_COMMAND_MANIFEST,
+  ...TAX_COMMAND_MANIFEST,
   ...TIME_COMMAND_MANIFEST,
   ...USER_COMMAND_MANIFEST,
   ...VENDOR_COMMAND_MANIFEST,

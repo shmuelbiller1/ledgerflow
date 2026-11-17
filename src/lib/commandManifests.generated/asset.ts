@@ -12,7 +12,7 @@ export const ASSET_COMMAND_MANIFEST = [
   {
     "name": "asset.costaddition",
     "area": "asset",
-    "roles": COMMAND_SCHEMA_PARTS.part26,
+    "roles": COMMAND_SCHEMA_PARTS.part27,
     "risk": "normal",
     "description": {
       "sentence": "Add one capitalised cost to an asset and raise its cost basis; do not use it to record the expenditure itself, which is a journal entry.",
@@ -53,7 +53,7 @@ export const ASSET_COMMAND_MANIFEST = [
   {
     "name": "asset.dispose",
     "area": "asset",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Sell or scrap a fixed asset, wholly or in part, in one entry with the gain or loss; do not use it to move an asset to another location — that is asset.transfer.",
@@ -87,7 +87,7 @@ export const ASSET_COMMAND_MANIFEST = [
   {
     "name": "asset.placeservice",
     "area": "asset",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Place an asset that was built rather than bought in service, starting its depreciation; do not use it to buy an asset.",
@@ -116,7 +116,7 @@ export const ASSET_COMMAND_MANIFEST = [
   {
     "name": "asset.transfer",
     "area": "asset",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Move a fixed asset to another location or another balance-sheet account, posting the move when the accounts change; do not use it to sell the asset — that is asset.dispose.",
@@ -145,11 +145,11 @@ export const ASSET_COMMAND_MANIFEST = [
   {
     "name": "asset.undispose",
     "area": "asset",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Undo the latest disposal of a fixed asset while its date is open; do not use it to edit the entry by hand.",
-      "example": COMMAND_SCHEMA_PARTS.part28,
+      "example": COMMAND_SCHEMA_PARTS.part29,
       "refusals": [
         {
           "code": "NOT_FOUND",
@@ -170,11 +170,11 @@ export const ASSET_COMMAND_MANIFEST = [
   {
     "name": "asset.undoplaceservice",
     "area": "asset",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Undo placing an asset in service while nothing has happened to it since; do not use it to change depreciation by hand.",
-      "example": COMMAND_SCHEMA_PARTS.part28,
+      "example": COMMAND_SCHEMA_PARTS.part29,
       "refusals": [
         {
           "code": "CONFLICT",
@@ -190,11 +190,11 @@ export const ASSET_COMMAND_MANIFEST = [
   {
     "name": "asset.undotransfer",
     "area": "asset",
-    "roles": COMMAND_SCHEMA_PARTS.part60,
+    "roles": COMMAND_SCHEMA_PARTS.part62,
     "risk": "normal",
     "description": {
       "sentence": "Undo the latest move of a fixed asset while its date is open; do not use it to edit the asset by hand.",
-      "example": COMMAND_SCHEMA_PARTS.part28,
+      "example": COMMAND_SCHEMA_PARTS.part29,
       "refusals": [
         {
           "code": "NOT_FOUND",
