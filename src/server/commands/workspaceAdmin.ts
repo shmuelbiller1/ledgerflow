@@ -66,15 +66,8 @@ export const workspaceApplyTemplateCommand: CommandDefinition<typeof workspaceAp
       ],
     };
   },
-  audit(_input, result) {
-    return {
-      action: 'CHART_TEMPLATE_APPLIED',
-      entityType: 'workspace',
-      entityId: 'chart',
-      description: `Applied a chart template: ${result.created} account(s) added${result.removed ? `, ${result.removed} replaced` : ''}`,
-      details: { created: result.created, removed: result.removed, kept: result.kept },
-    };
-  },
+  // the legacy route wrote no line for a template and neither does this: one write, one record
+  audit() { return null; },
   inverse() { return null; },
   risk: 'normal',
   describe: {
@@ -118,6 +111,9 @@ export const workspaceImportRecordsCommand: CommandDefinition<typeof workspaceIm
     if (input.kind === 'accounts' && !allowAccounts) {
       throw new ImportError(403, 'Only owners and accountants can change the chart of accounts');
     }
+    // The service writes the import's own `records_imported` line inside this same transaction (it
+    // already gives the batch as the entity), so the runner adds no second line for one write: `audit`
+    // below answers null. That is why the audit line and the rows commit together.
     return importRecordsInTransaction(ctx.db, tx, { workspaceId: ctx.workspaceId, uid: ctx.actor, email: ctx.email, ...input } as ImportRecordsInput, prepped) as Promise<ImportResult>;
   },
   async preview(ctx, input: ImportInput) {
@@ -131,15 +127,8 @@ export const workspaceImportRecordsCommand: CommandDefinition<typeof workspaceIm
       ],
     };
   },
-  audit(_input, result) {
-    return {
-      action: 'records_imported',
-      entityType: result.kind,
-      entityId: result.batchId || result.kind,
-      description: `Imported ${result.created} ${result.kind} from a spreadsheet${result.skipped.length ? ` (${result.skipped.length} already existed)` : ''}`,
-      details: { kind: result.kind, created: result.created, skipped: result.skipped.length },
-    };
-  },
+  // the service's own line is the record (see the handler)
+  audit() { return null; },
   inverse(_input, result) {
     return result.batchId ? { command: 'workspace.undoimport', input: { batchId: result.batchId } } : null;
   },
@@ -181,15 +170,8 @@ export const workspaceUndoImportCommand: CommandDefinition<typeof workspaceUndoI
       lines: ['Records nothing uses yet are removed', 'Records already used on documents are kept, and listed'],
     };
   },
-  audit(_input, result) {
-    return {
-      action: 'records_import_undone',
-      entityType: result.kind,
-      entityId: 'import',
-      description: `Undid an import: removed ${result.removed}${result.kept.length ? `, kept ${result.kept.length} in use` : ''}`,
-      details: { removed: result.removed, kept: result.kept.length },
-    };
-  },
+  // the service writes `records_import_undone` with the batch as its entity, inside this transaction
+  audit() { return null; },
   inverse() { return null; },
   risk: 'normal',
   describe: {

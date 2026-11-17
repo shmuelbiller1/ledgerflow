@@ -174,6 +174,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
     "name": "payment.receive",
     "area": "payment",
     "roles": COMMAND_SCHEMA_PARTS.part51,
+    "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {
       "sentence": "Record money received from a customer or paid to a vendor and apply it to open documents, and do not use it to create an invoice or bill.",

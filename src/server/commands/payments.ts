@@ -312,9 +312,9 @@ export const paymentCreditsAutoApplyCommand: CommandDefinition<typeof creditAuto
   name: 'payment.creditsautoapply',
   input: creditAutoApplyInput,
   roles: [...LEDGER_WRITERS],
-  async handler(ctx, tx, input) {
-    // the service applies each credit in its own transaction; the route wrote one summary line
-    // afterwards, so it is written here with the runner's transaction: the same line, same place
+  async handler(ctx, _tx, input) {
+    // The service applies each credit in its own transaction; the route wrote one summary line after
+    // that (not inside it), and this writes the same line in the same place: after the applications.
     const result = await autoApplyCredits(ctx.db, { workspaceId: ctx.workspaceId, kind: input.kind, partyId: input.partyId, uid: ctx.actor });
     if (result.applications.length) {
       await writeServerAuditLog({
@@ -328,7 +328,7 @@ export const paymentCreditsAutoApplyCommand: CommandDefinition<typeof creditAuto
           applications: result.applications,
           description: `Applied ${result.totalCents} cents of open credits to ${result.applications.length} ${input.kind === 'vendor' ? 'bill' : 'invoice'} line(s)`,
         },
-      }, { db: ctx.db, tx });
+      }, { db: ctx.db });
     }
     return result;
   },
