@@ -484,6 +484,14 @@ describe('Agent #8 (2026-11-16) — Live PostgreSQL P0/P1 Security & Accounting 
     await assert.rejects(undoDisposal(db, { workspaceId: ws, assetId: partial, uid: owner }),
       (e: unknown) => e instanceof DisposalError && e.status === 409);
     assert.equal((await db.collection('transactions').doc(ownTxId).get()).data()?.status, 'completed', 'the invoice entry is not voided');
+    // an entry that no longer exists (an admin deleted it) voids nothing, so the asset can still be restored
+    const orphan = id('asset_entry_deleted');
+    await db.collection('assets').doc(orphan).set({
+      workspaceId: ws, name: 'Entry gone', purchaseDate: '2026-01-01', purchasePriceCents: 100_000,
+      salvageValueCents: 0, usefulLifeYears: 5, depreciationMethod: 'straight-line', accumulatedDepreciationCents: 0,
+      status: 'disposed', disposedOn: '2026-06-12', disposalTransactionId: id('tx_never_existed'),
+    });
+    await undoDisposal(db, { workspaceId: ws, assetId: orphan, uid: owner });
   });
 
   test('A8-019: voidPayment on an FX payment negates baseAmountCents so home-currency GL nets to zero', async () => {
