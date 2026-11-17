@@ -286,6 +286,9 @@ export async function commandHarness(options: {
   for (const command of options.commands) registry.register(command);
 
   const app = express();
+  // the API does not announce what it is built with (helmet does this in server.ts); the harness
+  // answers as the server does
+  app.disable('x-powered-by');
   app.use(express.json());
   app.use((req, _res, next) => {
     const uid = req.header('x-test-uid');
