@@ -12,14 +12,14 @@ export const GROUPS_COMMAND_MANIFEST = [
   {
     "name": "groups.create",
     "area": "groups",
-    "roles": COMMAND_SCHEMA_PARTS.part68,
+    "roles": COMMAND_SCHEMA_PARTS.part72,
     "scope": "person",
     "risk": "normal",
     "description": {
       "sentence": "Create a group of the workspaces you can open for cross-company views; do not use it to change anything inside a workspace — membership changes no books.",
       "example": {
         "name": "My companies",
-        "workspaceIds": COMMAND_SCHEMA_PARTS.part35
+        "workspaceIds": COMMAND_SCHEMA_PARTS.part37
       },
       "refusals": [
         {
@@ -42,7 +42,7 @@ export const GROUPS_COMMAND_MANIFEST = [
           "when": "You already keep the maximum number of groups.",
           "next": "Remove a group first."
         },
-        COMMAND_SCHEMA_PARTS.part147
+        COMMAND_SCHEMA_PARTS.part154
       ],
       "next": [
         {
@@ -58,7 +58,7 @@ export const GROUPS_COMMAND_MANIFEST = [
   {
     "name": "groups.delete",
     "area": "groups",
-    "roles": COMMAND_SCHEMA_PARTS.part68,
+    "roles": COMMAND_SCHEMA_PARTS.part72,
     "scope": "person",
     "risk": "normal",
     "description": {
@@ -67,8 +67,8 @@ export const GROUPS_COMMAND_MANIFEST = [
         "groupId": "grp_0123456789abcdef0123"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part150,
-        COMMAND_SCHEMA_PARTS.part147
+        COMMAND_SCHEMA_PARTS.part157,
+        COMMAND_SCHEMA_PARTS.part154
       ],
       "next": [
         {
@@ -84,7 +84,7 @@ export const GROUPS_COMMAND_MANIFEST = [
   {
     "name": "groups.keeprates",
     "area": "groups",
-    "roles": COMMAND_SCHEMA_PARTS.part68,
+    "roles": COMMAND_SCHEMA_PARTS.part72,
     "scope": "person",
     "risk": "normal",
     "description": {
@@ -108,8 +108,8 @@ export const GROUPS_COMMAND_MANIFEST = [
           "when": "The currency, period or rates fail validation.",
           "next": "Send a three-letter reporting currency, a YYYY-MM-DD period, and three positive rates per other currency."
         },
-        COMMAND_SCHEMA_PARTS.part150,
-        COMMAND_SCHEMA_PARTS.part147
+        COMMAND_SCHEMA_PARTS.part157,
+        COMMAND_SCHEMA_PARTS.part154
       ]
     },
     "runPath": "/api/v1/commands/groups.keeprates",
@@ -119,7 +119,7 @@ export const GROUPS_COMMAND_MANIFEST = [
   {
     "name": "groups.setlinemerges",
     "area": "groups",
-    "roles": COMMAND_SCHEMA_PARTS.part68,
+    "roles": COMMAND_SCHEMA_PARTS.part72,
     "scope": "person",
     "risk": "normal",
     "description": {
@@ -136,8 +136,8 @@ export const GROUPS_COMMAND_MANIFEST = [
           "when": "The mapping is not pairs within one section, or a combined line takes lines itself.",
           "next": "Send pairs of line keys within the same section; the message says which rule failed."
         },
-        COMMAND_SCHEMA_PARTS.part150,
-        COMMAND_SCHEMA_PARTS.part147
+        COMMAND_SCHEMA_PARTS.part157,
+        COMMAND_SCHEMA_PARTS.part154
       ]
     },
     "runPath": "/api/v1/commands/groups.setlinemerges",
@@ -147,7 +147,7 @@ export const GROUPS_COMMAND_MANIFEST = [
   {
     "name": "groups.share",
     "area": "groups",
-    "roles": COMMAND_SCHEMA_PARTS.part68,
+    "roles": COMMAND_SCHEMA_PARTS.part72,
     "scope": "person",
     "risk": "normal",
     "description": {
@@ -177,7 +177,7 @@ export const GROUPS_COMMAND_MANIFEST = [
           "when": "The group is already yours or is shared with the maximum number of people.",
           "next": "Share a different group, or stop sharing this one first."
         },
-        COMMAND_SCHEMA_PARTS.part147
+        COMMAND_SCHEMA_PARTS.part154
       ],
       "next": [
         {
@@ -193,7 +193,7 @@ export const GROUPS_COMMAND_MANIFEST = [
   {
     "name": "groups.unshare",
     "area": "groups",
-    "roles": COMMAND_SCHEMA_PARTS.part68,
+    "roles": COMMAND_SCHEMA_PARTS.part72,
     "scope": "person",
     "risk": "normal",
     "description": {
@@ -213,7 +213,7 @@ export const GROUPS_COMMAND_MANIFEST = [
           "when": "The group or person id is missing.",
           "next": "Send groupId and withUid."
         },
-        COMMAND_SCHEMA_PARTS.part147
+        COMMAND_SCHEMA_PARTS.part154
       ],
       "next": [
         {
@@ -229,7 +229,7 @@ export const GROUPS_COMMAND_MANIFEST = [
   {
     "name": "groups.update",
     "area": "groups",
-    "roles": COMMAND_SCHEMA_PARTS.part68,
+    "roles": COMMAND_SCHEMA_PARTS.part72,
     "scope": "person",
     "risk": "normal",
     "description": {
@@ -237,7 +237,7 @@ export const GROUPS_COMMAND_MANIFEST = [
       "example": {
         "groupId": "grp_0123456789abcdef0123",
         "name": "Group companies",
-        "workspaceIds": COMMAND_SCHEMA_PARTS.part35
+        "workspaceIds": COMMAND_SCHEMA_PARTS.part37
       },
       "refusals": [
         {
@@ -250,7 +250,7 @@ export const GROUPS_COMMAND_MANIFEST = [
           "when": "The group is not yours, does not exist, or a listed workspace is not openable.",
           "next": "List your groups and use one of them, with workspaces you can open."
         },
-        COMMAND_SCHEMA_PARTS.part147
+        COMMAND_SCHEMA_PARTS.part154
       ],
       "next": [
         {

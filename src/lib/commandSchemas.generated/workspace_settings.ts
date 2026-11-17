@@ -4,10 +4,10 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "name": COMMAND_SCHEMA_PARTS.part46,
-    "businessType": COMMAND_SCHEMA_PARTS.part40,
-    "currency": COMMAND_SCHEMA_PARTS.part70,
-    "timezone": COMMAND_SCHEMA_PARTS.part43,
+    "name": COMMAND_SCHEMA_PARTS.part49,
+    "businessType": COMMAND_SCHEMA_PARTS.part42,
+    "currency": COMMAND_SCHEMA_PARTS.part74,
+    "timezone": COMMAND_SCHEMA_PARTS.part46,
     "fiscalYearStartMonth": {
       "type": "integer",
       "minimum": 1,
@@ -18,8 +18,8 @@ export const COMMAND_INPUT_SCHEMA = {
       "minimum": 1,
       "maximum": 28
     },
-    "taxRounding": COMMAND_SCHEMA_PARTS.part39,
-    "moneyDisplay": COMMAND_SCHEMA_PARTS.part117,
+    "taxRounding": COMMAND_SCHEMA_PARTS.part41,
+    "moneyDisplay": COMMAND_SCHEMA_PARTS.part123,
     "paymentTermDays": {
       "type": "integer",
       "minimum": 0,
@@ -30,24 +30,24 @@ export const COMMAND_INPUT_SCHEMA = {
       "type": "array",
       "items": COMMAND_SCHEMA_PARTS.part1
     },
-    "defaultAccountMappings": COMMAND_SCHEMA_PARTS.part117,
+    "defaultAccountMappings": COMMAND_SCHEMA_PARTS.part123,
     "scheduledReports": {
       "maxItems": 50,
       "type": "array",
       "items": COMMAND_SCHEMA_PARTS.part1
     },
-    "matchingThreshold": COMMAND_SCHEMA_PARTS.part60,
-    "aiModel": COMMAND_SCHEMA_PARTS.part43,
-    "emailTemplates": COMMAND_SCHEMA_PARTS.part117,
-    "reminderSettings": COMMAND_SCHEMA_PARTS.part117,
-    "invoiceApproval": COMMAND_SCHEMA_PARTS.part117,
+    "matchingThreshold": COMMAND_SCHEMA_PARTS.part64,
+    "aiModel": COMMAND_SCHEMA_PARTS.part46,
+    "emailTemplates": COMMAND_SCHEMA_PARTS.part123,
+    "reminderSettings": COMMAND_SCHEMA_PARTS.part123,
+    "invoiceApproval": COMMAND_SCHEMA_PARTS.part123,
     "reportNotes": {
       "type": "object",
-      "propertyNames": COMMAND_SCHEMA_PARTS.part17,
+      "propertyNames": COMMAND_SCHEMA_PARTS.part18,
       "additionalProperties": {
         "anyOf": [
-          COMMAND_SCHEMA_PARTS.part53,
-          COMMAND_SCHEMA_PARTS.part14
+          COMMAND_SCHEMA_PARTS.part56,
+          COMMAND_SCHEMA_PARTS.part15
         ]
       }
     }

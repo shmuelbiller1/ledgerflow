@@ -1,20 +1,16 @@
 import express from 'express';
-import { FieldValue, getDb, isWorkspaceMemberData, validateWorkspaceMember } from '../../db/firestore';
+import { FieldValue, getDb, validateWorkspaceMember } from '../../db/firestore';
 import type { DimensionDefinition, DimensionNode, Transaction } from '../../../types';
 import { LedgerPostingError } from '../../services/cogsStockService';
-import { checkLedgerEntry, ledgerWrite } from '../../services/ledgerDoor';
-import { revaluationEntryLock } from '../../services/stockRevaluationService';
-import { settleHomeCurrency } from '../../../lib/txFilters';
+import { ledgerWrite } from '../../services/ledgerDoor';
 import { migrateWorkspaceDimensionNodes } from '../../../lib/dimensionUtils';
-import { z } from 'zod';
 import { assertPostingOpen } from '../../../lib/periodLock';
 import { errorMessage, requestUser } from '../../auth/requestUser';
-import { isUpdatedAtMismatch } from './helpers';
 import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../../middleware/requireLedgerWriter';
-import { MAX_RECATEGORIZE, RecategorizeError, recategorize } from '../../services/recategorizeService';
-import { workspaceRole } from '../../../lib/periodLock';
 import { BulkRefusal, commitLedgerBulk } from '../../services/ledgerBulkCommit';
-import { writeServerAuditLog } from '../../services/auditLogService';
+import { BatchVersionConflict } from '../../services/ledgerBatchUpdate';
+import { transactionsBatchCommand, transactionsRecategorizeCommand } from '../../commands/transactions';
+import { executeCommand } from '../../utils/commandExecutor';
 
 
 const SERVER_POSTED: Record<string, string> = { invoices: 'Invoices', bills: 'Bills', creditNotes: 'Credit notes', vendorCredits: 'Vendor credits' };
@@ -54,142 +50,57 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
     }
   });
 
-  // Rule actions (D-3 / K-39): move the non-bank side of bank entries to another account, all or none
-  const recategorizeSchema = z.object({
-    workspaceId: z.string().min(1),
-    changes: z.array(z.object({ id: z.string().min(1), bankAccountId: z.string().min(1), toAccountId: z.string().min(1), expectedUpdatedAt: z.string().optional() }).strict()).min(1).max(MAX_RECATEGORIZE),
-  }).strict();
+  // Rule actions (D-3 / K-39): move the non-bank side of bank entries to another account, all or none.
+  // Registered command (src/server/commands/transactions.ts); the service owns its transaction.
   transactionRouter.post('/recategorize', async (req, res) => {
-    try {
-      const { workspaceId, changes } = recategorizeSchema.parse(req.body);
-      const user = requestUser(req);
-      res.json({ status: 'success', ...(await recategorize(getDb(), { workspaceId, uid: user.uid, email: user.email, changes })) });
-    } catch (e) {
-      if (e instanceof z.ZodError) return res.status(400).json({ error: 'Invalid request', details: e.issues });
-      if (e instanceof RecategorizeError) return res.status(e.status).json({ error: e.message, ...(e.entryId ? { entryId: e.entryId } : {}) });
-      res.status(500).json({ error: errorMessage(e) });
-    }
+    await executeCommand(req, res, {
+      definition: transactionsRecategorizeCommand,
+      workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+      input: req.body,
+      formatResponse: (outcome) => {
+        if (outcome.ok) return { status: 200, body: { status: 'success', ...(outcome.data as Record<string, unknown>) } };
+        if (outcome.code === 'INVALID_INPUT') {
+          return { status: 400, body: { error: 'Invalid request', details: (outcome.error as { issues?: unknown })?.issues } };
+        }
+        if (outcome.status < 500) {
+          const entryId = (outcome.error as { entryId?: string } | undefined)?.entryId;
+          return { status: outcome.status, body: { error: outcome.message, ...(entryId ? { entryId } : {}) } };
+        }
+        const cause = outcome.error instanceof Error ? outcome.error.message : String(outcome.error ?? outcome.message);
+        return { status: 500, body: { error: cause } };
+      },
+    });
   });
 
-  // A batch endpoint for mass updates
+  // Mass update (F-06). Registered command `journal.batchupdate`: `ledgerBatchUpdate.ts` reads and
+  // checks every entry inside one transaction and writes them all or none, as the handler always did.
   transactionRouter.post('/batch', async (req, res) => {
-     try {
-       const { updates, workspaceId } = req.body;
-       const user = requestUser(req);
-       const db = getDb();
-       if (!workspaceId || !Array.isArray(updates) || updates.length === 0) {
-         return res.status(400).json({ error: "Missing workspaceId or updates" });
-       }
-
-       const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-       if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), user, workspaceId)) return res.status(403).json({ error: 'Not a member' });
-
-       const wsData = wsDoc.data();
-       // writers only: a viewer is a member too
-       if (!user.admin && !['owner', 'accountant', 'bookkeeper'].includes(workspaceRole(wsData as never, user.uid))) return res.status(403).json({ error: 'Only owners, accountants and bookkeepers change entries' });
-       const allowedStatuses = ['draft', 'pending', 'certified', 'void', 'reconciled', 'completed', 'failed', 'flagged', 'reviewed', 'overdue', 'approved'];
-       // #112: only these fields can change in a batch; totals, dates, currency and identity go
-       // through the full entry editor (PUT) or /recategorize, which check everything
-       const BATCH_FIELDS = new Set(['lines', 'description', 'status', 'tags', 'metadata', 'classId', 'locationId', 'projectId', 'dimensions', 'category', 'dimensions.category', 'dimensions.project', 'isLocked', 'isFlagged', 'isReviewed', 'isCleared', 'reconciled', 'isReconciled', 'reconciledAt', 'isTransfer', 'transferDetails', 'verification', 'notes', 'memo', 'updatedAt']);
-       if (updates.length > 2000) return res.status(400).json({ error: 'At most 2000 entries per batch' });
-       const ids = updates.map((u: { id: unknown }) => String(u?.id ?? ''));
-       if (ids.some(id => !id) || new Set(ids).size !== ids.length) return res.status(400).json({ error: 'Each entry once, with its id' });
-       for (const u of updates as Array<{ id: string; data?: Record<string, unknown> }>) {
-         const bad = Object.keys(u.data || {}).filter(k => k !== 'expectedUpdatedAt' && !BATCH_FIELDS.has(k));
-         if (bad.length) return res.status(400).json({ error: `These fields cannot be changed in a batch: ${bad.join(', ')} (entry ${u.id})` });
-       }
-
-       // #113: everything is read and checked first, then written in ONE transaction — a refused
-       // entry or a version conflict leaves every entry unchanged
-       const conflict = await db.runTransaction(async (t) => {
-         // AUD-08: the workspace (closing date, role) as it is at commit, not as it was read before
-         const wsNow = (await t.get(db.collection('workspaces').doc(workspaceId))).data();
-         if (!user.admin && (!wsNow || !isWorkspaceMemberData(wsNow, user, workspaceId) || !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsNow, user.uid)))) throw new Error('Only owners, accountants and bookkeepers change entries');
-         const txRefs = ids.map(id => db.collection('transactions').doc(id));
-         const txDocs = await Promise.all(txRefs.map(r => t.get(r)));
-         const accountIds = new Set<string>();
-         for (const u of updates as Array<{ data?: { lines?: Array<{ accountId?: string }> } }>) for (const l of u.data?.lines || []) if (l?.accountId) accountIds.add(String(l.accountId));
-         const accountDocs = await Promise.all([...accountIds].map(id => t.get(db.collection('chartAccounts').doc(id))));
-         const ownAccounts = new Set(accountDocs.filter(d => d.exists && d.data()?.workspaceId === workspaceId).map(d => d.id));
-         const writes: Array<{ ref: (typeof txRefs)[number]; data: Record<string, unknown> }> = [];
-         for (let i = 0; i < txDocs.length; i++) {
-           const txDoc = txDocs[i];
-           const id = ids[i];
-           if (!txDoc.exists) throw new Error(`Transaction ${id} not found`);
-           const txData = txDoc.data();
-           if (txData?.workspaceId !== workspaceId) throw new Error(`Transaction ${id} does not belong to this workspace`);
-           if (txData?.date) assertPostingOpen(txData.date, wsNow as never, user.uid);
-           const newDate = (updates[i].data as { date?: unknown } | undefined)?.date;
-           if (typeof newDate === 'string' && newDate) assertPostingOpen(newDate, wsNow as never, user.uid);
-           const revalLock = revaluationEntryLock(txData);
-           if (revalLock) throw new Error(revalLock);
-           const updateData = { ...updates[i].data } as Record<string, unknown>;
-           const expectedUpdatedAt = updates[i].expectedUpdatedAt || updateData.expectedUpdatedAt;
-           const settledFlag = txData?.isCleared === true || txData?.reconciled === true || txData?.isReconciled === true;
-           const unsettles = ['isCleared', 'reconciled', 'isReconciled', 'reconciledAt']
-             .some(key => key in updateData && updateData[key] !== txData?.[key]);
-           const touchesAmounts = updateData.lines !== undefined || updateData.status !== undefined || unsettles;
-           if (!user.admin && ((txData?.status === 'certified' || txData?.status === 'void') || (settledFlag && touchesAmounts))) {
-             throw new Error(`Forbidden: Transaction ${id} status is locked, cleared, or reconciled.`);
-           }
-           delete updateData.expectedUpdatedAt;
-           if (isUpdatedAtMismatch(expectedUpdatedAt as never, txData?.updatedAt)) {
-             return { id, current: { ...txData, id: txDoc.id } };
-           }
-           const txMeta = (txData?.metadata || {}) as Record<string, unknown>;
-           if ((updateData.lines !== undefined || updateData.status !== undefined) &&
-               (txMeta.invoiceId || txMeta.billId || txMeta.paymentId || txMeta.creditNoteId || txMeta.vendorCreditId)) {
-             throw new Error(`Entry ${id} belongs to a source document; update or void the document instead.`);
-           }
-           if (updateData.lines !== undefined) {
-             const lines = updateData.lines as Array<{ accountId?: string; amountCents?: number }>;
-             if (!Array.isArray(lines) || lines.length < 2) throw new Error(`Entry ${id} needs at least two lines`);
-             const settled = { ...txData, ...updateData, lines: lines.map(l => ({ ...l })) } as Transaction;
-             settleHomeCurrency(settled, (wsNow as { currency?: string } | undefined)?.currency);
-             updateData.lines = settled.lines;
-             checkLedgerEntry(settled as unknown as Record<string, unknown>);
-             const unknown = lines.filter(l => !l.accountId || !ownAccounts.has(String(l.accountId)));
-             if (unknown.length) throw new Error(`Entry ${id} uses an account that is not in this workspace`);
-             const total = lines.reduce((sum, l) => sum + Math.max(0, Math.round(Number(l.amountCents) || 0)), 0);
-             const before = Math.abs(Math.round(Number(txData?.totalAmountCents) || 0));
-             if (before && total !== before) throw new Error(`Entry ${id}: a batch may move amounts between accounts but not change the total (${before} → ${total} cents); edit the entry instead`);
-           }
-           if (updateData.status && !allowedStatuses.includes(String(updateData.status))) {
-             throw new Error(`Invalid status '${updateData.status}' provided for transaction ${id}.`);
-           }
-           writes.push({ ref: txDoc.ref, data: { ...updateData, updatedAt: FieldValue.serverTimestamp() } });
-         }
-         for (const w of writes) t.update(w.ref, w.data);
-         await writeServerAuditLog({
-           workspaceId,
-           uid: user.uid,
-           email: user.email,
-           action: 'TRANSACTIONS_BATCH_UPDATED',
-           entityType: 'transaction',
-           entityId: ids[0] || 'batch',
-           details: {
-             description: `Updated ${writes.length} transaction(s) in batch`,
-             count: writes.length,
-           },
-         }, { db, tx: t });
-         return null;
-       });
-       if (conflict) {
-         return res.status(409).json({
-           error: 'version_conflict',
-           message: `Transaction ${conflict.id} was modified by another user. Nothing in this batch was saved.`,
-           conflictTransactionId: conflict.id,
-           currentTransaction: conflict.current
-         });
-       }
-
-       res.json({ status: 'ok' });
-     } catch (e) {
-      if (errorMessage(e) === 'Not a member') {
-         return res.status(403).json({ error: errorMessage(e) });
-      }
-      res.status(400).json({ error: errorMessage(e) }); 
-    }
+    await executeCommand(req, res, {
+      definition: transactionsBatchCommand,
+      workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+      input: req.body,
+      formatResponse: (outcome) => {
+        if (outcome.ok) return { status: 200, body: { status: 'ok', ...(outcome.data as Record<string, unknown>) } };
+        if (outcome.code === 'INVALID_INPUT') {
+          const message = (outcome.error as { issues?: Array<{ message?: string }> } | undefined)?.issues?.[0]?.message;
+          return { status: 400, body: { error: message || 'Invalid request' } };
+        }
+        if (outcome.error instanceof BatchVersionConflict) {
+          return {
+            status: 409,
+            body: {
+              error: 'version_conflict',
+              message: outcome.error.message,
+              conflictTransactionId: outcome.error.transactionId,
+              currentTransaction: outcome.error.current,
+            },
+          };
+        }
+        // the handler answered 403 only for its own membership refusal, and 400 for everything else
+        const status = outcome.status === 403 ? 403 : 400;
+        return { status, body: { error: outcome.message } };
+      },
+    });
   });
 
   // Atomic server-side dimension node migration over the complete workspace ledger (no 2,000-entry batch cap)

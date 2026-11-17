@@ -113,11 +113,11 @@ test('the seventeen commands publish a schema, roles, scope, a parseable example
 test('the undos answer as inverses and the one-way moves answer null', () => {
   assert.deepEqual(
     assetDisposeCommand.inverse?.({ assetId: 'a1', date: '2026-06-30', proceedsCents: 100 }, { transactionId: 't1', gainLossCents: 0, catchUpCents: 0 }),
-    { command: 'asset.undispose', input: {} },
+    { command: 'asset.undispose', input: { assetId: 'a1' } },
   );
   assert.deepEqual(
     assetTransferCommand.inverse?.({ assetId: 'a1', date: '2026-06-30', location: 'Depot' }, { transactionId: 't1' }),
-    { command: 'asset.undotransfer', input: {} },
+    { command: 'asset.undotransfer', input: { assetId: 'a1' } },
   );
   assert.deepEqual(
     invoiceWriteOffCommand.inverse?.({ invoiceId: 'i1' }, { invoiceId: 'i1', transactionId: 't1', writtenOffCents: 100 }),
@@ -134,8 +134,48 @@ test('the undos answer as inverses and the one-way moves answer null', () => {
       {} as never,
       { record: { id: 'rma_1', customerId: 'c1' }, replayed: false },
     ),
-    { command: 'rma.move', input: { rmaId: 'rma_1', customerId: 'c1', action: 'decline', expectedStatus: 'requested' } },
+    { command: 'rma.move', input: { rmaId: 'rma_1', customerId: 'c1', action: 'decline', expectedStatus: 'requested', requestKey: 'undo_rma_1' } },
   );
+});
+
+/**
+ * An inverse is a promise to whoever reads it — an assistant, an undo screen — that running it works.
+ * A shape-only assertion cannot keep that promise: `{ command: 'asset.undispose', input: {} }` deep-equals
+ * cleanly and then fails as INVALID_INPUT when it is actually run, because the undo needs the asset id.
+ * This walks every inverse the batch publishes and parses it against the target command's own schema.
+ */
+test('every inverse this batch publishes is accepted by the command it names', () => {
+  const byName = new Map(COMMANDS.map(command => [command.name, command]));
+  const sampleInputs: Record<string, unknown> = {
+    'asset.dispose': { assetId: 'a1', date: '2026-06-30', proceedsCents: 100 },
+    'asset.transfer': { assetId: 'a1', date: '2026-06-30', location: 'Depot' },
+    'asset.placeservice': { assetId: 'a1', date: '2026-06-30', assetAccountId: 'equip' },
+    'invoice.writeoff': { invoiceId: 'i1' },
+    'bill.spread': { billId: 'b1', expenseAccountId: 'acc', amountCents: 100, months: 2 },
+    'invoice.spread': { invoiceId: 'i1', revenueAccountId: 'rev', amountCents: 100, months: 2 },
+    'rma.request': {},
+  };
+  const sampleResults: Record<string, unknown> = {
+    'asset.dispose': { transactionId: 't1', gainLossCents: 0, catchUpCents: 0 },
+    'asset.transfer': { transactionId: 't1' },
+    'asset.placeservice': { assetId: 'a1' },
+    'invoice.writeoff': { invoiceId: 'i1', transactionId: 't1', writtenOffCents: 100 },
+    'bill.spread': { billId: 'b1' },
+    'invoice.spread': { invoiceId: 'i1' },
+    'rma.request': { record: { id: 'rma_1', customerId: 'c1' }, replayed: false },
+  };
+  let checked = 0;
+  for (const command of COMMANDS) {
+    if (!command.inverse || !(command.name in sampleInputs)) continue;
+    const inverse = command.inverse(sampleInputs[command.name] as never, sampleResults[command.name] as never);
+    if (!inverse) continue;
+    const target = byName.get(inverse.command as `${string}.${string}`);
+    assert.ok(target, `${command.name} names a command this batch registers: ${inverse.command}`);
+    const parsed = target.input.safeParse(inverse.input);
+    assert.equal(parsed.success, true, `${command.name} → ${inverse.command} parses: ${JSON.stringify(parsed.error?.issues)}`);
+    checked += 1;
+  }
+  assert.equal(checked, 7, 'all seven undoable commands were walked');
 });
 
 test('a preview describes the work and writes nothing', async () => {
