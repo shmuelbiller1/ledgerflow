@@ -1,6 +1,7 @@
 import { useDialog } from '../../hooks/useDialog';
+import { ModalShell } from '../ui/ModalShell';
 import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import { X, Activity, CheckCircle2, AlertTriangle, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -57,21 +58,9 @@ export default function HealthCheckModal({ isOpen, onClose }: HealthCheckModalPr
 
   return (
     <AnimatePresence>
-      <div {...overlayDialogProps} className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-        />
-        
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-white rounded-2xl shadow-xl w-full max-w-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]"
-        >
+      <ModalShell dialogProps={overlayDialogProps} onClose={onClose} layer="z-50"
+        backdropClassName="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+        panelClassName="bg-white rounded-2xl shadow-xl w-full max-w-2xl z-10 overflow-hidden flex flex-col max-h-[90vh]">
           <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
@@ -159,8 +148,7 @@ export default function HealthCheckModal({ isOpen, onClose }: HealthCheckModalPr
               Run Again
             </button>
           </div>
-        </motion.div>
-      </div>
+      </ModalShell>
     </AnimatePresence>
   );
 }
