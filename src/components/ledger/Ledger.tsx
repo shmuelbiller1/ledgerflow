@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { addChartAccount } from '../../lib/recordWrites';
 import AsyncButton from '../ui/AsyncButton';
+import { ModalShell } from '../ui/ModalShell';
 import JournalEntryModal from './JournalEntryModal';
 import { LexiconText } from '../../hooks/useLexicon';
 
@@ -482,20 +483,8 @@ const Ledger = React.memo(() => {
       {/* Add Account Modal */}
       <AnimatePresence>
         {activeModal === 'account' && (
-          <div {...overlay1DialogProps} className="fixed inset-0 z-[250] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setActiveModal(null)}
-              className="absolute inset-0 bg-zinc-900/60 backdrop-blur-md"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-[var(--ink)] rounded-[40px] shadow-2xl border border-[var(--line)] overflow-hidden p-4 md:p-10"
-            >
+          <ModalShell dialogProps={overlay1DialogProps} onClose={() => setActiveModal(null)}
+            panelClassName="w-full max-w-lg bg-[var(--ink)] rounded-[40px] shadow-2xl border border-[var(--line)] overflow-hidden p-4 md:p-10">
               <div className="flex items-center justify-between mb-8">
                 <h2 id={overlay1TitleId} className="text-3xl font-black text-[var(--text)] tracking-tight uppercase italic">Add New Account</h2>
                 <button aria-label="Close add account" onClick={() => setActiveModal(null)} className="p-2 hover:bg-[var(--ink)] rounded-full transition-colors">
@@ -640,28 +629,15 @@ const Ledger = React.memo(() => {
                   </AsyncButton>
                 </div>
               </form>
-            </motion.div>
-          </div>
+          </ModalShell>
         )}
       </AnimatePresence>
 
       {/* Period Closing Modal */}
       <AnimatePresence>
         {activeModal === 'period' && (
-          <div {...overlay2DialogProps} className="fixed inset-0 z-[250] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setActiveModal(null)}
-              className="absolute inset-0 bg-zinc-900/60 backdrop-blur-md"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md bg-[var(--surface)] rounded-[40px] shadow-2xl border border-[var(--line)] overflow-hidden p-4 md:p-10"
-            >
+          <ModalShell dialogProps={overlay2DialogProps} onClose={() => setActiveModal(null)}
+            panelClassName="w-full max-w-md bg-[var(--surface)] rounded-[40px] shadow-2xl border border-[var(--line)] overflow-hidden p-4 md:p-10">
               <div className="flex items-center gap-5 mb-8">
                 <div className="w-16 h-16 bg-amber-50 rounded-[32px] flex items-center justify-center text-amber-600 border border-amber-100">
                   <ShieldCheck aria-hidden="true" size={32} />
@@ -712,8 +688,7 @@ const Ledger = React.memo(() => {
                   </AsyncButton>
                 </div>
               </div>
-            </motion.div>
-          </div>
+          </ModalShell>
         )}
       </AnimatePresence>
 

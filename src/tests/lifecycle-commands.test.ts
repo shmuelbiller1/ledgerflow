@@ -12,11 +12,6 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import express from 'express';
-import type { AddressInfo } from 'node:net';
-import type { RequestUser } from '../server/auth/requestUser';
-import { CommandRegistry } from '../server/commands/registry';
-import { createCommandRouter } from '../server/routes/commandRoutes';
 import { COMMAND_ROLES, type AnyCommandDefinition } from '../server/commands/types';
 import {
   ASSET_COMMANDS, assetDisposeCommand, assetPlaceInServiceCommand, assetTransferCommand, assetUndoDisposalCommand,
@@ -24,7 +19,7 @@ import {
 import { DOCUMENT_ADJUSTMENT_COMMANDS, billSpreadCommand, invoiceWriteOffCommand } from '../server/commands/documentAdjustments';
 import { RMA_COMMANDS, rmaMoveCommand, rmaRequestCommand } from '../server/commands/returns';
 import { CLIENT_QUERY_COMMANDS, queryAskCommand, queryCloseCommand } from '../server/commands/clientQueries';
-import { MemoryDb, runnerDependencies, type TestCounters } from './helpers/commandTestUtils';
+import { commandHarness, MemoryDb } from './helpers/commandTestUtils';
 
 const OWNER = 'owner-1';
 const ACCOUNTANT = 'acct-1';
@@ -45,43 +40,7 @@ function seed(db: MemoryDb): void {
   db.seed(`workspaces/${OTHER}`, { uid: OUTSIDER, name: 'Other', currency: 'USD', members: [OUTSIDER] });
 }
 
-async function createHarness() {
-  const db = new MemoryDb();
-  seed(db);
-  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
-  const dependencies = runnerDependencies(db, counters);
-  const registry = new CommandRegistry();
-  for (const command of COMMANDS) registry.register(command);
-
-  const app = express();
-  app.use(express.json());
-  app.use((req, _res, next) => {
-    const uid = req.header('x-test-uid');
-    if (uid) (req as unknown as { user: RequestUser }).user = { uid, email: `${uid}@example.test`, displayName: 'Test Person', aal: 'aal2' };
-    next();
-  });
-  app.use('/api/v1/commands', createCommandRouter(registry, dependencies));
-  const server = app.listen(0, '127.0.0.1');
-  await new Promise<void>(resolve => server.once('listening', resolve));
-  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-
-  /** Run a registered command as a person in WS (or in `workspace`, to prove the membership check). */
-  const run = (uid: string, name: string, input: Record<string, unknown>, workspace = WS) => fetch(`${base}/api/v1/commands/${name}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-test-uid': uid },
-    body: JSON.stringify({ workspaceId: workspace, input }),
-  });
-  const preview = (uid: string, name: string, input: Record<string, unknown>) => fetch(`${base}/api/v1/commands/${name}/preview`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-test-uid': uid },
-    body: JSON.stringify({ workspaceId: WS, input }),
-  });
-
-  return {
-    db, counters, registry, dependencies, run, preview,
-    async close() { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); },
-  };
-}
+const createHarness = () => commandHarness({ commands: COMMANDS, workspaceId: WS, seed });
 
 test('the seventeen commands publish a schema, roles, scope, a parseable example and refusals', () => {
   assert.equal(COMMANDS.length, 17);

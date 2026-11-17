@@ -1,16 +1,11 @@
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
 import { z } from 'zod';
-import { FieldValue, getDb, assertPeriodOpen, isWorkspaceMemberData, validateWorkspaceMember } from '../db/firestore';
-import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
-import { getDateInTimezoneISO } from '../../lib/calendarDate';
-import { lockMessage, postingLock } from '../../lib/periodLock';
+import { getDb, validateWorkspaceMember } from '../db/firestore';
 import { mayPostEntries } from '../http/ledgerWriter';
+import { postJournalDocumentRoute } from '../http/journalDocumentRoute';
 import { computePropertyRentRoll, reconcileSecurityDepositTrust } from '../../lib/verticalAccounting';
 import type { Invoice } from '../../types';
-import { ledgerCreate } from '../services/ledgerDoor';
-import { writeServerAuditLog } from '../services/auditLogService';
-import { extractCanonicalOperationId, runOptionalIdempotent } from '../utils/idempotency';
 
 const CapitalizeLeaseSchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId is required'),
@@ -23,123 +18,63 @@ const CapitalizeLeaseSchema = z.object({
 
 export const leaseRouter = express.Router();
 
-leaseRouter.post('/capitalize', async (req, res) => {
-  try {
-    const parseResult = CapitalizeLeaseSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      return res.status(400).json({
-        status: 'error',
-        error: 'Validation failed',
-        details: parseResult.error.issues
-      });
-    }
-
-    const { workspaceId, leaseName, pvAmountCents, rouAssetAccountId, leaseLiabilityAccountId, date } = parseResult.data;
-    const user = requestUser(req);
-    const db = getDb();
-
-    // 1. Authorize workspace membership & API-key workspace scope FIRST before checking idempotency (#82)
-    let wsData: Record<string, unknown> | undefined;
-    try {
-      ({ data: wsData } = await validateWorkspaceMember(db, workspaceId, user));
-    } catch {
-      return res.status(403).json({ error: 'Not a member' });
-    }
-    if (!mayPostEntries(wsData, user)) return res.status(403).json({ error: 'Only owners, accountants and bookkeepers post entries' }); // AUD-09
-
-    const explicitOpId = extractCanonicalOperationId(req);
-    const rawOpId = explicitOpId || (leaseName ? `lease_${leaseName.toLowerCase().replace(/[^a-z0-9]/g, '_')}` : undefined);
-
-    const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
-    const txDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : getDateInTimezoneISO(new Date(), wsTimezone);
-
-    // 2. Validate period lock
-    await assertPeriodOpen(db, workspaceId, txDate, user.uid);
-
-    const wsCurrency = typeof wsData?.currency === 'string' && wsData.currency ? wsData.currency : 'USD';
-    const tx = {
-      id: db.collection('transactions').doc().id,
-      workspaceId,
-      uid: user.uid,
+// ASC 842: capitalising a lease puts the present value on the balance sheet — an asset against a
+// liability. The steps are the shared document-journal route's; this route names the entry.
+leaseRouter.post('/capitalize', postJournalDocumentRoute({
+  schema: CapitalizeLeaseSchema,
+  operationType: 'LEASE_CAPITALIZE',
+  legacyPrefix: 'lease',
+  message: 'ASC 842 Lease capitalized successfully.',
+  description: ({ leaseName }) => `ASC 842 Initial Recognition: ${leaseName || 'Operating Lease'}`,
+  totalAmountCents: ({ pvAmountCents }) => pvAmountCents,
+  lines: ({ pvAmountCents, rouAssetAccountId, leaseLiabilityAccountId }) => [
+    { accountId: rouAssetAccountId, amountCents: pvAmountCents, description: 'Capitalize PV of lease payments' },
+    { accountId: leaseLiabilityAccountId, amountCents: -pvAmountCents, description: 'Recognize lease liability' },
+  ],
+  operationId: ({ leaseName }) => (leaseName ? `lease_${leaseName.toLowerCase().replace(/[^a-z0-9]/g, '_')}` : undefined),
+  audit: {
+    action: 'LEASE_CAPITALIZED',
+    details: ({ leaseName, pvAmountCents, rouAssetAccountId, leaseLiabilityAccountId }, txDate) => ({
+      description: `Capitalized lease ${leaseName || 'Operating Lease'} (${pvAmountCents} cents) on ${txDate}`,
+      leaseName: leaseName || 'Operating Lease',
+      pvAmountCents,
+      rouAssetAccountId,
+      leaseLiabilityAccountId,
       date: txDate,
-      description: `ASC 842 Initial Recognition: ${leaseName || 'Operating Lease'}`,
-      totalAmountCents: pvAmountCents,
-      currency: wsCurrency,
-      type: 'journal' as const,
-      status: 'approved' as const,
-      isCleared: true,
-      createdAt: new Date().toISOString(),
-      lines: [
-        {
-          id: 'line-1',
-          accountId: rouAssetAccountId,
-          amountCents: pvAmountCents,
-          description: 'Capitalize PV of lease payments'
-        },
-        {
-          id: 'line-2',
-          accountId: leaseLiabilityAccountId,
-          amountCents: -pvAmountCents,
-          description: 'Recognize lease liability'
-        }
-      ]
-    };
+    }),
+  },
+}));
 
-    // 3. Validate through canonical validator (#102-R)
-    const validatedTx = await TransactionValidator.validateAndPrepare(tx, {
-      workspaceId,
-      user: { uid: user.uid, admin: user.admin },
-      wsData
-    });
-
-    const responsePayload = {
-      status: 'ok' as const,
-      message: 'ASC 842 Lease capitalized successfully.',
-      transactionId: validatedTx.id
-    };
-
-    const performCommit = async (t: Parameters<Parameters<typeof db.runTransaction>[0]>[0]) => {
-      const wsNow = (await t.get(db.collection('workspaces').doc(workspaceId))).data();
-      if (!isWorkspaceMemberData(wsNow, user, workspaceId) || !mayPostEntries(wsNow, user)) {
-        throw Object.assign(new Error('Only owners, accountants and bookkeepers post entries'), { status: 403 });
-      }
-      const lock = postingLock(txDate, wsNow as never, user.uid);
-      if (lock) throw Object.assign(new Error(lockMessage(txDate, lock)), { status: 409 });
-      const txRef = db.collection('transactions').doc(validatedTx.id);
-      ledgerCreate(t, txRef, { ...validatedTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-      await writeServerAuditLog({
-        workspaceId,
-        uid: user.uid,
-        email: user.email,
-        action: 'LEASE_CAPITALIZED',
-        entityType: 'transaction',
-        entityId: validatedTx.id,
-        details: {
-          description: `Capitalized lease ${leaseName || 'Operating Lease'} (${pvAmountCents} cents) on ${txDate}`,
-          leaseName: leaseName || 'Operating Lease',
-          pvAmountCents,
-          rouAssetAccountId,
-          leaseLiabilityAccountId,
-          date: txDate,
-        },
-      }, { db, tx: t });
-      return responsePayload;
-    };
-
-    const resultResponse = await runOptionalIdempotent(
-      { workspaceId, operationType: 'LEASE_CAPITALIZE', rawOperationId: rawOpId, legacyPrefix: 'lease', actor: explicitOpId ? user.uid : '', payload: parseResult.data },
-      performCommit,
-    );
-
-    res.json(resultResponse);
-  } catch (e) {
-    const explicitStatus = (e as { status?: number })?.status;
-    const status = typeof explicitStatus === 'number'
-      ? explicitStatus
-      : (errorMessage(e).includes('Unauthorized') || errorMessage(e).includes('Forbidden') ? 403 : 400);
-    res.status(status).json({ error: errorMessage(e) });
+/**
+ * The workspace a vertical read names in its body, once the caller is a member who may post entries:
+ * answers the 400/403 itself and returns undefined when the request is refused. Both reconciliation
+ * routes below need exactly this, and the sentence a refusal carries names what the caller tried.
+ */
+async function postingWorkspace(
+  req: express.Request,
+  res: express.Response,
+  refusalMessage: string,
+): Promise<{ workspaceId: string; db: ReturnType<typeof getDb> } | undefined> {
+  const workspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId.trim() : '';
+  if (!workspaceId) {
+    res.status(400).json({ error: 'workspaceId is required' });
+    return undefined;
   }
-});
+  const user = requestUser(req);
+  const db = getDb();
+  let wsData: Record<string, unknown> | undefined;
+  try {
+    ({ data: wsData } = await validateWorkspaceMember(db, workspaceId, user));
+  } catch {
+    res.status(403).json({ error: 'Not a member' });
+    return undefined;
+  }
+  if (!mayPostEntries(wsData, user)) {
+    res.status(403).json({ error: refusalMessage });
+    return undefined;
+  }
+  return { workspaceId, db };
+}
 
 const TrustReconciliationSchema = z.object({
   workspaceId: z.string().min(1),
@@ -160,21 +95,8 @@ const TrustReconciliationSchema = z.object({
 
 leaseRouter.post('/trust-reconciliation', async (req, res) => {
   try {
-    const rawWorkspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId.trim() : '';
-    if (!rawWorkspaceId) {
-      return res.status(400).json({ error: 'workspaceId is required' });
-    }
-    const user = requestUser(req);
-    const db = getDb();
-    let wsData: Record<string, unknown> | undefined;
-    try {
-      ({ data: wsData } = await validateWorkspaceMember(db, rawWorkspaceId, user));
-    } catch {
-      return res.status(403).json({ error: 'Not a member' });
-    }
-    if (!mayPostEntries(wsData, user)) {
-      return res.status(403).json({ error: 'Only owners, accountants and bookkeepers run trust reconciliations' });
-    }
+    const workspace = await postingWorkspace(req, res, 'Only owners, accountants and bookkeepers run trust reconciliations');
+    if (!workspace) return;
 
     const parsed = TrustReconciliationSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -209,28 +131,15 @@ const RentRollRequestSchema = z.object({
 
 leaseRouter.post('/rent-roll', async (req, res) => {
   try {
-    const rawWorkspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId.trim() : '';
-    if (!rawWorkspaceId) {
-      return res.status(400).json({ error: 'workspaceId is required' });
-    }
-    const user = requestUser(req);
-    const db = getDb();
-    let wsData: Record<string, unknown> | undefined;
-    try {
-      ({ data: wsData } = await validateWorkspaceMember(db, rawWorkspaceId, user));
-    } catch {
-      return res.status(403).json({ error: 'Not a member' });
-    }
-    if (!mayPostEntries(wsData, user)) {
-      return res.status(403).json({ error: 'Only owners, accountants and bookkeepers compute rent rolls' });
-    }
+    const workspace = await postingWorkspace(req, res, 'Only owners, accountants and bookkeepers compute rent rolls');
+    if (!workspace) return;
 
     const parsed = RentRollRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
     }
 
-    const invSnap = await db.collection('invoices').where('workspaceId', '==', rawWorkspaceId).get();
+    const invSnap = await workspace.db.collection('invoices').where('workspaceId', '==', workspace.workspaceId).get();
     const invoices = invSnap.docs.map(d => ({ ...(d.data() as Invoice), id: d.id }));
     const rentRoll = computePropertyRentRoll(parsed.data.units, invoices, parsed.data.asOfDate);
     return res.json({ status: 'ok', rentRoll });
