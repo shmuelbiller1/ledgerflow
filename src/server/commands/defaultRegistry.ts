@@ -19,6 +19,7 @@ import { autoRuleCreateCommand, autoRuleUpdateCommand, autoRuleDeleteCommand, au
 import { autoRuleLearnCommand } from './rulePatterns';
 import { dimensionAxesCommand, dimensionNodeCommand } from './dimensions';
 import { userProvisionCommand, workspaceCreateCommand } from './bootstrap';
+import { projectDeleteCommand, projectRestoreCommand } from './projects';
 import {
   bankLinePayCommand,
   bankLineSplitCommand,
@@ -94,6 +95,8 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(importMapRestoreCommand);
   registry.register(userProvisionCommand);
   registry.register(workspaceCreateCommand);
+  registry.register(projectDeleteCommand);
+  registry.register(projectRestoreCommand);
   registry.register(workspaceModulesCommand);
   registry.register(workspaceNextNumberCommand);
   registry.register(workspaceOpeningBalancesCommand);

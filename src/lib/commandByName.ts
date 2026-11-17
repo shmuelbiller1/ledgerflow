@@ -20,9 +20,12 @@ export async function runNamedCommand<T = unknown>(
   const { COMMAND_MANIFEST } = await import('./commands.generated');
   const entry = COMMAND_MANIFEST.find(command => command.name === name);
   if (!entry) throw new Error(`"${name}" is not a registered command.`);
-  return runCommand<T>({
+  const answer = await runCommand<{ data?: T }>({
     path: entry.runPath,
     method: 'POST',
     body: options.workspaceId ? { workspaceId: options.workspaceId, input } : { input },
   });
+  // the route answers `{ status, command, data, replayed }`; a caller wants what the command returned, and
+  // reading `.profile` off the envelope (as one did) is silently `undefined`
+  return (answer && typeof answer === 'object' && 'data' in answer ? answer.data : answer) as T;
 }

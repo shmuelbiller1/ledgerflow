@@ -6,7 +6,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
   {
     "name": "payment.receive",
     "area": "payment",
-    "roles": COMMAND_SCHEMA_PARTS.part46,
+    "roles": COMMAND_SCHEMA_PARTS.part47,
     "risk": "normal",
     "description": {
       "sentence": "Record money received from a customer or paid to a vendor and apply it to open documents, and do not use it to create an invoice or bill.",
@@ -29,7 +29,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The payment amount, date, cash account, payment type, or allocation is invalid.",
           "next": "Correct the payment details and choose an existing cash account and open document."
         },
-        COMMAND_SCHEMA_PARTS.part139,
+        COMMAND_SCHEMA_PARTS.part141,
         {
           "code": "PERIOD_LOCKED",
           "when": "The payment date is in a closed period.",

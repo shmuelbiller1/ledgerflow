@@ -4,8 +4,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part29,
-    "refuseNegativeStock": COMMAND_SCHEMA_PARTS.part15,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part30,
+    "refuseNegativeStock": COMMAND_SCHEMA_PARTS.part16,
     "goodsLeaveWith": {
       "type": "string",
       "enum": [
