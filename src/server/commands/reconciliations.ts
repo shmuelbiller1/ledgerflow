@@ -131,6 +131,7 @@ export const clearEntriesCommand: CommandDefinition<typeof clearEntriesCommandIn
   name: 'reconciliations.clear',
   input: clearEntriesCommandInput,
   roles: [...LEDGER_WRITERS],
+  allowPlatformAdmin: true,
   async prepare(ctx, input) {
     return prepareClearEntries(ctx.db, {
       workspaceId: ctx.workspaceId,
@@ -138,6 +139,7 @@ export const clearEntriesCommand: CommandDefinition<typeof clearEntriesCommandIn
       clearanceDate: input.clearanceDate,
       cleared: input.cleared,
       uid: ctx.actor,
+      admin: ctx.user.admin,
     });
   },
   async handler(ctx, tx, input) {
@@ -150,7 +152,7 @@ export const clearEntriesCommand: CommandDefinition<typeof clearEntriesCommandIn
     );
   },
   async preview(ctx, input) {
-    const prepared = await prepareClearEntries(ctx.db, { workspaceId: ctx.workspaceId, transactionIds: input.transactionIds, clearanceDate: input.clearanceDate, cleared: input.cleared, uid: ctx.actor });
+    const prepared = await prepareClearEntries(ctx.db, { workspaceId: ctx.workspaceId, transactionIds: input.transactionIds, clearanceDate: input.clearanceDate, cleared: input.cleared, uid: ctx.actor, admin: ctx.user.admin });
     return {
       title: prepared.undo ? `Mark ${input.transactionIds.length} entry(ies) as not cleared` : `Clear ${input.transactionIds.length} entry(ies)`,
       lines: [
@@ -193,14 +195,15 @@ export const updateBankLineCommand: CommandDefinition<typeof updateBankLineComma
   name: 'reconciliations.bankline',
   input: updateBankLineCommandInput,
   roles: ['owner', 'accountant', 'bookkeeper', 'viewer'],
+  allowPlatformAdmin: true,
   async prepare(ctx, input) {
-    return prepareUpdateBankLine(ctx.db, { workspaceId: ctx.workspaceId, id: input.id, uid: ctx.actor });
+    return prepareUpdateBankLine(ctx.db, { workspaceId: ctx.workspaceId, id: input.id, uid: ctx.actor, admin: ctx.user.admin });
   },
   async handler(ctx, tx, input) {
     return updateBankLineInTransaction(ctx.db, tx, { workspaceId: ctx.workspaceId, id: input.id, data: input.data });
   },
   async preview(ctx, input) {
-    await prepareUpdateBankLine(ctx.db, { workspaceId: ctx.workspaceId, id: input.id, uid: ctx.actor });
+    await prepareUpdateBankLine(ctx.db, { workspaceId: ctx.workspaceId, id: input.id, uid: ctx.actor, admin: ctx.user.admin });
     return {
       title: `Update bank line ${input.id}`,
       lines: [`Fields: ${Object.keys(input.data).join(', ') || 'none'}`, 'Only the fields of a bank line change; no entry is posted'],
@@ -250,6 +253,7 @@ export const completeReconciliationCommand: CommandDefinition<
       statementBalanceCents: input.statementBalanceCents,
       reconciledTransactionIds: input.reconciledTransactionIds,
       uid: ctx.actor,
+      admin: ctx.user.admin,
     });
   },
   async handler(ctx, tx, input) {
@@ -268,7 +272,7 @@ export const completeReconciliationCommand: CommandDefinition<
     );
   },
   async preview(ctx, input) {
-    await prepareCompleteReconciliation(ctx.db, { ...input, workspaceId: ctx.workspaceId, uid: ctx.actor });
+    await prepareCompleteReconciliation(ctx.db, { ...input, workspaceId: ctx.workspaceId, uid: ctx.actor, admin: ctx.user.admin });
     return {
       title: `Complete the reconciliation of ${input.accountId} as of ${input.statementDate}`,
       lines: [

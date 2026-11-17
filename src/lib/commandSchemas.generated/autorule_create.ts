@@ -7,15 +7,15 @@ export const COMMAND_INPUT_SCHEMA = {
     "rule": {
       "type": "object",
       "properties": {
-        "id": COMMAND_SCHEMA_PARTS.part60,
-        "name": COMMAND_SCHEMA_PARTS.part36,
-        "groupName": COMMAND_SCHEMA_PARTS.part59,
+        "id": COMMAND_SCHEMA_PARTS.part64,
+        "name": COMMAND_SCHEMA_PARTS.part38,
+        "groupName": COMMAND_SCHEMA_PARTS.part63,
         "groupIsActive": COMMAND_SCHEMA_PARTS.part15,
-        "condition": COMMAND_SCHEMA_PARTS.part159,
-        "action": COMMAND_SCHEMA_PARTS.part162,
-        "confidence": COMMAND_SCHEMA_PARTS.part48,
+        "condition": COMMAND_SCHEMA_PARTS.part170,
+        "action": COMMAND_SCHEMA_PARTS.part173,
+        "confidence": COMMAND_SCHEMA_PARTS.part51,
         "isHardened": COMMAND_SCHEMA_PARTS.part15,
-        "priority": COMMAND_SCHEMA_PARTS.part88,
+        "priority": COMMAND_SCHEMA_PARTS.part96,
         "isActive": COMMAND_SCHEMA_PARTS.part15,
         "stopProcessingOnMatch": COMMAND_SCHEMA_PARTS.part15
       },

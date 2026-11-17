@@ -30,11 +30,12 @@ const ACCOUNTANT = 'acct-1';
 const BOOKKEEPER = 'book-1';
 const VIEWER = 'view-1';
 const OUTSIDER = 'out-1';
+const ADMIN = 'platform-admin-1';
 const BANK = `${WS}_bank`;
 const SALES = `${WS}_sales`;
 const SUPPLIES = `${WS}_supplies`;
 
-const user = (uid: string) => ({ uid, email: `${uid}@example.test` } as never);
+const user = (uid: string, admin = false) => ({ uid, email: `${uid}@example.test`, ...(admin ? { admin: true } : {}) } as never);
 
 function seed(db: MemoryDb): void {
   seedWorkspace(db, WS, {
@@ -55,7 +56,7 @@ async function invoke(
   definition: AnyCommandDefinition,
   uid: string,
   input: unknown,
-  options: { operationId?: string } = {},
+  options: { operationId?: string; admin?: boolean } = {},
 ): Promise<{ status: number; body: Record<string, unknown>; audits: number }> {
   const counters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
   const dependencies = runnerDependencies(db, counters);
@@ -66,7 +67,7 @@ async function invoke(
     status(code: number) { status = code; return this; },
     json(payload: unknown) { body = payload; return this; },
   } as never;
-  await executeCommand(fakeRequest(user(uid), input, options.operationId), response, {
+  await executeCommand(fakeRequest(user(uid, options.admin), input, options.operationId), response, {
     definition,
     workspaceId: String((input as { workspaceId?: unknown }).workspaceId ?? WS),
     input,
@@ -236,4 +237,59 @@ test('completing a reconciliation keeps its record, marks the entries and answer
     workspaceId: WS, accountId: BANK, statementDate: '2026-10-31', statementBalanceCents: 125000, reconciledTransactionIds: [],
   });
   assert.equal(locked.status, 409, 'a closed statement period keeps the legacy 409');
+});
+
+test('an entry the validator refuses keeps the legacy 400 and its real message, never a generic 500', async () => {
+  const db = new MemoryDb();
+  seed(db);
+  // a batch that names an account of another workspace: the validator refuses it, and the screen must
+  // read why (the legacy route answered 400 with that sentence, not "An internal server error occurred.")
+  db.seed(`chartAccounts/${OTHER}_acct`, { workspaceId: OTHER, name: 'Not ours', type: 'expense', category: 'Expense' });
+  const foreign = await invoke(db, reconcileCommand, OWNER, {
+    workspaceId: WS,
+    operations: [{
+      id: `${WS}_new`,
+      type: 'createTransaction',
+      data: {
+        date: '2026-10-05',
+        description: 'Names another workspace\'s account',
+        totalAmountCents: 1000,
+        currency: 'USD',
+        status: 'completed',
+        type: 'actual',
+        lines: [
+          { accountId: `${OTHER}_acct`, amountCents: 1000 },
+          { accountId: SALES, amountCents: -1000 },
+        ],
+      },
+    }],
+  });
+  assert.equal(foreign.status, 400, 'a validation failure is a 400, not the runner\'s 500');
+  assert.notEqual(foreign.body.error, 'An internal server error occurred.');
+  assert.match(String(foreign.body.error), /does not exist|does not belong/);
+  assert.equal(db.entries('transactions').some(row => row.id === `${WS}_new`), false, 'nothing was written');
+});
+
+test('a platform admin keeps the legacy bypass on clear, patch and complete', async () => {
+  const db = new MemoryDb();
+  seed(db);
+  // an admin who is not a member of this workspace: the legacy routes let them through
+  db.seed(`transactions/${WS}_tx1`, { workspaceId: WS, uid: OWNER, date: '2026-10-02', status: 'completed', totalAmountCents: 5000, lines: [] });
+  db.seed(`bankLines/${WS}_line`, { workspaceId: WS, date: '2026-10-20', status: 'pending', amountCents: 1000 });
+
+  const cleared = await invoke(db, clearEntriesCommand, ADMIN, { workspaceId: WS, transactionIds: [`${WS}_tx1`] }, { admin: true });
+  assert.equal(cleared.status, 200, JSON.stringify(cleared.body));
+  assert.equal(db.read(`transactions/${WS}_tx1`)?.isCleared, true);
+
+  const patched = await invoke(db, updateBankLineCommand, ADMIN, { workspaceId: WS, id: `${WS}_line`, data: { notes: 'Seen' } }, { admin: true });
+  assert.equal(patched.status, 200, JSON.stringify(patched.body));
+
+  const completed = await invoke(db, completeReconciliationCommand, ADMIN, {
+    workspaceId: WS, accountId: BANK, statementDate: '2026-10-31', statementBalanceCents: 1000, reconciledTransactionIds: [`${WS}_tx1`],
+  }, { admin: true });
+  assert.equal(completed.status, 200, JSON.stringify(completed.body));
+
+  // without the admin flag the same person is refused, so the bypass is the admin's alone
+  const refused = await invoke(db, clearEntriesCommand, ADMIN, { workspaceId: WS, transactionIds: [`${WS}_tx1`] });
+  assert.equal(refused.status, 403);
 });

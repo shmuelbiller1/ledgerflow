@@ -122,6 +122,23 @@ export async function prepareReconcile(
 }
 
 /**
+ * `TransactionValidator` throws plain Errors with no status, which the runner would answer with a
+ * generic 500. The legacy route answered a batch it could not validate with a 400 (or a 403 when the
+ * message said Forbidden), and showed the person the real reason; keep that.
+ */
+async function validateForBatch(
+  ...args: Parameters<typeof TransactionValidator.validateAndPrepare>
+): Promise<Awaited<ReturnType<typeof TransactionValidator.validateAndPrepare>>> {
+  try {
+    return await TransactionValidator.validateAndPrepare(...args);
+  } catch (error) {
+    if (error instanceof ReconcileError) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new ReconcileError(message === 'Not a member' || message.includes('Forbidden') ? 403 : 400, message);
+  }
+}
+
+/**
  * The batch itself, inside the runner's transaction. Every read happens before the first write
  * (Firestore refuses a read after a write in the same transaction), the workspace is read again so a
  * lock or a role that changed meanwhile is seen, and the period lock is checked against the lock the
@@ -263,7 +280,7 @@ export async function reconcileInTransaction(
       const merged = { ...existingTxData, ...safeData } as Transaction;
       settleHomeCurrency(merged);
 
-      const validatedTx = await TransactionValidator.validateAndPrepare(merged, {
+      const validatedTx = await validateForBatch(merged, {
         workspaceId,
         user: { uid: actor.uid, admin: actor.admin },
         wsData: wsNow as never,
@@ -285,7 +302,7 @@ export async function reconcileInTransaction(
         createdAt: (op.data?.createdAt as string) || new Date().toISOString(),
       } as unknown as Transaction;
       settleHomeCurrency(payload);
-      const validatedTx = await TransactionValidator.validateAndPrepare(payload, {
+      const validatedTx = await validateForBatch(payload, {
         workspaceId,
         user: { uid: actor.uid, admin: actor.admin },
         wsData: wsNow as never,
@@ -340,7 +357,7 @@ export interface ClearEntriesPrepared {
 /** The refusals a person sees before anything is written: batch size, membership, role, date shape. */
 export async function prepareClearEntries(
   db: Firestore,
-  input: { workspaceId: string; transactionIds: string[]; clearanceDate?: string; cleared?: boolean; uid: string },
+  input: { workspaceId: string; transactionIds: string[]; clearanceDate?: string; cleared?: boolean; uid: string; admin?: boolean },
 ): Promise<ClearEntriesPrepared> {
   const { workspaceId, transactionIds, clearanceDate } = input;
   if (!workspaceId || !Array.isArray(transactionIds) || transactionIds.length === 0) {
@@ -350,12 +367,13 @@ export async function prepareClearEntries(
     throw new ClearEntriesError(400, `Batch size exceeds limit of ${CLEAR_MAX_ENTRIES} items`);
   }
   const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-  if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), { uid: input.uid } as never, workspaceId)) {
+  // a platform admin is let in without membership, as the legacy route let them in
+  if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), { uid: input.uid, admin: input.admin }, workspaceId)) {
     throw new ClearEntriesError(403, 'Not a member');
   }
   // marking entries cleared is bookkeeping: owners, accountants and bookkeepers (CA-04)
   const role = roleInWorkspace(wsDoc.data(), input.uid);
-  if (!LEDGER_WRITER_ROLES.includes(role)) {
+  if (!input.admin && !LEDGER_WRITER_ROLES.includes(role)) {
     throw new ClearEntriesError(403, 'Only owners, accountants and bookkeepers mark entries cleared');
   }
   // the day the bank cleared it (CA-04): optional, never before the entry's own date; cleared: false undoes it
@@ -441,11 +459,11 @@ export interface UpdateBankLinePrepared {
 /** PATCH /transactions/bank-lines/:id: membership, then the line's own workspace, before the parse. */
 export async function prepareUpdateBankLine(
   db: Firestore,
-  input: { workspaceId: string; id: string; uid: string },
+  input: { workspaceId: string; id: string; uid: string; admin?: boolean },
 ): Promise<UpdateBankLinePrepared> {
   const { workspaceId, id, uid } = input;
   const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-  if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), { uid } as never, workspaceId)) {
+  if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), { uid, admin: input.admin }, workspaceId)) {
     throw new UpdateBankLineError(403, 'Not a member');
   }
   const lineSnap = await db.collection('bankLines').doc(id).get();
@@ -509,13 +527,13 @@ export interface CompleteReconciliationPrepared {
 
 export async function prepareCompleteReconciliation(
   db: Firestore,
-  input: CompleteReconciliationInput & { uid: string },
+  input: CompleteReconciliationInput & { uid: string; admin?: boolean },
 ): Promise<CompleteReconciliationPrepared> {
   const wsDoc = await db.collection('workspaces').doc(input.workspaceId).get();
-  if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), { uid: input.uid } as never, input.workspaceId)) {
+  if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), { uid: input.uid, admin: input.admin }, input.workspaceId)) {
     throw new CompleteReconciliationError(403, 'Not a member');
   }
-  if (!LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsDoc.data(), input.uid))) {
+  if (!input.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsDoc.data(), input.uid))) {
     throw new CompleteReconciliationError(403, 'Only owners, accountants and bookkeepers complete reconciliations');
   }
   try {
