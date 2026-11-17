@@ -796,3 +796,13 @@ integration that only posts entries cannot lock a year or restate the books. Tha
 has only `write:transactions` and uses these. **Default:** unchanged (`write:transactions`); the draft-trap half of
 the same finding is fixed separately. Say "tighten the period scopes" and I will make the change (patch 10's
 `apiAuthenticate.ts` hunk plus the test in `commands.test.ts`).
+
+## 17 Nov — SBX-1 overlay migration (pending AI #1 review)
+
+Apply `supabase/migrations/20261117210000_assistant_sandbox_overlay.sql` **only after its PR is
+merged and its code is deployed**. It creates the private overlay, merged read views, and the
+restricted database role. The migration runs as the database owner; the application's database
+login must be able to `SET ROLE lf_sandbox` (the migration grants it to the migration login). If
+those logins differ, grant the role to the application login, never to browser or service-key
+roles. Keep `sandbox` and `sandbox_read` out of Supabase's exposed schemas. No assistant routes
+are enabled by this migration. Applied locally for tests only; **not applied to the live database**.

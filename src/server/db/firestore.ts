@@ -12,9 +12,10 @@ export type { DocumentData, SetOptions, WhereFilterOp, WriteResult } from './pgF
 
 let defaultDb: Firestore | null = null;
 
-export const getDb = (): Firestore => {
+/** A sandbox id here is a server-authorized scope, not an HTTP request parameter. */
+export const getDb = (scope?: { sandboxId: string }): Firestore => {
   if (!defaultDb) defaultDb = new Firestore();
-  return defaultDb;
+  return scope ? defaultDb.forSandbox(scope.sandboxId) : defaultDb;
 };
 
 export function isWorkspaceMemberData(

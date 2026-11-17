@@ -10,7 +10,8 @@
  * Storage: one table per collection { id text, data jsonb, workspace_id (generated from
  * data.workspaceId), created_at, updated_at } (see supabase/migrations). The server logs in
  * with the database password, a role that bypasses row level security, and does its own
- * permission checks, exactly as it did with firebase-admin.
+ * permission checks, exactly as it did with firebase-admin. Sandbox handles borrow a connection
+ * only inside a role-scoped transaction and reuse the same query compiler and patch functions.
  *
  * Semantics kept from Firestore:
  * - set() replaces the document; set(..., { merge: true }) merges nested maps; update() takes
@@ -29,18 +30,19 @@ import { timePoolQueries } from './slowQueryLog';
 import { Readable } from 'stream';
 import crypto from 'crypto';
 import {
-  FieldPath, FirestoreError, Timestamp, hasTransforms, invalid, isPlainObject, readPath,
-  splitWrite, toSegments,
+  FieldPath, FirestoreError, Timestamp, invalid, readPath, toSegments,
 } from './pg/values';
 import type {
-  DocumentData, FieldValueAny, OrderByDirection, Patch, Precondition, RefLike, SetOptions, WhereFilterOp,
+  DocumentData, FieldValueAny, OrderByDirection, Precondition, SetOptions, WhereFilterOp,
   WriteResult,
 } from './pg/values';
 import {
   COLLECTION_ID, Params, compileLimit, compileOrder, compileWhere, effectiveOrders, isIdField, isRetryable,
-  quoteIdent, translateError,
+  translateError,
 } from './pg/sql';
 import type { Cursor, DocRow, QuerySpec, Runner } from './pg/sql';
+import { buildCreate, buildDelete, buildSet, buildUpdate, liveWriteSql, sandboxWriteSql, type WriteOp } from './pg/writes';
+import { enterSandbox, tableSource, validateSandboxId } from './pg/sandbox';
 
 export { FieldPath, FieldValue, FirestoreError, Timestamp } from './pg/values';
 export type {
@@ -69,7 +71,7 @@ export class DocumentSnapshot<T = DocumentData> {
     return this.raw === null ? undefined : readPath(JSON.parse(this.raw), toSegments(field));
   }
   isEqual(other: DocumentSnapshot<T>): boolean {
-    return other instanceof DocumentSnapshot && other.ref.path === this.ref.path && other.raw === this.raw;
+    return other instanceof DocumentSnapshot && other.ref.isEqual(this.ref) && other.raw === this.raw;
   }
 }
 
@@ -157,6 +159,7 @@ export class Query<T = DocumentData> {
   private cursor(args: CursorArg[], inclusive: boolean): Cursor {
     if (args.length === 1 && args[0] instanceof DocumentSnapshot) {
       const snap = args[0];
+      this.firestore.assertSameScope(snap.ref.firestore);
       if (!snap.exists) throw invalid('Cannot use a missing document as a query cursor');
       const data = snap.data();
       const values = effectiveOrders(this.spec).map(o =>
@@ -224,7 +227,7 @@ export class DocumentReference<T = DocumentData> {
     throw invalid(`Sub-collection "${this.path}/${name}" is not supported; use a top-level collection with workspaceId`);
   }
   isEqual(other: DocumentReference<T>): boolean {
-    return other instanceof DocumentReference && other.path === this.path;
+    return other instanceof DocumentReference && other.path === this.path && other.firestore.sandboxId === this.firestore.sandboxId;
   }
   async get(): Promise<DocumentSnapshot<T>> {
     const [snap] = await this.firestore.readDocs([this], null);
@@ -256,89 +259,6 @@ export function autoId(): string {
     }
   }
   return id;
-}
-
-// ---------------------------------------------------------------------------
-// Writes
-// ---------------------------------------------------------------------------
-
-interface WriteOp {
-  ref: RefLike;
-  kind: 'set' | 'update' | 'create' | 'delete';
-  sql: string;
-  params: unknown[];
-  mustExist?: boolean;
-}
-
-function toFieldMap(dataOrField: DocumentData | string | FieldPath, more: unknown[]): Record<string, unknown> {
-  if (typeof dataOrField === 'string' || dataOrField instanceof FieldPath) {
-    if (more.length % 2 !== 1) throw invalid('update(field, value, ...) needs field/value pairs');
-    const out: Record<string, unknown> = {};
-    const pairs: unknown[] = [dataOrField, ...more];
-    for (let i = 0; i < pairs.length; i += 2) {
-      const f = pairs[i];
-      if (typeof f !== 'string' && !(f instanceof FieldPath)) throw invalid('update() field names must be strings');
-      out[toSegments(f).join('.')] = pairs[i + 1];
-    }
-    return out;
-  }
-  if (!isPlainObject(dataOrField)) throw invalid('update() needs an object of field paths');
-  return dataOrField;
-}
-
-function patchParams(patch: Patch): unknown[] {
-  return [
-    JSON.stringify(patch.unset.length ? patch.unset : []),
-    JSON.stringify(patch.inc),
-    JSON.stringify(patch.union),
-    JSON.stringify(patch.remove),
-  ];
-}
-
-const APPLY = (doc: string, set: string) =>
-  `public.lf_apply_patch(${doc}, ${set}, array(select jsonb_array_elements_text($3::jsonb)), $4::jsonb, $5::jsonb, $6::jsonb)`;
-
-function buildSet(ref: RefLike, data: DocumentData, options?: SetOptions): WriteOp {
-  if (!isPlainObject(data)) throw invalid(`set() on ${ref.path} needs an object`);
-  const patch = splitWrite(data, new Date().toISOString());
-  const table = quoteIdent(ref.collectionId);
-  const transforms = hasTransforms(patch);
-  const fresh = transforms ? APPLY('$2::jsonb', `'{}'::jsonb`) : '$2::jsonb';
-  const params = transforms ? [ref.id, JSON.stringify(patch.data), ...patchParams(patch)] : [ref.id, JSON.stringify(patch.data)];
-  if (options?.merge) {
-    // One INSERT ... ON CONFLICT statement is required here: an update-then-insert race turns
-    // concurrent merge writes (notably sharded counter increments) into an unretried 23505.
-    const merged = transforms ? APPLY('public.lf_deep_merge(t.data, $2::jsonb)', `'{}'::jsonb`) : 'public.lf_deep_merge(t.data, $2::jsonb)';
-    const sql = `insert into public.${table} as t (id, data) values ($1, ${fresh}) on conflict (id) do update set data = ${merged}`;
-    return { ref, kind: 'set', sql, params };
-  }
-  const sql = `insert into public.${table} as t (id, data) values ($1, ${fresh}) on conflict (id) do update set data = excluded.data`;
-  return { ref, kind: 'set', sql, params };
-}
-function buildUpdate(ref: RefLike, dataOrField: DocumentData | string | FieldPath, more: unknown[]): WriteOp {
-  const fields = toFieldMap(dataOrField, more);
-  if (Object.keys(fields).length === 0) throw invalid(`update() on ${ref.path} needs at least one field`);
-  for (const key of Object.keys(fields)) toSegments(key);
-  const patch = splitWrite(fields, new Date().toISOString());
-  const table = quoteIdent(ref.collectionId);
-  const sql = `update public.${table} set data = ${APPLY('data', '$2::jsonb')} where id = $1`;
-  return { ref, kind: 'update', sql, params: [ref.id, JSON.stringify(patch.data), ...patchParams(patch)], mustExist: true };
-}
-
-function buildCreate(ref: RefLike, data: DocumentData): WriteOp {
-  if (!isPlainObject(data)) throw invalid(`create() on ${ref.path} needs an object`);
-  const patch = splitWrite(data, new Date().toISOString());
-  const table = quoteIdent(ref.collectionId);
-  if (hasTransforms(patch)) {
-    const sql = `insert into public.${table} (id, data) values ($1, ${APPLY('$2::jsonb', `'{}'::jsonb`)})`;
-    return { ref, kind: 'create', sql, params: [ref.id, JSON.stringify(patch.data), ...patchParams(patch)] };
-  }
-  return { ref, kind: 'create', sql: `insert into public.${table} (id, data) values ($1, $2::jsonb)`, params: [ref.id, JSON.stringify(patch.data)] };
-}
-
-function buildDelete(ref: RefLike, precondition?: Precondition): WriteOp {
-  const table = quoteIdent(ref.collectionId);
-  return { ref, kind: 'delete', sql: `delete from public.${table} where id = $1`, params: [ref.id], mustExist: precondition?.exists === true };
 }
 
 // ---------------------------------------------------------------------------
@@ -428,7 +348,7 @@ export class Transaction {
     if (tableNames.length === 0) return true;
     try {
       const checks = tableNames.map((_, i) => `to_regclass($${i + 1}) is not null`).join(' and ');
-      const params = tableNames.map(name => `public."${name.replaceAll('"', '""')}"`);
+      const params = tableNames.map(name => this.firestore.tableSource(name));
       const res = await this.runner.query<{ ok: boolean }>(`select (${checks}) as ok`, params);
       return Boolean(res.rows[0]?.ok);
     } catch (err) {
@@ -449,6 +369,7 @@ export class Transaction {
    */
   async nextAuditChainHead(workspaceId: string, genesisHash: string): Promise<{ seq: number; prevHash: string }> {
     if (this.state.failure) throw this.state.failure;
+    if (this.firestore.sandboxId) throw invalid('A sandbox cannot reserve the live audit chain');
     try {
       await this.runner.query('select pg_advisory_xact_lock(hashtext($1))', [`lf_audit_chain:${workspaceId}`]);
       for (let i = this.ops.length - 1; i >= 0; i--) {
@@ -512,6 +433,7 @@ export {
 // Firestore
 // ---------------------------------------------------------------------------
 
+type ScopedConnection = { id: string; connect: () => Promise<pg.PoolClient> };
 type TxContext = { runner: Runner; state: TxState } | null;
 
 export class Firestore {
@@ -520,8 +442,9 @@ export class Firestore {
   private poolTableList: Promise<Set<string>> | null = null;
   private readonly runnerTableLists = new WeakMap<Runner, Promise<Set<string>>>();
   private readonly warnedCollections = new Set<string>();
+  private readonly scopedRunners = new WeakSet<Runner>();
 
-  constructor(private readonly settingsValue: FirestoreSettings = {}) {
+  constructor(private readonly settingsValue: FirestoreSettings = {}, private readonly sandbox?: ScopedConnection) {
     if (settingsValue.pool) {
       this.poolInstance = settingsValue.pool;
       timePoolQueries(settingsValue.pool as never);
@@ -531,7 +454,24 @@ export class Firestore {
   /** firebase-admin compatibility; connection settings come from FirestoreSettings. */
   settings(_settings: unknown): void {}
 
+  get sandboxId(): string | undefined { return this.sandbox?.id; }
+
+  /** Server-internal. The caller must first check sandbox ownership and live workspace access. */
+  forSandbox(id: string): Firestore {
+    if (this.sandbox) throw invalid('Scope sandboxes from the live database handle');
+    return new Firestore({}, { id: validateSandboxId(id), connect: () => this.connect() });
+  }
+
+  /** @internal Raw SQL readers should take document table names from this helper. */
+  tableSource(collectionId: string): string { return tableSource(collectionId, this.sandboxId); }
+
+  /** @internal Do not let a mixed reference change which books a read or write targets. */
+  assertSameScope(other: { readonly sandboxId?: string }): void {
+    if (this.sandboxId !== other.sandboxId) throw invalid('Document or query belongs to a different database scope');
+  }
+
   get pool(): pg.Pool {
+    if (this.sandbox) throw invalid('A sandbox cannot use the raw database pool');
     if (!this.poolInstance) {
       this.poolInstance = new pg.Pool(poolConfigFromEnv(this.settingsValue));
       timePoolQueries(this.poolInstance as never); // D-22: slow queries are logged by shape
@@ -578,37 +518,62 @@ export class Firestore {
   }
 
   async runTransaction<R>(fn: (t: Transaction) => Promise<R>, options: TransactionOptions = {}): Promise<R> {
+    return this.serializable(async (client) => {
+      const state: TxState = { failure: undefined };
+      const t = new Transaction(this, client, state);
+      const result = await fn(t);
+      // COMMIT would silently roll back if the callback caught a failed statement.
+      if (state.failure !== undefined) throw state.failure;
+      await t.flush();
+      return result;
+    }, options);
+  }
+
+  private async serializable<R>(work: (runner: Runner) => Promise<R>, options: TransactionOptions = {}): Promise<R> {
     const maxAttempts = Math.max(1, options.maxAttempts ?? 8);
+    const begin = options.readOnly ? 'begin isolation level serializable read only' : 'begin isolation level serializable';
     for (let attempt = 1; ; attempt++) {
-      const client = await this.connect();
-      let broken: Error | undefined;
       try {
-        await client.query(options.readOnly
-          ? 'begin isolation level serializable read only'
-          : 'begin isolation level serializable');
-        const state: TxState = { failure: undefined };
-        const t = new Transaction(this, client, state);
-        const result = await fn(t);
-        // A statement that failed inside the callback (and was caught there) aborted the
-        // database transaction; COMMIT would silently roll back, so surface the failure.
-        if (state.failure !== undefined) throw state.failure;
-        await t.flush();
-        await client.query('commit');
-        return result;
+        return await this.inTransaction(begin, work);
       } catch (err) {
-        try {
-          await client.query('rollback');
-        } catch (rollbackErr) {
-          broken = rollbackErr instanceof Error ? rollbackErr : new Error(String(rollbackErr));
-        }
-        if (isRetryable(err) && attempt < maxAttempts) {
-          await sleep(Math.min(1000, 10 * 2 ** attempt) * (0.5 + Math.random())); // NOSONAR: S2245 — Math.random used only for retry backoff jitter
-          continue;
-        }
-        throw translateError(err, 'Transaction');
-      } finally {
-        client.release(broken);
+        if (!isRetryable(err) || attempt >= maxAttempts) throw translateError(err, 'Transaction');
+        await sleep(Math.min(1000, 10 * 2 ** attempt) * (0.5 + Math.random())); // NOSONAR: S2245 — Math.random used only for retry backoff jitter
       }
+    }
+  }
+
+  private async inTransaction<R>(begin: string, work: (runner: Runner) => Promise<R>): Promise<R> {
+    const client = await this.connect();
+    let broken: Error | undefined;
+    try {
+      await client.query(begin);
+      if (this.sandbox) {
+        await enterSandbox(client, this.sandbox.id);
+        this.scopedRunners.add(client);
+      }
+      const result = await work(client);
+      await client.query('commit');
+      return result;
+    } catch (err) {
+      try {
+        await client.query('rollback');
+      } catch (rollbackErr) {
+        broken = rollbackErr instanceof Error ? rollbackErr : new Error(String(rollbackErr));
+      }
+      throw err;
+    } finally {
+      this.scopedRunners.delete(client);
+      client.release(broken);
+    }
+  }
+
+  /** Every sandbox operation, including a single read, checks out a role-scoped connection. */
+  private async readInScope<R>(tx: TxContext, work: (tx: TxContext) => Promise<R>): Promise<R> {
+    if (tx || !this.sandbox) return work(tx);
+    try {
+      return await this.inTransaction('begin read only', runner => work({ runner, state: { failure: undefined } }));
+    } catch (err) {
+      throw translateError(err, 'Reading sandbox');
     }
   }
 
@@ -616,24 +581,29 @@ export class Firestore {
 
   private async connect(): Promise<pg.PoolClient> {
     try {
-      return await this.pool.connect();
+      return await (this.sandbox ? this.sandbox.connect() : this.pool.connect());
     } catch (err) {
       throw translateError(err, 'Connecting to the database');
     }
   }
 
   /** @internal Names of the document tables (from lf_rules, one row per collection). */
-  async tables(runner: Runner = this.pool, state: TxState | null = null): Promise<Set<string>> {
+  async tables(runner?: Runner, state: TxState | null = null): Promise<Set<string>> {
+    if (!runner && this.sandbox) {
+      return this.inTransaction('begin read only', scoped => this.tables(scoped));
+    }
+    const source = runner ?? this.pool;
+    if (this.sandbox && !this.scopedRunners.has(source)) throw invalid('Sandbox queries require a scoped connection');
     if (state && state.failure !== undefined) {
       throw translateError(state.failure, 'Loading collections');
     }
     if (this.resolvedTables) {
       return this.resolvedTables;
     }
-    if (runner !== this.pool) {
-      let pending = this.runnerTableLists.get(runner);
+    if (this.sandbox || source !== this.pool) {
+      let pending = this.runnerTableLists.get(source);
       if (!pending) {
-        pending = runner
+        pending = source
           .query<{ table_name: string }>('select table_name from public.lf_rules')
           .then(r => {
             const set = new Set(r.rows.map(row => row.table_name));
@@ -641,13 +611,13 @@ export class Firestore {
             return set;
           })
           .catch(err => {
-            this.runnerTableLists.delete(runner);
+            this.runnerTableLists.delete(source);
             if (state && state.failure === undefined) {
               state.failure = err;
             }
             throw translateError(err, 'Loading collections');
           });
-        this.runnerTableLists.set(runner, pending);
+        this.runnerTableLists.set(source, pending);
       }
       return pending;
     }
@@ -699,10 +669,15 @@ export class Firestore {
   }
 
   /** @internal */
-  async readDocs<T>(refs: DocumentReference<T>[], tx: TxContext): Promise<DocumentSnapshot<T>[]> {
+  readDocs<T>(refs: DocumentReference<T>[], tx: TxContext): Promise<DocumentSnapshot<T>[]> {
+    return this.readInScope(tx, scoped => this.readDocsInScope(refs, scoped));
+  }
+
+  private async readDocsInScope<T>(refs: DocumentReference<T>[], tx: TxContext): Promise<DocumentSnapshot<T>[]> {
     const readTime = Timestamp.now();
     const byCollection = new Map<string, string[]>();
     for (const ref of refs) {
+      this.assertSameScope(ref.firestore);
       const ids = byCollection.get(ref.collectionId) || [];
       ids.push(ref.id);
       byCollection.set(ref.collectionId, ids);
@@ -712,8 +687,8 @@ export class Firestore {
       if (!(await this.hasTable(collectionId, tx))) continue;
       const unique = Array.from(new Set(ids));
       const sql = unique.length === 1
-        ? `select id, data::text as data, created_at, updated_at from public.${quoteIdent(collectionId)} where id = $1`
-        : `select id, data::text as data, created_at, updated_at from public.${quoteIdent(collectionId)} where id = any($1::text[])`;
+        ? `select id, data::text as data, created_at, updated_at from ${this.tableSource(collectionId)} where id = $1`
+        : `select id, data::text as data, created_at, updated_at from ${this.tableSource(collectionId)} where id = any($1::text[])`;
       const result = await this.run<DocRow>(tx, sql, [unique.length === 1 ? unique[0] : unique], `Reading ${collectionId}`);
       for (const row of result.rows) rows.set(`${collectionId}/${row.id}`, row);
     }
@@ -721,12 +696,17 @@ export class Firestore {
   }
 
   /** @internal */
-  async runQuery<T>(query: Query<T>, tx: TxContext): Promise<QuerySnapshot<T>> {
+  runQuery<T>(query: Query<T>, tx: TxContext): Promise<QuerySnapshot<T>> {
+    return this.readInScope(tx, scoped => this.runQueryInScope(query, scoped));
+  }
+
+  private async runQueryInScope<T>(query: Query<T>, tx: TxContext): Promise<QuerySnapshot<T>> {
+    this.assertSameScope(query.firestore);
     const readTime = Timestamp.now();
     if (!(await this.hasTable(query.collectionId, tx))) return new QuerySnapshot<T>(query, [], readTime);
     const spec = query.querySpec;
     const p = new Params();
-    const sql = `select id, data::text as data, created_at, updated_at from public.${quoteIdent(query.collectionId)}`
+    const sql = `select id, data::text as data, created_at, updated_at from ${this.tableSource(query.collectionId)}`
       + compileWhere(spec, p) + compileOrder(spec) + compileLimit(spec);
     const result = await this.run<DocRow>(tx, sql, p.values, `Querying ${query.collectionId}`);
     const collection = new CollectionReference<T>(this, query.collectionId);
@@ -736,11 +716,16 @@ export class Firestore {
   }
 
   /** @internal */
-  async countQuery<T>(query: Query<T>, tx: TxContext): Promise<number> {
+  countQuery<T>(query: Query<T>, tx: TxContext): Promise<number> {
+    return this.readInScope(tx, scoped => this.countQueryInScope(query, scoped));
+  }
+
+  private async countQueryInScope<T>(query: Query<T>, tx: TxContext): Promise<number> {
+    this.assertSameScope(query.firestore);
     if (!(await this.hasTable(query.collectionId, tx))) return 0;
     const spec = query.querySpec;
     const p = new Params();
-    const inner = `select 1 from public.${quoteIdent(query.collectionId)}` + compileWhere(spec, p)
+    const inner = `select 1 from ${this.tableSource(query.collectionId)}` + compileWhere(spec, p)
       + (spec.limit !== undefined || spec.offset !== undefined ? compileOrder(spec) + compileLimit(spec) : '');
     const result = await this.run<{ count: string }>(tx, `select count(*) as count from (${inner}) s`, p.values, `Counting ${query.collectionId}`);
     return Number(result.rows[0]?.count || 0);
@@ -748,25 +733,16 @@ export class Firestore {
   /** @internal Runs writes as one database transaction (a batch, or a single write). */
   async applyWrites(ops: WriteOp[]): Promise<WriteResult[]> {
     if (ops.length === 0) return [];
-    if (ops.length === 1) {
+    if (this.sandbox) {
+      await this.serializable(runner => this.executeOps(ops, runner, { failure: undefined }));
+    } else if (ops.length === 1) {
       await this.executeOps(ops, this.pool, null);
-      return [{ writeTime: Timestamp.now() }];
-    }
-    const client = await this.connect();
-    let broken: Error | undefined;
-    try {
-      await client.query('begin');
-      await this.executeOps(ops, client, null);
-      await client.query('commit');
-    } catch (err) {
+    } else {
       try {
-        await client.query('rollback');
-      } catch (rollbackErr) {
-        broken = rollbackErr instanceof Error ? rollbackErr : new Error(String(rollbackErr));
+        await this.inTransaction('begin', runner => this.executeOps(ops, runner, null));
+      } catch (err) {
+        throw translateError(err, 'Batch write');
       }
-      throw translateError(err, 'Batch write');
-    } finally {
-      client.release(broken);
     }
     const writeTime = Timestamp.now();
     return ops.map(() => ({ writeTime }));
@@ -778,12 +754,14 @@ export class Firestore {
     }
     const tx: TxContext = state ? { runner, state } : null;
     for (const op of ops) {
+      this.assertSameScope(op.ref.firestore);
       if (!(await this.tables(runner, state)).has(op.ref.collectionId)) {
         throw invalid(`Unknown collection "${op.ref.collectionId}": add a table for it in supabase/migrations`);
       }
+      const sql = this.sandbox ? sandboxWriteSql(op) : liveWriteSql(op);
       let result: pg.QueryResult;
       try {
-        result = tx ? await this.run(tx, op.sql, op.params, `Writing ${op.ref.path}`) : await runner.query(op.sql, op.params);
+        result = tx ? await this.run(tx, sql, op.params, `Writing ${op.ref.path}`) : await runner.query(sql, op.params);
       } catch (err) {
         const translated = translateError(err, `Writing ${op.ref.path}`);
         if (op.kind === 'create' && translated instanceof FirestoreError && translated.code === 6) {
@@ -791,8 +769,9 @@ export class Firestore {
         }
         throw translated;
       }
-      if (op.mustExist && result.rowCount === 0) {
-        throw new FirestoreError(5, `No document to ${op.kind}: ${op.ref.path}`);
+      if (result.rowCount === 0) {
+        if (op.kind === 'create') throw new FirestoreError(6, `Document already exists: ${op.ref.path}`);
+        if ('mustExist' in op && op.mustExist) throw new FirestoreError(5, `No document to ${op.kind}: ${op.ref.path}`);
       }
     }
   }

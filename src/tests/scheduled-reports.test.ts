@@ -13,6 +13,7 @@ import {
   agingTable, lastFinishedPeriod, parseRecipients, profitAndLossTable, reportCsv, reportEmailHtml, scheduleProblem,
 } from '../lib/scheduledReports';
 import type { Firestore } from '../server/db/pgFirestore';
+import { seedSandbox } from './helpers/sandbox';
 
 describe('Periods and schedules', () => {
   test('the last finished week is Monday to Sunday; the last finished month is the one before', () => {
@@ -90,8 +91,39 @@ describe('Sending (database)', { skip: !url && 'LF_TEST_DATABASE_URL not set' },
   after(async () => {
     setTransport(null);
     server?.close();
-    for (const table of ['transactions', 'chartAccounts', 'workspaces']) await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]);
+    await db.pool.query('delete from sandbox.sandboxes where workspace_id = $1', [ws]);
+    for (const table of ['invoices', 'customers', 'transactions', 'chartAccounts', 'workspaces']) await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]);
     await db.terminate();
+  });
+
+  test('the September report pack matches with an empty overlay and then reflects only sandbox edits', async () => {
+    const { getDb } = await import('../server/db/firestore');
+    const { buildReports } = await import('../server/services/scheduledReportService');
+    await db.collection('customers').doc(id('buyer')).create({ workspaceId: ws, name: 'Buyer' });
+    await db.collection('invoices').doc(id('invoice')).create({
+      workspaceId: ws, customerId: id('buyer'), status: 'sent', date: '2026-09-01', dueDate: '2026-09-01', amountCents: 20000,
+    });
+    const sandboxId = await seedSandbox(db, ws, 'owner-1');
+    const report = { report: 'report-pack' } as const;
+    const september = { startDate: '2026-09-01', endDate: '2026-09-30', key: 'M:2026-09', label: '2026-09' };
+    const actual = await buildReports(db, ws, report, september);
+    assert.equal(actual.length, 3);
+    const draft = getDb({ sandboxId });
+    assert.deepEqual(await buildReports(draft, ws, report, september), actual);
+
+    const total = (pack: typeof actual, kind: string, label: string) =>
+      pack.find(r => r.kind === kind)?.table.rows.find(row => row.cells[0] === label)?.cells.at(-1);
+    assert.equal(total(actual, 'profit-and-loss', 'Net profit'), 120000);
+    assert.equal(total(actual, 'balance-sheet', 'Total assets'), 120000);
+    assert.equal(total(actual, 'receivables-aging', 'Total'), 20000);
+    await draft.collection('transactions').doc(id('sep')).delete();
+    await draft.collection('invoices').doc(id('invoice')).update({ amountCents: 10000 });
+    const changed = await buildReports(draft, ws, report, september);
+    assert.equal(total(changed, 'profit-and-loss', 'Net profit'), 0);
+    assert.equal(total(changed, 'balance-sheet', 'Total assets'), 0);
+    assert.equal(total(changed, 'receivables-aging', 'Total'), 10000);
+    assert.deepEqual(await buildReports(db, ws, report, september), actual);
+    assert.equal(sent.length, 0, 'computing a report does not send one');
   });
 
   test('the daily run sends September once to each address, with its own figures and a spreadsheet', async () => {
