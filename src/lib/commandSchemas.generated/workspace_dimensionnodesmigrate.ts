@@ -7,9 +7,9 @@ export const COMMAND_INPUT_SCHEMA = {
     "nodes": {
       "maxItems": 450,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part237
+      "items": COMMAND_SCHEMA_PARTS.part256
     },
-    "clearLegacy": COMMAND_SCHEMA_PARTS.part22
+    "clearLegacy": COMMAND_SCHEMA_PARTS.part25
   },
   "required": COMMAND_SCHEMA_PARTS.part4,
   "additionalProperties": false

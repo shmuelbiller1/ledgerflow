@@ -11,8 +11,8 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part89,
-          "hits": COMMAND_SCHEMA_PARTS.part126
+          "id": COMMAND_SCHEMA_PARTS.part96,
+          "hits": COMMAND_SCHEMA_PARTS.part133
         },
         "required": [
           "id",

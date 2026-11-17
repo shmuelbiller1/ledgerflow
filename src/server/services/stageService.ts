@@ -30,8 +30,8 @@ export async function readStages(db: Firestore, input: Actor & { kind: unknown }
   if (!STAGE_KINDS.includes(input.kind as StageKind)) throw new StageError(400, 'Stages are for invoices and bills');
   const kind = input.kind as StageKind;
   const sets = ((await setsRef(db, input.workspaceId).get()).data()?.sets || {}) as StageSets;
-  const { rows } = await db.pool.query<{ rid: string; stage: string }>(
-    `select data->'record'->>'id' as rid, data->>'stage' as stage from public.documents where workspace_id = $1 and data->>'kind' = 'recordStage' and data->'record'->>'type' = $2`,
+  const rows = await db.readRows<{ rid: string; stage: string }>(
+    `select data->'record'->>'id' as rid, data->>'stage' as stage from ${db.tableSource('documents')} where workspace_id = $1 and data->>'kind' = 'recordStage' and data->'record'->>'type' = $2`,
     [input.workspaceId, kind]);
   return { stages: sets[kind] || [], current: Object.fromEntries(rows.map(r => [r.rid, r.stage])), sets };
 }

@@ -1,49 +1,31 @@
 import express from 'express';
-import { z } from 'zod';
-import { getDb } from '../db/firestore';
-import { ContactMergeError, deleteContact, mergeContacts } from '../services/contactMergeService';
+import { contactDeleteCommand, contactMergeCommand } from '../commands/workspaceHousekeeping';
+import { executeCommand } from '../utils/commandExecutor';
+import { legacyAnswer, workspaceInvocation } from '../utils/legacyCommandRoute';
 
 /**
  * Merge duplicate customers or vendors (Y-23 BA-01; owner/accountant) and delete one that nothing
- * refers to (I-22; writers), mounted at /api/v1/workspaces/:workspaceId/contacts (workspaceRoutes.ts).
+ * refers to (I-22; writers), mounted at /api/v1/workspaces/:workspaceId/contacts
+ * (workspaceRoutes.ts). Both are registered commands (`contact.merge`, `contact.delete`), and the
+ * answers are the ones the handlers gave — including the issues a malformed body answered.
  */
 export const contactMergeRouter = express.Router({ mergeParams: true });
 
-type AuthedRequest = express.Request & { user: { uid: string; email?: string } };
-
-const mergeSchema = z.object({
-  side: z.enum(['customer', 'vendor']),
-  keepId: z.string().min(1).max(200),
-  mergeId: z.string().min(1).max(200),
-}).strict();
-
 contactMergeRouter.post('/merge', async (req, res) => {
-  try {
-    const body = mergeSchema.parse(req.body);
-    const { user } = req as AuthedRequest;
-    const result = await mergeContacts(getDb(), { workspaceId: String((req.params as Record<string, string>).workspaceId), uid: user.uid, email: user.email, ...body });
-    res.json({ status: 'success', ...result });
-  } catch (err) {
-    if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Invalid request', details: err.issues });
-    if (err instanceof ContactMergeError) return res.status(err.status).json({ status: 'error', message: err.message });
-    res.status(500).json({ status: 'error', message: 'The contacts could not be merged', details: err instanceof Error ? err.message : String(err) });
-  }
+  await executeCommand(req, res, {
+    ...workspaceInvocation(req, contactMergeCommand),
+    formatResponse: legacyAnswer({ badBody: 'Invalid request', failed: 'The contacts could not be merged', issues: true }),
+  });
 });
 
-const deleteSchema = z.object({ side: z.enum(['customer', 'vendor']), id: z.string().min(1).max(200) });
-
 contactMergeRouter.delete('/:side/:id', async (req, res) => {
-  try {
-    const params = req.params as Record<string, string>;
-    const { side, id } = deleteSchema.parse({ side: params.side, id: params.id });
-    const { user } = req as unknown as AuthedRequest;
+  const params = req.params as Record<string, string>;
+  await executeCommand(req, res, {
     // ?check=1: may it be deleted? (nothing is deleted; the screen then offers Undo before deleting)
-    const checkOnly = req.query.check === '1';
-    await deleteContact(getDb(), { workspaceId: String(params.workspaceId), uid: user.uid, email: user.email, side, id, checkOnly });
-    res.json({ status: 'success', ...(checkOnly ? { deletable: true } : {}) });
-  } catch (err) {
-    if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Invalid request', details: err.issues });
-    if (err instanceof ContactMergeError) return res.status(err.status).json({ status: 'error', message: err.message });
-    res.status(500).json({ status: 'error', message: 'The contact could not be deleted', details: err instanceof Error ? err.message : String(err) });
-  }
+    ...workspaceInvocation(req, contactDeleteCommand, { side: params.side, id: params.id, checkOnly: req.query.check === '1' }),
+    formatResponse: (outcome) => {
+      if (outcome.ok) return { status: 200, body: { status: 'success', ...(outcome.data as Record<string, unknown>) } };
+      return legacyAnswer({ badBody: 'Invalid request', failed: 'The contact could not be deleted', issues: true })(outcome);
+    },
+  });
 });

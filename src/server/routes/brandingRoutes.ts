@@ -1,66 +1,47 @@
 import express from 'express';
-import { z } from 'zod';
 import { getDb } from '../db/firestore';
-import { requestUser } from '../auth/requestUser';
-import { writeServerAuditLog } from '../services/auditLogService';
 import { generateDocumentPdf } from '../services/pdfService';
 import { BrandingSchema } from '../../lib/branding';
 import { formatTzDate } from '../../lib/calendarDate';
-import type { WorkspaceBranding } from '../../lib/branding';
+import { compactBranding } from '../services/brandingService';
+import { brandingSaveCommand } from '../commands/workspaceHousekeeping';
+import { executeCommand } from '../utils/commandExecutor';
+import { legacyAnswer, workspaceInvocation } from '../utils/legacyCommandRoute';
 
 /**
  * Document branding (Y-12…Y-14, Y-33, Y-34), mounted at /api/v1/workspaces/:workspaceId/branding
  * (workspaceRoutes.ts; owners and accountants). PUT saves logo, colour, address, footer, terms and
- * the payment QR switch on the workspace; POST /preview returns a sample invoice PDF with the
- * branding given (saved or not). Saved by the server so the logo's type and size are checked.
+ * the payment QR switch on the workspace — the registered command `workspace.branding`; POST /preview
+ * returns a sample invoice PDF with the branding given (saved or not), which writes nothing and stays
+ * here. Empty texts are dropped before saving (the PDF then prints nothing there).
  */
 export const brandingRouter = express.Router({ mergeParams: true });
 
 const workspaceIdOf = (req: express.Request) => String((req.params as Record<string, string>).workspaceId);
 
-/** Empty texts are not kept (the PDF then prints nothing there). */
-function compact(branding: WorkspaceBranding): WorkspaceBranding {
-  const terms = Object.fromEntries(Object.entries(branding.terms || {}).map(([k, v]) => [k, (v || '').trim()]).filter(([, v]) => v));
-  const out: WorkspaceBranding = {};
-  if (branding.logoDataUrl) out.logoDataUrl = branding.logoDataUrl;
-  if (branding.color) out.color = branding.color.toUpperCase();
-  if (branding.address?.trim()) out.address = branding.address.trim();
-  if (branding.footer?.trim()) out.footer = branding.footer.trim();
-  if (Object.keys(terms).length) out.terms = terms;
-  if (branding.showPaymentQr === false) out.showPaymentQr = false;
-  if (branding.language && branding.language !== 'en') out.language = branding.language;
-  if (branding.style && branding.style !== 'classic') out.style = branding.style;
-  if (branding.hideQuantity === true) out.hideQuantity = true;
-  if (branding.hidePoweredBy === true) out.hidePoweredBy = true;
-  return out;
-}
-
-function invalid(res: express.Response, err: z.ZodError) {
-  return res.status(400).json({ status: 'error', message: err.issues[0]?.message || 'Check the branding fields', details: err.issues });
-}
-
 brandingRouter.put('/', async (req, res) => {
-  const parsed = BrandingSchema.safeParse(req.body?.branding);
-  if (!parsed.success) return invalid(res, parsed.error);
-  const workspaceId = workspaceIdOf(req);
-  const branding = compact(parsed.data);
-  try {
-    const db = getDb();
-    await db.collection('workspaces').doc(workspaceId).update({ branding, updatedAt: new Date().toISOString() });
-    const user = requestUser(req);
-    await writeServerAuditLog({
-      workspaceId, uid: user.uid, email: user.email || '', action: 'BRANDING_UPDATED', entityType: 'workspace', entityId: workspaceId,
-      details: { description: 'Document branding changed', logo: Boolean(branding.logoDataUrl), color: branding.color || null, termsFor: Object.keys(branding.terms || {}) },
-    }, { db });
-    res.json({ status: 'success', branding });
-  } catch (err) {
-    res.status(500).json({ status: 'error', message: 'The branding could not be saved', details: err instanceof Error ? err.message : String(err) });
-  }
+  // the handler answered a malformed body with the first issue's own sentence and every issue as details
+  const body = (req.body || {}) as { branding?: unknown };
+  await executeCommand(req, res, {
+    ...workspaceInvocation(req, brandingSaveCommand, { branding: body.branding }),
+    formatResponse: (outcome) => {
+      if (!outcome.ok && outcome.code === 'INVALID_INPUT') {
+        const issues = ((outcome.error as { issues?: Array<{ message?: string }> }).issues) || [];
+        return {
+          status: 400,
+          body: { status: 'error', message: issues[0]?.message || 'Check the branding fields', details: issues },
+        };
+      }
+      return legacyAnswer({ badBody: 'Check the branding fields', failed: 'The branding could not be saved' })(outcome);
+    },
+  });
 });
 
 brandingRouter.post('/preview', async (req, res) => {
   const parsed = BrandingSchema.safeParse(req.body?.branding);
-  if (!parsed.success) return invalid(res, parsed.error);
+  if (!parsed.success) {
+    return res.status(400).json({ status: 'error', message: parsed.error.issues[0]?.message || 'Check the branding fields', details: parsed.error.issues });
+  }
   try {
     const snap = await getDb().collection('workspaces').doc(workspaceIdOf(req)).get();
     const workspace = snap.data() || {};
@@ -69,7 +50,7 @@ brandingRouter.post('/preview', async (req, res) => {
       currency: String(workspace.currency || 'USD'),
       items: [{ description: 'Consulting services', quantity: 10, amountCents: 100000 }, { description: 'Materials', quantity: 1, amountCents: 25000 }],
       amountCents: 125000,
-    }, { name: String(workspace.name || ''), currency: String(workspace.currency || 'USD'), branding: compact(parsed.data) }, { paymentUrl: 'https://example.com/i/sample' });
+    }, { name: String(workspace.name || ''), currency: String(workspace.currency || 'USD'), branding: compactBranding(parsed.data) }, { paymentUrl: 'https://example.com/i/sample' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="branding_preview.pdf"');
     res.send(pdf);

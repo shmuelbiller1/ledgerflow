@@ -8,6 +8,7 @@ import { AUTORULE_COMMAND_MANIFEST } from './commandManifests.generated/autorule
 import { BILL_COMMAND_MANIFEST } from './commandManifests.generated/bill';
 import { BUDGET_COMMAND_MANIFEST } from './commandManifests.generated/budget';
 import { CHARTACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/chartaccount';
+import { CONTACT_COMMAND_MANIFEST } from './commandManifests.generated/contact';
 import { CREDITNOTE_COMMAND_MANIFEST } from './commandManifests.generated/creditnote';
 import { CUSTOMER_COMMAND_MANIFEST } from './commandManifests.generated/customer';
 import { DOCUMENT_COMMAND_MANIFEST } from './commandManifests.generated/document';
@@ -19,19 +20,23 @@ import { INVENTORY_COMMAND_MANIFEST } from './commandManifests.generated/invento
 import { INVENTORYITEM_COMMAND_MANIFEST } from './commandManifests.generated/inventoryitem';
 import { INVOICE_COMMAND_MANIFEST } from './commandManifests.generated/invoice';
 import { JOURNAL_COMMAND_MANIFEST } from './commandManifests.generated/journal';
+import { JOURNALTEMPLATE_COMMAND_MANIFEST } from './commandManifests.generated/journaltemplate';
 import { LOAN_COMMAND_MANIFEST } from './commandManifests.generated/loan';
 import { NOTIFICATION_COMMAND_MANIFEST } from './commandManifests.generated/notification';
 import { NUMBERING_COMMAND_MANIFEST } from './commandManifests.generated/numbering';
 import { PAYMENT_COMMAND_MANIFEST } from './commandManifests.generated/payment';
 import { PAYROLL_COMMAND_MANIFEST } from './commandManifests.generated/payroll';
 import { PERIOD_COMMAND_MANIFEST } from './commandManifests.generated/period';
+import { PORTAL_COMMAND_MANIFEST } from './commandManifests.generated/portal';
 import { PRESENCE_COMMAND_MANIFEST } from './commandManifests.generated/presence';
 import { PROJECT_COMMAND_MANIFEST } from './commandManifests.generated/project';
 import { QUERY_COMMAND_MANIFEST } from './commandManifests.generated/query';
 import { RECONCILIATIONS_COMMAND_MANIFEST } from './commandManifests.generated/reconciliations';
 import { RECORD_COMMAND_MANIFEST } from './commandManifests.generated/record';
+import { REPORTSCHEDULE_COMMAND_MANIFEST } from './commandManifests.generated/reportschedule';
 import { RMA_COMMAND_MANIFEST } from './commandManifests.generated/rma';
 import { SAVEDLIST_COMMAND_MANIFEST } from './commandManifests.generated/savedlist';
+import { SECURITY_COMMAND_MANIFEST } from './commandManifests.generated/security';
 import { STAGES_COMMAND_MANIFEST } from './commandManifests.generated/stages';
 import { SUPPORT_COMMAND_MANIFEST } from './commandManifests.generated/support';
 import { TAG_COMMAND_MANIFEST } from './commandManifests.generated/tag';
@@ -55,6 +60,7 @@ export const COMMAND_MANIFEST = [
   ...BILL_COMMAND_MANIFEST,
   ...BUDGET_COMMAND_MANIFEST,
   ...CHARTACCOUNT_COMMAND_MANIFEST,
+  ...CONTACT_COMMAND_MANIFEST,
   ...CREDITNOTE_COMMAND_MANIFEST,
   ...CUSTOMER_COMMAND_MANIFEST,
   ...DOCUMENT_COMMAND_MANIFEST,
@@ -66,19 +72,23 @@ export const COMMAND_MANIFEST = [
   ...INVENTORYITEM_COMMAND_MANIFEST,
   ...INVOICE_COMMAND_MANIFEST,
   ...JOURNAL_COMMAND_MANIFEST,
+  ...JOURNALTEMPLATE_COMMAND_MANIFEST,
   ...LOAN_COMMAND_MANIFEST,
   ...NOTIFICATION_COMMAND_MANIFEST,
   ...NUMBERING_COMMAND_MANIFEST,
   ...PAYMENT_COMMAND_MANIFEST,
   ...PAYROLL_COMMAND_MANIFEST,
   ...PERIOD_COMMAND_MANIFEST,
+  ...PORTAL_COMMAND_MANIFEST,
   ...PRESENCE_COMMAND_MANIFEST,
   ...PROJECT_COMMAND_MANIFEST,
   ...QUERY_COMMAND_MANIFEST,
   ...RECONCILIATIONS_COMMAND_MANIFEST,
   ...RECORD_COMMAND_MANIFEST,
+  ...REPORTSCHEDULE_COMMAND_MANIFEST,
   ...RMA_COMMAND_MANIFEST,
   ...SAVEDLIST_COMMAND_MANIFEST,
+  ...SECURITY_COMMAND_MANIFEST,
   ...STAGES_COMMAND_MANIFEST,
   ...SUPPORT_COMMAND_MANIFEST,
   ...TAG_COMMAND_MANIFEST,
