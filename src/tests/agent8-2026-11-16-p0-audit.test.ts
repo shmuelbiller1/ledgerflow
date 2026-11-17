@@ -460,6 +460,32 @@ describe('Agent #8 (2026-11-16) — Live PostgreSQL P0/P1 Security & Accounting 
     for (const k of [a1, a2, a3, a4, a5, a6]) await db.collection('assets').doc(k).delete();
   });
 
+  test('A7N-11: an asset that points at an unrelated entry of its own workspace cannot void it (409, entry untouched)', async () => {
+    const ownTxId = id('tx_unrelated_invoice');
+    await db.collection('transactions').doc(ownTxId).set({
+      workspaceId: ws, uid: owner, date: '2026-06-12', status: 'completed', type: 'actual', currency: 'USD', exchangeRate: 1,
+      totalAmountCents: 12_300, description: 'An unrelated invoice entry', metadata: { type: 'invoice' },
+      lines: [{ accountId: id('ar'), amountCents: 12_300 }, { accountId: id('rev'), amountCents: -12_300 }],
+    });
+    const full = id('asset_points_at_invoice');
+    await db.collection('assets').doc(full).set({
+      workspaceId: ws, name: 'Tampered Full', purchaseDate: '2026-01-01', purchasePriceCents: 100_000,
+      salvageValueCents: 0, usefulLifeYears: 5, depreciationMethod: 'straight-line', accumulatedDepreciationCents: 0,
+      status: 'disposed', disposedOn: '2026-06-12', disposalTransactionId: ownTxId,
+    });
+    await assert.rejects(undoDisposal(db, { workspaceId: ws, assetId: full, uid: owner }),
+      (e: unknown) => e instanceof DisposalError && e.status === 409);
+    const partial = id('asset_share_points_at_invoice');
+    await db.collection('assets').doc(partial).set({
+      workspaceId: ws, name: 'Tampered Partial', purchaseDate: '2026-01-01', purchasePriceCents: 100_000,
+      salvageValueCents: 0, usefulLifeYears: 5, depreciationMethod: 'straight-line', accumulatedDepreciationCents: 0,
+      status: 'active', partialDisposals: [{ date: '2026-06-12', percent: 50, proceedsCents: 40_000, gainLossCents: -10_000, transactionId: ownTxId, before: { purchasePriceCents: 100_000, salvageValueCents: 0, accumulatedDepreciationCents: 0 } }],
+    });
+    await assert.rejects(undoDisposal(db, { workspaceId: ws, assetId: partial, uid: owner }),
+      (e: unknown) => e instanceof DisposalError && e.status === 409);
+    assert.equal((await db.collection('transactions').doc(ownTxId).get()).data()?.status, 'completed', 'the invoice entry is not voided');
+  });
+
   test('A8-019: voidPayment on an FX payment negates baseAmountCents so home-currency GL nets to zero', async () => {
     const payId = id('pay_fx');
     const txId = id('tx_pay_fx');
