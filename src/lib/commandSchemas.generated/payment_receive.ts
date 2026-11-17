@@ -5,11 +5,11 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part34,
-    "amountCents": COMMAND_SCHEMA_PARTS.part108,
+    "amountCents": COMMAND_SCHEMA_PARTS.part109,
     "paymentDate": COMMAND_SCHEMA_PARTS.part15,
     "cashAccountId": COMMAND_SCHEMA_PARTS.part34,
     "paymentMethod": COMMAND_SCHEMA_PARTS.part15,
-    "paymentTypeId": COMMAND_SCHEMA_PARTS.part73,
+    "paymentTypeId": COMMAND_SCHEMA_PARTS.part74,
     "referenceNumber": COMMAND_SCHEMA_PARTS.part15,
     "memo": COMMAND_SCHEMA_PARTS.part15,
     "customerId": COMMAND_SCHEMA_PARTS.part15,
@@ -19,10 +19,10 @@ export const COMMAND_INPUT_SCHEMA = {
     "allocations": {
       "default": COMMAND_SCHEMA_PARTS.part0,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part193
+      "items": COMMAND_SCHEMA_PARTS.part195
     },
     "sendRemittance": COMMAND_SCHEMA_PARTS.part18,
-    "paymentExchangeRate": COMMAND_SCHEMA_PARTS.part98,
+    "paymentExchangeRate": COMMAND_SCHEMA_PARTS.part99,
     "paymentRateSource": {
       "type": "string",
       "enum": [
@@ -32,9 +32,9 @@ export const COMMAND_INPUT_SCHEMA = {
         "books-on-date"
       ]
     },
-    "estimateId": COMMAND_SCHEMA_PARTS.part79,
-    "withheldCents": COMMAND_SCHEMA_PARTS.part100,
-    "withholdingRatePercent": COMMAND_SCHEMA_PARTS.part64,
+    "estimateId": COMMAND_SCHEMA_PARTS.part80,
+    "withheldCents": COMMAND_SCHEMA_PARTS.part101,
+    "withholdingRatePercent": COMMAND_SCHEMA_PARTS.part65,
     "withholdingCertificate": COMMAND_SCHEMA_PARTS.part38
   },
   "required": [

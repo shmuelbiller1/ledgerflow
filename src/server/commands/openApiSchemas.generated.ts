@@ -122,6 +122,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "workspace.create": "CommandInput_workspace_create",
   "workspace.dimensionaxes": "CommandInput_workspace_dimensionaxes",
   "workspace.dimensionnode": "CommandInput_workspace_dimensionnode",
+  "workspace.dimensionnodesmigrate": "CommandInput_workspace_dimensionnodesmigrate",
   "workspace.importmap": "CommandInput_workspace_importmap",
   "workspace.importrecords": "CommandInput_workspace_importrecords",
   "workspace.invite": "CommandInput_workspace_invite",

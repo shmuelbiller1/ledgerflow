@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **37** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **31** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,7 +147,7 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **37** → 0. 26 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **31** → 0. 24 files. The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
@@ -234,10 +234,23 @@ hand-convert a table the codemod still refuses.
           exists it is a setting, afterwards it is a migration of every stored amount.
         - Pinned by `user-preferences-command.test.ts` (6 cases: the merge, the untouched other book, the owner
           fields coming from the session, the empty save refused, the audit line).
-      - **the rest** (~37 sites in 26 files) — write routes that already have a command in most cases
-        (`SupportView` 5, `workspaceActions` 4, `useCollaborators` 3, `useEntityOperations` 3,
-        `dimensionNodesMigration` 3 …): one commit per hook, not per call, because a hook that writes has one
-        shape.
+      - **the legacy label tree, and an archived account** — **done, 4 sites.** `dimensionNodesMigration` moved a
+        legacy `workspace.dimensionNodes` tree into the collection with a `writeBatch` + `updateDoc(deleteField())`
+        from the browser, in the background, with no answer: a tab that went away halfway left half the tree in the
+        collection and half on the row, and the next load migrated the same values again. `workspace
+        .dimensionnodesmigrate` writes the values and clears the legacy field **in one transaction**, refuses a
+        label with no axis (the row id is derived from it, so it would land where no screen reads), and takes at
+        most 450 rows — the screen's own chunk. `handleDeleteAccount`'s deactivate branch is one
+        `chartaccount.update` with `archived: true`; the two `addDoc(auditLogs)` calls that sat beside them are
+        gone, because the command writes the line.
+        - Pinned by `dimension-nodes-migration-command.test.ts` (6 cases).
+      - **the rest** (~31 sites in 24 files) — write routes that already have a command in most cases
+        (`SupportView` 5, `useEntityOperations` 3, `useCollaborators` 3, `Ledger` 2, `Vault` 2 …): one commit per
+        hook, not per call, because a hook that writes has one shape. Three are deliberately *not* converted yet:
+        `useCollaborators`' presence rows (ephemeral, one row per open tab, nothing to audit), `shared.ts`'
+        `recordAudit` (the browser still writes the audit line for screen-level acts such as an export) and
+        `SupportView`'s offline fallbacks, which stand beside the support routes and need a support command pair
+        first.
 - [x] **Undo on the result.** `deleteProjectWithUndo` offers the command's own step back (`project.restore` with the
       id `project.delete` answered with), and the deleted row is kept by the server rather than by the tab. Still
       open: wiring `entry.inverse` through `useCommand` so a screen that deletes through the hook gets the same

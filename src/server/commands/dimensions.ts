@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { HttpError } from '../auth/requestUser';
+import { FieldValue } from '../db/firestore';
 import type { CommandContext, CommandDefinition } from './types';
 
 /**
@@ -167,5 +168,82 @@ export const dimensionAxesCommand: CommandDefinition<typeof dimensionAxesInput, 
       { code: 'ROLE_REQUIRED', when: 'The caller is not an owner or accountant.', next: 'Ask a workspace owner to grant an appropriate role.' },
     ],
     next: [{ command: 'workspace.dimensionnode', label: 'Add a value' }],
+  },
+};
+
+/**
+ * The one-off move of a legacy dimension tree off the workspace document.
+ *
+ * Older workspaces kept their whole label tree in a `dimensionNodes` array *on* the workspace row, which is how a
+ * workspace document grows toward the size limit the collection split was meant to prevent. `useLedgerData` used to
+ * do the move itself, in the background, with a `writeBatch` and an `updateDoc(deleteField())` from the browser: no
+ * audit line, no role, and — the part that actually went wrong — no answer. A tab that crashed halfway left some
+ * values in the collection and the rest on the workspace row, and the next load migrated them again.
+ *
+ * This is that move as a command, so the tree can be written once and the legacy field cleared in the same
+ * transaction: either both halves happen or neither does. It refuses a node whose `dimensionId` is missing (the row
+ * id is derived from it, so a nameless one would land somewhere no screen reads), and a batch larger than the
+ * screen's own 450-row chunk — the caller sends the tree in pieces and the answer says how many were written.
+ */
+export const dimensionNodesMigrateInput = z.object({
+  /** the legacy rows, exactly as they sat on the workspace document */
+  nodes: z.array(nodeSchema).max(450),
+}).strict();
+
+type MigrateInput = z.output<typeof dimensionNodesMigrateInput>;
+export type DimensionNodesMigrateResult = { migrated: number; cleared: boolean };
+
+export const dimensionNodesMigrateCommand: CommandDefinition<typeof dimensionNodesMigrateInput, DimensionNodesMigrateResult> = {
+  name: 'workspace.dimensionnodesmigrate',
+  input: dimensionNodesMigrateInput,
+  roles: NODE_ROLES,
+  async handler(ctx: CommandContext, tx, input: MigrateInput) {
+    const ref = ctx.db.collection('workspaces').doc(ctx.workspaceId);
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists) {
+      throw Object.assign(new HttpError('This workspace is no longer open.', 404), { code: 'NOT_FOUND' });
+    }
+    const now = new Date().toISOString();
+    for (const node of input.nodes) {
+      const { updatedAt: _sentAt, ...rest } = node;
+      tx.set(ctx.db.collection('dimensionNodes').doc(nodeRowId(ctx.workspaceId, node.dimensionId, node.id)), {
+        ...rest,
+        workspaceId: ctx.workspaceId,
+        updatedAt: now,
+      });
+    }
+    // the legacy field goes in the same transaction as the rows that replace it, so a half-migrated workspace
+    // cannot exist for the next tab to find
+    tx.update(ref, { dimensionNodes: FieldValue.delete() });
+    return { migrated: input.nodes.length, cleared: true };
+  },
+  async preview(ctx: CommandContext, input: MigrateInput) {
+    const snapshot = await ctx.db.collection('workspaces').doc(ctx.workspaceId).get();
+    if (!snapshot.exists) throw new HttpError('This workspace is no longer open.', 404);
+    return {
+      title: 'Move the label tree into its own collection',
+      lines: [`${input.nodes.length} label(s)`, 'The legacy list on the workspace row is cleared'],
+    };
+  },
+  audit(_input: MigrateInput, result: DimensionNodesMigrateResult) {
+    return {
+      action: 'DIMENSION_NODES_MIGRATED',
+      entityType: 'workspaces',
+      entityId: '',
+      description: `Moved ${result.migrated} label(s) off the workspace document`,
+      details: { migrated: result.migrated },
+    };
+  },
+  inverse() { return null; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Move a legacy label tree off the workspace row and into the dimensionNodes collection, clearing the old field in the same transaction; do not use it to add a new value, which workspace.dimensionnode does.',
+    example: { nodes: [{ id: 'n1', dimensionId: 'property', description: 'North tower' }] },
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'A label has no axis, or more than 450 arrive at once.', next: 'Send the tree in chunks of at most 450 labels, each with its axis.' },
+      { code: 'NOT_FOUND', when: 'The workspace is no longer open.', next: 'Reload the workspace and try again.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is a viewer.', next: 'Ask an owner, accountant or bookkeeper to run the move.' },
+    ],
+    next: [{ command: 'workspace.dimensionnode', label: 'Change a value' }],
   },
 };

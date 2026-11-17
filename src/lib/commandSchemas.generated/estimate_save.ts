@@ -4,13 +4,13 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part79,
+    "id": COMMAND_SCHEMA_PARTS.part80,
     "number": COMMAND_SCHEMA_PARTS.part38,
-    "customerId": COMMAND_SCHEMA_PARTS.part79,
-    "customerName": COMMAND_SCHEMA_PARTS.part79,
-    "date": COMMAND_SCHEMA_PARTS.part90,
-    "expiryDate": COMMAND_SCHEMA_PARTS.part90,
-    "amountCents": COMMAND_SCHEMA_PARTS.part100,
+    "customerId": COMMAND_SCHEMA_PARTS.part80,
+    "customerName": COMMAND_SCHEMA_PARTS.part80,
+    "date": COMMAND_SCHEMA_PARTS.part91,
+    "expiryDate": COMMAND_SCHEMA_PARTS.part91,
+    "amountCents": COMMAND_SCHEMA_PARTS.part101,
     "currency": {
       "type": "string",
       "minLength": 3,
@@ -43,9 +43,9 @@ export const COMMAND_INPUT_SCHEMA = {
             "minLength": 1,
             "maxLength": 300
           },
-          "quantity": COMMAND_SCHEMA_PARTS.part98,
-          "unitPriceCents": COMMAND_SCHEMA_PARTS.part100,
-          "amountCents": COMMAND_SCHEMA_PARTS.part100
+          "quantity": COMMAND_SCHEMA_PARTS.part99,
+          "unitPriceCents": COMMAND_SCHEMA_PARTS.part101,
+          "amountCents": COMMAND_SCHEMA_PARTS.part101
         },
         "required": [
           "description",
@@ -62,14 +62,14 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part77,
-          "label": COMMAND_SCHEMA_PARTS.part74,
+          "id": COMMAND_SCHEMA_PARTS.part78,
+          "label": COMMAND_SCHEMA_PARTS.part75,
           "percent": {
             "type": "number",
             "exclusiveMinimum": 0,
             "maximum": 100
           },
-          "due": COMMAND_SCHEMA_PARTS.part90,
+          "due": COMMAND_SCHEMA_PARTS.part91,
           "invoicedAt": COMMAND_SCHEMA_PARTS.part38
         },
         "required": [

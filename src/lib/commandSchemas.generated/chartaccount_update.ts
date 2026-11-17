@@ -4,10 +4,10 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part79,
-    "name": COMMAND_SCHEMA_PARTS.part79,
+    "id": COMMAND_SCHEMA_PARTS.part80,
+    "name": COMMAND_SCHEMA_PARTS.part80,
     "code": COMMAND_SCHEMA_PARTS.part38,
-    "description": COMMAND_SCHEMA_PARTS.part52,
+    "description": COMMAND_SCHEMA_PARTS.part53,
     "category": COMMAND_SCHEMA_PARTS.part44,
     "parentId": {
       "anyOf": [
@@ -22,7 +22,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "type": "string",
         "pattern": "^\\d{4}-\\d{2}$"
       },
-      "additionalProperties": COMMAND_SCHEMA_PARTS.part118
+      "additionalProperties": COMMAND_SCHEMA_PARTS.part119
     }
   },
   "required": COMMAND_SCHEMA_PARTS.part2,

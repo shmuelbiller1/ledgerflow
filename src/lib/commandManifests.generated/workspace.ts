@@ -4,20 +4,21 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema118 } from '../commandSchemas
 import { COMMAND_INPUT_SCHEMA as commandInputSchema119 } from '../commandSchemas.generated/workspace_create';
 import { COMMAND_INPUT_SCHEMA as commandInputSchema120 } from '../commandSchemas.generated/workspace_dimensionaxes';
 import { COMMAND_INPUT_SCHEMA as commandInputSchema121 } from '../commandSchemas.generated/workspace_dimensionnode';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema122 } from '../commandSchemas.generated/workspace_importmap';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema123 } from '../commandSchemas.generated/workspace_importrecords';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema124 } from '../commandSchemas.generated/workspace_invite';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema125 } from '../commandSchemas.generated/workspace_modules';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema126 } from '../commandSchemas.generated/workspace_nextnumber';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema127 } from '../commandSchemas.generated/workspace_openingbalances';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema128 } from '../commandSchemas.generated/workspace_restoremaps';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema129 } from '../commandSchemas.generated/workspace_retention';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema130 } from '../commandSchemas.generated/workspace_revokeinvite';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema131 } from '../commandSchemas.generated/workspace_scheduledeletion';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema132 } from '../commandSchemas.generated/workspace_settings';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema133 } from '../commandSchemas.generated/workspace_setupcomplete';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema134 } from '../commandSchemas.generated/workspace_undoimport';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema135 } from '../commandSchemas.generated/workspace_updaterole';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema122 } from '../commandSchemas.generated/workspace_dimensionnodesmigrate';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema123 } from '../commandSchemas.generated/workspace_importmap';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema124 } from '../commandSchemas.generated/workspace_importrecords';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema125 } from '../commandSchemas.generated/workspace_invite';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema126 } from '../commandSchemas.generated/workspace_modules';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema127 } from '../commandSchemas.generated/workspace_nextnumber';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema128 } from '../commandSchemas.generated/workspace_openingbalances';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema129 } from '../commandSchemas.generated/workspace_restoremaps';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema130 } from '../commandSchemas.generated/workspace_retention';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema131 } from '../commandSchemas.generated/workspace_revokeinvite';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema132 } from '../commandSchemas.generated/workspace_scheduledeletion';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema133 } from '../commandSchemas.generated/workspace_settings';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema134 } from '../commandSchemas.generated/workspace_setupcomplete';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema135 } from '../commandSchemas.generated/workspace_undoimport';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema136 } from '../commandSchemas.generated/workspace_updaterole';
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const WORKSPACE_COMMAND_MANIFEST = [
@@ -67,7 +68,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The workspace is not scheduled for deletion.",
           "next": "Choose a workspace currently marked pending deletion."
         },
-        COMMAND_SCHEMA_PARTS.part141,
+        COMMAND_SCHEMA_PARTS.part143,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not the workspace owner.",
@@ -99,10 +100,10 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The currency is not three letters, or the input carries unexpected fields.",
           "next": "Send a name, a business type and a three-letter currency, or nothing at all."
         },
-        COMMAND_SCHEMA_PARTS.part146
+        COMMAND_SCHEMA_PARTS.part148
       ],
       "next": [
-        COMMAND_SCHEMA_PARTS.part122
+        COMMAND_SCHEMA_PARTS.part123
       ]
     },
     "runPath": "/api/v1/commands/workspace.create",
@@ -134,11 +135,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "A label id appears twice in the list.",
           "next": "Send one entry per label."
         },
-        {
-          "code": "NOT_FOUND",
-          "when": "The workspace is no longer open.",
-          "next": "Reload the workspace and try again."
-        },
+        COMMAND_SCHEMA_PARTS.part141,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner or accountant.",
@@ -159,7 +156,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.dimensionnode",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part54,
+    "roles": COMMAND_SCHEMA_PARTS.part55,
     "risk": "normal",
     "description": {
       "sentence": "Save one value of a workspace label, or change its name, aliases, parent or status; do not use it to move or relabel transactions that already carry the value.",
@@ -181,10 +178,10 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The value is not in the selected workspace.",
           "next": "Reload the labels and choose a value in this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part170
+        COMMAND_SCHEMA_PARTS.part172
       ],
       "next": [
-        COMMAND_SCHEMA_PARTS.part106
+        COMMAND_SCHEMA_PARTS.part107
       ]
     },
     "runPath": "/api/v1/commands/workspace.dimensionnode",
@@ -192,9 +189,49 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     inputSchema: commandInputSchema121
   },
   {
+    "name": "workspace.dimensionnodesmigrate",
+    "area": "workspace",
+    "roles": COMMAND_SCHEMA_PARTS.part55,
+    "risk": "normal",
+    "description": {
+      "sentence": "Move a legacy label tree off the workspace row and into the dimensionNodes collection, clearing the old field in the same transaction; do not use it to add a new value, which workspace.dimensionnode does.",
+      "example": {
+        "nodes": [
+          {
+            "id": "n1",
+            "dimensionId": "property",
+            "description": "North tower"
+          }
+        ]
+      },
+      "refusals": [
+        {
+          "code": "INVALID_INPUT",
+          "when": "A label has no axis, or more than 450 arrive at once.",
+          "next": "Send the tree in chunks of at most 450 labels, each with its axis."
+        },
+        COMMAND_SCHEMA_PARTS.part141,
+        {
+          "code": "ROLE_REQUIRED",
+          "when": "The caller is a viewer.",
+          "next": "Ask an owner, accountant or bookkeeper to run the move."
+        }
+      ],
+      "next": [
+        {
+          "command": "workspace.dimensionnode",
+          "label": "Change a value"
+        }
+      ]
+    },
+    "runPath": "/api/v1/commands/workspace.dimensionnodesmigrate",
+    "previewPath": "/api/v1/commands/workspace.dimensionnodesmigrate/preview",
+    inputSchema: commandInputSchema122
+  },
+  {
     "name": "workspace.importmap",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part54,
+    "roles": COMMAND_SCHEMA_PARTS.part55,
     "risk": "normal",
     "description": {
       "sentence": "Remember how a bank CSV header maps to statement fields for the next import; do not use this to import or change ledger entries.",
@@ -219,17 +256,17 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to save the mapping."
         },
-        COMMAND_SCHEMA_PARTS.part152
+        COMMAND_SCHEMA_PARTS.part154
       ]
     },
     "runPath": "/api/v1/commands/workspace.importmap",
     "previewPath": "/api/v1/commands/workspace.importmap/preview",
-    inputSchema: commandInputSchema122
+    inputSchema: commandInputSchema123
   },
   {
     "name": "workspace.importrecords",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part54,
+    "roles": COMMAND_SCHEMA_PARTS.part55,
     "risk": "normal",
     "description": {
       "sentence": "Create customers, vendors, items or accounts from a spreadsheet in one go, skipping the ones that already exist; do not use it to change a record — use its own update command.",
@@ -256,7 +293,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.importrecords",
     "previewPath": "/api/v1/commands/workspace.importrecords/preview",
-    inputSchema: commandInputSchema123
+    inputSchema: commandInputSchema124
   },
   {
     "name": "workspace.invite",
@@ -275,7 +312,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The plan has no free seat left.",
           "next": "Upgrade the plan or remove a member first."
         },
-        COMMAND_SCHEMA_PARTS.part134,
+        COMMAND_SCHEMA_PARTS.part135,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner.",
@@ -285,7 +322,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.invite",
     "previewPath": "/api/v1/commands/workspace.invite/preview",
-    inputSchema: commandInputSchema124
+    inputSchema: commandInputSchema125
   },
   {
     "name": "workspace.modules",
@@ -311,17 +348,17 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to change module settings."
         },
-        COMMAND_SCHEMA_PARTS.part141
+        COMMAND_SCHEMA_PARTS.part143
       ]
     },
     "runPath": "/api/v1/commands/workspace.modules",
     "previewPath": "/api/v1/commands/workspace.modules/preview",
-    inputSchema: commandInputSchema125
+    inputSchema: commandInputSchema126
   },
   {
     "name": "workspace.nextnumber",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part54,
+    "roles": COMMAND_SCHEMA_PARTS.part55,
     "risk": "normal",
     "description": {
       "sentence": "Reserve the next number in a document series; do not execute it merely to preview a number, because unused allocations remain consumed.",
@@ -339,12 +376,12 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to reserve a document number."
         },
-        COMMAND_SCHEMA_PARTS.part141
+        COMMAND_SCHEMA_PARTS.part143
       ]
     },
     "runPath": "/api/v1/commands/workspace.nextnumber",
     "previewPath": "/api/v1/commands/workspace.nextnumber/preview",
-    inputSchema: commandInputSchema126
+    inputSchema: commandInputSchema127
   },
   {
     "name": "workspace.openingbalances",
@@ -392,17 +429,17 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The workspace has no active Opening Balance Equity account, or an amount or account cannot be used for an opening balance.",
           "next": "Add an active Opening Balance Equity account and choose eligible balance-sheet accounts."
         },
-        COMMAND_SCHEMA_PARTS.part147
+        COMMAND_SCHEMA_PARTS.part149
       ]
     },
     "runPath": "/api/v1/commands/workspace.openingbalances",
     "previewPath": "/api/v1/commands/workspace.openingbalances/preview",
-    inputSchema: commandInputSchema127
+    inputSchema: commandInputSchema128
   },
   {
     "name": "workspace.restoremaps",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part54,
+    "roles": COMMAND_SCHEMA_PARTS.part55,
     "risk": "normal",
     "description": {
       "sentence": "Restore a saved snapshot of bank CSV column layouts when undoing a layout change; do not use this to import or change ledger entries.",
@@ -420,12 +457,12 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to restore the layout snapshot."
         },
-        COMMAND_SCHEMA_PARTS.part152
+        COMMAND_SCHEMA_PARTS.part154
       ]
     },
     "runPath": "/api/v1/commands/workspace.restoremaps",
     "previewPath": "/api/v1/commands/workspace.restoremaps/preview",
-    inputSchema: commandInputSchema128
+    inputSchema: commandInputSchema129
   },
   {
     "name": "workspace.retention",
@@ -451,12 +488,12 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not the workspace owner.",
           "next": "Ask the workspace owner to change retention settings."
         },
-        COMMAND_SCHEMA_PARTS.part141
+        COMMAND_SCHEMA_PARTS.part143
       ]
     },
     "runPath": "/api/v1/commands/workspace.retention",
     "previewPath": "/api/v1/commands/workspace.retention/preview",
-    inputSchema: commandInputSchema129
+    inputSchema: commandInputSchema130
   },
   {
     "name": "workspace.revokeinvite",
@@ -493,7 +530,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.revokeinvite",
     "previewPath": "/api/v1/commands/workspace.revokeinvite/preview",
-    inputSchema: commandInputSchema130
+    inputSchema: commandInputSchema131
   },
   {
     "name": "workspace.scheduledeletion",
@@ -518,7 +555,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.scheduledeletion",
     "previewPath": "/api/v1/commands/workspace.scheduledeletion/preview",
-    inputSchema: commandInputSchema131
+    inputSchema: commandInputSchema132
   },
   {
     "name": "workspace.settings",
@@ -548,16 +585,16 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The home currency is being changed in a workspace that already holds transactions, invoices, bills or journal entries.",
           "next": "Choose the currency while the books are empty; changing it later is a migration of every stored amount."
         },
-        COMMAND_SCHEMA_PARTS.part136
+        COMMAND_SCHEMA_PARTS.part137
       ],
       "next": [
-        COMMAND_SCHEMA_PARTS.part122,
-        COMMAND_SCHEMA_PARTS.part106
+        COMMAND_SCHEMA_PARTS.part123,
+        COMMAND_SCHEMA_PARTS.part107
       ]
     },
     "runPath": "/api/v1/commands/workspace.settings",
     "previewPath": "/api/v1/commands/workspace.settings/preview",
-    inputSchema: commandInputSchema132
+    inputSchema: commandInputSchema133
   },
   {
     "name": "workspace.setupcomplete",
@@ -573,17 +610,17 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to finish setup."
         },
-        COMMAND_SCHEMA_PARTS.part141
+        COMMAND_SCHEMA_PARTS.part143
       ]
     },
     "runPath": "/api/v1/commands/workspace.setupcomplete",
     "previewPath": "/api/v1/commands/workspace.setupcomplete/preview",
-    inputSchema: commandInputSchema133
+    inputSchema: commandInputSchema134
   },
   {
     "name": "workspace.undoimport",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part54,
+    "roles": COMMAND_SCHEMA_PARTS.part55,
     "risk": "normal",
     "description": {
       "sentence": "Remove the records an import created, keeping any that are already in use; do not use it to delete one record — use its own delete command.",
@@ -610,7 +647,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.undoimport",
     "previewPath": "/api/v1/commands/workspace.undoimport/preview",
-    inputSchema: commandInputSchema134
+    inputSchema: commandInputSchema135
   },
   {
     "name": "workspace.updaterole",
@@ -629,7 +666,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The person is the creator or the last owner and the new role is not owner.",
           "next": "Make another owner first, then change this one."
         },
-        COMMAND_SCHEMA_PARTS.part134,
+        COMMAND_SCHEMA_PARTS.part135,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner.",
@@ -639,6 +676,6 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.updaterole",
     "previewPath": "/api/v1/commands/workspace.updaterole/preview",
-    inputSchema: commandInputSchema135
+    inputSchema: commandInputSchema136
   },
 ] as const;

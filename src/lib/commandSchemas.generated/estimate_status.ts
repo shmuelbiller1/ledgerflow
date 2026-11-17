@@ -4,7 +4,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part79,
+    "id": COMMAND_SCHEMA_PARTS.part80,
     "status": {
       "type": "string",
       "enum": [
@@ -14,7 +14,7 @@ export const COMMAND_INPUT_SCHEMA = {
       ]
     },
     "customerReference": COMMAND_SCHEMA_PARTS.part43,
-    "convertedInvoiceId": COMMAND_SCHEMA_PARTS.part79
+    "convertedInvoiceId": COMMAND_SCHEMA_PARTS.part80
   },
   "required": [
     "id",

@@ -1,6 +1,6 @@
 {
   "writeRoutes": 111,
-  "directBrowserWrites": 37,
+  "directBrowserWrites": 31,
   "routeSites": {
     "src/server/routes/accountMergeRoutes.ts": 2,
     "src/server/routes/aiRoutes.ts": 1,
@@ -67,14 +67,13 @@
     "src/components/platform/settings/DimensionsSettings.tsx": 2,
     "src/components/support/SupportView.tsx": 5,
     "src/hooks/transactionActions/shared.ts": 1,
-    "src/hooks/transactionActions/workspaceActions.ts": 4,
+    "src/hooks/transactionActions/workspaceActions.ts": 1,
     "src/hooks/useCollaborators.ts": 3,
     "src/hooks/useEntityOperations.ts": 3,
     "src/hooks/useNotificationFeed.ts": 1,
     "src/hooks/useSystemActions.ts": 1,
     "src/lib/feedbackTicket.ts": 1,
     "src/lib/inlineRecordAdapter.ts": 1,
-    "src/lib/migrations/dimensionNodesMigration.ts": 3,
     "src/lib/recordDetailsAdapter.ts": 1,
     "src/services/attachmentActions.ts": 1
   },

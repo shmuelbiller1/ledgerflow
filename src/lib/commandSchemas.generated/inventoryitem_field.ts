@@ -4,7 +4,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part79,
+    "id": COMMAND_SCHEMA_PARTS.part80,
     "field": {
       "type": "string",
       "enum": [
@@ -19,7 +19,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "value": {
       "anyOf": [
         COMMAND_SCHEMA_PARTS.part45,
-        COMMAND_SCHEMA_PARTS.part100
+        COMMAND_SCHEMA_PARTS.part101
       ]
     }
   },

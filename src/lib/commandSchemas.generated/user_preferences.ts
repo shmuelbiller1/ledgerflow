@@ -6,7 +6,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "notificationPrefs": {
       "type": "object",
-      "propertyNames": COMMAND_SCHEMA_PARTS.part74,
+      "propertyNames": COMMAND_SCHEMA_PARTS.part75,
       "additionalProperties": {
         "anyOf": [
           COMMAND_SCHEMA_PARTS.part18,
@@ -18,11 +18,11 @@ export const COMMAND_INPUT_SCHEMA = {
     "reportPreferences": {
       "type": "object",
       "properties": {
-        "scopeKey": COMMAND_SCHEMA_PARTS.part79,
-        "workspaceId": COMMAND_SCHEMA_PARTS.part79,
+        "scopeKey": COMMAND_SCHEMA_PARTS.part80,
+        "workspaceId": COMMAND_SCHEMA_PARTS.part80,
         "preferences": {
           "type": "object",
-          "propertyNames": COMMAND_SCHEMA_PARTS.part74,
+          "propertyNames": COMMAND_SCHEMA_PARTS.part75,
           "additionalProperties": COMMAND_SCHEMA_PARTS.part1
         }
       },

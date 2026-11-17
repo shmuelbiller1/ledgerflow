@@ -17,7 +17,7 @@ import { customerBalanceCommand, vendorBalanceCommand } from './contactBalances'
 import { vendorCreateCommand, vendorUpdateCommand } from './vendors';
 import { autoRuleCreateCommand, autoRuleUpdateCommand, autoRuleDeleteCommand, autoRuleGroupCommand, autoRuleRecordHitsCommand } from './autoRules';
 import { autoRuleLearnCommand } from './rulePatterns';
-import { dimensionAxesCommand, dimensionNodeCommand } from './dimensions';
+import { dimensionAxesCommand, dimensionNodeCommand, dimensionNodesMigrateCommand } from './dimensions';
 import { userProvisionCommand, workspaceCreateCommand } from './bootstrap';
 import { userPreferencesCommand } from './userPreferences';
 import { projectDeleteCommand, projectRestoreCommand } from './projects';
@@ -123,6 +123,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(userProvisionCommand);
   registry.register(userPreferencesCommand);
   registry.register(workspaceCreateCommand);
+  registry.register(dimensionNodesMigrateCommand);
   registry.register(projectDeleteCommand);
   registry.register(projectRestoreCommand);
   registry.register(workspaceModulesCommand);

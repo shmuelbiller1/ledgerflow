@@ -9,12 +9,12 @@ export const COMMAND_INPUT_SCHEMA = {
       "minLength": 3,
       "maxLength": 500
     },
-    "accountId": COMMAND_SCHEMA_PARTS.part79,
+    "accountId": COMMAND_SCHEMA_PARTS.part80,
     "accountName": COMMAND_SCHEMA_PARTS.part45,
     "tags": {
       "maxItems": 20,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part79
+      "items": COMMAND_SCHEMA_PARTS.part80
     },
     "dimensions": {
       "type": "object",

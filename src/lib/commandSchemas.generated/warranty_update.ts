@@ -12,12 +12,12 @@ export const COMMAND_INPUT_SCHEMA = {
           "minLength": 1,
           "maxLength": 1000
         },
-        "workspaceId": COMMAND_SCHEMA_PARTS.part79,
-        "customerId": COMMAND_SCHEMA_PARTS.part79,
-        "invoiceId": COMMAND_SCHEMA_PARTS.part79,
-        "invoiceLineId": COMMAND_SCHEMA_PARTS.part79,
-        "itemId": COMMAND_SCHEMA_PARTS.part79,
-        "serial": COMMAND_SCHEMA_PARTS.part74
+        "workspaceId": COMMAND_SCHEMA_PARTS.part80,
+        "customerId": COMMAND_SCHEMA_PARTS.part80,
+        "invoiceId": COMMAND_SCHEMA_PARTS.part80,
+        "invoiceLineId": COMMAND_SCHEMA_PARTS.part80,
+        "itemId": COMMAND_SCHEMA_PARTS.part80,
+        "serial": COMMAND_SCHEMA_PARTS.part75
       },
       "required": [
         "id",

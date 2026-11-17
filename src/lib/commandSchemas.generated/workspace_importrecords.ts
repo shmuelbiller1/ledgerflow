@@ -20,10 +20,10 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "propertyNames": COMMAND_SCHEMA_PARTS.part15,
-        "additionalProperties": COMMAND_SCHEMA_PARTS.part53
+        "additionalProperties": COMMAND_SCHEMA_PARTS.part54
       }
     },
-    "openingDate": COMMAND_SCHEMA_PARTS.part90,
+    "openingDate": COMMAND_SCHEMA_PARTS.part91,
     "dryRun": COMMAND_SCHEMA_PARTS.part18
   },
   "required": [

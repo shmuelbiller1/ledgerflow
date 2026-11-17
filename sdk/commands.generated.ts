@@ -123,6 +123,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "workspace.create",
   "workspace.dimensionaxes",
   "workspace.dimensionnode",
+  "workspace.dimensionnodesmigrate",
   "workspace.importmap",
   "workspace.importrecords",
   "workspace.invite",

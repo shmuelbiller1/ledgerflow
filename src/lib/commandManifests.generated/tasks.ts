@@ -8,7 +8,7 @@ export const TASKS_COMMAND_MANIFEST = [
   {
     "name": "tasks.create",
     "area": "tasks",
-    "roles": COMMAND_SCHEMA_PARTS.part54,
+    "roles": COMMAND_SCHEMA_PARTS.part55,
     "risk": "normal",
     "description": {
       "sentence": "Create a task for a workspace teammate, optionally linked to a record and due date; do not use it to change a ledger record.",
@@ -17,7 +17,7 @@ export const TASKS_COMMAND_MANIFEST = [
           "title": "Review the Acme invoice",
           "assignee": "user_123",
           "due": "2026-12-01",
-          "record": COMMAND_SCHEMA_PARTS.part104
+          "record": COMMAND_SCHEMA_PARTS.part105
         }
       },
       "refusals": [
@@ -50,7 +50,7 @@ export const TASKS_COMMAND_MANIFEST = [
   {
     "name": "tasks.remove",
     "area": "tasks",
-    "roles": COMMAND_SCHEMA_PARTS.part66,
+    "roles": COMMAND_SCHEMA_PARTS.part67,
     "risk": "normal",
     "description": {
       "sentence": "Remove a task you created or any task as the workspace owner; do not use this for deleting an invoice, bill, or other financial record.",
@@ -58,7 +58,7 @@ export const TASKS_COMMAND_MANIFEST = [
         "taskId": "task_123"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part157,
+        COMMAND_SCHEMA_PARTS.part159,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller did not create this task and is not the workspace owner.",
@@ -73,7 +73,7 @@ export const TASKS_COMMAND_MANIFEST = [
   {
     "name": "tasks.status",
     "area": "tasks",
-    "roles": COMMAND_SCHEMA_PARTS.part66,
+    "roles": COMMAND_SCHEMA_PARTS.part67,
     "risk": "normal",
     "description": {
       "sentence": "Mark a task done or open again when you made it, were assigned it, or own the workspace; do not use it to edit the task details.",
@@ -87,7 +87,7 @@ export const TASKS_COMMAND_MANIFEST = [
           "when": "The requested status is not open or done.",
           "next": "Use status open or done."
         },
-        COMMAND_SCHEMA_PARTS.part157,
+        COMMAND_SCHEMA_PARTS.part159,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller did not create or receive this task and is not a workspace owner.",

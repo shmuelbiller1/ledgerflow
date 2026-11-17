@@ -7,7 +7,7 @@ export const ENTRYLINK_COMMAND_MANIFEST = [
   {
     "name": "entrylink.create",
     "area": "entrylink",
-    "roles": COMMAND_SCHEMA_PARTS.part54,
+    "roles": COMMAND_SCHEMA_PARTS.part55,
     "risk": "normal",
     "description": {
       "sentence": "Add a note-only relationship between two ledger entries in this workspace; do not use this to post, reverse, or otherwise change either entry.",
@@ -46,7 +46,7 @@ export const ENTRYLINK_COMMAND_MANIFEST = [
   {
     "name": "entrylink.remove",
     "area": "entrylink",
-    "roles": COMMAND_SCHEMA_PARTS.part54,
+    "roles": COMMAND_SCHEMA_PARTS.part55,
     "risk": "normal",
     "description": {
       "sentence": "Remove a note-only relationship between two entries; do not use this to edit or delete either ledger entry.",
