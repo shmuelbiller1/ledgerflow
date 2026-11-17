@@ -176,8 +176,12 @@ hand-convert a table the codemod still refuses.
 
 ## 5. One screen shape, one form
 
-- [ ] **Two form systems, two callers each.** `CommandForm` (2) and `SchemaForm` (2) — a schema-driven form and a
-      command-driven one. Pick one per case, or merge them: this is 4 call sites, not a project.
+- [x] **Two form systems, one of them had no callers.** The count was `CommandForm` 2 and `SchemaForm` 2; the truth
+      was `CommandForm` 1 screen (`ApiHubSandbox`) and `SchemaForm` **zero** — `ChartOfAccountsView` imported it as
+      `SchemaForm as _SchemaForm` and never rendered it, and the only other reference was a test of zod itself. So
+      there was nothing to merge: `SchemaForm` is gone (213 lines), the dead alias import with it, and `CommandForm`
+      is the form — generated from the command's own input schema, which is the one case the app actually has.
+      Its bug-pattern site went with it, so the `swallowing-action` ratchet turned without a single screen changing.
 - [ ] Palette reachability is **already proven in EN and HE** by `palette-reachability-guard.test.tsx`. The
       remaining item is not "make screens findable" — it is **retiring the old guard** once the plain-word search
       is the only path, so there is one test instead of two mechanisms.
