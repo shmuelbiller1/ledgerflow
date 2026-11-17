@@ -313,10 +313,13 @@ export const assetCostAdditionCommand: CommandDefinition<typeof assetCostAdditio
   },
 };
 
-/** Every asset command, in one list the registry iterates — so a new one cannot be written and forgotten. */
+/**
+ * The six service-backed life-cycle moves, in the list the registry iterates. `asset.costaddition` is deliberately not
+ * here: it keeps its own read inside the runner's transaction and writes its own audit line, which those six leave to
+ * their services.
+ */
 export const ASSET_COMMANDS: AnyCommandDefinition[] = [
   assetDisposeCommand, assetUndoDisposalCommand,
   assetTransferCommand, assetUndoTransferCommand,
   assetPlaceInServiceCommand, assetUndoPlaceInServiceCommand,
-  assetCostAdditionCommand,
 ];
