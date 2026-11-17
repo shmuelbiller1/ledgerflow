@@ -7,8 +7,6 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { Plus, ArrowRight, FileText, Eye, Download, Paperclip } from 'lucide-react';
-import { collection, addDoc, doc, updateDoc } from '../../lib/db/firestore';
-import { db } from '../../firebase';
 import { nextDocumentNumber } from '../../services/documentNumbers';
 import { toast } from 'sonner';
 import PdfPreviewModal from '../ui/PdfPreviewModal';
@@ -32,6 +30,7 @@ import { EstimateLinesEditor } from './EstimateLinesEditor';
 import { blankEstimateLine, estimateLinesProblem, type EstimateLineDraft, toEstimateLines } from '../../lib/estimateLines';
 import { type OrderPart, type OrderStage, hasItemLines, isOrder, orderPartInvoice, orderProgress, orderStage, partCents, partLabel, resolvePart } from '../../lib/salesOrders';
 import type { Estimate } from '../../types';
+import { saveEstimate, setEstimateStatus } from '../../lib/recordWrites';
 
 type EstimateRow = Estimate & { currency?: string; description?: string };
 const FILTERS: Array<{ id: 'all' | 'quotes' | 'orders' | 'done'; label: string; stages: OrderStage[] | null }> = [
@@ -46,8 +45,7 @@ const STAGE_STYLE: Record<OrderStage, string> = {
   'partly invoiced': 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
   invoiced: 'bg-emerald-500/10 text-emerald-600',
   declined: 'bg-slate-500/10 text-[var(--muted)]',
-  expired: 'bg-slate-500/10 text-[var(--muted)]',
-};
+  expired: 'bg-slate-500/10 text-[var(--muted)]' };
 
 export default function EstimatesView() {
   const user = useAuthStore(workspaceActor);
@@ -144,7 +142,7 @@ export default function EstimatesView() {
         createdAt: new Date().toISOString()
       };
 
-      await addDoc(collection(db, 'estimates'), estData);
+      await saveEstimate(currentWorkspaceId, estData as unknown as Record<string, unknown>);
       toast.success('Estimate created successfully');
       setIsCreating(false);
       setCustomerId('');
@@ -185,17 +183,12 @@ export default function EstimatesView() {
         ...draft,
         number: invoiceNumber,
         currency: est.currency || 'USD',
-        metadata: { convertedFromEstimateId: est.id, convertedFromEstimateNumber: est.number || est.id },
-      };
+        metadata: { convertedFromEstimateId: est.id, convertedFromEstimateNumber: est.number || est.id } };
 
       const invRef = await addEntity('invoices', invData);
       if (!invRef) return; // addEntity already showed what went wrong
 
-      await updateDoc(doc(db, 'estimates', est.id), {
-        status: 'converted',
-        convertedInvoiceId: invRef.id,
-        updatedAt: new Date().toISOString()
-      });
+      await setEstimateStatus(currentWorkspaceId || '', est.id, 'converted', { convertedInvoiceId: invRef.id });
 
       const deposit = estimateDeposits(payments || [], est.id);
       toast.success(`Estimate converted to draft invoice ${invoiceNumber}. Review it in Sales, then send it.${deposit.unappliedCents > 0 ? ` Its deposit of ${formatCurrency(deposit.unappliedCents)} is applied with "Apply deposit" once it is sent.` : ''}`);
@@ -208,13 +201,8 @@ export default function EstimatesView() {
   const confirmOrder = async (est: EstimateRow) => {
     if (!user) return;
     try {
-      await updateDoc(doc(db, 'estimates', est.id), {
-        status: 'accepted',
-        orderedAt: new Date().toISOString(),
-        orderedBy: user.uid,
-        ...(customerReference.trim() ? { customerReference: customerReference.trim().slice(0, 100) } : {}),
-        updatedAt: new Date().toISOString(),
-      });
+      await setEstimateStatus(currentWorkspaceId || '', est.id, 'accepted', {
+        ...(customerReference.trim() ? { customerReference: customerReference.trim().slice(0, 100) } : {}) });
       setOrdering(null);
       setCustomerReference('');
       toast.success(`Estimate ${est.number || ''} is now an order. "Invoice" bills it in one go or in parts.`);
@@ -225,7 +213,7 @@ export default function EstimatesView() {
 
   const declineEstimate = async (est: EstimateRow) => {
     try {
-      await updateDoc(doc(db, 'estimates', est.id), { status: 'declined', updatedAt: new Date().toISOString() });
+      await setEstimateStatus(currentWorkspaceId || '', est.id, 'declined');
       toast.success(`Estimate ${est.number || ''} marked declined`);
     } catch (err) {
       toast.error((err as Error).message || 'Could not mark it declined');
@@ -241,12 +229,11 @@ export default function EstimatesView() {
     const invRef = await addEntity('invoices', {
       ...orderPartInvoice(est, progress, cents, partLabel(part, est, progress), part),
       number: invoiceNumber,
-      currency: est.currency || 'USD',
-    });
+      currency: est.currency || 'USD' });
     if (!invRef) return;
     const finished = progress.invoicedCents + cents >= progress.totalCents;
     if (finished) {
-      await updateDoc(doc(db, 'estimates', est.id), { status: 'converted', convertedInvoiceId: invRef.id, updatedAt: new Date().toISOString() });
+      await setEstimateStatus(currentWorkspaceId || '', est.id, 'converted', { convertedInvoiceId: invRef.id });
     }
     toast.success(`Draft invoice ${invoiceNumber} for ${formatCurrency(cents)} created${finished ? ': the order is fully invoiced' : `; ${formatCurrency(progress.leftCents - cents)} left on the order`}. Review it in Sales, then send it.`);
   };

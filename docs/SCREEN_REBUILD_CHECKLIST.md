@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **62** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **41** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,7 +147,7 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **84** → 0. 47 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **41** → 0. 29 files. The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
@@ -188,9 +188,38 @@ hand-convert a table the codemod still refuses.
         (a plan is compared with posted amounts), and put the "viewers cannot change budgets" rule on the server
         rather than on a hidden button. The label the plan is kept against (EU-E5) is set, changed or taken away
         through the command, and the rest of the row's metadata is kept.
-      - **the rest** (~60 sites in 33 files) — write routes that already have a command in most cases
-        (`workspaceActions` 4, `Inventory` 5, `EstimatesView` 5, `SupportView` 5 …): one commit per hook, not per
-        call, because a hook that writes has one shape.
+      - **the roster, the shelf, the quote, the chart** — **done, 29 sites.** Four screens wrote their own
+        collection by hand: the payroll screens (`PayrollView`, `DeductionsCell`, `TimeOffCell`, `HourlyPayCell`,
+        `DirectDepositDialog`), the inventory screen (`Inventory`, five sites), the sales screens (`EstimatesView`,
+        `MilestoneSchedule`, `OrderInvoiceDialog`) and the ledger's own (`ChartOfAccountsView`, `WorkpapersPanel`).
+        Eight commands now own those rows — `employee.create` / `employee.update`, `inventoryitem.save` /
+        `inventoryitem.field` / `inventoryitem.delete`, `estimate.save` / `estimate.status`, `chartaccount.update`
+        — and each screen writes through one helper in `src/lib/recordWrites.ts` that *is* the whole guest/command
+        branch: the sample company writes its own copy on the local store, a signed-in tab sends the command.
+        - A new employee is one `employee.create` carrying the id the tab generated, so a retry after a refusal
+          reuses it and the server answers the repeat instead of hiring twice; `workspaceId` comes from the
+          session, so a draft cannot be posted into another book. `employee.update` names only the fields the
+          person changed — a raise cell never rewrites the bank account it did not see.
+        - `inventoryitem.save` strips the server-owned counters out of whatever the form sends (`quantityAtHand`
+          is derived from the movements, not typed), and the screen's opening stock is a second call to the
+          movement command with the id the save answered with — so the item and its opening count are two facts
+          with two audit lines, not one row the tab guessed at.
+        - `estimate.save` writes the quote and its milestone schedule (the schedule is part of the terms), and
+          `estimate.status` moves it: accepted stamps `orderedAt`/`orderedBy` from the session rather than taking
+          them from the tab, and `converted` is one way — a quote that became an invoice cannot go back to being
+          a quote. `chartaccount.update` takes **one** `archived` flag and derives `isArchived`/`isActive`, because
+          the two halves have to agree and the screens used to send them separately.
+        - Tests: `employee-commands.test.ts`, `inventory-item-commands.test.ts`, `estimate-chart-account-commands`
+          `.test.ts` (22 cases: the fields each command accepts, the refusals — a viewer, another workspace, a
+          system account's code, an accepted quote's lines, a repeat creation — and the audit line each writes).
+          The screens' own suites (`payroll-deductions`, `pto-accrual`, `direct-deposit`, `employee-creation`,
+          `estimates-view`, `sales-orders`, `milestones`, `chart-of-accounts-inline`, `workpapers-ui`, inventory ×4)
+          now assert the command's `input` where they asserted `lf_update`'s `p_set`: same promise, stated where
+          the guard lives.
+      - **the rest** (~41 sites in 29 files) — write routes that already have a command in most cases
+        (`SupportView` 5, `workspaceActions` 4, `useCollaborators` 3, `useEntityOperations` 3,
+        `dimensionNodesMigration` 3 …): one commit per hook, not per call, because a hook that writes has one
+        shape.
 - [x] **Undo on the result.** `deleteProjectWithUndo` offers the command's own step back (`project.restore` with the
       id `project.delete` answered with), and the deleted row is kept by the server rather than by the tab. Still
       open: wiring `entry.inverse` through `useCommand` so a screen that deletes through the hook gets the same

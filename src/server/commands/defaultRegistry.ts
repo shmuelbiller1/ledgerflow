@@ -21,6 +21,10 @@ import { dimensionAxesCommand, dimensionNodeCommand } from './dimensions';
 import { userProvisionCommand, workspaceCreateCommand } from './bootstrap';
 import { projectDeleteCommand, projectRestoreCommand } from './projects';
 import { budgetDeleteCommand, budgetSaveCommand } from './budgets';
+import { chartAccountUpdateCommand } from './chartAccounts';
+import { employeeCreateCommand, employeeUpdateCommand } from './employees';
+import { estimateSaveCommand, estimateStatusCommand } from './estimates';
+import { inventoryItemDeleteCommand, inventoryItemFieldCommand, inventoryItemSaveCommand } from './inventoryItems';
 import { workspaceSettingsCommand } from './workspaceSettingsPanel';
 import {
   bankLinePayCommand,
@@ -120,6 +124,14 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(projectDeleteCommand);
   registry.register(projectRestoreCommand);
   registry.register(workspaceModulesCommand);
+  registry.register(employeeCreateCommand);
+  registry.register(employeeUpdateCommand);
+  registry.register(estimateSaveCommand);
+  registry.register(estimateStatusCommand);
+  registry.register(inventoryItemSaveCommand);
+  registry.register(inventoryItemFieldCommand);
+  registry.register(inventoryItemDeleteCommand);
+  registry.register(chartAccountUpdateCommand);
   registry.register(budgetSaveCommand);
   registry.register(budgetDeleteCommand);
   registry.register(workspaceSettingsCommand);

@@ -6,7 +6,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "fromDate": COMMAND_SCHEMA_PARTS.part15,
     "toDate": COMMAND_SCHEMA_PARTS.part15,
-    "reason": COMMAND_SCHEMA_PARTS.part76
+    "reason": COMMAND_SCHEMA_PARTS.part81
   },
   "required": [
     "fromDate",

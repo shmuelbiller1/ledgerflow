@@ -12,19 +12,19 @@ afterEach(async () => { cleanup(); await getSupabase().auth.dispose(); });
 test('new employees are durably saved; a refused creation retains its draft for retry', async () => {
  setComponentWorkspace(); markComponentCollectionsLoaded('employees', 'payRuns'); useLedgerStore.setState({ employees: [], payRuns: [], transactions: [], accounts: [] });
  let refuse = true; const writes: Record<string, unknown>[] = [];
- globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => { if (String(input).includes('/rpc/lf_set')) { writes.push(JSON.parse(String(init?.body))); if (refuse) return new Response(JSON.stringify({ message: 'Server refused', code: '42501' }), { status: 403, headers: { 'Content-Type': 'application/json' } }); } return new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } }); }) as typeof fetch;
+ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => { if (String(input).includes('/commands/employee.create')) { writes.push(JSON.parse(String(init?.body))); if (refuse) return new Response(JSON.stringify({ message: 'Server refused', code: 'ROLE_REQUIRED' }), { status: 403, headers: { 'Content-Type': 'application/json' } }); } return new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } }); }) as typeof fetch;
  render(<PayrollView />); fireEvent.click(screen.getByRole('button', { name: 'Add Employee' }));
  fireEvent.change(screen.getByLabelText('Full Name'), { target: { value: 'שרה Employee' } }); fireEvent.change(screen.getByLabelText('Annual Salary ($)'), { target: { value: '80000' } });
  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save Employee' })); });
  assert.match(screen.getByRole('alert').textContent || '', /Server refused/); assert.equal((screen.getByLabelText('Full Name') as HTMLInputElement).value, 'שרה Employee'); assert.equal(useLedgerStore.getState().employees.length, 0);
  refuse = false; await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save Employee' })); });
- assert.equal(writes.length, 2); assert.equal(writes[0].p_id, writes[1].p_id, 'a retry reuses its creation identity'); assert.equal(writes[1].p_table, 'employees'); const data = writes[1].p_data as Record<string, unknown>; assert.equal(data.name, 'שרה Employee'); assert.equal(data.salaryCents, 8000000); assert.equal(data.workspaceId, 'component-workspace');
+ assert.equal(writes.length, 2); const first = writes[0] as { input?: { id?: string } }; const second = writes[1] as { input?: { id?: string } }; assert.equal(first.input?.id, second.input?.id, 'a retry reuses its creation identity'); const data = second.input as Record<string, unknown>; assert.equal(data.name, 'שרה Employee'); assert.equal(data.salaryCents, 8000000); assert.equal(data.workspaceId, 'component-workspace');
  assert.equal(useLedgerStore.getState().employees.length, 1); assert.equal(useLedgerStore.getState().transactions.length, 0); assert.equal(screen.queryByRole('dialog', { name: 'Add Employee to Roster' }), null);
 });
 test('pending employee creation refuses repeats and cannot populate a different workspace', async () => {
  const workspace = setComponentWorkspace(); markComponentCollectionsLoaded('employees', 'payRuns'); useLedgerStore.setState({ employees: [], payRuns: [], transactions: [], accounts: [] });
  let writes = 0, release: (() => void) | undefined;
- globalThis.fetch = (async (input: RequestInfo | URL) => { if (String(input).includes('/rpc/lf_set')) { writes++; await new Promise<void>(resolve => { release = resolve; }); } return new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } }); }) as typeof fetch;
+ globalThis.fetch = (async (input: RequestInfo | URL) => { if (String(input).includes('/commands/employee.create')) { writes++; await new Promise<void>(resolve => { release = resolve; }); } return new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } }); }) as typeof fetch;
  render(<PayrollView />); fireEvent.click(screen.getByRole('button', { name: 'Add Employee' }));
  fireEvent.change(screen.getByLabelText('Full Name'), { target: { value: 'Old workspace draft' } }); fireEvent.change(screen.getByLabelText('Annual Salary ($)'), { target: { value: '60000' } });
  fireEvent.click(screen.getByRole('button', { name: 'Save Employee' })); await waitFor(() => assert.equal(writes, 1));

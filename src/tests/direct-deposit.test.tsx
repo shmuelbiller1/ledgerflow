@@ -69,9 +69,10 @@ describe('On screen', () => {
     ] as Employee[];
     useLedgerStore.setState({ employees });
     const run = { id: 'r1', date: '2026-10-15', status: 'processed', employees: [{ employeeId: 'e1', name: 'Ann Lee', netCents: 123456 }, { employeeId: 'e2', name: 'Bo Ramírez', netCents: 98700 }] } as unknown as PayRun;
-    const writes: Array<{ p_id?: string; p_set?: Record<string, unknown> }> = [];
+    // the roster is a command now: what reaches the server is the command's `input`
+    const writes: Array<{ workspaceId?: string; input?: Record<string, unknown> }> = [];
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('lf_update') && typeof init?.body === 'string') writes.push(JSON.parse(init.body));
+      if (String(input).includes('/commands/employee.update') && typeof init?.body === 'string') writes.push(JSON.parse(init.body));
       return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch;
     const blobs: Blob[] = [];
@@ -86,7 +87,7 @@ describe('On screen', () => {
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'savings' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save account' })); });
     await waitFor(() => assert.equal(writes.length, 1));
-    assert.deepEqual([writes[0].p_id, writes[0].p_set?.bankRouting, writes[0].p_set?.bankAccount, writes[0].p_set?.bankAccountType], ['e2', '021000021', '987654321', 'savings']);
+    assert.deepEqual([writes[0].input?.id, writes[0].input?.bankRouting, writes[0].input?.bankAccount, writes[0].input?.bankAccountType], ['e2', '021000021', '987654321', 'savings']);
     await waitFor(() => assert.ok(screen.getByText('Deposits (2 of 2 ready)')));
     assert.equal((screen.getByRole('button', { name: 'Download the file' }) as HTMLButtonElement).disabled, true, 'the company first');
     fireEvent.change(screen.getByLabelText('Company ID from your bank'), { target: { value: '1123456789' } });

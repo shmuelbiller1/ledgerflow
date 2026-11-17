@@ -1,0 +1,114 @@
+/**
+ * The records a screen writes, in the two worlds a tab can be in.
+ *
+ * A signed-in screen changes a record by naming a command: the server owns the allowlist, the role, the audit line
+ * and the refusals, and the screen learns what happened. The sample company has no workspace on the server, so its
+ * screens write their own in-memory copy through `localStore` and nothing leaves the tab.
+ *
+ * Before these helpers every one of those calls was `updateDoc(doc(db, table, id), …)`, which quietly did both: it
+ * went to Postgres when signed in and to the sample database in a demo. Moving a screen to a command without the
+ * branch would have made the demo ask a server that does not have its workspace — the failure a browser test caught on
+ * the budget screen (a dialog that never closes because the save came back 401).
+ *
+ * So each helper below is the whole rule, in one place: `guestSession()` → the sample company's copy; otherwise → the
+ * command, which is where the rules live. What lives here is only *which command* and *which row*; a helper that
+ * invented a field would still be refused by the server.
+ */
+import { runNamedCommand } from './commandByName';
+import { localAdd, localDelete, localSet, localUpdate } from './db/localStore';
+import { guestSession } from './db/guestDatabase';
+
+/** The sample company's own copy of a row: a patch when it exists, a full write when it does not. */
+async function localRow(table: string, id: string, fields: Record<string, unknown>, create = false): Promise<void> {
+  if (create) {
+    await localSet(table, id, fields);
+    return;
+  }
+  await localUpdate(table, id, fields);
+}
+
+/** A roster entry's fields (rate, pay type, deductions, holiday hours, direct deposit, title, status). */
+export async function saveEmployee(workspaceId: string, id: string, fields: Record<string, unknown>): Promise<void> {
+  if (guestSession()) return localRow('employees', id, fields);
+  await runNamedCommand('employee.update', { id, ...fields }, { workspaceId });
+}
+
+/** A new roster entry, with the id the screen already minted for it. */
+export async function addEmployee(workspaceId: string, row: Record<string, unknown> & { id: string }): Promise<void> {
+  if (guestSession()) return localRow('employees', row.id, row, true);
+  await runNamedCommand('employee.create', row, { workspaceId });
+}
+
+/** Keys the server owns on an item card, so a screen that kept building the whole row does not send them back. */
+const SERVER_OWNED_ITEM_KEYS = ['uid', 'workspaceId', 'createdAt', 'updatedAt', 'quantityAtHand', 'metadata'];
+
+/** An item card: its name, price, cost, category, tax code, bundle parts, bin levels, sale defaults. */
+export async function saveInventoryItem(workspaceId: string, row: Record<string, unknown>): Promise<{ id?: string }> {
+  if (guestSession()) {
+    const { id, ...fields } = row;
+    if (typeof id === 'string' && id) {
+      await localRow('inventory', id, { ...fields, updatedAt: new Date().toISOString() });
+      return { id };
+    }
+    const created = await localAdd('inventory', { ...fields, createdAt: new Date().toISOString() });
+    return { id: created };
+  }
+  const input: Record<string, unknown> = { ...row };
+  const metadata = input.metadata as Record<string, unknown> | undefined;
+  for (const key of SERVER_OWNED_ITEM_KEYS) delete input[key];
+  // the card's sale defaults live in `metadata.documentDefaults`; the command takes them as one field
+  if (metadata && 'documentDefaults' in metadata) input.documentDefaults = metadata.documentDefaults ?? null;
+  return runNamedCommand<{ id: string }>('inventoryitem.save', input, { workspaceId });
+}
+
+/** One field of an item card, corrected on the list. */
+export async function saveInventoryItemField(workspaceId: string, id: string, field: string, value: string | number): Promise<void> {
+  if (guestSession()) return localRow('inventory', id, { [field]: value, updatedAt: new Date().toISOString() });
+  await runNamedCommand('inventoryitem.field', { id, field, value }, { workspaceId });
+}
+
+/** An item card with no stock on it. */
+export async function removeInventoryItem(workspaceId: string, id: string): Promise<void> {
+  if (guestSession()) return localDelete('inventory', id);
+  await runNamedCommand('inventoryitem.delete', { id }, { workspaceId });
+}
+
+/** A quote: its terms, lines and milestone schedule. */
+export async function saveEstimate(workspaceId: string, row: Record<string, unknown>): Promise<void> {
+  if (guestSession()) {
+    const { id, ...fields } = row;
+    if (typeof id === 'string' && id) return localRow('estimates', id, { ...fields, updatedAt: new Date().toISOString() });
+    await localAdd('estimates', { ...fields, createdAt: new Date().toISOString() });
+    return;
+  }
+  await runNamedCommand('estimate.save', row, { workspaceId });
+}
+
+/** A quote's stage: accepted as an order, declined, or converted by an invoice. */
+export async function setEstimateStatus(workspaceId: string, id: string, status: string, extra: Record<string, unknown> = {}): Promise<void> {
+  if (guestSession()) {
+    const now = new Date().toISOString();
+    await localRow('estimates', id, {
+      status,
+      updatedAt: now,
+      ...(status === 'accepted' ? { orderedAt: now, ...extra } : {}),
+      ...(status === 'converted' ? extra : {}),
+    });
+    return;
+  }
+  await runNamedCommand('estimate.status', { id, status, ...extra }, { workspaceId });
+}
+
+/** One account's own fields: its name, code, description, category, group, archived state, workpapers. */
+export async function saveChartAccount(workspaceId: string, fields: Record<string, unknown> & { id: string }): Promise<void> {
+  if (guestSession()) {
+    const { id, archived, ...rest } = fields;
+    await localRow('chartAccounts', id, {
+      ...rest,
+      ...(archived === undefined ? {} : { isArchived: archived, isActive: !archived }),
+      updatedAt: new Date().toISOString(),
+    });
+    return;
+  }
+  await runNamedCommand('chartaccount.update', fields, { workspaceId });
+}

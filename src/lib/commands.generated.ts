@@ -5,11 +5,15 @@ import { APIKEY_COMMAND_MANIFEST } from './commandManifests.generated/apikey';
 import { AUTORULE_COMMAND_MANIFEST } from './commandManifests.generated/autorule';
 import { BILL_COMMAND_MANIFEST } from './commandManifests.generated/bill';
 import { BUDGET_COMMAND_MANIFEST } from './commandManifests.generated/budget';
+import { CHARTACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/chartaccount';
 import { CREDITNOTE_COMMAND_MANIFEST } from './commandManifests.generated/creditnote';
 import { CUSTOMER_COMMAND_MANIFEST } from './commandManifests.generated/customer';
+import { EMPLOYEE_COMMAND_MANIFEST } from './commandManifests.generated/employee';
 import { ENTRYLINK_COMMAND_MANIFEST } from './commandManifests.generated/entrylink';
+import { ESTIMATE_COMMAND_MANIFEST } from './commandManifests.generated/estimate';
 import { GROUPS_COMMAND_MANIFEST } from './commandManifests.generated/groups';
 import { INVENTORY_COMMAND_MANIFEST } from './commandManifests.generated/inventory';
+import { INVENTORYITEM_COMMAND_MANIFEST } from './commandManifests.generated/inventoryitem';
 import { INVOICE_COMMAND_MANIFEST } from './commandManifests.generated/invoice';
 import { JOURNAL_COMMAND_MANIFEST } from './commandManifests.generated/journal';
 import { NUMBERING_COMMAND_MANIFEST } from './commandManifests.generated/numbering';
@@ -35,11 +39,15 @@ export const COMMAND_MANIFEST = [
   ...AUTORULE_COMMAND_MANIFEST,
   ...BILL_COMMAND_MANIFEST,
   ...BUDGET_COMMAND_MANIFEST,
+  ...CHARTACCOUNT_COMMAND_MANIFEST,
   ...CREDITNOTE_COMMAND_MANIFEST,
   ...CUSTOMER_COMMAND_MANIFEST,
+  ...EMPLOYEE_COMMAND_MANIFEST,
   ...ENTRYLINK_COMMAND_MANIFEST,
+  ...ESTIMATE_COMMAND_MANIFEST,
   ...GROUPS_COMMAND_MANIFEST,
   ...INVENTORY_COMMAND_MANIFEST,
+  ...INVENTORYITEM_COMMAND_MANIFEST,
   ...INVOICE_COMMAND_MANIFEST,
   ...JOURNAL_COMMAND_MANIFEST,
   ...NUMBERING_COMMAND_MANIFEST,
