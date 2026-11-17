@@ -4,12 +4,13 @@ import { getIdToken } from '../firebase';
 /** Every document the server can print (documentRoutes.ts PDF_TYPES; BA-08). */
 export type PdfDocumentKind = 'invoice' | 'estimate' | 'creditNote' | 'payment' | 'statement' | 'purchaseOrder' | 'bill' | 'vendorCredit' | 'cheque';
 
-export async function fetchDocumentPdfBlob(
+async function requestDocumentPdfResponse(
   type: PdfDocumentKind,
   id: string,
   workspaceId: string,
-  period?: { startDate?: string; endDate?: string }
-): Promise<Blob> {
+  period?: { startDate?: string; endDate?: string },
+  options?: { preview?: boolean }
+): Promise<Response> {
   if (!workspaceId) throw new Error('Workspace ID is required to generate PDF');
   if (!id) throw new Error('Document ID is required');
 
@@ -22,6 +23,7 @@ export async function fetchDocumentPdfBlob(
   const query = new URLSearchParams({ workspaceId });
   if (period?.startDate) query.set('startDate', period.startDate);
   if (period?.endDate) query.set('endDate', period.endDate);
+  if (options?.preview) query.set('preview', '1');
   const res = await fetch(`/api/v1/documents/${type}/${encodeURIComponent(id)}/pdf?${query}`, {
     headers
   });
@@ -31,7 +33,29 @@ export async function fetchDocumentPdfBlob(
     throw new Error(errorData.message || `Server returned ${res.status}: Failed to generate document PDF`);
   }
 
+  return res;
+}
+
+export async function fetchDocumentPdfBlob(
+  type: PdfDocumentKind,
+  id: string,
+  workspaceId: string,
+  period?: { startDate?: string; endDate?: string },
+  options?: { preview?: boolean }
+): Promise<Blob> {
+  const res = await requestDocumentPdfResponse(type, id, workspaceId, period, options);
   return await res.blob();
+}
+
+export async function fetchDocumentPdfPreview(
+  type: PdfDocumentKind,
+  id: string,
+  workspaceId: string,
+  period?: { startDate?: string; endDate?: string }
+): Promise<{ blob: Blob; previewOnly: boolean }> {
+  const res = await requestDocumentPdfResponse(type, id, workspaceId, period, { preview: true });
+  const previewOnly = res.headers?.get?.('X-Preview-Only') === '1';
+  return { blob: await res.blob(), previewOnly };
 }
 
 export async function downloadDocumentPdf(
