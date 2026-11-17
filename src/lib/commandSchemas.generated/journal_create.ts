@@ -94,7 +94,7 @@ export const COMMAND_INPUT_SCHEMA = {
               "taxAmountCents": COMMAND_SCHEMA_PARTS.part121,
               "taxCodeId": COMMAND_SCHEMA_PARTS.part56,
               "taxTreatment": COMMAND_SCHEMA_PARTS.part155,
-              "taxBreakdown": COMMAND_SCHEMA_PARTS.part238,
+              "taxBreakdown": COMMAND_SCHEMA_PARTS.part239,
               "quantity": COMMAND_SCHEMA_PARTS.part71,
               "unitPriceCents": COMMAND_SCHEMA_PARTS.part121
             },

@@ -1,5 +1,5 @@
 {
-  "writeRoutes": 64,
+  "writeRoutes": 62,
   "directBrowserWrites": 3,
   "routeSites": {
     "src/server/routes/aiRoutes.ts": 1,
@@ -18,7 +18,7 @@
     "src/server/routes/estimateSignRoutes.ts": 1,
     "src/server/routes/invitePublicRoutes.ts": 1,
     "src/server/routes/labelingRoutes.ts": 2,
-    "src/server/routes/leaseRoutes.ts": 3,
+    "src/server/routes/leaseRoutes.ts": 1,
     "src/server/routes/ledgerMatchRoutes.ts": 1,
     "src/server/routes/logsUploadRoutes.ts": 1,
     "src/server/routes/metricsAuditRoutes.ts": 1,

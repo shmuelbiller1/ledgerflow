@@ -39,7 +39,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "paymentDate": COMMAND_SCHEMA_PARTS.part22,
         "paidAt": COMMAND_SCHEMA_PARTS.part22,
         "posted": COMMAND_SCHEMA_PARTS.part25,
-        "approval": COMMAND_SCHEMA_PARTS.part251,
+        "approval": COMMAND_SCHEMA_PARTS.part252,
         "discountCents": COMMAND_SCHEMA_PARTS.part121,
         "retainageCents": COMMAND_SCHEMA_PARTS.part121,
         "depositCents": COMMAND_SCHEMA_PARTS.part121,
@@ -50,7 +50,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "lineSumCents": COMMAND_SCHEMA_PARTS.part141,
         "taxCodeId": COMMAND_SCHEMA_PARTS.part56,
         "taxTreatment": COMMAND_SCHEMA_PARTS.part155,
-        "taxBreakdown": COMMAND_SCHEMA_PARTS.part238,
+        "taxBreakdown": COMMAND_SCHEMA_PARTS.part239,
         "pricesIncludeTax": COMMAND_SCHEMA_PARTS.part25
       }
     },
