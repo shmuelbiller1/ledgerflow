@@ -59,7 +59,7 @@ test('the default registry is sorted and unique across the registered command do
   const registry = createDefaultCommandRegistry();
   assert.deepEqual(registry.names(), [
     'account.makerecoverycodes', 'account.setnotificationemail', 'account.userecoverycode', 'alerts.update',
-    'apikey.provision', 'apikey.revoke', 'apikey.revokepersonal', 'autorule.create', 'autorule.delete',
+    'apikey.provision', 'apikey.revoke', 'apikey.revokepersonal', 'asset.costaddition', 'autorule.create', 'autorule.delete',
     'autorule.group', 'autorule.learn', 'autorule.recordhits', 'autorule.update', 'bill.create', 'bill.delete',
     'bill.update', 'budget.delete', 'budget.save', 'chartaccount.create', 'chartaccount.update', 'creditnote.create',
     'creditnote.delete', 'creditnote.update',
@@ -71,7 +71,7 @@ test('the default registry is sorted and unique across the registered command do
     'inventory.landedcostundo', 'inventory.return', 'inventory.revalue', 'inventory.stockclosing',
     'inventory.stockpolicy', 'inventory.transfer', 'inventory.undodelivery', 'inventoryitem.delete',
     'inventoryitem.field', 'inventoryitem.save', 'invoice.create', 'invoice.delete',
-    'invoice.update', 'journal.create', 'numbering.update', 'payment.apply', 'payment.creditapply',
+    'invoice.update', 'journal.create', 'loan.payment', 'numbering.update', 'payment.apply', 'payment.creditapply',
     'payment.creditrefund', 'payment.creditsautoapply', 'payment.deposit', 'payment.receive', 'payment.void',
     'period.balancesrebuild', 'period.close', 'period.closesteps', 'period.depreciation', 'period.fxrevaluation',
     'period.fxrevaluationundo', 'period.relock', 'period.reopen', 'period.signoff', 'period.unlock',
@@ -90,7 +90,7 @@ test('the default registry is sorted and unique across the registered command do
     'workspace.scheduledeletion', 'workspace.settings', 'workspace.setupcomplete', 'workspace.undoimport',
     'workspace.updaterole',
   ]);
-  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'apikey', 'autorule', 'bill', 'budget', 'chartaccount', 'creditnote', 'customer', 'document', 'employee', 'entrylink', 'estimate', 'groups', 'inventory', 'inventoryitem', 'invoice', 'journal', 'numbering', 'payment', 'period', 'project', 'reconciliations', 'savedlist', 'stages', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
+  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'apikey', 'asset', 'autorule', 'bill', 'budget', 'chartaccount', 'creditnote', 'customer', 'document', 'employee', 'entrylink', 'estimate', 'groups', 'inventory', 'inventoryitem', 'invoice', 'journal', 'loan', 'numbering', 'payment', 'period', 'project', 'reconciliations', 'savedlist', 'stages', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
   assert.equal(registry.get('numbering.update'), numberingUpdateCommand);

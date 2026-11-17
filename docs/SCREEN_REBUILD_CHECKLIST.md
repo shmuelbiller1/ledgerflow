@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **23** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **21** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,7 +147,7 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **23** → 0. 18 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **21** → 0. 13 files. The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
@@ -267,7 +267,18 @@ hand-convert a table the codemod still refuses.
         `workspaceId` on every row whatever the tab held. `workspace.dimensionnodes` writes up to 450 values in one
         transaction with the workspace from the session, and deliberately does *not* touch the legacy field — that is
         `workspace.dimensionnodesmigrate`'s job, and a save must not look like a migration.
-      - **the rest** (~23 sites in 18 files) — write routes that already have a command in most cases
+      - **a loan payment and a capitalised cost** — **done, 2 sites.** `LoansView` appended a paid instalment to the
+        loan, and `ConstructionActions` replaced an asset's `costAdditions` list together with its
+        `purchasePriceCents`. Both are lists the screens read back, both were read-modify-written in the browser
+        (two tabs keeping only the last one's list), and neither was checked against a workspace.
+        - `loan.payment` records one instalment against the loan the server reads; a repeat answers `CONFLICT`
+          ("instalment 2 is already recorded") instead of appending a second line, and the entry that posted it is
+          kept as the payment's `transactionId`.
+        - `asset.costaddition` appends the one cost and derives the basis from the list it read in the same
+          transaction, so a total can never describe a list it no longer has. A cost of zero is refused.
+        - Pinned by `loan-asset-commands.test.ts` (7 cases), and `construction-in-progress`' Add-cost suite now
+          asserts the command's `input` — the tab sends neither the old list nor the new total.
+      - **the rest** (~21 sites in 13 files) — write routes that already have a command in most cases
         (`SupportView` 5, `useEntityOperations` 3, `useCollaborators` 3, `Ledger` 2, `Vault` 2 …): one commit per
         hook, not per call, because a hook that writes has one shape. Three are deliberately *not* converted yet:
         `useCollaborators`' presence rows (ephemeral, one row per open tab, nothing to audit), `shared.ts`'

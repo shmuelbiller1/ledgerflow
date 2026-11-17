@@ -2,6 +2,7 @@
 import { ACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/account';
 import { ALERTS_COMMAND_MANIFEST } from './commandManifests.generated/alerts';
 import { APIKEY_COMMAND_MANIFEST } from './commandManifests.generated/apikey';
+import { ASSET_COMMAND_MANIFEST } from './commandManifests.generated/asset';
 import { AUTORULE_COMMAND_MANIFEST } from './commandManifests.generated/autorule';
 import { BILL_COMMAND_MANIFEST } from './commandManifests.generated/bill';
 import { BUDGET_COMMAND_MANIFEST } from './commandManifests.generated/budget';
@@ -17,6 +18,7 @@ import { INVENTORY_COMMAND_MANIFEST } from './commandManifests.generated/invento
 import { INVENTORYITEM_COMMAND_MANIFEST } from './commandManifests.generated/inventoryitem';
 import { INVOICE_COMMAND_MANIFEST } from './commandManifests.generated/invoice';
 import { JOURNAL_COMMAND_MANIFEST } from './commandManifests.generated/journal';
+import { LOAN_COMMAND_MANIFEST } from './commandManifests.generated/loan';
 import { NUMBERING_COMMAND_MANIFEST } from './commandManifests.generated/numbering';
 import { PAYMENT_COMMAND_MANIFEST } from './commandManifests.generated/payment';
 import { PERIOD_COMMAND_MANIFEST } from './commandManifests.generated/period';
@@ -37,6 +39,7 @@ export const COMMAND_MANIFEST = [
   ...ACCOUNT_COMMAND_MANIFEST,
   ...ALERTS_COMMAND_MANIFEST,
   ...APIKEY_COMMAND_MANIFEST,
+  ...ASSET_COMMAND_MANIFEST,
   ...AUTORULE_COMMAND_MANIFEST,
   ...BILL_COMMAND_MANIFEST,
   ...BUDGET_COMMAND_MANIFEST,
@@ -52,6 +55,7 @@ export const COMMAND_MANIFEST = [
   ...INVENTORYITEM_COMMAND_MANIFEST,
   ...INVOICE_COMMAND_MANIFEST,
   ...JOURNAL_COMMAND_MANIFEST,
+  ...LOAN_COMMAND_MANIFEST,
   ...NUMBERING_COMMAND_MANIFEST,
   ...PAYMENT_COMMAND_MANIFEST,
   ...PERIOD_COMMAND_MANIFEST,

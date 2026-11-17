@@ -24,6 +24,8 @@ import { projectDeleteCommand, projectRestoreCommand } from './projects';
 import { budgetDeleteCommand, budgetSaveCommand } from './budgets';
 import { chartAccountCreateCommand, chartAccountUpdateCommand } from './chartAccounts';
 import { documentSaveCommand } from './attachments';
+import { assetCostAdditionCommand } from './assets';
+import { loanPaymentCommand } from './loans';
 import { employeeCreateCommand, employeeUpdateCommand } from './employees';
 import { estimateSaveCommand, estimateStatusCommand } from './estimates';
 import { inventoryItemDeleteCommand, inventoryItemFieldCommand, inventoryItemSaveCommand } from './inventoryItems';
@@ -137,6 +139,8 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(inventoryItemFieldCommand);
   registry.register(inventoryItemDeleteCommand);
   registry.register(documentSaveCommand);
+  registry.register(assetCostAdditionCommand);
+  registry.register(loanPaymentCommand);
   registry.register(chartAccountCreateCommand);
   registry.register(chartAccountUpdateCommand);
   registry.register(budgetSaveCommand);

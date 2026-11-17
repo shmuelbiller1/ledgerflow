@@ -185,3 +185,42 @@ export async function saveDimensionNodes<T extends { id: string; dimensionId: st
     await runNamedCommand('workspace.dimensionnodes', { nodes: nodes.slice(i, i + 450).map(node => value(node as unknown as Record<string, unknown>)) }, { workspaceId });
   }
 }
+
+/**
+ * One payment against a loan: the instalment the entry just posted settles.
+ *
+ * The sample company keeps the list on its own copy of the loan, so the caller hands in what it already shows; the
+ * command reads that list on the server instead, which is the half that makes a retry answer "already recorded".
+ */
+export async function recordLoanPayment(
+  workspaceId: string,
+  loan: { id: string; payments?: unknown[] },
+  payment: { installment: number; date: string; transactionId?: string },
+): Promise<void> {
+  if (guestSession()) {
+    await localUpdate('loans', loan.id, {
+      payments: [...(Array.isArray(loan.payments) ? loan.payments : []), payment],
+      updatedAt: new Date().toISOString(),
+    });
+    return;
+  }
+  await runNamedCommand('loan.payment', { loanId: loan.id, ...payment }, { workspaceId });
+}
+
+/** A capitalised cost on an asset: one cost, added to the list the caller shows (the sample company) or read. */
+export async function addAssetCost(
+  workspaceId: string,
+  asset: { id: string; purchasePriceCents?: number; costAdditions?: unknown[] },
+  cost: { date: string; amountCents: number; note?: string },
+): Promise<{ purchasePriceCents: number }> {
+  const purchasePriceCents = Number(asset.purchasePriceCents || 0) + cost.amountCents;
+  if (guestSession()) {
+    await localUpdate('assets', asset.id, {
+      purchasePriceCents,
+      costAdditions: [...(Array.isArray(asset.costAdditions) ? asset.costAdditions : []), { date: cost.date, amountCents: cost.amountCents, ...(cost.note ? { note: cost.note } : {}) }],
+      updatedAt: new Date().toISOString(),
+    });
+    return { purchasePriceCents };
+  }
+  return runNamedCommand<{ purchasePriceCents: number }>('asset.costaddition', { assetId: asset.id, ...cost }, { workspaceId });
+}
