@@ -339,22 +339,9 @@ export class Transaction {
     return { runner: this.runner, state: this.state };
   }
 
-  /**
-   * Checks whether every named `public` table exists using this transaction's checked-out
-   * PostgreSQL client so cold-start readiness checks inside `runTransaction` never block on `db.pool`.
-   */
-  async tablesExist(...tableNames: string[]): Promise<boolean> {
-    if (this.state.failure) throw this.state.failure;
-    if (tableNames.length === 0) return true;
-    try {
-      const checks = tableNames.map((_, i) => `to_regclass($${i + 1}) is not null`).join(' and ');
-      const params = tableNames.map(name => this.firestore.tableSource(name));
-      const res = await this.runner.query<{ ok: boolean }>(`select (${checks}) as ok`, params);
-      return Boolean(res.rows[0]?.ok);
-    } catch (err) {
-      this.state.failure = err;
-      throw err;
-    }
+  /** Checks the scoped relations on this transaction's connection, never checking out a second one. */
+  tablesExist(...tableNames: string[]): Promise<boolean> {
+    return this.firestore.checkTables(tableNames, this.tx());
   }
 
   /** @internal Applies the buffered writes (called by runTransaction before COMMIT). */
@@ -462,8 +449,44 @@ export class Firestore {
     return new Firestore({}, { id: validateSandboxId(id), connect: () => this.connect() });
   }
 
-  /** @internal Raw SQL readers should take document table names from this helper. */
+  /** @internal Raw SQL readers must take document table names from this helper. */
   tableSource(collectionId: string): string { return tableSource(collectionId, this.sandboxId); }
+
+  /** @internal Trusted, parameterized SELECTs only. In sandbox mode these run under its local role in a read-only transaction. */
+  readRows<R extends pg.QueryResultRow>(sql: string, params: unknown[]): Promise<R[]> {
+    return this.readInScope(null, async tx => (await this.run<R>(tx, sql, params, 'Reading rows')).rows);
+  }
+
+  tablesExist(...tableNames: string[]): Promise<boolean> {
+    return this.checkTables(tableNames);
+  }
+
+  /** @internal Shared by the handle and its transactions. */
+  checkTables(tableNames: string[], tx: TxContext = null): Promise<boolean> {
+    return this.readInScope(tx, async scoped => {
+      if (scoped?.state.failure !== undefined) throw scoped.state.failure;
+      if (!tableNames.length) return true;
+      const checks = tableNames.map((_, i) => `to_regclass($${i + 1}) is not null`).join(' and ');
+      const params = tableNames.map(name => this.tableSource(name));
+      const { rows } = await this.run<{ ok: boolean }>(scoped, `select (${checks}) as ok`, params, 'Checking tables');
+      return Boolean(rows[0]?.ok);
+    });
+  }
+
+  /** @internal Checks the binding of an active sandbox. Does not check real workspace membership. */
+  async sandboxBelongsTo(workspaceId: string, personId: string): Promise<boolean> {
+    if (!this.sandboxId) return false;
+    try {
+      const [row] = await this.readRows<{ owned: boolean }>(
+        `select exists(select 1 from sandbox.sandboxes where id = $1 and workspace_id = $2 and person_id = $3) as owned`,
+        [this.sandboxId, workspaceId, personId],
+      );
+      return row?.owned === true;
+    } catch (err) {
+      if (err instanceof FirestoreError && err.code === 5) return false; // missing, closed or expired
+      throw err;
+    }
+  }
 
   /** @internal Do not let a mixed reference change which books a read or write targets. */
   assertSameScope(other: { readonly sandboxId?: string }): void {

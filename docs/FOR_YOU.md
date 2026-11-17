@@ -10,13 +10,13 @@ Last updated: 2026-11-17.
 
 ## Database changes (migrations): status
 
-**17 Nov: every migration in `supabase/migrations/` is applied to the live database (60 of 60).** Older notes
-below that ask you to run a migration in the SQL editor are done; ignore them. You never need to run SQL yourself:
-the AI that merges a PR with a migration applies it right after the merge (rule in `docs/COORDINATION.md`).
-To check at any time, ask any AI "migration status". It compares this folder with the live list and names
-anything missing.
+**17 Nov: the last confirmed live list was 60 of 60, before SBX-1 PR #787.** Older notes below that ask you
+to run one of those migrations in the SQL editor are done; ignore them. You don't need to run SQL yourself.
 
-Next: `20261117210000_assistant_sandbox_overlay.sql` from SBX-1 PR #787 (still a draft) is applied when that PR merges.
+The repository now has 61 migrations. The new file, `20261117210000_assistant_sandbox_overlay.sql`, merged in
+[#787](https://github.com/shmuelbiller1/ledgerflow/pull/787). The owner believes migrations are up to date;
+this pass did not independently verify the live list. See the [SBX-1 readiness note](#17-nov--sbx-1-overlay-migration)
+before enabling sandbox callers. The next report/balance PR adds **no migration** and requires no SQL action.
 
 ## Payroll, mass entry edits, tags and tax returns now run through registered commands (nothing for you to do)
 
@@ -837,12 +837,13 @@ has only `write:transactions` and uses these. **Default:** unchanged (`write:tra
 the same finding is fixed separately. Say "tighten the period scopes" and I will make the change (patch 10's
 `apiAuthenticate.ts` hunk plus the test in `commands.test.ts`).
 
-## 17 Nov — SBX-1 overlay migration (pending AI #1 review)
+## 17 Nov — SBX-1 overlay migration
 
-Apply `supabase/migrations/20261117210000_assistant_sandbox_overlay.sql` **only after its PR is
-merged and its code is deployed**. It creates the private overlay, merged read views, and the
-restricted database role. The migration runs as the database owner; the application's database
-login must be able to `SET ROLE lf_sandbox` (the migration grants it to the migration login). If
-those logins differ, grant the role to the application login, never to browser or service-key
-roles. Keep `sandbox` and `sandbox_read` out of Supabase's exposed schemas. No assistant routes
-are enabled by this migration. Applied locally for tests only; **not applied to the live database**.
+`supabase/migrations/20261117210000_assistant_sandbox_overlay.sql` merged in #787. If it is not already
+recorded in the live migration history, the release lead should apply it there **only after its code is
+deployed**. It creates the private overlay, merged read views, and restricted database role. Before
+exposing any sandbox tools, verify that the application's database login can `SET ROLE lf_sandbox`:
+the migration grants this to the migration login, which may differ. Never grant it to browser or
+service-key roles, and keep `sandbox` and `sandbox_read` out of Supabase's exposed schemas. The test
+database passed with this migration; live state was not independently checked in the report read pass.
+No assistant routes are enabled by the migration or by the report read pass.
