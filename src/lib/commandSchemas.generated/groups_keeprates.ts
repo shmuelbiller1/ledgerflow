@@ -5,11 +5,11 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "groupId": COMMAND_SCHEMA_PARTS.part28,
-    "reportCurrency": COMMAND_SCHEMA_PARTS.part0,
-    "startDate": COMMAND_SCHEMA_PARTS.part0,
-    "endDate": COMMAND_SCHEMA_PARTS.part0,
-    "rates": COMMAND_SCHEMA_PARTS.part0
+    "reportCurrency": COMMAND_SCHEMA_PARTS.part1,
+    "startDate": COMMAND_SCHEMA_PARTS.part1,
+    "endDate": COMMAND_SCHEMA_PARTS.part1,
+    "rates": COMMAND_SCHEMA_PARTS.part1
   },
-  "required": COMMAND_SCHEMA_PARTS.part7,
+  "required": COMMAND_SCHEMA_PARTS.part8,
   "additionalProperties": false
 } as const;

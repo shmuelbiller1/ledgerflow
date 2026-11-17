@@ -6,6 +6,6 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "groupId": COMMAND_SCHEMA_PARTS.part28
   },
-  "required": COMMAND_SCHEMA_PARTS.part7,
+  "required": COMMAND_SCHEMA_PARTS.part8,
   "additionalProperties": false
 } as const;

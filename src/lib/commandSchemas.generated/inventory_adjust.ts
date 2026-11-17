@@ -6,8 +6,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part28,
     "itemId": COMMAND_SCHEMA_PARTS.part28,
-    "quantityChange": COMMAND_SCHEMA_PARTS.part11,
-    "unitCostCents": COMMAND_SCHEMA_PARTS.part81,
+    "quantityChange": COMMAND_SCHEMA_PARTS.part12,
+    "unitCostCents": COMMAND_SCHEMA_PARTS.part76,
     "inventoryAccountId": COMMAND_SCHEMA_PARTS.part28,
     "offsetAccountId": COMMAND_SCHEMA_PARTS.part28,
     "type": {
@@ -19,9 +19,9 @@ export const COMMAND_INPUT_SCHEMA = {
         "adjustment"
       ]
     },
-    "reason": COMMAND_SCHEMA_PARTS.part37,
-    "date": COMMAND_SCHEMA_PARTS.part72,
-    "locationId": COMMAND_SCHEMA_PARTS.part37
+    "reason": COMMAND_SCHEMA_PARTS.part36,
+    "date": COMMAND_SCHEMA_PARTS.part68,
+    "locationId": COMMAND_SCHEMA_PARTS.part36
   },
   "required": [
     "itemId",

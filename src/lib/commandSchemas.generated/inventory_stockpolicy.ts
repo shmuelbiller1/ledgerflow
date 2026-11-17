@@ -5,7 +5,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part28,
-    "refuseNegativeStock": COMMAND_SCHEMA_PARTS.part14,
+    "refuseNegativeStock": COMMAND_SCHEMA_PARTS.part15,
     "goodsLeaveWith": {
       "type": "string",
       "enum": [

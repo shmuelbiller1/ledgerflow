@@ -4,32 +4,32 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part63,
+    "id": COMMAND_SCHEMA_PARTS.part60,
     "data": {
       "type": "object",
       "properties": {
         "vendorId": COMMAND_SCHEMA_PARTS.part28,
-        "vendorName": COMMAND_SCHEMA_PARTS.part12,
-        "number": COMMAND_SCHEMA_PARTS.part12,
-        "billId": COMMAND_SCHEMA_PARTS.part12,
-        "amountCents": COMMAND_SCHEMA_PARTS.part87,
-        "remainingCents": COMMAND_SCHEMA_PARTS.part81,
-        "date": COMMAND_SCHEMA_PARTS.part72,
-        "reason": COMMAND_SCHEMA_PARTS.part42,
-        "status": COMMAND_SCHEMA_PARTS.part98,
-        "currency": COMMAND_SCHEMA_PARTS.part12,
-        "exchangeRate": COMMAND_SCHEMA_PARTS.part49,
-        "tags": COMMAND_SCHEMA_PARTS.part51,
-        "metadata": COMMAND_SCHEMA_PARTS.part96,
-        "taxAmountCents": COMMAND_SCHEMA_PARTS.part81,
-        "taxInclusive": COMMAND_SCHEMA_PARTS.part14,
+        "vendorName": COMMAND_SCHEMA_PARTS.part13,
+        "number": COMMAND_SCHEMA_PARTS.part13,
+        "billId": COMMAND_SCHEMA_PARTS.part13,
+        "amountCents": COMMAND_SCHEMA_PARTS.part82,
+        "remainingCents": COMMAND_SCHEMA_PARTS.part76,
+        "date": COMMAND_SCHEMA_PARTS.part68,
+        "reason": COMMAND_SCHEMA_PARTS.part40,
+        "status": COMMAND_SCHEMA_PARTS.part92,
+        "currency": COMMAND_SCHEMA_PARTS.part13,
+        "exchangeRate": COMMAND_SCHEMA_PARTS.part47,
+        "tags": COMMAND_SCHEMA_PARTS.part49,
+        "metadata": COMMAND_SCHEMA_PARTS.part90,
+        "taxAmountCents": COMMAND_SCHEMA_PARTS.part76,
+        "taxInclusive": COMMAND_SCHEMA_PARTS.part15,
         "taxVersion": COMMAND_SCHEMA_PARTS.part23,
-        "taxTreatment": COMMAND_SCHEMA_PARTS.part103,
-        "returnedGoods": COMMAND_SCHEMA_PARTS.part157
+        "taxTreatment": COMMAND_SCHEMA_PARTS.part98,
+        "returnedGoods": COMMAND_SCHEMA_PARTS.part151
       }
     },
-    "postingDay": COMMAND_SCHEMA_PARTS.part12
+    "postingDay": COMMAND_SCHEMA_PARTS.part13
   },
-  "required": COMMAND_SCHEMA_PARTS.part8,
+  "required": COMMAND_SCHEMA_PARTS.part9,
   "additionalProperties": false
 } as const;

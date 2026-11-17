@@ -7,6 +7,9 @@ import type { ChartAccount } from '../../types';
 import { afterPaymentRecorded } from './afterPayment';
 import { createPaymentInTransaction } from './paymentService';
 
+type PaymentRecord = Parameters<typeof afterPaymentRecorded>[1];
+export { afterPaymentRecorded };
+
 /**
  * Clearing a pending bank statement line, each in one database transaction that also marks the
  * line matched:
@@ -61,9 +64,36 @@ export interface PayFromBankLineInput {
   allocations: { documentId: string; amountCents: number }[];
 }
 
-export async function payFromBankLine(db: Firestore, input: PayFromBankLineInput) {
+/** What paying a line needs read before the transaction opens. */
+export interface PayFromBankLinePrepared {
+  allocations: PayFromBankLineInput['allocations'];
+}
+
+/** Refuse a payment with nothing to allocate before any transaction opens. */
+export function preparePayFromBankLine(input: PayFromBankLineInput): PayFromBankLinePrepared {
   if (input.allocations.length === 0) throw new BankLineError(400, 'Choose at least one invoice or bill');
-  const { record, ...result } = await db.runTransaction(async (t) => {
+  return { allocations: input.allocations };
+}
+
+export async function payFromBankLine(db: Firestore, input: PayFromBankLineInput) {
+  const prepared = preparePayFromBankLine(input);
+  const { record, result } = await db.runTransaction(async (t) => payFromBankLineInTransaction(db, t, input, prepared));
+  // the receipt and the notice go out after the books commit, never inside a retryable callback
+  await afterPaymentRecorded(db, record, input.uid);
+  return result;
+}
+
+/**
+ * The payment itself inside the caller's transaction: the bank line is read again, the invoices or
+ * bills are checked against it, and the payment and the line's match commit together.
+ */
+export async function payFromBankLineInTransaction(
+  db: Firestore,
+  t: FirebaseTx,
+  input: PayFromBankLineInput,
+  _prepared?: PayFromBankLinePrepared,
+): Promise<{ record: PaymentRecord; result: { paymentId: string; transactionId: string; unappliedCents: number } }> {
+  {
     const { ref, line, amountCents } = await readPendingLine(db, t, input.workspaceId, input.bankLineId);
     const bank = await readBankAccount(db, t, input.workspaceId, input.bankAccountId || line.accountId);
     const isDeposit = amountCents > 0;
@@ -92,10 +122,11 @@ export async function payFromBankLine(db: Firestore, input: PayFromBankLineInput
       allocations: input.allocations.map(a => ({ ...a, documentType })),
     });
     t.update(ref, { status: 'matched', matchedTransactionId: payment.transactionId, matchedPaymentId: payment.paymentId, accountId: bank.id, updatedAt: new Date().toISOString() });
-    return { paymentId: payment.paymentId, transactionId: payment.transactionId, unappliedCents: Math.abs(amountCents) - allocated, record: payment.payment };
-  });
-  await afterPaymentRecorded(db, record, input.uid);
-  return result;
+    return {
+      record: payment.payment as PaymentRecord,
+      result: { paymentId: payment.paymentId, transactionId: payment.transactionId, unappliedCents: Math.abs(amountCents) - allocated },
+    };
+  }
 }
 
 export interface SplitBankLineInput {
@@ -106,9 +137,29 @@ export interface SplitBankLineInput {
   splits: { accountId: string; amountCents: number; description?: string }[];
 }
 
-export async function splitBankLine(db: Firestore, input: SplitBankLineInput) {
+export interface SplitBankLinePrepared {
+  splits: SplitBankLineInput['splits'];
+}
+
+/** Refuse a split with no lines before any transaction opens. */
+export function prepareSplitBankLine(input: SplitBankLineInput): SplitBankLinePrepared {
   if (input.splits.length === 0) throw new BankLineError(400, 'Add at least one line');
-  return db.runTransaction(async (t) => {
+  return { splits: input.splits };
+}
+
+export async function splitBankLine(db: Firestore, input: SplitBankLineInput) {
+  const prepared = prepareSplitBankLine(input);
+  return db.runTransaction(async (t) => splitBankLineInTransaction(db, t, input, prepared));
+}
+
+/** One line spread over several accounts, written inside the caller's transaction. */
+export async function splitBankLineInTransaction(
+  db: Firestore,
+  t: FirebaseTx,
+  input: SplitBankLineInput,
+  _prepared?: SplitBankLinePrepared,
+): Promise<{ transactionId: string }> {
+  {
     const { ref, line, amountCents } = await readPendingLine(db, t, input.workspaceId, input.bankLineId);
     const bank = await readBankAccount(db, t, input.workspaceId, input.bankAccountId || line.accountId);
     const total = input.splits.reduce((sum, s) => sum + s.amountCents, 0);
@@ -139,5 +190,5 @@ export async function splitBankLine(db: Firestore, input: SplitBankLineInput) {
     ledgerCreate(t, db.collection('transactions').doc(ledgerTx.id), { ...ledgerTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
     t.update(ref, { status: 'matched', matchedTransactionId: ledgerTx.id, accountId: bank.id, updatedAt: new Date().toISOString() });
     return { transactionId: ledgerTx.id };
-  });
+  }
 }
