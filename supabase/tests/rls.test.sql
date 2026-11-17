@@ -1050,5 +1050,141 @@ begin
   end if;
 end $a8$;
 
+-- SBX-1: the browser (even a workspace owner) cannot see or mutate sandbox storage.
+select pg_temp.expect_denied('sandbox metadata read', 'u-owner', $$select * from sandbox.sandboxes$$);
+select pg_temp.expect_denied('sandbox metadata insert', 'u-owner',
+  $$insert into sandbox.sandboxes (id, workspace_id, person_id) values ('11111111-1111-1111-1111-111111111111', 'ws1', 'u-owner')$$);
+select pg_temp.expect_denied('sandbox steps read', 'u-owner', $$select * from sandbox."sandboxSteps"$$);
+select pg_temp.expect_denied('sandbox steps update', 'u-owner', $$update sandbox."sandboxSteps" set state = 'accepted'$$);
+select pg_temp.expect_denied('sandbox overlay update', 'u-owner', $$update sandbox.customers set deleted = true$$);
+select pg_temp.expect_denied('sandbox merged read', 'u-owner', $$select * from sandbox_read.customers$$);
+
+-- Require a privilege error, not a zero-row insert/update/delete or a validation error.
+create function pg_temp.expect_privilege_denied(label text, stmt text) returns void language plpgsql as $$
+begin
+  execute stmt;
+  raise exception 'FAIL %: expected to be refused, but it succeeded', label;
+exception when insufficient_privilege then
+  return;
+end $$;
+
+do $sandbox_catalog$
+declare
+  t record;
+  role_name text;
+begin
+  if exists (select from pg_roles where rolname = 'lf_sandbox'
+    and (rolcanlogin or rolsuper or rolcreaterole or rolcreatedb or rolreplication or rolbypassrls))
+    or has_database_privilege('lf_sandbox', current_database(), 'CREATE')
+    or has_schema_privilege('lf_sandbox', 'public', 'CREATE') then
+    raise exception 'FAIL sandbox role is not restricted';
+  end if;
+  foreach role_name in array array['anon', 'authenticated', 'service_role'] loop
+    if pg_has_role(role_name, 'lf_sandbox', 'MEMBER')
+       or has_schema_privilege(role_name, 'sandbox', 'USAGE')
+       or has_schema_privilege(role_name, 'sandbox_read', 'USAGE') then
+      raise exception 'FAIL sandbox is reachable by %', role_name;
+    end if;
+  end loop;
+
+  -- Use the actual id + jsonb data columns, not just lf_rules, to catch a forgotten registration.
+  for t in
+    select c.oid, c.relname, exists (select from pg_attribute
+      where attrelid = c.oid and attname = 'data' and atttypid = 'jsonb'::regtype and not attisdropped)
+      and exists (select from pg_attribute
+      where attrelid = c.oid and attname = 'id' and atttypid = 'text'::regtype and not attisdropped) as document
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind in ('r', 'p')
+  loop
+    if t.document and (not exists (select from public.lf_rules where table_name = t.relname)
+      or to_regclass(format('sandbox.%I', t.relname)) is null
+      or to_regclass(format('sandbox_read.%I', t.relname)) is null) then
+      raise exception 'FAIL missing sandbox overlay/read source for public.%', t.relname;
+    end if;
+    if has_table_privilege('lf_sandbox', t.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
+       or has_any_column_privilege('lf_sandbox', t.oid, 'INSERT, UPDATE, REFERENCES') then
+      raise exception 'FAIL sandbox role has write/lock privileges on public.%', t.relname;
+    end if;
+  end loop;
+  if exists (select from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and case when c.relkind = 'S' then has_sequence_privilege('lf_sandbox', c.oid, 'USAGE, UPDATE') else false end) then
+    raise exception 'FAIL sandbox role has privileges to advance a public sequence';
+  end if;
+  if exists (select from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('public', 'private') and p.prosecdef and p.prorettype <> 'trigger'::regtype
+      and has_schema_privilege('lf_sandbox', n.oid, 'USAGE') and has_function_privilege('lf_sandbox', p.oid, 'EXECUTE')) then
+    raise exception 'FAIL sandbox role can call an unreviewed SECURITY DEFINER function';
+  end if;
+
+  -- Never silently promote an unreviewed trigger to the overlay. The named exceptions and their
+  -- replacements or deferred work are recorded in docs/design/SBX-1-overlay.md.
+  for t in
+    select c.relname, tr.tgname, tr.tgfoid, tr.tgtype, p.proname
+    from pg_trigger tr join pg_class c on c.oid = tr.tgrelid join pg_proc p on p.oid = tr.tgfoid
+    where c.relnamespace = 'public'::regnamespace and not tr.tgisinternal
+  loop
+    if exists (select from pg_trigger tr where tr.tgrelid = to_regclass(format('sandbox.%I', t.relname))
+      and tr.tgname = t.tgname and tr.tgtype = t.tgtype and tr.tgfoid = t.tgfoid)
+      is distinct from (t.proname not in ('lf_guard_special', 'lf_guard_invoice_approval',
+        'lf_period_balances_stale', 'lf_repost_mark', 'lf_stock_move_db_seq')) then
+      raise exception 'FAIL review sandbox trigger parity for %.%', t.relname, t.tgname;
+    end if;
+  end loop;
+end $sandbox_catalog$;
+
+do $sandbox_boundary$
+declare
+  draft uuid := '11111111-1111-1111-1111-111111111111';
+  another uuid := '22222222-2222-2222-2222-222222222222';
+  before_seq record;
+  after_seq record;
+begin
+  perform set_config('request.jwt.claims', '', true);
+  insert into sandbox.sandboxes (id, workspace_id, person_id) values (draft, 'ws1', 'u-owner'), (another, 'ws1', 'u-book');
+  insert into public.customers (id, data) values
+    ('sbx-live', '{"workspaceId":"ws1","name":"Live"}'), ('sbx-unrelated', '{"workspaceId":"ws-other","name":"Foreign"}');
+  insert into sandbox.customers (sandbox_id, id, data, created_at) values
+    (another, 'sbx-other-draft', '{"workspaceId":"ws1","name":"Other draft"}', now());
+  select last_value, is_called into before_seq from public."stockMoves_db_seq";
+
+  execute 'set local role lf_sandbox';
+  if exists (select from public.customers where id = 'sbx-live') then
+    raise exception 'FAIL sandbox role read a live record without a scope';
+  end if;
+  perform set_config('lf.sandbox_id', draft::text, true);
+  if not exists (select from sandbox_read.customers where id = 'sbx-live')
+     or exists (select from public.customers where id = 'sbx-unrelated')
+     or exists (select from sandbox.customers where id = 'sbx-other-draft') then
+    raise exception 'FAIL sandbox read scope';
+  end if;
+  perform pg_temp.expect_privilege_denied('sandbox role inserts public',
+    $$insert into public.customers (id, data) values ('sbx-forbidden', '{"workspaceId":"ws1"}')$$);
+  perform pg_temp.expect_privilege_denied('sandbox role updates public',
+    $$update public.customers set data = data where id = 'sbx-live'$$);
+  perform pg_temp.expect_privilege_denied('sandbox role deletes public',
+    $$delete from public.customers where id = 'sbx-live'$$);
+  perform pg_temp.expect_privilege_denied('sandbox role locks public rows',
+    $$select id from public.customers where id = 'sbx-live' for update$$);
+  perform pg_temp.expect_privilege_denied('sandbox role calls a live write RPC',
+    $$select public.lf_update('customers', 'sbx-live', '{"name":"Refused"}')$$);
+  perform pg_temp.expect_privilege_denied('sandbox role advances a live sequence',
+    $$select nextval('public."stockMoves_db_seq"')$$);
+  perform pg_temp.expect_privilege_denied('sandbox role writes to another sandbox',
+    $$insert into sandbox.customers (sandbox_id, id, data, created_at) values
+      ('22222222-2222-2222-2222-222222222222', 'sbx-forbidden', '{"workspaceId":"ws1"}', now())$$);
+  insert into sandbox."stockMoves" (sandbox_id, id, data, created_at) values
+    (draft, 'sbx-move', '{"workspaceId":"ws1","itemId":"sbx-item","date":"2026-03-01","kind":"adjustment"}', now());
+  if not exists (select from sandbox_read."stockMoves" where id = 'sbx-move' and not (data ? 'dbSeq')) then
+    raise exception 'FAIL overlay stock move missing or assigned a real sequence';
+  end if;
+  execute 'reset role';
+  perform set_config('lf.sandbox_id', '', true);
+
+  select last_value, is_called into after_seq from public."stockMoves_db_seq";
+  if before_seq is distinct from after_seq or exists (select from public."stockMoves" where id = 'sbx-move') then
+    raise exception 'FAIL overlay stock write touched real data or consumed a sequence';
+  end if;
+end $sandbox_boundary$;
+
 select 'ALL RLS TESTS PASSED' as result;
 rollback;

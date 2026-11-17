@@ -66,9 +66,9 @@ describe('S-01 shared PostgreSQL limiter', { skip: !url && 'LF_TEST_DATABASE_URL
 
   test('browser roles have no table policies or direct privileges', async () => {
     const policies = await first.pool.query(
-      "select policyname from pg_policies where schemaname = 'public' and tablename = 'rateLimitEntries'",
+      "select policyname, cmd, roles::text[] as roles from pg_policies where schemaname = 'public' and tablename = 'rateLimitEntries'",
     );
-    assert.equal(policies.rows.length, 0);
+    assert.deepEqual(policies.rows, [{ policyname: 'sandbox_read_workspace', cmd: 'SELECT', roles: ['lf_sandbox'] }]);
     const rel = await first.pool.query<{ relrowsecurity: boolean }>(
       `select relrowsecurity from pg_class where oid = 'public."rateLimitEntries"'::regclass`,
     );
