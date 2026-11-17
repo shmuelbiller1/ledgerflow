@@ -56,8 +56,7 @@ function assertOpen(date: string, workspace: DocumentData, uid: string): void {
   try {
     assertPostingOpen(date, workspace as never, uid);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw /period locked/i.test(message) ? new ReconcileError(400, message) : new ReconcileError(400, message);
+    throw new ReconcileError(400, error instanceof Error ? error.message : String(error));
   }
 }
 
