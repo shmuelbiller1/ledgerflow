@@ -2,7 +2,9 @@ import { workspaceActor } from './guestActor';
 import { guestSession, guestRows, writeGuestBatch } from './db/guestDatabase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
-import { doc, getDoc, setDoc, updateDoc } from './db/firestore';
+import { doc, getDoc } from './db/firestore';
+import { localSet, localUpdate } from './db/localStore';
+import { runDimensionCommand } from './dimensionCommandClient';
 import { db } from '../firebase';
 import { DEFAULT_WORKSPACE_DIMENSIONS, resolveDimensionLabel, setLineDimension, suggestNextDimensionNodeId, updateDimensionNodeDescription } from './dimensionUtils';
 import { normalizeSearchText } from './textNormalization';
@@ -125,11 +127,12 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
     }));
   },
   writeNode: async (workspaceId, node) => {
-    if (!db) return;
-    await setDoc(doc(db, 'dimensionNodes', nodeDocId(workspaceId, node.dimensionId, node.id)), {
-      ...node,
-      workspaceId,
-    });
+    // the sample company writes its own row; a live workspace asks the command, so a stale screen cannot misplace it
+    if (guestSession()) {
+      await localSet('dimensionNodes', nodeDocId(workspaceId, node.dimensionId, node.id), { ...node, workspaceId });
+      return;
+    }
+    await runDimensionCommand(workspaceId, 'workspace.dimensionnode', { node });
   },
   createOnlyNode: async (workspaceId, node) => {
     if (!db) return 'created';
@@ -156,8 +159,12 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
     return snap.exists() ? (snap.data() as Record<string, unknown>) : undefined;
   },
   updateNode: async (workspaceId, dimensionId, nodeId, fields) => {
-    if (!db) return;
-    await updateDoc(doc(db, 'dimensionNodes', nodeDocId(workspaceId, dimensionId, nodeId)), fields);
+    if (guestSession()) {
+      await localUpdate('dimensionNodes', nodeDocId(workspaceId, dimensionId, nodeId), fields);
+      return;
+    }
+    const { updatedAt: _sentAt, ...named } = fields; // the server stamps when the label changed, not the screen
+    await runDimensionCommand(workspaceId, 'workspace.dimensionnode', { dimensionId, nodeId, fields: named });
   },
   readWorkspace: async workspaceId => {
     if (!db) return undefined;
@@ -165,8 +172,11 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
     return snap.exists() ? (snap.data() as { dimensions?: DimensionDefinition[] }) : undefined;
   },
   updateWorkspace: async (workspaceId, dimensions) => {
-    if (!db) return;
-    await updateDoc(doc(db, 'workspaces', workspaceId), { dimensions });
+    if (guestSession()) {
+      await localUpdate('workspaces', workspaceId, { dimensions });
+      return;
+    }
+    await runDimensionCommand(workspaceId, 'workspace.dimensionaxes', { dimensions });
   },
 };
 

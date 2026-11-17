@@ -4,12 +4,12 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part27,
-    "amountCents": COMMAND_SCHEMA_PARTS.part80,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part28,
+    "amountCents": COMMAND_SCHEMA_PARTS.part87,
     "paymentDate": COMMAND_SCHEMA_PARTS.part12,
-    "cashAccountId": COMMAND_SCHEMA_PARTS.part27,
+    "cashAccountId": COMMAND_SCHEMA_PARTS.part28,
     "paymentMethod": COMMAND_SCHEMA_PARTS.part12,
-    "paymentTypeId": COMMAND_SCHEMA_PARTS.part55,
+    "paymentTypeId": COMMAND_SCHEMA_PARTS.part59,
     "referenceNumber": COMMAND_SCHEMA_PARTS.part12,
     "memo": COMMAND_SCHEMA_PARTS.part12,
     "customerId": COMMAND_SCHEMA_PARTS.part12,
@@ -22,7 +22,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "documentId": COMMAND_SCHEMA_PARTS.part27,
+          "documentId": COMMAND_SCHEMA_PARTS.part28,
           "documentType": {
             "type": "string",
             "enum": [
@@ -30,7 +30,7 @@ export const COMMAND_INPUT_SCHEMA = {
               "bill"
             ]
           },
-          "amountCents": COMMAND_SCHEMA_PARTS.part80
+          "amountCents": COMMAND_SCHEMA_PARTS.part87
         },
         "required": [
           "documentId",
@@ -55,10 +55,10 @@ export const COMMAND_INPUT_SCHEMA = {
         "books-on-date"
       ]
     },
-    "estimateId": COMMAND_SCHEMA_PARTS.part59,
-    "withheldCents": COMMAND_SCHEMA_PARTS.part74,
-    "withholdingRatePercent": COMMAND_SCHEMA_PARTS.part50,
-    "withholdingCertificate": COMMAND_SCHEMA_PARTS.part30
+    "estimateId": COMMAND_SCHEMA_PARTS.part63,
+    "withheldCents": COMMAND_SCHEMA_PARTS.part81,
+    "withholdingRatePercent": COMMAND_SCHEMA_PARTS.part53,
+    "withholdingCertificate": COMMAND_SCHEMA_PARTS.part31
   },
   "required": [
     "amountCents",

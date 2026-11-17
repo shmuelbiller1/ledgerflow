@@ -221,6 +221,13 @@ describe('Dimension inline concurrency, uncached IDs, and archived-node preserva
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }
+      // the axis list is a command now, not a raw row update: the count below is of command calls, which is the
+      // thing the pending guard has to stop from doubling
+      if (url.includes('/commands/workspace.dimensionaxes')) {
+        updateBodies.push(init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {});
+        await updateGate;
+        return new Response(JSON.stringify({ ok: true, dimensions: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
       if (url.includes('lf_update')) {
         updateBodies.push(init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {});
         await updateGate;

@@ -13,9 +13,11 @@ import {
   workspaceSetupCompleteCommand,
 } from './workspaceSettings';
 import { customerCreateCommand, customerUpdateCommand, warrantyUpdateCommand } from './customers';
+import { customerBalanceCommand, vendorBalanceCommand } from './contactBalances';
 import { vendorCreateCommand, vendorUpdateCommand } from './vendors';
 import { autoRuleCreateCommand, autoRuleUpdateCommand, autoRuleDeleteCommand, autoRuleGroupCommand, autoRuleRecordHitsCommand } from './autoRules';
 import { autoRuleLearnCommand } from './rulePatterns';
+import { dimensionAxesCommand, dimensionNodeCommand } from './dimensions';
 import { journalCreateCommand } from './ledger';
 import { paymentReceiveCommand } from './payments';
 import { numberingUpdateCommand } from './numbering';
@@ -134,6 +136,10 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(autoRuleDeleteCommand);
   registry.register(autoRuleGroupCommand);
   registry.register(autoRuleLearnCommand);
+  registry.register(customerBalanceCommand);
+  registry.register(vendorBalanceCommand);
+  registry.register(dimensionNodeCommand);
+  registry.register(dimensionAxesCommand);
   registry.register(autoRuleRecordHitsCommand);
   registry.register(invoiceDeleteCommand);
   registry.register(billDeleteCommand);
