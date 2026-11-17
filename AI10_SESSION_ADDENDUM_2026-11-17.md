@@ -93,7 +93,7 @@ Real PostgreSQL in CI is the authoritative gate. PGlite is Postgres-compatible W
 8. **H-1 RTL — main app dir hardcoded.** `src/App.tsx:590` — `dir="ltr"` hardcoded; `applyUiLanguage` sets `document.documentElement.dir` but app div overrides. **FIXED** → `dir={language === 'he' ? 'rtl' : 'ltr'}`. tsc passes.
 
 **H-queue status:**
-- H-1 RTL — fixed (App.tsx dir attribute)
+- H-1 RTL — partly done (App.tsx dir attribute + Sidebar logical classes); the ten per-screen RTL browser checks are still open
 - H-4 screen-reader — ARIA coverage good (sr-only, aria-label, role=alert/status across components); no gaps found
 - H-6 empty/error — EmptyState widely used across 15+ screens; no gaps found
 - H-7 printing — print roots on all 9 surfaces (verified)

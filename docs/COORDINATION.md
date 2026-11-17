@@ -774,7 +774,7 @@ Same rules as every helper AI: one branch/PR per task from the latest `main`, te
 screen, no change to how money is calculated or posted (AI #1's). Lane: the screens a user reads every day — that
 they read correctly in Hebrew, on a phone and with a keyboard, and stay fast with a year of data.
 
-- [ ] **H-1 Right-to-left check of the ten busiest screens** (Overview, Invoices, Bills, Banking, Reconcile, P&L, Balance sheet, Trial balance, VAT report, Settings) in Hebrew: numbers, dates and minus signs read the right way, columns line up, no text cut off. One browser test per screen with a screenshot baseline.
+- [~] **H-1 Right-to-left check of the ten busiest screens** (Overview, Invoices, Bills, Banking, Reconcile, P&L, Balance sheet, Trial balance, VAT report, Settings) in Hebrew: numbers, dates and minus signs read the right way, columns line up, no text cut off. One browser test per screen with a screenshot baseline. *(partly — 17 Nov, #765: the app shell follows Hebrew right-to-left and the sidebar uses logical classes; the ten per-screen RTL browser checks with screenshots are still to do)*
 - [ ] ~~moved to AI #3 as A-225 (25 Oct)~~ **H-2 Phone layout of the same ten screens** (390 px wide): no sideways scrolling of the page, tables scroll inside their box, buttons at least 44 px. Browser test per screen.
 - [ ] ~~moved to AI #3 as A-226 (25 Oct)~~ **H-3 Keyboard-only journey**: create a customer, an invoice, record its payment and open the P&L without a mouse; every control reachable and its focus visible. One browser test.
 - [ ] **H-4 Screen-reader names**: every icon-only button on the ten screens has a label; tables have captions; the axe scan in `view-registry-coverage.spec.ts` passes with no "serious" finding on them.
@@ -1156,7 +1156,7 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
 
   **Test suite (PGlite on 127.0.0.1:5433):** 6,270 tests, 5,938 pass / 288 fail / 76 cancelled / 1 skipped. Failures are predominantly PGlite "Connection terminated unexpectedly" infra issues (pg-pool socket errors), not code bugs. Confirmed: fx-gold, bill-stock, document-pdf-route failures all trace to pg-pool connection termination. Real Postgres in CI is the authoritative gate.
 
-  **H-queue status:** H-7 printing done (print roots on all 9 surfaces), H-8 locale dates done (useReportDates + ratchet guard), H-1 RTL fixed above. H-4 screen-reader, H-6 empty/error: ARIA coverage already good (sr-only, aria-label, role=alert/status present across components); no gaps found in spot check.
+  **H-queue status:** H-7 printing done (print roots on all 9 surfaces), H-8 locale dates done (useReportDates + ratchet guard), H-1 RTL partly done: the app shell and sidebar now follow Hebrew (App.tsx dir, Sidebar logical classes); the ten per-screen RTL browser checks are still to do. H-4 screen-reader, H-6 empty/error: ARIA coverage already good (sr-only, aria-label, role=alert/status present across components); no gaps found in spot check.
 
   **PR #759:** CI fully green (19/19). Gitar findings reported (undo durability + deletedProjects purge list) — both on PR #759's branch, not AI #10's branch.
 
