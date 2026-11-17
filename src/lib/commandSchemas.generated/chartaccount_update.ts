@@ -9,12 +9,12 @@ export const COMMAND_INPUT_SCHEMA = {
     "code": COMMAND_SCHEMA_PARTS.part44,
     "description": COMMAND_SCHEMA_PARTS.part60,
     "category": COMMAND_SCHEMA_PARTS.part50,
-    "parentId": COMMAND_SCHEMA_PARTS.part118,
+    "parentId": COMMAND_SCHEMA_PARTS.part119,
     "archived": COMMAND_SCHEMA_PARTS.part22,
     "workpapers": {
       "type": "object",
       "propertyNames": COMMAND_SCHEMA_PARTS.part80,
-      "additionalProperties": COMMAND_SCHEMA_PARTS.part137
+      "additionalProperties": COMMAND_SCHEMA_PARTS.part138
     }
   },
   "required": COMMAND_SCHEMA_PARTS.part2,

@@ -70,8 +70,14 @@ function prepare(role: 'owner' | 'accountant' | 'bookkeeper' | 'viewer' = 'owner
   calls = stubFetchWithBodies(200, { status: 'success', data: { id: 'test-record', changed: true } });
 }
 
+/** Bin annotations and shipment metadata are fields of an ordinary record: they name `record.save` now. */
 function rpcWrites() {
-  return calls.filter(call => call.url.includes('/rpc/lf_update'));
+  const legacy = calls.filter(call => call.url.includes('/rpc/lf_update'));
+  const commands = calls.filter(call => call.url.includes('/api/v1/commands/record.save')).map(call => {
+    const { input } = call.body as { input: { collection: string; id: string; data?: Record<string, unknown>; unset?: string[] } };
+    return { ...call, body: { p_table: input.collection, p_id: input.id, p_set: input.data || {}, p_unset: input.unset || [] } };
+  });
+  return [...legacy, ...commands];
 }
 
 function commandWrites(name: string) {
@@ -280,7 +286,7 @@ describe('Warehouse operations views (A-64–A-67)', () => {
     const fetchMock = globalThis.fetch;
     let started = 0;
     globalThis.fetch = async (input, init) => {
-      if (String(input).includes('/rpc/lf_update')) { started += 1; await pending; }
+      if (String(input).includes('/rpc/lf_update') || String(input).includes('/commands/record.save')) { started += 1; await pending; }
       return fetchMock(input, init);
     };
     try {

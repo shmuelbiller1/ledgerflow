@@ -15,8 +15,8 @@ export const CUSTOMER_COMMAND_MANIFEST = [
       "example": {
         "id": "customer_123"
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part222,
-      "next": COMMAND_SCHEMA_PARTS.part100
+      "refusals": COMMAND_SCHEMA_PARTS.part225,
+      "next": COMMAND_SCHEMA_PARTS.part101
     },
     "runPath": "/api/v1/commands/customer.balance",
     "previewPath": "/api/v1/commands/customer.balance/preview",

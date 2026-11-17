@@ -85,8 +85,11 @@ describe('Slice 3: C-1, C-2, M-5, F-09c ledger door & RLS integrity guards', () 
     assert.match(ops, /path === 'customers'/);
     assert.match(ops, /path === 'vendors'/);
     assert.match(ops, /sampleSession \|\| currentWorkspaceId === SAMPLE_WORKSPACE_ID/);
-    assert.match(ops, /await setDoc\(doc\(db, path, docId\), finalData\)/, 'guest/sample creation must keep its local database path');
-    assert.match(ops, /await updateDoc\(doc\(db, path, id\), localData\)/, 'guest/sample edits must keep their local database path');
+    // the generic door is a command now; the sample company's own copy is the local store
+    assert.match(ops, /await savePlainRecord\(currentWorkspaceId, path, docId, finalData, \{ create: true \}\)/, 'an ordinary record is created by naming record.save');
+    assert.match(ops, /await savePlainRecord\(currentWorkspaceId, path, id, localData\)/, 'an ordinary record is saved by naming record.save');
+    assert.match(ops, /await deletePlainRecord\(currentWorkspaceId, path, id\)/, 'an ordinary record is deleted by naming record.delete');
+    assert.ok(!/setDoc\(doc\(db, path, docId\)/.test(ops), 'no browser write may remain on the generic path');
   });
 
   test('AF-14: warranty dates use an authorized server command and reject browser metadata bypasses', () => {

@@ -8,9 +8,9 @@ export const COMMAND_INPUT_SCHEMA = {
     "name": COMMAND_SCHEMA_PARTS.part89,
     "sku": COMMAND_SCHEMA_PARTS.part50,
     "description": COMMAND_SCHEMA_PARTS.part60,
-    "unitPriceCents": COMMAND_SCHEMA_PARTS.part114,
-    "unitCostCents": COMMAND_SCHEMA_PARTS.part114,
-    "standardCostCents": COMMAND_SCHEMA_PARTS.part114,
+    "unitPriceCents": COMMAND_SCHEMA_PARTS.part115,
+    "unitCostCents": COMMAND_SCHEMA_PARTS.part115,
+    "standardCostCents": COMMAND_SCHEMA_PARTS.part115,
     "reorderPoint": {
       "type": "integer",
       "minimum": 0,
@@ -80,7 +80,7 @@ export const COMMAND_INPUT_SCHEMA = {
     },
     "documentDefaults": {
       "anyOf": [
-        COMMAND_SCHEMA_PARTS.part137,
+        COMMAND_SCHEMA_PARTS.part138,
         COMMAND_SCHEMA_PARTS.part16
       ]
     },

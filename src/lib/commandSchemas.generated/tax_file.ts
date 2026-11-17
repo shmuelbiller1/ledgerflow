@@ -5,8 +5,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part89,
-    "startDate": COMMAND_SCHEMA_PARTS.part104,
-    "endDate": COMMAND_SCHEMA_PARTS.part104,
+    "startDate": COMMAND_SCHEMA_PARTS.part105,
+    "endDate": COMMAND_SCHEMA_PARTS.part105,
     "reference": COMMAND_SCHEMA_PARTS.part49,
     "registration": {
       "type": "string",

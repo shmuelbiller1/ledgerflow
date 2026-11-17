@@ -23,7 +23,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "additionalProperties": COMMAND_SCHEMA_PARTS.part61
       }
     },
-    "openingDate": COMMAND_SCHEMA_PARTS.part104,
+    "openingDate": COMMAND_SCHEMA_PARTS.part105,
     "dryRun": COMMAND_SCHEMA_PARTS.part22
   },
   "required": [

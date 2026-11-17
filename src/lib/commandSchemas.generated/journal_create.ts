@@ -10,19 +10,19 @@ export const COMMAND_INPUT_SCHEMA = {
         "id": COMMAND_SCHEMA_PARTS.part19,
         "uid": COMMAND_SCHEMA_PARTS.part19,
         "workspaceId": COMMAND_SCHEMA_PARTS.part19,
-        "date": COMMAND_SCHEMA_PARTS.part104,
+        "date": COMMAND_SCHEMA_PARTS.part105,
         "description": {
           "default": "",
           "type": "string",
           "maxLength": 2000
         },
-        "totalAmountCents": COMMAND_SCHEMA_PARTS.part114,
+        "totalAmountCents": COMMAND_SCHEMA_PARTS.part115,
         "currency": {
           "type": "string",
           "pattern": "^[A-Z]{3}$"
         },
         "originalCurrency": COMMAND_SCHEMA_PARTS.part19,
-        "exchangeRate": COMMAND_SCHEMA_PARTS.part95,
+        "exchangeRate": COMMAND_SCHEMA_PARTS.part96,
         "payee": COMMAND_SCHEMA_PARTS.part19,
         "status": {
           "default": "pending",
@@ -64,14 +64,14 @@ export const COMMAND_INPUT_SCHEMA = {
             "properties": {
               "accountId": COMMAND_SCHEMA_PARTS.part40,
               "accountName": COMMAND_SCHEMA_PARTS.part19,
-              "amountCents": COMMAND_SCHEMA_PARTS.part134,
-              "baseAmountCents": COMMAND_SCHEMA_PARTS.part134,
-              "exchangeRate": COMMAND_SCHEMA_PARTS.part95,
+              "amountCents": COMMAND_SCHEMA_PARTS.part135,
+              "baseAmountCents": COMMAND_SCHEMA_PARTS.part135,
+              "exchangeRate": COMMAND_SCHEMA_PARTS.part96,
               "description": COMMAND_SCHEMA_PARTS.part55,
               "class": COMMAND_SCHEMA_PARTS.part19,
               "location": COMMAND_SCHEMA_PARTS.part19,
               "project": COMMAND_SCHEMA_PARTS.part19,
-              "dimensions": COMMAND_SCHEMA_PARTS.part137,
+              "dimensions": COMMAND_SCHEMA_PARTS.part138,
               "tags": COMMAND_SCHEMA_PARTS.part68,
               "splitAllocations": {
                 "type": "array",
@@ -82,7 +82,7 @@ export const COMMAND_INPUT_SCHEMA = {
                     "accountId": COMMAND_SCHEMA_PARTS.part19,
                     "projectId": COMMAND_SCHEMA_PARTS.part19,
                     "weight": COMMAND_SCHEMA_PARTS.part67,
-                    "amountCents": COMMAND_SCHEMA_PARTS.part114,
+                    "amountCents": COMMAND_SCHEMA_PARTS.part115,
                     "notes": COMMAND_SCHEMA_PARTS.part55
                   },
                   "required": [
@@ -91,12 +91,12 @@ export const COMMAND_INPUT_SCHEMA = {
                 }
               },
               "taxRate": COMMAND_SCHEMA_PARTS.part72,
-              "taxAmountCents": COMMAND_SCHEMA_PARTS.part114,
+              "taxAmountCents": COMMAND_SCHEMA_PARTS.part115,
               "taxCodeId": COMMAND_SCHEMA_PARTS.part51,
-              "taxTreatment": COMMAND_SCHEMA_PARTS.part148,
-              "taxBreakdown": COMMAND_SCHEMA_PARTS.part221,
+              "taxTreatment": COMMAND_SCHEMA_PARTS.part149,
+              "taxBreakdown": COMMAND_SCHEMA_PARTS.part224,
               "quantity": COMMAND_SCHEMA_PARTS.part66,
-              "unitPriceCents": COMMAND_SCHEMA_PARTS.part114
+              "unitPriceCents": COMMAND_SCHEMA_PARTS.part115
             },
             "required": COMMAND_SCHEMA_PARTS.part34
           }
@@ -117,7 +117,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "parentEventId": COMMAND_SCHEMA_PARTS.part19,
         "eventId": COMMAND_SCHEMA_PARTS.part19,
         "reversalEventId": COMMAND_SCHEMA_PARTS.part19,
-        "metadata": COMMAND_SCHEMA_PARTS.part137
+        "metadata": COMMAND_SCHEMA_PARTS.part138
       },
       "required": [
         "workspaceId",

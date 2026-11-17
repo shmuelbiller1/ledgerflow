@@ -4,14 +4,14 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "node": COMMAND_SCHEMA_PARTS.part234,
+    "node": COMMAND_SCHEMA_PARTS.part237,
     "dimensionId": COMMAND_SCHEMA_PARTS.part87,
     "nodeId": COMMAND_SCHEMA_PARTS.part87,
     "fields": {
       "type": "object",
       "properties": {
         "description": COMMAND_SCHEMA_PARTS.part52,
-        "aliases": COMMAND_SCHEMA_PARTS.part130,
+        "aliases": COMMAND_SCHEMA_PARTS.part131,
         "status": COMMAND_SCHEMA_PARTS.part81,
         "parentId": {
           "anyOf": [

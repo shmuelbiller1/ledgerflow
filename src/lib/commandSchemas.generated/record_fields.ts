@@ -18,13 +18,9 @@ export const COMMAND_INPUT_SCHEMA = {
         "vendors"
       ]
     },
-    "id": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 400
-    },
-    "fields": COMMAND_SCHEMA_PARTS.part219,
-    "expected": COMMAND_SCHEMA_PARTS.part219
+    "id": COMMAND_SCHEMA_PARTS.part90,
+    "fields": COMMAND_SCHEMA_PARTS.part222,
+    "expected": COMMAND_SCHEMA_PARTS.part222
   },
   "required": [
     "collection",

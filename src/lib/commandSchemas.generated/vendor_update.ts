@@ -24,15 +24,15 @@ export const COMMAND_INPUT_SCHEMA = {
         "is1099": COMMAND_SCHEMA_PARTS.part22,
         "isForeign": COMMAND_SCHEMA_PARTS.part22,
         "rating": COMMAND_SCHEMA_PARTS.part18,
-        "tags": COMMAND_SCHEMA_PARTS.part131,
-        "metadata": COMMAND_SCHEMA_PARTS.part137,
+        "tags": COMMAND_SCHEMA_PARTS.part132,
+        "metadata": COMMAND_SCHEMA_PARTS.part138,
         "address": COMMAND_SCHEMA_PARTS.part60,
         "currency": COMMAND_SCHEMA_PARTS.part42,
         "deliveryMethod": COMMAND_SCHEMA_PARTS.part44,
         "contacts": COMMAND_SCHEMA_PARTS.part69,
         "noteLog": COMMAND_SCHEMA_PARTS.part69,
         "notes": COMMAND_SCHEMA_PARTS.part63,
-        "bankDetails": COMMAND_SCHEMA_PARTS.part213
+        "bankDetails": COMMAND_SCHEMA_PARTS.part216
       },
       "additionalProperties": false
     }

@@ -10,7 +10,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "minimum": 1,
       "maximum": 600
     },
-    "date": COMMAND_SCHEMA_PARTS.part104,
+    "date": COMMAND_SCHEMA_PARTS.part105,
     "transactionId": COMMAND_SCHEMA_PARTS.part51
   },
   "required": [

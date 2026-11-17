@@ -15,6 +15,7 @@
  * invented a field would still be refused by the server.
  */
 import { runNamedCommand } from './commandByName';
+import { FieldValue } from './db/firestore';
 import { localAdd, localDelete, localGet, localSet, localUpdate, localUpdateMany } from './db/localStore';
 import { guestSession } from './db/guestDatabase';
 import { sameRecordValue } from './editableRecords';
@@ -190,6 +191,56 @@ export async function addChartAccount(workspaceId: string, fields: Record<string
     return { id: created };
   }
   return runNamedCommand<{ id: string }>('chartaccount.create', fields, { workspaceId });
+}
+
+/**
+ * The ordinary records: a purchase order, a recurring rule, a tax rate, a project, an asset, an estimate, an inventory
+ * item, a loan note. `useEntityOperations` used to finish these with a browser write on whatever `path` the caller
+ * passed; they name a command now, and the allow-list (and every refusal) lives on the server.
+ *
+ * A create sends the row whole and gets the id back — the server stamps the identity and the clock. A save sends a
+ * patch over the row the screen read; a collection that is not an ordinary record is refused by the command, so a
+ * screen that passes a ledger collection fails loudly instead of writing it from the tab.
+ */
+export async function savePlainRecord(
+  workspaceId: string,
+  collection: string,
+  id: string,
+  data: Record<string, unknown>,
+  options: { create?: boolean } = {},
+): Promise<string> {
+  if (guestSession()) {
+    // the sample company has no server: its own copy is the whole database, and its own write handles sentinels
+    if (options.create) await localSet(collection, id, { ...data, id, workspaceId });
+    else await localUpdate(collection, id, data);
+    return id;
+  }
+  // a delete sentinel (clearing a bin, for one) becomes a named removal, because a command says what it removes
+  const fields: Record<string, unknown> = {};
+  const unset: string[] = [];
+  for (const [field, value] of Object.entries(data)) {
+    if (value instanceof FieldValue) {
+      if (value.kind !== 'delete') {
+        throw new Error(`${field} needs an operation this command does not take; use the command that owns it.`);
+      }
+      unset.push(field);
+      continue;
+    }
+    fields[field] = value;
+  }
+  const saved = await runNamedCommand<{ id: string }>('record.save', {
+    collection, id, data: fields, ...(unset.length ? { unset } : {}), ...(options.create ? { create: true } : {}),
+  }, { workspaceId });
+  return saved?.id || id;
+}
+
+/** Delete one ordinary record; a guest deletes from its own copy. */
+export async function deletePlainRecord(workspaceId: string, collection: string, id: string): Promise<void> {
+  if (guestSession()) {
+    await localDelete(collection, id);
+    return;
+  }
+  await runNamedCommand('record.delete', { collection, id }, { workspaceId });
 }
 
 /** The server-owned half of a document row: a tab that built the whole record does not send these back. */

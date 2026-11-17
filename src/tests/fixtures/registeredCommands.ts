@@ -28,7 +28,7 @@ export const REGISTERED_COMMAND_NAMES: readonly string[] = [
   'period.reopen', 'period.signoff', 'period.unlock', 'period.yearclose', 'presence.beat', 'presence.leave',
   'project.delete', 'project.restore', 'query.ask', 'query.close', 'query.reply', 'reconciliations.bankline',
   'reconciliations.banklinepay', 'reconciliations.banklinesplit', 'reconciliations.bankrules', 'reconciliations.clear',
-  'reconciliations.complete', 'reconciliations.reconcile', 'record.fields', 'rma.move', 'rma.request', 'savedlist.allocationrules',
+  'reconciliations.complete', 'reconciliations.reconcile', 'record.delete', 'record.fields', 'record.save', 'rma.move', 'rma.request', 'savedlist.allocationrules',
   'savedlist.approvaldelegate', 'savedlist.customergroup', 'savedlist.paymenttype', 'savedlist.pricelists',
   'savedlist.roledashboard', 'savedlist.salesreps', 'savedlist.taxprofiles', 'stages.define', 'stages.move',
   'support.message', 'support.status', 'support.ticket', 'tag.change', 'tasks.create', 'tasks.remove', 'tasks.status',

@@ -1,6 +1,6 @@
 {
   "writeRoutes": 78,
-  "directBrowserWrites": 3,
+  "directBrowserWrites": 0,
   "routeSites": {
     "src/server/routes/accountMergeRoutes.ts": 2,
     "src/server/routes/aiRoutes.ts": 1,
@@ -45,9 +45,7 @@
     "src/server/routes/twoStepPolicyRoutes.ts": 2,
     "src/server/routes/workspaceApiRoutes.ts": 4
   },
-  "browserSites": {
-    "src/hooks/useEntityOperations.ts": 3
-  },
+  "browserSites": {},
   "localStoreWrites": 6,
   "localStoreSites": {
     "src/lib/db/firestore.ts": 1,

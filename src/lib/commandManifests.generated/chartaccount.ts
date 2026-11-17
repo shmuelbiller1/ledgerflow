@@ -57,7 +57,7 @@ export const CHARTACCOUNT_COMMAND_MANIFEST = [
         "id": "acc-1010"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part190,
+        COMMAND_SCHEMA_PARTS.part193,
         {
           "code": "CONFLICT",
           "when": "The account is a system account, or a transaction, entry, budget, line or rule names it.",
@@ -103,7 +103,7 @@ export const CHARTACCOUNT_COMMAND_MANIFEST = [
           "when": "The payload names a field the account does not keep (a balance or `isSystem` is one), or a workpaper month is not YYYY-MM.",
           "next": "Send only the account's own fields."
         },
-        COMMAND_SCHEMA_PARTS.part190,
+        COMMAND_SCHEMA_PARTS.part193,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner or an accountant.",

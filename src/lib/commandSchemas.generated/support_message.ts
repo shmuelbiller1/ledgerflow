@@ -5,7 +5,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "ticketId": COMMAND_SCHEMA_PARTS.part89,
-    "body": COMMAND_SCHEMA_PARTS.part92,
+    "body": COMMAND_SCHEMA_PARTS.part93,
     "authorRole": {
       "type": "string",
       "enum": [

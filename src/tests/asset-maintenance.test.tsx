@@ -92,9 +92,12 @@ describe('On the register', () => {
     fireEvent.change(screen.getByLabelText('Next service'), { target: { value: '2027-03-15' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Note it' })); });
     // saved through the database's update call for the assets table
-    const isAsset = (w: { url: string; body: unknown }) => w.url.includes('lf_update') && (w.body as { p_table?: string }).p_table === 'assets';
+    const isAsset = (w: { url: string; body: unknown }) => w.url.includes('/commands/record.save')
+      ? (w.body as { input?: { collection?: string } }).input?.collection === 'assets'
+      : w.url.includes('lf_update') && (w.body as { p_table?: string }).p_table === 'assets';
     await waitFor(() => assert.ok(writes.some(isAsset)));
-    const sent = JSON.stringify(writes.find(isAsset)!.body);
+    const assetWrite = writes.find(isAsset)!;
+    const sent = JSON.stringify((assetWrite.body as { input?: unknown }).input ?? assetWrite.body);
     assert.match(sent, /"description":"Oil change","costCents":12000/);
     assert.match(sent, /"nextServiceDue":"2027-03-15"/);
     assert.ok(sent.indexOf('Oil change') < sent.indexOf('New tyres'), 'newest first');
