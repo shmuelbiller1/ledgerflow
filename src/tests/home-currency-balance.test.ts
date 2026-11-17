@@ -103,3 +103,30 @@ test('partially supplied home-currency lines are rejected instead of mixing raw 
   } as Transaction;
   assert.throws(() => settleHomeCurrency(tx), /present on every line or none/);
 });
+
+test('a yen journal into dollar books converts minor units by the digits too (¥1,000,000 at 0.0067 = $6,700.00)', () => {
+  const t = { currency: 'JPY', exchangeRate: 0.0067, lines: [
+    { accountId: 'bank', amountCents: 1_000_000 },
+    { accountId: 'sales', amountCents: -1_000_000 },
+  ] } as unknown as Parameters<typeof settleHomeCurrency>[0];
+  settleHomeCurrency(t, 'USD');
+  assert.deepEqual(t.lines!.map(l => l.baseAmountCents), [670_000, -670_000], 'written even though the lines balance');
+});
+
+test('a dinar journal (3 decimals) into dollar books: KWD 1,000.000 at 3.25 = $3,250.00', () => {
+  const t = { currency: 'KWD', exchangeRate: 3.25, lines: [
+    { accountId: 'bank', amountCents: 1_000_000 },
+    { accountId: 'sales', amountCents: -1_000_000 },
+  ] } as unknown as Parameters<typeof settleHomeCurrency>[0];
+  settleHomeCurrency(t, 'USD');
+  assert.deepEqual(t.lines!.map(l => l.baseAmountCents), [325_000, -325_000]);
+});
+
+test('same decimals (EUR into USD) behave exactly as before: balanced lines get no home amounts', () => {
+  const t = { currency: 'EUR', exchangeRate: 1.1, lines: [
+    { accountId: 'bank', amountCents: 10_000 },
+    { accountId: 'sales', amountCents: -10_000 },
+  ] } as unknown as Parameters<typeof settleHomeCurrency>[0];
+  settleHomeCurrency(t, 'USD');
+  assert.deepEqual(t.lines!.map(l => l.baseAmountCents), [undefined, undefined]);
+});

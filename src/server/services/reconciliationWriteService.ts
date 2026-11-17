@@ -277,7 +277,7 @@ export async function reconcileInTransaction(
       delete safeData.uid;
 
       const merged = { ...existingTxData, ...safeData } as Transaction;
-      settleHomeCurrency(merged);
+      settleHomeCurrency(merged, String(wsNow.currency || "USD"));
 
       const validatedTx = await validateForBatch(merged, {
         workspaceId,
@@ -300,7 +300,7 @@ export async function reconcileInTransaction(
         uid: actor.uid,
         createdAt: (op.data?.createdAt as string) || new Date().toISOString(),
       } as unknown as Transaction;
-      settleHomeCurrency(payload);
+      settleHomeCurrency(payload, String(wsNow.currency || "USD"));
       const validatedTx = await validateForBatch(payload, {
         workspaceId,
         user: { uid: actor.uid, admin: actor.admin },

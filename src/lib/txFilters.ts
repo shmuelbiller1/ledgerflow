@@ -1,4 +1,5 @@
 import type { AccountingPeriod, Transaction, TransactionLine, ChartAccount } from '../types';
+import { currencyDigits, minorUnitRate } from './currencyMinorUnits';
 
 /**
  * Checks if a transaction is a simulation/ghost transaction created for scenario forecasting
@@ -101,7 +102,7 @@ export function lineAmount(l: TransactionLine, t?: Transaction): number {
  * line's home amount is written down (`baseAmountCents`), so reports read exactly what balanced.
  * Lines at different rates must balance by themselves (an exchange gain/loss line), else refused (INT-5).
  */
-export function settleHomeCurrency(t: Pick<Transaction, 'lines' | 'exchangeRate'>): void {
+export function settleHomeCurrency(t: Pick<Transaction, 'lines' | 'exchangeRate'> & { currency?: string }, homeCurrency?: string): void {
   const lines = t.lines || [];
   if (lines.length === 0) return;
   // Some producers (including manual FX journals) already store home-currency line amounts
@@ -122,13 +123,22 @@ export function settleHomeCurrency(t: Pick<Transaction, 'lines' | 'exchangeRate'
   }
   const rateOf = (l: TransactionLine) => l.exchangeRate ?? t.exchangeRate ?? 1;
   if (lines.every(l => rateOf(l) === 1)) return;
-  const base = lines.map(l => Math.round((l.amountCents || 0) * rateOf(l)));
+  // A rate is quoted per major unit (1 JPY = 0.0067 USD) and amounts are minor units, so an entry in a
+  // currency with other decimals than the books' converts by rate × 10^(home digits − entry digits):
+  // ¥1,000,000 at 0.0067 is 670,000 cents, not 6,700. Rate-1 lines are already in the home currency.
+  const shifted = Boolean(t.currency && homeCurrency) && currencyDigits(t.currency) !== currencyDigits(homeCurrency);
+  const factorOf = (l: TransactionLine) => (rateOf(l) !== 1 && shifted ? minorUnitRate(rateOf(l), t.currency, homeCurrency) : rateOf(l));
+  const base = lines.map(l => Math.round((l.amountCents || 0) * factorOf(l)));
   const residual = base.reduce((a, b) => a + b, 0);
-  if (residual === 0) return;
+  if (residual === 0) {
+    // reports convert a line without a home amount at its bare rate, which is wrong across decimals
+    if (shifted) lines.forEach((l, i) => { l.baseAmountCents = base[i]; });
+    return;
+  }
   // INT-5, the rule: only rounding at ONE rate is settled here (at most a cent per line). Foreign lines
   // at different rates must balance in the home currency by themselves — normally through an explicit
   // exchange gain/loss line (rate 1) — otherwise the entry is refused, however small the gap.
-  const foreignRates = new Set(lines.filter(l => rateOf(l) !== 1).map(rateOf));
+  const foreignRates = new Set(lines.filter(l => rateOf(l) !== 1).map(factorOf));
   if (foreignRates.size > 1 || Math.abs(residual) > lines.length) {
     throw new Error(`Validation Failed: the lines balance in the foreign currency but differ by ${residual} cents in the home currency (different rates) — add an exchange-difference line`);
   }
