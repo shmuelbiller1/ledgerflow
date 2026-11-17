@@ -83,12 +83,10 @@ async function createHarness(options: { replay?: { key: string; data: Record<str
   if (db instanceof ReplayOnRetryMemoryDb && options.replay) db.replayRecord = options.replay;
   // this server keeps the stock history (stockMovesReady remembers its probe for the process)
   resetStockMovesReadyForTests();
-  (db as unknown as { pool: unknown }).pool = {
-    async query(sql: string) {
-      if (/to_regclass/.test(sql)) return { rows: [{ ok: true }] };
-      throw new Error(`Unexpected pool query in inventory command test: ${sql}`);
-    },
-  };
+  Object.assign(db, { async tablesExist(...names: string[]) {
+    assert.deepEqual(names, ['stockMoves']);
+    return true;
+  } });
   seed(db);
   const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
   const auditEntries: AuditEntry[] = [];
