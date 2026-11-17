@@ -293,6 +293,10 @@ jobs:
           test "$(ls coverage/shard-*.lcov | wc -l)" -eq 4
           npm run coverage:gate
 
+  # SonarQube Cloud uses GitHub-connected Automatic Analysis for source-code findings.
+  # Do not add a SonarScanner job while Automatic Analysis is enabled: they conflict.
+  # The required local LCOV accounting coverage gate above remains unchanged.
+
   # Build the exact deployable artifacts rather than relying on a separate hosting status.
   build:
     name: Production build

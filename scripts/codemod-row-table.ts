@@ -164,7 +164,7 @@ function classSource(tag: string): string | undefined {
   return end === -1 ? undefined : tag.slice(start, end + 1);
 }
 
-function classOf(tag: string): string[] {
+export function classOf(tag: string): string[] {
   const at = tag.search(/\bclassName=/);
   if (at === -1) return [];
   const value = tag.slice(at + 'className='.length);
@@ -174,8 +174,17 @@ function classOf(tag: string): string[] {
   if (quoted) return (quoted[1] ?? quoted[2] ?? '').split(/\s+/).filter(Boolean);
   const template = /^\{`([^`]*)`\}/.exec(value);
   if (template) return template[1].split(/\s+/).filter(Boolean);
-  const inExpression = /^\{[^}]*`([^`]*)`[^}]*\}/.exec(value);
-  return (inExpression?.[1] ?? '').split(/\s+/).filter(Boolean);
+  // Examine template delimiters once instead of backtracking over overlapping text.
+  if (!value.startsWith('{')) return [];
+  const openingTick = value.indexOf('`', 1);
+  if (openingTick === -1 || value.slice(1, openingTick).includes('}')) return [];
+  const closingTick = value.indexOf('`', openingTick + 1);
+  if (closingTick === -1) return [];
+  const closingBrace = value.indexOf('}', closingTick + 1);
+  if (closingBrace === -1) return [];
+  const secondTemplate = value.indexOf('`', closingTick + 1);
+  if (secondTemplate !== -1 && secondTemplate < closingBrace) return []; // ambiguous: do not guess
+  return value.slice(openingTick + 1, closingTick).split(/\s+/).filter(Boolean);
 }
 
 /** The value of `name=` on a tag, unwrapped from quotes or braces. */
@@ -533,9 +542,10 @@ function splitExpressions(source: string): string[] | undefined {
 }
 
 /** The first `target` at nesting depth zero, skipping strings. */
-function topLevelIndexOf(text: string, target: string): number {
+export function topLevelIndexOf(text: string, target: string): number {
   let depth = 0;
-  for (let at = 0; at < text.length; at++) {
+  let at = 0;
+  while (at < text.length) {
     const char = text[at];
     if (char === "'" || char === '"' || char === '`') {
       const end = endOfString(text, at);
@@ -546,15 +556,17 @@ function topLevelIndexOf(text: string, target: string): number {
     if (char === '(' || char === '[' || char === '{') depth++;
     else if (char === ')' || char === ']' || char === '}') depth--;
     else if (depth === 0 && text.startsWith(target, at)) return at;
+    at++;
   }
   return -1;
 }
 
 /** The `:` that closes the ternary opened by the `?` at `from`. */
-function matchingColon(text: string, from: number): number {
+export function matchingColon(text: string, from: number): number {
   let depth = 0;
   let questions = 0;
-  for (let at = from + 1; at < text.length; at++) {
+  let at = from + 1;
+  while (at < text.length) {
     const char = text[at];
     if (char === "'" || char === '"' || char === '`') {
       const end = endOfString(text, at);
@@ -569,6 +581,7 @@ function matchingColon(text: string, from: number): number {
       if (questions === 0) return at;
       questions--;
     }
+    at++;
   }
   return -1;
 }
@@ -626,12 +639,20 @@ function readEmptyStateTernary(chunk: string): { map: string; row: string; condi
  * the row itself. A row that appears conditionally for another reason is not an empty state and is refused: the
  * condition has to be about the list being empty.
  */
-function readEmptyStateRow(chunk: string, list: string): string | undefined {
+export function readEmptyStateRow(chunk: string, list: string): string | undefined {
   const text = chunk.slice(1, -1).trim();
-  const rowAt = text.search(/\(?\s*<tr\b/);
+  // Find an actual <tr boundary without a regex that can backtrack on long whitespace.
+  let tagAt = text.indexOf('<tr');
+  while (tagAt !== -1 && /[A-Za-z0-9_]/.test(text[tagAt + 3] ?? '')) {
+    tagAt = text.indexOf('<tr', tagAt + 3);
+  }
+  if (tagAt === -1) return undefined;
+  let rowAt = tagAt;
+  while (rowAt > 0 && /\s/.test(text[rowAt - 1])) rowAt--;
+  if (text[rowAt - 1] === '(') rowAt--;
   if (rowAt <= 0) return undefined;
   const condition = text.slice(0, rowAt).trim();
-  const body = text.slice(rowAt).trim().replace(/^\(/, '');
+  const body = text.slice(rowAt).trim().replace(/^\(/, '').trimStart();
   const end = skipElement(body, 0, 'tr');
   if (end === 0) return undefined;
   // `{cond && <tr>…</tr>}`, `{cond ? <tr>…</tr> : null}`, and either of those inside parentheses
