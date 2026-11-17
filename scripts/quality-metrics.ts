@@ -494,6 +494,9 @@ export function computeQualityMetrics(rootDir: string = process.cwd()): QualityM
         entry.isFile() &&
         /\.(ts|tsx|js|jsx)$/.test(entry.name) &&
         !entry.name.includes('.test.') &&
+        // machine output is not maintained by hand: a generated file growing past 800 lines is the generator's
+        // business (it splits by command), not a reviewer's, so it is not counted as a maintainability regression
+        !fullPath.includes('.generated') &&
         !entry.name.endsWith('.d.ts')
       ) {
         scanFile(fullPath);

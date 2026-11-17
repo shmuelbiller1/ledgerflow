@@ -280,6 +280,12 @@ test('the ledger batch answers keep their handler\'s bodies, statuses and words'
     status: 400, body: { error: 'Forbidden: Transaction tx1 status is locked, cleared, or reconciled.' },
   });
   assert.equal(batchAnswer(failure({ status: 403, message: 'Only owners, accountants and bookkeepers change entries' })).status, 403);
+  // a closed period: assertPostingOpen throws a status-less Error the runner reports as a 500 with its
+  // generic words; the batch keeps answering 400 with the "Period Locked" sentence, as the handler did
+  assert.deepEqual(batchAnswer(failure({
+    status: 500, message: 'An internal server error occurred.',
+    error: new Error('Period Locked: this entry is in a closed period (closed through 2026-06-30).'),
+  })), { status: 400, body: { error: 'Period Locked: this entry is in a closed period (closed through 2026-06-30).' } });
   // a version conflict keeps the whole body the browser reads to offer "reload"
   const conflict = batchAnswer(failure({ status: 409, error: new BatchVersionConflict('tx1', { id: 'tx1', description: 'theirs' }) }));
   assert.deepEqual(conflict, {
@@ -293,4 +299,8 @@ test('the ledger batch answers keep their handler\'s bodies, statuses and words'
   });
   assert.deepEqual(batchAnswer({ ok: true, status: 200, command: 'journal.batchupdate', data: { updated: 2 }, replayed: false }),
     { status: 200, body: { status: 'ok', updated: 2 } });
+});
+
+test('a platform admin keeps the batch update without a writer role, as the old /batch handler allowed', () => {
+  assert.equal(transactionsBatchCommand.allowPlatformAdmin, true);
 });

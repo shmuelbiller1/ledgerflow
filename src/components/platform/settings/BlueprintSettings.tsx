@@ -3,9 +3,7 @@ import { useUIStore } from '../../../stores/useUIStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useTransactionActions } from '../../../hooks/useTransactionActions';
-import { db } from '../../../firebase';
 import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
-import { doc, updateDoc } from '../../../lib/db/firestore';
 import { APP_TABS, SYSTEM_GLOSSARY } from '../../../config/registry';
 import { Sliders, Eye, EyeOff, Search, Save, Calendar, Globe, Check, SlidersHorizontal, FolderLock, Plus, Trash2, AlertTriangle, Zap } from 'lucide-react';
 import { toast } from 'sonner';
@@ -137,19 +135,19 @@ export default function BlueprintSettings() {
     }
   };
 
-  // Switch workspace currency
+  // Switch workspace currency. `workspace.settings` decides whether it may change at all: before a document exists
+  // it is a setting, afterwards it is a migration of every stored amount, and the command refuses it.
   const handleSaveCurrency = async (curr: string) => {
-    setBaseCurrency(curr);
-    
     if (currentWorkspaceId) {
        try {
-         await updateDoc(doc(db, 'workspaces', currentWorkspaceId), {
-           currency: curr
-         });
+         await saveWorkspaceSettings(currentWorkspaceId, { currency: curr });
        } catch (err) {
          console.error("Failed to persist currency:", err);
+         toast.error(`Currency not changed: ${err instanceof Error ? err.message : String(err)}`);
+         return;
        }
     }
+    setBaseCurrency(curr);
 
     // Custom label trick: override the DollarSign default or app symbols
     setLexiconOverride('currencySymbol', 'en', curr === 'ILS' ? '₪' : curr === 'EUR' ? '€' : curr === 'GBP' ? '£' : '$');

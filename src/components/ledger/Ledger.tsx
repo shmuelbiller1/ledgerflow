@@ -13,8 +13,7 @@ import { isPostable, lineAmount } from '../../lib/txFilters';
 import { accountParentProblem, allowedParentAccounts } from '../../lib/accountGroups';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { addDoc, collection } from '../../lib/db/firestore';
-import { db } from '../../firebase';
+import { addChartAccount } from '../../lib/recordWrites';
 import AsyncButton from '../ui/AsyncButton';
 import JournalEntryModal from './JournalEntryModal';
 import { LexiconText } from '../../hooks/useLexicon';
@@ -196,36 +195,35 @@ const Ledger = React.memo(() => {
     const isCurrent = () => useAuthStore.getState().currentWorkspaceId === targetWorkspaceId;
     try {
       const openingCents = Math.round(Number(newAccount.openingBalanceCents) || 0);
-      const createdRef = await addDoc(collection(db, 'chartAccounts'), {
-        workspaceId,
-        uid: user?.uid || "",
+      // `chartaccount.create` owns the row: the code must be free in this chart, and the account opens at zero —
+      // an opening figure is the transaction this flow records next, not a number typed on the account
+      const createdRef = await addChartAccount(workspaceId, {
         code: newAccount.code,
         name: newAccount.name,
         type: newAccount.type,
         category: newAccount.category || newAccount.type,
         description: newAccount.description || "",
         parentId: newAccount.parentId || null,
-        openingBalanceCents: 0,
         asOfDate: newAccount.asOfDate || new Date().toISOString(),
-        balanceCents: 0,
-        createdAt: new Date().toISOString()
       });
       if (openingCents !== 0) {
         let obeId = accounts.find(a => a.type === 'equity' && /opening balance/i.test(a.name))?.id;
         if (!obeId) {
-          const obeRef = await addDoc(collection(db, 'chartAccounts'), {
-            workspaceId,
-            uid: user?.uid || "",
-            code: '3900',
-            name: 'Opening Balance Equity',
-            type: 'equity',
-            category: 'Equity',
-            description: 'Balances brought in when accounts were established',
-            openingBalanceCents: 0,
-            balanceCents: 0,
-            createdAt: new Date().toISOString()
-          });
-          obeId = obeRef.id;
+          // the offset account goes through the same command; a chart that already carries 3900 refuses the
+          // create, and the account the chart has is the one this flow uses
+          try {
+            obeId = (await addChartAccount(workspaceId, {
+              code: '3900',
+              name: 'Opening Balance Equity',
+              type: 'equity',
+              category: 'Equity',
+              description: 'Balances brought in when accounts were established',
+            })).id;
+          } catch (createErr) {
+            const existing = useLedgerStore.getState().accounts.find(a => a.code === '3900');
+            if (!existing) throw createErr;
+            obeId = existing.id;
+          }
         }
         const isDebitNormal = newAccount.type === 'asset' || newAccount.type === 'expense';
         const signedAmt = isDebitNormal ? openingCents : -openingCents;

@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { db } from '../../firebase';
-import { doc, updateDoc } from '../../lib/db/firestore';
 import { useDialog } from '../../hooks/useDialog';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { bankProblem, companyProblem, nachaFile, type BankAccountType, type CompanyBank, type EmployeeBank } from '../../lib/nacha';
 import type { Employee, PayRun } from '../../types';
+import { saveEmployee } from '../../lib/recordWrites';
 
 const field = 'px-2 py-1 border border-neutral-300 rounded text-xs';
 const companyKey = (workspaceId: string) => `lf_ach_company:${workspaceId}`;
@@ -50,9 +49,10 @@ export function DirectDepositDialog({ run, workspace, onClose }: { run: PayRun; 
     if (problem) { toast.error(problem); return; }
     setBusy(true);
     try {
-      const fields = { bankRouting: editing.bank.bankRouting, bankAccount: editing.bank.bankAccount, bankAccountType: editing.bank.bankAccountType, updatedAt: new Date().toISOString() };
-      await updateDoc(doc(db, 'employees', editing.id), fields);
-      setEmployees(employees.map(e => (e.id === editing.id ? { ...e, ...fields } as Employee : e)));
+      const fields = { bankRouting: editing.bank.bankRouting, bankAccount: editing.bank.bankAccount, bankAccountType: editing.bank.bankAccountType };
+      await saveEmployee(workspace.id, editing.id, fields);
+      const stamped = { ...fields, updatedAt: new Date().toISOString() };
+      setEmployees(employees.map(e => (e.id === editing.id ? { ...e, ...stamped } as Employee : e)));
       setEditing(null);
     } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }
   };

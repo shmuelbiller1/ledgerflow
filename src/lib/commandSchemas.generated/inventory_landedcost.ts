@@ -4,7 +4,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part38,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part40,
     "charge": {
       "anyOf": [
         {
@@ -14,8 +14,8 @@ export const COMMAND_INPUT_SCHEMA = {
               "type": "string",
               "const": "bill"
             },
-            "billId": COMMAND_SCHEMA_PARTS.part38,
-            "line": COMMAND_SCHEMA_PARTS.part102
+            "billId": COMMAND_SCHEMA_PARTS.part40,
+            "line": COMMAND_SCHEMA_PARTS.part114
           },
           "required": [
             "kind",
@@ -31,10 +31,10 @@ export const COMMAND_INPUT_SCHEMA = {
               "type": "string",
               "const": "manual"
             },
-            "amountCents": COMMAND_SCHEMA_PARTS.part110,
-            "accountId": COMMAND_SCHEMA_PARTS.part38,
-            "allocationId": COMMAND_SCHEMA_PARTS.part88,
-            "description": COMMAND_SCHEMA_PARTS.part49
+            "amountCents": COMMAND_SCHEMA_PARTS.part125,
+            "accountId": COMMAND_SCHEMA_PARTS.part40,
+            "allocationId": COMMAND_SCHEMA_PARTS.part99,
+            "description": COMMAND_SCHEMA_PARTS.part51
           },
           "required": [
             "kind",
@@ -50,7 +50,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "minItems": 1,
       "maxItems": 50,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part38
+      "items": COMMAND_SCHEMA_PARTS.part40
     },
     "basis": {
       "type": "string",
@@ -62,17 +62,17 @@ export const COMMAND_INPUT_SCHEMA = {
     },
     "weights": {
       "type": "object",
-      "propertyNames": COMMAND_SCHEMA_PARTS.part18,
-      "additionalProperties": COMMAND_SCHEMA_PARTS.part36
+      "propertyNames": COMMAND_SCHEMA_PARTS.part19,
+      "additionalProperties": COMMAND_SCHEMA_PARTS.part38
     },
-    "date": COMMAND_SCHEMA_PARTS.part93,
-    "inventoryAccountId": COMMAND_SCHEMA_PARTS.part38,
-    "cogsAccountId": COMMAND_SCHEMA_PARTS.part38,
+    "date": COMMAND_SCHEMA_PARTS.part104,
+    "inventoryAccountId": COMMAND_SCHEMA_PARTS.part40,
+    "cogsAccountId": COMMAND_SCHEMA_PARTS.part40,
     "expectedPlanHash": {
       "type": "string",
       "pattern": "^[0-9a-f]{32}$"
     },
-    "dryRun": COMMAND_SCHEMA_PARTS.part21
+    "dryRun": COMMAND_SCHEMA_PARTS.part22
   },
   "required": [
     "charge",

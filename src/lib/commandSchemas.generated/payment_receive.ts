@@ -4,29 +4,25 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part38,
-    "amountCents": COMMAND_SCHEMA_PARTS.part110,
-    "paymentDate": COMMAND_SCHEMA_PARTS.part18,
-    "cashAccountId": COMMAND_SCHEMA_PARTS.part38,
-    "paymentMethod": COMMAND_SCHEMA_PARTS.part18,
-    "paymentTypeId": COMMAND_SCHEMA_PARTS.part77,
-    "referenceNumber": COMMAND_SCHEMA_PARTS.part18,
-    "memo": COMMAND_SCHEMA_PARTS.part18,
-    "customerId": COMMAND_SCHEMA_PARTS.part18,
-    "vendorId": COMMAND_SCHEMA_PARTS.part18,
-    "entityName": COMMAND_SCHEMA_PARTS.part18,
-    "offsetAccountId": COMMAND_SCHEMA_PARTS.part18,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part40,
+    "amountCents": COMMAND_SCHEMA_PARTS.part125,
+    "paymentDate": COMMAND_SCHEMA_PARTS.part19,
+    "cashAccountId": COMMAND_SCHEMA_PARTS.part40,
+    "paymentMethod": COMMAND_SCHEMA_PARTS.part19,
+    "paymentTypeId": COMMAND_SCHEMA_PARTS.part83,
+    "referenceNumber": COMMAND_SCHEMA_PARTS.part19,
+    "memo": COMMAND_SCHEMA_PARTS.part19,
+    "customerId": COMMAND_SCHEMA_PARTS.part19,
+    "vendorId": COMMAND_SCHEMA_PARTS.part19,
+    "entityName": COMMAND_SCHEMA_PARTS.part19,
+    "offsetAccountId": COMMAND_SCHEMA_PARTS.part19,
     "allocations": {
       "default": COMMAND_SCHEMA_PARTS.part0,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part195
+      "items": COMMAND_SCHEMA_PARTS.part219
     },
-    "sendRemittance": COMMAND_SCHEMA_PARTS.part21,
-    "paymentExchangeRate": {
-      "type": "number",
-      "exclusiveMinimum": 0,
-      "maximum": 1000000
-    },
+    "sendRemittance": COMMAND_SCHEMA_PARTS.part22,
+    "paymentExchangeRate": COMMAND_SCHEMA_PARTS.part112,
     "paymentRateSource": {
       "type": "string",
       "enum": [
@@ -36,10 +32,10 @@ export const COMMAND_INPUT_SCHEMA = {
         "books-on-date"
       ]
     },
-    "estimateId": COMMAND_SCHEMA_PARTS.part81,
-    "withheldCents": COMMAND_SCHEMA_PARTS.part102,
-    "withholdingRatePercent": COMMAND_SCHEMA_PARTS.part67,
-    "withholdingCertificate": COMMAND_SCHEMA_PARTS.part42
+    "estimateId": COMMAND_SCHEMA_PARTS.part89,
+    "withheldCents": COMMAND_SCHEMA_PARTS.part114,
+    "withholdingRatePercent": COMMAND_SCHEMA_PARTS.part72,
+    "withholdingCertificate": COMMAND_SCHEMA_PARTS.part44
   },
   "required": [
     "amountCents",

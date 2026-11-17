@@ -12,6 +12,10 @@ import type { Firestore } from '../server/db/firestore';
 import { CommandRegistry } from '../server/commands/registry';
 import { workspaceSettingsCommand } from '../server/commands/workspaceSettingsPanel';
 import { budgetDeleteCommand, budgetSaveCommand } from '../server/commands/budgets';
+import { chartAccountUpdateCommand } from '../server/commands/chartAccounts';
+import { employeeCreateCommand, employeeUpdateCommand } from '../server/commands/employees';
+import { estimateSaveCommand, estimateStatusCommand } from '../server/commands/estimates';
+import { inventoryItemDeleteCommand, inventoryItemFieldCommand, inventoryItemSaveCommand } from '../server/commands/inventoryItems';
 import { createDefaultCommandRegistry } from '../server/commands/defaultRegistry';
 import { alertSettingsUpdateCommand } from '../server/commands/alerts';
 import { importMapRestoreCommand, importMapSaveCommand } from '../server/commands/importMaps';
@@ -49,57 +53,13 @@ import {
   captureResponse, fakeRequest, invocationInput, MemoryDb, owner, recordingCommand, ReplayOnRetryMemoryDb,
   runnerDependencies, seedWorkspace, type TestCounters, workspaceId,
 } from './helpers/commandTestUtils';
+import { REGISTERED_COMMAND_AREAS, REGISTERED_COMMAND_NAMES } from './fixtures/registeredCommands';
 
 
 test('the default registry is sorted and unique across the registered command domains', () => {
   const registry = createDefaultCommandRegistry();
-  assert.deepEqual(registry.names(), [
-    'account.makerecoverycodes', 'account.setnotificationemail', 'account.userecoverycode', 'alerts.update',
-    'apikey.provision', 'apikey.revoke', 'apikey.revokepersonal', 'asset.dispose',
-    'asset.placeservice', 'asset.transfer', 'asset.undispose', 'asset.undoplaceservice',
-    'asset.undotransfer', 'autorule.create', 'autorule.delete', 'autorule.group',
-    'autorule.learn', 'autorule.recordhits', 'autorule.update', 'bill.create',
-    'bill.delete', 'bill.spread', 'bill.spreadundo', 'bill.update',
-    'budget.delete', 'budget.save', 'creditnote.create', 'creditnote.delete',
-    'creditnote.update', 'customer.balance', 'customer.create', 'customer.update',
-    'entrylink.create', 'entrylink.remove', 'groups.create', 'groups.delete',
-    'groups.keeprates', 'groups.setlinemerges', 'groups.share', 'groups.unshare',
-    'groups.update', 'inventory.adjust', 'inventory.cogs', 'inventory.count',
-    'inventory.deliver', 'inventory.landedcost', 'inventory.landedcostundo', 'inventory.return',
-    'inventory.revalue', 'inventory.stockclosing', 'inventory.stockpolicy', 'inventory.transfer',
-    'inventory.undodelivery', 'invoice.create', 'invoice.delete', 'invoice.spread',
-    'invoice.spreadundo', 'invoice.update', 'invoice.writeoff', 'invoice.writeoffreverse',
-    'journal.batchupdate', 'journal.create', 'journal.recategorize', 'numbering.update',
-    'payment.apply', 'payment.creditapply', 'payment.creditrefund', 'payment.creditsautoapply',
-    'payment.deposit', 'payment.receive', 'payment.void', 'payroll.approval',
-    'payroll.approve', 'payroll.reject', 'payroll.run', 'payroll.undo',
-    'period.balancesrebuild', 'period.close', 'period.closesteps', 'period.depreciation',
-    'period.fxrevaluation', 'period.fxrevaluationundo', 'period.relock', 'period.reopen',
-    'period.signoff', 'period.unlock', 'period.yearclose', 'project.delete',
-    'project.restore', 'query.ask', 'query.close', 'query.reply',
-    'reconciliations.bankline', 'reconciliations.banklinepay', 'reconciliations.banklinesplit', 'reconciliations.bankrules',
-    'reconciliations.clear', 'reconciliations.complete', 'reconciliations.reconcile', 'rma.move',
-    'rma.request', 'savedlist.allocationrules', 'savedlist.approvaldelegate', 'savedlist.customergroup',
-    'savedlist.paymenttype', 'savedlist.pricelists', 'savedlist.roledashboard', 'savedlist.salesreps',
-    'savedlist.taxprofiles', 'stages.define', 'stages.move', 'tag.change',
-    'tasks.create', 'tasks.remove', 'tasks.status', 'tax.file',
-    'time.invoice', 'time.log', 'time.move', 'time.rates',
-    'time.remove', 'time.update', 'user.aikeyremove', 'user.aikeyset',
-    'user.provision', 'vendor.balance', 'vendor.create', 'vendor.update',
-    'vendorcredit.create', 'vendorcredit.delete', 'vendorcredit.update', 'warranty.update',
-    'watches.create', 'watches.remove', 'workspace.applytemplate', 'workspace.canceldeletion',
-    'workspace.create', 'workspace.dimensionaxes', 'workspace.dimensionnode', 'workspace.importmap',
-    'workspace.importrecords', 'workspace.invite', 'workspace.modules', 'workspace.nextnumber',
-    'workspace.openingbalances', 'workspace.restoremaps', 'workspace.retention', 'workspace.revokeinvite',
-    'workspace.scheduledeletion', 'workspace.settings', 'workspace.setupcomplete', 'workspace.undoimport',
-    'workspace.updaterole',
-  ]);
-  assert.deepEqual(registry.areaNames(), [
-    'account', 'alerts', 'apikey', 'asset', 'autorule', 'bill', 'budget', 'creditnote', 'customer',
-    'entrylink', 'groups', 'inventory', 'invoice', 'journal', 'numbering', 'payment', 'payroll',
-    'period', 'project', 'query', 'reconciliations', 'rma', 'savedlist', 'stages', 'tag', 'tasks',
-    'tax', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace',
-  ]);
+  assert.deepEqual(registry.names(), [...REGISTERED_COMMAND_NAMES]);
+  assert.deepEqual(registry.areaNames(), [...REGISTERED_COMMAND_AREAS]);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
   assert.equal(registry.get('numbering.update'), numberingUpdateCommand);
@@ -119,6 +79,14 @@ test('the default registry is sorted and unique across the registered command do
   assert.equal(registry.get('workspace.importmap'), importMapSaveCommand);
   assert.equal(registry.get('workspace.restoremaps'), importMapRestoreCommand);
   assert.equal(registry.get('workspace.settings'), workspaceSettingsCommand);
+  assert.equal(registry.get('chartaccount.update'), chartAccountUpdateCommand);
+  assert.equal(registry.get('employee.create'), employeeCreateCommand);
+  assert.equal(registry.get('employee.update'), employeeUpdateCommand);
+  assert.equal(registry.get('estimate.save'), estimateSaveCommand);
+  assert.equal(registry.get('estimate.status'), estimateStatusCommand);
+  assert.equal(registry.get('inventoryitem.save'), inventoryItemSaveCommand);
+  assert.equal(registry.get('inventoryitem.field'), inventoryItemFieldCommand);
+  assert.equal(registry.get('inventoryitem.delete'), inventoryItemDeleteCommand);
   assert.equal(registry.get('budget.save'), budgetSaveCommand);
   assert.equal(registry.get('budget.delete'), budgetDeleteCommand);
   assert.equal(registry.get('tasks.create'), taskCreateCommand);

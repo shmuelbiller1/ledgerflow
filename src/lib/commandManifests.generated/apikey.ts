@@ -8,7 +8,7 @@ export const APIKEY_COMMAND_MANIFEST = [
   {
     "name": "apikey.provision",
     "area": "apikey",
-    "roles": COMMAND_SCHEMA_PARTS.part4,
+    "roles": COMMAND_SCHEMA_PARTS.part5,
     "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {
@@ -47,7 +47,7 @@ export const APIKEY_COMMAND_MANIFEST = [
   {
     "name": "apikey.revoke",
     "area": "apikey",
-    "roles": COMMAND_SCHEMA_PARTS.part4,
+    "roles": COMMAND_SCHEMA_PARTS.part5,
     "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {
@@ -76,7 +76,7 @@ export const APIKEY_COMMAND_MANIFEST = [
   {
     "name": "apikey.revokepersonal",
     "area": "apikey",
-    "roles": COMMAND_SCHEMA_PARTS.part70,
+    "roles": COMMAND_SCHEMA_PARTS.part75,
     "scope": "person",
     "risk": "normal",
     "description": {

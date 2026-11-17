@@ -6,8 +6,6 @@ import { Archive, ArchiveRestore, GitMerge, MoreVertical, Trash2 } from 'lucide-
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { db } from '../../firebase';
-import { doc, updateDoc } from '../../lib/db/firestore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { suggestionsFrom } from '../../lib/inlineEdit';
 import { ACCOUNT_GROUP_INDENT_PX, accountGroupLayout, accountParentProblem, allowedParentAccounts, rowsInsideExpandedGroups } from '../../lib/accountGroups';
@@ -17,10 +15,11 @@ import MergeAccountDialog from './MergeAccountDialog';
 import { AccountGroupToggle } from './AccountGroupControls';
 import { EmptyState } from '../ui/EmptyState';
 import { isIncomeAccount } from '../../lib/accountUtils';
+import { saveChartAccount } from '../../lib/recordWrites';
 
 /** Edit in place (I-22): one field of an account. System accounts keep their code (the database refuses it). */
 async function saveAccountField(account: ChartAccount, field: 'name' | 'code' | 'description' | 'category', value: string | number) {
-  await updateDoc(doc(db, 'chartAccounts', account.id), { [field]: value, updatedAt: new Date().toISOString() });
+  await saveChartAccount(account.workspaceId, { id: account.id, [field]: value });
   toast.success('Saved');
 }
 
@@ -30,13 +29,13 @@ async function saveAccountField(account: ChartAccount, field: 'name' | 'code' | 
  * only how the accounts are shown, so no figure and no posted amount is touched.
  */
 async function saveAccountParent(account: ChartAccount, parentId: string | null) {
-  await updateDoc(doc(db, 'chartAccounts', account.id), { parentId, updatedAt: new Date().toISOString() });
+  await saveChartAccount(account.workspaceId, { id: account.id, parentId });
   toast.success(parentId ? `"${account.name}" moved into its group` : `"${account.name}" moved to the top level`);
 }
 
 /** Archive (hidden from pickers and this list; history kept) or bring an account back (I-22). */
 async function setAccountArchived(account: ChartAccount, archived: boolean) {
-  await updateDoc(doc(db, 'chartAccounts', account.id), { isArchived: archived, isActive: !archived, updatedAt: new Date().toISOString() });
+  await saveChartAccount(account.workspaceId, { id: account.id, archived });
   toast.success(archived ? `"${account.name}" archived` : `"${account.name}" restored`);
 }
 

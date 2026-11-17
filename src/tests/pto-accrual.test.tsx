@@ -78,10 +78,10 @@ describe('Time off on the Payroll screen', () => {
     assert.equal(calls.filter(c => c.url.includes('/rpc/')).length, 0, 'nothing saved');
     fireEvent.change(screen.getByLabelText('Hours taken'), { target: { value: '7.5' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Record' })); });
-    await waitFor(() => assert.equal(calls.filter(c => c.url.includes('/rpc/lf_update')).length, 1));
-    const body = calls.find(c => c.url.includes('/rpc/lf_update'))!.body as { p_table: string; p_id: string; p_set: { ptoTaken: unknown[] } };
-    assert.deepEqual([body.p_table, body.p_id], ['employees', 'ann']);
-    assert.deepEqual(body.p_set.ptoTaken, [{ date: '2026-02-03', hours: 8 }, { date: '2026-03-10', hours: 4.5, note: 'Dentist' }, { date: '2026-04-06', hours: 7.5 }]);
+    await waitFor(() => assert.equal(calls.filter(c => c.url.includes('/commands/employee.update')).length, 1));
+    const body = calls.find(c => c.url.includes('/commands/employee.update'))!.body as { workspaceId: string; input: { id: string; ptoTaken: unknown[] } };
+    assert.equal(body.workspaceId, 'component-workspace', 'the write names the workspace, not the row');
+    assert.deepEqual(body.input.ptoTaken, [{ date: '2026-02-03', hours: 8 }, { date: '2026-03-10', hours: 4.5, note: 'Dentist' }, { date: '2026-04-06', hours: 7.5 }]);
     await waitFor(() => assert.ok(screen.getByText(/14 hours available/)));
   });
 

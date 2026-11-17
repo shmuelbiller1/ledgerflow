@@ -87,6 +87,9 @@ export const transactionsBatchCommand: CommandDefinition<typeof transactionsBatc
   name: 'journal.batchupdate',
   input: transactionsBatchInput,
   roles: [...WRITERS],
+  // the old /batch handler let a platform admin through without a writer role (`!user.admin && …`);
+  // `batchWrites` still honours `actor.admin` for certified, void and reconciled entries
+  allowPlatformAdmin: true,
   async handler(ctx, _tx, input) {
     // `batchProblem` is the handler's own check, in its own words, and it narrows the list as it goes
     const problem = batchProblem(input.updates);

@@ -56,5 +56,8 @@ export function batchAnswer(outcome: CommandExecutionOutcome): { status: number;
     };
   }
   const status = outcome.status === 403 ? 403 : 400;
-  return { status, body: { error: outcome.message } };
+  // the handler answered with the thrown sentence; the runner replaces a status-less error's message
+  // (e.g. "Period Locked: … closed through …" from assertPostingOpen) with its generic 500 wording
+  const message = outcome.status >= 500 && outcome.error instanceof Error ? outcome.error.message : outcome.message;
+  return { status, body: { error: message } };
 }

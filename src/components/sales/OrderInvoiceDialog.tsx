@@ -5,10 +5,9 @@ import { formatCurrency, readAmountCents, safeConfirm } from '../../lib/utils';
 import { type OrderPart, type OrderProgress, hasItemLines, orderLineProgress, orderPartInvoice, partCents, partLabel, partProblem } from '../../lib/salesOrders';
 import type { Estimate } from '../../types';
 import type { Milestone } from '../../lib/milestones';
-import { db } from '../../firebase';
-import { doc, updateDoc } from '../../lib/db/firestore';
 import { MilestoneSchedule } from './MilestoneSchedule';
 import { RowTable } from '../ui/RowTable';
+import { saveEstimate } from '../../lib/recordWrites';
 
 const field = 'w-full px-3 py-2 text-sm bg-[var(--ink)] border border-[var(--line)] rounded-lg text-[var(--text)]';
 type Mode = OrderPart['mode'];
@@ -57,7 +56,7 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
       await onCreate(part);
       if (milestone && part.mode === 'percent' && part.percent === milestone.percent) {
         const done = milestones.map(m => (m.id === milestone.id ? { ...m, invoicedAt: new Date().toISOString() } : m));
-        await updateDoc(doc(db, 'estimates', estimate.id), { milestones: done, updatedAt: new Date().toISOString() });
+        await saveEstimate(estimate.workspaceId, { id: estimate.id, milestones: done });
       }
       onClose();
     } finally {

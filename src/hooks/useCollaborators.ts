@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, doc, onSnapshot, setDoc, serverTimestamp, query, where, deleteDoc } from '../lib/db/firestore';
+import { collection, onSnapshot, query, where } from '../lib/db/firestore';
+import { presenceBeat, presenceLeave } from '../lib/recordWrites';
 import { useAuthStore } from '../stores/useAuthStore';
 import { isClientActiveForPolling } from './useVisibilityPolling';
 
@@ -59,7 +60,6 @@ export function useCollaborators() {
       return undefined;
     }
 
-    const userDocRef = doc(db, 'presence', uid);
     const userColor = COLORS[uid.charCodeAt(0) % COLORS.length];
     const resolvedName = displayName || email?.split('@')[0] || 'Anonymous';
 
@@ -70,16 +70,11 @@ export function useCollaborators() {
       if (disposed || inFlight || !isClientActiveForPolling()) return;
       inFlight = true;
       try {
-        await enqueuePresenceOperation(userDocRef.path, async () => {
+        await enqueuePresenceOperation(`presence/${uid}`, async () => {
           if (disposed) return;
-          await setDoc(userDocRef, {
-            uid,
-            name: resolvedName,
-            email,
-            currentWorkspaceId: activeWorkspaceId,
-            lastActive: serverTimestamp(),
-            color: userColor,
-          }, { merge: true });
+          // `presence.beat` writes the row keyed by the caller's own id, with the email, the workspace and the clock
+          // from the session — the tab only says the name and colour it draws
+          await presenceBeat(activeWorkspaceId, uid, { name: resolvedName, color: userColor });
         });
       } catch (err) {
         console.warn('Presence update deferred:', err);
@@ -130,7 +125,7 @@ export function useCollaborators() {
 
     // F29: Properly store handler reference and remove on unmount
     const handleUnload = () => {
-      void enqueuePresenceOperation(userDocRef.path, () => deleteDoc(userDocRef)).catch((err) => {
+      void enqueuePresenceOperation(`presence/${uid}`, () => presenceLeave(activeWorkspaceId, uid)).catch((err) => {
         console.warn('[useCollaborators] Unload presence cleanup skipped:', err);
       });
     };
@@ -147,7 +142,7 @@ export function useCollaborators() {
       }
       unsubscribe();
       window.removeEventListener('beforeunload', handleUnload);
-      void enqueuePresenceOperation(userDocRef.path, () => deleteDoc(userDocRef)).catch((err) => {
+      void enqueuePresenceOperation(`presence/${uid}`, () => presenceLeave(activeWorkspaceId, uid)).catch((err) => {
         console.warn('[useCollaborators] Unmount presence cleanup skipped:', err);
       });
     };

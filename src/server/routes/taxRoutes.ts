@@ -11,7 +11,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { getDb } from '../db/firestore';
-import { computeWorkspaceTaxReturn, listTaxReturns } from '../services/taxReturnService';
+import { computeWorkspaceTaxReturn, listTaxReturns, TaxReturnError } from '../services/taxReturnService';
 import { taxFileCommand } from '../commands/tagAndTax';
 import { executeCommand } from '../utils/commandExecutor';
 
@@ -27,6 +27,8 @@ const periodSchema = z.object({
 
 function fail(res: express.Response, err: unknown) {
   if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Choose a valid period', details: err.issues });
+  // the service's own refusal (a backwards period is a 400 "Choose a valid period"), never the 500
+  if (err instanceof TaxReturnError) return res.status(err.status).json({ status: 'error', message: err.message });
   return res.status(500).json({ status: 'error', message: 'The tax return could not be prepared', details: err instanceof Error ? err.message : String(err) });
 }
 

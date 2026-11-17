@@ -121,11 +121,13 @@ test('inventory update writes only the defaults metadata path, preserving concur
     change('Default account', 'exp');
     change('Default tax code', '');
     await act(async () => { fireEvent.submit(screen.getByRole('button', { name: 'Update Item' }).closest('form')!); });
-    await waitFor(() => assert.ok(calls.some(c => c.url.includes('lf_update'))));
-    const body = calls.find(c => c.url.includes('lf_update'))!.body as { p_set: Record<string, unknown>; p_unset: string[] };
-    assert.deepEqual(body.p_set['metadata.documentDefaults'], { accountId: 'exp' });
-    assert.equal('metadata' in body.p_set, false, 'never replace notes with stale metadata');
-    assert.ok(body.p_unset.includes('defaultTaxCodeId'), 'explicitly clearing item tax removes its old field');
+    // `inventoryitem.save` takes the card's sale defaults as ONE field, so the row's notes (which this tab never
+    // read afresh) are not sent back at all — the command merges them from the item it reads
+    await waitFor(() => assert.ok(calls.some(c => c.url.includes('/commands/inventoryitem.save'))));
+    const body = calls.find(c => c.url.includes('/commands/inventoryitem.save'))!.body as { input: Record<string, unknown> };
+    assert.deepEqual(body.input.documentDefaults, { accountId: 'exp' });
+    assert.equal('metadata' in body.input, false, 'never replace notes with stale metadata');
+    assert.equal(body.input.defaultTaxCodeId, null, 'explicitly clearing item tax removes its old field');
   } finally { globalThis.FormData = originalFormData; }
 });
 test('cancelled item defaults do not leak to the next new item', () => {

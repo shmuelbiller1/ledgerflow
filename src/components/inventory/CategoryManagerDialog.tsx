@@ -3,9 +3,9 @@ import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
 import type { InventoryItem } from '../../types';
-import { db } from '../../firebase';
-import { doc, writeBatch } from '../../lib/db/firestore';
 import { categoryCounts, renameCategoryPlan } from '../../lib/itemCategories';
+import { renameItemCategory } from '../../lib/recordWrites';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { stockFieldClass } from './stockStyles';
 
 interface CategoryManagerDialogProps {
@@ -22,15 +22,15 @@ export default function CategoryManagerDialog({ items, onClose }: CategoryManage
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const { dialogProps, titleId } = useDialog(onClose, true);
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
 
   const apply = async (from: string, to: string) => {
     const plan = renameCategoryPlan(items, from, to);
     if (plan.ids.length === 0) return;
     setSaving(from);
     try {
-      const batch = writeBatch(db);
-      for (const id of plan.ids) batch.update(doc(db, 'inventory', id), { category: plan.to });
-      await batch.commit();
+      // `inventory.categoryrename` renames every item the server holds, not just the ones this page had loaded
+      await renameItemCategory(workspaceId || '', from, plan.to, plan.ids);
       toast.success(plan.to
         ? `${plan.ids.length} item${plan.ids.length === 1 ? '' : 's'} moved from "${from}" to "${plan.to}"`
         : `"${from}" removed from ${plan.ids.length} item${plan.ids.length === 1 ? '' : 's'}`);
