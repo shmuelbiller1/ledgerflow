@@ -1,5 +1,5 @@
 import type { RequestUser } from '../auth/requestUser';
-import { validateWorkspaceMember, type Firestore } from '../db/firestore';
+import { sandboxBelongsTo, validateWorkspaceMember, type Firestore } from '../db/firestore';
 
 /** Routers receive their books from trusted server code, never from a request header, query or body. */
 export function reportReadScope(live: Firestore, db: Firestore) {
@@ -9,7 +9,7 @@ export function reportReadScope(live: Firestore, db: Firestore) {
     db,
     async authorize(workspaceId: string, user: RequestUser) {
       if (!db.sandboxId) return validateWorkspaceMember(live, workspaceId, user);
-      if (!user?.uid || user.developerWorkspaceId || !(await db.sandboxBelongsTo(workspaceId, user.uid))) {
+      if (!user?.uid || user.developerWorkspaceId || !(await sandboxBelongsTo(db, workspaceId, user.uid))) {
         throw new Error('FORBIDDEN');
       }
       try {

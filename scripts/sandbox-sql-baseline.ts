@@ -90,7 +90,8 @@ export function countRawRelations(file: string, source: string, collections: Rea
 
 export function scanSandboxSql(): Record<string, number> {
   const collections = collectionsFromMigrations();
-  return Object.fromEntries([...filesIn('src/server'), ...filesIn('api'), 'server.ts'].sort().flatMap(file => {
+  const files = [...filesIn('src/server'), ...filesIn('api'), 'server.ts'].sort((a, b) => a.localeCompare(b, 'en'));
+  return Object.fromEntries(files.flatMap(file => {
     const count = countRawRelations(file, fs.readFileSync(file, 'utf8'), collections);
     return count ? [[file, count]] : [];
   }));

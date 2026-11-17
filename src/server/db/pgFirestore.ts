@@ -473,21 +473,6 @@ export class Firestore {
     });
   }
 
-  /** @internal Checks the binding of an active sandbox. Does not check real workspace membership. */
-  async sandboxBelongsTo(workspaceId: string, personId: string): Promise<boolean> {
-    if (!this.sandboxId) return false;
-    try {
-      const [row] = await this.readRows<{ owned: boolean }>(
-        `select exists(select 1 from sandbox.sandboxes where id = $1 and workspace_id = $2 and person_id = $3) as owned`,
-        [this.sandboxId, workspaceId, personId],
-      );
-      return row?.owned === true;
-    } catch (err) {
-      if (err instanceof FirestoreError && err.code === 5) return false; // missing, closed or expired
-      throw err;
-    }
-  }
-
   /** @internal Do not let a mixed reference change which books a read or write targets. */
   assertSameScope(other: { readonly sandboxId?: string }): void {
     if (this.sandboxId !== other.sandboxId) throw invalid('Document or query belongs to a different database scope');
