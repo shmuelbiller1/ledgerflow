@@ -4,21 +4,21 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part80,
-    "name": COMMAND_SCHEMA_PARTS.part81,
-    "email": COMMAND_SCHEMA_PARTS.part188,
-    "role": COMMAND_SCHEMA_PARTS.part45,
-    "salaryCents": COMMAND_SCHEMA_PARTS.part105,
-    "payFrequency": COMMAND_SCHEMA_PARTS.part120,
-    "filingStatus": COMMAND_SCHEMA_PARTS.part39,
-    "workerType": COMMAND_SCHEMA_PARTS.part89,
-    "state": COMMAND_SCHEMA_PARTS.part39,
+    "id": COMMAND_SCHEMA_PARTS.part85,
+    "name": COMMAND_SCHEMA_PARTS.part86,
+    "email": COMMAND_SCHEMA_PARTS.part198,
+    "role": COMMAND_SCHEMA_PARTS.part48,
+    "salaryCents": COMMAND_SCHEMA_PARTS.part112,
+    "payFrequency": COMMAND_SCHEMA_PARTS.part127,
+    "filingStatus": COMMAND_SCHEMA_PARTS.part42,
+    "workerType": COMMAND_SCHEMA_PARTS.part94,
+    "state": COMMAND_SCHEMA_PARTS.part42,
     "status": {
       "default": "Active",
       "type": "string",
-      "enum": COMMAND_SCHEMA_PARTS.part51
+      "enum": COMMAND_SCHEMA_PARTS.part54
     },
-    "createdAt": COMMAND_SCHEMA_PARTS.part39
+    "createdAt": COMMAND_SCHEMA_PARTS.part42
   },
   "required": [
     "id",

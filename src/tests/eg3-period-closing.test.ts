@@ -103,6 +103,24 @@ describe('EG-3 period-closing document', { skip: !url && 'LF_TEST_DATABASE_URL n
     await db.terminate();
   });
 
+  test('A7S-01: a draft the lock would cover blocks locking the year (409), so it is never left unpostable', async () => {
+    const draft = (id: string, date: string) => send('POST', '/api/v1/transactions/bulk', { workspaceId: ws, transactions: [{
+      id, uid: OWNER, workspaceId: ws, date, description: id, totalAmountCents: 1_000, currency: 'USD', status: 'draft', type: 'journal',
+      lines: [{ accountId: acct['6000'].id, amountCents: 1_000 }, { accountId: acct['1000'].id, amountCents: -1_000 }],
+    }] });
+    // inside the year, and from an earlier year that was never closed: the lock covers both (Gitar on #772)
+    for (const [suffix, date] of [['draft_in_year', '2025-09-01'], ['draft_earlier_year', '2023-05-01']] as const) {
+      const draftId = `${ws}_${suffix}`;
+      const saved = await draft(draftId, date);
+      assert.equal(saved.status, 200, JSON.stringify(saved.body));
+      const refused = await close();
+      assert.equal(refused.status, 409, JSON.stringify(refused.body));
+      assert.match(JSON.stringify(refused.body), /draft/);
+      assert.equal((await closings()).length, 0, 'nothing was closed');
+      await db.pool.query('delete from public."transactions" where id = $1', [draftId]);
+    }
+  });
+
   test('close: one current document whose figures equal the P&L and the balance sheet at the year end; no entry posted', async () => {
     const before = await entryCount();
     const r = await close();

@@ -26,7 +26,7 @@ import { projectDeleteCommand, projectRestoreCommand } from './projects';
 import { budgetDeleteCommand, budgetSaveCommand } from './budgets';
 import { chartAccountCreateCommand, chartAccountDeleteCommand, chartAccountUpdateCommand } from './chartAccounts';
 import { documentSaveCommand } from './attachments';
-import { assetCostAdditionCommand } from './assets';
+import { ASSET_COMMANDS, assetCostAdditionCommand } from './assets';
 import { loanPaymentCommand } from './loans';
 import { notificationsReadCommand } from './notifications';
 import { supportMessageCommand, supportStatusCommand, supportTicketCommand } from './support';
@@ -107,6 +107,9 @@ import {
   vendorCreditDeleteCommand,
   vendorCreditUpdateCommand,
 } from './documents';
+import { DOCUMENT_ADJUSTMENT_COMMANDS } from './documentAdjustments';
+import { RMA_COMMANDS } from './returns';
+import { CLIENT_QUERY_COMMANDS } from './clientQueries';
 import { CommandRegistry } from './registry';
 import { workspaceInviteRevokeCommand } from './workspaceInvites';
 import { workspaceCancelDeletionCommand } from './workspaceLifecycle';
@@ -144,6 +147,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(inventoryItemDeleteCommand);
   registry.register(inventoryCategoryRenameCommand);
   registry.register(documentSaveCommand);
+  ASSET_COMMANDS.forEach(command => registry.register(command));
   registry.register(assetCostAdditionCommand);
   registry.register(autoRuleResetCommand);
   registry.register(loanPaymentCommand);
@@ -277,6 +281,9 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(inventoryStockClosingCommand);
   registry.register(inventoryLandedCostCommand);
   registry.register(inventoryLandedCostUndoCommand);
+  DOCUMENT_ADJUSTMENT_COMMANDS.forEach(command => registry.register(command));
+  RMA_COMMANDS.forEach(command => registry.register(command));
+  CLIENT_QUERY_COMMANDS.forEach(command => registry.register(command));
   return registry;
 }
 

@@ -4,14 +4,14 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "loanId": COMMAND_SCHEMA_PARTS.part82,
+    "loanId": COMMAND_SCHEMA_PARTS.part87,
     "installment": {
       "type": "integer",
       "minimum": 1,
       "maximum": 600
     },
-    "date": COMMAND_SCHEMA_PARTS.part95,
-    "transactionId": COMMAND_SCHEMA_PARTS.part46
+    "date": COMMAND_SCHEMA_PARTS.part102,
+    "transactionId": COMMAND_SCHEMA_PARTS.part49
   },
   "required": [
     "loanId",

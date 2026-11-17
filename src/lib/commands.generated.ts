@@ -26,7 +26,9 @@ import { PAYMENT_COMMAND_MANIFEST } from './commandManifests.generated/payment';
 import { PERIOD_COMMAND_MANIFEST } from './commandManifests.generated/period';
 import { PRESENCE_COMMAND_MANIFEST } from './commandManifests.generated/presence';
 import { PROJECT_COMMAND_MANIFEST } from './commandManifests.generated/project';
+import { QUERY_COMMAND_MANIFEST } from './commandManifests.generated/query';
 import { RECONCILIATIONS_COMMAND_MANIFEST } from './commandManifests.generated/reconciliations';
+import { RMA_COMMAND_MANIFEST } from './commandManifests.generated/rma';
 import { SAVEDLIST_COMMAND_MANIFEST } from './commandManifests.generated/savedlist';
 import { STAGES_COMMAND_MANIFEST } from './commandManifests.generated/stages';
 import { SUPPORT_COMMAND_MANIFEST } from './commandManifests.generated/support';
@@ -67,7 +69,9 @@ export const COMMAND_MANIFEST = [
   ...PERIOD_COMMAND_MANIFEST,
   ...PRESENCE_COMMAND_MANIFEST,
   ...PROJECT_COMMAND_MANIFEST,
+  ...QUERY_COMMAND_MANIFEST,
   ...RECONCILIATIONS_COMMAND_MANIFEST,
+  ...RMA_COMMAND_MANIFEST,
   ...SAVEDLIST_COMMAND_MANIFEST,
   ...STAGES_COMMAND_MANIFEST,
   ...SUPPORT_COMMAND_MANIFEST,

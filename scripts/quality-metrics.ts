@@ -321,6 +321,36 @@ function computeUnreachableActions(rootDir: string): number {
  * appear on the same line as the `className`, and this codebase writes most elements across several
  * lines — so it silently found almost nothing and reported a comfortable zero.
  */
+/**
+ * Scan each portion of JSX once for the most recent wizard-step condition.
+ * Avoid repeatedly matching a backtracking regex over each file prefix.
+ */
+export function wizardStepInRange(text: string, from: number, to: number): string | undefined {
+  let last: string | undefined;
+  let cursor = from;
+  while (cursor < to) {
+    const brace = text.indexOf('{', cursor);
+    if (brace === -1 || brace >= to) break;
+    cursor = brace + 1;
+    let at = cursor;
+    while (at < to && /\s/.test(text[at])) at++;
+    if (!text.startsWith('step', at) || /[A-Za-z0-9_$]/.test(text[at + 4] ?? '')) continue;
+    at += 4;
+    while (at < to && /\s/.test(text[at])) at++;
+    if (!text.startsWith('===', at)) continue;
+    at += 3;
+    while (at < to && /\s/.test(text[at])) at++;
+    const andAt = text.indexOf('&&', at);
+    if (andAt === -1 || andAt >= to) continue;
+    const candidate = text.slice(at, andAt).trim();
+    if (!candidate || /[&{}]/.test(candidate)) continue;
+    let afterAnd = andAt + 2;
+    while (afterAnd < to && /\s/.test(text[afterAnd])) afterAnd++;
+    if (afterAnd < to && text[afterAnd] === '(') last = candidate;
+  }
+  return last;
+}
+
 function computeScreensWithManyPrimaryButtons(rootDir: string): number {
   /**
    * A filled button, not a tint. `bg-indigo-600/[0.03]` on a selected row is a wash behind content —
@@ -336,9 +366,11 @@ function computeScreensWithManyPrimaryButtons(rootDir: string): number {
     const text = fs.readFileSync(file, 'utf8');
     const perStep = new Map<string, number>();
     let step = '';
+    let stepScanFrom = 0;
     for (const tag of openingButtonTags(text)) {
-      const stepHere = [...text.slice(0, tag.index).matchAll(/\{\s*step\s*===\s*([^&]+?)\s*&&\s*\(/g)].at(-1);
-      if (stepHere) step = stepHere[1].trim();
+      const stepHere = wizardStepInRange(text, stepScanFrom, tag.index);
+      if (stepHere !== undefined) step = stepHere;
+      stepScanFrom = tag.index;
       if (!filled.test(tag.attributes)) continue;
       // a class that is one arm of a ternary is a selected state, not an action. Test only the
       // className value, not every attribute: `disabled={a ? b : c}` is not a selected state.
@@ -462,6 +494,9 @@ export function computeQualityMetrics(rootDir: string = process.cwd()): QualityM
         entry.isFile() &&
         /\.(ts|tsx|js|jsx)$/.test(entry.name) &&
         !entry.name.includes('.test.') &&
+        // machine output is not maintained by hand: a generated file growing past 800 lines is the generator's
+        // business (it splits by command), not a reviewer's, so it is not counted as a maintainability regression
+        !fullPath.includes('.generated') &&
         !entry.name.endsWith('.d.ts')
       ) {
         scanFile(fullPath);
