@@ -1514,7 +1514,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] BP-01 Docker compose
 - [ ] BP-02 Emulator setup docs
 - [ ] BP-04 Storybook
-- [ ] BP-06 Load tests
+- [x] BP-06 Load tests — ✅ 17 Nov code check (Claude): `load-test.ts` / `load/`
 - [ ] BP-07 Canary rollout
 
 # SECTION CA–CG — FROM 12 OPEN-SOURCE PRODUCTS
@@ -1527,7 +1527,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] CA-18 Withholding category
 - [ ] CA-19 TDS summary
 - [ ] CA-20 Tax category per party
-- [ ] CA-21 Pricing rules
+- [~] CA-21 Pricing rules — 17 Nov code check (Claude): price lists exist (`PriceListImportView`, line pricing); conditional pricing rules not found
 - [ ] CA-22 Coupons
 - [ ] CA-23 Loyalty
 - [ ] CA-24 Shipping rules
@@ -1539,13 +1539,13 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [~] CB-22 Discount mismatch
 - [~] CB-26 Consolidated TB — **step 1 done 8 Oct (Claude), on the group summary:** what the companies owe each other (balances on intercompany accounts: role 'intercompany' or "Intercompany" in the name) is taken out of the group's total assets and liabilities, at the closing rate when translated; if the two sides differ, the difference is said and kept in equity so the total balances (`groupReport.ts`, tests `group-summary.test.tsx`). **Step 2 done 8 Oct (Claude):** sales between the companies (the income and costs of intercompany entries in force between members, in the period) are taken out of the group's income, cost of goods sold and expenses, at the average rate when translated; net income stays the companies' own, so a difference between the two sides is said and stays in it (tests `main-path-group.test.ts` through the app's own intercompany posting, `group-summary.test.tsx`). **Account by account:** on Group Summary since 8 Oct (Z-20), matched by code or name. **Mapping for charts whose codes and names both differ: done 10 Oct** (Z-20, combining lines).
 - [ ] CB-28 POS register
-- [ ] CC-01 Per-recipient invitation links + view tracking
+- [~] CC-01 Per-recipient invitation links + view tracking — 17 Nov code check (Claude): `viewCount` is tracked on invoices; per-recipient links not found
 - [ ] CC-02 Design templates
 - [ ] CC-03 Proposals
 - [ ] CC-06 Gateway tokens
 - [ ] CC-07 Multiple gateways
 - [ ] CC-15 E-invoicing log
-- [ ] CC-16 System log
+- [x] CC-16 System log — ✅ 17 Nov code check (Claude): `admin/AuditLogViewer.tsx`
 - [ ] CD-01 Scheduled transactions
 - [ ] CD-02 Undo / redo
 - [ ] CD-03 Query language
@@ -1561,15 +1561,15 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] CE-08 Invite codes
 - [~] CE-09 Competitor import — **10 Oct (Claude)**: the customer, vendor, item and chart of accounts imports now map Xero's and Wave's own exports by themselves (Xero's ContactName, EmailAddress, ItemCode, SalesUnitPrice…; Wave's and Xero's account types such as "Expected Payments from Customers", "Customer Prepayments", "Sales Taxes", "Business Owner Contribution", "Prepayment", "Depreciation"), as they already did QuickBooks' (`src/lib/recordImport.ts`; tests `record-import.test.ts`). **Open:** importing their invoices, bills and opening balances.
 - [ ] CE-10 Mobile device registration
-- [ ] CF-01 Timesheet entity
+- [x] CF-01 Timesheet entity — ✅ 17 Nov code check (Claude): `collaboration/TimeView.tsx`
 - [ ] CF-02 Activity under project
 - [ ] CF-03 Rate hierarchy
 - [ ] CF-04 Working time / capacity
 - [ ] CF-05 Per-user bookmarks
-- [ ] CF-07 Comments on customer / project
+- [x] CF-07 Comments on customer / project — ✅ 17 Nov code check (Claude): `noteLog` on the party page (`PartyProfilePanel.tsx`)
 - [~] CF-08 Meta fields on any entity — **14 Oct (AI #3)**: A-36 keeps notes as meta fields on eight record kinds and A-37 defines custom fields (text/number/date/choice) on customers, vendors and items with their values in each record's metadata; “any entity” beyond those kinds waits on the reserved document forms.
-- [ ] CG-02 Unit of measure
-- [ ] CG-03 Payment method entity
+- [x] CG-02 Unit of measure — ✅ 17 Nov code check (Claude): `measurementUnit` on items (Inventory)
+- [x] CG-03 Payment method entity — ✅ 17 Nov code check (Claude): `settings/PaymentTypesSettings.tsx`
 - [ ] CG-04 Exchange rate provider + log
 - [ ] CG-05 File disk abstraction
 - [ ] CG-06 Teams
