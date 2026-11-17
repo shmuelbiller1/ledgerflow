@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { calculateNetIncome, isTransactionInDateRange } from '../../lib/txFilters';
+import { calculateNetIncome, transactionDate } from '../../lib/txFilters';
 import { currencyDigits, minorToMajor } from '../../lib/currencyMinorUnits';
 import { lockMessage, monthCloseState, monthEnd, postingLock, type PeriodLockSettings } from '../../lib/periodLock';
 import { closeStepsProblem } from '../../lib/closeSteps';
@@ -57,9 +57,18 @@ function assertYearCloseable(closingDate: string, workspace: Record<string, unkn
   }
 }
 
-/** Entries a lock would leave on the wrong side of it: drafts dated inside the year being closed. */
-function trappedDrafts(entries: unknown[], yearStart: string, closingDate: string): number {
-  return (entries as Transaction[]).filter(e => e.status === 'draft' && isTransactionInDateRange(e, yearStart, closingDate)).length;
+/**
+ * Drafts the new lock would trap. A lock refuses every write on or before its date, not only inside the year being
+ * closed, so this counts every draft after the current lock (or from the start, with no lock) up to the closing
+ * date: a draft left over from an earlier, never-closed year would be stuck just the same.
+ */
+function trappedDrafts(entries: unknown[], workspace: Record<string, unknown>, closingDate: string): number {
+  const lockDate = typeof workspace.lockDate === 'string' ? workspace.lockDate.slice(0, 10) : '';
+  return (entries as Transaction[]).filter(e => {
+    if (e.status !== 'draft') return false;
+    const d = transactionDate(e);
+    return d !== '' && d <= closingDate && (!lockDate || d > lockDate);
+  }).length;
 }
 
 export const periodYearCloseInput = z.object({ closingDate: fiscalYearCloseDate, lockPeriod: z.boolean().optional() }).strict();
@@ -92,7 +101,7 @@ export const periodYearCloseCommand: CommandDefinition<typeof periodYearCloseInp
       // A lock refuses every later write on or before the closing date, drafts included: a draft left in
       // the year could then neither be posted nor removed. The month close lists drafts and refuses
       // (closeStepsProblem); the year close locks a whole year, so it refuses on the same terms.
-      const trapped = trappedDrafts(transactions, yearStart, input.closingDate);
+      const trapped = trappedDrafts(transactions, ctx.workspace, input.closingDate);
       if (trapped > 0) {
         throw new PeriodCloseError(409, `Cannot lock the year: ${trapped} draft ${trapped === 1 ? 'entry is' : 'entries are'} dated inside it and would never be postable. Post or delete ${trapped === 1 ? 'it' : 'them'} first.`);
       }
@@ -123,14 +132,14 @@ export const periodYearCloseCommand: CommandDefinition<typeof periodYearCloseInp
     const year = calculateNetIncome(entries as Transaction[], accounts, yearStart, input.closingDate);
     const currency = typeof ctx.workspace.currency === 'string' && ctx.workspace.currency ? ctx.workspace.currency : 'USD';
     const fmt = (cents: number) => minorToMajor(cents, currency).toFixed(currencyDigits(currency));
-    const trapped = input.lockPeriod ? trappedDrafts(entries, yearStart, input.closingDate) : 0;
+    const trapped = input.lockPeriod ? trappedDrafts(entries, ctx.workspace, input.closingDate) : 0;
     return {
       title: `Close fiscal year ${yearStart} through ${input.closingDate}`,
       lines: [
         `Net ${year.netIncome >= 0 ? 'profit' : 'loss'}: ${fmt(Math.abs(year.netIncome))} (income ${fmt(year.income)}, costs ${fmt(year.cogs + year.expense)}).`,
         `The year ${input.lockPeriod ? 'will be locked' : 'will remain open'} after the close.`,
         ...(trapped > 0
-          ? [`${trapped} draft ${trapped === 1 ? 'entry is' : 'entries are'} dated inside the year: the lock would leave ${trapped === 1 ? 'it' : 'them'} permanently unpostable, so the close will be refused until ${trapped === 1 ? 'it is' : 'they are'} posted or deleted.`]
+          ? [`${trapped} draft ${trapped === 1 ? 'entry is' : 'entries are'} dated on or before the closing date and not yet locked: the lock would leave ${trapped === 1 ? 'it' : 'them'} permanently unpostable, so the close will be refused until ${trapped === 1 ? 'it is' : 'they are'} posted or deleted.`]
           : []),
         'No closing journal entry is posted; the balance sheet already carries past profit in retained earnings.',
       ],

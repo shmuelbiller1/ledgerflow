@@ -115,6 +115,15 @@ describe('EG-3 period-closing document', { skip: !url && 'LF_TEST_DATABASE_URL n
     assert.match(JSON.stringify(refused.body), /draft/);
     assert.equal((await closings()).length, 0, 'nothing was closed');
     await db.pool.query('delete from public."transactions" where id = $1', [draftId]);
+    // a draft from an earlier year that was never closed is behind the same lock (Gitar on #772)
+    const oldDraftId = `${ws}_draft_earlier_year`;
+    const savedOld = await send('POST', '/api/v1/transactions/bulk', { workspaceId: ws, transactions: [{
+      id: oldDraftId, uid: OWNER, workspaceId: ws, date: '2023-05-01', description: 'old draft', totalAmountCents: 1_000, currency: 'USD', status: 'draft', type: 'journal',
+      lines: [{ accountId: acct['6000'].id, amountCents: 1_000 }, { accountId: acct['1000'].id, amountCents: -1_000 }],
+    }] });
+    assert.equal(savedOld.status, 200, JSON.stringify(savedOld.body));
+    assert.equal((await close()).status, 409);
+    await db.pool.query('delete from public."transactions" where id = $1', [oldDraftId]);
   });
 
   test('close: one current document whose figures equal the P&L and the balance sheet at the year end; no entry posted', async () => {
