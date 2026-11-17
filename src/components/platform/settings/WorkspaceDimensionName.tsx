@@ -3,7 +3,7 @@ import React, { useRef, useState } from 'react';
 import { suggestionsFrom } from '../../../lib/inlineEdit';
 import InlineEdit from '../../ui/InlineEdit';
 import { useAuthStore } from '../../../stores/useAuthStore';
-import { useCurrentRole } from '../../../hooks/useCurrentRole';
+import { hasRoleAtLeast, useCurrentRole } from '../../../hooks/useCurrentRole';
 import { inlineRecordAdapter } from '../../../lib/inlineRecordAdapter';
 import { saveDimensionAxisLabel, type DimensionAxisAdapter } from '../../../lib/dimensionAxisLabel';
 import { doc, getDoc } from '../../../lib/db/firestore';
@@ -30,7 +30,7 @@ function ScopedDimensionName({ axis, onSaved }: { axis: DimensionDefinition; onS
   } catch (error) { setFailure({ value: String(value), message: error instanceof Error ? error.message : String(error) }); throw error; }
   finally { busy.current = false; setSaving(false); }
  };
- return <span className="inline-flex flex-col"><InlineEdit value={displayDimensionName(axis)} suggestions={suggestionsFrom(names || [], dimension => dimension.name)} label={`Label name ${axis.id}`} canEdit={role !== 'viewer' && !saving} onSave={save} validate={value => String(value).trim() ? null : 'Display name is required'} />{failure && <span role="alert">{failure.message} <bdi>{failure.value}</bdi> <button type="button" disabled={saving || role === 'viewer'} onClick={() => { void save(failure.value).catch((err) => { console.warn('[WorkspaceDimensionName] Retry failed:', err); }); }}>Retry name</button></span>}</span>;
+ return <span className="inline-flex flex-col"><InlineEdit value={displayDimensionName(axis)} suggestions={suggestionsFrom(names || [], dimension => dimension.name)} label={`Label name ${axis.id}`} canEdit={hasRoleAtLeast(role, 'accountant') && !saving} onSave={save} validate={value => String(value).trim() ? null : 'Display name is required'} />{failure && <span role="alert">{failure.message} <bdi>{failure.value}</bdi> <button type="button" disabled={saving || !hasRoleAtLeast(role, 'accountant')} onClick={() => { void save(failure.value).catch((err) => { console.warn('[WorkspaceDimensionName] Retry failed:', err); }); }}>Retry name</button></span>}</span>;
 }
 export function WorkspaceDimensionName(props: React.ComponentProps<typeof ScopedDimensionName>) {
  const uid = useAuthStore(state => state.user?.uid), workspace = useAuthStore(state => state.currentWorkspaceId);

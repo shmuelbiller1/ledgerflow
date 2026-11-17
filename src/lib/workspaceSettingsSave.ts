@@ -23,10 +23,25 @@ import type { DimensionDefinition } from '../types';
 /** Change settings on the workspace: the sample company's own copy in a demo, the command when signed in. */
 export async function saveWorkspaceSettings(workspaceId: string, fields: Record<string, unknown>): Promise<void> {
   if (guestSession()) {
-    await localUpdate('workspaces', workspaceId, fields);
+    await localUpdate('workspaces', workspaceId, mergeNestedMaps(fields));
     return;
   }
   await runNamedCommand('workspace.settings', fields, { workspaceId });
+}
+
+/**
+ * The server merges `reportNotes` one note at a time (NESTED_MAPS in workspaceSettingsPanel.ts). The sample
+ * company must do the same, or saving one note would replace every other note: each note becomes its own dotted
+ * field (`reportNotes.<key>`), which the sample database writes in place. A cleared note is stored as null, which
+ * the screen reads as no note.
+ */
+function mergeNestedMaps(fields: Record<string, unknown>): Record<string, unknown> {
+  const notes = fields.reportNotes;
+  if (!notes || typeof notes !== 'object' || Array.isArray(notes)) return fields;
+  const { reportNotes: _ignored, ...rest } = fields;
+  const flat: Record<string, unknown> = { ...rest };
+  for (const [key, value] of Object.entries(notes as Record<string, unknown>)) flat[`reportNotes.${key}`] = value;
+  return flat;
 }
 
 /** Save the workspace's label axes (which labels exist and what they are called), same two worlds. */

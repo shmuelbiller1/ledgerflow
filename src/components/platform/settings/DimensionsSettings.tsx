@@ -767,8 +767,8 @@ function DimensionsSettingsContent() {
         onSaved={saved => setDimensions(prev => prev.map(d => ({ ...d, requiredOn: saved.find(x => x.id === d.id)?.requiredOn })))} />
       <LabelRoles dimensions={dimensions} onSaved={saved => setDimensions(prev => prev.map(d => ({ ...d, role: saved.find(x => x.id === d.id)?.role })))} />
 
-      {/* Save Button Bar */}
-      {canWrite && (
+      {/* Save Button Bar — saving the label axes is workspace.dimensionaxes, which only owners and accountants may run */}
+      {canAdmin && (
       <div className="flex justify-end pt-6 border-t border-[var(--line)]">
         <AsyncButton
           type="button"
