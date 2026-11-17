@@ -1,102 +1,16 @@
-import type { TestDocument, TestDocumentReference, TestResponseBody } from './helpers/mockTypes';
+import type { TestResponseBody } from './helpers/mockTypes';
+import { MockTransactionalDb } from './helpers/mockTransactionalDb';
 import type { AuditLog } from '../types';
-import type { TestReconcileTransaction } from './helpers/mockTypes';
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import type express from 'express';
 import type { Firestore } from '../server/db/firestore';
 import { handleReconcile } from '../server/routes/transactionRoutes';
 
-class MockDb {
-  public data: Map<string, TestDocument> = new Map();
-
-  collection(collName: string) {
-    return {
-      doc: (docId?: string) => {
-        const id = docId || `id_${Math.random().toString(36).substring(2, 9)}`;
-        const key = `${collName}/${id}`;
-        return {
-          id,
-          key,
-          get: async () => {
-            const val = this.data.get(key);
-            return {
-              exists: val !== undefined,
-              id,
-              data: () => val ? JSON.parse(JSON.stringify(val)) : undefined
-            };
-          }
-        };
-      }
-    };
-  }
-
-  async runTransaction<T>(updateFunction: (tx: TestReconcileTransaction) => Promise<T>): Promise<T> {
-    const snapshotMap = new Map<string, TestDocument>();
-    for (const [k, v] of this.data.entries()) {
-      snapshotMap.set(k, JSON.parse(JSON.stringify(v)));
-    }
-
-    const tx = {
-      get: async (docRef: TestDocumentReference) => {
-        const val = snapshotMap.get(docRef.key);
-        return {
-          exists: val !== undefined,
-          id: docRef.id,
-          data: () => val ? JSON.parse(JSON.stringify(val)) : undefined
-        };
-      },
-      update: (docRef: TestDocumentReference, updates: TestDocument) => {
-        const current = snapshotMap.get(docRef.key) || {};
-        const updated = { ...current, ...updates };
-        snapshotMap.set(docRef.key, updated);
-      },
-      create: (docRef: TestDocumentReference, newData: TestDocument) => {
-        snapshotMap.set(docRef.key, newData);
-      },
-      delete: (docRef: TestDocumentReference) => {
-        snapshotMap.delete(docRef.key);
-      },
-      set: (docRef: TestDocumentReference, newData: TestDocument) => {
-        snapshotMap.set(docRef.key, newData);
-      },
-      getAll: async (...docRefs: TestDocumentReference[]) => {
-        return docRefs.map(ref => {
-          const val = snapshotMap.get(ref.key);
-          return {
-            exists: val !== undefined,
-            id: ref.id,
-            data: () => val ? JSON.parse(JSON.stringify(val)) : undefined
-          };
-        });
-      }
-    };
-
-    const res = await updateFunction(tx);
-    this.data = snapshotMap;
-    return res;
-  }
-
-  getDocData(collName: string, docId: string) {
-    const val = this.data.get(`${collName}/${docId}`);
-    return val ? JSON.parse(JSON.stringify(val)) : undefined;
-  }
-
-  getCollectionDocs(collName: string) {
-    const docs: TestDocument[] = [];
-    const prefix = `${collName}/`;
-    for (const [k, v] of this.data.entries()) {
-      if (k.startsWith(prefix)) {
-        docs.push(JSON.parse(JSON.stringify(v)));
-      }
-    }
-    return docs;
-  }
-}
 
 describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
   test('Viewer role receives 403', async () => {
-    const db = new MockDb();
+    const db = new MockTransactionalDb();
     db.data.set('workspaces/ws-1', {
       id: 'ws-1',
       members: ['user-viewer'],
@@ -131,7 +45,7 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
   });
 
   test('Bank line dated on or before lockDate returns 400 and writes nothing', async () => {
-    const db = new MockDb();
+    const db = new MockTransactionalDb();
     db.data.set('workspaces/ws-1', {
       id: 'ws-1',
       lockDate: '2026-08-31',
@@ -175,7 +89,7 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
   });
 
   test('AF-001: a bank line in another currency is not matched as home-currency money', async () => {
-    const db = new MockDb();
+    const db = new MockTransactionalDb();
     db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', roles: { 'user-owner': 'owner' } });
     db.data.set('bankLines/line-eur', { id: 'line-eur', workspaceId: 'ws-1', date: '2026-10-20', status: 'pending', amountCents: -1050, currency: 'EUR' });
     db.data.set('bankLines/line-usd', { id: 'line-usd', workspaceId: 'ws-1', date: '2026-10-20', status: 'pending', amountCents: -1050, currency: 'USD' });
@@ -199,7 +113,7 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
   });
 
   test('AF-001: undoing a match applies what the bank changed since (CodeRabbit on #439)', async () => {
-    const db = new MockDb();
+    const db = new MockTransactionalDb();
     db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', roles: { 'user-owner': 'owner' } });
     db.data.set('bankLines/line-mod', { id: 'line-mod', workspaceId: 'ws-1', source: 'plaid', date: '2026-10-20', description: 'Old', status: 'matched', matchedTransactionId: 'tx-a', amountCents: -500, currency: 'USD', bankChange: 'modified', bankCorrection: { date: '2026-10-21', description: 'New', amountCents: -650, currency: 'USD' } });
     db.data.set('bankLines/line-gone', { id: 'line-gone', workspaceId: 'ws-1', source: 'plaid', date: '2026-10-20', description: 'Gone', status: 'matched', matchedTransactionId: 'tx-b', amountCents: -100, bankChange: 'removed' });
@@ -221,7 +135,7 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
   });
 
   test('AF-001: a withdrawn line is not deleted while its entry stays reconciled (CodeRabbit on #455)', async () => {
-    const db = new MockDb();
+    const db = new MockTransactionalDb();
     db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', roles: { 'user-owner': 'owner' } });
     db.data.set('bankLines/line-gone', { id: 'line-gone', workspaceId: 'ws-1', source: 'plaid', date: '2026-10-20', status: 'matched', matchedTransactionId: 'tx-b', amountCents: -100, bankChange: 'removed' });
     // the entry exists and is valid, so a refusal can only come from the release rule
@@ -267,7 +181,7 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
   });
 
   test('AF-001: undo refuses a bank correction dated in a closed period (Codex on #455)', async () => {
-    const db = new MockDb();
+    const db = new MockTransactionalDb();
     db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', lockDate: '2026-09-30', roles: { 'user-owner': 'owner' } });
     db.data.set('bankLines/line-mod', { id: 'line-mod', workspaceId: 'ws-1', source: 'plaid', date: '2026-10-02', description: 'Old', status: 'matched', matchedTransactionId: 'tx-a', amountCents: -500, bankChange: 'modified', bankCorrection: { date: '2026-09-29', description: 'New', amountCents: -500, currency: 'USD' } });
     const req = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [{ id: 'line-mod', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: null } }] } } as unknown as express.Request;
@@ -279,7 +193,7 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
   });
 
   test('Undo sets bank line back to pending and transaction back to completed with audit log', async () => {
-    const db = new MockDb();
+    const db = new MockTransactionalDb();
     db.data.set('workspaces/ws-1', {
       id: 'ws-1',
       roles: { 'user-owner': 'owner' }

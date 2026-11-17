@@ -1,69 +1,15 @@
+import { MockTransactionalDb } from './helpers/mockTransactionalDb';
 import type { AddressInfo } from './helpers/mockTypes';
-import type { TestDocument, TestDocumentReference, TestTransaction } from './helpers/mockTypes';
 import type { ListeningServer, TestRequest } from './helpers/mockTypes';
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { allocateNextNumber } from '../server/routes/workspaceRoutes';
 import type { Firestore } from '../server/db/firestore';
 
-class MockTransactionalDb {
-  private data: Map<string, TestDocument> = new Map();
-  private transactionQueue: Promise<unknown> = Promise.resolve();
-
-  collection(collName: string) {
-    return {
-      doc: (docId: string) => {
-        const key = `${collName}/${docId}`;
-        return {
-          id: docId,
-          key,
-          db: this
-        };
-      }
-    };
-  }
-
-  async runTransaction<T>(updateFunction: (tx: TestTransaction) => Promise<T>): Promise<T> {
-    const resultPromise = this.transactionQueue.then(async () => {
-      const snapshotMap = new Map<string, TestDocument>();
-      for (const [k, v] of this.data.entries()) {
-        snapshotMap.set(k, JSON.parse(JSON.stringify(v)));
-      }
-
-      const tx = {
-        get: async (docRef: TestDocumentReference) => {
-          const val = snapshotMap.get(docRef.key);
-          return {
-            exists: val !== undefined,
-            data: () => val ? JSON.parse(JSON.stringify(val)) : undefined
-          };
-        },
-        update: (docRef: TestDocumentReference, updates: TestDocument) => {
-          const current = snapshotMap.get(docRef.key) || {};
-          const updated = { ...current, ...updates };
-          snapshotMap.set(docRef.key, updated);
-        },
-        set: (docRef: TestDocumentReference, newData: TestDocument) => {
-          snapshotMap.set(docRef.key, newData);
-        }
-      };
-
-      const res = await updateFunction(tx);
-      
-      for (const [k, v] of snapshotMap.entries()) {
-        this.data.set(k, v);
-      }
-      return res;
-    });
-
-    this.transactionQueue = resultPromise.catch(() => {});
-    return resultPromise;
-  }
-}
 
 describe('Atomic Gapless Numbering Series Test Suite (Task 3)', () => {
   test('Creating 50 invoices concurrently yields 50 unique, strictly sequential numbers with no gaps (INV-2026-0001 through INV-2026-0050)', async () => {
-    const mockDb = new MockTransactionalDb();
+    const mockDb = new MockTransactionalDb({ serialize: true });
     const workspaceId = 'ws-concurrent-test';
 
     const promises = Array.from({ length: 50 }, () => 

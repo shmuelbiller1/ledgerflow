@@ -1,13 +1,12 @@
 import { isIncomeAccount, resolveAccountRole } from '../../lib/accountUtils';
 import { roundCents } from '../../lib/cents';
 import { Invoice } from '../../types';
-import { isPostable } from '../../lib/txFilters';
 import { calculateDocumentTax, cashPostedWithDocumentCents, depositAppliedCents } from '../../lib/documentMath';
 import { TransactionTemplates } from '../../kernel/templates/TransactionTemplates';
 import { INVOICE_COGS_TYPE, planInvoiceCogs } from '../invoiceCogs';
 import { goodsLeaveWith } from '../../lib/deliveries';
-import { getAccounts, getTransactions, getWorkspaces, loadInventory, inBaseCurrency, verifyLockDate, findAccount, resolveAccount, lineAccounts, postTxsServerApi, reversalDate, postingToday, documentMinorRate, taxLineStamp } from './postingCore';
-import type { EntityMutation, LedgerPostContext, PostableTransaction } from './postingCore';
+import { getAccounts, getTransactions, getWorkspaces, loadInventory, inBaseCurrency, verifyLockDate, findAccount, resolveAccount, lineAccounts, postTxsServerApi, postingToday, documentMinorRate, taxLineStamp, liveDocumentPostings, reversalEntries } from './postingCore';
+import type { EntityMutation, LedgerPostContext } from './postingCore';
 import { isOpeningBalanceEquity } from '../../lib/openingBalances';
 
 /**
@@ -62,44 +61,19 @@ export async function postInvoiceLedger(
     'Cash & Cash Equivalents'
   );
 
-  // Find prior active non-reversal postings for this invoice to generate reversing entries
-  // Improved logic: exclude any transaction that has ALREADY been reversed, and exclude
-  // separate-lifecycle bad-debt write-off/recovery entries managed exclusively by badDebtService (A8-013)
-  const BAD_DEBT_TYPES = new Set(['invoice-bad-debt-writeoff', 'invoice-bad-debt-recovery']);
-  const allTxs = getTransactions(context).filter(t => t.metadata?.invoiceId === invoiceId && !BAD_DEBT_TYPES.has(String(t.metadata?.type || '')));
-  const reversedIds = new Set(allTxs.filter(t => t.metadata?.isReversal).map(t => t.metadata?.reversesTxId || t.metadata?.reversedTransactionId));
-  
-  const existingTxs = allTxs.filter(t => 
-    isPostable(t) && 
-    !t.metadata?.isReversal &&
-    !reversedIds.has(t.id)
-  );
-
-  const txsToPost: PostableTransaction[] = [];
+  // 1. Reversing entries for the standing postings: never one already reversed, and never a
+  // separate-lifecycle bad-debt write-off/recovery entry managed exclusively by badDebtService (A8-013)
   const today = postingToday(context);
-
-  // 1. Reversing entries for existing postings
-  for (const prevTx of existingTxs) {
-    txsToPost.push({
-      uid,
-      workspaceId,
-      date: reversalDate(prevTx.date, today, context),
-      description: `Reversal of prior invoice posting (Invoice ${invoiceData.number || invoiceId})`,
-      totalAmountCents: prevTx.totalAmountCents,
-      currency: prevTx.currency || 'USD',
-      exchangeRate: prevTx.exchangeRate || 1,
-      status: 'completed',
-      type: 'actual',
-      createdAt: new Date().toISOString(),
-      metadata: {
-        invoiceId,
-        type: 'invoice-reversal',
-        reversesTxId: prevTx.id,
-        isReversal: true
-      },
-      lines: TransactionTemplates.buildReversalLines(prevTx.lines || [], prevTx.description)
-    });
-  }
+  const existingTxs = liveDocumentPostings(
+    getTransactions(context),
+    t => t.metadata?.invoiceId === invoiceId,
+    { excludeTypes: new Set(['invoice-bad-debt-writeoff', 'invoice-bad-debt-recovery']) },
+  );
+  const txsToPost = reversalEntries(existingTxs, {
+    uid, workspaceId, today, context,
+    describe: () => `Reversal of prior invoice posting (Invoice ${invoiceData.number || invoiceId})`,
+    metadata: () => ({ invoiceId, type: 'invoice-reversal' })
+  });
 
   const status = invoiceData.status || 'pending';
   if (status === 'draft' || status === 'rejected' || status === 'void' || status === 'cancelled') {

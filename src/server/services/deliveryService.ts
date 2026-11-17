@@ -66,14 +66,45 @@ export interface DeliveryAccounts {
   cogsAcc: { id: string; name: string };
 }
 
-/** The checks and account reads ahead of the write (read-only). */
-export async function prepareDeliverOrder(db: Firestore, input: DeliveryInput): Promise<DeliveryAccounts> {
+/**
+ * The checks and account reads ahead of either write (read-only): the period is open and both
+ * accounts belong to this workspace and are different accounts.
+ */
+async function prepareDeliveryAccounts(
+  db: Firestore,
+  input: { workspaceId: string; uid: string; date: string; inventoryAccountId: string; cogsAccountId: string },
+): Promise<DeliveryAccounts> {
   await assertPeriodOpen(db, input.workspaceId, input.date, input.uid);
   const accounts = await validateWorkspaceAccounts(db, input.workspaceId, [input.inventoryAccountId, input.cogsAccountId]);
   const inventoryAcc = accounts.get(input.inventoryAccountId);
   const cogsAcc = accounts.get(input.cogsAccountId);
   if (!inventoryAcc || !cogsAcc || input.inventoryAccountId === input.cogsAccountId) throw new DeliveryError(400, 'Choose the Inventory and Cost of Goods Sold accounts of this workspace');
   return { inventoryAcc: { id: inventoryAcc.id, name: inventoryAcc.name }, cogsAcc: { id: cogsAcc.id, name: cogsAcc.name } };
+}
+
+/**
+ * The end of both delivery writes: the units move, the entries are created, and the delivery is
+ * audited in the same transaction.
+ */
+async function commitDeliveryEntries(
+  db: Firestore,
+  t: DbTransaction,
+  posted: Transaction[],
+  audit: { workspaceId: string; uid: string; email?: string; action: string; entityId: string; description: string },
+): Promise<{ warnings: string[] }> {
+  const stock = await prepareStockMoves(db, t, audit.workspaceId, posted as unknown as Parameters<typeof prepareStockMoves>[3]);
+  stock.apply();
+  for (const tx of posted) ledgerCreate(t, db.collection('transactions').doc(tx.id), { ...tx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+  await writeServerAuditLog({
+    workspaceId: audit.workspaceId, uid: audit.uid, email: audit.email, action: audit.action, entityType: 'estimates', entityId: audit.entityId,
+    details: { description: audit.description },
+  }, { db, tx: t });
+  return { warnings: stock.warnings };
+}
+
+/** The checks and account reads ahead of the write (read-only). */
+export function prepareDeliverOrder(db: Firestore, input: DeliveryInput): Promise<DeliveryAccounts> {
+  return prepareDeliveryAccounts(db, input);
 }
 
 export async function deliverOrder(db: Firestore, input: DeliveryInput) {
@@ -139,15 +170,11 @@ export async function deliverOrderInTransaction(db: Firestore, t: DbTransaction,
         ],
       } as unknown as Transaction, { workspaceId: input.workspaceId, user: { uid: input.uid }, wsData: workspace }, undefined, t));
     }
-    const stock = await prepareStockMoves(db, t, input.workspaceId, posted as unknown as Parameters<typeof prepareStockMoves>[3]);
-
-    stock.apply();
-    for (const tx of posted) ledgerCreate(t, db.collection('transactions').doc(tx.id), { ...tx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-    await writeServerAuditLog({
-      workspaceId: input.workspaceId, uid: input.uid, email: input.email, action: 'GOODS_DELIVERED', entityType: 'estimates', entityId: order.id,
-      details: { description: `Delivered from order ${order.number || order.id}: ${sending.map(l => `${lines.find(x => x.position === l.position)!.description || 'item'} × ${l.quantity}`).join(', ')}` },
-    }, { db, tx: t });
-    return { deliveryId: input.deliveryId, transactionIds: posted.map(tx => tx.id), warnings: stock.warnings, repeated: false };
+    const { warnings } = await commitDeliveryEntries(db, t, posted, {
+      workspaceId: input.workspaceId, uid: input.uid, email: input.email, action: 'GOODS_DELIVERED', entityId: order.id,
+      description: `Delivered from order ${order.number || order.id}: ${sending.map(l => `${lines.find(x => x.position === l.position)!.description || 'item'} × ${l.quantity}`).join(', ')}`,
+    });
+    return { deliveryId: input.deliveryId, transactionIds: posted.map(tx => tx.id), warnings, repeated: false };
   }
 }
 
@@ -220,13 +247,8 @@ export interface ReturnDeliveredInput {
 }
 
 /** The checks and account reads ahead of the write (read-only). */
-export async function prepareReturnDelivered(db: Firestore, input: ReturnDeliveredInput): Promise<DeliveryAccounts> {
-  await assertPeriodOpen(db, input.workspaceId, input.date, input.uid);
-  const accounts = await validateWorkspaceAccounts(db, input.workspaceId, [input.inventoryAccountId, input.cogsAccountId]);
-  const inventoryAcc = accounts.get(input.inventoryAccountId);
-  const cogsAcc = accounts.get(input.cogsAccountId);
-  if (!inventoryAcc || !cogsAcc || input.inventoryAccountId === input.cogsAccountId) throw new DeliveryError(400, 'Choose the Inventory and Cost of Goods Sold accounts of this workspace');
-  return { inventoryAcc: { id: inventoryAcc.id, name: inventoryAcc.name }, cogsAcc: { id: cogsAcc.id, name: cogsAcc.name } };
+export function prepareReturnDelivered(db: Firestore, input: ReturnDeliveredInput): Promise<DeliveryAccounts> {
+  return prepareDeliveryAccounts(db, input);
 }
 
 export async function returnDelivered(db: Firestore, input: ReturnDeliveredInput) {
@@ -276,13 +298,10 @@ export async function returnDeliveredInTransaction(db: Firestore, t: DbTransacti
         ],
       } as unknown as Transaction, { workspaceId: input.workspaceId, user: { uid: input.uid }, wsData: workspace }, undefined, t));
     }
-    const stock = await prepareStockMoves(db, t, input.workspaceId, posted as unknown as Parameters<typeof prepareStockMoves>[3]);
-    stock.apply();
-    for (const tx of posted) ledgerCreate(t, db.collection('transactions').doc(tx.id), { ...tx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-    await writeServerAuditLog({
-      workspaceId: input.workspaceId, uid: input.uid, email: input.email, action: 'GOODS_RETURNED', entityType: 'estimates', entityId: order.id,
-      details: { description: `Came back from order ${order.number || order.id}: ${sending.map(l => `${lines.find(x => x.position === l.position)!.description || 'item'} × ${l.quantity}`).join(', ')}` },
-    }, { db, tx: t });
+    await commitDeliveryEntries(db, t, posted, {
+      workspaceId: input.workspaceId, uid: input.uid, email: input.email, action: 'GOODS_RETURNED', entityId: order.id,
+      description: `Came back from order ${order.number || order.id}: ${sending.map(l => `${lines.find(x => x.position === l.position)!.description || 'item'} × ${l.quantity}`).join(', ')}`,
+    });
     return { returnId: input.returnId, transactionIds: posted.map(tx => tx.id), repeated: false };
   }
 }

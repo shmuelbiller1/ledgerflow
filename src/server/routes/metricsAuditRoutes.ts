@@ -1,6 +1,6 @@
 import type { ChartAccount, InventoryItem, Invoice, Transaction as LedgerTransaction } from "../../types";
 import { errorMessage, requestUser } from "../auth/requestUser";
-import { formatTzDate, sendError, authorizeWorkspace } from "../http/serverKit";
+import { formatTzDate, sendError, authorizeWorkspace, loadQueriedWorkspaceLedger } from "../http/serverKit";
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
 import { apiAuthenticate } from "../auth/apiAuthenticate";
 import { incrementShardedCounter } from "../services/shardedCounterService";
@@ -16,20 +16,9 @@ import { BRAND_NAME } from '../../config/brand';
 export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerContext): void {
   app.get("/api/v1/metrics", apiAuthenticate, async (req: express.Request, res: express.Response) => {
     try {
-      const workspaceId = (req.query.workspaceId as string) || requestUser(req).developerWorkspaceId;
-      if (!workspaceId) return sendError(res, "Missing workspaceId query parameter", 400);
-
-      const authReq = req as AuthenticatedRequest;
-      await authorizeWorkspace(authReq, workspaceId);
-
-      const db = getDb();
-      const [accountsSnap, transactionsSnap] = await Promise.all([
-         db.collection("chartAccounts").where("workspaceId", "==", workspaceId).get(),
-         db.collection("transactions").where("workspaceId", "==", workspaceId).get()
-      ]);
-
-      const accounts = accountsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as ChartAccount);
-      const transactions = transactionsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as LedgerTransaction);
+      const loaded = await loadQueriedWorkspaceLedger(req);
+      if ('error' in loaded) return sendError(res, loaded.error, 400);
+      const { workspaceId, db, accounts, transactions } = loaded;
 
       const wsDoc = await db.collection("workspaces").doc(workspaceId).get();
       const wsData = wsDoc.data() || {};

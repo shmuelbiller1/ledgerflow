@@ -267,26 +267,44 @@ export function personCommandScope(uid: string): string {
   return `person:${uid}`;
 }
 
-async function runRegisteredCommand(
+type CommandAccessRefusal = Extract<CommandExecutionOutcome, { ok: false }>;
+
+interface CommandAccess {
+  user: NonNullable<ReturnType<typeof requestUser>>;
+  personScope: boolean;
+  workspaceId: string;
+  db: ReturnType<typeof getDb>;
+  workspace: Record<string, unknown>;
+  role: CommandRole;
+}
+
+/**
+ * The gates every command call passes before its own input is read: a signed-in person, a workspace
+ * the caller may see (and, for a person-scoped command, their own scope), a role the command allows,
+ * and — when the caller asks — a workspace that is still open for changes. Execution and preview ask
+ * the same questions here, so a preview can never answer for a command the runner would refuse.
+ */
+async function commandAccess(
   req: Request,
   invocation: CommandInvocation,
-  dependencies: CommandRunnerDependencies = {},
-): Promise<CommandExecutionOutcome> {
+  dependencies: CommandRunnerDependencies,
+  options: { assertActive: boolean },
+): Promise<CommandAccess | { refusal: CommandAccessRefusal } | { refused: unknown }> {
   const command = invocation.definition;
   const user = requestUser(req);
-  if (!user?.uid) return { ok: false, status: 401, command: command.name, message: 'Sign in required', code: 'UNAUTHENTICATED' };
+  if (!user?.uid) return { refusal: { ok: false, status: 401, command: command.name, message: 'Sign in required', code: 'UNAUTHENTICATED' } };
   const personScope = command.scope === 'person';
   const workspaceId = personScope
     ? personCommandScope(user.uid)
     : (typeof invocation.workspaceId === 'string' ? invocation.workspaceId.trim() : '');
-  if (!workspaceId) return { ok: false, status: 400, command: command.name, message: 'Workspace ID is required', code: 'WORKSPACE_REQUIRED' };
+  if (!workspaceId) return { refusal: { ok: false, status: 400, command: command.name, message: 'Workspace ID is required', code: 'WORKSPACE_REQUIRED' } };
   if (!personScope && user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) {
-    return { ok: false, status: 403, command: command.name, message: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}`, code: 'WORKSPACE_SCOPE' };
+    return { refusal: { ok: false, status: 403, command: command.name, message: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}`, code: 'WORKSPACE_SCOPE' } };
   }
   // A command that mints or revokes access is a person's to run: an API key holding a broad scope
   // must not be able to grant itself another key, or a wider one, by calling the command router.
   if (command.peopleOnly && user.usedApiKeyId) {
-    return { ok: false, status: 403, command: command.name, message: 'Forbidden: this command is for a signed-in person, not an API key', code: 'PERSON_ONLY' };
+    return { refusal: { ok: false, status: 403, command: command.name, message: 'Forbidden: this command is for a signed-in person, not an API key', code: 'PERSON_ONLY' } };
   }
 
   const db = (dependencies.getDb || getDb)();
@@ -303,13 +321,26 @@ async function runRegisteredCommand(
       if (!command.roles.includes(workspaceRole) && !platformAdminOverride) {
         throw new CommandRefusal(`Forbidden: command ${command.name} requires one of [${command.roles.join(', ')}]`, 403, 'ROLE_REQUIRED');
       }
-      assertWorkspaceActiveForCommand(data, command.name);
+      if (options.assertActive) assertWorkspaceActiveForCommand(data, command.name);
       role = workspaceRole;
       workspace = data;
     } catch (error) {
-      return errorOutcome(error, command.name);
+      return { refused: error };
     }
   }
+  return { user, personScope, workspaceId, db, workspace, role };
+}
+
+async function runRegisteredCommand(
+  req: Request,
+  invocation: CommandInvocation,
+  dependencies: CommandRunnerDependencies = {},
+): Promise<CommandExecutionOutcome> {
+  const command = invocation.definition;
+  const access = await commandAccess(req, invocation, dependencies, { assertActive: true });
+  if ('refusal' in access) return access.refusal;
+  if ('refused' in access) return errorOutcome(access.refused, command.name);
+  const { user, personScope, workspaceId, db, role, workspace } = access;
 
   if (command.risk === 'high' && (user.developerWorkspaceId || user.aal !== 'aal2')) {
     return { ok: false, status: 403, command: command.name, message: 'High-risk commands require a person signed in with two-step verification; API keys cannot confirm this step.', code: 'TWO_STEP_REQUIRED' };
@@ -478,42 +509,11 @@ export async function previewCommand(
   dependencies: CommandRunnerDependencies = {},
 ): Promise<CommandPreviewOutcome> {
   const command = invocation.definition;
-  const user = requestUser(req);
-  if (!user?.uid) return { ok: false, status: 401, command: command.name, message: 'Sign in required', code: 'UNAUTHENTICATED' };
-  const personScope = command.scope === 'person';
-  const workspaceId = personScope
-    ? personCommandScope(user.uid)
-    : (typeof invocation.workspaceId === 'string' ? invocation.workspaceId.trim() : '');
-  if (!workspaceId) return { ok: false, status: 400, command: command.name, message: 'Workspace ID is required', code: 'WORKSPACE_REQUIRED' };
-  if (!personScope && user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) {
-    return { ok: false, status: 403, command: command.name, message: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}`, code: 'WORKSPACE_SCOPE' };
-  }
-  // A command that mints or revokes access is a person's to run: an API key holding a broad scope
-  // must not be able to grant itself another key, or a wider one, by calling the command router.
-  if (command.peopleOnly && user.usedApiKeyId) {
-    return { ok: false, status: 403, command: command.name, message: 'Forbidden: this command is for a signed-in person, not an API key', code: 'PERSON_ONLY' };
-  }
+  const access = await commandAccess(req, invocation, dependencies, { assertActive: false });
+  if ('refusal' in access) return access.refusal;
+  if ('refused' in access) return previewErrorOutcome(access.refused, command.name);
+  const { user, workspaceId, db, role, workspace } = access;
 
-  const db = (dependencies.getDb || getDb)();
-  let workspace: Record<string, unknown> = {};
-  let role: CommandRole = 'owner';
-  if (!personScope) {
-    try {
-      const snapshot = await db.collection('workspaces').doc(workspaceId).get();
-      if (!snapshot.exists) throw new CommandRefusal('Workspace not found', 404, 'WORKSPACE_NOT_FOUND');
-      const data = snapshot.data() || {};
-      if (!isWorkspaceMemberData(data, user, workspaceId)) throw new CommandRefusal('Not a member of this workspace', 403, 'NOT_A_MEMBER');
-      const workspaceRole = roleInWorkspace(data, user.uid) as CommandRole;
-      const platformAdminOverride = command.allowPlatformAdmin === true && user.admin === true && !user.developerWorkspaceId;
-      if (!command.roles.includes(workspaceRole) && !platformAdminOverride) {
-        throw new CommandRefusal(`Forbidden: command ${command.name} requires one of [${command.roles.join(', ')}]`, 403, 'ROLE_REQUIRED');
-      }
-      role = workspaceRole;
-      workspace = data;
-    } catch (error) {
-      return previewErrorOutcome(error, command.name);
-    }
-  }
   if (command.risk === 'high' && (user.developerWorkspaceId || user.aal !== 'aal2')) {
     return { ok: false, status: 403, command: command.name, message: 'High-risk commands require a person signed in with two-step verification; API keys cannot confirm this step.', code: 'TWO_STEP_REQUIRED' };
   }

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Activity, CheckCircle2, AlertTriangle, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { isPostable, lineAmount } from '../../lib/txFilters';
+import { buildHealthCheckReport, type HealthCheckReport } from '../../lib/ledgerHealthCheck';
 import { useTimeout } from '../../hooks/useTimeout';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 
@@ -24,7 +24,7 @@ export default function HealthCheckModal({ isOpen, onClose }: HealthCheckModalPr
   
 
   const [isScanning, setIsScanning] = useState(false);
-  const [report, setReport] = useState<{ results: { id: string; title: string; status: string; message: string }[]; score: number; pending: number } | null>(null);
+  const [report, setReport] = useState<HealthCheckReport | null>(null);
   const { setSafeTimeout } = useTimeout();
 
   useEffect(() => {
@@ -34,66 +34,7 @@ export default function HealthCheckModal({ isOpen, onClose }: HealthCheckModalPr
       setIsScanning(true);
     }, 0);
     const timer = setTimeout(() => {
-      // 1. Trial Balance Check
-      let tbNet = 0;
-      transactions.filter(isPostable).forEach(t => {
-        t.lines?.forEach(l => { tbNet += lineAmount(l, t); });
-      });
-
-      // 2. Uncategorized Check
-      const uncategorized = transactions.filter(t => 
-        t.lines.some(l => !l.accountId || l.accountId === 'uncategorized')
-      ).length;
-
-      // 3. Draft/Pending
-      const pending = transactions.filter(t => t.status === 'draft' || t.status === 'pending').length;
-
-      // 4. Anomalies
-      const anomalies = transactions.filter(t => t.isFlagged).length;
-
-      // 5. Unreconciled
-      const unreconciled = bankLines.filter(l => !l.matchedTransactionId).length;
-
-      const results = [
-        {
-          id: 'trial-balance',
-          title: 'Trial Balance',
-          status: Math.abs(tbNet) === 0 ? 'pass' : 'fail',
-          message: Math.abs(tbNet) === 0 
-            ? 'Your books are perfectly balanced. Debits equal credits.'
-            : 'Your books are out of balance! A journal entry is missing a matching side.'
-        },
-        {
-          id: 'uncategorized',
-          title: 'Categorization',
-          status: uncategorized === 0 ? 'pass' : (uncategorized > 10 ? 'fail' : 'warn'),
-          message: uncategorized === 0 
-            ? 'All transactions have been categorized.'
-            : `You have ${uncategorized} uncategorized transactions waiting in your inbox.`
-        },
-        {
-          id: 'reconciliation',
-          title: 'Bank Reconciliation',
-          status: unreconciled === 0 ? 'pass' : 'warn',
-          message: unreconciled === 0 
-            ? 'All bank lines are matched to ledger entries.'
-            : `${unreconciled} bank lines are still waiting to be matched.`
-        },
-        {
-          id: 'anomalies',
-          title: 'Anomaly Detection',
-          status: anomalies === 0 ? 'pass' : 'fail',
-          message: anomalies === 0 
-            ? 'No suspicious patterns detected.'
-            : `${anomalies} transactions were flagged for review due to unusual patterns.`
-        }
-      ];
-
-      const score = Math.round(
-        (results.filter(r => r.status === 'pass').length / results.length) * 100
-      );
-
-      setReport({ results, score, pending });
+      setReport(buildHealthCheckReport(transactions, bankLines));
       setIsScanning(false);
     }, 1500);
 
@@ -107,59 +48,7 @@ export default function HealthCheckModal({ isOpen, onClose }: HealthCheckModalPr
     setIsScanning(true);
     setReport(null);
     setSafeTimeout(() => {
-      let tbNet = 0;
-      transactions.filter(isPostable).forEach(t => {
-        t.lines?.forEach(l => { tbNet += lineAmount(l, t); });
-      });
-
-      const uncategorized = transactions.filter(t => 
-        t.lines.some(l => !l.accountId || l.accountId === 'uncategorized')
-      ).length;
-
-      const pending = transactions.filter(t => t.status === 'draft' || t.status === 'pending').length;
-      const anomalies = transactions.filter(t => t.isFlagged).length;
-      const unreconciled = bankLines.filter(l => !l.matchedTransactionId).length;
-
-      const results = [
-        {
-          id: 'trial-balance',
-          title: 'Trial Balance',
-          status: Math.abs(tbNet) === 0 ? 'pass' : 'fail',
-          message: Math.abs(tbNet) === 0 
-            ? 'Your books are perfectly balanced. Debits equal credits.'
-            : 'Your books are out of balance! A journal entry is missing a matching side.'
-        },
-        {
-          id: 'uncategorized',
-          title: 'Categorization',
-          status: uncategorized === 0 ? 'pass' : (uncategorized > 10 ? 'fail' : 'warn'),
-          message: uncategorized === 0 
-            ? 'All transactions have been categorized.'
-            : `You have ${uncategorized} uncategorized transactions waiting in your inbox.`
-        },
-        {
-          id: 'reconciliation',
-          title: 'Bank Reconciliation',
-          status: unreconciled === 0 ? 'pass' : 'warn',
-          message: unreconciled === 0 
-            ? 'All bank lines are matched to ledger entries.'
-            : `${unreconciled} bank lines are still waiting to be matched.`
-        },
-        {
-          id: 'anomalies',
-          title: 'Anomaly Detection',
-          status: anomalies === 0 ? 'pass' : 'fail',
-          message: anomalies === 0 
-            ? 'No suspicious patterns detected.'
-            : `${anomalies} transactions were flagged for review due to unusual patterns.`
-        }
-      ];
-
-      const score = Math.round(
-        (results.filter(r => r.status === 'pass').length / results.length) * 100
-      );
-
-      setReport({ results, score, pending });
+      setReport(buildHealthCheckReport(transactions, bankLines));
       setIsScanning(false);
     }, 1500);
   };

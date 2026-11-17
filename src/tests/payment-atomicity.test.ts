@@ -1,4 +1,5 @@
-import type { TestDocument, TestDocumentReference, TestTransaction, TestResponseBody } from './helpers/mockTypes';
+import type { TestResponseBody } from './helpers/mockTypes';
+import { MockTransactionalDb } from './helpers/mockTransactionalDb';
 import type { TransactionLine } from '../types';
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
@@ -7,72 +8,6 @@ import type { Firestore } from '../server/db/firestore';
 import { createPaymentAtomic } from '../server/services/paymentService';
 import { handleCreatePayment } from '../server/routes/paymentRoutes';
 
-class MockTransactionalDb {
-  public data: Map<string, TestDocument> = new Map();
-
-  collection(collName: string) {
-    return {
-      doc: (docId?: string) => {
-        const id = docId || `id_${Math.random().toString(36).substring(2, 9)}`;
-        const key = `${collName}/${id}`;
-        return {
-          id,
-          key,
-          db: this
-        };
-      }
-    };
-  }
-
-  async runTransaction<T>(updateFunction: (tx: TestTransaction) => Promise<T>): Promise<T> {
-    // Snapshot current state
-    const snapshotMap = new Map<string, TestDocument>();
-    for (const [k, v] of this.data.entries()) {
-      snapshotMap.set(k, JSON.parse(JSON.stringify(v)));
-    }
-
-    const tx = {
-      get: async (docRef: TestDocumentReference) => {
-        const val = snapshotMap.get(docRef.key);
-        return {
-          exists: val !== undefined,
-          data: () => val ? JSON.parse(JSON.stringify(val)) : undefined
-        };
-      },
-      update: (docRef: TestDocumentReference, updates: TestDocument) => {
-        const current = snapshotMap.get(docRef.key) || {};
-        const updated = { ...current, ...updates };
-        snapshotMap.set(docRef.key, updated);
-      },
-      set: (docRef: TestDocumentReference, newData: TestDocument) => {
-        snapshotMap.set(docRef.key, newData);
-      }
-    };
-
-    const res = await updateFunction(tx);
-    // If transaction succeeded, commit state to DB
-    for (const [k, v] of snapshotMap.entries()) {
-      this.data.set(k, v);
-    }
-    return res;
-  }
-
-  getDocData(collName: string, docId: string) {
-    const val = this.data.get(`${collName}/${docId}`);
-    return val ? JSON.parse(JSON.stringify(val)) : undefined;
-  }
-
-  getCollectionDocs(collName: string) {
-    const docs: TestDocument[] = [];
-    const prefix = `${collName}/`;
-    for (const [k, v] of this.data.entries()) {
-      if (k.startsWith(prefix)) {
-        docs.push(JSON.parse(JSON.stringify(v)));
-      }
-    }
-    return docs;
-  }
-}
 
 describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () => {
   test('If payment is attempted in closed period (locked date), transaction aborts: invoice amountPaidCents remains 0 and no payment record is created', async () => {
