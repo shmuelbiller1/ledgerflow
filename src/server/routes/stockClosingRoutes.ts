@@ -1,10 +1,11 @@
 import express from 'express';
 import { z } from 'zod';
-import { errorMessage, requestUser } from '../auth/requestUser';
+import { errorMessage } from '../auth/requestUser';
 import { getDb } from '../db/firestore';
 import { formatTzDate } from '../../lib/calendarDate';
 import { requireWorkspaceRole } from './workspaceRoutes';
-import { stockCheckReport, StockClosingError, writeStockClosing } from '../services/stockClosingService';
+import { stockCheckReport } from '../services/stockClosingService';
+import { inventoryStockClosingCommand } from '../commands/inventory';
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -17,13 +18,16 @@ export function registerStockClosingRoutes(router: express.Router): void {
   router.post('/stock-closing', requireWorkspaceRole(['owner']), async (req, res) => {
     const parsed = z.object({ workspaceId: z.string().min(1).max(200), asOf: day.optional() }).strict().safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Say the workspace and, if not the lock date, the period end (YYYY-MM-DD)' });
-    try {
-      const closing = await writeStockClosing(getDb(), { ...parsed.data, uid: requestUser(req).uid });
-      res.json({ status: 'ok', closing });
-    } catch (e) {
-      if (e instanceof StockClosingError) return res.status(e.status).json({ error: e.message });
-      res.status(500).json({ error: errorMessage(e) });
-    }
+    // Import lazily to avoid the executor's existing workspaceRoutes role-helper cycle during router setup.
+    const { executeCommand, withLegacyInputIdempotencyHash } = await import('../utils/commandExecutor');
+    await executeCommand(req, res, {
+      definition: withLegacyInputIdempotencyHash(inventoryStockClosingCommand),
+      workspaceId: parsed.data.workspaceId,
+      input: { ...(parsed.data.asOf ? { asOf: parsed.data.asOf } : {}) },
+      formatResponse: outcome => (outcome.ok
+        ? { status: 200, body: { status: 'ok', closing: (outcome.data as { closing: unknown }).closing } }
+        : { status: outcome.code === 'PERIOD_LOCKED' ? 409 : outcome.status, body: { error: outcome.message } }),
+    });
   });
 
   router.get('/stock-closing', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper', 'viewer']), async (req, res) => {

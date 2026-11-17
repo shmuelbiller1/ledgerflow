@@ -4,9 +4,38 @@ import type { RequestUser } from '../../server/auth/requestUser';
 import type { Firestore } from '../../server/db/firestore';
 import type { CommandDefinition, CommandRole } from '../../server/commands/types';
 import type { CommandRunnerDependencies } from '../../server/utils/commandExecutor';
+import { FieldValue } from '../../server/db/firestore';
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+/** The memory database stores a server timestamp as a plain ISO string, as the Postgres layer does. */
+function plain(value: unknown): unknown {
+  if (value instanceof FieldValue) return value.kind === 'serverTimestamp' ? new Date().toISOString() : null;
+  if (Array.isArray(value)) return value.map(plain);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, inner]) => [key, plain(inner)]));
+  }
+  return value;
+}
+
+/**
+ * A write's fields as stored: a plain object replaces the value it names (as this harness always
+ * wrote), `FieldValue.increment` adds to it, and a server timestamp becomes an ISO string.
+ */
+function merge(current: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...current };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value instanceof FieldValue && value.kind === 'increment') {
+      merged[key] = Number(merged[key] || 0) + Number(value.operand);
+    } else if (value instanceof FieldValue && value.kind === 'delete') {
+      delete merged[key];
+    } else {
+      merged[key] = plain(value);
+    }
+  }
+  return merged;
 }
 
 class MemorySnapshot {
@@ -35,6 +64,11 @@ export class MemoryDb {
       .map(([path, data]) => ({ id: path.slice(prefix.length), data: clone(data) }));
   }
 
+  /** `getAll` over several references, as the Postgres layer offers it (account validation reads accounts so). */
+  async getAll(...refs: MemoryRef[]): Promise<MemorySnapshot[]> {
+    return Promise.all(refs.map(ref => ref.get()));
+  }
+
   collection(name: string): MemoryCollection { return new MemoryCollection(this, name); }
 
   async runTransaction<T>(handler: (tx: MemoryTransaction) => Promise<T>): Promise<T> {
@@ -58,9 +92,9 @@ export class MemoryDb {
       this.documents.set(write.path, clone(write.data || {}));
     } else if (write.method === 'update') {
       if (!current) throw Object.assign(new Error(`NOT_FOUND: ${write.path}`), { code: 5 });
-      this.documents.set(write.path, { ...current, ...clone(write.data || {}) });
+      this.documents.set(write.path, merge(current, write.data || {}));
     } else {
-      this.documents.set(write.path, clone(write.data || {}));
+      this.documents.set(write.path, merge({}, write.data || {}));
     }
   }
 }
@@ -133,7 +167,8 @@ class MemoryTransaction {
   delete(ref: unknown): this { this.stage('delete', ref); return this; }
   private stage(method: StoredWrite['method'], ref: unknown, data?: Record<string, unknown>): void {
     const path = String((ref as { path?: unknown }).path || '');
-    this.writes.set(path, { method, path, ...(data ? { data: clone(data) } : {}) });
+    // kept as written: a FieldValue.increment must reach the commit as itself, not as a plain object
+    this.writes.set(path, { method, path, ...(data ? { data } : {}) });
   }
   commit(): void { for (const write of this.writes.values()) this.db.apply(write); }
 }

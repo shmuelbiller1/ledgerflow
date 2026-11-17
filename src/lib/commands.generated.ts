@@ -7,6 +7,7 @@ import { CREDITNOTE_COMMAND_MANIFEST } from './commandManifests.generated/credit
 import { CUSTOMER_COMMAND_MANIFEST } from './commandManifests.generated/customer';
 import { ENTRYLINK_COMMAND_MANIFEST } from './commandManifests.generated/entrylink';
 import { GROUPS_COMMAND_MANIFEST } from './commandManifests.generated/groups';
+import { INVENTORY_COMMAND_MANIFEST } from './commandManifests.generated/inventory';
 import { INVOICE_COMMAND_MANIFEST } from './commandManifests.generated/invoice';
 import { JOURNAL_COMMAND_MANIFEST } from './commandManifests.generated/journal';
 import { NUMBERING_COMMAND_MANIFEST } from './commandManifests.generated/numbering';
@@ -30,6 +31,7 @@ export const COMMAND_MANIFEST = [
   ...CUSTOMER_COMMAND_MANIFEST,
   ...ENTRYLINK_COMMAND_MANIFEST,
   ...GROUPS_COMMAND_MANIFEST,
+  ...INVENTORY_COMMAND_MANIFEST,
   ...INVOICE_COMMAND_MANIFEST,
   ...JOURNAL_COMMAND_MANIFEST,
   ...NUMBERING_COMMAND_MANIFEST,

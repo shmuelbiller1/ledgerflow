@@ -20,6 +20,20 @@ import { journalCreateCommand } from './ledger';
 import { paymentReceiveCommand } from './payments';
 import { numberingUpdateCommand } from './numbering';
 import {
+  inventoryAdjustCommand,
+  inventoryCogsCommand,
+  inventoryCountCommand,
+  inventoryDeliverCommand,
+  inventoryLandedCostCommand,
+  inventoryLandedCostUndoCommand,
+  inventoryReturnCommand,
+  inventoryRevalueCommand,
+  inventoryStockClosingCommand,
+  inventoryStockPolicyCommand,
+  inventoryTransferCommand,
+  inventoryUndoDeliveryCommand,
+} from './inventory';
+import {
   periodCloseCommand,
   periodCloseStepsCommand,
   periodDepreciationCommand,
@@ -135,6 +149,18 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(groupUnshareCommand);
   registry.register(groupSetLineMergesCommand);
   registry.register(groupKeepRatesCommand);
+  registry.register(inventoryCogsCommand);
+  registry.register(inventoryAdjustCommand);
+  registry.register(inventoryCountCommand);
+  registry.register(inventoryRevalueCommand);
+  registry.register(inventoryStockPolicyCommand);
+  registry.register(inventoryDeliverCommand);
+  registry.register(inventoryReturnCommand);
+  registry.register(inventoryUndoDeliveryCommand);
+  registry.register(inventoryTransferCommand);
+  registry.register(inventoryStockClosingCommand);
+  registry.register(inventoryLandedCostCommand);
+  registry.register(inventoryLandedCostUndoCommand);
   return registry;
 }
 

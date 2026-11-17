@@ -7,6 +7,20 @@ removed from this list.
 
 Last updated: 2026-11-16.
 
+## Inventory writes now run through registered commands (nothing for you to do)
+
+The twelve stock writes under `/api/v1/inventory` — recording cost of goods sold, adjusting or
+counting stock, a revaluation, the two stock settings, deliveries, returns and their undo, a
+transfer between locations, the stock closing, and a landed cost with its undo — now go through the
+same registered commands as the period and account batches. The screens and the API keep exactly the
+same requests and answers (`{ status: 'ok', ... }`, the same error messages and status codes), so
+nothing changes for you, and a retried request still never posts twice.
+
+**There is no database migration in this batch** — no browser write access changed, so there is
+nothing to apply after deployment. The only thing that would need your attention is a follow-up: the
+remaining browser writes (106 call sites) are still open, and each of those batches comes with its own
+migration list here.
+
 ## The ledger screen cannot become a plain list (default taken: keep it as it is)
 
 The task says to move the seven most-used screens onto the shared list, Transactions first. I moved

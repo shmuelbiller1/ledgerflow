@@ -61,14 +61,30 @@ const orderEntries = async (db: Firestore, t: DbTransaction, workspaceId: string
   return [...mine, ...reversals];
 };
 
-export async function deliverOrder(db: Firestore, input: DeliveryInput) {
+export interface DeliveryAccounts {
+  inventoryAcc: { id: string; name: string };
+  cogsAcc: { id: string; name: string };
+}
+
+/** The checks and account reads ahead of the write (read-only). */
+export async function prepareDeliverOrder(db: Firestore, input: DeliveryInput): Promise<DeliveryAccounts> {
   await assertPeriodOpen(db, input.workspaceId, input.date, input.uid);
   const accounts = await validateWorkspaceAccounts(db, input.workspaceId, [input.inventoryAccountId, input.cogsAccountId]);
   const inventoryAcc = accounts.get(input.inventoryAccountId);
   const cogsAcc = accounts.get(input.cogsAccountId);
   if (!inventoryAcc || !cogsAcc || input.inventoryAccountId === input.cogsAccountId) throw new DeliveryError(400, 'Choose the Inventory and Cost of Goods Sold accounts of this workspace');
+  return { inventoryAcc: { id: inventoryAcc.id, name: inventoryAcc.name }, cogsAcc: { id: cogsAcc.id, name: cogsAcc.name } };
+}
 
-  return db.runTransaction(async t => {
+export async function deliverOrder(db: Firestore, input: DeliveryInput) {
+  const prepared = await prepareDeliverOrder(db, input);
+  return db.runTransaction(t => deliverOrderInTransaction(db, t, input, prepared));
+}
+
+/** The write, inside a transaction the caller owns. */
+export async function deliverOrderInTransaction(db: Firestore, t: DbTransaction, input: DeliveryInput, prepared: DeliveryAccounts) {
+  const { inventoryAcc, cogsAcc } = prepared;
+  {
     const workspace = (await t.get(db.collection('workspaces').doc(input.workspaceId))).data();
     if (!workspace) throw new DeliveryError(404, 'Workspace not found');
     if (!DELIVERY_ROLES.includes(workspaceRole(workspace, input.uid))) throw new DeliveryError(403, 'Only owners, accountants and bookkeepers deliver goods');
@@ -132,13 +148,24 @@ export async function deliverOrder(db: Firestore, input: DeliveryInput) {
       details: { description: `Delivered from order ${order.number || order.id}: ${sending.map(l => `${lines.find(x => x.position === l.position)!.description || 'item'} × ${l.quantity}`).join(', ')}` },
     }, { db, tx: t });
     return { deliveryId: input.deliveryId, transactionIds: posted.map(tx => tx.id), warnings: stock.warnings, repeated: false };
-  });
+  }
 }
 
 /** Undo a delivery: its entries are reversed (dated like the delivery while that month is open) and the units come back. */
-export async function undoDelivery(db: Firestore, input: { workspaceId: string; uid: string; email?: string; orderId: string; deliveryId: string; date: string }) {
+export interface UndoDeliveryInput { workspaceId: string; uid: string; email?: string; orderId: string; deliveryId: string; date: string }
+
+export async function prepareUndoDelivery(db: Firestore, input: UndoDeliveryInput): Promise<void> {
   await assertPeriodOpen(db, input.workspaceId, input.date, input.uid);
-  return db.runTransaction(async t => {
+}
+
+export async function undoDelivery(db: Firestore, input: UndoDeliveryInput) {
+  await prepareUndoDelivery(db, input);
+  return db.runTransaction(t => undoDeliveryInTransaction(db, t, input));
+}
+
+/** The write, inside a transaction the caller owns. */
+export async function undoDeliveryInTransaction(db: Firestore, t: DbTransaction, input: UndoDeliveryInput) {
+  {
     const workspace = (await t.get(db.collection('workspaces').doc(input.workspaceId))).data();
     if (!workspace) throw new DeliveryError(404, 'Workspace not found');
     if (!DELIVERY_ROLES.includes(workspaceRole(workspace, input.uid))) throw new DeliveryError(403, 'Only owners, accountants and bookkeepers undo deliveries');
@@ -178,7 +205,7 @@ export async function undoDelivery(db: Firestore, input: { workspaceId: string; 
       details: { description: `Delivery of ${delivery.date} undone: ${delivery.lines.map(l => `× ${l.quantity}`).join(', ')}` },
     }, { db, tx: t });
     return { deliveryId: input.deliveryId, reversed: reversals.map(r => r.id) };
-  });
+  }
 }
 
 /**
@@ -187,17 +214,30 @@ export async function undoDelivery(db: Firestore, input: { workspaceId: string; 
  * One entry per order line ('delivery-return-auto'), ids from the return id: a retry changes
  * nothing. The money owed back to the customer is a credit note, made apart.
  */
-export async function returnDelivered(db: Firestore, input: {
+export interface ReturnDeliveredInput {
   workspaceId: string; uid: string; email?: string; orderId: string; returnId: string; date: string;
   lines: Array<{ position: number; quantity: number }>; inventoryAccountId: string; cogsAccountId: string; note?: string;
-}) {
+}
+
+/** The checks and account reads ahead of the write (read-only). */
+export async function prepareReturnDelivered(db: Firestore, input: ReturnDeliveredInput): Promise<DeliveryAccounts> {
   await assertPeriodOpen(db, input.workspaceId, input.date, input.uid);
   const accounts = await validateWorkspaceAccounts(db, input.workspaceId, [input.inventoryAccountId, input.cogsAccountId]);
   const inventoryAcc = accounts.get(input.inventoryAccountId);
   const cogsAcc = accounts.get(input.cogsAccountId);
   if (!inventoryAcc || !cogsAcc || input.inventoryAccountId === input.cogsAccountId) throw new DeliveryError(400, 'Choose the Inventory and Cost of Goods Sold accounts of this workspace');
+  return { inventoryAcc: { id: inventoryAcc.id, name: inventoryAcc.name }, cogsAcc: { id: cogsAcc.id, name: cogsAcc.name } };
+}
 
-  return db.runTransaction(async t => {
+export async function returnDelivered(db: Firestore, input: ReturnDeliveredInput) {
+  const prepared = await prepareReturnDelivered(db, input);
+  return db.runTransaction(t => returnDeliveredInTransaction(db, t, input, prepared));
+}
+
+/** The write, inside a transaction the caller owns. */
+export async function returnDeliveredInTransaction(db: Firestore, t: DbTransaction, input: ReturnDeliveredInput, prepared: DeliveryAccounts) {
+  const { inventoryAcc, cogsAcc } = prepared;
+  {
     const workspace = (await t.get(db.collection('workspaces').doc(input.workspaceId))).data();
     if (!workspace) throw new DeliveryError(404, 'Workspace not found');
     if (!DELIVERY_ROLES.includes(workspaceRole(workspace, input.uid))) throw new DeliveryError(403, 'Only owners, accountants and bookkeepers record goods coming back');
@@ -244,15 +284,22 @@ export async function returnDelivered(db: Firestore, input: {
       details: { description: `Came back from order ${order.number || order.id}: ${sending.map(l => `${lines.find(x => x.position === l.position)!.description || 'item'} × ${l.quantity}`).join(', ')}` },
     }, { db, tx: t });
     return { returnId: input.returnId, transactionIds: posted.map(tx => tx.id), repeated: false };
-  });
+  }
 }
 
 /**
  * The owner chooses when stock leaves. Back to "the invoice" is refused while an order is part-way:
  * units delivered that are not invoiced, or invoiced that are not delivered.
  */
-export async function setGoodsLeaveWith(db: Firestore, input: { workspaceId: string; uid: string; email?: string; value: GoodsLeaveWith }) {
-  return db.runTransaction(async t => {
+export interface GoodsLeaveWithInput { workspaceId: string; uid: string; email?: string; value: GoodsLeaveWith }
+
+export async function setGoodsLeaveWith(db: Firestore, input: GoodsLeaveWithInput) {
+  return db.runTransaction(t => setGoodsLeaveWithInTransaction(db, t, input));
+}
+
+/** The write, inside a transaction the caller owns. */
+export async function setGoodsLeaveWithInTransaction(db: Firestore, t: DbTransaction, input: GoodsLeaveWithInput) {
+  {
     const ref = db.collection('workspaces').doc(input.workspaceId);
     const workspace = (await t.get(ref)).data();
     if (!workspace) throw new DeliveryError(404, 'Workspace not found');
@@ -280,5 +327,5 @@ export async function setGoodsLeaveWith(db: Firestore, input: { workspaceId: str
       details: { description: input.value === 'delivery' ? 'Stock now leaves with deliveries (invoices book no cost of goods)' : 'Stock leaves with the invoice again' },
     }, { db, tx: t });
     return { goodsLeaveWith: input.value };
-  });
+  }
 }
