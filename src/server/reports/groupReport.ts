@@ -51,6 +51,7 @@ import { groupAccountLines, type GroupAccountLine, type LineAccount, type LineSe
 import { computeBalanceSheet, computeProfitAndLoss } from './computeReports';
 import type { ChartAccount, Transaction } from '../../types';
 import { isPostable } from '../../lib/txFilters';
+import { convertMinorUnits, minorUnitRate } from '../../lib/currencyMinorUnits';
 
 export class GroupReportError extends Error {
   constructor(readonly status: number, message: string) {
@@ -277,9 +278,18 @@ const ratesProblem = (currency: string, r: TranslationRates | undefined) =>
     ? `Enter the closing, average and historical rates for ${currency} (1 ${currency} in the reporting currency)`
     : null;
 
-/** One member's figures in the reporting currency (whole cents), and its translation difference. */
-export function translate(m: GroupFigures & { equityAccounts: number; earlierProfit: number }, r: TranslationRates | null): GroupFigures & { cta: number } {
-  const at = (cents: number, rate: number) => Math.round(cents * rate);
+/**
+ * One member's figures in the reporting currency (whole minor units), and its translation difference.
+ * `from`/`to` are the member's and the report's currencies: the rate is quoted for major units, so the
+ * digits difference has to travel with it (BM-04) — a yen member's whole yen are not cents.
+ */
+export function translate(
+  m: GroupFigures & { equityAccounts: number; earlierProfit: number },
+  r: TranslationRates | null,
+  from?: string,
+  to?: string,
+): GroupFigures & { cta: number } {
+  const at = (cents: number, rate: number) => convertMinorUnits(cents, rate, from, to);
   if (!r) return { income: m.income, cogs: m.cogs, grossProfit: m.grossProfit, expense: m.expense, netIncome: m.netIncome, totalAssets: m.totalAssets, totalLiabilities: m.totalLiabilities, totalEquity: m.totalEquity, cta: 0 };
   const income = at(m.income, r.average);
   const cogs = at(m.cogs, r.average);
@@ -336,18 +346,22 @@ export async function groupSummary(db: Firestore, input: { uid: string; groupId:
     const m = { ...rest, share: shareOf(structure, rest.workspaceId), ...(associate(rest.workspaceId) ? { associate: true } : {}) };
     if (!reportCurrency) return m;
     const rates = m.currency === reportCurrency ? null : input.rates![m.currency];
-    return { ...m, translated: { ...translate({ ...m, earlierProfit, equityAccounts }, rates), rates } };
+    return { ...m, translated: { ...translate({ ...m, earlierProfit, equityAccounts }, rates, m.currency, reportCurrency || m.currency), rates } };
   });
   const currencies = new Set(members.map(m => m.currency));
   // CB-26: balances between the companies, at the closing rate when translated
-  const closing = (m: ReadMember) => (reportCurrency && m.currency !== reportCurrency ? input.rates![m.currency].closing : 1);
-  const owedBy = added.reduce((s, m) => s + Math.round(m.owedBy * closing(m)), 0);
-  const owedTo = added.reduce((s, m) => s + Math.round(m.owedTo * closing(m)), 0);
+  // A member's figures are in its own minor units; the report's are not (BM-04), so every conversion
+  // goes through the digits-aware helper rather than a bare multiply.
+  const toReport = (m: ReadMember, cents: number, kind: 'closing' | 'average' | 'historical'): number => {
+    if (!reportCurrency || m.currency === reportCurrency) return cents;
+    const rates = input.rates![m.currency];
+    return convertMinorUnits(cents, kind === 'closing' ? rates.closing : kind === 'average' ? rates.average : rates.historical, m.currency, reportCurrency);
+  };
+  const owedBy = added.reduce((s, m) => s + toReport(m, m.owedBy, 'closing'), 0);
+  const owedTo = added.reduce((s, m) => s + toReport(m, m.owedTo, 'closing'), 0);
   // sales and costs between the companies, at the average rate when translated
-  const average = (m: ReadMember) => (reportCurrency && m.currency !== reportCurrency ? input.rates![m.currency].average : 1);
-  const within = (f: 'income' | 'cogs' | 'expense') => added.reduce((s, m) => s + Math.round(m.withinGroup[f] * average(m)), 0);
+  const within = (f: 'income' | 'cogs' | 'expense') => added.reduce((s, m) => s + toReport(m, m.withinGroup[f], 'average'), 0);
   const [income, cogs, expense] = [within('income'), within('cogs'), within('expense')];
-  const historical = (m: ReadMember) => (reportCurrency && m.currency !== reportCurrency ? input.rates![m.currency].historical : 1);
   // Z-16: the parent's investment in the companies it owns, from its own balance sheet
   const parentRead = read.find(m => m.workspaceId === structure.parentId);
   let investment = 0;
@@ -366,12 +380,12 @@ export async function groupSummary(db: Firestore, input: { uid: string; groupId:
       accounts.set(accountId, [...(accounts.get(accountId) || []), member]);
     }
     for (const [accountId, held] of accounts) {
-      const paid = Math.round(parentRead.assetBalances[accountId] * closing(parentRead));
+      const paid = toReport(parentRead, parentRead.assetBalances[accountId], 'closing');
       investment += paid;
       if (!held.every(m => m.equityWhenBought !== null)) continue;
       anyBought = true;
       // the parent's share of each company's equity on the day bought, at the historical rate
-      const bookValue = held.reduce((s, m) => s + Math.round(m.equityWhenBought! * historical(m) * shareOf(structure, m.workspaceId) / 100), 0);
+      const bookValue = held.reduce((s, m) => s + Math.round(toReport(m, m.equityWhenBought!, 'historical') * shareOf(structure, m.workspaceId) / 100), 0);
       if (paid > bookValue) goodwill += paid - bookValue; else belowBookValue += bookValue - paid;
     }
   }
@@ -391,8 +405,8 @@ export async function groupSummary(db: Firestore, input: { uid: string; groupId:
       if (!members[i].associate || m.equityWhenBought === null) return;
       const share = members[i].share / 100;
       associates = associates || { profit: 0, equity: 0 };
-      associates.profit += Math.round(m.profitSinceBought * average(m) * share);
-      associates.equity += Math.round((all[i].totalEquity - Math.round(m.equityWhenBought * historical(m))) * share);
+      associates.profit += Math.round(toReport(m, m.profitSinceBought, 'average') * share);
+      associates.equity += Math.round((all[i].totalEquity - toReport(m, m.equityWhenBought, 'historical')) * share);
     });
     const picked = (associates || { profit: 0, equity: 0 }) as Associates;
     // net income stays the companies' own: what the two sides disagree on stays in it, and is said
@@ -413,9 +427,13 @@ export async function groupSummary(db: Firestore, input: { uid: string; groupId:
     accountLines = groupAccountLines(read.flatMap((m, i) => {
       if (members[i].associate) return [];
       const r = reportCurrency && m.currency !== reportCurrency ? input.rates![m.currency] : null;
-      const rate = (section: LineSection) => (!r ? 1 : section === 'asset' || section === 'liability' ? r.closing : section === 'equity' ? r.historical : r.average);
+      // the screens multiply this member's minor units by this factor, so it carries the digits too
+      const rate = (section: LineSection) => (!r ? 1 : minorUnitRate(
+        section === 'asset' || section === 'liability' ? r.closing : section === 'equity' ? r.historical : r.average,
+        m.currency, reportCurrency,
+      ));
       const translated = members[i].translated;
-      const equityLines = Object.values(m.sections.equity).reduce((sum, cents) => sum + Math.round(cents * rate('equity')), 0);
+      const equityLines = Object.values(m.sections.equity).reduce((sum, cents) => sum + toReport(m, cents, 'historical'), 0);
       const cta = translated?.cta || 0;
       const totalEquity = translated ? translated.totalEquity : m.totalEquity;
       return [{ workspaceId: m.workspaceId, accounts: m.chart, sections: m.sections, rate, extraEquity: { profit: totalEquity - cta - equityLines, cta } }];
