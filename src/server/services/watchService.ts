@@ -1,4 +1,4 @@
-import { isWorkspaceMemberData, type Firestore, type Transaction as FirestoreTransaction } from '../db/firestore';
+import { isWorkspaceMemberData, requireLiveDb, type Firestore, type Transaction as FirestoreTransaction } from '../db/firestore';
 import { RECORD_TABS, type RecordRef } from '../../lib/recordLinks';
 import { MAX_WATCHES_PER_PERSON, WATCH_KIND, WATCH_TABLES, watchNoticeRecordId, type Watch } from '../../lib/watches';
 import { notify } from './notificationService';
@@ -30,7 +30,10 @@ async function member(db: Firestore, input: Actor) {
 async function lastChange(db: Firestore, workspaceId: string, record: RecordRef): Promise<string | null> {
   const table = WATCH_TABLES[record.type];
   if (!table) return null;
-  const { rows } = await db.pool.query<{ updated_at: Date }>(`select updated_at from public."${table}" where id = $1 and workspace_id = $2`, [record.id, workspaceId]);
+  const rows = await db.readRows<{ updated_at: Date }>(
+    `select updated_at from ${db.tableSource(table)} where id = $1 and workspace_id = $2`,
+    [record.id, workspaceId],
+  );
   return rows[0] ? rows[0].updated_at.toISOString() : null;
 }
 
@@ -129,7 +132,10 @@ export async function unwatch(db: Firestore, input: Actor & { watchId: string })
 
 /** The nightly job: tell each watcher what changed or went since they were last told. Returns how many were told. */
 export async function runWatches(db: Firestore): Promise<number> {
-  const { rows } = await db.pool.query<{ id: string; data: Omit<Watch, 'id'> }>(`select id, data from public.documents where data->>'kind' = $1`, [WATCH_KIND]);
+  requireLiveDb(db, 'Watch reminders');
+  const rows = await db.readRows<{ id: string; data: Omit<Watch, 'id'> }>(
+    `select id, data from ${db.tableSource('documents')} where data->>'kind' = $1`, [WATCH_KIND],
+  );
   let told = 0;
   for (const row of rows) {
     const w = { ...row.data, id: row.id };

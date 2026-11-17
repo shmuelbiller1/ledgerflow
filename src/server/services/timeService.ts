@@ -35,8 +35,8 @@ const ratesRef = (db: Firestore, workspaceId: string) => db.collection('document
 export async function listTime(db: Firestore, input: Actor) {
   const { role } = await roleOf(db, input);
   const all = APPROVERS.includes(role);
-  const { rows } = await db.pool.query<{ id: string; data: Omit<TimeEntry, 'id'> }>(
-    `select id, data from public.documents where workspace_id = $1 and data->>'kind' = $2 ${all ? '' : `and data->>'person' = $3`} order by data->>'date' desc limit 5000`,
+  const rows = await db.readRows<{ id: string; data: Omit<TimeEntry, 'id'> }>(
+    `select id, data from ${db.tableSource('documents')} where workspace_id = $1 and data->>'kind' = $2 ${all ? '' : `and data->>'person' = $3`} order by data->>'date' desc limit 5000`,
     all ? [input.workspaceId, TIME_KIND] : [input.workspaceId, TIME_KIND, input.uid]);
   const rates = all ? ((await ratesRef(db, input.workspaceId).get()).data()?.rates as TimeRates | undefined) || {} : undefined;
   return { entries: rows.map(r => ({ ...r.data, id: r.id })), ...(rates ? { rates } : {}), canApprove: all };

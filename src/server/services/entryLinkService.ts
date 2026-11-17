@@ -25,8 +25,8 @@ async function writer(db: Firestore, input: Actor) {
 }
 
 export async function linksOf(db: Firestore, input: Actor & { transactionId: string }): Promise<EntryLink[]> {
-  const { rows } = await db.pool.query<{ id: string; data: Omit<EntryLink, 'id'> }>(
-    `select id, data from public.documents where workspace_id = $1 and data->>'kind' = $2 and (data->>'a' = $3 or data->>'b' = $3) order by data->>'createdAt'`,
+  const rows = await db.readRows<{ id: string; data: Omit<EntryLink, 'id'> }>(
+    `select id, data from ${db.tableSource('documents')} where workspace_id = $1 and data->>'kind' = $2 and (data->>'a' = $3 or data->>'b' = $3) order by data->>'createdAt'`,
     [input.workspaceId, ENTRY_LINK_KIND, input.transactionId]);
   return rows.map(r => ({ ...r.data, id: r.id }));
 }
@@ -36,7 +36,10 @@ export async function linkEntries(db: Firestore, input: Actor & { a?: unknown; b
   if (input.a === input.b) throw new LinkError(400, 'An entry is not linked to itself');
   if (input.note !== undefined && (typeof input.note !== 'string' || input.note.length > MAX_LINK_NOTE)) throw new LinkError(400, `Keep the note under ${MAX_LINK_NOTE} characters`);
   await writer(db, input);
-  const { rows } = await db.pool.query<{ id: string }>(`select id from public.transactions where workspace_id = $1 and id = any($2::text[])`, [input.workspaceId, [input.a, input.b]]);
+  const rows = await db.readRows<{ id: string }>(
+    `select id from ${db.tableSource('transactions')} where workspace_id = $1 and id = any($2::text[])`,
+    [input.workspaceId, [input.a, input.b]],
+  );
   if (rows.length !== 2) throw new LinkError(404, 'Both entries must be in this workspace');
   const existing = await linksOf(db, { ...input, transactionId: input.a });
   const same = existing.find(l => l.a === input.b || l.b === input.b);
