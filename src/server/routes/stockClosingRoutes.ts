@@ -1,10 +1,10 @@
 import express from 'express';
 import { z } from 'zod';
-import { errorMessage, requestUser } from '../auth/requestUser';
+import { errorMessage } from '../auth/requestUser';
 import { getDb } from '../db/firestore';
 import { formatTzDate } from '../../lib/calendarDate';
 import { requireWorkspaceRole } from './workspaceRoutes';
-import { stockCheckReport, StockClosingError } from '../services/stockClosingService';
+import { stockCheckReport } from '../services/stockClosingService';
 import { inventoryStockClosingCommand } from '../commands/inventory';
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);

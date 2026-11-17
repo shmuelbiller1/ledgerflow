@@ -137,7 +137,6 @@ type StockContext = { workspaceId: string; actor: string; user: { admin?: boolea
 function stockChange(
   ctx: StockContext,
   input: InventoryAdjustInput | InventoryCountInput,
-  kind: 'single' | 'count',
 ) {
   return {
     workspaceId: ctx.workspaceId,
@@ -173,16 +172,16 @@ function stockCommand<Input extends InventoryAdjustInput | InventoryCountInput>(
     roles: STOCK_ROLES,
     dated: 'date',
     async prepare(ctx, input) {
-      return prepareAdjustStock(ctx.db, stockChange(ctx, input, kind));
+      return prepareAdjustStock(ctx.db, stockChange(ctx, input));
     },
     async handler(ctx, tx, input) {
-      const result = await adjustStockInTransaction(ctx.db, tx, stockChange(ctx, input, kind), ctx.prepared as StockAdjustmentAccounts);
+      const result = await adjustStockInTransaction(ctx.db, tx, stockChange(ctx, input), ctx.prepared as StockAdjustmentAccounts);
       // the legacy route answered the new quantity when one item changed
       return result.items.length === 1 ? { ...result, newQuantity: result.items[0].after } : result;
     },
     async preview(ctx, input) {
-      const prepared = await prepareAdjustStock(ctx.db, stockChange(ctx, input, kind));
-      const changes = stockChange(ctx, input, kind).changes;
+      const prepared = await prepareAdjustStock(ctx.db, stockChange(ctx, input));
+      const changes = stockChange(ctx, input).changes;
       return {
         title: kind === 'count' ? 'Count the stock' : 'Change stock',
         lines: [

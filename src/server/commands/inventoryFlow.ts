@@ -17,7 +17,7 @@ import { prepareStockClosing, writeStockClosingInTransaction } from '../services
 import { setNegativeStockPolicyInTransaction } from '../services/stockPolicyService';
 import { prepareTransferStock, transferStockInTransaction } from '../services/stockTransferService';
 import type { CommandDefinition } from './types';
-import { money, todayIn, STOCK_ROLES } from './inventoryStock';
+import { money, STOCK_ROLES } from './inventoryStock';
 
 /**
  * The stock settings and the goods that leave (W-06, BF-08, EG-6, EG-7, W-01): the negative-stock
