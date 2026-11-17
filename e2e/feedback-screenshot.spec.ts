@@ -6,18 +6,25 @@ test('phone feedback previews a Hebrew screenshot and retries its upload without
   await page.route('**/feedback-fixture', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="fixture"></div></body></html>' }));
   let tickets = 0, uploads = 0;
   const targets: string[] = [];
+  // the ticket and the screenshot are commands now: `support.ticket` opens the ticket with its message, and
+  // `document.save` files the image — both answer with the id they wrote, which the retry reuses
+  await page.route('**/api/v1/commands/support.ticket', async route => {
+    const input = route.request().postDataJSON() as { input: { id: string } };
+    tickets++;
+    await route.fulfill({ status: 200, json: { ok: true, data: { id: input.input.id, messageId: `${input.input.id}-message`, created: true } } });
+  });
+  await page.route('**/api/v1/commands/document.save', async route => {
+    const input = route.request().postDataJSON() as { input: Record<string, unknown> };
+    uploads++;
+    targets.push(String(input.input.linkedId));
+    expect(input.input.linkedCollection).toBe('supportTickets');
+    expect(input.input.name).toBe('צילום-מסך.png');
+    if (uploads === 1) return await route.fulfill({ status: 403, json: { message: 'Screenshot refused' } });
+    await route.fulfill({ status: 200, json: { ok: true, data: { id: `file-${uploads}` } } });
+  });
+  await page.route('**/api/**', route => route.fulfill({ status: 200, json: {} }));
   await page.route('**/rest/v1/**', async route => {
     const request = route.request();
-    const input = request.method() === 'POST' ? request.postDataJSON() as Record<string, unknown> : {};
-    if (request.url().includes('/rpc/lf_batch')) tickets++;
-    if (request.url().includes('/rpc/lf_set') && input.p_table === 'documents') {
-      uploads++;
-      const record = input.p_data as Record<string, unknown>;
-      targets.push(String(record.linkedId));
-      expect(record.linkedCollection).toBe('supportTickets');
-      expect(record.name).toBe('צילום-מסך.png');
-      if (uploads === 1) return await route.fulfill({ status: 403, json: { message: 'Screenshot refused' } });
-    }
     await route.fulfill({ status: 200, json: request.method() === 'GET' ? [] : null });
   });
   await page.goto('/feedback-fixture');
