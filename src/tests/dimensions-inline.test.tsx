@@ -15,11 +15,17 @@ test('dimension labels persist with their stable ID and old-name alias, while vi
  const workspace = setComponentWorkspace(); workspace.dimensions = [{ id: 'project', name: 'Projects' }]; useAuthStore.setState({ workspaces: [workspace] });
  useLedgerStore.setState({ dimensionNodes: [node], transactions: [] });
  const writes: Record<string, unknown>[] = [];
- globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => { if (String(input).includes('/rpc/lf_update')) writes.push(JSON.parse(String(init?.body))); return new Response(JSON.stringify(String(input).includes('/rpc/') ? null : { id: 'component-workspace_project_P1', data: { ...node, workspaceId: workspace.id } }), { status: 200, headers: { 'Content-Type': 'application/json' } }); }) as typeof fetch;
+ // the label is a field of the node, so `record.fields` writes it — with the alias history in the same patch
+ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => { if (String(input).includes('/commands/record.fields')) writes.push(JSON.parse(String(init?.body))); const answered = String(input).includes('/commands/') ? { ok: true, data: { collection: 'dimensionNodes', id: 'component-workspace_project_P1', fields: ['description', 'aliases'], updatedAt: '2026-01-02T00:00:00Z' } } : String(input).includes('/rpc/') ? null : { id: 'component-workspace_project_P1', data: { ...node, workspaceId: workspace.id } }; return new Response(JSON.stringify(answered), { status: 200, headers: { 'Content-Type': 'application/json' } }); }) as typeof fetch;
  render(<DimensionsSettings />);
  fireEvent.click(screen.getByRole('button', { name: inlineEditName('Edit Label project P1') })); fireEvent.change(screen.getByLabelText('Label project P1'), { target: { value: 'שלום New' } });
  await act(async () => { fireEvent.keyDown(screen.getByLabelText('Label project P1'), { key: 'Enter' }); });
- assert.equal(writes[0].p_id, 'component-workspace_project_P1'); const fields = writes[0].p_set as Record<string, unknown>; assert.equal(fields.description, 'שלום New'); assert.deepEqual(fields.aliases, ['Original', 'ישן']); assert.equal('id' in fields, false);
+ const sent = writes[0] as { workspaceId: string; input: { collection: string; id: string; fields: Record<string, unknown>; expected: Record<string, unknown> } };
+ assert.deepEqual([sent.input.collection, sent.input.id], ['dimensionNodes', 'component-workspace_project_P1'], 'the node keeps its stable id');
+ assert.equal(sent.input.fields.description, 'שלום New');
+ assert.deepEqual(sent.input.fields.aliases, ['Original', 'ישן'], 'the old label travels with the new one as an alias');
+ assert.equal('id' in sent.input.fields, false, 'the id is never a field');
+ assert.equal(sent.input.expected.description, 'ישן', 'the label the person read rides with the write');
  assert.equal(useLedgerStore.getState().dimensionNodes[0].description, 'שלום New');
  cleanup(); const viewer = setComponentWorkspace('viewer'); viewer.dimensions = workspace.dimensions; useAuthStore.setState({ workspaces: [viewer] }); render(<DimensionsSettings />);
  assert.equal(screen.queryByRole('button', { name: /^Edit (Label|Label name)/ }), null);

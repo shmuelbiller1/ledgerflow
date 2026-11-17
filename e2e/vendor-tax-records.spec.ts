@@ -23,10 +23,12 @@ test('vendor tax records keep the real detail page mounted, edit an address in a
     let writes=0;
     window.fetch=async(input,init)=>{
       const url=new URL(String(input),location.origin);
-      if(url.pathname.includes('/rpc/lf_update')){
-        const body=JSON.parse(String(init?.body));if(body.p_table!=='vendors'||body.p_id!=='soon')throw new Error('Unexpected write target');
+      // the drawer's fields are a command now: the address is a named field of one record, and the server answers
+      if(url.pathname.includes('/commands/record.fields')){
+        const body=JSON.parse(String(init?.body));const input=body.input;
+        if(input.collection!=='vendors'||input.id!=='soon')throw new Error('Unexpected write target');
         if(++writes===1)return new Response(JSON.stringify({message:'Address update refused',code:'42501'}),{status:403,headers:{'content-type':'application/json'}});
-        vendors[0]={...vendors[0],...body.p_set};return new Response('null',{headers:{'content-type':'application/json'}});
+        vendors[0]={...vendors[0],...input.fields};return new Response(JSON.stringify({ok:true,data:{collection:'vendors',id:'soon',fields:Object.keys(input.fields),updatedAt:new Date().toISOString()}}),{headers:{'content-type':'application/json'}});
       }
       if(url.pathname.endsWith('/rest/v1/vendors')){
         const id=url.searchParams.get('id')?.replace(/^eq\./,'');

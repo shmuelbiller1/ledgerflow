@@ -28,7 +28,7 @@ export const REGISTERED_COMMAND_NAMES: readonly string[] = [
   'period.reopen', 'period.signoff', 'period.unlock', 'period.yearclose', 'presence.beat', 'presence.leave',
   'project.delete', 'project.restore', 'query.ask', 'query.close', 'query.reply', 'reconciliations.bankline',
   'reconciliations.banklinepay', 'reconciliations.banklinesplit', 'reconciliations.bankrules', 'reconciliations.clear',
-  'reconciliations.complete', 'reconciliations.reconcile', 'rma.move', 'rma.request', 'savedlist.allocationrules',
+  'reconciliations.complete', 'reconciliations.reconcile', 'record.fields', 'rma.move', 'rma.request', 'savedlist.allocationrules',
   'savedlist.approvaldelegate', 'savedlist.customergroup', 'savedlist.paymenttype', 'savedlist.pricelists',
   'savedlist.roledashboard', 'savedlist.salesreps', 'savedlist.taxprofiles', 'stages.define', 'stages.move',
   'support.message', 'support.status', 'support.ticket', 'tag.change', 'tasks.create', 'tasks.remove', 'tasks.status',
@@ -43,4 +43,4 @@ export const REGISTERED_COMMAND_NAMES: readonly string[] = [
   'workspace.undoimport', 'workspace.updaterole',
 ];
 
-export const REGISTERED_COMMAND_AREAS: readonly string[] = ['account', 'alerts', 'apikey', 'asset', 'auditlog', 'autorule', 'bill', 'budget', 'chartaccount', 'creditnote', 'customer', 'document', 'employee', 'entrylink', 'estimate', 'groups', 'inventory', 'inventoryitem', 'invoice', 'journal', 'loan', 'notification', 'numbering', 'payment', 'payroll', 'period', 'presence', 'project', 'query', 'reconciliations', 'rma', 'savedlist', 'stages', 'support', 'tag', 'tasks', 'tax', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace'];
+export const REGISTERED_COMMAND_AREAS: readonly string[] = ['account', 'alerts', 'apikey', 'asset', 'auditlog', 'autorule', 'bill', 'budget', 'chartaccount', 'creditnote', 'customer', 'document', 'employee', 'entrylink', 'estimate', 'groups', 'inventory', 'inventoryitem', 'invoice', 'journal', 'loan', 'notification', 'numbering', 'payment', 'payroll', 'period', 'presence', 'project', 'query', 'reconciliations', 'record', 'rma', 'savedlist', 'stages', 'support', 'tag', 'tasks', 'tax', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace'];

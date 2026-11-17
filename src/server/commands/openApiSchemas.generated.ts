@@ -118,6 +118,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "reconciliations.clear": "CommandInput_reconciliations_clear",
   "reconciliations.complete": "CommandInput_reconciliations_complete",
   "reconciliations.reconcile": "CommandInput_reconciliations_reconcile",
+  "record.fields": "CommandInput_record_fields",
   "rma.move": "CommandInput_rma_move",
   "rma.request": "CommandInput_rma_request",
   "savedlist.allocationrules": "CommandInput_savedlist_allocationrules",
