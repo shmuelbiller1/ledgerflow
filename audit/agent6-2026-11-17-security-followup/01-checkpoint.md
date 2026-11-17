@@ -1,0 +1,39 @@
+# Agent #6 — SEC-SCAN-1 follow-up checkpoint
+
+Date: 2026-11-17 UTC. Branch `arena/28d8bb9a-ledgerflow`, base `f69e2b4ecddd75393f51195c37fd444655731005` (main, PR #758). Initial working tree clean. This is a narrowly scoped continuation, **not** a full-repository audit or certification. Agent #6 cannot select models or launch specialist subagents with the tools available here. No production system was scanned or changed.
+
+## Instruction and prior work sources examined
+
+Root `AGENTS.md`, `CLAUDE.md`, `CURRENT_WORK.md`; `src/AGENTS.md`, `src/tests/AGENTS.md`, `src/lib/AGENTS.md`; `docs/COORDINATION.md` NOW and Agent #6 queue, `docs/DEVELOPER_WORKFLOWS.md`, `docs/INDEPENDENT_AUDIT_AGENT.md`, `docs/FIRST_TESTERS_GATE.md`, `docs/RELEASE_GATE.md` and `docs/prompts/SEC-SCAN-1-api-and-web-scans.md`. Read local 2026-11-17 Agent #6 scanner checkpoints and the 2026-11-16 remediation report/patch inventory; read Drive master index (connector output truncated) and 2026-11-16 Agent #6 recovery addendum. GitHub: open PR inventory, issue #150 and comments, PR #748 and #756 checks/reviews, recent Actions runs, and #759 file list. GitHub issue view command has a Projects-classic GraphQL error; issue #150 was read successfully via REST. Not all existing agent messages, reports, issues and discussions have been read.
+
+The assigned branch is fixed by Arena and supersedes old fork/new-branch directions. Money, posting, tax math, server and migrations remain AI #1's lane. Prior PR #756 merged; do not redo it. PR #759 is a separate agent's command work, not modified here. Branch list and CI are point-in-time observations.
+
+## Finding SEC6-20261117-01 — Medium — overly broad ZAP exceptions (confirmed configuration defect)
+
+At base `f69e2b4`, `.zap/rules.tsv` lines 2, 10–18 describe the third column of INFO rows as a URL regex and downgrade plugins 10055 (CSP notices) and 10017 (cross-domain JavaScript) based on narrower justifications. ZAP's tagged upstream [`docker/zap_common.py` `load_config`](https://github.com/zaproxy/zaproxy/blob/v2.16.1/docker/zap_common.py#L148-L175), independently read through GitHub's contents API, stores `config_dict[key] = val` for these rows. URL filtering is a separate `OUTOFSCOPE` action. `zap-baseline.py` loads the file before selecting its automation path. The workflow's own post-processing (`.github/workflows/zap-baseline.yml:130–148`) also excludes accepted plugin IDs globally. Thus the regex-looking text does not confine `INFO` to the documented situation: all findings for those IDs are accepted regardless of the CSP defect or script source. This is a scanner blind spot, **not evidence that a particular exploitable vulnerability exists**. Reproduction: extracted and executed the tagged upstream `load_config` function locally with the actual files. Base produced `config_dict={10035: INFO, 10055: INFO, 10017: INFO}` and `out_of_scope={}`; the proposed file produced only `10035: INFO` and `out_of_scope={}`. The workflow’s `acceptedIds` set also excluded both plugin IDs at base.
+
+Correction in this branch: remove global 10055/10017 downgrades; retain only 10035 for HTTP loopback while explicitly requiring separate HTTPS-edge verification; correct format documentation. Regression test asserts three columns and that accepted IDs contain only 10035. `node --import tsx --test src/tests/sec-scan-1-and-api-hardening.test.ts`: 5/5 pass (Node 22.22.3). Test proves config contract, not an executed ZAP scan. Remaining risk: actual scan results and false positives need review; do not assume Stripe/Plaid or CSP alerts are all defects.
+
+## Finding SEC6-20261117-02 — High — first manual ZAP job failed (confirmed failure, cause unknown)
+
+After PR #756 merged, GitHub listed zero ZAP executions. Dispatched local-only `zap-baseline.yml` on `main` at `f69e2b4` (no live URL): [run 44006270355](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44006270355). Postgres init, migrations, install and build succeeded. The combined boot-and-ZAP step and report-processing step both failed, while artifact upload succeeded (artifact 14295265005, 629 bytes). This sandbox cannot read Actions logs or artifact contents: GitHub redirects them to hosts outside its outbound allowlist and the request ends in EOF. The failed step includes several operations; root cause and whether ZAP actually ran are **unknown**. A small artifact is not proof of its contents. Review the run log and artifact in GitHub; distinguish boot, container, scanner and missing-report failures. Fix the real cause and execute a fresh local-only scan; retain reports and triage findings before calling SEC-SCAN-1 complete. No ZAP fix is claimed here.
+
+## Current scanner / CI evidence
+
+PR #756 is merged at its final head `657db8aa786eac0b6715fba02e3f4ad1ec6182a2`. Its Gitar review says no open findings, no review threads, and applicable checks passed with Docs and changed-spec jobs skipped. Its API scanner job is Phase 1 report-only. Main API runs 43997395843, 44002028934 and 44005270136 show successful job steps and report upload via metadata, but step `continue-on-error` can hide a scanner exit failure and report bytes were not accessible here; **not** evidence of three clean reports or permission to promote. Main `f69e2b4` functional CI, CodeQL, SBOM and API workflow checks showed success; Docs and changed-spec jobs skipped; a separate `propose` check was pending at inspection. This does not describe this branch's CI.
+
+## Verification and constraints
+
+- `npm ci --ignore-scripts --no-audit --no-fund`: completed with Node 22 engine warning (repository requests Node 24); Node 24.22.3 separately fetched from npm for full suite.
+- Focused scanner/API suite 5/5 passed; `npm run lint:eslint`: 0 errors, 2 existing warnings; `npm run build`: passed (Node 22). `NODE_OPTIONS=--max-old-space-size=4096 npm run lint:types` passed when run alone. Default-heap type check failed OOM; a concurrent build/type retry was killed under memory pressure; do not treat either as a code diagnostic.
+- Full unit suite started separately with Node 24 and test concurrency 2; final result recorded separately if completed. No local PostgreSQL/Docker available: RLS/security database tests and local ZAP not executed here. Production deployment, actual edge HSTS and authenticated browser security coverage not checked.
+- GitHub artifact download and job-log host is inaccessible here. No remote CI success or readiness claim until actually checked.
+
+## Unfinished / handoff
+
+1. Investigate and fix ZAP run 44006270355 with its actual logs, rerun against throwaway local CI only, inspect all reports and justify each exception. Test authentication coverage separately: baseline spider is not proof of authenticated screen coverage.
+2. Review the Schemathesis JUnit and logs for three consecutive clean main runs, plus the earlier 43993423090 failure, before considering Phase 2. Current job-level green is insufficient.
+3. Previous Agent #6 remediation patches remain proposals, not certified current or deployed fixes; revalidate against current code and coordinate with AI #1 before applying. Odoo patch 04 still applies cleanly at this pin; it belongs to the import/owner lane and was not applied here.
+4. Audit the remaining accounting, security, DB, frontend and integrations against pinned revisions; establish function-level inventory, worked independent figures, real DB concurrency and authenticated browser/deployed gates. Existing historical assessments do not certify this revision. W11 source-to-ledger matching and first-tester gates remain unverified here.
+
+**Launch assessment: NOT READY FOR LAUNCH** based on incomplete independent coverage, unknown current production/deployment gates, and the failed first observed ZAP run; this is not a finding that any particular tenant has been compromised. No live DB or external site was tested.

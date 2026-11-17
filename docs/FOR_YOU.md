@@ -681,6 +681,8 @@ in GitHub before interpreting findings. Main runs `43981616172`, `43983831337`, 
 all failed with zero jobs and no reports; none count toward the promotion gate.
 A local production-bundle smoke check returned HTTP 200 for `/api/health` and `/`, but ZAP itself has not run.
 Keep Phase 1 report-only; manual dispatch on `main` still awaits the workflow fix reaching the default branch.
+**17 Nov follow-up (AI #6):** PR #756 has merged. The API job now runs on `main`, but its report-only green status does not prove a clean report. The first manually dispatched [ZAP run 44006270355](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44006270355) failed in its combined boot-and-scan step and report-processing step. The run logs and artifact bytes are inaccessible from this sandbox, so the cause is not yet known; inspect them in GitHub and rerun locally in CI before treating the nightly scan as working. No live scan was run. A follow-up removes plugin-wide CSP and cross-domain-script exceptions that were incorrectly described as URL-scoped; its details and limits are in [the Agent #6 checkpoint](../audit/agent6-2026-11-17-security-followup/01-checkpoint.md).
+
 *Still yours to decide:* scanning the live site. To allow it, write here "OK to scan <address>" (passive scan
 only). *Default:* not scanned.
 
