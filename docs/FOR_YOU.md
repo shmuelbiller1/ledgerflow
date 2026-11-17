@@ -7,6 +7,17 @@ removed from this list.
 
 Last updated: 2026-11-17.
 
+
+## Database changes (migrations): status
+
+**17 Nov: every migration in `supabase/migrations/` is applied to the live database (60 of 60).** Older notes
+below that ask you to run a migration in the SQL editor are done; ignore them. You never need to run SQL yourself:
+the AI that merges a PR with a migration applies it right after the merge (rule in `docs/COORDINATION.md`).
+To check at any time, ask any AI "migration status". It compares this folder with the live list and names
+anything missing.
+
+Next: `20261117210000_assistant_sandbox_overlay.sql` from SBX-1 PR #787 (still a draft) is applied when that PR merges.
+
 ## Payroll, mass entry edits, tags and tax returns now run through registered commands (nothing for you to do)
 
 Four more areas now go through the same registered commands as the period, account, inventory,

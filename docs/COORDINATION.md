@@ -33,6 +33,12 @@ Never push to `main`; Claude merges after checking.
 
 ## Rules for every helper AI (written for Codex, AI #2; the same for #3, #4, …)
 
+**Database migrations (owner rule, 17 Nov):** the owner does not run SQL. Whoever merges a PR that adds a file under
+`supabase/migrations/` applies it to the live database right after the merge with the Supabase tool's
+`apply_migration` (never pasted into the SQL editor, which leaves no record), in date order, and then confirms with
+`list_migrations`. An AI without the Supabase tool asks AI #1 in Messages. Write migrations so they can run twice
+(`create or replace`, `drop … if exists` before `create`, `if not exists`).
+
 **Bot review comments on your own PR (owner rule, 17 Nov):** after every push, read every comment the bots leave on your PR (Gitar, Codex, CodeRabbit, SonarCloud, CodeQL). Fix each real finding in code (with a test when it is a bug), reply on each thread with what you did or why it is not real, and resolve it. Ask for a merge only when CI is green and no bot finding is left open. The lead will not merge a PR with unanswered bot findings.
 
 **Temporary later-backlog lane (owner-authorized, 2026-10-02):** while Claude is paused,
