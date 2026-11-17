@@ -4,8 +4,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part89,
-    "targetId": COMMAND_SCHEMA_PARTS.part89,
+    "id": COMMAND_SCHEMA_PARTS.part96,
+    "targetId": COMMAND_SCHEMA_PARTS.part96,
     "targetType": {
       "default": "account",
       "type": "string",
@@ -14,7 +14,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "label"
       ]
     },
-    "amountCents": COMMAND_SCHEMA_PARTS.part114,
+    "amountCents": COMMAND_SCHEMA_PARTS.part121,
     "period": {
       "type": "string",
       "enum": [
@@ -23,14 +23,14 @@ export const COMMAND_INPUT_SCHEMA = {
         "yearly"
       ]
     },
-    "startDate": COMMAND_SCHEMA_PARTS.part104,
+    "startDate": COMMAND_SCHEMA_PARTS.part111,
     "label": {
       "anyOf": [
         {
           "type": "object",
           "properties": {
-            "dimensionId": COMMAND_SCHEMA_PARTS.part87,
-            "value": COMMAND_SCHEMA_PARTS.part89
+            "dimensionId": COMMAND_SCHEMA_PARTS.part93,
+            "value": COMMAND_SCHEMA_PARTS.part96
           },
           "required": [
             "dimensionId",
@@ -38,7 +38,7 @@ export const COMMAND_INPUT_SCHEMA = {
           ],
           "additionalProperties": false
         },
-        COMMAND_SCHEMA_PARTS.part16
+        COMMAND_SCHEMA_PARTS.part18
       ]
     }
   },

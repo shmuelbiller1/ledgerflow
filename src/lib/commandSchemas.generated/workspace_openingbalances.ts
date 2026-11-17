@@ -4,21 +4,17 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "date": COMMAND_SCHEMA_PARTS.part104,
+    "date": COMMAND_SCHEMA_PARTS.part111,
     "balances": {
       "maxItems": 300,
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "accountId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 127
-          },
-          "amountCents": COMMAND_SCHEMA_PARTS.part133
+          "accountId": COMMAND_SCHEMA_PARTS.part94,
+          "amountCents": COMMAND_SCHEMA_PARTS.part140
         },
-        "required": COMMAND_SCHEMA_PARTS.part34,
+        "required": COMMAND_SCHEMA_PARTS.part39,
         "additionalProperties": false
       }
     }

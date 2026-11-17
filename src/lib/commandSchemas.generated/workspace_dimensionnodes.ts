@@ -8,7 +8,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "minItems": 1,
       "maxItems": 450,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part230
+      "items": COMMAND_SCHEMA_PARTS.part249
     }
   },
   "required": COMMAND_SCHEMA_PARTS.part4,
