@@ -1,4 +1,5 @@
 import { alertSettingsUpdateCommand } from './alerts';
+import { presenceBeatCommand, presenceLeaveCommand } from './presence';
 import { auditAppendCommand } from './audit';
 import { importMapRestoreCommand, importMapSaveCommand } from './importMaps';
 import { entryLinkCreateCommand, entryLinkRemoveCommand } from './entryLinks';
@@ -151,6 +152,8 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(supportMessageCommand);
   registry.register(supportStatusCommand);
   registry.register(auditAppendCommand);
+  registry.register(presenceBeatCommand);
+  registry.register(presenceLeaveCommand);
   registry.register(chartAccountCreateCommand);
   registry.register(chartAccountDeleteCommand);
   registry.register(chartAccountUpdateCommand);

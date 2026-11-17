@@ -16,6 +16,7 @@ import { executeCommand } from '../server/utils/commandExecutor';
 import { auditAppendCommand, auditAppendInput } from '../server/commands/audit';
 import { chartAccountDeleteCommand, chartAccountDeleteInput } from '../server/commands/chartAccounts';
 import { workspaceSaveTemplateCommand, workspaceSaveTemplateInput } from '../server/commands/workspaceAdmin';
+import { presenceBeatCommand, presenceBeatInput, presenceLeaveCommand, presenceLeaveInput } from '../server/commands/presence';
 import { captureResponse, fakeRequest, MemoryDb, owner, runnerDependencies, seedWorkspace, workspaceId } from './helpers/commandTestUtils';
 
 const appendAudit = (input: unknown, db: MemoryDb) => {
@@ -136,4 +137,28 @@ test('a workspace with no active accounts cannot become a template, and neither 
   assert.equal((empty as unknown as { code: string }).code, 'CONFLICT');
   assert.equal(db.entries('customTemplates').length, 0);
   assert.equal(workspaceSaveTemplateInput.safeParse({ name: '' }).success, false);
+});
+
+test('a presence beat writes the caller’s own row, and leaving removes only that row', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  const beat = presenceBeatInput.parse({ name: 'Dana', color: '#3366ff' });
+  const beatResult = await executeCommand(fakeRequest(owner, { workspaceId, input: beat }), captureResponse().response,
+    { definition: presenceBeatCommand, workspaceId, input: beat }, runnerDependencies(db));
+  assert.equal(beatResult.ok, true);
+  const row = db.read(`presence/${owner.uid}`)!;
+  assert.equal(row.uid, owner.uid, 'the row is keyed by the session, never by the payload');
+  assert.equal(row.email, owner.email);
+  assert.equal(row.currentWorkspaceId, workspaceId);
+  assert.equal(row.name, 'Dana');
+  assert.match(String(row.lastActive), /^\d{4}-\d{2}-\d{2}T/, 'the clock is the server’s');
+
+  db.seed('presence/someone-else', { uid: 'someone-else', currentWorkspaceId: workspaceId });
+  const left = await executeCommand(fakeRequest(owner, { workspaceId, input: {} }), captureResponse().response,
+    { definition: presenceLeaveCommand, workspaceId, input: presenceLeaveInput.parse({}) }, runnerDependencies(db));
+  assert.equal(left.ok, true);
+  assert.equal(db.read(`presence/${owner.uid}`), undefined);
+  assert.ok(db.read('presence/someone-else'), 'leaving never removes anyone else');
+  assert.equal(presenceBeatInput.safeParse({ name: 'Dana', uid: 'someone-else' }).success, false);
+  assert.equal(db.entries('auditLogs').length, 0, 'a heartbeat writes no audit line — it is not a record');
 });

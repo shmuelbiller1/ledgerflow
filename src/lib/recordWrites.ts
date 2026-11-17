@@ -97,6 +97,18 @@ export async function saveEstimate(workspaceId: string, row: Record<string, unkn
   await runNamedCommand('estimate.save', withoutServerKeys(row), { workspaceId });
 }
 
+/** Who is looking at this workspace: a heartbeat, not a record. */
+export async function presenceBeat(workspaceId: string, uid: string, fields: { name: string; color?: string }): Promise<void> {
+  if (guestSession()) return localSet('presence', uid, { uid, ...fields, currentWorkspaceId: workspaceId, lastActive: new Date().toISOString() });
+  // the row is always the caller's own: `uid`, email, workspace and the clock come from the session on the server
+  await runNamedCommand('presence.beat', fields, { workspaceId });
+}
+
+export async function presenceLeave(workspaceId: string, uid: string): Promise<void> {
+  if (guestSession()) return localDelete('presence', uid);
+  await runNamedCommand('presence.leave', {}, { workspaceId });
+}
+
 /** A quote's stage: accepted as an order, declined, or converted by an invoice. */
 export async function setEstimateStatus(workspaceId: string, id: string, status: string, extra: Record<string, unknown> = {}): Promise<void> {
   if (guestSession()) {

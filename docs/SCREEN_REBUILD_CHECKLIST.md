@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **8** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **5** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,7 +147,7 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **8** → 0. 4 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **5** → 0. 3 files — all of them the same open question (below). The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
@@ -307,7 +307,19 @@ hand-convert a table the codemod still refuses.
         same transaction. "Save as template" captured whatever the tab had loaded; `workspace.savetemplate` reads the
         active chart on the server, so an archived account is not resurrected in the new workspace.
         - Pinned by `audit-account-template-commands.test.ts` (7 cases).
-      - **the rest** (~8 sites in 4 files) — write routes that already have a command in most cases
+      - **presence, 3 sites.** `useCollaborators` wrote `presence/{uid}` with `setDoc` every thirty seconds and
+        `deleteDoc`-ed it on unmount — the row named its own owner and its own clock, and the workspace was whatever
+        the tab had loaded. `presence.beat` writes the caller's own row (session `uid`, email, workspace, server
+        clock) and `presence.leave` can only remove that row. Neither writes an audit line: a heartbeat is not a
+        record.
+      - **the rest** — **5 sites in 3 files, one open question.** `useEntityOperations` (3) and the two inline-edit
+        adapters (`recordDetailsAdapter`, `inlineRecordAdapter`) write `updateDoc`/`setDoc`/`deleteDoc` on whatever
+        `path`/`collection`/`kind` the caller passes. Every collection with a ledger meaning already branches to its
+        own command before reaching them, so what is left is the long tail of ordinary records — but a command for
+        them has to answer a policy question the code cannot answer for itself: an **allow-list** (fail closed, and a
+        screen added later breaks until it is listed) or a **deny-list** (fail open, and a new ledger collection is
+        writable by mistake). That is a product decision, not a mechanical conversion, so it is deliberately left
+        here rather than guessed. — write routes that already have a command in most cases
         (`SupportView` 5, `useEntityOperations` 3, `useCollaborators` 3, `Ledger` 2, `Vault` 2 …): one commit per
         hook, not per call, because a hook that writes has one shape. Three are deliberately *not* converted yet:
         `useCollaborators`' presence rows (ephemeral, one row per open tab, nothing to audit), `shared.ts`'
