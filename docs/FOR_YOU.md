@@ -16,7 +16,9 @@ templates, turning on two-step login for everyone and the two-person rule, previ
 scheduled report, saving the branding that documents print with, and minting or turning off the private
 link a customer uses to see their own invoices (and the one they use to sign an estimate).
 
-Every screen and API call keeps exactly the same request and answer. These addresses worded a rejected
+Every screen and API call keeps exactly the same request and answer. Two answers were briefly at risk and
+are now held by tests: asking "may this contact be deleted?" (`?check=1`) still deletes nothing and answers
+that it may, and a merge refused because a date is closed still lists the closed dates. These addresses worded a rejected
 request three different ways ("Choose the account to merge and the one to keep", "Invalid request" with
 the details, and the first issue's own sentence), so each keeps its own words — checked one by one, not
 assumed. A merge that a locked period or a protected account refuses is still the rule's own 404 or 409
