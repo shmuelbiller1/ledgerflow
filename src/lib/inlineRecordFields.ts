@@ -1,4 +1,4 @@
-import { editableValueProblem } from './editableRecords';
+import { editableValueProblem } from './editableValues';
 
 /** C-15 edits only non-posting record fields, plus planning budget values. */
 export const INLINE_RECORD_FIELDS = {
