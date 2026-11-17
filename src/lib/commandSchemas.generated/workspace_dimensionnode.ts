@@ -7,14 +7,14 @@ export const COMMAND_INPUT_SCHEMA = {
     "node": {
       "type": "object",
       "properties": {
-        "id": COMMAND_SCHEMA_PARTS.part64,
-        "dimensionId": COMMAND_SCHEMA_PARTS.part64,
-        "description": COMMAND_SCHEMA_PARTS.part40,
-        "aliases": COMMAND_SCHEMA_PARTS.part94,
-        "status": COMMAND_SCHEMA_PARTS.part60,
-        "parentId": COMMAND_SCHEMA_PARTS.part64,
-        "createdAt": COMMAND_SCHEMA_PARTS.part33,
-        "updatedAt": COMMAND_SCHEMA_PARTS.part33
+        "id": COMMAND_SCHEMA_PARTS.part67,
+        "dimensionId": COMMAND_SCHEMA_PARTS.part67,
+        "description": COMMAND_SCHEMA_PARTS.part42,
+        "aliases": COMMAND_SCHEMA_PARTS.part98,
+        "status": COMMAND_SCHEMA_PARTS.part63,
+        "parentId": COMMAND_SCHEMA_PARTS.part67,
+        "createdAt": COMMAND_SCHEMA_PARTS.part34,
+        "updatedAt": COMMAND_SCHEMA_PARTS.part34
       },
       "required": [
         "id",
@@ -23,21 +23,21 @@ export const COMMAND_INPUT_SCHEMA = {
       ],
       "additionalProperties": false
     },
-    "dimensionId": COMMAND_SCHEMA_PARTS.part64,
-    "nodeId": COMMAND_SCHEMA_PARTS.part64,
+    "dimensionId": COMMAND_SCHEMA_PARTS.part67,
+    "nodeId": COMMAND_SCHEMA_PARTS.part67,
     "fields": {
       "type": "object",
       "properties": {
-        "description": COMMAND_SCHEMA_PARTS.part40,
-        "aliases": COMMAND_SCHEMA_PARTS.part94,
-        "status": COMMAND_SCHEMA_PARTS.part60,
+        "description": COMMAND_SCHEMA_PARTS.part42,
+        "aliases": COMMAND_SCHEMA_PARTS.part98,
+        "status": COMMAND_SCHEMA_PARTS.part63,
         "parentId": {
           "anyOf": [
-            COMMAND_SCHEMA_PARTS.part64,
+            COMMAND_SCHEMA_PARTS.part67,
             COMMAND_SCHEMA_PARTS.part11
           ]
         },
-        "updatedAt": COMMAND_SCHEMA_PARTS.part33
+        "updatedAt": COMMAND_SCHEMA_PARTS.part34
       },
       "additionalProperties": false
     }

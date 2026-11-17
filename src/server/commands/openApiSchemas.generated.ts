@@ -13,6 +13,8 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "bill.create": "CommandInput_bill_create",
   "bill.delete": "CommandInput_bill_delete",
   "bill.update": "CommandInput_bill_update",
+  "budget.delete": "CommandInput_budget_delete",
+  "budget.save": "CommandInput_budget_save",
   "creditnote.create": "CommandInput_creditnote_create",
   "creditnote.delete": "CommandInput_creditnote_delete",
   "creditnote.update": "CommandInput_creditnote_update",
@@ -98,5 +100,6 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "workspace.restoremaps": "CommandInput_workspace_restoremaps",
   "workspace.retention": "CommandInput_workspace_retention",
   "workspace.revokeinvite": "CommandInput_workspace_revokeinvite",
+  "workspace.settings": "CommandInput_workspace_settings",
   "workspace.setupcomplete": "CommandInput_workspace_setupcomplete"
 } as const;

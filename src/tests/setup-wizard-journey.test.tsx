@@ -39,6 +39,17 @@ function keepTheWrites() {
       if (set) Object.assign(kept, set);
       return new Response(JSON.stringify(body ?? {}), { status: 200, headers: { 'content-type': 'application/json' } });
     }
+    // the workspace's settings row is a command now; keep what it is told to change, the way the row is kept
+    if (url.includes('/commands/workspace.settings')) {
+      const input = (body as { input?: Record<string, unknown> } | undefined)?.input;
+      if (input) Object.assign(kept, input);
+      return new Response(JSON.stringify({ status: 'success', data: { workspaceId: 'w1', changed: Object.keys(input || {}), updatedAt: 'now' } }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    if (url.includes('/commands/workspace.dimensionaxes')) {
+      const input = (body as { input?: { dimensions?: unknown } } | undefined)?.input;
+      if (input?.dimensions) kept.dimensions = input.dimensions;
+      return new Response(JSON.stringify({ status: 'success', data: { dimensions: input?.dimensions } }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
     if (/\/opening-balances$/.test(url)) {
       return new Response(JSON.stringify({ status: 'success', debitsCents: 100000, equityCents: 70000 }), { status: 200, headers: { 'content-type': 'application/json' } });
     }
@@ -86,13 +97,12 @@ describe('A-234: set-up wizard saves every step and keeps the values', () => {
     fireEvent.change(screen.getByLabelText('Financial year starts in'), { target: { value: '4' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Next' })); });
 
-    // the write reaches the server as the `lf_update` row update the workspace allowlist guards
-    const workspaceWrite = server.calls.find(c => c.url.includes('/rest/v1/rpc/lf_update'));
+    // the write reaches the server as the settings command, whose allowlist is the guard the row update used to be
+    const workspaceWrite = server.calls.find(c => c.url.includes('/commands/workspace.settings'));
     assert.ok(workspaceWrite, 'the business step wrote the workspace');
-    const rpc = workspaceWrite!.body as { p_table?: string; p_id?: string; p_set?: Record<string, unknown> };
-    assert.equal(rpc.p_table, 'workspaces');
-    assert.equal(rpc.p_id, 'w1');
-    const written = rpc.p_set || {};
+    const rpc = workspaceWrite!.body as { workspaceId?: string; input?: Record<string, unknown> };
+    assert.equal(rpc.workspaceId, 'w1');
+    const written = rpc.input || {};
     for (const field of ['name', 'currency', 'timezone', 'fiscalYearStartMonth', 'fiscalYearStartDay']) {
       assert.ok(field in written, `the wizard sends ${field} (the server allowlist has to keep it)`);
     }

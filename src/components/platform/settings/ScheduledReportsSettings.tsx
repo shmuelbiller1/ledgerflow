@@ -4,12 +4,11 @@ import { CalendarClock, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { db, getIdToken } from '../../../firebase';
-import { doc, updateDoc } from '../../../lib/db/firestore';
+import { getIdToken } from '../../../firebase';
+import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
 import {
   MAX_SCHEDULES, SCHEDULED_REPORTS, WEEKDAYS, lastFinishedPeriod, parseRecipients, scheduleProblem, sendDayLabel,
-  type ReportFrequency, type ScheduledReport, type ScheduledReportKind,
-} from '../../../lib/scheduledReports';
+  type ReportFrequency, type ScheduledReport, type ScheduledReportKind } from '../../../lib/scheduledReports';
 import { getLocalDateISO } from '../../../lib/utils';
 import { workspaceScope } from '../../../lib/serverAction';
 
@@ -52,8 +51,7 @@ export default function ScheduledReportsSettings() {
         path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/report-schedules/preview`,
         method: 'POST',
         token,
-        body: { report, frequency },
-      });
+        body: { report, frequency } });
       if (typeof data.html !== 'string') throw new Error('The preview could not be made');
       if (!isCurrent()) return;
       setPreview({ subject: String(data.subject || ''), html: data.html, attachments: Array.isArray(data.attachments) ? data.attachments.map(String) : [] });
@@ -70,7 +68,7 @@ export default function ScheduledReportsSettings() {
     if (!workspace?.id) return false;
     setBusy('save');
     try {
-      await updateDoc(doc(db, 'workspaces', workspace.id), { scheduledReports: next, updatedAt: new Date().toISOString() });
+      await saveWorkspaceSettings(workspace.id, { scheduledReports: next });
       setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, scheduledReports: next } : w)));
       toast.success(message);
       return true;
@@ -98,8 +96,7 @@ export default function ScheduledReportsSettings() {
       const data = await runCommand<{ sent?: number; failed?: string[]; period?: { label: string } }>({
         path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/report-schedules/${encodeURIComponent(s.id)}/send-now`,
         method: 'POST',
-        token,
-      });
+        token });
       if (data.failed?.length) toast.error(`Sent to ${data.sent}; not sent to ${data.failed.join(', ')}`);
       else toast.success(`Sent to ${data.sent} ${data.sent === 1 ? 'address' : 'addresses'} (${data.period?.label})`);
     } catch (err) {

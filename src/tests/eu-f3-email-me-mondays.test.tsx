@@ -31,15 +31,16 @@ test('EU-F3: a Monday schedule for my address is added beside the others; twice 
 test('EU-F3: the button saves the schedule list with the new one, then says it is there', async () => {
   const ws = setComponentWorkspace('owner');
   useAuthStore.setState({ workspaces: [{ ...ws, scheduledReports: [monthlyPl] } as never] });
-  const calls: Array<{ url: string; body: { p_set?: { scheduledReports?: ScheduledReport[] } } }> = [];
+  const calls: Array<{ url: string; body: { p_set?: { scheduledReports?: ScheduledReport[] }; input?: { scheduledReports?: ScheduledReport[] } } }> = [];
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     calls.push({ url: String(input), body: typeof init?.body === 'string' ? JSON.parse(init.body) : {} });
     return new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } });
   }) as typeof fetch;
   render(<EmailMeMondays reportTab="pnl" />);
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Email me this every Monday' })); });
-  await waitFor(() => assert.ok(calls.some(c => c.url.includes('lf_update'))));
-  const saved = calls.find(c => c.url.includes('lf_update'))!.body.p_set!.scheduledReports!;
+  // the schedule list is saved through `workspace.settings` now, so the promise is read where the guard lives
+  await waitFor(() => assert.ok(calls.some(c => c.url.includes('/commands/workspace.settings'))));
+  const saved = calls.find(c => c.url.includes('/commands/workspace.settings'))!.body.input!.scheduledReports!;
   assert.deepEqual(saved.map(s => [s.report, s.frequency, s.recipients]), [['profit-and-loss', 'monthly', ['test@example.test']], ['profit-and-loss', 'weekly', ['test@example.test']]]);
   await waitFor(() => assert.ok(screen.getByText('Emailed to you every Monday')));
 });

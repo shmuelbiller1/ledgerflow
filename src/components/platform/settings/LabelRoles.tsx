@@ -7,8 +7,7 @@ import { displayDimensionName } from '../../../lib/dimensionUtils';
  */
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { doc, updateDoc } from '../../../lib/db/firestore';
-import { db } from '../../../firebase';
+import { saveWorkspaceAxes } from '../../../lib/workspaceSettingsSave';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { DEFAULT_WORKSPACE_DIMENSIONS } from '../../../lib/dimensionUtils';
@@ -32,7 +31,7 @@ export function LabelRoles({ dimensions, onSaved }: { dimensions: DimensionDefin
     setError('');
     try {
       const updated = withLabelRole(saved, axis.id, next);
-      await updateDoc(doc(db, 'workspaces', workspace.id), { dimensions: updated });
+      await saveWorkspaceAxes(workspace.id, updated);
       setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, dimensions: updated } : w)));
       onSaved(updated);
       toast.success(`${displayDimensionName(axis)} is now ${LABEL_ROLES[next].name.toLowerCase()}`);

@@ -14,6 +14,8 @@ export const REGISTERED_COMMAND_NAMES = [
   "bill.create",
   "bill.delete",
   "bill.update",
+  "budget.delete",
+  "budget.save",
   "creditnote.create",
   "creditnote.delete",
   "creditnote.update",
@@ -99,6 +101,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "workspace.restoremaps",
   "workspace.retention",
   "workspace.revokeinvite",
+  "workspace.settings",
   "workspace.setupcomplete"
 ] as const;
 export type RegisteredCommandName = typeof REGISTERED_COMMAND_NAMES[number];

@@ -4,8 +4,7 @@ import { useAuthStore } from '../../../stores/useAuthStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../../hooks/useLedgerCollections';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { db } from '../../../firebase';
-import { doc, updateDoc } from '../../../lib/db/firestore';
+import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
 import { DEFAULT_ACCOUNT_SLOTS, accountInUse, withDefault, type DefaultAccountSlot } from '../../../lib/accountDefaults';
 import type { ChartAccount } from '../../../types';
 
@@ -33,7 +32,7 @@ export default function DefaultsSettings() {
     const next = withDefault(mappings, slot.key, accountId);
     setSaving(slot.key);
     try {
-      await updateDoc(doc(db, 'workspaces', workspace.id), { defaultAccountMappings: next });
+      await saveWorkspaceSettings(workspace.id, { defaultAccountMappings: next });
       useAuthStore.setState(s => ({ workspaces: s.workspaces.map(w => (w.id === workspace.id ? { ...w, defaultAccountMappings: next } : w)) }));
       toast.success(`${slot.label}: ${accountId ? accountLabel(accounts.find(a => a.id === accountId) as ChartAccount) : 'automatic'}`);
     } catch (err) {
