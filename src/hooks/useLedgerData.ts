@@ -84,14 +84,16 @@ export function useLedgerData() {
           createdAt: new Date().toISOString(),
           currency: 'USD'
         };
-        // One workspace, whichever tab opened first: both tabs send the same idempotency key with the same
-        // payload, so the second is answered by the first one's record instead of opening a second empty book.
+        // One workspace, whichever tab opened first: the personal workspace is one fixed row per person, so the
+        // second tab's command reads the row the first one wrote and answers with it. A deleted workspace is
+        // created again, because the answer is the row and not a replay of an earlier request.
         await safeAsync(
           runNamedCommand('workspace.create', {
             name: defaultWorkspace.name,
             businessType: defaultWorkspace.businessType,
             currency: defaultWorkspace.currency,
-          }, { operationId: `bootstrap-workspace-${userUid}` }),
+            personal: true,
+          }),
           OperationType.CREATE,
           'workspaces',
           { userId: userUid }
@@ -118,9 +120,7 @@ export function useLedgerData() {
         // The command returns the row it kept: an existing profile is never overwritten, and the screen shows
         // the stored one rather than the one this tab guessed.
         const [provisioned] = await safeAsync(
-          runNamedCommand<{ profile: UserProfile }>('user.provision', {}, {
-            operationId: `bootstrap-profile-${userUid}`,
-          }),
+          runNamedCommand<{ profile: UserProfile }>('user.provision', {}),
           OperationType.CREATE,
           `users/${userUid}`
         );

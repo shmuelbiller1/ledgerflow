@@ -78,12 +78,25 @@ export const workspaceCreateInput = z.object({
   name: text(120).optional(),
   businessType: text(40).optional(),
   currency: text(3).length(3).optional(),
+  /**
+   * The caller's single personal workspace: the same row every time. Asking twice returns the one they have
+   * instead of opening a second empty book, and it keeps working after that workspace is deleted or purged,
+   * because the answer is read from the row and not from a replay of an old request.
+   */
+  personal: z.boolean().optional(),
 }).strict();
 type WorkspaceCreateInput = z.output<typeof workspaceCreateInput>;
 
-export type WorkspaceCreateResult = {
-  workspace: { id: string; uid: string; name: string; businessType: string; currency: string; createdAt: string };
-};
+export type WorkspaceRow = { id: string; uid: string; name: string; businessType: string; currency: string; createdAt: string };
+export type WorkspaceCreateResult = { workspace: WorkspaceRow; created: boolean };
+
+/**
+ * The row id of a person's personal workspace.
+ *
+ * base64url so the id is injective: `personal-` plus the uid with punctuation stripped could give two people the
+ * same row, and this is the one row whose id is derived rather than generated.
+ */
+const personalWorkspaceId = (uid: string) => `personal-${Buffer.from(uid, 'utf8').toString('base64url')}`;
 
 export const workspaceCreateCommand: CommandDefinition<typeof workspaceCreateInput, WorkspaceCreateResult> = {
   name: 'workspace.create',
@@ -92,8 +105,16 @@ export const workspaceCreateCommand: CommandDefinition<typeof workspaceCreateInp
   scope: 'person',
   async handler(ctx, tx, input: WorkspaceCreateInput) {
     // the caller owns what it creates, on the same field the database's `lf_ws_role` already reads
-    const ref = ctx.db.collection('workspaces').doc();
-    const workspace: WorkspaceCreateResult['workspace'] = {
+    const ref = ctx.db.collection('workspaces').doc(input.personal ? personalWorkspaceId(ctx.actor) : undefined);
+    if (input.personal) {
+      const existing = await tx.get(ref);
+      if (existing.exists) {
+        // the row is the answer: no write, no audit line, and the person is never left without a workspace because
+        // a request they made last month is on record
+        return { workspace: { id: ref.id, ...(existing.data() as Omit<WorkspaceRow, 'id'>) }, created: false };
+      }
+    }
+    const workspace: WorkspaceRow = {
       id: ref.id,
       uid: ctx.actor,
       name: input.name || 'Personal Workspace',
@@ -103,9 +124,13 @@ export const workspaceCreateCommand: CommandDefinition<typeof workspaceCreateInp
     };
     const { id: _rowId, ...row } = workspace;
     tx.set(ref, row);
-    return { workspace };
+    return { workspace, created: true };
   },
-  async preview(_ctx, input: WorkspaceCreateInput) {
+  async preview(ctx, input: WorkspaceCreateInput) {
+    const existing = input.personal
+      ? await ctx.db.collection('workspaces').doc(personalWorkspaceId(ctx.actor)).get()
+      : undefined;
+    if (existing?.exists) return { title: 'You already have your personal workspace', lines: ['Nothing will be written'] };
     return {
       title: `Open the workspace “${input.name || 'Personal Workspace'}”`,
       lines: [
@@ -115,19 +140,21 @@ export const workspaceCreateCommand: CommandDefinition<typeof workspaceCreateInp
     };
   },
   audit(_input, result) {
-    return {
-      action: 'WORKSPACE_CREATED',
-      entityType: 'workspaces',
-      entityId: result.workspace.id,
-      description: `Opened the workspace “${result.workspace.name}”`,
-      details: { name: result.workspace.name, currency: result.workspace.currency },
-    };
+    return result.created
+      ? {
+        action: 'WORKSPACE_CREATED',
+        entityType: 'workspaces',
+        entityId: result.workspace.id,
+        description: `Opened the workspace “${result.workspace.name}”`,
+        details: { name: result.workspace.name, currency: result.workspace.currency },
+      }
+      : null;
   },
   inverse() { return null; },
   risk: 'normal',
   describe: {
     sentence: 'Open a new empty workspace that you own; do not use it to copy, import or seed another workspace’s books — an import is its own command.',
-    example: { name: 'Personal Workspace', businessType: 'personal', currency: 'USD' },
+    example: { name: 'Personal Workspace', businessType: 'personal', currency: 'USD', personal: true },
     refusals: [
       { code: 'INVALID_INPUT', when: 'The currency is not three letters, or the input carries unexpected fields.', next: 'Send a name, a business type and a three-letter currency, or nothing at all.' },
       { code: 'UNAUTHENTICATED', when: 'The request has no signed-in person.', next: 'Sign in and run the command again.' },

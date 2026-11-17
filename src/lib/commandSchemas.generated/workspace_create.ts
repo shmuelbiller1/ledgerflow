@@ -10,7 +10,8 @@ export const COMMAND_INPUT_SCHEMA = {
       "type": "string",
       "minLength": 3,
       "maxLength": 3
-    }
+    },
+    "personal": COMMAND_SCHEMA_PARTS.part14
   },
   "additionalProperties": false
 } as const;

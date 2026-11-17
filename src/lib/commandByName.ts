@@ -15,7 +15,7 @@ import { runCommand } from './runCommand';
 export async function runNamedCommand<T = unknown>(
   name: string,
   input: Record<string, unknown>,
-  options: { workspaceId?: string; operationId?: string } = {},
+  options: { workspaceId?: string } = {},
 ): Promise<T> {
   const { COMMAND_MANIFEST } = await import('./commands.generated');
   const entry = COMMAND_MANIFEST.find(command => command.name === name);
@@ -24,6 +24,5 @@ export async function runNamedCommand<T = unknown>(
     path: entry.runPath,
     method: 'POST',
     body: options.workspaceId ? { workspaceId: options.workspaceId, input } : { input },
-    ...(options.operationId ? { headers: { 'idempotency-key': options.operationId } } : {}),
   });
 }

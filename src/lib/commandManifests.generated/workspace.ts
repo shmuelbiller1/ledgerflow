@@ -51,7 +51,8 @@ export const WORKSPACE_COMMAND_MANIFEST = [
       "example": {
         "name": "Personal Workspace",
         "businessType": "personal",
-        "currency": "USD"
+        "currency": "USD",
+        "personal": true
       },
       "refusals": [
         {
