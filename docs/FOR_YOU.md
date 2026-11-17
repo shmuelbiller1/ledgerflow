@@ -7,6 +7,30 @@ removed from this list.
 
 Last updated: 2026-11-16.
 
+## Assets, bad debt, spreads, returns and client questions now run through registered commands (nothing for you to do)
+
+Eight route areas now go through the same registered commands as the period, account, inventory,
+reconciliation and payment batches: selling or scrapping a fixed asset and undoing it (including part
+of an asset), moving an asset to another location or account and undoing that, placing a built asset
+in service and undoing that, writing off a bad debt and reversing the write-off, spreading a bill's
+expense or an invoice's income over months and undoing the spread, asking for goods to be returned
+against an invoice (an RMA) and moving it on, and asking, answering or closing a question about an
+entry in the books.
+
+Every screen and API call keeps exactly the same request and answer. A closed period is still answered
+by the rule that owns it, with the same status and the same words — a write-off or a spread in a closed
+month is still a 409, not a 400 — because those services check the lock themselves and the command
+door lets them answer. Each of these services already writes its own audit line, so each write still
+leaves exactly one entry in the trail, never a second summary line.
+
+One structural change came with it: the role lookup that the command runner uses inside its transaction
+lived in the main workspace router, which made the routers and the runner import each other in a circle.
+It now lives on its own (`src/server/auth/workspaceRole.ts`) and both sides import it, so no route can
+read a router before that router has been built. Nothing observable changed.
+
+The measured count of server write routes not yet on a command fell from 111 to 94 (the demo in the
+browser is unchanged at 62).
+
 ## Payments, saved lists, API keys and workspace administration now run through registered commands (nothing for you to do)
 
 The last writes in four areas now go through the same registered commands as the period, account,

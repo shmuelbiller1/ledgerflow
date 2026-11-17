@@ -95,6 +95,10 @@ import {
   vendorCreditDeleteCommand,
   vendorCreditUpdateCommand,
 } from './documents';
+import { ASSET_COMMANDS } from './assets';
+import { DOCUMENT_ADJUSTMENT_COMMANDS } from './documentAdjustments';
+import { RMA_COMMANDS } from './returns';
+import { CLIENT_QUERY_COMMANDS } from './clientQueries';
 import { CommandRegistry } from './registry';
 import { workspaceInviteRevokeCommand } from './workspaceInvites';
 import { workspaceCancelDeletionCommand } from './workspaceLifecycle';
@@ -239,6 +243,10 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(inventoryStockClosingCommand);
   registry.register(inventoryLandedCostCommand);
   registry.register(inventoryLandedCostUndoCommand);
+  ASSET_COMMANDS.forEach(command => registry.register(command));
+  DOCUMENT_ADJUSTMENT_COMMANDS.forEach(command => registry.register(command));
+  RMA_COMMANDS.forEach(command => registry.register(command));
+  CLIENT_QUERY_COMMANDS.forEach(command => registry.register(command));
   return registry;
 }
 

@@ -10,9 +10,9 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part37,
-          "title": COMMAND_SCHEMA_PARTS.part44,
-          "frequency": COMMAND_SCHEMA_PARTS.part36
+          "id": COMMAND_SCHEMA_PARTS.part40,
+          "title": COMMAND_SCHEMA_PARTS.part47,
+          "frequency": COMMAND_SCHEMA_PARTS.part39
         },
         "required": [
           "title",

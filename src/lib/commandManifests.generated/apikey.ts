@@ -76,7 +76,7 @@ export const APIKEY_COMMAND_MANIFEST = [
   {
     "name": "apikey.revokepersonal",
     "area": "apikey",
-    "roles": COMMAND_SCHEMA_PARTS.part64,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "scope": "person",
     "risk": "normal",
     "description": {

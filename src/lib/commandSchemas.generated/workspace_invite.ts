@@ -13,7 +13,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "role": {
       "default": "viewer",
       "type": "string",
-      "enum": COMMAND_SCHEMA_PARTS.part64
+      "enum": COMMAND_SCHEMA_PARTS.part68
     }
   },
   "required": [

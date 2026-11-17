@@ -4,7 +4,7 @@ import type { DecodedIdToken } from '../auth/supabaseAuth';
 import { z } from 'zod';
 import { TemplateError } from '../services/templateService';
 import { ImportError } from '../services/recordImportService';
-import { getDb, validateWorkspaceMember, type Firestore } from '../db/firestore';
+import { getDb, validateWorkspaceMember } from '../db/firestore';
 import { periodRouter } from './periodRoutes';
 import { returnAuthorizationRouter } from './returnAuthorizationRoutes';
 import { badDebtRouter } from './badDebtRoutes';
@@ -70,16 +70,12 @@ function sendError(res: express.Response, message: string, status: number = 500,
 }
 
 /**
- * Middleware helper for checking per-workspace user role.
+ * Middleware helper for checking per-workspace user role: the lookup lives in a leaf module
+ * (auth/workspaceRole.ts) so the command runner can use it without importing this router, and it is
+ * re-exported here for the routes that already import it from this file.
  */
-export async function getWorkspaceUserRole(db: Firestore, workspaceId: string, uid: string): Promise<string> {
-  const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-  if (!wsDoc.exists) throw new Error('NOT_FOUND');
-  const data = wsDoc.data() || {};
-  if (data.uid === uid) return 'owner';
-  const role = data.roles?.[uid];
-  return role || 'viewer';
-}
+export { getWorkspaceUserRole } from '../auth/workspaceRole';
+import { getWorkspaceUserRole as workspaceRoleOf } from '../auth/workspaceRole';
 
 export function requireWorkspaceRole(allowedRoles: string[]) {
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -92,7 +88,7 @@ export function requireWorkspaceRole(allowedRoles: string[]) {
     try {
       const db = getDb();
       await validateWorkspaceMember(db, String(workspaceId), authReq.user);
-      const userRole = await getWorkspaceUserRole(db, String(workspaceId), authReq.user.uid);
+      const userRole = await workspaceRoleOf(db, String(workspaceId), authReq.user.uid);
 
       if (!allowedRoles.includes(userRole)) {
         return sendError(res, `Forbidden: requires one of roles [${allowedRoles.join(', ')}]`, 403);
