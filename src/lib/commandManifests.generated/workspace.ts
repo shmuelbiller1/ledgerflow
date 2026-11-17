@@ -28,7 +28,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The workspace is not scheduled for deletion.",
           "next": "Choose a workspace currently marked pending deletion."
         },
-        COMMAND_SCHEMA_PARTS.part113,
+        COMMAND_SCHEMA_PARTS.part114,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not the workspace owner.",
@@ -60,7 +60,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The currency is not three letters, or the input carries unexpected fields.",
           "next": "Send a name, a business type and a three-letter currency, or nothing at all."
         },
-        COMMAND_SCHEMA_PARTS.part117
+        COMMAND_SCHEMA_PARTS.part118
       ],
       "next": [
         {
@@ -76,7 +76,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.dimensionaxes",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part18,
+    "roles": COMMAND_SCHEMA_PARTS.part19,
     "risk": "normal",
     "description": {
       "sentence": "Replace the list of labels the workspace groups by (property, class, location, …); existing values and the transactions that carry them are untouched.",
@@ -123,7 +123,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.dimensionnode",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part45,
+    "roles": COMMAND_SCHEMA_PARTS.part46,
     "risk": "normal",
     "description": {
       "sentence": "Save one value of a workspace label, or change its name, aliases, parent or status; do not use it to move or relabel transactions that already carry the value.",
@@ -145,7 +145,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The value is not in the selected workspace.",
           "next": "Reload the labels and choose a value in this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part135
+        COMMAND_SCHEMA_PARTS.part136
       ],
       "next": [
         {
@@ -161,7 +161,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.importmap",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part45,
+    "roles": COMMAND_SCHEMA_PARTS.part46,
     "risk": "normal",
     "description": {
       "sentence": "Remember how a bank CSV header maps to statement fields for the next import; do not use this to import or change ledger entries.",
@@ -186,7 +186,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to save the mapping."
         },
-        COMMAND_SCHEMA_PARTS.part122
+        COMMAND_SCHEMA_PARTS.part123
       ]
     },
     "runPath": "/api/v1/commands/workspace.importmap",
@@ -196,7 +196,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.modules",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part18,
+    "roles": COMMAND_SCHEMA_PARTS.part19,
     "risk": "normal",
     "description": {
       "sentence": "Turn workspace screens on or off without deleting their records; do not use this to change or remove data in a module.",
@@ -217,7 +217,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to change module settings."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part114
       ]
     },
     "runPath": "/api/v1/commands/workspace.modules",
@@ -227,7 +227,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.nextnumber",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part45,
+    "roles": COMMAND_SCHEMA_PARTS.part46,
     "risk": "normal",
     "description": {
       "sentence": "Reserve the next number in a document series; do not execute it merely to preview a number, because unused allocations remain consumed.",
@@ -245,7 +245,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to reserve a document number."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part114
       ]
     },
     "runPath": "/api/v1/commands/workspace.nextnumber",
@@ -255,7 +255,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.openingbalances",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part18,
+    "roles": COMMAND_SCHEMA_PARTS.part19,
     "risk": "normal",
     "description": {
       "sentence": "Post the workspace’s starting balance-sheet amounts as one balanced opening entry on the selected date; receivables and payables come from their unpaid documents instead.",
@@ -298,7 +298,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The workspace has no active Opening Balance Equity account, or an amount or account cannot be used for an opening balance.",
           "next": "Add an active Opening Balance Equity account and choose eligible balance-sheet accounts."
         },
-        COMMAND_SCHEMA_PARTS.part118
+        COMMAND_SCHEMA_PARTS.part119
       ]
     },
     "runPath": "/api/v1/commands/workspace.openingbalances",
@@ -308,7 +308,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.restoremaps",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part45,
+    "roles": COMMAND_SCHEMA_PARTS.part46,
     "risk": "normal",
     "description": {
       "sentence": "Restore a saved snapshot of bank CSV column layouts when undoing a layout change; do not use this to import or change ledger entries.",
@@ -326,7 +326,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to restore the layout snapshot."
         },
-        COMMAND_SCHEMA_PARTS.part122
+        COMMAND_SCHEMA_PARTS.part123
       ]
     },
     "runPath": "/api/v1/commands/workspace.restoremaps",
@@ -357,7 +357,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not the workspace owner.",
           "next": "Ask the workspace owner to change retention settings."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part114
       ]
     },
     "runPath": "/api/v1/commands/workspace.retention",
@@ -404,7 +404,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.setupcomplete",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part18,
+    "roles": COMMAND_SCHEMA_PARTS.part19,
     "risk": "normal",
     "description": {
       "sentence": "Finish first-run setup when the workspace is starting from zero; do not use this if you need to record opening balances.",
@@ -415,7 +415,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to finish setup."
         },
-        COMMAND_SCHEMA_PARTS.part113
+        COMMAND_SCHEMA_PARTS.part114
       ]
     },
     "runPath": "/api/v1/commands/workspace.setupcomplete",

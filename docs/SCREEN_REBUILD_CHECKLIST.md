@@ -161,17 +161,20 @@ hand-convert a table the codemod still refuses.
         `workspace.dimensionnode` / `workspace.dimensionaxes` own the label rows and the axis list
         (`dimensionNodeActions`). The adapter that the dimension screens call now talks to the commands and keeps
         its guest path on the local store, so the module's own logic and its tests are untouched.
-      - **undo** — **done, 2 sites.** `project.delete` answers with the row it removed and its `inverse()` names
-        `project.restore` with that row, so the step back is a command rather than a snapshot held in a closure: a
-        reload no longer loses the undo, a second tab cannot recreate the id without the restore refusing
-        (`CONFLICT`, "not overwritten"), and a project deleted in one tab can be put back from another. The toast
-        keeps the ten-second window and the workspace checks — those are about *this* toast, not about permission.
+      - **undo** — **done, 2 sites.** `project.delete` writes the row it removes to `deletedProjects` (one row per
+        workspace and project id) and answers with the id; `project.restore` takes **only the id** and reads that
+        row. Nothing of the deleted project lives in the tab any more, which is what the browser's ten-second
+        closure could not promise: a reload or a second tab can still put the project back, an id that has been
+        taken again is refused (`CONFLICT`, "not overwritten") instead of overwritten, and the kept row is cleared
+        once the project returns. The toast keeps its ten-second window because that is about *this* toast — the
+        window decides whether to offer the step, not whether it is allowed.
       - **the rest** (~82 sites in 44 files) — write routes that already have a command in most cases
         (`workspaceActions` 4, `Inventory` 5, `EstimatesView` 5, `SupportView` 5 …): one commit per hook, not per
         call, because a hook that writes has one shape.
-- [x] **Undo on the result.** `projectUndo` runs the command's own `inverse()`: delete answers with the row,
-      restore takes it back. The generic `useCommand` route takes the same shape from `entry.inverse`, so a screen
-      that deletes through the hook gets the same step back without a second mechanism.
+- [x] **Undo on the result.** `deleteProjectWithUndo` offers the command's own step back (`project.restore` with the
+      id `project.delete` answered with), and the deleted row is kept by the server rather than by the tab. Still
+      open: wiring `entry.inverse` through `useCommand` so a screen that deletes through the hook gets the same
+      toast without hand-writing it — the manifest already carries the name and the input.
 - [ ] The offered next step in the toast ("Invoice saved. Send it · Record a payment · New invoice").
 
 ## 4. One record page

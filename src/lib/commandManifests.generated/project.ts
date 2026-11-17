@@ -7,20 +7,18 @@ export const PROJECT_COMMAND_MANIFEST = [
   {
     "name": "project.delete",
     "area": "project",
-    "roles": COMMAND_SCHEMA_PARTS.part45,
+    "roles": COMMAND_SCHEMA_PARTS.part46,
     "risk": "normal",
     "description": {
       "sentence": "Delete one project and answer with the row that was removed, so it can be restored; do not use it to remove the documents that point at the project — they keep their own rows.",
-      "example": {
-        "id": "proj_web"
-      },
+      "example": COMMAND_SCHEMA_PARTS.part11,
       "refusals": [
         {
           "code": "NOT_FOUND",
           "when": "The project is not in the selected workspace, or is already gone.",
           "next": "Reload the projects and choose one in this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part134,
+        COMMAND_SCHEMA_PARTS.part135,
         {
           "code": "INVALID_INPUT",
           "when": "The id is missing or carries a slash.",
@@ -41,30 +39,23 @@ export const PROJECT_COMMAND_MANIFEST = [
   {
     "name": "project.restore",
     "area": "project",
-    "roles": COMMAND_SCHEMA_PARTS.part45,
+    "roles": COMMAND_SCHEMA_PARTS.part46,
     "risk": "normal",
     "description": {
-      "sentence": "Put back a project from the row an earlier project.delete answered with; do not use it to overwrite a project that exists — that is a project.update.",
-      "example": {
-        "project": {
-          "id": "proj_web",
-          "name": "Website Redesign",
-          "status": "active",
-          "workspaceId": "ws_1"
-        }
-      },
+      "sentence": "Put back a project that project.delete removed, from the row the server kept; do not use it to overwrite a project that exists — that is a project.update.",
+      "example": COMMAND_SCHEMA_PARTS.part11,
       "refusals": [
         {
           "code": "CONFLICT",
           "when": "A project with this id already exists.",
-          "next": "Choose the project that is there, or restore under the id the deleted row had."
+          "next": "Keep the project that is there, or delete it first to restore the older row."
         },
         {
           "code": "NOT_FOUND",
-          "when": "The row names another workspace.",
-          "next": "Restore the row into the workspace it came from."
+          "when": "Nothing is on record for this id in this workspace.",
+          "next": "Check the id, and that the project was deleted from this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part134,
+        COMMAND_SCHEMA_PARTS.part135,
         {
           "code": "INVALID_INPUT",
           "when": "The row has no id, or carries an id with a slash.",

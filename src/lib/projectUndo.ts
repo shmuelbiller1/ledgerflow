@@ -32,7 +32,7 @@ export async function deleteProjectWithUndo(id: string) {
   if (!workspaceId) throw new Error('This workspace is read-only.');
 
   // the sample company has no workspace on the server, so its delete and its undo go to the local store
-  let project: Record<string, unknown>;
+  let project: Record<string, unknown> | undefined;
   if (sampleSession) {
     const rows = guestRows('projects');
     const row = rows.find(candidate => candidate.id === id)?.data;
@@ -40,6 +40,8 @@ export async function deleteProjectWithUndo(id: string) {
     project = structuredClone({ ...row, id });
     await localDelete('projects', id);
   } else {
+    // the server keeps the row it removed, so the answer is only used to prove the delete happened — the restore
+    // below needs nothing but the id, and would work from another tab or after a reload
     const answer = await runNamedCommand<{ project: Record<string, unknown> }>('project.delete', { id }, { workspaceId })
       .catch((error: unknown) => {
         throw new Error(String((error as Error)?.message || '').includes('not in the selected workspace')
@@ -58,8 +60,8 @@ export async function deleteProjectWithUndo(id: string) {
     busy = true;
     try {
       if (!allowed() || Date.now() >= deadline) throw new Error('Undo expired or workspace changed.');
-      if (sampleSession) await localSet('projects', String(project.id), project);
-      else await runNamedCommand('project.restore', { project }, { workspaceId });
+      if (sampleSession) await localSet('projects', id, project!);
+      else await runNamedCommand('project.restore', { id }, { workspaceId });
       restored = true;
       toast.dismiss(notification);
       if (allowed()) toast.success('Project restored');

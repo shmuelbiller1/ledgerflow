@@ -11,8 +11,8 @@ afterEach(async()=>{mock.restoreAll(); await getSupabase().auth.dispose();});
 
 /**
  * The delete and the undo are commands now, so the mock answers the two command routes and records the envelope
- * each was sent. What the tests hold is unchanged: the exact row travels back, the undo writes it once, an expired
- * or cross-workspace undo writes nothing, a recreated id is refused, and a viewer cannot delete at all.
+ * each was sent. What the tests hold: the undo asks for the id alone (the server kept the row), it runs once, an
+ * expired or cross-workspace undo writes nothing, a recreated id is refused, and a viewer cannot delete at all.
  */
 function setup() {
   setComponentWorkspace();
@@ -33,21 +33,22 @@ function setup() {
     }
     if (command === 'project.restore') {
       calls.push({ command, input: body.input || {} });
-      const project = (body.input?.project || {}) as typeof original;
       if (record) return new Response(JSON.stringify({ status: 'error', code: 'CONFLICT', message: 'A record already uses this ID. It was not overwritten.' }), { status: 409, headers: { 'Content-Type': 'application/json' } });
-      record = project;
-      return new Response(JSON.stringify({ status: 'success', command, data: { project }, replayed: false }), { headers: { 'Content-Type': 'application/json' } });
+      // the restore names the id; the row itself is the server's, exactly as the real command reads it back
+      if (String(body.input?.id) !== 'p') return new Response(JSON.stringify({ status: 'error', code: 'NOT_FOUND', message: 'Nothing is on record for this project id.' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+      record = structuredClone(original);
+      return new Response(JSON.stringify({ status: 'success', command, data: { project: record }, replayed: false }), { headers: { 'Content-Type': 'application/json' } });
     }
     return new Response(JSON.stringify({ status: 'error', code: 'COMMAND_NOT_FOUND', message: `Unknown command: ${command}` }), { status: 404, headers: { 'Content-Type': 'application/json' } });
   }) as typeof fetch;
   mock.method(toast, 'success', () => 'undo-toast');
   mock.method(toast, 'dismiss', () => {});
   mock.method(toast, 'error', () => {});
-  return { original, calls, setRecord: (value: typeof original | null) => { record = value; } };
+  return { original, calls, current: () => record, setRecord: (value: typeof original | null) => { record = value; } };
 }
 
 test('project Undo restores the exact durable snapshot with same ID, one time, within 10 seconds', async () => {
-  const { original, calls } = setup();
+  const { original, calls, current } = setup();
   const undo = await deleteProjectWithUndo('p');
   assert.ok(undo);
   assert.equal(calls.length, 1);
@@ -57,9 +58,8 @@ test('project Undo restores the exact durable snapshot with same ID, one time, w
   await undo();
   assert.equal(calls.length, 2, 'the second press of Undo must not restore twice');
   assert.equal(calls[1].command, 'project.restore');
-  assert.deepEqual((calls[1].input.project as Record<string, unknown>).name, original.name);
-  assert.equal((calls[1].input.project as Record<string, unknown>).id, 'p');
-  assert.deepEqual((calls[1].input.project as Record<string, unknown>).metadata, original.metadata);
+  assert.deepEqual(calls[1].input, { id: 'p' }, 'the undo sends the id alone: the row is the server’s, not this tab’s');
+  assert.deepEqual(current(), original, 'and the row comes back as it was');
 });
 
 test('expired or cross-workspace Undo cannot write; viewer cannot delete', async () => {
