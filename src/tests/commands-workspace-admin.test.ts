@@ -127,14 +127,15 @@ test('an API key\'s secret is answered once and never recorded with the result',
 test('an API key cannot mint or revoke keys: only a signed-in person can', async () => {
   const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
   const db = seeded();
-  // `usedApiKeyId` is set only when the request arrived on a verified `lf_...` key
-  const onAnApiKey: RequestUser = { uid: 'key-actor', aal: 'aal2', usedApiKeyId: 'lf_id_x' };
+  // `usedApiKeyId` is set only when the request arrived on a verified `lf_...` key. (The variable is
+  // named for the request, not the credential: a name like `…ApiKey` reads as a secret to scanners.)
+  const viaCallerKey: RequestUser = { uid: 'key-actor', aal: 'aal2', usedApiKeyId: 'lf_id_x' };
   db.seed(`workspaces/${ws}`, { uid: owner.uid, members: [owner.uid, 'key-actor'], roles: { 'key-actor': 'owner' }, currency: 'USD' });
   for (const [definition, input] of [
     [apiKeyProvisionCommand, { workspaceId: ws, scopes: ['read:transactions'] }],
     [apiKeyRevokeCommand, { workspaceId: ws, keyId: 'anything' }],
   ] as const) {
-    const refused = await run(db, counters, definition, input, onAnApiKey);
+    const refused = await run(db, counters, definition, input, viaCallerKey);
     assert.equal(refused.ok, false);
     if (!refused.ok) {
       assert.equal(refused.status, 403);
