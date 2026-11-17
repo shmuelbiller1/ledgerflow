@@ -1,0 +1,189 @@
+name: Nightly OWASP ZAP baseline scan
+
+# SEC-SCAN-1: Passive + spider baseline web security scan against a locally built and booted
+# LedgerFlow production server (NEVER the live production URL).
+on:
+  schedule:
+    - cron: '47 2 * * *'   # 02:47 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: zap-baseline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zap-baseline:
+    name: OWASP ZAP baseline (local production build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres # NOSONAR: S2068 — ephemeral CI test database password, not a production credential
+          POSTGRES_DB: lf_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      LF_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lf_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lf_test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          NODE_ENV: development
+          npm_config_production: 'false'
+          HUSKY: '0'
+
+      - name: Apply Supabase migrations to ephemeral test database
+        run: npm run db:test-setup
+
+      - name: Build production client bundle
+        run: npm run build
+
+      - name: Boot local production server and run pinned OWASP ZAP 2.16.1 baseline scan
+        run: |
+          set -euo pipefail
+          mkdir -p zap-out
+          chmod 750 zap-out
+
+          SESSION_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          SALT_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          INVITE_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+
+          NODE_ENV=production \
+          PORT=3000 \
+          SESSION_SECRET="$SESSION_VAL" \
+          SYSTEM_SALT="$SALT_VAL" \
+          INVITE_SECRET="$INVITE_VAL" \
+          ./node_modules/.bin/tsx server.ts > zap-out/server-prod.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3000/api/health
+
+          cp .zap/rules.tsv zap-out/rules.tsv
+          docker run --rm --network host \
+            -u "$(id -u):$(id -g)" \
+            -v "$PWD/zap-out:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:2.16.1 \
+            zap-baseline.py \
+              -t http://127.0.0.1:3000 \
+              -c rules.tsv \
+              -r zap-report.html \
+              -J zap-report.json \
+              -w zap-report.md \
+              -I
+
+      - name: Upload ZAP HTML, JSON, and Markdown reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-baseline-report-${{ github.sha }}
+          path: |
+            zap-out/zap-report.html
+            zap-out/zap-report.json
+            zap-out/zap-report.md
+            zap-out/server-prod.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Fail and open issue on unaccepted Medium or High ZAP alerts
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+
+          const rulesText = fs.readFileSync('.zap/rules.tsv', 'utf8');
+          const acceptedIds = new Set(
+            rulesText
+              .split('\n')
+              .map(line => line.trim())
+              .filter(line => line && !line.startsWith('#'))
+              .map(line => line.split('\t'))
+              .filter(([, action]) => action === 'IGNORE' || action === 'INFO')
+              .map(([id]) => id),
+          );
+
+          const report = JSON.parse(fs.readFileSync('zap-out/zap-report.json', 'utf8'));
+          const sites = Array.isArray(report.site) ? report.site : [];
+          const actionable = [];
+          for (const site of sites) {
+            for (const alert of site.alerts || []) {
+              const pluginId = String(alert.pluginid || '');
+              const riskCode = Number(alert.riskcode || 0);
+              if (riskCode >= 2 && !acceptedIds.has(pluginId)) {
+                actionable.push({
+                  pluginId,
+                  riskCode,
+                  riskDesc: String(alert.riskdesc || ''),
+                  name: String(alert.name || alert.alert || ''),
+                  count: String(alert.count || (alert.instances || []).length || 1),
+                });
+              }
+            }
+          }
+
+          if (actionable.length === 0) {
+            console.log('ZAP baseline passed with zero unaccepted Medium/High alerts.');
+            process.exit(0);
+          }
+
+          const summaryLines = actionable.map(
+            a => `- [${a.riskDesc}] (${a.pluginId}) ${a.name} — ${a.count} instance(s)`,
+          );
+          console.error('Unaccepted Medium/High ZAP alerts detected:\n' + summaryLines.join('\n'));
+
+          if (process.env.EVENT_NAME === 'schedule') {
+            const title = 'Security: Nightly OWASP ZAP baseline reported Medium/High alert(s)';
+            const existing = JSON.parse(
+              execFileSync('gh', ['issue', 'list', '--state', 'open', '--search', `"${title}" in:title`, '--json', 'number,title'], { encoding: 'utf8' }),
+            );
+            const body = [
+              'Nightly OWASP ZAP baseline detected unaccepted Medium/High alert(s) against the local production build:',
+              '',
+              ...summaryLines,
+              '',
+              `Workflow run: ${process.env.RUN_URL}`,
+            ].join('\n');
+            const match = existing.find(item => item.title === title);
+            if (match) {
+              execFileSync('gh', ['issue', 'comment', String(match.number), '--body', body], { stdio: 'inherit' });
+            } else {
+              execFileSync('gh', ['issue', 'create', '--title', title, '--body', body], { stdio: 'inherit' });
+            }
+          }
+          process.exit(1);
+          NODE

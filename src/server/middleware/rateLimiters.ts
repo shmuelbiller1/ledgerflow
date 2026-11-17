@@ -73,6 +73,16 @@ export function apiKeyLimit(raw: unknown): number {
 }
 
 /**
+ * True only after `apiAuthenticate` has cryptographically verified an `lf_` API key against the
+ * `apiKeys` store and attached `req.user.usedApiKeyId`. Unverified or forged `lf_` headers —
+ * including on public `/api/v1/*` routes that do not call `apiAuthenticate` — return `false` and
+ * remain subject to the standard per-IP rate limits.
+ */
+export function isVerifiedApiKeyRequest(req: { user?: { usedApiKeyId?: unknown } }): boolean {
+  return typeof req.user?.usedApiKeyId === 'string' && req.user.usedApiKeyId.length > 0;
+}
+
+/**
  * Z-02: requests made with an API key count against that key, not the caller's IP: each key has
  * its own limit a minute (`rateLimitPerMinute` on the key), so one busy integration does not slow
  * the others. Only API-key requests pass through it (apiAuthenticate).
@@ -91,10 +101,15 @@ export const apiKeyRateLimiter = rateLimit({
  * test) counts on its own.
  */
 export function createAppRateLimiters() {
-  // Rate Limiting - Increased for production SPA load
+  // Rate Limiting - Increased for production SPA load.
+  // Verified developer API keys (`req.user.usedApiKeyId` set by `apiAuthenticate`) do not consume
+  // the per-IP bucket once authenticated so per-key Z-02 limits (up to 10,000/min) take effect;
+  // unauthenticated, public-route, and invalid-key requests still count against the IP cap.
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 1000, // increased to 1000 to prevent false positives in high-density SPA usage
+    skipSuccessfulRequests: true,
+    requestWasSuccessful: (req) => isVerifiedApiKeyRequest(req as { user?: { usedApiKeyId?: unknown } }),
     message: { status: "error", message: "Maximum rate limit reached. Please hold for calibration." },
     standardHeaders: true,
     legacyHeaders: false,
@@ -109,10 +124,14 @@ export function createAppRateLimiters() {
     legacyHeaders: false,
   });
 
-  // Interceptor middleware for Developer API Logging
+  // IP ceiling for `/api/v1/*`: verified API keys (`req.user.usedApiKeyId`) release their IP slot
+  // on completion and are governed by `apiKeyRateLimiter` (Z-02), while forged `lf_` headers on
+  // public routes (e.g. `/api/v1/invites`) or 401 failures remain capped at 100/min per IP.
   const apiLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute window
     max: 100, // Limit each IP to 100 requests per `window` (here, per minute)
+    skipSuccessfulRequests: true,
+    requestWasSuccessful: (req) => isVerifiedApiKeyRequest(req as { user?: { usedApiKeyId?: unknown } }),
     message: { status: "error", message: "Too many requests from this IP, please try again after a minute." },
     standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers

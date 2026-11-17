@@ -1,0 +1,36 @@
+diff --git a/src/server/auth/apiAuthenticate.ts b/src/server/auth/apiAuthenticate.ts
+index 9167326..cf9cbbd 100644
+--- a/src/server/auth/apiAuthenticate.ts
++++ b/src/server/auth/apiAuthenticate.ts
+@@ -25,14 +25,15 @@ export function requiredApiKeyScope(method: string, path: string): string {
+     try { name = decodeURIComponent(name); } catch { /* an invalid name will be refused by the command router */ }
+     if (/^autorule\./.test(name)) return 'write:rules';
+     // Period-management commands keep the legacy /workspaces/:id/periods restriction; in
+-    // particular, transaction integrations must not gain permission to unlock or reopen books.
+-    if (/^period\.(close|closesteps|depreciation|relock|reopen|signoff|unlock)$/.test(name)) return 'write:workspaces';
++    // particular, transaction integrations must not gain permission to lock, unlock, reopen,
++    // rebuild snapshots, or close fiscal years.
++    if (/^period\./.test(name)) return 'write:workspaces';
+     // Workspace/team features use the same scope as their legacy /workspaces routes.
+     if (/^(alerts|tasks|watches|entrylink|time|stages|workspace|numbering)\./.test(name)) return 'write:workspaces';
+     if (/^(customer|warranty)\./.test(name)) return 'write:customers';
+     if (/^vendor\./.test(name)) return 'write:vendors';
+     if (/^(journal|payment|invoice|bill|creditnote|vendorcredit)\./.test(name)) return 'write:transactions';
+-    return 'write:transactions';
++    return 'write:workspaces';
+   }
+   if (cleanPath.includes('/transactions')) return isWrite ? 'write:transactions' : 'read:transactions';
+   if (cleanPath.includes('/projects')) return isWrite ? 'write:projects' : 'read:projects';
+diff --git a/src/tests/commands.test.ts b/src/tests/commands.test.ts
+index 3b61af6..d61e971 100644
+--- a/src/tests/commands.test.ts
++++ b/src/tests/commands.test.ts
+@@ -189,7 +189,7 @@ test('API-key scopes validate exact, unique permissions and command paths use th
+   }
+   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/period.unlock/preview'), 'write:workspaces');
+   for (const name of ['period.balancesrebuild', 'period.fxrevaluation', 'period.fxrevaluationundo', 'period.yearclose']) {
+-    assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:transactions');
++    assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:workspaces');
+   }
+   assert.equal(requiredApiKeyScope('GET', '/api/v1/commands'), 'read:transactions');
+   assert.equal(requiredApiKeyScope('POST', '/api/v1/transactions'), 'write:transactions');
