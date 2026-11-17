@@ -33,10 +33,23 @@ export async function saveEmployee(workspaceId: string, id: string, fields: Reco
   await runNamedCommand('employee.update', { id, ...fields }, { workspaceId });
 }
 
+/** Keys the server owns on every row a screen builds: the session's person and workspace, and the timestamps. */
+const SERVER_OWNED_ROW_KEYS = ['uid', 'workspaceId', 'createdAt', 'updatedAt'];
+
+/** The row a screen built, without the halves the server writes from the session. */
+function withoutServerKeys(row: Record<string, unknown>): Record<string, unknown> {
+  const fields: Record<string, unknown> = { ...row };
+  for (const key of SERVER_OWNED_ROW_KEYS) delete fields[key];
+  if (fields.id === undefined) delete fields.id;
+  return fields;
+}
+
 /** A new roster entry, with the id the screen already minted for it. */
 export async function addEmployee(workspaceId: string, row: Record<string, unknown> & { id: string }): Promise<void> {
   if (guestSession()) return localRow('employees', row.id, row, true);
-  await runNamedCommand('employee.create', row, { workspaceId });
+  // the form still builds the whole row; `employee.create` writes the owner, the workspace and the timestamps
+  // itself, so they are dropped here rather than sent and refused
+  await runNamedCommand('employee.create', withoutServerKeys(row), { workspaceId });
 }
 
 /** Keys the server owns on an item card, so a screen that kept building the whole row does not send them back. */
@@ -81,7 +94,7 @@ export async function saveEstimate(workspaceId: string, row: Record<string, unkn
     await localAdd('estimates', { ...fields, createdAt: new Date().toISOString() });
     return;
   }
-  await runNamedCommand('estimate.save', row, { workspaceId });
+  await runNamedCommand('estimate.save', withoutServerKeys(row), { workspaceId });
 }
 
 /** A quote's stage: accepted as an order, declined, or converted by an invoice. */
@@ -131,4 +144,24 @@ export async function addChartAccount(workspaceId: string, fields: Record<string
     return { id: created };
   }
   return runNamedCommand<{ id: string }>('chartaccount.create', fields, { workspaceId });
+}
+
+/** The server-owned half of a document row: a tab that built the whole record does not send these back. */
+const SERVER_OWNED_DOCUMENT_KEYS = ['uid', 'workspaceId', 'createdAt', 'updatedAt', 'id'];
+
+/**
+ * A file kept with the books: a new row when `id` is absent, a link or a change when it is present.
+ *
+ * `document.save` writes `uid`, `workspaceId` and `createdAt` from the session — the one collection where a tab
+ * could otherwise file something into a workspace it could not write, and date it from its own clock.
+ */
+export async function saveDocument(workspaceId: string, row: Record<string, unknown>): Promise<{ id: string }> {
+  const fields = { ...row };
+  for (const key of SERVER_OWNED_DOCUMENT_KEYS) delete fields[key];
+  if (guestSession()) {
+    const id = typeof row.id === 'string' && row.id ? row.id : await localAdd('documents', { ...fields, workspaceId, createdAt: new Date().toISOString() });
+    if (typeof row.id === 'string' && row.id) await localUpdate('documents', row.id, { ...fields, updatedAt: new Date().toISOString() });
+    return { id };
+  }
+  return runNamedCommand<{ id: string }>('document.save', fields, { workspaceId });
 }

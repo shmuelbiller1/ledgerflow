@@ -221,3 +221,21 @@ test('a bookkeeper cannot add an account to the chart', async () => {
   assert.equal((result as unknown as { code: string }).code, 'ROLE_REQUIRED');
   assert.deepEqual(db.entries('chartAccounts'), []);
 });
+
+test('a save cannot move a quote’s stage: accepting, declining and converting are the stage command’s own', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  const created = await runEstimateSave(estimateSaveInput.parse(quote), db);
+  const id = (created as unknown as { data: { id: string } }).data.id;
+  db.seed(`estimates/${id}`, { ...db.read(`estimates/${id}`)!, status: 'accepted' });
+
+  const sneaky = await runEstimateSave(estimateSaveInput.parse({ id, status: 'draft' }), db);
+  assert.equal(sneaky.ok, false);
+  assert.equal((sneaky as unknown as { code: string }).code, 'CONFLICT');
+  assert.equal(db.read(`estimates/${id}`)!.status, 'accepted', 'the stage is where it was');
+
+  // saving the terms while naming the stage it already has is allowed: the screen sends the row it read
+  const sameStage = await runEstimateSave(estimateSaveInput.parse({ id, status: 'accepted', description: 'Three chairs, delivered' }), db);
+  assert.equal(sameStage.ok, true);
+  assert.equal(db.read(`estimates/${id}`)!.description, 'Three chairs, delivered');
+});

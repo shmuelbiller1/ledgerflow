@@ -1,5 +1,5 @@
 import { lineAmount } from '../../lib/txFilters';
-import { deleteDoc, doc } from '../../lib/db/firestore';
+import { addDoc, collection, deleteDoc, doc } from '../../lib/db/firestore';
 import { db } from '../../firebase';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -138,9 +138,22 @@ export function createWorkspaceActions(ctx: ActionContext) {
           }
         }
 
-        // still a direct delete: an account with no entries has no command yet (`chartaccount.delete`), and this
-        // is the one write in this hook that stays counted in `commands-baseline.json` until it has one
+        // still a direct delete — an account with no entries has no command yet (`chartaccount.delete`) — so it
+        // keeps its own audit line rather than losing it: this is the one write in this hook that stays counted in
+        // `commands-baseline.json` until the command exists
         await deleteDoc(doc(db, 'chartAccounts', id));
+
+        await addDoc(collection(db, 'auditLogs'), {
+          uid: user.uid,
+          workspaceId: currentWorkspaceId,
+          email: user.email,
+          action: 'DELETE_EMPTY_ACCOUNT',
+          entityType: 'account',
+          entityId: id,
+          details: { description: 'Empty account deleted' },
+          timestamp: new Date().toISOString(),
+        });
+
         toast.success('Account node decommissioned');
       }
     } catch (e) {

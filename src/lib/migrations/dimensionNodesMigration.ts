@@ -74,12 +74,17 @@ export async function migrateWorkspaceDimensionNodesToCollection(
         migratedCount += nodes.length;
         continue;
       }
-      const result = await runNamedCommand<{ migrated: number }>('workspace.dimensionnodesmigrate', { nodes }, { workspaceId });
+      const isLast = i + CHUNK >= legacyNodes.length;
+      const result = await runNamedCommand<{ migrated: number }>(
+        'workspace.dimensionnodesmigrate',
+        { nodes, clearLegacy: isLast },
+        { workspaceId },
+      );
       migratedCount += result.migrated;
     }
 
-    // the last chunk cleared the legacy field inside the same transaction; an empty tree is cleared here
-    if (legacyNodes.length === 0 && guestSession()) await localUpdate('workspaces', workspaceId, { dimensionNodes: null });
+    // the sample company has no server to clear the field for it: it does so itself once the whole tree is copied
+    if (guestSession()) await localUpdate('workspaces', workspaceId, { dimensionNodes: null });
 
     return { migratedCount, workspaceId, success: true };
   } catch (err) {

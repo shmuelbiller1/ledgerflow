@@ -1,4 +1,5 @@
-import { addDoc, collection, getDocs, query, where } from '../lib/db/firestore';
+import { collection, getDocs, query, where } from '../lib/db/firestore';
+import { saveDocument } from '../lib/recordWrites';
 import { db } from '../firebase';
 import { getSupabase } from '../lib/db/client';
 import { runCommand } from '../lib/runCommand';
@@ -48,7 +49,9 @@ export async function attachFiles(
         break;
       }
       const record = attachmentRecord(file, fileUrl, target, { uid, workspaceId });
-      const ref = await addDoc(collection(db, 'documents'), record);
+      // one command for the row: it stamps the owner and the workspace from the session, so an attachment cannot
+      // be filed into a book the tab could not otherwise write
+      const ref = await saveDocument(workspaceId, record);
       result.saved.push({ ...record, id: ref.id });
     } catch (err) {
       result.refused.push({ name: file.name, reason: err instanceof Error ? err.message : String(err) });

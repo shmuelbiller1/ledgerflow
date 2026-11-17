@@ -39,19 +39,26 @@ const bundlePart = z.object({
   quantity: z.number().min(0).max(100_000),
 }).strict();
 
-/** The card's editable fields. `id` present means "change this one", absent means "add it". */
+/**
+ * The card's editable fields. `id` present means "change this one", absent means "add it".
+ *
+ * Every field is optional so a change can name only what the person changed: the screen's edit path deliberately
+ * leaves the cost out while the item has stock (the cost is what the stock is valued at, and it is corrected by a
+ * revaluation, not by a card write), and a schema that demanded it would refuse exactly the edit the screen offers.
+ * What a *new* card must carry is checked in the handler, where "new" is known.
+ */
 const cardFields = {
   id: idSchema.optional(),
-  name: text(200).min(1),
-  sku: text(120),
-  description: text(2000),
-  unitPriceCents: cents,
-  unitCostCents: cents,
+  name: text(200).min(1).optional(),
+  sku: text(120).optional(),
+  description: text(2000).optional(),
+  unitPriceCents: cents.optional(),
+  unitCostCents: cents.optional(),
   standardCostCents: cents.optional(),
-  reorderPoint: nonNegative,
+  reorderPoint: nonNegative.optional(),
   measurementUnit: text(40).optional(),
   unitsPerPackage: z.number().int().min(1).max(100000).optional(),
-  category: text(120),
+  category: text(120).optional(),
   itemType: z.enum(['stock', 'service']).optional(),
   defaultTaxCodeId: text(120).nullable().optional(),
   productTaxCategory: text(60).optional(),
@@ -111,6 +118,12 @@ export const inventoryItemSaveCommand: CommandDefinition<typeof inventoryItemSav
   async handler(ctx: CommandContext, tx, input: SaveInput) {
     const now = new Date().toISOString();
     if (!input.id) {
+      // a new card is what the form sends: its name and its two prices. Everything else has a default the list shows.
+      const missing = (['name', 'unitPriceCents', 'unitCostCents', 'reorderPoint'] as const)
+        .filter(key => input[key] === undefined);
+      if (missing.length > 0) {
+        throw Object.assign(new HttpError(`A new item needs ${missing.join(', ')}.`, 400), { code: 'INVALID_INPUT' });
+      }
       const ref = ctx.db.collection('inventory').doc();
       const id = (ref as unknown as { id: string }).id;
       const patch = cardPatch(input);

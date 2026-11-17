@@ -188,6 +188,12 @@ export const dimensionAxesCommand: CommandDefinition<typeof dimensionAxesInput, 
 export const dimensionNodesMigrateInput = z.object({
   /** the legacy rows, exactly as they sat on the workspace document */
   nodes: z.array(nodeSchema).max(450),
+  /**
+   * Whether this call is the last of the tree, and may therefore clear the legacy field. A chunked caller sends
+   * `false` for every chunk but the last: clearing on the first one would drop the rest of the tree if a later
+   * chunk failed.
+   */
+  clearLegacy: z.boolean().optional(),
 }).strict();
 
 type MigrateInput = z.output<typeof dimensionNodesMigrateInput>;
@@ -213,16 +219,21 @@ export const dimensionNodesMigrateCommand: CommandDefinition<typeof dimensionNod
       });
     }
     // the legacy field goes in the same transaction as the rows that replace it, so a half-migrated workspace
-    // cannot exist for the next tab to find
-    tx.update(ref, { dimensionNodes: FieldValue.delete() });
-    return { migrated: input.nodes.length, cleared: true };
+    // cannot exist for the next tab to find — but only when this call holds the whole tree (or says it is the last
+    // chunk). A first chunk that cleared it would drop every value the next chunk was meant to carry.
+    const cleared = input.clearLegacy !== false;
+    if (cleared) tx.update(ref, { dimensionNodes: FieldValue.delete() });
+    return { migrated: input.nodes.length, cleared };
   },
   async preview(ctx: CommandContext, input: MigrateInput) {
     const snapshot = await ctx.db.collection('workspaces').doc(ctx.workspaceId).get();
     if (!snapshot.exists) throw new HttpError('This workspace is no longer open.', 404);
     return {
       title: 'Move the label tree into its own collection',
-      lines: [`${input.nodes.length} label(s)`, 'The legacy list on the workspace row is cleared'],
+      lines: [
+        `${input.nodes.length} label(s)`,
+        input.clearLegacy === false ? 'The legacy list stays until the last chunk' : 'The legacy list on the workspace row is cleared',
+      ],
     };
   },
   audit(_input: MigrateInput, result: DimensionNodesMigrateResult) {
@@ -231,7 +242,7 @@ export const dimensionNodesMigrateCommand: CommandDefinition<typeof dimensionNod
       entityType: 'workspaces',
       entityId: '',
       description: `Moved ${result.migrated} label(s) off the workspace document`,
-      details: { migrated: result.migrated },
+      details: { migrated: result.migrated, cleared: result.cleared },
     };
   },
   inverse() { return null; },

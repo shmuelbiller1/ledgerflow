@@ -118,6 +118,15 @@ export const estimateSaveCommand: CommandDefinition<typeof estimateSaveInput, Es
     if (!snapshot.exists || existing?.workspaceId !== ctx.workspaceId) {
       throw Object.assign(new HttpError('This quote is not in the selected workspace.', 404), { code: 'NOT_FOUND' });
     }
+    // the stage is `estimate.status`'s to move: a save that wrote `status` would have walked around every rule
+    // that command keeps (an accepted order cannot become a quote again, a converted one cannot go back, and the
+    // acceptance's date and person are stamped from the session, not from the payload)
+    if (input.status !== undefined && input.status !== String(existing.status || 'draft')) {
+      throw Object.assign(new HttpError(
+        `This quote is ${String(existing.status || 'draft')}: its stage is changed by accepting, declining or converting it, not by saving its terms.`,
+        409,
+      ), { code: 'CONFLICT' });
+    }
     if (!EDITABLE.has(String(existing.status || 'draft')) && (input.lines !== undefined || input.amountCents !== undefined)) {
       throw Object.assign(new HttpError(
         `This quote is ${String(existing.status)}, so its lines and total are what the customer agreed to; a change to them is a new quote.`,

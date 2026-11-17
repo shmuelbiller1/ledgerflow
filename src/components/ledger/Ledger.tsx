@@ -209,15 +209,21 @@ const Ledger = React.memo(() => {
       if (openingCents !== 0) {
         let obeId = accounts.find(a => a.type === 'equity' && /opening balance/i.test(a.name))?.id;
         if (!obeId) {
-          // the offset account is created the same way; if a chart already carries 3900 the command refuses and
-          // the account the chart has is the one this flow uses
-          obeId = (await addChartAccount(workspaceId, {
-            code: '3900',
-            name: 'Opening Balance Equity',
-            type: 'equity',
-            category: 'Equity',
-            description: 'Balances brought in when accounts were established',
-          })).id;
+          // the offset account goes through the same command; a chart that already carries 3900 refuses the
+          // create, and the account the chart has is the one this flow uses
+          try {
+            obeId = (await addChartAccount(workspaceId, {
+              code: '3900',
+              name: 'Opening Balance Equity',
+              type: 'equity',
+              category: 'Equity',
+              description: 'Balances brought in when accounts were established',
+            })).id;
+          } catch (createErr) {
+            const existing = useLedgerStore.getState().accounts.find(a => a.code === '3900');
+            if (!existing) throw createErr;
+            obeId = existing.id;
+          }
         }
         const isDebitNormal = newAccount.type === 'asset' || newAccount.type === 'expense';
         const signedAmt = isDebitNormal ? openingCents : -openingCents;

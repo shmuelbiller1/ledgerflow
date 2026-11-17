@@ -190,11 +190,12 @@ export const chartAccountCreateCommand: CommandDefinition<typeof chartAccountCre
   input: chartAccountCreateInput,
   roles: ROLES,
   async handler(ctx: CommandContext, tx, input: CreateInput) {
-    const existing = await ctx.db.collection('chartAccounts')
+    // read through the transaction, not before it: two tabs adding the same code at once both see an empty chart
+    // otherwise, and both write — which is precisely the duplicate this check exists to prevent
+    const existing = await tx.get(ctx.db.collection('chartAccounts')
       .where('workspaceId', '==', ctx.workspaceId)
       .where('code', '==', input.code)
-      .limit(1)
-      .get();
+      .limit(1));
     if (!existing.empty) {
       const clash = existing.docs[0].data() as AccountRow;
       throw Object.assign(new HttpError(

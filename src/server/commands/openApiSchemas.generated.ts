@@ -26,6 +26,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "customer.balance": "CommandInput_customer_balance",
   "customer.create": "CommandInput_customer_create",
   "customer.update": "CommandInput_customer_update",
+  "document.save": "CommandInput_document_save",
   "employee.create": "CommandInput_employee_create",
   "employee.update": "CommandInput_employee_update",
   "entrylink.create": "CommandInput_entrylink_create",

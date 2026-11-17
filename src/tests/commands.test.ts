@@ -61,9 +61,9 @@ test('the default registry is sorted and unique across the registered command do
     'account.makerecoverycodes', 'account.setnotificationemail', 'account.userecoverycode', 'alerts.update',
     'apikey.provision', 'apikey.revoke', 'apikey.revokepersonal', 'autorule.create', 'autorule.delete',
     'autorule.group', 'autorule.learn', 'autorule.recordhits', 'autorule.update', 'bill.create', 'bill.delete',
-    'bill.update', 'budget.delete', 'budget.save', 'chartaccount.create', 'chartaccount.update', 'creditnote.create', 'creditnote.delete',
-    'creditnote.update',
-    'customer.balance', 'customer.create', 'customer.update',
+    'bill.update', 'budget.delete', 'budget.save', 'chartaccount.create', 'chartaccount.update', 'creditnote.create',
+    'creditnote.delete', 'creditnote.update',
+    'customer.balance', 'customer.create', 'customer.update', 'document.save',
     'employee.create', 'employee.update',
     'entrylink.create', 'entrylink.remove', 'estimate.save', 'estimate.status', 'groups.create',
     'groups.delete', 'groups.keeprates', 'groups.setlinemerges', 'groups.share', 'groups.unshare', 'groups.update',
@@ -90,7 +90,7 @@ test('the default registry is sorted and unique across the registered command do
     'workspace.scheduledeletion', 'workspace.settings', 'workspace.setupcomplete', 'workspace.undoimport',
     'workspace.updaterole',
   ]);
-  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'apikey', 'autorule', 'bill', 'budget', 'chartaccount', 'creditnote', 'customer', 'employee', 'entrylink', 'estimate', 'groups', 'inventory', 'inventoryitem', 'invoice', 'journal', 'numbering', 'payment', 'period', 'project', 'reconciliations', 'savedlist', 'stages', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
+  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'apikey', 'autorule', 'bill', 'budget', 'chartaccount', 'creditnote', 'customer', 'document', 'employee', 'entrylink', 'estimate', 'groups', 'inventory', 'inventoryitem', 'invoice', 'journal', 'numbering', 'payment', 'period', 'project', 'reconciliations', 'savedlist', 'stages', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
   assert.equal(registry.get('numbering.update'), numberingUpdateCommand);

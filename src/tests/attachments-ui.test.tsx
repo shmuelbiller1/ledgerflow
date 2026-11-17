@@ -37,7 +37,9 @@ describe('The files panel', () => {
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       calls.push({ url, method: init?.method || 'GET', body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined });
-      const body = url.includes('/rest/v1/documents') && (init?.method || 'GET') === 'GET' ? rows : url.includes('/attachments/') ? { status: 'success' } : null;
+      const body = url.includes('/rest/v1/documents') && (init?.method || 'GET') === 'GET' ? rows
+        : url.endsWith('/commands/document.save') ? { ok: true, data: { id: `doc-${calls.length}` } }
+          : url.includes('/attachments/') ? { status: 'success' } : null;
       return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch;
     window.confirm = () => true;
@@ -57,10 +59,13 @@ describe('The files panel', () => {
     Object.defineProperty(big, 'size', { value: MAX_ATTACHMENT_BYTES + 1 });
     await act(async () => { fireEvent.change(input, { target: { files: [new PageFile(['hello'], 'contract.pdf', { type: 'application/pdf' }), big] } }); });
     await waitFor(() => assert.equal(screen.getAllByRole('listitem').length, 3));
-    const writes = calls.filter(c => /\/rpc\/lf_set/.test(c.url)).map(c => (c.body as { p_table: string; p_data: Record<string, unknown> }));
+    // the row is written by `document.save`: the command stamps the owner and the workspace from the session
+    const writes = calls.filter(c => c.url.includes('/commands/document.save')).map(c => (c.body as { workspaceId: string; input: Record<string, unknown> }));
     assert.equal(writes.length, 1, 'only the file that fits is written');
-    assert.deepEqual([writes[0].p_table, writes[0].p_data.name, writes[0].p_data.linkedCollection, writes[0].p_data.linkedId, writes[0].p_data.uid], ['documents', 'contract.pdf', 'invoices', 'inv1', 'test-user']);
-    assert.match(String(writes[0].p_data.fileUrl), /^data:application\/pdf;base64,/);
+    assert.deepEqual([writes[0].input.name, writes[0].input.linkedCollection, writes[0].input.linkedId], ['contract.pdf', 'invoices', 'inv1']);
+    assert.equal(writes[0].workspaceId, 'component-workspace');
+    assert.equal('uid' in writes[0].input, false, 'the owner is the session, never the payload');
+    assert.match(String(writes[0].input.fileUrl), /^data:application\/pdf;base64,/);
   });
 
   test('dropped files use the same size check and durable attachment write as selected files', async () => {
@@ -70,9 +75,9 @@ describe('The files panel', () => {
     const file = new PageFile(['new file'], 'drop.pdf', { type: 'application/pdf' });
     await act(async () => { fireEvent.drop(screen.getByTestId('attachment-dropzone'), { dataTransfer: { files: [file] } }); });
     await waitFor(() => assert.equal(screen.getAllByRole('listitem').length, 3));
-    const writes = calls.filter(c => /\/rpc\/lf_set/.test(c.url)).map(c => (c.body as { p_table: string; p_data: Record<string, unknown> }));
+    const writes = calls.filter(c => c.url.includes('/commands/document.save')).map(c => (c.body as { workspaceId: string; input: Record<string, unknown> }));
     assert.equal(writes.length, 1);
-    assert.deepEqual([writes[0].p_table, writes[0].p_data.name, writes[0].p_data.linkedCollection, writes[0].p_data.linkedId], ['documents', 'drop.pdf', 'invoices', 'inv1']);
+    assert.deepEqual([writes[0].input.name, writes[0].input.linkedCollection, writes[0].input.linkedId], ['drop.pdf', 'invoices', 'inv1']);
   });
 
   test('a record change while FileReader is pending cancels the file write', async () => {
@@ -84,7 +89,7 @@ describe('The files panel', () => {
     assert.equal(result.saved.length, 0);
     assert.deepEqual(result.refused.map(file => file.name), ['cancel.pdf']);
     assert.match(result.refused[0].reason, /workspace changed/);
-    assert.equal(calls.filter(call => /\/rpc\/lf_set/.test(call.url)).length, 0);
+    assert.equal(calls.filter(call => call.url.includes('/commands/document.save')).length, 0);
   });
 
   test('PDF/image preview stays inside a named dialog and Escape returns to its opener', async () => {

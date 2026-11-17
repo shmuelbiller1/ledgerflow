@@ -27,6 +27,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "customer.balance",
   "customer.create",
   "customer.update",
+  "document.save",
   "employee.create",
   "employee.update",
   "entrylink.create",

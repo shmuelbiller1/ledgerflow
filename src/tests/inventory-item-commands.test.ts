@@ -100,3 +100,25 @@ test('the commands say what they are not: stock moves through the stock commands
   assert.equal(inventoryItemSaveCommand.risk, 'normal');
   assert.ok(inventoryItemSaveCommand.describe.next?.some(step => step.command === 'inventory.adjust'));
 });
+
+test('an edit may leave the cost out — the screen does that on purpose while the item has stock', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  const created = await runSave({ name: 'Office chair', unitPriceCents: 24900, unitCostCents: 12000, reorderPoint: 5 }, db);
+  const id = (created as unknown as { data: { id: string } }).data.id;
+
+  const edited = await runSave({ id, name: 'Office chair (black)' }, db);
+  assert.equal(edited.ok, true);
+  const row = db.read(`inventory/${id}`)!;
+  assert.equal(row.name, 'Office chair (black)');
+  assert.equal(row.unitCostCents, 12000, 'the cost the person did not touch is kept');
+});
+
+test('a new card still needs its name, its price and its cost', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  const missing = await runSave({ name: 'Lamp' }, db);
+  assert.equal(missing.ok, false);
+  assert.equal((missing as unknown as { code: string }).code, 'INVALID_INPUT');
+  assert.equal(db.entries('inventory').length, 0);
+});

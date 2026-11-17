@@ -97,14 +97,5 @@ export const COMMAND_INPUT_SCHEMA = {
       ]
     }
   },
-  "required": [
-    "name",
-    "sku",
-    "description",
-    "unitPriceCents",
-    "unitCostCents",
-    "reorderPoint",
-    "category"
-  ],
   "additionalProperties": false
 } as const;

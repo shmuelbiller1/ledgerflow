@@ -8,6 +8,7 @@ import { BUDGET_COMMAND_MANIFEST } from './commandManifests.generated/budget';
 import { CHARTACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/chartaccount';
 import { CREDITNOTE_COMMAND_MANIFEST } from './commandManifests.generated/creditnote';
 import { CUSTOMER_COMMAND_MANIFEST } from './commandManifests.generated/customer';
+import { DOCUMENT_COMMAND_MANIFEST } from './commandManifests.generated/document';
 import { EMPLOYEE_COMMAND_MANIFEST } from './commandManifests.generated/employee';
 import { ENTRYLINK_COMMAND_MANIFEST } from './commandManifests.generated/entrylink';
 import { ESTIMATE_COMMAND_MANIFEST } from './commandManifests.generated/estimate';
@@ -42,6 +43,7 @@ export const COMMAND_MANIFEST = [
   ...CHARTACCOUNT_COMMAND_MANIFEST,
   ...CREDITNOTE_COMMAND_MANIFEST,
   ...CUSTOMER_COMMAND_MANIFEST,
+  ...DOCUMENT_COMMAND_MANIFEST,
   ...EMPLOYEE_COMMAND_MANIFEST,
   ...ENTRYLINK_COMMAND_MANIFEST,
   ...ESTIMATE_COMMAND_MANIFEST,

@@ -19,7 +19,7 @@ const run = (input: unknown, db: MemoryDb, user = owner) =>
     { definition: dimensionNodesMigrateCommand, workspaceId, input: dimensionNodesMigrateInput.parse(input) }, runnerDependencies(db));
 
 const tree = [
-  { id: 'n1', dimensionId: 'property', description: 'North tower status', status: 'active' as const },
+  { id: 'n1', dimensionId: 'property', description: 'North tower', status: 'active' as const },
   { id: 'n2', dimensionId: 'class', description: 'Repairs' },
 ];
 
@@ -43,6 +43,21 @@ test('the values are written under their workspace/axis/code id and the legacy f
 test('a label with no axis or no code is not input the screen could have produced', () => {
   assert.equal(dimensionNodesMigrateInput.safeParse({ nodes: [{ id: 'n1', description: 'no axis' }] }).success, false);
   assert.equal(dimensionNodesMigrateInput.safeParse({ nodes: [{ dimensionId: 'property', description: 'no code' }] }).success, false);
+});
+
+test('a chunk that is not the last keeps the legacy field, so a later chunk cannot lose the rest of the tree', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId, { dimensionNodes: tree });
+  const first = await run({ nodes: [tree[0]], clearLegacy: false }, db);
+  assert.equal(first.ok, true);
+  assert.equal((first as unknown as { data: { cleared: boolean } }).data.cleared, false);
+  assert.ok(db.read(`dimensionNodes/${workspaceId}_property_n1`));
+  assert.equal('dimensionNodes' in (db.read(`workspaces/${workspaceId}`) || {}), true,
+    'the values the next chunk carries are still where they were');
+
+  const last = await run({ nodes: [tree[1]] }, db);
+  assert.equal((last as unknown as { data: { cleared: boolean } }).data.cleared, true);
+  assert.equal('dimensionNodes' in (db.read(`workspaces/${workspaceId}`) || {}), false);
 });
 
 test('more than 450 labels in one call is refused: the caller sends the tree in the screen’s own chunks', () => {
@@ -76,5 +91,5 @@ test('a workspace that is no longer open is refused before anything is written',
 test('the move is one audit line naming how many labels were written', () => {
   const summary = dimensionNodesMigrateCommand.audit({ nodes: tree }, { migrated: 2, cleared: true })!;
   assert.equal(summary.action, 'DIMENSION_NODES_MIGRATED');
-  assert.deepEqual(summary.details, { migrated: 2 });
+  assert.deepEqual(summary.details, { migrated: 2, cleared: true });
 });
