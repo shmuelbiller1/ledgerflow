@@ -2,6 +2,7 @@
 import { ACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/account';
 import { ALERTS_COMMAND_MANIFEST } from './commandManifests.generated/alerts';
 import { APIKEY_COMMAND_MANIFEST } from './commandManifests.generated/apikey';
+import { ASSET_COMMAND_MANIFEST } from './commandManifests.generated/asset';
 import { AUTORULE_COMMAND_MANIFEST } from './commandManifests.generated/autorule';
 import { BILL_COMMAND_MANIFEST } from './commandManifests.generated/bill';
 import { BUDGET_COMMAND_MANIFEST } from './commandManifests.generated/budget';
@@ -16,7 +17,9 @@ import { NUMBERING_COMMAND_MANIFEST } from './commandManifests.generated/numberi
 import { PAYMENT_COMMAND_MANIFEST } from './commandManifests.generated/payment';
 import { PERIOD_COMMAND_MANIFEST } from './commandManifests.generated/period';
 import { PROJECT_COMMAND_MANIFEST } from './commandManifests.generated/project';
+import { QUERY_COMMAND_MANIFEST } from './commandManifests.generated/query';
 import { RECONCILIATIONS_COMMAND_MANIFEST } from './commandManifests.generated/reconciliations';
+import { RMA_COMMAND_MANIFEST } from './commandManifests.generated/rma';
 import { SAVEDLIST_COMMAND_MANIFEST } from './commandManifests.generated/savedlist';
 import { STAGES_COMMAND_MANIFEST } from './commandManifests.generated/stages';
 import { TASKS_COMMAND_MANIFEST } from './commandManifests.generated/tasks';
@@ -32,6 +35,7 @@ export const COMMAND_MANIFEST = [
   ...ACCOUNT_COMMAND_MANIFEST,
   ...ALERTS_COMMAND_MANIFEST,
   ...APIKEY_COMMAND_MANIFEST,
+  ...ASSET_COMMAND_MANIFEST,
   ...AUTORULE_COMMAND_MANIFEST,
   ...BILL_COMMAND_MANIFEST,
   ...BUDGET_COMMAND_MANIFEST,
@@ -46,7 +50,9 @@ export const COMMAND_MANIFEST = [
   ...PAYMENT_COMMAND_MANIFEST,
   ...PERIOD_COMMAND_MANIFEST,
   ...PROJECT_COMMAND_MANIFEST,
+  ...QUERY_COMMAND_MANIFEST,
   ...RECONCILIATIONS_COMMAND_MANIFEST,
+  ...RMA_COMMAND_MANIFEST,
   ...SAVEDLIST_COMMAND_MANIFEST,
   ...STAGES_COMMAND_MANIFEST,
   ...TASKS_COMMAND_MANIFEST,

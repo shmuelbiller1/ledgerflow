@@ -4,10 +4,10 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part74,
-    "id": COMMAND_SCHEMA_PARTS.part74,
-    "data": COMMAND_SCHEMA_PARTS.part110
+    "workspaceId": COMMAND_SCHEMA_PARTS.part79,
+    "id": COMMAND_SCHEMA_PARTS.part79,
+    "data": COMMAND_SCHEMA_PARTS.part117
   },
-  "required": COMMAND_SCHEMA_PARTS.part9,
+  "required": COMMAND_SCHEMA_PARTS.part10,
   "additionalProperties": false
 } as const;
