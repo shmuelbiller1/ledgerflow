@@ -265,12 +265,7 @@ jobs:
     if: ${{ !cancelled() }}
     needs: [changes, unit, docs_checks]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    # GitHub OIDC allows SonarCloud to issue a short-lived, project-scoped token.
-    # Grant just the permissions this CI job needs, never expose a long-lived secret.
-    permissions:
-      contents: read
-      id-token: write
+    timeout-minutes: 5
     steps:
       - name: Require every part to pass (docs-only PRs, the docs checks)
         env:
@@ -283,9 +278,6 @@ jobs:
       - name: Checkout repository
         if: ${{ needs.changes.outputs.docs_only != 'true' }}
         uses: actions/checkout@v4
-        with:
-          # SonarCloud uses Git history for new-code and PR analysis.
-          fetch-depth: 0
 
       - name: Collect the coverage of the four parts
         if: ${{ needs.changes.outputs.docs_only != 'true' }}
@@ -301,21 +293,46 @@ jobs:
           test "$(ls coverage/shard-*.lcov | wc -l)" -eq 4
           npm run coverage:gate
 
-      # Reuse the existing four LCOV files; no second test execution.
-      # The organization admin must enable GitHub Actions secretless analysis
-      # in SonarCloud, and automatic analysis must be disabled.
-      # GitHub disallows OIDC on untrusted fork pull requests.
+  # SonarCloud reporting is independent from the REQUIRED accounting/coverage gate.
+  # If SonarCloud is not configured or has an outage, the unit gate remains truthful.
+  sonarcloud:
+    name: SonarCloud coverage upload (separate from coverage gate)
+    needs: [changes, unit_gate]
+    if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' && needs.unit_gate.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout full source history for new-code analysis
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download existing coverage reports (no test re-run)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-shard-*
+          path: coverage
+          merge-multiple: true
+
+      - name: Confirm all four LCOV reports are present
+        run: |
+          for shard in 1 2 3 4; do
+            test -s "coverage/shard-${shard}.lcov"
+          done
+
       - name: Authenticate to SonarCloud (GitHub OIDC, no stored token)
         id: sonar_auth
-        if: ${{ needs.changes.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         uses: SonarSource/sonarqube-auth-action@v1
         with:
-          # Keep the token available only to the scan step.
+          project-key: shmuelbiller1_ledgerflow
           export-env: false
 
       - name: Send existing LCOV coverage to SonarCloud
-        if: ${{ steps.sonar_auth.outcome == 'success' }}
         uses: SonarSource/sonarqube-scan-action@v8
+        timeout-minutes: 10
         env:
           SONAR_TOKEN: ${{ steps.sonar_auth.outputs.sonar-token }}
         with:
