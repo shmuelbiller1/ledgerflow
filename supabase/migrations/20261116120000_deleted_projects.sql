@@ -4,8 +4,9 @@
 -- and a second tab had no way to know the id had been taken again. The server now keeps the deleted row in
 -- `deletedProjects` — one row per workspace and project id — and `project.restore` reads it and clears it.
 --
--- Written only by the server (the command runner); members may read, so a screen can list what is restorable.
--- Nothing in it is a book entry: it is a copy of a project row plus who deleted it and when.
+-- Written and read only by the server: `project.restore` is the way back, and a screen that lists what is
+-- restorable would ask a command rather than read the table. Nothing in it is a book entry — it is a copy of a
+-- project row plus who deleted it and when.
 
 create table public."deletedProjects" (
   id text primary key
@@ -26,9 +27,5 @@ insert into public.lf_rules (table_name, allowed_keys, immutable_keys) values
 create trigger lf_guard before insert or update or delete on public."deletedProjects"
   for each row execute function public.lf_guard();
 
--- members read; nobody but the server writes (there is no insert/update/delete policy for a client role)
-create policy member_read on public."deletedProjects" for select to authenticated
-  using (public.lf_is_member(workspace_id));
-
-grant select on public."deletedProjects" to authenticated;
-revoke all on public."deletedProjects" from anon;
+-- no policies: not readable or writable by a browser session, only by the server (like idempotencyKeys)
+revoke all on public."deletedProjects" from anon, authenticated;
