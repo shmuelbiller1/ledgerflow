@@ -23,6 +23,10 @@ A blank or "clean" result is the pass condition unless the table says otherwise.
 | `tsx --test --test-force-exit src/tests/agent7-2026-11-16-remediations.test.tsx src/tests/agent7-2026-11-16-vault-remediations.test.tsx` | **28 pass / 0 fail** |
 | `tsx --test --test-force-exit` on `eu-e3-label-tree`, `eu-i3-free-invoice`, `auditor-hash-chain`, `reconciliation-screen`, `attachments-ui`, `invoice-modal`, `estimate-deposit-ui` | **55 pass / 0 fail** |
 | `npm run check:layers` | pass (no layer violation reported) |
+| `npm run lint:eslint` (whole repo, cap `--max-warnings 2`) | 0 errors, **2 warnings** — both pre-existing in `src/server/db/pg/values.ts` (reserved lane); at the cap, not over it |
+| `npm run check:tax-tables` | 55 modules, 34 tables, 1,163 rows, 0 problems |
+| `npm run lint:rule-packs` | 584 rules checked, 0 problems |
+| `npm run check:perf-budgets` | budgets valid, 5 entries |
 | `npm run test:security` | 4 pass, 0 fail, 1 skipped (the DB-backed rule run is skipped by the script unless the RLS database is set; it was run separately below) |
 | `npm run db:test-setup && npm run test:rules` (with the proposed `20261116120000` migration present) | `ALL RLS TESTS PASSED` |
 | Full suite `npm test` | see §5 |
@@ -53,9 +57,11 @@ run, restore), so the test is known to fail where the defect exists:
 
 ## 5. Full suite
 
-`NODE_OPTIONS=--max-old-space-size=4096 npm test` was run in the background at the end of the session; its
-tail is recorded in `05-FINAL-REPORT-AND-PATCH-INDEX.md` §Gates once it completed. The suites that this
-session touches were also run individually (§2) so a partial run never stands in for them.
+`NODE_OPTIONS=--max-old-space-size=4096 npm test` (the four-glob run: `src/tests/*.test.ts`, `src/tests/*.test.tsx`,
+`src/lib/*.test.ts`, `src/server/utils/*.test.ts`) was started as a background process at the end of the session
+and, at ~45 minutes, was still working through the file list (the runner spawns one child per file, so it is
+progressing, not hung). Every suite this session touches was run individually (§2), so no result in this
+document depends on the full run. Its exit code and tail are appended to this section when it finishes.
 
 ## 6. Sandbox incidents worth recording
 

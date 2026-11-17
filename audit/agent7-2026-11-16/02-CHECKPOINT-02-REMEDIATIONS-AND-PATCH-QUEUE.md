@@ -98,3 +98,20 @@ moved onto it first; the policy change is written out in `03-RESERVED-LANE-FINDI
 3. `probe-11` proves the three rules gaps and their closure; `probe-08` proves the group/API-scope fixes.
    The year-close (`A7S-01` draft trap) and asset-undo (`A7N-11`) halves are proven by reading the command
    path only — a server-harness probe is still worth writing before either patch is applied.
+
+## 7. Session close (added after the checkpoint was first written)
+
+- Branch pushed: `arena/93656b5f-ledgerflow` at `c6fcedf` (fixes + audit docs) and `724ffb2` (PR body).
+- PR opened, **not merged**: [shmuelbiller1/ledgerflow#753](https://github.com/shmuelbiller1/ledgerflow/pull/753).
+- Gates re-run after the commit: `lint:eslint` whole repo **0 errors / 2 warnings** (both pre-existing in
+  `src/server/db/pg/values.ts`, at the `--max-warnings 2` cap) · `check:tax-tables` 1,163 rows / 0 problems ·
+  `lint:rule-packs` 584 / 0 · `check:perf-budgets` 5 entries · `check:layers` pass · `test:security`
+  4 pass / 0 fail / 1 skipped.
+- Patches `08`–`11` re-checked against a detached worktree of `3a4ad7d`: all four apply; patch `11` deliberately
+  does **not** apply on top of the branch (it carries a `Vault.tsx` hunk against the base revision, as recorded
+  in `03-RESERVED-LANE-FINDINGS.md`).
+- The four-glob `npm test` was still running when the session closed (~45+ min, one child process per file,
+  progressing); every suite this session touches had already been run individually (see `04-VERIFICATION-LOG.md`).
+- Drive: Checkpoint 02, reserved-lane findings, verification log, final report, patches, probes and the
+  `MASTER_RECOVERY_INDEX` addendum are uploaded; the master index itself was left untouched and a Drive comment
+  on it points at the addendum.
