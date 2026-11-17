@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | 88 | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **86** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,10 +147,14 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **88** → 0. 49 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **86** → 0. 48 files. The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
-      - **bootstrap** (`useLedgerData` 2) — the profile and the first personal workspace, written before any
-        workspace exists to send a command to. Needs `user.provision` / `workspace.create`, not a rewrite.
+      - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
+        from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
+        line, and two tabs opened at once both see the empty collection and both write. `user.provision` and
+        `workspace.create` are `scope: 'person'` commands (the shape `groups.*` already uses, so neither needs a
+        workspace to name); the hook sends both with an idempotency key derived from the uid, so the second tab is
+        answered by the first one's record instead of opening a second empty book. Profiles are never rewritten.
       - **derived maintenance** — **done, 10 sites.** `autorule.learn` keeps the learned pattern's count and
         merge (`postingHelpers`, `useEntityOperations`); `customer.balance` / `vendor.balance` sum the open
         documents for a contact instead of trusting the ones the open tab has seen (`useEntityOperations`); and

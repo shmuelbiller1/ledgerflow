@@ -16,6 +16,7 @@ import { PERIOD_COMMAND_MANIFEST } from './commandManifests.generated/period';
 import { STAGES_COMMAND_MANIFEST } from './commandManifests.generated/stages';
 import { TASKS_COMMAND_MANIFEST } from './commandManifests.generated/tasks';
 import { TIME_COMMAND_MANIFEST } from './commandManifests.generated/time';
+import { USER_COMMAND_MANIFEST } from './commandManifests.generated/user';
 import { VENDOR_COMMAND_MANIFEST } from './commandManifests.generated/vendor';
 import { VENDORCREDIT_COMMAND_MANIFEST } from './commandManifests.generated/vendorcredit';
 import { WARRANTY_COMMAND_MANIFEST } from './commandManifests.generated/warranty';
@@ -40,6 +41,7 @@ export const COMMAND_MANIFEST = [
   ...STAGES_COMMAND_MANIFEST,
   ...TASKS_COMMAND_MANIFEST,
   ...TIME_COMMAND_MANIFEST,
+  ...USER_COMMAND_MANIFEST,
   ...VENDOR_COMMAND_MANIFEST,
   ...VENDORCREDIT_COMMAND_MANIFEST,
   ...WARRANTY_COMMAND_MANIFEST,

@@ -68,14 +68,15 @@ test('the default registry is sorted and unique across the registered command do
     'stages.define', 'stages.move',
     'tasks.create', 'tasks.remove', 'tasks.status',
     'time.invoice', 'time.log', 'time.move', 'time.rates', 'time.remove', 'time.update',
+    'user.provision',
     'vendor.balance', 'vendor.create', 'vendor.update',
     'vendorcredit.create', 'vendorcredit.delete', 'vendorcredit.update',
     'warranty.update',
     'watches.create', 'watches.remove',
-    'workspace.canceldeletion', 'workspace.dimensionaxes', 'workspace.dimensionnode', 'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
+    'workspace.canceldeletion', 'workspace.create', 'workspace.dimensionaxes', 'workspace.dimensionnode', 'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
     'workspace.retention', 'workspace.revokeinvite', 'workspace.setupcomplete',
   ]);
-  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'groups', 'inventory', 'invoice', 'journal', 'numbering', 'payment', 'period', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
+  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'groups', 'inventory', 'invoice', 'journal', 'numbering', 'payment', 'period', 'stages', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
   assert.equal(registry.get('numbering.update'), numberingUpdateCommand);
