@@ -207,8 +207,9 @@ export async function writeServerAuditLog(
   input: AuditLogEntryInput,
   options?: { db?: Firestore; tx?: AuditWriter },
 ): Promise<string> {
-  const db = (options?.db || getDb()) as Firestore;
-  if (typeof db?.collection !== 'function') return '';
+  const db = options?.db || getDb();
+  // Only a committed change to the real books belongs on their audit chain.
+  if (db.sandboxId || typeof db.collection !== 'function') return '';
   const col = db.collection('auditLogs');
   if (!col || typeof col.doc !== 'function') return '';
   const auditRef = col.doc();

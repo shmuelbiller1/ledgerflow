@@ -17,6 +17,11 @@ export const getDb = (scope?: { sandboxId: string }): Firestore => {
   return scope ? defaultDb.forSandbox(scope.sandboxId) : defaultDb;
 };
 
+/** Cross-workspace reads and scheduled senders must not treat a draft as the real books. */
+export function requireLiveDb(db: Firestore, operation: string): void {
+  if (db.sandboxId) throw new FirestoreError(3, `${operation} requires the live database`);
+}
+
 /** Checks an active sandbox's binding; callers must separately check current live membership. */
 export async function sandboxBelongsTo(db: Firestore, workspaceId: string, personId: string): Promise<boolean> {
   const sandboxId = db.sandboxId;
