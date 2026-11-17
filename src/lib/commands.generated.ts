@@ -27,6 +27,7 @@ import { PROJECT_COMMAND_MANIFEST } from './commandManifests.generated/project';
 import { RECONCILIATIONS_COMMAND_MANIFEST } from './commandManifests.generated/reconciliations';
 import { SAVEDLIST_COMMAND_MANIFEST } from './commandManifests.generated/savedlist';
 import { STAGES_COMMAND_MANIFEST } from './commandManifests.generated/stages';
+import { SUPPORT_COMMAND_MANIFEST } from './commandManifests.generated/support';
 import { TASKS_COMMAND_MANIFEST } from './commandManifests.generated/tasks';
 import { TIME_COMMAND_MANIFEST } from './commandManifests.generated/time';
 import { USER_COMMAND_MANIFEST } from './commandManifests.generated/user';
@@ -65,6 +66,7 @@ export const COMMAND_MANIFEST = [
   ...RECONCILIATIONS_COMMAND_MANIFEST,
   ...SAVEDLIST_COMMAND_MANIFEST,
   ...STAGES_COMMAND_MANIFEST,
+  ...SUPPORT_COMMAND_MANIFEST,
   ...TASKS_COMMAND_MANIFEST,
   ...TIME_COMMAND_MANIFEST,
   ...USER_COMMAND_MANIFEST,

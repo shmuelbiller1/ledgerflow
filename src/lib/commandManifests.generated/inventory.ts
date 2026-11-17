@@ -29,7 +29,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
         "offsetAccountId": "acc_cash",
         "type": "purchase"
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part211
+      "refusals": COMMAND_SCHEMA_PARTS.part213
     },
     "runPath": "/api/v1/commands/inventory.adjust",
     "previewPath": "/api/v1/commands/inventory.adjust/preview",
@@ -98,7 +98,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
           "when": "There are fewer units on hand than the quantity sold.",
           "next": "Check the quantity on hand, or adjust the stock first."
         },
-        COMMAND_SCHEMA_PARTS.part148
+        COMMAND_SCHEMA_PARTS.part149
       ]
     },
     "runPath": "/api/v1/commands/inventory.cogs",
@@ -122,7 +122,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
           }
         ]
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part211
+      "refusals": COMMAND_SCHEMA_PARTS.part213
     },
     "runPath": "/api/v1/commands/inventory.count",
     "previewPath": "/api/v1/commands/inventory.count/preview",
@@ -164,7 +164,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
           "when": "The workspace ships with invoices, the order is still a quote, or more is sent than is left.",
           "next": "Check the shipping setting and the quantity left on the line."
         },
-        COMMAND_SCHEMA_PARTS.part148
+        COMMAND_SCHEMA_PARTS.part149
       ]
     },
     "runPath": "/api/v1/commands/inventory.deliver",
@@ -261,7 +261,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
           "when": "More comes back than was delivered and kept.",
           "next": "Check what that line still has out."
         },
-        COMMAND_SCHEMA_PARTS.part148
+        COMMAND_SCHEMA_PARTS.part149
       ]
     },
     "runPath": "/api/v1/commands/inventory.return",
@@ -299,7 +299,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
           "when": "The cost already is that, no stock is on hand, the change is under a cent, or the stock moved after the date.",
           "next": "Date the revaluation on or after the last stock change."
         },
-        COMMAND_SCHEMA_PARTS.part148
+        COMMAND_SCHEMA_PARTS.part149
       ]
     },
     "runPath": "/api/v1/commands/inventory.revalue",
@@ -424,7 +424,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
           "when": "That delivery is not on this order.",
           "next": "Check the delivery id on the order."
         },
-        COMMAND_SCHEMA_PARTS.part148
+        COMMAND_SCHEMA_PARTS.part149
       ]
     },
     "runPath": "/api/v1/commands/inventory.undodelivery",

@@ -6,12 +6,12 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "id": COMMAND_SCHEMA_PARTS.part79,
     "name": COMMAND_SCHEMA_PARTS.part80,
-    "email": COMMAND_SCHEMA_PARTS.part183,
+    "email": COMMAND_SCHEMA_PARTS.part185,
     "role": COMMAND_SCHEMA_PARTS.part45,
-    "salaryCents": COMMAND_SCHEMA_PARTS.part103,
-    "payFrequency": COMMAND_SCHEMA_PARTS.part118,
+    "salaryCents": COMMAND_SCHEMA_PARTS.part104,
+    "payFrequency": COMMAND_SCHEMA_PARTS.part119,
     "filingStatus": COMMAND_SCHEMA_PARTS.part39,
-    "workerType": COMMAND_SCHEMA_PARTS.part87,
+    "workerType": COMMAND_SCHEMA_PARTS.part88,
     "state": COMMAND_SCHEMA_PARTS.part39,
     "status": {
       "type": "string",
@@ -24,7 +24,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "hourly"
       ]
     },
-    "hourlyRateCents": COMMAND_SCHEMA_PARTS.part103,
+    "hourlyRateCents": COMMAND_SCHEMA_PARTS.part104,
     "timeUid": COMMAND_SCHEMA_PARTS.part45,
     "deductions": {
       "maxItems": 40,
@@ -42,7 +42,7 @@ export const COMMAND_INPUT_SCHEMA = {
               "garnishment"
             ]
           },
-          "amountCents": COMMAND_SCHEMA_PARTS.part103,
+          "amountCents": COMMAND_SCHEMA_PARTS.part104,
           "percent": COMMAND_SCHEMA_PARTS.part66,
           "maxPercent": COMMAND_SCHEMA_PARTS.part66
         },
@@ -80,7 +80,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "type": "object",
         "properties": {
           "id": COMMAND_SCHEMA_PARTS.part79,
-          "date": COMMAND_SCHEMA_PARTS.part93,
+          "date": COMMAND_SCHEMA_PARTS.part94,
           "hours": {
             "type": "number",
             "minimum": -1000,

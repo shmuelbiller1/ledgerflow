@@ -14,7 +14,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "label"
       ]
     },
-    "amountCents": COMMAND_SCHEMA_PARTS.part103,
+    "amountCents": COMMAND_SCHEMA_PARTS.part104,
     "period": {
       "type": "string",
       "enum": [
@@ -23,7 +23,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "yearly"
       ]
     },
-    "startDate": COMMAND_SCHEMA_PARTS.part93,
+    "startDate": COMMAND_SCHEMA_PARTS.part94,
     "label": {
       "anyOf": [
         {

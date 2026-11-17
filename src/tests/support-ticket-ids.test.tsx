@@ -15,18 +15,20 @@ after(async () => {
   setImmediate(() => process.exit(process.exitCode ?? 0));
 });
 
-test('ticket and fallback message use distinct UUID identifiers and remain linked', async () => {
+test('the ticket id the screen mints is the id the command writes, and the description rides with it', async () => {
   setComponentWorkspace('owner');
   useSupportStore.setState({ tickets: [], messages: [], selectedTicketId: null });
-  const writes: Array<{ p_table: string; p_id: string; p_data: { id: string; ticketId?: string } }> = [];
+  const commands: Array<{ workspaceId: string; input: { id: string; subject: string; body: string } }> = [];
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    if (url.includes('/rpc/lf_set')) {
-      writes.push(JSON.parse(String(init?.body)));
-      return new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (url.includes('/commands/support.ticket')) {
+      const body = JSON.parse(String(init?.body)) as { workspaceId: string; input: { id: string; subject: string; body: string } };
+      commands.push(body);
+      return new Response(JSON.stringify({ ok: true, data: { id: body.input.id, messageId: `${body.input.id}-message`, created: true } }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      });
     }
-    if (url.includes('/api/v1/support/')) return new Response('{}', { status: 503 });
     return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
   }) as typeof fetch;
   try {
@@ -35,29 +37,27 @@ test('ticket and fallback message use distinct UUID identifiers and remain linke
     fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Question' } });
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please help' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create Ticket' }));
-    await waitFor(() => assert.equal(writes.length, 2));
-    const [ticket, message] = writes;
-    assert.equal(ticket.p_table, 'supportTickets');
-    assert.equal(message.p_table, 'supportMessages');
-    assert.match(ticket.p_id, /^ticket-[0-9a-f-]{36}$/);
-    assert.match(message.p_id, /^msg-[0-9a-f-]{36}$/);
-    assert.equal(ticket.p_id, ticket.p_data.id);
-    assert.equal(message.p_id, message.p_data.id);
-    assert.equal(message.p_data.ticketId, ticket.p_id);
-    assert.notEqual(message.p_id.slice(4), ticket.p_id.slice(7));
+    await waitFor(() => assert.equal(commands.length, 1));
+    // ONE command carries the ticket and its first message: the two rows can no longer land apart, and the id the
+    // screen chose is the id that was written, so a retry answers rather than opening a second ticket
+    const [sent] = commands;
+    assert.match(sent.input.id, /^ticket-[0-9a-f-]{36}$/);
+    assert.equal(sent.input.subject, 'Question');
+    assert.equal(sent.input.body, 'Please help');
+    assert.ok(sent.workspaceId, 'the workspace rides with the command instead of being copied onto the row');
   } finally {
     cleanup();
     globalThis.fetch = realFetch;
   }
 });
 
-test('no ticket is written if a fallback message ID cannot be generated', async () => {
+test('no ticket is written when a secure identifier cannot be minted', async () => {
   setComponentWorkspace('owner');
   useSupportStore.setState({ tickets: [], messages: [], selectedTicketId: null });
   let writes = 0;
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
-    if (String(input).includes('/rpc/lf_set')) writes++;
+    if (String(input).includes('/commands/support.ticket')) writes++;
     return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
   }) as typeof fetch;
   const originalCrypto = Object.getOwnPropertyDescriptor(globalThis, 'crypto')!;
@@ -69,9 +69,8 @@ test('no ticket is written if a fallback message ID cannot be generated', async 
     fireEvent.click(screen.getByRole('button', { name: 'Create support ticket' }));
     fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Question' } });
     fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please help' } });
-    let calls = 0;
     Object.defineProperty(globalThis, 'crypto', { configurable: true, value: {
-      getRandomValues: (bytes: Uint8Array) => { if (++calls === 2) throw new Error('unavailable'); return bytes.fill(1); },
+      getRandomValues: () => { throw new Error('unavailable'); },
     } });
     fireEvent.click(screen.getByRole('button', { name: 'Create Ticket' }));
     await waitFor(() => assert.equal(alerts, 1));

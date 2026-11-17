@@ -27,6 +27,7 @@ import { documentSaveCommand } from './attachments';
 import { assetCostAdditionCommand } from './assets';
 import { loanPaymentCommand } from './loans';
 import { notificationsReadCommand } from './notifications';
+import { supportMessageCommand, supportStatusCommand, supportTicketCommand } from './support';
 import { employeeCreateCommand, employeeUpdateCommand } from './employees';
 import { estimateSaveCommand, estimateStatusCommand } from './estimates';
 import { inventoryCategoryRenameCommand, inventoryItemDeleteCommand, inventoryItemFieldCommand, inventoryItemSaveCommand } from './inventoryItems';
@@ -145,6 +146,9 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(autoRuleResetCommand);
   registry.register(loanPaymentCommand);
   registry.register(notificationsReadCommand);
+  registry.register(supportTicketCommand);
+  registry.register(supportMessageCommand);
+  registry.register(supportStatusCommand);
   registry.register(chartAccountCreateCommand);
   registry.register(chartAccountUpdateCommand);
   registry.register(budgetSaveCommand);

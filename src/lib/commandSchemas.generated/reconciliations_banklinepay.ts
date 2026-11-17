@@ -15,7 +15,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "type": "object",
         "properties": {
           "documentId": COMMAND_SCHEMA_PARTS.part35,
-          "amountCents": COMMAND_SCHEMA_PARTS.part114
+          "amountCents": COMMAND_SCHEMA_PARTS.part115
         },
         "required": [
           "documentId",

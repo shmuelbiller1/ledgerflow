@@ -6,7 +6,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part81,
     "id": COMMAND_SCHEMA_PARTS.part81,
-    "data": COMMAND_SCHEMA_PARTS.part125
+    "data": COMMAND_SCHEMA_PARTS.part126
   },
   "required": COMMAND_SCHEMA_PARTS.part10,
   "additionalProperties": false

@@ -7,7 +7,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "workspaceId": COMMAND_SCHEMA_PARTS.part81,
     "bankAccountId": COMMAND_SCHEMA_PARTS.part35,
     "date": COMMAND_SCHEMA_PARTS.part16,
-    "paymentIds": COMMAND_SCHEMA_PARTS.part130,
+    "paymentIds": COMMAND_SCHEMA_PARTS.part131,
     "memo": COMMAND_SCHEMA_PARTS.part49
   },
   "required": [

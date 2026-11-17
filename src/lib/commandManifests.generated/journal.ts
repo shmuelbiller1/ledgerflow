@@ -33,7 +33,7 @@ export const JOURNAL_COMMAND_MANIFEST = [
           "when": "The entry is missing required fields, has invalid cents, or does not balance.",
           "next": "Correct the entry and make sure its lines add to zero."
         },
-        COMMAND_SCHEMA_PARTS.part178,
+        COMMAND_SCHEMA_PARTS.part180,
         {
           "code": "PERIOD_LOCKED",
           "when": "The entry date is in a closed period.",

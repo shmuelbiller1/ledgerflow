@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **18** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **12** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,7 +147,7 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **18** → 0. 9 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **12** → 0. 7 files. The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
@@ -291,7 +291,14 @@ hand-convert a table the codemod still refuses.
         - `autorule.reset` clears every pattern of the workspace in one transaction and answers with how many went,
           so "memory purged" is a fact rather than a page.
         - Pinned by `notification-category-rule-commands.test.ts` (5 cases).
-      - **the rest** (~18 sites in 9 files) — write routes that already have a command in most cases
+      - **support, 6 sites.** `SupportView` opened a ticket with `setDoc`, then asked the API for the message and
+        wrote it from the browser when that answer did not arrive; the feedback widget wrote ticket and message in a
+        tab-side batch. Now `support.ticket` writes both rows in one transaction with the owner and the workspace
+        from the session, `support.message` appends a reply and moves the unread flags and stage together, and
+        `support.status` triages. A reply reads the same whichever path wrote it, because the fields are the route's.
+        - Pinned by `support-commands.test.ts` (7 cases); `support-ticket-ids` and `feedback-widget` rewritten to
+          assert the command.
+      - **the rest** (~12 sites in 7 files) — write routes that already have a command in most cases
         (`SupportView` 5, `useEntityOperations` 3, `useCollaborators` 3, `Ledger` 2, `Vault` 2 …): one commit per
         hook, not per call, because a hook that writes has one shape. Three are deliberately *not* converted yet:
         `useCollaborators`' presence rows (ephemeral, one row per open tab, nothing to audit), `shared.ts`'

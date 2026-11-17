@@ -80,6 +80,7 @@ test('the default registry is sorted and unique across the registered command do
     'reconciliations.clear', 'reconciliations.complete', 'reconciliations.reconcile', 'savedlist.allocationrules',
     'savedlist.approvaldelegate', 'savedlist.customergroup', 'savedlist.paymenttype', 'savedlist.pricelists',
     'savedlist.roledashboard', 'savedlist.salesreps', 'savedlist.taxprofiles', 'stages.define', 'stages.move',
+    'support.message', 'support.status', 'support.ticket',
     'tasks.create', 'tasks.remove', 'tasks.status', 'time.invoice', 'time.log', 'time.move', 'time.rates',
     'time.remove', 'time.update', 'user.aikeyremove', 'user.aikeyset', 'user.preferences', 'user.provision', 'vendor.balance',
     'vendor.create', 'vendor.update', 'vendorcredit.create', 'vendorcredit.delete', 'vendorcredit.update',
@@ -90,7 +91,7 @@ test('the default registry is sorted and unique across the registered command do
     'workspace.scheduledeletion', 'workspace.settings', 'workspace.setupcomplete', 'workspace.undoimport',
     'workspace.updaterole',
   ]);
-  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'apikey', 'asset', 'autorule', 'bill', 'budget', 'chartaccount', 'creditnote', 'customer', 'document', 'employee', 'entrylink', 'estimate', 'groups', 'inventory', 'inventoryitem', 'invoice', 'journal', 'loan', 'notification', 'numbering', 'payment', 'period', 'project', 'reconciliations', 'savedlist', 'stages', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
+  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'apikey', 'asset', 'autorule', 'bill', 'budget', 'chartaccount', 'creditnote', 'customer', 'document', 'employee', 'entrylink', 'estimate', 'groups', 'inventory', 'inventoryitem', 'invoice', 'journal', 'loan', 'notification', 'numbering', 'payment', 'period', 'project', 'reconciliations', 'savedlist', 'stages', 'support', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
   assert.equal(registry.get('numbering.update'), numberingUpdateCommand);
