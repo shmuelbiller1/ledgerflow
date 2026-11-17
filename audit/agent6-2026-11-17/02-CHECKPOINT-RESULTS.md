@@ -3,7 +3,7 @@
 **Date:** 2026-11-17 UTC
 **Branch:** `arena/aed2bcd0-ledgerflow`
 **Base:** `4c87916df6f87fcad768a898ba39b268d3d5f7ac`
-**Current PR:** [#756](https://github.com/shmuelbiller1/ledgerflow/pull/756), open; latest pushed code at `3e16fb393b0a98315097678bbc6c895ff39fe0e6` (documentation update in this checkpoint is pending its final commit).
+**Current PR:** [#756](https://github.com/shmuelbiller1/ledgerflow/pull/756), open on `arena/aed2bcd0-ledgerflow`; scanner configuration was last changed in commit `3e16fb393b0a98315097678bbc6c895ff39fe0e6` (subsequent commit(s) update evidence/docs only).
 **Scope:** SEC-SCAN-1 workflows, their contract test and status documentation. No `src/server/**`, money, posting, tax, migration, or AI #1 server-lane changes were made. No live URL or production database was scanned.
 
 ## 1. GitHub zero-job diagnosis
@@ -39,14 +39,15 @@ The earlier PR runs `43978220182` and `43978793029` did execute before the probl
 
 ## 2. Schemathesis execution and report status
 
-PR #756 produced two actual scanner runs:
+PR #756 produced three actual scanner runs:
 
 | Run | PR head | Execution/report | Interpretation |
 |---|---|---|---|
 | `43992691517` | `3973a2a6ee424b095352a014ef8bb9c3116b59ac` | One job completed; migrations and seed/server step succeeded; JUnit verification and upload succeeded. Artifact `14287503454`, 466,741 bytes. No failed-step annotation was returned. | A real report was produced, but its contents were not inspected here. Do not infer a clean finding set from job green alone while the step is report-only. |
 | `43993423090` | `3e16fb393b0a98315097678bbc6c895ff39fe0e6` | One job completed; migrations, seed/server, JUnit verification and artifact upload succeeded. Artifact `14289540111`, 468,410 bytes. GitHub check annotation states `Process completed with exit code 1` for the Schemathesis step. | The scanner command failed and `continue-on-error: true` masked the step failure at job level, as designed for Phase 1. This is **not** a clean scan. |
+| `43994179756` | `17f50d646ac2b26e8b0ff3d5f0a27333574b9d01` | One job completed; migrations, seed/server, JUnit verification and upload succeeded. Artifact `14289650301`, 465,775 bytes. No failed-step annotation was returned. | Another report exists, but its contents were not inspected; this is not a verified-clean result. |
 
-The report artifact exists in GitHub for both executions. This sandbox could list metadata, but `gh run download` redirected to the Actions blob-storage host and ended with EOF (that host is outside the available network allowlist); therefore the JUnit and console output were not read. Review the report from the GitHub UI before interpreting the exit-1 finding or declaring a clean scan. The differing step outcomes across two PR executions are another reason not to promote the scanner.
+The report artifacts exist in GitHub for all three executions. This sandbox could list metadata, but `gh run download` redirected to the Actions blob-storage host and ended with EOF (that host is outside the available network allowlist); therefore the JUnit and console output were not read. Two runs returned no failed-step annotation, while the middle run explicitly exited 1. Review the reports from the GitHub UI before interpreting findings or declaring a clean scan; the observed run-to-run difference is a reason not to promote the scanner.
 
 ## 3. Workflow safety/reproducibility changes
 
@@ -78,7 +79,7 @@ No Docker or local PostgreSQL executable was available, so ZAP was not run local
 
 **SEC-SCAN-1 implementation:** PR #756 contains the YAML parser fix, immutable/Node-24 Actions pins, exact runtime/image tags, safer local production-server ZAP startup, test assertions and updated status documentation. The PR-triggered API job now executes and uploads a report.
 
-**Scanner readiness:** **Not certified / do not promote.** One of the two actual PR Schemathesis runs reports exit code 1, and the report bytes were not inspectable in this environment. The default-branch workflow is still invalid at the latest observed SHA, so all four observed `main` failures remain zero-job runs; there are **zero qualifying post-fix clean `main` runs**. Keep `continue-on-error: true` and Phase 1. Do not treat job-level green when the scanner step is report-only as a clean scan.
+**Scanner readiness:** **Not certified / do not promote.** One of the three PR Schemathesis runs reports exit code 1, and none of the report bytes were inspectable in this environment. The default-branch workflow is still invalid at the latest observed SHA, so all four observed `main` failures remain zero-job runs; there are **zero qualifying post-fix clean `main` runs**. Keep `continue-on-error: true` and Phase 1. Do not treat job-level green when the scanner step is report-only as a clean scan.
 
 **ZAP readiness:** production bundle startup was smoke-tested locally; the ZAP container itself has not been run. Its local-only target remains enforced. No live-site scan was performed. Written owner approval for a specific address is still required before any live scan.
 

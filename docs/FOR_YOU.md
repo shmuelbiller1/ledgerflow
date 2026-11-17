@@ -659,13 +659,12 @@ then update this note and remove its `continue-on-error` setting. Investigation 
 the pip install command used unquoted `--only-binary :all:` in a YAML plain scalar, where `: ` is parsed as a
 mapping delimiter. A local YAML parse reproduces the error; the latest `main` file still had this form. The
 install command on PR #756 shell-quotes the value as `--only-binary=':all:'`, preserving pip's argument and
-validating as YAML; the contract test prevents regression. This PR fix now starts the GitHub job: run
-`43993423090` on `3e16fb3` ran migrations and Schemathesis, verified JUnit output, and uploaded artifact
-`14289540111` (468,410 bytes). However, the run's annotation records Schemathesis exit code 1, which the
-report-only setting masks at job level. An earlier PR run `43992691517` uploaded its report without a failed-step
-annotation, so results are not yet consistently clean. The artifact bytes could not be read from this sandbox;
-review the report in the GitHub run before interpreting findings. Main runs `43981616172`, `43983831337`,
-`43991078303` and `43992114900` all failed with zero jobs and no reports; none count toward the promotion gate.
+validating as YAML; the contract test prevents regression. This PR fix now starts the GitHub job. Runs `43992691517`, `43993423090` and `43994179756` each ran migrations
+and Schemathesis, verified JUnit output, and uploaded reports. `43993423090` has an annotation recording
+Schemathesis exit code 1, masked at job level by report-only; the other two have no failed-step annotation.
+The artifact bytes could not be read from this sandbox, so none can be certified as clean here. Review the reports
+in GitHub before interpreting findings. Main runs `43981616172`, `43983831337`, `43991078303` and `43992114900`
+all failed with zero jobs and no reports; none count toward the promotion gate.
 A local production-bundle smoke check returned HTTP 200 for `/api/health` and `/`, but ZAP itself has not run.
 Keep Phase 1 report-only; manual dispatch on `main` still awaits the workflow fix reaching the default branch.
 *Still yours to decide:* scanning the live site. To allow it, write here "OK to scan <address>" (passive scan
