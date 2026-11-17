@@ -174,6 +174,13 @@ export async function undoDisposal(db: Firestore, input: Actor & { assetId: stri
       if (shareEntry && shareEntry.workspaceId !== input.workspaceId) {
         throw new DisposalError(403, 'Disposal transaction does not belong to this workspace');
       }
+      // The pointer lives on the asset row, so it is data: without this check a tampered (or stale)
+      // row voids an unrelated entry of the same workspace — an invoice, a payroll run — and reports
+      // the sale as undone. Only the partial-disposal entry this service writes names the asset. An entry
+      // that no longer exists (an admin deleted it) voids nothing, so the undo still restores the asset.
+      if (shareEntry && (shareEntry.metadata?.assetId !== input.assetId || shareEntry.metadata?.type !== 'asset-partial-disposal')) {
+        throw new DisposalError(409, 'The entry for that sale is not this asset\'s; nothing was undone');
+      }
       if (shareEntry && shareEntry.status !== 'void') t.update(shareTx, { status: 'void', voidedReason: 'Partial disposal undone', voidedAt: now, updatedAt: now });
       t.update(assetRef, { ...last.before, partialDisposals: shares.slice(0, -1), updatedAt: now });
       await writeServerAuditLog({
@@ -187,6 +194,11 @@ export async function undoDisposal(db: Firestore, input: Actor & { assetId: stri
     const entry = (await t.get(txRef)).data();
     if (entry && entry.workspaceId !== input.workspaceId) {
       throw new DisposalError(403, 'Disposal transaction does not belong to this workspace');
+    }
+    // same rule as the partial sale above: the disposal entry is identified by the asset it names, not
+    // by a pointer a client can rewrite, so an unrelated entry can never be voided through an asset
+    if (entry && (entry.metadata?.assetId !== input.assetId || entry.metadata?.type !== 'asset-disposal')) {
+      throw new DisposalError(409, 'The disposal entry is not this asset\'s; nothing was undone');
     }
     const lock = postingLock(String(entry?.date || asset.disposedOn || ''), workspace as never, input.uid);
     if (lock) throw new DisposalError(409, lockMessage(String(entry?.date || asset.disposedOn), lock));

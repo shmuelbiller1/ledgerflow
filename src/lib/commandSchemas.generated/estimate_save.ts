@@ -4,19 +4,19 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part82,
-    "number": COMMAND_SCHEMA_PARTS.part39,
-    "customerId": COMMAND_SCHEMA_PARTS.part82,
-    "customerName": COMMAND_SCHEMA_PARTS.part82,
-    "date": COMMAND_SCHEMA_PARTS.part95,
-    "expiryDate": COMMAND_SCHEMA_PARTS.part95,
-    "amountCents": COMMAND_SCHEMA_PARTS.part105,
+    "id": COMMAND_SCHEMA_PARTS.part87,
+    "number": COMMAND_SCHEMA_PARTS.part42,
+    "customerId": COMMAND_SCHEMA_PARTS.part87,
+    "customerName": COMMAND_SCHEMA_PARTS.part87,
+    "date": COMMAND_SCHEMA_PARTS.part102,
+    "expiryDate": COMMAND_SCHEMA_PARTS.part102,
+    "amountCents": COMMAND_SCHEMA_PARTS.part112,
     "currency": {
       "type": "string",
       "minLength": 3,
       "maxLength": 8
     },
-    "description": COMMAND_SCHEMA_PARTS.part49,
+    "description": COMMAND_SCHEMA_PARTS.part52,
     "status": {
       "type": "string",
       "enum": [
@@ -34,15 +34,15 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "itemId": COMMAND_SCHEMA_PARTS.part46,
+          "itemId": COMMAND_SCHEMA_PARTS.part49,
           "description": {
             "type": "string",
             "minLength": 1,
             "maxLength": 300
           },
-          "quantity": COMMAND_SCHEMA_PARTS.part103,
-          "unitPriceCents": COMMAND_SCHEMA_PARTS.part105,
-          "amountCents": COMMAND_SCHEMA_PARTS.part105
+          "quantity": COMMAND_SCHEMA_PARTS.part110,
+          "unitPriceCents": COMMAND_SCHEMA_PARTS.part112,
+          "amountCents": COMMAND_SCHEMA_PARTS.part112
         },
         "required": [
           "description",
@@ -59,15 +59,11 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part80,
-          "label": COMMAND_SCHEMA_PARTS.part77,
-          "percent": {
-            "type": "number",
-            "exclusiveMinimum": 0,
-            "maximum": 100
-          },
-          "due": COMMAND_SCHEMA_PARTS.part95,
-          "invoicedAt": COMMAND_SCHEMA_PARTS.part39
+          "id": COMMAND_SCHEMA_PARTS.part85,
+          "label": COMMAND_SCHEMA_PARTS.part82,
+          "percent": COMMAND_SCHEMA_PARTS.part99,
+          "due": COMMAND_SCHEMA_PARTS.part102,
+          "invoicedAt": COMMAND_SCHEMA_PARTS.part42
         },
         "required": [
           "id",

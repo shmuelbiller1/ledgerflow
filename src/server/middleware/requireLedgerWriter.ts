@@ -1,6 +1,6 @@
 import type express from 'express';
 import { getDb } from '../db/firestore';
-import { getWorkspaceUserRole } from '../routes/workspaceRoutes';
+import { getWorkspaceUserRole } from '../auth/workspaceRole';
 
 /** Roles that may change the books (the database policies use the same list). */
 export const LEDGER_WRITER_ROLES = ['owner', 'accountant', 'bookkeeper'];

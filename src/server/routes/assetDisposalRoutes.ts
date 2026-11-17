@@ -1,46 +1,29 @@
-import express from 'express';
-import { z } from 'zod';
-import { getDb } from '../db/firestore';
-import { disposeAsset, DisposalError, undoDisposal } from '../services/assetDisposalService';
-
 /**
- * Selling or scrapping a fixed asset (X-03), mounted at
- * /api/v1/workspaces/:workspaceId/assets/:assetId/disposal (workspaceRoutes.ts, writers).
- * POST disposes of it, or of a share of it (X-04, `portionPercent`), in one ledger entry with the gain
- * or loss; DELETE undoes the latest one while the date is open.
+ * Fixed-asset writes after the asset exists: selling or scrapping it, wholly or in part (X-03, X-04),
+ * moving it to another location or account (X-05), and placing an asset that was built in service
+ * (X-09) — with the undo of each. Every one is a registered command (src/server/commands/assets.ts):
+ * the runner checks the workspace, the caller's role and the plan, and the service checks the rest and
+ * writes inside its own transaction with its audit line. The answers are the ones the handlers gave:
+ * `{ status: 'success', ...result }`, a 400 with the handler's own sentence for a malformed body, the
+ * service's status and words for a refusal, and the handler's sentence with the cause for a 500.
  */
+import express from 'express';
+import { assetDisposeCommand, assetUndoDisposalCommand } from '../commands/assets';
+import { executeCommand } from '../utils/commandExecutor';
+import { assetAnswer, assetInvocation } from '../utils/assetCommandRoute';
+
 export const assetDisposalRouter = express.Router({ mergeParams: true });
 
-type AuthedRequest = express.Request & { user: { uid: string; email?: string } };
-const schema = z.object({
-  date: z.string().max(10),
-  proceedsCents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-  proceedsAccountId: z.string().max(200).optional(),
-  gainLossAccountId: z.string().max(200).optional(),
-  assetAccountId: z.string().max(200).optional(),
-  portionPercent: z.number().gt(0).max(100).optional(),
-}).strict();
-
-const fail = (res: express.Response, err: unknown, what: string) => {
-  if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Enter the date and the amount received (zero if scrapped)' });
-  if (err instanceof DisposalError) return res.status(err.status).json({ status: 'error', message: err.message });
-  res.status(500).json({ status: 'error', message: what, details: err instanceof Error ? err.message : String(err) });
-};
-
-const actor = (req: express.Request) => {
-  const { user } = req as unknown as AuthedRequest;
-  const p = req.params as Record<string, string>;
-  return { workspaceId: p.workspaceId, assetId: p.assetId, uid: user.uid, email: user.email };
-};
-
 assetDisposalRouter.post('/', async (req, res) => {
-  try {
-    res.json({ status: 'success', ...(await disposeAsset(getDb(), { ...actor(req), ...schema.parse(req.body) })) });
-  } catch (err) { fail(res, err, 'The asset could not be disposed of'); }
+  await executeCommand(req, res, {
+    ...assetInvocation(req, assetDisposeCommand),
+    formatResponse: assetAnswer('Enter the date and the amount received (zero if scrapped)', 'The asset could not be disposed of'),
+  });
 });
 
 assetDisposalRouter.delete('/', async (req, res) => {
-  try {
-    res.json({ status: 'success', ...(await undoDisposal(getDb(), actor(req))) });
-  } catch (err) { fail(res, err, 'The disposal could not be undone'); }
+  await executeCommand(req, res, {
+    ...assetInvocation(req, assetUndoDisposalCommand),
+    formatResponse: assetAnswer('Enter the date and the amount received (zero if scrapped)', 'The disposal could not be undone'),
+  });
 });

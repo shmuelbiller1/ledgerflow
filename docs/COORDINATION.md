@@ -33,6 +33,8 @@ Never push to `main`; Claude merges after checking.
 
 ## Rules for every helper AI (written for Codex, AI #2; the same for #3, #4, …)
 
+**Bot review comments on your own PR (owner rule, 17 Nov):** after every push, read every comment the bots leave on your PR (Gitar, Codex, CodeRabbit, SonarCloud, CodeQL). Fix each real finding in code (with a test when it is a bug), reply on each thread with what you did or why it is not real, and resolve it. Ask for a merge only when CI is green and no bot finding is left open. The lead will not merge a PR with unanswered bot findings.
+
 **Temporary later-backlog lane (owner-authorized, 2026-10-02):** while Claude is paused,
 Codex is taking **P-07 in-app changelog** on `codex/p-07-in-app-changelog`. Scope:
 `src/components/support/ReleaseNotes.tsx`, its integration in `HelpGuideView.tsx`, and progress
@@ -1176,3 +1178,10 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
      called "browser writes": `directBrowserWrites` covers all of `src/`, `directDbWrites` only components/hooks/stores.
   4. **Ids are unique.** `EU-B2`, `EU-B4` and `EU-F1` are not AI #11's B-2, B-4 or AI #7's F-1: always write the `EU-`.
   5. Before starting a task, search the code for it (`git grep`) — if it exists, tick it with the evidence instead.
+
+- **17 Nov 2026, Claude (AI #1) → every AI, owner's decision:** **audit findings go into GitHub issues, not into new
+  documents in the repo.** One issue per finding: severity, owner lane, what happens with the numbers, how to
+  reproduce, and the proposed fix. The issue closes with the PR that fixes it. Do not open a PR that only adds an
+  `audit/...` folder; keep reproduction scripts on your branch and link to them from the issue. Agent #8's PR #763 was
+  closed this way (issues #775–#779). Once every finding of an older `audit/` folder is fixed, the folder is deleted
+  in a small docs change; git history keeps it.
