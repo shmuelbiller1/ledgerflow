@@ -64,8 +64,12 @@ describe('The Defaults page', () => {
     markComponentCollectionsLoaded('accounts');
     useLedgerStore.setState({ accounts });
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      const rpc = String(input).match(/\/rpc\/(lf_\w+)/);
-      if (rpc) writes.push({ fn: rpc[1], body: JSON.parse(String(init?.body || '{}')) });
+      const url = String(input);
+      const rpc = url.match(/\/rpc\/(lf_\w+)/);
+      const body = JSON.parse(String(init?.body || '{}'));
+      // the settings row is a command now; keep its name so the test reads what the server is told to change
+      if (rpc) writes.push({ fn: rpc[1], body });
+      else if (url.includes('/commands/')) writes.push({ fn: url.split('/commands/')[1], body });
       return new Response(rpc ? 'null' : '[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch;
   });
@@ -84,8 +88,8 @@ describe('The Defaults page', () => {
     assert.equal(screen.getAllByText(/None in your chart yet/).length, 3, 'both tax rows and deferred revenue warn');
     await act(async () => { fireEvent.change(ar, { target: { value: 'ar2' } }); });
     await waitFor(() => assert.equal(writes.length, 1));
-    const saved = JSON.stringify(writes[0].body);
-    assert.match(saved, /"defaultAccountMappings":\{"Travel":"rent","ar":"ar2"\}/);
+    assert.equal(writes[0].fn, 'workspace.settings');
+    assert.deepEqual((writes[0].body as { input?: unknown }).input, { defaultAccountMappings: { Travel: 'rent', ar: 'ar2' } });
     assert.deepEqual(useAuthStore.getState().getCurrentWorkspace()?.defaultAccountMappings, { Travel: 'rent', ar: 'ar2' });
     assert.equal((screen.getByLabelText('Accounts receivable') as HTMLSelectElement).value, 'ar2');
   });

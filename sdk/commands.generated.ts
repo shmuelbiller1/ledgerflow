@@ -17,6 +17,8 @@ export const REGISTERED_COMMAND_NAMES = [
   "bill.create",
   "bill.delete",
   "bill.update",
+  "budget.delete",
+  "budget.save",
   "creditnote.create",
   "creditnote.delete",
   "creditnote.update",
@@ -122,6 +124,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "workspace.retention",
   "workspace.revokeinvite",
   "workspace.scheduledeletion",
+  "workspace.settings",
   "workspace.setupcomplete",
   "workspace.undoimport",
   "workspace.updaterole"

@@ -6,10 +6,10 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part33,
     "itemId": COMMAND_SCHEMA_PARTS.part33,
-    "quantitySold": COMMAND_SCHEMA_PARTS.part98,
+    "quantitySold": COMMAND_SCHEMA_PARTS.part101,
     "inventoryAccountId": COMMAND_SCHEMA_PARTS.part33,
     "cogsAccountId": COMMAND_SCHEMA_PARTS.part33,
-    "date": COMMAND_SCHEMA_PARTS.part82
+    "date": COMMAND_SCHEMA_PARTS.part84
   },
   "required": [
     "itemId",

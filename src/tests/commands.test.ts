@@ -10,6 +10,8 @@ import { API_KEY_SCOPE_IDS, validateApiKeyScopes } from '../lib/apiScopes';
 import { AVAILABLE_SCOPES } from '../components/platform/ApiHubShared';
 import type { Firestore } from '../server/db/firestore';
 import { CommandRegistry } from '../server/commands/registry';
+import { workspaceSettingsCommand } from '../server/commands/workspaceSettingsPanel';
+import { budgetDeleteCommand, budgetSaveCommand } from '../server/commands/budgets';
 import { createDefaultCommandRegistry } from '../server/commands/defaultRegistry';
 import { alertSettingsUpdateCommand } from '../server/commands/alerts';
 import { importMapRestoreCommand, importMapSaveCommand } from '../server/commands/importMaps';
@@ -55,17 +57,17 @@ test('the default registry is sorted and unique across the registered command do
     'account.makerecoverycodes', 'account.setnotificationemail', 'account.userecoverycode', 'alerts.update',
     'apikey.provision', 'apikey.revoke', 'apikey.revokepersonal', 'autorule.create', 'autorule.delete',
     'autorule.group', 'autorule.learn', 'autorule.recordhits', 'autorule.update', 'bill.create', 'bill.delete',
-    'bill.update', 'creditnote.create', 'creditnote.delete', 'creditnote.update', 'customer.balance',
-    'customer.create', 'customer.update', 'entrylink.create', 'entrylink.remove', 'groups.create', 'groups.delete',
-    'groups.keeprates', 'groups.setlinemerges', 'groups.share', 'groups.unshare', 'groups.update', 'inventory.adjust',
-    'inventory.cogs', 'inventory.count', 'inventory.deliver', 'inventory.landedcost', 'inventory.landedcostundo',
-    'inventory.return', 'inventory.revalue', 'inventory.stockclosing', 'inventory.stockpolicy', 'inventory.transfer',
-    'inventory.undodelivery', 'invoice.create', 'invoice.delete', 'invoice.update', 'journal.create',
-    'numbering.update', 'payment.apply', 'payment.creditapply', 'payment.creditrefund', 'payment.creditsautoapply',
-    'payment.deposit', 'payment.receive', 'payment.void', 'period.balancesrebuild', 'period.close',
-    'period.closesteps', 'period.depreciation', 'period.fxrevaluation', 'period.fxrevaluationundo', 'period.relock',
-    'period.reopen', 'period.signoff', 'period.unlock', 'period.yearclose', 'project.delete', 'project.restore',
-    'reconciliations.bankline',
+    'bill.update', 'budget.delete', 'budget.save', 'creditnote.create', 'creditnote.delete', 'creditnote.update',
+    'customer.balance', 'customer.create', 'customer.update', 'entrylink.create', 'entrylink.remove', 'groups.create',
+    'groups.delete', 'groups.keeprates', 'groups.setlinemerges', 'groups.share', 'groups.unshare', 'groups.update',
+    'inventory.adjust', 'inventory.cogs', 'inventory.count', 'inventory.deliver', 'inventory.landedcost',
+    'inventory.landedcostundo', 'inventory.return', 'inventory.revalue', 'inventory.stockclosing',
+    'inventory.stockpolicy', 'inventory.transfer', 'inventory.undodelivery', 'invoice.create', 'invoice.delete',
+    'invoice.update', 'journal.create', 'numbering.update', 'payment.apply', 'payment.creditapply',
+    'payment.creditrefund', 'payment.creditsautoapply', 'payment.deposit', 'payment.receive', 'payment.void',
+    'period.balancesrebuild', 'period.close', 'period.closesteps', 'period.depreciation', 'period.fxrevaluation',
+    'period.fxrevaluationundo', 'period.relock', 'period.reopen', 'period.signoff', 'period.unlock',
+    'period.yearclose', 'project.delete', 'project.restore', 'reconciliations.bankline',
     'reconciliations.banklinepay', 'reconciliations.banklinesplit', 'reconciliations.bankrules',
     'reconciliations.clear', 'reconciliations.complete', 'reconciliations.reconcile', 'savedlist.allocationrules',
     'savedlist.approvaldelegate', 'savedlist.customergroup', 'savedlist.paymenttype', 'savedlist.pricelists',
@@ -77,9 +79,10 @@ test('the default registry is sorted and unique across the registered command do
     'workspace.create', 'workspace.dimensionaxes', 'workspace.dimensionnode', 'workspace.importmap',
     'workspace.importrecords', 'workspace.invite', 'workspace.modules', 'workspace.nextnumber',
     'workspace.openingbalances', 'workspace.restoremaps', 'workspace.retention', 'workspace.revokeinvite',
-    'workspace.scheduledeletion', 'workspace.setupcomplete', 'workspace.undoimport', 'workspace.updaterole',
+    'workspace.scheduledeletion', 'workspace.settings', 'workspace.setupcomplete', 'workspace.undoimport',
+    'workspace.updaterole',
   ]);
-  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'apikey', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'groups', 'inventory', 'invoice', 'journal', 'numbering', 'payment', 'period', 'project', 'reconciliations', 'savedlist', 'stages', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
+  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'apikey', 'autorule', 'bill', 'budget', 'creditnote', 'customer', 'entrylink', 'groups', 'inventory', 'invoice', 'journal', 'numbering', 'payment', 'period', 'project', 'reconciliations', 'savedlist', 'stages', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
   assert.equal(registry.get('numbering.update'), numberingUpdateCommand);
@@ -98,6 +101,9 @@ test('the default registry is sorted and unique across the registered command do
   assert.equal(periodYearCloseCommand.allowPlatformAdmin, true);
   assert.equal(registry.get('workspace.importmap'), importMapSaveCommand);
   assert.equal(registry.get('workspace.restoremaps'), importMapRestoreCommand);
+  assert.equal(registry.get('workspace.settings'), workspaceSettingsCommand);
+  assert.equal(registry.get('budget.save'), budgetSaveCommand);
+  assert.equal(registry.get('budget.delete'), budgetDeleteCommand);
   assert.equal(registry.get('tasks.create'), taskCreateCommand);
   assert.equal(registry.get('watches.create'), watchCreateCommand);
   assert.equal(registry.get('unknown.create'), undefined);

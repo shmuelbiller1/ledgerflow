@@ -4,14 +4,12 @@ import { toast } from 'sonner';
 import { Mail, RotateCcw } from 'lucide-react';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { db } from '../../../firebase';
-import { doc, updateDoc } from '../../../lib/db/firestore';
+import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
 import { clearDirtyTracking, registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
 import {
   EMAIL_TEMPLATE_KEYS, MAX_BODY, MAX_SUBJECT, PLACEHOLDERS, TEMPLATE_LABELS,
   TEMPLATE_LANGUAGES, TEMPLATE_LANGUAGE_LABELS, defaultTemplateForLanguage,
-  renderEmail, resolveTemplate, unknownPlaceholders,
-} from '../../../lib/emailTemplates';
+  renderEmail, resolveTemplate, unknownPlaceholders } from '../../../lib/emailTemplates';
 import type { EmailTemplateKey, EmailTemplates, TemplateLanguage } from '../../../lib/emailTemplates';
 import { normalizeReminderSettings } from '../../../lib/reminders';
 import { approvalLimitUnits, normalizeInvoiceApproval, normalizePoApproval, parseApprovalLimit } from '../../../lib/invoiceApproval';
@@ -26,8 +24,7 @@ import { formatCurrency } from '../../../lib/utils';
 const SAMPLE = {
   company: 'Your Company', customer: 'Acme Ltd', vendor: 'Paper Co', number: 'INV-1042',
   amount: '$1,250.00', amount_due: '$750.00', due_date: '2026-10-15', days_overdue: '14',
-  payment_date: '2026-10-23', paid_bills: 'BILL-204 ($1,250.00)', link: 'https://example.com/i/sample',
-};
+  payment_date: '2026-10-23', paid_bills: 'BILL-204 ($1,250.00)', link: 'https://example.com/i/sample' };
 
 const inputClass = 'w-full px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]';
 
@@ -80,7 +77,7 @@ export default function EmailSettings() {
     if (!workspace?.id) return;
     setSaving(true);
     try {
-      await updateDoc(doc(db, 'workspaces', workspace.id), { ...fields, updatedAt: new Date().toISOString() });
+      await saveWorkspaceSettings(workspace.id, fields);
       setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, ...fields } : w)));
       clearDirtyTracking(sectionContainer ?? null);
       toast.success(message);
@@ -102,10 +99,7 @@ export default function EmailSettings() {
         ...(d.byLanguage || {}),
         [lang]: {
           ...existingLang,
-          [key]: { ...(existingLang[key] || {}), [field]: value },
-        },
-      },
-    };
+          [key]: { ...(existingLang[key] || {}), [field]: value } } } };
   });
 
   const resetTemplate = () => setDrafts(d => {
@@ -136,8 +130,7 @@ export default function EmailSettings() {
       enabled: approval.enabled,
       thresholdCents: parseApprovalLimit(limitText),
       poEnabled: poNext.enabled,
-      poThresholdCents: poNext.thresholdCents,
-    });
+      poThresholdCents: poNext.thresholdCents });
     setApproval(settings);
     setLimitText(approvalLimitUnits(settings.thresholdCents));
     setPoApproval(poNext);

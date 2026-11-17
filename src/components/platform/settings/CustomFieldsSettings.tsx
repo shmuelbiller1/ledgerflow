@@ -13,8 +13,7 @@ import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useEntityOperations } from '../../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { useLedgerCollections } from '../../../hooks/useLedgerCollections';
-import { db } from '../../../firebase';
-import { doc, updateDoc } from '../../../lib/db/firestore';
+import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
 import InlineEdit from '../../ui/InlineEdit';
 import { downloadCsv } from '../../../lib/csvExport';
 import { secureId } from '../../../lib/secureId';
@@ -22,13 +21,11 @@ import ReportTableScroll from '../../reporting/ReportTableScroll';
 import {
   coerceCustomField, customFieldColumns, customFieldCsvRow, customFieldProblem, customFieldValues,
   CUSTOM_FIELD_CSV_HEADERS, fieldValueProblem,
-  type CustomFieldDef, type CustomFieldEntity, type CustomFieldType,
-} from '../../../lib/customFields';
+  type CustomFieldDef, type CustomFieldEntity, type CustomFieldType } from '../../../lib/customFields';
 
 const ENTITY_LABELS: Record<CustomFieldEntity, string> = { customer: 'Customers', vendor: 'Vendors', item: 'Items' };
 const TYPE_LABELS: Record<CustomFieldType, string> = {
-  text: 'Text', number: 'Number', date: 'Date (YYYY-MM-DD)', choice: 'Choice',
-};
+  text: 'Text', number: 'Number', date: 'Date (YYYY-MM-DD)', choice: 'Choice' };
 const field = 'px-2 py-1.5 text-sm border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
 interface RecordLike {
@@ -77,7 +74,7 @@ export default function CustomFieldsSettings() {
     if (!workspace?.id) return;
     setBusy(true);
     try {
-      await updateDoc(doc(db, 'workspaces', workspace.id), { customFields: defs, updatedAt: new Date().toISOString() });
+      await saveWorkspaceSettings(workspace.id, { customFields: defs });
       setWorkspaces(workspaces.map(w => (w.id === workspace.id ? { ...w, customFields: defs } : w)));
       setDraft(null);
       toast.success('Custom fields saved');
@@ -173,8 +170,7 @@ export default function CustomFieldsSettings() {
                 if (!id) { toast.error('Could not create a secure identifier. Try a different browser.'); return; }
                 change([...defs, {
                   id, entityType, key: `field${defs.length + 1}`,
-                  label: `Field ${defs.length + 1}`, type: 'text',
-                }]);
+                  label: `Field ${defs.length + 1}`, type: 'text' }]);
               }}
               className="min-h-11 px-4 rounded border border-[var(--line)] inline-flex items-center gap-1">
               <Plus size={16} aria-hidden="true" /> Add on {ENTITY_LABELS[entityType].toLocaleLowerCase()}

@@ -171,8 +171,9 @@ describe('Settings → Dimensions → Required labels', () => {
     assert.equal(box.checked, false);
     await act(async () => { fireEvent.click(box); });
     await waitFor(() => assert.ok(saved.length > 0));
-    const write = calls.find(c => /\/rpc\/lf_/.test(c.url) && (c.body as { p_table?: string }).p_table === 'workspaces')!;
-    const sent = ((write.body as { p_set?: { dimensions: DimensionDefinition[] } }).p_set)!.dimensions;
+    // the axis list is a command now: the payload is the `input.dimensions` the server receives
+    const write = calls.find(c => c.url.includes('/commands/workspace.dimensionaxes'))!;
+    const sent = (write.body as { input: { dimensions: DimensionDefinition[] } }).input.dimensions;
     assert.deepEqual(sent.find(d => d.id === 'property')!.requiredOn, { accountIds: ['util'], since: '2026-10-01', refuse: true });
   });
 

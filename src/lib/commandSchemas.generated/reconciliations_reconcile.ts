@@ -4,7 +4,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part72,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part74,
     "operations": {
       "minItems": 1,
       "maxItems": 250,
@@ -21,7 +21,7 @@ export const COMMAND_INPUT_SCHEMA = {
               "createTransaction"
             ]
           },
-          "data": COMMAND_SCHEMA_PARTS.part107
+          "data": COMMAND_SCHEMA_PARTS.part110
         },
         "required": [
           "id",

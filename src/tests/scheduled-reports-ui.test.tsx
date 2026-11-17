@@ -40,11 +40,12 @@ describe('Scheduled reports settings', () => {
     fireEvent.change(screen.getByLabelText('How often'), { target: { value: 'weekly' } });
     fireEvent.change(screen.getByLabelText('Email to (commas between addresses)'), { target: { value: 'not-an-address' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add' })); });
-    assert.equal(calls.filter(c => c.url.includes('lf_update')).length, 0);
+    assert.equal(calls.filter(c => c.url.includes('/commands/workspace.settings')).length, 0);
     fireEvent.change(screen.getByLabelText('Email to (commas between addresses)'), { target: { value: 'a@b.co, c@d.org' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add' })); });
-    await waitFor(() => assert.ok(calls.some(c => c.url.includes('lf_update'))));
-    const saved = (calls.find(c => c.url.includes('lf_update'))!.body.p_set as { scheduledReports: Array<Record<string, unknown>> }).scheduledReports;
+    await waitFor(() => assert.ok(calls.some(c => c.url.includes('/commands/workspace.settings'))));
+    const saved = (calls.find(c => c.url.includes('/commands/workspace.settings'))!.body as
+      { input: { scheduledReports: Array<Record<string, unknown>> } }).input.scheduledReports;
     assert.equal(saved.length, 2);
     assert.deepEqual([saved[1].report, saved[1].frequency, saved[1].recipients], ['balance-sheet', 'weekly', ['a@b.co', 'c@d.org']]);
   });
@@ -56,8 +57,9 @@ describe('Scheduled reports settings', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send Profit and loss now' })); });
     await waitFor(() => assert.ok(calls.some(c => c.url.endsWith('/report-schedules/pl/send-now'))));
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Stop Profit and loss monthly' })); });
-    await waitFor(() => assert.ok(calls.some(c => c.url.includes('lf_update'))));
-    assert.deepEqual((calls.find(c => c.url.includes('lf_update'))!.body.p_set as { scheduledReports: unknown[] }).scheduledReports, []);
+    await waitFor(() => assert.ok(calls.some(c => c.url.includes('/commands/workspace.settings'))));
+    assert.deepEqual((calls.find(c => c.url.includes('/commands/workspace.settings'))!.body as
+      { input: { scheduledReports: unknown[] } }).input.scheduledReports, []);
   });
 
   test('a viewer sees the list but cannot change it', () => {

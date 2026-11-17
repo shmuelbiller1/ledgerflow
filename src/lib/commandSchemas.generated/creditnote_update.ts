@@ -4,7 +4,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part72,
+    "id": COMMAND_SCHEMA_PARTS.part74,
     "data": {
       "type": "object",
       "properties": {
@@ -12,20 +12,20 @@ export const COMMAND_INPUT_SCHEMA = {
         "customerName": COMMAND_SCHEMA_PARTS.part15,
         "number": COMMAND_SCHEMA_PARTS.part15,
         "invoiceId": COMMAND_SCHEMA_PARTS.part15,
-        "amountCents": COMMAND_SCHEMA_PARTS.part98,
-        "remainingCents": COMMAND_SCHEMA_PARTS.part91,
-        "date": COMMAND_SCHEMA_PARTS.part82,
-        "reason": COMMAND_SCHEMA_PARTS.part48,
-        "status": COMMAND_SCHEMA_PARTS.part109,
+        "amountCents": COMMAND_SCHEMA_PARTS.part101,
+        "remainingCents": COMMAND_SCHEMA_PARTS.part93,
+        "date": COMMAND_SCHEMA_PARTS.part84,
+        "reason": COMMAND_SCHEMA_PARTS.part49,
+        "status": COMMAND_SCHEMA_PARTS.part112,
         "currency": COMMAND_SCHEMA_PARTS.part15,
-        "exchangeRate": COMMAND_SCHEMA_PARTS.part55,
-        "tags": COMMAND_SCHEMA_PARTS.part57,
-        "metadata": COMMAND_SCHEMA_PARTS.part107,
-        "taxAmountCents": COMMAND_SCHEMA_PARTS.part91,
+        "exchangeRate": COMMAND_SCHEMA_PARTS.part56,
+        "tags": COMMAND_SCHEMA_PARTS.part58,
+        "metadata": COMMAND_SCHEMA_PARTS.part110,
+        "taxAmountCents": COMMAND_SCHEMA_PARTS.part93,
         "taxInclusive": COMMAND_SCHEMA_PARTS.part18,
         "taxVersion": COMMAND_SCHEMA_PARTS.part28,
-        "taxTreatment": COMMAND_SCHEMA_PARTS.part117,
-        "returnedGoods": COMMAND_SCHEMA_PARTS.part177
+        "taxTreatment": COMMAND_SCHEMA_PARTS.part121,
+        "returnedGoods": COMMAND_SCHEMA_PARTS.part183
       }
     },
     "postingDay": COMMAND_SCHEMA_PARTS.part15
