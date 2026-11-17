@@ -265,7 +265,7 @@ jobs:
     if: ${{ !cancelled() }}
     needs: [changes, unit, docs_checks]
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - name: Require every part to pass (docs-only PRs, the docs checks)
         env:
