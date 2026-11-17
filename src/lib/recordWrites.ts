@@ -112,3 +112,23 @@ export async function saveChartAccount(workspaceId: string, fields: Record<strin
   }
   await runNamedCommand('chartaccount.update', fields, { workspaceId });
 }
+
+/**
+ * A new account in the chart, or a new item, returned with the id the server gave it.
+ *
+ * An account starts at zero by the command's own rule (`chartaccount.create`), so the form sends the row's
+ * *description* — code, name, type, category, group — and nothing about money.
+ */
+export async function addChartAccount(workspaceId: string, fields: Record<string, unknown>): Promise<{ id: string }> {
+  if (guestSession()) {
+    const created = await localAdd('chartAccounts', {
+      ...fields,
+      workspaceId,
+      openingBalanceCents: 0,
+      balanceCents: 0,
+      createdAt: new Date().toISOString(),
+    });
+    return { id: created };
+  }
+  return runNamedCommand<{ id: string }>('chartaccount.create', fields, { workspaceId });
+}

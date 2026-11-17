@@ -8,9 +8,9 @@ export const COMMAND_INPUT_SCHEMA = {
     "number": COMMAND_SCHEMA_PARTS.part38,
     "customerId": COMMAND_SCHEMA_PARTS.part80,
     "customerName": COMMAND_SCHEMA_PARTS.part80,
-    "date": COMMAND_SCHEMA_PARTS.part91,
-    "expiryDate": COMMAND_SCHEMA_PARTS.part91,
-    "amountCents": COMMAND_SCHEMA_PARTS.part101,
+    "date": COMMAND_SCHEMA_PARTS.part92,
+    "expiryDate": COMMAND_SCHEMA_PARTS.part92,
+    "amountCents": COMMAND_SCHEMA_PARTS.part102,
     "currency": {
       "type": "string",
       "minLength": 3,
@@ -43,9 +43,9 @@ export const COMMAND_INPUT_SCHEMA = {
             "minLength": 1,
             "maxLength": 300
           },
-          "quantity": COMMAND_SCHEMA_PARTS.part99,
-          "unitPriceCents": COMMAND_SCHEMA_PARTS.part101,
-          "amountCents": COMMAND_SCHEMA_PARTS.part101
+          "quantity": COMMAND_SCHEMA_PARTS.part100,
+          "unitPriceCents": COMMAND_SCHEMA_PARTS.part102,
+          "amountCents": COMMAND_SCHEMA_PARTS.part102
         },
         "required": [
           "description",
@@ -69,7 +69,7 @@ export const COMMAND_INPUT_SCHEMA = {
             "exclusiveMinimum": 0,
             "maximum": 100
           },
-          "due": COMMAND_SCHEMA_PARTS.part91,
+          "due": COMMAND_SCHEMA_PARTS.part92,
           "invoicedAt": COMMAND_SCHEMA_PARTS.part38
         },
         "required": [

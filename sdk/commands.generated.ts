@@ -19,6 +19,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "bill.update",
   "budget.delete",
   "budget.save",
+  "chartaccount.create",
   "chartaccount.update",
   "creditnote.create",
   "creditnote.delete",

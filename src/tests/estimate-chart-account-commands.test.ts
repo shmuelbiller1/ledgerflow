@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { executeCommand } from '../server/utils/commandExecutor';
 import { estimateSaveCommand, estimateSaveInput, estimateStatusCommand, estimateStatusInput } from '../server/commands/estimates';
-import { chartAccountUpdateCommand, chartAccountUpdateInput } from '../server/commands/chartAccounts';
+import { chartAccountCreateCommand, chartAccountCreateInput, chartAccountUpdateCommand, chartAccountUpdateInput } from '../server/commands/chartAccounts';
 import { captureResponse, fakeRequest, MemoryDb, owner, runnerDependencies, seedWorkspace, workspaceId } from './helpers/commandTestUtils';
 
 const runEstimateSave = (input: unknown, db: MemoryDb) =>
@@ -19,6 +19,9 @@ const runEstimateSave = (input: unknown, db: MemoryDb) =>
 const runEstimateStatus = (input: unknown, db: MemoryDb) =>
   executeCommand(fakeRequest(owner, { workspaceId, input }), captureResponse().response,
     { definition: estimateStatusCommand, workspaceId, input }, runnerDependencies(db));
+const runAccountCreate = (input: unknown, db: MemoryDb, user = owner) =>
+  executeCommand(fakeRequest(user, { workspaceId, input }), captureResponse().response,
+    { definition: chartAccountCreateCommand, workspaceId, input }, runnerDependencies(db));
 const runAccount = (input: unknown, db: MemoryDb, user = owner) =>
   executeCommand(fakeRequest(user, { workspaceId, input }), captureResponse().response,
     { definition: chartAccountUpdateCommand, workspaceId, input }, runnerDependencies(db));
@@ -170,4 +173,51 @@ test('a bookkeeper may write quotes but not the chart', async () => {
   assert.equal((chart as unknown as { code?: string }).code, 'ROLE_REQUIRED');
   const wrote = await runEstimateSave(estimateSaveInput.parse(quote), db);
   assert.equal(wrote.ok, true, 'a bookkeeper keeps the quotes');
+});
+
+test('a new account opens at zero, in the workspace it was added to, and its code must be free', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  const created = await runAccountCreate(chartAccountCreateInput.parse({ code: '1010', name: 'Checking', type: 'asset', category: 'Assets' }), db);
+  assert.equal(created.ok, true);
+  const id = (created as unknown as { data: { id: string } }).data.id;
+  const row = db.read(`chartAccounts/${id}`)!;
+  assert.equal(row.code, '1010');
+  assert.equal(row.workspaceId, workspaceId, 'the workspace comes from the request');
+  assert.equal(row.balanceCents, 0, 'an account starts empty: its balance comes from the entries that name it');
+  assert.equal(row.openingBalanceCents, 0);
+  assert.equal(row.createdAt, row.updatedAt);
+
+  // a second tab adding the same code is refused, not merged into the first account by every report that groups by code
+  const clash = await runAccountCreate(chartAccountCreateInput.parse({ code: '1010', name: 'Cash at bank', type: 'asset' }), db);
+  assert.equal(clash.ok, false);
+  assert.equal((clash as unknown as { code: string }).code, 'CONFLICT');
+  assert.match(String((clash as unknown as { message: string }).message), /1010/);
+  assert.equal(db.entries('chartAccounts').length, 1);
+});
+
+test('a balance cannot be sent with a new account, and the five types are the only ones', () => {
+  assert.equal(chartAccountCreateInput.safeParse({ code: '1010', name: 'Checking', type: 'asset', balanceCents: 500 }).success, false);
+  assert.equal(chartAccountCreateInput.safeParse({ code: '1010', name: 'Checking', type: 'cash' }).success, false);
+  assert.equal(chartAccountCreateInput.safeParse({ name: 'Checking', type: 'asset' }).success, false, 'a code is what a report groups by');
+});
+
+test('a group that would be impossible is refused when the account is added', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  db.seed('chartAccounts/parent', { id: 'parent', workspaceId, code: '1000', name: 'Current assets', type: 'asset' });
+  const wrongType = await runAccountCreate(chartAccountCreateInput.parse({ code: '1010', name: 'Checking', type: 'expense', parentId: 'parent' }), db);
+  assert.equal(wrongType.ok, false);
+  assert.equal((wrongType as unknown as { code: string }).code, 'CONFLICT');
+});
+
+test('a bookkeeper cannot add an account to the chart', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  const bookkeeper = { ...owner, uid: 'keeper-1', email: 'keeper@example.test' };
+  db.seed(`workspaces/${workspaceId}`, { uid: owner.uid, members: [owner.uid, bookkeeper.uid], roles: { [bookkeeper.uid]: 'bookkeeper' }, currency: 'USD' });
+  const result = await runAccountCreate(chartAccountCreateInput.parse({ code: '1010', name: 'Checking', type: 'asset' }), db, bookkeeper);
+  assert.equal(result.ok, false);
+  assert.equal((result as unknown as { code: string }).code, 'ROLE_REQUIRED');
+  assert.deepEqual(db.entries('chartAccounts'), []);
 });

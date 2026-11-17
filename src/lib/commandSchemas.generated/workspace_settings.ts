@@ -19,7 +19,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "maximum": 28
     },
     "taxRounding": COMMAND_SCHEMA_PARTS.part37,
-    "moneyDisplay": COMMAND_SCHEMA_PARTS.part119,
+    "moneyDisplay": COMMAND_SCHEMA_PARTS.part121,
     "paymentTermDays": {
       "type": "integer",
       "minimum": 0,
@@ -30,7 +30,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "type": "array",
       "items": COMMAND_SCHEMA_PARTS.part1
     },
-    "defaultAccountMappings": COMMAND_SCHEMA_PARTS.part119,
+    "defaultAccountMappings": COMMAND_SCHEMA_PARTS.part121,
     "scheduledReports": {
       "maxItems": 50,
       "type": "array",
@@ -38,9 +38,9 @@ export const COMMAND_INPUT_SCHEMA = {
     },
     "matchingThreshold": COMMAND_SCHEMA_PARTS.part60,
     "aiModel": COMMAND_SCHEMA_PARTS.part41,
-    "emailTemplates": COMMAND_SCHEMA_PARTS.part119,
-    "reminderSettings": COMMAND_SCHEMA_PARTS.part119,
-    "invoiceApproval": COMMAND_SCHEMA_PARTS.part119,
+    "emailTemplates": COMMAND_SCHEMA_PARTS.part121,
+    "reminderSettings": COMMAND_SCHEMA_PARTS.part121,
+    "invoiceApproval": COMMAND_SCHEMA_PARTS.part121,
     "reportNotes": {
       "type": "object",
       "propertyNames": COMMAND_SCHEMA_PARTS.part15,

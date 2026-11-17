@@ -19,9 +19,9 @@ const run = (input: unknown, db: MemoryDb, user = owner) =>
     { definition: dimensionNodesMigrateCommand, workspaceId, input: dimensionNodesMigrateInput.parse(input) }, runnerDependencies(db));
 
 const tree = [
-  { id: 'n1', dimensionId: 'property', description: 'North tower', status: 'active' },
+  { id: 'n1', dimensionId: 'property', description: 'North tower status', status: 'active' as const },
   { id: 'n2', dimensionId: 'class', description: 'Repairs' },
-] as const;
+];
 
 test('the values are written under their workspace/axis/code id and the legacy field is cleared in the same move', async () => {
   const db = new MemoryDb();

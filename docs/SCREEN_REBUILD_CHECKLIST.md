@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **31** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **29** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,7 +147,7 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **31** → 0. 24 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **29** → 0. 23 files. The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
@@ -244,7 +244,17 @@ hand-convert a table the codemod still refuses.
         `chartaccount.update` with `archived: true`; the two `addDoc(auditLogs)` calls that sat beside them are
         gone, because the command writes the line.
         - Pinned by `dimension-nodes-migration-command.test.ts` (6 cases).
-      - **the rest** (~31 sites in 24 files) — write routes that already have a command in most cases
+      - **a new account in the chart** — **done, 2 sites.** `Ledger`'s add-account form wrote the row with `addDoc`
+        — its own `createdAt`, whatever `type` the select held, and no check that the code was free, so the same code
+        could be added twice and every report that groups by code read two accounts as one. `chartaccount.create`
+        owns the row now: the code is unique inside the workspace (`CONFLICT` naming the account that already has
+        it), the group rule is the same one the picker uses, and `balanceCents`/`openingBalanceCents` are written as
+        zero by the command — an opening figure is the transaction this flow records next, not a number typed on the
+        account. The offset account the flow creates when the chart has none goes through the same command.
+        - Pinned by three more cases in `estimate-chart-account-commands.test.ts` (a free code is written with the
+          workspace from the request; a taken code is refused and nothing is added; a balance or a sixth type is not
+          input; a bookkeeper is refused).
+      - **the rest** (~29 sites in 23 files) — write routes that already have a command in most cases
         (`SupportView` 5, `useEntityOperations` 3, `useCollaborators` 3, `Ledger` 2, `Vault` 2 …): one commit per
         hook, not per call, because a hook that writes has one shape. Three are deliberately *not* converted yet:
         `useCollaborators`' presence rows (ephemeral, one row per open tab, nothing to audit), `shared.ts`'

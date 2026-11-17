@@ -18,6 +18,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "bill.update": "CommandInput_bill_update",
   "budget.delete": "CommandInput_budget_delete",
   "budget.save": "CommandInput_budget_save",
+  "chartaccount.create": "CommandInput_chartaccount_create",
   "chartaccount.update": "CommandInput_chartaccount_update",
   "creditnote.create": "CommandInput_creditnote_create",
   "creditnote.delete": "CommandInput_creditnote_delete",

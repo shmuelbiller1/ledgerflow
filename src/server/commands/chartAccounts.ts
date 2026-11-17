@@ -155,3 +155,110 @@ export const chartAccountUpdateCommand: CommandDefinition<typeof chartAccountUpd
     next: [{ command: 'workspace.dimensionnode', label: 'Change what the labels say' }],
   },
 };
+
+/**
+ * A new account in the chart.
+ *
+ * `Ledger`'s "add account" form wrote the row with `addDoc`: it typed `createdAt` and `asOfDate`, sent whatever
+ * `type` the select box held, and — because nothing on the server looked — a code that was already in the chart
+ * could be added a second time, which makes every report that groups by code read two accounts as one.
+ *
+ * Two things it promises that the browser write could not:
+ *
+ * - **the code is unique inside the workspace.** The check runs against the chart the server reads, so two tabs
+ *   adding the same code cannot both succeed; the second is a `CONFLICT` naming the account that already has it.
+ * - **the row starts where an account starts.** `balanceCents` and `openingBalanceCents` are written as zero by the
+ *   command, not sent by the form: an account's balance comes from the entries that name it, and an opening figure
+ *   is a transaction (the screen records it as one, in the same flow).
+ */
+export const chartAccountCreateInput = z.object({
+  code: text(40).min(1),
+  name: text(200).min(1),
+  type: z.enum(['asset', 'liability', 'equity', 'revenue', 'expense']),
+  category: text(120).optional(),
+  description: text(2000).optional(),
+  parentId: z.string().trim().max(200).nullable().optional(),
+  /** the date the account is opened, as the row keeps it; the server stamps `createdAt` */
+  asOfDate: z.string().trim().max(40).optional(),
+}).strict();
+
+type CreateInput = z.output<typeof chartAccountCreateInput>;
+export type AccountCreated = { id: string; code: string; name: string; created: boolean };
+
+export const chartAccountCreateCommand: CommandDefinition<typeof chartAccountCreateInput, AccountCreated> = {
+  name: 'chartaccount.create',
+  input: chartAccountCreateInput,
+  roles: ROLES,
+  async handler(ctx: CommandContext, tx, input: CreateInput) {
+    const existing = await ctx.db.collection('chartAccounts')
+      .where('workspaceId', '==', ctx.workspaceId)
+      .where('code', '==', input.code)
+      .limit(1)
+      .get();
+    if (!existing.empty) {
+      const clash = existing.docs[0].data() as AccountRow;
+      throw Object.assign(new HttpError(
+        `Code ${input.code} is already used by "${String(clash.name || existing.docs[0].id)}" in this chart.`,
+        409,
+      ), { code: 'CONFLICT' });
+    }
+    if (input.parentId) {
+      const chart = await chartOf(ctx);
+      const problem = accountParentProblem(chart, { id: '', name: input.name, type: input.type }, input.parentId);
+      if (problem) throw Object.assign(new HttpError(problem, 409), { code: 'CONFLICT' });
+    }
+    const now = new Date().toISOString();
+    const ref = ctx.db.collection('chartAccounts').doc();
+    const id = (ref as unknown as { id: string }).id;
+    tx.set(ref, {
+      id,
+      workspaceId: ctx.workspaceId,
+      uid: ctx.actor,
+      code: input.code,
+      name: input.name,
+      type: input.type,
+      category: input.category || input.type,
+      description: input.description || '',
+      parentId: input.parentId || null,
+      openingBalanceCents: 0,
+      balanceCents: 0,
+      asOfDate: input.asOfDate || now,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { id, code: input.code, name: input.name, created: true };
+  },
+  async preview(ctx: CommandContext, input: CreateInput) {
+    const existing = await ctx.db.collection('chartAccounts')
+      .where('workspaceId', '==', ctx.workspaceId)
+      .where('code', '==', input.code)
+      .limit(1)
+      .get();
+    if (!existing.empty) throw new HttpError(`Code ${input.code} is already used in this chart.`, 409);
+    return {
+      title: `Add the account ${input.code} ${input.name}`,
+      lines: [input.type, `opens at zero on ${input.asOfDate || 'today'}`],
+    };
+  },
+  audit(_input: CreateInput, result: AccountCreated) {
+    return {
+      action: 'ACCOUNT_CREATED',
+      entityType: 'chartAccounts',
+      entityId: result.id,
+      description: `Added the account ${result.code} ${result.name}`,
+      details: { code: result.code, name: result.name },
+    };
+  },
+  inverse() { return null; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Add one account to the chart; do not use it to open an account with a balance — an opening figure is a transaction, and the account itself starts at zero.',
+    example: { code: '1010', name: 'Checking', type: 'asset', category: 'Assets' },
+    refusals: [
+      { code: 'CONFLICT', when: 'The code is already used in this chart, or the group would be the wrong type, a loop or more than three levels deep.', next: 'Choose a free code, or put the account in a group of its own type.' },
+      { code: 'INVALID_INPUT', when: 'There is no code, no name, or the type is not one of the five the books use.', next: 'Send a code, a name and asset, liability, equity, revenue or expense.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is not an owner or an accountant.', next: 'Ask a workspace owner or accountant to add the account.' },
+    ],
+    next: [{ command: 'chartaccount.update', label: 'Rename it or give it a description' }],
+  },
+};

@@ -25,7 +25,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
           "when": "The input carries unexpected fields.",
           "next": "Send an empty input object."
         },
-        COMMAND_SCHEMA_PARTS.part148
+        COMMAND_SCHEMA_PARTS.part150
       ],
       "next": [
         {
@@ -55,7 +55,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
           "when": "The mode is not off, immediate or daily.",
           "next": "Choose off, immediate or daily."
         },
-        COMMAND_SCHEMA_PARTS.part148
+        COMMAND_SCHEMA_PARTS.part150
       ]
     },
     "runPath": "/api/v1/commands/account.setnotificationemail",

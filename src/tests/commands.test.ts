@@ -61,7 +61,7 @@ test('the default registry is sorted and unique across the registered command do
     'account.makerecoverycodes', 'account.setnotificationemail', 'account.userecoverycode', 'alerts.update',
     'apikey.provision', 'apikey.revoke', 'apikey.revokepersonal', 'autorule.create', 'autorule.delete',
     'autorule.group', 'autorule.learn', 'autorule.recordhits', 'autorule.update', 'bill.create', 'bill.delete',
-    'bill.update', 'budget.delete', 'budget.save', 'chartaccount.update', 'creditnote.create', 'creditnote.delete',
+    'bill.update', 'budget.delete', 'budget.save', 'chartaccount.create', 'chartaccount.update', 'creditnote.create', 'creditnote.delete',
     'creditnote.update',
     'customer.balance', 'customer.create', 'customer.update',
     'employee.create', 'employee.update',

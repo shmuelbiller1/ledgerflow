@@ -9,12 +9,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "code": COMMAND_SCHEMA_PARTS.part38,
     "description": COMMAND_SCHEMA_PARTS.part53,
     "category": COMMAND_SCHEMA_PARTS.part44,
-    "parentId": {
-      "anyOf": [
-        COMMAND_SCHEMA_PARTS.part45,
-        COMMAND_SCHEMA_PARTS.part12
-      ]
-    },
+    "parentId": COMMAND_SCHEMA_PARTS.part106,
     "archived": COMMAND_SCHEMA_PARTS.part18,
     "workpapers": {
       "type": "object",
@@ -22,7 +17,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "type": "string",
         "pattern": "^\\d{4}-\\d{2}$"
       },
-      "additionalProperties": COMMAND_SCHEMA_PARTS.part119
+      "additionalProperties": COMMAND_SCHEMA_PARTS.part121
     }
   },
   "required": COMMAND_SCHEMA_PARTS.part2,

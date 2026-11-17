@@ -12,20 +12,20 @@ export const COMMAND_INPUT_SCHEMA = {
         "customerName": COMMAND_SCHEMA_PARTS.part15,
         "number": COMMAND_SCHEMA_PARTS.part15,
         "invoiceId": COMMAND_SCHEMA_PARTS.part15,
-        "amountCents": COMMAND_SCHEMA_PARTS.part109,
-        "remainingCents": COMMAND_SCHEMA_PARTS.part101,
-        "date": COMMAND_SCHEMA_PARTS.part91,
+        "amountCents": COMMAND_SCHEMA_PARTS.part111,
+        "remainingCents": COMMAND_SCHEMA_PARTS.part102,
+        "date": COMMAND_SCHEMA_PARTS.part92,
         "reason": COMMAND_SCHEMA_PARTS.part52,
-        "status": COMMAND_SCHEMA_PARTS.part121,
+        "status": COMMAND_SCHEMA_PARTS.part123,
         "currency": COMMAND_SCHEMA_PARTS.part15,
         "exchangeRate": COMMAND_SCHEMA_PARTS.part59,
         "tags": COMMAND_SCHEMA_PARTS.part61,
-        "metadata": COMMAND_SCHEMA_PARTS.part119,
-        "taxAmountCents": COMMAND_SCHEMA_PARTS.part101,
+        "metadata": COMMAND_SCHEMA_PARTS.part121,
+        "taxAmountCents": COMMAND_SCHEMA_PARTS.part102,
         "taxInclusive": COMMAND_SCHEMA_PARTS.part18,
         "taxVersion": COMMAND_SCHEMA_PARTS.part29,
-        "taxTreatment": COMMAND_SCHEMA_PARTS.part130,
-        "returnedGoods": COMMAND_SCHEMA_PARTS.part196
+        "taxTreatment": COMMAND_SCHEMA_PARTS.part132,
+        "returnedGoods": COMMAND_SCHEMA_PARTS.part198
       }
     },
     "postingDay": COMMAND_SCHEMA_PARTS.part15
