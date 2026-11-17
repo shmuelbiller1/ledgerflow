@@ -444,7 +444,10 @@ test('period.balancesrebuild targets only missing closed-year snapshots and stal
 test('period.balancesrebuild writes stale snapshots in the command transaction and replays safely', async () => {
   const db = new MemoryDb();
   seedWorkspace(db);
-  Object.assign(db, { pool: { query: async () => ({ rows: [{ ok: true }] }) } });
+  Object.assign(db, { async tablesExist(...names: string[]) {
+    assert.deepEqual(names, ['periodBalances']);
+    return true;
+  } });
   db.seed(`periodBalances/${workspaceId}_2025-12-31`, {
     workspaceId, asOf: '2025-12-31', accounts: { old: 1 }, byLabel: {}, retainedEarnings: 0,
     entryCount: 1, checksum: 'stale', builtAt: '2026-01-01T00:00:00.000Z', builtBy: 'old-build', stale: true,

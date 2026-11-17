@@ -16,7 +16,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "urgent"
       ]
     },
-    "errorDiagnostics": COMMAND_SCHEMA_PARTS.part143,
+    "errorDiagnostics": COMMAND_SCHEMA_PARTS.part144,
     "errorLogId": COMMAND_SCHEMA_PARTS.part56
   },
   "required": [

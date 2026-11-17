@@ -1,7 +1,6 @@
 // Server database entry point. The data now lives in Supabase Postgres; getDb() returns the
 // Firestore-compatible layer in ./pgFirestore.ts, so routes keep their firebase-admin-style code.
-import { Firestore } from './pgFirestore';
-import type { DocumentData } from './pgFirestore';
+import { Firestore, FirestoreError, type DocumentData } from './pgFirestore';
 import { assertPostingOpen } from '../../lib/periodLock';
 
 export {
@@ -12,10 +11,27 @@ export type { DocumentData, SetOptions, WhereFilterOp, WriteResult } from './pgF
 
 let defaultDb: Firestore | null = null;
 
-export const getDb = (): Firestore => {
+/** A sandbox id here is a server-authorized scope, not an HTTP request parameter. */
+export const getDb = (scope?: { sandboxId: string }): Firestore => {
   if (!defaultDb) defaultDb = new Firestore();
-  return defaultDb;
+  return scope ? defaultDb.forSandbox(scope.sandboxId) : defaultDb;
 };
+
+/** Checks an active sandbox's binding; callers must separately check current live membership. */
+export async function sandboxBelongsTo(db: Firestore, workspaceId: string, personId: string): Promise<boolean> {
+  const sandboxId = db.sandboxId;
+  if (!sandboxId) return false;
+  try {
+    const [row] = await db.readRows<{ owned: boolean }>(
+      `select exists(select 1 from sandbox.sandboxes where id = $1 and workspace_id = $2 and person_id = $3) as owned`,
+      [sandboxId, workspaceId, personId],
+    );
+    return row?.owned === true;
+  } catch (err) {
+    if (err instanceof FirestoreError && err.code === 5) return false; // missing, closed or expired
+    throw err;
+  }
+}
 
 export function isWorkspaceMemberData(
   data: DocumentData | null | undefined,

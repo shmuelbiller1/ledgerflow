@@ -5,6 +5,7 @@ import { numberingSeriesInput, numberingTypeInput, numberingUpdateCommand } from
 import type { CommandExecutionOutcome } from '../commands/types';
 import { NumberingError, readNumbering, type NumberingView } from '../services/numberingService';
 import type { CommandRunnerDependencies } from '../utils/commandExecutor';
+import { commandFailureResponse } from '../utils/commandResponses';
 
 /**
  * Document numbering settings (BA-07), mounted at /api/v1/workspaces/:workspaceId/numbering
@@ -33,17 +34,7 @@ function numberingCommandResponse(outcome: CommandExecutionOutcome) {
   if (outcome.code === 'WORKSPACE_NOT_FOUND') {
     return { status: 404, body: { status: 'error', message: 'Workspace not found' } };
   }
-  if (outcome.status >= 500) {
-    return {
-      status: outcome.status,
-      body: {
-        status: 'error',
-        message: 'Document numbering could not be saved',
-        details: outcome.error instanceof Error ? outcome.error.message : String(outcome.error ?? outcome.message),
-      },
-    };
-  }
-  return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+  return commandFailureResponse(outcome, 'Document numbering could not be saved');
 }
 
 /** Factory allows the same registered route to be tested with an isolated command runner database. */

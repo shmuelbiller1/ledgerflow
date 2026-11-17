@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import type { Firestore } from '../server/db/pgFirestore';
+import { withSandboxReadApi } from './helpers/sandboxReadApi';
 
 const url = process.env.LF_TEST_DATABASE_URL;
 
@@ -153,6 +154,27 @@ describe('Report routes', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, () =
     const second = await get(path);
     assert.equal((second.body.assets as Record<string, number>)[id('bank')], -1100);
     assert.equal(typeof (second.body.provenance as { cachedAt?: string }).cachedAt, 'string');
+  });
+
+  test('an empty overlay returns the same HTTP reports for the worked ledger', async () => {
+    await withSandboxReadApi(db, ws, 'owner-1', async origin => {
+      const paths = [
+        `aging?workspaceId=${ws}&type=ar`, `aging?workspaceId=${ws}&type=ap`,
+        `budget-vs-actual?workspaceId=${ws}&month=2026-05`,
+        ...['accrual', 'cash'].flatMap(basis => [
+          `profit-and-loss?workspaceId=${ws}&startDate=2026-05-01&endDate=2026-05-31&basis=${basis}&_read=sbx`,
+          `balance-sheet?workspaceId=${ws}&endDate=2026-05-31&basis=${basis}&_read=sbx`,
+        ]),
+      ];
+      for (const path of paths) {
+        const actual = await fetch(`${origin}/api/v1/reports/${path}`, { headers: { 'x-test-uid': 'owner-1' } });
+        const live = await get(`/${path}`);
+        const body = await actual.json();
+        assert.equal(live.status, 200, path);
+        assert.equal(actual.status, 200, `${path}: ${JSON.stringify(body)}`);
+        assert.deepEqual(body, live.body, path);
+      }
+    });
   });
 
   test('trial balance, cash flow and general ledger are never cached: complete, no cache time, even repeated', async () => {

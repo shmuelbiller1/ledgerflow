@@ -32,6 +32,7 @@ import { PRESENCE_COMMAND_MANIFEST } from './commandManifests.generated/presence
 import { PROJECT_COMMAND_MANIFEST } from './commandManifests.generated/project';
 import { QUERY_COMMAND_MANIFEST } from './commandManifests.generated/query';
 import { RECONCILIATIONS_COMMAND_MANIFEST } from './commandManifests.generated/reconciliations';
+import { RECORD_COMMAND_MANIFEST } from './commandManifests.generated/record';
 import { REPORTSCHEDULE_COMMAND_MANIFEST } from './commandManifests.generated/reportschedule';
 import { RMA_COMMAND_MANIFEST } from './commandManifests.generated/rma';
 import { SAVEDLIST_COMMAND_MANIFEST } from './commandManifests.generated/savedlist';
@@ -83,6 +84,7 @@ export const COMMAND_MANIFEST = [
   ...PROJECT_COMMAND_MANIFEST,
   ...QUERY_COMMAND_MANIFEST,
   ...RECONCILIATIONS_COMMAND_MANIFEST,
+  ...RECORD_COMMAND_MANIFEST,
   ...REPORTSCHEDULE_COMMAND_MANIFEST,
   ...RMA_COMMAND_MANIFEST,
   ...SAVEDLIST_COMMAND_MANIFEST,

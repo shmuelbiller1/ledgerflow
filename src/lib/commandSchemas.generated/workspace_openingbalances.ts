@@ -12,7 +12,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "type": "object",
         "properties": {
           "accountId": COMMAND_SCHEMA_PARTS.part94,
-          "amountCents": COMMAND_SCHEMA_PARTS.part140
+          "amountCents": COMMAND_SCHEMA_PARTS.part141
         },
         "required": COMMAND_SCHEMA_PARTS.part39,
         "additionalProperties": false

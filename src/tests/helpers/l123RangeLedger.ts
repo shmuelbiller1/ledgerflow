@@ -7,12 +7,12 @@
  *   E4 Y-02-10  Rent +700 / Cash −700
  * The loaded list (capped) is the newest four, E4…E7: oldest loaded day Y-02-10.
  */
+import assert from 'node:assert/strict';
 import crypto from 'crypto';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
 import { workspaceYearMonth } from '../../lib/utils';
 import type { ChartAccount, Transaction, TransactionLine } from '../../types';
 import type { Firestore } from '../../server/db/pgFirestore';
+import { startBooksReadApi, startSandboxReadApi } from './sandboxReadApi';
 
 export const Y = workspaceYearMonth().year;
 export const from = `${Y}-01-01`, to = `${Y}-12-31`;
@@ -54,27 +54,24 @@ export function balanceRouteHarness(url: string | undefined, name: string, rows:
   const ws = `ws_${name}_${crypto.randomBytes(4).toString('hex')}`;
   const realFetch = globalThis.fetch;
   let db: Firestore;
-  let server: Server;
-  let base = '';
+  let liveApi: Awaited<ReturnType<typeof startBooksReadApi>>;
+  let sandboxApi: Awaited<ReturnType<typeof startSandboxReadApi>>;
   return {
     ws,
     async start() {
       process.env.DATABASE_URL = url;
-      const express = (await import('express')).default;
       const { getDb } = await import('../../server/db/firestore');
       db = getDb();
-      const app = express();
-      app.use((req, _res, next) => { (req as unknown as { user: { uid: string } }).user = { uid: String(req.header('x-test-uid')) }; next(); });
-      app.use('/api/v1/balances', (await import('../../server/routes/balanceRoutes')).balanceRouter);
-      server = app.listen(0);
-      base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      liveApi = await startBooksReadApi(db);
       const data = rows(ws);
       await db.collection('workspaces').doc(ws).set({ uid: OWNER, name, currency: 'USD', timezone: 'UTC', members: [OWNER] });
       await db.pool.query(`insert into public."chartAccounts" (id, data) select a->>'id', a from jsonb_array_elements($1::jsonb) a`, [JSON.stringify(data.accounts)]);
       await db.pool.query(`insert into public.transactions (id, data) select t->>'id', t from jsonb_array_elements($1::jsonb) t`, [JSON.stringify(data.entries)]);
+      sandboxApi = await startSandboxReadApi(db, ws, OWNER);
     },
     async stop() {
-      server?.close();
+      await sandboxApi?.stop();
+      await liveApi?.stop();
       for (const table of ['transactions', 'chartAccounts', 'workspaces']) {
         await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]).catch(() => {});
       }
@@ -84,8 +81,16 @@ export function balanceRouteHarness(url: string | undefined, name: string, rows:
       await db.terminate();
     },
     async get<B>(path: string, q: Record<string, string>, uid = OWNER): Promise<{ status: number; body: B; cacheControl: string | null }> {
-      const res = await realFetch(`${base}/api/v1/balances/${path}?${new URLSearchParams(q)}`, { headers: { 'x-test-uid': uid } });
-      return { status: res.status, body: await res.json() as B, cacheControl: res.headers.get('cache-control') };
+      const url = `/api/v1/balances/${path}?${new URLSearchParams(q)}`;
+      const init = { headers: { 'x-test-uid': uid } };
+      const res = await realFetch(`${liveApi.base}${url}`, init);
+      const body = await res.json() as B;
+      if (uid === OWNER && q.workspaceId === ws) {
+        const draft = await realFetch(`${sandboxApi.base}${url}`, init);
+        assert.equal(draft.status, res.status, path);
+        assert.deepEqual(await draft.json(), body, `empty-overlay parity: ${path}`);
+      }
+      return { status: res.status, body, cacheControl: res.headers.get('cache-control') };
     },
   };
 }

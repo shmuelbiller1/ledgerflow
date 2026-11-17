@@ -48,6 +48,7 @@ import type * as Reports from '../server/reports/computeReports';
 import type * as ByLabel from '../server/reports/byLabel';
 import type * as BalanceService from '../server/services/balanceService';
 import type * as Opening from '../server/reports/reportOpening';
+import { withSandboxReadApi } from './helpers/sandboxReadApi';
 
 const url = process.env.LF_TEST_DATABASE_URL;
 const OWNER = 'owner-1';
@@ -74,8 +75,8 @@ describe('L-123 step 2: the server reports read balancesAsOf', { skip: !url && '
     const res = await realFetch(`${base}${path}`, { method, headers: { 'content-type': 'application/json', 'x-test-uid': OWNER }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     return { status: res.status, body: await res.json().catch(() => ({})) as Record<string, unknown> };
   };
-  const report = async (path: string, q: Record<string, string>) => {
-    const res = await realFetch(`${base}/api/v1/reports/${path}?${new URLSearchParams(q)}`, { headers: { 'x-test-uid': OWNER } });
+  const report = async (path: string, q: Record<string, string>, origin = base) => {
+    const res = await realFetch(`${origin}/api/v1/reports/${path}?${new URLSearchParams(q)}`, { headers: { 'x-test-uid': OWNER } });
     const text = await res.text();
     assert.equal(res.status, 200, `${path} ${JSON.stringify(q)}: ${text}`);
     if (path === 'balance-sheet-by-label') return text;
@@ -192,6 +193,11 @@ describe('L-123 step 2: the server reports read balancesAsOf', { skip: !url && '
       read.push((await svc.freshSnapshot(db, ws, opening.dayBefore(date)))?.asOf ?? null);
     }
     assert.ok(read.some(Boolean), 'a snapshot was read');
+    await withSandboxReadApi(db, ws, OWNER, async origin => {
+      for (const date of dates) for (const [path, q] of queries(ws, date, labels, accountId)) {
+        assert.equal(await report(path, q, origin), want.get(`${path}?${new URLSearchParams(q)}`), `empty overlay: ${path} ${JSON.stringify(q)}`);
+      }
+    });
     return read;
   }
 

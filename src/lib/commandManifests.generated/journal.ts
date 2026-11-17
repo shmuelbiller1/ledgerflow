@@ -35,7 +35,7 @@ export const JOURNAL_COMMAND_MANIFEST = [
           "when": "An entry changed since it was read, or is in a closed period.",
           "next": "Reload and try again."
         },
-        COMMAND_SCHEMA_PARTS.part164
+        COMMAND_SCHEMA_PARTS.part165
       ]
     },
     "runPath": "/api/v1/commands/journal.batchupdate",
@@ -72,7 +72,7 @@ export const JOURNAL_COMMAND_MANIFEST = [
           "when": "The entry is missing required fields, has invalid cents, or does not balance.",
           "next": "Correct the entry and make sure its lines add to zero."
         },
-        COMMAND_SCHEMA_PARTS.part207,
+        COMMAND_SCHEMA_PARTS.part208,
         {
           "code": "PERIOD_LOCKED",
           "when": "The entry date is in a closed period.",
@@ -121,7 +121,7 @@ export const JOURNAL_COMMAND_MANIFEST = [
           "when": "An entry moved on since it was read, or one is in a closed period.",
           "next": "Reload the entry and try again in an open period."
         },
-        COMMAND_SCHEMA_PARTS.part164
+        COMMAND_SCHEMA_PARTS.part165
       ]
     },
     "runPath": "/api/v1/commands/journal.recategorize",

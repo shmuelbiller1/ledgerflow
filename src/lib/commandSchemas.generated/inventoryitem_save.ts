@@ -80,7 +80,7 @@ export const COMMAND_INPUT_SCHEMA = {
     },
     "documentDefaults": {
       "anyOf": [
-        COMMAND_SCHEMA_PARTS.part143,
+        COMMAND_SCHEMA_PARTS.part144,
         COMMAND_SCHEMA_PARTS.part18
       ]
     },

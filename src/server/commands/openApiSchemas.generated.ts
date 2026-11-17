@@ -127,6 +127,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "reconciliations.clear": "CommandInput_reconciliations_clear",
   "reconciliations.complete": "CommandInput_reconciliations_complete",
   "reconciliations.reconcile": "CommandInput_reconciliations_reconcile",
+  "record.fields": "CommandInput_record_fields",
   "reportschedule.preview": "CommandInput_reportschedule_preview",
   "reportschedule.send": "CommandInput_reportschedule_send",
   "rma.move": "CommandInput_rma_move",

@@ -19,21 +19,21 @@ export const COMMAND_INPUT_SCHEMA = {
         "settledByRecordsCents": COMMAND_SCHEMA_PARTS.part121,
         "currency": COMMAND_SCHEMA_PARTS.part47,
         "exchangeRate": COMMAND_SCHEMA_PARTS.part71,
-        "status": COMMAND_SCHEMA_PARTS.part196,
+        "status": COMMAND_SCHEMA_PARTS.part197,
         "date": COMMAND_SCHEMA_PARTS.part22,
         "dueDate": COMMAND_SCHEMA_PARTS.part22,
         "paymentToken": COMMAND_SCHEMA_PARTS.part22,
         "notes": COMMAND_SCHEMA_PARTS.part65,
         "taxRate": COMMAND_SCHEMA_PARTS.part78,
         "taxAmountCents": COMMAND_SCHEMA_PARTS.part121,
-        "lines": COMMAND_SCHEMA_PARTS.part165,
-        "items": COMMAND_SCHEMA_PARTS.part165,
+        "lines": COMMAND_SCHEMA_PARTS.part166,
+        "items": COMMAND_SCHEMA_PARTS.part166,
         "tags": COMMAND_SCHEMA_PARTS.part74,
-        "metadata": COMMAND_SCHEMA_PARTS.part143,
+        "metadata": COMMAND_SCHEMA_PARTS.part144,
         "isLocked": COMMAND_SCHEMA_PARTS.part25,
         "lockedAt": COMMAND_SCHEMA_PARTS.part22,
         "reversalEventId": COMMAND_SCHEMA_PARTS.part22,
-        "type": COMMAND_SCHEMA_PARTS.part172,
+        "type": COMMAND_SCHEMA_PARTS.part173,
         "recurringInterval": COMMAND_SCHEMA_PARTS.part114,
         "paymentTerms": COMMAND_SCHEMA_PARTS.part50,
         "progressPercentage": COMMAND_SCHEMA_PARTS.part78,
@@ -41,7 +41,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "paymentDate": COMMAND_SCHEMA_PARTS.part22,
         "paidAt": COMMAND_SCHEMA_PARTS.part22,
         "posted": COMMAND_SCHEMA_PARTS.part25,
-        "approval": COMMAND_SCHEMA_PARTS.part247,
+        "approval": COMMAND_SCHEMA_PARTS.part251,
         "discountCents": COMMAND_SCHEMA_PARTS.part121,
         "retainageCents": COMMAND_SCHEMA_PARTS.part121,
         "depositCents": COMMAND_SCHEMA_PARTS.part121,
@@ -49,10 +49,10 @@ export const COMMAND_INPUT_SCHEMA = {
         "taxCents": COMMAND_SCHEMA_PARTS.part121,
         "salesTaxCents": COMMAND_SCHEMA_PARTS.part121,
         "taxVersion": COMMAND_SCHEMA_PARTS.part40,
-        "lineSumCents": COMMAND_SCHEMA_PARTS.part140,
+        "lineSumCents": COMMAND_SCHEMA_PARTS.part141,
         "taxCodeId": COMMAND_SCHEMA_PARTS.part56,
-        "taxTreatment": COMMAND_SCHEMA_PARTS.part154,
-        "taxBreakdown": COMMAND_SCHEMA_PARTS.part234,
+        "taxTreatment": COMMAND_SCHEMA_PARTS.part155,
+        "taxBreakdown": COMMAND_SCHEMA_PARTS.part238,
         "pricesIncludeTax": COMMAND_SCHEMA_PARTS.part25
       },
       "required": [
@@ -60,7 +60,7 @@ export const COMMAND_INPUT_SCHEMA = {
       ]
     },
     "postingDay": COMMAND_SCHEMA_PARTS.part22,
-    "creditLimitOverride": COMMAND_SCHEMA_PARTS.part198
+    "creditLimitOverride": COMMAND_SCHEMA_PARTS.part199
   },
   "required": [
     "invoice"

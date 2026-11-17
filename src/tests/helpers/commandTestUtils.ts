@@ -1,10 +1,14 @@
+import express from 'express';
 import type { Request, Response } from 'express';
+import type { AddressInfo } from 'node:net';
 import { z } from 'zod';
 import type { RequestUser } from '../../server/auth/requestUser';
 import type { Firestore } from '../../server/db/firestore';
-import type { CommandDefinition, CommandRole } from '../../server/commands/types';
+import type { AnyCommandDefinition, CommandDefinition, CommandRole } from '../../server/commands/types';
 import type { CommandRunnerDependencies } from '../../server/utils/commandExecutor';
 import { FieldValue } from '../../server/db/firestore';
+import { CommandRegistry } from '../../server/commands/registry';
+import { createCommandRouter } from '../../server/routes/commandRoutes';
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -250,3 +254,65 @@ export function runnerDependencies(db: MemoryDb, counters?: TestCounters): Comma
 }
 
 export const invocationInput = (value = 'first') => ({ workspaceId, value });
+
+export interface CommandHarness {
+  db: MemoryDb;
+  counters: TestCounters;
+  registry: CommandRegistry;
+  dependencies: CommandRunnerDependencies;
+  /** run a registered command as `uid`; `workspace` is the one named in the body (the seeded one by default) */
+  run(uid: string, name: string, input: Record<string, unknown>, workspace?: string): Promise<globalThis.Response>;
+  /** ask for a preview: it writes nothing, and the workspace is always the seeded one */
+  preview(uid: string, name: string, input: Record<string, unknown>): Promise<globalThis.Response>;
+  close(): Promise<void>;
+}
+
+/**
+ * The command router over HTTP for a test: a memory database seeded by the caller, the runner's
+ * dependencies and counters, the commands registered, and `run`/`preview` that ask the same router a
+ * route asks. The tests that watch a batch of commands share this rather than rebuild the server.
+ */
+export async function commandHarness(options: {
+  commands: AnyCommandDefinition[];
+  /** the workspace the seeded data belongs to; `run` names it unless told otherwise */
+  workspaceId: string;
+  seed(db: MemoryDb): void;
+}): Promise<CommandHarness> {
+  const db = new MemoryDb();
+  options.seed(db);
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const registry = new CommandRegistry();
+  for (const command of options.commands) registry.register(command);
+
+  const app = express();
+  // the API does not announce what it is built with (helmet does this in server.ts); the harness
+  // answers as the server does
+  app.disable('x-powered-by');
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    const uid = req.header('x-test-uid');
+    if (uid) (req as unknown as { user: RequestUser }).user = { uid, email: `${uid}@example.test`, displayName: 'Test Person', aal: 'aal2' };
+    next();
+  });
+  app.use('/api/v1/commands', createCommandRouter(registry, dependencies));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise<void>(resolve => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+  const run = (uid: string, name: string, input: Record<string, unknown>, workspace = options.workspaceId) => fetch(`${base}/api/v1/commands/${name}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-test-uid': uid },
+    body: JSON.stringify({ workspaceId: workspace, input }),
+  });
+  const preview = (uid: string, name: string, input: Record<string, unknown>) => fetch(`${base}/api/v1/commands/${name}/preview`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-test-uid': uid },
+    body: JSON.stringify({ workspaceId: options.workspaceId, input }),
+  });
+
+  return {
+    db, counters, registry, dependencies, run, preview,
+    async close() { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); },
+  };
+}

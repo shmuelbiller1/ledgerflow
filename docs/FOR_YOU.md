@@ -32,6 +32,17 @@ The measured count of server write routes not yet on a command fell from 78 to 6
 company's local path and two are adapters that write the in-browser guest store, which is deliberately
 not a workspace.
 
+
+## Database changes (migrations): status
+
+**17 Nov: the last confirmed live list was 60 of 60, before SBX-1 PR #787.** Older notes below that ask you
+to run one of those migrations in the SQL editor are done; ignore them. You don't need to run SQL yourself.
+
+The repository now has 61 migrations. The new file, `20261117210000_assistant_sandbox_overlay.sql`, merged in
+[#787](https://github.com/shmuelbiller1/ledgerflow/pull/787). The owner believes migrations are up to date;
+this pass did not independently verify the live list. See the [SBX-1 readiness note](#17-nov--sbx-1-overlay-migration)
+before enabling sandbox callers. The next report/balance PR adds **no migration** and requires no SQL action.
+
 ## Payroll, mass entry edits, tags and tax returns now run through registered commands (nothing for you to do)
 
 Four more areas now go through the same registered commands as the period, account, inventory,
@@ -850,3 +861,14 @@ integration that only posts entries cannot lock a year or restate the books. Tha
 has only `write:transactions` and uses these. **Default:** unchanged (`write:transactions`); the draft-trap half of
 the same finding is fixed separately. Say "tighten the period scopes" and I will make the change (patch 10's
 `apiAuthenticate.ts` hunk plus the test in `commands.test.ts`).
+
+## 17 Nov — SBX-1 overlay migration
+
+`supabase/migrations/20261117210000_assistant_sandbox_overlay.sql` merged in #787. If it is not already
+recorded in the live migration history, the release lead should apply it there **only after its code is
+deployed**. It creates the private overlay, merged read views, and restricted database role. Before
+exposing any sandbox tools, verify that the application's database login can `SET ROLE lf_sandbox`:
+the migration grants this to the migration login, which may differ. Never grant it to browser or
+service-key roles, and keep `sandbox` and `sandbox_read` out of Supabase's exposed schemas. The test
+database passed with this migration; live state was not independently checked in the report read pass.
+No assistant routes are enabled by the migration or by the report read pass.

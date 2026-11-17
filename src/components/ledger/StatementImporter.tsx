@@ -1,4 +1,5 @@
 import { useDialog } from '../../hooks/useDialog';
+import { ModalShell } from '../ui/ModalShell';
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { parseCsvChecked } from '../../lib/csv';
 import { assertReadableText, mapBankCsvRows } from '../../lib/bankCsvRows';
@@ -422,21 +423,8 @@ export default function StatementImporter({
   if (!isOpen) return null;
 
   return (
-    <div {...overlayDialogProps} className="fixed inset-0 z-[500] flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-zinc-900/60 backdrop-blur-md"
-      />
-      
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-4xl bg-[var(--surface)] rounded-2xl shadow-2xl border border-[var(--line)] overflow-hidden flex flex-col max-h-[90dvh]"
-      >
+    <ModalShell dialogProps={overlayDialogProps} onClose={onClose} layer="z-[500]"
+      panelClassName="w-full max-w-4xl bg-[var(--surface)] rounded-2xl shadow-2xl border border-[var(--line)] overflow-hidden flex flex-col max-h-[90dvh]">
         {/* Header */}
         <div className="p-4 md:p-8 border-b border-[var(--line)] flex items-center justify-between bg-[var(--surface)]">
           <div className="flex items-center gap-4">
@@ -732,7 +720,6 @@ export default function StatementImporter({
             )}
           </div>
         </div>
-      </motion.div>
-    </div>
+    </ModalShell>
   );
 }

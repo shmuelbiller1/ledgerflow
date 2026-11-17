@@ -1,5 +1,6 @@
 import type { TestResponseBody } from './helpers/mockTypes';
 import { MockTransactionalDb } from './helpers/mockTransactionalDb';
+import { recordingResponse } from './helpers/recordingResponse';
 import type { TransactionLine } from '../types';
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
@@ -351,8 +352,7 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
       })
     } as unknown as Firestore;
 
-    let statusCode = 200;
-    let jsonBody: TestResponseBody | null = null;
+    const answer = recordingResponse();
     const req = {
       user: { uid: 'user-viewer' },
       body: {
@@ -363,25 +363,15 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
         allocations: []
       }
     } as unknown as express.Request;
-    const res: express.Response = {
-      status: (code: number) => {
-        statusCode = code;
-        return res;
-      },
-      json: (data: TestResponseBody) => {
-        jsonBody = data;
-        return res;
-      }
-    } as unknown as express.Response;
+    const res = answer.res;
 
     await handleCreatePayment(req, res, db);
-    assert.equal(statusCode, 403);
-    assert.ok((jsonBody as unknown as TestResponseBody)?.message?.includes('Forbidden'));
+    assert.equal(answer.statusCode, 403);
+    assert.ok((answer.body as unknown as TestResponseBody)?.message?.includes('Forbidden'));
   });
 
   test('Unauthenticated request (no user) receives 401', async () => {
-    let statusCode = 200;
-    let jsonBody: TestResponseBody | null = null;
+    const answer = recordingResponse();
     const req = {
       body: {
         workspaceId: 'ws-test',
@@ -389,20 +379,11 @@ describe('Payment Creation & Ledger Posting Atomicity Test Suite (Task 4)', () =
         cashAccountId: 'acc-cash'
       }
     } as unknown as express.Request;
-    const res: express.Response = {
-      status: (code: number) => {
-        statusCode = code;
-        return res;
-      },
-      json: (data: TestResponseBody) => {
-        jsonBody = data;
-        return res;
-      }
-    } as unknown as express.Response;
+    const res = answer.res;
 
     await handleCreatePayment(req, res);
-    assert.equal(statusCode, 401);
-    assert.equal((jsonBody as unknown as TestResponseBody)?.message, 'Sign in required');
+    assert.equal(answer.statusCode, 401);
+    assert.equal((answer.body as unknown as TestResponseBody)?.message, 'Sign in required');
   });
 });
 

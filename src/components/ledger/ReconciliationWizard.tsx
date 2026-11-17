@@ -1,4 +1,5 @@
 import { useDialog } from '../../hooks/useDialog';
+import { ModalShell } from '../ui/ModalShell';
 import { isTransactionInDateRange, isPostable, lineAmount } from '../../lib/txFilters';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
@@ -174,21 +175,8 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
   if (!isOpen) return null;
 
   return (
-    <div {...overlayDialogProps} className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-zinc-900/60 backdrop-blur-md"
-      />
-      
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-5xl bg-[var(--ink)] rounded-[40px] shadow-2xl border border-[var(--line)] overflow-hidden flex flex-col max-h-[90dvh]"
-      >
+    <ModalShell dialogProps={overlayDialogProps} onClose={onClose} layer="z-[300]"
+      panelClassName="w-full max-w-5xl bg-[var(--ink)] rounded-[40px] shadow-2xl border border-[var(--line)] overflow-hidden flex flex-col max-h-[90dvh]">
         {/* Header */}
         <div className="p-4 md:p-10 border-b border-[var(--line)] flex items-center justify-between bg-[var(--ink)]/30">
           <div className="flex items-center gap-6">
@@ -403,7 +391,6 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
             </div>
           )}
         </div>
-      </motion.div>
-    </div>
+    </ModalShell>
   );
 }

@@ -107,14 +107,20 @@ test('tag duplicate lookup refuses changed workspace/permissions and read failur
 test('inline tag editing refuses a real request-boundary duplicate and retains a working retry', async () => {
   setup();
   let duplicate = true;
-  const writes: Array<{ p_set: Record<string, unknown> }> = [];
+  // the tag is a field of the asset, so it is `record.fields` now: one call, with the tag the row showed
+  const writes: Array<{ input: { collection: string; id: string; fields: Record<string, unknown>; expected: Record<string, unknown> } }> = [];
   globalThis.fetch = (async (input, init) => {
-    const url = new URL(String(input));
+    // the command goes out as a Request in some paths, so the URL is read from whichever shape arrived
+    // a command's path is relative, so it is resolved against the page the way the browser would
+    const url = new URL(input instanceof Request ? input.url : String(input), 'http://localhost');
     if (url.pathname.endsWith('/assets') && url.searchParams.has('id')) return response({ id: asset.id, data: asset });
     if (url.pathname.endsWith('/assets')) return response([
       { id: asset.id, data: asset }, ...(duplicate ? [{ id: 'other', data: { workspaceId: asset.workspaceId, assetTag: 'at-0002', status: 'disposed' } }] : []),
     ]);
-    if (url.pathname.endsWith('/lf_update')) writes.push(JSON.parse(String(init?.body)));
+    if (url.pathname.endsWith('/commands/record.fields')) {
+      writes.push(JSON.parse(String(init?.body)));
+      return response({ ok: true, data: { collection: 'assets', id: asset.id, fields: ['assetTag'], updatedAt: '2026-01-02T00:00:00Z' } });
+    }
     return response([]);
   }) as typeof fetch;
   render(<AssetInlineDetails asset={asset} />);
@@ -127,8 +133,11 @@ test('inline tag editing refuses a real request-boundary duplicate and retains a
   duplicate = false;
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Retry Tag of ציוד' })); });
   await waitFor(() => assert.equal(writes.length, 1));
-  assert.equal(writes[0].p_set.assetTag, 'AT-0002');
-  assert.deepEqual(Object.keys(writes[0].p_set).sort(), ['assetTag', 'updatedAt']);
+  assert.deepEqual([writes[0].input.collection, writes[0].input.id], ['assets', asset.id]);
+  assert.equal(writes[0].input.fields.assetTag, 'AT-0002');
+  assert.deepEqual(Object.keys(writes[0].input.fields), ['assetTag'], 'the command stamps the timestamp, the tab does not');
+  // this asset had no tag yet, so its expectation is "still untagged": a tag saved elsewhere meanwhile is a refusal
+  assert.equal(writes[0].input.expected.assetTag, '', 'the row showed no tag, and the command compares that too');
   assert.equal(useLedgerStore.getState().assets[0].purchasePriceCents, 1200000);
 });
 

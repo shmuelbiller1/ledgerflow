@@ -15,7 +15,7 @@ type LoadTags = (workspaceId: string) => Promise<TaggedAsset[]>;
 export function createAssetTagAdapter(base: InlineRecordAdapter, loadTags: LoadTags): InlineRecordAdapter {
   return {
     ...base,
-    async update(target, fields) {
+    async update(target, fields, expected, workspaceId) {
       if (target.collection === 'assets' && typeof fields.assetTag === 'string' && fields.assetTag) {
         const initial = base.session();
         const session = initial ? { ...initial } : null;
@@ -29,7 +29,7 @@ export function createAssetTagAdapter(base: InlineRecordAdapter, loadTags: LoadT
         if (problem) throw new Error(problem);
       }
       try {
-        await base.update(target, fields);
+        await base.update(target, fields, expected, workspaceId);
       } catch (err) {
         // the database's unique tag per workspace (migration 20261014010000) caught a tag saved at the same moment elsewhere
         if (/assets_workspace_tag_uq|duplicate key|23505/i.test(err instanceof Error ? err.message : String(err))) {

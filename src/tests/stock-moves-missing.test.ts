@@ -11,7 +11,7 @@ import type { Firestore, Transaction } from '../server/db/firestore';
 test('without the stockMoves table nothing is written to it, and one warning names the migration', async () => {
   let asked = 0;
   const db = {
-    pool: { query: async () => { asked += 1; return { rows: [{ ok: false }] }; } },
+    tablesExist: async (table: string) => { assert.equal(table, 'stockMoves'); asked += 1; return false; },
     collection: () => { throw new Error('the missing table was written to'); },
   } as unknown as Firestore;
   const t = { set: () => { throw new Error('the missing table was written to'); } } as unknown as Transaction;

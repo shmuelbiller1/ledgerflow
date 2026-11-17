@@ -128,6 +128,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "reconciliations.clear",
   "reconciliations.complete",
   "reconciliations.reconcile",
+  "record.fields",
   "reportschedule.preview",
   "reportschedule.send",
   "rma.move",

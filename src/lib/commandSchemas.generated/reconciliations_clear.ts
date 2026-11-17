@@ -5,7 +5,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part96,
-    "transactionIds": COMMAND_SCHEMA_PARTS.part148,
+    "transactionIds": COMMAND_SCHEMA_PARTS.part149,
     "clearanceDate": COMMAND_SCHEMA_PARTS.part111,
     "cleared": COMMAND_SCHEMA_PARTS.part25
   },

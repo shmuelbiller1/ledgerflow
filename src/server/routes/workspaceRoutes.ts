@@ -76,6 +76,7 @@ function sendError(res: express.Response, message: string, status: number = 500,
  */
 export { getWorkspaceUserRole } from '../auth/workspaceRole';
 import { getWorkspaceUserRole as workspaceRoleOf } from '../auth/workspaceRole';
+import { commandFailureResponse } from '../utils/commandResponses';
 
 export function requireWorkspaceRole(allowedRoles: string[]) {
   return async (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -121,8 +122,7 @@ workspaceRouter.post('/:workspaceId/apply-template', requireWorkspaceRole(['owne
       if (outcome.ok) return { status: outcome.status, body: { status: 'success', ...(outcome.data as Record<string, unknown>) } };
       if (outcome.error instanceof z.ZodError) return { status: 400, body: { status: 'error', message: 'Invalid template request', details: outcome.error.issues } };
       if (outcome.error instanceof TemplateError) return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
-      if (outcome.status >= 500) return { status: outcome.status, body: { status: 'error', message: 'Could not apply the template', details: outcome.message } };
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Could not apply the template');
     },
   });
 });
@@ -140,18 +140,7 @@ workspaceRouter.post('/:workspaceId/import-maps', requireWorkspaceRole(['owner',
       if (outcome.error instanceof z.ZodError) {
         return { status: 400, body: { status: 'error', message: 'Invalid column layout', details: outcome.error.issues } };
       }
-      if (outcome.status >= 500) {
-        const error = outcome.error;
-        return {
-          status: 500,
-          body: {
-            status: 'error',
-            message: 'Could not save the column layout',
-            details: error instanceof Error ? errorMessage(error) : String(error || outcome.message),
-          },
-        };
-      }
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Could not save the column layout');
     },
   });
 });
@@ -216,18 +205,7 @@ workspaceRouter.put('/:workspaceId/alerts', requireWorkspaceRole(['owner', 'acco
       if (outcome.error instanceof AlertSettingsError) {
         return { status: outcome.error.status, body: { status: 'error', message: outcome.error.message } };
       }
-      if (outcome.status >= 500) {
-        const error = outcome.error;
-        return {
-          status: outcome.status,
-          body: {
-            status: 'error',
-            message: 'The alerts could not be saved',
-            details: error instanceof Error ? error.message : String(error || outcome.message),
-          },
-        };
-      }
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'The alerts could not be saved');
     },
   });
 });
@@ -283,14 +261,7 @@ workspaceRouter.put('/:workspaceId/modules', requireWorkspaceRole(LEDGER_ADMIN_R
       if (outcome.error instanceof ModuleSettingError) {
         return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
       }
-      if (outcome.status >= 500) {
-        const error = outcome.error;
-        return {
-          status: outcome.status,
-          body: { status: 'error', message: 'Could not save the modules', details: error instanceof Error ? errorMessage(error) : outcome.message },
-        };
-      }
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Could not save the modules');
     },
   });
 });
@@ -307,8 +278,7 @@ workspaceRouter.post('/:workspaceId/import-records', requireWorkspaceRole(['owne
         const error = outcome.error;
         return { status: error.status, body: { status: 'error', message: errorMessage(error), ...(error.issues.length ? { details: error.issues } : {}) } };
       }
-      if (outcome.status >= 500) return { status: outcome.status, body: { status: 'error', message: 'Could not import the records', details: outcome.message } };
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Could not import the records');
     },
   });
 });
@@ -322,8 +292,7 @@ workspaceRouter.post('/:workspaceId/import-records/:batchId/undo', requireWorksp
       if (outcome.ok) return { status: outcome.status, body: { status: 'success', ...(outcome.data as Record<string, unknown>) } };
       if (outcome.error instanceof ImportError) return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
       if (outcome.error instanceof z.ZodError) return { status: 400, body: { status: 'error', message: 'Unknown import', details: outcome.error.issues } };
-      if (outcome.status >= 500) return { status: outcome.status, body: { status: 'error', message: 'Could not undo the import', details: outcome.message } };
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Could not undo the import');
     },
   });
 });
@@ -349,18 +318,7 @@ workspaceRouter.post('/:workspaceId/next-number', requireWorkspaceRole(['owner',
       }
       if (outcome.status === 403) return { status: 403, body: { status: 'error', message: 'Forbidden' } };
       if (outcome.status === 404) return { status: 404, body: { status: 'error', message: 'Workspace not found' } };
-      if (outcome.status >= 500) {
-        const error = outcome.error;
-        return {
-          status: outcome.status,
-          body: {
-            status: 'error',
-            message: 'Failed to allocate next document number',
-            details: error instanceof Error ? errorMessage(error) : outcome.message,
-          },
-        };
-      }
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Failed to allocate next document number');
     },
   });
 });
@@ -419,8 +377,7 @@ const roleUpdateInvocation = (req: express.Request) => {
         return { status: 400, body: { status: 'error', message: 'Cannot demote the person who created the workspace, or its last owner.' } };
       }
       if (outcome.status === 404) return { status: 404, body: { status: 'error', message: 'Workspace not found' } };
-      if (outcome.status >= 500) return { status: outcome.status, body: { status: 'error', message: 'Failed to update workspace role', details: outcome.message } };
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Failed to update workspace role');
     },
   };
 };
@@ -458,8 +415,7 @@ workspaceRouter.post('/:workspaceId/invites', requireWorkspaceRole(['owner']), a
       if (outcome.error instanceof z.ZodError) return { status: 400, body: { status: 'error', message: 'Invalid invite payload', details: outcome.error.issues } };
       if (outcome.status === 402) return { status: 402, body: { status: 'error', message: outcome.message } };
       if (outcome.status === 404) return { status: 404, body: { status: 'error', message: 'Workspace not found' } };
-      if (outcome.status >= 500) return { status: outcome.status, body: { status: 'error', message: 'Failed to create workspace invite', details: outcome.message } };
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Failed to create workspace invite');
     },
   });
 });
@@ -479,14 +435,7 @@ workspaceRouter.delete('/:workspaceId/invites/:inviteId', requireWorkspaceRole([
       if (outcome.error instanceof z.ZodError) {
         return { status: 400, body: { status: 'error', message: 'Invalid invite ID', details: outcome.error.issues } };
       }
-      if (outcome.status >= 500) {
-        const error = outcome.error;
-        return {
-          status: outcome.status,
-          body: { status: 'error', message: 'Failed to revoke invite', details: error instanceof Error ? errorMessage(error) : outcome.message },
-        };
-      }
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Failed to revoke invite');
     },
   });
 });
@@ -514,14 +463,7 @@ workspaceRouter.post('/:workspaceId/opening-balances', requireWorkspaceRole(['ow
       if (outcome.error instanceof SetupError) {
         return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
       }
-      if (outcome.status >= 500) {
-        const error = outcome.error;
-        return {
-          status: outcome.status,
-          body: { status: 'error', message: 'Failed to record the opening balances', details: error instanceof Error ? errorMessage(error) : outcome.message },
-        };
-      }
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Failed to record the opening balances');
     },
   });
 });
@@ -536,14 +478,7 @@ workspaceRouter.post('/:workspaceId/setup-complete', requireWorkspaceRole(['owne
       if (outcome.error instanceof SetupError) {
         return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
       }
-      if (outcome.status >= 500) {
-        const error = outcome.error;
-        return {
-          status: outcome.status,
-          body: { status: 'error', message: 'Failed to finish the setup', details: error instanceof Error ? errorMessage(error) : outcome.message },
-        };
-      }
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Failed to finish the setup');
     },
   });
 });
@@ -567,14 +502,7 @@ workspaceRouter.put('/:workspaceId/retention', requireWorkspaceRole(['owner']), 
       if (outcome.error instanceof RetentionError) {
         return { status: outcome.error.status, body: { status: 'error', message: errorMessage(outcome.error) } };
       }
-      if (outcome.status >= 500) {
-        const error = outcome.error;
-        return {
-          status: outcome.status,
-          body: { status: 'error', message: 'Failed to save retention settings', details: error instanceof Error ? errorMessage(error) : outcome.message },
-        };
-      }
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Failed to save retention settings');
     },
   });
 });
@@ -602,8 +530,7 @@ workspaceRouter.delete('/:workspaceId', requireWorkspaceRole(['owner']), async (
       }
       if (outcome.error instanceof z.ZodError) return { status: 400, body: { status: 'error', message: 'Invalid workspace deletion request', details: outcome.error.issues } };
       if (outcome.status === 404) return { status: 404, body: { status: 'error', message: 'Workspace not found' } };
-      if (outcome.status >= 500) return { status: outcome.status, body: { status: 'error', message: 'Failed to delete workspace', details: outcome.message } };
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Failed to delete workspace');
     },
   });
 });
@@ -627,14 +554,7 @@ workspaceRouter.post('/:workspaceId/cancel-deletion', requireWorkspaceRole(['own
       if (outcome.error instanceof z.ZodError) {
         return { status: 400, body: { status: 'error', message: 'Invalid workspace restoration request', details: outcome.error.issues } };
       }
-      if (outcome.status >= 500) {
-        const error = outcome.error;
-        return {
-          status: outcome.status,
-          body: { status: 'error', message: 'Failed to restore workspace', details: error instanceof Error ? errorMessage(error) : outcome.message },
-        };
-      }
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, 'Failed to restore workspace');
     },
   });
 });

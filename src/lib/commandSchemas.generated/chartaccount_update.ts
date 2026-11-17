@@ -14,7 +14,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "workpapers": {
       "type": "object",
       "propertyNames": COMMAND_SCHEMA_PARTS.part86,
-      "additionalProperties": COMMAND_SCHEMA_PARTS.part143
+      "additionalProperties": COMMAND_SCHEMA_PARTS.part144
     }
   },
   "required": COMMAND_SCHEMA_PARTS.part2,

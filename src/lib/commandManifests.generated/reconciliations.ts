@@ -27,7 +27,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
           "when": "The caller is not a member of the workspace.",
           "next": "Ask a member of the workspace."
         },
-        COMMAND_SCHEMA_PARTS.part182,
+        COMMAND_SCHEMA_PARTS.part183,
         {
           "code": "INVALID_INPUT",
           "when": "A field is not one a bank line allows, or a value has the wrong shape.",
@@ -56,8 +56,8 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
         ]
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part182,
-        COMMAND_SCHEMA_PARTS.part199,
+        COMMAND_SCHEMA_PARTS.part183,
+        COMMAND_SCHEMA_PARTS.part200,
         {
           "code": "INVALID_INPUT",
           "when": "The documents are not all for the same customer or vendor, or they add up to more than the line.",
@@ -90,8 +90,8 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
         ]
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part182,
-        COMMAND_SCHEMA_PARTS.part199,
+        COMMAND_SCHEMA_PARTS.part183,
+        COMMAND_SCHEMA_PARTS.part200,
         {
           "code": "INVALID_INPUT",
           "when": "The splits do not add up to the line, or one names the bank account itself.",
@@ -114,8 +114,8 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
         "limit": 200
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part175,
-        COMMAND_SCHEMA_PARTS.part152
+        COMMAND_SCHEMA_PARTS.part176,
+        COMMAND_SCHEMA_PARTS.part153
       ]
     },
     "runPath": "/api/v1/commands/reconciliations.bankrules",
@@ -230,7 +230,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
           "when": "An operation has no id, an unknown type, or the batch is empty or over 250.",
           "next": "Send between 1 and 250 operations, each with an id and a known type."
         },
-        COMMAND_SCHEMA_PARTS.part152,
+        COMMAND_SCHEMA_PARTS.part153,
         {
           "code": "FORBIDDEN",
           "when": "The caller is not an owner, accountant or bookkeeper of the workspace.",
