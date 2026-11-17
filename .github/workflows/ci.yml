@@ -266,6 +266,11 @@ jobs:
     needs: [changes, unit, docs_checks]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # GitHub OIDC allows SonarCloud to issue a short-lived, project-scoped token.
+    # Grant just the permissions this CI job needs, never expose a long-lived secret.
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Require every part to pass (docs-only PRs, the docs checks)
         env:
@@ -296,26 +301,27 @@ jobs:
           test "$(ls coverage/shard-*.lcov | wc -l)" -eq 4
           npm run coverage:gate
 
-      # The four LCOV files are already produced by the unit shards and collected above.
-      # Reuse them for SonarCloud; never run the expensive test suite a second time.
-      # Fork pull requests cannot access repository secrets and are not scanned here.
-      - name: Check whether SonarCloud is configured
-        id: sonar_token
+      # Reuse the existing four LCOV files; no second test execution.
+      # The organization admin must enable GitHub Actions secretless analysis
+      # in SonarCloud, and automatic analysis must be disabled.
+      # GitHub disallows OIDC on untrusted fork pull requests.
+      - name: Authenticate to SonarCloud (GitHub OIDC, no stored token)
+        id: sonar_auth
         if: ${{ needs.changes.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          if [ -n "$SONAR_TOKEN" ]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::SONAR_TOKEN is not set. The coverage gate still ran, but uploading coverage to SonarCloud requires the repository secret and CI-based analysis in SonarCloud."
-          fi
+        uses: SonarSource/sonarqube-auth-action@v1
+        with:
+          # Keep the token available only to the scan step.
+          export-env: false
 
       - name: Send existing LCOV coverage to SonarCloud
-        if: ${{ steps.sonar_token.outputs.available == 'true' }}
-        uses: SonarSource/sonarqube-scan-action@v7
+        if: ${{ steps.sonar_auth.outcome == 'success' }}
+        uses: SonarSource/sonarqube-scan-action@v8
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_TOKEN: ${{ steps.sonar_auth.outputs.sonar-token }}
+        with:
+          args: >
+            -Dsonar.organization=${{ steps.sonar_auth.outputs.organization }}
+            -Dsonar.projectKey=${{ steps.sonar_auth.outputs.project-key }}
 
   # Build the exact deployable artifacts rather than relying on a separate hosting status.
   build:
