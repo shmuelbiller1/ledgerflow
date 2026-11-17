@@ -119,6 +119,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "reconciliations.clear",
   "reconciliations.complete",
   "reconciliations.reconcile",
+  "record.fields",
   "rma.move",
   "rma.request",
   "savedlist.allocationrules",

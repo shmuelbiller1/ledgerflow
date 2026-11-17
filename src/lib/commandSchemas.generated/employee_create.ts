@@ -6,7 +6,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "id": COMMAND_SCHEMA_PARTS.part87,
     "name": COMMAND_SCHEMA_PARTS.part88,
-    "email": COMMAND_SCHEMA_PARTS.part200,
+    "email": COMMAND_SCHEMA_PARTS.part202,
     "role": COMMAND_SCHEMA_PARTS.part50,
     "salaryCents": COMMAND_SCHEMA_PARTS.part114,
     "payFrequency": COMMAND_SCHEMA_PARTS.part129,

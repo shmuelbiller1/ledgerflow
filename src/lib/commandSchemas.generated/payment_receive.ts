@@ -19,7 +19,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "allocations": {
       "default": COMMAND_SCHEMA_PARTS.part0,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part219
+      "items": COMMAND_SCHEMA_PARTS.part223
     },
     "sendRemittance": COMMAND_SCHEMA_PARTS.part22,
     "paymentExchangeRate": COMMAND_SCHEMA_PARTS.part112,

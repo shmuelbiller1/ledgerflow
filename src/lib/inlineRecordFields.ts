@@ -16,7 +16,16 @@ export interface InlineRecordSession { sampleSession?: object; uid: string; work
 export interface InlineRecordAdapter {
   session(): InlineRecordSession | null;
   read(target: InlineRecordTarget): Promise<Record<string, unknown> | undefined>;
-  update(target: InlineRecordTarget, fields: Record<string, string | number | string[]>): Promise<void>;
+  /**
+   * `expected` is what the screen read for the fields it is writing, and `workspaceId` the workspace it read them in:
+   * both travel with the write so the compare and the write are one transaction on the server.
+   */
+  update(
+    target: InlineRecordTarget,
+    fields: Record<string, string | number | string[]>,
+    expected: Record<string, string | number | string[]>,
+    workspaceId: string,
+  ): Promise<void>;
 }
 export function inlineFieldValue(record: Record<string, unknown>, field: string): unknown {
   let value: unknown = record;
@@ -58,6 +67,12 @@ export async function saveInlineRecordField(adapter: InlineRecordAdapter, target
     const old = String(actual ?? '').trim();
     fields.aliases = old && !aliases.some(alias => alias.toLocaleLowerCase() === old.toLocaleLowerCase()) ? [...aliases, old] : aliases;
   }
-  await adapter.update(target, fields);
+  // what the screen read for each field it is writing, so the server can refuse a change it did not see
+  const expected: Record<string, string | number | string[]> = {};
+  for (const key of Object.keys(fields)) {
+    const value = inlineFieldValue(record, key);
+    expected[key] = Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : (value as string | number | undefined) ?? '';
+  }
+  await adapter.update(target, fields, expected, session.workspaceId);
   return fields;
 }
