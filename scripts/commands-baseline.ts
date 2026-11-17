@@ -64,17 +64,46 @@ function containsCommandRunnerCall(node: ts.Node): boolean {
   return found;
 }
 
+/**
+ * POST routes that write nothing, and are therefore not command work.
+ *
+ * A command exists so that a write is authorized, idempotent and audited in one place. A route that
+ * only reads and answers does not need that: wrapping it would add a transaction and an audit entry
+ * for work that changes nothing. Each exception names one route and why it is read-only, and
+ * `commands-baseline.test.ts` checks that it still matches a real route, so an exception cannot
+ * outlive the code it describes.
+ */
+export interface ReadOnlyRouteException {
+  file: string;
+  /** The route's own path string, as the router declares it. */
+  route: string;
+  why: string;
+}
+
+export const READ_ONLY_ROUTE_EXCEPTIONS: readonly ReadOnlyRouteException[] = [
+  {
+    file: 'src/server/routes/transactions/reconcileRoutes.ts',
+    route: '/reconciliation/match',
+    why: 'Suggests which uncleared entry an outside bank line matches, by amount, date and text. It '
+      + 'reads the workspace and answers suggestions; nothing is marked, written or audited, so a '
+      + 'command would add a transaction around a read.',
+  },
+];
+
 function countWriteRoutes(): { total: number; sites: Record<string, number> } {
   const sites: Record<string, number> = {};
   for (const file of walk(ROUTE_ROOT)) {
     const source = fs.readFileSync(file, 'utf8');
     const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
     let count = 0;
+    const relativeFile = path.relative(ROOT, file).split(path.sep).join('/');
     const visit = (node: ts.Node) => {
       if (ts.isCallExpression(node) && WRITE_METHODS.has(callName(node) || '')) {
         const pathNames = stringValues(node.arguments[0]);
         const excluded = pathNames.some(value => /(?:^|\/)\/?(?:admin|system)(?:\/|$)/.test(value.replace(/^\/+/, '')));
-        if (!excluded && !containsCommandRunnerCall(node)) count += 1;
+        // a POST that only reads is not a write: see READ_ONLY_ROUTE_EXCEPTIONS
+        const readOnly = READ_ONLY_ROUTE_EXCEPTIONS.some(exception => exception.file === relativeFile && pathNames.includes(exception.route));
+        if (!excluded && !readOnly && !containsCommandRunnerCall(node)) count += 1;
       }
       ts.forEachChild(node, visit);
     };

@@ -8,7 +8,7 @@ export const INVOICE_COMMAND_MANIFEST = [
   {
     "name": "invoice.create",
     "area": "invoice",
-    "roles": COMMAND_SCHEMA_PARTS.part45,
+    "roles": COMMAND_SCHEMA_PARTS.part47,
     "risk": "normal",
     "description": {
       "sentence": "Create a invoice and let the server build its ledger entries from the saved document; do not use this command to record a payment or edit an existing invoice.",
@@ -33,8 +33,8 @@ export const INVOICE_COMMAND_MANIFEST = [
           ]
         }
       },
-      "next": COMMAND_SCHEMA_PARTS.part82,
-      "refusals": COMMAND_SCHEMA_PARTS.part166
+      "next": COMMAND_SCHEMA_PARTS.part85,
+      "refusals": COMMAND_SCHEMA_PARTS.part173
     },
     "runPath": "/api/v1/commands/invoice.create",
     "previewPath": "/api/v1/commands/invoice.create/preview",
@@ -43,12 +43,12 @@ export const INVOICE_COMMAND_MANIFEST = [
   {
     "name": "invoice.delete",
     "area": "invoice",
-    "roles": COMMAND_SCHEMA_PARTS.part45,
+    "roles": COMMAND_SCHEMA_PARTS.part47,
     "risk": "normal",
     "description": {
       "sentence": "Delete a invoice and let the server reverse its live ledger entries; do not use this command to void or write off a document.",
-      "example": COMMAND_SCHEMA_PARTS.part16,
-      "refusals": COMMAND_SCHEMA_PARTS.part166
+      "example": COMMAND_SCHEMA_PARTS.part18,
+      "refusals": COMMAND_SCHEMA_PARTS.part173
     },
     "runPath": "/api/v1/commands/invoice.delete",
     "previewPath": "/api/v1/commands/invoice.delete/preview",
@@ -57,13 +57,13 @@ export const INVOICE_COMMAND_MANIFEST = [
   {
     "name": "invoice.update",
     "area": "invoice",
-    "roles": COMMAND_SCHEMA_PARTS.part45,
+    "roles": COMMAND_SCHEMA_PARTS.part47,
     "risk": "normal",
     "description": {
       "sentence": "Update an existing invoice and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
-      "example": COMMAND_SCHEMA_PARTS.part60,
-      "next": COMMAND_SCHEMA_PARTS.part82,
-      "refusals": COMMAND_SCHEMA_PARTS.part166
+      "example": COMMAND_SCHEMA_PARTS.part62,
+      "next": COMMAND_SCHEMA_PARTS.part85,
+      "refusals": COMMAND_SCHEMA_PARTS.part173
     },
     "runPath": "/api/v1/commands/invoice.update",
     "previewPath": "/api/v1/commands/invoice.update/preview",

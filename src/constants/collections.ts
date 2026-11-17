@@ -49,6 +49,7 @@ export type WorkspaceScopedCollection = typeof WORKSPACE_SCOPED_COLLECTIONS[numb
  */
 export const WORKSPACE_PURGE_EXTRA = [
   'purchaseOrders',
+  'deletedProjects', // a deleted project's kept row goes with the workspace that deleted it
   'taxReturns',
   'notifications',
   'emailEvents',

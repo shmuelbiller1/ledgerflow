@@ -1,337 +1,147 @@
-import express, { Request, Response } from 'express';
-import { FieldValue, getDb, isWorkspaceMemberData } from '../../db/firestore';
-import type { DocumentData, Firestore } from '../../db/firestore';
-import { checkLedgerEntry, ledgerCreate, ledgerMark } from '../../services/ledgerDoor';
-import { revaluationEntryLock } from '../../services/stockRevaluationService';
-import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../../middleware/requireLedgerWriter';
-import { TransactionValidator } from '../../../kernel/validation/TransactionValidator';
-import { BankLineUpdateSchema } from '../../../schemas';
+import express from 'express';
+import { getDb, isWorkspaceMemberData } from '../../db/firestore';
+import type { Firestore } from '../../db/firestore';
 import type { Transaction } from '../../../types';
 import { parseDateInTimezone } from '../../../lib/calendarDate';
-import { isPostable, getAbsoluteTotal, settleHomeCurrency } from '../../../lib/txFilters';
+import { isPostable, getAbsoluteTotal } from '../../../lib/txFilters';
 import { optimizedTransactionSimilarity } from '../../../lib/algorithms';
-import { getWorkspaceUserRole } from '../workspaceRoutes';
-import { BankLineError, payFromBankLine, splitBankLine } from '../../services/bankLineService';
-import { BankRuleError, rerunBankRules } from '../../services/bankRuleService';
+import {
+  bankLinePayCommand,
+  bankLineSplitCommand,
+  bankRulesRerunCommand,
+  bankRulesRerunInput,
+  clearEntriesCommand,
+  clearEntriesCommandInput,
+  completeReconciliationCommand,
+  completeReconciliationCommandInput,
+  reconcileCommand,
+  reconcileInput,
+  updateBankLineCommand,
+  updateBankLineCommandInput,
+} from '../../commands/reconciliations';
+import type { CommandExecutionOutcome, CommandInvocation } from '../../commands/types';
 import { z } from 'zod';
-import { writeServerAuditLog } from '../../services/auditLogService';
-import { assertPostingOpen } from '../../../lib/periodLock';
 import { errorMessage, requestUser } from '../../auth/requestUser';
 import type { ExternalBankLine } from './helpers';
 
-/** POST /reconcile: an endpoint for complex reconciliations (match, unmatch, clear in one batch). */
-export async function handleReconcile(req: express.Request, res: express.Response, dbOverride?: Firestore) {
-  try {
-     const { workspaceId, operations } = req.body;
-     if (!workspaceId || !Array.isArray(operations) || operations.length === 0) {
-       return res.status(400).json({ error: 'Missing workspaceId or operations' });
-     }
-     if (operations.length > 250) {
-       return res.status(400).json({ error: 'Operations batch exceeds 250 operations limit' });
-     }
-     const authReq = req as unknown as { user?: { uid: string; email?: string; admin?: boolean } };
-     const user = authReq.user;
-     if (!user?.uid) {
-       return res.status(401).json({ error: 'Sign in required' });
-     }
-     const db = dbOverride || getDb();
-     const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-     if (!wsDoc.exists) {
-       return res.status(404).json({ error: 'Workspace not found' });
-     }
-     const wsData = wsDoc.data();
-     const userRole = await getWorkspaceUserRole(db, workspaceId, user.uid);
-     if (!['owner', 'accountant', 'bookkeeper'].includes(userRole)) {
-       return res.status(403).json({ error: 'Forbidden: requires owner, accountant, or bookkeeper role' });
-     }
-     // Pre-collect all doc IDs and account IDs
-     const bankLineIds = new Set<string>();
-     const txIds = new Set<string>();
-     const accountIds = new Set<string>();
-
-     for (const op of operations) {
-       if (!op.id || typeof op.id !== 'string') {
-         throw new Error('Invalid operation ID');
-       }
-       if (op.type === 'updateBankLine') {
-         bankLineIds.add(op.id);
-       } else if (op.type === 'updateTransaction' || op.type === 'createTransaction') {
-         txIds.add(op.id);
-         if (Array.isArray(op.data?.lines)) {
-           for (const line of op.data.lines) {
-             if (line?.accountId) accountIds.add(line.accountId);
-           }
-         }
-       } else {
-         throw new Error(`Unsupported operation type: ${op.type}`);
-       }
-     }
-     
-     await db.runTransaction(async (t) => {
-        // Re-read workspace inside transaction to close TOCTOU window on lockDate and member role
-        const wsSnapNow = await t.get(db.collection('workspaces').doc(workspaceId));
-        if (!wsSnapNow.exists) throw new Error('Workspace not found');
-        const wsNow = wsSnapNow.data();
-        if (!user.admin && (!wsNow || !isWorkspaceMemberData(wsNow, user, workspaceId) || !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsNow, user.uid)))) {
-          throw new Error('Forbidden: requires owner, accountant, or bookkeeper role');
-        }
-        // STEP 1: ALL READS UPFRONT (Guarantees zero read-after-write violations)
-        const bankLineSnaps = new Map<string, DocumentData>();
-        for (const id of bankLineIds) {
-          const snap = await t.get(db.collection('bankLines').doc(id));
-          bankLineSnaps.set(id, snap);
-        }
-
-        const txSnaps = new Map<string, DocumentData>();
-        for (const id of txIds) {
-          const snap = await t.get(db.collection('transactions').doc(id));
-          txSnaps.set(id, snap);
-        }
-
-        // Closed periods (src/lib/periodLock.ts): nothing dated in them is changed or created.
-        for (const snap of [...bankLineSnaps.values(), ...txSnaps.values()]) {
-          if (snap.exists && snap.data()?.date) assertPostingOpen(snap.data().date, wsNow, user.uid);
-        }
-        for (const op of operations) {
-          if ((op.type === 'createTransaction' || op.type === 'updateTransaction') && op.data?.date) assertPostingOpen(op.data.date, wsNow, user.uid);
-        }
-
-        // Also gather any account IDs from existing transactions that might be updated
-        for (const snap of txSnaps.values()) {
-          if (snap.exists && Array.isArray(snap.data()?.lines)) {
-            for (const l of snap.data().lines) {
-              if (l?.accountId) accountIds.add(l.accountId);
-            }
-          }
-        }
-
-        const accMap = new Map<string, DocumentData>();
-        if (accountIds.size > 0) {
-          const accRefs = Array.from(accountIds).map(id => db.collection('chartAccounts').doc(id));
-          const accSnaps = await t.getAll(...accRefs);
-          for (const snap of accSnaps) {
-            if (snap.exists) {
-              accMap.set(snap.id, snap.data() || {});
-            }
-          }
-        }
-
-        // STEP 2: IN-MEMORY VALIDATION AND WRITE PREPARATION
-        const writes: Array<() => void> = [];
-
-        for (const op of operations) {
-          if (op.type === 'updateBankLine') {
-            const lineSnap = bankLineSnaps.get(op.id);
-            if (!lineSnap || !lineSnap.exists || lineSnap.data()?.workspaceId !== workspaceId) {
-              throw new Error(`Bank line ${op.id} does not belong to authorized workspace`);
-            }
-            const lineRef = db.collection('bankLines').doc(op.id);
-            const validatedData = BankLineUpdateSchema.parse(op.data);
-            // a bank line in another currency is not matched as home-currency money: its amount needs a
-            // conversion first (AF-001 follow-up, CodeRabbit on #439)
-            const lineCurrency = String(lineSnap.data()?.currency || '').toUpperCase();
-            const homeCurrency = String(wsData?.currency || 'USD').toUpperCase();
-            if (validatedData.status === 'matched' && lineCurrency && lineCurrency !== homeCurrency) {
-              throw new Error(`Bank line ${op.id} is in ${lineCurrency}, not ${homeCurrency}; it can't be matched until it is converted`);
-            }
-            // undoing a match on a line the bank later changed or withdrew: the bank's version is what goes
-            // back to To review, since the next sync will not send that change again (CodeRabbit on #439)
-            const line = lineSnap.data() || {};
-            if (validatedData.status === 'pending' && line.bankChange === 'removed') {
-              // its entry must be released in the same request, or it would stay reconciled to nothing (CodeRabbit on #455)
-              // the last update to that entry decides its status, so that one must be the release (CodeRabbit on #455)
-              const entryOps = operations.filter((o: { type?: string; id?: string }) => o.type === 'updateTransaction' && o.id === line.matchedTransactionId) as Array<{ data?: { status?: unknown } }>;
-              if (line.matchedTransactionId && entryOps[entryOps.length - 1]?.data?.status !== 'completed') {
-                throw new Error(`Bank line ${op.id} was withdrawn by the bank: undo its entry's match in the same request`);
-              }
-              writes.push(() => t.delete(lineRef));
-              continue;
-            }
-            // the bank's new date must be in an open period too (Codex on #455)
-            if (validatedData.status === 'pending' && line.bankChange === 'modified' && line.bankCorrection?.date) assertPostingOpen(line.bankCorrection.date, wsData, user.uid);
-            const correction = validatedData.status === 'pending' && line.bankChange === 'modified' && line.bankCorrection && typeof line.bankCorrection === 'object'
-              ? { date: line.bankCorrection.date, description: line.bankCorrection.description, amountCents: line.bankCorrection.amountCents, currency: line.bankCorrection.currency, suggestion: null, bankChange: null, bankChangeAt: null, bankCorrection: null }
-              : {};
-            writes.push(() => t.update(lineRef, { ...validatedData, ...correction, updatedAt: FieldValue.serverTimestamp() }));
-          } else if (op.type === 'updateTransaction') {
-            const txSnap = txSnaps.get(op.id);
-            if (!txSnap || !txSnap.exists || txSnap.data()?.workspaceId !== workspaceId) {
-              throw new Error(`Transaction ${op.id} does not belong to authorized workspace`);
-            }
-            const existingTxData = txSnap.data() as Transaction;
-            const revalLock = revaluationEntryLock(existingTxData);
-            if (revalLock) throw new Error(revalLock);
-            if ((existingTxData.status === 'certified' || existingTxData.status === 'void') && !user.admin) {
-              throw new Error(`Forbidden: Transaction ${op.id} status is locked.`);
-            }
-            const existingMeta = (existingTxData.metadata || {}) as Record<string, unknown>;
-            if (op.data?.lines !== undefined && (existingMeta.invoiceId || existingMeta.billId || existingMeta.paymentId || existingMeta.creditNoteId || existingMeta.vendorCreditId)) {
-              throw new Error(`Transaction ${op.id} belongs to a source document; lines cannot be rewritten during reconciliation.`);
-            }
-            
-            const safeData = { ...op.data };
-            delete safeData.workspaceId;
-            delete safeData.uid;
-
-            const merged = { ...existingTxData, ...safeData } as Transaction;
-            settleHomeCurrency(merged);
-            
-            const validatedTx = await TransactionValidator.validateAndPrepare(merged, {
-                workspaceId: workspaceId,
-                user: { uid: user.uid, admin: user.admin },
-                wsData: wsNow,
-                accountsMap: accMap
-            }, existingTxData, t);
-
-            checkLedgerEntry(validatedTx as unknown as Record<string, unknown>);
-            const txRef = db.collection('transactions').doc(op.id);
-            writes.push(() => t.update(txRef, { ...validatedTx, updatedAt: FieldValue.serverTimestamp() }));
-          } else if (op.type === 'createTransaction') {
-            const txSnap = txSnaps.get(op.id);
-            if (txSnap && txSnap.exists) {
-              throw new Error(`Transaction ${op.id} already exists`);
-            }
-            
-            const payload = {
-              ...op.data,
-              id: op.id,
-              workspaceId,
-              uid: user.uid,
-              createdAt: op.data?.createdAt || new Date().toISOString()
-            } as Transaction;
-            settleHomeCurrency(payload);
-            const validatedTx = await TransactionValidator.validateAndPrepare(payload, {
-              workspaceId,
-              user: { uid: user.uid, admin: user.admin },
-              wsData: wsNow,
-              accountsMap: accMap
-            }, undefined, t);
-
-            const txRef = db.collection('transactions').doc(op.id);
-            writes.push(() => ledgerCreate(t, txRef, { ...validatedTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }));
-          }
-        }
-
-        // STEP 3: EXECUTE ALL WRITES + AUDIT LOG
-        for (const writeOp of writes) {
-          writeOp();
-        }
-
-        await writeServerAuditLog({
-          workspaceId,
-          uid: user.uid,
-          email: user.email || '',
-          action: 'reconcile',
-          entityType: 'reconciliation',
-          entityId: operations[0]?.id || 'batch',
-          details: {
-            description: `User ${user.email || user.uid} executed reconciliation batch (${operations.length} operations)`
-          },
-          severity: 'info'
-        }, { db, tx: t });
-     });
-     res.json({ status: 'ok' });
-  } catch(e: unknown) {
-    const errMessage = e instanceof Error ? e.message : String(e);
-    if (errMessage === 'Not a member' || errMessage.includes('Forbidden')) {
-       return res.status(403).json({ error: errMessage });
-    }
-    res.status(400).json({ error: errMessage });
-  }
+/** The `{ status: 'ok' }` answer and the `{ error }` refusal the reconciliation screen already reads. */
+function legacyAnswer(outcome: CommandExecutionOutcome): { status: number; body: unknown } {
+  return outcome.ok
+    ? { status: 200, body: { status: 'ok', ...(outcome.data as Record<string, unknown>) } }
+    : { status: outcome.status, body: { error: outcome.message } };
 }
 
-const bankLinePaySchema = z.object({
-  workspaceId: z.string().min(1),
-  bankAccountId: z.string().min(1).optional(),
-  allocations: z.array(z.object({ documentId: z.string().min(1), amountCents: z.number().int().positive() })).min(1).max(100),
-});
-const bankLineSplitSchema = z.object({
-  workspaceId: z.string().min(1),
-  bankAccountId: z.string().min(1).optional(),
-  splits: z.array(z.object({ accountId: z.string().min(1), amountCents: z.number().int().positive(), description: z.string().max(500).optional() })).min(1).max(50),
-});
-async function clearBankLine(req: Request, res: Response, action: 'pay' | 'split') {
-  try {
-    const user = (req as Request & { user: { uid: string } }).user;
-    const { id } = req.params as Record<string, string>;
-    const result = action === 'pay'
-      ? await payFromBankLine(getDb(), { ...bankLinePaySchema.parse(req.body), uid: user.uid, bankLineId: id })
-      : await splitBankLine(getDb(), { ...bankLineSplitSchema.parse(req.body), uid: user.uid, bankLineId: id });
-    res.json({ status: 'ok', ...result });
-  } catch (e) {
-    if (e instanceof z.ZodError) return res.status(400).json({ error: 'Invalid request', details: e.issues });
-    res.status(e instanceof BankLineError ? e.status : 400).json({ error: e instanceof Error ? e.message : String(e) });
+/**
+ * POST /reconcile: a reconciliation batch (match, unmatch, clear and correct in one request). The
+ * registered `reconciliations.reconcile` command runs the work; this keeps the legacy address, body
+ * and answer, and still accepts the database the route's tests inject.
+ */
+export async function handleReconcile(req: express.Request, res: express.Response, dbOverride?: Firestore) {
+  const parsed = reconcileInput.safeParse(req.body);
+  if (!parsed.success) {
+    // the legacy answer to a malformed batch was a 400 with the first problem as its error
+    return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid request' });
   }
+  const { executeCommand } = await import('../../utils/commandExecutor');
+  await executeCommand(req, res, {
+    definition: reconcileCommand,
+    workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+    input: parsed.data,
+    formatResponse: legacyAnswer,
+  }, { getDb: () => dbOverride || getDb() });
+}
+
+/** The invocation both the URL and `handleReconcile` hand the runner. */
+function reconcileInvocation(req: express.Request, input: z.output<typeof reconcileInput>): CommandInvocation {
+  return {
+    definition: reconcileCommand,
+    workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+    input,
+    formatResponse: legacyAnswer,
+  };
 }
 
 /** Bank reconciliation: match and clear bank lines, pay or split a bank line. Part of /api/v1/transactions (F-06), registered in the original order. */
 export function registerReconcileRoutes(transactionRouter: express.Router): void {
-  transactionRouter.post('/reconcile', (req, res) => handleReconcile(req, res));
+  transactionRouter.post('/reconcile', async (req, res) => {
+    const parsed = reconcileInput.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid request' });
+    const { executeCommand } = await import('../../utils/commandExecutor');
+    await executeCommand(req, res, reconcileInvocation(req, parsed.data));
+  });
 
   // Clear a pending bank line: pay invoices/bills with it, or split it over accounts (bankLineService)
-  transactionRouter.post('/bank-lines/:id/pay', (req, res) => clearBankLine(req, res, 'pay'));
-  transactionRouter.post('/bank-lines/:id/split', (req, res) => clearBankLine(req, res, 'split'));
+  transactionRouter.post('/bank-lines/:id/pay', async (req, res) => {
+    const definition = bankLinePayCommand;
+    const id = String((req.params as Record<string, string>).id || '');
+    const parsed = definition.input.safeParse({ ...(req.body as Record<string, unknown>), id });
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    const { executeCommand } = await import('../../utils/commandExecutor');
+    await executeCommand(req, res, {
+      definition,
+      workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+      input: parsed.data,
+      formatResponse: legacyAnswer,
+    });
+  });
+  transactionRouter.post('/bank-lines/:id/split', async (req, res) => {
+    const definition = bankLineSplitCommand;
+    const id = String((req.params as Record<string, string>).id || '');
+    const parsed = definition.input.safeParse({ ...(req.body as Record<string, unknown>), id });
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    const { executeCommand } = await import('../../utils/commandExecutor');
+    await executeCommand(req, res, {
+      definition,
+      workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+      input: parsed.data,
+      formatResponse: legacyAnswer,
+    });
+  });
 
   // EG-9: the bank rules again over the lines not yet matched (suggestions only; owners and accountants)
   transactionRouter.post('/bank-lines/apply-rules', async (req, res) => {
-    try {
-      const { workspaceId, after, limit } = z.object({ workspaceId: z.string().min(1).max(200), after: z.string().min(1).max(200).optional(), limit: z.number().int().min(1).max(5000).optional() }).strict().parse(req.body);
-      const user = requestUser(req);
-      if (user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) return res.status(403).json({ error: 'This API key is for another workspace' });
-      res.json(await rerunBankRules(getDb(), { workspaceId, uid: user.uid, after, limit }));
-    } catch (e) {
-      if (e instanceof z.ZodError) return res.status(400).json({ error: 'Invalid request', details: e.issues });
-      if (e instanceof BankRuleError) return res.status(e.status).json({ error: e.message });
-      console.error('[BANK RULES]', e);
-      res.status(500).json({ error: 'The bank rules could not be run' });
-    }
+    const body = req.body as Record<string, unknown> | undefined;
+    const parsed = bankRulesRerunInput.safeParse(body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    const user = requestUser(req);
+    const workspaceId = String(body?.workspaceId || '');
+    if (user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) return res.status(403).json({ error: 'This API key is for another workspace' });
+    const { executeCommand } = await import('../../utils/commandExecutor');
+    const outcome = await executeCommand(req, res, {
+      definition: bankRulesRerunCommand,
+      workspaceId,
+      input: parsed.data,
+      formatResponse: outcome => (outcome.ok
+        ? { status: 200, body: outcome.data }
+        : outcome.status === 400 || outcome.status === 403 || outcome.status === 404
+          ? { status: outcome.status, body: { error: outcome.message } }
+          : { status: 500, body: { error: 'The bank rules could not be run' } }),
+    }) as CommandExecutionOutcome;
+    if (!outcome.ok && (outcome.status >= 500 || outcome.status === 500)) console.error('[BANK RULES]', outcome.message);
   });
 
   transactionRouter.patch('/bank-lines/:id', async (req, res) => {
-    try {
-      const { id } = req.params as Record<string, string>;
-      const { workspaceId, ...updatePayload } = req.body;
-      if (!workspaceId) {
-        return res.status(400).json({ error: 'Missing workspaceId' });
-      }
-      const user = requestUser(req);
-      const db = getDb();
-      const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-      if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), user, workspaceId)) {
-        return res.status(403).json({ error: 'Not a member' });
-      }
-
-      const lineRef = db.collection('bankLines').doc(id);
-      const lineSnap = await lineRef.get();
-      if (!lineSnap.exists || lineSnap.data()?.workspaceId !== workspaceId) {
-        return res.status(404).json({ error: `Bank line ${id} not found in workspace` });
-      }
-
-      // Strict allowlist validation (#78) - rejects any unknown or protected properties
-      const validatedData = BankLineUpdateSchema.parse(updatePayload);
-      await lineRef.update({ ...validatedData, updatedAt: FieldValue.serverTimestamp() });
-      await writeServerAuditLog({
-        workspaceId,
-        uid: user.uid,
-        email: user.email,
-        action: 'BANK_LINE_UPDATED',
-        entityType: 'bank_line',
-        entityId: id,
-        details: {
-          description: `Updated bank line ${id}`,
-          fields: Object.keys(validatedData),
-        },
-      }, { db });
-      res.json({ status: 'ok', id, data: validatedData });
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Schema validation failed', details: e.issues });
-      }
-      res.status(400).json({ error: errorMessage(e) });
-    }
+    const body = req.body as Record<string, unknown> | undefined;
+    const workspaceId = String(body?.workspaceId || '');
+    if (!workspaceId) return res.status(400).json({ error: 'Missing workspaceId' });
+    const id = String((req.params as Record<string, string>).id || '');
+    const { workspaceId: _ignored, ...updatePayload } = body || {};
+    // Strict allowlist validation (#78) runs inside the command; its refusal keeps the old 400 shape
+    const parsed = updateBankLineCommandInput.safeParse({ workspaceId, id, data: updatePayload });
+    if (!parsed.success) return res.status(400).json({ error: 'Schema validation failed', details: parsed.error.issues });
+    const { executeCommand } = await import('../../utils/commandExecutor');
+    const outcome = await executeCommand(req, res, {
+      definition: updateBankLineCommand,
+      workspaceId,
+      input: parsed.data,
+      formatResponse: outcome => (outcome.ok
+        ? { status: 200, body: { status: 'ok', ...(outcome.data as Record<string, unknown>) } }
+        : outcome.error instanceof z.ZodError || outcome.code === 'INVALID_INPUT'
+          ? { status: 400, body: { error: 'Schema validation failed', details: (outcome.error as z.ZodError).issues } }
+          : { status: outcome.status, body: { error: outcome.message } }),
+    }) as CommandExecutionOutcome;
+    if (!outcome.ok) return;
   });
-
-
 
 
   // ==========================================
@@ -470,198 +280,52 @@ export function registerReconcileRoutes(transactionRouter: express.Router): void
   });
 
   transactionRouter.post('/reconciliation/clear', async (req, res) => {
-    try {
-      const { workspaceId, transactionIds } = req.body;
-      if (!workspaceId || !Array.isArray(transactionIds) || transactionIds.length === 0) {
-        return res.status(400).json({ error: "Missing workspaceId or transactionIds" });
-      }
-      if (transactionIds.length > 500) {
-        return res.status(400).json({ error: "Batch size exceeds limit of 500 items" });
-      }
-      const user = requestUser(req);
-      const db = getDb();
-      const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-      if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), user, workspaceId)) {
-        return res.status(403).json({ error: 'Not a member' });
-      }
-      // marking entries cleared is bookkeeping: owners, accountants and bookkeepers (CA-04)
-      const role = roleInWorkspace(wsDoc.data(), user.uid);
-      if (!user.admin && !LEDGER_WRITER_ROLES.includes(role)) {
-        return res.status(403).json({ error: 'Only owners, accountants and bookkeepers mark entries cleared' });
-      }
-      // the day the bank cleared it (CA-04): optional, never before the entry's own date; cleared: false undoes it
-      const { clearanceDate, cleared } = req.body as { clearanceDate?: unknown; cleared?: unknown };
-      if (clearanceDate !== undefined && (typeof clearanceDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(clearanceDate))) {
-        return res.status(400).json({ error: 'The clearance date must be a date (YYYY-MM-DD)' });
-      }
-      const undo = cleared === false;
-
-      // Verify all transactions belong to this workspace to prevent cross-tenant IDOR tampering
-      const refs = transactionIds.map((id: string) => db.collection('transactions').doc(id));
-      const snaps = await db.getAll(...refs);
-
-      const batch = db.batch();
-      const wsData = wsDoc.data();
-      for (const snap of snaps) {
-        if (!snap.exists) {
-          return res.status(404).json({ error: `Transaction ${snap.id} not found` });
-        }
-        const txData = snap.data() as Transaction;
-      
-        TransactionValidator.validateTransactionState(txData, {
-          workspaceId,
-          user: { uid: user.uid, admin: user.admin },
-          wsData
-        });
-
-        if (!undo && typeof clearanceDate === 'string' && txData.date && clearanceDate < String(txData.date).slice(0, 10)) {
-          return res.status(400).json({ error: `It can't clear the bank before the entry's own date (${String(txData.date).slice(0, 10)})` });
-        }
-        batch.update(snap.ref, undo
-          ? { isCleared: false, isReconciled: false, clearedAt: FieldValue.delete(), clearanceDate: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() }
-          : {
-            isCleared: true,
-            clearedAt: FieldValue.serverTimestamp(),
-            ...(typeof clearanceDate === 'string' ? { clearanceDate } : {}),
-            updatedAt: FieldValue.serverTimestamp()
-          });
-      }
-      await batch.commit();
-      await writeServerAuditLog({
-        workspaceId,
-        uid: user.uid,
-        email: user.email,
-        action: undo ? 'TRANSACTIONS_UNCLEARED' : 'TRANSACTIONS_CLEARED',
-        entityType: 'transaction',
-        entityId: String(transactionIds[0]),
-        details: {
-          description: `${undo ? 'Uncleared' : 'Cleared'} ${transactionIds.length} transaction(s)`,
-          count: transactionIds.length,
-          ...(typeof clearanceDate === 'string' ? { clearanceDate } : {}),
-        },
-      }, { db });
-
-      res.json({
-        status: 'ok',
-        clearedCount: transactionIds.length,
-        message: undo ? 'Marked as not cleared.' : 'Transactions successfully cleared.'
-      });
-    } catch (e) {
-      res.status(500).json({ error: errorMessage(e) });
+    const body = req.body as Record<string, unknown> | undefined;
+    const workspaceId = String(body?.workspaceId || '');
+    const parsed = clearEntriesCommandInput.safeParse(body);
+    if (!parsed.success) {
+      // the legacy answer named the first problem it found
+      return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid request', details: parsed.error.issues });
     }
-  });
-
-  const CompleteReconciliationSchema = z.object({
-    workspaceId: z.string().min(1),
-    accountId: z.string().min(1),
-    statementDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Statement date must be YYYY-MM-DD'),
-    statementBalanceCents: z.number().int(),
-    reconciledTransactionIds: z.array(z.string().min(1)).max(5000).default([]),
+    const undo = parsed.data.cleared === false;
+    const { executeCommand } = await import('../../utils/commandExecutor');
+    await executeCommand(req, res, {
+      definition: clearEntriesCommand,
+      workspaceId,
+      input: parsed.data,
+      formatResponse: outcome => (outcome.ok
+        ? {
+          status: 200,
+          body: {
+            status: 'ok',
+            clearedCount: (outcome.data as { clearedCount: number }).clearedCount,
+            message: undo ? 'Marked as not cleared.' : 'Transactions successfully cleared.',
+          },
+        }
+        : { status: outcome.status, body: { error: outcome.message } }),
+    });
   });
 
   transactionRouter.post('/reconciliation/complete', async (req, res) => {
-    try {
-      const parsed = CompleteReconciliationSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid reconciliation payload', details: parsed.error.issues });
-      }
-      const { workspaceId, accountId, statementDate, statementBalanceCents, reconciledTransactionIds } = parsed.data;
-      const user = requestUser(req);
-      const db = getDb();
-
-      const completedAt = new Date().toISOString();
-      const reconciliationId = db.collection('reconciliations').doc().id;
-      const uniqueTxIds = Array.from(new Set(reconciledTransactionIds));
-
-      await db.runTransaction(async (t) => {
-        const wsDoc = await t.get(db.collection('workspaces').doc(workspaceId));
-        const wsData = wsDoc.data();
-        if (!wsDoc.exists || !isWorkspaceMemberData(wsData, user, workspaceId)) {
-          throw Object.assign(new Error('Not a member'), { status: 403 });
-        }
-        if (!user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsData, user.uid))) {
-          throw Object.assign(new Error('Only owners, accountants and bookkeepers complete reconciliations'), { status: 403 });
-        }
-        assertPostingOpen(statementDate, wsData as never, user.uid);
-
-        const accountSnap = await t.get(db.collection('chartAccounts').doc(accountId));
-        if (!accountSnap.exists || accountSnap.data()?.workspaceId !== workspaceId) {
-          throw Object.assign(new Error(`Account ${accountId} not found in workspace`), { status: 404 });
-        }
-
-        const txRefs = uniqueTxIds.map(txId => db.collection('transactions').doc(txId));
-        const txSnaps = await Promise.all(txRefs.map(ref => t.get(ref)));
-        for (let i = 0; i < txSnaps.length; i++) {
-          const snap = txSnaps[i];
-          if (!snap.exists) {
-            throw Object.assign(new Error(`Transaction ${uniqueTxIds[i]} not found`), { status: 404 });
-          }
-          const txData = snap.data() as Transaction;
-          if (txData.workspaceId !== workspaceId) {
-            throw Object.assign(new Error(`Transaction ${uniqueTxIds[i]} does not belong to this workspace`), { status: 403 });
-          }
-          if (txData.status === 'void' || txData.status === 'draft') {
-            throw Object.assign(new Error(`Cannot reconcile ${txData.status} transaction ${uniqueTxIds[i]}`), { status: 400 });
-          }
-        }
-
-        const recRef = db.collection('reconciliations').doc(reconciliationId);
-        t.create(recRef, {
-          id: reconciliationId,
-          workspaceId,
-          uid: user.uid,
-          accountId,
-          statementDate,
-          statementBalanceCents,
-          reconciledTransactionIds: uniqueTxIds,
-          status: 'completed',
-          completedAt,
-          completedBy: user.uid,
-          createdAt: completedAt,
-          updatedAt: completedAt,
-        });
-
-        for (const snap of txSnaps) {
-          ledgerMark(t, snap.ref, {
-            status: 'reconciled',
-            reconciled: true,
-            isReconciled: true,
-            isCleared: true,
-            clearedAt: completedAt,
-            reconciledAt: completedAt,
-            updatedAt: FieldValue.serverTimestamp(),
-          });
-        }
-
-        await writeServerAuditLog({
-          workspaceId,
-          uid: user.uid,
-          email: user.email,
-          action: 'RECONCILIATION_COMPLETED',
-          entityType: 'reconciliation',
-          entityId: reconciliationId,
-          details: {
-            description: `Completed bank reconciliation for account ${accountId} as of ${statementDate}`,
-            accountId,
-            statementDate,
-            statementBalanceCents,
-            reconciledCount: uniqueTxIds.length,
-          },
-        }, { db, tx: t });
-      });
-
-      res.json({
-        status: 'ok',
-        reconciliationId,
-        completedAt,
-        reconciledCount: uniqueTxIds.length,
-      });
-    } catch (e) {
-      const explicitStatus = (e as { status?: number })?.status;
-      const status = typeof explicitStatus === 'number'
-        ? explicitStatus
-        : (/Period Locked/i.test(errorMessage(e)) ? 409 : 400);
-      res.status(status).json({ error: errorMessage(e) });
+    const parsed = completeReconciliationCommandInput.safeParse(req.body);
+    if (!parsed.success) {
+      // the legacy answer named the first problem and carried the issues
+      return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid reconciliation payload', details: parsed.error.issues });
     }
+    const { executeCommand } = await import('../../utils/commandExecutor');
+    await executeCommand(req, res, {
+      definition: completeReconciliationCommand,
+      workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+      input: parsed.data,
+      formatResponse: outcome => (outcome.ok
+        ? { status: 200, body: { status: 'ok', ...(outcome.data as Record<string, unknown>) } }
+        // a period lock is a 409 here, as the legacy route answered it
+        : { status: /Period Locked/i.test(outcome.message) ? 409 : outcome.status, body: { error: outcome.message } }),
+    });
   });
 }
+
+// the schemas the legacy route used to hold now live with their commands
+export {
+  completeReconciliationCommandInput as CompleteReconciliationSchema,
+};

@@ -108,12 +108,21 @@ export async function existingImportIdentities(db: Firestore, reader: Reader | n
 
 export interface RerunResult { checked: number; changed: number; suggested: number; truncated: boolean; nextCursor?: string }
 
-/** POST /api/v1/transactions/bank-lines/apply-rules: the rules again over the pending lines (owners and accountants). */
-export async function rerunBankRules(db: Firestore, input: { workspaceId: string; uid: string; after?: string; limit?: number }): Promise<RerunResult> {
+/**
+ * The refusals the rules make before they read any line: the workspace must exist, and re-running
+ * them is for the people who review the feed.
+ */
+export async function prepareRerunBankRules(db: Firestore, input: { workspaceId: string; uid: string }): Promise<{ workspace: Record<string, unknown> }> {
   const ws = (await db.collection('workspaces').doc(input.workspaceId).get()).data();
   if (!ws) throw new BankRuleError(404, 'Workspace not found');
   const role = workspaceRole(ws as never, input.uid);
   if (role !== 'owner' && role !== 'accountant') throw new BankRuleError(403, 'Only owners and accountants re-run the bank rules');
+  return { workspace: ws as Record<string, unknown> };
+}
+
+/** POST /api/v1/transactions/bank-lines/apply-rules: the rules again over the pending lines (owners and accountants). */
+export async function rerunBankRules(db: Firestore, input: { workspaceId: string; uid: string; after?: string; limit?: number }): Promise<RerunResult> {
+  await prepareRerunBankRules(db, { workspaceId: input.workspaceId, uid: input.uid });
 
   const snap = await db.collection('bankLines').where('workspaceId', '==', input.workspaceId).where('status', '==', 'pending').get();
   // by id, from after the cursor: a workspace with more lines than one call takes goes on with nextCursor
