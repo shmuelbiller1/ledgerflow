@@ -8,7 +8,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "orderId": COMMAND_SCHEMA_PARTS.part35,
     "deliveryId": COMMAND_SCHEMA_PARTS.part90,
     "date": COMMAND_SCHEMA_PARTS.part95,
-    "lines": COMMAND_SCHEMA_PARTS.part199,
+    "lines": COMMAND_SCHEMA_PARTS.part200,
     "inventoryAccountId": COMMAND_SCHEMA_PARTS.part35,
     "cogsAccountId": COMMAND_SCHEMA_PARTS.part35,
     "locationId": COMMAND_SCHEMA_PARTS.part46,

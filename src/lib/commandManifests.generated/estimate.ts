@@ -31,7 +31,7 @@ export const ESTIMATE_COMMAND_MANIFEST = [
           "when": "The quote is already accepted, declined or converted and the change touches its lines or total.",
           "next": "Write a new quote; an accepted order's terms are what the customer agreed to."
         },
-        COMMAND_SCHEMA_PARTS.part169,
+        COMMAND_SCHEMA_PARTS.part170,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is a viewer.",
@@ -72,7 +72,7 @@ export const ESTIMATE_COMMAND_MANIFEST = [
           "when": "A conversion does not name the invoice that took the quote over.",
           "next": "Create the invoice first, then pass its id."
         },
-        COMMAND_SCHEMA_PARTS.part169,
+        COMMAND_SCHEMA_PARTS.part170,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is a viewer.",

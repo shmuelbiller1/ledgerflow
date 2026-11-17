@@ -49,15 +49,20 @@ export async function attachFiles(
         break;
       }
       const record = attachmentRecord(file, fileUrl, target, { uid, workspaceId });
-      // one command for the row: it stamps the owner and the workspace from the session, so an attachment cannot
-      // be filed into a book the tab could not otherwise write
-      const ref = await saveDocument(workspaceId, record);
+      // one file, one command: `putAttachment` is the per-file step, so the loop below carries each file's own
+      // outcome (a refusal is recorded and the next file still goes) rather than pretending the batch is atomic
+      const ref = await putAttachment(workspaceId, record);
       result.saved.push({ ...record, id: ref.id });
     } catch (err) {
       result.refused.push({ name: file.name, reason: err instanceof Error ? err.message : String(err) });
     }
   }
   return result;
+}
+
+/** Write one attachment; the caller keeps the outcome, which is why the loop above is sequential per file. */
+async function putAttachment(workspaceId: string, record: Omit<Attachment, 'id'> & { id?: string }): Promise<{ id: string }> {
+  return saveDocument(workspaceId, record);
 }
 
 /** The files kept with one record, newest first. */

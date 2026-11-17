@@ -300,7 +300,7 @@ hand-convert a table the codemod still refuses.
           assert the command.
       - **an audit note, an empty account and a template, 4 sites.** `transactionActions` recorded "entry updated"
         and "entry reversed" with `addDoc` into `auditLogs` — the one collection where a browser write is actively
-        wrong, because the trail is a hash chain and a client row has no position in it. `audit.append` takes only
+        wrong, because the trail is a hash chain and a client row has no position in it. `auditlog.append` takes only
         *what* happened; the actor, the clock, `seq` and the hashes come from the session and the trail.
         `workspaceActions` deleted a chart account and then wrote its own audit line: `chartaccount.delete` now refuses
         an account that a transaction, entry, budget, line or rule names (archive it instead) and writes the line in the

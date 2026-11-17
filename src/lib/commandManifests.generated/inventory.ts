@@ -29,7 +29,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
         "offsetAccountId": "acc_cash",
         "type": "purchase"
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part215
+      "refusals": COMMAND_SCHEMA_PARTS.part216
     },
     "runPath": "/api/v1/commands/inventory.adjust",
     "previewPath": "/api/v1/commands/inventory.adjust/preview",
@@ -122,7 +122,7 @@ export const INVENTORY_COMMAND_MANIFEST = [
           }
         ]
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part215
+      "refusals": COMMAND_SCHEMA_PARTS.part216
     },
     "runPath": "/api/v1/commands/inventory.count",
     "previewPath": "/api/v1/commands/inventory.count/preview",

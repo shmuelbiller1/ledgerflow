@@ -17,7 +17,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "settledByRecordsCents": COMMAND_SCHEMA_PARTS.part105,
         "currency": COMMAND_SCHEMA_PARTS.part37,
         "exchangeRate": COMMAND_SCHEMA_PARTS.part61,
-        "status": COMMAND_SCHEMA_PARTS.part172,
+        "status": COMMAND_SCHEMA_PARTS.part173,
         "date": COMMAND_SCHEMA_PARTS.part16,
         "dueDate": COMMAND_SCHEMA_PARTS.part16,
         "paymentToken": COMMAND_SCHEMA_PARTS.part16,
@@ -39,7 +39,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "paymentDate": COMMAND_SCHEMA_PARTS.part16,
         "paidAt": COMMAND_SCHEMA_PARTS.part16,
         "posted": COMMAND_SCHEMA_PARTS.part19,
-        "approval": COMMAND_SCHEMA_PARTS.part214,
+        "approval": COMMAND_SCHEMA_PARTS.part215,
         "discountCents": COMMAND_SCHEMA_PARTS.part105,
         "retainageCents": COMMAND_SCHEMA_PARTS.part105,
         "depositCents": COMMAND_SCHEMA_PARTS.part105,
@@ -50,12 +50,12 @@ export const COMMAND_INPUT_SCHEMA = {
         "lineSumCents": COMMAND_SCHEMA_PARTS.part124,
         "taxCodeId": COMMAND_SCHEMA_PARTS.part46,
         "taxTreatment": COMMAND_SCHEMA_PARTS.part138,
-        "taxBreakdown": COMMAND_SCHEMA_PARTS.part203,
+        "taxBreakdown": COMMAND_SCHEMA_PARTS.part204,
         "pricesIncludeTax": COMMAND_SCHEMA_PARTS.part19
       }
     },
     "postingDay": COMMAND_SCHEMA_PARTS.part16,
-    "creditLimitOverride": COMMAND_SCHEMA_PARTS.part174
+    "creditLimitOverride": COMMAND_SCHEMA_PARTS.part175
   },
   "required": COMMAND_SCHEMA_PARTS.part10,
   "additionalProperties": false

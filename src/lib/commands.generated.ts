@@ -3,7 +3,7 @@ import { ACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/account';
 import { ALERTS_COMMAND_MANIFEST } from './commandManifests.generated/alerts';
 import { APIKEY_COMMAND_MANIFEST } from './commandManifests.generated/apikey';
 import { ASSET_COMMAND_MANIFEST } from './commandManifests.generated/asset';
-import { AUDIT_COMMAND_MANIFEST } from './commandManifests.generated/audit';
+import { AUDITLOG_COMMAND_MANIFEST } from './commandManifests.generated/auditlog';
 import { AUTORULE_COMMAND_MANIFEST } from './commandManifests.generated/autorule';
 import { BILL_COMMAND_MANIFEST } from './commandManifests.generated/bill';
 import { BUDGET_COMMAND_MANIFEST } from './commandManifests.generated/budget';
@@ -24,6 +24,7 @@ import { NOTIFICATION_COMMAND_MANIFEST } from './commandManifests.generated/noti
 import { NUMBERING_COMMAND_MANIFEST } from './commandManifests.generated/numbering';
 import { PAYMENT_COMMAND_MANIFEST } from './commandManifests.generated/payment';
 import { PERIOD_COMMAND_MANIFEST } from './commandManifests.generated/period';
+import { PRESENCE_COMMAND_MANIFEST } from './commandManifests.generated/presence';
 import { PROJECT_COMMAND_MANIFEST } from './commandManifests.generated/project';
 import { RECONCILIATIONS_COMMAND_MANIFEST } from './commandManifests.generated/reconciliations';
 import { SAVEDLIST_COMMAND_MANIFEST } from './commandManifests.generated/savedlist';
@@ -43,7 +44,7 @@ export const COMMAND_MANIFEST = [
   ...ALERTS_COMMAND_MANIFEST,
   ...APIKEY_COMMAND_MANIFEST,
   ...ASSET_COMMAND_MANIFEST,
-  ...AUDIT_COMMAND_MANIFEST,
+  ...AUDITLOG_COMMAND_MANIFEST,
   ...AUTORULE_COMMAND_MANIFEST,
   ...BILL_COMMAND_MANIFEST,
   ...BUDGET_COMMAND_MANIFEST,
@@ -64,6 +65,7 @@ export const COMMAND_MANIFEST = [
   ...NUMBERING_COMMAND_MANIFEST,
   ...PAYMENT_COMMAND_MANIFEST,
   ...PERIOD_COMMAND_MANIFEST,
+  ...PRESENCE_COMMAND_MANIFEST,
   ...PROJECT_COMMAND_MANIFEST,
   ...RECONCILIATIONS_COMMAND_MANIFEST,
   ...SAVEDLIST_COMMAND_MANIFEST,

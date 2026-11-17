@@ -40,7 +40,7 @@ export type AuditAppended = { id: string; action: string };
 const ROLES = ['owner', 'accountant', 'bookkeeper'] as const;
 
 export const auditAppendCommand: CommandDefinition<typeof auditAppendInput, AuditAppended> = {
-  name: 'audit.append',
+  name: 'auditlog.append',
   input: auditAppendInput,
   roles: ROLES,
   async handler(ctx: CommandContext, tx, input: AppendInput) {

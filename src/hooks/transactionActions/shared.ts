@@ -80,7 +80,7 @@ export function useActionContext() {
       const description = typeof (auditDetails as { description?: unknown }).description === 'string'
         ? String((auditDetails as { description?: unknown }).description)
         : undefined;
-      await retryWithBackoff(() => runNamedCommand('audit.append', {
+      await retryWithBackoff(() => runNamedCommand('auditlog.append', {
         action,
         entityType,
         entityId,
