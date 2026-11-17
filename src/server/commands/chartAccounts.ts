@@ -98,7 +98,7 @@ export const chartAccountUpdateCommand: CommandDefinition<typeof chartAccountUpd
     }
 
     if (fields.parentId !== undefined) {
-      const problem = accountParentProblem(await chartOf(ctx), {
+      const problem = accountParentProblem(await chartOf(ctx, tx as never), {
         id,
         name: fields.name || String(existing.name || ''),
         type: String(existing.type || ''),
