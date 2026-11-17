@@ -23,7 +23,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "issueDate": COMMAND_SCHEMA_PARTS.part14,
         "date": COMMAND_SCHEMA_PARTS.part14,
         "dueDate": COMMAND_SCHEMA_PARTS.part14,
-        "status": COMMAND_SCHEMA_PARTS.part136,
+        "status": COMMAND_SCHEMA_PARTS.part137,
         "tags": COMMAND_SCHEMA_PARTS.part55,
         "metadata": COMMAND_SCHEMA_PARTS.part103,
         "reversalEventId": COMMAND_SCHEMA_PARTS.part14,
@@ -47,7 +47,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "lineSumCents": COMMAND_SCHEMA_PARTS.part101,
         "taxCodeId": COMMAND_SCHEMA_PARTS.part41,
         "taxTreatment": COMMAND_SCHEMA_PARTS.part112,
-        "taxBreakdown": COMMAND_SCHEMA_PARTS.part165,
+        "taxBreakdown": COMMAND_SCHEMA_PARTS.part166,
         "pricesIncludeTax": COMMAND_SCHEMA_PARTS.part16
       },
       "required": [

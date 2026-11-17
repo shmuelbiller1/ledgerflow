@@ -32,7 +32,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "contacts": COMMAND_SCHEMA_PARTS.part56,
         "noteLog": COMMAND_SCHEMA_PARTS.part56,
         "notes": COMMAND_SCHEMA_PARTS.part50,
-        "bankDetails": COMMAND_SCHEMA_PARTS.part159
+        "bankDetails": COMMAND_SCHEMA_PARTS.part160
       },
       "additionalProperties": false
     }

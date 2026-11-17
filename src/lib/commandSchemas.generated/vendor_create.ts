@@ -34,7 +34,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "noteLog": COMMAND_SCHEMA_PARTS.part56,
         "notes": COMMAND_SCHEMA_PARTS.part50,
         "importBatchId": COMMAND_SCHEMA_PARTS.part41,
-        "bankDetails": COMMAND_SCHEMA_PARTS.part159
+        "bankDetails": COMMAND_SCHEMA_PARTS.part160
       },
       "required": COMMAND_SCHEMA_PARTS.part3,
       "additionalProperties": false

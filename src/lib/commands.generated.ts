@@ -3,6 +3,7 @@ import { ACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/account';
 import { ALERTS_COMMAND_MANIFEST } from './commandManifests.generated/alerts';
 import { AUTORULE_COMMAND_MANIFEST } from './commandManifests.generated/autorule';
 import { BILL_COMMAND_MANIFEST } from './commandManifests.generated/bill';
+import { BUDGET_COMMAND_MANIFEST } from './commandManifests.generated/budget';
 import { CREDITNOTE_COMMAND_MANIFEST } from './commandManifests.generated/creditnote';
 import { CUSTOMER_COMMAND_MANIFEST } from './commandManifests.generated/customer';
 import { ENTRYLINK_COMMAND_MANIFEST } from './commandManifests.generated/entrylink';
@@ -30,6 +31,7 @@ export const COMMAND_MANIFEST = [
   ...ALERTS_COMMAND_MANIFEST,
   ...AUTORULE_COMMAND_MANIFEST,
   ...BILL_COMMAND_MANIFEST,
+  ...BUDGET_COMMAND_MANIFEST,
   ...CREDITNOTE_COMMAND_MANIFEST,
   ...CUSTOMER_COMMAND_MANIFEST,
   ...ENTRYLINK_COMMAND_MANIFEST,

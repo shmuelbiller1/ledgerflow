@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **65** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **62** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -179,7 +179,13 @@ hand-convert a table the codemod still refuses.
         label axes that three of those screens also wrote went to `workspace.dimensionaxes`, and the wizard's
         business step splits its payload in two for the same reason. The tests that asserted the old `lf_update`
         body assert the command's `input` instead, which is the same promise stated where the guard now lives.
-      - **the rest** (~63 sites in 34 files) — write routes that already have a command in most cases
+      - **budgets** — **done, 3 sites.** `BudgetManager` added, changed and removed a plan with `addDoc`,
+        `updateDoc` and `deleteDoc`, dating the row from the tab; `budget.save` and `budget.delete` write it
+        instead, refuse an objective that belongs to another workspace, refuse an amount that is not whole cents
+        (a plan is compared with posted amounts), and put the "viewers cannot change budgets" rule on the server
+        rather than on a hidden button. The label the plan is kept against (EU-E5) is set, changed or taken away
+        through the command, and the rest of the row's metadata is kept.
+      - **the rest** (~60 sites in 33 files) — write routes that already have a command in most cases
         (`workspaceActions` 4, `Inventory` 5, `EstimatesView` 5, `SupportView` 5 …): one commit per hook, not per
         call, because a hook that writes has one shape.
 - [x] **Undo on the result.** `deleteProjectWithUndo` offers the command's own step back (`project.restore` with the

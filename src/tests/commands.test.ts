@@ -11,6 +11,7 @@ import { AVAILABLE_SCOPES } from '../components/platform/ApiHubShared';
 import type { Firestore } from '../server/db/firestore';
 import { CommandRegistry } from '../server/commands/registry';
 import { workspaceSettingsCommand } from '../server/commands/workspaceSettingsPanel';
+import { budgetDeleteCommand, budgetSaveCommand } from '../server/commands/budgets';
 import { createDefaultCommandRegistry } from '../server/commands/defaultRegistry';
 import { alertSettingsUpdateCommand } from '../server/commands/alerts';
 import { importMapRestoreCommand, importMapSaveCommand } from '../server/commands/importMaps';
@@ -57,6 +58,7 @@ test('the default registry is sorted and unique across the registered command do
     'alerts.update',
     'autorule.create', 'autorule.delete', 'autorule.group', 'autorule.learn', 'autorule.recordhits', 'autorule.update',
     'bill.create', 'bill.delete', 'bill.update',
+    'budget.delete', 'budget.save',
     'creditnote.create', 'creditnote.delete', 'creditnote.update',
     'customer.balance', 'customer.create', 'customer.update',
     'entrylink.create', 'entrylink.remove',
@@ -80,7 +82,7 @@ test('the default registry is sorted and unique across the registered command do
     'workspace.canceldeletion', 'workspace.create', 'workspace.dimensionaxes', 'workspace.dimensionnode', 'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
     'workspace.retention', 'workspace.revokeinvite', 'workspace.settings', 'workspace.setupcomplete',
   ]);
-  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'groups', 'inventory', 'invoice', 'journal', 'numbering', 'payment', 'period', 'project', 'reconciliations', 'stages', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
+  assert.deepEqual(registry.areaNames(), ['account', 'alerts', 'autorule', 'bill', 'budget', 'creditnote', 'customer', 'entrylink', 'groups', 'inventory', 'invoice', 'journal', 'numbering', 'payment', 'period', 'project', 'reconciliations', 'stages', 'tasks', 'time', 'user', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
   assert.equal(registry.get('numbering.update'), numberingUpdateCommand);
@@ -100,6 +102,8 @@ test('the default registry is sorted and unique across the registered command do
   assert.equal(registry.get('workspace.importmap'), importMapSaveCommand);
   assert.equal(registry.get('workspace.restoremaps'), importMapRestoreCommand);
   assert.equal(registry.get('workspace.settings'), workspaceSettingsCommand);
+  assert.equal(registry.get('budget.save'), budgetSaveCommand);
+  assert.equal(registry.get('budget.delete'), budgetDeleteCommand);
   assert.equal(registry.get('tasks.create'), taskCreateCommand);
   assert.equal(registry.get('watches.create'), watchCreateCommand);
   assert.equal(registry.get('unknown.create'), undefined);

@@ -1,4 +1,3 @@
-import { workspaceActor } from '../../lib/guestActor';
 import { RecordInlineField } from '../ui/RecordInlineField';
 import { useDialog } from '../../hooks/useDialog';
 import { isPostable, lineAmount } from '../../lib/txFilters';
@@ -22,8 +21,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency, getLocalDateISO, safeConfirm } from '../../lib/utils';
-import { addDoc, collection, deleteDoc, doc, updateDoc } from '../../lib/db/firestore';
-import { db } from '../../firebase';
+import { runNamedCommand } from '../../lib/commandByName';
 import { toast } from 'sonner';
 import AsyncButton from '../ui/AsyncButton';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -41,7 +39,6 @@ import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 
 export default function BudgetManager() {
   const formId = useId();
-  const user = useAuthStore(workspaceActor);
   // the open workspace lives in the auth store (reading it from the ledger store always gave nothing)
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const budgets = useLedgerStore((s) => s.budgets);
@@ -70,7 +67,6 @@ export default function BudgetManager() {
   const storedNodes = useLedgerStore(s => s.dimensionNodes);
   const allNodes = useMemo(() => storedNodes || [], [storedNodes]);
   const labelNodes = allNodes.filter(n => n.dimensionId === budgetLabelId && n.status !== 'archived');
-  const labelMeta = budgetLabelId && budgetLabelValue ? { metadata: { label: { dimensionId: budgetLabelId, value: budgetLabelValue } } } : {};
 
   const handleAddBudget = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,30 +80,18 @@ export default function BudgetManager() {
       return;
     }
     try {
-      if (editingBudget) {
-        await updateDoc(doc(db, 'budgets', editingBudget), {
-          targetId: newBudget.targetId,
-          amountCents: newBudget.amountCents,
-          period: newBudget.period,
-          startDate: newBudget.startDate || getLocalDateISO(),
-          // EU-E5: the budget's metadata as it was, with the label set, changed or taken away
-          metadata: (() => {
-            const { label: _old, ...rest } = ((budgets.find(x => x.id === editingBudget) as { metadata?: Record<string, unknown> } | undefined)?.metadata || {}) as Record<string, unknown>;
-            return { ...rest, ...(budgetLabelId && budgetLabelValue ? { label: { dimensionId: budgetLabelId, value: budgetLabelValue } } : {}) };
-          })(),
-          updatedAt: new Date().toISOString()
-        });
-        toast.success('Objective Updated');
-      } else {
-        await addDoc(collection(db, 'budgets'), {
-          ...newBudget,
-          ...labelMeta,
-          workspaceId,
-          uid: user?.uid || "",
-          createdAt: new Date().toISOString()
-        });
-        toast.success('Objective Synchronized');
-      }
+      // EU-E5: the label the plan is kept against; `null` on a change takes an existing one away
+      const label = budgetLabelId && budgetLabelValue ? { dimensionId: budgetLabelId, value: budgetLabelValue } : null;
+      await runNamedCommand('budget.save', {
+        ...(editingBudget ? { id: editingBudget } : {}),
+        targetId: newBudget.targetId,
+        targetType: newBudget.targetType,
+        amountCents: newBudget.amountCents,
+        period: newBudget.period,
+        startDate: newBudget.startDate || getLocalDateISO(),
+        ...(editingBudget ? { label } : (label ? { label } : {})),
+      }, { workspaceId });
+      toast.success(editingBudget ? 'Objective Updated' : 'Objective Synchronized');
       setIsAdding(false);
       setEditingBudget(null);
       setBudgetLabelId(''); setBudgetLabelValue('');
@@ -244,7 +228,7 @@ export default function BudgetManager() {
                         return;
                       }
                       if (await safeConfirm('Delete budget?')) {
-                        await deleteDoc(doc(db, 'budgets', b.id));
+                        await runNamedCommand('budget.delete', { id: b.id }, { workspaceId: currentWorkspaceId ?? undefined });
                         toast.success('Budget deleted');
                       }
                     }}
