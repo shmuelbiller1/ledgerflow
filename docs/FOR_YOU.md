@@ -5,7 +5,34 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-11-17.
+Last updated: 2026-11-18.
+
+## Merging records, journal templates, security settings and scheduled reports now run through registered commands (nothing for you to do)
+
+Fourteen more writes now go through the same registered commands as every batch before this one, in
+seven small areas: merging two chart accounts (and asking what a merge would do first), merging two duplicate
+customers or vendors and deleting one that nothing refers to, saving and removing journal-entry
+templates, turning on two-step login for everyone and the two-person rule, previewing and sending a
+scheduled report, saving the branding that documents print with, and minting or turning off the private
+link a customer uses to see their own invoices (and the one they use to sign an estimate).
+
+Every screen and API call keeps exactly the same request and answer. Two answers were briefly at risk and
+are now held by tests: asking "may this contact be deleted?" (`?check=1`) still deletes nothing and answers
+that it may, and a merge refused because a date is closed still lists the closed dates. These addresses worded a rejected
+request three different ways ("Choose the account to merge and the one to keep", "Invalid request" with
+the details, and the first issue's own sentence), so each keeps its own words — checked one by one, not
+assumed. A merge that a locked period or a protected account refuses is still the rule's own 404 or 409
+with its own sentence.
+
+Three of these can be undone exactly, because they are switches: the two-step and two-person settings
+advertise the command that puts them back, and a portal link's undo is the command that turns it off. The rest cannot be — a merge cannot be told apart from two
+records that were always one, and a sent report cannot be un-sent — so they say so rather than offering
+an undo that would do something else.
+
+The measured count of server write routes not yet on a command fell from 78 to 64, across 42 files to
+36. The browser count is at 5 and that is the floor for now: three of those writes are the sample
+company's local path and two are adapters that write the in-browser guest store, which is deliberately
+not a workspace.
 
 
 ## Database changes (migrations): status

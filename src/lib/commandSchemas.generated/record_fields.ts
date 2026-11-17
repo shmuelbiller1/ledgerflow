@@ -23,8 +23,8 @@ export const COMMAND_INPUT_SCHEMA = {
       "minLength": 1,
       "maxLength": 400
     },
-    "fields": COMMAND_SCHEMA_PARTS.part219,
-    "expected": COMMAND_SCHEMA_PARTS.part219
+    "fields": COMMAND_SCHEMA_PARTS.part236,
+    "expected": COMMAND_SCHEMA_PARTS.part236
   },
   "required": [
     "collection",

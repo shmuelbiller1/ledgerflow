@@ -331,7 +331,8 @@ async function commandAccess(
   return { user, personScope, workspaceId, db, workspace, role };
 }
 
-async function runRegisteredCommand(
+/** The runner behind both the command router and the legacy wrappers (exported so a test can hold each to its gate). */
+export async function runRegisteredCommand(
   req: Request,
   invocation: CommandInvocation,
   dependencies: CommandRunnerDependencies = {},
@@ -342,7 +343,7 @@ async function runRegisteredCommand(
   if ('refused' in access) return errorOutcome(access.refused, command.name);
   const { user, personScope, workspaceId, db, role, workspace } = access;
 
-  if (command.risk === 'high' && (user.developerWorkspaceId || user.aal !== 'aal2')) {
+  if (command.risk === 'high' && !invocation.legacyRoute && (user.developerWorkspaceId || user.aal !== 'aal2')) {
     return { ok: false, status: 403, command: command.name, message: 'High-risk commands require a person signed in with two-step verification; API keys cannot confirm this step.', code: 'TWO_STEP_REQUIRED' };
   }
 
@@ -514,7 +515,7 @@ export async function previewCommand(
   if ('refused' in access) return previewErrorOutcome(access.refused, command.name);
   const { user, workspaceId, db, role, workspace } = access;
 
-  if (command.risk === 'high' && (user.developerWorkspaceId || user.aal !== 'aal2')) {
+  if (command.risk === 'high' && !invocation.legacyRoute && (user.developerWorkspaceId || user.aal !== 'aal2')) {
     return { ok: false, status: 403, command: command.name, message: 'High-risk commands require a person signed in with two-step verification; API keys cannot confirm this step.', code: 'TWO_STEP_REQUIRED' };
   }
 

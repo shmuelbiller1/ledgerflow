@@ -4,14 +4,14 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part89,
-    "name": COMMAND_SCHEMA_PARTS.part89,
+    "id": COMMAND_SCHEMA_PARTS.part96,
+    "name": COMMAND_SCHEMA_PARTS.part96,
     "fileUrl": {
       "type": "string",
       "minLength": 1,
       "maxLength": 8000000
     },
-    "mimeType": COMMAND_SCHEMA_PARTS.part50,
+    "mimeType": COMMAND_SCHEMA_PARTS.part55,
     "sizeBytes": {
       "type": "integer",
       "minimum": 0,
@@ -20,13 +20,13 @@ export const COMMAND_INPUT_SCHEMA = {
     "tags": {
       "maxItems": 20,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part46
+      "items": COMMAND_SCHEMA_PARTS.part51
     },
-    "source": COMMAND_SCHEMA_PARTS.part46,
-    "linkedCollection": COMMAND_SCHEMA_PARTS.part46,
-    "linkedId": COMMAND_SCHEMA_PARTS.part51,
-    "linkedLabel": COMMAND_SCHEMA_PARTS.part50,
-    "linkedTransactionId": COMMAND_SCHEMA_PARTS.part51
+    "source": COMMAND_SCHEMA_PARTS.part51,
+    "linkedCollection": COMMAND_SCHEMA_PARTS.part51,
+    "linkedId": COMMAND_SCHEMA_PARTS.part56,
+    "linkedLabel": COMMAND_SCHEMA_PARTS.part55,
+    "linkedTransactionId": COMMAND_SCHEMA_PARTS.part56
   },
   "additionalProperties": false
 } as const;

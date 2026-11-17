@@ -1,39 +1,26 @@
 import express from 'express';
-import { z } from 'zod';
-import { getDb } from '../db/firestore';
-import { setRequireTwoStep, setTwoPersonRule, TwoStepPolicyError } from '../services/twoStepPolicyService';
+import { twoPersonCommand, twoStepCommand } from '../commands/workspaceHousekeeping';
+import { executeCommand } from '../utils/commandExecutor';
+import { legacyAnswer, workspaceInvocation } from '../utils/legacyCommandRoute';
 
 /**
  * Two-step login for everyone in a workspace (Y-30), mounted at
  * /api/v1/workspaces/:workspaceId/security (workspaceRoutes.ts, owners): PUT /two-step {required};
- * and the two-person rule (P-05): PUT /two-person {on}.
+ * and the two-person rule (P-05): PUT /two-person {on}. Both are registered commands
+ * (`security.twostep`, `security.twoperson`) and each keeps its own sentence for a malformed body.
  */
 export const twoStepPolicyRouter = express.Router({ mergeParams: true });
 
-type AuthedRequest = express.Request & { user: { uid: string; email?: string; aal?: string } };
-
 twoStepPolicyRouter.put('/two-step', async (req, res) => {
-  try {
-    const { required } = z.object({ required: z.boolean() }).strict().parse(req.body);
-    const { user } = req as unknown as AuthedRequest;
-    const workspaceId = String((req.params as Record<string, string>).workspaceId);
-    res.json({ status: 'success', ...(await setRequireTwoStep(getDb(), { workspaceId, uid: user.uid, email: user.email, aal: user.aal, required })) });
-  } catch (err) {
-    if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Say whether two-step login is required' });
-    if (err instanceof TwoStepPolicyError) return res.status(err.status).json({ status: 'error', message: err.message });
-    res.status(500).json({ status: 'error', message: 'The setting could not be saved', details: err instanceof Error ? err.message : String(err) });
-  }
+  await executeCommand(req, res, {
+    ...workspaceInvocation(req, twoStepCommand),
+    formatResponse: legacyAnswer({ badBody: 'Say whether two-step login is required', failed: 'The setting could not be saved' }),
+  });
 });
 
 twoStepPolicyRouter.put('/two-person', async (req, res) => {
-  try {
-    const { on } = z.object({ on: z.boolean() }).strict().parse(req.body);
-    const { user } = req as unknown as AuthedRequest;
-    const workspaceId = String((req.params as Record<string, string>).workspaceId);
-    res.json({ status: 'success', ...(await setTwoPersonRule(getDb(), { workspaceId, uid: user.uid, email: user.email, on })) });
-  } catch (err) {
-    if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Say whether the two-person rule is on' });
-    if (err instanceof TwoStepPolicyError) return res.status(err.status).json({ status: 'error', message: err.message });
-    res.status(500).json({ status: 'error', message: 'The setting could not be saved', details: err instanceof Error ? err.message : String(err) });
-  }
+  await executeCommand(req, res, {
+    ...workspaceInvocation(req, twoPersonCommand),
+    formatResponse: legacyAnswer({ badBody: 'Say whether the two-person rule is on', failed: 'The setting could not be saved' }),
+  });
 });

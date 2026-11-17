@@ -107,6 +107,13 @@ export interface CommandInvocation {
   input: unknown;
   /** Existing routes can preserve their established wire response while calling the same runner. */
   formatResponse?(outcome: CommandExecutionOutcome): { status: number; body: unknown };
+  /**
+   * The address had no two-step gate of its own before it called this command, so a command marked
+   * high-risk for the command router keeps its established answer here. Only the legacy wrappers set
+   * this, and only where the route's own role check was the whole gate (the security settings, the
+   * account merge); the command router still requires a code-confirmed session.
+   */
+  legacyRoute?: boolean;
 }
 
 export type CommandExecutionOutcome =
