@@ -147,8 +147,8 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **5** → 0. 3 files — all of them the same open question (below). The remaining sites are not one problem, and the order below is the
-      order they can actually be done in:
+- [ ] `directDbWrites` **3** → 0. 1 file (`useEntityOperations`' three fallbacks) — the order below is the
+      order the sites were done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
         line, and two tabs opened at once both see the empty collection and both write. `user.provision` and
@@ -312,14 +312,26 @@ hand-convert a table the codemod still refuses.
         the tab had loaded. `presence.beat` writes the caller's own row (session `uid`, email, workspace, server
         clock) and `presence.leave` can only remove that row. Neither writes an audit line: a heartbeat is not a
         record.
-      - **the rest** — **5 sites in 3 files, one open question.** `useEntityOperations` (3) and the two inline-edit
-        adapters (`recordDetailsAdapter`, `inlineRecordAdapter`) write `updateDoc`/`setDoc`/`deleteDoc` on whatever
-        `path`/`collection`/`kind` the caller passes. Every collection with a ledger meaning already branches to its
-        own command before reaching them, so what is left is the long tail of ordinary records — but a command for
-        them has to answer a policy question the code cannot answer for itself: an **allow-list** (fail closed, and a
-        screen added later breaks until it is listed) or a **deny-list** (fail open, and a new ledger collection is
-        writable by mistake). That is a product decision, not a mechanical conversion, so it is deliberately left
-        here rather than guessed. — write routes that already have a command in most cases
+      - **the record's own fields — done, 2 sites, and the open question is answered: an allow-list.** The two
+        inline-edit adapters (`recordDetailsAdapter`, `inlineRecordAdapter`) wrote `updateDoc` on whatever `kind` the
+        caller passed. They send `record.fields` now, and the table the server reads is `EDITABLE_RECORD_FIELDS` in
+        `src/lib/editableRecords.ts` — the merge of the two screens' own lists (`RECORD_DETAIL_FIELDS`,
+        `INLINE_RECORD_FIELDS`) plus one derived entry, `dimensionNodes.aliases`, which is not a field a person
+        types: the label editor produces it so the previous name is kept. A collection or a field that is not named
+        there cannot be written through that door at all, which is the fail-closed half of the question below: a
+        screen added tomorrow breaks until someone lists it, and a field with a ledger meaning (an amount on a
+        document, a posting date, a balance, a quantity, a status a command owns) never appears. The command also
+        re-checks the role, stamps `updatedAt` from the server clock, writes the audit line, and — when the screen
+        says what it read — refuses with `CONFLICT` **in the same transaction**, so the compare and the write cannot
+        be separated by another tab. `metadata.client` is a nested patch that keeps its siblings, and the field
+        allowlist is asserted equal to the screens' lists by `record-fields-command.test.ts` (9 cases), so the two
+        sides cannot drift.
+      - **the last three — `useEntityOperations`' generic create/update/delete.** Every collection with a ledger
+        meaning already branches to its own command before reaching these fallbacks, so what is left is the long tail
+        of ordinary records (`purchaseOrders`, `recurring`, `taxRates`, …). They still write `setDoc`/`updateDoc`/
+        `deleteDoc` on whatever `path` the caller passes, and the allow-list answer above is the one they need too —
+        one door for an ordinary record's whole document (not a field patch), with the same role check, server clock,
+        workspace check and audit line. — write routes that already have a command in most cases
         (`SupportView` 5, `useEntityOperations` 3, `useCollaborators` 3, `Ledger` 2, `Vault` 2 …): one commit per
         hook, not per call, because a hook that writes has one shape. Three are deliberately *not* converted yet:
         `useCollaborators`' presence rows (ephemeral, one row per open tab, nothing to audit), `shared.ts`'
