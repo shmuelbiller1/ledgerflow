@@ -1,5 +1,5 @@
 diff --git a/src/server/reports/computeReports.ts b/src/server/reports/computeReports.ts
-index aa02327b3..3e15b4797 100644
+index aa02327b..fe22c594 100644
 --- a/src/server/reports/computeReports.ts
 +++ b/src/server/reports/computeReports.ts
 @@ -1,7 +1,7 @@
@@ -53,7 +53,7 @@ index aa02327b3..3e15b4797 100644
      if (!lines.some(isCash)) return;
  
 +    const metaType = (tx.metadata as { type?: string } | undefined)?.type;
-+    if (metaType === 'asset-disposal') {
++    if (metaType === 'asset-disposal' || metaType === 'asset-partial-disposal') {
 +      const cashDelta = lines.filter(isCash).reduce((sum, line) => sum + lineAmount(line, tx), 0);
 +      if (cashDelta !== 0) {
 +        cashFlow.investing.total += cashDelta;
@@ -180,7 +180,7 @@ index aa02327b3..3e15b4797 100644
        });
      });
 diff --git a/src/server/reports/partyReports.ts b/src/server/reports/partyReports.ts
-index b4a123030..e87b5a0a3 100644
+index b4a12303..e87b5a0a 100644
 --- a/src/server/reports/partyReports.ts
 +++ b/src/server/reports/partyReports.ts
 @@ -68,6 +68,7 @@ export function computeCustomerBalanceSummary(
@@ -200,7 +200,7 @@ index b4a123030..e87b5a0a3 100644
        if (docDate && docDate > end) return false;
        return true;
 diff --git a/src/server/services/statementService.ts b/src/server/services/statementService.ts
-index 5bc6b0673..598510835 100644
+index 5bc6b067..59851083 100644
 --- a/src/server/services/statementService.ts
 +++ b/src/server/services/statementService.ts
 @@ -57,7 +57,8 @@ export async function loadStatement(db: Firestore, workspaceId: string, contactI

@@ -137,7 +137,7 @@ index 20d4472..7723ea5 100644
                  >
                    <Trash2 aria-hidden="true" size={18} />
 diff --git a/src/server/routes/attachmentRoutes.ts b/src/server/routes/attachmentRoutes.ts
-index 5cd556b..ff3e631 100644
+index 5cd556b8..ff3e6319 100644
 --- a/src/server/routes/attachmentRoutes.ts
 +++ b/src/server/routes/attachmentRoutes.ts
 @@ -9,6 +9,11 @@ import { mayRemoveAttachment } from '../../lib/attachments';
@@ -194,10 +194,10 @@ index 5cd556b..ff3e631 100644
 +});
 diff --git a/supabase/migrations/20261116120000_document_link_tickets_and_pay_visibility.sql b/supabase/migrations/20261116120000_document_link_tickets_and_pay_visibility.sql
 new file mode 100644
-index 0000000..e8fb5cd
+index 00000000..14e72e0c
 --- /dev/null
 +++ b/supabase/migrations/20261116120000_document_link_tickets_and_pay_visibility.sql
-@@ -0,0 +1,116 @@
+@@ -0,0 +1,119 @@
 +-- A7S-03 (+ the ledger link of A7S-04): the two rules that let a workspace member read or rewrite what
 +-- the screen never shows them — other people's support tickets, and the ledger link of a file.
 +--
@@ -211,9 +211,8 @@ index 0000000..e8fb5cd
 +--    The write that sets it moves behind a writer role: POST /workspaces/:id/attachments/:id/link
 +--    (attachmentRoutes.ts, in this patch), which refuses an entry of another workspace and needs
 +--    lf_can_write — Vault's own 'link this receipt to the entry I just posted' call uses it.
-+-- 2. public.supportTickets: ticket_read lets every member of the workspace read every ticket, and the
-+--    allowlist lets anyone who can update one write unreadForAdmin, lastMessageBy and
-+--    errorDiagnostics (support-side bookkeeping that drives the inbox badges).
++-- 2. public.supportTickets: ticket_read and ticket_update let every member of the workspace read and
++--    change every ticket. Both are narrowed to the person's own ticket (platform admins keep all).
 +-- 3. public.employees: member_read lets a viewer select every employee row, including salaryCents,
 +--    hourlyRateCents, preTaxDeductionsCents and the bank routing/account used for ACH. The isolation
 +--    suite (supabase/tests/rls.test.sql) asserts that a viewer CAN read an employee row, so narrowing
@@ -273,20 +272,24 @@ index 0000000..e8fb5cd
 +$$;
 +
 +-- ---------------------------------------------------------------------------
-+-- 2. Support tickets: the person's own ticket, and no support-side bookkeeping from a client
++-- 2. Support tickets: the person's own ticket
 +-- ---------------------------------------------------------------------------
 +drop policy if exists ticket_read on public."supportTickets";
 +create policy ticket_read on public."supportTickets" for select to authenticated
 +  using (public.lf_is_platform_admin() or data->>'uid' = public.lf_uid());
 +
-+update public.lf_rules
-+   set allowed_keys = array_remove(array_remove(array_remove(array_remove(
-+         coalesce(allowed_keys, '{}'), 'unreadForAdmin'), 'lastMessageBy'), 'errorDiagnostics'), 'errorLogId')
-+ where table_name = 'supportTickets';
++-- unreadForAdmin, lastMessageBy, errorLogId and errorDiagnostics stay on the allowlist: lf_enforce_rules
++-- checks every key of the new row, and SupportView still writes all four when a ticket is opened or
++-- answered. With the two policies above a client can only set them on its own ticket. Taking them off
++-- the allowlist waits for the server route that opens and answers tickets.
 +
 +-- a client may open its own ticket and close it; who it belongs to and when it was opened never move
++-- each key is added once, so a rerun changes nothing
 +update public.lf_rules
-+   set immutable_keys = coalesce(immutable_keys, '{}') || array['uid', 'workspaceId', 'createdAt']
++   set immutable_keys = array(
++         select distinct k
++           from unnest(coalesce(immutable_keys, '{}') || array['uid', 'workspaceId', 'createdAt']) as k
++          order by k)
 + where table_name = 'supportTickets';
 +
 +drop policy if exists ticket_update on public."supportTickets";
