@@ -71,15 +71,8 @@ export const inventoryCogsCommand: CommandDefinition<typeof inventoryCogsInput, 
       ],
     };
   },
-  audit(_input, result) {
-    return {
-      action: 'INVENTORY_COGS_RECORDED',
-      entityType: 'inventory',
-      entityId: '',
-      description: `Recognized cost of goods sold of ${money(result.totalCogsCents)}`,
-      details: { totalCogsCents: result.totalCogsCents, transactionId: result.transactionId },
-    };
-  },
+  // the COGS service writes its own audit line in the same transaction (one line per request)
+  audit() { return null; },
   inverse() { return null; },
   risk: 'normal',
   describe: {

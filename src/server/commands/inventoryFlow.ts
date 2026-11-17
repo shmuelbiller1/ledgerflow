@@ -157,15 +157,8 @@ export const inventoryDeliverCommand: CommandDefinition<typeof inventoryDeliverI
       ],
     };
   },
-  audit(_input, result) {
-    return {
-      action: 'GOODS_DELIVERED',
-      entityType: 'estimates',
-      entityId: '',
-      description: `Delivered ${result.transactionIds.length} line(s)${result.repeated ? ' (a repeated request)' : ''}`,
-      details: { deliveryId: result.deliveryId, transactionIds: result.transactionIds, warnings: result.warnings },
-    };
-  },
+  // the delivery / landed-cost service writes its own audit line in the same transaction
+  audit() { return null; },
   inverse() { return null; },
   risk: 'normal',
   describe: {
@@ -202,15 +195,8 @@ export const inventoryReturnCommand: CommandDefinition<typeof inventoryReturnInp
       ],
     };
   },
-  audit(_input, result) {
-    return {
-      action: 'GOODS_RETURNED',
-      entityType: 'estimates',
-      entityId: '',
-      description: `Took back ${result.transactionIds.length} line(s)${result.repeated ? ' (a repeated request)' : ''}`,
-      details: { returnId: result.returnId, transactionIds: result.transactionIds },
-    };
-  },
+  // the delivery / landed-cost service writes its own audit line in the same transaction
+  audit() { return null; },
   inverse() { return null; },
   risk: 'normal',
   describe: {
@@ -242,15 +228,8 @@ export const inventoryUndoDeliveryCommand: CommandDefinition<typeof inventoryUnd
       lines: [`Delivery ${input.deliveryId} of order ${input.orderId}`, 'Its entries are reversed and the units come back'],
     };
   },
-  audit(_input, result) {
-    return {
-      action: 'DELIVERY_UNDONE',
-      entityType: 'estimates',
-      entityId: '',
-      description: `Undid delivery ${result.deliveryId}: ${result.reversed.length} entry(ies) reversed`,
-      details: { deliveryId: result.deliveryId, reversed: result.reversed },
-    };
-  },
+  // the delivery / landed-cost service writes its own audit line in the same transaction
+  audit() { return null; },
   inverse() { return null; },
   risk: 'normal',
   describe: {
@@ -301,14 +280,8 @@ export const inventoryTransferCommand: CommandDefinition<typeof inventoryTransfe
       ],
     };
   },
-  audit(_input, result) {
-    return {
-      action: 'STOCK_MOVED',
-      entityType: 'inventory',
-      entityId: '',
-      description: `Moved ${result.moved} from ${result.from || 'no location'} to ${result.to || 'no location'}`,
-    };
-  },
+  // the transfer service writes its own audit line in the same transaction
+  audit() { return null; },
   inverse() { return null; },
   risk: 'normal',
   describe: {
@@ -434,15 +407,8 @@ export const inventoryLandedCostCommand: CommandDefinition<typeof inventoryLande
       ],
     };
   },
-  audit(_input, result) {
-    const entryId = String(result.entryId || '');
-    return {
-      action: 'LANDED_COST_POSTED',
-      entityType: 'transaction',
-      entityId: entryId,
-      description: `Landed a cost (entry ${entryId})`,
-    };
-  },
+  // the landed-cost service writes its own audit line in the same transaction
+  audit() { return null; },
   inverse(_input, result) {
     const entryId = String(result.entryId || '');
     return entryId ? { command: 'inventory.landedcostundo', input: { entryId } } : null;
@@ -472,14 +438,8 @@ export const inventoryLandedCostUndoCommand: CommandDefinition<typeof inventoryL
       lines: [`Entry ${input.entryId}`, 'Its entry and its stock moves are reversed together'],
     };
   },
-  audit(_input, result) {
-    return {
-      action: 'LANDED_COST_UNDONE',
-      entityType: 'transaction',
-      entityId: String(result.entryId || ''),
-      description: `Undid landed cost ${String(result.entryId || '')}`,
-    };
-  },
+  // the delivery / landed-cost service writes its own audit line in the same transaction
+  audit() { return null; },
   inverse() { return null; },
   risk: 'normal',
   describe: {

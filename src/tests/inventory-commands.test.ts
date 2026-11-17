@@ -30,7 +30,7 @@ import {
   inventoryUndoDeliveryCommand,
 } from '../server/commands/inventory';
 import { resetStockMovesReadyForTests } from '../server/services/stockMoveService';
-import { MemoryDb, ReplayOnRetryMemoryDb, runnerDependencies, type TestCounters } from './helpers/commandTestUtils';
+import { MemoryDb, ReplayOnRetryMemoryDb, runnerDependencies, fakeRequest, captureResponse, type TestCounters } from './helpers/commandTestUtils';
 
 const OWNER = 'owner-1';
 const ACCOUNTANT = 'acct-1';
@@ -129,7 +129,7 @@ async function createHarness(options: { replay?: { key: string; data: Record<str
   const entries = () => db.entries('transactions');
 
   return {
-    db, counters, auditEntries, call, post, quantity, entries,
+    db, counters, auditEntries, dependencies, call, post, quantity, entries,
     async close() {
       // leave the process-wide probe as it was found, so the other suites' databases are probed themselves
       resetStockMovesReadyForTests();
@@ -303,7 +303,8 @@ test('POST /transfer moves units and posts nothing, as the route always did', as
   assert.equal(body.status, 'ok');
   assert.equal(body.moved, 4);
   assert.equal(harness.entries().length, 0, 'a transfer never posts');
-  assert.deepEqual(harness.auditEntries.map(a => a.action), ['STOCK_MOVED']);
+  // the transfer service writes its own audit line, so the runner adds none
+  assert.equal(harness.auditEntries.length, 0);
 });
 
 test('POST /cogs keeps its message, its operation type and replays a retried operation', async t => {
@@ -326,7 +327,8 @@ test('POST /cogs keeps its message, its operation type and replays a retried ope
   assert.equal(replayed.totalCogsCents, 800);
   assert.equal(harness.quantity(), 8, 'and does not sell the units twice');
   assert.equal(harness.entries().length, 1, 'one entry, not two');
-  assert.equal(harness.auditEntries.filter(a => a.action === 'INVENTORY_COGS_RECORDED').length, 1, 'one audit line');
+  assert.equal(harness.auditEntries.length, 0, 'the COGS service writes the one audit line, not the runner');
+  assert.equal(harness.db.entries('auditLogs').filter(row => row.data.action === 'INVENTORY_COGS_RECORDED').length, 1, 'the service wrote exactly one');
 
   const different = await harness.post(OWNER, '/cogs', { ...body, quantitySold: 3 }, 'cogs-op-1');
   assert.equal(different.status, 409, 'the same operation id with another body is refused');
@@ -374,4 +376,31 @@ test('POST /deliveries, /deliveries/:id/undo and /deliveries/returns keep their 
   const badId = await harness.post(BOOKKEEPER, '/deliveries/not-an-id/undo', { orderId: `${WS}_order`, date: '2026-07-10' });
   assert.equal(badId.status, 400);
   assert.match(String((await badId.json()).error), /Unknown delivery id/);
+});
+
+test('each request writes exactly one audit line, never two', async t => {
+  const harness = await createHarness();
+  t.after(harness.close);
+  const respond = (outcome: { ok: boolean; status: number; message?: string; data?: unknown }) => ({
+    status: outcome.status,
+    body: outcome.ok ? outcome.data : { error: outcome.message },
+  });
+  const run = async (definition: (typeof INVENTORY)[number], input: unknown) => {
+    const { executeCommand } = await import('../server/utils/commandExecutor');
+    const user = { uid: OWNER, email: `${OWNER}@example.test`, aal: 'aal2' } as unknown as RequestUser;
+    return executeCommand(fakeRequest(user, input), captureResponse().response, { definition, workspaceId: WS, input, formatResponse: respond }, harness.dependencies);
+  };
+  // a command whose service writes the line returns null from audit(), and the line is written once;
+  // a command whose service does not audit has one line from the runner's summary
+  const writes = await harness.post(OWNER, '/cogs', { itemId: ITEM, quantitySold: 1, inventoryAccountId: INV, cogsAccountId: COGS, date: '2026-07-10' });
+  assert.equal(writes.status, 200, await writes.clone().text());
+  assert.deepEqual(harness.db.entries('auditLogs').map(row => row.data.action), ['INVENTORY_COGS_RECORDED'], 'the COGS service wrote the only line');
+  assert.equal(harness.counters.audits, 0, 'and the runner added none');
+
+  const revalue = { workspaceId: WS, itemId: ITEM, newUnitCostCents: 450, inventoryAccountId: INV, offsetAccountId: OFFSET, reason: 'Supplier price rise', requestId: 'reval-audit-01', date: '2026-07-10' };
+  const before = harness.counters.audits;
+  const outcome = await run(inventoryRevalueCommand, revalue);
+  assert.equal((outcome as { ok: boolean }).ok, true, JSON.stringify((outcome as { message?: string }).message));
+  assert.equal(harness.db.entries('auditLogs').length, 1, 'the revaluation service writes no line of its own');
+  assert.equal(harness.counters.audits - before, 1, 'so the runner writes its one summary, and only one');
 });
