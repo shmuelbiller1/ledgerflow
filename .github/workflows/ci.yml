@@ -293,52 +293,9 @@ jobs:
           test "$(ls coverage/shard-*.lcov | wc -l)" -eq 4
           npm run coverage:gate
 
-  # SonarCloud reporting is independent from the REQUIRED accounting/coverage gate.
-  # If SonarCloud is not configured or has an outage, the unit gate remains truthful.
-  sonarcloud:
-    name: SonarCloud coverage upload (separate from coverage gate)
-    needs: [changes, unit_gate]
-    if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' && needs.unit_gate.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Checkout full source history for new-code analysis
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download existing coverage reports (no test re-run)
-        uses: actions/download-artifact@v4
-        with:
-          pattern: coverage-shard-*
-          path: coverage
-          merge-multiple: true
-
-      - name: Confirm all four LCOV reports are present
-        run: |
-          for shard in 1 2 3 4; do
-            test -s "coverage/shard-${shard}.lcov"
-          done
-
-      - name: Authenticate to SonarCloud (GitHub OIDC, no stored token)
-        id: sonar_auth
-        uses: SonarSource/sonarqube-auth-action@a0aa643acde4162396015b4f12536c1b9c4aab82 # v1
-        with:
-          project-key: shmuelbiller1_ledgerflow
-          export-env: false
-
-      - name: Send existing LCOV coverage to SonarCloud
-        uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
-        timeout-minutes: 10
-        env:
-          SONAR_TOKEN: ${{ steps.sonar_auth.outputs.sonar-token }}
-        with:
-          args: >
-            -Dsonar.organization=${{ steps.sonar_auth.outputs.organization }}
-            -Dsonar.projectKey=${{ steps.sonar_auth.outputs.project-key }}
+  # SonarQube Cloud uses GitHub-connected Automatic Analysis for source-code findings.
+  # Do not add a SonarScanner job while Automatic Analysis is enabled: they conflict.
+  # The required local LCOV accounting coverage gate above remains unchanged.
 
   # Build the exact deployable artifacts rather than relying on a separate hosting status.
   build:
