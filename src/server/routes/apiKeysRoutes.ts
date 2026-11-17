@@ -1,15 +1,11 @@
-import { handleApiError, authorizeWorkspace, authenticate } from "../http/serverKit";
-import { roleInWorkspace } from "../middleware/requireLedgerWriter";
+import { handleApiError, authenticate } from "../http/serverKit";
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
 import { requireWorkspaceRole } from "./workspaceRoutes";
 import express from "express";
-import crypto from "crypto";
-import { SecurityService } from "../../services/securityService";
-import { getDb, FieldValue } from "../db/firestore";
-import { apiKeyLimit } from "../middleware/rateLimiters";
+import { getDb } from "../db/firestore";
 import { openApiDocument } from "../openapi";
-import { validateApiKeyScopes } from "../../lib/apiScopes";
-import { writeServerAuditLog } from "../services/auditLogService";
+import { executeCommand } from "../utils/commandExecutor";
+import { apiKeyProvisionCommand, apiKeyRevokeCommand, apiKeyRevokePersonalCommand, userAiKeyRemoveCommand, userAiKeySetCommand } from "../commands/apiKeys";
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerApiKeysRoutes(app: express.Express, _ctx: ServerContext): void {
@@ -20,190 +16,93 @@ export function registerApiKeysRoutes(app: express.Express, _ctx: ServerContext)
   });
 
   // --- API Key Management endpoints ---
+  // Z-01/Z-02, AUD-09 step 3: the command owns the schema, the owner check and the audit line; the
+  // key's secret is shown once and never recorded. These addresses keep their legacy answers.
   app.post("/api/v1/keys/provision", authenticate, requireWorkspaceRole(['owner']), async (req: express.Request, res: express.Response) => {
-    try {
-      const { name, scopes, expiration, workspaceId, rateLimitPerMinute } = req.body;
-      if (!workspaceId) {
-        return res.status(400).json({ status: "error", message: "Missing workspaceId in body" });
-      }
-
-      const authReq = req as AuthenticatedRequest;
-      const scopeValidation = validateApiKeyScopes(scopes);
-      if (!scopeValidation.ok) {
-        const message = scopeValidation.reason === 'missing' ? 'Choose at least one API key scope.'
-          : scopeValidation.reason === 'duplicate' ? 'API key scopes must not contain duplicates.'
-            : 'One or more API key scopes are not supported.';
-        return res.status(400).json({ status: "error", message });
-      }
-
-      await authorizeWorkspace(authReq, workspaceId);
-
-      const userId = authReq.user.uid;
-      
-      const randomSecret = crypto.randomBytes(32).toString('hex');
-      const randomKeyIdSuffix = crypto.randomBytes(8).toString('hex');
-      const keyId = `lf_id_${workspaceId}_${randomKeyIdSuffix}`;
-      const computedHash = crypto.createHash('sha256').update(randomSecret).digest('hex');
-
-      let expiresAtValue: string | null = null;
-      if (expiration && expiration !== 'never') {
-        const d = new Date();
-        if (expiration === '1h') d.setHours(d.getHours() + 1);
-        else if (expiration === '24h') d.setHours(d.getHours() + 24);
-        else if (expiration === '30d') d.setDate(d.getDate() + 30);
-        else if (expiration === '90d') d.setDate(d.getDate() + 90);
-        expiresAtValue = d.toISOString();
-      }
-
-      const keyPayload = {
-        id: keyId,
-        workspaceId,
-        uid: userId,
-        name: name || 'Production Integration Key',
-        keyHash: computedHash,
-        scopes: scopeValidation.scopes,
-        expiresAt: expiresAtValue || 'never',
-        createdAt: new Date().toISOString(),
-        lastUsedAt: null,
-        totalRequests: 0,
-        // Z-02: requests a minute this key may make (10 to 10,000; 120 unless chosen)
-        rateLimitPerMinute: apiKeyLimit(rateLimitPerMinute)
-      };
-
-      const db = getDb();
-      await db.collection("apiKeys").doc(keyId).set(keyPayload);
-      await writeServerAuditLog({
-        workspaceId,
-        uid: userId,
-        email: authReq.user.email,
-        action: 'API_KEY_PROVISIONED',
-        entityType: 'api_key',
-        entityId: keyId,
-        details: {
-          description: `Provisioned API key "${keyPayload.name}"`,
-          scopes: keyPayload.scopes,
-          expiresAt: keyPayload.expiresAt,
-        },
-      }, { db });
-
-      // Return full token signature once
-      const fullKeySecret = `${keyId}.${randomSecret}`;
-      res.status(201).json({
-        status: "success",
-        apiKey: fullKeySecret,
-        key: {
-          id: keyId,
-          name: keyPayload.name,
-          scopes: keyPayload.scopes,
-          expiresAt: keyPayload.expiresAt,
-          createdAt: keyPayload.createdAt,
-          rateLimitPerMinute: keyPayload.rateLimitPerMinute
+    await executeCommand(req, res, {
+      definition: apiKeyProvisionCommand,
+      workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+      input: req.body,
+      formatResponse: (outcome) => {
+        if (outcome.ok) {
+          const key = (outcome.data as { key: { keyId: string; name: string; scopes: string[]; expiresAt: string; createdAt: string; rateLimitPerMinute: number } }).key;
+          const apiKey = (outcome.data as { apiKey?: string } & Record<string, unknown>).apiKey as string;
+          return {
+            status: 201,
+            body: {
+              status: 'success',
+              apiKey,
+              key: { id: key.keyId, name: key.name, scopes: key.scopes, expiresAt: key.expiresAt, createdAt: key.createdAt, rateLimitPerMinute: key.rateLimitPerMinute },
+            },
+          };
         }
-      });
-    } catch (err) {
-      handleApiError(res, err);
-    }
+        // a missing workspace is the legacy "Missing workspaceId in body"
+        if (outcome.ok === false && /Workspace ID is required/i.test(outcome.message)) {
+          return { status: 400, body: { status: 'error', message: 'Missing workspaceId in body' } };
+        }
+        return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      },
+    });
   });
 
   app.delete("/api/v1/keys/revoke/:keyId", authenticate, async (req: express.Request, res: express.Response) => {
-    try {
-      const { keyId } = req.params as Record<string, string>;
-      if (!keyId) {
-        return res.status(400).json({ status: "error", message: "Missing keyId in path" });
-      }
-
-      const authReq = req as AuthenticatedRequest;
-      const db = getDb();
-      const keyDoc = await db.collection("apiKeys").doc(keyId).get();
-
-      if (!keyDoc.exists) {
-        return res.status(404).json({ status: "error", message: "API key not found." });
-      }
-
-      const keyData = keyDoc.data();
-      const workspaceId = keyData?.workspaceId;
-      if (workspaceId) {
-        const wsData = await authorizeWorkspace(authReq, workspaceId);
-        // only an owner makes a workspace key, so only an owner (or a platform admin) revokes one (AUD-09 step 3)
-        if (!authReq.user.admin && roleInWorkspace(wsData, authReq.user.uid) !== 'owner') {
-          return res.status(403).json({ status: "error", message: "Only an owner revokes this workspace's API keys." });
-        }
-      } else if (keyData?.uid !== authReq.user.uid && !authReq.user.admin) {
-        return res.status(403).json({ status: "error", message: "Forbidden key revocation" });
-      }
-
-      await db.collection("apiKeys").doc(keyId).delete();
-      if (workspaceId) {
-        await writeServerAuditLog({
-          workspaceId,
-          uid: authReq.user.uid,
-          email: authReq.user.email,
-          action: 'API_KEY_REVOKED',
-          entityType: 'api_key',
-          entityId: keyId,
-          details: {
-            description: `Revoked API key "${keyData?.name || keyId}"`,
-          },
-        }, { db });
-      }
-      res.json({ status: "success", message: "API key revoked successfully." });
-    } catch (err) {
-      handleApiError(res, err);
-    }
+    const keyId = String((req.params as Record<string, string>).keyId || '');
+    if (!keyId) return res.status(400).json({ status: "error", message: "Missing keyId in path" });
+    // which command runs depends on the key: a workspace key is an owner's write in that workspace, a
+    // key made before keys belonged to a workspace is its maker's own. The route reads that, then the
+    // command checks the caller against it.
+    const keyDoc = await getDb().collection("apiKeys").doc(keyId).get();
+    if (!keyDoc.exists) return res.status(404).json({ status: "error", message: "API key not found." });
+    const workspaceId = (keyDoc.data() || {}).workspaceId;
+    const definition = workspaceId ? apiKeyRevokeCommand : apiKeyRevokePersonalCommand;
+    await executeCommand(req, res, {
+      definition,
+      workspaceId: workspaceId ? String(workspaceId) : '',
+      input: workspaceId ? { workspaceId: String(workspaceId), keyId } : { keyId },
+      formatResponse: (outcome) => {
+        if (outcome.ok) return { status: 200, body: { status: "success", message: "API key revoked successfully." } };
+        if (outcome.status === 404) return { status: 404, body: { status: "error", message: "API key not found." } };
+        // the role refusal this address always gave (the command's own wording is the generic one)
+        if (outcome.code === 'ROLE_REQUIRED') return { status: 403, body: { status: "error", message: "Only an owner revokes this workspace's API keys." } };
+        return { status: outcome.status, body: { status: "error", message: outcome.message } };
+      },
+    });
   });
 
   // --- User Custom Gemini AI Key Management ---
   app.post("/api/v1/user/ai-key", authenticate, async (req: express.Request, res: express.Response) => {
-    try {
-      const authReq = req as AuthenticatedRequest;
-      const { apiKey } = req.body;
-      if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
-        return res.status(400).json({ status: "error", message: "A non-empty apiKey string is required." });
-      }
-
-      const cleanKey = apiKey.trim();
-      const encryptedKey = SecurityService.encryptSensitiveField(cleanKey);
-      const suffix = cleanKey.length >= 4 ? cleanKey.slice(-4) : cleanKey;
-
-      const db = getDb();
-      await db.collection("users").doc(authReq.user.uid).set({
-        geminiApiKeyEncrypted: encryptedKey,
-        hasCustomApiKey: true,
-        apiKeySuffix: suffix,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-
-      res.json({
-        status: "success",
-        message: "Gemini API key encrypted and saved securely.",
-        hasCustomApiKey: true,
-        apiKeySuffix: suffix
-      });
-    } catch (err) {
-      handleApiError(res, err);
-    }
+    await executeCommand(req, res, {
+      definition: userAiKeySetCommand,
+      workspaceId: '',
+      input: req.body,
+      formatResponse: (outcome) => {
+        if (outcome.ok) {
+          const data = outcome.data as { hasCustomApiKey: boolean; apiKeySuffix: string };
+          return {
+            status: 200,
+            body: {
+              status: "success",
+              message: "Gemini API key encrypted and saved securely.",
+              hasCustomApiKey: data.hasCustomApiKey,
+              apiKeySuffix: data.apiKeySuffix,
+            },
+          };
+        }
+        if (outcome.status === 401) return { status: 401, body: { status: "error", message: "Unauthenticated: " + outcome.message } };
+        return { status: 400, body: { status: "error", message: outcome.message } };
+      },
+    });
   });
 
   app.delete("/api/v1/user/ai-key", authenticate, async (req: express.Request, res: express.Response) => {
-    try {
-      const authReq = req as AuthenticatedRequest;
-      const db = getDb();
-      await db.collection("users").doc(authReq.user.uid).update({
-        geminiApiKeyEncrypted: FieldValue.delete(),
-        geminiApiKey: FieldValue.delete(),
-        hasCustomApiKey: false,
-        apiKeySuffix: FieldValue.delete(),
-        updatedAt: new Date().toISOString()
-      });
-
-      res.json({
-        status: "success",
-        message: "Custom Gemini API key removed.",
-        hasCustomApiKey: false
-      });
-    } catch (err) {
-      handleApiError(res, err);
-    }
+    await executeCommand(req, res, {
+      definition: userAiKeyRemoveCommand,
+      workspaceId: '',
+      input: {},
+      formatResponse: (outcome) => (outcome.ok
+        ? { status: 200, body: { status: "success", message: "Custom Gemini API key removed.", hasCustomApiKey: false } }
+        : { status: outcome.status, body: { status: "error", message: outcome.message } }),
+    });
   });
 
   app.get("/api/v1/user/ai-key-status", authenticate, async (req: express.Request, res: express.Response) => {

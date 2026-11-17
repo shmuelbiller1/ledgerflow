@@ -31,8 +31,28 @@ import {
   reconcileCommand,
   updateBankLineCommand,
 } from './reconciliations';
+import {
+  allocationRulesSaveCommand,
+  approvalDelegateSaveCommand,
+  customerGroupsChangeCommand,
+  paymentTypesChangeCommand,
+  priceListsSaveCommand,
+  roleDashboardSaveCommand,
+  salesRepsSaveCommand,
+  taxProfilesSaveCommand,
+} from './savedLists';
 import { journalCreateCommand } from './ledger';
-import { paymentReceiveCommand } from './payments';
+import {
+  workspaceApplyTemplateCommand, workspaceImportRecordsCommand, workspaceInviteCommand,
+  workspaceScheduleDeletionCommand, workspaceUndoImportCommand, workspaceUpdateRoleCommand,
+} from './workspaceAdmin';
+import {
+  apiKeyProvisionCommand, apiKeyRevokeCommand, apiKeyRevokePersonalCommand, userAiKeyRemoveCommand, userAiKeySetCommand,
+} from './apiKeys';
+import {
+  paymentApplyCommand, paymentCreditApplyCommand, paymentCreditRefundCommand, paymentCreditsAutoApplyCommand,
+  paymentDepositCommand, paymentReceiveCommand, paymentVoidCommand,
+} from './payments';
 import { numberingUpdateCommand } from './numbering';
 import {
   inventoryAdjustCommand,
@@ -143,6 +163,12 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(journalCreateCommand);
   registry.register(numberingUpdateCommand);
   registry.register(paymentReceiveCommand);
+  registry.register(paymentCreditApplyCommand);
+  registry.register(paymentCreditRefundCommand);
+  registry.register(paymentCreditsAutoApplyCommand);
+  registry.register(paymentDepositCommand);
+  registry.register(paymentApplyCommand);
+  registry.register(paymentVoidCommand);
   registry.register(invoiceCreateCommand);
   registry.register(billCreateCommand);
   registry.register(creditNoteCreateCommand);
@@ -190,6 +216,25 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(bankLinePayCommand);
   registry.register(bankLineSplitCommand);
   registry.register(bankRulesRerunCommand);
+  registry.register(workspaceApplyTemplateCommand);
+  registry.register(workspaceImportRecordsCommand);
+  registry.register(workspaceUndoImportCommand);
+  registry.register(workspaceUpdateRoleCommand);
+  registry.register(workspaceInviteCommand);
+  registry.register(workspaceScheduleDeletionCommand);
+  registry.register(apiKeyProvisionCommand);
+  registry.register(apiKeyRevokeCommand);
+  registry.register(apiKeyRevokePersonalCommand);
+  registry.register(userAiKeySetCommand);
+  registry.register(userAiKeyRemoveCommand);
+  registry.register(allocationRulesSaveCommand);
+  registry.register(priceListsSaveCommand);
+  registry.register(salesRepsSaveCommand);
+  registry.register(taxProfilesSaveCommand);
+  registry.register(roleDashboardSaveCommand);
+  registry.register(approvalDelegateSaveCommand);
+  registry.register(paymentTypesChangeCommand);
+  registry.register(customerGroupsChangeCommand);
   registry.register(inventoryTransferCommand);
   registry.register(inventoryStockClosingCommand);
   registry.register(inventoryLandedCostCommand);

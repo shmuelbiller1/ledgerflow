@@ -283,6 +283,11 @@ async function runRegisteredCommand(
   if (!personScope && user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) {
     return { ok: false, status: 403, command: command.name, message: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}`, code: 'WORKSPACE_SCOPE' };
   }
+  // A command that mints or revokes access is a person's to run: an API key holding a broad scope
+  // must not be able to grant itself another key, or a wider one, by calling the command router.
+  if (command.peopleOnly && user.usedApiKeyId) {
+    return { ok: false, status: 403, command: command.name, message: 'Forbidden: this command is for a signed-in person, not an API key', code: 'PERSON_ONLY' };
+  }
 
   const db = (dependencies.getDb || getDb)();
   let workspace: Record<string, unknown> = {};
@@ -482,6 +487,11 @@ export async function previewCommand(
   if (!workspaceId) return { ok: false, status: 400, command: command.name, message: 'Workspace ID is required', code: 'WORKSPACE_REQUIRED' };
   if (!personScope && user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) {
     return { ok: false, status: 403, command: command.name, message: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}`, code: 'WORKSPACE_SCOPE' };
+  }
+  // A command that mints or revokes access is a person's to run: an API key holding a broad scope
+  // must not be able to grant itself another key, or a wider one, by calling the command router.
+  if (command.peopleOnly && user.usedApiKeyId) {
+    return { ok: false, status: 403, command: command.name, message: 'Forbidden: this command is for a signed-in person, not an API key', code: 'PERSON_ONLY' };
   }
 
   const db = (dependencies.getDb || getDb)();

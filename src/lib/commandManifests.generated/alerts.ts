@@ -6,7 +6,7 @@ export const ALERTS_COMMAND_MANIFEST = [
   {
     "name": "alerts.update",
     "area": "alerts",
-    "roles": COMMAND_SCHEMA_PARTS.part20,
+    "roles": COMMAND_SCHEMA_PARTS.part23,
     "risk": "normal",
     "description": {
       "sentence": "Change when this workspace is reminded about closing its books, overspent budgets, or low cash; do not use this to change ledger entries.",
@@ -26,7 +26,7 @@ export const ALERTS_COMMAND_MANIFEST = [
           "when": "The cash amount or reminder day is outside its allowed range.",
           "next": "Use a nonnegative whole-cent cash amount and a reminder day from 1 to 28, or null to turn a setting off."
         },
-        COMMAND_SCHEMA_PARTS.part128,
+        COMMAND_SCHEMA_PARTS.part139,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner or accountant.",

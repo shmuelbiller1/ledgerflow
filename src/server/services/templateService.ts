@@ -1,4 +1,4 @@
-import type { DocumentData, Firestore } from '../db/firestore';
+import type { DocumentData, Firestore, Transaction } from '../db/firestore';
 import { BUSINESS_TEMPLATES } from '../../lib/businessTemplates';
 
 /**
@@ -41,7 +41,19 @@ export interface ApplyTemplateInput {
   accounts?: unknown[];
 }
 
-export async function applyAccountTemplate(db: Firestore, input: ApplyTemplateInput) {
+/** What a template write needs: the accounts to add and, for a built-in template, its layout. */
+export interface PreparedTemplate {
+  accounts: DocumentData[];
+  templateId?: string;
+  topology?: DocumentData;
+}
+
+/**
+ * The checks and the reading a template write needs (read-only): the template exists, the accounts
+ * are valid. Then `applyTemplateInTransaction` holds the write, so the command runner's transaction
+ * also holds the audit line — a direct caller's own `db.runTransaction` awaits both steps.
+ */
+export function prepareAccountTemplate(input: { templateId?: string; accounts?: unknown[] }): PreparedTemplate {
   const template = input.templateId ? BUSINESS_TEMPLATES[input.templateId] : undefined;
   if (input.templateId && !template) throw new TemplateError(404, `Unknown template ${input.templateId}`);
   const source = template ? template.accounts : input.accounts;
@@ -49,37 +61,43 @@ export async function applyAccountTemplate(db: Firestore, input: ApplyTemplateIn
   if (source.length > 500) throw new TemplateError(400, 'Too many accounts');
   const accounts = source.map(sanitizeTemplateAccount).filter((a): a is DocumentData => a !== null);
   if (accounts.length === 0) throw new TemplateError(400, 'None of the accounts is valid (each needs a name and a type)');
+  return { accounts, templateId: input.templateId, topology: template?.topology as DocumentData | undefined };
+}
 
+export async function applyTemplateInTransaction(db: Firestore, t: Transaction, input: ApplyTemplateInput, prepared: PreparedTemplate) {
   const workspaceRef = db.collection('workspaces').doc(input.workspaceId);
-  return db.runTransaction(async (t) => {
-    if (!(await t.get(workspaceRef)).exists) throw new TemplateError(404, 'Workspace not found');
-    const existing = (await t.get(db.collection('chartAccounts').where('workspaceId', '==', input.workspaceId))).docs;
-    const hasTransactions = !(await t.get(db.collection('transactions').where('workspaceId', '==', input.workspaceId).limit(1))).empty;
+  if (!(await t.get(workspaceRef)).exists) throw new TemplateError(404, 'Workspace not found');
+  const existing = (await t.get(db.collection('chartAccounts').where('workspaceId', '==', input.workspaceId))).docs;
+  const hasTransactions = !(await t.get(db.collection('transactions').where('workspaceId', '==', input.workspaceId).limit(1))).empty;
 
-    const replaced = hasTransactions ? [] : existing.filter(d => d.data().isSystem !== true);
-    const kept = existing.filter(d => !replaced.includes(d)).map(d => d.data());
-    const codes = new Set(kept.map(a => a.code).filter(Boolean));
-    const names = new Set(kept.map(a => String(a.name || '').trim().toLowerCase()));
-    const toCreate = accounts.filter(a => {
-      const duplicate = (a.code && codes.has(a.code)) || names.has(String(a.name).trim().toLowerCase());
-      if (!duplicate) {
-        if (a.code) codes.add(a.code);
-        names.add(String(a.name).trim().toLowerCase());
-      }
-      return !duplicate;
-    });
-
-    const now = new Date().toISOString();
-    replaced.forEach(d => t.delete(d.ref));
-    for (const account of toCreate) {
-      const ref = db.collection('chartAccounts').doc();
-      t.set(ref, { ...account, id: ref.id, uid: input.uid, workspaceId: input.workspaceId, balanceCents: 0, isArchived: false, createdAt: now });
+  const replaced = hasTransactions ? [] : existing.filter(d => d.data().isSystem !== true);
+  const kept = existing.filter(d => !replaced.includes(d)).map(d => d.data());
+  const codes = new Set(kept.map(a => a.code).filter(Boolean));
+  const names = new Set(kept.map(a => String(a.name || '').trim().toLowerCase()));
+  const toCreate = prepared.accounts.filter(a => {
+    const duplicate = (a.code && codes.has(a.code)) || names.has(String(a.name).trim().toLowerCase());
+    if (!duplicate) {
+      if (a.code) codes.add(a.code);
+      names.add(String(a.name).trim().toLowerCase());
     }
-    t.update(workspaceRef, {
-      businessType: input.templateId || 'ai_custom',
-      ...(template ? { analyticalTopology: template.topology } : {}),
-      updatedAt: now,
-    });
-    return { created: toCreate.length, removed: replaced.length, kept: kept.length };
+    return !duplicate;
   });
+
+  const now = new Date().toISOString();
+  replaced.forEach(d => t.delete(d.ref));
+  for (const account of toCreate) {
+    const ref = db.collection('chartAccounts').doc();
+    t.set(ref, { ...account, id: ref.id, uid: input.uid, workspaceId: input.workspaceId, balanceCents: 0, isArchived: false, createdAt: now });
+  }
+  t.update(workspaceRef, {
+    businessType: prepared.templateId || 'ai_custom',
+    ...(prepared.topology ? { analyticalTopology: prepared.topology } : {}),
+    updatedAt: now,
+  });
+  return { created: toCreate.length, removed: replaced.length, kept: kept.length };
+}
+
+export async function applyAccountTemplate(db: Firestore, input: ApplyTemplateInput) {
+  const prepared = prepareAccountTemplate(input);
+  return db.runTransaction(t => applyTemplateInTransaction(db, t, input, prepared));
 }
