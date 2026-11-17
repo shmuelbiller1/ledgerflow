@@ -5,7 +5,7 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-11-16.
+Last updated: 2026-11-17.
 
 ## Inventory writes now run through registered commands (nothing for you to do)
 
@@ -667,8 +667,22 @@ migration and remain in the CMD-1 write inventory. The current plan is [`docs/pr
 ## 15 Nov — outside security scans (your OK given: "so add it")
 
 Task SEC-SCAN-1 (AI #6): Schemathesis tests the API on every pull request, and a ZAP scan runs nightly,
-both against a local copy in CI, never the live site. *Still yours to decide:* scanning the live site.
-To allow it, write here "OK to scan <address>" (passive scan only). *Default:* not scanned.
+both against a local copy in CI, never the live site. Schemathesis is still **Phase 1 report-only**; do not
+make it a merge blocker until it has completed **three consecutive clean runs on `main` with reports uploaded**,
+then update this note and remove its `continue-on-error` setting. Investigation found the zero-job cause:
+the pip install command used unquoted `--only-binary :all:` in a YAML plain scalar, where `: ` is parsed as a
+mapping delimiter. A local YAML parse reproduces the error; the latest `main` file still had this form. The
+install command on PR #756 shell-quotes the value as `--only-binary=':all:'`, preserving pip's argument and
+validating as YAML; the contract test prevents regression. This PR fix now starts the GitHub job. Runs `43992691517`, `43993423090` and `43994179756` each ran migrations
+and Schemathesis, verified JUnit output, and uploaded reports. `43993423090` has an annotation recording
+Schemathesis exit code 1, masked at job level by report-only; the other two have no failed-step annotation.
+The artifact bytes could not be read from this sandbox, so none can be certified as clean here. Review the reports
+in GitHub before interpreting findings. Main runs `43981616172`, `43983831337`, `43991078303` and `43992114900`
+all failed with zero jobs and no reports; none count toward the promotion gate.
+A local production-bundle smoke check returned HTTP 200 for `/api/health` and `/`, but ZAP itself has not run.
+Keep Phase 1 report-only; manual dispatch on `main` still awaits the workflow fix reaching the default branch.
+*Still yours to decide:* scanning the live site. To allow it, write here "OK to scan <address>" (passive scan
+only). *Default:* not scanned.
 
 
 ## 16 Nov — AI #9: two small defaults in the EU queue (no action needed unless you disagree)
