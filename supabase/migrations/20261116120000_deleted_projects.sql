@@ -20,12 +20,19 @@ create index "deletedProjects_ws_idx" on public."deletedProjects" (workspace_id)
 create index "deletedProjects_deletedAt_idx" on public."deletedProjects" (workspace_id, (data->>'deletedAt'));
 alter table public."deletedProjects" enable row level security;
 
-insert into public.lf_rules (table_name, allowed_keys, immutable_keys) values
-  ('deletedProjects', '{id,workspaceId,uid,name,type,status,budgetCents,createdAt,updatedAt,dimensions,metadata,deletedAt,deletedBy}',
-                      '{id,workspaceId,deletedAt,deletedBy}');
+-- the row is a copy of a project, and a project may carry fields this table does not know about: the copy must
+-- keep them, so the rule bounds the number of keys instead of naming them (the server writes it; lf_guard's key
+-- rules only bind browser sessions)
+insert into public.lf_rules (table_name, max_keys, immutable_keys) values
+  ('deletedProjects', 80, '{id,workspaceId,deletedAt,deletedBy}');
 
 create trigger lf_guard before insert or update or delete on public."deletedProjects"
   for each row execute function public.lf_guard();
 
--- no policies: not readable or writable by a browser session, only by the server (like idempotencyKeys)
+-- no read or write policy: only the server reaches this table (like idempotencyKeys). The restrictive
+-- two-step policy is still declared on it, because every RLS table carries one (A8-010).
+drop policy if exists two_step_login on public."deletedProjects";
+create policy two_step_login on public."deletedProjects" as restrictive for all to authenticated
+  using ((select private.lf_mfa_ok())) with check ((select private.lf_mfa_ok()));
+
 revoke all on public."deletedProjects" from anon, authenticated;
