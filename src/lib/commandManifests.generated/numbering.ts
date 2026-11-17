@@ -6,7 +6,7 @@ export const NUMBERING_COMMAND_MANIFEST = [
   {
     "name": "numbering.update",
     "area": "numbering",
-    "roles": COMMAND_SCHEMA_PARTS.part19,
+    "roles": COMMAND_SCHEMA_PARTS.part20,
     "risk": "normal",
     "description": {
       "sentence": "Set the prefix and next unused number for one document series; do not use this to renumber documents that have already been issued.",
@@ -42,7 +42,7 @@ export const NUMBERING_COMMAND_MANIFEST = [
           "when": "The caller is not a member of this workspace.",
           "next": "Choose a workspace the caller belongs to."
         },
-        COMMAND_SCHEMA_PARTS.part114,
+        COMMAND_SCHEMA_PARTS.part117,
         {
           "code": "WORKSPACE_SCOPE",
           "when": "An API key is scoped to a different workspace.",

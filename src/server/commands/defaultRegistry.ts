@@ -20,6 +20,15 @@ import { autoRuleLearnCommand } from './rulePatterns';
 import { dimensionAxesCommand, dimensionNodeCommand } from './dimensions';
 import { userProvisionCommand, workspaceCreateCommand } from './bootstrap';
 import { projectDeleteCommand, projectRestoreCommand } from './projects';
+import {
+  bankLinePayCommand,
+  bankLineSplitCommand,
+  bankRulesRerunCommand,
+  clearEntriesCommand,
+  completeReconciliationCommand,
+  reconcileCommand,
+  updateBankLineCommand,
+} from './reconciliations';
 import { journalCreateCommand } from './ledger';
 import { paymentReceiveCommand } from './payments';
 import { numberingUpdateCommand } from './numbering';
@@ -169,6 +178,13 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(inventoryDeliverCommand);
   registry.register(inventoryReturnCommand);
   registry.register(inventoryUndoDeliveryCommand);
+  registry.register(reconcileCommand);
+  registry.register(clearEntriesCommand);
+  registry.register(updateBankLineCommand);
+  registry.register(completeReconciliationCommand);
+  registry.register(bankLinePayCommand);
+  registry.register(bankLineSplitCommand);
+  registry.register(bankRulesRerunCommand);
   registry.register(inventoryTransferCommand);
   registry.register(inventoryStockClosingCommand);
   registry.register(inventoryLandedCostCommand);
