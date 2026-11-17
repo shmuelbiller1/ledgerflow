@@ -1,0 +1,64 @@
+diff --git a/src/server/auth/apiAuthenticate.ts b/src/server/auth/apiAuthenticate.ts
+index 3dee45f..69ea7ba 100644
+--- a/src/server/auth/apiAuthenticate.ts
++++ b/src/server/auth/apiAuthenticate.ts
+@@ -26,7 +26,11 @@ export function requiredApiKeyScope(method: string, path: string): string {
+     if (/^autorule\./.test(name)) return 'write:rules';
+     // Period-management commands keep the legacy /workspaces/:id/periods restriction; in
+     // particular, transaction integrations must not gain permission to unlock or reopen books.
+-    if (/^period\.(close|closesteps|depreciation|relock|reopen|signoff|unlock)$/.test(name)) return 'write:workspaces';
++    // Every period command closes, restates or rebuilds the books — year close, balances rebuild, FX
++    // revaluation and its undo sit beside close/reopen — so all of them keep the legacy
++    // /workspaces/:id/periods restriction. A transaction integration must not be able to change which
++    // periods exist or what they say; the enumerated list let those four through on write:transactions.
++    if (/^period\./.test(name)) return 'write:workspaces';
+     // Workspace/team features use the same scope as their legacy /workspaces routes.
+     if (/^(alerts|tasks|watches|entrylink|time|stages|workspace|numbering)\./.test(name)) return 'write:workspaces';
+     if (/^(customer|warranty)\./.test(name)) return 'write:customers';
+diff --git a/src/server/commands/periods.ts b/src/server/commands/periods.ts
+index b4337b8..3ae74ba 100644
+--- a/src/server/commands/periods.ts
++++ b/src/server/commands/periods.ts
+@@ -1,5 +1,5 @@
+ import { z } from 'zod';
+-import { calculateNetIncome } from '../../lib/txFilters';
++import { calculateNetIncome, isTransactionInDateRange } from '../../lib/txFilters';
+ import { currencyDigits, minorToMajor } from '../../lib/currencyMinorUnits';
+ import { lockMessage, monthCloseState, monthEnd, postingLock, type PeriodLockSettings } from '../../lib/periodLock';
+ import { closeStepsProblem } from '../../lib/closeSteps';
+@@ -57,6 +57,11 @@ function assertYearCloseable(closingDate: string, workspace: Record<string, unkn
+   }
+ }
+ 
++/** Entries a lock would leave on the wrong side of it: drafts dated inside the year being closed. */
++function trappedDrafts(entries: unknown[], yearStart: string, closingDate: string): number {
++  return (entries as Transaction[]).filter(e => e.status === 'draft' && isTransactionInDateRange(e, yearStart, closingDate)).length;
++}
++
+ export const periodYearCloseInput = z.object({ closingDate: fiscalYearCloseDate, lockPeriod: z.boolean().optional() }).strict();
+ type PeriodYearCloseInput = z.output<typeof periodYearCloseInput>;
+ type PeriodYearCloseResult = {
+@@ -84,6 +89,13 @@ export const periodYearCloseCommand: CommandDefinition<typeof periodYearCloseInp
+     let closingVersion: number | null = null;
+ 
+     if (lockPeriod) {
++      // A lock refuses every later write on or before the closing date, drafts included: a draft left in
++      // the year could then neither be posted nor removed. The month close lists drafts and refuses
++      // (closeStepsProblem); the year close locks a whole year, so it refuses on the same terms.
++      const trapped = trappedDrafts(transactions, yearStart, input.closingDate);
++      if (trapped > 0) {
++        throw new PeriodCloseError(409, `Cannot lock the year: ${trapped} draft ${trapped === 1 ? 'entry is' : 'entries are'} dated inside it and would never be postable. Post or delete ${trapped === 1 ? 'it' : 'them'} first.`);
++      }
+       const [withSnapshot, withClosing] = await Promise.all([
+         periodBalancesReady(ctx.db, tx),
+         periodClosingsReady(ctx.db, tx),
+@@ -116,6 +128,9 @@ export const periodYearCloseCommand: CommandDefinition<typeof periodYearCloseInp
+       lines: [
+         `Net ${year.netIncome >= 0 ? 'profit' : 'loss'}: ${fmt(Math.abs(year.netIncome))} (income ${fmt(year.income)}, costs ${fmt(year.cogs + year.expense)}).`,
+         `The year ${input.lockPeriod ? 'will be locked' : 'will remain open'} after the close.`,
++        ...(input.lockPeriod && trappedDrafts(entries, yearStart, input.closingDate) > 0
++          ? [`${trappedDrafts(entries, yearStart, input.closingDate)} draft ${trappedDrafts(entries, yearStart, input.closingDate) === 1 ? 'entry is' : 'entries are'} dated inside the year: the lock would leave ${trappedDrafts(entries, yearStart, input.closingDate) === 1 ? 'it' : 'them'} permanently unpostable, so the close will be refused until ${trappedDrafts(entries, yearStart, input.closingDate) === 1 ? 'it is' : 'they are'} posted or deleted.`]
++          : []),
+         'No closing journal entry is posted; the balance sheet already carries past profit in retained earnings.',
+       ],
+     };

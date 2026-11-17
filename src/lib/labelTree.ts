@@ -112,23 +112,68 @@ export interface SlashConversion {
   parentId: string | null;
 }
 
-/**
- * The plan for turning "Parent / Child" names into a real parent. Only values without a parent are
- * offered; the parent is matched by name (case-insensitive) or listed as one to create. Deeper
- * names ("A / B / C") take their last segment as the name and the rest as the parent's name.
- */
-export function slashConversionPlan(nodes: readonly DimensionNode[], dimensionId: string): SlashConversion[] {
+export interface SlashConversionSkipped {
+  nodeId: string;
+  from: string;
+  newName: string;
+  parentName: string;
+  reason: string;
+}
+
+const slashKey = (s: string) => s.normalize('NFC').trim().toLowerCase();
+
+function analyzeSlashConversions(nodes: readonly DimensionNode[], dimensionId: string): {
+  plan: SlashConversion[];
+  skipped: SlashConversionSkipped[];
+} {
   const own = inLabel(nodes, dimensionId).filter(n => n.status !== 'archived');
-  const key = (s: string) => s.trim().toLowerCase();
-  const out: SlashConversion[] = [];
+  const candidates: SlashConversion[] = [];
   for (const n of own) {
     if (n.parentId || !n.description.includes('/')) continue;
     const parts = n.description.split('/').map(p => p.trim()).filter(Boolean);
     if (parts.length < 2) continue;
     const newName = parts[parts.length - 1];
     const parentName = parts.slice(0, -1).join(' / ');
-    const parent = own.find(p => p.id !== n.id && key(p.description) === key(parentName));
-    out.push({ nodeId: n.id, from: n.description, newName, parentName, parentId: parent?.id ?? null });
+    const parent = own.find(p => p.id !== n.id && slashKey(p.description) === slashKey(parentName));
+    candidates.push({ nodeId: n.id, from: n.description, newName, parentName, parentId: parent?.id ?? null });
   }
-  return out;
+  const candidateIds = new Set(candidates.map(c => c.nodeId));
+  const existingNames = new Set(own.filter(n => !candidateIds.has(n.id)).map(n => slashKey(n.description)));
+  const newParentNames = new Set(candidates.filter(c => !c.parentId).map(c => slashKey(c.parentName)));
+  const newNameCounts = new Map<string, number>();
+  for (const c of candidates) {
+    const k = slashKey(c.newName);
+    newNameCounts.set(k, (newNameCounts.get(k) || 0) + 1);
+  }
+  const plan: SlashConversion[] = [];
+  const skipped: SlashConversionSkipped[] = [];
+  for (const c of candidates) {
+    const k = slashKey(c.newName);
+    if (existingNames.has(k)) {
+      skipped.push({ nodeId: c.nodeId, from: c.from, newName: c.newName, parentName: c.parentName, reason: `another value already uses "${c.newName}"` });
+    } else if (newParentNames.has(k)) {
+      skipped.push({ nodeId: c.nodeId, from: c.from, newName: c.newName, parentName: c.parentName, reason: `"${c.newName}" is also a parent to be created` });
+    } else if ((newNameCounts.get(k) || 0) > 1) {
+      skipped.push({ nodeId: c.nodeId, from: c.from, newName: c.newName, parentName: c.parentName, reason: `more than one value would become "${c.newName}"` });
+    } else {
+      plan.push(c);
+    }
+  }
+  return { plan, skipped };
+}
+
+/**
+ * The plan for turning "Parent / Child" names into a real parent. Only values without a parent are
+ * offered; the parent is matched by name (case-insensitive) or listed as one to create. Deeper
+ * names ("A / B / C") take their last segment as the name and the rest as the parent's name.
+ * Rows whose target short name collides with an existing value, a created parent, or another row in
+ * the batch are left out (see `slashConversionSkipped`) so conversion never strands orphan parents.
+ */
+export function slashConversionPlan(nodes: readonly DimensionNode[], dimensionId: string): SlashConversion[] {
+  return analyzeSlashConversions(nodes, dimensionId).plan;
+}
+
+/** "/" rows skipped from `slashConversionPlan` because their short name would collide. */
+export function slashConversionSkipped(nodes: readonly DimensionNode[], dimensionId: string): SlashConversionSkipped[] {
+  return analyzeSlashConversions(nodes, dimensionId).skipped;
 }

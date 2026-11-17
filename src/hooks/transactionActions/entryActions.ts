@@ -97,6 +97,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
 
     // Create optimistic ID
     const tempId = operationId || `temp-${crypto.randomUUID().split('-')[0]}`;
+    const resolvedCurrency = balancedData.currency || currentWorkspace?.currency || 'USD';
     const optimisticTx: Transaction = {
       uid: user.uid,
       workspaceId: currentWorkspaceId,
@@ -105,7 +106,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       createdAt: new Date().toISOString(),
       description: 'New Transaction',
       totalAmountCents: 0,
-      currency: 'USD',
+      currency: resolvedCurrency,
       date: getLocalDateISO(),
       ...balancedData,
       // Reuse the exact transaction ID and server idempotency key when a failed/unknown response is retried.
@@ -131,6 +132,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       const finalTx = {
         ...balancedData,
         id: optimisticTx.id,
+        currency: resolvedCurrency,
         totalAmountCents: Math.round(balancedData.totalAmountCents || 0),
         schemaVersion: '1.1',
         uid: user.uid,

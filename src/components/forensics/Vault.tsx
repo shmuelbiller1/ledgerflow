@@ -16,7 +16,7 @@ import {
   Brain,
   Sparkles
 } from 'lucide-react';
-import { cn, safeConfirm, formatCurrency } from '../../lib/utils';
+import { cn, safeConfirm, formatCurrency, getLocalDateISO } from '../../lib/utils';
 import AsyncButton from '../ui/AsyncButton';
 import { 
   collection, 
@@ -24,7 +24,6 @@ import {
   where, 
   onSnapshot, 
   addDoc, 
-  deleteDoc, 
   doc,
   updateDoc
 } from '../../lib/db/firestore';
@@ -45,7 +44,8 @@ import { buildBalancedReceiptTransaction, validateReceiptPayload } from '../../l
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { inBackground } from '../../lib/inBackground';
-import { runCommand } from '../../lib/runCommand';
+import { runWrite } from '../../lib/runCommand';
+import { removeAttachment } from '../../services/attachmentActions';
 
 export default function Vault() {
   const uploadId = useId();
@@ -200,6 +200,10 @@ export default function Vault() {
 
   const handleInjectTransaction = async () => {
     if (!selectedDoc || !extractedData) return;
+    if (selectedDoc.linkedTransactionId) {
+      toast.info('This document is already linked to a ledger entry.');
+      return;
+    }
 
     const toastId = toast.loading('Injecting into ledger...');
 
@@ -231,17 +235,20 @@ export default function Vault() {
 
       const balancedTx = buildBalancedReceiptTransaction(receiptPayload, accounts);
       const finalLines = balancedTx.lines;
+      const homeCurrency = useAuthStore.getState().getCurrentWorkspace()?.currency || 'USD';
+      const receiptOpId = `vault-receipt-${selectedDoc.id}`.slice(0, 128);
 
       const newTx: Partial<Transaction> = {
+        id: receiptOpId,
         uid: uid || "",
         workspaceId: workspaceId || "",
-        date: extractedData.date || format(new Date(), 'yyyy-MM-dd'),
+        date: extractedData.date || getLocalDateISO(),
         description: vendor,
         totalAmountCents: amountCents,
-        currency: 'USD',
+        currency: homeCurrency,
         status: 'completed',
         type: 'actual',
-        createdAt: new Date().toISOString(),
+        createdAt: selectedDoc.createdAt || '1970-01-01T00:00:00.000Z',
         fileUrls: selectedDoc.fileUrl ? [selectedDoc.fileUrl] : [],
         lines: finalLines,
         metadata: {
@@ -251,13 +258,13 @@ export default function Vault() {
       };
 
       // the entry's own id is the idempotency key: injecting the same document twice posts one entry
-      const resData = await runCommand<{ transaction?: { id?: string }; id?: string }>({
+      const resData = await runWrite<{ transaction?: { id?: string }; id?: string }>({
         path: '/api/v1/transactions',
         method: 'POST',
-        headers: { 'x-operation-id': newTx.id || '' },
+        headers: { 'x-operation-id': receiptOpId },
         body: { transaction: newTx }
       }) ?? {};
-      const createdTxId = resData.transaction?.id || resData.id;
+      const createdTxId = resData.transaction?.id || resData.id || receiptOpId;
 
       if (createdTxId) {
         setDocuments(prev => prev.map(d => d.id === selectedDoc.id ? { ...d, linkedTransactionId: createdTxId } : d));
@@ -280,13 +287,21 @@ export default function Vault() {
 
   const handleDelete = async (id: string) => {
     if (!safeConfirm('Are you sure you want to delete this document?')) return;
-    setDocuments(prev => prev.filter(d => d.id !== id));
-    if (selectedDoc?.id === id) setSelectedDoc(null);
+    if (!workspaceId || !uid) {
+      setDocuments(prev => prev.filter(d => d.id !== id));
+      // the delete button sits inside the card that opens the document, and the click can still land
+      // there; the functional form closes the overlay even when this handler captured no selection
+      setSelectedDoc(prev => (prev?.id === id ? null : prev));
+      toast.success('Document removed from this screen');
+      return;
+    }
     try {
-      await deleteDoc(doc(db, 'documents', id));
+      await removeAttachment(workspaceId, id);
+      setDocuments(prev => prev.filter(d => d.id !== id));
+      setSelectedDoc(prev => (prev?.id === id ? null : prev));
       toast.success('Document deleted');
-    } catch {
-      toast.success('Document removed locally');
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : 'The document could not be removed.');
     }
   };
 
@@ -457,7 +472,7 @@ export default function Vault() {
                 </button>
                  <AsyncButton 
                   aria-label={`Delete document ${docItem.name}`}
-                  onClick={async () => { inBackground(handleDelete(docItem.id)); }}
+                  onClick={async event => { event.stopPropagation(); inBackground(handleDelete(docItem.id)); }}
                   className="w-10 h-10 flex items-center justify-center bg-rose-50 text-rose-500 rounded-[32px] hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-rose-100"
                 >
                   <Trash2 aria-hidden="true" size={18} />

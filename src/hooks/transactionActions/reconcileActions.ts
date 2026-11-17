@@ -1,5 +1,6 @@
 import { runCommand } from '../../lib/runCommand';
 import { resolveAccountRole } from '../../lib/accountUtils';
+import { convertMinorUnits } from '../../lib/currencyMinorUnits';
 import { isPostable, lineAmount } from '../../lib/txFilters';
 import { collection, doc } from '../../lib/db/firestore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -157,14 +158,14 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
         && (!(l as { currency?: string }).currency || String((l as { currency?: string }).currency).toUpperCase() === home.toUpperCase())
         // a Plaid line from an account not tied to a ledger account has no bank to match against (CodeRabbit on #439)
         && !((l as { source?: string }).source === 'plaid' && !l.accountId));
-      const transactions = (scope?.transactions ?? loaded.transactions ?? [])
-        .filter(t => t.status !== 'reconciled' && t.status !== 'void');
+      const postableTransactions = (scope?.transactions ?? loaded.transactions ?? [])
+        .filter(t => t.status !== 'reconciled' && t.status !== 'void' && isPostable(t));
       
       const minHash = new MinHash(64, user?.uid);
       let matchCount = 0;
 
-      // Pre-calculate signatures for transactions
-      const txSignatures = transactions.map(tx => ({
+      // Pre-calculate signatures on the exact postable array so signature indices stay aligned
+      const txSignatures = postableTransactions.map(tx => ({
         id: tx.id,
         sig: minHash.createSignature(`${tx.description} ${tx.totalAmountCents}`)
       }));
@@ -175,16 +176,17 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
         const blSig = minHash.createSignature(`${bl.description} ${bl.amountCents}`);
         const blDescClean = (bl.description || '').toLowerCase().replace(/[^a-z0-9 \u0590-\u05FF]/g, '').trim();
         
-        transactions.filter(isPostable).forEach((tx, idx) => {
+        postableTransactions.forEach((tx, idx) => {
           // Check sign direction:
           const cashLines = tx.lines?.filter(l => {
             const acc = accounts.find(a => a.id === l.accountId);
             return acc && resolveAccountRole(acc) === 'cash';
           }) || [];
-          const cashDelta = cashLines.reduce((s, l) => s + lineAmount(l, tx), 0);
+          const scopedCashLines = bl.accountId ? cashLines.filter(l => l.accountId === bl.accountId) : cashLines;
+          const cashDelta = scopedCashLines.reduce((s, l) => s + lineAmount(l, tx), 0);
 
           // a line from one bank account is never matched to money that moved through another (CodeRabbit on #439)
-          if (bl.accountId && cashLines.length > 0 && !cashLines.some(l => l.accountId === bl.accountId)) return;
+          if (bl.accountId && cashLines.length > 0 && scopedCashLines.length === 0) return;
 
           // If transaction has explicit cash lines, cash movement direction MUST match bank line sign!
           if (cashDelta !== 0 && Math.sign(cashDelta) !== Math.sign(bl.amountCents)) {
@@ -193,9 +195,10 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
 
           let score = 0;
           
-          // Amount Match
-          const tTotal = Math.round(Math.abs(tx.totalAmountCents || 0) * (tx.exchangeRate || 1));
-          if (Math.abs(bl.amountCents) === tTotal) {
+          // Amount Match (respecting ISO-4217 minor-unit exponents and split/fee-netted cash lines)
+          const tTotal = Math.abs(convertMinorUnits(Math.abs(tx.totalAmountCents || 0), tx.exchangeRate || 1, tx.currency || home, home));
+          const expectedBankAbs = scopedCashLines.length > 0 && cashDelta !== 0 ? Math.abs(cashDelta) : tTotal;
+          if (Math.abs(bl.amountCents) === expectedBankAbs || Math.abs(bl.amountCents) === tTotal) {
             score += 65;
           }
 

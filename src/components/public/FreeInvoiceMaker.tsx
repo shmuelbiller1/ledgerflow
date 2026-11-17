@@ -7,7 +7,7 @@ import React, { useId, useState } from 'react';
 import { Plus, Printer, Trash2 } from 'lucide-react';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import {
-  FREE_INVOICE_CURRENCIES, freeInvoiceProblem, freeInvoiceTotals, lineAmount, parseRate, stashFreeInvoice,
+  FREE_INVOICE_CURRENCIES, freeInvoiceProblem, freeInvoiceTotals, lineAmount, parseQuantity, parseRate, parseTaxPercent, stashFreeInvoice,
   type FreeInvoice,
 } from '../../lib/freeInvoice';
 import { BRAND_NAME } from '../../config/brand';
@@ -34,14 +34,27 @@ export default function FreeInvoiceMaker() {
   // signed in: tax is rounded the way their own books round it; the sample company rounds half up
   const rounding = useAuthStore(st => (st.user ? st.getCurrentWorkspace()?.taxRounding : undefined)) || 'half_up';
 
-  const parsed = lines.map(l => ({ description: l.description, quantity: Number(l.quantity), rateCents: parseRate(l.rate, currency) }));
+  const parsed = lines.map(l => ({
+    description: l.description,
+    quantity: parseQuantity(l.quantity),
+    rateCents: parseRate(l.rate, currency),
+    used: Boolean(l.description.trim() || l.rate.trim()),
+  }));
+  const badQuantity = parsed.findIndex(l => l.used && l.quantity === null);
   const badRate = parsed.findIndex(l => l.rateCents === null);
+  const parsedTax = parseTaxPercent(tax);
   const invoice: FreeInvoice = {
-    from, to, number, date, dueDate, currency, taxRate: Number(tax) || 0,
-    lines: parsed.map(l => ({ ...l, rateCents: l.rateCents ?? 0 })),
+    from, to, number, date, dueDate, currency, taxRate: parsedTax ?? 0,
+    lines: parsed.map(l => ({ description: l.description, quantity: l.quantity ?? 0, rateCents: l.rateCents ?? 0 })),
   };
   const totals = freeInvoiceTotals(invoice, rounding);
-  const problem = badRate >= 0 ? `Line ${badRate + 1}: type the price as a number, for example 120.50.` : freeInvoiceProblem(invoice);
+  const problem = badQuantity >= 0
+    ? `Line ${badQuantity + 1}: type the quantity as a number, for example 2 or 1.5.`
+    : badRate >= 0
+      ? `Line ${badRate + 1}: type the price as a number, for example 120.50.`
+      : parsedTax === null
+        ? 'Type the tax % as a number between 0 and 100, for example 17 or 8.25.'
+        : freeInvoiceProblem(invoice);
   const money = (cents: number) => formatCurrency(cents, currency);
   const setLine = (i: number, patch: Partial<LineDraft>) => setLines(ls => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
 
