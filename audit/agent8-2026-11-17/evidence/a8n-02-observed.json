@@ -1,0 +1,148 @@
+{
+  "ranAt": "2026-11-17T03:11:09.891Z",
+  "node": "v24.22.3",
+  "cases": {
+    "control-a: T2 left out": {
+      "accepted": false,
+      "status": 409,
+      "message": "Books are closed through 2026-05-31: an unverified backup cannot modify or delete closed-period ledger entry transactions/ws_a8n02_a4a366f4_T2.",
+      "closedMayBefore": {
+        "incomeCents": 100000,
+        "expenseCents": 40000,
+        "netIncomeCents": 60000
+      },
+      "closedMayAfter": {
+        "incomeCents": 100000,
+        "expenseCents": 40000,
+        "netIncomeCents": 60000
+      },
+      "lockDateAfter": "2026-05-31",
+      "auditLogRowsWritten": 0
+    },
+    "control-b: T2 amounts changed": {
+      "accepted": false,
+      "status": 409,
+      "message": "Books are closed through 2026-05-31: an unverified backup cannot modify or delete closed-period ledger entry transactions/ws_a8n02_a4a366f4_T2.",
+      "closedMayBefore": {
+        "incomeCents": 100000,
+        "expenseCents": 40000,
+        "netIncomeCents": 60000
+      },
+      "closedMayAfter": {
+        "incomeCents": 100000,
+        "expenseCents": 40000,
+        "netIncomeCents": 60000
+      },
+      "lockDateAfter": "2026-05-31",
+      "auditLogRowsWritten": 0
+    },
+    "case 1: T2 identical + deletedAt": {
+      "accepted": true,
+      "closedMayBefore": {
+        "incomeCents": 100000,
+        "expenseCents": 40000,
+        "netIncomeCents": 60000
+      },
+      "closedMayAfter": {
+        "incomeCents": 100000,
+        "expenseCents": 0,
+        "netIncomeCents": 100000
+      },
+      "lockDateAfter": "2026-05-31",
+      "auditLogRowsWritten": 0
+    },
+    "case 2: T2 identical + type forecast": {
+      "accepted": true,
+      "closedMayBefore": {
+        "incomeCents": 100000,
+        "expenseCents": 40000,
+        "netIncomeCents": 60000
+      },
+      "closedMayAfter": {
+        "incomeCents": 100000,
+        "expenseCents": 0,
+        "netIncomeCents": 100000
+      },
+      "lockDateAfter": "2026-05-31",
+      "auditLogRowsWritten": 0
+    },
+    "case 3: T2 identical + metadata.isGhost": {
+      "accepted": true,
+      "closedMayBefore": {
+        "incomeCents": 100000,
+        "expenseCents": 40000,
+        "netIncomeCents": 60000
+      },
+      "closedMayAfter": {
+        "incomeCents": 100000,
+        "expenseCents": 0,
+        "netIncomeCents": 100000
+      },
+      "lockDateAfter": "2026-05-31",
+      "auditLogRowsWritten": 0
+    },
+    "case 4: new closed-period entry T5": {
+      "accepted": true,
+      "closedMayBefore": {
+        "incomeCents": 100000,
+        "expenseCents": 40000,
+        "netIncomeCents": 60000
+      },
+      "closedMayAfter": {
+        "incomeCents": 100000,
+        "expenseCents": 540000,
+        "netIncomeCents": -440000
+      },
+      "lockDateAfter": "2026-05-31",
+      "auditLogRowsWritten": 0
+    },
+    "case 5: void T3 restored as completed": {
+      "accepted": true,
+      "closedMayBefore": {
+        "incomeCents": 100000,
+        "expenseCents": 40000,
+        "netIncomeCents": 60000
+      },
+      "closedMayAfter": {
+        "incomeCents": 1099900,
+        "expenseCents": 40000,
+        "netIncomeCents": 1059900
+      },
+      "lockDateAfter": "2026-05-31",
+      "auditLogRowsWritten": 0
+    },
+    "case 6a: edited, checksum kept": {
+      "accepted": false,
+      "status": 400,
+      "message": "Backup checksum mismatch: the backup file was modified after export; nothing was restored.",
+      "closedMayBefore": {
+        "incomeCents": 100000,
+        "expenseCents": 40000,
+        "netIncomeCents": 60000
+      },
+      "closedMayAfter": {
+        "incomeCents": 100000,
+        "expenseCents": 40000,
+        "netIncomeCents": 60000
+      },
+      "lockDateAfter": "2026-05-31",
+      "auditLogRowsWritten": 0
+    },
+    "case 6b: edited, checksum and signature removed": {
+      "accepted": true,
+      "closedMayBefore": {
+        "incomeCents": 100000,
+        "expenseCents": 40000,
+        "netIncomeCents": 60000
+      },
+      "closedMayAfter": {
+        "incomeCents": 100000,
+        "expenseCents": 0,
+        "netIncomeCents": 100000
+      },
+      "lockDateAfter": "2026-05-31",
+      "auditLogRowsWritten": 0
+    }
+  },
+  "workspace": "ws_a8n02_a4a366f4"
+}

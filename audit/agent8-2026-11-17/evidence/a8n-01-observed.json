@@ -1,0 +1,375 @@
+{
+  "ranAt": "2026-11-17T03:08:24.726Z",
+  "node": "v24.22.3",
+  "workspace": "ws_a8n01_03177006",
+  "scenarioA_deleteStatus": 200,
+  "scenarioA_deleteBody": {
+    "status": "success",
+    "command": "creditnote.delete",
+    "data": {
+      "collection": "creditNotes",
+      "action": "delete",
+      "documentId": "ws_a8n01_03177006_cnA",
+      "documentNumber": "CN-A",
+      "body": {
+        "status": "ok",
+        "count": 1
+      },
+      "transactions": [
+        {
+          "id": "2dd4e1c8-96f8-4fa5-840a-afed938e8f61",
+          "uid": "bookkeeper-a8n01",
+          "workspaceId": "ws_a8n01_03177006",
+          "date": "2026-10-21",
+          "description": "Reversal: Credit Note CN-A: Acme",
+          "totalAmountCents": 11000,
+          "currency": "USD",
+          "exchangeRate": 1,
+          "status": "completed",
+          "type": "actual",
+          "lines": [
+            {
+              "accountId": "ws_a8n01_03177006_sales",
+              "accountName": "Sales",
+              "amountCents": -10000,
+              "exchangeRate": 1,
+              "description": "Reversal: Sales Return / Discount"
+            },
+            {
+              "accountId": "ws_a8n01_03177006_vat",
+              "accountName": "VAT Payable",
+              "amountCents": -1000,
+              "exchangeRate": 1,
+              "description": "Reversal: Sales tax reversed by the credit"
+            },
+            {
+              "accountId": "ws_a8n01_03177006_ar",
+              "accountName": "Accounts Receivable",
+              "amountCents": 11000,
+              "exchangeRate": 1,
+              "description": "Reversal: Accounts Receivable Credit"
+            }
+          ],
+          "isCleared": false,
+          "createdAt": "2026-11-17T03:08:25.801Z",
+          "metadata": {
+            "creditNoteId": "ws_a8n01_03177006_cnA",
+            "type": "creditNoteId-deletion-reversal",
+            "reversesTxId": "8cfcb8f8-624c-401f-9288-eaf2f943b963",
+            "isReversal": true
+          },
+          "verification": {
+            "status": "verified",
+            "verifiedAt": "2026-11-17T03:08:25.803Z",
+            "verifiedBy": "server-vault",
+            "timestamp": "2026-11-17T03:08:25.803Z",
+            "hash": "5ee1b0064a9befd401f9cddc5b543bf6ceed894db21c469981bd1448618f9a74"
+          }
+        }
+      ]
+    },
+    "replayed": false
+  },
+  "scenarioA": {
+    "before": {
+      "arLedgerCents": 22000,
+      "salesCents": -20000,
+      "vatCents": -2000,
+      "invoiceAmountPaidCents": 11000,
+      "creditRemainingCents": 0,
+      "creditStatus": "applied"
+    },
+    "after": {
+      "creditExists": false,
+      "arLedger": 33000,
+      "sales": -30000,
+      "vat": -3000,
+      "invoiceAmountPaidCents": 11000,
+      "invoiceSettledByRecordsCents": 11000,
+      "invoiceStatus": "partially_paid",
+      "liveCreditRowsOnInvoice": [
+        {
+          "sourceId": "ws_a8n01_03177006_cnA",
+          "amountCents": 11000,
+          "reversedBy": null
+        }
+      ]
+    },
+    "ledgerMinusDocumentDueCents": 11000,
+    "cleanup": {
+      "invoiceDelete": {
+        "status": 409,
+        "body": {
+          "status": "error",
+          "command": "invoice.delete",
+          "message": "Cannot delete invoice with recorded payments or credit applications. Void or unapply settlements first.",
+          "code": "CONFLICT",
+          "details": {
+            "error": "Cannot delete invoice with recorded payments or credit applications. Void or unapply settlements first."
+          }
+        }
+      },
+      "invoiceVoid": {
+        "status": 409,
+        "body": {
+          "error": "Cannot change a settled or written-off invoice to void."
+        }
+      }
+    },
+    "dataChecks": [
+      {
+        "id": "control-balance-ar",
+        "title": "Accounts receivable is $330.00, the open invoices add up to $220.00",
+        "description": "Difference $110.00 over 1 open invoice(s) (home currency)."
+      }
+    ]
+  },
+  "scenarioB_shrinkStatus": 200,
+  "scenarioB_shrinkBody": {
+    "status": "success",
+    "command": "creditnote.update",
+    "data": {
+      "collection": "creditNotes",
+      "action": "update",
+      "documentId": "ws_a8n01_03177006_cnB",
+      "documentNumber": "CN-B",
+      "body": {
+        "status": "ok",
+        "count": 2
+      },
+      "transactions": [
+        {
+          "id": "d9a1a952-4ae2-48c5-9e09-7b52fee25a13",
+          "uid": "bookkeeper-a8n01",
+          "workspaceId": "ws_a8n01_03177006",
+          "date": "2026-10-21",
+          "description": "Reversal of prior credit note posting (CN ws_a8n01_03177006_cnB)",
+          "totalAmountCents": 11000,
+          "currency": "USD",
+          "exchangeRate": 1,
+          "status": "completed",
+          "type": "actual",
+          "lines": [
+            {
+              "accountId": "ws_a8n01_03177006_sales",
+              "accountName": "Sales",
+              "amountCents": -10000,
+              "exchangeRate": 1,
+              "description": "Reversal: Sales Return / Discount"
+            },
+            {
+              "accountId": "ws_a8n01_03177006_vat",
+              "accountName": "VAT Payable",
+              "amountCents": -1000,
+              "exchangeRate": 1,
+              "description": "Reversal: Sales tax reversed by the credit"
+            },
+            {
+              "accountId": "ws_a8n01_03177006_ar",
+              "accountName": "Accounts Receivable",
+              "amountCents": 11000,
+              "exchangeRate": 1,
+              "description": "Reversal: Accounts Receivable Credit"
+            }
+          ],
+          "isCleared": false,
+          "createdAt": "2026-11-17T03:08:25.911Z",
+          "metadata": {
+            "creditNoteId": "ws_a8n01_03177006_cnB",
+            "type": "credit-note-reversal",
+            "reversesTxId": "1e236e2b-c871-4203-82da-20b19318e420",
+            "isReversal": true
+          },
+          "verification": {
+            "status": "verified",
+            "verifiedAt": "2026-11-17T03:08:25.912Z",
+            "verifiedBy": "server-vault",
+            "timestamp": "2026-11-17T03:08:25.912Z",
+            "hash": "6bbc243a7c9fa8003270c061be11c27ffc9d40415f1ddfccf5280e1ea95d0184"
+          }
+        },
+        {
+          "id": "906f900c-53b9-405f-9480-017a8e9fe308",
+          "uid": "bookkeeper-a8n01",
+          "workspaceId": "ws_a8n01_03177006",
+          "date": "2026-10-21",
+          "description": "Credit Note CN-B: Acme",
+          "totalAmountCents": 5000,
+          "currency": "USD",
+          "exchangeRate": 1,
+          "status": "completed",
+          "type": "actual",
+          "lines": [
+            {
+              "accountId": "ws_a8n01_03177006_sales",
+              "accountName": "Sales",
+              "amountCents": 4545,
+              "exchangeRate": 1,
+              "description": "Sales Return / Discount"
+            },
+            {
+              "accountId": "ws_a8n01_03177006_vat",
+              "accountName": "VAT Payable",
+              "amountCents": 455,
+              "exchangeRate": 1,
+              "description": "Sales tax reversed by the credit"
+            },
+            {
+              "accountId": "ws_a8n01_03177006_ar",
+              "accountName": "Accounts Receivable",
+              "amountCents": -5000,
+              "exchangeRate": 1,
+              "description": "Accounts Receivable Credit"
+            }
+          ],
+          "isCleared": false,
+          "createdAt": "2026-11-17T03:08:25.911Z",
+          "metadata": {
+            "creditNoteId": "ws_a8n01_03177006_cnB",
+            "customerId": "c1",
+            "type": "credit-note-issuance",
+            "documentCurrency": "USD",
+            "documentExchangeRate": 1
+          },
+          "verification": {
+            "status": "verified",
+            "verifiedAt": "2026-11-17T03:08:25.913Z",
+            "verifiedBy": "server-vault",
+            "timestamp": "2026-11-17T03:08:25.913Z",
+            "hash": "72cd440a898e27f7658d199fe1f6c4adac11c3175cded0d954edc249722df6de"
+          }
+        }
+      ]
+    },
+    "replayed": false
+  },
+  "scenarioB_refundStatus": 200,
+  "scenarioB_refundBody": {
+    "status": "success",
+    "data": {
+      "transactionId": "X8uv6StPp7U5zIUJvLHe",
+      "creditRemainingCents": 0
+    }
+  },
+  "scenarioB": {
+    "arLedgerCents": 33000,
+    "bankCents": -5000,
+    "salesCents": -25455,
+    "vatCents": -2545,
+    "invoiceAmountPaidCents": 6000,
+    "creditAmountCents": 5000,
+    "creditRemainingCents": 0,
+    "creditRefundedCents": 5000,
+    "creditStatus": "applied",
+    "dataChecks": [
+      {
+        "id": "control-balance-ar",
+        "title": "Accounts receivable is $330.00, the open invoices add up to $270.00",
+        "description": "Difference $60.00 over 1 open invoice(s) (home currency)."
+      }
+    ]
+  },
+  "scenarioC_deleteStatus": 200,
+  "scenarioC_deleteBody": {
+    "status": "success",
+    "command": "vendorcredit.delete",
+    "data": {
+      "collection": "vendorCredits",
+      "action": "delete",
+      "documentId": "ws_a8n01_03177006_vcC",
+      "documentNumber": "VC-C",
+      "body": {
+        "status": "ok",
+        "count": 1
+      },
+      "transactions": [
+        {
+          "id": "11de560c-04c3-4c29-98f3-02fb79d77170",
+          "uid": "bookkeeper-a8n01",
+          "workspaceId": "ws_a8n01_03177006",
+          "date": "2026-10-21",
+          "description": "Reversal: Vendor Credit VC-C: Paper Co",
+          "totalAmountCents": 11800,
+          "currency": "USD",
+          "exchangeRate": 1,
+          "status": "completed",
+          "type": "actual",
+          "lines": [
+            {
+              "accountId": "ws_a8n01_03177006_ap",
+              "accountName": "Accounts Payable",
+              "amountCents": -11800,
+              "exchangeRate": 1,
+              "description": "Reversal: Accounts Payable Reduction"
+            },
+            {
+              "accountId": "ws_a8n01_03177006_supplies",
+              "accountName": "Office Supplies",
+              "amountCents": 10000,
+              "exchangeRate": 1,
+              "description": "Reversal: Purchase Rebate / Expense Discount"
+            },
+            {
+              "accountId": "ws_a8n01_03177006_vat",
+              "accountName": "VAT Payable",
+              "amountCents": 1800,
+              "exchangeRate": 1,
+              "description": "Reversal: Input tax reversed by the credit"
+            }
+          ],
+          "isCleared": false,
+          "createdAt": "2026-11-17T03:08:26.010Z",
+          "metadata": {
+            "vendorCreditId": "ws_a8n01_03177006_vcC",
+            "type": "vendorCreditId-deletion-reversal",
+            "reversesTxId": "f9b9884a-d57b-4338-9ded-f3b2f94d1103",
+            "isReversal": true
+          },
+          "verification": {
+            "status": "verified",
+            "verifiedAt": "2026-11-17T03:08:26.011Z",
+            "verifiedBy": "server-vault",
+            "timestamp": "2026-11-17T03:08:26.011Z",
+            "hash": "51df658d992cee72f428197554d6cd08f3794d0921aa0d225931c0758c401248"
+          }
+        }
+      ]
+    },
+    "replayed": false
+  },
+  "scenarioC": {
+    "apLedgerCents": -11800,
+    "billStatus": "paid",
+    "billAmountPaidCents": 11800,
+    "vendorCreditExists": false,
+    "dataChecks": [
+      {
+        "id": "control-balance-ap",
+        "title": "Accounts payable is $118.00, the open bills add up to $0.00",
+        "description": "Difference $118.00 over 1 open bill(s) (home currency)."
+      }
+    ]
+  },
+  "control": {
+    "voidStatus": 409,
+    "voidBody": {
+      "status": "error",
+      "command": "creditnote.update",
+      "message": "An applied or refunded credit note cannot go back to void.",
+      "code": "CONFLICT",
+      "details": {
+        "error": "An applied or refunded credit note cannot go back to void."
+      }
+    },
+    "draftStatus": 409,
+    "draftBody": {
+      "status": "error",
+      "command": "creditnote.update",
+      "message": "An applied or refunded credit note cannot go back to draft.",
+      "code": "CONFLICT",
+      "details": {
+        "error": "An applied or refunded credit note cannot go back to draft."
+      }
+    }
+  }
+}

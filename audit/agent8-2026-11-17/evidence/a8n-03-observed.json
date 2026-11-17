@@ -1,0 +1,55 @@
+{
+  "ranAt": "2026-11-17T03:13:10.589Z",
+  "node": "v24.22.3",
+  "workspace": "ws_a8n03_b986f577",
+  "before": {
+    "transactions": 3,
+    "invoices": 2,
+    "customers": 1,
+    "payments": 1,
+    "creditNotes": 1,
+    "bankLines": 1,
+    "paymentAllocations": 1,
+    "chartAccounts": 3
+  },
+  "outcome": {
+    "accepted": true,
+    "result": {
+      "restoredCollections": [
+        "accounts",
+        "transactions",
+        "projects",
+        "budgets",
+        "vendors",
+        "customers",
+        "invoices",
+        "bills",
+        "inventory",
+        "assets",
+        "recurringRules",
+        "taxRates",
+        "autoRules",
+        "reconciliations",
+        "employees",
+        "payRuns",
+        "partners"
+      ],
+      "counts": {
+        "chartAccounts": 3,
+        "transactions": 1
+      }
+    }
+  },
+  "after": {
+    "transactions": 1,
+    "invoices": 0,
+    "customers": 0,
+    "payments": 0,
+    "creditNotes": 0,
+    "bankLines": 0,
+    "paymentAllocations": 0,
+    "chartAccounts": 3
+  },
+  "auditLogRowsWritten": 0,
+  "refusedWhenAMonthIsClosed": true
+}
