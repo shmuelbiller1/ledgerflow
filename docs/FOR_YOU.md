@@ -763,3 +763,12 @@ PR #759 (undo for deleting a project) is merged. Its migration creates the `dele
 on the live database, deleting a project and then undoing it can fail on the live site. Either run the file in the
 Supabase SQL editor, or tell me and I will apply it through the connector (you approve the prompt). **Default:** not
 applied until you choose.
+
+## 17 Nov — should a transaction-only API key be able to close a year? (Agent #7 A7S-01, AI #1)
+
+Year close, FX revaluation (and its undo) and the balances rebuild need the API-key scope `write:transactions`,
+as their old `/api/v1/transactions/...` addresses always did. Agent #7 suggests `write:workspaces` instead, so an
+integration that only posts entries cannot lock a year or restate the books. That breaks any integration whose key
+has only `write:transactions` and uses these. **Default:** unchanged (`write:transactions`); the draft-trap half of
+the same finding is fixed separately. Say "tighten the period scopes" and I will make the change (patch 10's
+`apiAuthenticate.ts` hunk plus the test in `commands.test.ts`).
