@@ -107,6 +107,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "time.update",
   "user.aikeyremove",
   "user.aikeyset",
+  "user.preferences",
   "user.provision",
   "vendor.balance",
   "vendor.create",

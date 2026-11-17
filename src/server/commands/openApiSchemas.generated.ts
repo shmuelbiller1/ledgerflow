@@ -106,6 +106,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "time.update": "CommandInput_time_update",
   "user.aikeyremove": "CommandInput_user_aikeyremove",
   "user.aikeyset": "CommandInput_user_aikeyset",
+  "user.preferences": "CommandInput_user_preferences",
   "user.provision": "CommandInput_user_provision",
   "vendor.balance": "CommandInput_vendor_balance",
   "vendor.create": "CommandInput_vendor_create",

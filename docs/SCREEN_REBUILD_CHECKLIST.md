@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **41** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **37** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,7 +147,7 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **41** → 0. 29 files. The remaining sites are not one problem, and the order below is the
+- [ ] `directDbWrites` **37** → 0. 26 files. The remaining sites are not one problem, and the order below is the
       order they can actually be done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
@@ -216,7 +216,25 @@ hand-convert a table the codemod still refuses.
           `estimates-view`, `sales-orders`, `milestones`, `chart-of-accounts-inline`, `workpapers-ui`, inventory ×4)
           now assert the command's `input` where they asserted `lf_update`'s `p_set`: same promise, stated where
           the guard lives.
-      - **the rest** (~41 sites in 29 files) — write routes that already have a command in most cases
+      - **the person's own settings, and the second workspace** — **done, 4 sites.** Three files wrote the caller's
+        profile row and one built a workspace row by hand: `useNotificationFeed.saveNotificationPrefs` and
+        `reportPreferencesDb.save` (both `updateDoc(users/{uid})`), `useSystemActions.handleCreateWorkspace` (a
+        `setDoc` of a row it had just built, with both timestamps typed in the tab) and `BlueprintSettings`'
+        currency switch (a bare `updateDoc` on `workspaces`, which is exactly the write `workspace.settings`
+        refuses once a document exists).
+        - `user.preferences` is `scope: 'person'`: the row is always `ctx.actor`'s, so there is no workspace to name
+          and no role to check. Notices merge per key (a save that mentions one toggle cannot clear the rest);
+          a report's layout is written into the map this transaction read, so saving one book's layout leaves the
+          other books' alone, and the layout's `uid`/`workspaceId`/`updatedAt` come from the session — a payload
+          cannot claim a report belongs to someone else. A person whose profile row was never written gets the same
+          skeleton `user.provision` writes instead of a `NOT_FOUND` for a row they never asked for.
+        - `handleCreateWorkspace` sends `workspace.create` (the command `useLedgerData`'s bootstrap already uses)
+          instead of minting the row and both timestamps itself.
+        - The currency switch asks `workspace.settings`, and says why when the command refuses: before a document
+          exists it is a setting, afterwards it is a migration of every stored amount.
+        - Pinned by `user-preferences-command.test.ts` (6 cases: the merge, the untouched other book, the owner
+          fields coming from the session, the empty save refused, the audit line).
+      - **the rest** (~37 sites in 26 files) — write routes that already have a command in most cases
         (`SupportView` 5, `workspaceActions` 4, `useCollaborators` 3, `useEntityOperations` 3,
         `dimensionNodesMigration` 3 …): one commit per hook, not per call, because a hook that writes has one
         shape.

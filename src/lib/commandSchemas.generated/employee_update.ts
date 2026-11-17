@@ -33,23 +33,22 @@ export const COMMAND_INPUT_SCHEMA = {
         "type": "object",
         "properties": {
           "id": COMMAND_SCHEMA_PARTS.part77,
+          "name": COMMAND_SCHEMA_PARTS.part77,
           "kind": {
             "type": "string",
             "enum": [
-              "garnishment",
-              "benefit",
-              "loan",
-              "union",
-              "other"
+              "pre_tax",
+              "post_tax",
+              "garnishment"
             ]
           },
-          "label": COMMAND_SCHEMA_PARTS.part44,
           "amountCents": COMMAND_SCHEMA_PARTS.part100,
           "percent": COMMAND_SCHEMA_PARTS.part64,
           "maxPercent": COMMAND_SCHEMA_PARTS.part64
         },
         "required": [
           "id",
+          "name",
           "kind"
         ],
         "additionalProperties": false

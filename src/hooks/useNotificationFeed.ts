@@ -1,6 +1,9 @@
 import { useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, doc, getDoc, limit, onSnapshot, orderBy, query, updateDoc, where, writeBatch } from '../lib/db/firestore';
+import { collection, doc, getDoc, limit, onSnapshot, orderBy, query, where, writeBatch } from '../lib/db/firestore';
+import { runNamedCommand } from '../lib/commandByName';
+import { localUpdate } from '../lib/db/localStore';
+import { guestSession } from '../lib/db/guestDatabase';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
 import type { AppNotification } from '../types';
@@ -40,6 +43,16 @@ export async function loadNotificationPrefs(uid: string): Promise<NotificationPr
   return ((snap.data() as { notificationPrefs?: NotificationPrefs } | undefined)?.notificationPrefs) || {};
 }
 
+/**
+ * Which notices this person wants, saved on their own profile.
+ *
+ * `user.preferences` merges per key and types `updatedAt` on the server; the sample company has no profile row
+ * there, so its tab keeps the choice in its own copy.
+ */
 export async function saveNotificationPrefs(uid: string, notificationPrefs: NotificationPrefs) {
-  await updateDoc(doc(db, 'users', uid), { notificationPrefs, updatedAt: new Date().toISOString() });
+  if (guestSession()) {
+    await localUpdate('users', uid, { notificationPrefs, updatedAt: new Date().toISOString() });
+    return;
+  }
+  await runNamedCommand('user.preferences', { notificationPrefs });
 }

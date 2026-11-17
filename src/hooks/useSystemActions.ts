@@ -1,12 +1,15 @@
 import { useCallback } from 'react';
 import { toast } from 'sonner';
 import { db, auth } from '../firebase';
-import { doc, collection, addDoc, setDoc } from '../lib/db/firestore';
+import { collection, addDoc } from '../lib/db/firestore';
 import { signOut } from '../lib/db/auth';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useUIStore } from '../stores/useUIStore';
 import { runCommand, type CommandBody } from '../lib/runCommand';
+import { runNamedCommand } from '../lib/commandByName';
+import { localAdd } from '../lib/db/localStore';
+import { guestSession } from '../lib/db/guestDatabase';
 
 /** Provides workspace-level system actions including sign-out, template application, and workspace creation. */
 export function useSystemActions() {
@@ -109,24 +112,25 @@ export function useSystemActions() {
     const name = window.prompt("Enter new workspace name:", "New Workspace");
     if (!name) return;
     try {
-      const workspaceRef = doc(collection(db, 'workspaces'));
-      const newWorkspace = {
-        id: workspaceRef.id,
-        uid: user.uid,
-        name: name,
-        type: 'business',
-        currency: 'USD',
-        businessType: 'generic',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      await setDoc(workspaceRef, newWorkspace);
-      useAuthStore.getState().setCurrentWorkspaceId(workspaceRef.id);
+      // `workspace.create` mints the row and owns what it may contain; the tab used to build the row itself
+      // (and type both timestamps). The sample company has no workspace on the server, so its own copy is written
+      // in the tab, exactly as it was before.
+      const created = guestSession()
+        ? { id: await localAdd('workspaces', {
+          uid: user.uid,
+          name,
+          type: 'business',
+          currency: 'USD',
+          businessType: 'generic',
+          createdAt: new Date().toISOString(),
+        }) }
+        : (await runNamedCommand<{ workspace: { id: string } }>('workspace.create', { name, businessType: 'generic', currency: 'USD' })).workspace;
+      useAuthStore.getState().setCurrentWorkspaceId(created.id);
       useUIStore.getState().setTemplateSelectorOpen(true);
       toast.success(`Workspace '${name}' created! Please choose an architectural template.`);
     } catch (e) {
       console.error(e);
-      toast.error('Failed to create workspace');
+      toast.error(e instanceof Error ? `Failed to create workspace: ${e.message}` : 'Failed to create workspace');
     }
   }, [user]);
 

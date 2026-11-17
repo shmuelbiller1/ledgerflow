@@ -19,6 +19,7 @@ import { autoRuleCreateCommand, autoRuleUpdateCommand, autoRuleDeleteCommand, au
 import { autoRuleLearnCommand } from './rulePatterns';
 import { dimensionAxesCommand, dimensionNodeCommand } from './dimensions';
 import { userProvisionCommand, workspaceCreateCommand } from './bootstrap';
+import { userPreferencesCommand } from './userPreferences';
 import { projectDeleteCommand, projectRestoreCommand } from './projects';
 import { budgetDeleteCommand, budgetSaveCommand } from './budgets';
 import { chartAccountUpdateCommand } from './chartAccounts';
@@ -120,6 +121,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(importMapSaveCommand);
   registry.register(importMapRestoreCommand);
   registry.register(userProvisionCommand);
+  registry.register(userPreferencesCommand);
   registry.register(workspaceCreateCommand);
   registry.register(projectDeleteCommand);
   registry.register(projectRestoreCommand);
