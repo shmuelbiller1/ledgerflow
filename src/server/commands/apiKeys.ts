@@ -201,7 +201,8 @@ export const apiKeyRevokeCommand: CommandDefinition<typeof apiKeyRevokeInput, { 
 // --------------------------------------------------------------------------- the person's own Gemini key
 
 export const userAiKeySetInput = z.object({
-  apiKey: z.string().min(1, 'A non-empty apiKey string is required.').max(500),
+  // trimmed first, as the legacy handler did: a key of only spaces is refused, not stored empty
+  apiKey: z.string().trim().min(1, 'A non-empty apiKey string is required.').max(500),
 }).strict();
 
 export const userAiKeySetCommand: CommandDefinition<typeof userAiKeySetInput, { hasCustomApiKey: true; apiKeySuffix: string }> = {
@@ -308,7 +309,8 @@ export const apiKeyRevokePersonalCommand: CommandDefinition<typeof apiKeyRevokeP
     const snapshot = await ctx.db.collection('apiKeys').doc(input.keyId).get();
     if (!snapshot.exists) throw Object.assign(new Error('API key not found.'), { status: 404 });
     const key = snapshot.data() || {};
-    if (key.uid !== ctx.actor) throw Object.assign(new Error('Forbidden key revocation'), { status: 403 });
+    // the legacy route's rule: the key's maker, or a platform admin (`keyData.uid !== uid && !user.admin`)
+    if (key.uid !== ctx.actor && ctx.user.admin !== true) throw Object.assign(new Error('Forbidden key revocation'), { status: 403 });
     return { name: String(key.name || input.keyId) };
   },
   async handler(ctx, tx, input) {
