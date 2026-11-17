@@ -131,6 +131,13 @@ hand-convert a table the codemod still refuses.
 
 ## 3. One way to act
 
+> **Coordinate before touching a command.** `src/server/` belongs to AI #1 (AGENTS.md), and every item below is
+> "a screen stops writing and asks a command" — which means a command that does not exist yet. The server half of
+> each item is a handoff, not a patch: the input schema, the handler, the audit entry, the offered next steps. The
+> two that landed so far (`autorule.learn`, and the `next` step on `invoice.update`/`bill.update`) touch only the
+> manifest description and the handler surface a reviewer can read in one screen, and are called out in their PRs
+> for AI #1 to review; anything that moves money, posting or tax is out of scope here entirely.
+
 - [x] **The sample company's writes have one home.** Two kinds of write exist in the browser and only two: a
       **command** for a workspace on the server, and the **local store** for the sample company, which has no
       workspace there. Both used to be the same six names (`setDoc`, `updateDoc`, …), so the demo's write and a
@@ -158,8 +165,13 @@ hand-convert a table the codemod still refuses.
 
 ## 4. One record page
 
-- [ ] `InvoiceRecordPage` takes its next step from the manifest (`useCommand('invoice.update').next`), not a
-      hard-coded `if (isDraft)`.
+- [x] `InvoiceRecordPage` takes its next step from the manifest, not a hard-coded `if (isDraft)`. `invoice.update`
+      offers `payment.receive` ("Record a payment") the same way `invoice.create` does — the step after a document
+      does not depend on how it got there — and the page reads the label with `offeredSteps('invoice.update')`.
+      Sending keeps the page's own words: it is an email, not a ledger command. `record-next-step.test.ts` holds
+      every offered step in the manifest to the registry (a step that names an unregistered command is a button
+      that goes nowhere) and holds the page to the manifest.
+- [ ] The rest of the record pages: the same step list, the same shell.
 - [ ] `CustomerRecordPage`, `BillRecordPage` on the same shell — column definitions, not new layout.
 
 ## 5. One screen shape, one form

@@ -8,6 +8,7 @@ import { TanStackDataGrid } from '../components/ui/TanStackDataGrid';
 import { EmptyState } from '../components/ui/EmptyState';
 import { LoadingState } from '../components/ui/LoadingState';
 import InvoiceRecordPage from '../components/sales/InvoiceRecordPage';
+import { offeredSteps } from '../hooks/useCommand';
 import Sales from '../components/sales/Sales';
 import SetupWizard from '../components/onboarding/SetupWizard';
 import CommandPalette from '../components/layout/CommandPalette';
@@ -178,7 +179,8 @@ describe('Workstream 2: InvoiceRecordPage & Sales record routing', () => {
     assert.ok(screen.getByText('ACH-99'));
     assert.ok(screen.getByText('AR Inv #1042'));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Record payment' }));
+    // the words come from the command's own manifest entry, so this test reads them from there too
+    fireEvent.click(screen.getByRole('button', { name: offeredSteps('invoice.update')[0].label }));
     assert.equal(paid, 1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Acme Corp' }));

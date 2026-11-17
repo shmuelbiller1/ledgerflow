@@ -16,7 +16,7 @@ export const COMMAND_INPUT_SCHEMA = {
           "type": "string",
           "maxLength": 2000
         },
-        "totalAmountCents": COMMAND_SCHEMA_PARTS.part66,
+        "totalAmountCents": COMMAND_SCHEMA_PARTS.part69,
         "currency": {
           "type": "string",
           "pattern": "^[A-Z]{3}$"
@@ -64,14 +64,14 @@ export const COMMAND_INPUT_SCHEMA = {
             "properties": {
               "accountId": COMMAND_SCHEMA_PARTS.part24,
               "accountName": COMMAND_SCHEMA_PARTS.part11,
-              "amountCents": COMMAND_SCHEMA_PARTS.part77,
-              "baseAmountCents": COMMAND_SCHEMA_PARTS.part77,
+              "amountCents": COMMAND_SCHEMA_PARTS.part81,
+              "baseAmountCents": COMMAND_SCHEMA_PARTS.part81,
               "exchangeRate": COMMAND_SCHEMA_PARTS.part60,
               "description": COMMAND_SCHEMA_PARTS.part34,
               "class": COMMAND_SCHEMA_PARTS.part11,
               "location": COMMAND_SCHEMA_PARTS.part11,
               "project": COMMAND_SCHEMA_PARTS.part11,
-              "dimensions": COMMAND_SCHEMA_PARTS.part79,
+              "dimensions": COMMAND_SCHEMA_PARTS.part83,
               "tags": COMMAND_SCHEMA_PARTS.part45,
               "splitAllocations": {
                 "type": "array",
@@ -82,7 +82,7 @@ export const COMMAND_INPUT_SCHEMA = {
                     "accountId": COMMAND_SCHEMA_PARTS.part11,
                     "projectId": COMMAND_SCHEMA_PARTS.part11,
                     "weight": COMMAND_SCHEMA_PARTS.part44,
-                    "amountCents": COMMAND_SCHEMA_PARTS.part66,
+                    "amountCents": COMMAND_SCHEMA_PARTS.part69,
                     "notes": COMMAND_SCHEMA_PARTS.part34
                   },
                   "required": [
@@ -91,12 +91,12 @@ export const COMMAND_INPUT_SCHEMA = {
                 }
               },
               "taxRate": COMMAND_SCHEMA_PARTS.part47,
-              "taxAmountCents": COMMAND_SCHEMA_PARTS.part66,
+              "taxAmountCents": COMMAND_SCHEMA_PARTS.part69,
               "taxCodeId": COMMAND_SCHEMA_PARTS.part32,
-              "taxTreatment": COMMAND_SCHEMA_PARTS.part86,
-              "taxBreakdown": COMMAND_SCHEMA_PARTS.part126,
+              "taxTreatment": COMMAND_SCHEMA_PARTS.part90,
+              "taxBreakdown": COMMAND_SCHEMA_PARTS.part130,
               "quantity": COMMAND_SCHEMA_PARTS.part43,
-              "unitPriceCents": COMMAND_SCHEMA_PARTS.part66
+              "unitPriceCents": COMMAND_SCHEMA_PARTS.part69
             },
             "required": COMMAND_SCHEMA_PARTS.part19
           }
@@ -117,7 +117,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "parentEventId": COMMAND_SCHEMA_PARTS.part11,
         "eventId": COMMAND_SCHEMA_PARTS.part11,
         "reversalEventId": COMMAND_SCHEMA_PARTS.part11,
-        "metadata": COMMAND_SCHEMA_PARTS.part79
+        "metadata": COMMAND_SCHEMA_PARTS.part83
       },
       "required": [
         "workspaceId",

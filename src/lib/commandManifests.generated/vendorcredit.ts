@@ -25,7 +25,7 @@ export const VENDORCREDIT_COMMAND_MANIFEST = [
           "currency": "USD"
         }
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part138
+      "refusals": COMMAND_SCHEMA_PARTS.part142
     },
     "runPath": "/api/v1/commands/vendorcredit.create",
     "previewPath": "/api/v1/commands/vendorcredit.create/preview",
@@ -39,7 +39,7 @@ export const VENDORCREDIT_COMMAND_MANIFEST = [
     "description": {
       "sentence": "Delete a vendor credit and let the server reverse its live ledger entries; do not use this command to void or write off a document.",
       "example": COMMAND_SCHEMA_PARTS.part14,
-      "refusals": COMMAND_SCHEMA_PARTS.part138
+      "refusals": COMMAND_SCHEMA_PARTS.part142
     },
     "runPath": "/api/v1/commands/vendorcredit.delete",
     "previewPath": "/api/v1/commands/vendorcredit.delete/preview",
@@ -53,7 +53,7 @@ export const VENDORCREDIT_COMMAND_MANIFEST = [
     "description": {
       "sentence": "Update an existing vendor credit and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
       "example": COMMAND_SCHEMA_PARTS.part53,
-      "refusals": COMMAND_SCHEMA_PARTS.part138
+      "refusals": COMMAND_SCHEMA_PARTS.part142
     },
     "runPath": "/api/v1/commands/vendorcredit.update",
     "previewPath": "/api/v1/commands/vendorcredit.update/preview",

@@ -68,6 +68,23 @@ function refusalSentence(entry: CommandEntry, code: string | undefined): string 
   return refusals.find(refusal => refusal?.code === code)?.next;
 }
 
+/**
+ * What a command usually leads to, as commands — without running it.
+ *
+ * A record page knows which document it is showing but not what a person does next with one; the manifest
+ * does, and names the steps as commands so each one can be looked up and role-checked. Reading them here
+ * rather than writing the labels into the page is what keeps an offered step from drifting away from the
+ * command that actually exists (`src/tests/record-next-step.test.ts` holds every one of them to the list).
+ */
+export function offeredSteps(name: RegisteredCommandName | string): OfferedStep[] {
+  const entry = entryFor(name);
+  const next = (entry.description as { next?: ReadonlyArray<{ command?: string; label?: string }> }).next;
+  if (!Array.isArray(next)) return [];
+  return next.flatMap(step => (typeof step?.command === 'string' && typeof step?.label === 'string'
+    ? [{ command: step.command, label: step.label }]
+    : []));
+}
+
 export function useCommand<T = Record<string, unknown>>(name: RegisteredCommandName | string): UseCommandResult<T> {
   const entry = useMemo(() => entryFor(name), [name]);
   // The route needs the workspace in the envelope (or embedded in the input, or on a developer key).

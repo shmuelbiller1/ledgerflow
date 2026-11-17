@@ -12,7 +12,7 @@ export const WATCHES_COMMAND_MANIFEST = [
     "description": {
       "sentence": "Watch an invoice, bill, ledger entry, account, or item for later change notices; do not use this to edit the record.",
       "example": {
-        "record": COMMAND_SCHEMA_PARTS.part69
+        "record": COMMAND_SCHEMA_PARTS.part73
       },
       "refusals": [
         {
