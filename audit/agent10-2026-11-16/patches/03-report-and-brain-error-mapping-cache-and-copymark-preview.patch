@@ -40,7 +40,7 @@ index 7433c5d..d5ff898 100644
    });
  }
 diff --git a/src/server/routes/documentRoutes.ts b/src/server/routes/documentRoutes.ts
-index d31d429..31f0c9b 100644
+index d31d429..9803fdd 100644
 --- a/src/server/routes/documentRoutes.ts
 +++ b/src/server/routes/documentRoutes.ts
 @@ -96,7 +96,8 @@ export async function handleZipRequest(req: express.Request, res: express.Respon
@@ -63,6 +63,14 @@ index d31d429..31f0c9b 100644
  
      let docData: PdfDocument | null = null;
      let paymentUrl: string | undefined;
+@@ -182,6 +184,7 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
+       });
+     }
+ 
++    if (isPreview) res.setHeader('X-Preview-Only', '1');
+     res.setHeader('Content-Type', 'application/pdf');
+     res.setHeader('Content-Disposition', `inline; filename="${type}_${id}.pdf"`);
+     return res.send(pdfBuffer);
 diff --git a/src/server/routes/operationalReportRoutes.ts b/src/server/routes/operationalReportRoutes.ts
 index 0ed707d..0a31c12 100644
 --- a/src/server/routes/operationalReportRoutes.ts

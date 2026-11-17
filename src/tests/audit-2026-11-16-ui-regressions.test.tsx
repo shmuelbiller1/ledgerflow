@@ -120,12 +120,57 @@ describe('Audit 2026-11-16 UI regressions: SpreadDialog non-2-decimal/FX & PdfPr
     assert.equal((sent[0].body as { amountCents: number }).amountCents, 67000);
   });
 
-  test('PdfPreviewModal previews with ?preview=1 and downloads without ?preview=1', async () => {
+  test('PdfPreviewModal reuses the preview blob when X-Preview-Only is absent (unpatched server)', async () => {
     const urls: string[] = [];
     const realFetch = globalThis.fetch;
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       urls.push(String(input));
       return new Response('%PDF-1.4\n', { status: 200, headers: { 'content-type': 'application/pdf' } });
+    }) as typeof fetch;
+
+    try {
+      await act(async () => {
+        render(
+          <PdfPreviewModal
+            isOpen
+            onClose={() => {}}
+            title="Invoice INV-1"
+            documentType="invoice"
+            documentId="inv-1"
+            workspaceId="ws-1"
+          />
+        );
+      });
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      assert.equal(urls.length, 1);
+      assert.ok(urls[0].includes('/api/v1/documents/invoice/inv-1/pdf?') && urls[0].includes('preview=1'));
+
+      const downloadBtn = await screen.findByRole('button', { name: 'Download PDF' });
+      await act(async () => {
+        fireEvent.click(downloadBtn);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      assert.equal(urls.length, 1, 'Expected Download PDF to reuse preview blob when X-Preview-Only header is absent');
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  test('PdfPreviewModal previews with ?preview=1 and refetches without ?preview=1 when X-Preview-Only: 1 is returned', async () => {
+    const urls: string[] = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      urls.push(url);
+      const headers: Record<string, string> = { 'content-type': 'application/pdf' };
+      if (url.includes('preview=1')) headers['x-preview-only'] = '1';
+      return new Response('%PDF-1.4\n', { status: 200, headers });
     }) as typeof fetch;
 
     try {
