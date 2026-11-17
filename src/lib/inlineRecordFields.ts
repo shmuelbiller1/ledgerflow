@@ -1,5 +1,4 @@
-import { code128Problem } from './code128';
-import { isEmailShape } from './textShape';
+import { editableValueProblem } from './editableRecords';
 
 /** C-15 edits only non-posting record fields, plus planning budget values. */
 export const INLINE_RECORD_FIELDS = {
@@ -34,19 +33,9 @@ export function inlineFieldValue(record: Record<string, unknown>, field: string)
 }
 function validate(target: InlineRecordTarget, field: string, value: string | number) {
   if (!(INLINE_RECORD_FIELDS[target.collection] as readonly string[]).includes(field)) throw new Error('This field must use its own editor.');
-  if (field === 'amountCents' || field === 'budgetCents') { if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) throw new Error('Enter a non-negative planning amount.'); }
-  else {
-    if (typeof value !== 'string' || value.length > 10000) throw new Error('Enter valid text.');
-    if ((field === 'name' || target.collection === 'dimensionNodes' && field === 'description') && !value.trim()) throw new Error('Name is required.');
-    if (field === 'status' && !['active', 'completed', 'archived'].includes(value)) throw new Error('Choose a project status.');
-    if (field === 'assetTag' && value) {
-      if (value !== value.trim()) throw new Error('The asset tag must not start or end with spaces.');
-      const problem = code128Problem(value);
-      if (problem) throw new Error(problem);
-    }
-    if (field === 'email' && value && !isEmailShape(value)) throw new Error('Enter an email address.');
-    if (['date', 'expiryDate', 'warrantyExpires', 'insuranceRenews', 'nextServiceDue'].includes(field)) { const date = new Date(`${value}T00:00:00Z`); if (field === 'date' && !value || value && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value)) throw new Error('Enter a valid date.'); }
-  }
+  // the same rules the command applies to the same field, so a person typing here and an API caller see one answer
+  const problem = editableValueProblem(target.collection, field, value);
+  if (problem) throw new Error(problem);
 }
 /** Refuses an observed conflict; does not pretend this browser read/write is atomic. */
 export async function saveInlineRecordField(adapter: InlineRecordAdapter, target: InlineRecordTarget, field: string, before: unknown, value: string | number): Promise<Record<string, string | number | string[]>> {

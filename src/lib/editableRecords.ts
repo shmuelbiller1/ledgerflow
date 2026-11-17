@@ -18,6 +18,10 @@
 import { INLINE_RECORD_FIELDS } from './inlineRecordFields';
 import { RECORD_DETAIL_FIELDS } from './recordDetails';
 
+// re-exported so the server reads one module: the rules are the same rules, and the cycle (the editors import the
+// rules, the table imports the editors) would break `EDITABLE_RECORD_FIELDS` at load time if they lived here
+export { editableValueProblem, recordValueAt } from './editableValues';
+
 type FieldLists = Readonly<Record<string, readonly string[]>>;
 
 /** Both screens' lists, merged per collection: `projects` is named by both, and no field may be lost in the merge. */
@@ -57,3 +61,4 @@ export function sameRecordValue(stored: unknown, expected: unknown): boolean {
   if (typeof stored === 'number' && typeof expected === 'number') return stored === expected;
   return String(stored ?? '') === String(expected ?? '');
 }
+

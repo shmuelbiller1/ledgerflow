@@ -24,6 +24,10 @@ function seeded(): MemoryDb {
     id: 'project-1', workspaceId, name: 'Website', status: 'active', budgetCents: 100_000,
     metadata: { client: 'Old client', keep: 'me' },
   });
+  db.seed('assets/asset-1', { id: 'asset-1', workspaceId, name: 'Laptop', assetTag: 'AT-0001' });
+  db.seed('estimates/estimate-1', {
+    id: 'estimate-1', workspaceId, number: 'EST-1', date: '2026-10-01', status: 'sent', notes: '',
+  });
   db.seed('dimensionNodes/project-P1', {
     id: 'project-P1', workspaceId, dimensionId: 'project', description: 'ישן', aliases: ['Original'], status: 'active',
   });
@@ -181,4 +185,48 @@ test('the preview names what will change, and a record outside the workspace has
   assert.deepEqual(await recordFieldsCommand.preview!(ctx, parsed), { title: 'Change name', lines: ['name → Acme Ltd'] });
   const outside = recordFieldsInput.parse({ collection: 'customers', id: 'other-1', fields: { name: 'Mine now' } });
   await assert.rejects(() => recordFieldsCommand.preview!(ctx, outside), /not in the selected workspace/);
+});
+
+test('the value rules are the editor’s, applied to the caller that skipped the editor', async () => {
+  const db = seeded();
+  // a planning amount is a whole, non-negative number of cents — not text, not a fraction, not a debt
+  const asText = await run(db, { collection: 'projects', id: 'project-1', fields: { budgetCents: '1200' } });
+  assert.equal(asText.result.ok, false);
+  const negative = await run(db, { collection: 'projects', id: 'project-1', fields: { budgetCents: -1 } });
+  assert.equal(negative.result.ok, false);
+  if (!negative.result.ok) assert.equal(negative.result.code, 'INVALID_INPUT');
+  const fractional = await run(db, { collection: 'projects', id: 'project-1', fields: { budgetCents: 10.5 } });
+  assert.equal(fractional.result.ok, false);
+
+  // a required name cannot be blanked, and a project status is one of the three the screen offers
+  const blank = await run(db, { collection: 'customers', id: 'customer-1', fields: { name: '   ' } });
+  assert.equal(blank.result.ok, false);
+  if (!blank.result.ok) assert.match(JSON.stringify(blank.result), /Name is required/);
+  const status = await run(db, { collection: 'projects', id: 'project-1', fields: { status: 'void' } });
+  assert.equal(status.result.ok, false);
+  const okStatus = await run(db, { collection: 'projects', id: 'project-1', fields: { status: 'archived' } });
+  assert.equal(okStatus.result.ok, true);
+
+  // an impossible date, an address-shaped email and a tag Code 128 cannot print are refused with the field named
+  const badDate = await run(db, { collection: 'estimates', id: 'estimate-1', fields: { expiryDate: '2026-02-30' } });
+  assert.equal(badDate.result.ok, false);
+  const badEmail = await run(db, { collection: 'customers', id: 'customer-1', fields: { email: 'not-an-address' } });
+  assert.equal(badEmail.result.ok, false);
+  const badTag = await run(db, { collection: 'assets', id: 'asset-1', fields: { assetTag: ' AT-2 ' } });
+  assert.equal(badTag.result.ok, false);
+  const hebrewTag = await run(db, { collection: 'assets', id: 'asset-1', fields: { assetTag: 'ציוד' } });
+  assert.equal(hebrewTag.result.ok, false, 'a tag is printed as Code 128, so it has to be printable');
+  const goodTag = await run(db, { collection: 'assets', id: 'asset-1', fields: { assetTag: 'AT-0002' } });
+  assert.equal(goodTag.result.ok, true);
+  // clearing an optional field is allowed: "no email" is a value, not a mistake
+  const cleared = await run(db, { collection: 'customers', id: 'customer-1', fields: { email: '' } });
+  assert.equal(cleared.result.ok, true);
+});
+
+test('an estimate that is no longer a draft refuses its number and dates, the way its editor does', async () => {
+  const db = seeded();
+  const { result } = await run(db, { collection: 'estimates', id: 'estimate-1', fields: { number: 'EST-2' }, expected: { number: 'EST-1' } });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.code, 'CONFLICT');
+  assert.equal(db.read('estimates/estimate-1')?.number, 'EST-1');
 });

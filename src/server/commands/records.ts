@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { HttpError } from '../auth/requestUser';
 import { EDITABLE_RECORD_COLLECTIONS, editableRecordFields, sameRecordValue } from '../../lib/editableRecords';
+import { editableValueProblem, recordValueAt } from '../../lib/editableValues';
 import type { CommandContext, CommandDefinition } from './types';
 
 /**
@@ -61,15 +62,6 @@ function pathOf(field: string): string[] {
   return field.split('.').filter(Boolean);
 }
 
-function valueAt(record: RecordRow, field: string): unknown {
-  let current: unknown = record;
-  for (const part of pathOf(field)) {
-    if (!current || typeof current !== 'object') return undefined;
-    current = (current as RecordRow)[part];
-  }
-  return current;
-}
-
 /** Build the patch, turning `metadata.client` into `{ metadata: { …old, client } }` rather than a literal dotted key. */
 function patchOf(current: RecordRow, fields: Record<string, unknown>): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
@@ -117,9 +109,22 @@ export const recordFieldsCommand: CommandDefinition<typeof recordFieldsInput, Re
         400,
       ), { code: 'INVALID_INPUT', field: unknownField });
     }
+    // a published document keeps the number and dates it was issued with; the screen refuses this, so must the door it
+    // cannot skip
+    if (input.collection === 'estimates' && record.status !== 'draft') {
+      throw Object.assign(new HttpError('Only draft estimates can be edited in place.', 409), { code: 'CONFLICT' });
+    }
+    // the *value* rules, the same ones the editor applies. A caller that skipped the editor — the SDK, a script — is
+    // refused here, with the field named, rather than writing a blank name or a `void` project status
+    for (const [field, value] of Object.entries(input.fields)) {
+      const problem = editableValueProblem(input.collection, field, value);
+      if (problem) {
+        throw Object.assign(new HttpError(`${field}: ${problem}`, 400), { code: 'INVALID_INPUT', field });
+      }
+    }
     // the conflict check and the write are the same transaction: no other tab can slip between them
     for (const [field, expected] of Object.entries(input.expected || {})) {
-      const stored = valueAt(record, field);
+      const stored = recordValueAt(record, field);
       if (!sameRecordValue(stored, expected)) {
         throw Object.assign(new HttpError(
           `${field} was changed by someone else. Reload its current value before saving.`,
@@ -156,9 +161,9 @@ export const recordFieldsCommand: CommandDefinition<typeof recordFieldsInput, Re
     sentence: 'Change the non-financial fields a screen edits in place — a name, an address, a note, a planning budget — and refuse if someone else changed them first; do not use it for an amount on a document, a posting date or a status, which the record’s own command owns.',
     example: { collection: 'customers', id: 'cust-1', fields: { address: '14 Herzl St, Tel Aviv' }, expected: { address: '' } },
     refusals: [
-      { code: 'INVALID_INPUT', when: 'The collection is not editable in place, the field is not named for that collection, or the value is not text, a number, a switch, a null or a list.', next: 'Send a field the screen offers, or use the command that owns the field.' },
+      { code: 'INVALID_INPUT', when: 'The collection is not editable in place, the field is not named for that collection, the value is not text, a number, a switch, a null or a list, or the value breaks the field’s own rule — a blank required name, a negative or fractional planning amount, a status a project does not have, an impossible date, an address-shaped email or a tag Code 128 cannot print.', next: 'Send a field the screen offers with a value its editor would accept, or use the command that owns the field.' },
       { code: 'NOT_FOUND', when: 'The record is not in the selected workspace.', next: 'Reload the list and open a record in this workspace.' },
-      { code: 'CONFLICT', when: 'The field no longer holds the value the caller read.', next: 'Reload the record, then save again.' },
+      { code: 'CONFLICT', when: 'The field no longer holds the value the caller read, or the record is an estimate that is no longer a draft.', next: 'Reload the record, then save again — an issued estimate keeps the number and dates it was issued with.' },
       { code: 'ROLE_REQUIRED', when: 'The caller is a viewer.', next: 'Ask an owner, accountant or bookkeeper to change the record.' },
     ],
   },

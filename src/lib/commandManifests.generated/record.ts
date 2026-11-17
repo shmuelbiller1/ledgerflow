@@ -23,8 +23,8 @@ export const RECORD_COMMAND_MANIFEST = [
       "refusals": [
         {
           "code": "INVALID_INPUT",
-          "when": "The collection is not editable in place, the field is not named for that collection, or the value is not text, a number, a switch, a null or a list.",
-          "next": "Send a field the screen offers, or use the command that owns the field."
+          "when": "The collection is not editable in place, the field is not named for that collection, the value is not text, a number, a switch, a null or a list, or the value breaks the field’s own rule — a blank required name, a negative or fractional planning amount, a status a project does not have, an impossible date, an address-shaped email or a tag Code 128 cannot print.",
+          "next": "Send a field the screen offers with a value its editor would accept, or use the command that owns the field."
         },
         {
           "code": "NOT_FOUND",
@@ -33,8 +33,8 @@ export const RECORD_COMMAND_MANIFEST = [
         },
         {
           "code": "CONFLICT",
-          "when": "The field no longer holds the value the caller read.",
-          "next": "Reload the record, then save again."
+          "when": "The field no longer holds the value the caller read, or the record is an estimate that is no longer a draft.",
+          "next": "Reload the record, then save again — an issued estimate keeps the number and dates it was issued with."
         },
         {
           "code": "ROLE_REQUIRED",

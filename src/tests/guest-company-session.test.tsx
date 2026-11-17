@@ -8,6 +8,8 @@ import { guestSession, guestReady, endGuestDatabase, startGuestDatabase, initial
 import { workspaceActor } from '../lib/guestActor';
 import { nextDocumentNumber } from '../services/documentNumbers';
 import { setComponentWorkspace } from './helpers/componentFixtures';
+import { saveRecordFields } from '../lib/recordWrites';
+import { localGet } from '../lib/db/localStore';
 
 const before = useAuthStore.getState();
 afterEach(() => {
@@ -115,6 +117,24 @@ test('sample labels use local create-only records and retain session identity', 
   loadGuestCompany();
   assert.notEqual(adapter.session()?.sampleSession, scope.sampleSession);
   assert.equal(await adapter.readNode('guest', 'location', 'trial'), undefined);
+});
+
+test('a sample company field write compares what the screen read, the way the server does', async () => {
+  useAuthStore.setState({ user: null, isGuest: false });
+  useAuthStore.getState().setIsGuest(true);
+  loadGuestCompany();
+  writeGuestBatch([{ op: 'set', table: 'customers', id: 'sample-1', data: { name: 'Acme', address: 'Old', workspaceId: 'guest' } }], guestSession()!);
+  // another tab (or an earlier screen) moved the address: the demo refuses instead of overwriting it silently
+  await assert.rejects(
+    () => saveRecordFields('guest', 'customers', 'sample-1', { address: 'New' }, { address: 'what this screen read' }),
+    /address was changed by someone else/,
+  );
+  assert.equal((await localGet('customers', 'sample-1'))?.address, 'Old', 'a refused write leaves the row alone');
+  // the expectation that still holds goes through, with the server-managed timestamp in the demo's own copy
+  await saveRecordFields('guest', 'customers', 'sample-1', { address: 'New' }, { address: 'Old' });
+  const saved = await localGet('customers', 'sample-1');
+  assert.equal(saved?.address, 'New');
+  assert.equal(typeof saved?.updatedAt, 'string');
 });
 
 test('external authenticated-store hydration also retires the local transport', () => {

@@ -25,6 +25,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   setDoc,
   updateDoc,
   writeBatch,
@@ -52,6 +53,13 @@ export async function localAdd(table: string, data: DocumentData): Promise<strin
 export async function localSet(table: string, id: string, data: DocumentData, options?: SetOptions): Promise<void> {
   requireLocalStore();
   await setDoc(doc(db, table, id), data, options);
+}
+
+/** Read one record of the sample company, for a check the write depends on (a conflict, an allowance). */
+export async function localGet(table: string, id: string): Promise<DocumentData | undefined> {
+  requireLocalStore();
+  const snapshot = await getDoc(doc(db, table, id));
+  return snapshot.exists() ? snapshot.data() : undefined;
 }
 
 /** Change some fields of a record in the sample company. */

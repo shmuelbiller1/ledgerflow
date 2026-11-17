@@ -15,8 +15,10 @@
  * invented a field would still be refused by the server.
  */
 import { runNamedCommand } from './commandByName';
-import { localAdd, localDelete, localSet, localUpdate, localUpdateMany } from './db/localStore';
+import { localAdd, localDelete, localGet, localSet, localUpdate, localUpdateMany } from './db/localStore';
 import { guestSession } from './db/guestDatabase';
+import { sameRecordValue } from './editableRecords';
+import { recordValueAt } from './editableValues';
 
 /** The sample company's own copy of a row: a patch when it exists, a full write when it does not. */
 async function localRow(table: string, id: string, fields: Record<string, unknown>, create = false): Promise<void> {
@@ -42,6 +44,12 @@ export async function saveRecordFields(
   expected?: Record<string, string | number | boolean | null | string[]>,
 ): Promise<void> {
   if (guestSession()) {
+    // the sample company compares the same way the server does, so a demo shows the conflict a demo tab would get
+    if (expected && Object.keys(expected).length) {
+      const stored = await localGet(collection, id);
+      const moved = Object.keys(expected).find(field => !sameRecordValue(recordValueAt(stored, field), expected[field]));
+      if (moved) throw new Error(`${moved} was changed by someone else. Reload its current value before saving.`);
+    }
     await localUpdate(collection, id, { ...fields, updatedAt: new Date().toISOString() });
     return;
   }
