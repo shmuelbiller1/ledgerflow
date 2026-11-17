@@ -121,15 +121,17 @@ export default function Sales() {
       }
     }
   }
-  const modalInitialInvoice = useMemo(() => {
-    if (!newInvoiceFor || newInvoiceFor.metadata?.source !== 'free-invoice-maker') return newInvoiceFor;
-    if (typeof newInvoiceFor.customerId !== 'string' || !newInvoiceFor.customerId.startsWith('new-') || customers.length === 0) {
-      return newInvoiceFor;
-    }
+  // A free-maker draft whose customer was only typed ('new-…') takes the real customer once the list
+  // has it. The result is written back into state once, so the modal's initial invoice keeps one
+  // reference and a later customers update never refills the form over the person's edits.
+  if (newInvoiceFor?.metadata?.source === 'free-invoice-maker' && typeof newInvoiceFor.customerId === 'string'
+    && newInvoiceFor.customerId.startsWith('new-') && customers.length > 0) {
     const resolved = withCustomer(newInvoiceFor, customers);
-    if (typeof resolved.customerId === 'string' && resolved.customerId.startsWith('new-')) return newInvoiceFor;
-    return { ...newInvoiceFor, customerId: resolved.customerId, customerName: resolved.customerName };
-  }, [customers, newInvoiceFor]);
+    if (typeof resolved.customerId === 'string' && !resolved.customerId.startsWith('new-')) {
+      setNewInvoiceFor({ ...newInvoiceFor, customerId: resolved.customerId, customerName: resolved.customerName });
+    }
+  }
+  const modalInitialInvoice = newInvoiceFor;
   // the stored copy stays until the draft is saved or deliberately closed, so a reload keeps it
   const finishFreeDraft = () => {
     setFreeDraftDismissed(true);
