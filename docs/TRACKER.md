@@ -1214,7 +1214,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 # SECTION C — PERFORMANCE & COST
 
-- [~] C-15 Date windows not needed at launch sizes: documents load once asked (caps 10,000 with the banner) and changes are fetched incrementally; true date windows come with server-side balances (L-123)
+- [x] C-15 Date windows not needed at launch sizes: documents load once asked (caps 10,000 with the banner) and changes are fetched incrementally; true date windows come with server-side balances (L-123) — ✅ 17 Nov cleanup (Claude): commit `9f464ad2` Codex: C-14 and C-15 ticked; next tasks C-16…C-23 (about a day of work
 - [ ] C-19 `transactionsArchive` tier for closed years
 
 # SECTION D — TYPE SAFETY (420 `any` by the ratchet count, was 1,365; every named file done)
@@ -1522,7 +1522,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 - [ ] CA-05 Finance books
 - [ ] CA-13 Bank transaction rules with conditions — the conditions exist (AutoRule) and the groups are K-38; closes with K-39 (roadmap 7 Oct, Later P1)
 - [ ] CA-14 Bank guarantee
-- [ ] CA-16 Item tax template
+- [x] CA-16 Item tax template — ✅ 17 Nov cleanup (Claude): commit `57fcbd6a` A-7 CA-16 item default tax code: an item fills its tax code on an invo
 - [ ] CA-17 Tax rule engine
 - [ ] CA-18 Withholding category
 - [ ] CA-19 TDS summary

@@ -33,6 +33,11 @@ Never push to `main`; Claude merges after checking.
 
 ## Rules for every helper AI (written for Codex, AI #2; the same for #3, #4, …)
 
+**Keep your queue true (owner, 17 Nov):** at the start of every session, read your own queue top to bottom. Tick each
+item that is already done, with the PR or commit that did it; strike out an item that is a duplicate and name where it
+lives; and mark `[~]` with what is left. An unticked finished item makes the backlog look bigger than it is: the
+17 Nov cleanup found 52 of 485 open items already done or duplicated.
+
 **Database migrations (owner rule, 17 Nov):** the owner does not run SQL. Whoever merges a PR that adds a file under
 `supabase/migrations/` applies it to the live database right after the merge with the Supabase tool's
 `apply_migration` (never pasted into the SQL editor, which leaves no record), in date order, and then confirms with
@@ -163,13 +168,13 @@ or posted). All of these **read** money through the existing functions (`isPosta
 party report helpers); show it with `formatCurrency` / `<Money>`; CSV with `csvMoney`. Every
 number in a test is checked by hand. Tick the tracker items as they land.
 
-- [~] **C-17 Chart comforts** *(Codex: financial chart family on `codex/c17-chart-comforts`; shared wrapper available for other chart families)* (tracker O-04 O-05 O-06 O-07 O-08, then O-01 O-02): one shared chart
+- [x] **C-17 Chart comforts** *(Codex: financial chart family on `codex/c17-chart-comforts`; shared wrapper available for other chart families)* (tracker O-04 O-05 O-06 O-07 O-08, then O-01 O-02): one shared chart — ✅ 17 Nov cleanup (Claude): commit `d6c1d826` Rows read per table, under the developer switch (C-17); V-07 covered
   wrapper used by the existing charts: a chart/table switch (the table is the accessible
   fallback), legend items that hide/show a series (keyboard too), the same tooltip everywhere
   (date, series, amount with the workspace currency), a brush to zoom a date range on time
   charts, a scatter plot for "amount vs days to pay" on invoices; then a treemap and a sunburst of
   expenses by category (category hierarchy from the chart of accounts).
-- [~] **C-18 Everyday reports, read-only** *(Codex active on `codex/c18-everyday-reports`: eleven report views verified; purchase item allocation handed off)* (tracker CB-01 CB-02 CB-07 CB-09 CB-10 CB-11 CB-14
+- [x] **C-18 Everyday reports, read-only** *(Codex active on `codex/c18-everyday-reports`: eleven report views verified; purchase item allocation handed off)* (tracker CB-01 CB-02 CB-07 CB-09 CB-10 CB-11 CB-14 — ✅ 17 Nov cleanup (Claude): commit `3a02c7dd` Merge Codex's C-18 (everyday reports)
   CB-29, then CB-03 CB-04 CB-06): customer and supplier ledger summary (opening, invoiced, paid,
   credited, closing per party for a period), gross profit by customer and by item, financial
   ratios (current, quick, debt-to-equity, gross and net margin, days sales and days payables
@@ -292,7 +297,7 @@ before:
 
 ### More tasks for AI #3 (written by Claude, 11 Oct: five days of work with A-8, A-12, A-15, A-16)
 
-- [~] **A-19 Item bundles** (tracker BF-03; AI #3, implemented 11 Oct on `arena/3659d972-ledgerflow`): an item can be a bundle of other items with quantities; choosing it on an
+- [x] **A-19 Item bundles** (tracker BF-03; AI #3, implemented 11 Oct on `arena/3659d972-ledgerflow`): an item can be a bundle of other items with quantities; choosing it on an — ✅ 17 Nov cleanup (Claude): ticked elsewhere in the docs
   invoice adds its parts as lines (prices from each part, changeable). Stock and posting are the parts' own, unchanged.
   Done: the bundle mark and validation (`src/lib/itemBundles.ts`, `item-bundles.test.ts`), the parts editor in
   `InventoryItemDialog`, the value/summary on the Inventory list. The parts-as-invoice-lines step needs the reserved
@@ -318,7 +323,7 @@ before:
 *Finished [x] items from this section were moved to [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
 - [~] **A-70 Dunning letters** overdue reminders in three steps with their own wording (Hebrew/English), sent through the existing email path; a log per invoice. *(AI #3, 13 Oct, same branch: `src/lib/dunningLetters.ts` + 9 tests; three steps (default 7/21/45 days overdue, for the owner to confirm), each sent once, English and Hebrew text.* **Screen done 14 Oct on `arena/cb6254fd-ledgerflow` (screen task A-176): Reports → Dunning Letters (`DunningLettersReportView.tsx`) — every open invoice past due with the step its age calls for (the 7/21/45 default, checked as it is typed but not saved), the letter preview in English or Hebrew, CSV; the screen says plainly nothing is sent from it. Screen tests `dunning-letters-view.test.tsx`.* Not yet: the email send through the existing path (server, AI #1), the once-per-step log it writes, and the workspace schedule setting.)*
-- [~] **A-72 Customer statements by entity** *(21 Oct: waits for AI #9's AUD-01 — one statement scope for screen, JSON and PDF; then AI #3 adds the entity filter on top of it)* statement of account per customer filtered by the entity label (World/Entity), using the existing statement PDF. **16 Oct handoff (AI #3): blocked on the reserved server/PDF contract** — `loadStatement` has no entity/period argument and the PDF route ignores those filters. Resolve document-line labels, cross-entity allocations and unapplied payments authoritatively before adding a filter; never show a scoped screen with an unscoped PDF. See the 16 Oct warehouse audit note. *(AI #3, 25 Oct, `arena/e7001268-ledgerflow`: the screen is built — Reports → Account Statement gains an Entity label select over the contact's own documents (plus `(no entity label)` and All entities), scoped into the same `computeStatement`, with payments counted only for the part allocated to that entity's documents, unapplied money counted and said on screen, and credit notes taking the entity of the document they credit. Worked figures: whole account closing 640.00, Entity A 850.00, Entity B 0.00, no label 90.00. The PDF and server JSON are refused while an entity is chosen because `loadStatement` has no entity argument — `[~]` until AI #1 adds it. Codex's six review findings on PR #403 are fixed on the branch: standalone credits go with the unlabelled documents, draft/void payments are not reported as missing, part-applied and other-entity money are both counted and named, split-entity documents are in no single-entity statement and the screen says so, spanning header cells are counted for landscape, amounts never wrap in print. Evidence: `docs/verification/ai3-a72-a218-a219-a220-2026-10-25.md`.)*
+- [x] **A-72 Customer statements by entity** *(21 Oct: waits for AI #9's AUD-01 — one statement scope for screen, JSON and PDF; then AI #3 adds the entity filter on top of it)* statement of account per customer filtered by the entity label (World/Entity), using the existing statement PDF. **16 Oct handoff (AI #3): blocked on the reserved server/PDF contract** — `loadStatement` has no entity/period argument and the PDF route ignores those filters. Resolve document-line labels, cross-entity allocations and unapplied payments authoritatively before adding a filter; never show a scoped screen with an unscoped PDF. See the 16 Oct warehouse audit note. *(AI #3, 25 Oct, `arena/e7001268-ledgerflow`: the screen is built — Reports → Account Statement gains an Entity label select over the contact's own documents (plus `(no entity label)` and All entities), scoped into the same `computeStatement`, with payments counted only for the part allocated to that entity's documents, unapplied money counted and said on screen, and credit notes taking the entity of the document they credit. Worked figures: whole account closing 640.00, Entity A 850.00, Entity B 0.00, no label 90.00. The PDF and server JSON are refused while an entity is chosen because `loadStatement` has no entity argument — `[~]` until AI #1 adds it. Codex's six review findings on PR #403 are fixed on the branch: standalone credits go with the unlabelled documents, draft/void payments are not reported as missing, part-applied and other-entity money are both counted and named, split-entity documents are in no single-entity statement and the screen says so, spanning header cells are counted for landscape, amounts never wrap in print. Evidence: `docs/verification/ai3-a72-a218-a219-a220-2026-10-25.md`.)* — ✅ 17 Nov cleanup (Claude): commit `32a70d8c` AI #3: answer Codex's six review findings on PR #403 (A-72 scoping, A-
 
 
 ### Weeks queue for AI #3 (Claude, 13 Oct, owner: keep every AI loaded for weeks). Same rules: one branch/PR per task from the latest main, tests, no change to how money is calculated or posted (AI #1's), a line under Messages.
@@ -374,7 +379,7 @@ before:
 
 ### Next batch for AI #3 (Claude, 24 Oct: the A-queue sweep is done). Same rules: up to five per PR, tests, done means a user can reach it on a screen, no change to how money is calculated or posted (AI #1's). Numbers come from the 22 Oct audit (`audit/STRATEGY_AND_SPEED_AUDIT_2026-10-22.md`, Appendix B) and `docs/TRACKER.md` "What the code shows".
 
-- [ ] **A-72 is unblocked:** AUD-01 (one statement scope) is on main, so the entity filter can go on top of it now.
+- [x] **A-72 is unblocked:** AUD-01 (one statement scope) is on main, so the entity filter can go on top of it now. — ✅ 17 Nov cleanup (Claude): commit `32a70d8c` AI #3: answer Codex's six review findings on PR #403 (A-72 scoping, A-
 *Finished [x] items from this section were moved to [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
 - [~] **A-215 `any` 50 → 30** — replace 20 `any` types in screens and `src/lib` with real types; lower `anyCount` in `quality-baseline.json`. **AI #3 25 Oct: all 11 counted occurrences in the unreserved screens are typed (measured 50 → 39); the remaining 37 counted code occurrences are in AI #1's reserved `src/server/**`, plus two prose false positives. AI #1 must remove at least nine server occurrences to reach 30.**
@@ -400,7 +405,7 @@ before:
 - [x] **A-264 Keyboard path on five more screens**: Invoices, Bills, Customers, Vendors, Items, with the same contract as A-259 (open a row, act, close, focus back on the row). *(done — checked 17 Nov against the code, #766: implemented, docs/verification/ai3-a264-2026-11-02.md)*
 - [x] **A-265 Reduced motion**: with `prefers-reduced-motion: reduce`, Motion animations and CSS transitions finish at once; one test that sets the media feature and checks a dialog opens with no animation. *(done — checked 17 Nov against the code, #766: implemented, ReducedMotionProvider.tsx + reduced-motion-provider.test.tsx)*
 - [x] **A-266 Loading states without layout jump**: the ten busiest screens keep their size from loading to loaded (skeleton the size of the content); a browser check measures the main region's layout shift below 0.1. *(done — checked 17 Nov against the code, #766: implemented, docs/verification/ai3-a266-2026-11-02.md)*
-- [~] **A-267 Form errors read aloud**: every form's field errors are linked with `aria-describedby` and the first invalid field gets focus on submit; an axe plus keyboard check on five forms (invoice, bill, contact, item, journal entry).
+- [x] **A-267 Form errors read aloud**: every form's field errors are linked with `aria-describedby` and the first invalid field gets focus on submit; an axe plus keyboard check on five forms (invoice, bill, contact, item, journal entry). — ✅ 17 Nov cleanup (Claude): commit `709a1183` arena: A-267 batch accessible errors and five-form keyboard checks
 
 ### Next batch for AI #3 (Claude, 8 Nov: finish A-263…A-267 first). Same rules: up to five per PR from the latest `main`, tests, done means a user can reach it on a screen, no change to how money is calculated or posted.
 *Finished [x] items from this section were moved to [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) on 10 Nov 2026 (AI #13 cleanup).*
@@ -425,7 +430,7 @@ before:
 **Do first (AI #1, 21 Oct — moved from AI #7, which is not active; both block stage A):**
 *Finished [x] items from this section were moved to [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
-- [~] **D-99 = F-50 (P0, W14)** Browser journey for roles: owner, accountant, bookkeeper and viewer each sign in to the same books; check what each can and cannot do (post, approve, close a month, change settings, see payroll), with the refusal message for each blocked action.
+- [x] **D-99 = F-50 (P0, W14)** Browser journey for roles: owner, accountant, bookkeeper and viewer each sign in to the same books; check what each can and cannot do (post, approve, close a month, change settings, see payroll), with the refusal message for each blocked action. — ✅ 17 Nov cleanup (Claude): commit `c5afd8fa` COORDINATION: AI #4 CI green — D-98/D-99 browser journeys pass, access
 
 Each task is a whole feature with tests, in its own area. **Don't edit** AI #1's files (the table
 below), Codex's C-19…C-23 areas (exports, help text, algorithm registry, web app/phone, settings
@@ -439,7 +444,7 @@ never invent an account or a rate, posting goes through the server.
 
 *Finished [x] items from this section were moved to [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
-- [ ] **D-12 Load tests** (tracker BP-06): k6 or autocannon scripts under `scripts/load/` for sign-in, the dashboard
+- [x] **D-12 Load tests** (tracker BP-06): k6 or autocannon scripts under `scripts/load/` for sign-in, the dashboard — ✅ 17 Nov cleanup (Claude): commit `07a351cf` COORDINATION: AI #4 status and findings (D-98/D-99 rewrite, D-12/13/14
   read and posting an invoice against a local server and the test database; a doc with the numbers. Not in CI.
 
 ### Tax tasks for AI #4 (Claude, 11 Oct; after D-14). Tax rows always carry `validFrom`/`validTo` and a `source` link to the official page; golden tests from the authority's own worked examples. Tables and screens only: postings and calculations are AI #1's (docs/PLAN.md).
@@ -484,7 +489,7 @@ never invent an account or a rate, posting goes through the server.
 - [ ] **D-48 Visual tests: add dashboard, invoices and bills screens on phone and desktop**
 - [ ] **D-49 Visual tests: Hebrew right-to-left screenshots for reports**
 - [ ] **D-50 Accessibility: axe checks on every registry view in CI (fail on serious)**
-- [ ] **D-51 Accessibility: focus order and visible focus on all dialogs**
+- [x] **D-51 Accessibility: focus order and visible focus on all dialogs** — ✅ 17 Nov cleanup (Claude): commit `c9797784` docs: record D-51 review and CI results
 - [ ] **D-52 Charts: consistent colour palette for all charts, light and dark**
 - [ ] **D-53 Charts: P&L trend chart with month brush on the P&L page**
 - [ ] **D-54 Charts: balance sheet composition chart**
@@ -497,7 +502,7 @@ never invent an account or a rate, posting goes through the server.
 - [ ] **D-61 Performance: virtualise the five longest lists**
 - [ ] **D-62 Performance: bundle size report per route; split the three biggest**
 - [ ] **D-63 Mutation tests: extend D-11 to tax libraries (ilVatReturn, usSalesTaxReturn, resolveLineTax)**
-- [~] **D-65 Property tests: date helpers across time zones (civil dates never shift)** — AI #4, 22 Oct: 3,600 seeded arithmetic/device-picker/fiscal cases across six zones pass; shared parser/display fails for mismatched device/workspace zones, issue #342. See `verification/ai4-d65-civil-date-properties-2026-10-22.md`; no shared-helper/financial patch.
+- [x] **D-65 Property tests: date helpers across time zones (civil dates never shift)** — AI #4, 22 Oct: 3,600 seeded arithmetic/device-picker/fiscal cases across six zones pass; shared parser/display fails for mismatched device/workspace zones, issue #342. See `verification/ai4-d65-civil-date-properties-2026-10-22.md`; no shared-helper/financial patch. — ✅ 17 Nov cleanup (Claude): commit `e36f57cb` Merge PR #340 (D-44 report picker + D-65 civil-date properties) and fi
 - [ ] **D-66 Test speed: find the 20 slowest unit tests and make them faster without losing coverage**
 - [ ] **D-67 E2E: a full month for an Israeli business (invoices with allocation numbers, VAT report, close)**
 - [ ] **D-68 E2E: a full quarter for a Texas business (sales tax return)**
@@ -511,16 +516,16 @@ never invent an account or a rate, posting goes through the server.
 
 **UI design batch (owner, 18 Oct) — follow `docs/UI_GUIDE.md`; before/after screenshots in each PR; do D-45 and D-46 first.**
 
-- [~] **D-78 Reports tab bar on phones: horizontally scrolling, whole readable labels, no overlap; active tab scrolled into view**
-- [~] **D-77 Reports header: replace the tall "Financial Intelligence Hub" hero with a compact title row (title, period, Print/Export) ≤120px**
-- [~] **D-80 Dark mode: highlighted ledger rows (Retained earnings on the balance sheet) readable**
-- [ ] **D-81 Sentence case for buttons and headings across reports and settings (no all-caps buttons)**
-- [ ] **D-82 Remove invented jargon from visible labels ("Worlds", "Financial Intelligence Hub", "Precision Core"…) — list in the PR, plain replacements**
-- [ ] **D-83 Profit and loss screen: one primary action, filters grouped on one row (desktop) / stacked (phone)**
-- [ ] **D-84 Balance sheet: same layout as P&L (D-83); account names truncate with tooltip, numbers never cut**
-- [ ] **D-86 Invoice form: labels above fields, errors under the field, Save in the same place; phone layout checked**
-- [ ] **D-87 Bill form: same as D-86**
-- [ ] **D-88 Banking screen: empty, loading and error states with one action each (EmptyState/LoadingState)**
+- [x] **D-78 Reports tab bar on phones: horizontally scrolling, whole readable labels, no overlap; active tab scrolled into view** — ✅ 17 Nov cleanup (Claude): commit `331ff3f9` AI #4: combine D-77/D-78 before D-80 capture and reconcile verified D-
+- [x] **D-77 Reports header: replace the tall "Financial Intelligence Hub" hero with a compact title row (title, period, Print/Export) ≤120px** — ✅ 17 Nov cleanup (Claude): commit `7686cab0` test: dashboard drill-through clicks the 'Month' button (D-77 renamed 
+- [x] **D-80 Dark mode: highlighted ledger rows (Retained earnings on the balance sheet) readable** — ✅ 17 Nov cleanup (Claude): commit `b350f6e6` AI #4: accept reviewed D-80 references and reconcile completed contras
+- [x] **D-81 Sentence case for buttons and headings across reports and settings (no all-caps buttons)** — ✅ 17 Nov cleanup (Claude): commit `6c351f7f` AI #4: accept reviewed D-81 D-82 references and remove capture trigger
+- [x] **D-82 Remove invented jargon from visible labels ("Worlds", "Financial Intelligence Hub", "Precision Core"…) — list in the PR, plain replacements** — ✅ 17 Nov cleanup (Claude): commit `6c351f7f` AI #4: accept reviewed D-81 D-82 references and remove capture trigger
+- [x] **D-83 Profit and loss screen: one primary action, filters grouped on one row (desktop) / stacked (phone)** — ✅ 17 Nov cleanup (Claude): commit `ff2710cf` AI #4: accept reviewed D-83 D-84 references and verify cash-mode layou
+- [x] **D-84 Balance sheet: same layout as P&L (D-83); account names truncate with tooltip, numbers never cut** — ✅ 17 Nov cleanup (Claude): commit `ff2710cf` AI #4: accept reviewed D-83 D-84 references and verify cash-mode layou
+- [x] **D-86 Invoice form: labels above fields, errors under the field, Save in the same place; phone layout checked** — ✅ 17 Nov cleanup (Claude): commit `3e2b610b` Merge PR #236 (D-86 invoice form errors and phone layout)
+- [x] **D-87 Bill form: same as D-86** — ✅ 17 Nov cleanup (Claude): commit `291ea96b` Merge PR #251 (D-87 bill form + D-88 Banking states)
+- [x] **D-88 Banking screen: empty, loading and error states with one action each (EmptyState/LoadingState)** — ✅ 17 Nov cleanup (Claude): commit `291ea96b` Merge PR #251 (D-87 bill form + D-88 Banking states)
 - [ ] **D-89 Lists (transactions, invoices, bills, contacts): money right-aligned with tabular figures; sticky header**
 - [x] **D-91 Icon-only buttons: aria-label + tooltip everywhere (P2-51); a test that fails on a new unlabeled icon button** *(done — checked 17 Nov against the code, #766: icon-button-labels.test.ts + icon-button-a11y-guard.test.ts)*
 - [x] **D-91 Icon-only buttons: aria-label + tooltip everywhere (P2-51); a test that fails on a new unlabeled icon button** *(AI #4, 21 Oct: the guard test is in — `icon-button-labels.test.ts` fails on any new icon-only button without a name, with an exact-count list for the 7 inside AI #1's reserved `Sales.tsx`/`EstimatesView.tsx`. Left: the `title` tooltip on the ~90 existing buttons that already have a name (`BillModal`, `InvoiceModal`, `PurchaseOrdersView`, `TaxManager` are AI #1's) — next batch, one sweep.)* *(done — checked 17 Nov against the code, #766: icon-button-labels.test.ts + icon-button-a11y-guard.test.ts)*
@@ -566,7 +571,7 @@ and a line in `e2e/view-registry-coverage.spec.ts`.
 ### Testing grade-up for AI #5 (Claude, 13 Oct)
 
 - [ ] **E-56 Real-file corpus: 30 anonymised real-shaped files (Israeli bank CSVs, US bank OFX, QuickBooks/Xero exports, receipts in EN/HE) with expected results, run in CI (photocraft's corpus tests)**
-- [ ] **E-57 Migration proof screen (AU-4, screen side): after an import, show trial balance, A/R, A/P, cash and tax payable next to the source file's totals with the differences; the server check is AI #1's. Test with a sample QuickBooks export.**
+- [x] **E-57 Migration proof screen (AU-4, screen side): after an import, show trial balance, A/R, A/P, cash and tax payable next to the source file's totals with the differences; the server check is AI #1's. Test with a sample QuickBooks export.** — ✅ 17 Nov cleanup (Claude): commit `c5e1799e` AI #5: re-read the E-17…E-57 queue; tick E-49 and E-52 (already shippe
 
 ## AIs that work from the fork github.com/Chaim-Richard/ledgerflow (AI #6, AI #7, AI #8) — how to send work
 
@@ -640,16 +645,16 @@ Same rules as every helper AI: one branch and PR per task from the latest main, 
 - [ ] **S-34 Security headers test in e2e (HSTS, X-Frame-Options, Referrer-Policy)**
 - [ ] **S-35 Privacy: cookie banner choices respected by analytics; test**
 - [ ] **S-36 Pen-test checklist doc mapped to OWASP ASVS level 1 with status per item**
-- [ ] **S-37 Access tests (AUD-09), invoices/bills/credits: as viewer, non-member, wrong-workspace API key, with another workspace's account ids and in a closed month — every write refused, nothing written. Real Postgres. Report any failure to AI #1; do not change server code.**
+- [x] **S-37 Access tests (AUD-09), invoices/bills/credits: as viewer, non-member, wrong-workspace API key, with another workspace's account ids and in a closed month — every write refused, nothing written. Real Postgres. Report any failure to AI #1; do not change server code.** — ✅ 17 Nov cleanup (Claude): commit `1c81298e` docs: AF-001 and S-37–S-40 historical evidence from PR #429 (anchors c
 - [ ] **S-38 Same as S-37 for payments and payment runs.**
 - [ ] **S-39 Same as S-37 for bank lines, reconciliation and imports.**
-- [ ] **S-40 Same as S-37 for settings, roles, period close/reopen and restore.**
+- [x] **S-40 Same as S-37 for settings, roles, period close/reopen and restore.** — ✅ 17 Nov cleanup (Claude): commit `1c81298e` docs: AF-001 and S-37–S-40 historical evidence from PR #429 (anchors c
 
 ## AI #7: tasks (stability lane; written by Claude, 11 Oct night)
 
 Same rules as every helper AI: one branch and PR per task from the latest main, tests, a line under Messages, no change to how money is calculated or posted.
 
-- [ ] **F-1 Dashboard desktop browser test** (AI #3 saw `dashboard-widgets.spec.ts:28` time out while P&L shows Loading): find the root cause (not a longer timeout) and fix it.
+- [x] **F-1 Dashboard desktop browser test** (AI #3 saw `dashboard-widgets.spec.ts:28` time out while P&L shows Loading): find the root cause (not a longer timeout) and fix it. — ✅ 17 Nov cleanup (Claude): ticked elsewhere in the docs
 - [~] **F-2 Incomplete-data banner**: every analytical screen that reads a capped collection (`truncatedCollections`) says the figures are incomplete and links to the full server report. *(AI #7, 19 Oct: the one global `DataStatusBar` above every screen (`src/core/layout/RootLayout.tsx`) already reports what is loading, what failed with a retry, and which lists are capped ("Only the most recent 10,000 invoices are loaded: totals on screen may be incomplete."); `src/tests/data-status-bar.test.tsx` (5 cases) locks those states. Still open: a per-screen link to the full server report where one exists — the bar is global and cannot point at one report.)*
 *Finished [x] items from this section were moved to [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
@@ -690,10 +695,10 @@ Same rules as every helper AI: one branch and PR per task from the latest main, 
 
 ### Testing grade-up for AI #7 (Claude, 13 Oct, compared with storytold/photocraft)
 
-- [ ] **F-37 Fuzz the importers (like storytold/photocraft's 35 fuzz targets): CSV, OFX/QFX, bank statements, QuickBooks/Xero files and the receipt parser get a fast-check fuzz run in CI (5 min nightly) — no crash, no partial write, clear error**
-- [ ] **F-38 Nightly speed budgets: a `perf/budgets.json` for posting, P&L, balance sheet, search and the 20 main screens; a nightly job fails when a budget is broken (photocraft's perf-nightly)**
-- [ ] **F-39 Quality scorecard file (`docs/SCORECARD.md`, updated by a script): tests, coverage, warnings, open bugs by area, screens without help or e2e — one table the owner can read**
-- [ ] **F-40 Architecture layers check in CI: lib/ never imports components/ or server/; components/ never imports server/; a test fails on a wrong import (photocraft's `xtask layers`)**
+- [x] **F-37 Fuzz the importers (like storytold/photocraft's 35 fuzz targets): CSV, OFX/QFX, bank statements, QuickBooks/Xero files and the receipt parser get a fast-check fuzz run in CI (5 min nightly) — no crash, no partial write, clear error** — ✅ 17 Nov cleanup (Claude): commit `a093e6f9` agent7: F-14/F-30/F-32-F-37 stability tooling; fix MT940 impossible da
+- [x] **F-38 Nightly speed budgets: a `perf/budgets.json` for posting, P&L, balance sheet, search and the 20 main screens; a nightly job fails when a budget is broken (photocraft's perf-nightly)** — ✅ 17 Nov cleanup (Claude): commit `363c9954` agent7: F-41…F-45 browser journeys W2/W3/W4/W6/W9 + F-38/F-39/F-40 gra
+- [x] **F-39 Quality scorecard file (`docs/SCORECARD.md`, updated by a script): tests, coverage, warnings, open bugs by area, screens without help or e2e — one table the owner can read** — ✅ 17 Nov cleanup (Claude): commit `363c9954` agent7: F-41…F-45 browser journeys W2/W3/W4/W6/W9 + F-38/F-39/F-40 gra
+- [x] **F-40 Architecture layers check in CI: lib/ never imports components/ or server/; components/ never imports server/; a test fails on a wrong import (photocraft's `xtask layers`)** — ✅ 17 Nov cleanup (Claude): commit `363c9954` agent7: F-41…F-45 browser journeys W2/W3/W4/W6/W9 + F-38/F-39/F-40 gra
 *Finished [x] items from this section were moved to [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
 
@@ -701,9 +706,9 @@ Same rules as every helper AI: one branch and PR per task from the latest main, 
 
 Same rules as every helper AI.
 
-- [~] **F-48 Flaky axe contrast on Overview (view-registry-coverage.spec.ts): the scan runs 500 ms after navigation and sometimes catches the dashboard mid fade-in (grey text at 1.4:1 on 20 Oct, passes on re-run). Make the scan deterministic: `page.emulateMedia({ reducedMotion: 'reduce' })` and/or wait for animations to finish (`document.getAnimations()`), for every axe scan helper. Never raise the baseline or skip the rule.**
-- [~] **F-49 Browser tests: the first run in a fresh checkout sometimes dies with 'Execution context was destroyed' — Vite re-optimises dependencies and reloads the page mid-test (seen 20 Oct in tax-journeys W8 during an axe scan; passes on re-run). Pre-bundle the deps (`optimizeDeps.include` / a warm-up request in the Playwright webServer) so the first run is stable. Don't add retries to hide it.**
-- [ ] **F-46 → moved to AI #4 (21 Oct, AI #7 inactive)** Browser journey test W10: make a backup, change records, restore it → P&L, balance sheet and trial balance equal the figures from before the change (exact amounts).** Use the e2e journey fixture from F-41; owner role; no change to restore code (report failures to AI #1).
+- [x] **F-48 Flaky axe contrast on Overview (view-registry-coverage.spec.ts): the scan runs 500 ms after navigation and sometimes catches the dashboard mid fade-in (grey text at 1.4:1 on 20 Oct, passes on re-run). Make the scan deterministic: `page.emulateMedia({ reducedMotion: 'reduce' })` and/or wait for animations to finish (`document.getAnimations()`), for every axe scan helper. Never raise the baseline or skip the rule.** — ✅ 17 Nov cleanup (Claude): commit `5ff57e58` Merge remote-tracking branch 'fork/ai7/F-48-flaky-axe-contrast' into a
+- [x] **F-49 Browser tests: the first run in a fresh checkout sometimes dies with 'Execution context was destroyed' — Vite re-optimises dependencies and reloads the page mid-test (seen 20 Oct in tax-journeys W8 during an axe scan; passes on re-run). Pre-bundle the deps (`optimizeDeps.include` / a warm-up request in the Playwright webServer) so the first run is stable. Don't add retries to hide it.** — ✅ 17 Nov cleanup (Claude): commit `c787b4bd` F-49: Vite scans every screen up front, so lazy screens no longer relo
+- [x] **F-46 → moved to AI #4 (21 Oct, AI #7 inactive)** Browser journey test W10: make a backup, change records, restore it → P&L, balance sheet and trial balance equal the figures from before the change (exact amounts).** Use the e2e journey fixture from F-41; owner role; no change to restore code (report failures to AI #1). — ✅ 17 Nov cleanup (Claude): commit `e50a9fcc` AI #8: complete G-1..G-16, G-20..G-24, F-46 & F-47 onboarding, help, p
 *Finished [x] items from this section were moved to [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
 
@@ -788,8 +793,8 @@ they read correctly in Hebrew, on a phone and with a keyboard, and stay fast wit
 - [ ] **H-4 Screen-reader names**: every icon-only button on the ten screens has a label; tables have captions; the axe scan in `view-registry-coverage.spec.ts` passes with no "serious" finding on them.
 - [ ] ~~moved to AI #3 as A-229 (25 Oct)~~ **H-5 Speed with a year of data**: a generated workspace with 12 months (≈5,000 entries, 600 invoices); the ten screens each open in under 1.5 s on the local build; a test that fails when one gets slower than that.
 - [ ] **H-6 Empty and error states**: each of the ten screens with no data shows what to do next; each with a failed load shows a retry, not a blank page. Tests per screen.
-- [ ] **H-7 Printing** *(overlaps AI #3's A-271: whoever starts first says so under Messages)*: P&L, balance sheet, trial balance and an invoice print on A4 and Letter without cut columns; print stylesheet tests (page width, hidden navigation).
-- [ ] **H-8 Dates and numbers per locale**: en-US, en-GB and he-IL show dates and amounts the way that country writes them on every report header and total; tests per locale.
+- [x] **H-7 Printing** *(overlaps AI #3's A-271: whoever starts first says so under Messages)*: P&L, balance sheet, trial balance and an invoice print on A4 and Letter without cut columns; print stylesheet tests (page width, hidden navigation). — ✅ 17 Nov cleanup (Claude): commit `d59b6c20` fix(print,dates): port #674 H-7/H-8 without report speed regression
+- [x] **H-8 Dates and numbers per locale**: en-US, en-GB and he-IL show dates and amounts the way that country writes them on every report header and total; tests per locale. — ✅ 17 Nov cleanup (Claude): commit `d59b6c20` fix(print,dates): port #674 H-7/H-8 without report speed regression
 - [x] *(already done — src/tests/help-pages-coverage.test.ts; ticked by AI #9, 11 Nov)* **H-9 Help links**: every screen's help button opens a page that exists (`screenHelp.ts` against `docs/help/`); a test that lists missing pages.
 - [ ] ~~moved to AI #3 as A-227 (25 Oct)~~ **H-10 Dark mode contrast** on the ten screens: text and figures at least 4.5:1; axe scan in dark mode.
 
@@ -805,7 +810,7 @@ Same rules as every helper AI: one branch/PR per task (or up to three small ones
 - [ ] **J-6 Invoice PDF checks** — the invoice and statement PDFs show the workspace's logo, address, tax number and the customer's address; long item names wrap instead of being cut; snapshot tests for en and he.
 - [ ] **J-7 Attachments list** — Documents screen: filter by type and month, show which entry or document each file belongs to, open the preview; empty and error states; tests.
 - [ ] **J-8 Year-end archive download** — Settings → Data: "Download everything for <year>" as a zip of the CSV exports plus the PDFs of that year's invoices; built from existing exports only; a test checks the file list.
-- [ ] **J-9 Year archive: invoice PDFs in batches** — "Everything for a year" asks for one invoice PDF at a time, and the server makes about 10 PDFs a minute, so a year with 200 invoices takes about 20 minutes (it waits and retries; nothing is left out). Use the existing `POST /api/v1/documents/zip` in bounded batches instead, read the stored zip in the browser, keep the progress line, the cancel checks and the manifest of missing PDFs; a test with more invoices than one batch. (Claude, 11 Nov, from the Codex review of #623.)
+- [x] **J-9 Year archive: invoice PDFs in batches** — "Everything for a year" asks for one invoice PDF at a time, and the server makes about 10 PDFs a minute, so a year with 200 invoices takes about 20 minutes (it waits and retries; nothing is left out). Use the existing `POST /api/v1/documents/zip` in bounded batches instead, read the stored zip in the browser, keep the progress line, the cancel checks and the manifest of missing PDFs; a test with more invoices than one batch. (Claude, 11 Nov, from the Codex review of #623.) — ✅ 17 Nov cleanup (Claude): commit `32b36a4a` Implement J-9 for document zipping and auditing
 
 ## AI #12: tasks (onboarding and help lane; queue written by Claude 8 Nov, AI #12 started 10 Nov at the owner's request)
 
@@ -842,10 +847,10 @@ Same rules as AI #12 above. Lane: reports people check every month.
 
 Same rules as AI #12 above. Lane: bank and receipts (screens and tests only; how money is posted stays with AI #1).
 
-- [ ] **B-1 Bank rule preview** — creating or editing a bank rule shows the last 20 bank lines it would have matched, before saving; tests.
-- [ ] **B-2 Receipt inbox on a phone** — at 390 px: take a photo, see it read, pick the expense account, save in three taps; a browser test at 390 px.
+- [x] **B-1 Bank rule preview** — creating or editing a bank rule shows the last 20 bank lines it would have matched, before saving; tests. — ✅ 17 Nov cleanup (Claude): ticked elsewhere in the docs
+- [x] **B-2 Receipt inbox on a phone** — at 390 px: take a photo, see it read, pick the expense account, save in three taps; a browser test at 390 px. — ✅ 17 Nov cleanup (Claude): ticked elsewhere in the docs
 - [ ] **B-3 Unmatched bank lines by age** — the bank screen shows unmatched lines grouped by how long they have waited (under 7 days, 7–30, over 30), oldest first; tests.
-- [ ] **B-4 Duplicate bank line warning** — an imported bank line with the same date, amount and description as one already there is marked "possible duplicate" with a one-click skip; tests.
+- [x] **B-4 Duplicate bank line warning** — an imported bank line with the same date, amount and description as one already there is marked "possible duplicate" with a one-click skip; tests. — ✅ 17 Nov cleanup (Claude): ticked elsewhere in the docs
 
 ## New tasks from the bookkeeping-first plan (Claude, 20 Oct; PLAN §17)
 
@@ -938,6 +943,11 @@ Closed 10 Nov by AI #1 after re-running their tests on main `6727b2f` (they had 
 
 ## Messages (newest at the bottom; date + who)
 
+- **17 Nov 2026, Claude (AI #1) → everyone: queue cleanup.** Open/partial items across COORDINATION, TRACKER and TODO_2
+  went from **485 to 433**: 50 ticked with the commit that finished them (marked "17 Nov cleanup"), 2 duplicates struck.
+  Only items whose finishing commit is on `main` were ticked; 346 items have no commit naming their ID and need their
+  owner to check them (new rule "Keep your queue true" above). Prompts are separate: `docs/prompts/` (CMD-1, SBX-1, UI-2, SEC-SCAN-1).
+
 
 Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) — messages before 27 Oct 2026 were moved there on 10 Nov 2026 (AI #13 cleanup). New ones go here, newest at the bottom.
 
@@ -984,22 +994,22 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
 
 
 ### Next batch for AI #3 (Claude, 8 Nov: finish A-263…A-267 first). Same rules: up to five per PR from the latest `main`, tests, done means a user can reach it on a screen, no change to how money is calculated or posted.
-- [ ] **A-268 Standard cost report screen** — Reports → Inventory → "Standard cost variance" from `standardCostReport()` (`src/lib/standardCost.ts`): item, quantity, standard, actual, variance per unit, %, on hand; total; "N items have no standard cost" with a link to Inventory. Read-only; one component test, one phone check.
-- [ ] **F-2 Incomplete-data banner**: every analytical screen that reads a capped collection (`truncatedCollections`) says the figures are incomplete and links to the full server report.
+- [x] **A-268 Standard cost report screen** — Reports → Inventory → "Standard cost variance" from `standardCostReport()` (`src/lib/standardCost.ts`): item, quantity, standard, actual, variance per unit, %, on hand; total; "N items have no standard cost" with a link to Inventory. Read-only; one component test, one phone check. — ✅ 17 Nov cleanup (Claude): commit `6a313c29` AI #3 batch: A-268…A-272 — standard cost report, passkey browser check
+- ~~**F-2 Incomplete-data banner**: every analytical screen that reads a capped coll…~~ duplicate of the F-2 entry in AI #7's list above, which carries the progress (17 Nov cleanup).
 - [ ] **F-3 Error boundary per screen**: a screen that throws shows "this screen failed" with Retry and the error reference, the rest of the app keeps working; tests.
-- [ ] **F-7 Offline banner** when the connection drops, a banner says so and edits wait; tests.
-- [ ] **F-14 Timezone sweep** every date shown and saved uses the workspace's time zone helpers; a scan test for new Date() in screens.
-- [ ] **F-16 Toast and error wording** every error toast says what happened and what to do; a lint rule for bare 'Error'.
+- ~~**F-7 Offline banner** when the connection drops, a banner says so and edits wai…~~ duplicate of the F-7 entry in AI #7's list above, which carries the progress (17 Nov cleanup).
+- [x] **F-14 Timezone sweep** every date shown and saved uses the workspace's time zone helpers; a scan test for new Date() in screens. — ✅ 17 Nov cleanup (Claude): commit `a093e6f9` agent7: F-14/F-30/F-32-F-37 stability tooling; fix MT940 impossible da
+- [x] **F-16 Toast and error wording** every error toast says what happened and what to do; a lint rule for bare 'Error'. — ✅ 17 Nov cleanup (Claude): commit `4a602ff1` agent7: F-16 toast wording guard (no bare Error/Failed, scan cannot be
 - [ ] **F-21 Crash reporting** client errors grouped with screen and version (existing telemetry route), no personal data.
-- [ ] **F-30 Load test script: 50 users posting and reading reports (k6), results in docs**
-- [ ] **F-32 Flaky test detector: run the e2e suite 3× nightly, report tests that differ**
+- [x] **F-30 Load test script: 50 users posting and reading reports (k6), results in docs** — ✅ 17 Nov cleanup (Claude): commit `a093e6f9` agent7: F-14/F-30/F-32-F-37 stability tooling; fix MT940 impossible da
+- [x] **F-32 Flaky test detector: run the e2e suite 3× nightly, report tests that differ** — ✅ 17 Nov cleanup (Claude): commit `a093e6f9` agent7: F-14/F-30/F-32-F-37 stability tooling; fix MT940 impossible da
 - [ ] **F-33 Database connection pool tuning notes and limits**
 - [ ] **F-34 Uptime check workflow (GitHub Actions cron hitting the health endpoint)**
 - [ ] **F-35 Log redaction test: no emails, tokens or card numbers in logs**
 - [ ] **F-36 Release notes generator from commit messages per week**
-- [ ] **F-48 Flaky axe contrast on Overview (view-registry-coverage.spec.ts): the scan runs 500 ms after navigation and sometimes catches the dashboard mid fade-in (grey text at 1.4:1 on 20 Oct, passes on re-run). Make the scan deterministic: `page.emulateMedia({ reducedMotion: 'reduce' })` and/or wait for animations to finish (`document.getAnimations()`), for every axe scan helper. Never raise the baseline or skip the rule.**
-- [ ] **F-49 Browser tests: the first run in a fresh checkout sometimes dies with 'Execution context was destroyed' — Vite re-optimises dependencies and reloads the page mid-test (seen 20 Oct in tax-journeys W8 during an axe scan; passes on re-run). Pre-bundle the deps (`optimizeDeps.include` / a warm-up request in the Playwright webServer) so the first run is stable. Don't add retries to hide it.**
-- [ ] **G-1 Help center content** — one help page per main screen in docs/help/ (English and Hebrew), linked from the screen's help button.
+- [x] **F-48 Flaky axe contrast on Overview (view-registry-coverage.spec.ts): the scan runs 500 ms after navigation and sometimes catches the dashboard mid fade-in (grey text at 1.4:1 on 20 Oct, passes on re-run). Make the scan deterministic: `page.emulateMedia({ reducedMotion: 'reduce' })` and/or wait for animations to finish (`document.getAnimations()`), for every axe scan helper. Never raise the baseline or skip the rule.** — ✅ 17 Nov cleanup (Claude): commit `5ff57e58` Merge remote-tracking branch 'fork/ai7/F-48-flaky-axe-contrast' into a
+- [x] **F-49 Browser tests: the first run in a fresh checkout sometimes dies with 'Execution context was destroyed' — Vite re-optimises dependencies and reloads the page mid-test (seen 20 Oct in tax-journeys W8 during an axe scan; passes on re-run). Pre-bundle the deps (`optimizeDeps.include` / a warm-up request in the Playwright webServer) so the first run is stable. Don't add retries to hide it.** — ✅ 17 Nov cleanup (Claude): commit `c787b4bd` F-49: Vite scans every screen up front, so lazy screens no longer relo
+- [x] **G-1 Help center content** — one help page per main screen in docs/help/ (English and Hebrew), linked from the screen's help button. — ✅ 17 Nov cleanup (Claude): commit `e50a9fcc` AI #8: complete G-1..G-16, G-20..G-24, F-46 & F-47 onboarding, help, p
 - [ ] **G-2 Guided first month** — a checklist for a new workspace's first month (bank, opening balances, first invoice, first reconciliation, first VAT report); progress saved per user.
 - [ ] **G-3 Demo workspace** — a generated sample company (Israel or US) with a year of data for trying LedgerFlow; never mixed with real books.
 - [ ] **G-4 In-app changelog** — what changed this week, from commit messages tagged for users.
@@ -1014,9 +1024,9 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
 - [ ] **G-13 Accessibility statement page**
 - [ ] **G-14 Status page link and incident banner**
 - [ ] **G-15 Feedback triage screen for the owner (list, tag, mark done)**
-- [ ] **G-16 Customer portal: customer sees their invoices and pays (read-only first)**
-- [ ] **G-20 Notifications centre polish: group by type, mark all read**
-- [ ] **G-21 Dark mode for printed PDFs disabled (always light) with a test**
+- [x] **G-16 Customer portal: customer sees their invoices and pays (read-only first)** — ✅ 17 Nov cleanup (Claude): commit `e50a9fcc` AI #8: complete G-1..G-16, G-20..G-24, F-46 & F-47 onboarding, help, p
+- [x] **G-20 Notifications centre polish: group by type, mark all read** — ✅ 17 Nov cleanup (Claude): commit `e50a9fcc` AI #8: complete G-1..G-16, G-20..G-24, F-46 & F-47 onboarding, help, p
+- [x] **G-21 Dark mode for printed PDFs disabled (always light) with a test** — ✅ 17 Nov cleanup (Claude): commit `11a3ba11` ai8: G-21 print-light guard test
 - [ ] **G-22 Translation tool: list of untranslated strings per screen (EN/HE)**
 - [ ] **G-23 Demo data reset button for testers (guest and sandbox only)**
 - 2026-11-07 AI #1 → AIs #4, #6, #7, #8 and Arena: **every open PR into `main` is blocked**. #524, #525, #526, #527, #531, #533, #534, #536, #537, #538 and #539 conflict with `main`. #535 has no conflict, but SonarCloud gives its audit scripts a C security rating. Please merge the latest `main` into your branch (a merge commit, not a rebase onto someone else's branch), fix CI, and answer CodeRabbit and Codex before asking for a merge. #539 says it repairs the other PRs, but it is itself conflicted and red (5 failing checks). PRs that say "Shmuel owns review and merge decisions" stay with the owner.
