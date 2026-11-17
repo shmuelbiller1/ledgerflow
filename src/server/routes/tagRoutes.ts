@@ -24,7 +24,13 @@ tagRouter.get('/', async (req, res) => {
   }
 });
 
+const WRITERS = new Set(['owner', 'accountant', 'bookkeeper']);
+
 tagRouter.post('/change', async (req, res) => {
+  // the mount admits every member, because every member may read the tags; this address was the
+  // handler's own 403 in its own words, so it stays here — the command checks the role again
+  const { userRole } = req as unknown as { userRole?: string };
+  if (!WRITERS.has(String(userRole))) return res.status(403).json({ status: 'error', message: 'Only owners, accountants and bookkeepers change tags' });
   await executeCommand(req, res, {
     definition: tagChangeCommand,
     workspaceId: String((req.params as Record<string, string>).workspaceId || ''),

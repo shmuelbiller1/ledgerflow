@@ -17,7 +17,9 @@ import type { AddressInfo } from 'node:net';
 import type { RequestUser } from '../server/auth/requestUser';
 import { CommandRegistry } from '../server/commands/registry';
 import { createCommandRouter } from '../server/routes/commandRoutes';
-import { COMMAND_ROLES, type AnyCommandDefinition } from '../server/commands/types';
+import { COMMAND_ROLES, type AnyCommandDefinition, type CommandExecutionOutcome } from '../server/commands/types';
+import { batchAnswer, recategorizeAnswer } from '../server/utils/ledgerBatchCommandRoute';
+import { BatchVersionConflict } from '../server/services/ledgerBatchUpdate';
 import {
   PAYROLL_COMMANDS, payRunApproveCommand, payRunApprovalCommand, payRunPostCommand, payRunRejectCommand, payRunUndoCommand,
 } from '../server/commands/payroll';
@@ -99,8 +101,12 @@ test('the nine commands publish a schema, roles, a parseable example and refusal
   assert.deepEqual(payRunPostCommand.roles, ['owner', 'accountant']);
   assert.deepEqual(payRunUndoCommand.roles, ['owner', 'accountant']);
   assert.deepEqual(payRunApprovalCommand.roles, ['owner'], 'only an owner decides whether payroll needs approval');
-  assert.deepEqual(payRunApproveCommand.roles, ['owner'], 'an accountant cannot approve a run');
-  assert.deepEqual(payRunRejectCommand.roles, ['owner']);
+  // P-05: the runner's role list is checked before the service reads the workspace's two-person
+  // setting, so an accountant must be listed or the rule that lets them decide could never run. The
+  // service is still the authority — it refuses an accountant when the rule is off, and refuses the
+  // preparer either way (pay-run-posting.test.ts covers both).
+  assert.deepEqual(payRunApproveCommand.roles, ['owner', 'accountant'], 'two-person approval needs the accountant listed');
+  assert.deepEqual(payRunRejectCommand.roles, ['owner', 'accountant']);
   assert.deepEqual(tagChangeCommand.roles, ['owner', 'accountant', 'bookkeeper'], 'a viewer cannot retag the books');
   assert.deepEqual(taxFileCommand.roles, ['owner', 'accountant'], 'filing is a signing act');
   assert.deepEqual(COMMANDS.map(command => command.name).sort(), [
@@ -191,9 +197,20 @@ test('the runner refuses a viewer and an outsider before any service runs', asyn
       assert.equal(refusal.status, 'error');
       assert.match(refusal.message, /requires one of \[owner/);
     }
-    // a bookkeeper keeps the books but does not file a return or approve payroll
+    // a bookkeeper keeps the books but does not file a return
     assert.equal((await harness.run(BOOKKEEPER, 'tax.file', { startDate: '2026-01-01', endDate: '2026-03-31' })).status, 403);
-    assert.equal((await harness.run(BOOKKEEPER, 'payroll.approve', { payRunId: 'p1' })).status, 403);
+    // an accountant reaches payroll approval: the runner's list must allow them, because the service
+    // checks the workspace's two-person setting *inside* its transaction and the runner's check comes
+    // first. If this were narrowed back to owners, P-05 could never let an accountant decide.
+    const accountant = await harness.run(ACCOUNTANT, 'payroll.approve', { payRunId: 'p1' });
+    const decided = await accountant.json() as { status: string; message: string };
+    // with two-person approval off the service refuses an accountant, and the words are the service's
+    // own — which is the proof the runner admitted them. Before this, the runner's `roles: ['owner']`
+    // answered "Forbidden: command payroll.approve requires one of [owner]" first, and P-05's whole
+    // point (an accountant deciding a run they did not prepare) could never be reached.
+    assert.equal(decided.status, 'error');
+    assert.equal(decided.message, 'Only an owner approves or sends back a pay run');
+    assert.doesNotMatch(decided.message, /requires one of/, 'the runner did not refuse before the service read the rule');
     // not a member at all
     const outsider = await harness.run(OUTSIDER, 'tag.change', { from: 'a', to: 'b' }, WS);
     assert.equal(outsider.status, 403);
@@ -224,4 +241,56 @@ test('a malformed body is refused by the schema the route answers 400 for', asyn
   } finally {
     await harness.close();
   }
+});
+
+/**
+ * The answers a caller sees, which is what a route move can quietly change.
+ *
+ * The first run of this batch got these wrong in ways no command-level test could see: a refusal that
+ * the handler answered with its own sentence came back as the runner's, and the ledger batch answered a
+ * 403 where the handler had always answered 400 (the database suite caught that one). The route files
+ * cannot be mounted here — the writer-role middleware reads a real workspace — so the answer mapping is
+ * `utils/ledgerBatchCommandRoute.ts` and these tests hold it to the bodies the handlers gave.
+ */
+test('the ledger batch answers keep their handler\'s bodies, statuses and words', () => {
+  const failure = (over: Record<string, unknown>): CommandExecutionOutcome =>
+    ({ ok: false, status: 400, command: 'journal.batchupdate', message: 'x', ...over }) as CommandExecutionOutcome;
+
+  // recategorize: the handler's "Invalid request" with the issues
+  const issues = [{ path: ['changes'], message: 'Too small' }];
+  assert.deepEqual(recategorizeAnswer(failure({ code: 'INVALID_INPUT', error: { issues } })), {
+    status: 400, body: { error: 'Invalid request', details: issues },
+  });
+  // the service names the entry it refused, and the answer carries it
+  assert.deepEqual(recategorizeAnswer(failure({ status: 404, message: 'Entry tx1 is not in this workspace', error: { entryId: 'tx1' } })), {
+    status: 404, body: { error: 'Entry tx1 is not in this workspace', entryId: 'tx1' },
+  });
+  assert.deepEqual(recategorizeAnswer(failure({ status: 500, error: new Error('boom') })), { status: 500, body: { error: 'boom' } });
+  assert.deepEqual(
+    recategorizeAnswer({ ok: true, status: 200, command: 'journal.recategorize', data: { changed: 2 }, replayed: false }),
+    { status: 200, body: { status: 'success', changed: 2 } },
+  );
+
+  // batch: the handler's one refusal before its transaction
+  assert.deepEqual(batchAnswer(failure({ code: 'WORKSPACE_REQUIRED', error: undefined })), {
+    status: 400, body: { error: 'Missing workspaceId or updates' },
+  });
+  // a locked or settled entry was always a 400 carrying "Forbidden: …" — never a 403
+  assert.deepEqual(batchAnswer(failure({ status: 400, message: 'Forbidden: Transaction tx1 status is locked, cleared, or reconciled.' })), {
+    status: 400, body: { error: 'Forbidden: Transaction tx1 status is locked, cleared, or reconciled.' },
+  });
+  assert.equal(batchAnswer(failure({ status: 403, message: 'Only owners, accountants and bookkeepers change entries' })).status, 403);
+  // a version conflict keeps the whole body the browser reads to offer "reload"
+  const conflict = batchAnswer(failure({ status: 409, error: new BatchVersionConflict('tx1', { id: 'tx1', description: 'theirs' }) }));
+  assert.deepEqual(conflict, {
+    status: 409,
+    body: {
+      error: 'version_conflict',
+      message: 'Transaction tx1 was modified by another user. Nothing in this batch was saved.',
+      conflictTransactionId: 'tx1',
+      currentTransaction: { id: 'tx1', description: 'theirs' },
+    },
+  });
+  assert.deepEqual(batchAnswer({ ok: true, status: 200, command: 'journal.batchupdate', data: { updated: 2 }, replayed: false }),
+    { status: 200, body: { status: 'ok', updated: 2 } });
 });

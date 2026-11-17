@@ -4,8 +4,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part83,
-    "transactionId": COMMAND_SCHEMA_PARTS.part83,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part81,
+    "transactionId": COMMAND_SCHEMA_PARTS.part81,
     "question": {
       "type": "string",
       "maxLength": 1100

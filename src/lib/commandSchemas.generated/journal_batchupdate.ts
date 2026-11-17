@@ -4,77 +4,23 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part83,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part49,
     "updates": {
-      "minItems": 1,
-      "maxItems": 2000,
+      "maxItems": 10000,
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part83,
-          "data": {
-            "type": "object",
-            "properties": {
-              "lines": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "accountId": COMMAND_SCHEMA_PARTS.part83,
-                    "accountName": COMMAND_SCHEMA_PARTS.part50,
-                    "amountCents": COMMAND_SCHEMA_PARTS.part121,
-                    "description": COMMAND_SCHEMA_PARTS.part53,
-                    "dimensions": COMMAND_SCHEMA_PARTS.part162
-                  },
-                  "required": COMMAND_SCHEMA_PARTS.part32,
-                  "additionalProperties": false
-                }
-              },
-              "description": COMMAND_SCHEMA_PARTS.part53,
-              "status": COMMAND_SCHEMA_PARTS.part42,
-              "tags": {
-                "maxItems": 50,
-                "type": "array",
-                "items": COMMAND_SCHEMA_PARTS.part44
-              },
-              "metadata": COMMAND_SCHEMA_PARTS.part136,
-              "classId": COMMAND_SCHEMA_PARTS.part109,
-              "locationId": COMMAND_SCHEMA_PARTS.part109,
-              "projectId": COMMAND_SCHEMA_PARTS.part109,
-              "dimensions": COMMAND_SCHEMA_PARTS.part162,
-              "category": COMMAND_SCHEMA_PARTS.part50,
-              "isLocked": COMMAND_SCHEMA_PARTS.part21,
-              "isFlagged": COMMAND_SCHEMA_PARTS.part21,
-              "isReviewed": COMMAND_SCHEMA_PARTS.part21,
-              "isCleared": COMMAND_SCHEMA_PARTS.part21,
-              "reconciled": COMMAND_SCHEMA_PARTS.part21,
-              "isReconciled": COMMAND_SCHEMA_PARTS.part21,
-              "reconciledAt": {
-                "anyOf": [
-                  COMMAND_SCHEMA_PARTS.part42,
-                  COMMAND_SCHEMA_PARTS.part15
-                ]
-              },
-              "isTransfer": COMMAND_SCHEMA_PARTS.part21,
-              "transferDetails": COMMAND_SCHEMA_PARTS.part136,
-              "verification": COMMAND_SCHEMA_PARTS.part136,
-              "notes": COMMAND_SCHEMA_PARTS.part57,
-              "memo": COMMAND_SCHEMA_PARTS.part57,
-              "updatedAt": COMMAND_SCHEMA_PARTS.part42,
-              "expectedUpdatedAt": COMMAND_SCHEMA_PARTS.part42
-            },
-            "additionalProperties": false
-          }
+          "id": COMMAND_SCHEMA_PARTS.part49,
+          "data": COMMAND_SCHEMA_PARTS.part119,
+          "expectedUpdatedAt": COMMAND_SCHEMA_PARTS.part45
         },
-        "required": COMMAND_SCHEMA_PARTS.part11,
-        "additionalProperties": false
+        "additionalProperties": COMMAND_SCHEMA_PARTS.part1
       }
     }
   },
   "required": [
-    "workspaceId",
     "updates"
   ],
-  "additionalProperties": false
+  "additionalProperties": COMMAND_SCHEMA_PARTS.part1
 } as const;

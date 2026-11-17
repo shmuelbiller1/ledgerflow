@@ -8,7 +8,7 @@ export const USER_COMMAND_MANIFEST = [
   {
     "name": "user.aikeyremove",
     "area": "user",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
+    "roles": COMMAND_SCHEMA_PARTS.part70,
     "scope": "person",
     "risk": "normal",
     "description": {
@@ -29,7 +29,7 @@ export const USER_COMMAND_MANIFEST = [
   {
     "name": "user.aikeyset",
     "area": "user",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
+    "roles": COMMAND_SCHEMA_PARTS.part70,
     "scope": "person",
     "risk": "normal",
     "description": {
@@ -64,7 +64,7 @@ export const USER_COMMAND_MANIFEST = [
           "when": "The input carries any field.",
           "next": "Send an empty object: the profile is built from the signed-in person."
         },
-        COMMAND_SCHEMA_PARTS.part154
+        COMMAND_SCHEMA_PARTS.part149
       ],
       "next": [
         {

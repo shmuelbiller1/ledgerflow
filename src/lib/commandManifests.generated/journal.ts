@@ -8,7 +8,7 @@ export const JOURNAL_COMMAND_MANIFEST = [
   {
     "name": "journal.batchupdate",
     "area": "journal",
-    "roles": COMMAND_SCHEMA_PARTS.part59,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "risk": "normal",
     "description": {
       "sentence": "Change the notes, labels, flags, dimensions or review state of many entries at once; do not use it to change an amount, a date or an account — that is one entry at a time in the editor.",
@@ -34,7 +34,7 @@ export const JOURNAL_COMMAND_MANIFEST = [
           "when": "An entry changed since it was read, or is in a closed period.",
           "next": "Reload and try again."
         },
-        COMMAND_SCHEMA_PARTS.part144
+        COMMAND_SCHEMA_PARTS.part139
       ]
     },
     "runPath": "/api/v1/commands/journal.batchupdate",
@@ -44,7 +44,7 @@ export const JOURNAL_COMMAND_MANIFEST = [
   {
     "name": "journal.create",
     "area": "journal",
-    "roles": COMMAND_SCHEMA_PARTS.part59,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "risk": "normal",
     "description": {
       "sentence": "Create a balanced journal entry when recording a bookkeeping adjustment, and do not use it to issue invoices, receive payments, or bypass a source document.",
@@ -71,7 +71,7 @@ export const JOURNAL_COMMAND_MANIFEST = [
           "when": "The entry is missing required fields, has invalid cents, or does not balance.",
           "next": "Correct the entry and make sure its lines add to zero."
         },
-        COMMAND_SCHEMA_PARTS.part178,
+        COMMAND_SCHEMA_PARTS.part172,
         {
           "code": "PERIOD_LOCKED",
           "when": "The entry date is in a closed period.",
@@ -96,7 +96,7 @@ export const JOURNAL_COMMAND_MANIFEST = [
   {
     "name": "journal.recategorize",
     "area": "journal",
-    "roles": COMMAND_SCHEMA_PARTS.part59,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "risk": "normal",
     "description": {
       "sentence": "Move the non-bank side of cleared bank entries to another account, all of them or none; do not use it to change an amount or a date — that is a journal edit.",
@@ -120,7 +120,7 @@ export const JOURNAL_COMMAND_MANIFEST = [
           "when": "An entry moved on since it was read, or one is in a closed period.",
           "next": "Reload the entry and try again in an open period."
         },
-        COMMAND_SCHEMA_PARTS.part144
+        COMMAND_SCHEMA_PARTS.part139
       ]
     },
     "runPath": "/api/v1/commands/journal.recategorize",

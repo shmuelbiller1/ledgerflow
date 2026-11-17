@@ -11,9 +11,9 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part82,
-          "name": COMMAND_SCHEMA_PARTS.part49,
-          "label": COMMAND_SCHEMA_PARTS.part49,
+          "id": COMMAND_SCHEMA_PARTS.part80,
+          "name": COMMAND_SCHEMA_PARTS.part48,
+          "label": COMMAND_SCHEMA_PARTS.part48,
           "isWorld": COMMAND_SCHEMA_PARTS.part21,
           "sortOrder": COMMAND_SCHEMA_PARTS.part17,
           "systemDefault": COMMAND_SCHEMA_PARTS.part21,
@@ -31,7 +31,7 @@ export const COMMAND_INPUT_SCHEMA = {
               "accountIds": {
                 "maxItems": 5000,
                 "type": "array",
-                "items": COMMAND_SCHEMA_PARTS.part82
+                "items": COMMAND_SCHEMA_PARTS.part80
               },
               "since": COMMAND_SCHEMA_PARTS.part42,
               "refuse": COMMAND_SCHEMA_PARTS.part21

@@ -7,7 +7,7 @@ export const PROJECT_COMMAND_MANIFEST = [
   {
     "name": "project.delete",
     "area": "project",
-    "roles": COMMAND_SCHEMA_PARTS.part59,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "risk": "normal",
     "description": {
       "sentence": "Delete one project and answer with the row that was removed, so it can be restored; do not use it to remove the documents that point at the project — they keep their own rows.",
@@ -18,7 +18,7 @@ export const PROJECT_COMMAND_MANIFEST = [
           "when": "The project is not in the selected workspace, or is already gone.",
           "next": "Reload the projects and choose one in this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part177,
+        COMMAND_SCHEMA_PARTS.part171,
         {
           "code": "INVALID_INPUT",
           "when": "The id is missing or carries a slash.",
@@ -39,7 +39,7 @@ export const PROJECT_COMMAND_MANIFEST = [
   {
     "name": "project.restore",
     "area": "project",
-    "roles": COMMAND_SCHEMA_PARTS.part59,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "risk": "normal",
     "description": {
       "sentence": "Put back a project that project.delete removed, from the row the server kept; do not use it to overwrite a project that exists — that is a project.update.",
@@ -55,7 +55,7 @@ export const PROJECT_COMMAND_MANIFEST = [
           "when": "Nothing is on record for this id in this workspace.",
           "next": "Check the id, and that the project was deleted from this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part177,
+        COMMAND_SCHEMA_PARTS.part171,
         {
           "code": "INVALID_INPUT",
           "when": "The row has no id, or carries an id with a slash.",

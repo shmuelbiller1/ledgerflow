@@ -67,7 +67,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The workspace is not scheduled for deletion.",
           "next": "Choose a workspace currently marked pending deletion."
         },
-        COMMAND_SCHEMA_PARTS.part148,
+        COMMAND_SCHEMA_PARTS.part143,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not the workspace owner.",
@@ -99,10 +99,10 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The currency is not three letters, or the input carries unexpected fields.",
           "next": "Send a name, a business type and a three-letter currency, or nothing at all."
         },
-        COMMAND_SCHEMA_PARTS.part154
+        COMMAND_SCHEMA_PARTS.part149
       ],
       "next": [
-        COMMAND_SCHEMA_PARTS.part127
+        COMMAND_SCHEMA_PARTS.part123
       ]
     },
     "runPath": "/api/v1/commands/workspace.create",
@@ -159,7 +159,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.dimensionnode",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part59,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "risk": "normal",
     "description": {
       "sentence": "Save one value of a workspace label, or change its name, aliases, parent or status; do not use it to move or relabel transactions that already carry the value.",
@@ -181,10 +181,10 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The value is not in the selected workspace.",
           "next": "Reload the labels and choose a value in this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part178
+        COMMAND_SCHEMA_PARTS.part172
       ],
       "next": [
-        COMMAND_SCHEMA_PARTS.part112
+        COMMAND_SCHEMA_PARTS.part108
       ]
     },
     "runPath": "/api/v1/commands/workspace.dimensionnode",
@@ -194,7 +194,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.importmap",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part59,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "risk": "normal",
     "description": {
       "sentence": "Remember how a bank CSV header maps to statement fields for the next import; do not use this to import or change ledger entries.",
@@ -219,7 +219,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to save the mapping."
         },
-        COMMAND_SCHEMA_PARTS.part160
+        COMMAND_SCHEMA_PARTS.part155
       ]
     },
     "runPath": "/api/v1/commands/workspace.importmap",
@@ -229,7 +229,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.importrecords",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part59,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "risk": "normal",
     "description": {
       "sentence": "Create customers, vendors, items or accounts from a spreadsheet in one go, skipping the ones that already exist; do not use it to change a record — use its own update command.",
@@ -275,7 +275,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The plan has no free seat left.",
           "next": "Upgrade the plan or remove a member first."
         },
-        COMMAND_SCHEMA_PARTS.part140,
+        COMMAND_SCHEMA_PARTS.part135,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner.",
@@ -311,7 +311,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to change module settings."
         },
-        COMMAND_SCHEMA_PARTS.part148
+        COMMAND_SCHEMA_PARTS.part143
       ]
     },
     "runPath": "/api/v1/commands/workspace.modules",
@@ -321,7 +321,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.nextnumber",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part59,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "risk": "normal",
     "description": {
       "sentence": "Reserve the next number in a document series; do not execute it merely to preview a number, because unused allocations remain consumed.",
@@ -339,7 +339,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to reserve a document number."
         },
-        COMMAND_SCHEMA_PARTS.part148
+        COMMAND_SCHEMA_PARTS.part143
       ]
     },
     "runPath": "/api/v1/commands/workspace.nextnumber",
@@ -392,7 +392,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The workspace has no active Opening Balance Equity account, or an amount or account cannot be used for an opening balance.",
           "next": "Add an active Opening Balance Equity account and choose eligible balance-sheet accounts."
         },
-        COMMAND_SCHEMA_PARTS.part155
+        COMMAND_SCHEMA_PARTS.part150
       ]
     },
     "runPath": "/api/v1/commands/workspace.openingbalances",
@@ -402,7 +402,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.restoremaps",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part59,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "risk": "normal",
     "description": {
       "sentence": "Restore a saved snapshot of bank CSV column layouts when undoing a layout change; do not use this to import or change ledger entries.",
@@ -420,7 +420,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to restore the layout snapshot."
         },
-        COMMAND_SCHEMA_PARTS.part160
+        COMMAND_SCHEMA_PARTS.part155
       ]
     },
     "runPath": "/api/v1/commands/workspace.restoremaps",
@@ -451,7 +451,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not the workspace owner.",
           "next": "Ask the workspace owner to change retention settings."
         },
-        COMMAND_SCHEMA_PARTS.part148
+        COMMAND_SCHEMA_PARTS.part143
       ]
     },
     "runPath": "/api/v1/commands/workspace.retention",
@@ -548,11 +548,11 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The home currency is being changed in a workspace that already holds transactions, invoices, bills or journal entries.",
           "next": "Choose the currency while the books are empty; changing it later is a migration of every stored amount."
         },
-        COMMAND_SCHEMA_PARTS.part142
+        COMMAND_SCHEMA_PARTS.part137
       ],
       "next": [
-        COMMAND_SCHEMA_PARTS.part127,
-        COMMAND_SCHEMA_PARTS.part112
+        COMMAND_SCHEMA_PARTS.part123,
+        COMMAND_SCHEMA_PARTS.part108
       ]
     },
     "runPath": "/api/v1/commands/workspace.settings",
@@ -573,7 +573,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to finish setup."
         },
-        COMMAND_SCHEMA_PARTS.part148
+        COMMAND_SCHEMA_PARTS.part143
       ]
     },
     "runPath": "/api/v1/commands/workspace.setupcomplete",
@@ -583,7 +583,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
   {
     "name": "workspace.undoimport",
     "area": "workspace",
-    "roles": COMMAND_SCHEMA_PARTS.part59,
+    "roles": COMMAND_SCHEMA_PARTS.part57,
     "risk": "normal",
     "description": {
       "sentence": "Remove the records an import created, keeping any that are already in use; do not use it to delete one record — use its own delete command.",
@@ -629,7 +629,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The person is the creator or the last owner and the new role is not owner.",
           "next": "Make another owner first, then change this one."
         },
-        COMMAND_SCHEMA_PARTS.part140,
+        COMMAND_SCHEMA_PARTS.part135,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner.",

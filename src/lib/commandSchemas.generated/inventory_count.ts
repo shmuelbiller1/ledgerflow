@@ -7,9 +7,9 @@ export const COMMAND_INPUT_SCHEMA = {
     "workspaceId": COMMAND_SCHEMA_PARTS.part38,
     "inventoryAccountId": COMMAND_SCHEMA_PARTS.part38,
     "offsetAccountId": COMMAND_SCHEMA_PARTS.part38,
-    "reason": COMMAND_SCHEMA_PARTS.part50,
-    "date": COMMAND_SCHEMA_PARTS.part96,
-    "locationId": COMMAND_SCHEMA_PARTS.part50,
+    "reason": COMMAND_SCHEMA_PARTS.part49,
+    "date": COMMAND_SCHEMA_PARTS.part93,
+    "locationId": COMMAND_SCHEMA_PARTS.part49,
     "counts": {
       "minItems": 1,
       "maxItems": 2000,

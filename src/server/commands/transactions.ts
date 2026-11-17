@@ -12,7 +12,7 @@
  */
 import { z } from 'zod';
 import { MAX_RECATEGORIZE, recategorize } from '../services/recategorizeService';
-import { RULE_MAX, batchProblem, batchWrites } from '../services/ledgerBatchUpdate';
+import { batchProblem, batchWrites, type BatchUpdate } from '../services/ledgerBatchUpdate';
 import type { AnyCommandDefinition, CommandDefinition } from './types';
 
 const WRITERS = ['owner', 'accountant', 'bookkeeper'] as const;
@@ -67,56 +67,34 @@ export const transactionsRecategorizeCommand: CommandDefinition<typeof transacti
 
 // --------------------------------------------------------------------------- batch
 
-const cents = z.number().int();
-const batchFields = z.object({
-  lines: z.array(z.object({
-    accountId: id,
-    accountName: z.string().max(200).optional(),
-    amountCents: cents,
-    description: z.string().max(500).optional(),
-    dimensions: z.record(z.string().max(64), z.string().max(120)).optional(),
-  }).strict()).optional(),
-  description: z.string().max(500).optional(),
-  status: z.string().max(40).optional(),
-  tags: z.array(z.string().max(60)).max(50).optional(),
-  metadata: z.record(z.string().max(64), z.unknown()).optional(),
-  classId: z.string().max(200).nullable().optional(),
-  locationId: z.string().max(200).nullable().optional(),
-  projectId: z.string().max(200).nullable().optional(),
-  dimensions: z.record(z.string().max(64), z.string().max(120)).optional(),
-  category: z.string().max(200).optional(),
-  isLocked: z.boolean().optional(),
-  isFlagged: z.boolean().optional(),
-  isReviewed: z.boolean().optional(),
-  isCleared: z.boolean().optional(),
-  reconciled: z.boolean().optional(),
-  isReconciled: z.boolean().optional(),
-  reconciledAt: z.string().max(40).nullable().optional(),
-  isTransfer: z.boolean().optional(),
-  transferDetails: z.record(z.string().max(64), z.unknown()).optional(),
-  verification: z.record(z.string().max(64), z.unknown()).optional(),
-  notes: z.string().max(4000).optional(),
-  memo: z.string().max(4000).optional(),
-  updatedAt: z.string().max(40).optional(),
-  expectedUpdatedAt: z.string().max(40).optional(),
-}).strict();
-
+/**
+ * Deliberately loose: the handler checked the batch's own rules with `batchProblem` and answered each
+ * with its own sentence ("Missing workspaceId or updates", "Each entry once, with its id", "These
+ * fields cannot be changed in a batch: …"). A strict schema here would replace those sentences with the
+ * runner's generic one, so the shape is only held wide enough to carry the fields and the rules stay
+ * where the caller's words are.
+ */
 export const transactionsBatchInput = z.object({
-  workspaceId: z.string().min(1).max(200),
-  updates: z.array(z.object({ id, data: batchFields }).strict()).min(1).max(RULE_MAX),
-}).strict();
+  workspaceId: z.string().max(200).optional(),
+  updates: z.array(z.object({
+    id: z.string().max(200).optional(),
+    data: z.record(z.string(), z.unknown()).optional(),
+    expectedUpdatedAt: z.string().max(80).optional(),
+  }).loose()).max(10_000),
+}).loose();
 
 export const transactionsBatchCommand: CommandDefinition<typeof transactionsBatchInput, { updated: number }> = {
   name: 'journal.batchupdate',
   input: transactionsBatchInput,
   roles: [...WRITERS],
   async handler(ctx, _tx, input) {
+    // `batchProblem` is the handler's own check, in its own words, and it narrows the list as it goes
     const problem = batchProblem(input.updates);
     if (problem) throw Object.assign(new Error(problem), { status: 400 });
     // read and checked one by one, then written in one transaction by the service
     return batchWrites(ctx.db, {
       workspaceId: ctx.workspaceId, uid: ctx.actor, email: ctx.email, admin: Boolean(ctx.user.admin),
-    }, input.updates);
+    }, input.updates as BatchUpdate[]);
   },
   async preview(_ctx, input) {
     return {

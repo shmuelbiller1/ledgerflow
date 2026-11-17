@@ -10,19 +10,19 @@ export const COMMAND_INPUT_SCHEMA = {
         "id": COMMAND_SCHEMA_PARTS.part18,
         "uid": COMMAND_SCHEMA_PARTS.part18,
         "workspaceId": COMMAND_SCHEMA_PARTS.part18,
-        "date": COMMAND_SCHEMA_PARTS.part96,
+        "date": COMMAND_SCHEMA_PARTS.part93,
         "description": {
           "default": "",
           "type": "string",
           "maxLength": 2000
         },
-        "totalAmountCents": COMMAND_SCHEMA_PARTS.part105,
+        "totalAmountCents": COMMAND_SCHEMA_PARTS.part102,
         "currency": {
           "type": "string",
           "pattern": "^[A-Z]{3}$"
         },
         "originalCurrency": COMMAND_SCHEMA_PARTS.part18,
-        "exchangeRate": COMMAND_SCHEMA_PARTS.part88,
+        "exchangeRate": COMMAND_SCHEMA_PARTS.part86,
         "payee": COMMAND_SCHEMA_PARTS.part18,
         "status": {
           "default": "pending",
@@ -64,15 +64,15 @@ export const COMMAND_INPUT_SCHEMA = {
             "properties": {
               "accountId": COMMAND_SCHEMA_PARTS.part38,
               "accountName": COMMAND_SCHEMA_PARTS.part18,
-              "amountCents": COMMAND_SCHEMA_PARTS.part121,
-              "baseAmountCents": COMMAND_SCHEMA_PARTS.part121,
-              "exchangeRate": COMMAND_SCHEMA_PARTS.part88,
-              "description": COMMAND_SCHEMA_PARTS.part53,
+              "amountCents": COMMAND_SCHEMA_PARTS.part117,
+              "baseAmountCents": COMMAND_SCHEMA_PARTS.part117,
+              "exchangeRate": COMMAND_SCHEMA_PARTS.part86,
+              "description": COMMAND_SCHEMA_PARTS.part52,
               "class": COMMAND_SCHEMA_PARTS.part18,
               "location": COMMAND_SCHEMA_PARTS.part18,
               "project": COMMAND_SCHEMA_PARTS.part18,
-              "dimensions": COMMAND_SCHEMA_PARTS.part123,
-              "tags": COMMAND_SCHEMA_PARTS.part65,
+              "dimensions": COMMAND_SCHEMA_PARTS.part119,
+              "tags": COMMAND_SCHEMA_PARTS.part63,
               "splitAllocations": {
                 "type": "array",
                 "items": {
@@ -81,22 +81,22 @@ export const COMMAND_INPUT_SCHEMA = {
                     "id": COMMAND_SCHEMA_PARTS.part18,
                     "accountId": COMMAND_SCHEMA_PARTS.part18,
                     "projectId": COMMAND_SCHEMA_PARTS.part18,
-                    "weight": COMMAND_SCHEMA_PARTS.part64,
-                    "amountCents": COMMAND_SCHEMA_PARTS.part105,
-                    "notes": COMMAND_SCHEMA_PARTS.part53
+                    "weight": COMMAND_SCHEMA_PARTS.part62,
+                    "amountCents": COMMAND_SCHEMA_PARTS.part102,
+                    "notes": COMMAND_SCHEMA_PARTS.part52
                   },
                   "required": [
                     "weight"
                   ]
                 }
               },
-              "taxRate": COMMAND_SCHEMA_PARTS.part69,
-              "taxAmountCents": COMMAND_SCHEMA_PARTS.part105,
-              "taxCodeId": COMMAND_SCHEMA_PARTS.part50,
-              "taxTreatment": COMMAND_SCHEMA_PARTS.part134,
-              "taxBreakdown": COMMAND_SCHEMA_PARTS.part199,
-              "quantity": COMMAND_SCHEMA_PARTS.part63,
-              "unitPriceCents": COMMAND_SCHEMA_PARTS.part105
+              "taxRate": COMMAND_SCHEMA_PARTS.part67,
+              "taxAmountCents": COMMAND_SCHEMA_PARTS.part102,
+              "taxCodeId": COMMAND_SCHEMA_PARTS.part49,
+              "taxTreatment": COMMAND_SCHEMA_PARTS.part130,
+              "taxBreakdown": COMMAND_SCHEMA_PARTS.part193,
+              "quantity": COMMAND_SCHEMA_PARTS.part61,
+              "unitPriceCents": COMMAND_SCHEMA_PARTS.part102
             },
             "required": COMMAND_SCHEMA_PARTS.part32
           }
@@ -106,7 +106,7 @@ export const COMMAND_INPUT_SCHEMA = {
           "type": "array",
           "items": COMMAND_SCHEMA_PARTS.part18
         },
-        "reference": COMMAND_SCHEMA_PARTS.part48,
+        "reference": COMMAND_SCHEMA_PARTS.part47,
         "projectId": COMMAND_SCHEMA_PARTS.part18,
         "isCleared": {
           "default": false,
@@ -117,7 +117,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "parentEventId": COMMAND_SCHEMA_PARTS.part18,
         "eventId": COMMAND_SCHEMA_PARTS.part18,
         "reversalEventId": COMMAND_SCHEMA_PARTS.part18,
-        "metadata": COMMAND_SCHEMA_PARTS.part123
+        "metadata": COMMAND_SCHEMA_PARTS.part119
       },
       "required": [
         "workspaceId",

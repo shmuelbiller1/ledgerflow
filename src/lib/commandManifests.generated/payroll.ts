@@ -37,7 +37,7 @@ export const PAYROLL_COMMAND_MANIFEST = [
   {
     "name": "payroll.approve",
     "area": "payroll",
-    "roles": COMMAND_SCHEMA_PARTS.part4,
+    "roles": COMMAND_SCHEMA_PARTS.part26,
     "risk": "normal",
     "description": {
       "sentence": "Approve a pay run that is waiting, which posts it; do not use it on a run that already posted — that is payroll.undo.",
@@ -62,7 +62,7 @@ export const PAYROLL_COMMAND_MANIFEST = [
   {
     "name": "payroll.reject",
     "area": "payroll",
-    "roles": COMMAND_SCHEMA_PARTS.part4,
+    "roles": COMMAND_SCHEMA_PARTS.part26,
     "risk": "normal",
     "description": {
       "sentence": "Send a waiting pay run back to whoever prepared it, with a note; do not use it to undo a run that already posted — that is payroll.undo.",

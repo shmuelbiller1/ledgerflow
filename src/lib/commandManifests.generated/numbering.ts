@@ -42,7 +42,7 @@ export const NUMBERING_COMMAND_MANIFEST = [
           "when": "The caller is not a member of this workspace.",
           "next": "Choose a workspace the caller belongs to."
         },
-        COMMAND_SCHEMA_PARTS.part148,
+        COMMAND_SCHEMA_PARTS.part143,
         {
           "code": "WORKSPACE_SCOPE",
           "when": "An API key is scoped to a different workspace.",

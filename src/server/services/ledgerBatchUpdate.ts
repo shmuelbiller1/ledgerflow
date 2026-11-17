@@ -56,8 +56,12 @@ export interface BatchActor {
   admin?: boolean;
 }
 
-/** What the legacy handler refused before opening a transaction, in the same order and the same words. */
-export function batchProblem(updates: readonly BatchUpdate[]): string | null {
+/**
+ * What the legacy handler refused before opening a transaction, in the same order and the same words.
+ * A `null` answer is also the proof that every entry has an id, so the caller can hand the list on as
+ * `BatchUpdate[]` without checking it again.
+ */
+export function batchProblem(updates: ReadonlyArray<Partial<BatchUpdate> & { id?: unknown }>): string | null {
   if (updates.length === 0) return 'Missing workspaceId or updates';
   if (updates.length > RULE_MAX) return `At most ${RULE_MAX} entries per batch`;
   const ids = updates.map(update => String(update?.id ?? ''));
@@ -88,8 +92,10 @@ export async function batchWrites(db: Firestore, actor: BatchActor, updates: rea
   return db.runTransaction(async t => {
     // AUD-08: the workspace (closing date, role) as it is at commit, not as it was read before
     const workspace = (await t.get(db.collection('workspaces').doc(workspaceId))).data();
+    // the route answered 403 only for the membership refusal it made before opening the transaction;
+    // a role that changed in between was, and remains, one of the handler's 400s
     if (!actor.admin && (!workspace || !isWorkspaceMemberData(workspace, { uid }, workspaceId) || !LEDGER_WRITER_ROLES.includes(roleInWorkspace(workspace, uid)))) {
-      throw Object.assign(new Error('Only owners, accountants and bookkeepers change entries'), { status: 403 });
+      throw Object.assign(new Error('Only owners, accountants and bookkeepers change entries'), { status: 400 });
     }
     const refs = ids.map(id => db.collection('transactions').doc(id));
     const docs = await Promise.all(refs.map(ref => t.get(ref)));
@@ -120,8 +126,9 @@ export async function batchWrites(db: Firestore, actor: BatchActor, updates: rea
       const settledFlag = entry?.isCleared === true || entry?.reconciled === true || entry?.isReconciled === true;
       const unsettles = ['isCleared', 'reconciled', 'isReconciled', 'reconciledAt'].some(key => key in updateData && updateData[key] !== entry?.[key]);
       const touchesAmounts = updateData.lines !== undefined || updateData.status !== undefined || unsettles;
+      // a locked or settled entry is one of the handler's 400s, message included — not a 403
       if (!actor.admin && ((entry?.status === 'certified' || entry?.status === 'void') || (settledFlag && touchesAmounts))) {
-        throw Object.assign(new Error(`Forbidden: Transaction ${id} status is locked, cleared, or reconciled.`), { status: 403 });
+        throw Object.assign(new Error(`Forbidden: Transaction ${id} status is locked, cleared, or reconciled.`), { status: 400 });
       }
       delete updateData.expectedUpdatedAt;
       if (isUpdatedAtMismatch(expectedUpdatedAt, entry?.updatedAt)) {

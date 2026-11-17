@@ -8,7 +8,7 @@ import { assertPostingOpen } from '../../../lib/periodLock';
 import { errorMessage, requestUser } from '../../auth/requestUser';
 import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../../middleware/requireLedgerWriter';
 import { BulkRefusal, commitLedgerBulk } from '../../services/ledgerBulkCommit';
-import { BatchVersionConflict } from '../../services/ledgerBatchUpdate';
+import { batchAnswer, recategorizeAnswer } from '../../utils/ledgerBatchCommandRoute';
 import { transactionsBatchCommand, transactionsRecategorizeCommand } from '../../commands/transactions';
 import { executeCommand } from '../../utils/commandExecutor';
 
@@ -57,18 +57,7 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
       definition: transactionsRecategorizeCommand,
       workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
       input: req.body,
-      formatResponse: (outcome) => {
-        if (outcome.ok) return { status: 200, body: { status: 'success', ...(outcome.data as Record<string, unknown>) } };
-        if (outcome.code === 'INVALID_INPUT') {
-          return { status: 400, body: { error: 'Invalid request', details: (outcome.error as { issues?: unknown })?.issues } };
-        }
-        if (outcome.status < 500) {
-          const entryId = (outcome.error as { entryId?: string } | undefined)?.entryId;
-          return { status: outcome.status, body: { error: outcome.message, ...(entryId ? { entryId } : {}) } };
-        }
-        const cause = outcome.error instanceof Error ? outcome.error.message : String(outcome.error ?? outcome.message);
-        return { status: 500, body: { error: cause } };
-      },
+      formatResponse: recategorizeAnswer,
     });
   });
 
@@ -79,27 +68,7 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
       definition: transactionsBatchCommand,
       workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
       input: req.body,
-      formatResponse: (outcome) => {
-        if (outcome.ok) return { status: 200, body: { status: 'ok', ...(outcome.data as Record<string, unknown>) } };
-        if (outcome.code === 'INVALID_INPUT') {
-          const message = (outcome.error as { issues?: Array<{ message?: string }> } | undefined)?.issues?.[0]?.message;
-          return { status: 400, body: { error: message || 'Invalid request' } };
-        }
-        if (outcome.error instanceof BatchVersionConflict) {
-          return {
-            status: 409,
-            body: {
-              error: 'version_conflict',
-              message: outcome.error.message,
-              conflictTransactionId: outcome.error.transactionId,
-              currentTransaction: outcome.error.current,
-            },
-          };
-        }
-        // the handler answered 403 only for its own membership refusal, and 400 for everything else
-        const status = outcome.status === 403 ? 403 : 400;
-        return { status, body: { error: outcome.message } };
-      },
+      formatResponse: batchAnswer,
     });
   });
 

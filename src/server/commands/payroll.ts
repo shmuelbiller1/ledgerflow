@@ -12,9 +12,17 @@ import { z } from 'zod';
 import { approvePayRun, postPayRun, rejectPayRun, setPayrollApproval, undoPayRun } from '../services/payRunService';
 import type { AnyCommandDefinition, CommandDefinition } from './types';
 
-/** U-02: owners and accountants run payroll; the approval setting and the approve/reject moves are an owner's. */
+/**
+ * U-02: owners and accountants run payroll. The approval setting is an owner's. Approving and sending
+ * back are listed for accountants too because P-05's two-person rule lets an accountant decide a run
+ * they did not prepare — and the runner's role list is checked *before* the service reads that setting,
+ * so a list of owners only would refuse exactly the case the rule exists for. The service stays the
+ * authority: it answers "Only an owner approves or sends back a pay run" when the rule is off, and
+ * "not by whoever prepared it" when the approver is the preparer (pay-run-posting.test.ts covers both).
+ */
 const RUNNERS = ['owner', 'accountant'] as const;
 const OWNERS = ['owner'] as const;
+const DECIDERS = ['owner', 'accountant'] as const;
 const DAY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const accountId = z.string().min(1).max(200);
 const workspaceField = z.string().min(1).max(200).optional();
@@ -143,7 +151,7 @@ export const payRunApproveInput = z.object({ workspaceId: workspaceField, payRun
 export const payRunApproveCommand: CommandDefinition<typeof payRunApproveInput, Record<string, unknown>> = {
   name: 'payroll.approve',
   input: payRunApproveInput,
-  roles: [...OWNERS],
+  roles: [...DECIDERS],
   async handler(ctx, _tx, input) {
     return approvePayRun(ctx.db, {
       payRunId: input.payRunId, again: input.again, workspaceId: ctx.workspaceId, uid: ctx.actor, email: ctx.email,
@@ -170,7 +178,7 @@ export const payRunRejectInput = z.object({ workspaceId: workspaceField, payRunI
 export const payRunRejectCommand: CommandDefinition<typeof payRunRejectInput, Record<string, unknown>> = {
   name: 'payroll.reject',
   input: payRunRejectInput,
-  roles: [...OWNERS],
+  roles: [...DECIDERS],
   async handler(ctx, _tx, input) {
     return rejectPayRun(ctx.db, {
       payRunId: input.payRunId, note: input.note, workspaceId: ctx.workspaceId, uid: ctx.actor, email: ctx.email,

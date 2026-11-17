@@ -4,9 +4,9 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part83,
-    "customerId": COMMAND_SCHEMA_PARTS.part83,
-    "rmaId": COMMAND_SCHEMA_PARTS.part83,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part81,
+    "customerId": COMMAND_SCHEMA_PARTS.part81,
+    "rmaId": COMMAND_SCHEMA_PARTS.part81,
     "action": {
       "type": "string",
       "enum": [
@@ -26,9 +26,9 @@ export const COMMAND_INPUT_SCHEMA = {
         "closed"
       ]
     },
-    "note": COMMAND_SCHEMA_PARTS.part55,
-    "creditNoteId": COMMAND_SCHEMA_PARTS.part83,
-    "requestKey": COMMAND_SCHEMA_PARTS.part95
+    "note": COMMAND_SCHEMA_PARTS.part54,
+    "creditNoteId": COMMAND_SCHEMA_PARTS.part81,
+    "requestKey": COMMAND_SCHEMA_PARTS.part92
   },
   "required": [
     "customerId",
