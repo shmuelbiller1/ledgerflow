@@ -14,7 +14,7 @@
  * something the person can put back with an undo, because the entry it posts is the books.
  */
 import { z } from 'zod';
-import { postJournalDocument, type JournalDocumentSpec } from '../services/journalDocumentService';
+import { prepareJournalDocument, postJournalDocumentInTransaction, type JournalDocumentSpec, type PreparedJournalDocument } from '../services/journalDocumentService';
 import type { AnyCommandDefinition, CommandDefinition } from './types';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD format');
@@ -66,13 +66,18 @@ export const leaseCapitalizeCommand: CommandDefinition<typeof leaseCapitalizeInp
   input: leaseCapitalizeInput,
   roles: ['owner', 'accountant', 'bookkeeper'],
   dated: 'date',
+  resolveDate(_ctx, input) { return input.date; },
   capacity: 'transactions',
-  async handler(ctx, _tx, input) {
-    // The service opens its own transaction and its own idempotency record, exactly as it does for the
-    // address; the identity the housekeeping batch uses keeps a retry from posting the entry twice.
-    return postJournalDocument(ctx.db, LEASE_SPEC, withWorkspace(ctx.workspaceId, input), {
-      uid: ctx.actor, email: ctx.email, admin: ctx.user.admin,
-    });
+  operationType: 'LEASE_CAPITALIZE',
+  // the address's own idempotency record: a retry that started on either path finds the other's
+  legacyKey: (workspaceId, operationId) => `${workspaceId}_lease_${operationId}`,
+  prepare(ctx, input) {
+    return prepareJournalDocument(ctx.db, LEASE_SPEC, withWorkspace(ctx.workspaceId, input), callerOf(ctx));
+  },
+  async handler(ctx, tx, input) {
+    // The runner's transaction and idempotency record: the entry and its audit line commit with the
+    // runner's membership, role and lock re-check, not before it.
+    return postJournalDocumentInTransaction(ctx.db, LEASE_SPEC, withWorkspace(ctx.workspaceId, input), callerOf(ctx), ctx.prepared as PreparedJournalDocument, tx);
   },
   async preview(_ctx, input) {
     const spec = LEASE_SPEC.lines(input);
@@ -142,11 +147,15 @@ export const revenueRecognizeCommand: CommandDefinition<typeof revenueRecognizeI
   input: revenueRecognizeInput,
   roles: ['owner', 'accountant', 'bookkeeper'],
   dated: 'date',
+  resolveDate(_ctx, input) { return input.date; },
   capacity: 'transactions',
-  async handler(ctx, _tx, input) {
-    return postJournalDocument(ctx.db, REVENUE_SPEC, withWorkspace(ctx.workspaceId, input), {
-      uid: ctx.actor, email: ctx.email, admin: ctx.user.admin,
-    });
+  operationType: 'REVENUE_RECOGNIZE',
+  legacyKey: (workspaceId, operationId) => `${workspaceId}_rev_${operationId}`,
+  prepare(ctx, input) {
+    return prepareJournalDocument(ctx.db, REVENUE_SPEC, withWorkspace(ctx.workspaceId, input), callerOf(ctx));
+  },
+  async handler(ctx, tx, input) {
+    return postJournalDocumentInTransaction(ctx.db, REVENUE_SPEC, withWorkspace(ctx.workspaceId, input), callerOf(ctx), ctx.prepared as PreparedJournalDocument, tx);
   },
   async preview(_ctx, input) {
     const spec = REVENUE_SPEC.lines(input);
@@ -175,6 +184,11 @@ export const revenueRecognizeCommand: CommandDefinition<typeof revenueRecognizeI
 };
 
 export const VERTICAL_ACCOUNTING_COMMANDS: AnyCommandDefinition[] = [leaseCapitalizeCommand, revenueRecognizeCommand];
+
+/** The three things the service needs to know about who is posting. */
+function callerOf(ctx: { actor: string; email?: string; user: { admin?: boolean } }) {
+  return { uid: ctx.actor, email: ctx.email, admin: ctx.user.admin };
+}
 
 /** The service reads the workspace from the input the way the address sent it; the runner knows it. */
 function withWorkspace<T extends { workspaceId?: string }>(workspaceId: string, input: T): T & { workspaceId: string } {

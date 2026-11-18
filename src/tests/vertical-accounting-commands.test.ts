@@ -113,3 +113,27 @@ test('a preview describes the entry and posts nothing', async () => {
   assert.match(revenue.title, /C-14/);
   assert.deepEqual(revenue.accounts?.map(account => account.amountCents), [250000, -250000]);
 });
+
+test('the command posts on the runner\'s transaction and leaves idempotency to the runner', () => {
+  // The review bot caught the first draft: the handlers called the address's own idempotent helper, which
+  // opens a second transaction on another connection, so the entry and its audit line committed before the
+  // runner's membership/role/lock re-check — and a runner retry could post the entry twice. The command now
+  // has the two halves the other batches use: a read-only prepare and an in-transaction write.
+  for (const command of COMMANDS) {
+    assert.equal(typeof command.prepare, 'function', `${command.name} reads before the transaction opens`);
+    assert.ok(command.operationType, `${command.name} names the operation it records`);
+    // the legacy key is the address's own record, so a retry that started on either path finds the other's
+    assert.equal(typeof command.legacyKey, 'function', `${command.name} reuses the address's idempotency key`);
+  }
+  assert.equal(leaseCapitalizeCommand.legacyKey?.('ws_1', 'lease_office_12b'), 'ws_1_lease_lease_office_12b');
+  assert.equal(revenueRecognizeCommand.legacyKey?.('ws_1', 'C-14_2026-01'), 'ws_1_rev_C-14_2026-01');
+  assert.equal(leaseCapitalizeCommand.operationType, 'LEASE_CAPITALIZE');
+  assert.equal(revenueRecognizeCommand.operationType, 'REVENUE_RECOGNIZE');
+
+  // and neither handler reaches for the address's standalone idempotent path, which would open its own
+  // transaction. Read the source rather than trusting the shape: this is the bug that was caught.
+  const source = readFileSync(path.join(process.cwd(), 'src/server/commands/verticalAccounting.ts'), 'utf8');
+  assert.doesNotMatch(source, /await\s+postJournalDocument\s*\(/, 'a command must not open its own transaction');
+  assert.match(source, /\bpostJournalDocumentInTransaction\(/, 'it writes on the transaction it is given');
+  assert.match(source, /\bprepareJournalDocument\(/, 'and reads ahead of it');
+});

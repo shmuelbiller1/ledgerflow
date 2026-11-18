@@ -19,7 +19,7 @@
  */
 import type { z, ZodType } from 'zod';
 import { assertPeriodOpen, FieldValue, isWorkspaceMemberData, validateWorkspaceMember } from '../db/firestore';
-import type { Firestore, Transaction as FirestoreTransaction } from '../db/firestore';
+import type { Firestore, Transaction } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import { lockMessage, postingLock } from '../../lib/periodLock';
@@ -70,25 +70,28 @@ export interface JournalDocumentResult {
   transactionId: string;
 }
 
+/** What the prepare step decided: the entry to write and the date it posts on. */
+export interface PreparedJournalDocument {
+  transaction: Record<string, unknown>;
+  txDate: string;
+  result: JournalDocumentResult;
+}
+
 /**
- * Posts the entry the spec names. Throws the same errors the route answered — a `status` on the
- * error becomes the answer's status — so a command and a route can each turn a refusal into their
- * own words without either of them re-deciding what happened.
+ * The read-only half: who may post, on what date, and what the validated entry is. Nothing is written;
+ * the caller then writes inside its own transaction.
  */
-export async function postJournalDocument<Schema extends ZodType>(
+export async function prepareJournalDocument<Schema extends ZodType>(
   db: Firestore,
   spec: JournalDocumentSpec<Schema>,
   input: z.infer<Schema>,
   caller: JournalDocumentCaller,
-  explicitOperationId?: string,
-): Promise<JournalDocumentResult> {
+): Promise<PreparedJournalDocument> {
   const workspaceId = String((input as { workspaceId: string }).workspaceId);
 
-  // 1. Authorize workspace membership & API-key workspace scope FIRST before checking idempotency (#82)
+  // 1. Authorize workspace membership & API-key workspace scope (#82)
   const { data: wsData } = await validateWorkspaceMember(db, workspaceId, caller);
   if (!mayPostEntries(wsData, caller)) throw Object.assign(new Error(POST_REFUSAL), { status: 403 });
-
-  const rawOpId = explicitOperationId || spec.operationId?.(input);
 
   const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
   const sentDate = (input as { date?: string }).date;
@@ -121,42 +124,69 @@ export async function postJournalDocument<Schema extends ZodType>(
     wsData,
   });
 
-  const responsePayload: JournalDocumentResult = {
-    status: 'ok',
-    message: spec.message,
-    transactionId: validatedTx.id,
-  };
+  const result: JournalDocumentResult = { status: 'ok', message: spec.message, transactionId: validatedTx.id };
+  return { transaction: validatedTx as unknown as Record<string, unknown>, txDate, result };
+}
 
-  const performCommit = async (t: Parameters<Parameters<Firestore['runTransaction']>[0]>[0]): Promise<JournalDocumentResult> => {
-    const wsNow = (await t.get(db.collection('workspaces').doc(workspaceId))).data();
-    if (!isWorkspaceMemberData(wsNow, caller, workspaceId) || !mayPostEntries(wsNow, caller)) {
-      throw Object.assign(new Error(POST_REFUSAL), { status: 403 });
-    }
-    const lock = postingLock(txDate, wsNow as never, caller.uid);
-    if (lock) throw Object.assign(new Error(lockMessage(txDate, lock)), { status: 409 });
-    const txRef = db.collection('transactions').doc(validatedTx.id);
-    ledgerCreate(t as never, txRef, { ...validatedTx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-    await writeServerAuditLog({
-      workspaceId,
-      uid: caller.uid,
-      email: caller.email,
-      action: spec.audit.action,
-      entityType: 'transaction',
-      entityId: validatedTx.id,
-      details: spec.audit.details(input, txDate),
-    }, { db, tx: t as FirestoreTransaction });
-    return responsePayload;
-  };
+/**
+ * The write half, run inside the caller's transaction: re-check membership, the posting role and the
+ * lock (the prepare read only answered quickly; it did not authorise the write), then write the entry
+ * and its audit line together. The caller — the command runner, or the legacy address — owns the
+ * idempotency record, so the same code serves both without opening a second transaction.
+ */
+export async function postJournalDocumentInTransaction<Schema extends ZodType>(
+  db: Firestore,
+  spec: JournalDocumentSpec<Schema>,
+  input: z.infer<Schema>,
+  caller: JournalDocumentCaller,
+  prepared: PreparedJournalDocument,
+  t: Transaction,
+): Promise<JournalDocumentResult> {
+  const workspaceId = String((input as { workspaceId: string }).workspaceId);
+  const wsNow = (await t.get(db.collection('workspaces').doc(workspaceId))).data();
+  if (!isWorkspaceMemberData(wsNow, caller, workspaceId) || !mayPostEntries(wsNow, caller)) {
+    throw Object.assign(new Error(POST_REFUSAL), { status: 403 });
+  }
+  const lock = postingLock(prepared.txDate, wsNow as never, caller.uid);
+  if (lock) throw Object.assign(new Error(lockMessage(prepared.txDate, lock)), { status: 409 });
+  const txRef = db.collection('transactions').doc(prepared.result.transactionId);
+  ledgerCreate(t as never, txRef, { ...prepared.transaction, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+  await writeServerAuditLog({
+    workspaceId,
+    uid: caller.uid,
+    email: caller.email,
+    action: spec.audit.action,
+    entityType: 'transaction',
+    entityId: prepared.result.transactionId,
+    details: spec.audit.details(input, prepared.txDate),
+  }, { db, tx: t });
+  return prepared.result;
+}
 
+/**
+ * The legacy address's path: prepare, then one idempotent transaction, exactly as the address always
+ * did. `lease.capitalize` and `revenue.recognize` do NOT use this — they let the command runner own the
+ * transaction and the idempotency record, so a lease journal and its audit line commit with the runner's
+ * membership, role and lock re-check rather than before it.
+ */
+export async function postJournalDocument<Schema extends ZodType>(
+  db: Firestore,
+  spec: JournalDocumentSpec<Schema>,
+  input: z.infer<Schema>,
+  caller: JournalDocumentCaller,
+  explicitOperationId?: string,
+): Promise<JournalDocumentResult> {
+  const prepared = await prepareJournalDocument(db, spec, input, caller);
+  const rawOpId = explicitOperationId || spec.operationId?.(input);
   return runOptionalIdempotent(
     {
-      workspaceId,
+      workspaceId: String((input as { workspaceId: string }).workspaceId),
       operationType: spec.operationType,
       rawOperationId: rawOpId,
       legacyPrefix: spec.legacyPrefix,
       actor: explicitOperationId ? caller.uid : '',
       payload: input,
     },
-    performCommit,
+    (t: Transaction) => postJournalDocumentInTransaction(db, spec, input, caller, prepared, t),
   ) as Promise<JournalDocumentResult>;
 }
