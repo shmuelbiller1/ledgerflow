@@ -21,13 +21,28 @@ import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedge
 import { checkLedgerEntry } from './ledgerDoor';
 import { revaluationEntryLock } from './stockRevaluationService';
 import { writeServerAuditLog } from './auditLogService';
+import { auditSnapshot, isPostedEntry, postedStatusRefusal } from './ledgerEditGuards';
+
+/** The entry's home-currency debits, read the way the reports read them (a line's own base amount or rate first). */
+function homeDebits(tx: Transaction): number {
+  return (tx.lines || []).reduce((sum, line) => {
+    const l = line as unknown as Record<string, unknown>;
+    const home = Number.isInteger(l.baseAmountCents) ? Number(l.baseAmountCents)
+      : Math.round(Number(l.amountCents) * Number(l.exchangeRate ?? tx.exchangeRate ?? 1));
+    return home > 0 ? sum + home : sum;
+  }, 0);
+}
 
 /** The most entries one batch may change. */
 export const RULE_MAX = 2000;
 
-/** The statuses an entry may be moved to in a batch (not `certified`: that is a signing act). */
+/**
+ * The statuses an entry may be moved to in a batch. Not `certified` (#843): that is a signing act with its
+ * own route. `draft`, `failed` and `void` stay for entries that are not posted yet; a posted entry is
+ * refused them by `postedStatusRefusal` below, because un-posting in place drops it from every report.
+ */
 export const BATCH_STATUSES = [
-  'draft', 'pending', 'certified', 'void', 'reconciled', 'completed', 'failed', 'flagged', 'reviewed', 'overdue', 'approved',
+  'draft', 'pending', 'void', 'reconciled', 'completed', 'failed', 'flagged', 'reviewed', 'overdue', 'approved',
 ];
 
 /**
@@ -109,6 +124,8 @@ export async function batchWrites(db: Firestore, actor: BatchActor, updates: rea
     const ownAccounts = new Set(accountDocs.filter(doc => doc.exists && doc.data()?.workspaceId === workspaceId).map(doc => doc.id));
 
     const writes: Array<{ ref: (typeof refs)[number]; data: Record<string, unknown> }> = [];
+    // #843: what each entry's figures, status and account lines were before and after, for the audit line
+    const changes: Array<Record<string, unknown>> = [];
     for (let index = 0; index < docs.length; index += 1) {
       const doc = docs[index];
       const id = ids[index];
@@ -142,10 +159,25 @@ export async function batchWrites(db: Firestore, actor: BatchActor, updates: rea
       if (updateData.lines !== undefined) {
         const lines = updateData.lines as Array<{ accountId?: string; amountCents?: number }>;
         if (!Array.isArray(lines) || lines.length < 2) throw Object.assign(new Error(`Entry ${id} needs at least two lines`), { status: 400 });
+        // #843: on a posted entry a batch moves amounts between accounts; it never restates the rate. Each
+        // line keeps a rate the entry already has, and the home-currency debits stay what they were.
+        if (!actor.admin && isPostedEntry(entry as Partial<Transaction>)) {
+          const entryRate = Number(entry?.exchangeRate ?? 1);
+          const oldLines = (Array.isArray(entry?.lines) ? entry.lines : []) as Array<Record<string, unknown>>;
+          const rates = new Set([entryRate, ...oldLines.map(line => Number(line.exchangeRate ?? entryRate))]);
+          if (lines.some(line => !rates.has(Number((line as Record<string, unknown>).exchangeRate ?? entryRate)))) {
+            throw Object.assign(new Error(`Entry ${id}: a posted entry's exchange rate is not changed in a batch. Post a reversing entry and a corrected one instead.`), { status: 400 });
+          }
+        }
         const settled = { ...entry, ...updateData, lines: lines.map(line => ({ ...line })) } as Transaction;
         settleHomeCurrency(settled, (workspace as { currency?: string } | undefined)?.currency);
         updateData.lines = settled.lines;
         checkLedgerEntry(settled as unknown as Record<string, unknown>);
+        if (!actor.admin && isPostedEntry(entry as Partial<Transaction>) && Array.isArray(entry?.lines)
+          // settling a reallocation at the same rate may move a rounding cent per line, never more
+          && Math.abs(homeDebits(entry as Transaction) - homeDebits(settled)) > lines.length) {
+          throw Object.assign(new Error(`Entry ${id}: a batch may not change what a posted entry is worth in the home currency; edit or reverse the entry instead`), { status: 400 });
+        }
         const unknown = lines.filter(line => !line.accountId || !ownAccounts.has(String(line.accountId)));
         if (unknown.length) throw Object.assign(new Error(`Entry ${id} uses an account that is not in this workspace`), { status: 400 });
         const total = lines.reduce((sum, line) => sum + Math.max(0, Math.round(Number(line.amountCents) || 0)), 0);
@@ -156,6 +188,12 @@ export async function batchWrites(db: Firestore, actor: BatchActor, updates: rea
       }
       if (updateData.status && !BATCH_STATUSES.includes(String(updateData.status))) {
         throw Object.assign(new Error(`Invalid status '${updateData.status}' provided for transaction ${id}.`), { status: 400 });
+      }
+      // #843: the same rule as the entry editor — a posted entry is reversed, never un-posted in place
+      const unpost = postedStatusRefusal(entry as Partial<Transaction>, updateData.status, Boolean(actor.admin));
+      if (unpost) throw Object.assign(new Error(`Entry ${id}: ${unpost}`), { status: 400 });
+      if (updateData.lines !== undefined || updateData.status !== undefined) {
+        changes.push({ id, before: auditSnapshot(entry as Partial<Transaction>), after: auditSnapshot({ ...entry, ...updateData } as Partial<Transaction>), ...(updateData.lines !== undefined ? { linesBefore: entry?.lines ?? null, linesAfter: updateData.lines } : {}) });
       }
       writes.push({ ref: doc.ref, data: { ...updateData, updatedAt: FieldValue.serverTimestamp() } });
     }
@@ -168,7 +206,7 @@ export async function batchWrites(db: Firestore, actor: BatchActor, updates: rea
       action: 'TRANSACTIONS_BATCH_UPDATED',
       entityType: 'transaction',
       entityId: ids[0] || 'batch',
-      details: { description: `Updated ${writes.length} transaction(s) in batch`, count: writes.length },
+      details: { description: `Updated ${writes.length} transaction(s) in batch`, count: writes.length, ...(changes.length ? { changes } : {}) },
     }, { db, tx: t });
     return { updated: writes.length };
   });

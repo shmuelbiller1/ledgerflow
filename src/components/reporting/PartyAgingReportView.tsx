@@ -4,14 +4,19 @@ import React, { useState, useMemo, useRef } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useServerOperationalReport, collectionStamp } from '../../hooks/useServerOperationalReport';
-import { formatCurrency, getLocalDateISO } from '../../lib/utils';
+import { currencyChartValue, formatCurrency, getCurrencyFractionDigits, getLocalDateISO } from '../../lib/utils';
 import { AGING_BUCKETS, computePartyAging, daysOverdue, emptyAging, outstandingBaseCents, type AgingBucketKey, type PartyAgingRow } from '../../lib/aging';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { FileText, ArrowLeft, Download, ChevronRight, Users, Clock, Search, ArrowUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { downloadCsv } from '../../lib/csvExport';
 import { useUIStore } from '../../stores/useUIStore';
+import { useBrowserProvenance } from '../../hooks/useBrowserProvenance';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { ReportProvenanceNote } from './ReportProvenanceNote';
+import { useReportDates } from './useReportDates';
 
 interface PartyAgingReportViewProps {
   side: 'customer' | 'vendor';
@@ -22,6 +27,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   const reportText = useReportText();
   const bucketNames: Record<string, string> = { current: reportText('r.bucket.current', 'Current'), d1_30: reportText('r.bucket.d1_30', '1–30 days'), d31_60: reportText('r.bucket.d31_60', '31–60 days'), d61_90: reportText('r.bucket.d61_90', '61–90 days'), d90plus: reportText('r.bucket.d90plus', 'Over 90 days') };
   const bucketName = (key: string, label: string) => bucketNames[key] ?? label;
+  const reportDates = useReportDates();
   const isCustomer = side === 'customer';
   // A-270: the keyboard path. Opening a row's drill-down must leave focus on that row when it
   // closes, whichever control opened it (the row itself, its arrow, or Enter on either).
@@ -39,12 +45,15 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   const rawVendors = useLedgerStore(s => s.vendors) || [];
   const rawInvoices = useLedgerStore(s => s.invoices) || [];
   const rawBills = useLedgerStore(s => s.bills) || [];
-  useLedgerCollections('bills', 'customers', 'invoices', 'vendors');
   // N-12: the documents behind an aging row open themselves, add up to the row, and say when the list is partial
   const openRecord = useUIStore(s => s.openRecord);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
-  const docsPartial = useLedgerStore(s => Boolean(s.truncatedCollections?.[side === 'customer' ? 'invoices' : 'bills'] || s.truncatedCollections?.[side === 'customer' ? 'customers' : 'vendors']));
+  const keys = isCustomer ? ['customers', 'invoices'] as const : ['vendors', 'bills'] as const;
+  useLedgerCollections(isCustomer ? 'customers' : 'vendors', isCustomer ? 'invoices' : 'bills');
+  const health = useScreenDataHealth(keys);
+  const provenance = useBrowserProvenance(keys, false);
+  const docsPartial = provenance.completeness !== 'complete';
 
   const parties = isCustomer ? rawCustomers : rawVendors;
   const documents = isCustomer ? rawInvoices : rawBills;
@@ -68,6 +77,8 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   const outstandingDocs = useMemo(() => documents.filter(doc => outstandingBaseCents(doc, side, currency) > 0), [documents, side, currency]);
   const localAgingRows: PartyAgingRow[] = useMemo(() => computePartyAging(parties, documents, side, today, currency), [parties, documents, side, today, currency]);
   const agingRows = serverRows || localAgingRows;
+  const partial = docsPartial && !serverRows;
+  const canShowFigures = Boolean(serverRows) || health.ready;
 
   // Search filter and Sorting
   const sortedAndFilteredRows = useMemo(() => {
@@ -100,7 +111,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
 
   // Selected party documents for drill down
   const selectedParty = parties.find(p => p.id === selectedPartyId);
-  const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(closeDrillDown, !!(selectedPartyId && selectedParty));
+  const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(closeDrillDown, !!(canShowFigures && selectedPartyId && selectedParty));
   const selectedPartyDocs = useMemo(() => {
     return selectedPartyId
       ? outstandingDocs.filter(d => {
@@ -120,9 +131,11 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   };
 
   const exportToCSV = () => {
+    if (partial || !canShowFigures) return;
+    const decimal = (minor: number) => currencyChartValue(minor, currency).toFixed(getCurrencyFractionDigits(currency));
     downloadCsv(`${isCustomer ? 'ar' : 'ap'}_aging_report.csv`,
       [isCustomer ? 'Customer' : 'Vendor', ...AGING_BUCKETS.map(b => b.key === 'current' ? 'Current' : `${b.label} overdue`), 'Total Outstanding'],
-      sortedAndFilteredRows.map(r => [r.partyName, ...AGING_BUCKETS.map(b => csvMoney(r.buckets[b.key])), csvMoney(r.total)]));
+      sortedAndFilteredRows.map(r => [r.partyName, ...AGING_BUCKETS.map(b => decimal(r.buckets[b.key])), decimal(r.total)]));
     toast.success('Aging report exported successfully to CSV');
   };
 
@@ -138,10 +151,13 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
           <p className="text-sm text-[var(--muted)] dark:text-slate-400">
             {reportText('r.aging-schedule-of-outstanding', 'Aging schedule of outstanding ')}{isCustomer ? reportText('r.customer-invoices', 'customer invoices') : reportText('r.vendor-bills', 'vendor bills')} {reportText('r.grouped-by-days-past-the-due-date-in-the-base-cu', 'grouped by days past the due date, in the base currency.')}
           </p>
+          <p className="text-sm text-[var(--muted)]">{fill(reportText('r.aging-current-date', 'Current unpaid balances on {day}, across all documents. Changing the report period does not change this aging.'), { day: reportDates.dateText(today) })}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={exportToCSV}
+            disabled={partial || !canShowFigures}
             className="min-h-11 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-lg flex items-center gap-2 text-sm shadow-sm transition-colors border border-slate-200 dark:border-slate-800"
           >
             <Download aria-hidden="true" className="w-4 h-4" />
@@ -150,6 +166,10 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
         </div>
       </div>
 
+      {!serverRows && <ScreenDataNotice failedKeys={health.failedKeys} message={health.message} onRetry={health.retry} />}
+      {!canShowFigures && health.loadingKeys.length > 0 && <p role="status">{reportText('r.loading-aging-documents', 'Loading documents for this aging report…')}</p>}
+      {partial && <ReportProvenanceNote provenance={provenance} />}
+      {canShowFigures && <>
       {/* Visual Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
@@ -247,7 +267,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
               {sortedAndFilteredRows.length === 0 && (
                 <tr>
                   <td data-report-empty-state colSpan={AGING_BUCKETS.length + 3} className="p-8 text-center text-[var(--muted)] dark:text-slate-400">
-                    {docsPartial
+                    {partial
                       ? (isCustomer ? reportText('r.partial-invoices', 'Loaded invoice history is incomplete. Clear the search, then load full invoice history before treating this report as empty; an open document may be outside the loaded records.') : reportText('r.partial-bills', 'Loaded bill history is incomplete. Clear the search, then load full bill history before treating this report as empty; an open document may be outside the loaded records.'))
                       : (isCustomer ? reportText('r.empty-receivables', 'No outstanding receivables found matching criteria. Clear the search to see every party, or record an open customer invoice in Sales; this report reads saved documents.') : reportText('r.empty-payables', 'No outstanding payables found matching criteria. Clear the search to see every party, or record an open vendor bill in Purchases; this report reads saved documents.'))}
                   </td>
@@ -268,8 +288,10 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
         </div>
       </div>
 
+      </>}
+
       {/* Drill-down Drawer */}
-      {selectedPartyId && selectedParty && (
+      {canShowFigures && selectedPartyId && selectedParty && (
         <div {...overlayDialogProps} className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs">
           <div className="bg-white dark:bg-slate-900 w-full max-w-2xl h-full shadow-2xl flex flex-col border-l border-slate-200 dark:border-slate-800">
             {/* Drawer Header */}

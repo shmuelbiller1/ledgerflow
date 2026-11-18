@@ -15,6 +15,7 @@ import { getSupabase } from '../lib/db/client';
 import { buildSampleBusinessYear } from '../lib/sampleBusinessYear';
 import { REPORT_BUDGET_MS } from '../lib/reportBenchmark';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { formatCurrency } from '../lib/utils';
 import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
@@ -45,7 +46,8 @@ test(`R-5: all ${VIEWS.length} report views open under ${REPORT_BUDGET_MS} ms on
   setComponentWorkspace('owner');
   useAuthStore.setState({ currentWorkspaceId: fixture.workspace.id, workspaces: [fixture.workspace] });
   markComponentCollectionsLoaded('transactions', 'accounts', 'customers', 'vendors', 'invoices', 'creditNotes',
-    'estimates', 'bills', 'vendorCredits', 'inventory', 'payments', 'bankLines', 'assets', 'recurring', 'budgets', 'projects');
+    'estimates', 'bills', 'vendorCredits', 'inventory', 'payments', 'bankLines', 'assets', 'recurring', 'budgets', 'projects', 'journalEntries');
+  useDataNeedsStore.setState({ loadedWorkspaceId: fixture.workspace.id });
   useLedgerStore.setState({
     transactions: fixture.transactions, accounts: fixture.accounts, customers: fixture.customers, vendors: fixture.vendors,
     invoices: fixture.invoices, creditNotes: fixture.creditNotes, estimates: fixture.estimates, bills: fixture.bills,

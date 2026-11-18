@@ -5,10 +5,11 @@
  * trial balance means the books are wrong). The server refuses a close with drafts in it too.
  */
 import type { Bill, CreditNote, FixedAsset, Invoice, Transaction, VendorCredit } from '../types';
-import { isPostable, lineAmount } from './txFilters';
+import { isOpenInvoice, isPostable, lineAmount } from './txFilters';
 import { addDaysYMD } from './fiscalCalendar';
 import { monthEnd } from './periodLock';
 import { depreciationThrough } from './depreciationEngine';
+import { calculateAmountDue } from './documentMath';
 import { findPostingMismatches } from './postingCheck';
 import type { PostingMismatch } from './postingCheck';
 
@@ -54,8 +55,16 @@ export interface CloseChecklistInput {
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const NOT_OWED_STATUSES = new Set(['paid', 'void', 'draft', 'rejected', 'cancelled']);
 const inMonth = (date: string | undefined, month: string) => !!date && date.slice(0, 7) === month;
+
+/** Ignored duplicates were reviewed and are outside both close reconciliation counts. */
+export function closeBankLines<T extends CloseChecklistInput['bankLines'][number]>(lines: T[], month: string): T[] {
+  return lines.filter(line => inMonth(line.date, month) && line.status !== 'ignored');
+}
+
+export function needsBankMatch(line: CloseChecklistInput['bankLines'][number]): boolean {
+  return line.status === 'pending' || !line.matchedTransactionId;
+}
 
 export function buildCloseChecklist(input: CloseChecklistInput): CloseItem[] {
   const { month } = input;
@@ -68,10 +77,9 @@ export function buildCloseChecklist(input: CloseChecklistInput): CloseItem[] {
   const posted = input.transactions.filter(t => isPostable(t) && inMonth(t.date, month));
   const uncategorized = posted.filter(t => (t.lines || []).some(l => !l.accountId || l.accountId === 'uncategorized')).length;
 
-  const bankInMonth = input.bankLines.filter(l => inMonth(l.date, month));
-  // Ignored/duplicate bank lines were reviewed and should not keep the close checklist open.
-  const unmatched = bankInMonth.filter(l => l.status !== 'ignored' && (l.status === 'pending' || !l.matchedTransactionId)).length;
-  const countedBankLines = bankInMonth.filter(l => l.status !== 'ignored').length;
+  const bankInMonth = closeBankLines(input.bankLines, month);
+  const unmatched = bankInMonth.filter(needsBankMatch).length;
+  const countedBankLines = bankInMonth.length;
 
   let balance = 0;
   for (const t of input.transactions) {
@@ -82,7 +90,8 @@ export function buildCloseChecklist(input: CloseChecklistInput): CloseItem[] {
   const flagged = posted.filter(t => t.status === 'flagged').length;
 
   const cutoff = addDaysYMD(end, -60);
-  const isOld = (d: { status?: string; dueDate?: string }) => !NOT_OWED_STATUSES.has(String(d.status)) && !!d.dueDate && d.dueDate.slice(0, 10) < cutoff;
+  const isOld = (d: Invoice | Bill) => isOpenInvoice(d) && calculateAmountDue(d) > 0
+    && (!d.date || d.date.slice(0, 10) <= end) && !!d.dueDate && d.dueDate.slice(0, 10) < cutoff;
   const old = input.invoices.filter(isOld).length + input.bills.filter(isOld).length;
 
   const mismatches = postingMismatchesThrough(input, end);
@@ -98,7 +107,7 @@ export function buildCloseChecklist(input: CloseChecklistInput): CloseItem[] {
       detail: uncategorized ? `${plural(uncategorized, 'transaction')} without an account.` : 'All transactions have an account.' },
     { id: 'reconcile', title: title('reconcile'), count: unmatched,
       status: unmatched ? 'attention' : 'done',
-      detail: countedBankLines === 0 ? (bankInMonth.length ? 'No bank lines left to match in this month.' : 'No bank lines in this month.') : unmatched ? `${plural(unmatched, 'bank line')} not matched yet.` : `All ${plural(countedBankLines, 'bank line')} matched.` },
+      detail: countedBankLines === 0 ? (input.bankLines.some(l => inMonth(l.date, month)) ? 'No bank lines left to match in this month.' : 'No bank lines in this month.') : unmatched ? `${plural(unmatched, 'bank line')} not matched yet.` : `All ${plural(countedBankLines, 'bank line')} matched.` },
     { id: 'trial-balance', title: title('trial-balance'), count: balance === 0 ? 0 : 1,
       status: balance === 0 ? 'done' : 'blocker',
       detail: balance === 0 ? 'Debits equal credits through the end of the month.' : `Out of balance by ${balance} cents through the end of the month. Find the entry before closing.` },
@@ -107,7 +116,7 @@ export function buildCloseChecklist(input: CloseChecklistInput): CloseItem[] {
       detail: flagged ? `${plural(flagged, 'flagged transaction')} to review.` : 'No flagged transactions.' },
     { id: 'aging', title: title('aging'), count: old,
       status: old ? 'attention' : 'done',
-      detail: old ? `${plural(old, 'invoice or bill', 'invoices or bills')} more than 60 days overdue at month end.` : 'Nothing more than 60 days overdue.' },
+      detail: old ? `${plural(old, 'invoice or bill', 'invoices or bills')} more than 60 days overdue using ${end} as the due-date reference and today’s unpaid balances.` : `No currently unpaid document more than 60 days overdue using ${end} as the due-date reference.` },
     { id: 'depreciation', title: title('depreciation'), count: undepreciated,
       status: undepreciated ? 'attention' : 'done',
       detail: undepreciated ? `${plural(undepreciated, 'fixed asset')} not depreciated through this month yet (Fixed Asset Register → Post depreciation).` : 'Fixed assets are depreciated through this month.' },

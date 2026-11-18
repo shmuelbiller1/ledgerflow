@@ -11,6 +11,7 @@ import { CHARTACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/char
 import { CONTACT_COMMAND_MANIFEST } from './commandManifests.generated/contact';
 import { CREDITNOTE_COMMAND_MANIFEST } from './commandManifests.generated/creditnote';
 import { CUSTOMER_COMMAND_MANIFEST } from './commandManifests.generated/customer';
+import { DIMENSIONS_COMMAND_MANIFEST } from './commandManifests.generated/dimensions';
 import { DOCUMENT_COMMAND_MANIFEST } from './commandManifests.generated/document';
 import { EMPLOYEE_COMMAND_MANIFEST } from './commandManifests.generated/employee';
 import { ENTRYLINK_COMMAND_MANIFEST } from './commandManifests.generated/entrylink';
@@ -45,6 +46,7 @@ import { TAG_COMMAND_MANIFEST } from './commandManifests.generated/tag';
 import { TASKS_COMMAND_MANIFEST } from './commandManifests.generated/tasks';
 import { TAX_COMMAND_MANIFEST } from './commandManifests.generated/tax';
 import { TIME_COMMAND_MANIFEST } from './commandManifests.generated/time';
+import { TRANSACTION_COMMAND_MANIFEST } from './commandManifests.generated/transaction';
 import { USER_COMMAND_MANIFEST } from './commandManifests.generated/user';
 import { VENDOR_COMMAND_MANIFEST } from './commandManifests.generated/vendor';
 import { VENDORCREDIT_COMMAND_MANIFEST } from './commandManifests.generated/vendorcredit';
@@ -65,6 +67,7 @@ export const COMMAND_MANIFEST = [
   ...CONTACT_COMMAND_MANIFEST,
   ...CREDITNOTE_COMMAND_MANIFEST,
   ...CUSTOMER_COMMAND_MANIFEST,
+  ...DIMENSIONS_COMMAND_MANIFEST,
   ...DOCUMENT_COMMAND_MANIFEST,
   ...EMPLOYEE_COMMAND_MANIFEST,
   ...ENTRYLINK_COMMAND_MANIFEST,
@@ -99,6 +102,7 @@ export const COMMAND_MANIFEST = [
   ...TASKS_COMMAND_MANIFEST,
   ...TAX_COMMAND_MANIFEST,
   ...TIME_COMMAND_MANIFEST,
+  ...TRANSACTION_COMMAND_MANIFEST,
   ...USER_COMMAND_MANIFEST,
   ...VENDOR_COMMAND_MANIFEST,
   ...VENDORCREDIT_COMMAND_MANIFEST,

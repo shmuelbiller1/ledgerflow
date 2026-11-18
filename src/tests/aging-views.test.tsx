@@ -6,10 +6,12 @@ import { stubFetch } from './helpers/dom';
 import test, { afterEach, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import ARAgingReportView from '../components/reporting/ARAgingReportView';
 import APAgingReportView from '../components/reporting/APAgingReportView';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
+import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
 import { useUIStore } from '../stores/useUIStore';
 import { addToDateISO, getLocalDateISO } from '../lib/utils';
 import { makeBill, makeCustomer, makeInvoice, makeVendor } from './fixtures';
@@ -21,7 +23,10 @@ const bodyRows = (name: RegExp) => within(screen.getByRole('table', { name })).g
 describe('aging screens', () => {
   beforeEach(() => {
     stubFetch(404);
+    setComponentWorkspace();
+    markComponentCollectionsLoaded('customers', 'vendors', 'invoices', 'bills');
     useLedgerStore.setState({
+      truncatedCollections: {}, isDataTruncated: false,
       customers: [makeCustomer({ id: 'a', name: 'Acme' }), makeCustomer({ id: 'b', name: 'Bob' })],
       vendors: [makeVendor({ id: 'v', name: 'Power Co' })],
       invoices: [
@@ -60,10 +65,9 @@ describe('aging screens', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Open invoice INV-3' }));
     assert.deepEqual(useUIStore.getState().focusRecord, { type: 'invoice', id: 'i3' });
     assert.equal(screen.queryByRole('dialog', { name: /Bob/ }), null);
-    useLedgerStore.setState({ truncatedCollections: { invoices: true } });
+    act(() => useLedgerStore.setState({ truncatedCollections: { invoices: true } }));
     fireEvent.click(screen.getByRole('button', { name: 'Open Acme' }));
-    assert.match(screen.getByRole('status').textContent || '', /Only part of the invoices is loaded/);
-    useLedgerStore.setState({ truncatedCollections: {} });
+    assert.match(within(screen.getByRole('dialog')).getByRole('status').textContent || '', /Only part of the invoices is loaded/);
   });
 
   test('A-270: a row is reachable from the keyboard, opens its detail with Enter, and gets focus back when the drawer closes', async () => {
@@ -91,6 +95,30 @@ describe('aging screens', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to Aging Schedule' }));
     await new Promise(resolve => setTimeout(resolve, 40));
     assert.equal(document.activeElement, arrow, 'focus returned to the arrow that opened the drawer');
+  });
+
+  test('a pending or failed invoice read shows an unavailable report, not an authoritative zero', () => {
+    useLedgerStore.setState({ invoices: [] });
+    markComponentCollectionsLoaded('customers');
+    render(<ARAgingReportView />);
+    const exportButton = screen.getByRole('button', { name: 'Export CSV' }) as HTMLButtonElement;
+    assert.ok(screen.getByText(/Loading documents for this aging report/));
+    assert.equal(screen.queryByRole('table'), null);
+    assert.equal(exportButton.disabled, true);
+    act(() => useDataNeedsStore.getState().markFailed('invoices', 'Unavailable'));
+    assert.ok(screen.getByText(/Couldn't load invoices/));
+    assert.equal(screen.queryByRole('table'), null);
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    act(() => useDataNeedsStore.getState().markLoaded('invoices'));
+    assert.ok(screen.getByText(/No outstanding receivables found/));
+  });
+
+  test('capped, nonempty payables stay provisional until the full server report arrives', () => {
+    useLedgerStore.setState({ truncatedCollections: { bills: true } });
+    render(<APAgingReportView />);
+    assert.ok(screen.getByText('Power Co'));
+    assert.equal(screen.getByRole('note').getAttribute('data-provenance'), 'incomplete');
+    assert.equal((screen.getByRole('button', { name: 'Export CSV' }) as HTMLButtonElement).disabled, true);
   });
 
   test('A/P: bills the same way', () => {

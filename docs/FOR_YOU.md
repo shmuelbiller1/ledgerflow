@@ -7,6 +7,20 @@ removed from this list.
 
 Last updated: 2026-11-19.
 
+## Emptying a demo workspace and tidying dimension values now run through registered commands (nothing for you to do)
+
+Two more writes go through the registered commands. Emptying a workspace is unchanged in the way that
+matters: it still only works on a workspace holding demo data (real books are deleted with the workspace
+and kept 30 days first), still needs the owner's explicit confirmation, and still never deletes the audit
+trail. The other moves your entries' dimension values from free text onto the dimension nodes they belong
+to; it was already transactional and still refuses to rewrite an entry that sits in a closed period.
+
+Three things that look like writes and are not are now recorded as reviewed exceptions with the reason
+written down: the currency-revaluation *preview* (the same calculation the real revaluation runs, with
+nothing saved), the labelling helper that suggests an account for each entry, and the anomaly scan that
+points out unusually large entries. All three only read and calculate. A test keeps each exception matched
+to a real route, so none of them can quietly outlive the code it describes.
+
 ## Capitalising a lease and recognising revenue now run through registered commands (nothing for you to do)
 
 Two more writes go through the same registered commands as every batch before this one: capitalising a
@@ -830,6 +844,8 @@ in GitHub before interpreting findings. Main runs `43981616172`, `43983831337`, 
 all failed with zero jobs and no reports; none count toward the promotion gate.
 A local production-bundle smoke check returned HTTP 200 for `/api/health` and `/`, but ZAP itself has not run.
 Keep Phase 1 report-only; manual dispatch on `main` still awaits the workflow fix reaching the default branch.
+**17 Nov follow-up (AI #6):** PR #756 has merged. The API job now runs on `main`, but its report-only green status does not prove a clean report. The first manually dispatched [ZAP run 44006270355](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44006270355) failed in its combined boot-and-scan step and report-processing step. The run logs and artifact bytes are inaccessible from this sandbox, so the cause is not yet known; inspect them in GitHub and rerun locally in CI before treating the nightly scan as working. No live scan was run. A follow-up removes plugin-wide CSP and cross-domain-script exceptions that were incorrectly described as URL-scoped; its details and limits are in [the Agent #6 checkpoint](../audit/agent6-2026-11-17-security-followup/01-checkpoint.md).
+
 *Still yours to decide:* scanning the live site. To allow it, write here "OK to scan <address>" (passive scan
 only). *Default:* not scanned.
 

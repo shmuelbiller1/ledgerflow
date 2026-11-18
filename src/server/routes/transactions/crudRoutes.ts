@@ -317,6 +317,12 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
            const unpostRefusal = postedStatusRefusal(txData as Partial<Transaction>, partialUpdate.status, Boolean(user.admin)) ||
              postedDeletionRefusal(txData as Partial<Transaction>, partialUpdate as Partial<Transaction>, Boolean(user.admin));
            if (unpostRefusal) throw new HttpError(unpostRefusal, 409);
+           // #843: a posted entry's currency and rate are its figures too — restating them in place
+           // changes home-currency reporting with no correction on the books; reverse and re-post instead
+           if (!user.admin && isPostedEntry(txData as Partial<Transaction>)
+             && ['exchangeRate', 'currency', 'baseAmountCents', 'homeAmountCents'].some(key => key in partialUpdate && (partialUpdate as Record<string, unknown>)[key] !== (txData as Record<string, unknown>)?.[key])) {
+             throw new HttpError('A posted entry\'s currency and exchange rate are not changed in place. Post a reversing entry and a corrected one instead.', 409);
+           }
            beforeEdit = auditSnapshot(txData as Partial<Transaction>);
          
            if (partialUpdate.lines !== undefined || partialUpdate.amountCents !== undefined || partialUpdate.totalAmountCents !== undefined || partialUpdate.workspaceId !== undefined || partialUpdate.date !== undefined || partialUpdate.uid !== undefined) {

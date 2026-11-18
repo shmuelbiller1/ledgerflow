@@ -426,6 +426,8 @@ export const REPORTS_TRANSLATION_BUNDLE: ScreenTranslationBundle = {
     { key: 'r.label-value-period', en: '{label} {value}, {period}', he: '{label} {value}, בתקופה {period}' },
     { key: 'r.total-debit-column-at', en: 'Total debit column at {date} · every posted line. This column totals the period’s gross debits; the lines net to zero because each entry balances.', he: 'סך עמודת החובה ב-{date} · כל השורות שנרשמו. העמודה מסכמת את סך החובה ברוטו בתקופה; השורות מתקזזות לאפס כי כל רישום מאוזן.' },
     { key: 'r.total-credit-column-at', en: 'Total credit column at {date} · every posted line. This column totals the period’s gross credits; the lines net to zero because each entry balances.', he: 'סך עמודת הזכות ב-{date} · כל השורות שנרשמו. העמודה מסכמת את סך הזכות ברוטו בתקופה; השורות מתקזזות לאפס כי כל רישום מאוזן.' },
+    { key: 'r.aging-current-date', en: 'Current unpaid balances on {day}, across all documents. Changing the report period does not change this aging.', he: 'יתרות פתוחות מכל המסמכים נכון ל־{day}. שינוי התקופה בדוח אינו משנה את הגיול.' },
+    { key: 'r.loading-aging-documents', en: 'Loading documents for this aging report…', he: 'טוען מסמכים לדוח הגיול…' },
     { key: 'r.not-yet-due', en: 'Not yet due', he: 'טרם הגיע מועד' },
     { key: 'r.bucket.current', en: 'Current', he: 'שוטף' },
     { key: 'r.bucket.d1_30', en: '1–30 days', he: '1–30 ימים' },

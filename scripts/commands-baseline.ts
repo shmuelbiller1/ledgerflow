@@ -99,6 +99,29 @@ export const READ_ONLY_ROUTE_EXCEPTIONS: readonly ReadOnlyRouteException[] = [
       + 'a command would add a transaction, a workspace check and an idempotency record around arithmetic '
       + 'that changes nothing.',
   })),
+  {
+    file: 'src/server/routes/transactions/periodRoutes.ts',
+    route: '/revaluation/preview',
+    why: 'The same function /revaluation/run posts from, called with dryRun: true: it values the open foreign '
+      + 'invoices and bills at a rate and answers the entries it would post. The service returns before any '
+      + 'write on that flag (fxRevaluationService.ts), so the preview opens no transaction, records nothing '
+      + 'and is audited for nothing. Its sibling /revaluation/run is the command period.fxrevaluation.',
+  },
+  {
+    file: 'src/server/routes/labelingRoutes.ts',
+    route: '/api/v1/label-transactions',
+    why: 'A labelling engine: it reads the workspace\'s chart accounts and auto-rules, scores each entry in the '
+      + 'request against them in memory, and answers the suggested account for each. It writes no entry, '
+      + 'updates no rule, records no audit line and charges no usage, so a command would add a transaction, '
+      + 'an idempotency record and a workspace write check around a calculation.',
+  },
+  {
+    file: 'src/server/routes/labelingRoutes.ts',
+    route: '/api/v1/forensics/anomaly-scan',
+    why: 'A statistical scan: it reads up to 200 entries, computes the mean and standard deviation of their '
+      + 'amounts and answers the ones more than 2.5 deviations out. Nothing is written, flagged, marked or '
+      + 'audited, so a command would add a transaction around arithmetic.',
+  },
   ...['/trust-reconciliation', '/rent-roll'].map(route => ({
     file: 'src/server/routes/leaseRoutes.ts',
     route,

@@ -104,6 +104,7 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
     { label: '12-Month Sample Year & Speed', componentName: 'SampleYearBenchmarkReportView' },
     { label: 'Transactions by Reference', componentName: 'TransactionsByReferenceView' },
     { label: 'Group Summary', componentName: 'GroupSummaryReportView' },
+    { label: 'Trial Balance', componentName: 'TrialBalanceView' },
     { label: 'Ask the Books', componentName: 'AskBooksView' },
     { label: 'Profit by Label', componentName: 'LabelProfitReportView' },
     { label: 'Import Acceptance', componentName: 'ImportAcceptanceView' },

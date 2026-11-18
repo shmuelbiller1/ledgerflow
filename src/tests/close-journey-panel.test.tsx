@@ -42,8 +42,8 @@ test('A-151 screen: the journey is listed in order as a read-only path', () => {
   assert.deepEqual(headings, [
     '1. Reconcile each bank',
     '2. Give every entry an account',
-    '3. Open invoices at month end',
-    '4. Open bills at month end',
+    '3. Review receivables aging',
+    '4. Review payables aging',
     '5. Review accruals and prepayments',
     '6. Clear the drafts dated in the month',
     '7. Check the trial balance',
@@ -71,9 +71,14 @@ test('A-151 screen: money on the open documents is the workspace currency, and e
   assert.ok(screen.getAllByText(formatCurrency(60000, 'ILS')).length >= 1, 'the open bill');
   assert.ok(screen.getByRole('button', { name: /Open Reconcile/ }));
   assert.ok(screen.getAllByRole('button', { name: /Open Ledger & Journal/ }).length >= 2, 'the account and accrual steps');
-  assert.ok(screen.getByRole('button', { name: /Open Sales/ }));
-  assert.ok(screen.getByRole('button', { name: /Open Purchases/ }));
-  assert.ok(screen.getByRole('button', { name: /Open Reports → Trial Balance/ }));
+  assert.ok(screen.getByRole('link', { name: 'Open Current A/R Aging' }));
+  assert.ok(screen.getByRole('link', { name: 'Open Current A/P Aging' }));
+  for (const name of ['Open Trial Balance', 'Open Profit & Loss', 'Open Balance Sheet']) {
+    const url = new URL(screen.getByRole('link', { name }).getAttribute('href')!, 'https://example.test');
+    assert.equal(url.hash, '#reports');
+    assert.equal(url.searchParams.get('start'), '2026-09-01');
+    assert.equal(url.searchParams.get('end'), '2026-09-30');
+  }
   assert.ok(screen.getAllByRole('button', { name: /Open Month-End Close/ }).length >= 1);
 });
 

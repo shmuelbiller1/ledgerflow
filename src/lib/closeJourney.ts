@@ -13,7 +13,8 @@
  */
 import { resolveAccountRole } from './accountUtils';
 import { calculateAmountDue } from './documentMath';
-import type { CloseItem } from './closeChecklist';
+import { closeBankLines, needsBankMatch, type CloseItem } from './closeChecklist';
+import { isOpenInvoice } from './txFilters';
 import { monthEnd, type MonthCloseState } from './periodLock';
 import type { BankStatementLine, ChartAccount } from '../model/ledger';
 
@@ -96,24 +97,24 @@ export interface CloseJourneyInput {
 }
 
 const MONTH_TEXT = /^\d{4}-(0[1-9]|1[0-2])$/;
-const NOT_OPEN = new Set(['draft', 'void', 'cancelled', 'rejected', 'paid']);
 const inMonth = (date: string | undefined, month: string) => String(date || '').slice(0, 7) === month;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 const itemOf = (items: CloseJourneyInput['items'], id: string) => items.find(i => i.id === id);
 
-/** Open documents as at the month's last day, split into this currency and the ones it cannot add. */
-function openDocuments(docs: OpenDocument[] | undefined, month: string, endDate: string, currency: string) {
+/** Current unpaid balances of documents dated through the month, not reconstructed month-end balances. */
+function openDocuments(docs: OpenDocument[] | undefined, endDate: string, currency: string) {
   let count = 0, cents = 0, otherCurrency = 0;
   for (const doc of docs || []) {
-    if (NOT_OPEN.has(String(doc.status))) continue;
+    if (!isOpenInvoice(doc)) continue;
     const date = String(doc.date || '').slice(0, 10);
     if (date && date > endDate) continue;
-    if (calculateAmountDue(doc) <= 0) continue;
+    const due = calculateAmountDue(doc);
+    if (due <= 0) continue;
     count++;
     const docCurrency = doc.currency || currency;
     if (docCurrency !== currency) { otherCurrency++; continue; }
-    cents += calculateAmountDue(doc);
+    cents += due;
   }
   return { count, cents, otherCurrency };
 }
@@ -128,27 +129,27 @@ export function closeJourney(input: CloseJourneyInput): CloseJourney {
 
   // 1. each bank, apart: a line is unmatched when it is pending or has no matched transaction
   const bankAccounts = (input.accounts || []).filter(a => resolveAccountRole(a) === 'cash');
-  const lines = (input.bankLines || []).filter(l => inMonth(l.date, month));
+  const lines = closeBankLines(input.bankLines || [], month);
   const banks: CloseJourneyBankRow[] = bankAccounts.map(account => {
     const mine = lines.filter(l => l.accountId === account.id);
     return {
       accountId: account.id,
       accountName: account.name || account.code || account.id,
       lines: mine.length,
-      unmatched: mine.filter(l => l.status === 'pending' || !l.matchedTransactionId).length,
+      unmatched: mine.filter(needsBankMatch).length,
     };
   });
   const unassigned = lines.filter(l => !l.accountId || !bankAccounts.some(a => a.id === l.accountId));
   if (unassigned.length) banks.push({
     accountId: '', accountName: 'Lines with no bank account', lines: unassigned.length,
-    unmatched: unassigned.filter(l => l.status === 'pending' || !l.matchedTransactionId).length, unassigned: true,
+    unmatched: unassigned.filter(needsBankMatch).length, unassigned: true,
   });
   const unmatched = banks.reduce((sum, b) => sum + b.unmatched, 0);
   const lineCount = banks.reduce((sum, b) => sum + b.lines, 0);
 
-  // 2. open receivables and payables at month end
-  const receivables = openDocuments(input.invoices, month, endDate, currency);
-  const payables = openDocuments(input.bills, month, endDate, currency);
+  // 2. today’s balances, limited to documents dated through the month (no payment replay)
+  const receivables = openDocuments(input.invoices, endDate, currency);
+  const payables = openDocuments(input.bills, endDate, currency);
 
   // 3. journal entries dated in the month: the accrual reminder, never a conclusion
   const journals = (input.journalEntries || []).filter(j => !j.deletedAt && inMonth(j.date, month)).length;
@@ -171,9 +172,11 @@ export function closeJourney(input: CloseJourneyInput): CloseJourney {
         ? 'No bank or cash account is in the chart of accounts, so there is nothing to reconcile from this data.'
         : unmatched
           ? `${plural(unmatched, 'bank line')} of ${lineCount} in ${month} not matched: ${banks.filter(b => b.unmatched).map(b => `${b.accountName} (${b.unmatched})`).join(', ')}.`
-          : `All ${plural(lineCount, 'bank line')} in ${month} are matched, across ${plural(banks.length, 'account')}.`,
+          : lineCount
+            ? `All ${plural(lineCount, 'bank line')} to reconcile in ${month} are matched, across ${plural(banks.length, 'account')}.`
+            : `No bank lines to reconcile in ${month}. Ignored lines are not counted.`,
       figures: [
-        { label: 'Bank lines in the month', count: lineCount },
+        { label: 'Bank lines to reconcile in the month', count: lineCount },
         { label: 'Not matched', count: unmatched },
       ],
       screen: 'reconciliation', tab: 'reconciliation', screenLabel: 'Reconcile', banks,
@@ -187,31 +190,31 @@ export function closeJourney(input: CloseJourneyInput): CloseJourney {
     },
     {
       id: 'receivables',
-      title: 'Open invoices at month end',
-      what: 'Look at what customers still owe at month end: an invoice that should have been paid or written off is a question for the owner, not an entry this screen makes.',
-      status: receivables.count ? 'review' : 'done',
+      title: 'Review receivables aging',
+      what: `These are today’s unpaid amounts for invoices dated through ${endDate}. Payments and credits after that date are not reversed.`,
+      status: 'review',
       detail: receivables.count
-        ? `${plural(receivables.count, 'invoice')} still open at ${endDate}, ${currency} ${(receivables.cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} due in ${currency}${receivables.otherCurrency ? `, plus ${plural(receivables.otherCurrency, 'invoice')} in another currency (counted, never converted)` : ''}.`
-        : `No invoice is open at ${endDate}.`,
+        ? `${plural(receivables.count, 'invoice')} currently unpaid${receivables.otherCurrency ? `, including ${plural(receivables.otherCurrency, 'invoice')} in another currency (not converted)` : ''}.`
+        : 'No currently unpaid invoices in the checked dates.',
       figures: [
         { label: 'Invoices open', count: receivables.count },
         { label: 'Due in the workspace currency', cents: receivables.cents },
       ],
-      screen: 'sales', tab: 'sales', screenLabel: 'Sales', banks: [],
+      screen: 'ar-aging', tab: 'reports', screenLabel: 'Current A/R Aging', banks: [],
     },
     {
       id: 'payables',
-      title: 'Open bills at month end',
-      what: 'Look at what the business still owes at month end: a bill that belongs to an earlier month changes the month it is entered in, and this screen does not move it.',
-      status: payables.count ? 'review' : 'done',
+      title: 'Review payables aging',
+      what: `These are today’s unpaid amounts for bills dated through ${endDate}. Payments and credits after that date are not reversed.`,
+      status: 'review',
       detail: payables.count
-        ? `${plural(payables.count, 'bill')} still open at ${endDate}, ${currency} ${(payables.cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} due in ${currency}${payables.otherCurrency ? `, plus ${plural(payables.otherCurrency, 'bill')} in another currency (counted, never converted)` : ''}.`
-        : `No bill is open at ${endDate}.`,
+        ? `${plural(payables.count, 'bill')} currently unpaid${payables.otherCurrency ? `, including ${plural(payables.otherCurrency, 'bill')} in another currency (not converted)` : ''}.`
+        : 'No currently unpaid bills in the checked dates.',
       figures: [
         { label: 'Bills open', count: payables.count },
         { label: 'Due in the workspace currency', cents: payables.cents },
       ],
-      screen: 'purchases', tab: 'purchases', screenLabel: 'Purchases', banks: [],
+      screen: 'ap-aging', tab: 'reports', screenLabel: 'Current A/P Aging', banks: [],
     },
     {
       id: 'accruals',
@@ -233,7 +236,7 @@ export function closeJourney(input: CloseJourneyInput): CloseJourney {
       id: 'trial-balance',
       title: 'Check the trial balance',
       ...checklistStep(trialBalance, 'trial-balance'),
-      screen: 'reports', tab: 'reports', screenLabel: 'Reports → Trial Balance',
+      screen: 'trial-balance', tab: 'reports', screenLabel: 'Trial Balance',
       banks: [],
     },
     {
