@@ -199,10 +199,17 @@ test('API-key scopes validate exact, unique permissions and command paths use th
     assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:transactions');
   }
   assert.equal(requiredApiKeyScope('GET', '/api/v1/commands'), 'read:transactions');
-  // Person-scoped commands keep the scope the legacy /api/v1/account writes always required.
-  for (const name of ['account.makerecoverycodes', 'account.userecoverycode', 'account.setnotificationemail', 'groups.create', 'groups.share', 'groups.delete']) {
-    assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:transactions');
+  // #823: an area not named in the map is closed to keys (write:workspaces is never issued) — account and group
+  // commands (also refused to every key by the runner since #821), settings, portal links, payroll governance,
+  // audit entries and the record/contact commands that reach any collection
+  for (const name of ['account.makerecoverycodes', 'account.userecoverycode', 'account.setnotificationemail', 'groups.create', 'groups.share',
+    'groups.delete', 'record.fields', 'record.save', 'record.delete', 'contact.delete', 'contact.merge', 'portal.linkcreate', 'portal.linkrevoke',
+    'estimate.signlink', 'payroll.approval', 'auditlog.append', 'savedlist.taxprofiles', 'security.twostep', 'some.newarea']) {
+    assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:workspaces', name);
   }
+  assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/chartaccount.create'), 'write:ledger');
+  assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/inventory.adjust'), 'write:transactions');
+  assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/project.restore'), 'write:projects');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/transactions'), 'write:transactions');
 });
 
