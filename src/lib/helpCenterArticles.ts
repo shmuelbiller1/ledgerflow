@@ -71,7 +71,6 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     'group-summary',
     'ask-books',
     'cash-flow',
-    'trial-balance',
     'party-linked-trial-balance',
     'import-acceptance',
     'sales-trends',
