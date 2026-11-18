@@ -458,6 +458,8 @@ export const SCREEN_TRANSLATION_TABLE: readonly ScreenTranslationBundle[] = [
       { key: 'r.left-out-one', en: '{n} entry on receivables or payables without cash (credit notes, write-offs) is left out.', he: 'תנועה אחת ({n}) על חייבים או זכאים ללא מזומן (זיכויים, מחיקות) לא נכללה.' },
       { key: 'r.left-out-many', en: '{n} entries on receivables or payables without cash (credit notes, write-offs) are left out.', he: '{n} תנועות על חייבים או זכאים ללא מזומן (זיכויים, מחיקות) לא נכללו.' },
       { key: 'r.drill-into', en: 'Click to drill down into {name}', he: 'לחצו כדי לפרט את {name}' },
+      { key: 'r.aging-current-date', en: 'Current unpaid balances on {day}, across all documents. Changing the report period does not change this aging.', he: 'יתרות פתוחות מכל המסמכים נכון ל־{day}. שינוי התקופה בדוח אינו משנה את הגיול.' },
+      { key: 'r.loading-aging-documents', en: 'Loading documents for this aging report…', he: 'טוען מסמכים לדוח הגיול…' },
       { key: 'r.bucket-overdue', en: '{bucket} overdue', he: 'באיחור של {bucket}' },
       { key: 'r.search-customer', en: 'Search by customer', he: 'חיפוש לפי לקוח' },
       { key: 'r.search-vendor', en: 'Search by vendor', he: 'חיפוש לפי ספק' },

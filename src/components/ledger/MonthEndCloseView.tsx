@@ -4,15 +4,21 @@ import { toast } from 'sonner';
 import { AlertTriangle, ArrowRight, BookOpen, CheckCircle2, Circle, Lock, LockOpen, ShieldCheck, Undo2, XCircle } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { db } from '../../firebase';
 import { collection, doc, getDoc, getDocs, limit, query, where } from '../../lib/db/firestore';
-import { cn, formatCurrency, getLocalDateISO } from '../../lib/utils';
+import { cn, formatCurrency, getCurrencyFractionDigits, getLocalDateISO } from '../../lib/utils';
 import { downloadWorkbook, createWorkbook } from '../../lib/excelExport';
 import { buildCloseChecklist, postingMismatchesThrough, readyToClose } from '../../lib/closeChecklist';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import type { CloseItem } from '../../lib/closeChecklist';
+import { useBrowserProvenance } from '../../hooks/useBrowserProvenance';
+import { identityScope } from '../../lib/serverAction';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import CloseReportLink from './CloseReportLink';
 import { monthCloseState, monthEnd } from '../../lib/periodLock';
 import type { AppTab, PeriodStatus, Workspace } from '../../types';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -35,15 +41,12 @@ import { byCodeUnit } from '../../lib/codeUnitOrder';
  * role, refuses drafts in the period and writes the audit log.
  */
 
-const ITEM_TABS: Record<CloseItem['id'], string> = {
+const ITEM_TABS: Partial<Record<CloseItem['id'], AppTab>> = {
   drafts: 'ledger',
   categorize: 'ledger',
   reconcile: 'reconciliation',
-  'trial-balance': 'reports',
   anomalies: 'audit-trail',
-  aging: 'reports',
   depreciation: 'assets',
-  postings: 'month-end-close',
 };
 
 const STATE_LABEL = {
@@ -67,7 +70,15 @@ function post<T>(path: string, body: unknown, headers?: Record<string, string>):
 // #643: the four document kinds the posting check covers, where each is saved (saving re-posts it) and what it is called
 const MISMATCH_COLLECTION = { invoice: 'invoices', bill: 'bills', 'credit-note': 'creditNotes', 'vendor-credit': 'vendorCredits' } as const;
 const MISMATCH_LABEL = { invoice: 'Invoice', bill: 'Bill', 'credit-note': 'Credit note', 'vendor-credit': 'Vendor credit' } as const;
+const CLOSE_INPUTS = ['accounts', 'assets', 'bankLines', 'bills', 'creditNotes', 'invoices', 'journalEntries', 'transactions', 'vendorCredits'] as const;
+
 export default function MonthEndCloseView() {
+  const uid = useAuthStore(s => s.user?.uid);
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
+  return <WorkspaceCloseView key={JSON.stringify([uid, workspaceId])} workspaceId={workspaceId} />;
+}
+
+function WorkspaceCloseView({ workspaceId }: { workspaceId: string }) {
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
   const bankLines = useLedgerStore(s => s.bankLines);
@@ -77,10 +88,15 @@ export default function MonthEndCloseView() {
   const vendorCredits = useLedgerStore(s => s.vendorCredits);
   const journalEntries = useLedgerStore(s => s.journalEntries);
   const assets = useLedgerStore(s => s.assets);
-  const { loading: collectionsLoading } = useLedgerCollections('assets', 'bankLines', 'bills', 'creditNotes', 'invoices', 'vendorCredits');
+  useLedgerCollections(...CLOSE_INPUTS);
+  const dataHealth = useScreenDataHealth(CLOSE_INPUTS);
+  const loadedWorkspaceId = useDataNeedsStore(s => s.loadedWorkspaceId);
+  const isGuest = useAuthStore(s => s.isGuest && !s.user);
+  const currentData = isGuest || Boolean(workspaceId && loadedWorkspaceId === workspaceId);
+  const dataReady = currentData && dataHealth.ready;
+  const partial = useBrowserProvenance(CLOSE_INPUTS, false).completeness !== 'complete';
+  const actorUid = useAuthStore(s => s.user?.uid);
   const workspaces = useAuthStore(s => s.workspaces) || [];
-  const setWorkspaces = useAuthStore(s => s.setWorkspaces);
-  const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const setActiveTab = useUIStore(s => s.setActiveTab);
   const { updateEntity } = useEntityOperations();
   const role = useCurrentRole();
@@ -89,21 +105,43 @@ export default function MonthEndCloseView() {
 
   const workspace = workspaces.find(w => w.id === workspaceId);
   const [month, setMonth] = useState(() => previousMonth(getLocalDateISO()));
-  const [period, setPeriod] = useState<PeriodStatus | null>(null);
+  const [periodRead, setPeriodRead] = useState<{ month: string; period: PeriodStatus | null; failed?: true }>();
+  const [periodRetry, setPeriodRetry] = useState(0);
   const [busy, setBusy] = useState(false);
   const yearCloseOperation = useRef<{ fingerprint: string; id: string } | null>(null);
   const [blockedDrafts, setBlockedDrafts] = useState<Array<{ collection: string; id: string; date: string; label: string }>>([]);
   const [reopenReason, setReopenReason] = useState('');
   const [unlock, setUnlock] = useState({ fromDate: '', toDate: '', reason: '' });
 
+  const chooseMonth = (nextMonth: string) => {
+    if (busy || !nextMonth || nextMonth === month) return;
+    setPeriodRead(undefined);
+    setBlockedDrafts([]);
+    setReopenReason('');
+    setMonth(nextMonth);
+  };
+
   useEffect(() => {
     let cancelled = false;
     if (!workspaceId) return;
     getDoc(doc(db, 'periods', `${workspaceId}_${month}`))
-      .then(snap => { if (!cancelled) setPeriod(snap.exists() ? ({ id: snap.id, ...snap.data() } as PeriodStatus) : null); })
-      .catch(() => { if (!cancelled) setPeriod(null); });
+      .then(snap => {
+        if (!cancelled) setPeriodRead({ month, period: snap.exists() ? ({ id: snap.id, ...snap.data() } as PeriodStatus) : null });
+      })
+      .catch(() => { if (!cancelled) setPeriodRead({ month, period: null, failed: true }); });
     return () => { cancelled = true; };
-  }, [workspaceId, month]);
+  }, [workspaceId, month, periodRetry]);
+
+  const currentPeriod = periodRead?.month === month ? periodRead : undefined;
+  const period = currentPeriod?.period ?? null;
+  const periodReady = Boolean(currentPeriod && !currentPeriod.failed);
+  const checklistReady = dataReady && periodReady;
+  const updatePeriod = (fields: Partial<PeriodStatus>) => setPeriodRead(read => {
+    if (!read || read.month !== month || read.failed) return read;
+    const startDate = `${month}-01`;
+    const record: PeriodStatus = read.period || { id: `${workspaceId}_${month}`, uid: '', workspaceId, periodId: month, startDate, endDate: monthEnd(month), status: 'open' };
+    return { month, period: { ...record, ...fields } };
+  });
 
   const baseCurrency = workspace?.currency;
   const items = useMemo(() => buildCloseChecklist({
@@ -120,17 +158,26 @@ export default function MonthEndCloseView() {
   const isFiscalYearEnd = Number(month.slice(5, 7)) === fiscalEndMonth;
   const lockException = workspace?.lockException;
 
-  const patchWorkspace = (fields: Partial<Workspace>) => setWorkspaces(workspaces.map(w => (w.id === workspaceId ? { ...w, ...fields } : w)));
+  const patchWorkspace = (fields: Partial<Workspace>) => {
+    const auth = useAuthStore.getState();
+    if (auth.user?.uid !== actorUid || auth.currentWorkspaceId !== workspaceId) return;
+    auth.setWorkspaces(auth.workspaces.map(w => w.id === workspaceId ? { ...w, ...fields } : w));
+  };
+  const captureScope = () => identityScope(() => useAuthStore.getState().user?.uid, () => useAuthStore.getState().currentWorkspaceId);
   const base = `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/periods`;
 
   const run = async <T,>(work: () => Promise<T>, success: string, after?: (result: T) => void) => {
+    if (busy) return;
+    const scope = captureScope();
     setBusy(true);
     setBlockedDrafts([]);
     try {
       const result = await work();
+      if (!scope.isCurrent()) return;
       after?.(result);
       toast.success(success);
     } catch (err) {
+      if (!scope.isCurrent()) return;
       // the refused close names the drafts that block it; runCommand keeps them on the error's body
       const details = (err as { body?: { details?: unknown } }).body?.details ?? (err as { details?: unknown }).details;
       if (Array.isArray(details) && details.every(d => typeof (d as { collection?: unknown })?.collection === 'string')) setBlockedDrafts(details);
@@ -145,7 +192,7 @@ export default function MonthEndCloseView() {
     mode === 'hard' ? `${month} is closed.` : `${month} is soft-closed.`,
     r => {
       patchWorkspace({ lockDate: r.lockDate, softLockDate: r.softLockDate, ...(lockException && lockException.fromDate <= end ? { lockException: null } : {}) });
-      setPeriod(p => ({ ...(p || { id: `${workspaceId}_${month}`, uid: '', workspaceId, periodId: month, startDate: `${month}-01`, endDate: end }), status: mode === 'hard' ? 'closed' : 'soft_closed', closeMode: mode }));
+      updatePeriod({ status: mode === 'hard' ? 'closed' : 'soft_closed', closeMode: mode });
     },
   );
 
@@ -158,7 +205,7 @@ export default function MonthEndCloseView() {
   const sign = (itemId: string, remove: boolean) => run(
     () => post<{ signOffs: PeriodStatus['signOffs'] }>(`${base}/${month}/sign-off`, { itemId, remove }),
     remove ? 'Sign-off removed.' : 'Signed off.',
-    r => setPeriod(p => ({ ...(p || { id: `${workspaceId}_${month}`, uid: '', workspaceId, periodId: month, status: 'open', startDate: `${month}-01`, endDate: end }), signOffs: r.signOffs })),
+    r => updatePeriod({ signOffs: r.signOffs }),
   );
 
   const doUnlock = () => run(
@@ -172,18 +219,20 @@ export default function MonthEndCloseView() {
   // Reposting reverses what the ledger has for the document and posts it again from the document
   // (LedgerPostService), which fixes missing, doubled, left-over and wrong-amount entries.
   const repost = async (items: typeof mismatches) => {
+    if (busy || !dataReady || partial) return;
+    const scope = captureScope();
     setBusy(true);
     let done = 0;
     for (const m of items) {
+      if (!scope.isCurrent()) break;
       try {
-        await updateEntity(MISMATCH_COLLECTION[m.kind], m.id, {});
-        done++;
+        if (await updateEntity(MISMATCH_COLLECTION[m.kind], m.id, {})) done++;
       } catch (err) {
-        toast.error(`${MISMATCH_LABEL[m.kind]} ${m.number}: ${err instanceof Error ? err.message : 'could not be reposted'}`);
+        if (scope.isCurrent()) toast.error(`${MISMATCH_LABEL[m.kind]} ${m.number}: ${err instanceof Error ? err.message : 'could not be reposted'}`);
       }
     }
     setBusy(false);
-    if (done) toast.success(`Reposted ${done} document${done === 1 ? '' : 's'}.`);
+    if (scope.isCurrent() && done) toast.success(`Reposted ${done} document${done === 1 ? '' : 's'}.`);
   };
 
   // CA-07: closing the year records it (and its profit) without posting an entry; the balance
@@ -207,27 +256,39 @@ export default function MonthEndCloseView() {
   };
 
   const exportPackage = async () => {
+    if (busy || !checklistReady || partial) return;
+    const scope = captureScope();
+    setBusy(true);
     const toastId = toast.loading('Building the close package…');
     try {
       // R-11: the month's questions about entries go in too (read once, not kept live here)
       const queries = workspaceId
         ? (await getDocs(query(collection(db, 'clientQueries'), where('workspaceId', '==', workspaceId), limit(2000)))).docs.map(d => ({ ...(d.data() as Omit<ClientQuery, 'id'>), id: d.id }))
         : [];
+      if (!scope.isCurrent()) { toast.dismiss(toastId); return; }
+      if (queries.length >= 2000) throw new Error('The list of questions reached its limit. A complete package cannot be exported.');
       const sheets = closePackageSheets({
-        month, monthEnd: end, state: STATE_LABEL[state].text,
+        month, monthEnd: end, state: STATE_LABEL[state].text, currency: baseCurrency,
         closedThrough: [workspace?.lockDate || '', workspace?.softLockDate || ''].sort(byCodeUnit).pop() || '',
         items: [...items, ...stepItems], signOffs, accounts: accounts || [], transactions: transactions || [], queries,
       });
       const workbook = await createWorkbook();
+      if (!scope.isCurrent()) { toast.dismiss(toastId); return; }
+      const digits = getCurrencyFractionDigits(baseCurrency);
+      const numFmt = digits ? `#,##0.${'0'.repeat(digits)}` : '#,##0';
       for (const sheet of sheets) {
         const ws = workbook.addWorksheet(sheet.name);
-        ws.columns = sheet.columns.map(c => ({ header: c.header, key: c.key, width: c.width, ...(c.money ? { style: { numFmt: '#,##0.00' } } : {}) }));
+        ws.columns = sheet.columns.map(c => ({ header: c.header, key: c.key, width: c.width, ...(c.money ? { style: { numFmt: sheet.name === 'Questions' ? '#,##0.###' : numFmt } } : {}) }));
         for (const row of sheet.rows) ws.addRow(row);
       }
       await downloadWorkbook(workbook, `Close_Package_${month}.xlsx`);
-      toast.success('Close package downloaded.', { id: toastId });
+      if (scope.isCurrent()) toast.success('Close package downloaded.', { id: toastId });
+      else toast.dismiss(toastId);
     } catch (err) {
-      toast.error(`The package could not be built: ${err instanceof Error ? err.message : String(err)}`, { id: toastId });
+      if (scope.isCurrent()) toast.error(`The package could not be built: ${err instanceof Error ? err.message : String(err)}`, { id: toastId });
+      else toast.dismiss(toastId);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -248,10 +309,10 @@ export default function MonthEndCloseView() {
           <div className="flex items-end gap-3">
             <div>
               <label htmlFor="close-month" className="block text-xs font-semibold text-[var(--muted)] mb-1">Month</label>
-              <input id="close-month" type="month" value={month} onChange={e => e.target.value && setMonth(e.target.value)}
+              <input id="close-month" type="month" value={month} disabled={busy} onChange={e => chooseMonth(e.target.value)}
                 className="px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-sm text-[var(--text)]" />
             </div>
-            <button type="button" onClick={exportPackage} className="px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-sm text-[var(--text)] inline-flex items-center gap-2">
+            <button type="button" onClick={exportPackage} disabled={busy || !checklistReady || partial} className="px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-sm text-[var(--text)] inline-flex items-center gap-2 disabled:opacity-50">
               <BookOpen className="w-4 h-4" aria-hidden="true" /> Close package (.xlsx)
             </button>
           </div>
@@ -269,15 +330,25 @@ export default function MonthEndCloseView() {
                 {workspace?.lockDate ? `Closed through ${workspace.lockDate}` : 'Nothing is closed'}
                 {workspace?.softLockDate && workspace.softLockDate > (workspace.lockDate || '') ? ` · soft-closed through ${workspace.softLockDate}` : ''}
                 {lockException ? ` · unlocked ${lockException.fromDate} to ${lockException.toDate}` : ''}
-                {noTouchMonth.ratePercent !== null ? ` · No-touch bank rate: ${noTouchMonth.ratePercent}% (${noTouchMonth.noTouchCount}/${noTouchMonth.totalBankLines})` : ''}
+                {dataReady && noTouchMonth.ratePercent !== null ? ` · No-touch bank rate: ${noTouchMonth.ratePercent}% (${noTouchMonth.noTouchCount}/${noTouchMonth.totalBankLines})` : ''}
               </p>
             </div>
-            <div className="text-sm text-[var(--muted)]">{doneCount} of {items.length + stepItems.length} checked</div>
+            {checklistReady && <div className="text-sm text-[var(--muted)]">{doneCount} of {items.length + stepItems.length} checked{partial && ' in loaded data only'}</div>}
           </div>
 
-          <ul className="divide-y divide-[var(--line)]">
+          <div className="px-4 pt-2 space-y-2 text-sm">
+            {currentData && <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="the close checklist" />}
+            {(!currentData || dataHealth.loadingKeys.length > 0) && <p role="status">Loading the entries and documents for the close checklist…</p>}
+            {!currentPeriod && <p role="status">Loading sign-offs for {month}…</p>}
+            {currentPeriod?.failed && <p role="status">Couldn't load sign-offs for {month}.{' '}
+              <button type="button" className="underline min-h-11" onClick={() => { setPeriodRead(undefined); setPeriodRetry(attempt => attempt + 1); }}>Retry sign-offs</button>
+            </p>}
+            {dataReady && partial && <p role="status">The loaded records omit some history. Review the full reports before closing. Reposting and the close package are unavailable with incomplete records.</p>}
+          </div>
+          {dataReady && <ul className="divide-y divide-[var(--line)]">
             {items.map(item => {
               const signed = signOffs[item.id];
+              const tab = ITEM_TABS[item.id];
               return (
                 <li key={item.id} className="p-4 flex items-start gap-3">
                   <span className="mt-0.5" aria-hidden="true">
@@ -291,12 +362,13 @@ export default function MonthEndCloseView() {
                     {signed && <p className="text-xs text-[var(--muted)] mt-1">Signed off by {signed.by} on {signed.at.slice(0, 10)}{signed.note ? `: ${signed.note}` : ''}</p>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {item.status !== 'done' && item.id !== 'postings' && (
-                      <button type="button" onClick={() => setActiveTab(ITEM_TABS[item.id] as AppTab)} className="text-xs font-semibold text-[var(--brass)] hover:underline inline-flex items-center gap-1">
+                    {item.status !== 'done' && tab && (
+                      <button type="button" onClick={() => setActiveTab(tab)} className="text-xs font-semibold text-[var(--brass)] hover:underline inline-flex items-center gap-1">
                         Open <ArrowRight className="w-3 h-3" aria-hidden="true" />
                       </button>
                     )}
-                    {item.status === 'attention' && canSign && state !== 'hard' && (
+                    {item.status !== 'done' && item.id === 'trial-balance' && <CloseReportLink report="trial-balance" label="Open Trial Balance" endDate={end} />}
+                    {item.status === 'attention' && checklistReady && canSign && state !== 'hard' && (
                       <button type="button" disabled={busy} onClick={() => sign(item.id, !!signed)}
                         className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-[var(--line)] text-[var(--text)] disabled:opacity-50">
                         {signed ? 'Remove sign-off' : 'Sign off'}
@@ -318,7 +390,7 @@ export default function MonthEndCloseView() {
                     <p className="text-sm mt-0.5 text-[var(--muted)]">{item.detail}</p>
                     {signed && <p className="text-xs text-[var(--muted)] mt-1">Signed off by {signed.by} on {signed.at.slice(0, 10)}{signed.note ? `: ${signed.note}` : ''}</p>}
                   </div>
-                  {canSign && state !== 'hard' && (
+                  {checklistReady && canSign && state !== 'hard' && (
                     <button type="button" disabled={busy} onClick={() => sign(item.id, !!signed)} aria-label={`${signed ? 'Remove sign-off' : 'Sign off'}: ${item.title}`}
                       className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-lg border border-[var(--line)] text-[var(--text)] disabled:opacity-50">
                       {signed ? 'Remove sign-off' : 'Sign off'}
@@ -327,13 +399,13 @@ export default function MonthEndCloseView() {
                 </li>
               );
             })}
-          </ul>
+          </ul>}
 
           {canClose && workspace && (
             <CloseStepsEditor workspace={workspace} workspaces={workspaces} onSaved={closeSteps => patchWorkspace({ closeSteps })} />
           )}
 
-          {mismatches.length > 0 && (
+          {dataReady && !partial && mismatches.length > 0 && (
             <div className="p-4 border-t border-[var(--line)] space-y-2">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <p className="text-sm font-medium text-[var(--text)]">Documents to repost</p>
@@ -348,7 +420,7 @@ export default function MonthEndCloseView() {
                   <li key={`${m.kind}:${m.id}`} className="py-2 flex items-center justify-between gap-3">
                     <span className="text-[var(--text)]">
                       {MISMATCH_LABEL[m.kind]} {m.number}{m.party ? ` · ${m.party}` : ''}
-                      <span className="block text-xs text-[var(--muted)]">{m.detail}{m.issue === 'amount' ? ` (document ${formatCurrency(m.expectedCents)}, ledger ${formatCurrency(m.postedCents)})` : ''}</span>
+                      <span className="block text-xs text-[var(--muted)]">{m.detail}{m.issue === 'amount' ? ` (document ${formatCurrency(m.expectedCents, baseCurrency)}, ledger ${formatCurrency(m.postedCents, baseCurrency)})` : ''}</span>
                     </span>
                     {canSign && (
                       <button type="button" disabled={busy} onClick={() => repost([m])} className="text-xs font-semibold text-[var(--brass)] hover:underline disabled:opacity-50">Repost</button>
@@ -373,15 +445,14 @@ export default function MonthEndCloseView() {
               <p className="text-sm text-[var(--muted)]">Owners and accountants close and reopen periods. You can sign off the items you reviewed.</p>
             ) : state === 'open' ? (
               <div className="space-y-2">
-                {!readiness.ready && <p className="text-sm text-[var(--muted)]">{readiness.reason}</p>}
-                {collectionsLoading && <p className="text-sm text-[var(--muted)]">Loading invoices, bills and credits before the month can be closed…</p>}
+                {checklistReady && !readiness.ready && <p className="text-sm text-[var(--muted)]">{readiness.reason}</p>}
                 {isFutureMonth && <p className="text-sm text-[var(--muted)]">This month hasn't ended yet.</p>}
                 <div className="flex gap-3 flex-wrap">
-                  <button type="button" disabled={busy || collectionsLoading || isFutureMonth || items.some(i => i.status === 'blocker')} onClick={() => close('soft')}
+                  <button type="button" disabled={busy || !checklistReady || isFutureMonth || items.some(i => i.status === 'blocker')} onClick={() => close('soft')}
                     className="px-4 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm font-semibold text-[var(--text)] disabled:opacity-50">
                     Soft close (accountants can still adjust)
                   </button>
-                  <button type="button" disabled={busy || collectionsLoading || isFutureMonth || !readiness.ready} onClick={() => close('hard')}
+                  <button type="button" disabled={busy || !checklistReady || isFutureMonth || !readiness.ready} onClick={() => close('hard')}
                     className="px-4 py-2 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-sm font-bold disabled:opacity-50 inline-flex items-center gap-2">
                     <Lock className="w-4 h-4" aria-hidden="true" /> Close {month}
                   </button>
@@ -397,7 +468,7 @@ export default function MonthEndCloseView() {
             ) : (
               <div className="space-y-3">
                 {state === 'soft' && (
-                  <button type="button" disabled={busy || collectionsLoading || !readiness.ready} onClick={() => close('hard')}
+                  <button type="button" disabled={busy || !checklistReady || !readiness.ready} onClick={() => close('hard')}
                     className="px-4 py-2 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-sm font-bold disabled:opacity-50 inline-flex items-center gap-2">
                     <Lock className="w-4 h-4" aria-hidden="true" /> Close for good
                   </button>
@@ -420,11 +491,11 @@ export default function MonthEndCloseView() {
         </section>
 
         {/* A-151: the month's path in order, read-only; signing off and closing stay above. */}
-        <CloseJourneyPanel month={month} state={state} items={items} accounts={accounts} bankLines={bankLines}
-          invoices={invoices} bills={bills} journalEntries={journalEntries} currency={workspace?.currency || 'USD'} />
+        {dataReady && <CloseJourneyPanel partial={partial} month={month} state={state} items={items} accounts={accounts} bankLines={bankLines}
+          invoices={invoices} bills={bills} journalEntries={journalEntries} currency={workspace?.currency || 'USD'} />}
 
         {/* EG-3: the closing document of each closed year, every version, read-only and printable */}
-        <PeriodClosingPanel key={`${workspace?.lockDate || ''}`} workspaceId={workspaceId} currency={workspace?.currency} onOpenMonth={setMonth} />
+        <PeriodClosingPanel key={`${workspace?.lockDate || ''}`} workspaceId={workspaceId} currency={workspace?.currency} onOpenMonth={chooseMonth} />
 
         {/* CA-06: a closed month's balances now, against the snapshot taken when it was closed */}
         {state !== 'open' && (
@@ -432,7 +503,7 @@ export default function MonthEndCloseView() {
         )}
 
         {/* R-09: this month beside the month before and the same month last year, read-only. */}
-        <CloseComparisonPanel month={month} currency={workspace?.currency} />
+        {dataReady && <CloseComparisonPanel month={month} currency={workspace?.currency} />}
 
         {/* BD-04: per account and month, the balance at month end, a note, files and a review mark. */}
         <WorkpapersPanel month={month} currency={workspace?.currency} />

@@ -13,6 +13,7 @@ const REPORT_GROUP: Record<string, GroupId> = {
   'balance-sheet-by-label': 'Statements',
   'cash-flow': 'Statements',
   'general-ledger': 'Statements',
+  'trial-balance': 'Statements',
   'party-linked-trial-balance': 'Statements',
   'journal-sheet': 'Statements',
   'account-balances-as-of': 'Statements',

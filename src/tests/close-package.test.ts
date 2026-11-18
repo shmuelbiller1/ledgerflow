@@ -52,6 +52,18 @@ describe('Close package', () => {
 
   test('the month\'s ledger lines and questions (latest answer from the other side)', () => {
     assert.deepEqual(gl.rows.map(r => [r.date, r.ref, r.account, r.amount]), [['2026-09-10', 'R-sep', 'Checking', 300], ['2026-09-10', 'R-sep', 'Sales', -300]]);
-    assert.deepEqual(questions.rows, [{ date: '2026-09-10', entry: 'Entry q1', amount: 340, status: 'Answered', question: 'What was this?', answer: 'Office chairs' }]);
+    assert.deepEqual(questions.rows, [{ date: '2026-09-10', entry: 'Entry q1', amount: 340, currency: 'USD', status: 'Answered', question: 'What was this?', answer: 'Office chairs' }]);
   });
+});
+
+test('the workbook preserves minor units for a JPY ledger and a KWD question', () => {
+  const q = query('q', '2026-09-05', 'open');
+  q.entry = { ...q.entry, currency: 'KWD', amountCents: 1234 };
+  const [, tb, gl, questions] = closePackageSheets({
+    month: '2026-09', monthEnd: '2026-09-30', state: 'Open', closedThrough: '', currency: 'JPY',
+    accounts: [], transactions: [sale('jpy', '2026-09-10', 40000)], items: [], signOffs: {}, queries: [q],
+  });
+  assert.deepEqual([tb.rows.at(-1)?.debit, tb.rows.at(-1)?.credit], [40000, 40000]);
+  assert.deepEqual(gl.rows.map(r => r.amount), [40000, -40000]);
+  assert.deepEqual([questions.rows[0].currency, questions.rows[0].amount], ['KWD', 1.234]);
 });
