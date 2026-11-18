@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { getLocalDateISO } from '../../../lib/utils';
 import { recordBackupCompleted } from '../../../lib/ledgerBackupHealth';
 import { isPostable } from '../../../lib/txFilters';
+import { useDialog } from '../../../hooks/useDialog';
 import WorkspaceExportDialog from './WorkspaceExportDialog';
 import WorkspaceArchiveExport from './WorkspaceArchiveExport';
 import YearEndArchiveExport from './YearEndArchiveExport';
@@ -16,10 +17,28 @@ import { BRAND } from '../../../config/brand';
 
 /** The shape the export endpoint answers: a full archive plus a count of what is in it. */
 interface BackupPayload {
-  metadata?: { transactionCount?: number; totalCount?: number; [key: string]: unknown };
+  exportedAt?: string;
+  metadata?: { transactionCount?: number; totalCount?: number; serverAuthoritative?: boolean; checksum?: string; [key: string]: unknown };
   transactions?: unknown[];
+  accounts?: unknown[];
   [key: string]: unknown;
 }
+
+/** A verified backup file waiting for the user's explicit confirmation before replacing workspace records. */
+interface PendingRestore {
+  workspaceId: string;
+  fileName: string;
+  rawText: string;
+  exportedAt: string | null;
+  transactionCount: number;
+  accountCount: number;
+}
+
+const PARTIAL_OFFLINE_WARNING =
+  'The server could not be reached, so this file only contains records currently open in this browser tab. It is not a full backup and cannot restore a workspace.';
+
+const PARTIAL_RESTORE_REFUSAL =
+  'Partial offline backups only contain what one browser tab had open and cannot restore a workspace. Export a full backup while connected to the server.';
 
 export default function BackupExportSettings() {
   const [exportOpen, setExportOpen] = useState(false);
@@ -38,7 +57,13 @@ export default function BackupExportSettings() {
   }, []);
   const [isExporting, setIsExporting] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [offlineExportWarning, setOfflineExportWarning] = useState<string | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cancelPendingRestore = () => {
+    if (!isRestoring) setPendingRestore(null);
+  };
+  const { dialogProps: restoreDialogProps, titleId: restoreTitleId } = useDialog(cancelPendingRestore, Boolean(pendingRestore));
 
   const exportJSON = async () => {
     setIsExporting(true);
@@ -106,17 +131,22 @@ export default function BackupExportSettings() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${BRAND.fileSlug}-backup-${workspaceId}-${getLocalDateISO()}.json`;
+      link.download = usedServer
+        ? `${BRAND.fileSlug}-backup-${workspaceId}-${getLocalDateISO()}.json`
+        : `${BRAND.fileSlug}-partial-offline-backup-${workspaceId}-${getLocalDateISO()}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
-      recordBackupCompleted(workspaceId);
+
       if (usedServer) {
-        toast.success(`Full verified backup exported (${payload.metadata?.transactionCount || payload.transactions?.length} transactions)`);
+        setOfflineExportWarning(null);
+        recordBackupCompleted(workspaceId);
+        toast.success(`Full verified backup exported (${payload.metadata?.transactionCount ?? payload.transactions?.length ?? 0} transactions)`);
       } else {
-        toast.warning('Offline backup: only what this page has loaded, not a complete archive.');
+        // #776: never mark backup health complete for a partial browser-cache snapshot
+        setOfflineExportWarning(PARTIAL_OFFLINE_WARNING);
+        toast.warning(PARTIAL_OFFLINE_WARNING);
       }
     } catch (e) {
       console.error(e);
@@ -142,10 +172,15 @@ export default function BackupExportSettings() {
       const text = /\.zip$/i.test(file.name)
         ? (await backupFromWorkspaceArchive(new Uint8Array(await file.arrayBuffer()))).text
         : await file.text();
-      const payload = JSON.parse(text);
+      const payload = JSON.parse(text) as BackupPayload;
 
       if (!payload.schemaVersion || !payload.metadata || !payload.metadata.checksum) {
         throw new Error("Invalid backup format: Missing schema version or checksum");
+      }
+
+      // #776: refuse partial browser-cache files before checksum or confirmation so missing collections are never wiped
+      if (payload.metadata.serverAuthoritative === false) {
+        throw new Error(PARTIAL_RESTORE_REFUSAL);
       }
 
       // Verify checksum
@@ -167,21 +202,47 @@ export default function BackupExportSettings() {
          throw new Error("Backup file invalid: Missing core ledger collections.");
       }
 
-      const token = await authState.user?.getIdToken();
-      // the file's own text is the body: send it as it is, not JSON-encoded a second time
-      const result = await runCommand<{ message?: string }>({
-        path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/restore`,
-        method: 'POST',
-        token,
-        rawBody: text,
+      setPendingRestore({
+        workspaceId,
+        fileName: file.name,
+        rawText: text,
+        exportedAt: typeof payload.exportedAt === 'string' ? payload.exportedAt : null,
+        transactionCount: payload.transactions.length,
+        accountCount: payload.accounts.length,
       });
-      toast.success(result.message || "Workspace general ledger successfully restored from backup snapshot.");
     } catch (e) {
       console.error("Restore failed:", e);
       toast.error(`Restore failed: ${commandErrorMessage(e)}`);
     } finally {
       setIsRestoring(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const confirmRestore = async () => {
+    if (!pendingRestore) return;
+    setIsRestoring(true);
+    try {
+      const authState = useAuthStore.getState();
+      const workspaceId = authState.currentWorkspaceId;
+      if (!workspaceId || workspaceId !== pendingRestore.workspaceId) {
+        throw new Error('The active workspace changed. Choose the backup file again in the workspace you want to restore.');
+      }
+      const token = await authState.user?.getIdToken();
+      // the file's own text is the body: send it as it is, not JSON-encoded a second time
+      const result = await runCommand<{ message?: string }>({
+        path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/restore`,
+        method: 'POST',
+        token,
+        rawBody: pendingRestore.rawText,
+      });
+      setPendingRestore(null);
+      toast.success(result.message || "Workspace general ledger successfully restored from backup snapshot.");
+    } catch (e) {
+      console.error("Restore failed:", e);
+      toast.error(`Restore failed: ${commandErrorMessage(e)}`);
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -208,13 +269,19 @@ export default function BackupExportSettings() {
             Download a complete JSON snapshot of all your ledgers, accounts, invoices, and settings.
           </p>
           <button 
+            type="button"
             onClick={exportJSON}
             disabled={isExporting}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors"
+            className="w-full min-h-11 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
           >
             <Download aria-hidden="true" size={16} />
             Export JSON Backup
           </button>
+          {offlineExportWarning && (
+            <p role="alert" className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
+              {offlineExportWarning}
+            </p>
+          )}
         </div>
 
         <div className="bg-[var(--surface)] border border-[var(--line)] rounded-xl p-6">
@@ -257,9 +324,10 @@ export default function BackupExportSettings() {
             className="hidden" 
           />
           <button 
+            type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isRestoring}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-sm font-medium transition-colors"
+            className="w-full min-h-11 flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
           >
             <Upload aria-hidden="true" size={16} />
             Restore Workspace
@@ -267,59 +335,73 @@ export default function BackupExportSettings() {
         </div>
       </div>
 
-      {/* Firestore Continuous PITR & Backup Schedule Section */}
-      <div className="bg-indigo-950/40 border border-indigo-500/30 rounded-xl p-6 space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-indigo-500/20 text-indigo-400 rounded-lg flex items-center justify-center">
-              <Database aria-hidden="true" size={20} />
+      {pendingRestore && (
+        <div
+          {...restoreDialogProps}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        >
+          <div className="w-full max-w-md rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 text-[var(--text)] shadow-xl space-y-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle aria-hidden="true" className="text-rose-600 shrink-0 mt-0.5" size={20} />
+              <div className="space-y-1">
+                <h3 id={restoreTitleId} className="text-base font-bold text-[var(--text)]">
+                  Replace workspace records from backup?
+                </h3>
+                <p className="text-sm text-[var(--muted)]">
+                  Restoring <span className="font-medium text-[var(--text)]"><bdi>{pendingRestore.fileName}</bdi></span> replaces current entries, accounts, and documents in this workspace with the verified snapshot.
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-white text-base">Firestore Point-In-Time Recovery (PITR) & Automated Backups</h3>
-              <p className="text-xs text-indigo-200/80">Continuous 7-day microsecond-precision data protection & scheduled backups</p>
+            <dl className="grid grid-cols-2 gap-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3 text-xs">
+              <div>
+                <dt className="text-[var(--muted)]">Transactions</dt>
+                <dd className="font-mono font-semibold text-[var(--text)] tabular-nums">{pendingRestore.transactionCount}</dd>
+              </div>
+              <div>
+                <dt className="text-[var(--muted)]">Accounts</dt>
+                <dd className="font-mono font-semibold text-[var(--text)] tabular-nums">{pendingRestore.accountCount}</dd>
+              </div>
+              {pendingRestore.exportedAt && (
+                <div className="col-span-2">
+                  <dt className="text-[var(--muted)]">Exported</dt>
+                  <dd className="font-mono text-[var(--text)] tabular-nums"><bdi>{pendingRestore.exportedAt.slice(0, 19).replace('T', ' ')} UTC</bdi></dd>
+                </div>
+              )}
+            </dl>
+            <p className="text-xs text-[var(--muted)]">
+              Download a fresh backup first if you want a copy of changes made since this snapshot.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={cancelPendingRestore}
+                disabled={isRestoring}
+                className="min-h-11 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--panel)] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRestore}
+                disabled={isRestoring}
+                className="min-h-11 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+              >
+                {isRestoring ? 'Restoring…' : 'Confirm restore'}
+              </button>
             </div>
           </div>
-          <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-xs font-semibold flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            PITR Active
-          </span>
         </div>
+      )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          <div className="bg-indigo-900/40 border border-indigo-800/50 p-3.5 rounded-lg">
-            <p className="text-xs text-indigo-300 font-medium">PITR Retention Window</p>
-            <p className="text-lg font-bold text-white mt-1">7 Days Continuous</p>
-            <p className="text-[11px] text-indigo-300/70 mt-0.5">Recover to any second in past 7d</p>
-          </div>
-          <div className="bg-indigo-900/40 border border-indigo-800/50 p-3.5 rounded-lg">
-            <p className="text-xs text-indigo-300 font-medium">Daily Schedule</p>
-            <p className="text-lg font-bold text-white mt-1">02:00 UTC Daily</p>
-            <p className="text-[11px] text-indigo-300/70 mt-0.5">14-day snapshot retention</p>
-          </div>
-          <div className="bg-indigo-900/40 border border-indigo-800/50 p-3.5 rounded-lg">
-            <p className="text-xs text-indigo-300 font-medium">RPO & RTO</p>
-            <p className="text-lg font-bold text-emerald-400 mt-1">RPO &lt; 1s | RTO &lt; 5m</p>
-            <p className="text-[11px] text-indigo-300/70 mt-0.5">Zero data-loss architecture</p>
-          </div>
-        </div>
-
-        <div className="text-xs text-indigo-200/70 bg-indigo-900/20 p-3 rounded-lg border border-indigo-800/30 flex justify-between items-center">
-          <span>GCP Command: <code className="font-mono text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded">gcloud firestore databases update --point-in-time-recovery</code></span>
-          <button 
-            onClick={() => toast.success('PITR Policy verified active on Google Cloud Firestore database')}
-            className="text-indigo-300 hover:text-white underline font-medium text-xs"
-          >
-            Verify Backup Policy
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex gap-4">
-        <AlertCircle aria-hidden="true" className="text-amber-500 shrink-0 mt-0.5" size={20} />
-        <div>
-          <h4 className="font-bold text-amber-500 text-sm">Accountant Access & QBO Export</h4>
-          <p className="text-sm text-amber-500/80 mt-1">
-            Need a direct IIF or QuickBooks-formatted file? The CSV export can be imported into most major accounting systems. A direct QBO integration is coming in Q4.
+      <div className="bg-[var(--surface)] border border-[var(--line)] rounded-xl p-4 flex gap-4">
+        <AlertCircle aria-hidden="true" className="text-[var(--muted)] shrink-0 mt-0.5" size={20} />
+        <div className="space-y-1">
+          <h3 className="font-bold text-[var(--text)] text-sm">Backup verification & accountant copies</h3>
+          <p className="text-sm text-[var(--muted)]">
+            Full JSON backups and workspace ZIP archives include a SHA-256 integrity check that is verified before a restore runs. Download a full backup while online before bulk imports, period close, or restoring an earlier copy. Database-level recovery depends on your hosting environment and is not configured from this screen.
+          </p>
+          <p className="text-sm text-[var(--muted)]">
+            To share records with an accountant or import into desktop accounting software, use Data exports for CSV or Excel files, or the IIF list export above.
           </p>
         </div>
       </div>

@@ -154,6 +154,7 @@ async function restoreBackup(page: Page, fileText: string) {
     mimeType: 'application/json',
     buffer: Buffer.from(fileText, 'utf8'),
   });
+  await page.getByRole('button', { name: 'Confirm restore' }).click();
   return restoreRequest;
 }
 

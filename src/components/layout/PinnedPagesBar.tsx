@@ -59,7 +59,7 @@ export default function PinnedPagesBar() {
               <kbd className="font-mono text-[10px] text-[var(--faint)]">{i + 1}</kbd>
               <span className="whitespace-nowrap">{label}</span>
             </button>
-            <button type="button" onClick={() => toggle(page)} aria-label={`Unpin ${label}`} className="pr-1.5 pl-0.5 py-1 opacity-60 hover:opacity-100">
+            <button type="button" onClick={() => toggle(page)} aria-label={`Unpin ${label}`} className="pe-1.5 ps-0.5 py-1 opacity-60 hover:opacity-100">
               <PinOff aria-hidden="true" size={11} />
             </button>
           </span>

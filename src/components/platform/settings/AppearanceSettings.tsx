@@ -245,7 +245,7 @@ export default function AppearanceSettings() {
               aria-pressed={fontFamily === font.id}
               onClick={() => setFontFamily(font.id as unknown as "system" | "inter" | "jakarta" | "serif" | "mono")}
               className={cn(
-                "p-5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 group",
+                "p-5 rounded-xl border text-start transition-all cursor-pointer flex flex-col justify-between gap-3 group",
                 fontFamily === font.id
                   ? "bg-[var(--brass-soft)] border-[var(--brass)] ring-1 ring-[var(--brass)] shadow-sm"
                   : "bg-[var(--panel)] border-[var(--line)] hover:border-[var(--brass-line)]"
@@ -491,7 +491,7 @@ export default function AppearanceSettings() {
             >
               <div className={cn(
                 "w-5 h-5 rounded-full bg-black transition-transform",
-                highContrast ? "translate-x-6" : "translate-x-0"
+                highContrast ? "translate-x-6 rtl:-translate-x-6" : "translate-x-0"
               )} />
             </button>
           </div>
@@ -515,7 +515,7 @@ export default function AppearanceSettings() {
             >
               <div className={cn(
                 "w-5 h-5 rounded-full bg-black transition-transform",
-                reduceMotion ? "translate-x-6" : "translate-x-0"
+                reduceMotion ? "translate-x-6 rtl:-translate-x-6" : "translate-x-0"
               )} />
             </button>
           </div>

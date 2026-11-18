@@ -398,7 +398,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
             <label htmlFor={`${formId}-comparative`} aria-label={reportText('r.comparative-mode-sp', 'Comparative Mode')} className="flex min-h-11 items-center gap-2 cursor-pointer rounded focus-within:outline focus-within:outline-2 focus-within:outline-[var(--brass)]">
               <input id={`${formId}-comparative`} type="checkbox" className="sr-only" checked={isComparative} disabled={basis === 'cash'} onChange={(e) => setIsComparative(e.target.checked)} />
               <span aria-hidden="true" className={cn("w-8 h-4 shrink-0 rounded-full flex items-center p-0.5", isComparative ? "bg-indigo-500" : "bg-slate-300")}>
-                <span className={cn("w-3 h-3 bg-[var(--surface)] rounded-full shadow-sm", isComparative ? "translate-x-4" : "translate-x-0")} />
+                <span className={cn("w-3 h-3 bg-[var(--surface)] rounded-full shadow-sm", isComparative ? "translate-x-4 rtl:-translate-x-4" : "translate-x-0")} />
               </span>
               <span className="text-[10px] text-[var(--text)]">{compareTo === 'budget' ? reportText('r.budget', 'Budget') : reportText('r.prior-period-b', 'Prior period')}</span>
             </label>
@@ -516,7 +516,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
             >{reportText('r.entries', 'Entries')}</button>
             {isComparative && prevData.netIncome !== 0 && (
                <span className={cn(
-                 "text-[9px] font-bold ml-auto", 
+                 "text-[9px] font-bold ms-auto", 
                  (data.netIncome || 0) >= prevData.netIncome ? "text-emerald-400" : "text-rose-400"
                )}>
                  {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}{reportText('r.vs', '% vs ')}{vsBudget ? reportText('r.budget', 'Budget') : reportText('r.prior', 'Prior')}
@@ -571,7 +571,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                 </button>
               ))}
             </div>
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0 ml-2" />
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0 ms-2" />
           </div>
         </div>
         
@@ -650,7 +650,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
             </div>
             <div className="flex flex-col items-end sm:items-center sm:flex-row gap-4 text-right tabular-nums">
               {isComparative && prevData.netIncome !== 0 && (
-                <div className="flex flex-col sm:items-end items-end mr-4">
+                <div className="flex flex-col sm:items-end items-end me-4">
                   <span className="text-[9px] font-bold text-[var(--muted)] font-medium tracking-wider mb-1">{reportText('r.prior-period', 'PRIOR PERIOD')}</span>
                   <span className="font-mono text-sm text-slate-300 line-through opacity-70">
                     <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prevData.netIncome)}</bdi>

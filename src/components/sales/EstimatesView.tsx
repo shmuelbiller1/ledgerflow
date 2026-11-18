@@ -373,7 +373,7 @@ export default function EstimatesView() {
             onAction={canWrite ? () => setIsCreating(true) : undefined}
           />
         ) : (
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-start text-xs">
             <caption className="sr-only">Estimates</caption>
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 text-[var(--muted)] font-semibold uppercase text-[10px]">
@@ -428,18 +428,22 @@ export default function EstimatesView() {
                         <Paperclip className="w-4 h-4" aria-hidden="true" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => setPreviewEstimate(est)}
-                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+                        aria-label={`Preview PDF for estimate ${est.number || est.id}`}
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
                         title="Preview PDF"
                       >
-                        <Eye className="w-3.5 h-3.5" />
+                        <Eye className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => downloadDocumentPdf('estimate', est.id, currentWorkspaceId || 'default', `estimate_${est.number || est.id}.pdf`)}
-                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+                        aria-label={`Download PDF for estimate ${est.number || est.id}`}
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
                         title="Download PDF"
                       >
-                        <Download className="w-3.5 h-3.5" />
+                        <Download className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
                       {canTakeDeposit && !['converted', 'declined', 'expired'].includes(est.status) && (
                         <button type="button" disabled={isGuest} title={isGuest ? 'Deposits need a signed-in workspace.' : undefined} onClick={() => { if (!isGuest) setDepositFor(est); }}
@@ -465,26 +469,27 @@ export default function EstimatesView() {
                       )}
                       {deliveriesShip && isOrder(est) && hasItemLines(est) && stage !== 'declined' && (
                         <button type="button" onClick={() => setDelivering(est)}
-                          className="px-2.5 py-1 text-xs font-semibold border border-indigo-500/40 text-indigo-600 dark:text-indigo-400 rounded-md hover:bg-indigo-500/10 ml-1"
+                          className="px-2.5 py-1 text-xs font-semibold border border-indigo-500/40 text-indigo-600 dark:text-indigo-400 rounded-md hover:bg-indigo-500/10 ms-1"
                           aria-label={`Deliver order ${est.number || ''}`.trim()} title="Goods leaving: stock goes down and their cost is booked">
                           Deliver
                         </button>
                       )}
                       {canWrite && isOrder(est) && progress.leftCents > 0 && stage !== 'declined' && (
                         <button type="button" onClick={() => setInvoicing(est)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors ml-1"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors ms-1"
                           aria-label={`Invoice order ${est.number || ''}`.trim()}>
                           <span>Invoice</span>
-                          <ArrowRight className="w-3 h-3" />
+                          <ArrowRight className="w-3 h-3 rtl:rotate-180" aria-hidden="true" />
                         </button>
                       )}
                       {est.status !== 'converted' && !isOrder(est) && stage !== 'declined' && (
                         <button
+                          type="button"
                           onClick={() => handleConvertToInvoice(est)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors ml-1"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors ms-1"
                         >
                           <span>Convert</span>
-                          <ArrowRight className="w-3 h-3" />
+                          <ArrowRight className="w-3 h-3 rtl:rotate-180" aria-hidden="true" />
                         </button>
                       )}
                     </div>

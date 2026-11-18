@@ -303,7 +303,7 @@ export function StatementColumns(props: StatementColumnsProps) {
               </caption>
               <thead className="bg-[var(--ink)]">
                 <tr>
-                  <th scope="col" rowSpan={2} className="p-3 text-left">
+                  <th scope="col" rowSpan={2} className="p-3 text-start">
                     <button
                       type="button"
                       onClick={() => onSort("name")}
@@ -313,7 +313,7 @@ export function StatementColumns(props: StatementColumnsProps) {
                       Account
                     </button>
                   </th>
-                  <th scope="col" rowSpan={2} className="p-3 text-left">
+                  <th scope="col" rowSpan={2} className="p-3 text-start">
                     <button
                       type="button"
                       onClick={() => onSort("code")}
@@ -402,11 +402,11 @@ export function StatementColumns(props: StatementColumnsProps) {
                     key={row.id}
                     className={`border-t border-[var(--line)] ${row.total || row.heading ? "font-semibold bg-[var(--ink)]" : ""} ${row.subtotal ? "font-semibold" : ""}`}
                   >
-                    <th scope="row" className="p-3 text-left whitespace-nowrap">
+                    <th scope="row" className="p-3 text-start whitespace-nowrap">
                       <span
                         className="inline-flex items-center gap-1"
                         style={{
-                          paddingLeft: `${(row.depth || 0) * ACCOUNT_GROUP_INDENT_PX}px`,
+                          paddingInlineStart: `${(row.depth || 0) * ACCOUNT_GROUP_INDENT_PX}px`,
                         }}
                       >
                         {groupId ? (

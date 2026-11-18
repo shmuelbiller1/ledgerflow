@@ -66,7 +66,7 @@ export function BalanceSheetAccountRows({
                 onDrillDown({ accountName: acc.name, transactions: matchedTxs, explain: { accountIds: [acc.id], endDate: asOfDate || undefined, expectedCents: curVal, sign: greenWhen === 'up' ? 1 : -1 } });
               }}
               title={`Click to drill down into ${acc.name}`}
-              className="w-full text-left flex justify-between items-center hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 p-2 rounded-lg transition-all border border-transparent hover:border-indigo-300 dark:hover:border-indigo-800 min-w-0 cursor-pointer group/row"
+              className="w-full text-start flex justify-between items-center hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 p-2 rounded-lg transition-all border border-transparent hover:border-indigo-300 dark:hover:border-indigo-800 min-w-0 cursor-pointer group/row"
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 bg-[var(--ink)] text-[var(--muted)] rounded-md flex items-center justify-center text-[9px] font-bold font-mono border border-[var(--line)] shrink-0">
@@ -80,7 +80,7 @@ export function BalanceSheetAccountRows({
                   <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider truncate">{acc.category || fallbackCategory}</p>
                 </div>
               </div>
-              <div className="flex flex-col items-end shrink-0 ml-2">
+              <div className="flex flex-col items-end shrink-0 ms-2">
                 <span className="font-mono font-bold text-[var(--text)] text-xs tabular-nums whitespace-nowrap"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(curVal)}</bdi></span>
                 {isComparative && (
                   <div className="flex items-center gap-1.5 mt-0.5">

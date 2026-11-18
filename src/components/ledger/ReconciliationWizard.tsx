@@ -203,7 +203,7 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
               >
                 <div className="space-y-8">
                   <div className="space-y-3">
-                    <Labelled labelClassName="block text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] italic ml-2" label="Bank account">
+                    <Labelled labelClassName="block text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] italic ms-2" label="Bank account">
                       <select 
                         value={selectedAccount}
                         onChange={(e) => setSelectedAccount(e.target.value)}
@@ -219,7 +219,7 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
 
                   <div className="grid grid-cols-2 gap-8">
                     <div className="space-y-3">
-                      <Labelled labelClassName="block text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] italic ml-2" label="Statement date">
+                      <Labelled labelClassName="block text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] italic ms-2" label="Statement date">
                         <input 
                           type="date"
                           value={statementDate}
@@ -229,7 +229,7 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
                       </Labelled>
                     </div>
                     <div className="space-y-3">
-                      <Labelled labelClassName="block text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] italic ml-2" label="Statement ending balance ($)">
+                      <Labelled labelClassName="block text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] italic ms-2" label="Statement ending balance ($)">
                         <input 
                           type="number"
                           step="0.01"
@@ -294,13 +294,13 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
                         <p className="text-[8px] font-black text-[var(--muted)] uppercase mt-1 opacity-40">Tick the entries shown on the statement</p>
                     </div>
                     <div className="relative">
-                      <Search aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)]" size={14} />
+                      <Search aria-hidden="true" className="absolute start-4 top-1/2 -translate-y-1/2 text-[var(--muted)]" size={14} />
                       <input aria-label="Search ledger transactions"
                         type="text" 
                         placeholder="Search transactions..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-11 pr-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl text-[10px] font-black uppercase italic tracking-tight focus:outline-none focus:ring-1 focus:ring-indigo-600 text-[var(--text)] w-64 transition-all"
+                        className="ps-11 pe-5 py-3 bg-[var(--ink)] border border-[var(--line)] rounded-xl text-[10px] font-black uppercase italic tracking-tight focus:outline-none focus:ring-1 focus:ring-indigo-600 text-[var(--text)] w-64 transition-all"
                       />
                     </div>
                   </div>
@@ -308,9 +308,10 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
                     {filteredTransactions.map(t => (
                       <button type="button"
                         key={t.id}
+                        aria-pressed={reconciledIds.includes(t.id)}
                         onClick={() => handleToggle(t.id)}
                         className={cn(
-                          "w-full text-left p-6 flex items-center justify-between hover:bg-[var(--ink)]/40 transition-all cursor-pointer group",
+                          "w-full text-start p-6 flex items-center justify-between hover:bg-[var(--ink)]/40 transition-all cursor-pointer group",
                           reconciledIds.includes(t.id) && "bg-indigo-600/[0.03]"
                         )}
                       >
