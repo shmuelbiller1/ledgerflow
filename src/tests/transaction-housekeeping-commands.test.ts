@@ -165,3 +165,53 @@ test('both previews describe the change and write nothing', async () => {
     await harness.close();
   }
 });
+
+test('a reset actually empties a seeded demo workspace, across more than one table, and keeps the audit trail', async () => {
+  // The first draft of this command read each table and deleted its rows in the same loop, which the real
+  // transaction refuses ("all reads before all writes") — so every real demo workspace would have failed
+  // the reset while these tests passed. This one runs a successful reset over two tables and the trail.
+  const harness = await createHarness();
+  try {
+    harness.db.seed(`transactions/tx-1`, { workspaceId: WS, date: '2026-01-01', totalAmountCents: 100 });
+    harness.db.seed(`transactions/tx-2`, { workspaceId: WS, date: '2026-01-02', totalAmountCents: 200 });
+    harness.db.seed(`chartAccounts/acc-1`, { workspaceId: WS, name: 'Cash', type: 'asset' });
+    harness.db.seed(`auditLogs/log-1`, { workspaceId: WS, action: 'ACCOUNT_CREATED' });
+    harness.db.seed(`transactions/other-ws-tx`, { workspaceId: 'ws-other', date: '2026-01-01' });
+
+    const response = await harness.run(OWNER, 'transaction.reset', { workspaceId: WS, confirmReset: true });
+    assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+
+    const rows = async (path: string) => (await harness.db.collection(path.split('/')[0]).where('workspaceId', '==', WS).get()).docs.length;
+    assert.equal(await rows('transactions/x'), 0, 'the entries are gone');
+    assert.equal(await rows('chartAccounts/x'), 0, 'the accounts are gone');
+    assert.notEqual(await harness.db.collection('transactions').doc('other-ws-tx').get().then(s => s.data()), undefined, 'another workspace is untouched');
+    assert.notEqual(await harness.db.collection('auditLogs').doc('log-1').get().then(s => s.data()), undefined, 'the audit trail is never cleared');
+    assert.notEqual(await harness.db.collection('workspaces').doc(WS).get().then(s => s.data()), undefined, 'the workspace row remains');
+  } finally {
+    await harness.close();
+  }
+});
+
+test('a migration refuses rather than overwrite an entry that changed after it was prepared', async () => {
+  // prepareDimensionMigration reads the entries outside the transaction; without re-reading them inside
+  // it the write would be a full t.set of the snapshot prepare saw, silently replacing a concurrent edit.
+  const { prepareDimensionMigration, migrateDimensionsInTransaction } = await import('../server/services/dimensionMigrationService');
+  const db = new MemoryDb();
+  seed(db, { dimensions: [{ id: 'dept', name: 'Department', values: [{ id: 'sales', name: 'Sales' }] }] } as never);
+  // the dimension value lives in the line's `dimensions` map, keyed by the axis id
+  const balanced = [
+    { accountId: 'bank', amountCents: -100, dimensions: { dept: 'sales' } },
+    { accountId: 'exp', amountCents: 100 },
+  ];
+  db.seed(`transactions/tx-1`, { workspaceId: WS, totalAmountCents: 100, currency: 'USD', status: 'posted', date: '2026-01-01', description: 'Paper', lines: balanced });
+  const firestore = db as unknown as Parameters<typeof prepareDimensionMigration>[0];
+  const prepared = await prepareDimensionMigration(firestore, WS, { uid: OWNER });
+  // someone edits it while the migration is in flight
+  const edited = { ...(await db.collection('transactions').doc('tx-1').get()).data()!, description: 'Paper (edited)' };
+  db.seed('transactions/tx-1', edited);
+
+  await assert.rejects(
+    db.runTransaction(t => migrateDimensionsInTransaction(firestore, WS, { uid: OWNER }, prepared, t as never)),
+    (error: unknown) => (error as { status?: number }).status === 409,
+  );
+});

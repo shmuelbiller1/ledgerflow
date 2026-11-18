@@ -32,14 +32,12 @@ export const RESET_COLLECTIONS = [
   'taxRates', 'partners', 'autoRules', 'bankLines',
 ] as const;
 
-export type ResetPrepared = { workspace: Record<string, unknown>; cleared: Record<string, number> };
-
 export const transactionResetInput = z.object({
   workspaceId: workspaceIdField,
   confirmReset: z.literal(true, { message: 'Explicit confirmation required (confirmReset: true).' }),
 }).strict();
 
-export const transactionResetCommand: CommandDefinition<typeof transactionResetInput, { status: 'ok' }, ResetPrepared> = {
+export const transactionResetCommand: CommandDefinition<typeof transactionResetInput, { status: 'ok' }, { workspace: Record<string, unknown> }> = {
   name: 'transaction.reset',
   input: transactionResetInput,
   // the route has always required the workspace owner (or a platform admin); nothing narrower, nothing wider
@@ -49,21 +47,18 @@ export const transactionResetCommand: CommandDefinition<typeof transactionResetI
     // the demo-data rule and the owner check are answered against the workspace as it is read now; they
     // are checked again inside the transaction, where the clear actually happens
     assertResettable(ctx.workspace);
-    return { workspace: ctx.workspace, cleared: {} };
+    return { workspace: ctx.workspace };
   },
   async handler(ctx, tx, _input) {
+    // EVERY READ FIRST. A Firestore transaction refuses a read once a write is queued (pgFirestore.ts),
+    // so the workspace and all the tables are read before a single delete is queued.
     const wsNow = (await tx.get(ctx.db.collection('workspaces').doc(ctx.workspaceId))).data();
     assertResettable(wsNow);
-
-    const cleared: Record<string, number> = {};
-    for (const coll of RESET_COLLECTIONS) {
-      // the route deleted in pages of 500 through the pool before its transaction; inside the runner's
-      // transaction the same pages are read and deleted, so the clear and the audit line commit together
-      const snapshot = await tx.get(ctx.db.collection(coll).where('workspaceId', '==', ctx.workspaceId));
-      for (const doc of snapshot.docs) tx.delete(doc.ref);
-      if (snapshot.docs.length) cleared[coll] = snapshot.docs.length;
-    }
-    // the same record the route wrote, in the runner's transaction rather than after it
+    const snapshots = await Promise.all(
+      RESET_COLLECTIONS.map(coll => tx.get(ctx.db.collection(coll).where('workspaceId', '==', ctx.workspaceId))),
+    );
+    // then the writes, in a single pass; one query per table, as the route ran them
+    for (const snapshot of snapshots) for (const doc of snapshot.docs) tx.delete(doc.ref);
     return { status: 'ok' as const };
   },
   async preview(_ctx, _input) {

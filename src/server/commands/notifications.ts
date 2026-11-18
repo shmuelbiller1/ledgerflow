@@ -30,17 +30,19 @@ export const notificationsReadCommand: CommandDefinition<typeof notificationsRea
   scope: 'person',
   async handler(ctx: CommandContext, tx, input: ReadInput) {
     const readAt = new Date().toISOString();
+    // EVERY READ FIRST: a transaction refuses a read once a write is queued, so marking three notifications
+    // would have failed on the second. The rows are read in one pass and written in the next.
+    const refs = input.ids.map(id => ctx.db.collection('notifications').doc(id));
+    const snapshots = await Promise.all(refs.map(ref => tx.get(ref)));
     let marked = 0;
-    for (const id of input.ids) {
-      const ref = ctx.db.collection('notifications').doc(id);
-      const snapshot = await tx.get(ref);
+    snapshots.forEach((snapshot, index) => {
       // someone else's notification, one already read, or one that is gone: nothing to do, and nothing to say
-      if (!snapshot.exists) continue;
+      if (!snapshot.exists) return;
       const row = snapshot.data() as Record<string, unknown> | undefined;
-      if (row?.uid !== ctx.actor || row?.read === true) continue;
-      tx.update(ref, { read: true, readAt });
+      if (row?.uid !== ctx.actor || row?.read === true) return;
+      tx.update(refs[index], { read: true, readAt });
       marked += 1;
-    }
+    });
     return { marked, readAt };
   },
   async preview(_ctx: CommandContext, input: ReadInput) {

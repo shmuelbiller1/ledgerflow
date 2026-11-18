@@ -80,24 +80,44 @@ export async function migrateDimensionsInTransaction(
   prepared: DimensionMigrationPrepared,
   t: FirestoreTransaction,
 ): Promise<DimensionMigrationResult> {
+  // EVERY READ FIRST: a Firestore transaction refuses a read once a write is queued, and — more
+  // importantly — reading the entries here is what makes a concurrent edit a conflict instead of a
+  // silent overwrite. The prepare read them outside the transaction; the write below must not trust
+  // that snapshot.
   const wsNow = (await t.get(db.collection('workspaces').doc(workspaceId))).data();
   assertMayMigrateDimensions(wsNow, caller);
 
+  const toRewrite = prepared.updatedTransactions.filter(tx => {
+    if (!tx.id) return false;
+    const orig = prepared.originalsById.get(tx.id);
+    return Boolean(orig) && JSON.stringify(tx.lines) !== JSON.stringify(orig!.lines);
+  });
+  const freshDocs = toRewrite.length
+    ? await t.getAll(...toRewrite.map(tx => db.collection('transactions').doc(tx.id as string)))
+    : [];
+  const freshById = new Map(freshDocs.map(snap => [snap.id, snap.data() as Record<string, unknown> | undefined]));
+
+  // then the writes
   for (const node of prepared.updatedNodes) {
     const docId = `${workspaceId}_${node.dimensionId}_${node.id}`;
     t.set(db.collection('dimensionNodes').doc(docId), { ...node, workspaceId });
   }
 
   let updatedTransactionCount = 0;
-  for (const tx of prepared.updatedTransactions) {
-    if (!tx.id) continue;
-    const orig = prepared.originalsById.get(tx.id);
-    if (!orig || JSON.stringify(tx.lines) === JSON.stringify(orig.lines)) continue;
-    if (typeof orig.date === 'string' && orig.date) {
-      assertPostingOpen(orig.date, wsNow as never, caller.uid);
+  for (const tx of toRewrite) {
+    const preparedOrig = prepared.originalsById.get(tx.id as string)!;
+    const fresh = freshById.get(tx.id as string);
+    // someone changed the entry while the migration was being prepared: refuse rather than replace
+    // their change with the snapshot this migration read. The whole record is compared, not only its
+    // lines — the write below is a full replace, so any field changing in between is a lost update.
+    if (!fresh || JSON.stringify(fresh) !== JSON.stringify(preparedOrig)) {
+      throw Object.assign(new Error('An entry was changed while the dimensions were being migrated. Run it again.'), { status: 409 });
     }
-    await ledgerWrite(t, db.collection('transactions').doc(tx.id), {
-      ...orig,
+    if (typeof fresh.date === 'string' && fresh.date) {
+      assertPostingOpen(fresh.date, wsNow as never, caller.uid);
+    }
+    await ledgerWrite(t, db.collection('transactions').doc(tx.id as string), {
+      ...fresh,
       lines: tx.lines,
       updatedAt: FieldValue.serverTimestamp(),
     });
