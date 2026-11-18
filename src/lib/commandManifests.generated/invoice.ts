@@ -37,8 +37,8 @@ export const INVOICE_COMMAND_MANIFEST = [
           ]
         }
       },
-      "next": COMMAND_SCHEMA_PARTS.part124,
-      "refusals": COMMAND_SCHEMA_PARTS.part264
+      "next": COMMAND_SCHEMA_PARTS.part126,
+      "refusals": COMMAND_SCHEMA_PARTS.part266
     },
     "runPath": "/api/v1/commands/invoice.create",
     "previewPath": "/api/v1/commands/invoice.create/preview",
@@ -52,7 +52,7 @@ export const INVOICE_COMMAND_MANIFEST = [
     "description": {
       "sentence": "Delete a invoice and let the server reverse its live ledger entries; do not use this command to void or write off a document.",
       "example": COMMAND_SCHEMA_PARTS.part29,
-      "refusals": COMMAND_SCHEMA_PARTS.part264
+      "refusals": COMMAND_SCHEMA_PARTS.part266
     },
     "runPath": "/api/v1/commands/invoice.delete",
     "previewPath": "/api/v1/commands/invoice.delete/preview",
@@ -82,7 +82,7 @@ export const INVOICE_COMMAND_MANIFEST = [
           "when": "The amount is more than the invoice, the months are outside 2–60, or the account is not income.",
           "next": "Choose an income account and no more than the invoice over 2 to 60 months."
         },
-        COMMAND_SCHEMA_PARTS.part169
+        COMMAND_SCHEMA_PARTS.part171
       ]
     },
     "runPath": "/api/v1/commands/invoice.spread",
@@ -119,8 +119,8 @@ export const INVOICE_COMMAND_MANIFEST = [
     "description": {
       "sentence": "Update an existing invoice and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
       "example": COMMAND_SCHEMA_PARTS.part92,
-      "next": COMMAND_SCHEMA_PARTS.part124,
-      "refusals": COMMAND_SCHEMA_PARTS.part264
+      "next": COMMAND_SCHEMA_PARTS.part126,
+      "refusals": COMMAND_SCHEMA_PARTS.part266
     },
     "runPath": "/api/v1/commands/invoice.update",
     "previewPath": "/api/v1/commands/invoice.update/preview",
@@ -149,7 +149,7 @@ export const INVOICE_COMMAND_MANIFEST = [
           "when": "The invoice is a draft, void, cancelled or already paid, or nothing is left to write off.",
           "next": "Write off only an open invoice that still owes money."
         },
-        COMMAND_SCHEMA_PARTS.part180,
+        COMMAND_SCHEMA_PARTS.part182,
         {
           "code": "PERIOD_LOCKED",
           "when": "The write-off date is in a closed period.",

@@ -76,8 +76,11 @@ describe('every registered screen can be reached by searching for it', () => {
         for (const language of languages) {
           const name = entry.label[language];
           if (!name) continue;
-          const found = searchPages(list, name);
-          if (!found.length) notFound.push(`${kind} ${entry.id} (${language}): "${name}"`);
+          const destination = kind.startsWith('report') ? { tab: 'reports', sub: entry.id }
+            : kind === 'settings' ? { tab: 'settings', sub: entry.id }
+              : { tab: entry.id, sub: undefined };
+          const found = searchPages(list, name).some(hit => hit.page.tab === destination.tab && hit.page.sub === destination.sub);
+          if (!found) notFound.push(`${kind} ${entry.id} (${language}): "${name}"`);
         }
       }
     };
@@ -95,22 +98,32 @@ describe('every registered screen can be reached by searching for it', () => {
     assert.deepEqual(notFound, [], `not found by name:\n${notFound.join('\n')}`);
   });
 
-  test('a person who does not know the accounting name still finds the report', () => {
-    // the words in docs/EASE_OF_USE.md Part 4 (U-5) and the ones a first-time reader used in the audit
-    const plainWords: Array<[string, { tab: string; sub?: string }]> = [
-      ['profit and loss', { tab: 'reports', sub: 'pnl' }],
-      ['income statement', { tab: 'reports', sub: 'pnl' }],
-      ['who owes me', { tab: 'reports', sub: 'ar-aging' }],
-      ['who do i owe', { tab: 'reports', sub: 'ap-aging' }],
-      ['statement of financial position', { tab: 'reports', sub: 'balance-sheet' }],
-      ['money in money out', { tab: 'reports', sub: 'cash-flow' }],
-      ['logo', { tab: 'settings', sub: 'branding' }],
-      ['invoice number', { tab: 'settings', sub: 'numbering' }],
-      ['turn on payroll', { tab: 'settings', sub: 'modules' }],
+  test('a person who does not know the accounting name still finds it in English and Hebrew', () => {
+    // The words in docs/EASE_OF_USE.md Part 4 (U-5), including everyday Hebrew rather than
+    // merely typing the translated report title. Search the real page index the palette uses.
+    const plainWords: Array<['en' | 'he', string, { tab: string; sub?: string }]> = [
+      ['en', 'profit and loss', { tab: 'reports', sub: 'pnl' }],
+      ['en', 'income statement', { tab: 'reports', sub: 'pnl' }],
+      ['en', 'who owes me', { tab: 'reports', sub: 'ar-aging' }],
+      ['en', 'who do i owe', { tab: 'reports', sub: 'ap-aging' }],
+      ['en', 'statement of financial position', { tab: 'reports', sub: 'balance-sheet' }],
+      ['en', 'money in money out', { tab: 'reports', sub: 'cash-flow' }],
+      ['en', 'logo', { tab: 'settings', sub: 'branding' }],
+      ['en', 'invoice number', { tab: 'settings', sub: 'numbering' }],
+      ['en', 'turn on payroll', { tab: 'settings', sub: 'modules' }],
+      ['he', 'דוח הכנסות והוצאות', { tab: 'reports', sub: 'pnl' }],
+      ['he', 'מי חייב לי', { tab: 'reports', sub: 'ar-aging' }],
+      ['he', 'למי אני חייב', { tab: 'reports', sub: 'ap-aging' }],
+      ['he', 'מה יש לנו ומה חייבים', { tab: 'reports', sub: 'balance-sheet' }],
+      ['he', 'כסף נכנס כסף יוצא', { tab: 'reports', sub: 'cash-flow' }],
+      ['he', 'לוגו', { tab: 'settings', sub: 'branding' }],
+      ['he', 'מספר חשבונית', { tab: 'settings', sub: 'numbering' }],
+      ['he', 'להפעיל שכר', { tab: 'settings', sub: 'modules' }],
     ];
     const missed = plainWords
-      .filter(([query, page]) => !searchPages(pageIndex('en'), query).some(hit => hit.page.tab === page.tab && hit.page.sub === page.sub))
-      .map(([query, page]) => `"${query}" does not reach ${page.tab}${page.sub ? '/' + page.sub : ''}`);
+      .filter(([language, query, page]) => !searchPages(pageIndex(language), query)
+        .some(hit => hit.page.tab === page.tab && hit.page.sub === page.sub))
+      .map(([language, query, page]) => `${language} "${query}" does not reach ${page.tab}${page.sub ? '/' + page.sub : ''}`);
     assert.deepEqual(missed, []);
   });
 
@@ -123,11 +136,35 @@ describe('every registered screen can be reached by searching for it', () => {
       assert.match(entry.label, /\(off\).*turn on/, entry.label);
       assert.deepEqual(entry.page, { tab: 'settings', sub: 'modules' }, 'the link goes where the switch is');
     }
+    const inHebrew = searchPages(pageIndex('he', { modules: { payroll: false } }), 'להפעיל שכר');
+    const payroll = inHebrew.find(entry => entry.disabledModuleId === 'payroll');
+    assert.ok(payroll, 'a Hebrew request to enable payroll finds its disabled-module link');
+    assert.match(payroll.label, /כבוי.*מודולים/);
+    assert.deepEqual(payroll.page, { tab: 'settings', sub: 'modules' });
   });
 });
 
 describe('every action the search box offers can be run', () => {
   afterEach(() => cleanup());
+
+  test('plain English and Hebrew words lead to the right report in the rendered palette', () => {
+    const cases = [
+      { language: 'en', query: 'who owes me', label: 'Go to Report: A/R Aging', report: 'ar-aging' },
+      { language: 'he', query: 'למי אני חייב', label: 'Go to Report: גיול ספקים', report: 'ap-aging' },
+    ] as const;
+    for (const { language, query, label, report } of cases) {
+      useUIStore.setState({ language, activeTab: 'dashboard', activeReportTab: 'pnl' });
+      const view = render(<CommandPalette isOpen onClose={() => {}} />);
+      fireEvent.change(screen.getByLabelText('Search commands or enter a transaction'), { target: { value: query } });
+      assert.ok(resultNames().includes(label), `the palette visibly offers ${label}`);
+      const offered = screen.getByText(label).closest('button');
+      assert.ok(offered, 'the page result has a clickable button');
+      fireEvent.click(offered);
+      assert.equal(useUIStore.getState().activeTab, 'reports');
+      assert.equal(useUIStore.getState().activeReportTab, report);
+      view.unmount();
+    }
+  });
 
   const dispatcher = fs.readFileSync(path.join(process.cwd(), 'src/hooks/useSystemContext.ts'), 'utf8');
 

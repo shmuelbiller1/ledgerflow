@@ -171,6 +171,7 @@ export const SCREEN_TRANSLATION_TABLE: readonly ScreenTranslationBundle[] = [
       { key: 'aria.selectBill', en: 'Select bill {n}', he: 'בחירת חשבונית {n}' },
       { key: 'aria.pdf', en: 'PDF of bill {n}', he: 'PDF של חשבונית {n}' },
       { key: 'aria.edit', en: 'Edit bill {n}', he: 'עריכת חשבונית {n}' },
+      { key: 'aria.openBill', en: 'Open bill {n}', he: 'פתיחת חשבונית {n}' },
       { key: 'aria.undoSpread', en: 'Undo the spread of bill {n}', he: 'ביטול פריסה של חשבונית {n}' },
       { key: 'aria.spread', en: 'Spread bill {n} over months', he: 'פריסה של חשבונית {n} על פני חודשים' },
       { key: 'aria.deleteDraft', en: 'Delete draft bill {n}', he: 'מחיקת טיוטת חשבונית {n}' },

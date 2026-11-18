@@ -2,7 +2,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { migrationsSql } from './helpers/migrations';
+import { migrationsSql, ruleArrays } from './helpers/migrations';
 
 const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), 'utf8');
 
@@ -128,17 +128,26 @@ describe('Slice 3: C-1, C-2, M-5, F-09c ledger door & RLS integrity guards', () 
 
   test('AF6-011: the final ledger trigger closes empty-line, FX-home-balance, and settlement transition gaps', () => {
     const sql = migrationsSql();
-    const close = sql.slice(sql.lastIndexOf('create or replace function public.lf_enforce_balanced_ledger()'));
-    assert.match(close, /Posted ledger entry requires a JSON lines array/);
-    assert.match(close, /line_count < 2/);
+    // Later migrations can replace one trigger without redefining the others.
+    const latestTrigger = (name: string): string => {
+      const start = sql.lastIndexOf(`create or replace function public.${name}()`);
+      assert.ok(start >= 0, `Expected a definition of ${name}`);
+      const end = sql.indexOf('\n$$;', start);
+      assert.ok(end >= 0, `Expected an end to the definition of ${name}`);
+      return sql.slice(start, end);
+    };
+    const balance = latestTrigger('lf_enforce_balanced_ledger');
+    assert.match(balance, /Posted ledger entry requires a JSON lines array/);
+    assert.match(balance, /line_count < 2/);
     // FX parity is explicit: line rates override the header rate and floor(x + 0.5)
     // matches JavaScript Math.round for both positive and negative half-cents.
-    assert.match(close, /line_rate := coalesce\(\(elem->>'exchangeRate'\)::numeric, fx_rate\)/);
-    assert.match(close, /base_value := floor\(amt_cents::numeric \* line_rate \+ 0\.5\)::bigint/);
-    assert.match(close, /home-currency amounts must sum to 0 cents/);
-    assert.match(close, /'partial', 'applied'/);
-    assert.match(close, /refundedCents/);
-    assert.match(close, /immutable_keys.*array\['uid'\]/s);
+    assert.match(balance, /line_rate := coalesce\(\(elem->>'exchangeRate'\)::numeric, fx_rate\)/);
+    assert.match(balance, /base_value := floor\(amt_cents::numeric \* line_rate \+ 0\.5\)::bigint/);
+    assert.match(balance, /home-currency amounts must sum to 0 cents/);
+    const settlement = latestTrigger('lf_document_settlement_guard');
+    assert.match(settlement, /'partial', 'applied'/);
+    assert.match(settlement, /refundedCents/);
+    assert.ok(ruleArrays('recurring', sql).immutable.includes('uid'), 'The recurring owner uid must be immutable');
   });
 
   test('F-09c: loginAudits exposes own_read RLS policy and SecuritySettings renders sign-in activity', () => {

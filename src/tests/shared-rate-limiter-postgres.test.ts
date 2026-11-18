@@ -64,20 +64,20 @@ describe('S-01 shared PostgreSQL limiter', { skip: !url && 'LF_TEST_DATABASE_URL
     await first.pool.query('delete from public."rateLimitEntries" where workspace_id = $1', [workspaceId + '_other']);
   });
 
-  test('browser roles have no table policies or direct privileges', async () => {
+  test('browser and sandbox roles cannot read live counters', async () => {
     const policies = await first.pool.query(
-      "select policyname, cmd, roles::text[] as roles from pg_policies where schemaname = 'public' and tablename = 'rateLimitEntries'",
+      "select policyname, cmd, permissive, roles::text[] as roles from pg_policies where schemaname = 'public' and tablename = 'rateLimitEntries'",
     );
-    assert.deepEqual(policies.rows, [{ policyname: 'sandbox_read_workspace', cmd: 'SELECT', roles: ['lf_sandbox'] }]);
+    assert.deepEqual(policies.rows, [{ policyname: 'sandbox_no_live_read', cmd: 'SELECT', permissive: 'RESTRICTIVE', roles: ['lf_sandbox'] }]);
     const rel = await first.pool.query<{ relrowsecurity: boolean }>(
       `select relrowsecurity from pg_class where oid = 'public."rateLimitEntries"'::regclass`,
     );
     assert.equal(rel.rows[0].relrowsecurity, true);
-    const permissions = await first.pool.query<{ anon: boolean; member: boolean }>(
+    const permissions = await first.pool.query(
       `select has_table_privilege('anon', 'public."rateLimitEntries"', 'SELECT,INSERT,UPDATE,DELETE') as anon,
-       has_table_privilege('authenticated', 'public."rateLimitEntries"', 'SELECT,INSERT,UPDATE,DELETE') as member`,
+       has_table_privilege('authenticated', 'public."rateLimitEntries"', 'SELECT,INSERT,UPDATE,DELETE') as member,
+       has_any_column_privilege('lf_sandbox', 'public."rateLimitEntries"', 'SELECT') as sandbox`,
     );
-    assert.equal(permissions.rows[0].anon, false);
-    assert.equal(permissions.rows[0].member, false);
+    assert.deepEqual(permissions.rows, [{ anon: false, member: false, sandbox: false }]);
   });
 });

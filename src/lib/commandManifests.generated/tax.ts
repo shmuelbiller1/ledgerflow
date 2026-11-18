@@ -26,7 +26,7 @@ export const TAX_COMMAND_MANIFEST = [
           "when": "The registration is not one this workspace holds for that period.",
           "next": "Check the registration id on the tax profile, or leave it out to file for the whole workspace."
         },
-        COMMAND_SCHEMA_PARTS.part175
+        COMMAND_SCHEMA_PARTS.part177
       ]
     },
     "runPath": "/api/v1/commands/tax.file",

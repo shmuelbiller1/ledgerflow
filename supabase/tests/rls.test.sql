@@ -1195,5 +1195,123 @@ begin
   end if;
 end $sandbox_boundary$;
 
+-- A matching workspace is necessary for book reads, but never enough for credentials or
+-- person/system data. A new document collection must not silently join the sandbox's live reads.
+do $sandbox_live_reads$
+declare
+  t text;
+  draft uuid := '33333333-3333-3333-3333-333333333333';
+begin
+  insert into sandbox.sandboxes (id, workspace_id, person_id) values (draft, 'ws1', 'u-owner');
+  insert into public.banks (id, data) values ('sbx-private-bank', '{"workspaceId":"ws1"}');
+
+  create table public.sbx_future_private (
+    id text primary key, data jsonb not null,
+    workspace_id text generated always as (data->>'workspaceId') stored,
+    created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+  );
+  alter table public.sbx_future_private enable row level security;
+  insert into public.lf_rules (table_name) values ('sbx_future_private');
+  call sandbox.install_overlay('sbx_future_private');
+  insert into public.sbx_future_private (id, data) values ('sbx-private-new', '{"workspaceId":"ws1"}');
+
+  execute 'set local role lf_sandbox';
+  perform set_config('lf.sandbox_id', draft::text, true);
+  foreach t in array array[
+    'admins', 'apiKeys', 'banks', 'billingLedgerTraces', 'customTemplates', 'deepAuditJobs', 'deletedProjects',
+    'emailEvents', 'errorLogs', 'external_api_cache', 'idempotencyKeys', 'invites', 'jobRuns', 'learnedDeltas',
+    'loginAudits', 'members', 'notifications', 'presence', 'rateLimitEntries', 'recoveryCodes', 'sbx_future_private',
+    'stripeProcessedEvents', 'supportMessages', 'supportTickets', 'users', 'workspaceGroups', 'workspaceShards'
+  ] loop
+    if has_any_column_privilege('lf_sandbox', format('public.%I', t), 'SELECT') then
+      raise exception 'FAIL sandbox role has SELECT on private public.%', t;
+    end if;
+    perform pg_temp.expect_privilege_denied('sandbox direct private read: ' || t, format('select id from public.%I', t));
+  end loop;
+  perform pg_temp.expect_privilege_denied('sandbox role changes read capabilities',
+    $$call sandbox.configure_overlay_reads('banks')$$);
+  if exists (select from sandbox_read.banks where id = 'sbx-private-bank')
+     or exists (select from sandbox_read.sbx_future_private where id = 'sbx-private-new') then
+    raise exception 'FAIL a merged view exposed live private data';
+  end if;
+  -- The installer still builds isolated overlay storage and a readable source for new tables.
+  insert into sandbox.sbx_future_private (sandbox_id, id, data)
+    values (draft, 'sbx-private-draft', '{"workspaceId":"ws1"}');
+  if not exists (select from sandbox_read.sbx_future_private where id = 'sbx-private-draft') then
+    raise exception 'FAIL overlay-only read source lost a draft row';
+  end if;
+  execute 'reset role';
+
+  -- A permitted live login can be granted SET ROLE without inheriting draft-only denials.
+  create role lf_test_sandbox_switcher inherit nologin;
+  grant lf_sandbox to lf_test_sandbox_switcher;
+  grant usage on schema public to lf_test_sandbox_switcher;
+  grant select on public.sbx_future_private to lf_test_sandbox_switcher;
+  create policy sbx_test_live_read on public.sbx_future_private for select to lf_test_sandbox_switcher using (true);
+  execute 'set local role lf_test_sandbox_switcher';
+  if not exists (select from public.sbx_future_private where id = 'sbx-private-new') then
+    raise exception 'FAIL a draft-role policy blocked a permitted live reader';
+  end if;
+  execute 'reset role';
+
+  -- A mistaken later grant and permissive policy must not re-enable private live reads.
+  grant select on public.sbx_future_private to lf_sandbox;
+  create policy sbx_test_read on public.sbx_future_private for select to lf_sandbox using (true);
+  execute 'set local role lf_sandbox';
+  if exists (select from public.sbx_future_private) then
+    raise exception 'FAIL the private live read boundary is not restrictive';
+  end if;
+  execute 'reset role';
+  perform set_config('lf.sandbox_id', '', true);
+  if not exists (select from public.banks where id = 'sbx-private-bank') then
+    raise exception 'FAIL the real bank row is no longer available to the server';
+  end if;
+end $sandbox_live_reads$;
+
+-- These ledger triggers are SECURITY DEFINER: the definer's role must not turn the
+-- live-only corrupt-fixture switch into a bypass on an overlay.
+do $sandbox_ledger_fixture$
+declare
+  draft uuid := '44444444-4444-4444-4444-444444444444';
+  entry jsonb := '{"workspaceId":"ws1","status":"completed","date":"2026-03-15","lines":[
+    {"accountId":"sbx-ledger-cash","amountCents":100},{"accountId":"sbx-missing-account","amountCents":-100}]}'::jsonb;
+  unbalanced jsonb := jsonb_set(entry, '{lines,1}', '{"accountId":"sbx-ledger-cash","amountCents":-99}');
+  fx jsonb := entry || '{"exchangeRate":1.5,"lines":[
+    {"accountId":"sbx-ledger-cash","amountCents":1},{"accountId":"sbx-ledger-cash","amountCents":-1}]}'::jsonb;
+  settled jsonb;
+begin
+  insert into sandbox.sandboxes (id, workspace_id, person_id) values (draft, 'ws1', 'u-owner');
+  insert into public."chartAccounts" (id, data) values ('sbx-ledger-cash', '{"workspaceId":"ws1","name":"Cash"}');
+  perform set_config('lf.allow_corrupt_fixture', 'on', true);
+  insert into public.transactions (id, data) values ('sbx-live-corrupt-fixture', entry);
+  insert into public."journalEntries" (id, data) values ('sbx-live-unbalanced-fixture', unbalanced);
+
+  execute 'set local role lf_sandbox';
+  perform set_config('lf.sandbox_id', draft::text, true);
+  begin
+    insert into sandbox.transactions (sandbox_id, id, data) values (draft, 'sbx-invalid-overlay-entry', entry);
+    raise exception 'FAIL sandbox accepted a posted entry with a missing account while the fixture switch was on';
+  exception when foreign_key_violation then
+    if sqlerrm not like '%unknown or foreign chartAccount%' then raise; end if;
+  end;
+  begin
+    insert into sandbox."journalEntries" (sandbox_id, id, data) values (draft, 'sbx-unbalanced-overlay-entry', unbalanced);
+    raise exception 'FAIL sandbox accepted an unbalanced posted journal entry while the fixture switch was on';
+  exception when raise_exception then
+    if sqlerrm not like 'Double-entry violation: ledger lines must sum to 0 cents%' then raise; end if;
+  end;
+
+  -- At 1.5, +1/-1 rounds to +2/-1 before the largest line absorbs the one-cent residual.
+  insert into sandbox.transactions (sandbox_id, id, data) values (draft, 'sbx-fx-overlay-entry', fx)
+    returning data into settled;
+  if (settled #> '{lines,0,baseAmountCents}') is distinct from '1'::jsonb
+     or (settled #> '{lines,1,baseAmountCents}') is distinct from '-1'::jsonb then
+    raise exception 'FAIL sandbox skipped FX residual settlement while the fixture switch was on';
+  end if;
+  execute 'reset role';
+  perform set_config('lf.sandbox_id', '', true);
+  perform set_config('lf.allow_corrupt_fixture', '', true);
+end $sandbox_ledger_fixture$;
+
 select 'ALL RLS TESTS PASSED' as result;
 rollback;

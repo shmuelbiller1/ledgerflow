@@ -6,12 +6,12 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "id": COMMAND_SCHEMA_PARTS.part94,
     "name": COMMAND_SCHEMA_PARTS.part96,
-    "email": COMMAND_SCHEMA_PARTS.part221,
+    "email": COMMAND_SCHEMA_PARTS.part223,
     "role": COMMAND_SCHEMA_PARTS.part56,
-    "salaryCents": COMMAND_SCHEMA_PARTS.part123,
-    "payFrequency": COMMAND_SCHEMA_PARTS.part138,
+    "salaryCents": COMMAND_SCHEMA_PARTS.part125,
+    "payFrequency": COMMAND_SCHEMA_PARTS.part140,
     "filingStatus": COMMAND_SCHEMA_PARTS.part50,
-    "workerType": COMMAND_SCHEMA_PARTS.part105,
+    "workerType": COMMAND_SCHEMA_PARTS.part106,
     "state": COMMAND_SCHEMA_PARTS.part50,
     "status": {
       "default": "Active",

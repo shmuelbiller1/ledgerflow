@@ -15,8 +15,8 @@ export const VENDOR_COMMAND_MANIFEST = [
       "example": {
         "id": "vendor_123"
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part246,
-      "next": COMMAND_SCHEMA_PARTS.part109
+      "refusals": COMMAND_SCHEMA_PARTS.part248,
+      "next": COMMAND_SCHEMA_PARTS.part108
     },
     "runPath": "/api/v1/commands/vendor.balance",
     "previewPath": "/api/v1/commands/vendor.balance/preview",
@@ -29,6 +29,7 @@ export const VENDOR_COMMAND_MANIFEST = [
     "risk": "normal",
     "description": {
       "sentence": "Create a vendor contact for bills and payments; do not use this command to record a bill payment or change a vendor balance.",
+      "next": COMMAND_SCHEMA_PARTS.part108,
       "example": {
         "vendor": {
           "name": "Paper Co",
@@ -60,6 +61,7 @@ export const VENDOR_COMMAND_MANIFEST = [
     "risk": "normal",
     "description": {
       "sentence": "Update a vendor profile without changing its server-managed balance or recording a bill payment.",
+      "next": COMMAND_SCHEMA_PARTS.part108,
       "example": {
         "id": "vendor_123",
         "data": {

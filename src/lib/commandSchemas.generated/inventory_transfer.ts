@@ -9,7 +9,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "from": COMMAND_SCHEMA_PARTS.part57,
     "to": COMMAND_SCHEMA_PARTS.part57,
     "quantity": COMMAND_SCHEMA_PARTS.part72,
-    "date": COMMAND_SCHEMA_PARTS.part113,
+    "date": COMMAND_SCHEMA_PARTS.part115,
     "note": COMMAND_SCHEMA_PARTS.part57
   },
   "required": [

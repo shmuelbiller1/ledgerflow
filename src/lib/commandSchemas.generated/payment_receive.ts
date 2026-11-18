@@ -5,7 +5,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part46,
-    "amountCents": COMMAND_SCHEMA_PARTS.part134,
+    "amountCents": COMMAND_SCHEMA_PARTS.part136,
     "paymentDate": COMMAND_SCHEMA_PARTS.part22,
     "cashAccountId": COMMAND_SCHEMA_PARTS.part46,
     "paymentMethod": COMMAND_SCHEMA_PARTS.part22,
@@ -19,10 +19,10 @@ export const COMMAND_INPUT_SCHEMA = {
     "allocations": {
       "default": COMMAND_SCHEMA_PARTS.part0,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part247
+      "items": COMMAND_SCHEMA_PARTS.part249
     },
     "sendRemittance": COMMAND_SCHEMA_PARTS.part25,
-    "paymentExchangeRate": COMMAND_SCHEMA_PARTS.part121,
+    "paymentExchangeRate": COMMAND_SCHEMA_PARTS.part123,
     "paymentRateSource": {
       "type": "string",
       "enum": [
@@ -33,7 +33,7 @@ export const COMMAND_INPUT_SCHEMA = {
       ]
     },
     "estimateId": COMMAND_SCHEMA_PARTS.part97,
-    "withheldCents": COMMAND_SCHEMA_PARTS.part123,
+    "withheldCents": COMMAND_SCHEMA_PARTS.part125,
     "withholdingRatePercent": COMMAND_SCHEMA_PARTS.part79,
     "withholdingCertificate": COMMAND_SCHEMA_PARTS.part50
   },

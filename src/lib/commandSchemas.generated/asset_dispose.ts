@@ -7,11 +7,11 @@ export const COMMAND_INPUT_SCHEMA = {
     "workspaceId": COMMAND_SCHEMA_PARTS.part97,
     "assetId": COMMAND_SCHEMA_PARTS.part97,
     "date": COMMAND_SCHEMA_PARTS.part48,
-    "proceedsCents": COMMAND_SCHEMA_PARTS.part123,
+    "proceedsCents": COMMAND_SCHEMA_PARTS.part125,
     "proceedsAccountId": COMMAND_SCHEMA_PARTS.part57,
     "gainLossAccountId": COMMAND_SCHEMA_PARTS.part57,
     "assetAccountId": COMMAND_SCHEMA_PARTS.part57,
-    "portionPercent": COMMAND_SCHEMA_PARTS.part110
+    "portionPercent": COMMAND_SCHEMA_PARTS.part112
   },
   "required": [
     "assetId",
