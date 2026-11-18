@@ -1,5 +1,5 @@
 import PinnedPagesBar from '../../components/layout/PinnedPagesBar';
-import type { FilterCriteria } from '../../types';
+import type { AppTab, FilterCriteria } from '../../types';
 import React, { Suspense } from 'react';
 import { cn, getLocalDateISO } from '../../lib/utils';
 import { createRetryableLazy } from '../../lib/lazyWithRetry';
@@ -55,6 +55,14 @@ export function RootLayout() {
 
   const isSidebarOpen = useUIStore(state => state.isSidebarOpen);
   const toggleSidebar = useUIStore(state => state.toggleSidebar);
+  const navigateFromSidebar = (tab: AppTab) => {
+    setActiveTab(tab);
+    if (window.innerWidth < 1024) {
+      useUIStore.getState().setSidebarOpen(false);
+      // The selected button disappears on phones. Resume keyboard navigation on the page it opened.
+      document.getElementById('main-content')?.focus();
+    }
+  };
   const isFocusMode = useUIStore(state => state.isFocusMode);
 
   // Modal States
@@ -137,7 +145,7 @@ export function RootLayout() {
 
       <Sidebar 
         activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
+        setActiveTab={navigateFromSidebar}
         onLogout={handleLogout}
         onLoginPrompt={handleLoginPrompt}
         workspaces={workspaces}

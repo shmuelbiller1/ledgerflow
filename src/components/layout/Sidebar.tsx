@@ -140,7 +140,7 @@ const Sidebar = React.memo(({
       className={cn(
         "h-[100dvh] lg:h-full bg-[var(--surface)] text-[var(--text)] flex flex-col z-[100] border-e border-[var(--line)] shrink-0 transition-all duration-300",
         "fixed lg:sticky top-0 start-0",
-        uiStore.isSidebarOpen ? "w-[240px] translate-x-0 opacity-100" : "w-0 -translate-x-full rtl:translate-x-full opacity-0 pointer-events-none border-e-0 lg:w-[70px] lg:translate-x-0 lg:rtl:translate-x-0 lg:opacity-100"
+        uiStore.isSidebarOpen ? "w-[240px] translate-x-0 opacity-100" : "hidden border-e-0 lg:flex lg:w-[70px]"
       )}
     >
       {/* Brand & Workspace Switcher */}

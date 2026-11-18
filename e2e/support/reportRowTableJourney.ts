@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFile } from 'node:fs/promises';
+import { tabTo } from './tabTo';
 import { parseCsv } from '../../src/lib/csv';
 import { mountJourney, remountJourney, settleStyles } from './journeyFixture';
 
@@ -14,16 +15,9 @@ const reports = (withComparison: boolean) => [
   { module: '/src/components/reporting/CustomerGrossProfitView.tsx' },
 ].map(mount => ({ ...mount, props: withComparison ? { ...period, ...compare } : period }));
 
-/** A button that works only after programmatic focus is not keyboard reachable. */
-async function tabTo(page: Page, target: Locator, backwards = false) {
-  for (let step = 0; step < 32 && !await target.evaluate(el => el === document.activeElement); step++) {
-    await page.keyboard.press(backwards ? 'Shift+Tab' : 'Tab');
-  }
-  await expect(target).toBeFocused();
-}
-
 /** Real reports and a deterministic, non-empty ledger for the visual refresh workflow. */
 export async function checkComparisonReports(page: Page, width: number, theme: 'light' | 'dark') {
+  const reach = (target: Locator, backwards = false) => tabTo(page, target, backwards, 32);
   const he = (width === 390) === (theme === 'light');
   await page.setViewportSize({ width, height: 850 });
   const account = 'Cash מזומן', customer = 'דנה Dana';
@@ -64,10 +58,10 @@ export async function checkComparisonReports(page: Page, width: number, theme: '
   await remountJourney(page, [reports(false)[1]]);
   await expect(paymentDays.locator('th:first-child')).toHaveText(invoiceLabel);
   await expect(paymentDays.locator('td')).toHaveText(['$20.00', '5']);
-  await tabTo(page, page.getByRole('button', { name: he ? 'עמודות' : 'Columns', exact: true }));
+  await reach(page.getByRole('button', { name: he ? 'עמודות' : 'Columns', exact: true }));
   await page.keyboard.press('Enter');
   const amount = page.getByRole('checkbox', { name: he ? 'סכום החשבונית' : 'Invoice amount', exact: true });
-  await tabTo(page, amount); await page.keyboard.press('Space');
+  await reach(amount); await page.keyboard.press('Space');
   await expect(paymentDays.getByRole('cell')).toHaveText(['5']);
   await remountJourney(page, [reports(true)[1]]);
   await expect(paymentDays.getByRole('rowheader')).toHaveText(invoiceLabel);
@@ -82,18 +76,18 @@ export async function checkComparisonReports(page: Page, width: number, theme: '
   await remountJourney(page, [reports(true)[0]]);
   const balances = page.getByRole('region', { name: he ? 'יתרות חשבונות לתאריך' : 'Account balances as of a date', exact: true });
   const chooser = balances.getByRole('button', { name: he ? 'עמודות' : 'Columns', exact: true });
-  await tabTo(page, chooser); await page.keyboard.press('Enter');
+  await reach(chooser); await page.keyboard.press('Enter');
   const earlier = balances.getByRole('button', { name: he ? 'הקדמת העמודה יתרה' : 'Move Balance earlier', exact: true });
-  await tabTo(page, earlier); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
+  await reach(earlier); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
   const type = balances.getByRole('checkbox', { name: he ? 'סוג' : 'Type', exact: true });
-  await tabTo(page, type); await page.keyboard.press('Space'); await expect(type).not.toBeChecked();
+  await reach(type); await page.keyboard.press('Space'); await expect(type).not.toBeChecked();
   const headers = he ? ['קוד', 'יתרה', 'חשבון', 'יתרה קודמת / שינוי'] : ['Code', 'Balance', 'Account', 'Previous balance / change'];
   const values = ['1000', '$123.45', account, '$123.45 / $0.00'];
   await expect(table.getByRole('columnheader')).toHaveText(headers);
   await expect(table.locator('tbody tr > :visible')).toHaveText(values);
   await expect(table.getByRole('rowheader')).toHaveText(account);
   const exportCsv = balances.getByRole('button', { name: he ? 'ייצוא השורות המוצגות ל־CSV' : 'Export displayed rows CSV' });
-  await tabTo(page, exportCsv, true);
+  await reach(exportCsv, true);
   const downloading = page.waitForEvent('download'); await page.keyboard.press('Enter');
   const csv = await readFile((await (await downloading).path())!, 'utf8');
   expect(parseCsv(csv)).toEqual([headers, values]);
