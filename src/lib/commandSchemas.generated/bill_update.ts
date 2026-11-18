@@ -16,12 +16,12 @@ export const COMMAND_INPUT_SCHEMA = {
         "taxAmountCents": COMMAND_SCHEMA_PARTS.part125,
         "taxRate": COMMAND_SCHEMA_PARTS.part79,
         "receiptUrl": COMMAND_SCHEMA_PARTS.part149,
-        "splits": COMMAND_SCHEMA_PARTS.part172,
+        "splits": COMMAND_SCHEMA_PARTS.part171,
         "projectId": COMMAND_SCHEMA_PARTS.part22,
         "issueDate": COMMAND_SCHEMA_PARTS.part22,
         "date": COMMAND_SCHEMA_PARTS.part22,
         "dueDate": COMMAND_SCHEMA_PARTS.part22,
-        "status": COMMAND_SCHEMA_PARTS.part198,
+        "status": COMMAND_SCHEMA_PARTS.part197,
         "tags": COMMAND_SCHEMA_PARTS.part75,
         "metadata": COMMAND_SCHEMA_PARTS.part148,
         "reversalEventId": COMMAND_SCHEMA_PARTS.part22,
@@ -45,7 +45,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "lineSumCents": COMMAND_SCHEMA_PARTS.part145,
         "taxCodeId": COMMAND_SCHEMA_PARTS.part57,
         "taxTreatment": COMMAND_SCHEMA_PARTS.part159,
-        "taxBreakdown": COMMAND_SCHEMA_PARTS.part247,
+        "taxBreakdown": COMMAND_SCHEMA_PARTS.part246,
         "pricesIncludeTax": COMMAND_SCHEMA_PARTS.part25
       }
     },

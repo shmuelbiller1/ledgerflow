@@ -24,8 +24,8 @@ export const REVENUE_COMMAND_MANIFEST = [
           "when": "The amount is not a positive whole number of cents, or an account or the date is missing.",
           "next": "Send the amount in whole cents, both accounts and a YYYY-MM-DD date."
         },
-        COMMAND_SCHEMA_PARTS.part215,
-        COMMAND_SCHEMA_PARTS.part212
+        COMMAND_SCHEMA_PARTS.part214,
+        COMMAND_SCHEMA_PARTS.part211
       ]
     },
     "runPath": "/api/v1/commands/revenue.recognize",

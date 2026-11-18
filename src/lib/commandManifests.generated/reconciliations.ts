@@ -22,7 +22,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
         "data": COMMAND_SCHEMA_PARTS.part113
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part216,
+        COMMAND_SCHEMA_PARTS.part215,
         {
           "code": "NOT_FOUND",
           "when": "The bank line, or the entry it is matched to, is not in this workspace.",
@@ -61,8 +61,8 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
         ]
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part190,
-        COMMAND_SCHEMA_PARTS.part207,
+        COMMAND_SCHEMA_PARTS.part189,
+        COMMAND_SCHEMA_PARTS.part206,
         {
           "code": "INVALID_INPUT",
           "when": "The documents are not all for the same customer or vendor, or they add up to more than the line.",
@@ -95,8 +95,8 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
         ]
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part190,
-        COMMAND_SCHEMA_PARTS.part207,
+        COMMAND_SCHEMA_PARTS.part189,
+        COMMAND_SCHEMA_PARTS.part206,
         {
           "code": "INVALID_INPUT",
           "when": "The splits do not add up to the line, or one names the bank account itself.",
@@ -119,7 +119,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
         "limit": 200
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part182,
+        COMMAND_SCHEMA_PARTS.part181,
         COMMAND_SCHEMA_PARTS.part157
       ]
     },
@@ -236,7 +236,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
           "next": "Send between 1 and 250 operations, each with an id and a known type."
         },
         COMMAND_SCHEMA_PARTS.part157,
-        COMMAND_SCHEMA_PARTS.part216,
+        COMMAND_SCHEMA_PARTS.part215,
         {
           "code": "PERIOD_LOCKED",
           "when": "A line or entry in the batch is dated in a closed period.",

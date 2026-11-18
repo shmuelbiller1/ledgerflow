@@ -19,21 +19,21 @@ export const COMMAND_INPUT_SCHEMA = {
         "settledByRecordsCents": COMMAND_SCHEMA_PARTS.part125,
         "currency": COMMAND_SCHEMA_PARTS.part48,
         "exchangeRate": COMMAND_SCHEMA_PARTS.part72,
-        "status": COMMAND_SCHEMA_PARTS.part204,
+        "status": COMMAND_SCHEMA_PARTS.part203,
         "date": COMMAND_SCHEMA_PARTS.part22,
         "dueDate": COMMAND_SCHEMA_PARTS.part22,
         "paymentToken": COMMAND_SCHEMA_PARTS.part22,
         "notes": COMMAND_SCHEMA_PARTS.part66,
         "taxRate": COMMAND_SCHEMA_PARTS.part79,
         "taxAmountCents": COMMAND_SCHEMA_PARTS.part125,
-        "lines": COMMAND_SCHEMA_PARTS.part172,
-        "items": COMMAND_SCHEMA_PARTS.part172,
+        "lines": COMMAND_SCHEMA_PARTS.part171,
+        "items": COMMAND_SCHEMA_PARTS.part171,
         "tags": COMMAND_SCHEMA_PARTS.part75,
         "metadata": COMMAND_SCHEMA_PARTS.part148,
         "isLocked": COMMAND_SCHEMA_PARTS.part25,
         "lockedAt": COMMAND_SCHEMA_PARTS.part22,
         "reversalEventId": COMMAND_SCHEMA_PARTS.part22,
-        "type": COMMAND_SCHEMA_PARTS.part179,
+        "type": COMMAND_SCHEMA_PARTS.part178,
         "recurringInterval": COMMAND_SCHEMA_PARTS.part118,
         "paymentTerms": COMMAND_SCHEMA_PARTS.part51,
         "progressPercentage": COMMAND_SCHEMA_PARTS.part79,
@@ -41,7 +41,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "paymentDate": COMMAND_SCHEMA_PARTS.part22,
         "paidAt": COMMAND_SCHEMA_PARTS.part22,
         "posted": COMMAND_SCHEMA_PARTS.part25,
-        "approval": COMMAND_SCHEMA_PARTS.part260,
+        "approval": COMMAND_SCHEMA_PARTS.part259,
         "discountCents": COMMAND_SCHEMA_PARTS.part125,
         "retainageCents": COMMAND_SCHEMA_PARTS.part125,
         "depositCents": COMMAND_SCHEMA_PARTS.part125,
@@ -52,7 +52,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "lineSumCents": COMMAND_SCHEMA_PARTS.part145,
         "taxCodeId": COMMAND_SCHEMA_PARTS.part57,
         "taxTreatment": COMMAND_SCHEMA_PARTS.part159,
-        "taxBreakdown": COMMAND_SCHEMA_PARTS.part247,
+        "taxBreakdown": COMMAND_SCHEMA_PARTS.part246,
         "pricesIncludeTax": COMMAND_SCHEMA_PARTS.part25
       },
       "required": [
@@ -60,7 +60,7 @@ export const COMMAND_INPUT_SCHEMA = {
       ]
     },
     "postingDay": COMMAND_SCHEMA_PARTS.part22,
-    "creditLimitOverride": COMMAND_SCHEMA_PARTS.part206
+    "creditLimitOverride": COMMAND_SCHEMA_PARTS.part205
   },
   "required": [
     "invoice"

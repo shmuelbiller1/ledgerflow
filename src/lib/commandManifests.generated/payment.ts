@@ -43,7 +43,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The payment or a document is not in this workspace.",
           "next": "Check the payment and document ids."
         },
-        COMMAND_SCHEMA_PARTS.part200
+        COMMAND_SCHEMA_PARTS.part199
       ]
     },
     "runPath": "/api/v1/commands/payment.apply",
@@ -74,7 +74,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The credit has no entry in the books, is smaller than the amount, or the document is settled.",
           "next": "Apply no more than the credit and the document still allow."
         },
-        COMMAND_SCHEMA_PARTS.part200
+        COMMAND_SCHEMA_PARTS.part199
       ]
     },
     "runPath": "/api/v1/commands/payment.creditapply",
@@ -106,7 +106,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The credit has no entry in the books, or is smaller than the refund.",
           "next": "Refund no more than the credit still allows."
         },
-        COMMAND_SCHEMA_PARTS.part200
+        COMMAND_SCHEMA_PARTS.part199
       ]
     },
     "runPath": "/api/v1/commands/payment.creditrefund",
@@ -130,7 +130,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The kind is missing or unknown.",
           "next": "Send kind customer or vendor."
         },
-        COMMAND_SCHEMA_PARTS.part200
+        COMMAND_SCHEMA_PARTS.part199
       ]
     },
     "runPath": "/api/v1/commands/payment.creditsautoapply",
@@ -163,7 +163,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "A payment is void, already deposited, or waiting in another Undeposited Funds account.",
           "next": "Deposit only the payments still waiting in the same account."
         },
-        COMMAND_SCHEMA_PARTS.part200
+        COMMAND_SCHEMA_PARTS.part199
       ]
     },
     "runPath": "/api/v1/commands/payment.deposit",
@@ -197,7 +197,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The payment amount, date, cash account, payment type, or allocation is invalid.",
           "next": "Correct the payment details and choose an existing cash account and open document."
         },
-        COMMAND_SCHEMA_PARTS.part217,
+        COMMAND_SCHEMA_PARTS.part216,
         {
           "code": "PERIOD_LOCKED",
           "when": "The payment date is in a closed period.",
@@ -237,7 +237,7 @@ export const PAYMENT_COMMAND_MANIFEST = [
           "when": "The payment is already void, is inside a bank deposit, or the void date is before the payment or in a closed period.",
           "next": "Undo the deposit first, and choose an open date on or after the payment."
         },
-        COMMAND_SCHEMA_PARTS.part200
+        COMMAND_SCHEMA_PARTS.part199
       ]
     },
     "runPath": "/api/v1/commands/payment.void",

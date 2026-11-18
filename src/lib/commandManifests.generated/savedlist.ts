@@ -37,7 +37,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "next": "Fix the named rule; shares add up to 100."
         },
         COMMAND_SCHEMA_PARTS.part156,
-        COMMAND_SCHEMA_PARTS.part182
+        COMMAND_SCHEMA_PARTS.part181
       ]
     },
     "runPath": "/api/v1/commands/savedlist.allocationrules",
@@ -66,7 +66,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "when": "The workspace, or the person in it, is not found.",
           "next": "Choose a member of this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part182
+        COMMAND_SCHEMA_PARTS.part181
       ]
     },
     "runPath": "/api/v1/commands/savedlist.approvaldelegate",
@@ -96,7 +96,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "when": "The name is already a group, or the group still has customers.",
           "next": "Choose another name, or move its customers first."
         },
-        COMMAND_SCHEMA_PARTS.part182
+        COMMAND_SCHEMA_PARTS.part181
       ]
     },
     "runPath": "/api/v1/commands/savedlist.customergroup",
@@ -126,7 +126,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "when": "The name is already a payment type, or the type is in use.",
           "next": "Choose another name, or keep a type that payments use."
         },
-        COMMAND_SCHEMA_PARTS.part182
+        COMMAND_SCHEMA_PARTS.part181
       ]
     },
     "runPath": "/api/v1/commands/savedlist.paymenttype",
@@ -162,7 +162,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "next": "Fix the named list."
         },
         COMMAND_SCHEMA_PARTS.part156,
-        COMMAND_SCHEMA_PARTS.part182
+        COMMAND_SCHEMA_PARTS.part181
       ]
     },
     "runPath": "/api/v1/commands/savedlist.pricelists",
@@ -190,7 +190,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "next": "Name a real role and send a layout array."
         },
         COMMAND_SCHEMA_PARTS.part156,
-        COMMAND_SCHEMA_PARTS.part182
+        COMMAND_SCHEMA_PARTS.part181
       ]
     },
     "runPath": "/api/v1/commands/savedlist.roledashboard",
@@ -219,7 +219,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "next": "Give each rep a name."
         },
         COMMAND_SCHEMA_PARTS.part156,
-        COMMAND_SCHEMA_PARTS.part182
+        COMMAND_SCHEMA_PARTS.part181
       ]
     },
     "runPath": "/api/v1/commands/savedlist.salesreps",
@@ -250,7 +250,7 @@ export const SAVEDLIST_COMMAND_MANIFEST = [
           "next": "Fix the named profile and its account."
         },
         COMMAND_SCHEMA_PARTS.part156,
-        COMMAND_SCHEMA_PARTS.part182
+        COMMAND_SCHEMA_PARTS.part181
       ]
     },
     "runPath": "/api/v1/commands/savedlist.taxprofiles",
