@@ -102,3 +102,25 @@ test('A-219: pages are named after the areas they cover, and slugs are unique', 
     assert.ok(slugs.includes(slug), `${slug} page is present`);
   }
 });
+
+test('N-2: the ten contextual manuals agree with their bilingual pages and ship the pictured screen', () => {
+  // These are the ten named in COORDINATION H-1. Trial Balance is a lens inside Ledger, not a Reports route.
+  const expected = ['dashboard', 'sales', 'purchases', 'banking', 'reconciliation', 'pnl', 'balance-sheet',
+    'trial-balance', 'israel-vat-report', 'settings'];
+  const illustrated = SCREEN_HELP_DOCS.filter(doc => doc.illustration);
+  assert.deepEqual(illustrated.map(doc => doc.illustration!.screenId).sort(), expected.sort());
+  for (const doc of illustrated) {
+    const picture = doc.illustration!;
+    assert.equal(findScreenHelpDoc(picture.screenId), doc);
+    const [english, hebrew] = fs.readFileSync(doc.docPath, 'utf8').split('## עברית');
+    for (const [section, purpose, tasks] of [[english, doc.summaryEn, doc.keyTasksEn], [hebrew, doc.summaryHe, doc.keyTasksHe]] as const) {
+      assert.ok(section.includes(purpose), `Purpose differs in ${doc.docPath}`);
+      assert.equal(tasks.length, 3);
+      assert.deepEqual([...section.matchAll(/^\d+\. (.+)$/gm)].map(match => match[1]), tasks, doc.docPath);
+    }
+    assert.match(picture.altHe, /\p{Script=Hebrew}/u);
+    const image = `public/help/${doc.slug}.webp`;
+    assert.ok(hebrew.includes(`](../../${image})`), `Missing illustration in ${doc.docPath}`);
+    assert.equal(fs.readFileSync(image).toString('ascii', 8, 12), 'WEBP', image);
+  }
+});

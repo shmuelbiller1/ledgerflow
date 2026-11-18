@@ -1,0 +1,99 @@
+import { test, expect } from '@playwright/test';
+
+// Read the manuals via the real screen controls. In particular, ?report=trial-balance is NOT the trial balance.
+const screens = [
+  ['/#dashboard', 'Overview', 'Overview', 'overview'],
+  ['/#sales', 'Sales', 'Sales and invoices', 'sales'],
+  ['/#purchases', 'Purchases', 'Purchases and bills', 'purchases'],
+  ['/#banking', 'Bank Connections', 'Banking', 'banking'],
+  ['/#reconciliation', 'Reconcile', 'Match bank lines', 'reconciliation'],
+  ['/?report=pnl#reports', 'Profit & Loss', 'Profit and loss', 'pnl'],
+  ['/?report=balance-sheet#reports', 'Balance Sheet', 'Balance sheet', 'balance-sheet'],
+  ['/#ledger', 'Ledger & Journal', 'Trial balance', 'trial-balance'],
+  ['/?report=israel-vat-report#reports', 'Israel VAT Report', 'Israel VAT report', 'israel-vat-report'],
+  ['/#settings', 'Billing & Plan', 'Workspace settings', 'settings'],
+] as const;
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('isGuest', 'true');
+    localStorage.setItem('has_seen_onboarding', 'true');
+    localStorage.setItem('ledgerflow-cookie-consent', 'accepted');
+  });
+});
+
+for (const width of [1280, 390]) {
+  test(`N-2: each busy screen opens its own illustrated guide in both languages at ${width}px`, async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width, height: 900 });
+    for (const [url, label, title, slug] of screens) {
+      await test.step(title, async () => {
+        await page.goto(url);
+        const main = page.locator('#main-content');
+        if (slug === 'trial-balance') {
+          await main.getByRole('button', { name: 'Accountant Lens', exact: true }).click();
+          await main.getByRole('button', { name: 'Trial Balance', exact: true }).click();
+          await expect(main.getByRole('heading', { name: 'Trial Balance', exact: true })).toBeVisible();
+        }
+        // A Reports deep link can briefly mount the default report first. Wait for the named one.
+        const trigger = main.getByRole('button', { name: `Help for ${label}`, exact: true });
+        await trigger.press('Enter');
+        const dialog = page.getByRole('dialog');
+        const guide = dialog.locator('details').filter({ has: page.getByText(`Guide: ${title}`, { exact: true }) });
+        await guide.locator('summary').press('Enter');
+        await expect(guide.getByRole('listitem')).toHaveCount(3);
+        const img = dialog.getByRole('img');
+        await expect(img).toHaveAttribute('src', `/help/${slug}.webp`);
+        await img.scrollIntoViewIfNeeded();
+        await expect.poll(() => img.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+        await dialog.getByRole('button', { name: 'עברית' }).click();
+        // Switching the language of an open manual must not collapse it or switch reports.
+        const translated = dialog.locator('details[open]');
+        await expect(translated.locator('summary')).toContainText(/^מדריך:/);
+        await expect(translated.getByRole('img')).toHaveAttribute('alt', /\p{Script=Hebrew}/u);
+        await expect(translated.getByRole('listitem')).toHaveCount(3);
+        for (const item of await translated.getByRole('listitem').all()) await expect(item).toContainText(/\p{Script=Hebrew}/u);
+        expect(await translated.evaluate(el => getComputedStyle(el).direction)).toBe('rtl');
+        const bounds = await translated.boundingBox();
+        expect(bounds!.x).toBeGreaterThanOrEqual(0);
+        expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+        await page.keyboard.press('Escape');
+        await expect(trigger).toBeFocused();
+      });
+    }
+  });
+}
+
+test('#799: opening a named how-to reads that article without leaving Sales or changing its draft', async ({ page }) => {
+  await page.goto('/#sales');
+  const main = page.locator('#main-content');
+  await main.getByRole('button', { name: /^Customers/ }).click();
+  const draft = main.getByRole('textbox', { name: 'New customer name' });
+  await draft.fill('Sample draft');
+  await main.getByRole('button', { name: 'Help for Sales' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByText('Create and send a customer invoice', { exact: true }).click();
+  await expect(dialog.getByText('Open Sales, choose Invoices, then Add Invoice.')).toBeVisible();
+  await dialog.getByText('Record full or partial customer payments', { exact: true }).click();
+  await expect(dialog.getByText('In Sales → Invoices, choose Receive Payment on the unpaid invoice.')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(draft).toHaveValue('Sample draft');
+  await expect(page).toHaveURL(/#sales$/);
+});
+
+test('#800: Reconcile help starts in the UI language and describes matching, not closing a statement', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('lf_language', 'he'));
+  await page.goto('/#reconciliation');
+  const main = page.locator('#main-content');
+  await expect(main.getByRole('button', { name: /^To review \(/ })).toBeVisible();
+  await expect(main.getByRole('button', { name: /^Matched \(/ })).toBeVisible();
+  await main.getByRole('button', { name: 'Help for Reconcile' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toHaveAccessibleName(/^עזרה:/);
+  await dialog.getByText('מדריך: התאמת חשבון בנק', { exact: true }).click();
+  await expect(dialog.locator('details[open]')).toContainText('התאמת שורה אינה סגירת תקופה');
+  await dialog.getByRole('button', { name: 'English' }).click();
+  await dialog.getByText('Match a bank statement line to a ledger entry', { exact: true }).click();
+  await expect(dialog.getByText(/choose Confirm match, then find it under Matched/)).toBeVisible();
+  await expect(dialog).not.toContainText(/enter statement ending date and balance/i);
+});
