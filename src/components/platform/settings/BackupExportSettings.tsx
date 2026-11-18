@@ -119,6 +119,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
   }, []);
   const workspaceName = useAuthStore(s => s.getCurrentWorkspace()?.name || s.currentWorkspaceId);
   const [exportError, setExportError] = useState('');
+  const [reminderNotice, setReminderNotice] = useState('');
   const [offerPartial, setOfferPartial] = useState(false);
   const [reading, setReading] = useState(false);
   const [restoring, setRestoring] = useState(false);
@@ -138,6 +139,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
   const exportJSON = async () => {
     if (!isCurrent()) return;
     setExportError('');
+    setReminderNotice('');
     setOfferPartial(false);
     const { user, isGuest } = useAuthStore.getState();
     if (!workspaceId || !user) {
@@ -165,11 +167,18 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
       if (!isCurrent()) return;
       if (!collections.transactions || !collections.accounts) throw new Error('The server backup is missing its ledger or accounts.');
       downloadJson(payload, 'backup', workspaceId);
-      recordBackupCompleted(workspaceId);
-      toast.success(`Full backup downloaded (${collections.transactions.length} transactions).`);
     } catch (error) {
       if (isCurrent()) setExportError(commandErrorMessage(error));
+      return;
     }
+    // The browser can start a download, but cannot verify that the file was saved to disk.
+    try {
+      recordBackupCompleted(workspaceId);
+    } catch {
+      setReminderNotice('The backup download started, but the reminder could not be updated. Check that you saved the file.');
+      return;
+    }
+    toast.success('Full backup download started. Keep the file somewhere secure.');
   };
 
   const exportPartial = async () => {
@@ -182,7 +191,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
       const payload = await partialCopy(workspaceId);
       if (!isCurrent()) return;
       downloadJson(payload, 'partial-export', workspaceId);
-      toast.warning('Partial copy downloaded. It cannot restore the workspace.');
+      toast.warning('Partial copy download started. It cannot restore the workspace.');
     } catch (error) {
       if (isCurrent()) setExportError(`Partial copy could not be downloaded: ${commandErrorMessage(error)}`);
     }
@@ -294,6 +303,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
             Export JSON Backup
           </AsyncButton>
           {exportError && <p role="alert" className="mt-3 text-sm text-[var(--neg)]">The full backup could not be downloaded. {exportError}</p>}
+          {reminderNotice && <p role="status" className="mt-3 text-sm text-[var(--muted)]">{reminderNotice}</p>}
           {offerPartial && (
             <div className="mt-4 space-y-2 border-t border-[var(--line)] pt-3">
               <p className="text-sm text-[var(--muted)]">A partial copy contains only data loaded in this browser. It cannot be restored and does not count as a backup.</p>

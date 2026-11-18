@@ -20,7 +20,7 @@ A table added by BK-10 is replaced only when the backup has its key, so a backup
 
 A signed-in owner can choose a ZIP or JSON in **Settings → Backup & Export → Restore Workspace**. ZIP validation checks each entry’s CRC32, the manifest and the SHA-256 checksum of `backup.json`. After validation, the screen names the file and workspace and asks whether to replace records. Cancel closes the dialog without sending anything. Only **Replace workspace records** sends the original JSON text to the existing restore endpoint. The server still decides whether the restore is permitted, including workspace and closed-book checks.
 
-If the full JSON export service is unavailable, the separate **Download partial copy** option contains only browser-loaded records. This file is marked partial, cannot be restored, and does not satisfy the backup reminder. A workspace export does not check hosting-provider backups or recover uploaded file contents.
+If the full JSON export service is unavailable, the separate **Download partial copy** option contains only browser-loaded records. This file is marked partial, cannot be restored, and does not satisfy the backup reminder. The reminder is a browser-local record that a download was started, not proof that a file was saved. Older reminder dates may include a partial download and are not rewritten; keep a new full backup if you cannot confirm what was saved. Workspace exports do not check hosting-provider backups or recover uploaded file contents.
 
 ## Verification
 

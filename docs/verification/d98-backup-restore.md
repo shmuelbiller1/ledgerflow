@@ -86,7 +86,8 @@ $13,600.00 with Cash 9,400.00 and Office Expense 600.00).
 The same browser spec checks that a failed full export does not download a file automatically or
 advance the reminder. A user can explicitly download a partial copy on a service failure; renaming
 it does not make it restorable. Access refusals and invalid successful responses do not produce a
-backup. It also checks wrong-workspace refusal, owner-only restore controls, dismissal on workspace
+backup. A blocked reminder write does not falsely say that the download failed. The spec also checks
+wrong-workspace refusal, owner-only restore controls, dismissal on workspace
 change, stale file validation on a new sign-in, and an exact, single ZIP restore request despite a
 repeated click while waiting on a server refusal. These are browser tests with stubbed HTTP, not a
 second test of the database restore transaction.

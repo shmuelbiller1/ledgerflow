@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mountJourney, remountJourney, setLedgerField, settleStyles } from './support/journeyFixture';
-import { expectNoNewAccessibilityIssues } from './support/a11yGate';
+import { expectNoNewAccessibilityIssues, waitForFiniteAnimations } from './support/a11yGate';
 import { buildWorkspaceArchive } from '../src/lib/workspaceArchive';
 
 /**
@@ -353,6 +353,24 @@ for (const [scenario, options] of [
   });
 }
 
+test('W10 a blocked reminder write does not report a failed download', async ({ page }) => {
+  await mountBackupScreen(page, BACKUP_TXS);
+  await page.evaluate(id => {
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (this === localStorage && key === `ledgerflow:last_backup:${id}`) {
+        throw new DOMException('Storage is full', 'QuotaExceededError');
+      }
+      setItem.call(this, key, value);
+    };
+  }, WORKSPACE);
+  const text = await exportBackup(page);
+  expect(JSON.parse(text).metadata.checksum).toBe(fileChecksum(text));
+  await expect(page.getByRole('status')).toContainText('The backup download started, but the reminder could not be updated');
+  await expect(page.getByRole('alert').filter({ hasText: 'The full backup could not be downloaded' })).toHaveCount(0);
+  expect(await backupMarker(page)).toBeNull();
+});
+
 test('W10 a workspace archive requires confirmation and submits its exact JSON once on server refusal', async ({ page }) => {
   await mountBackupScreen(page, BACKUP_TXS);
   const payload = backupPayload(BACKUP_TXS);
@@ -375,6 +393,7 @@ test('W10 a workspace archive requires confirmation and submits its exact JSON o
     await page.keyboard.press('Tab');
     await expect(cancel).toBeFocused();
     expect(uploads).toHaveLength(0);
+    await waitForFiniteAnimations(page);
     const { violations } = await new AxeBuilder({ page }).include('[role="dialog"]').analyze();
     expect(violations.filter(violation => violation.impact === 'serious' || violation.impact === 'critical')).toEqual([]);
 
