@@ -427,7 +427,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
               onTaxCodeFill={taxCodeId => { if (defaults.taxAvailable()) setInvoice(prev => prev.taxCodeId || prev.taxRate ? prev : { ...prev, taxCodeId, taxRate: 0 }); }}
               repeatAction={lastForCustomer && linesEmpty ? (
                 <button type="button" onClick={repeatLast}
-                  className="ml-auto mr-2 px-3 py-2 rounded-xl text-[10px] font-semibold uppercase tracking-wider border border-[var(--line)] text-[var(--text)] hover:border-[var(--brass-line)]">
+                  className="ms-auto me-2 px-3 py-2 rounded-xl text-[10px] font-semibold uppercase tracking-wider border border-[var(--line)] text-[var(--text)] hover:border-[var(--brass-line)]">
                   Same as last time ({lastForCustomer.number || 'last invoice'}, {lastForCustomer.items?.length} line{lastForCustomer.items?.length === 1 ? '' : 's'})
                 </button>
               ) : undefined}

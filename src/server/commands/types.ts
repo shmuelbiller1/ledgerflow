@@ -93,6 +93,12 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
   describe: CommandDescription;
   /** A temporary compatibility operation type used by an old route while its UI/API is switched over. */
   operationType?: string;
+  /**
+   * The idempotency id to use when the caller sends no `Idempotency-Key` (#824): a command whose input names
+   * the thing it posts once (a contract and period, a lease) derives the same id the old route did, so a
+   * repeated call replays instead of posting a second entry. Undefined: no key, as before.
+   */
+  defaultOperationId?(input: z.output<Schema>): string | undefined;
   /** The old idempotency record key, if this command adopts a pre-command operation. */
   legacyKey?(workspaceId: string, operationId: string): string;
   /** Preserve the old request fingerprint when a route is adopted; defaults to requestPayloadHash(req.body). */

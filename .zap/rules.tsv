@@ -1,18 +1,11 @@
 # LedgerFlow OWASP ZAP Baseline Rule Configuration (SEC-SCAN-1)
 # Format: <plugin_id><TAB><IGNORE|INFO|WARN|FAIL>[<TAB><optional_url_regex>]
-# Every non-default rule below documents why it is downgraded for the local CI loopback target.
+# Policy: NEVER silence broad vulnerability rules (such as 10055 CSP or 10017 Cross-Domain JS)
+# here. Instance-level evaluation of documented S-23 CSP and payment-SDK baselines happens in
+# `scripts/evaluate-zap-report.mjs`, so unexpected directives or script origins always fail CI.
+# Low-severity rule 10063 (Permissions-Policy) stays visible until server issue #827 lands.
 
 # 10035 — Strict-Transport-Security Header Not Set:
-# The CI baseline scan targets http://127.0.0.1:3000 without local TLS termination; RFC 6797
-# specifies HSTS applies over HTTPS, which is enforced at the edge (vercel.json + Helmet HSTS).
+# The CI baseline scan targets plain-HTTP http://127.0.0.1:3000 without TLS termination;
+# RFC 6797 scopes HSTS to HTTPS, which is enforced at the edge (vercel.json + Helmet HSTS).
 10035	INFO	^http://127\.0\.0\.1:3000/.*
-
-# 10055 — Content Security Policy (CSP) Notices (style-src 'unsafe-inline'):
-# Tracked under S-23 staged CSP rollout: script-src already blocks unsafe-inline and unsafe-eval,
-# while style-src retains 'unsafe-inline' until inline React style attributes are eliminated.
-10055	INFO	^http://127\.0\.0\.1:3000/.*
-
-# 10017 — Cross-Domain JavaScript Source File Inclusion:
-# First-party payment/banking SDKs (https://js.stripe.com and https://cdn.plaid.com) are
-# intentionally loaded by billing/bank-sync views and pinned in CSP script-src.
-10017	INFO	^http://127\.0\.0\.1:3000/.*

@@ -71,6 +71,8 @@ export const leaseCapitalizeCommand: CommandDefinition<typeof leaseCapitalizeInp
   operationType: 'LEASE_CAPITALIZE',
   // the address's own idempotency record: a retry that started on either path finds the other's
   legacyKey: (workspaceId, operationId) => `${workspaceId}_lease_${operationId}`,
+  // #824: with no Idempotency-Key the old route still posted a lease once; the command derives the same id
+  defaultOperationId: (input) => LEASE_SPEC.operationId?.(input),
   prepare(ctx, input) {
     return prepareJournalDocument(ctx.db, LEASE_SPEC, withWorkspace(ctx.workspaceId, input), callerOf(ctx));
   },
@@ -151,6 +153,8 @@ export const revenueRecognizeCommand: CommandDefinition<typeof revenueRecognizeI
   capacity: 'transactions',
   operationType: 'REVENUE_RECOGNIZE',
   legacyKey: (workspaceId, operationId) => `${workspaceId}_rev_${operationId}`,
+  // #824: with no Idempotency-Key the old route posted a contract's period once; the command derives the same id
+  defaultOperationId: (input) => REVENUE_SPEC.operationId?.(input),
   prepare(ctx, input) {
     return prepareJournalDocument(ctx.db, REVENUE_SPEC, withWorkspace(ctx.workspaceId, input), callerOf(ctx));
   },

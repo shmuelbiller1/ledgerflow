@@ -22,6 +22,28 @@ import { requireLedgerWriter } from '../server/middleware/requireLedgerWriter';
 import { createAppRateLimiters, isVerifiedApiKeyRequest } from '../server/middleware/rateLimiters';
 import { openApiDocument } from '../server/openapi';
 
+interface ZapEvalAlert {
+  pluginid: string;
+  alertRef?: string;
+  name?: string;
+}
+interface ZapEvalResult {
+  passed: boolean;
+  actionable: ZapEvalAlert[];
+  acceptedBaseline: ZapEvalAlert[];
+  lowAndInfo: ZapEvalAlert[];
+  errors: string[];
+}
+interface ZapEvalModule {
+  classifyZapAlert: (alert: Record<string, unknown>, optionsOrOrigin?: Record<string, unknown> | string) => { accepted: boolean; reason?: string };
+  evaluateZapReportJson: (raw: string, options?: { cspRollout?: string }) => ZapEvalResult;
+  formatZapSummaryMarkdown: (result: ZapEvalResult) => string;
+}
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — runtime ESM script in scripts/ evaluated directly by zap-baseline.yml under node
+import * as zapEvalRaw from '../../scripts/evaluate-zap-report.mjs';
+const { classifyZapAlert, evaluateZapReportJson, formatZapSummaryMarkdown } = zapEvalRaw as unknown as ZapEvalModule;
+
 const VALID_SAMPLE_KEY = `lf_id_ws_demo_0123456789abcdef.${'a'.repeat(64)}`;
 
 test('SEC-NEW-02: malformed, primitive, and oversized JSON bodies return JSON without stack traces', async () => {
@@ -196,6 +218,10 @@ test('SEC-SCAN-1: api-fuzz.yml, zap-baseline.yml, and .zap/rules.tsv satisfy pin
   assert.doesNotMatch(schemathesisInstall, /--only-binary\s+:all:/);
   assert.match(apiFuzz, /continue-on-error:\s*true/);
   assert.match(apiFuzz, /http:\/\/127\.0\.0\.1:3000\/api\/v1\/openapi\.json/);
+  assert.match(apiFuzz, /--url http:\/\/127\.0\.0\.1:3000\b/);
+  assert.match(apiFuzz, /APP_URL=http:\/\/127\.0\.0\.1:3000/);
+  assert.match(apiFuzz, /::add-mask::\$FUZZ_API_KEY/);
+  assert.doesNotMatch(apiFuzz, /keyHashAlg:\s*['"]scrypt-v1['"]/);
   const apiFuzzTriggers = apiFuzz.match(/^on:\r?\n([\s\S]*?)(?=^[A-Za-z_][A-Za-z0-9_-]*:)/m)?.[1] || '';
   assert.match(apiFuzzTriggers, /^ {2}push:\s*$/m);
   assert.match(apiFuzzTriggers, /^ {2}pull_request:\s*$/m);
@@ -210,6 +236,13 @@ test('SEC-SCAN-1: api-fuzz.yml, zap-baseline.yml, and .zap/rules.tsv satisfy pin
   assert.match(zapBaseline, /APP_URL=http:\/\/127\.0\.0\.1:3000/);
   assert.match(zapBaseline, /node build\/server\.cjs/);
   assert.doesNotMatch(zapBaseline, /tsx server\.ts/);
+  // #762: runner UID 1001 vs container `zap` UID 1000 broke /home/zap/zap.yaml; never override `-u`.
+  assert.doesNotMatch(zapBaseline, /-u\s+["']?\$\(id -u\)/);
+  assert.match(zapBaseline, /sudo chown -R 1000:1000 zap-out/);
+  assert.doesNotMatch(zapBaseline, /chmod\s+[01]?777/);
+  assert.match(zapBaseline, /-z\s+"-silent"/);
+  assert.match(zapBaseline, /test -s zap-out\/zap-report\.json/);
+  assert.match(zapBaseline, /node scripts\/evaluate-zap-report\.mjs/);
   assert.match(zapBaseline, /http:\/\/127\.0\.0\.1:3000/);
   assert.doesNotMatch(zapBaseline, /https:\/\/.*ledgerflow/i);
 
@@ -238,7 +271,9 @@ test('SEC-SCAN-1: api-fuzz.yml, zap-baseline.yml, and .zap/rules.tsv satisfy pin
     assert.ok(scannerActionRefs.includes(expectedRef), `Missing immutable scanner action pin ${expectedRef}`);
   }
 
+  // Broad CSP (10055) and Cross-Domain JS (10017) rules must NEVER be muted in `.zap/rules.tsv`.
   const ruleLines = zapRules.split('\n');
+  const broadlyMutedForbidden = new Set(['10055', '10017', '10038', '10020', '40012', '40018']);
   let activeRuleCount = 0;
   for (let idx = 0; idx < ruleLines.length; idx += 1) {
     const trimmed = ruleLines[idx].trim();
@@ -248,8 +283,148 @@ test('SEC-SCAN-1: api-fuzz.yml, zap-baseline.yml, and .zap/rules.tsv satisfy pin
     assert.ok(cols.length >= 2 && cols.length <= 3, `.zap/rules.tsv line ${idx + 1} must have 2-3 tab-separated columns`);
     assert.match(cols[0], /^\d+$/);
     assert.ok(['IGNORE', 'INFO', 'WARN', 'FAIL'].includes(cols[1]));
+    assert.equal(broadlyMutedForbidden.has(cols[0]), false, `Rule ${cols[0]} must not be suppressed wholesale in .zap/rules.tsv`);
     const prevComment = ruleLines[idx - 1]?.trim() || '';
     assert.ok(prevComment.startsWith('#'), `.zap/rules.tsv rule ${cols[0]} must be preceded by an explanatory comment`);
   }
   assert.ok(activeRuleCount >= 1);
+});
+
+test('SEC-SCAN-1: evaluate-zap-report fails closed on corrupt reports and blocks unexpected CSP or third-party script alerts', () => {
+  assert.throws(() => evaluateZapReportJson(''), /empty or missing/i);
+  assert.throws(() => evaluateZapReportJson('{bad'), /parsed/i);
+  assert.throws(() => evaluateZapReportJson(JSON.stringify({ '@version': '2.16.1', site: [] })), /no scanned site/i);
+
+  // Documented loopback S-23 baseline + allowlisted Plaid script + Low 10063 -> PASS with full visibility
+  const baselineReport = JSON.stringify({
+    '@version': '2.16.1',
+    '@generated': '2026-11-18T02:00:00Z',
+    site: [{
+      '@name': 'http://127.0.0.1:3000',
+      alerts: [
+        {
+          pluginid: '10055',
+          alertRef: '10055-6',
+          riskcode: '2',
+          riskdesc: 'Medium (High)',
+          name: 'CSP: style-src unsafe-inline',
+          instances: [{ uri: 'http://127.0.0.1:3000/' }],
+        },
+        {
+          pluginid: '10055',
+          alertRef: '10055-5',
+          riskcode: '2',
+          riskdesc: 'Medium (High)',
+          name: 'CSP: script-src unsafe-inline',
+          instances: [{ uri: 'http://127.0.0.1:3000/' }],
+        },
+        {
+          pluginid: '10055',
+          alertRef: '10055-4',
+          riskcode: '2',
+          riskdesc: 'Medium (High)',
+          name: 'CSP: Wildcard Directive',
+          otherinfo: 'The following directives either allow wildcard sources (or ancestors), are not defined, or are overly broadly defined:\nimg-src',
+          instances: [{ uri: 'http://127.0.0.1:3000/' }],
+        },
+        {
+          pluginid: '10017',
+          alertRef: '10017',
+          riskcode: '1',
+          riskdesc: 'Low (Medium)',
+          name: 'Cross-Domain JavaScript Source File Inclusion',
+          instances: [{ uri: 'http://127.0.0.1:3000/', param: 'https://cdn.plaid.com/link/v2/stable/link-initialize.js' }],
+        },
+        {
+          pluginid: '10063',
+          alertRef: '10063-1',
+          riskcode: '1',
+          riskdesc: 'Low (Medium)',
+          name: 'Permissions Policy Header Not Set',
+          instances: [{ uri: 'http://127.0.0.1:3000/' }],
+        },
+      ],
+    }],
+  });
+  const okResult = evaluateZapReportJson(baselineReport, { cspRollout: 'report-only' });
+  assert.equal(okResult.passed, true);
+  assert.equal(okResult.actionable.length, 0);
+  assert.equal(okResult.acceptedBaseline.length, 3);
+  assert.equal(okResult.lowAndInfo.length, 2);
+  assert.match(formatZapSummaryMarkdown(okResult), /PASS/);
+  assert.match(formatZapSummaryMarkdown(okResult), /10063-1/);
+
+  // Under S-23 `enforce`, script-src unsafe-inline MUST fail!
+  const enforceResult = evaluateZapReportJson(baselineReport, { cspRollout: 'enforce' });
+  assert.equal(enforceResult.passed, false);
+  assert.deepEqual(enforceResult.actionable.map(a => a.alertRef), ['10055-5']);
+
+  // CSP wildcard in script-src / connect-src / frame-ancestors, unsafe-eval, malformed CSP, and unknown CDN script MUST all fail!
+  assert.equal(
+    classifyZapAlert({
+      pluginid: '10055',
+      alertRef: '10055-4',
+      riskcode: '2',
+      name: 'CSP: Wildcard Directive',
+      otherinfo: 'The following directives either allow wildcard sources: img-src, script-src',
+      instances: [{ uri: 'http://127.0.0.1:3000/' }],
+    }, 'http://127.0.0.1:3000').accepted,
+    false,
+  );
+  assert.equal(
+    classifyZapAlert({
+      pluginid: '10055',
+      alertRef: '10055-10',
+      riskcode: '2',
+      name: 'CSP: script-src unsafe-eval',
+      instances: [{ uri: 'http://127.0.0.1:3000/' }],
+    }, 'http://127.0.0.1:3000').accepted,
+    false,
+  );
+  assert.equal(
+    classifyZapAlert({
+      pluginid: '10055',
+      alertRef: '10055-9',
+      riskcode: '2',
+      name: 'CSP: Malformed Policy (Non-ASCII)',
+      instances: [{ uri: 'http://127.0.0.1:3000/' }],
+    }, 'http://127.0.0.1:3000').accepted,
+    false,
+  );
+  assert.equal(
+    classifyZapAlert({
+      pluginid: '10017',
+      alertRef: '10017',
+      riskcode: '2',
+      name: 'Cross-Domain JavaScript Source File Inclusion',
+      instances: [
+        { uri: 'http://127.0.0.1:3000/', param: 'https://js.stripe.com/v3/' },
+        { uri: 'http://127.0.0.1:3000/', param: 'https://cdn.attacker.example/tracker.js' },
+      ],
+    }, 'http://127.0.0.1:3000').accepted,
+    false,
+  );
+  assert.equal(
+    classifyZapAlert({
+      pluginid: '10017',
+      alertRef: '10017',
+      riskcode: '2',
+      name: 'Cross-Domain JavaScript Source File Inclusion',
+      instances: [
+        { uri: 'http://127.0.0.1:3000/', param: 'https://js.stripe.com/v3/' },
+        { uri: 'http://127.0.0.1:3000/', evidence: '<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>' },
+      ],
+    }, 'http://127.0.0.1:3000').accepted,
+    true,
+  );
+  assert.equal(
+    classifyZapAlert({
+      pluginid: '10038',
+      alertRef: '10038-1',
+      riskcode: '2',
+      name: 'Content Security Policy (CSP) Header Not Set',
+      instances: [{ uri: 'http://127.0.0.1:3000/' }],
+    }, 'http://127.0.0.1:3000').accepted,
+    false,
+  );
 });

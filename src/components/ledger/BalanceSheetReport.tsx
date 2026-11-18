@@ -103,7 +103,7 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
             <label htmlFor={`${formId}-comparative`} aria-label="Comparative Year-on-Year" className="flex min-h-11 items-center gap-2 cursor-pointer rounded focus-within:outline focus-within:outline-2 focus-within:outline-[var(--brass)]">
               <input id={`${formId}-comparative`} type="checkbox" className="sr-only" checked={isComparative} disabled={basis === 'cash'} onChange={(e) => setIsComparative(e.target.checked)} />
               <span aria-hidden="true" className={cn("w-8 h-4 shrink-0 rounded-full flex items-center p-0.5", isComparative ? "bg-indigo-500" : "bg-slate-300")}>
-                <span className={cn("w-3 h-3 bg-[var(--surface)] rounded-full shadow-sm", isComparative ? "translate-x-4" : "translate-x-0")} />
+                <span className={cn("w-3 h-3 bg-[var(--surface)] rounded-full shadow-sm", isComparative ? "translate-x-4 rtl:-translate-x-4" : "translate-x-0")} />
               </span>
               <span className="text-[10px] text-[var(--text)]">Previous year</span>
             </label>
@@ -218,7 +218,7 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
           className="bg-[var(--surface)] rounded-xl border border-[var(--line)]/80 shadow-3xs overflow-hidden group hover:border-slate-300 transition-all flex flex-col"
         >
           <div className="p-4 border-b border-[var(--line)] bg-[var(--ink)]/50 flex justify-between items-center relative overflow-hidden shrink-0">
-            <div className="absolute top-0 right-0 p-2 opacity-[0.015] pointer-events-none group-hover:rotate-6 transition-transform duration-700">
+            <div className="absolute top-0 end-0 p-2 opacity-[0.015] pointer-events-none group-hover:rotate-6 transition-transform duration-700">
               <Layers aria-hidden="true" size={80} className="text-[var(--text)]" />
             </div>
             <div className="relative z-10">
@@ -268,7 +268,7 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
           className="bg-[var(--surface)] rounded-xl border border-[var(--line)]/80 shadow-3xs overflow-hidden group hover:border-slate-300 transition-all flex flex-col"
         >
           <div className="p-4 border-b border-[var(--line)] bg-[var(--ink)]/50 flex justify-between items-center relative overflow-hidden shrink-0">
-            <div className="absolute top-0 right-0 p-2 opacity-[0.015] pointer-events-none group-hover:-rotate-6 transition-transform duration-700">
+            <div className="absolute top-0 end-0 p-2 opacity-[0.015] pointer-events-none group-hover:-rotate-6 transition-transform duration-700">
                <HandCoins aria-hidden="true" size={80} className="text-[var(--text)]" />
             </div>
             <div className="relative z-10">
@@ -329,7 +329,7 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
                     setDrillDownTarget({ accountName: 'Retained Earnings (Income & Expenses)', transactions: matchedTxs });
                   }}
                   title="Click to drill down into Retained Earnings transaction activity"
-                  className="w-full text-left flex justify-between items-center bg-[var(--brass-soft)] hover:bg-[var(--surface)] text-[var(--text)] p-2 rounded-lg transition-all border border-[var(--brass-line)] hover:border-[var(--brass)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brass)] min-h-11 min-w-0 cursor-pointer group/row"
+                  className="w-full text-start flex justify-between items-center bg-[var(--brass-soft)] hover:bg-[var(--surface)] text-[var(--text)] p-2 rounded-lg transition-all border border-[var(--brass-line)] hover:border-[var(--brass)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brass)] min-h-11 min-w-0 cursor-pointer group/row"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-8 h-8 bg-[var(--panel)] text-[var(--text)] rounded-md flex items-center justify-center text-[9px] font-bold font-mono border border-[var(--line)] shrink-0">
@@ -343,7 +343,7 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
                       <p className="text-[8px] font-bold text-[var(--text)] uppercase tracking-wider truncate">{labels.retainedEarningsSub}</p>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end shrink-0 ml-2">
+                  <div className="flex flex-col items-end shrink-0 ms-2">
                     <span className="font-mono font-bold text-xs text-[var(--text)] tabular-nums whitespace-nowrap">
                       <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(currentData.netIncome)}</bdi>
                     </span>

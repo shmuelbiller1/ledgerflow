@@ -10,6 +10,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import TaxLiabilityView from '../components/reporting/TaxLiabilityView';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import type { Workspace } from '../types';
 import { makeBill, makeInvoice } from './fixtures';
 
@@ -20,6 +21,11 @@ function setup(role: 'owner' | 'viewer') {
     user: { uid: 'u1' } as never,
     currentWorkspaceId: 'w1',
     workspaces: [{ id: 'w1', name: 'W', currency: 'GBP', uid: role === 'owner' ? 'u1' : 'someone-else', roles: { u1: role } } as unknown as Workspace],
+  });
+  useDataNeedsStore.setState({
+    loadedWorkspaceId: 'w1',
+    loaded: { invoices: true, bills: true, creditNotes: true, vendorCredits: true },
+    failed: {},
   });
   useLedgerStore.setState({
     invoices: [
@@ -60,6 +66,7 @@ describe('tax return screen', () => {
     const calls = stubFetchWithBodies(200, { returns: [] });
     setup('owner');
     render(<TaxLiabilityView {...period} />);
+    await waitFor(() => assert.equal((screen.getByRole('button', { name: 'File this return' }) as HTMLButtonElement).disabled, false));
     fireEvent.change(screen.getByLabelText('Reference (optional)'), { target: { value: 'Q3 2026' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'File this return' })); });
     await waitFor(() => assert.ok(calls.some(c => c.method === 'POST')));

@@ -21,7 +21,7 @@ export function AccountGroupToggle({ label, expanded, onToggle, className }: {
   return (
     <button type="button" onClick={onToggle} aria-expanded={expanded} aria-label={text} title={text}
       className={cn('p-1 rounded text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--ink)] transition-colors shrink-0 cursor-pointer self-center', className)}>
-      {expanded ? <ChevronDown aria-hidden="true" size={13} /> : <ChevronRight aria-hidden="true" size={13} />}
+      {expanded ? <ChevronDown aria-hidden="true" size={13} /> : <ChevronRight aria-hidden="true" size={13} className="rtl:rotate-180" />}
     </button>
   );
 }
@@ -40,7 +40,7 @@ export function AccountGroupRow({ depth, hasChildren, label, expanded, onToggle,
   className?: string;
 }) {
   return (
-    <div className={cn('flex items-stretch gap-1 min-w-0', className)} style={{ paddingLeft: `${depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
+    <div className={cn('flex items-stretch gap-1 min-w-0', className)} style={{ paddingInlineStart: `${depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
       {hasChildren
         ? <AccountGroupToggle label={label} expanded={expanded} onToggle={onToggle} />
         : <span aria-hidden="true" className="w-[21px] shrink-0" />}
@@ -59,9 +59,9 @@ export function AccountGroupSubtotal({ label, depth, amount, formatMoney, classN
 }) {
   return (
     <div className={cn('flex justify-between items-center gap-2 px-2 py-1 mt-1 border-t border-[var(--line)] text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]', className)}
-      style={{ marginLeft: `${depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
+      style={{ marginInlineStart: `${depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
       <span className="truncate">{label}</span>
-      <span className="font-mono tabular-nums shrink-0">{formatMoney(amount)}</span>
+      <span className="font-mono tabular-nums shrink-0"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatMoney(amount)}</bdi></span>
     </div>
   );
 }

@@ -52,6 +52,9 @@ not a workspace.
 
 ## Database changes (migrations): status
 
+**✅ 18 Nov:** `20261118120000_invites_owner_read.sql` (#842, merged in #847) is now applied on the live database: only
+owners can read pending invites and their tokens. Nothing is waiting to be run.
+
 **17 Nov: the last confirmed live list was 60 of 60, before SBX-1 PR #787.** Older notes below that ask you
 to run one of those migrations in the SQL editor are done; ignore them. You don't need to run SQL yourself.
 

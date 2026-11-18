@@ -1,17 +1,25 @@
-# Overview & Dashboard · סקירה כללית ולוח בקרה
+# Overview · סקירה כללית
 
 ## English
-The **Overview** screen summarizes cash on hand, money owed by customers, bills payable to suppliers, period profit, and open bookkeeping tasks.
 
-1. Switch between **Owner Lens** and **Accountant Lens** to inspect high-level cash flow or trial-balance posture.
-2. Click any summary KPI card to open the underlying report period directly.
-3. Use **Add Entry** for a quick balanced transaction, or open **Help & Guide → First month & demo** to work through the first-month checklist or explore safe guest sample companies.
-4. Open **Accounting glossary** to search plain English and Hebrew explanations of the words used in reports and documents; a definition is not tax advice.
+See how much cash the business has, what customers owe you, what you owe suppliers, and whether the business made a profit.
+
+1. Choose a month, fiscal quarter, fiscal year or custom range.
+2. Open a linked summary figure to see the report behind it. Cash is shown at the end date; profit covers the period.
+3. Look under Needs attention for work to follow up, such as unmatched bank lines.
 
 ## עברית
-מסך **הסקירה הכללית** מציג בזמן אמת את יתרות המזומן, חובות הלקוחות, התחייבויות לספקים, הרווח התקופתי ומשימות פתוחות לטיפול.
 
-1. עברו בין **תצוגת בעלים** ל-**תצוגת רואה חשבון** לפי הצורך התפעולי.
-2. לחצו על כל כרטיס סיכום כדי לפתוח ישירות את הדוח הכספי שעומד מאחוריו.
-3. השתמשו בכפתור **הוספת פקודה** לרישום מהיר ומאוזן, או פתחו **עזרה ומדריכים ← חודש ראשון ודמו** למעקב אחר צעדי ההקמה.
-4. פתחו את **מילון המונחים החשבונאיים** כדי לחפש הסברים פשוטים בעברית ובאנגלית למילים שבדוחות ובמסמכים; ההגדרה אינה ייעוץ מס.
+כאן רואים כמה מזומן יש לעסק, כמה הלקוחות חייבים, כמה יש לשלם לספקים והאם העסק הרוויח.
+
+1. בחרו חודש, רבעון כספי, שנת כספים או טווח תאריכים משלכם.
+2. פתחו מדד שיש בו קישור כדי לעיין בדוח שמאחוריו. יתרת המזומן היא ליום הסיום; הרווח מתייחס לתקופה.
+3. בדקו אילו משימות דורשות טיפול, למשל שורות בנק שעדיין לא הותאמו.
+
+![Period selector above the cash, receivables, payables and profit cards. · בחירת תקופה מעל כרטיסי המזומן, חובות הלקוחות, חובות לספקים והרווח.](../../public/help/overview.webp)
+
+*Sample books · ספרים לדוגמה*
+
+See also: **Accounting glossary** for definitions and **Help & Guide → First month & demo** for the setup checklist.
+
+ראו גם: **מילון המונחים החשבונאיים** להגדרות ו**חודש ראשון והדגמה** במרכז העזרה לרשימת צעדי ההקמה.

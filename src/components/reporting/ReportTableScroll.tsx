@@ -107,7 +107,7 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
   </div>}
   <div ref={ref} data-columns={scope} className="overflow-x-auto" role="region" aria-label="Scrollable report table" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
    <style>{hiddenColumnsCss(scope,effectiveHidden.map(index=>reorderable?order.indexOf(String(index)):index))}</style>
-   <div data-print-hide className="sticky left-0 flex flex-wrap gap-2 mb-2">
+   <div data-print-hide className="sticky start-0 flex flex-wrap gap-2 mb-2">
     <button type="button" onClick={()=>scroll(-240)} className="min-h-11 px-3 border rounded"><span aria-hidden="true">← </span>Scroll table left</button>
     <button type="button" onClick={()=>scroll(240)} className="min-h-11 px-3 border rounded">Scroll table right<span aria-hidden="true"> →</span></button>
     {headers.length>2&&<button type="button" aria-expanded={open} onClick={()=>setOpen(o=>!o)} className="min-h-11 px-3 border rounded">Columns{effectiveHidden.length?` (${effectiveHidden.length} hidden)`:''}</button>}
@@ -120,7 +120,7 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
     setHidden(nextHidden);saveHidden(reportKey,nextHidden);
    }}/>}
    {open&&headers.length>2&&(
-    <fieldset data-print-hide className="sticky left-0 mb-2 flex flex-wrap gap-3 text-sm">
+    <fieldset data-print-hide className="sticky start-0 mb-2 flex flex-wrap gap-3 text-sm">
      <legend className="sr-only">Columns to show</legend>
      {reorderable&&<p className="w-full">CSV includes these displayed rows and columns as shown, including localized text. Use the report’s financial export for plain numeric amounts.</p>}
      {order.filter(id=>id!=='0').map(id=>({name:headers[Number(id)],column:Number(id)})).map(c=>(

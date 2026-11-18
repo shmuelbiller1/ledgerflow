@@ -62,7 +62,7 @@ const chart = () => render(
 );
 /** How far a chart row is indented: the wrapper of the code cell. */
 const chartIndent = (name: string) =>
-  (screen.getByRole('button', { name: inlineEditName(`Edit Code of ${name}`) }).closest('td')!.firstElementChild as HTMLElement).style.paddingLeft;
+  (screen.getByRole('button', { name: inlineEditName(`Edit Code of ${name}`) }).closest('td')!.firstElementChild as HTMLElement).style.paddingInlineStart;
 
 beforeEach(() => {
   stubFetch(404);
@@ -156,7 +156,7 @@ describe('the trial balance', () => {
     // twin (the print stylesheet hides buttons, so the paper needs the amounts as text)
     assert.deepEqual(footer().match(/\$195\.00/g)!.length, 4, 'debits and credits still agree');
     const nameCell = (name: string) => screen.getByText(name).closest('div[style]') as HTMLElement;
-    assert.deepEqual([nameCell('Overheads').style.paddingLeft, nameCell('Rent').style.paddingLeft], ['0px', '16px']);
+    assert.deepEqual([nameCell('Overheads').style.paddingInlineStart, nameCell('Rent').style.paddingInlineStart], ['0px', '16px']);
   });
 
   test('closing a group hides its accounts and its subtotal, and nothing else', async () => {
@@ -223,8 +223,8 @@ describe('the balance sheet', () => {
     assert.equal(view.getByText('Total Current assets').parentElement!.textContent, 'Total Current assets$200.00');
     assert.match(totalAssets(view), /\$400\.00/, '150.00 + 50.00 inside the group, plus 200.00 of equipment');
     assert.ok(view.getByText('Balanced'), 'the sheet still balances');
-    assert.equal((view.getByTitle('Click to drill down into Cash').parentElement as HTMLElement).style.paddingLeft, '16px');
-    assert.equal((view.getByTitle('Click to drill down into Equipment').parentElement as HTMLElement).style.paddingLeft, '0px');
+    assert.equal((view.getByTitle('Click to drill down into Cash').parentElement as HTMLElement).style.paddingInlineStart, '16px');
+    assert.equal((view.getByTitle('Click to drill down into Equipment').parentElement as HTMLElement).style.paddingInlineStart, '0px');
   });
 
   test('closing a group hides its accounts and its subtotal; the totals stay', async () => {
@@ -281,7 +281,7 @@ describe('the profit and loss', () => {
     assert.ok(view.getByText('Product sales'));
     assert.ok(view.getByText('Service sales'));
     assert.equal(view.getAllByText('$500.00').length >= 2, true, 'the subtotal and the section header agree');
-    assert.equal((view.getByTitle('Click to drill down into Product sales').parentElement as HTMLElement).style.paddingLeft, '16px');
+    assert.equal((view.getByTitle('Click to drill down into Product sales').parentElement as HTMLElement).style.paddingInlineStart, '16px');
   });
 
   test('closing a group hides its accounts and its subtotal, and the income total stays', async () => {

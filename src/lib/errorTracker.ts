@@ -1,5 +1,6 @@
 import { useAuthStore } from '../stores/useAuthStore';
 import { ErrorLogRecord } from '../types';
+import { isOptionalTelemetryAllowed } from './cookieConsent';
 import { redactForLogs } from './logRedaction';
 import { secureId } from './secureId';
 
@@ -150,6 +151,12 @@ export async function reportClientError(
   recentErrors.unshift(record);
   if (recentErrors.length > RECENT_ERRORS_MAX) {
     recentErrors.pop();
+  }
+
+  // S-35: honor "Essential Only" privacy preference for automatic background telemetry;
+  // explicit user-submitted support tickets (`ticketId` set) still transmit.
+  if (!extra?.ticketId && !isOptionalTelemetryAllowed()) {
+    return errorId;
   }
 
   // Send to backend telemetry API
