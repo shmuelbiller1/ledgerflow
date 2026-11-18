@@ -99,8 +99,10 @@ export function ledgerMark(t: Updatable, ref: unknown, patch: Record<string, unk
  */
 export function ledgerUpdateFields(t: Updatable, ref: unknown, patch: Record<string, unknown>): void {
   const restricted = new Set(['lines', 'amountCents', 'totalAmountCents', 'workspaceId', 'date', 'uid']);
+  const scalarGuards = new Set(['status', 'type', 'isDeleted', 'deletedAt', 'reversalEventId', 'currency', 'exchangeRate', 'baseAmountCents', 'homeAmountCents', 'id']);
   for (const key of Object.keys(patch)) {
-    if (restricted.has(key.split('.')[0]) && patch[key] !== undefined) throw new LedgerDoorError('Restricted fields cannot be modified via partialUpdate. Use a full transaction update instead.');
+    const root = key.split('.')[0];
+    if ((restricted.has(root) || (key.includes('.') && scalarGuards.has(root))) && patch[key] !== undefined) throw new LedgerDoorError('Restricted fields cannot be modified via partialUpdate. Use a full transaction update instead.');
   }
   t.update(ref, patch);
 }
