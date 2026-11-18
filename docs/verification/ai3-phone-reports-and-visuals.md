@@ -1,6 +1,6 @@
 # Phone reports, visual references, and browser diagnostics
 
-This batch changes report presentation and browser checks. It does not change financial figures, document mutations, roles, database migrations, test budgets, or the required browser gate.
+This batch changes report presentation and browser checks, and fixes an invoice loading guard regression found on `main`. It does not change financial figures, document mutations, roles, database migrations, test budgets, or the required browser gate.
 
 ## A-278: every registered report at 390 px
 
@@ -12,15 +12,15 @@ Broader report verification exposed a focus race in the aging drill-down: after 
 
 ## A-281: reviewed screenshots
 
-**12 new references**, each desktop/phone × light/dark: Purchase Orders with an expanded order and a populated line, the Journal entry editor opened through a real record link, and the open Reports picker. The two Balance Sheet phone references were refreshed for wrapping the account names; the review showed the same totals. The [pinned Linux capture and comparison](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44408482990) passed both steps; the 14 reviewed PNGs are in commit `66bfaa3e`. The local Chromium was used for behavioral preflight, not as a source of committed pixels.
+**12 new references**, each desktop/phone × light/dark: Purchase Orders with an expanded order and a populated line, the Journal entry editor opened through a real record link, and the open Reports picker. The two Balance Sheet phone references were refreshed for wrapping the account names; the review showed the same totals. The [pinned Linux capture and comparison](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44408482990) passed both steps; the 14 reviewed PNGs are in commit `66bfaa3e`. A [recheck after merging the latest `main`](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44416172847) passed with no image changes. The local Chromium was used for behavioral preflight, not as a source of committed pixels.
 
 ## #836: incomplete browser report diagnostics
 
-For the selected unsuccessful browser run, the rollup reads a bounded Playwright JSON merge of uploaded blobs, including nested suites. It distinguishes incomplete results from recorded failures and intentionally skipped tests. Absent/corrupt report data is unknown, not evidence that a spec hung. Success and workflow cancellation do not trigger the diagnostic. The required exit check and live reporter are unchanged. **13/13** helper tests pass, including a real Playwright blob from a run stopped at its failure limit.
+For the selected unsuccessful browser run, the rollup reads a bounded Playwright JSON merge of uploaded blobs, including nested suites. It distinguishes incomplete results from recorded failures and intentionally skipped tests. Absent/corrupt report data is unknown, not evidence that a spec hung. Success and workflow cancellation do not trigger the diagnostic. The required exit check and live reporter are unchanged. **13/13** helper tests pass, including a real Playwright blob from a run stopped at its failure limit. The full source/CI utility step passed **106/106** locally with CI variables set. An intentional test failure verified that the step annotates the error and still exits nonzero.
 
 ## Parallel work: A-279, A-280, A-282
 
-While this batch was underway, [#869](https://github.com/shmuelbiller1/ledgerflow/pull/869) opened for these three items. The independent implementation is available at `66bfaa3e` but is not in this PR's final diff. On that earlier revision, the neighboring browser specs passed **22/22**, the Settings axe test covered all **32** sections at **1280 and 390 px** with no serious or critical violations, and the focused component run passed **93/93** including the linked-record state tests. Those results do not attest that the separate PR is green.
+While this batch was underway, [#869](https://github.com/shmuelbiller1/ledgerflow/pull/869) opened and merged for these three items. This PR does not duplicate those implementations. Once #869 merged, [main CI's I-05 guard](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44414016297/job/135189594194) failed because the invoice page had replaced the shared loading signal with a separate store read. The follow-up keeps the existing invoice-specific readiness check and uses the same shared loading signal as bills. The guard and record tests passed **11/11**; the new case fails if an outstanding secondary read is allowed to hide a confirmed missing invoice.
 
 The [follow-on-link finding](https://github.com/shmuelbiller1/ledgerflow/pull/869#issuecomment-6993334391) was reproduced against the transaction-grid changes from #869 at `dd46bf03`: opening a different cached entry while an editor was open kept the original description. Keying the editor by entry ID changed the same test from red to green. The fix and test were handed off there rather than duplicated in this PR.
 
