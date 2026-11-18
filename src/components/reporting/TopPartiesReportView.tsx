@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { useBrowserProvenance } from '../../hooks/useBrowserProvenance';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ReportProvenanceNote } from './ReportProvenanceNote';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
@@ -45,11 +48,9 @@ export default function TopPartiesReportView() {
   const payments = useLedgerStore(state => state.payments);
   const creditNotes = useLedgerStore(state => state.creditNotes);
   const vendorCredits = useLedgerStore(state => state.vendorCredits);
-  const truncated = useLedgerStore(state => state.truncatedCollections);
-  const failed = useDataNeedsStore(state => state.failed);
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
-  const { loading } = useLedgerCollections('customers', 'vendors', 'invoices', 'bills', 'payments', 'creditNotes', 'vendorCredits');
+  useLedgerCollections('customers', 'vendors', 'invoices', 'bills', 'payments', 'creditNotes', 'vendorCredits');
 
   const today = getLocalDateISO();
   const [kind, setKind] = useState<'customer' | 'vendor'>('customer');
@@ -57,6 +58,10 @@ export default function TopPartiesReportView() {
   const [to, setTo] = useState(today);
 
   const home = workspace?.currency || 'USD';
+  const keys = kind === 'customer' ? ['customers', 'invoices', 'payments', 'creditNotes'] as const : ['vendors', 'bills', 'payments', 'vendorCredits'] as const;
+  const health = useScreenDataHealth(keys);
+  const provenance = useBrowserProvenance(keys, false);
+  const partial = provenance.completeness !== 'complete';
   const report = useMemo(() => {
     const inWorkspace = <T extends { workspaceId?: string }>(rows: T[]) =>
       rows.filter(r => !workspaceId || r.workspaceId === workspaceId);
@@ -65,16 +70,14 @@ export default function TopPartiesReportView() {
       parties: {
         customers: inWorkspace(customers), vendors: inWorkspace(vendors),
         invoices: inWorkspace(invoices), bills: inWorkspace(bills),
-        payments: inWorkspace(payments), creditNotes: inWorkspace(creditNotes),
+        payments: inWorkspace(payments), creditNotes: inWorkspace(creditNotes), baseCurrency: home,
         vendorCredits: inWorkspace(vendorCredits),
       },
       period: { startDate: from, endDate: to },
       limit: 20,
     });
-  }, [kind, customers, vendors, invoices, bills, payments, creditNotes, vendorCredits, workspaceId, from, to]);
+  }, [kind, customers, vendors, invoices, bills, payments, creditNotes, vendorCredits, workspaceId, from, to, home]);
 
-  const partial = truncated.customers || truncated.vendors || truncated.invoices || truncated.bills
-    || truncated.payments || failed.customers || failed.vendors || failed.invoices || failed.bills || failed.payments;
   const who = kind === 'customer' ? 'Customer' : 'Vendor';
   const verb = kind === 'customer' ? 'Invoiced' : 'Billed';
   const periodValid = /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && from <= to;
@@ -103,13 +106,15 @@ export default function TopPartiesReportView() {
       <label className="flex flex-col gap-1 text-sm">To
         <input type="date" aria-label="Period end" className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]" value={to} onChange={e => setTo(e.target.value)} />
       </label>
-      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!report.rows.length}
+      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!health.ready || partial || !report.rows.length}
         onClick={() => downloadCsv(kind === 'customer' ? 'top-customers' : 'top-vendors', topPartiesCsvHeaders(kind, report.months), topPartiesCsvRows(report.rows))}>Export CSV</button>
     </div>
 
     {!periodValid && <p role="alert" className="text-sm">Choose a valid period: the start must not be after the end.</p>}
-    {loading && <p role="status" className="text-sm text-[var(--muted)]">Loading customers, vendors and documents…</p>}
-    {partial && <p role="alert" className="text-sm">Some loaded lists are capped or failed. The ranking may be incomplete.</p>}
+    {health.loadingKeys.length > 0 && <p role="status" className="text-sm text-[var(--muted)]">Loading parties and documents…</p>}
+    <ScreenDataNotice failedKeys={health.failedKeys} message={health.message} onRetry={health.retry} what="this ranking" />
+    {partial && <ReportProvenanceNote provenance={provenance} />}
+    {health.ready && <>
     {periodValid && report.moreCount > 0 && <p className="text-sm">Showing the top {report.rows.length}; {report.moreCount} more with activity in the period are below the line.</p>}
 
     <ReportTableScroll>
@@ -140,8 +145,9 @@ export default function TopPartiesReportView() {
           ))}
         </tbody>
       </table>
-      {!report.rows.length && !loading && periodValid && <p className="text-sm text-[var(--muted)]">Nothing was {kind === 'customer' ? 'invoiced' : 'billed'} in this period.</p>}
+      {!report.rows.length && periodValid && <p data-report-empty-state className="text-sm text-[var(--muted)]">{partial ? 'No activity in the loaded records. Review the full history before relying on this ranking.' : `Nothing was ${kind === 'customer' ? 'invoiced' : 'billed'} in this period. Choose another period or review the issued documents.`}</p>}
     </ReportTableScroll>
+    </>}
 
     <p className="text-xs text-[var(--muted)]">
       Foreign-currency documents are included at each document&apos;s own recorded rate, as in the period

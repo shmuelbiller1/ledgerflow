@@ -23,7 +23,7 @@ type Seed = 'work' | 'clean';
 const WORKSPACE = 'close-browser';
 const USER = { uid: 'close-user', email: 'close@example.test', displayName: 'Closing Owner' };
 
-async function mount(page: Page, seed: Seed): Promise<{ errors: string[]; requests: Array<{ url: string; method: string; body: unknown }> }> {
+async function mount(page: Page, seed: Seed, followReportLinks = false): Promise<{ errors: string[]; requests: Array<{ url: string; method: string; body: unknown }> }> {
   const errors: string[] = [];
   const requests: Array<{ url: string; method: string; body: unknown }> = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -43,6 +43,7 @@ async function mount(page: Page, seed: Seed): Promise<{ errors: string[]; reques
     if (request.method() === 'POST' && /\/periods\/\d{4}-\d{2}\/reopen$/.test(url)) {
       return route.fulfill({ json: { lockDate: null, softLockDate: null } });
     }
+    if (url.includes('/api/v1/reports/')) return route.fulfill({ status: 503, json: { message: 'No server reports in this browser fixture' } });
     if (url.includes('/balance-check')) return route.fulfill({ json: { snapshot: null, changes: [] } });
     if (url.includes('/close-steps')) return route.fulfill({ json: { closeSteps: [] } });
     return route.fulfill({ json: {} });
@@ -54,7 +55,7 @@ async function mount(page: Page, seed: Seed): Promise<{ errors: string[]; reques
   }));
   await page.goto('/close-fixture');
 
-  await page.evaluate(async ({ seed, workspaceId, user }) => {
+  await page.evaluate(async ({ seed, workspaceId, user, followReportLinks }) => {
     const refresh = await import('/@react-refresh');
     refresh.default.injectIntoGlobalHook(window);
     Object.assign(window, { $RefreshReg$: () => {}, $RefreshSig$: () => (type: unknown) => type, __vite_plugin_react_preamble_installed__: true });
@@ -109,8 +110,20 @@ async function mount(page: Page, seed: Seed): Promise<{ errors: string[]; reques
       loadedWorkspaceId: workspaceId, failed: {},
     });
 
-    createRoot(document.getElementById('root')!).render(React.createElement(MonthEndClose));
-  }, { seed, workspaceId: WORKSPACE, user: USER });
+    const root = createRoot(document.getElementById('root')!);
+    if (followReportLinks) {
+      const { useUIStore } = await import('/src/stores/useUIStore.ts');
+      const path = '/src/components/reporting/Reports.tsx';
+      const Reports = React.lazy(() => import(path));
+      function Fixture() {
+        const tab = useUIStore((state: { activeTab: string }) => state.activeTab);
+        return tab === 'reports'
+          ? React.createElement(React.Suspense, { fallback: 'Loading reports' }, React.createElement(Reports))
+          : React.createElement(MonthEndClose);
+      }
+      root.render(React.createElement(Fixture));
+    } else root.render(React.createElement(MonthEndClose));
+  }, { seed, workspaceId: WORKSPACE, user: USER, followReportLinks });
 
   await expect(page.getByRole('heading', { name: 'Month-End Close', exact: true })).toBeVisible();
   // A fixed month: 2026-09 is past, so the close controls are available and the figures are stable.
@@ -133,8 +146,8 @@ test('W9 browser: the close journey shows each bank, the month’s open money, t
   expect(await steps.allTextContents()).toEqual([
     '1. Reconcile each bank',
     '2. Give every entry an account',
-    '3. Open invoices at month end',
-    '4. Open bills at month end',
+    '3. Review receivables aging',
+    '4. Review payables aging',
     '5. Review accruals and prepayments',
     '6. Clear the drafts dated in the month',
     '7. Check the trial balance',
@@ -153,8 +166,10 @@ test('W9 browser: the close journey shows each bank, the month’s open money, t
   await expect(journey.getByText(/2 bank lines of 4 in 2026-09 not matched: Bank 1000 \(1\), Lines with no bank account \(1\)\./)).toBeVisible();
 
   // The month's open money and the accrual reminder, in the workspace currency.
-  await expect(journey.getByText(/1 invoice still open at 2026-09-30, USD 1,000\.00 due in USD\./)).toBeVisible();
-  await expect(journey.getByText(/1 bill still open at 2026-09-30, USD 600\.00 due in USD\./)).toBeVisible();
+  await expect(journey.getByText('1 invoice currently unpaid.')).toBeVisible();
+  await expect(journey.getByText('$1,000.00', { exact: true })).toBeVisible();
+  await expect(journey.getByText('1 bill currently unpaid.')).toBeVisible();
+  await expect(journey.getByText('$600.00', { exact: true })).toBeVisible();
   await expect(journey.getByText(/1 journal entry dated in 2026-09\./)).toBeVisible();
 
   // The draft is a blocker, carried from the checklist unchanged; the close is refused.
@@ -198,7 +213,7 @@ test('W9 browser: an owner closes the clean month, sees it closed, and reopens i
   const statusCard = page.locator('section[aria-labelledby="close-status"]');
 
   // Nothing in the data blocks this month; only the lock is still to do.
-  await expect(journey.getByText(/5 of 9 steps done · 1 needing attention · next: Lock the month\./)).toBeVisible();
+  await expect(journey.getByText(/3 of 9 steps done · 1 needing attention · next: Lock the month\./)).toBeVisible();
   await expect(journey.getByText('2026-09 is open.')).toBeVisible();
   await expect(journey.getByText('Needs attention', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Close package (.xlsx)', exact: true })).toBeEnabled();
@@ -213,7 +228,7 @@ test('W9 browser: an owner closes the clean month, sees it closed, and reopens i
   expect(closeCall?.body).toEqual({ mode: 'hard' });
   await expect(statusCard.getByText('Closed: nobody can post', { exact: true })).toBeVisible();
   await expect(journey.getByText('2026-09 is closed.')).toBeVisible();
-  await expect(journey.getByText('Done', { exact: true })).toHaveCount(6);
+  await expect(journey.getByText('Done', { exact: true })).toHaveCount(4);
   await expect(journey.getByText(/nothing in the recorded data blocks the close\./)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Close 2026-09', exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Balances since the close', exact: true })).toHaveCount(0);
@@ -239,4 +254,36 @@ test('W9 browser: an owner closes the clean month, sees it closed, and reopens i
 
   expect(errors).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('close-reopened.png'), fullPage: true });
+});
+
+test('R-1: follow month-close links into real reports with the intended date inputs', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { errors } = await mount(page, 'clean', true);
+  const journey = page.locator('section[aria-labelledby="close-journey"]');
+  const cases = [
+    { label: 'Open Trial Balance', report: 'trial-balance', endpoint: 'trial-balance', params: { asOfDate: '2026-09-30' } },
+    { label: 'Open Profit & Loss', report: 'pnl', endpoint: 'profit-and-loss', params: { startDate: '2026-09-01', endDate: '2026-09-30' } },
+    { label: 'Open Balance Sheet', report: 'balance-sheet', endpoint: 'balance-sheet', params: { endDate: '2026-09-30' } },
+  ];
+  for (const { label, report, endpoint, params } of cases) {
+    const request = page.waitForRequest(r => {
+      const url = new URL(r.url());
+      return url.pathname === `/api/v1/reports/${endpoint}` && Object.entries(params).every(([key, value]) => url.searchParams.get(key) === value);
+    }, { timeout: 15_000 });
+    await journey.getByRole('link', { name: label, exact: true }).click();
+    await request;
+    await expect(page).toHaveURL(url => url.hash === '#reports' && url.searchParams.get('report') === report
+      && url.searchParams.get('start') === '2026-09-01' && url.searchParams.get('end') === '2026-09-30');
+    await page.evaluate(async () => {
+      const { useUIStore } = await import('/src/stores/useUIStore.ts');
+      useUIStore.getState().goToPage({ tab: 'month-end-close' });
+    });
+    await page.locator('#close-month').fill('2026-09');
+  }
+  await journey.getByRole('link', { name: 'Open Current A/R Aging' }).click();
+  await expect(page.getByRole('heading', { name: /Receivable.*Aging/i })).toBeVisible();
+  await expect(page).toHaveURL(url => url.searchParams.get('report') === 'ar-aging' && !url.searchParams.has('end'));
+  await expect(page.getByText(/Changing the report period does not change this aging/)).toBeVisible();
+  expect(errors).toEqual([]);
 });

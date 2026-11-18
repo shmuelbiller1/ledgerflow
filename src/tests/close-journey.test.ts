@@ -10,6 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeJourney, type CloseJourneyInput } from '../lib/closeJourney';
+import { buildCloseChecklist } from '../lib/closeChecklist';
 import { makeChartAccount } from './fixtures';
 
 const accounts = [
@@ -52,7 +53,7 @@ test('A-151 the path is in the order the work is done, and each step names its s
   assert.deepEqual(found.steps.map(s => s.id),
     ['banks', 'categorize', 'receivables', 'payables', 'accruals', 'drafts', 'trial-balance', 'lock', 'report-pack']);
   assert.equal(found.steps.find(s => s.id === 'banks')!.screen, 'reconciliation');
-  assert.equal(found.steps.find(s => s.id === 'receivables')!.tab, 'sales');
+  assert.equal(found.steps.find(s => s.id === 'receivables')!.screen, 'ar-aging');
   assert.equal(found.steps.find(s => s.id === 'lock')!.screen, 'month-end-close');
   assert.equal(found.endDate, '2026-09-30');
 });
@@ -66,17 +67,27 @@ test('A-151 each bank is reconciled apart: 4 lines in the month, 2 unmatched, 1 
     ['', 1, 1],
   ]);
   const figure = (label: string) => step.figures.find(f => f.label === label)?.count;
-  assert.equal(figure('Bank lines in the month'), 4);
+  assert.equal(figure('Bank lines to reconcile in the month'), 4);
   assert.equal(figure('Not matched'), 2);
   assert.match(step.detail, /Bank 1000 \(1\)/);
 });
 
-test('A-151 open invoices and bills at month end: 100,000 for the open invoice, the USD one counted apart, October left out', () => {
+test('R-1 reviewed duplicates do not count against reconciliation in either close view', () => {
+  const lines = [bankLines[0], { date: '2026-09-27', accountId: 'bank-1000', status: 'ignored' as const }];
+  const checklist = buildCloseChecklist({ month: '2026-09', transactions: [], invoices: [], bills: [], bankLines: lines });
+  const banks = journey({ bankLines: lines, items: checklist }).steps.find(s => s.id === 'banks')!;
+  assert.equal(checklist.find(s => s.id === 'reconcile')!.status, 'done');
+  assert.equal(banks.status, 'done');
+  assert.deepEqual(banks.banks.map(b => [b.accountId, b.lines, b.unmatched]), [['bank-1000', 1, 0], ['bank-1010', 0, 0]]);
+});
+
+test('A-151 current unpaid invoices and bills dated through month end: 100,000 for the open invoice, the USD one counted apart, October left out', () => {
   const found = journey();
   const receivables = found.steps.find(s => s.id === 'receivables')!;
   assert.equal(receivables.figures.find(f => f.label === 'Invoices open')?.count, 2, 'ils and usd');
   assert.equal(receivables.figures.find(f => f.label === 'Due in the workspace currency')?.cents, 100000);
   assert.match(receivables.detail, /another currency/);
+  assert.match(receivables.what, /today’s unpaid amounts.*Payments and credits after that date are not reversed/);
   const payables = found.steps.find(s => s.id === 'payables')!;
   assert.equal(payables.figures.find(f => f.label === 'Bills open')?.count, 1);
   assert.equal(payables.figures.find(f => f.label === 'Due in the workspace currency')?.cents, 60000);

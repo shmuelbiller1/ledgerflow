@@ -62,13 +62,23 @@ export function topParties(input: {
     .filter(row => row.invoicedCents !== 0)
     .sort((a, b) => b.invoicedCents - a.invoicedCents || a.name.localeCompare(b.name));
 
+  const shown = ranked.slice(0, limit);
+  if (!shown.length) return { rows: [], moreCount: 0, months };
+  // The trend shows only gross issued amounts for the displayed parties. Payments and credits
+  // cannot affect that field, and the same summary still determines status, date and FX.
+  const ids = new Set(shown.map(row => row.id));
+  const trendParties: PartyPeriodInput = {
+    customers: parties.customers.filter(c => ids.has(c.id)), vendors: parties.vendors.filter(v => ids.has(v.id)),
+    invoices: parties.invoices.filter(i => ids.has(i.customerId)), bills: parties.bills.filter(b => ids.has(b.vendorId)),
+    creditNotes: [], vendorCredits: [], payments: [], baseCurrency: parties.baseCurrency,
+  };
   // one summary per trend month, each clipped to the reported end date
   const monthlyById = new Map<string, number[]>();
   months.forEach((month, index) => {
     const { startDate, endDate } = monthRange(month);
     const clipped: CustomReportPeriod = { startDate, endDate: endDate < period.endDate ? endDate : period.endDate };
     if (!validCustomReportPeriod(clipped)) return;
-    for (const row of partyPeriodSummary(kind, parties, clipped)) {
+    for (const row of partyPeriodSummary(kind, trendParties, clipped)) {
       if (!row.invoicedCents) continue;
       const series = monthlyById.get(row.id) || new Array(12).fill(0);
       series[index] = row.invoicedCents;
@@ -76,7 +86,7 @@ export function topParties(input: {
     }
   });
 
-  const rows = ranked.map(row => ({
+  const rows = shown.map(row => ({
     id: row.id,
     name: row.name,
     invoicedCents: row.invoicedCents,
@@ -85,7 +95,7 @@ export function topParties(input: {
     closingCents: row.closingCents,
     monthlyCents: monthlyById.get(row.id) || new Array(12).fill(0),
   }));
-  return { rows: rows.slice(0, limit), moreCount: Math.max(0, rows.length - limit), months };
+  return { rows, moreCount: ranked.length - shown.length, months };
 }
 
 export function topPartiesCsvHeaders(kind: 'customer' | 'vendor', months: string[]): string[] {

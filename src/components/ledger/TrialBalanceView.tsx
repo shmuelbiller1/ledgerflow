@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import { isDebitNatureType } from '../../lib/accountUtils';
 import { ChartAccount } from '../../types';
 import { format } from 'date-fns/format';
@@ -37,6 +38,7 @@ import PrintLayoutControl from '../reporting/PrintLayoutControl';
 const TB_COLLECTIONS = [...STATEMENT_COLLECTIONS, 'journalEntries'] as const;
 
 interface TrialBalanceViewProps {
+  asOfDate?: string;
   accounts: ChartAccount[];
   formatCurrency: (val: number) => string;
   /**
@@ -50,13 +52,13 @@ interface TrialBalanceViewProps {
 type SortField = 'code' | 'name' | 'type' | 'debit' | 'credit';
 type SortDir = 'asc' | 'desc';
 
-export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown }: TrialBalanceViewProps) {
+export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown, asOfDate: pageAsOfDate }: TrialBalanceViewProps) {
   const transactions = useLedgerStore(s => s.transactions || []);
   const journalEntries = useLedgerStore(s => s.journalEntries || []);
   // A-235: the trial balance reads the chart of accounts, the entries and the journal entries
   const dataHealth = useScreenDataHealth(['accounts', 'transactions', 'journalEntries']);
   
-  const [asOfDate, setAsOfDate] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
+  const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate, () => format(new Date(), 'yyyy-MM-dd'));
   // L-123 step 3c: the browser-side sum reads the server's balances through the oldest loaded day
   const { entries: balanceTx, serverAsOf } = useBalanceEntries(transactions, asOfDate);
   const [sortField, setSortField] = useState<SortField>('code');

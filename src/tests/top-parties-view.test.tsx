@@ -8,9 +8,9 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import TopPartiesReportView from '../components/reporting/TopPartiesReportView';
+import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
-import { useDataNeedsStore } from '../stores/useDataNeedsStore';
-import { setComponentWorkspace } from './helpers/componentFixtures';
+import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
 import { getSupabase } from '../lib/db/client';
 import { getLocalDateISO } from '../lib/utils';
 
@@ -20,7 +20,7 @@ describe('Top customers and vendors screen', () => {
   beforeEach(() => {
     stubFetch(404);
     setComponentWorkspace('owner');
-    useDataNeedsStore.setState({ failed: {} as never });
+    markComponentCollectionsLoaded('customers', 'invoices', 'payments', 'creditNotes', 'vendors', 'bills', 'vendorCredits');
     useLedgerStore.setState({
       customers: [
         { id: 'c1', name: 'Big Ltd', workspaceId: 'component-workspace' },
@@ -35,6 +35,25 @@ describe('Top customers and vendors screen', () => {
     } as never);
   });
   afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
+
+  test('JPY ranking and trend convert USD at the stored rate into whole yen', () => {
+    const workspace = useAuthStore.getState().getCurrentWorkspace()!;
+    useAuthStore.setState({ workspaces: [{ ...workspace, currency: 'JPY' }] });
+    const [invoice] = useLedgerStore.getState().invoices;
+    // USD 100.00 at ¥150 per dollar = ¥15,000, not ¥1,500,000.
+    useLedgerStore.setState({ invoices: [{ ...invoice, amountCents: 10_000, exchangeRate: 150 }] });
+    render(<TopPartiesReportView />);
+    assert.match(screen.getByRole('rowheader', { name: 'Big Ltd' }).parentElement!.textContent || '', /¥15,000/);
+    assert.ok(screen.getByRole('img', { name: /highest month ¥15,000/ }));
+  });
+
+  test('capped credits mean an empty loaded ranking is provisional, not no activity', () => {
+    useLedgerStore.setState({ invoices: [], truncatedCollections: { creditNotes: true } });
+    render(<TopPartiesReportView />);
+    assert.ok(screen.getByText(/No activity in the loaded records/));
+    assert.equal(screen.getByRole('note').getAttribute('data-provenance'), 'incomplete');
+    assert.equal(screen.queryByText(/Nothing was invoiced/), null);
+  });
 
   test('the biggest customer is first with its invoiced amount and a labelled trend', () => {
     render(<TopPartiesReportView />);
