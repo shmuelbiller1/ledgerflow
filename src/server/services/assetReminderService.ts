@@ -1,3 +1,4 @@
+import { requireLiveDb } from '../db/firestore';
 import type { Firestore } from '../db/firestore';
 import { assetRemindersDue, reminderText } from '../../lib/assetReminders';
 import { formatTzDate } from '../../lib/calendarDate';
@@ -11,8 +12,9 @@ import { notify } from './notificationService';
  * and the date, so a new date is told again). Only assets carrying one of the two dates are read.
  */
 export async function runAssetReminders(db: Firestore, now = new Date()): Promise<number> {
+  requireLiveDb(db, 'Asset reminders');
   const { rows } = await db.pool.query<{ id: string; data: Record<string, unknown> }>(
-    `select id, data from public.assets
+    `select id, data from ${db.tableSource('assets')}
       where coalesce(data->>'status', 'active') <> 'disposed'
         and ((data->>'warrantyExpires') is not null or (data->>'insuranceRenews') is not null or (data->>'nextServiceDue') is not null)`);
   const timezones = new Map<string, string>();

@@ -1,3 +1,4 @@
+import { requireLiveDb } from '../db/firestore';
 import type { Firestore } from '../db/firestore';
 import { runDataChecks, type CheckContext } from '../../lib/dataChecks';
 import { healthSummary, newSeriousProblems, problemNotice, type LedgerHealth } from '../../lib/ledgerHealth';
@@ -46,7 +47,7 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 async function booksFingerprint(db: Firestore, workspaceId: string): Promise<string> {
   // a table whose migration is not applied yet is left out (reads of it return nothing)
   const existing = await db.tables();
-  const parts = Object.values(SOURCES).filter(s => existing.has(s.table)).map(s => `select count(*) as n, max(updated_at) as at from public."${s.table}" where workspace_id = $1`);
+  const parts = Object.values(SOURCES).filter(s => existing.has(s.table)).map(s => `select count(*) as n, max(updated_at) as at from ${db.tableSource(s.table)} where workspace_id = $1`);
   const { rows } = await db.pool.query(`select sum(n)::bigint as n, max(at) as at from (${parts.join(' union all ')}) changes`, [workspaceId]);
   const at = rows[0]?.at as Date | null;
   return `${rows[0]?.n || 0}:${at ? new Date(at).toISOString() : ''}`;
@@ -54,6 +55,7 @@ async function booksFingerprint(db: Firestore, workspaceId: string): Promise<str
 
 /** Runs the checks on one workspace, keeps the result and tells about new serious problems. */
 export async function checkLedgerHealth(db: Firestore, workspaceId: string, now = new Date()): Promise<{ problems: number; newProblems: number } | null> {
+  requireLiveDb(db, 'Ledger health');
   const wsRef = db.collection('workspaces').doc(workspaceId);
   const ws = (await wsRef.get()).data();
   if (!ws || ws.deletedAt) return null;
@@ -105,6 +107,7 @@ export async function runLedgerHealthMonitor(
   db: Firestore,
   opts: { now?: Date; budgetMs?: number; workspaceIds?: string[] } = {},
 ): Promise<{ checked: number; notified: number; left: number }> {
+  requireLiveDb(db, 'Ledger health job');
   const { now = new Date(), budgetMs = 60_000 } = opts;
   const started = Date.now();
   const workspaces = opts.workspaceIds

@@ -1,3 +1,4 @@
+import { previewEffect } from './sandboxEffects';
 /**
  * Creates in-app notifications: one row per person in `notifications`, only for members whose
  * role receives the type and who haven't turned it off (src/lib/notifications.ts). The same
@@ -39,8 +40,9 @@ export function notificationId(workspaceId: string, eventKey: string, uid: strin
   return `n_${crypto.createHash('sha256').update(`${workspaceId}\u0000${eventKey}\u0000${uid}`).digest('hex').slice(0, 40)}`;
 }
 
-/** Returns how many people were notified. Never throws. */
+/** Returns how many people were notified. Drafts record the intent without delivering. */
 export async function notify(db: Firestore, input: NotifyInput): Promise<number> {
+  if (previewEffect({ kind: 'notification', action: input.kind, target: input.recordId }, db)) return 0;
   try {
     const workspace = input.workspace || (await db.collection('workspaces').doc(input.workspaceId).get()).data();
     if (!workspace) return 0;

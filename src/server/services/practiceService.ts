@@ -1,3 +1,4 @@
+import { requireLiveDb } from '../db/firestore';
 /**
  * The Practice view (BD-01, src/lib/practice.ts): for each workspace the person can open (owner or
  * member), what is waiting there. Each count is one query over only those workspaces' own rows,
@@ -11,12 +12,13 @@ import { computeCloseReadiness } from '../../lib/practiceAutomation';
 import type { LedgerHealth } from '../../lib/ledgerHealth';
 
 export async function practiceRows(db: Firestore, uid: string, today: string): Promise<PracticeRow[]> {
+  requireLiveDb(db, 'Practice dashboard');
   const ids = [...(await openable(db, uid))];
   if (ids.length === 0) return [];
   const existing = await db.tables();
   const counts = async (table: string, where: string): Promise<Map<string, number>> => {
     if (!existing.has(table)) return new Map();
-    const { rows } = await db.pool.query(`select workspace_id as id, count(*)::int as n from public."${table}" where workspace_id = any($1) and ${where} group by 1`, [ids]);
+    const { rows } = await db.pool.query(`select workspace_id as id, count(*)::int as n from ${db.tableSource(table)} where workspace_id = any($1) and ${where} group by 1`, [ids]);
     return new Map(rows.map(r => [String(r.id), Number(r.n)]));
   };
   const bankLines = await counts('bankLines', `data->>'status' = 'pending'`);
@@ -25,7 +27,7 @@ export async function practiceRows(db: Firestore, uid: string, today: string): P
   if (existing.has('bankLines') && existing.has('transactions')) {
     const { rows } = await db.pool.query(
       `select b.workspace_id as id, count(*)::int as n
-         from public."bankLines" b
+         from ${db.tableSource('bankLines')} b
         where b.workspace_id = any($1)
           and coalesce(b.data->>'status', 'pending') in ('matched', 'reconciled', 'completed', 'posted')
           and (b.data->>'matchedTransactionId') is not null
@@ -36,7 +38,7 @@ export async function practiceRows(db: Firestore, uid: string, today: string): P
             or coalesce(b.data->>'acceptedUnchanged', 'false') = 'true'
           )
           and exists (
-            select 1 from public.transactions t
+            select 1 from ${db.tableSource('transactions')} t
              where t.workspace_id = b.workspace_id
                and t.id = b.data->>'matchedTransactionId'
                and coalesce(t.data->>'status', 'completed') not in ('draft', 'void', 'cancelled', 'reversed')
@@ -54,16 +56,16 @@ export async function practiceRows(db: Firestore, uid: string, today: string): P
   const withoutFile = new Map<string, number>();
   if (existing.has('bills') && existing.has('documents')) {
     const { rows } = await db.pool.query(
-      `select b.workspace_id as id, count(*)::int as n from public.bills b
+      `select b.workspace_id as id, count(*)::int as n from ${db.tableSource('bills')} b
        where b.workspace_id = any($1) and coalesce(b.data->>'status', '') not in ('draft', 'void', 'cancelled', 'rejected')
-         and not exists (select 1 from public.documents d where d.workspace_id = b.workspace_id and d.data->>'linkedId' = b.id)
+         and not exists (select 1 from ${db.tableSource('documents')} d where d.workspace_id = b.workspace_id and d.data->>'linkedId' = b.id)
        group by 1`, [ids]);
     for (const r of rows) withoutFile.set(String(r.id), Number(r.n));
   }
   const next = new Map<string, { date: string; description: string }>();
   if (existing.has('recurring')) {
     const { rows } = await db.pool.query(
-      `select distinct on (workspace_id) workspace_id as id, data->>'nextOccurrence' as date, data->>'description' as description from public.recurring
+      `select distinct on (workspace_id) workspace_id as id, data->>'nextOccurrence' as date, data->>'description' as description from ${db.tableSource('recurring')}
        where workspace_id = any($1) and coalesce(data->>'isActive', 'true') <> 'false' and coalesce(data->>'status', 'active') = 'active' and data->>'nextOccurrence' is not null
        order by workspace_id, data->>'nextOccurrence'`, [ids]);
     for (const r of rows) next.set(String(r.id), { date: String(r.date).slice(0, 10), description: String(r.description || '') });

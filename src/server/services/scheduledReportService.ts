@@ -1,3 +1,4 @@
+import { requireLiveDb } from '../db/firestore';
 import crypto from 'crypto';
 import type { Firestore } from '../db/firestore';
 import { computeBalanceSheet, computeProfitAndLoss } from '../reports/computeReports';
@@ -70,6 +71,7 @@ export interface ReportSendResult { sent: number; failed: string[]; delivered: s
 
 export async function sendReport(db: Firestore, workspace: { id: string; name?: string; currency?: string; moneyDisplay?: MoneyDisplaySettings }, schedule: ScheduledReport, period: ReportPeriod,
   options: { skip?: Set<string>; idempotencyPrefix?: string } = {}): Promise<ReportSendResult> {
+  requireLiveDb(db, 'Send a report');
   const { subject, html, attachments } = await reportEmail(db, workspace, schedule, period);
   const delivered: string[] = [];
   const failed: string[] = [];
@@ -148,6 +150,7 @@ const today = (ws: Record<string, unknown>, now: Date) => formatTzDate(now, type
 
 /** "Send now" (owners and accountants): the last finished period, without changing what the schedule has sent. */
 export async function sendScheduleNow(db: Firestore, input: { workspaceId: string; scheduleId: string; now?: Date }) {
+  requireLiveDb(db, 'Send a scheduled report');
   if (!isMailConfigured()) throw new ScheduledReportError(503, 'Email sending is not set up yet, so nothing can be sent');
   const snap = await db.collection('workspaces').doc(input.workspaceId).get();
   const ws = snap.data() as (Record<string, unknown> & { scheduledReports?: ScheduledReport[] }) | undefined;
@@ -172,6 +175,7 @@ export async function previewSchedule(db: Firestore, input: { workspaceId: strin
 
 /** The daily run: every workspace's schedules whose last finished period has not been delivered to every address yet. */
 export async function runScheduledReports(db: Firestore, now = new Date()) {
+  requireLiveDb(db, 'Scheduled report job');
   let reports = 0;
   let emails = 0;
   if (!isMailConfigured()) return { reports, emails };
@@ -186,6 +190,7 @@ export async function runScheduledReports(db: Firestore, now = new Date()) {
 
 /** One workspace's part of the daily run. */
 export async function runWorkspaceSchedules(db: Firestore, workspaceId: string, ws: Record<string, unknown> & { scheduledReports?: ScheduledReport[]; scheduledReportsSent?: Record<string, string> }, now = new Date()) {
+  requireLiveDb(db, 'Workspace report job');
   let reports = 0;
   let emails = 0;
   const schedules = Array.isArray(ws.scheduledReports) ? ws.scheduledReports : [];

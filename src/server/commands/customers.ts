@@ -65,7 +65,7 @@ type CustomerUpdateInput = z.output<typeof customerUpdateInput>;
 type CustomerResult = { customer: Record<string, unknown> };
 
 function assertCustomerWorkspace(workspaceId: string, value: string | undefined): void {
-  if (value && value !== workspaceId) throw new HttpError('Input workspaceId must match the command workspace', 400);
+  if (value && value !== workspaceId) throw Object.assign(new HttpError('Input workspaceId must match the command workspace', 400), { code: 'WORKSPACE_MISMATCH' });
 }
 
 async function assertLinkedVendorAvailable(

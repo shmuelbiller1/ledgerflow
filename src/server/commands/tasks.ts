@@ -1,3 +1,4 @@
+import { deferEffects, type EffectIntent } from '../services/sandboxEffects';
 import { z } from 'zod';
 import { TASK_KIND, taskProblem, type Task, type TaskInput } from '../../lib/tasks';
 import { workspaceRole } from '../../lib/periodLock';
@@ -38,7 +39,11 @@ export const taskCreateCommand: CommandDefinition<typeof taskCreateInput, TaskRe
     const task = await createTaskInTransaction(ctx.db, tx, {
       workspaceId: ctx.workspaceId, uid: ctx.actor, email: ctx.email, task: input.task as TaskInput,
     });
-    ctx.afterCommit(async () => {
+    const text = `${task.title}${task.note ? `\n${task.note}` : ''}`;
+    const effects: EffectIntent[] = [];
+    if (task.assignee !== ctx.actor) effects.push({ kind: 'notification', action: 'task.assigned', target: task.assignee });
+    if (text.includes('@')) effects.push({ kind: 'notification', action: 'mention.task', target: task.id });
+    deferEffects(ctx.db, effects, ctx.afterCommit, async () => {
       if (task.assignee !== ctx.actor) {
         await notify(ctx.db, {
           workspaceId: ctx.workspaceId,
@@ -53,7 +58,7 @@ export const taskCreateCommand: CommandDefinition<typeof taskCreateInput, TaskRe
       }
       await notifyMentions(ctx.db, {
         workspaceId: ctx.workspaceId,
-        text: `${task.title}${task.note ? `\n${task.note}` : ''}`,
+        text,
         actorUid: ctx.actor,
         actorEmail: ctx.email,
         where: `Task "${task.title}"`,

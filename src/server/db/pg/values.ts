@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 /**
  * Values for the Postgres Firestore layer: errors, Timestamp, FieldPath, FieldValue, and how
  * documents are encoded for storage (see ../pgFirestore.ts).
@@ -201,3 +203,17 @@ export function splitWrite(input: Record<string, unknown>, now: string): Patch {
   return patch;
 }
 
+
+const AUTO_ID_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+/** 20-character random id, like Firestore's auto ids. */
+export function autoId(): string {
+  let id = '';
+  while (id.length < 20) {
+    for (const byte of crypto.randomBytes(40)) {
+      // 62 * 4 = 248: reject the top bytes so every character is equally likely
+      if (byte < 248 && id.length < 20) id += AUTO_ID_CHARS[byte % 62];
+    }
+  }
+  return id;
+}
