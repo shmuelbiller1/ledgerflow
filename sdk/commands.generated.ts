@@ -104,6 +104,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "payment.void",
   "payroll.approval",
   "payroll.approve",
+  "payroll.import",
   "payroll.reject",
   "payroll.run",
   "payroll.undo",

@@ -142,6 +142,10 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
     assert.equal(isLargeJsonRoute('POST', '/api/v1/workspaces/ws_123/restore'), true);
     assert.equal(isLargeJsonRoute('POST', '/api/v1/transactions/bulk'), true);
     assert.equal(isLargeJsonRoute('POST', '/api/v1/workspaces/ws_123/import-records'), true);
+    assert.equal(isLargeJsonRoute('POST', '/api/v1/commands/payroll.import'), true);
+    assert.equal(isLargeJsonRoute('POST', '/api/v1/commands/payroll.import/preview'), true);
+    assert.equal(isLargeJsonRoute('POST', '/api/v1/commands/payroll.run'), false);
+    assert.equal(isLargeJsonRoute('POST', '/api/v1/commands/payroll.import/unrelated'), false);
     assert.equal(isLargeJsonRoute('POST', '/api/v1/transactions'), false);
     assert.equal(isLargeJsonRoute('GET', '/api/v1/workspaces/ws_123/restore'), false);
     assert.equal(isIngestJsonRoute('POST', '/api/ai/process'), true);
@@ -153,6 +157,8 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
     app.post('/api/v1/transactions', (req, res) => res.json({ bytes: JSON.stringify(req.body).length }));
     app.post('/api/ai/process', (req, res) => res.json({ bytes: JSON.stringify(req.body).length }));
     app.post('/api/v1/transactions/bulk', (req, res) => res.json({ bytes: JSON.stringify(req.body).length }));
+    app.post('/api/v1/commands/:name', (req, res) => res.json({ bytes: JSON.stringify(req.body).length }));
+    app.post('/api/v1/commands/:name/preview', (req, res) => res.json({ bytes: JSON.stringify(req.body).length }));
 
     const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
@@ -183,6 +189,13 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
         body: overOneMb,
       });
       assert.equal(accepted.status, 200, 'Bulk import route must accept >1MB JSON payload');
+
+      for (const [path, status] of [['payroll.import', 200], ['payroll.import/preview', 200], ['payroll.run', 413]] as const) {
+        const response = await fetch(`${base}/api/v1/commands/${path}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: overOneMb,
+        });
+        assert.equal(response.status, status, path);
+      }
     } finally {
       await new Promise<void>(resolve => server.close(() => resolve()));
     }

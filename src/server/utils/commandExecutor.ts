@@ -7,7 +7,7 @@ import { roleInWorkspace } from '../middleware/requireLedgerWriter';
 import { requirePlanCapacity } from '../middleware/planCapacity';
 import { lockMessage, postingLock } from '../../lib/periodLock';
 import { writeServerAuditLog } from '../services/auditLogService';
-import type { AnyCommandDefinition, CommandContext as RegisteredContext, CommandDefinition, CommandExecutionOutcome, CommandInvocation, CommandPreviewOutcome, CommandRole } from '../commands/types';
+import type { AnyCommandDefinition, CommandAuditResult, CommandContext as RegisteredContext, CommandDefinition, CommandExecutionOutcome, CommandInvocation, CommandPreviewOutcome, CommandRole } from '../commands/types';
 import type { Transaction as FirestoreTransaction } from '../db/firestore';
 import { getDb } from '../db/firestore';
 import {
@@ -31,9 +31,9 @@ export interface CommandContext {
  * Legacy routes can assemble command input from both the request body and URL parameters. Hash the
  * validated input so reusing an operation ID for another path target is rejected instead of replayed.
  */
-export function withLegacyInputIdempotencyHash<Schema extends ZodType, Result, Prepared>(
-  definition: CommandDefinition<Schema, Result, Prepared>,
-): CommandDefinition<Schema, Result, Prepared> {
+export function withLegacyInputIdempotencyHash<Schema extends ZodType, Result, Prepared, Audit extends CommandAuditResult>(
+  definition: CommandDefinition<Schema, Result, Prepared, Audit>,
+): CommandDefinition<Schema, Result, Prepared, Audit> {
   const customHash = definition.idempotencyHash;
   return {
     ...definition,
@@ -385,15 +385,19 @@ export type CommandAfterCommit = Parameters<RegisteredContext['afterCommit']>[0]
 export async function handlePreparedCommand(command: AnyCommandDefinition, ctx: RegisteredContext, tx: CommandTransaction,
   input: unknown, auditWriter: typeof writeServerAuditLog | false = writeServerAuditLog) {
   const result = await command.handler(ctx, tx, input);
-  const summary = command.audit(input, result);
-  if (summary && auditWriter) {
-    await auditWriter({
-      workspaceId: ctx.workspaceId, uid: ctx.actor, email: ctx.email,
-      action: summary.action, entityType: summary.entityType, entityId: summary.entityId,
-      details: { description: summary.description, ...(summary.details || {}) },
-    }, { db: ctx.db, tx });
+  const audit = command.audit(input, result);
+  const summaries = Array.isArray(audit) ? audit : audit ? [audit] : [];
+  if (auditWriter) {
+    for (const summary of summaries) {
+      await auditWriter({
+        workspaceId: ctx.workspaceId, uid: ctx.actor, email: ctx.email,
+        action: summary.action, entityType: summary.entityType, entityId: summary.entityId,
+        details: { description: summary.description, ...(summary.details || {}) },
+      }, { db: ctx.db, tx });
+    }
   }
-  return { result, summary };
+  // The sandbox uses the first summary to label a step; every summary goes to the live audit chain.
+  return { result, summary: summaries[0] ?? null };
 }
 
 /** The runner behind both the command router and the legacy wrappers (exported so a test can hold each to its gate). */
@@ -415,7 +419,8 @@ export async function runRegisteredCommand(
   let input: unknown;
   try { input = parseCommandInput(command, invocation.input, workspaceId); }
   catch (error) { return errorOutcome(error, command.name); }
-  const explicitOperationId = extractCanonicalOperationId(req);
+  const explicitOperationId = invocation.legacyRoute && invocation.legacyOperationId === 'ignore'
+    ? undefined : extractCanonicalOperationId(req);
   if (explicitOperationId && !OPERATION_ID_SHAPE.test(explicitOperationId)) {
     return { ok: false, status: 400, command: command.name, message: 'Invalid operation ID', code: 'INVALID_OPERATION_ID' };
   }
