@@ -70,7 +70,7 @@ export function rawTableFiles(rootDir = process.cwd()): string[] {
     .filter(file => path.resolve(file) !== path.resolve(sharedList))
     .filter(file => /<table\b/.test(fs.readFileSync(file, 'utf8')))
     .map(file => path.relative(rootDir, file).split(path.sep).join('/'))
-    .sort();
+    .sort((a, b) => a.localeCompare(b, 'en'));
 }
 
 /**

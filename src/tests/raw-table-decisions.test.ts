@@ -37,7 +37,7 @@ describe('every table still drawn has been decided about', () => {
   test('no new screen starts drawing its own table without a decision', () => {
     // Exact paths, not just a count: adding one raw screen in the same change as migrating
     // another still fails. A removal must shrink the queue, not turn into a permanent exemption.
-    assert.deepEqual(rawTableFiles(ROOT), [...moving, SHARED_RENDERER, ...Object.keys(STAYS_WITH_A_REASON)].sort());
+    assert.deepEqual(rawTableFiles(ROOT), [...moving, SHARED_RENDERER, ...Object.keys(STAYS_WITH_A_REASON)].sort((a, b) => a.localeCompare(b, 'en')));
   });
 
   test('a reason is not stale: every screen named as staying still draws its own table', () => {
