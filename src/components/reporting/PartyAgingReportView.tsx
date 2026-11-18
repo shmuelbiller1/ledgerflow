@@ -164,7 +164,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
         </div>
       </div>
 
-      {!serverRows && <ScreenDataNotice failedKeys={health.failedKeys} message={health.message} onRetry={health.retry} what="this aging report" />}
+      {!serverRows && <ScreenDataNotice failedKeys={health.failedKeys} message={health.message} onRetry={health.retry} />}
       {!canShowFigures && health.loadingKeys.length > 0 && <p role="status">{reportText('r.loading-aging-documents', 'Loading documents for this aging report…')}</p>}
       {partial && <ReportProvenanceNote provenance={provenance} />}
       {canShowFigures && <>
