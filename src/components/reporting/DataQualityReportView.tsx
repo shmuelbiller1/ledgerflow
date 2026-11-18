@@ -13,6 +13,7 @@ import {
 import { formatCurrency, workspaceYearMonth } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
+import { useReportText } from './useReportText';
 
 type FilterScope = 'all' | 'labels' | 'filings' | 'items';
 
@@ -101,6 +102,7 @@ export function DataQualityReportPanel({
   loading?: boolean;
   partial?: boolean;
 }) {
+  const reportText = useReportText();
   const openRecord = useUIStore(s => s.openRecord);
   const setActiveTab = useUIStore(s => s.setActiveTab);
   const needle = search.trim().toLowerCase();
@@ -131,56 +133,54 @@ export function DataQualityReportPanel({
     filteredReport.missingItemPricing.length;
 
   return (
-    <section aria-label="Data quality checks" className="p-4 space-y-6 min-w-0 text-[var(--text)]">
+    <section aria-label={reportText('r.data-quality-checks', 'Data quality checks')} className="p-4 space-y-6 min-w-0 text-[var(--text)]">
       <div className="space-y-1">
-        <h2 className="text-xl font-bold">Data quality checks</h2>
+        <h2 className="text-xl font-bold">{reportText('r.data-quality-checks', 'Data quality checks')}</h2>
         <p className="text-sm text-[var(--muted)]">
-          Checks posted entries missing required labels, active customers and suppliers missing a tax ID or postal address
-          needed for {report.taxYear} filings, and catalogue items missing unit cost or selling price. Read-only check:
-          recorded tax IDs are shown masked only, never verified against a tax authority, and nothing here alters your books.
+          {reportText('r.checks-posted-entries-missing-required-labels-ac', 'Checks posted entries missing required labels, active customers and suppliers missing a tax ID or postal address needed for')} {report.taxYear} {reportText('r.filings-and-catalogue-items-missing-unit-cost-or', 'filings, and catalogue items missing unit cost or selling price. Read-only check: recorded tax IDs are shown masked only, never verified against a tax authority, and nothing here alters your books.')}
         </p>
       </div>
 
-      {loading && <p role="status" className="text-sm">Loading workspace records…</p>}
+      {loading && <p role="status" className="text-sm">{reportText('r.loading-workspace-records', 'Loading workspace records…')}</p>}
       {partial && (
         <p role="alert" className="text-sm text-[var(--brass)]">
-          One or more loaded collections are capped or incomplete. Findings and CSV exports are provisional until all records load.
+          {reportText('r.one-or-more-loaded-collections-are-capped-or-inc', 'One or more loaded collections are capped or incomplete. Findings and CSV exports are provisional until all records load.')}
         </p>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="status">
         <div className="p-3 rounded-lg border border-[var(--line)] bg-[var(--surface)]">
-          <p className="text-xs text-[var(--muted)]">Entries missing required labels</p>
+          <p className="text-xs text-[var(--muted)]">{reportText('r.entries-missing-required-labels', 'Entries missing required labels')}</p>
           <p className="text-2xl font-bold tabular-nums">{report.missingLabelEntries.length}</p>
-          <p className="text-xs text-[var(--muted)]">{report.activeLabelRules.length} active label rule(s)</p>
+          <p className="text-xs text-[var(--muted)]">{report.activeLabelRules.length} {reportText('r.active-label-rule-s', 'active label rule(s)')}</p>
         </div>
         <div className="p-3 rounded-lg border border-[var(--line)] bg-[var(--surface)]">
-          <p className="text-xs text-[var(--muted)]">Contacts missing filing details</p>
+          <p className="text-xs text-[var(--muted)]">{reportText('r.contacts-missing-filing-details', 'Contacts missing filing details')}</p>
           <p className="text-2xl font-bold tabular-nums">{report.missingFilingParties.length}</p>
-          <p className="text-xs text-[var(--muted)]">Tax year {report.taxYear}</p>
+          <p className="text-xs text-[var(--muted)]">{reportText('r.tax-year', 'Tax year')} {report.taxYear}</p>
         </div>
         <div className="p-3 rounded-lg border border-[var(--line)] bg-[var(--surface)]">
-          <p className="text-xs text-[var(--muted)]">Items missing cost or price</p>
+          <p className="text-xs text-[var(--muted)]">{reportText('r.items-missing-cost-or-price', 'Items missing cost or price')}</p>
           <p className="text-2xl font-bold tabular-nums">{report.missingItemPricing.length}</p>
-          <p className="text-xs text-[var(--muted)]">Bundles excluded; services price-only</p>
+          <p className="text-xs text-[var(--muted)]">{reportText('r.bundles-excluded-services-price-only', 'Bundles excluded; services price-only')}</p>
         </div>
       </div>
 
       <div className="flex flex-wrap items-end gap-3" data-print-hide>
         <label className="flex flex-col gap-1 text-sm">
-          Check group
-          <select aria-label="Check group" className={controlClass} value={scope} onChange={e => onScopeChange(e.target.value as FilterScope)}>
-            <option value="all">All checks ({totalCount})</option>
-            <option value="labels">Entries missing required labels ({report.missingLabelEntries.length})</option>
-            <option value="filings">Contacts missing tax ID or address ({report.missingFilingParties.length})</option>
-            <option value="items">Items missing cost or price ({report.missingItemPricing.length})</option>
+          {reportText('r.check-group', 'Check group')}
+          <select aria-label={reportText('r.check-group', 'Check group')} className={controlClass} value={scope} onChange={e => onScopeChange(e.target.value as FilterScope)}>
+            <option value="all">{reportText('r.all-checks', 'All checks (')}{totalCount})</option>
+            <option value="labels">{reportText('r.entries-missing-required-labels-2', 'Entries missing required labels (')}{report.missingLabelEntries.length})</option>
+            <option value="filings">{reportText('r.contacts-missing-tax-id-or-address', 'Contacts missing tax ID or address (')}{report.missingFilingParties.length})</option>
+            <option value="items">{reportText('r.items-missing-cost-or-price-2', 'Items missing cost or price (')}{report.missingItemPricing.length})</option>
           </select>
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          Filing year
+          {reportText('r.filing-year', 'Filing year')}
           <input
-            aria-label="Filing year"
+            aria-label={reportText('r.filing-year', 'Filing year')}
             type="number"
             min={2020}
             max={2099}
@@ -194,11 +194,11 @@ export function DataQualityReportPanel({
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          Filter findings
+          {reportText('r.filter-findings', 'Filter findings')}
           <input
-            aria-label="Filter findings"
+            aria-label={reportText('r.filter-findings', 'Filter findings')}
             type="search"
-            placeholder="Name, account, SKU…"
+            placeholder={reportText('r.name-account-sku', 'Name, account, SKU…')}
             className={controlClass}
             value={search}
             onChange={e => onSearchChange(e.target.value)}
@@ -211,23 +211,23 @@ export function DataQualityReportPanel({
           disabled={loading || partial || filteredTotal === 0}
           onClick={() => downloadCsv(`data-quality-${report.taxYear}`, DATA_QUALITY_CSV_HEADERS, dataQualityCsvRows(filteredReport))}
         >
-          Export CSV
+          {reportText('r.export-csv', 'Export CSV')}
         </button>
       </div>
 
       {(scope === 'all' || scope === 'labels') && (
         <div className="space-y-2">
-          <h3 className="font-semibold text-sm">Entries missing required labels ({labelRows.length})</h3>
+          <h3 className="font-semibold text-sm">{reportText('r.entries-missing-required-labels-2', 'Entries missing required labels (')}{labelRows.length})</h3>
           {report.activeLabelRules.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">
-              No required-label rules are configured yet. Mark a label required on account types under Settings → Labels.
+              {reportText('r.no-required-label-rules-are-configured-yet-mark', 'No required-label rules are configured yet. Mark a label required on account types under Settings → Labels.')}
             </p>
           ) : labelRows.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">Every posted entry meets all active required-label rules.</p>
+            <p className="text-sm text-[var(--muted)]">{reportText('r.every-posted-entry-meets-all-active-required-lab', 'Every posted entry meets all active required-label rules.')}</p>
           ) : (
             <ReportTableScroll>
               <table className="w-full text-sm">
-                <caption className="sr-only">Posted entries missing required labels</caption>
+                <caption className="sr-only">{reportText('r.posted-entries-missing-required-labels', 'Posted entries missing required labels')}</caption>
                 <thead>
                   <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
                     {['Date', 'Entry', 'Missing label and account', 'Rule kind', 'Amount', 'Action'].map(h => (
@@ -241,11 +241,11 @@ export function DataQualityReportPanel({
                       <td className="py-2 px-2 tabular-nums whitespace-nowrap">{row.date}</td>
                       <th scope="row" className="text-left font-normal py-2 px-2"><bdi>{row.description}</bdi></th>
                       <td className="py-2 px-2"><bdi>{row.summary}</bdi></td>
-                      <td className="py-2 px-2">{row.severity === 'medium' ? 'Refuses save when missing' : 'Warns when missing'}</td>
+                      <td className="py-2 px-2">{row.severity === 'medium' ? reportText('r.refuses-save-when-missing', 'Refuses save when missing') : reportText('r.warns-when-missing', 'Warns when missing')}</td>
                       <td className="py-2 px-2 tabular-nums whitespace-nowrap">{formatCurrency(row.totalAmountCents, row.currency)}</td>
                       <td className="py-2 px-2">
                         <button type="button" className="min-h-11 px-3 underline text-left" onClick={() => openRecord(row.record)}>
-                          Open entry
+                          {reportText('r.open-entry', 'Open entry')}
                         </button>
                       </td>
                     </tr>
@@ -259,13 +259,13 @@ export function DataQualityReportPanel({
 
       {(scope === 'all' || scope === 'filings') && (
         <div className="space-y-2">
-          <h3 className="font-semibold text-sm">Customers and vendors missing filing tax IDs or addresses ({filingRows.length})</h3>
+          <h3 className="font-semibold text-sm">{reportText('r.customers-and-vendors-missing-filing-tax-ids-or', 'Customers and vendors missing filing tax IDs or addresses (')}{filingRows.length})</h3>
           {filingRows.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">No active {report.taxYear} customer or supplier filing details are missing.</p>
+            <p className="text-sm text-[var(--muted)]">{reportText('r.no-active', 'No active')} {report.taxYear} {reportText('r.customer-or-supplier-filing-details-are-missing', 'customer or supplier filing details are missing.')}</p>
           ) : (
             <ReportTableScroll>
               <table className="w-full text-sm">
-                <caption className="sr-only">Customers and vendors missing tax IDs or postal addresses needed for filings</caption>
+                <caption className="sr-only">{reportText('r.customers-and-vendors-missing-tax-ids-or-postal', 'Customers and vendors missing tax IDs or postal addresses needed for filings')}</caption>
                 <thead>
                   <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
                     {['Contact', 'Kind', 'Country', 'Tax ID (masked)', 'Address', 'Missing', 'Why needed', 'Activity', 'Action'].map(h => (
@@ -277,10 +277,10 @@ export function DataQualityReportPanel({
                   {filingRows.map(row => (
                     <tr key={row.id} className="border-b border-[var(--line)]/50 align-top">
                       <th scope="row" className="text-left font-normal py-2 px-2"><bdi>{row.name}</bdi></th>
-                      <td className="py-2 px-2">{row.kind === 'vendor' ? 'Vendor' : 'Customer'}</td>
+                      <td className="py-2 px-2">{row.kind === 'vendor' ? reportText('r.vendor', 'Vendor') : reportText('r.customer', 'Customer')}</td>
                       <td className="py-2 px-2">{row.country}</td>
                       <td className="py-2 px-2 font-mono">{row.maskedTaxId}</td>
-                      <td className="py-2 px-2">{row.hasAddress ? 'Recorded' : 'Missing'}</td>
+                      <td className="py-2 px-2">{row.hasAddress ? reportText('r.recorded-2', 'Recorded') : reportText('r.missing', 'Missing')}</td>
                       <td className="py-2 px-2">{row.missingFields.map(f => (f === 'taxId' ? 'Tax ID' : 'Address')).join(', ')}</td>
                       <td className="py-2 px-2">{row.filingReasons.join('; ')}</td>
                       <td className="py-2 px-2 tabular-nums whitespace-nowrap">{formatCurrency(row.activityAmountCents, row.currency)}</td>
@@ -290,7 +290,7 @@ export function DataQualityReportPanel({
                           className="min-h-11 px-3 underline text-left"
                           onClick={() => row.record ? openRecord(row.record) : setActiveTab(row.kind === 'vendor' ? 'purchases' : 'sales')}
                         >
-                          Open
+                          {reportText('r.open', 'Open')}
                         </button>
                       </td>
                     </tr>
@@ -304,13 +304,13 @@ export function DataQualityReportPanel({
 
       {(scope === 'all' || scope === 'items') && (
         <div className="space-y-2">
-          <h3 className="font-semibold text-sm">Items missing unit cost or selling price ({itemRows.length})</h3>
+          <h3 className="font-semibold text-sm">{reportText('r.items-missing-unit-cost-or-selling-price', 'Items missing unit cost or selling price (')}{itemRows.length})</h3>
           {itemRows.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">Every active stock and service item has its expected pricing recorded.</p>
+            <p className="text-sm text-[var(--muted)]">{reportText('r.every-active-stock-and-service-item-has-its-expe', 'Every active stock and service item has its expected pricing recorded.')}</p>
           ) : (
             <ReportTableScroll>
               <table className="w-full text-sm">
-                <caption className="sr-only">Catalogue items missing unit cost or selling price</caption>
+                <caption className="sr-only">{reportText('r.catalogue-items-missing-unit-cost-or-selling-pri', 'Catalogue items missing unit cost or selling price')}</caption>
                 <thead>
                   <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
                     {['Item', 'SKU', 'Type', 'Unit cost', 'Selling price', 'Missing', 'Effect on books', 'Action'].map(h => (
@@ -323,16 +323,16 @@ export function DataQualityReportPanel({
                     <tr key={row.itemId} className="border-b border-[var(--line)]/50 align-top">
                       <th scope="row" className="text-left font-normal py-2 px-2"><bdi>{row.name}</bdi></th>
                       <td className="py-2 px-2 font-mono">{row.sku || '—'}</td>
-                      <td className="py-2 px-2">{row.itemType === 'service' ? 'Service' : 'Stock'}</td>
+                      <td className="py-2 px-2">{row.itemType === 'service' ? reportText('r.service', 'Service') : reportText('r.stock', 'Stock')}</td>
                       <td className="py-2 px-2 tabular-nums whitespace-nowrap">
-                        {row.itemType === 'service' ? 'Not used' : formatCurrency(row.unitCostCents, report.homeCurrency)}
+                        {row.itemType === 'service' ? reportText('r.not-used', 'Not used') : formatCurrency(row.unitCostCents, report.homeCurrency)}
                       </td>
                       <td className="py-2 px-2 tabular-nums whitespace-nowrap">{formatCurrency(row.unitPriceCents, report.homeCurrency)}</td>
                       <td className="py-2 px-2">{row.missingFields.map(f => (f === 'cost' ? 'Unit cost' : 'Selling price')).join(', ')}</td>
                       <td className="py-2 px-2">{row.reason}</td>
                       <td className="py-2 px-2">
                         <button type="button" className="min-h-11 px-3 underline text-left" onClick={() => openRecord(row.record)}>
-                          Open item
+                          {reportText('r.open-item', 'Open item')}
                         </button>
                       </td>
                     </tr>

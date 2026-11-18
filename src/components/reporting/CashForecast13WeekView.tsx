@@ -12,6 +12,7 @@ import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import type { Bill, Invoice } from '../../types';
 import { RowTable } from '../ui/RowTable';
+import { useReportText, fill } from './useReportText';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const MAX_LINE_ROWS = 200;
@@ -29,6 +30,7 @@ function centsFromText(value: string): number | undefined {
  * and recurring rules — week by week. Read-only; nothing is posted and no rate is guessed.
  */
 export default function CashForecast13WeekView() {
+  const reportText = useReportText();
   const invoices = useLedgerStore(state => state.invoices);
   const bills = useLedgerStore(state => state.bills);
   const recurring = useLedgerStore(state => state.recurring);
@@ -51,7 +53,7 @@ export default function CashForecast13WeekView() {
     const accountsById = new Map(accounts.map(account => [account.id, account]));
     const rules: ForecastRecurringRule[] = recurring.filter(inWorkspace).map(rule => ({
       id: rule.id,
-      label: rule.description || rule.payee || 'Recurring entry',
+      label: rule.description || rule.payee || reportText('r.recurring-entry', 'Recurring entry'),
       amountCents: rule.amountCents,
       frequency: rule.frequency,
       nextOccurrence: rule.nextOccurrence,
@@ -77,7 +79,7 @@ export default function CashForecast13WeekView() {
       bills: bills.filter(inWorkspace).map(bill => toDocument(bill, bill.vendorName || 'Bill')),
       recurring: rules,
     });
-  }, [invoices, bills, recurring, accounts, workspaceId, homeCurrency, asOf, openingCashCents, validDay]);
+  }, [invoices, bills, recurring, accounts, workspaceId, homeCurrency, asOf, openingCashCents, validDay, reportText]);
 
   const partial = Boolean(truncated.invoices || failed.invoices || truncated.bills || failed.bills || truncated.recurring || failed.recurring);
   return <CashForecast13WeekPanel
@@ -106,58 +108,54 @@ export function CashForecast13WeekPanel({ report, currency = 'USD', asOf, onAsOf
   validDay?: boolean;
   openingCashValid?: boolean;
 }) {
+  const reportText = useReportText();
   const lines = report ? report.weeks.flatMap(week => week.lines.map(line => ({ ...line, week: week.index }))) : [];
-  return <section aria-label="13-week cash forecast" className="p-4 space-y-4 min-w-0">
-    <h2>13-week cash forecast</h2>
+  return <section aria-label={reportText('r.13-week-cash-forecast', '13-week cash forecast')} className="p-4 space-y-4 min-w-0">
+    <h2>{reportText('r.13-week-cash-forecast', '13-week cash forecast')}</h2>
     <p className="text-sm text-[var(--muted)]">
-      Open invoices on their own due dates, open bills on theirs and the recurring rules you already recorded, added up week by
-      week from the assessment day. This is arithmetic on what is recorded, not a prediction: it assumes every customer pays on
-      the due date, no new work is won, no payment history or seasonality is modelled, and a document in another currency is
-      counted instead of converted at an invented rate. Nothing here is posted and no bill or invoice is changed.
+      {reportText('r.open-invoices-on-their-own-due-dates-open-bills', 'Open invoices on their own due dates, open bills on theirs and the recurring rules you already recorded, added up week by week from the assessment day. This is arithmetic on what is recorded, not a prediction: it assumes every customer pays on the due date, no new work is won, no payment history or seasonality is modelled, and a document in another currency is counted instead of converted at an invented rate. Nothing here is posted and no bill or invoice is changed.')}
     </p>
 
-    {loading && <p role="status">Loading invoices, bills and recurring rules…</p>}
-    {partial && <p role="alert">A loaded list is capped or failed. The weeks and the export are provisional until every list is complete.</p>}
-    {!validDay && <p role="alert">Choose a real assessment day (YYYY-MM-DD) to see the forecast.</p>}
-    {!openingCashValid && <p role="alert">The starting cash amount is not a number; type an amount like 12500.00.</p>}
+    {loading && <p role="status">{reportText('r.loading-invoices-bills-and-recurring-rules', 'Loading invoices, bills and recurring rules…')}</p>}
+    {partial && <p role="alert">{reportText('r.a-loaded-list-is-capped-or-failed-the-weeks-and', 'A loaded list is capped or failed. The weeks and the export are provisional until every list is complete.')}</p>}
+    {!validDay && <p role="alert">{reportText('r.choose-a-real-assessment-day-yyyy-mm-dd-to-see-t', 'Choose a real assessment day (YYYY-MM-DD) to see the forecast.')}</p>}
+    {!openingCashValid && <p role="alert">{reportText('r.the-starting-cash-amount-is-not-a-number-type-an', 'The starting cash amount is not a number; type an amount like 12500.00.')}</p>}
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
-      <label className="flex flex-col gap-1 text-sm">Assessment day
-        <input type="date" aria-label="Assessment day" className={field} value={asOf} onChange={event => onAsOfChange(event.target.value)} />
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.assessment-day', 'Assessment day')}
+        <input type="date" aria-label={reportText('r.assessment-day', 'Assessment day')} className={field} value={asOf} onChange={event => onAsOfChange(event.target.value)} />
       </label>
-      <label className="flex flex-col gap-1 text-sm">Cash and bank today ({currency})
-        <input aria-label={`Cash and bank today (${currency})`} className={field} inputMode="decimal" value={openingCashText} onChange={event => onOpeningCashChange(event.target.value)} placeholder="0.00" />
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.cash-and-bank-today', 'Cash and bank today (')}{currency})
+        <input aria-label={fill(reportText('r.cash-today-currency', 'Cash and bank today ({currency})'), { currency })} className={field} inputMode="decimal" value={openingCashText} onChange={event => onOpeningCashChange(event.target.value)} placeholder="0.00" />
       </label>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!report || loading || partial}
-        onClick={() => report && downloadCsv('cash-forecast-13-week', CASH_FORECAST_CSV_HEADERS, cashForecastCsvRows(report))}>Export CSV</button>
+        onClick={() => report && downloadCsv('cash-forecast-13-week', CASH_FORECAST_CSV_HEADERS, cashForecastCsvRows(report))}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
 
     {report && <>
       <p className="text-sm">
-        <b>Expected in:</b> {formatCurrency(report.totalInflowCents, currency)} · <b>Expected out:</b> {formatCurrency(report.totalOutflowCents, currency)} ·
-        {' '}<b>Net:</b> {formatCurrency(report.totalInflowCents - report.totalOutflowCents, currency)}
+        <b>{reportText('r.expected-in', 'Expected in:')}</b> {formatCurrency(report.totalInflowCents, currency)} · <b>{reportText('r.expected-out', 'Expected out:')}</b> {formatCurrency(report.totalOutflowCents, currency)} ·
+        {' '}<b>{reportText('r.net-2', 'Net:')}</b> {formatCurrency(report.totalInflowCents - report.totalOutflowCents, currency)}
       </p>
       {(report.overdueInflowCents > 0 || report.overdueOutflowCents > 0) && <p role="alert">
-        Already past its due date on the assessment day and placed in week 1: {formatCurrency(report.overdueInflowCents, currency)} to come in,
-        {' '}{formatCurrency(report.overdueOutflowCents, currency)} to go out.
+        {reportText('r.already-past-its-due-date-on-the-assessment-day', 'Already past its due date on the assessment day and placed in week 1:')} {formatCurrency(report.overdueInflowCents, currency)} {reportText('r.to-come-in', 'to come in,')}
+        {' '}{formatCurrency(report.overdueOutflowCents, currency)} {reportText('r.to-go-out', 'to go out.')}
       </p>}
       {(report.skippedOtherCurrency > 0 || report.undated > 0 || report.beyondHorizonCents.documents > 0 || report.unclassifiedRecurring > 0 || report.inactiveRecurring > 0) && <p className="text-sm text-[var(--muted)]">
-        Not in the weeks: {report.skippedOtherCurrency} document(s) in another currency (never converted), {report.undated} without a
-        readable date, {report.beyondHorizonCents.documents} after the forecast ends
-        {report.beyondHorizonCents.documents > 0 ? ` (${formatCurrency(report.beyondHorizonCents.inflowCents, currency)} in / ${formatCurrency(report.beyondHorizonCents.outflowCents, currency)} out)` : ''}
-        {', '}{report.unclassifiedRecurring} recurring rule(s) whose accounts do not say whether money comes in or goes out,
-        and {report.inactiveRecurring} paused or finished rule(s).
+        {reportText('r.not-in-the-weeks', 'Not in the weeks:')} {report.skippedOtherCurrency} {reportText('r.document-s-in-another-currency-never-converted', 'document(s) in another currency (never converted),')} {report.undated} {reportText('r.without-a-readable-date', 'without a readable date,')} {report.beyondHorizonCents.documents} {reportText('r.after-the-forecast-ends', 'after the forecast ends')}
+        {report.beyondHorizonCents.documents > 0 ? ` ${fill(reportText('r.in-out-amounts', '({in} in / {out} out)'), { in: formatCurrency(report.beyondHorizonCents.inflowCents, currency), out: formatCurrency(report.beyondHorizonCents.outflowCents, currency) })}` : ''}
+        {', '}{report.unclassifiedRecurring} {reportText('r.recurring-rule-s-whose-accounts-do-not-say-wheth', 'recurring rule(s) whose accounts do not say whether money comes in or goes out, and')} {report.inactiveRecurring} {reportText('r.paused-or-finished-rule-s', 'paused or finished rule(s).')}
       </p>}
 
       <ReportTableScroll>
         <table className="w-full text-sm">
-          <caption className="text-left font-semibold text-[var(--text)] pb-1">Thirteen weeks from {asOf}: expected money in, expected money out and the projected balance</caption>
+          <caption className="text-left font-semibold text-[var(--text)] pb-1">{reportText('r.thirteen-weeks-from', 'Thirteen weeks from')} {asOf}{reportText('r.expected-money-in-expected-money-out-and-the-pro', ': expected money in, expected money out and the projected balance')}</caption>
           <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
             {['Week', 'Start', 'End', 'Expected in', 'Expected out', 'Net', 'Projected balance'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
           </tr></thead>
           <tbody>
             {report.weeks.map(week => <tr key={week.startDate} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2">Week {week.index}</th>
+              <th scope="row" className="text-left font-normal py-1 px-2">{reportText('r.week', 'Week')} {week.index}</th>
               <td className="py-1 px-2 tabular-nums">{week.startDate}</td>
               <td className="py-1 px-2 tabular-nums">{week.endDate}</td>
               <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(week.inflowCents, currency)}</td>
@@ -169,11 +167,11 @@ export function CashForecast13WeekPanel({ report, currency = 'USD', asOf, onAsOf
         </table>
       </ReportTableScroll>
 
-      <h3 className="font-semibold text-sm">What is dated in the next 13 weeks</h3>
+      <h3 className="font-semibold text-sm">{reportText('r.what-is-dated-in-the-next-13-weeks', 'What is dated in the next 13 weeks')}</h3>
       <ReportTableScroll>
         <RowTable
           rowClassName="border-b border-[var(--line)]/50"
-          caption={(<>Each dated invoice, bill and recurring occurrence in the forecast</>)}
+          caption={(<>{reportText('r.each-dated-invoice-bill-and-recurring-occurrence', 'Each dated invoice, bill and recurring occurrence in the forecast')}</>)}
           rows={lines.slice(0, MAX_LINE_ROWS)}
           rowKey={line => `${line.kind}-${line.id}`}
           captionClassName="text-left font-semibold text-[var(--text)] pb-1"
@@ -181,15 +179,15 @@ export function CashForecast13WeekPanel({ report, currency = 'USD', asOf, onAsOf
           headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
           bodyClassName=""
           columns={[
-            { header: "Date", className: "text-left font-normal py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (line) => (<>{line.date}{line.overdue ? ' (past due)' : ''}</>) },
-            { header: "Week", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (line) => line.week },
-            { header: "Direction", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (line) => line.kind === 'bill' ? 'Out' : 'In' },
-            { header: "Document", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (line) => <bdi>{line.label}</bdi> },
-            { header: "Amount", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (line) => formatCurrency(line.cents, currency) },
+            { header: reportText('r.date-2', 'Date'), className: "text-left font-normal py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (line) => (<>{line.date}{line.overdue ? ` ${reportText('r.past-due', '(past due)')}` : ''}</>) },
+            { header: reportText('r.week', 'Week'), className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (line) => line.week },
+            { header: reportText('r.direction', 'Direction'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (line) => line.kind === 'bill' ? 'Out' : 'In' },
+            { header: reportText('r.document', 'Document'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (line) => <bdi>{line.label}</bdi> },
+            { header: reportText('r.amount', 'Amount'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (line) => formatCurrency(line.cents, currency) },
           ]}
         />
-        {lines.length > MAX_LINE_ROWS && <p className="text-sm text-[var(--muted)]">Showing the first {MAX_LINE_ROWS} of {lines.length} dated lines; the weekly totals and the CSV include all of them.</p>}
-        {!lines.length && <p className="text-sm text-[var(--muted)]">Nothing dated in the next 13 weeks: no open invoice, open bill or active recurring rule falls inside it.</p>}
+        {lines.length > MAX_LINE_ROWS && <p className="text-sm text-[var(--muted)]">{reportText('r.showing-the-first', 'Showing the first')} {MAX_LINE_ROWS} {reportText('r.of', 'of')} {lines.length} {reportText('r.dated-lines-the-weekly-totals-and-the-csv-includ', 'dated lines; the weekly totals and the CSV include all of them.')}</p>}
+        {!lines.length && <p className="text-sm text-[var(--muted)]">{reportText('r.nothing-dated-in-the-next-13-weeks-no-open-invoi', 'Nothing dated in the next 13 weeks: no open invoice, open bill or active recurring rule falls inside it.')}</p>}
       </ReportTableScroll>
     </>}
   </section>;

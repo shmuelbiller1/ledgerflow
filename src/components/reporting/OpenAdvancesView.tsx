@@ -6,6 +6,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { openAdvances, type AgeBucket, type PaymentDirection } from '../../lib/advancePayments';
 import { formatCurrency } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
+import { useReportText, fill } from './useReportText';
 
 const BUCKETS: AgeBucket[] = ['0-30', '31-60', '61-90', '90+'];
 
@@ -15,6 +16,7 @@ const BUCKETS: AgeBucket[] = ['0-30', '31-60', '61-90', '90+'];
  * is on the customer's or vendor's page ("Apply to invoices/bills").
  */
 export default function OpenAdvancesView({ endDate = '' }: { startDate?: string; endDate?: string }) {
+  const reportText = useReportText();
   const [direction, setDirection] = useState<PaymentDirection>('received');
   const payments = useLedgerStore(s => s.payments);
   const truncated = useLedgerStore(s => s.truncatedCollections);
@@ -27,39 +29,38 @@ export default function OpenAdvancesView({ endDate = '' }: { startDate?: string;
   const money = (cents: number, currency?: string) => formatCurrency(cents, currency || home);
 
   return (
-    <section aria-label="Open advances" className="p-4 space-y-4 min-w-0">
+    <section aria-label={reportText('r.open-advances', 'Open advances')} className="p-4 space-y-4 min-w-0">
       <h2>{title}</h2>
       <p>
-        As of {asOf || '—'}. Money {direction === 'received' ? 'customers paid' : 'paid to vendors'} before an {direction === 'received' ? 'invoice' : 'bill'} and not applied yet, oldest first.
-        Apply it on the {direction === 'received' ? "customer's" : "vendor's"} page (&quot;Apply to {direction === 'received' ? 'invoices' : 'bills'}&quot;).
+        {fill(direction === 'received' ? reportText('r.open-advances-customers', 'As of {date}. Money customers paid before an invoice and not applied yet, oldest first. Apply it on the customer\'s page ("Apply to invoices").') : reportText('r.open-advances-vendors', 'As of {date}. Money paid to vendors before a bill and not applied yet, oldest first. Apply it on the vendor\'s page ("Apply to bills").'), { date: asOf || '—' })}
       </p>
       <label className="flex items-center gap-2 text-sm">
-        Show
-        <select aria-label="Which advances" value={direction} onChange={e => setDirection(e.target.value as PaymentDirection)} className="px-2 py-1 border border-[var(--line)] rounded bg-[var(--panel)]">
-          <option value="received">Customer deposits</option>
-          <option value="made">Vendor prepayments</option>
+        {reportText('r.show', 'Show')}
+        <select aria-label={reportText('r.which-advances', 'Which advances')} value={direction} onChange={e => setDirection(e.target.value as PaymentDirection)} className="px-2 py-1 border border-[var(--line)] rounded bg-[var(--panel)]">
+          <option value="received">{reportText('r.customer-deposits', 'Customer deposits')}</option>
+          <option value="made">{reportText('r.vendor-prepayments', 'Vendor prepayments')}</option>
         </select>
       </label>
-      {loading && <p role="status">Loading payments…</p>}
-      {(truncated.payments || failed.payments) && <p role="alert">Loaded payment history is incomplete or failed. These figures are provisional.</p>}
+      {loading && <p role="status">{reportText('r.loading-payments', 'Loading payments…')}</p>}
+      {(truncated.payments || failed.payments) && <p role="alert">{reportText('r.loaded-payment-history-is-incomplete-or-failed-t', 'Loaded payment history is incomplete or failed. These figures are provisional.')}</p>}
       {result && (
         <>
           <ReportTableScroll>
             <table className="w-full text-sm">
-              <caption>{title} as of {asOf}</caption>
+              <caption>{title} {reportText('r.as-of-3', 'as of')} {asOf}</caption>
               <thead>
                 <tr>
-                  <th scope="col" className="text-left">{direction === 'received' ? 'Customer' : 'Vendor'}</th>
-                  <th scope="col" className="text-left">Payment</th>
-                  <th scope="col" className="text-left">Date</th>
-                  <th scope="col" className="text-right">Paid</th>
-                  <th scope="col" className="text-right">Applied</th>
-                  <th scope="col" className="text-right">Still open</th>
-                  <th scope="col" className="text-right">Days waiting</th>
+                  <th scope="col" className="text-left">{direction === 'received' ? reportText('r.customer', 'Customer') : reportText('r.vendor', 'Vendor')}</th>
+                  <th scope="col" className="text-left">{reportText('r.payment', 'Payment')}</th>
+                  <th scope="col" className="text-left">{reportText('r.date-2', 'Date')}</th>
+                  <th scope="col" className="text-right">{reportText('r.paid', 'Paid')}</th>
+                  <th scope="col" className="text-right">{reportText('r.applied', 'Applied')}</th>
+                  <th scope="col" className="text-right">{reportText('r.still-open', 'Still open')}</th>
+                  <th scope="col" className="text-right">{reportText('r.days-waiting', 'Days waiting')}</th>
                 </tr>
               </thead>
               <tbody>
-                {result.rows.length === 0 && <tr><td colSpan={7}>Nothing open: every advance is applied.</td></tr>}
+                {result.rows.length === 0 && <tr><td colSpan={7}>{reportText('r.nothing-open-every-advance-is-applied', 'Nothing open: every advance is applied.')}</td></tr>}
                 {result.rows.map(r => (
                   <tr key={r.paymentId}>
                     <td><bdi>{r.partyName}</bdi></td>
@@ -76,7 +77,7 @@ export default function OpenAdvancesView({ endDate = '' }: { startDate?: string;
                 <tfoot>
                   {Object.entries(result.totals).map(([currency, cents]) => (
                     <tr key={currency || 'home'}>
-                      <th scope="row" className="text-left">Total still open{Object.keys(result.totals).length > 1 ? ` (${currency || home})` : ''}</th>
+                      <th scope="row" className="text-left">{reportText('r.total-still-open', 'Total still open')}{Object.keys(result.totals).length > 1 ? ` (${currency || home})` : ''}</th>
                       <td /><td /><td /><td />
                       <td className="text-right tabular-nums font-bold">{money(cents, currency)}</td>
                       <td />
@@ -88,8 +89,8 @@ export default function OpenAdvancesView({ endDate = '' }: { startDate?: string;
           </ReportTableScroll>
           {result.rows.length > 0 && (
             <p className="text-sm text-[var(--muted)]">
-              By age: {BUCKETS.map(b => `${b} days ${result.rows.filter(r => r.bucket === b).length}`).join(' · ')}.
-              {' '}Most open: {result.byParty.slice(0, 3).map(p => `${p.partyName} ${money(p.openCents, p.currency)}`).join(', ')}.
+              {reportText('r.by-age', 'By age:')} {BUCKETS.map(b => `${b} days ${result.rows.filter(r => r.bucket === b).length}`).join(' · ')}.
+              {' '}{reportText('r.most-open', 'Most open:')} {result.byParty.slice(0, 3).map(p => `${p.partyName} ${money(p.openCents, p.currency)}`).join(', ')}.
             </p>
           )}
         </>
