@@ -80,13 +80,27 @@ export function RecordPage({
   history,
 }: RecordPageProps) {
   const backRef = useRef<HTMLButtonElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     backRef.current?.focus();
   }, [focusKey]);
 
+  useEffect(() => {
+    // The list is replaced by this page. Listen after child handlers so an inline editor
+    // can cancel a draft (or a nested dialog can close) before Escape goes Back.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented ||
+        !(event.target instanceof Node) || !pageRef.current?.contains(event.target)) return;
+      event.preventDefault();
+      onBack();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onBack]);
+
   return (
-    <div dir={dir} lang={lang} className="w-full max-w-6xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8 text-[var(--text)]">
+    <div ref={pageRef} dir={dir} lang={lang} className="w-full max-w-6xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8 text-[var(--text)]">
       <div>
         <button
           ref={backRef}
