@@ -16,6 +16,7 @@ import { runCommand } from '../../lib/runCommand';
 import { RowTable } from '../ui/RowTable';
 import { JourneyNotices, JourneySteps } from './JourneySteps';
 import { stepStatusLabel } from './journeyStatus';
+import { PCN874_DRAFT_CLOSING_WIDTH, PCN874_DRAFT_HEADER_WIDTH, PCN874_DRAFT_TRANSACTION_WIDTH } from '../../lib/tax/pcn874Draft';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const MONTH_TEXT = /^\d{4}-\d{2}$/;
@@ -188,6 +189,88 @@ function downloadText(name: string, text: string) {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * E-55: PCN874 validation screen. Verifies the historical fixed-width draft before any download:
+ * the transaction/detail record layout (header 131, each detail row 60, closing 10) and the
+ * totals/reconciliation check (draft NIS beside the VAT report NIS). Read-only: it never files.
+ * The detailed draft, unmapped list and comparison stay in the section below; this view is the
+ * step's own check, with its own captions so the two never share an accessible name.
+ */
+export function PCN874ValidationView({ preview }: { preview: ReturnType<typeof ilPcn874Preview> | null }) {
+  if (!preview) return <p className="text-sm text-[var(--muted)]">No PCN874 preview is available for this month.</p>;
+  const draft = preview.draft;
+  const layoutChecks = draft ? [
+    { check: 'Header record', expected: `${PCN874_DRAFT_HEADER_WIDTH} characters`, actual: `${draft.header.length} characters`, result: draft.header.length === PCN874_DRAFT_HEADER_WIDTH ? 'Pass' : 'Fail' },
+    { check: 'Transaction/detail records', expected: `${draft.transactions.length} row(s) of ${PCN874_DRAFT_TRANSACTION_WIDTH}`, actual: draft.transactions.every(row => row.length === PCN874_DRAFT_TRANSACTION_WIDTH) ? `All rows ${PCN874_DRAFT_TRANSACTION_WIDTH} characters` : `A row is not ${PCN874_DRAFT_TRANSACTION_WIDTH} characters`, result: draft.transactions.every(row => row.length === PCN874_DRAFT_TRANSACTION_WIDTH) ? 'Pass' : 'Fail' },
+    { check: 'Closing record', expected: `${PCN874_DRAFT_CLOSING_WIDTH} characters`, actual: `${draft.closing.length} characters`, result: draft.closing.length === PCN874_DRAFT_CLOSING_WIDTH ? 'Pass' : 'Fail' },
+    { check: 'Mapped documents', expected: 'Every document written', actual: `${preview.rows.length} row(s) written`, result: preview.unmapped.length === 0 ? 'Pass' : `${preview.unmapped.length} cannot be written` },
+  ] : [
+    { check: 'Header record', expected: `${PCN874_DRAFT_HEADER_WIDTH} characters`, actual: 'No draft text built', result: 'Not built' },
+    { check: 'Transaction/detail records', expected: `${PCN874_DRAFT_TRANSACTION_WIDTH} characters each`, actual: 'No draft text built', result: 'Not built' },
+    { check: 'Closing record', expected: `${PCN874_DRAFT_CLOSING_WIDTH} characters`, actual: 'No draft text built', result: 'Not built' },
+    { check: 'Mapped documents', expected: 'Every document written', actual: `${preview.rows.length} row(s) written`, result: preview.unmapped.length === 0 ? 'Pass' : `${preview.unmapped.length} cannot be written` },
+  ];
+  return <div className="space-y-2">
+    <h4 className="font-semibold text-sm">PCN874 validation</h4>
+    <p className="text-sm text-[var(--muted)]">
+      The historical Appendix A draft for {preview.startMonth === preview.endMonth ? preview.startMonth : `${preview.startMonth} to ${preview.endMonth}`},
+      checked record by record. It is <b>not ready for filing</b>: the layout dates to 2010 and current
+      validation must be verified independently. Nothing is submitted from this screen.
+    </p>
+    {preview.problem && <p className="text-sm text-amber-700 dark:text-amber-400">{preview.problem}</p>}
+    <ReportTableScroll>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>PCN874 layout checks</>)}
+        rows={layoutChecks}
+        rowKey={row => row.check}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        bodyClassName=""
+        columns={[
+          { header: "Check", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.check },
+          { header: "Expected", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.expected },
+          { header: "Actual", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.actual },
+          { header: "Result", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.result },
+        ]}
+      />
+    </ReportTableScroll>
+    {preview.unmapped.length > 0 && <ul className="list-disc pl-5 text-sm space-y-1">
+      {preview.unmapped.map(row => <li key={`${row.kind}:${row.documentId}`}>
+        {row.documentId} ({row.kind}{row.number ? ` ${row.number}` : ''}): {row.reason}
+      </li>)}
+    </ul>}
+    {preview.notRepresented > 0 && <p className="text-sm text-[var(--muted)]">
+      {preview.notRepresented} exempt, reverse-charge or out-of-scope document(s) are not represented in this layout and are never silently dropped.
+    </p>}
+    {preview.comparison.length > 0 && <ReportTableScroll>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>PCN874 totals reconciliation</>)}
+        rows={preview.comparison}
+        rowKey={row => row.label}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        bodyClassName=""
+        columns={[
+          { header: "Figure", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.label },
+          { header: "Draft (NIS)", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.draftNis.toLocaleString('en-US') },
+          { header: "VAT report (NIS)", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.returnNis.toLocaleString('en-US') },
+          { header: "Difference (NIS)", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.differenceNis.toLocaleString('en-US') },
+        ]}
+      />
+    </ReportTableScroll>}
+    {preview.comparison.some(row => row.differenceNis !== 0) && <p className="text-sm">
+      The draft’s whole-shekel totals differ from the VAT report; the difference is shown, never smoothed away. Per-document rounding to whole shekels can explain one shekel per row.
+    </p>}
+    {draft && <p className="text-sm">
+      Header {draft.header.length} characters, {draft.transactions.length} transaction row(s) of 60, closing {draft.closing.length}. Downloading saves the text; it does not file it.
+    </p>}
+  </div>;
+}
+
 export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', monthText, onMonthChange, dealerId, onDealerIdChange, loading = false, partial = false, onRecordFiled }: {
   /** CON-4b: owners and accountants record one registration's return as filed */
   onRecordFiled?: (r: { registration: string; startDate: string; endDate: string }) => Promise<void>;
@@ -245,7 +328,7 @@ export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', mo
         {step.allocation.length > 0 && <AllocationTable cases={step.allocation} currency={currency} />}
       </>}
       openScreen={step => step.id === 'pcn874'
-        ? <p className="text-sm text-[var(--muted)]">The draft, every document that cannot be written and the comparison with the report are below.</p>
+        ? <PCN874ValidationView preview={preview} />
         : <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)] text-sm"
           onClick={() => goToPage({ tab: step.tab, sub: step.screen })}>Open {step.screenLabel}</button>} />}
 
