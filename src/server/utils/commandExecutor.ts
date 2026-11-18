@@ -353,7 +353,7 @@ export async function runRegisteredCommand(
     return { ok: false, status: 400, command: command.name, message: 'Input workspaceId must match the command workspace', code: 'WORKSPACE_MISMATCH' };
   }
   const input = parsed.data;
-  const operationId = extractCanonicalOperationId(req);
+  const operationId = extractCanonicalOperationId(req) || command.defaultOperationId?.(input);
   if (operationId && !/^[A-Za-z0-9_.:-]{1,128}$/.test(operationId)) {
     return { ok: false, status: 400, command: command.name, message: 'Invalid operation ID', code: 'INVALID_OPERATION_ID' };
   }
