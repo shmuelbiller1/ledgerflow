@@ -4,7 +4,7 @@ import { TransactionValidator } from '../../kernel/validation/TransactionValidat
 import { computeIntercompanyIdentityHash } from '../../lib/selfBalancingDimensions';
 import { lockMessage, postingLock } from '../../lib/periodLock';
 import { HttpError } from '../auth/requestUser';
-import { assertWorkspaceAccess, isWorkspaceMemberData, FieldValue, type DocumentData } from '../db/firestore';
+import { isWorkspaceMemberData, FieldValue, type DocumentData } from '../db/firestore';
 import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedgerWriter';
 import { ledgerCreate } from '../services/ledgerDoor';
 import { writeServerAuditLog } from '../services/auditLogService';
@@ -18,21 +18,25 @@ export const intercompanyInput = z.object({
 type IntercompanyPrepared = Awaited<ReturnType<typeof prepareIntercompany>>;
 type IntercompanyResult = { sourceTxId: string; targetTxId: string; sharedIdentityHash: string; sourceName: string; targetName: string; sourceAmount: number; targetAmount: number };
 
+async function authorizeTarget(ctx: Parameters<NonNullable<CommandDefinition<typeof intercompanyInput>['prepare']>>[0], targetId: string): Promise<DocumentData> {
+  if (ctx.user.developerWorkspaceId && ctx.user.developerWorkspaceId !== targetId) throw new HttpError(`Forbidden: API key is scoped strictly to workspace ${ctx.user.developerWorkspaceId}`, 403);
+  const target = await ctx.db.collection('workspaces').doc(targetId).get();
+  if (!target.exists) throw new HttpError('Workspace not found', 404);
+  const data = target.data() || {};
+  if (!isWorkspaceMemberData(data, ctx.user, targetId) || (!ctx.user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(data, ctx.actor)))) throw new HttpError('Forbidden: changing the books requires the owner, accountant or bookkeeper role', 403);
+  return data;
+}
+
 async function prepareIntercompany(ctx: Parameters<NonNullable<CommandDefinition<typeof intercompanyInput>['prepare']>>[0], input: z.output<typeof intercompanyInput>) {
   const { sourceWorkspaceId, targetWorkspaceId, amountCents, description, date, sourceAccountId, targetAccountId, targetAmountCents: givenTargetCents } = input;
   const user = ctx.user; const db = ctx.db;
   if (sourceWorkspaceId !== ctx.workspaceId) throw new HttpError('Workspace mismatch', 403);
   if (!amountCents) throw new HttpError('Missing required intercompany parameters (source, target, amount)', 400);
   if (sourceWorkspaceId === targetWorkspaceId) throw new HttpError('Intercompany transfer requires two distinct workspaces; use an internal bank transfer within the same workspace.', 400);
-  // 1. Validate permissions for BOTH entities (Intercompany requires group-level access)
-  const [sourceAuth, targetAuth] = await Promise.all([
-    assertWorkspaceAccess(db, sourceWorkspaceId, user),
-    assertWorkspaceAccess(db, targetWorkspaceId, user)
-  ]);
-
-  const sourceWsData = sourceAuth.data;
-  const targetWsData = targetAuth.data;
-  if (!user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(targetWsData, user.uid))) throw new HttpError('Forbidden: changing the books requires the owner, accountant or bookkeeper role', 403);
+  // Source access was checked by the runner. Target access is checked before replay, again during
+  // preparation and once more in the commit transaction.
+  const sourceWsData = ctx.workspace;
+  const targetWsData = await authorizeTarget(ctx, targetWorkspaceId);
   // Z-19 (found by DA-09): companies in different currencies need the amount that arrives; it is
   // never converted with a guessed rate
   const sourceCurrency = String(sourceWsData.currency || 'USD');
@@ -92,7 +96,7 @@ async function prepareIntercompany(ctx: Parameters<NonNullable<CommandDefinition
   // 3. Prepare Reciprocal Transactions
   const sourceTxId = db.collection('transactions').doc().id;
   const targetTxId = db.collection('transactions').doc().id;
-  const effectiveSourceDate = date || formatTzDate(new Date(), sourceWsData?.timezone);
+  const effectiveSourceDate = date || formatTzDate(new Date(), typeof sourceWsData.timezone === 'string' ? sourceWsData.timezone : undefined);
   const sharedIdentityHash = computeIntercompanyIdentityHash({
     sourceWorkspaceId,
     targetWorkspaceId,
@@ -179,8 +183,7 @@ export const journalIntercompanyCommand: CommandDefinition<typeof intercompanyIn
   name: 'journal.intercompany', input: intercompanyInput, roles: ['owner', 'accountant', 'bookkeeper'], allowPlatformAdmin: true,
   async authorizeInput(ctx, input) {
     if (input.sourceWorkspaceId !== ctx.workspaceId) throw new HttpError('Workspace mismatch', 403);
-    const target = await assertWorkspaceAccess(ctx.db, input.targetWorkspaceId, ctx.user);
-    if (!ctx.user.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(target.data, ctx.actor))) throw new HttpError('Forbidden: changing the books requires the owner, accountant or bookkeeper role', 403);
+    await authorizeTarget(ctx, input.targetWorkspaceId);
   },
   prepare: prepareIntercompany,
   async handler(ctx, tx, input) {

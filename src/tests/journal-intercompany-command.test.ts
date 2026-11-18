@@ -35,7 +35,7 @@ test('intercompany creates reciprocal entries and audits both books exactly once
 
 test('both workspaces and currencies are checked, including at commit', async () => {
   const db = setup(); db.seed(`workspaces/${target}`, { uid: 'other', name: 'Target', currency: 'USD' });
-  const forbidden = await run(db); assert.equal(forbidden.ok, false); assert.equal(db.entries('transactions').length, 0);
+  const forbidden = await run(db); assert.equal(forbidden.ok, false); if (!forbidden.ok) assert.equal(forbidden.status, 403); assert.equal(db.entries('transactions').length, 0);
   db.seed(`workspaces/${target}`, { uid: owner.uid, name: 'Target', currency: 'EUR' });
   const currency = await run(db); assert.equal(currency.ok, false); if (!currency.ok) assert.equal(currency.status, 400);
   db.seed(`workspaces/${target}`, { uid: owner.uid, name: 'Target', currency: 'USD' });
