@@ -410,6 +410,19 @@ export function computeStatement(
     debitCents: number;
   }[] = [];
 
+  /** A payment in the stream is money against the balance, whichever side of it the contact is on. */
+  const pushPaymentActivity = (p: Payment) => {
+    activityItems.push({
+      id: p.id,
+      date: p.date || '',
+      type: 'Payment',
+      reference: p.reference || p.id,
+      amountCents: -(p.amountCents || 0),
+      creditCents: (p.amountCents || 0),
+      debitCents: 0
+    });
+  };
+
   if (isCustomer) {
     invoices.filter((inv) => inv.customerId === contactId && (inv.date || '') >= start && (inv.date || '') <= end && INVOICE_IS_ISSUED.has(inv.status)).forEach((inv) => {
       activityItems.push({
@@ -422,17 +435,7 @@ export function computeStatement(
         debitCents: (inv.amountCents || 0)
       });
     });
-    payments.filter((p) => p.contactId === contactId && (p.date || '') >= start && (p.date || '') <= end && p.direction === 'received' && p.status === 'posted').forEach((p) => {
-      activityItems.push({
-        id: p.id,
-        date: p.date || '',
-        type: 'Payment',
-        reference: p.reference || p.id,
-        amountCents: -(p.amountCents || 0),
-        creditCents: (p.amountCents || 0),
-        debitCents: 0
-      });
-    });
+    payments.filter((p) => p.contactId === contactId && (p.date || '') >= start && (p.date || '') <= end && p.direction === 'received' && p.status === 'posted').forEach(pushPaymentActivity);
   } else {
     bills.filter((b) => b.vendorId === contactId && (b.date || b.issueDate || '') >= start && (b.date || b.issueDate || '') <= end && BILL_IS_ISSUED.has(b.status)).forEach((b) => {
       activityItems.push({
@@ -445,17 +448,7 @@ export function computeStatement(
         debitCents: (b.amountCents || 0)
       });
     });
-    payments.filter((p) => p.contactId === contactId && (p.date || '') >= start && (p.date || '') <= end && p.direction === 'made' && p.status === 'posted').forEach((p) => {
-      activityItems.push({
-        id: p.id,
-        date: p.date || '',
-        type: 'Payment',
-        reference: p.reference || p.id,
-        amountCents: -(p.amountCents || 0),
-        creditCents: (p.amountCents || 0),
-        debitCents: 0
-      });
-    });
+    payments.filter((p) => p.contactId === contactId && (p.date || '') >= start && (p.date || '') <= end && p.direction === 'made' && p.status === 'posted').forEach(pushPaymentActivity);
   }
 
   contactCredits.filter(c => (c.date || '') >= start && (c.date || '') <= end).forEach(c => {

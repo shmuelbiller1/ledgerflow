@@ -19,7 +19,7 @@ jobs:
   zap-baseline:
     name: OWASP ZAP baseline (local production build)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     services:
       postgres:
@@ -59,18 +59,22 @@ jobs:
       - name: Apply Supabase migrations to ephemeral test database
         run: npm run db:test-setup
 
-      - name: Build production client bundle
+      - name: Build production client and server bundles
         run: npm run build
 
       - name: Boot local production server and run pinned OWASP ZAP 2.16.1 baseline scan
         run: |
           set -euo pipefail
-          mkdir -p zap-out
-          chmod 750 zap-out
+          rm -rf zap-out
+          install -d -m 0755 zap-out
+          cp .zap/rules.tsv zap-out/rules.tsv
 
           SESSION_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
           SALT_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
           INVITE_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          echo "::add-mask::$SESSION_VAL"
+          echo "::add-mask::$SALT_VAL"
+          echo "::add-mask::$INVITE_VAL"
 
           NODE_ENV=production \
           PORT=3000 \
@@ -78,30 +82,58 @@ jobs:
           SESSION_SECRET="$SESSION_VAL" \
           SYSTEM_SALT="$SALT_VAL" \
           INVITE_SECRET="$INVITE_VAL" \
-          node build/server.cjs > zap-out/server-prod.log 2>&1 &
+          node build/server.cjs > /tmp/lf-zap-server-prod.log 2>&1 &
           SERVER_PID=$!
-          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          # every exit path (a failed scan included) stops the server, hands zap-out back to the runner and keeps the
+          # server log in the uploaded reports — the log matters most when the scan fails
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; sudo chown -R "$(id -u):$(id -g)" zap-out 2>/dev/null || true; cp /tmp/lf-zap-server-prod.log zap-out/server-prod.log 2>/dev/null || true' EXIT
 
-          for _ in $(seq 1 30); do
+          SERVER_READY=0
+          for _ in $(seq 1 45); do
             if curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1; then
+              SERVER_READY=1
               break
+            fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              echo "Production server exited before becoming healthy:" >&2
+              cat /tmp/lf-zap-server-prod.log >&2 || true
+              exit 1
             fi
             sleep 1
           done
+          if [ "$SERVER_READY" -ne 1 ]; then
+            echo "Timed out waiting for http://127.0.0.1:3000/api/health:" >&2
+            cat /tmp/lf-zap-server-prod.log >&2 || true
+            exit 1
+          fi
           curl -fsS http://127.0.0.1:3000/api/health
+          curl -fsSI http://127.0.0.1:3000/ >/dev/null
 
-          cp .zap/rules.tsv zap-out/rules.tsv
+          # ghcr.io/zaproxy/zaproxy:2.16.1 runs as built-in non-root user `zap` (UID 1000,
+          # HOME=/home/zap/), while ubuntu-24.04 runner is UID 1001. Hand ownership of the
+          # isolated report directory to UID 1000 without granting world-writable bits.
+          sudo chown -R 1000:1000 zap-out
+          set +e
           docker run --rm --network host \
-            -u "$(id -u):$(id -g)" \
             -v "$PWD/zap-out:/zap/wrk:rw" \
             ghcr.io/zaproxy/zaproxy:2.16.1 \
             zap-baseline.py \
               -t http://127.0.0.1:3000 \
               -c rules.tsv \
+              -z "-silent" \
               -r zap-report.html \
               -J zap-report.json \
               -w zap-report.md \
               -I
+          ZAP_EXIT=$?
+          set -e
+          if [ "$ZAP_EXIT" -ne 0 ]; then
+            echo "zap-baseline.py exited with status $ZAP_EXIT" >&2
+            exit "$ZAP_EXIT"
+          fi
+          test -s zap-out/zap-report.json
+          test -s zap-out/zap-report.html
+          test -s zap-out/zap-report.md
 
       - name: Upload ZAP HTML, JSON, and Markdown reports
         if: ${{ !cancelled() }}
@@ -113,82 +145,27 @@ jobs:
             zap-out/zap-report.json
             zap-out/zap-report.md
             zap-out/server-prod.log
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
 
-      - name: Fail and open issue on unaccepted Medium or High ZAP alerts
+      - name: Evaluate ZAP JSON report with narrow baseline checks
+        id: eval_zap
         if: ${{ !cancelled() }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EVENT_NAME: ${{ github.event_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/evaluate-zap-report.mjs
+
+      - name: File or update GitHub issue on scheduled ZAP failure
+        if: ${{ failure() && steps.eval_zap.outcome == 'failure' && github.event_name == 'schedule' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import { execFileSync } from 'node:child_process';
-
-          const rulesText = fs.readFileSync('.zap/rules.tsv', 'utf8');
-          const acceptedIds = new Set(
-            rulesText
-              .split('\n')
-              .map(line => line.trim())
-              .filter(line => line && !line.startsWith('#'))
-              .map(line => line.split('\t'))
-              .filter(([, action]) => action === 'IGNORE' || action === 'INFO')
-              .map(([id]) => id),
-          );
-
-          const isKnownException = (pluginId, alert) =>
-            (pluginId === '10055' && /style-src unsafe-inline/i.test(String(alert.name || alert.alert || ''))) ||
-            (pluginId === '10017' && (alert.instances || []).every(i => /^https:\/\/(js\.stripe\.com|cdn\.plaid\.com)\//.test(String(i.evidence || ''))));
-
-          const report = JSON.parse(fs.readFileSync('zap-out/zap-report.json', 'utf8'));
-          const sites = Array.isArray(report.site) ? report.site : [];
-          const actionable = [];
-          for (const site of sites) {
-            for (const alert of site.alerts || []) {
-              const pluginId = String(alert.pluginid || '');
-              const riskCode = Number(alert.riskcode || 0);
-              if (riskCode >= 2 && !acceptedIds.has(pluginId) && !isKnownException(pluginId, alert)) {
-                actionable.push({
-                  pluginId,
-                  riskCode,
-                  riskDesc: String(alert.riskdesc || ''),
-                  name: String(alert.name || alert.alert || ''),
-                  count: String(alert.count || (alert.instances || []).length || 1),
-                });
-              }
-            }
-          }
-
-          if (actionable.length === 0) {
-            console.log('ZAP baseline passed with zero unaccepted Medium/High alerts.');
-            process.exit(0);
-          }
-
-          const summaryLines = actionable.map(
-            a => `- [${a.riskDesc}] (${a.pluginId}) ${a.name} — ${a.count} instance(s)`,
-          );
-          console.error('Unaccepted Medium/High ZAP alerts detected:\n' + summaryLines.join('\n'));
-
-          if (process.env.EVENT_NAME === 'schedule') {
-            const title = 'Security: Nightly OWASP ZAP baseline reported Medium/High alert(s)';
-            const existing = JSON.parse(
-              execFileSync('gh', ['issue', 'list', '--state', 'open', '--search', `"${title}" in:title`, '--json', 'number,title'], { encoding: 'utf8' }),
-            );
-            const body = [
-              'Nightly OWASP ZAP baseline detected unaccepted Medium/High alert(s) against the local production build:',
-              '',
-              ...summaryLines,
-              '',
-              `Workflow run: ${process.env.RUN_URL}`,
-            ].join('\n');
-            const match = existing.find(item => item.title === title);
-            if (match) {
-              execFileSync('gh', ['issue', 'comment', String(match.number), '--body', body], { stdio: 'inherit' });
-            } else {
-              execFileSync('gh', ['issue', 'create', '--title', title, '--body', body], { stdio: 'inherit' });
-            }
-          }
-          process.exit(1);
-          NODE
+          set -euo pipefail
+          test -s zap-out/actionable-alerts.md
+          TITLE="Security: Nightly OWASP ZAP baseline reported Medium/High alert(s)"
+          EXISTING="$(/usr/bin/gh issue list --state open --search "\"$TITLE\" in:title" --json number,title --jq ".[] | select(.title == \"$TITLE\") | .number" | head -n 1)"
+          if [ -n "$EXISTING" ]; then
+            /usr/bin/gh issue comment "$EXISTING" --body-file zap-out/actionable-alerts.md
+          else
+            /usr/bin/gh issue create --title "$TITLE" --body-file zap-out/actionable-alerts.md
+          fi

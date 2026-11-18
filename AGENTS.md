@@ -66,3 +66,7 @@ By following this exact pattern, we avoid piling complex logic into React compon
 ## 7. Detailed instructions and implementation evidence
 
 Read [Developer workflows](docs/DEVELOPER_WORKFLOWS.md) for persistence, inline editing, related-record drawers, page pins, algorithms, mixed Hebrew data and verification recipes. [Tool review](docs/TOOL_REVIEW.md) traces 70 implemented capabilities and concrete limitations to code/tests. Scoped `src/**/AGENTS.md` files provide the applicable implementation contracts. Read the current coordination reservations before changing shared or financial files.
+
+## Bot review comments
+
+After every push, read and resolve every bot comment on your PR (Gitar, Codex, CodeRabbit, SonarCloud, CodeQL): fix real findings, reply on each thread, and ask for a merge only when CI is green and nothing is open. See `docs/COORDINATION.md` "Rules for every helper AI".

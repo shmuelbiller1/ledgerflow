@@ -63,14 +63,14 @@ function recordPeriodClosingsReady(exists: boolean): boolean {
 
 /** Whether the migration is applied (a database without it closes the year as before, without the document). */
 export async function periodClosingsReady(db: Firestore, tx?: DbTransaction): Promise<boolean> {
+  if (db.sandboxId) return (tx ?? db).tablesExist(PERIOD_CLOSINGS);
   // Reuse the command transaction's connection; a separate pool query can deadlock when PG_POOL_MAX=1.
   if (tx && typeof tx.tablesExist === 'function') {
-    return recordPeriodClosingsReady(await tx.tablesExist('periodClosings'));
+    return recordPeriodClosingsReady(await tx.tablesExist(PERIOD_CLOSINGS));
   }
   if (known && (known.exists || Date.now() - known.at < 60_000)) return known.exists;
   try {
-    const result = await db.pool.query(`select to_regclass('public."periodClosings"') is not null as ok`);
-    return recordPeriodClosingsReady(Boolean(result.rows[0]?.ok));
+    return recordPeriodClosingsReady(await db.tablesExist(PERIOD_CLOSINGS));
   } catch {
     return recordPeriodClosingsReady(false);
   }

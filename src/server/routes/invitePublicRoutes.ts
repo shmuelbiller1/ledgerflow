@@ -109,6 +109,12 @@ invitePublicRouter.post('/:token/accept', async (req, res) => {
   if (!user || !user.uid) {
     return sendError(res, 'Authentication required to accept invite', 401);
   }
+  // #842: the invite is bound to an email address, which only means something once the person has proved they
+  // own it. The sign-in middleware refuses unverified accounts too; this route checks it itself, before reading
+  // the invite, rather than rely on that.
+  if (user.email_verified !== true) {
+    return sendError(res, 'Verify your email address first, then open the invitation again.', 403);
+  }
 
   try {
     const db = getDb();

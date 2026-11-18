@@ -1,13 +1,13 @@
 import { trainClassifierWithWorkspaceData } from '../services/classifierTraining';
 import type { Transaction as LedgerTransaction } from "../../types";
 import { errorMessage, requestUser } from "../auth/requestUser";
-import { calculateWorkspaceCharges, sendError, authorizeWorkspace, getReportContext, resolveUserGeminiApiKey } from "../http/serverKit";
+import { sendError, authorizeWorkspace, getReportContext, resolveUserGeminiApiKey } from "../http/serverKit";
+import { chargeUsageAndTrace } from "../services/usageBilling";
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
 import { apiAuthenticate } from "../auth/apiAuthenticate";
-import { incrementShardedCounter, getShardedCounterValue } from "../services/shardedCounterService";
+import { getShardedCounterValue } from "../services/shardedCounterService";
 import express from "express";
 import { z } from "zod";
-import crypto from "crypto";
 import { GoogleGenAI } from "@google/genai";
 import { BayesianClassifier } from "../../lib/algorithms";
 import { callCostCents } from "../../lib/ai/modelPricing";
@@ -158,37 +158,25 @@ You MUST output a valid JSON object matching this schema exactly:
       const baseWeight = totalTokens;
 
       try {
-        // Centralized custom billing multiplier & private API key controller
-        const { credits: weightScore, cents: deltaCents } = calculateWorkspaceCharges(wsData, baseWeight, baseCents, isCustomKeyUsed);
-
-        const currentCents = wsData.apiQuotaTotalCentsUsed || 0;
-        const currentHardness = wsData.computeHardnessScore || 0;
-
-        await wsRef.update({
-          apiQuotaTotalCentsUsed: currentCents + deltaCents,
-          computeHardnessScore: currentHardness + weightScore
-        });
-
-        await incrementShardedCounter(db, workspaceId, 'totalQueriesThisMonth', 1);
-        await incrementShardedCounter(db, workspaceId, 'computeCreditBalance', -weightScore);
-
-        // Log trace audit record
-        const traceId = `trace-${crypto.randomUUID()}`;
-        await db.collection("billingLedgerTraces").doc(traceId).set({
-          id: traceId,
+        await chargeUsageAndTrace({
+          db,
           workspaceId,
-          uid: (req as AuthenticatedRequest).user.uid || "api_user",
-          userEmail: (req as AuthenticatedRequest).user.email || 'developer@ledgerflow.io',
-          algorithmName: 'AI_BRAIN_ANALYZE_QUERY',
-          complexityFormat: 'O(Tokens)',
-          weightScore,
-          isSelfFunded: isCustomKeyUsed,
-          executionTimeMs,
-          model: trace.model,
-          inputTokens: promptTokens,
-          outputTokens,
-          ...(priced === undefined ? { costUnknown: true } : { costCents: priced }),
-          timestamp: new Date().toISOString()
+          baseWeight,
+          baseCents,
+          isCustomKeyUsed,
+          wsData,
+          uid: (req as AuthenticatedRequest).user.uid,
+          userEmail: (req as AuthenticatedRequest).user.email,
+          trace: {
+            algorithmName: 'AI_BRAIN_ANALYZE_QUERY',
+            complexityFormat: 'O(Tokens)',
+            isSelfFunded: isCustomKeyUsed,
+            executionTimeMs,
+            model: trace.model,
+            inputTokens: promptTokens,
+            outputTokens,
+            ...(priced === undefined ? { costUnknown: true } : { costCents: priced }),
+          },
         });
       } catch (billingErr) {
         console.error("[Server Billing System Bypass]: ", billingErr);
@@ -250,40 +238,20 @@ You MUST output a valid JSON object matching this schema exactly:
       const baseWeight = 2; // 2 credits per classification
       const baseCents = 2;  // 2 cents charged per single class request
       try {
-        const db = getDb();
-        const wsRef = db.collection("workspaces").doc(workspaceId);
-        const wsDoc = await wsRef.get();
-        if (wsDoc.exists) {
-          const wsData = wsDoc.data() || {};
-          
-          // Centralized custom billing multiplier & private API key controller (single classification is platform owned)
-          const { credits: weightScore, cents: deltaCents } = calculateWorkspaceCharges(wsData, baseWeight, baseCents, false);
-
-          const currentCents = wsData.apiQuotaTotalCentsUsed || 0;
-          const currentHardness = wsData.computeHardnessScore || 0;
-
-          await wsRef.update({
-            apiQuotaTotalCentsUsed: currentCents + deltaCents,
-            computeHardnessScore: currentHardness + weightScore
-          });
-
-          await incrementShardedCounter(db, workspaceId, 'totalQueriesThisMonth', 1);
-          await incrementShardedCounter(db, workspaceId, 'computeCreditBalance', -weightScore);
-
-          // Log trace audit record
-          const traceId = `trace-${crypto.randomUUID()}`;
-          await db.collection("billingLedgerTraces").doc(traceId).set({
-            id: traceId,
-            workspaceId,
-            uid: (req as AuthenticatedRequest).user.uid || "api_user",
-            userEmail: (req as AuthenticatedRequest).user.email || 'developer@ledgerflow.io',
+        await chargeUsageAndTrace({
+          db: getDb(),
+          workspaceId,
+          baseWeight,
+          baseCents,
+          isCustomKeyUsed: false,
+          uid: (req as AuthenticatedRequest).user.uid,
+          userEmail: (req as AuthenticatedRequest).user.email,
+          trace: {
             algorithmName: 'ALGO_CLASSIFIER_BAYESIAN_SINGLE',
             complexityFormat: 'O(V*C)',
-            weightScore,
             executionTimeMs: Math.round(performance.now() - classifyStartedAt),
-            timestamp: new Date().toISOString()
-          });
-        }
+          },
+        });
       } catch (billingErr) {
         console.error("[Classifier Billing Trace Bypassed]: ", billingErr);
       }

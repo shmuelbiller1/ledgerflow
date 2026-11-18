@@ -39,7 +39,7 @@ const transactions = [
 ];
 
 interface SavedWorkpaper { note?: string; reviewedBy?: string; reviewedAt?: string }
-interface UpdateCall { p_table: string; p_id: string; p_set: { workpapers?: Record<string, SavedWorkpaper> } }
+interface UpdateCall { workspaceId: string; input: { id: string; workpapers?: Record<string, SavedWorkpaper> } }
 
 const storedFile = (id: string, name: string, linkedId: string, linkedLabel = 'Workpaper 2026-09') => ({
   id,
@@ -69,7 +69,7 @@ function rowOf(label: string): HTMLElement {
   return row;
 }
 
-const updates = () => calls.filter(c => c.url.includes('/rpc/lf_update')).map(c => c.body as UpdateCall);
+const updates = () => calls.filter(c => c.url.includes('/commands/chartaccount.update')).map(c => c.body as UpdateCall);
 
 describe('the workpapers panel on Month-End Close', () => {
   beforeEach(() => {
@@ -119,8 +119,8 @@ describe('the workpapers panel on Month-End Close', () => {
 
     await waitFor(() => assert.equal(updates().length, 1));
     const saved = updates()[0];
-    assert.deepEqual([saved.p_table, saved.p_id], ['chartAccounts', 'rent']);
-    assert.deepEqual(saved.p_set.workpapers, { '2026-09': { note: 'check the August invoice' } });
+    assert.equal(saved.input.id, 'rent', 'the note lands on the account the row names');
+    assert.deepEqual(saved.input.workpapers, { '2026-09': { note: 'check the August invoice' } });
     await waitFor(() => assert.ok(within(rowOf('Rent')).getByText('check the August invoice')));
   });
 
@@ -131,9 +131,9 @@ describe('the workpapers panel on Month-End Close', () => {
 
     await waitFor(() => assert.equal(updates().length, 1));
     const saved = updates()[0];
-    assert.deepEqual([saved.p_table, saved.p_id], ['chartAccounts', 'cash']);
-    assert.equal(saved.p_set.workpapers?.['2026-09']?.reviewedBy, 'Test', 'the signed-in user is the reviewer');
-    assert.match(saved.p_set.workpapers?.['2026-09']?.reviewedAt || '', /^\d{4}-\d{2}-\d{2}T/, 'and when');
+    assert.equal(saved.input.id, 'cash', 'the review mark lands on the account the row names');
+    assert.equal(saved.input.workpapers?.['2026-09']?.reviewedBy, 'Test', 'the signed-in user is the reviewer');
+    assert.match(saved.input.workpapers?.['2026-09']?.reviewedAt || '', /^\d{4}-\d{2}-\d{2}T/, 'and when');
 
     const cashRow = rowOf('Cash');
     await waitFor(() => assert.ok(within(cashRow).getByText(/Reviewed by Test on \d{4}-\d{2}-\d{2}/)));
@@ -141,7 +141,7 @@ describe('the workpapers panel on Month-End Close', () => {
 
     await act(async () => { fireEvent.click(within(rowOf('Cash')).getByRole('button', { name: 'Remove the review' })); });
     await waitFor(() => assert.equal(updates().length, 2));
-    assert.deepEqual(updates()[1].p_set.workpapers, {}, 'a workpaper with nothing in it leaves no month behind');
+    assert.deepEqual(updates()[1].input.workpapers, {}, 'a workpaper with nothing in it leaves no month behind');
     await waitFor(() => assert.ok(within(rowOf('Cash')).getByRole('button', { name: 'Mark reviewed' })));
     assert.ok(screen.getByText('1 of 6 reviewed'));
   });
@@ -154,7 +154,7 @@ describe('the workpapers panel on Month-End Close', () => {
       if (url.includes('/rest/v1/documents') && (init?.method || 'GET') === 'GET') {
         return new Response(JSON.stringify(fileRows), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
-      const body = url.includes('/rpc/lf_update') ? { message: 'Field "workpapers" is not allowed on chartAccounts', code: '42501' } : null;
+      const body = url.includes('/commands/chartaccount.update') ? { message: 'Field "workpapers" is not allowed on chartAccounts', code: 'INVALID_INPUT' } : null;
       return new Response(JSON.stringify(body), { status: 403, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch;
     render(<WorkpapersPanel month="2026-09" currency="USD" />);

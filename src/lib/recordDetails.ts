@@ -13,7 +13,13 @@ export interface DetailAdapter {
   session(): DetailSession | null;
   guardProjectRename?(target: DetailTarget, oldName: string): void;
   read(target: DetailTarget): Promise<DetailData | undefined>;
-  update(target: DetailTarget, changes: Record<string, string>): Promise<void>;
+  /** `expected` is the baseline the person was shown; the server refuses a field that has moved since. */
+  update(
+    target: DetailTarget,
+    changes: Record<string, string>,
+    expected: Record<string, string>,
+    workspaceId: string,
+  ): Promise<void>;
 }
 function guard(adapter: DetailAdapter, session: DetailSession, write: boolean) {
   const current = adapter.session();
@@ -45,6 +51,13 @@ export async function saveRecordDetails(adapter: DetailAdapter, target: DetailTa
     if (!adapter.guardProjectRename) throw new Error('Project renaming needs a checked reference history.');
     adapter.guardProjectRename(target, String(latest.name ?? ''));
   }
-  if (Object.keys(changes).length) { await adapter.update(target, changes); guard(adapter, session, true); }
+  if (Object.keys(changes).length) {
+    // the baseline the person read travels with the change: the compare the two reads above make is now also made
+    // inside the transaction that writes, so the last window between them is closed
+    const expected: Record<string, string> = {};
+    for (const key of Object.keys(changes)) expected[key] = String(baseline[key] ?? '');
+    await adapter.update(target, changes, expected, session.workspaceId);
+    guard(adapter, session, true);
+  }
   return { ...latest, ...changes };
 }

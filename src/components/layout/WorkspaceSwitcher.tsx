@@ -57,7 +57,7 @@ export default function WorkspaceSwitcher({ onSelect, onNewWorkspace }: { onSele
         </span>
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 w-72 max-w-[90vw] bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-xl z-50 p-2 space-y-1">
+        <div className="absolute top-full start-0 mt-1 w-72 max-w-[90vw] bg-[var(--surface)] border border-[var(--line)] rounded-lg shadow-xl z-50 p-2 space-y-1">
           <input ref={el => el?.focus()} aria-label="Find a workspace" value={query} placeholder="Type a name…"
             onChange={e => { setQuery(e.target.value); setActive(0); }} onKeyDown={onKey}
             aria-controls="workspace-switcher-list" aria-activedescendant={rows[active] ? `ws-opt-${rows[active].id}` : undefined}

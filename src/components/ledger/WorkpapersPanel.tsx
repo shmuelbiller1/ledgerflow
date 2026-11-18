@@ -12,8 +12,6 @@ import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { db } from '../../firebase';
-import { doc, updateDoc } from '../../lib/db/firestore';
 import { formatCurrency } from '../../lib/utils';
 import {
   buildWorkpapers,
@@ -22,11 +20,11 @@ import {
   setWorkpaperNote,
   workpaperLabel,
   workpaperMonthProblem,
-  type WorkpaperRow,
-} from '../../lib/workpapers';
+  type WorkpaperRow } from '../../lib/workpapers';
 import type { ChartAccount } from '../../types';
 import InlineEdit from '../ui/InlineEdit';
 import AttachmentsPanel from '../common/AttachmentsPanel';
+import { saveChartAccount } from '../../lib/recordWrites';
 
 function monthLabel(month: string): string {
   const [year, index] = month.split('-').map(Number);
@@ -39,7 +37,7 @@ function monthLabel(month: string): string {
  */
 async function saveWorkpaper(account: ChartAccount, next: ChartAccount): Promise<void> {
   try {
-    await updateDoc(doc(db, 'chartAccounts', account.id), { workpapers: next.workpapers || {}, updatedAt: new Date().toISOString() });
+    await saveChartAccount(account.workspaceId, { id: account.id, workpapers: (next.workpapers || {}) as Record<string, Record<string, unknown>> });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (/not allowed on chartAccounts/.test(message)) {

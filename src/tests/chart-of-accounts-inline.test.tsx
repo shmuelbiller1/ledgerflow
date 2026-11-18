@@ -25,9 +25,9 @@ test('rename an account in place', async () => {
   fireEvent.click(screen.getByRole('button', { name: inlineEditName('Edit Name of Rent') }));
   fireEvent.change(screen.getByLabelText('Name of Rent'), { target: { value: 'Office rent' } });
   await act(async () => { fireEvent.keyDown(screen.getByLabelText('Name of Rent'), { key: 'Enter' }); });
-  await waitFor(() => assert.ok(calls.some(c => c.url.includes('/rpc/lf_update'))));
-  const body = calls.find(c => c.url.includes('/rpc/lf_update'))!.body as { p_table: string; p_id: string; p_set: Record<string, unknown> };
-  assert.deepEqual([body.p_table, body.p_id, body.p_set.name], ['chartAccounts', 'rent', 'Office rent']);
+  await waitFor(() => assert.ok(calls.some(c => c.url.includes('/commands/chartaccount.update'))));
+  const body = calls.find(c => c.url.includes('/commands/chartaccount.update'))!.body as { input: { id: string; name?: string } };
+  assert.deepEqual([body.input.id, body.input.name], ['rent', 'Office rent']);
 });
 
 test('a code already used is refused; a system account keeps its code; viewers only read', async () => {
@@ -56,14 +56,15 @@ test('archived accounts are hidden until asked; archive and restore from the row
   assert.ok(screen.getByText('Archived'));
   fireEvent.click(screen.getByRole('button', { name: 'Account options for Old supplies' }));
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Restore' })); });
-  await waitFor(() => assert.equal(calls.filter(c => c.url.includes('/rpc/lf_update')).length, 1));
-  const restore = calls.find(c => c.url.includes('/rpc/lf_update'))!.body as { p_id: string; p_set: Record<string, unknown> };
-  assert.deepEqual([restore.p_id, restore.p_set.isArchived, restore.p_set.isActive], ['old', false, true]);
+  await waitFor(() => assert.equal(calls.filter(c => c.url.includes('/commands/chartaccount.update')).length, 1));
+  // one `archived` flag, because the command derives isArchived/isActive together
+  const restore = calls.find(c => c.url.includes('/commands/chartaccount.update'))!.body as { input: { id: string; archived?: boolean } };
+  assert.deepEqual([restore.input.id, restore.input.archived], ['old', false]);
   fireEvent.click(screen.getByRole('button', { name: 'Account options for Rent' }));
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Archive' })); });
-  await waitFor(() => assert.equal(calls.filter(c => c.url.includes('/rpc/lf_update')).length, 2));
-  const archive = calls.filter(c => c.url.includes('/rpc/lf_update'))[1].body as { p_id: string; p_set: Record<string, unknown> };
-  assert.deepEqual([archive.p_id, archive.p_set.isArchived, archive.p_set.isActive], ['rent', true, false]);
+  await waitFor(() => assert.equal(calls.filter(c => c.url.includes('/commands/chartaccount.update')).length, 2));
+  const archive = calls.filter(c => c.url.includes('/commands/chartaccount.update'))[1].body as { input: { id: string; archived?: boolean } };
+  assert.deepEqual([archive.input.id, archive.input.archived], ['rent', true]);
   cleanup();
   setComponentWorkspace('viewer');
   render(<ChartOfAccountsView accounts={withOld} searchTerm="" formatCurrency={c => String(c)} onDrillDown={() => {}} onDeleteAccount={() => {}} />);

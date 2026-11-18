@@ -147,11 +147,11 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
             </select>
           )}
           <div className="relative w-full md:w-72">
-            <Search aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" size={14} />
+            <Search aria-hidden="true" className="absolute start-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" size={14} />
             <input aria-label="Search reconciliation amounts or descriptions"
               type="text"
               placeholder="Search amount or description"
-              className="w-full h-9 pl-9 pr-4 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-xs font-semibold text-[var(--text)] outline-none focus:border-[var(--brass)] transition-all"
+              className="w-full h-9 ps-9 pe-4 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-xs font-semibold text-[var(--text)] outline-none focus:border-[var(--brass)] transition-all"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
@@ -196,10 +196,10 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                     >
                       {/* Interactive Match indicator side mark */}
                       {matchedLedgerId && (
-                        <div className="absolute top-0 left-0 w-1.5 h-full bg-[var(--pos)]" />
+                        <div className="absolute top-0 start-0 w-1.5 h-full bg-[var(--pos)]" />
                       )}
 
-                      <button type="button" aria-pressed={isSelected} className="text-left flex flex-col gap-1 overflow-hidden pl-1">
+                      <button type="button" aria-pressed={isSelected} className="text-start flex flex-col gap-1 overflow-hidden ps-1">
                         <span className={cn("text-[10px] font-bold uppercase tracking-wider font-mono", isSelected ? "text-[var(--brass)]" : "text-[var(--muted)]")}>
                           {formatDate(btx.date)}
                         </span>
@@ -211,9 +211,9 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                           </div>
                         )}
                       </button>
-                      <div className="flex flex-col items-end shrink-0 ml-4">
+                      <div className="flex flex-col items-end shrink-0 ms-4">
                          <span className="text-md font-mono font-bold tabular-nums tracking-tight">
-                          {formatCurrency(btx.amountCents, btx.currency)}
+                          <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(btx.amountCents, btx.currency)}</bdi>
                         </span>
                         <div className="flex gap-1 mt-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                            <button type="button" onClick={(e) => { e.stopPropagation(); setBankLineAction({ mode: 'pay', line: btx }); }} className="p-1 px-2 text-[9px] font-bold text-[var(--muted)] hover:text-[var(--text)] bg-[var(--surface)] border border-[var(--line)] rounded cursor-pointer uppercase tracking-wider" title={btx.amountCents > 0 ? 'This deposit pays invoices' : 'This payment pays bills'}>
@@ -271,7 +271,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                       layout
                       onClick={() => setSelectedLedgerId(ltx.id)}
                       className={cn(
-                        "w-full text-left p-5 rounded-xl transition-all cursor-pointer border flex items-center justify-between group relative overflow-hidden",
+                        "w-full text-start p-5 rounded-xl transition-all cursor-pointer border flex items-center justify-between group relative overflow-hidden",
                         isSelected
                           ? "bg-emerald-600 text-white border-emerald-600 shadow-lg ring-1 ring-white/10"
                           : isPossibleMatch
@@ -280,10 +280,10 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                       )}
                     >
                       {isPossibleMatch && (
-                        <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500" />
+                        <div className="absolute top-0 start-0 w-1.5 h-full bg-indigo-500" />
                       )}
 
-                      <div className="text-left flex flex-col gap-1 overflow-hidden pl-1">
+                      <div className="text-start flex flex-col gap-1 overflow-hidden ps-1">
                         <div className="flex items-center gap-2">
                           <span className={cn("text-[10px] font-semibold uppercase tracking-wider font-mono", isSelected ? "text-emerald-200" : "text-[var(--muted)]")}>
                             {civilMonthDay(ltx.date)} • {resolveAccountName(accounts, ltx.lines?.[0]?.accountId, ltx.lines?.[0]?.accountName)}
@@ -294,8 +294,8 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                           {ltx.description}
                         </span>
                       </div>
-                      <span className={cn("text-md font-mono font-black tabular-nums tracking-tighter shrink-0 ml-4", isSelected ? "text-white" : "text-[var(--text)]")}>
-                        {formatCurrency(ltx.totalAmountCents)}
+                      <span className={cn("text-md font-mono font-black tabular-nums tracking-tighter shrink-0 ms-4", isSelected ? "text-white" : "text-[var(--text)]")}>
+                        <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(ltx.totalAmountCents)}</bdi>
                       </span>
                     </motion.button>
                   );
@@ -356,7 +356,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                              className="flex flex-col lg:flex-row items-start lg:items-center justify-between p-5 gap-4 cursor-pointer"
                           >
                              {/* Statement Info */}
-                             <button type="button" aria-expanded={isSelected} className="w-full text-left flex-1 min-w-0">
+                             <button type="button" aria-expanded={isSelected} className="w-full text-start flex-1 min-w-0">
                                <div className="flex items-center gap-2 flex-wrap mb-1">
                                  <span className="text-[10px] font-black uppercase text-[var(--muted)] font-mono tracking-wider">{line.date}</span>
                                  <span className="px-2 py-0.2 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[10px] font-black uppercase tracking-wider">Cleared</span>
@@ -375,7 +375,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
 
                              {/* Connector Node */}
                              <div className="flex shrink-0 items-center gap-2 text-emerald-500 lg:px-4">
-                               <ArrowRight aria-hidden="true" size={14} className="hidden lg:block animate-pulse" />
+                               <ArrowRight aria-hidden="true" size={14} className="hidden lg:block animate-pulse rtl:rotate-180" />
                                <LinkIcon aria-hidden="true" size={12} />
                              </div>
 
@@ -647,7 +647,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                              key={btx.id}
                              onClick={() => setSelectedBatchIds(prev => ({ ...prev, [btx.id]: !prev[btx.id] }))}
                              className={cn(
-                               "w-full text-left flex items-center gap-4 p-4 rounded-xl border transition-all cursor-pointer",
+                               "w-full text-start flex items-center gap-4 p-4 rounded-xl border transition-all cursor-pointer",
                                isChecked ? "border-emerald-200 bg-emerald-50/20" : "border-slate-150 bg-[var(--ink)]/50 opacity-60 hover:opacity-100 hover:border-slate-300"
                              )}
                            >

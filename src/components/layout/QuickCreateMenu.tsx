@@ -97,7 +97,7 @@ export default function QuickCreateMenu({
                     setIsOpen(false);
                     openNewRecord(type);
                   }}
-                  className="w-full min-h-11 flex items-center gap-3 px-3 py-2 text-sm hover:bg-[var(--ink)] rounded-xl text-left disabled:opacity-50"
+                  className="w-full min-h-11 flex items-center gap-3 px-3 py-2 text-sm hover:bg-[var(--ink)] rounded-xl text-start disabled:opacity-50"
                 >
                   <Icon aria-hidden="true" size={18} />
                   {label}
@@ -110,7 +110,7 @@ export default function QuickCreateMenu({
                   setIsOpen(false);
                   setSnapping(true);
                 }}
-                className="w-full min-h-11 flex items-center gap-3 px-3 py-2 text-sm hover:bg-[var(--ink)] rounded-xl text-left disabled:opacity-50"
+                className="w-full min-h-11 flex items-center gap-3 px-3 py-2 text-sm hover:bg-[var(--ink)] rounded-xl text-start disabled:opacity-50"
               >
                 <Camera aria-hidden="true" size={18} />
                 Snap a receipt

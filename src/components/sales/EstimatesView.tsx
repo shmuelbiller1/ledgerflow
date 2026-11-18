@@ -7,8 +7,6 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { Plus, ArrowRight, FileText, Eye, Download, Paperclip } from 'lucide-react';
-import { collection, addDoc, doc, updateDoc } from '../../lib/db/firestore';
-import { db } from '../../firebase';
 import { nextDocumentNumber } from '../../services/documentNumbers';
 import { toast } from 'sonner';
 import PdfPreviewModal from '../ui/PdfPreviewModal';
@@ -32,6 +30,7 @@ import { EstimateLinesEditor } from './EstimateLinesEditor';
 import { blankEstimateLine, estimateLinesProblem, type EstimateLineDraft, toEstimateLines } from '../../lib/estimateLines';
 import { type OrderPart, type OrderStage, hasItemLines, isOrder, orderPartInvoice, orderProgress, orderStage, partCents, partLabel, resolvePart } from '../../lib/salesOrders';
 import type { Estimate } from '../../types';
+import { saveEstimate, setEstimateStatus } from '../../lib/recordWrites';
 
 type EstimateRow = Estimate & { currency?: string; description?: string };
 const FILTERS: Array<{ id: 'all' | 'quotes' | 'orders' | 'done'; label: string; stages: OrderStage[] | null }> = [
@@ -46,8 +45,7 @@ const STAGE_STYLE: Record<OrderStage, string> = {
   'partly invoiced': 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
   invoiced: 'bg-emerald-500/10 text-emerald-600',
   declined: 'bg-slate-500/10 text-[var(--muted)]',
-  expired: 'bg-slate-500/10 text-[var(--muted)]',
-};
+  expired: 'bg-slate-500/10 text-[var(--muted)]' };
 
 export default function EstimatesView() {
   const user = useAuthStore(workspaceActor);
@@ -144,7 +142,7 @@ export default function EstimatesView() {
         createdAt: new Date().toISOString()
       };
 
-      await addDoc(collection(db, 'estimates'), estData);
+      await saveEstimate(currentWorkspaceId, estData as unknown as Record<string, unknown>);
       toast.success('Estimate created successfully');
       setIsCreating(false);
       setCustomerId('');
@@ -185,17 +183,12 @@ export default function EstimatesView() {
         ...draft,
         number: invoiceNumber,
         currency: est.currency || 'USD',
-        metadata: { convertedFromEstimateId: est.id, convertedFromEstimateNumber: est.number || est.id },
-      };
+        metadata: { convertedFromEstimateId: est.id, convertedFromEstimateNumber: est.number || est.id } };
 
       const invRef = await addEntity('invoices', invData);
       if (!invRef) return; // addEntity already showed what went wrong
 
-      await updateDoc(doc(db, 'estimates', est.id), {
-        status: 'converted',
-        convertedInvoiceId: invRef.id,
-        updatedAt: new Date().toISOString()
-      });
+      await setEstimateStatus(currentWorkspaceId || '', est.id, 'converted', { convertedInvoiceId: invRef.id });
 
       const deposit = estimateDeposits(payments || [], est.id);
       toast.success(`Estimate converted to draft invoice ${invoiceNumber}. Review it in Sales, then send it.${deposit.unappliedCents > 0 ? ` Its deposit of ${formatCurrency(deposit.unappliedCents)} is applied with "Apply deposit" once it is sent.` : ''}`);
@@ -208,13 +201,8 @@ export default function EstimatesView() {
   const confirmOrder = async (est: EstimateRow) => {
     if (!user) return;
     try {
-      await updateDoc(doc(db, 'estimates', est.id), {
-        status: 'accepted',
-        orderedAt: new Date().toISOString(),
-        orderedBy: user.uid,
-        ...(customerReference.trim() ? { customerReference: customerReference.trim().slice(0, 100) } : {}),
-        updatedAt: new Date().toISOString(),
-      });
+      await setEstimateStatus(currentWorkspaceId || '', est.id, 'accepted', {
+        ...(customerReference.trim() ? { customerReference: customerReference.trim().slice(0, 100) } : {}) });
       setOrdering(null);
       setCustomerReference('');
       toast.success(`Estimate ${est.number || ''} is now an order. "Invoice" bills it in one go or in parts.`);
@@ -225,7 +213,7 @@ export default function EstimatesView() {
 
   const declineEstimate = async (est: EstimateRow) => {
     try {
-      await updateDoc(doc(db, 'estimates', est.id), { status: 'declined', updatedAt: new Date().toISOString() });
+      await setEstimateStatus(currentWorkspaceId || '', est.id, 'declined');
       toast.success(`Estimate ${est.number || ''} marked declined`);
     } catch (err) {
       toast.error((err as Error).message || 'Could not mark it declined');
@@ -241,12 +229,11 @@ export default function EstimatesView() {
     const invRef = await addEntity('invoices', {
       ...orderPartInvoice(est, progress, cents, partLabel(part, est, progress), part),
       number: invoiceNumber,
-      currency: est.currency || 'USD',
-    });
+      currency: est.currency || 'USD' });
     if (!invRef) return;
     const finished = progress.invoicedCents + cents >= progress.totalCents;
     if (finished) {
-      await updateDoc(doc(db, 'estimates', est.id), { status: 'converted', convertedInvoiceId: invRef.id, updatedAt: new Date().toISOString() });
+      await setEstimateStatus(currentWorkspaceId || '', est.id, 'converted', { convertedInvoiceId: invRef.id });
     }
     toast.success(`Draft invoice ${invoiceNumber} for ${formatCurrency(cents)} created${finished ? ': the order is fully invoiced' : `; ${formatCurrency(progress.leftCents - cents)} left on the order`}. Review it in Sales, then send it.`);
   };
@@ -386,7 +373,7 @@ export default function EstimatesView() {
             onAction={canWrite ? () => setIsCreating(true) : undefined}
           />
         ) : (
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-start text-xs">
             <caption className="sr-only">Estimates</caption>
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 text-[var(--muted)] font-semibold uppercase text-[10px]">
@@ -441,18 +428,22 @@ export default function EstimatesView() {
                         <Paperclip className="w-4 h-4" aria-hidden="true" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => setPreviewEstimate(est)}
-                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+                        aria-label={`Preview PDF for estimate ${est.number || est.id}`}
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
                         title="Preview PDF"
                       >
-                        <Eye className="w-3.5 h-3.5" />
+                        <Eye className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => downloadDocumentPdf('estimate', est.id, currentWorkspaceId || 'default', `estimate_${est.number || est.id}.pdf`)}
-                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+                        aria-label={`Download PDF for estimate ${est.number || est.id}`}
+                        className="inline-flex min-h-11 min-w-11 items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
                         title="Download PDF"
                       >
-                        <Download className="w-3.5 h-3.5" />
+                        <Download className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
                       {canTakeDeposit && !['converted', 'declined', 'expired'].includes(est.status) && (
                         <button type="button" disabled={isGuest} title={isGuest ? 'Deposits need a signed-in workspace.' : undefined} onClick={() => { if (!isGuest) setDepositFor(est); }}
@@ -478,26 +469,27 @@ export default function EstimatesView() {
                       )}
                       {deliveriesShip && isOrder(est) && hasItemLines(est) && stage !== 'declined' && (
                         <button type="button" onClick={() => setDelivering(est)}
-                          className="px-2.5 py-1 text-xs font-semibold border border-indigo-500/40 text-indigo-600 dark:text-indigo-400 rounded-md hover:bg-indigo-500/10 ml-1"
+                          className="px-2.5 py-1 text-xs font-semibold border border-indigo-500/40 text-indigo-600 dark:text-indigo-400 rounded-md hover:bg-indigo-500/10 ms-1"
                           aria-label={`Deliver order ${est.number || ''}`.trim()} title="Goods leaving: stock goes down and their cost is booked">
                           Deliver
                         </button>
                       )}
                       {canWrite && isOrder(est) && progress.leftCents > 0 && stage !== 'declined' && (
                         <button type="button" onClick={() => setInvoicing(est)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors ml-1"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors ms-1"
                           aria-label={`Invoice order ${est.number || ''}`.trim()}>
                           <span>Invoice</span>
-                          <ArrowRight className="w-3 h-3" />
+                          <ArrowRight className="w-3 h-3 rtl:rotate-180" aria-hidden="true" />
                         </button>
                       )}
                       {est.status !== 'converted' && !isOrder(est) && stage !== 'declined' && (
                         <button
+                          type="button"
                           onClick={() => handleConvertToInvoice(est)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors ml-1"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors ms-1"
                         >
                           <span>Convert</span>
-                          <ArrowRight className="w-3 h-3" />
+                          <ArrowRight className="w-3 h-3 rtl:rotate-180" aria-hidden="true" />
                         </button>
                       )}
                     </div>

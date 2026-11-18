@@ -1,60 +1,45 @@
 import express from 'express';
-import { z } from 'zod';
-import { getDb } from '../db/firestore';
-import { requestUser } from '../auth/requestUser';
-import { moveReturnAuthorization, requestReturnAuthorization, ReturnAuthorizationError } from '../services/returnAuthorizationService';
+import { rmaMoveCommand, rmaRequestCommand } from '../commands/returns';
+import type { CommandExecutionOutcome } from '../commands/types';
+import { executeCommand } from '../utils/commandExecutor';
 
 /**
  * ISS-143: return authorizations through the server (returnAuthorizationService.ts), mounted at
- * /api/v1/workspaces/:workspaceId/return-authorizations for workspace editors; the service checks the role again
- * from the workspace's own membership for each action.
+ * /api/v1/workspaces/:workspaceId/return-authorizations for workspace editors; the service checks the role
+ * again from the workspace's own membership for each action. Both writes are registered commands
+ * (src/server/commands/returns.ts), each carrying its own `requestKey` so a retry answers the same
+ * record. The answers are the ones the handlers gave.
  *   POST /           { customerId, invoiceId, reason, lines: [{ invoiceLineId, quantity }], requestKey }
  *   POST /:rmaId     { customerId, action, expectedStatus, note?, creditNoteId?, requestKey }
  */
 export const returnAuthorizationRouter = express.Router({ mergeParams: true });
 
-const key = z.string().regex(/^[A-Za-z0-9_-]{8,100}$/);
-const id = z.string().min(1).max(200);
-const requestSchema = z.object({
-  customerId: id, invoiceId: id, reason: z.string().max(1000),
-  lines: z.array(z.object({ invoiceLineId: id, quantity: z.number().positive() }).strict()).min(1).max(200),
-  requestKey: key,
-}).strict();
-const moveSchema = z.object({
-  customerId: id,
-  action: z.enum(['approve', 'decline', 'receive', 'link-credit-note']),
-  expectedStatus: z.enum(['requested', 'approved', 'declined', 'received', 'closed']),
-  note: z.string().max(1000).optional(),
-  creditNoteId: id.optional(),
-  requestKey: key,
-}).strict();
-
-const actor = (req: express.Request) => {
-  const user = requestUser(req);
-  return { uid: user.uid, name: String((user as { name?: string; email?: string }).name || user.email || '') };
-};
-const fail = (res: express.Response, err: unknown) => {
-  if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'This RMA request is not complete: check the lines, the action and the request key.' });
-  if (err instanceof ReturnAuthorizationError) return res.status(err.status).json({ status: 'error', message: err.message });
-  return res.status(500).json({ status: 'error', message: err instanceof Error ? err.message : 'The RMA could not be saved' });
-};
+/** `{ status: 'success', ...result }`; the RMA rules speak with their own status and words. */
+function answer(outcome: CommandExecutionOutcome): { status: number; body: unknown } {
+  if (outcome.ok) return { status: 200, body: { status: 'success', ...(outcome.data as Record<string, unknown>) } };
+  if (outcome.code === 'INVALID_INPUT') {
+    return { status: 400, body: { status: 'error', message: 'This RMA request is not complete: check the lines, the action and the request key.' } };
+  }
+  return { status: outcome.status, body: { status: 'error', message: outcome.status >= 500 ? 'The RMA could not be saved' : outcome.message } };
+}
 
 returnAuthorizationRouter.post('/', async (req, res) => {
-  try {
-    const body = requestSchema.parse(req.body);
-    const result = await requestReturnAuthorization(getDb(), { workspaceId: String((req.params as Record<string, string>).workspaceId), actor: actor(req), ...body });
-    res.json({ status: 'success', ...result });
-  } catch (err) {
-    fail(res, err);
-  }
+  const workspaceId = String((req.params as Record<string, string>).workspaceId || '');
+  await executeCommand(req, res, {
+    definition: rmaRequestCommand,
+    workspaceId,
+    input: { ...(req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {}), workspaceId },
+    formatResponse: answer,
+  });
 });
 
 returnAuthorizationRouter.post('/:rmaId', async (req, res) => {
-  try {
-    const body = moveSchema.parse(req.body);
-    const result = await moveReturnAuthorization(getDb(), { workspaceId: String((req.params as Record<string, string>).workspaceId), actor: actor(req), rmaId: String(req.params.rmaId), ...body });
-    res.json({ status: 'success', ...result });
-  } catch (err) {
-    fail(res, err);
-  }
+  const params = req.params as Record<string, string>;
+  const workspaceId = String(params.workspaceId || '');
+  await executeCommand(req, res, {
+    definition: rmaMoveCommand,
+    workspaceId,
+    input: { ...(req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {}), workspaceId, rmaId: String(params.rmaId || '') },
+    formatResponse: answer,
+  });
 });

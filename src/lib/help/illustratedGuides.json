@@ -1,0 +1,297 @@
+{
+  "overview": {
+    "screenIds": [
+      "dashboard",
+      "overview",
+      "practice",
+      "help",
+      "glossary",
+      "support",
+      "accept-invite"
+    ],
+    "en": {
+      "title": "Overview",
+      "purpose": "See how much cash the business has, what customers owe you, what you owe suppliers, and whether the business made a profit.",
+      "tasks": [
+        "Choose a month, fiscal quarter, fiscal year or custom range.",
+        "Open a linked summary figure to see the report behind it. Cash is shown at the end date; profit covers the period.",
+        "Look under Needs attention for work to follow up, such as unmatched bank lines."
+      ],
+      "alt": "Period selector above the cash, receivables, payables and profit cards."
+    },
+    "he": {
+      "title": "סקירה כללית",
+      "purpose": "כאן רואים כמה מזומן יש לעסק, כמה הלקוחות חייבים, כמה יש לשלם לספקים והאם העסק הרוויח.",
+      "tasks": [
+        "בחרו חודש, רבעון כספי, שנת כספים או טווח תאריכים משלכם.",
+        "פתחו מדד שיש בו קישור כדי לעיין בדוח שמאחוריו. יתרת המזומן היא ליום הסיום; הרווח מתייחס לתקופה.",
+        "בדקו אילו משימות דורשות טיפול, למשל שורות בנק שעדיין לא הותאמו."
+      ],
+      "alt": "בחירת תקופה מעל כרטיסי המזומן, חובות הלקוחות, חובות לספקים והרווח."
+    }
+  },
+  "sales": {
+    "screenIds": [
+      "sales",
+      "estimates",
+      "customers"
+    ],
+    "en": {
+      "title": "Sales and invoices",
+      "purpose": "Use Sales to keep customer details, issue invoices and see which amounts are still unpaid.",
+      "tasks": [
+        "On Customers, add the customer or look up their details.",
+        "On Invoices, choose Add Invoice. Check the customer, dates, lines and total before issuing it.",
+        "Open an unpaid invoice to record money the customer actually paid. Issuing an invoice is not receiving payment."
+      ],
+      "alt": "Invoices and Customers tabs, Add Invoice and the unpaid invoice list."
+    },
+    "he": {
+      "title": "מכירות וחשבוניות לקוח",
+      "purpose": "במסך המכירות מנהלים את פרטי הלקוחות, מפיקים חשבוניות ובודקים אילו סכומים טרם שולמו.",
+      "tasks": [
+        "בלשונית הלקוחות הוסיפו לקוח או חפשו את פרטיו.",
+        "בלשונית החשבוניות בחרו בהוספת חשבונית. בדקו את הלקוח, התאריכים, השורות והסכום לפני ההפקה.",
+        "פתחו חשבונית שטרם שולמה כדי לרשום תקבול שהתקבל בפועל. הפקת חשבונית אינה קבלת תשלום."
+      ],
+      "alt": "לשוניות החשבוניות והלקוחות, הוספת חשבונית ורשימת החשבוניות עם מצב התשלום."
+    }
+  },
+  "purchases": {
+    "screenIds": [
+      "purchases",
+      "purchase-orders",
+      "vendors"
+    ],
+    "en": {
+      "title": "Purchases and bills",
+      "purpose": "Use Purchases to keep supplier details, enter their bills and see what you owe.",
+      "tasks": [
+        "On Vendors, find the supplier or add a new one.",
+        "Choose Record Bill and check the supplier, invoice number, dates and amounts against the original bill.",
+        "Review unpaid bills before starting a payment run. An open bill is not evidence that the supplier was paid."
+      ],
+      "alt": "Bill and vendor tabs, Record Bill and the list of bills with their payment status."
+    },
+    "he": {
+      "title": "רכש וחשבוניות ספק",
+      "purpose": "במסך הרכש מנהלים את פרטי הספקים, קולטים את החשבוניות שלהם ובודקים כמה העסק חייב.",
+      "tasks": [
+        "בלשונית הספקים חפשו את הספק או הוסיפו ספק חדש.",
+        "בחרו ברישום חשבונית ספק ובדקו את הספק, מספר החשבונית, התאריכים והסכומים מול המקור.",
+        "עברו על החשבוניות הפתוחות לפני הכנת סבב תשלומים. חשבונית פתוחה אינה אישור שהספק קיבל תשלום."
+      ],
+      "alt": "לשוניות החשבוניות והספקים, רישום חשבונית ספק ורשימת החשבוניות עם מצב התשלום."
+    }
+  },
+  "banking": {
+    "screenIds": [
+      "banking",
+      "bank-connections",
+      "inbox"
+    ],
+    "en": {
+      "title": "Banking",
+      "purpose": "Review bank accounts and bring statement activity into the books for matching. A live feed requires a configured provider.",
+      "tasks": [
+        "Check the bank account card before selecting a feed or recording a movement.",
+        "With a signed-in bookkeeping role, choose Import statement, select the account and review the file before confirming.",
+        "Review the import result, then open Reconcile to match the bank lines with existing entries. An import is not a match."
+      ],
+      "alt": "Import statement, money movement controls and two sample bank account cards."
+    },
+    "he": {
+      "title": "בנקאות",
+      "purpose": "כאן בודקים את חשבונות הבנק ומייבאים תנועות מדף הבנק לצורך התאמה. חיבור בנק פעיל מצריך ספק מוגדר.",
+      "tasks": [
+        "בדקו את כרטיס החשבון לפני בחירת חיבור בנק או רישום תנועה.",
+        "לאחר כניסה בהרשאת עריכה מתאימה, בחרו בייבוא דף חשבון, בחרו חשבון ובדקו את הקובץ לפני האישור.",
+        "בדקו את תוצאת הייבוא ואז פתחו את מסך ההתאמות כדי לקשר שורות לתנועות קיימות בספרים. הייבוא עצמו אינו התאמה."
+      ],
+      "alt": "ייבוא דף חשבון, פעולות כספיות ושני כרטיסי חשבון לדוגמה."
+    }
+  },
+  "reconciliation": {
+    "screenIds": [
+      "reconciliation"
+    ],
+    "en": {
+      "title": "Match bank lines",
+      "purpose": "Use Reconcile to link bank statement lines to entries already in your books. Matching a line does not close an accounting period.",
+      "tasks": [
+        "Choose the cash account and open To review to find unmatched bank lines.",
+        "Select a bank line and the corresponding ledger entry. Check their amounts, dates and descriptions before confirming the match.",
+        "Open Matched to inspect earlier matches or undo a wrong match."
+      ],
+      "alt": "To review and Matched controls above bank lines and ledger entries."
+    },
+    "he": {
+      "title": "התאמת חשבון בנק",
+      "purpose": "במסך ההתאמות מקשרים בין שורות מדף הבנק לתנועות שכבר נרשמו בספרים. התאמת שורה אינה סגירת תקופה חשבונאית.",
+      "tasks": [
+        "בחרו את החשבון ופתחו את רשימת השורות לבדיקה כדי למצוא שורות שטרם הותאמו.",
+        "בחרו שורה מדף הבנק ואת התנועה המתאימה בספרים. בדקו את הסכומים, התאריכים והתיאורים לפני אישור ההתאמה.",
+        "פתחו את רשימת השורות שהותאמו כדי לעיין בהתאמות קודמות או לבטל התאמה שגויה."
+      ],
+      "alt": "המעבר בין שורות לבדיקה לשורות שהותאמו, מעל שורות הבנק והתנועות בספרים."
+    }
+  },
+  "pnl": {
+    "screenIds": [
+      "pnl"
+    ],
+    "en": {
+      "title": "Profit and loss",
+      "purpose": "Compare income and expenses to see whether the business made a profit over a period. Profit is not the bank balance.",
+      "tasks": [
+        "Choose the start and end dates for the activity you want to review.",
+        "Check the accounting basis; use the comparison control when you need the previous period.",
+        "Open Entries under a total to see what contributed to it. Read the report’s data-status note before relying on the figure."
+      ],
+      "alt": "Date and basis controls above income, expenses and net profit."
+    },
+    "he": {
+      "title": "רווח והפסד",
+      "purpose": "משווים בין הכנסות להוצאות כדי לבדוק אם העסק הרוויח בתקופה שנבחרה. הרווח אינו יתרת הבנק.",
+      "tasks": [
+        "בחרו תאריך התחלה ותאריך סיום לפעילות שברצונכם לבדוק.",
+        "בדקו את בסיס הדיווח. להשוואה לתקופה הקודמת הפעילו את אפשרות ההשוואה.",
+        "פתחו את פירוט התנועות מתחת לסכום כדי לראות ממה הוא מורכב. קראו את ההערה על מקור הנתונים לפני שמסתמכים עליו."
+      ],
+      "alt": "בחירת תאריכים ובסיס דיווח מעל ההכנסות, ההוצאות והרווח הנקי."
+    }
+  },
+  "balance-sheet": {
+    "screenIds": [
+      "balance-sheet"
+    ],
+    "en": {
+      "title": "Balance sheet",
+      "purpose": "See what the business owns and owes, and the equity in it, as of one date. Earlier activity still counts.",
+      "tasks": [
+        "Set the as-of date to the day you want to check.",
+        "Compare assets with liabilities plus equity. A balanced total alone does not prove that each entry is correct.",
+        "Inspect an account or open the entries behind a total to understand a balance."
+      ],
+      "alt": "As-of date and balance check above assets, liabilities and equity."
+    },
+    "he": {
+      "title": "מאזן",
+      "purpose": "כאן רואים את הנכסים, ההתחייבויות וההון העצמי של העסק ליום מסוים. גם פעילות קודמת נכללת במאזן.",
+      "tasks": [
+        "בחרו את התאריך שלגביו ברצונכם לבדוק את היתרות.",
+        "השוו בין הנכסים לבין ההתחייבויות בתוספת ההון העצמי. שוויון בין הסכומים אינו מוכיח שכל רישום נכון.",
+        "עיינו בחשבון או פתחו את פירוט התנועות שמאחורי סכום כדי להבין את היתרה."
+      ],
+      "alt": "תאריך המאזן ובדיקת האיזון מעל הנכסים, ההתחייבויות וההון העצמי."
+    }
+  },
+  "trial-balance": {
+    "screenIds": [
+      "trial-balance"
+    ],
+    "en": {
+      "title": "Trial balance",
+      "purpose": "In Ledger & Journal, the trial balance shows the debit and credit balances of accounts on a chosen day.",
+      "tasks": [
+        "Choose Accountant Lens, then Trial Balance.",
+        "Set the as-of date and compare the debit and credit totals. Equal totals do not rule out missing or misclassified entries.",
+        "Select an account to inspect its entries, or print the trial balance for the date shown."
+      ],
+      "alt": "Trial Balance date selector, debit and credit totals, and account rows."
+    },
+    "he": {
+      "title": "מאזן בוחן",
+      "purpose": "באזור הספר הראשי והיומן, מאזן הבוחן מציג את יתרות החובה והזכות של החשבונות ליום שנבחר.",
+      "tasks": [
+        "עברו לתצוגת רואה החשבון ואז בחרו במאזן בוחן.",
+        "בחרו תאריך והשוו בין סך החובה לסך הזכות. סכומים שווים אינם שוללים רישומים חסרים או סיווג שגוי.",
+        "בחרו חשבון כדי לעיין בתנועות שלו, או הדפיסו את מאזן הבוחן לתאריך המוצג."
+      ],
+      "alt": "תאריך מאזן הבוחן, סך החובה והזכות ושורות החשבונות."
+    }
+  },
+  "israel-vat-report": {
+    "screenIds": [
+      "israel-vat-report"
+    ],
+    "en": {
+      "title": "Israel VAT report",
+      "purpose": "Review periodic Israeli VAT figures calculated from the books. This worksheet does not convert currencies, file a return or pay tax.",
+      "tasks": [
+        "Choose the dates and, if there is more than one registration, the VAT registration to review.",
+        "Compare output VAT with input VAT, including the separate equipment amount. A missing registration does not mean zero tax.",
+        "Check the workspace currency and data warnings before printing or exporting the figures for your accountant."
+      ],
+      "alt": "VAT dates, currency notice and periodic return summary."
+    },
+    "he": {
+      "title": "דוח מע״מ בישראל",
+      "purpose": "כאן בודקים את נתוני המע״מ התקופתיים בישראל לפי הספרים. הגיליון אינו ממיר מטבעות, מגיש דוח לרשות המסים או משלם מס.",
+      "tasks": [
+        "בחרו את התאריכים, ואם יש יותר מרישום אחד בחרו גם את תיק המע״מ לבדיקה.",
+        "השוו בין מס העסקאות למס התשומות ובדקו את הסכום הנפרד בגין ציוד. היעדר רישום אינו מעיד שסכום המס הוא אפס.",
+        "בדקו את מטבע הספרים ואת ההודעות על מצב הנתונים לפני הדפסה או ייצוא של הנתונים לרואה החשבון."
+      ],
+      "alt": "תאריכי הדוח, ההערה על המטבע וסיכום דוח המע״מ התקופתי."
+    }
+  },
+  "settings": {
+    "screenIds": [
+      "settings",
+      "api-hub",
+      "rules",
+      "dimensions",
+      "tax-profiles",
+      "appearance",
+      "team",
+      "billing",
+      "templates",
+      "security",
+      "rule",
+      "developer",
+      "import",
+      "emails",
+      "branding",
+      "branding-profiles",
+      "numbering",
+      "defaults",
+      "schedule",
+      "incoming-events",
+      "tags",
+      "scheduled-reports",
+      "alerts",
+      "modules",
+      "groups",
+      "split-rules",
+      "price-lists",
+      "price-list-import",
+      "custom-fields",
+      "sales-reps",
+      "stages",
+      "currencies",
+      "export",
+      "shortcuts"
+    ],
+    "en": {
+      "title": "Workspace settings",
+      "purpose": "Use Settings to find the options for these books. Your role determines which changes you can save.",
+      "tasks": [
+        "Search for a setting or choose a section, such as Appearance & Display.",
+        "Open Team & Invites to review access to this workspace.",
+        "Use Backup & Export to download a backup before major changes. A file checksum is not proof that the backup is complete or can be restored."
+      ],
+      "alt": "Search settings above Workspace, Accounting, and Documents & sales sections."
+    },
+    "he": {
+      "title": "הגדרות סביבת העבודה",
+      "purpose": "במסך ההגדרות מוצאים את האפשרויות לספרי העסק. ההרשאה שלכם קובעת אילו שינויים תוכלו לשמור.",
+      "tasks": [
+        "חפשו הגדרה או בחרו מדור, למשל הגדרות תצוגה.",
+        "פתחו את מדור הצוות וההזמנות כדי לבדוק למי יש גישה לספרים האלה.",
+        "לפני שינויים גדולים הורידו גיבוי ממדור הגיבוי והייצוא. ערך ביקורת של קובץ אינו הוכחה שהגיבוי מלא או שניתן לשחזר אותו."
+      ],
+      "alt": "חיפוש הגדרות מעל מדורי סביבת העבודה, החשבונאות והמסמכים והמכירות."
+    }
+  }
+}

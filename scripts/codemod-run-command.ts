@@ -94,6 +94,28 @@ function fetchPath(argument: string): { path: string; template: boolean } | null
   return { path: value, template: trimmed.startsWith('`') };
 }
 
+/** Read header property names without regex backtracking over untrusted values. */
+export function headerKeys(headerBlock: string): string[] {
+  const names: string[] = [];
+  for (let colon = headerBlock.indexOf(':'); colon !== -1; colon = headerBlock.indexOf(':', colon + 1)) {
+    let end = colon;
+    while (end > 0 && /\s/.test(headerBlock[end - 1])) end--;
+    if (end === 0) continue;
+    let key = '';
+    const quote = headerBlock[end - 1];
+    if (quote === "'" || quote === '"') {
+      const start = headerBlock.lastIndexOf(quote, end - 2);
+      if (start !== -1) key = headerBlock.slice(start + 1, end - 1);
+    } else {
+      let start = end;
+      while (start > 0 && /[A-Za-z0-9_-]/.test(headerBlock[start - 1])) start--;
+      key = headerBlock.slice(start, end);
+    }
+    if (/^[A-Za-z0-9_-]+$/.test(key)) names.push(key.toLowerCase());
+  }
+  return names;
+}
+
 export function findCandidates(file: string, source: string): Candidate[] {
   const found: Candidate[] = [];
   const lines = source.split('\n');
@@ -136,9 +158,8 @@ export function findCandidates(file: string, source: string): Candidate[] {
     // recorded twice, and a rewrite that dropped it would change how money is posted. The original report
     // counted these as mechanical, which is why the 82/16 split was too high.
     const headerBlock = /headers:\s*\{([\s\S]*?)\}/.exec(call)?.[1] ?? '';
-    const extraHeaders = [...headerBlock.matchAll(/(?:'([\w-]+)'|"([\w-]+)"|([\w-]+))\s*:/g)]
-      .map(m => (m[1] || m[2] || m[3] || '').toLowerCase())
-      .filter(k => k && k !== 'content-type' && k !== 'authorization');
+    const extraHeaders = headerKeys(headerBlock)
+      .filter(k => k !== 'content-type' && k !== 'authorization');
     if (extraHeaders.length) blockers.push(`sends its own header(s): ${[...new Set(extraHeaders)].join(', ')}`);
     // no auth header at all: a public or token-less route, where `runCommand` would attach a session by default
     if (!/authorization/i.test(headerBlock) && !/getIdToken|Bearer/.test(call)) {
@@ -205,6 +226,27 @@ function withImport(source: string, names: string, file: string): string | null 
 }
 
 /** The GET that sets only the auth header, followed by how its answer is read. */
+/** A response-json statement plus the optional immediately following status check. */
+export function readResponseJsonTail(after: string): { variable: string; length: number } | undefined {
+  const lineEnd = after.indexOf('\n');
+  if (lineEnd === -1) return undefined;
+  const line = after.slice(0, lineEnd).trimStart();
+  if (!line.startsWith('const ')) return undefined;
+  const declaration = line.slice('const '.length);
+  const variable = /^[A-Za-z_$][A-Za-z0-9_$]*/.exec(declaration)?.[0];
+  if (!variable) return undefined;
+  const equalsAt = declaration.indexOf('=');
+  if (equalsAt === -1 || declaration.slice(equalsAt).trim() !== '= await res.json().catch(() => ({}));') {
+    return undefined;
+  }
+  let length = lineEnd + 1;
+  const nextEnd = after.indexOf('\n', length);
+  if (nextEnd !== -1 && after.slice(length, nextEnd).trimStart().startsWith('if (!res.ok)')) {
+    length = nextEnd + 1;
+  }
+  return { variable, length };
+}
+
 export function rewrite(source: string, file: string): { source: string; changed: number } {
   let changed = 0;
   const names = 'runCommand, type CommandBody';
@@ -333,15 +375,15 @@ export function rewrite(source: string, file: string): { source: string; changed
     const match = /const res = await fetch\((`[^`]*`|'[^']*'), \{\n[ \t]*method: '(POST|PUT|PATCH|DELETE)',\n[ \t]*headers: \{ 'Content-Type': 'application\/json', Authorization: `Bearer \$\{token\}` \},\n[ \t]*body: JSON\.stringify\(([\s\S]*?)\),\n[ \t]*\}\);\n/.exec(next);
     if (!match) break;
     const after = next.slice(match.index + match[0].length);
-    const tail = /^[ \t]*const (\w+)[^=]*= await res\.json\(\)\.catch\(\(\) => \(\{\}\)\);\n(?:[ \t]*if \(!res\.ok\)[^\n]*\n)?/.exec(after);
+    const tail = readResponseJsonTail(after);
     if (!tail) break;
     const [, pathArg, method, body] = match;
-    const rest = next.slice(match.index + match[0].length + tail[0].length);
-    const usedLater = new RegExp(`\\b${tail[1]}\\b`).test(rest);
+    const rest = next.slice(match.index + match[0].length + tail.length);
+    const usedLater = new RegExp(`\\b${tail.variable}\\b`).test(rest);
     const call = `runCommand<CommandBody>({ path: ${pathArg}, method: '${method}', body: ${body.trim()} })`;
     next = next.slice(0, match.index) +
-      (usedLater ? `const ${tail[1]} = await ${call} ?? {};\n` : `await ${call};\n`) +
-      next.slice(match.index + match[0].length + tail[0].length);
+      (usedLater ? `const ${tail.variable} = await ${call} ?? {};\n` : `await ${call};\n`) +
+      next.slice(match.index + match[0].length + tail.length);
     changed++;
   }
 

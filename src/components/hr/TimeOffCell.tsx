@@ -5,18 +5,17 @@
  */
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { db } from '../../firebase';
-import { doc, updateDoc } from '../../lib/db/firestore';
 import { useDialog } from '../../hooks/useDialog';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { allowanceProblem, ptoBalance, timeOffProblem, type TimeOff } from '../../lib/ptoAccrual';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import type { Employee, PayRun } from '../../types';
+import { saveEmployee } from '../../lib/recordWrites';
 
 type Saved = Pick<Employee, 'ptoHoursPerYear' | 'ptoOpeningHours' | 'ptoTaken'>;
 
 async function save(employee: Employee, patch: Saved) {
-  await updateDoc(doc(db, 'employees', employee.id), { ...patch, updatedAt: new Date().toISOString() });
+  await saveEmployee(employee.workspaceId, employee.id, patch);
   useLedgerStore.setState(state => ({ employees: state.employees.map(e => (e.id === employee.id ? { ...e, ...patch } : e)) }));
 }
 

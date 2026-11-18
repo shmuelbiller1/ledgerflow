@@ -1,8 +1,8 @@
 /**
  * The shape every "Settings → Backup & Export" card has, in one place.
  *
- * There are three (workspace archive, year-end archive, QuickBooks IIF list) and each had its own copy of the
- * same forty lines: an owner check, a `busy` flag, a `pending` lock so a double-click cannot start two
+ * The workspace, year-end and QuickBooks archives need the same
+ * guard: a permission check, a `busy` flag, a `pending` lock so a double-click cannot start two
  * downloads, an `AbortController` aborted when the card unmounts or the workspace changes, a `scopeValid()`
  * re-check after every `await`, and a catch that only shows its message if the person is still looking at the
  * same workspace. Three copies is three places for that to be subtly wrong — and the year-end card already had
@@ -27,7 +27,7 @@ export interface ExportRun {
 }
 
 interface UseServerExportOptions {
-  /** Only an owner may read the verified backup. Said on screen, not discovered after the click. */
+  /** Whether this card permits the current user to export. The API makes its own access decision. */
   allowed: boolean;
   setBusy: (busy: boolean) => void;
   setError: (message: string) => void;
@@ -38,9 +38,7 @@ interface UseServerExportOptions {
 
 /** Runs one card's export under the guard: one at a time, scoped, aborted on unmount. */
 export function useServerExport({ allowed, setBusy, setError, failure, run }: UseServerExportOptions) {
-  const abortRef = useRef<AbortController | null>(null);
-  const pending = useRef(false);
-  const alive = useRef(true);
+  const active = useRef<AbortController | null>(null);
   // `run` changes identity most renders; keeping it next to `start` in a ref set from an effect means the
   // button's onClick is stable while the work it starts is always the current closure (refs cannot be
   // written during render, which the repo's lint enforces)
@@ -48,25 +46,22 @@ export function useServerExport({ allowed, setBusy, setError, failure, run }: Us
   const failureRef = useRef(failure);
   useEffect(() => { runRef.current = run; failureRef.current = failure; }, [run, failure]);
 
-  useEffect(() => () => { alive.current = false; abortRef.current?.abort(); }, []);
+  useEffect(() => () => { active.current?.abort(); active.current = null; }, []);
 
   const start = useCallback(async () => {
-    if (pending.current || !allowed) return;
+    if (active.current || !allowed) return;
     const store = useAuthStore.getState();
     const workspaceId = store.currentWorkspaceId;
     const uid = store.user?.uid;
     if (!workspaceId || !uid) return;
 
-    pending.current = true;
+    // The controller owns this run's lock. A cancelled or unmounted run cannot clear a newer lock,
+    // and Strict Mode's initial effect cleanup cannot permanently mark the mounted hook as inactive.
+    const controller = new AbortController();
+    active.current = controller;
     setBusy(true);
     setError('');
-    // Only this hook's own previous request is cancelled. A sibling guard on the same card (preview vs download)
-    // must not have its in-flight read aborted by the other one starting.
-    const controller = new AbortController();
-    const previous = abortRef.current;
-    abortRef.current = controller;
-    previous?.abort();
-    const stillHere = () => alive.current
+    const stillHere = () => active.current === controller
       && !controller.signal.aborted
       && useAuthStore.getState().currentWorkspaceId === workspaceId
       && useAuthStore.getState().user?.uid === uid;
@@ -74,19 +69,19 @@ export function useServerExport({ allowed, setBusy, setError, failure, run }: Us
       await runRef.current({ workspaceId, uid, signal: controller.signal, stillHere });
     } catch (error) {
       // Aborting is not a failure to report: the person closed the card or moved workspace on purpose.
-      if (stillHere() && !controller.signal.aborted) {
+      if (stillHere()) {
         setError(error instanceof Error && error.message ? error.message : failureRef.current);
       }
     } finally {
-      pending.current = false;
       if (stillHere()) setBusy(false);
+      if (active.current === controller) active.current = null;
     }
   }, [allowed, setBusy, setError]);
 
   /** Aborts what is in flight and clears the busy flag. For a card with a visible Cancel button. */
   const cancel = useCallback(() => {
-    abortRef.current?.abort();
-    pending.current = false;
+    active.current?.abort();
+    active.current = null;
     setBusy(false);
   }, [setBusy]);
 

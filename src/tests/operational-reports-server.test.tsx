@@ -13,6 +13,7 @@ import BudgetActualReportView from '../components/reporting/BudgetActualReportVi
 import { setComponentWorkspace, markComponentCollectionsLoaded } from './helpers/componentFixtures';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { getSupabase } from '../lib/db/client';
+import { withSandboxReadApi } from './helpers/sandboxReadApi';
 
 afterEach(async () => {
   cleanup();
@@ -170,6 +171,15 @@ test('M-1: operational report endpoints compute uncapped aging, party balances, 
     const budgetBody = await budgetRes.json();
     assert.equal(budgetBody.provenance.source, 'server');
     assert.equal(budgetBody.report.columns[0].actualCents, 65000);
+
+    await withSandboxReadApi(db, wsId, uid, async origin => {
+      for (const [liveResponse, liveBody] of [[agingRes, agingBody], [balancesRes, balancesBody], [methodsRes, methodsBody], [budgetRes, budgetBody]] as const) {
+        const url = new URL(liveResponse.url);
+        const scoped = await fetch(`${origin}${url.pathname}${url.search}`, { headers: { 'x-test-uid': uid } });
+        assert.equal(scoped.status, 200, url.pathname);
+        assert.deepEqual(await scoped.json(), liveBody, url.pathname);
+      }
+    });
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await db.terminate();

@@ -13,9 +13,9 @@ import { isPostable, lineAmount } from '../../lib/txFilters';
 import { accountParentProblem, allowedParentAccounts } from '../../lib/accountGroups';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { addDoc, collection } from '../../lib/db/firestore';
-import { db } from '../../firebase';
+import { addChartAccount } from '../../lib/recordWrites';
 import AsyncButton from '../ui/AsyncButton';
+import { ModalShell } from '../ui/ModalShell';
 import JournalEntryModal from './JournalEntryModal';
 import { LexiconText } from '../../hooks/useLexicon';
 
@@ -196,36 +196,35 @@ const Ledger = React.memo(() => {
     const isCurrent = () => useAuthStore.getState().currentWorkspaceId === targetWorkspaceId;
     try {
       const openingCents = Math.round(Number(newAccount.openingBalanceCents) || 0);
-      const createdRef = await addDoc(collection(db, 'chartAccounts'), {
-        workspaceId,
-        uid: user?.uid || "",
+      // `chartaccount.create` owns the row: the code must be free in this chart, and the account opens at zero —
+      // an opening figure is the transaction this flow records next, not a number typed on the account
+      const createdRef = await addChartAccount(workspaceId, {
         code: newAccount.code,
         name: newAccount.name,
         type: newAccount.type,
         category: newAccount.category || newAccount.type,
         description: newAccount.description || "",
         parentId: newAccount.parentId || null,
-        openingBalanceCents: 0,
         asOfDate: newAccount.asOfDate || new Date().toISOString(),
-        balanceCents: 0,
-        createdAt: new Date().toISOString()
       });
       if (openingCents !== 0) {
         let obeId = accounts.find(a => a.type === 'equity' && /opening balance/i.test(a.name))?.id;
         if (!obeId) {
-          const obeRef = await addDoc(collection(db, 'chartAccounts'), {
-            workspaceId,
-            uid: user?.uid || "",
-            code: '3900',
-            name: 'Opening Balance Equity',
-            type: 'equity',
-            category: 'Equity',
-            description: 'Balances brought in when accounts were established',
-            openingBalanceCents: 0,
-            balanceCents: 0,
-            createdAt: new Date().toISOString()
-          });
-          obeId = obeRef.id;
+          // the offset account goes through the same command; a chart that already carries 3900 refuses the
+          // create, and the account the chart has is the one this flow uses
+          try {
+            obeId = (await addChartAccount(workspaceId, {
+              code: '3900',
+              name: 'Opening Balance Equity',
+              type: 'equity',
+              category: 'Equity',
+              description: 'Balances brought in when accounts were established',
+            })).id;
+          } catch (createErr) {
+            const existing = useLedgerStore.getState().accounts.find(a => a.code === '3900');
+            if (!existing) throw createErr;
+            obeId = existing.id;
+          }
         }
         const isDebitNormal = newAccount.type === 'asset' || newAccount.type === 'expense';
         const signedAmt = isDebitNormal ? openingCents : -openingCents;
@@ -484,20 +483,8 @@ const Ledger = React.memo(() => {
       {/* Add Account Modal */}
       <AnimatePresence>
         {activeModal === 'account' && (
-          <div {...overlay1DialogProps} className="fixed inset-0 z-[250] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setActiveModal(null)}
-              className="absolute inset-0 bg-zinc-900/60 backdrop-blur-md"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-[var(--ink)] rounded-[40px] shadow-2xl border border-[var(--line)] overflow-hidden p-4 md:p-10"
-            >
+          <ModalShell dialogProps={overlay1DialogProps} onClose={() => setActiveModal(null)}
+            panelClassName="w-full max-w-lg bg-[var(--ink)] rounded-[40px] shadow-2xl border border-[var(--line)] overflow-hidden p-4 md:p-10">
               <div className="flex items-center justify-between mb-8">
                 <h2 id={overlay1TitleId} className="text-3xl font-black text-[var(--text)] tracking-tight uppercase italic">Add New Account</h2>
                 <button aria-label="Close add account" onClick={() => setActiveModal(null)} className="p-2 hover:bg-[var(--ink)] rounded-full transition-colors">
@@ -642,28 +629,15 @@ const Ledger = React.memo(() => {
                   </AsyncButton>
                 </div>
               </form>
-            </motion.div>
-          </div>
+          </ModalShell>
         )}
       </AnimatePresence>
 
       {/* Period Closing Modal */}
       <AnimatePresence>
         {activeModal === 'period' && (
-          <div {...overlay2DialogProps} className="fixed inset-0 z-[250] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setActiveModal(null)}
-              className="absolute inset-0 bg-zinc-900/60 backdrop-blur-md"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md bg-[var(--surface)] rounded-[40px] shadow-2xl border border-[var(--line)] overflow-hidden p-4 md:p-10"
-            >
+          <ModalShell dialogProps={overlay2DialogProps} onClose={() => setActiveModal(null)}
+            panelClassName="w-full max-w-md bg-[var(--surface)] rounded-[40px] shadow-2xl border border-[var(--line)] overflow-hidden p-4 md:p-10">
               <div className="flex items-center gap-5 mb-8">
                 <div className="w-16 h-16 bg-amber-50 rounded-[32px] flex items-center justify-center text-amber-600 border border-amber-100">
                   <ShieldCheck aria-hidden="true" size={32} />
@@ -714,8 +688,7 @@ const Ledger = React.memo(() => {
                   </AsyncButton>
                 </div>
               </div>
-            </motion.div>
-          </div>
+          </ModalShell>
         )}
       </AnimatePresence>
 

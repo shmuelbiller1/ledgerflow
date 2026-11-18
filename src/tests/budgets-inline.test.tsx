@@ -13,11 +13,18 @@ test('budget cards edit the name and planning amount through a confirmed partial
  const budget = { id: 'b', uid: 'test-user', workspaceId: 'component-workspace', targetId: 'cash', targetType: 'account' as const, amountCents: 10000, period: 'monthly', createdAt: '2026-01-01' };
  setComponentWorkspace(); markComponentCollectionsLoaded('budgets'); useLedgerStore.setState({ budgets: [budget], transactions: [], accounts: [] });
  const writes: Record<string, unknown>[] = [];
- globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => { if (String(input).includes('/rpc/lf_update')) writes.push(JSON.parse(String(init?.body))); return new Response(JSON.stringify(String(input).includes('/rpc/') ? null : { id: 'b', data: budget }), { status: 200, headers: { 'Content-Type': 'application/json' } }); }) as typeof fetch;
+ // one command for the field: the allowlist, the role, `updatedAt` and the audit line are the server's
+ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => { if (String(input).includes('/commands/record.fields')) writes.push(JSON.parse(String(init?.body))); return new Response(JSON.stringify(String(input).includes('/rpc/') ? null : String(input).includes('/commands/') ? { ok: true, data: { collection: 'budgets', id: 'b', fields: ['amountCents'], updatedAt: '2026-01-02T00:00:00Z' } } : { id: 'b', data: budget }), { status: 200, headers: { 'Content-Type': 'application/json' } }); }) as typeof fetch;
  render(<BudgetManager />);
  assert.ok(screen.getByRole('button', { name: inlineEditName('Edit Name of budget cash') }));
  fireEvent.click(screen.getByRole('button', { name: inlineEditName('Edit Amount of budget cash') })); fireEvent.change(screen.getByLabelText('Amount of budget cash'), { target: { value: '250.25' } });
  await act(async () => { fireEvent.keyDown(screen.getByLabelText('Amount of budget cash'), { key: 'Enter' }); });
- const fields = writes[0].p_set as Record<string, unknown>; assert.equal(fields.amountCents, 25025); assert.equal('targetId' in fields, false); assert.equal('period' in fields, false);
+ const sent = writes[0] as { workspaceId: string; input: { collection: string; id: string; fields: Record<string, unknown>; expected: Record<string, unknown> } };
+ assert.deepEqual([sent.input.collection, sent.input.id], ['budgets', 'b']);
+ assert.equal(sent.input.fields.amountCents, 25025, 'the planning amount travels in cents');
+ assert.equal('targetId' in sent.input.fields, false, 'only the field that was edited is sent');
+ assert.equal('period' in sent.input.fields, false);
+ assert.equal(sent.input.expected.amountCents, 10000, 'what the person read travels too, so a save in between is a refusal');
+ assert.equal(sent.workspaceId, 'component-workspace');
  cleanup(); setComponentWorkspace('viewer'); render(<BudgetManager />); assert.equal(screen.queryByRole('button', { name: /^Edit (Name|Amount) of budget/ }), null);
 });

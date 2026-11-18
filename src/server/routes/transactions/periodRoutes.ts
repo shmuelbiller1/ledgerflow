@@ -15,6 +15,7 @@ import {
 import { errorMessage, requestUser } from '../../auth/requestUser';
 import { FxRevaluationError, revaluateForeignBalances } from '../../services/fxRevaluationService';
 import { listClosings } from '../../services/periodClosingService';
+import { commandFailureResponse } from '../../utils/commandResponses';
 
 const revaluationBodySchema = z.object({
   workspaceId: z.string().min(1).max(200),
@@ -70,10 +71,7 @@ function revaluationCommandResponse(outcome: CommandExecutionOutcome, action: 'r
   if (outcome.error instanceof FxRevaluationError) {
     return { status: outcome.error.status, body: { status: 'error', message: outcome.error.message } };
   }
-  if (outcome.status >= 500) {
-    return { status: outcome.status, body: { status: 'error', message: 'The revaluation could not be run.', details: errorMessage(outcome.error ?? outcome.message) } };
-  }
-  return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+  return commandFailureResponse(outcome, 'The revaluation could not be run.');
 }
 
 function revaluationInvocation(definition: CommandInvocation['definition'], workspaceId: string, input: unknown, action: 'run' | 'undo'): CommandInvocation {

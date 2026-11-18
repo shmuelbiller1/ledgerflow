@@ -1,4 +1,5 @@
 import { BRAND_NAME } from '../config/brand';
+import illustratedGuides from './help/illustratedGuides.json';
 export interface ScreenHelpDoc {
   slug: string;
   screenIds: readonly string[];
@@ -9,6 +10,8 @@ export interface ScreenHelpDoc {
   summaryHe: string;
   keyTasksEn: readonly string[];
   keyTasksHe: readonly string[];
+  /** Screenshot of a synthetic workspace, for this screen only (not every screen in its area). */
+  illustration?: { screenId: string; altEn: string; altHe: string };
 }
 
 export interface HowToArticle {
@@ -31,17 +34,16 @@ export interface HowToArticle {
  * linked directly from each main screen's contextual `? Help` dialog and searchable in Help & Guide.
  */
 export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
-  {
-    slug: 'overview',
-    screenIds: ['dashboard', 'overview', 'practice', 'help', 'glossary', 'support', 'accept-invite'],
-    docPath: 'docs/help/overview.md',
-    titleEn: 'Overview & Dashboard',
-    titleHe: 'סקירה כללית ולוח בקרה',
-    summaryEn: 'Check cash on hand, money owed to and by the business, period profit, and open items needing attention.',
-    summaryHe: 'מעקב אחר יתרות מזומן, חובות לקוחות וספקים, רווח תקופתי ומשימות פתוחות לטיפול.',
-    keyTasksEn: ['Switch between Owner Lens and Accountant Lens.', 'Open any summary tile to drill into the report behind it.', 'Add a quick entry or open the setup checklist.'],
-    keyTasksHe: ['מעבר בין תצוגת בעלים לתצוגת רואה חשבון.', 'לחיצה על כל מדד לפתיחת הדוח המפורט.', 'הוספת פקודה מהירה או בדיקת רשימת ההקמה.'],
-  },
+  ...Object.entries(illustratedGuides).map(([slug, { screenIds, en, he }]): ScreenHelpDoc => ({
+    slug,
+    screenIds,
+    docPath: `docs/help/${slug}.md`,
+    titleEn: en.title, titleHe: he.title,
+    summaryEn: en.purpose, summaryHe: he.purpose,
+    keyTasksEn: en.tasks, keyTasksHe: he.tasks,
+    // The first ID is the pictured screen; additional IDs share the area guide, not its illustration.
+    illustration: { screenId: screenIds[0], altEn: en.alt, altHe: he.alt },
+  })),
   {
     slug: 'transactions',
     screenIds: [
@@ -57,61 +59,15 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     keyTasksHe: ['סינון פקודות לפי תאריך, חשבון, סטטוס או טקסט.', 'וידוא שכל פקודה מאושרת מאוזנת בין חובה לזכות.', 'ביצוע ביטול ותיקון לתנועות בתקופה נעולה.'],
   },
   {
-    slug: 'sales',
-    screenIds: ['sales', 'estimates', 'customers'],
-    docPath: 'docs/help/sales.md',
-    titleEn: 'Sales, Invoices & Customers',
-    titleHe: 'מכירות, חשבוניות ולקוחות',
-    summaryEn: 'Create quotes and sales invoices, apply customer payments or credit notes, and send statements.',
-    summaryHe: 'הפקת הצעות מחיר וחשבוניות, קליטת תקבולים וזיכויים מלקוחות ושליחת דוחות מצב חשבון.',
-    keyTasksEn: ['Issue customer invoices with line-level revenue accounts and tax codes.', 'Record full or partial customer receipts.', 'Share read-only customer portal or invoice links.'],
-    keyTasksHe: ['הפקת חשבוניות עם סיווג הכנסה וקודי מס לכל שורה.', 'רישום תקבול מלא או חלקי מלקוח.', 'שיתוף קישור צפייה ותשלום ללקוח.'],
-  },
-  {
-    slug: 'purchases',
-    screenIds: ['purchases', 'purchase-orders', 'vendors'],
-    docPath: 'docs/help/purchases.md',
-    titleEn: 'Purchases, Bills & Suppliers',
-    titleHe: 'רכש, חשבוניות ספקים ומלאי',
-    summaryEn: 'Record supplier bills, manage purchase orders and stock items, and schedule vendor payment runs.',
-    summaryHe: 'קליטת חשבוניות ספקים, ניהול הזמנות רכש ופריטי מלאי וביצוע סבבי תשלום לספקים.',
-    keyTasksEn: ['Enter vendor bills and attach source PDFs or images.', 'Run batch supplier payments with withholding checks.', 'Manage inventory items, units, and reorder thresholds.'],
-    keyTasksHe: ['רישום חשבוניות ספק וצירוף מסמכי מקור.', 'הכנת תשלומים מרוכזים לספקים כולל ניכוי מס במקור.', 'ניהול פריטי מלאי, יחידות מידה והתראות חוסר.'],
-  },
-  {
-    slug: 'banking',
-    screenIds: ['banking', 'bank-connections', 'inbox'],
-    docPath: 'docs/help/banking.md',
-    titleEn: 'Banking & Statement Imports',
-    titleHe: 'בנקאות וייבוא דפי חשבון',
-    summaryEn: 'Stage and review CSV, OFX, and QFX bank statements or manage connected feeds and cash movements.',
-    summaryHe: 'טעינה ובדיקה מוקדמת של דפי בנק בפורמט CSV, OFX ו-QFX וניהול תנועות קופה ובנק.',
-    keyTasksEn: ['Upload CSV, OFX, or QFX bank statements into staging review.', 'Verify counts and amounts before confirming import.', 'Record direct money-in or money-out cash movements.'],
-    keyTasksHe: ['העלאת קובצי CSV, OFX או QFX לבדיקה מוקדמת.', 'וידוא מספר השורות והסכומים לפני אישור הייבוא.', 'רישום הפקדות ומשיכות ישירות מחשבון הבנק.'],
-  },
-  {
-    slug: 'reconciliation',
-    screenIds: ['reconciliation'],
-    docPath: 'docs/help/reconciliation.md',
-    titleEn: 'Bank Reconciliation',
-    titleHe: 'התאמות בנקים',
-    summaryEn: 'Match bank statement lines against posted ledger entries and verify zero closing difference.',
-    summaryHe: 'התאמת שורות דף הבנק מול פקודות היומן בספרים עד לאיפוס ההפרש.',
-    keyTasksEn: ['Enter statement date and ending balance.', 'Match suggested pairs or create missing entries.', 'Finish reconciliation once difference equals zero.'],
-    keyTasksHe: ['הזנת תאריך דף הבנק ויתרת הסגירה.', 'אישור התאמות מוצעות או השלמת תנועות חסרות.', 'נעילת ההתאמה לאחר שההפרש עומד על אפס.'],
-  },
-  {
     slug: 'reports',
     screenIds: [
       'reports',
-      // every report on the Reports tab is described in this page: the page explains the area, and
+      // Reports without their own manual use this page: it explains the area, and
       // each report's own `? Help` has its two-to-four sentence description (A-219)
     'customer-cohorts',
     'asset-register',
     'one-sided-transfers',
     'budget-actual',
-    'pnl',
-    'balance-sheet',
     'group-summary',
     'ask-books',
     'cash-flow',
@@ -222,7 +178,6 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     'mileage-rates',
     'israel-self-employment-ni',
     'israel-advance-tax',
-    'israel-vat-report',
     'banking-validation',
     'us-nexus-watch',
     'tax-code-suggestions',
@@ -275,51 +230,6 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     summaryHe: 'בדיקת שלמות הספרים, צפייה ביומן הביקורת, ניהול ניירות עבודה ונעילת חודשים סגורים.',
     keyTasksEn: ['Inspect Data Health for duplicates, missing accounts, or imbalances.', 'Attach month-end workpapers and lock completed periods.', 'Review consolidated Group Summary across multiple books.'],
     keyTasksHe: ['בדיקת תקינות נתונים לאיתור כפילויות או חוסר איזון.', 'צירוף ניירות עבודה ונעילת תקופות חשבונאיות.', 'צפייה בדוח מאוחד לקבוצת חברות וייצואו ל-CSV.'],
-  },
-  {
-    slug: 'settings',
-    screenIds: [
-      'settings', 'api-hub',
-    'rules',
-    'dimensions',
-    'tax-profiles',
-    'appearance',
-    'team',
-    'billing',
-    'templates',
-    'security',
-    'rule',
-    'developer',
-    'import',
-    'emails',
-    'branding',
-    'branding-profiles',
-    'numbering',
-    'defaults',
-    'schedule',
-    'incoming-events',
-    'tags',
-    'scheduled-reports',
-    'alerts',
-    'modules',
-    'groups',
-    'split-rules',
-    'price-lists',
-    'price-list-import',
-    'custom-fields',
-    'sales-reps',
-    'stages',
-    'currencies',
-    'export',
-    'shortcuts',
-    ],
-    docPath: 'docs/help/settings.md',
-    titleEn: 'Workspace Settings, Security & Backups',
-    titleHe: 'הגדרות מערכת, הרשאות וגיבויים',
-    summaryEn: 'Manage team roles, optional modules, tax profiles, appearance/locale formatting, keyboard shortcuts, and JSON backups.',
-    summaryHe: 'ניהול הרשאות צוות, מודולים אופציונליים, פרופילי מס, עיצוב ושפה, קיצורי מקלדת וגיבויי JSON.',
-    keyTasksEn: ['Export and verify checksummed JSON backups before major changes.', 'Invite team members as owner, accountant, bookkeeper, or viewer.', 'Turn optional modules on or off without losing records.'],
-    keyTasksHe: ['ייצוא ושחזור גיבוי JSON מאומת בחתימת SHA-256.', 'ניהול הרשאות משתמשים (בעלים, רו״ח, מנה״ח, צופה).', 'הפעלה או הסתרה של מודולים מבלי למחוק נתונים.'],
   },
   {
     slug: 'tasks-and-time',
@@ -450,8 +360,8 @@ export const HOW_TO_ARTICLES: readonly HowToArticle[] = [
     titleHe: 'הפקה ושליחה של חשבונית ללקוח',
     summaryEn: 'Issue an itemized invoice mapped to revenue accounts and verify its receivable entry.',
     summaryHe: 'הפקת חשבונית מפורטת המשויכת לחשבון הכנסות ובדיקת רישומה בכרטסת הלקוח.',
-    stepsEn: ['Open Sales and select New Invoice.', 'Pick or enter the customer, set invoice and due dates, and add descriptions, quantities, rates, and revenue accounts.', 'Click Send Invoice, then check Account Statement in Reports to confirm the open balance.'],
-    stepsHe: ['פתחו את מסך המכירות ולחצו על חשבונית חדשה.', 'בחרו לקוח, הגדירו תאריך ותנאי תשלום והוסיפו שורות פירוט, כמות, מחיר וחשבון הכנסה.', 'לחצו על שליחת חשבונית ובדקו את היתרה הפתוחה בדוח מצב חשבון לקוח.'],
+    stepsEn: ['Open Sales, choose Invoices, then Add Invoice.', 'Pick or enter the customer, set invoice and due dates, and add descriptions, quantities, rates, and revenue accounts.', 'Click Send Invoice, then check Account Statement in Reports to confirm the open balance.'],
+    stepsHe: ['פתחו את רשימת החשבוניות במסך המכירות ובחרו בהוספת חשבונית.', 'בחרו לקוח, הגדירו תאריך ותנאי תשלום והוסיפו שורות פירוט, כמות, מחיר וחשבון הכנסה.', 'לחצו על שליחת חשבונית ובדקו את היתרה הפתוחה בדוח מצב חשבון לקוח.'],
   },
   {
     id: 'howto-04-receive-payment',
@@ -462,8 +372,8 @@ export const HOW_TO_ARTICLES: readonly HowToArticle[] = [
     titleHe: 'קליטת תקבול מלא או חלקי מלקוח',
     summaryEn: 'Allocate incoming bank transfers or checks across one or multiple open invoices.',
     summaryHe: 'שיוך העברה בנקאית או שיק לחשבונית פתוחה אחת או למספר חשבוניות.',
-    stepsEn: ['Open Receive Payment from Sales.', 'Select the customer, deposit cash account, payment date, reference, and amount received.', 'Allocate the exact amount per invoice (or apply oldest first) and post the payment.'],
-    stepsHe: ['פתחו קבלת תשלום ממסך המכירות.', 'בחרו לקוח, חשבון בנק להפקדה, תאריך, אסמכתא וסכום התקבול.', 'שייכו את הסכום לחשבוניות הפתוחות ואשרו את הרישום.'],
+    stepsEn: ['In Sales → Invoices, choose Receive Payment on the unpaid invoice.', 'Select the customer, deposit cash account, payment date, reference, and amount received.', 'Allocate the exact amount per invoice (or apply oldest first) and post the payment.'],
+    stepsHe: ['במסך המכירות, ברשימת החשבוניות, בחרו בקבלת תשלום בשורה של החשבונית שטרם שולמה.', 'בחרו לקוח, חשבון בנק להפקדה, תאריך, אסמכתא וסכום התקבול.', 'שייכו את הסכום לחשבוניות הפתוחות ואשרו את הרישום.'],
   },
   {
     id: 'howto-05-quotes-to-orders',
@@ -498,7 +408,7 @@ export const HOW_TO_ARTICLES: readonly HowToArticle[] = [
     titleHe: 'רישום חשבונית ספק וצירוף מסמך מקור',
     summaryEn: 'Enter payable bills by expense account or label and attach the supplier invoice file.',
     summaryHe: 'קליטת חשבונית ספק לפי סעיפי הוצאה ותגיות וצירוף קובץ המקור.',
-    stepsEn: ['Go to Purchases and click Record New Bill.', 'Choose the supplier, bill number, bill date, due date, and split lines across expense accounts.', 'Attach the supplier PDF or image receipt and save to post to Accounts Payable.'],
+    stepsEn: ['Go to Purchases and choose Record Bill.', 'Choose the supplier, bill number, bill date, due date, and split lines across expense accounts.', 'Attach the supplier PDF or image receipt and save to post to Accounts Payable.'],
     stepsHe: ['עברו לרכש ולחצו על רישום חשבונית ספק חדשה.', 'בחרו ספק, מספר חשבונית, תאריכים ופירוט שורות ההוצאה.', 'צרפו קובץ PDF או תמונה ושמרו לרישום מול ספקים.'],
   },
   {
@@ -532,17 +442,17 @@ export const HOW_TO_ARTICLES: readonly HowToArticle[] = [
     screenId: 'reconciliation',
     target: { tab: 'reconciliation' },
     category: 'Banking',
-    titleEn: 'Reconcile a bank account to a zero difference',
-    titleHe: 'התאמת חשבון בנק להפרש אפס',
-    summaryEn: 'Match imported bank lines to ledger entries and seal the statement closing balance.',
-    summaryHe: 'הצלבת שורות דף הבנק מול תנועות היומן ונעילת יתרת הסגירה.',
-    stepsEn: ['Open Reconciliation, select the bank account, and enter statement ending date and balance.', 'Tick matching ledger entries or post missing bank fees/interest.', 'Confirm Difference reads 0.00 before finishing the reconciliation.'],
-    stepsHe: ['פתחו התאמות, בחרו חשבון בנק והזינו תאריך ויתרת סגירה מהדף.', 'סמנו תנועות תואמות או השלימו עמלות בנק חסרות.', 'ודאו שההפרש עומד על 0.00 בדיוק לפני סיום ההתאמה.'],
+    titleEn: 'Match a bank statement line to a ledger entry',
+    titleHe: 'התאמת חשבון בנק: קישור שורה לתנועה בספרים',
+    summaryEn: 'Check one suggested pair against the statement before accepting it.',
+    summaryHe: 'בדקו את זוג התנועות המוצע מול דף הבנק לפני אישור ההתאמה.',
+    stepsEn: ['Under To review, select a statement line for the right account.', 'Choose the ledger entry for the same movement. A suggested match is not a confirmed one.', 'Check the pair, choose Confirm match, then find it under Matched. If it was wrong, use Undo match.'],
+    stepsHe: ['ברשימה לבדיקה בחרו שורה מדף הבנק של החשבון המתאים.', 'בחרו את התנועה המקבילה בספרים. הצעת התאמה אינה אישור התאמה.', 'בדקו את הזוג, אשרו את ההתאמה וחפשו אותה ברשימת השורות שהותאמו. אם נפלה טעות, בטלו את ההתאמה.'],
   },
   {
     id: 'howto-11-labels-dimensions',
     screenId: 'reports',
-    target: { tab: 'reports', sub: 'label-profit' },
+    target: { tab: 'reports', sub: 'by-label' },
     category: 'Reports',
     titleEn: 'Tag lines with labels (property, project, location)',
     titleHe: 'שימוש בתגיות (נכס, פרויקט, סניף) ודוח רווחיות לתגית',
@@ -566,7 +476,7 @@ export const HOW_TO_ARTICLES: readonly HowToArticle[] = [
   {
     id: 'howto-13-israel-month-vat',
     screenId: 'reports',
-    target: { tab: 'reports', sub: 'israel-month-journey' },
+    target: { tab: 'reports', sub: 'il-month-journey' },
     category: 'Tax Calculation',
     titleEn: 'Review an Israeli VAT month and PCN874 draft',
     titleHe: 'בדיקת חודש מע״מ בישראל וטיוטת PCN874',
@@ -611,9 +521,11 @@ export const HOW_TO_ARTICLES: readonly HowToArticle[] = [
     titleEn: 'Export and verify a full JSON backup before changes',
     titleHe: 'ייצוא ואימות גיבוי JSON מלא לפני שינויים',
     summaryEn: 'Download a SHA-256 checksummed snapshot of accounts, entries, invoices, and settings.',
-    summaryHe: 'הורדת קובץ גיבוי מלא החתום בחתימת SHA-256 של כל החשבונות, הפקודות והמסמכים.',
-    stepsEn: ['Go to Settings -> Backup & Export and click Export JSON Backup.', 'Keep the dated JSON archive before bulk imports or structural account edits.', `When restoring, ${BRAND_NAME} verifies schema version and SHA-256 checksum before sending the snapshot.`],
-    stepsHe: ['עברו להגדרות -> גיבוי וייצוא ולחצו על ייצוא גיבוי JSON.', 'שמרו את הקובץ המתוארך לפני ייבוא נתונים רחב או שינויי מבנה.', 'בעת שחזור המערכת מאמתת את מבנה הקובץ וחתימת SHA-256 לפני הביצוע.'],
+    summaryHe: 'הורדת גיבוי של החשבונות, פקודות היומן וההגדרות עם סכום ביקורת SHA-256.',
+    stepsEn: ['Go to Settings -> Backup & Export and click Export JSON Backup.', 'Keep the dated JSON backup before bulk imports or structural account edits.', 'To restore as a workspace owner, choose the full JSON or ZIP, review the workspace and file, then confirm replacement.'],
+    stepsHe: ['עברו להגדרות -> גיבוי וייצוא ולחצו על ייצוא גיבוי JSON.', 'שמרו את הגיבוי המתוארך לפני ייבוא נתונים רחב או שינויי מבנה.', 'לשחזור כבעלי סביבת העבודה, בחרו גיבוי JSON או ZIP מלא, בדקו את סביבת העבודה ואת הקובץ ואשרו את החלפת הרשומות.'],
+    limitNoteEn: 'A partial browser copy cannot be restored. Attached file contents are not included.',
+    limitNoteHe: 'לא ניתן לשחזר עותק חלקי מהדפדפן. הגיבוי אינו כולל את תוכן הקבצים המצורפים.',
   },
   {
     id: 'howto-17-group-consolidation',
@@ -677,8 +589,7 @@ export function findScreenHelpDoc(activeTab: string): ScreenHelpDoc {
 }
 
 export function articlesForScreen(activeTab: string): HowToArticle[] {
-  const direct = HOW_TO_ARTICLES.filter(article => article.screenId === activeTab);
-  return direct.length > 0 ? direct : HOW_TO_ARTICLES.slice(0, 3);
+  return HOW_TO_ARTICLES.filter(article => article.screenId === activeTab || (article.target.tab === 'reports' && article.target.sub === activeTab));
 }
 
 /** G-11: Bilingual search across all 20 EN/HE how-to articles AND screen help docs. */

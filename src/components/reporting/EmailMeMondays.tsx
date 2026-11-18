@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { db } from '../../firebase';
-import { doc, updateDoc } from '../../lib/db/firestore';
+import { saveWorkspaceSettings } from '../../lib/workspaceSettingsSave';
 import { EMAILABLE_REPORTS, addMondayEmail, mondayScheduleFor } from '../../lib/emailMeMondays';
 
 /** EU-F3: one click to get this report every Monday (owners and accountants keep schedules; others see nothing). */
@@ -27,7 +26,7 @@ export default function EmailMeMondays({ reportTab }: { reportTab: string }) {
     // a reply after a sign-out or another account changes nothing here; the list it updates is the one now kept
     const stillSame = () => useAuthStore.getState().user?.uid === uid;
     try {
-      await updateDoc(doc(db, 'workspaces', workspace.id), { scheduledReports: result.next, updatedAt: new Date().toISOString() });
+      await saveWorkspaceSettings(workspace.id, { scheduledReports: result.next });
       if (!stillSame()) return;
       const latest = useAuthStore.getState().workspaces;
       useAuthStore.getState().setWorkspaces(latest.map(w => (w.id === workspace.id ? { ...w, scheduledReports: result.next } : w)));

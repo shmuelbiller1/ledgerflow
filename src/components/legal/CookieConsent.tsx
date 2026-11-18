@@ -3,18 +3,17 @@ import { Cookie, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { BRAND_NAME } from '../../config/brand';
+import { getCookieConsent, setCookieConsent, type CookieConsentChoice } from '../../lib/cookieConsent';
+
 interface CookieConsentProps {
   onOpenPrivacyPolicy?: () => void;
 }
 
 export default function CookieConsent({ onOpenPrivacyPolicy }: CookieConsentProps) {
-  const [showBanner, setShowBanner] = useState(() => !localStorage.getItem('ledgerflow-cookie-consent'));
+  const [showBanner, setShowBanner] = useState(() => getCookieConsent() === null);
 
-  const handleAccept = (type: 'all' | 'essential') => {
-    localStorage.setItem('ledgerflow-cookie-consent', JSON.stringify({
-      choice: type,
-      timestamp: new Date().toISOString()
-    }));
+  const handleAccept = (type: CookieConsentChoice) => {
+    setCookieConsent(type);
     setShowBanner(false);
   };
 

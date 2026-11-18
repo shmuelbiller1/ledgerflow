@@ -425,13 +425,13 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
         </div>
 
         <div className="flex flex-wrap items-center gap-6">
-          <div className="text-left sm:text-right">
+          <div className="text-start sm:text-right">
             <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">Total Debits</p>
-            <p className="text-base font-bold font-mono text-[var(--text)] tabular-nums">{formatCurrency(trialBalance.totalDebits)}</p>
+            <p className="text-base font-bold font-mono text-[var(--text)] tabular-nums"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(trialBalance.totalDebits)}</bdi></p>
           </div>
-          <div className="text-left sm:text-right">
+          <div className="text-start sm:text-right">
             <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">Total Credits</p>
-            <p className="text-base font-bold font-mono text-[var(--text)] tabular-nums">{formatCurrency(trialBalance.totalCredits)}</p>
+            <p className="text-base font-bold font-mono text-[var(--text)] tabular-nums"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(trialBalance.totalCredits)}</bdi></p>
           </div>
           <motion.div 
             animate={trialBalance.isBalanced ? {} : { x: [0, -4, 4, -4, 4, 0] }}
@@ -479,8 +479,8 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto relative z-10 custom-scrollbar">
-        <table className="w-full text-left min-w-[700px] text-xs">
+      <div className="overflow-x-auto relative z-10 custom-scrollbar" role="region" aria-label="Trial balance table" tabIndex={0}>{/* NOSONAR: S6845 — focusable scroll region lets keyboard users pan the wide table on narrow screens */}
+        <table className="w-full text-start min-w-[700px] text-xs">
           <caption className="sr-only">Trial Balance</caption>
           <thead>
             <tr className="bg-slate-900 text-white whitespace-nowrap select-none">
@@ -532,14 +532,14 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                 return (
                   <tr key={row.key} className="bg-[var(--ink)]/40">
                     <td className="px-5 py-2" />
-                    <th scope="row" className="px-5 py-2 text-left text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                      <span style={{ paddingLeft: `${row.depth * ACCOUNT_GROUP_INDENT_PX}px` }}>{row.label}</span>
+                    <th scope="row" className="px-5 py-2 text-start text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                      <span style={{ paddingInlineStart: `${row.depth * ACCOUNT_GROUP_INDENT_PX}px` }}>{row.label}</span>
                     </th>
                     <td className="px-5 py-2 text-right font-mono text-[10px] font-bold text-[var(--text)] tabular-nums">
-                      {debit > 0 ? formatCurrency(debit) : '—'}
+                      {debit > 0 ? <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(debit)}</bdi> : '—'}
                     </td>
                     <td className="px-5 py-2 text-right font-mono text-[10px] font-bold text-[var(--text)] tabular-nums">
-                      {credit > 0 ? formatCurrency(credit) : '—'}
+                      {credit > 0 ? <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(credit)}</bdi> : '—'}
                     </td>
                   </tr>
                 );
@@ -557,7 +557,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                   </span>
                 </td>
                 <td className="px-5 py-3">
-                  <div className="flex items-start gap-1" style={{ paddingLeft: `${row.depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
+                  <div className="flex items-start gap-1" style={{ paddingInlineStart: `${row.depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
                     {row.hasChildren && (
                       <AccountGroupToggle label={row.member.name} expanded={!collapsedGroups.has(row.member.id)}
                         onToggle={(event) => {

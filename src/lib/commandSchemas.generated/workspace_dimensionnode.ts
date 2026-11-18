@@ -4,40 +4,22 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "node": {
-      "type": "object",
-      "properties": {
-        "id": COMMAND_SCHEMA_PARTS.part62,
-        "dimensionId": COMMAND_SCHEMA_PARTS.part62,
-        "description": COMMAND_SCHEMA_PARTS.part38,
-        "aliases": COMMAND_SCHEMA_PARTS.part91,
-        "status": COMMAND_SCHEMA_PARTS.part58,
-        "parentId": COMMAND_SCHEMA_PARTS.part62,
-        "createdAt": COMMAND_SCHEMA_PARTS.part31,
-        "updatedAt": COMMAND_SCHEMA_PARTS.part31
-      },
-      "required": [
-        "id",
-        "dimensionId",
-        "description"
-      ],
-      "additionalProperties": false
-    },
-    "dimensionId": COMMAND_SCHEMA_PARTS.part62,
-    "nodeId": COMMAND_SCHEMA_PARTS.part62,
+    "node": COMMAND_SCHEMA_PARTS.part257,
+    "dimensionId": COMMAND_SCHEMA_PARTS.part93,
+    "nodeId": COMMAND_SCHEMA_PARTS.part93,
     "fields": {
       "type": "object",
       "properties": {
-        "description": COMMAND_SCHEMA_PARTS.part38,
-        "aliases": COMMAND_SCHEMA_PARTS.part91,
-        "status": COMMAND_SCHEMA_PARTS.part58,
+        "description": COMMAND_SCHEMA_PARTS.part57,
+        "aliases": COMMAND_SCHEMA_PARTS.part138,
+        "status": COMMAND_SCHEMA_PARTS.part87,
         "parentId": {
           "anyOf": [
-            COMMAND_SCHEMA_PARTS.part62,
-            COMMAND_SCHEMA_PARTS.part10
+            COMMAND_SCHEMA_PARTS.part93,
+            COMMAND_SCHEMA_PARTS.part18
           ]
         },
-        "updatedAt": COMMAND_SCHEMA_PARTS.part31
+        "updatedAt": COMMAND_SCHEMA_PARTS.part49
       },
       "additionalProperties": false
     }

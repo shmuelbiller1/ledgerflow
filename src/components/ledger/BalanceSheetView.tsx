@@ -19,6 +19,23 @@ import { balanceEntries, opensFromServer, SERVER_OPENING_ENTRY_ID } from '../../
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
+/**
+ * One account's row in the exported sheet: its balance, and — when the report is comparative — the
+ * prior balance, the variance and that variance as a percentage of the prior figure. The section
+ * helper in the export uses this for assets, liabilities and equity alike.
+ */
+function accountExportRow(acc: ChartAccount, curBal: number, prvBal: number, isComparative: boolean): Record<string, string | number | null> {
+  const variance = curBal - prvBal;
+  return {
+    name: acc.name,
+    code: acc.code,
+    balance: curBal / 100,
+    prior: isComparative ? prvBal / 100 : null,
+    variance: isComparative ? variance / 100 : null,
+    variancePct: isComparative && prvBal !== 0 ? ((variance / Math.abs(prvBal)) * 100).toFixed(1) + '%' : null
+  };
+}
+
 interface BalanceSheetViewProps {
   accounts: ChartAccount[];
   formatCurrency: (val: number) => string;
@@ -273,21 +290,17 @@ function useBalanceSheetModel({ accounts = [], formatCurrency, asOfDate: pageAsO
 
     const rows: (Record<string, string | number | null> | string[])[] = [];
 
-    rows.push([labels.assetsLabel.toUpperCase()]);
-    accounts.filter(a => a.type === 'asset').forEach(acc => {
-      const curBal = currentData.assets[acc.id] || 0;
-      const prvBal = isComparative ? prevData.assets[acc.id] || 0 : 0;
-      const variance = curBal - prvBal;
-      const variancePct = prvBal !== 0 ? (variance / Math.abs(prvBal)) * 100 : 0;
-      rows.push({
-        name: acc.name,
-        code: acc.code,
-        balance: curBal / 100,
-        prior: isComparative ? prvBal / 100 : null,
-        variance: isComparative ? variance / 100 : null,
-        variancePct: isComparative && prvBal !== 0 ? variancePct.toFixed(1) + '%' : null
-      });
-    });
+    const pushSection = (title: string, type: 'asset' | 'liability' | 'equity', current: Record<string, number>, previous: Record<string, number>) => {
+      rows.push([title.toUpperCase()]);
+      accounts.filter(a => a.type === type).forEach(acc => rows.push(accountExportRow(
+        acc,
+        current[acc.id] || 0,
+        isComparative ? previous[acc.id] || 0 : 0,
+        isComparative,
+      )));
+    };
+
+    pushSection(labels.assetsLabel, 'asset', currentData.assets, prevData.assets);
     rows.push({
       name: `Total ${labels.assetsLabel}`,
       balance: currentData.totalAssets / 100,
@@ -295,21 +308,7 @@ function useBalanceSheetModel({ accounts = [], formatCurrency, asOfDate: pageAsO
     });
     rows.push([]);
 
-    rows.push([labels.liabilitiesLabel.toUpperCase()]);
-    accounts.filter(a => a.type === 'liability').forEach(acc => {
-      const curBal = currentData.liabilities[acc.id] || 0;
-      const prvBal = isComparative ? prevData.liabilities[acc.id] || 0 : 0;
-      const variance = curBal - prvBal;
-      const variancePct = prvBal !== 0 ? (variance / Math.abs(prvBal)) * 100 : 0;
-      rows.push({
-        name: acc.name,
-        code: acc.code,
-        balance: curBal / 100,
-        prior: isComparative ? prvBal / 100 : null,
-        variance: isComparative ? variance / 100 : null,
-        variancePct: isComparative && prvBal !== 0 ? variancePct.toFixed(1) + '%' : null
-      });
-    });
+    pushSection(labels.liabilitiesLabel, 'liability', currentData.liabilities, prevData.liabilities);
     rows.push({
       name: `Total ${labels.liabilitiesLabel}`,
       balance: currentData.totalLiabilities / 100,
@@ -317,21 +316,7 @@ function useBalanceSheetModel({ accounts = [], formatCurrency, asOfDate: pageAsO
     });
     rows.push([]);
 
-    rows.push([labels.equityLabel.toUpperCase()]);
-    accounts.filter(a => a.type === 'equity').forEach(acc => {
-      const curBal = currentData.equity[acc.id] || 0;
-      const prvBal = isComparative ? prevData.equity[acc.id] || 0 : 0;
-      const variance = curBal - prvBal;
-      const variancePct = prvBal !== 0 ? (variance / Math.abs(prvBal)) * 100 : 0;
-      rows.push({
-        name: acc.name,
-        code: acc.code,
-        balance: curBal / 100,
-        prior: isComparative ? prvBal / 100 : null,
-        variance: isComparative ? variance / 100 : null,
-        variancePct: isComparative && prvBal !== 0 ? variancePct.toFixed(1) + '%' : null
-      });
-    });
+    pushSection(labels.equityLabel, 'equity', currentData.equity, prevData.equity);
 
     const curRetEarn = currentData.netIncome;
     const prvRetEarn = isComparative ? prevData.netIncome : 0;

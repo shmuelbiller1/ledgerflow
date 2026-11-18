@@ -127,14 +127,15 @@ function recordPeriodBalancesReady(exists: boolean): boolean {
 
 /** Whether the periodBalances table exists (cached; looked for again after a minute when missing). */
 export async function periodBalancesReady(db: Firestore, tx?: DbTransaction): Promise<boolean> {
-  // A command already owns this checked-out connection; probing through db.pool here deadlocks at PG_POOL_MAX=1.
+  // A command already owns this checked-out connection; do not probe via the handle with PG_POOL_MAX=1.
   if (tx && typeof tx.tablesExist === 'function') {
-    return recordPeriodBalancesReady(await tx.tablesExist('periodBalances'));
+    const exists = await tx.tablesExist('periodBalances');
+    return db.sandboxId ? exists : recordPeriodBalancesReady(exists);
   }
+  if (db.sandboxId) return db.tablesExist('periodBalances');
   if (known && (known.exists || Date.now() - known.at < 60_000)) return known.exists;
   try {
-    const result = await db.pool.query(`select to_regclass('public."periodBalances"') is not null as ok`);
-    return recordPeriodBalancesReady(Boolean(result.rows[0]?.ok));
+    return recordPeriodBalancesReady(await db.tablesExist('periodBalances'));
   } catch {
     return recordPeriodBalancesReady(false);
   }
@@ -264,6 +265,9 @@ export async function snapshotsOf(db: Firestore, workspaceId: string): Promise<P
 
 /** The snapshot `balancesAsOf(db, ws, date)` reads: the newest fresh one on or before `date`, or null. */
 export async function freshSnapshot(db: Firestore, workspaceId: string, date: string): Promise<PeriodBalances | null> {
+  // Overlay writes never run the public snapshot invalidation trigger. A draft can change history
+  // behind even a fresh live snapshot. Use the existing full-history path for sandbox reads.
+  if (db.sandboxId) return null;
   const fresh = (await snapshotsOf(db, workspaceId))
     .filter(s => s.stale !== true && DATE.test(s.asOf) && s.asOf <= date)
     .sort((a, b) => b.asOf.localeCompare(a.asOf));
@@ -754,7 +758,9 @@ export async function entryQueryOver(db: Firestore, workspaceId: string, from: s
 
 /** L-123 step 5c: every year (YYYY) that has an entry in the workspace, newest first, read in one query. */
 export async function entryYearsOf(db: Firestore, workspaceId: string): Promise<number[]> {
-  const { rows } = await db.pool.query<{ y: string }>(
-    `select distinct substr(data->>'date', 1, 4) as y from public.transactions where workspace_id = $1 and data->>'date' ~ '^[0-9]{4}-'`, [workspaceId]);
+  const rows = await db.readRows<{ y: string }>(
+    `select distinct substr(data->>'date', 1, 4) as y from ${db.tableSource('transactions')}
+      where workspace_id = $1 and data->>'date' ~ '^[0-9]{4}-'`, [workspaceId],
+  );
   return rows.map(r => Number(r.y)).filter(y => Number.isInteger(y)).sort((a, b) => b - a);
 }

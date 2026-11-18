@@ -8,23 +8,35 @@ import { recordAuthEvent } from '../server/services/authAuditService';
 import type { Firestore } from '../server/db/firestore';
 
 describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON body limits', () => {
-  it('F-10: inventoryRoutes delegates to the command runner; leaseRoutes and revenueRoutes use executeIdempotent + payloadHash + ledgerCreate', () => {
+  it('F-10: inventoryRoutes delegates to the command runner; leaseRoutes and revenueRoutes post through the shared journal route', () => {
     // the inventory writes are registered commands now: the runner owns the operation id, the payload
     // hash, the single transaction with its ledger entry and the audit line (see inventory-commands.test.ts)
     const inventory = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/inventoryRoutes.ts'), 'utf8');
     assert.match(inventory, /\bexecuteCommand\s*\(\s*req\s*,\s*res\s*,\s*\{/, 'inventoryRoutes must run its writes through the command runner');
     assert.match(inventory, /withLegacyInputIdempotencyHash\(/, 'and keep the legacy request fingerprint for a retry');
+    // the two document-journal routes (ASC 842, ASC 606) are one route: the member check, the lock, the
+    // validator, the idempotent commit and its audit line live in src/server/services/journalDocumentService.ts,
+    // and the route files name the entry. The work below has to happen — in the shared service, which both call.
+    // the steps themselves (membership, lock, validator, idempotent commit, audit line) now live in a
+    // service so a registered command and the address run the same ones; there is no second copy.
+    const steps = fs.readFileSync(path.join(process.cwd(), 'src/server/services/journalDocumentService.ts'), 'utf8');
     for (const rel of [
       'src/server/routes/leaseRoutes.ts',
       'src/server/routes/revenueRoutes.ts',
     ]) {
       const src = fs.readFileSync(path.join(process.cwd(), rel), 'utf8');
-      assert.match(src, /\b(?:executeIdempotent|runOptionalIdempotent)\s*\(/, `${rel} must delegate to executeIdempotent/runOptionalIdempotent`);
-      assert.match(src, /\b(?:requestPayloadHash|runOptionalIdempotent)\s*\(/, `${rel} must bind requests via requestPayloadHash`);
-      assert.match(src, /\bledgerCreate\s*\(/, `${rel} must write ledger entries through ledgerCreate`);
-      assert.match(src, /\bwriteServerAuditLog\s*\(/, `${rel} must emit server audit trail records`);
+      assert.match(src, /\b(?:postJournalDocumentRoute|postJournalDocument)\s*\(/, `${rel} must post its journal through the shared document-journal route`);
+      for (const [name, re] of [
+        ['executeIdempotent/runOptionalIdempotent', /\b(?:executeIdempotent|runOptionalIdempotent)\s*\(/],
+        ['requestPayloadHash', /\b(?:requestPayloadHash|runOptionalIdempotent)\s*\(/],
+        ['ledgerCreate', /\bledgerCreate\s*\(/],
+        ['writeServerAuditLog', /\bwriteServerAuditLog\s*\(/],
+      ] as const) {
+        assert.ok(re.test(src) || re.test(steps), `${rel} must delegate to ${name}, directly or through the shared route`);
+      }
       assert.doesNotMatch(src, /return res\.json\(idempDoc\.data\(\)\?\.response\)/, `${rel} must not replay unhashed handwritten records`);
     }
+    assert.doesNotMatch(steps, /return res\.json\(idempDoc\.data\(\)\?\.response\)/, 'the shared route must not replay unhashed handwritten records');
   });
 
   it('C-3 / F-09a: persisting write handlers in src/server/routes/ maintain >= 70% audit coverage and 100% on money/GL/key routes', () => {
@@ -34,13 +46,24 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
     // Registered-command routes delegate persistence and transactional auditing to the shared runner.
     const COMMAND_WRITE = /\bexecuteCommand\s*\(\s*req\s*,\s*res\s*,\s*\{/;
     const AUDIT = /writeServerAuditLog\s*\(|writeAuditLog\s*\(|recordAuthEvent\s*\(|deleteAccount\s*\(/;
+    // A route may also hand its handler to a route factory in src/server/http (the document-journal
+    // routes do). The write and its audit line then live in that module: read it too, but only for the
+    // factories named here, so an unrelated helper import cannot make a route look audited.
+    const ROUTE_FACTORIES: Record<string, string> = {
+      postJournalDocument: 'src/server/services/journalDocumentService.ts',
+    };
+    const sharedSourceFor = (body: string): string => Object.entries(ROUTE_FACTORIES)
+      .filter(([name]) => new RegExp(`\\b${name}\\s*\\(`).test(body))
+      .map(([, rel]) => fs.readFileSync(path.join(process.cwd(), rel), 'utf8'))
+      .join('\n');
 
     const all: { file: string; method: string; route: string; audited: boolean }[] = [];
     for (const file of fs.readdirSync(routesDir).filter(f => f.endsWith('.ts') && !f.endsWith('.test.ts'))) {
       const src = fs.readFileSync(path.join(routesDir, file), 'utf8');
       const starts = [...src.matchAll(REG)];
       starts.forEach((m, i) => {
-        const body = src.slice(m.index! + m[0].length, i + 1 < starts.length ? starts[i + 1].index! : src.length);
+        const handler = src.slice(m.index! + m[0].length, i + 1 < starts.length ? starts[i + 1].index! : src.length);
+        const body = `${handler}\n${sharedSourceFor(handler)}`;
         const commandManaged = COMMAND_WRITE.test(body);
         if (!WRITE.test(body) && !commandManaged) return;
         // CommandDefinition requires an audit callback and runRegisteredCommand writes its summary

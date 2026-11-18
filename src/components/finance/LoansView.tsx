@@ -20,8 +20,8 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
-import { db } from '../../firebase';
-import { collection, doc, updateDoc } from '../../lib/db/firestore';
+import { recordLoanPayment } from '../../lib/recordWrites';
+import { secureId } from '../../lib/secureId';
 import { addToDateISO, cn, formatCurrency, getLocalDateISO, readAmountCents } from '../../lib/utils';
 import { isPostable } from '../../lib/txFilters';
 import { EmptyState } from '../ui/EmptyState';
@@ -188,7 +188,9 @@ export default function LoansView() {
     if (problem) { setRefused(problem); return; }
     setBusy(true);
     try {
-      const id = doc(collection(db, 'loans')).id;
+      // the record's id is minted here and handed to `addEntity`, which writes the row
+      const id = secureId('loan-');
+      if (!id) throw new Error('Secure random identifiers are unavailable');
       const record: Loan = {
         id,
         uid: workspace?.uid,
@@ -248,8 +250,9 @@ export default function LoansView() {
     setBusy(true);
     try {
       const transactionId = await postEntry(createLoanPaymentEntry({ loan, installment, date, bank, liability, interest }));
-      const payments = [...(loan.payments || []), { installment: installment.number, date, transactionId }];
-      await updateDoc(doc(db, 'loans', loan.id), { payments, updatedAt: new Date().toISOString() });
+      // `loan.payment` records the instalment against the loan the server reads: a retry answers "already recorded"
+      // instead of appending a second line, and two tabs recording two instalments keep both
+      await recordLoanPayment(loan.workspaceId || workspace?.id || '', loan, { installment: installment.number, date, transactionId });
       setPaymentDates(current => ({ ...current, [loan.id]: addToDateISO(date, { months: 1 }) }));
       const notice = `Payment ${installment.number} of ${loan.termMonths} recorded: ${money(installment.principalCents)} off the loan, ${money(installment.interestCents)} interest.`;
       setNotices(current => ({ ...current, [loan.id]: notice }));

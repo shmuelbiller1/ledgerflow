@@ -2,8 +2,7 @@ import React, { useId, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
-import { db } from '../../../firebase';
-import { doc, updateDoc } from '../../../lib/db/firestore';
+import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
 import { MONEY_LOCALES, moneyText, type MoneyDisplaySettings } from '../../../lib/moneyFormat';
 
 /**
@@ -30,7 +29,7 @@ export default function MoneyDisplayPanel() {
     const clean: MoneyDisplaySettings = { ...(next.locale ? { locale: next.locale } : {}), ...(next.negativeStyle === 'accounting' ? { negativeStyle: 'accounting' } : {}) };
     setBusy(true);
     try {
-      await updateDoc(doc(db, 'workspaces', workspace.id), { moneyDisplay: clean });
+      await saveWorkspaceSettings(workspace.id, { moneyDisplay: clean });
       setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, moneyDisplay: clean } : w)));
       toast.success(`Money now shows as ${sample(clean)}`);
     } catch (err) {

@@ -6,8 +6,6 @@ import { Archive, ArchiveRestore, GitMerge, MoreVertical, Trash2 } from 'lucide-
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { db } from '../../firebase';
-import { doc, updateDoc } from '../../lib/db/firestore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { suggestionsFrom } from '../../lib/inlineEdit';
 import { ACCOUNT_GROUP_INDENT_PX, accountGroupLayout, accountParentProblem, allowedParentAccounts, rowsInsideExpandedGroups } from '../../lib/accountGroups';
@@ -17,10 +15,11 @@ import MergeAccountDialog from './MergeAccountDialog';
 import { AccountGroupToggle } from './AccountGroupControls';
 import { EmptyState } from '../ui/EmptyState';
 import { isIncomeAccount } from '../../lib/accountUtils';
+import { saveChartAccount } from '../../lib/recordWrites';
 
 /** Edit in place (I-22): one field of an account. System accounts keep their code (the database refuses it). */
 async function saveAccountField(account: ChartAccount, field: 'name' | 'code' | 'description' | 'category', value: string | number) {
-  await updateDoc(doc(db, 'chartAccounts', account.id), { [field]: value, updatedAt: new Date().toISOString() });
+  await saveChartAccount(account.workspaceId, { id: account.id, [field]: value });
   toast.success('Saved');
 }
 
@@ -30,13 +29,13 @@ async function saveAccountField(account: ChartAccount, field: 'name' | 'code' | 
  * only how the accounts are shown, so no figure and no posted amount is touched.
  */
 async function saveAccountParent(account: ChartAccount, parentId: string | null) {
-  await updateDoc(doc(db, 'chartAccounts', account.id), { parentId, updatedAt: new Date().toISOString() });
+  await saveChartAccount(account.workspaceId, { id: account.id, parentId });
   toast.success(parentId ? `"${account.name}" moved into its group` : `"${account.name}" moved to the top level`);
 }
 
 /** Archive (hidden from pickers and this list; history kept) or bring an account back (I-22). */
 async function setAccountArchived(account: ChartAccount, archived: boolean) {
-  await updateDoc(doc(db, 'chartAccounts', account.id), { isArchived: archived, isActive: !archived, updatedAt: new Date().toISOString() });
+  await saveChartAccount(account.workspaceId, { id: account.id, archived });
   toast.success(archived ? `"${account.name}" archived` : `"${account.name}" restored`);
 }
 
@@ -107,7 +106,7 @@ export default function ChartOfAccountsView({ accounts, searchTerm, formatCurren
           depth > 0 && "bg-[var(--ink)]/20"
         )}>
           <td className="p-4 font-mono text-xs text-[var(--muted)]" onClick={() => hasChildren && toggleExpand(account.id)}>
-            <div className="flex items-center gap-2" style={{ paddingLeft: `${depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
+            <div className="flex items-center gap-2" style={{ paddingInlineStart: `${depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
               {hasChildren ? (
                 <AccountGroupToggle label={account.name} expanded={isExpanded}
                   onToggle={(event) => { event.stopPropagation(); toggleExpand(account.id); }} />
@@ -226,8 +225,8 @@ export default function ChartOfAccountsView({ accounts, searchTerm, formatCurren
           <Archive aria-hidden="true" size={13} /> {showArchived ? 'Hide archived accounts' : `Show archived accounts (${archivedCount})`}
         </button>
       )}
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-left text-xs min-w-[750px]">
+      <div className="overflow-x-auto" role="region" aria-label="Chart of accounts table" tabIndex={0}>{/* NOSONAR: S6845 — focusable scroll region lets keyboard users pan the wide table on narrow screens */}
+        <table className="w-full border-collapse text-start text-xs min-w-[750px]">
           <caption className="sr-only">Chart of accounts</caption>
           <thead>
             <tr className="border-b border-[var(--line)] bg-[var(--ink)]/70 text-[var(--muted)] font-bold uppercase tracking-wider">

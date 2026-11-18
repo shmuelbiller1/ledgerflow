@@ -1,8 +1,9 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { DocumentData, Firestore } from '../db/firestore';
+import { BRAND_NAME } from '../../config/brand';
+import { writeServerAuditLog } from './auditLogService';
 import { checkLedgerEntry } from './ledgerDoor';
 import { InvoiceSchema, BillSchema, ProjectSchema, CreditNoteSchema, VendorCreditSchema } from '../../schemas';
-import { isPostable } from '../../lib/txFilters';
 
 // Only caches that are rebuilt from the restored books. paymentAllocations / allocationOperations (the
 // EG-2 payment ledger, append-only) and periodClosings (close history) are records, not caches: a restore
@@ -21,24 +22,6 @@ function signBackupLockState(workspaceId: string, lockDate: string, softLockDate
   return createHmac('sha256', backupHmacSecret())
     .update(`${workspaceId}|${lockDate}|${softLockDate}|${checksum}`, 'utf8')
     .digest('hex');
-}
-
-function canonicalTxFingerprint(tx: DocumentData): string {
-  const lines = Array.isArray(tx.lines)
-    ? (tx.lines as Array<{ accountId?: unknown; amountCents?: unknown; baseAmountCents?: unknown }>).map(l => ({
-      accountId: String(l.accountId || ''),
-      amountCents: Number(l.amountCents) || 0,
-      ...(typeof l.baseAmountCents === 'number' ? { baseAmountCents: l.baseAmountCents } : {}),
-    }))
-    : [];
-  return JSON.stringify({
-    date: String(tx.date || '').slice(0, 10),
-    status: String(tx.status || ''),
-    totalAmountCents: Number(tx.totalAmountCents) || 0,
-    currency: String(tx.currency || 'USD'),
-    exchangeRate: typeof tx.exchangeRate === 'number' ? tx.exchangeRate : 1,
-    lines,
-  });
 }
 
 /**
@@ -177,7 +160,9 @@ function latestDate(a: unknown, b: unknown): string {
   return x > y ? x : y;
 }
 
-export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string, backup: unknown): Promise<RestoreResult> {
+export interface RestoreActor { uid: string; email?: string }
+
+export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string, backup: unknown, actor?: RestoreActor): Promise<RestoreResult> {
   if (!isRecord(backup)) throw new RestoreError(400, 'Invalid backup payload');
   const backupWorkspace = backup.workspace;
   if (backupWorkspace !== undefined && (!isRecord(backupWorkspace) || backupWorkspace.id !== workspaceId)) {
@@ -222,6 +207,13 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
     } catch (err) {
       throw new RestoreError(400, `Backup entry transactions/${r.id} is not a valid ledger entry (${err instanceof Error ? err.message : 'invalid'}); nothing was restored`);
     }
+  }
+
+  // A8N-03 (#776): a file the Backup screen built in the browser when the server export failed holds only the
+  // lists the screen had loaded. Restoring it would delete every record it does not carry, so it is never
+  // accepted as a backup.
+  if (isRecord(backup.metadata) && backup.metadata.serverAuthoritative === false) {
+    throw new RestoreError(400, 'This file was saved by the browser when the server backup failed; it holds only what the screen had loaded and cannot replace the books. Nothing was restored. Make a new backup from Settings → Backup.');
   }
 
   // A8-017: verify backup checksum and server HMAC lockSignature when present so a modified export
@@ -277,6 +269,12 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
           ? `Books are closed through ${closedNow}, but this backup was made when they were closed through ${closedInBackup}: it can't replace the months closed since. Use a backup made after the close, or reopen those months first (Month-End Close).`
           : `Books are closed through ${closedNow}, and this backup was made before any month was closed: it can't replace closed periods. Use a backup made after the close.`);
       }
+      // A8N-02 (#777): once a month is closed, only a backup signed by this server may be restored. Comparing an
+      // unsigned file's closed-month entries field by field missed new entries, voided ones coming back and the
+      // fields that hide an entry from reports; a signature leaves nothing to compare.
+      if (!hasVerifiedLockSignature) {
+        throw new RestoreError(409, `Books are closed through ${closedNow}: only a backup exported by ${BRAND_NAME}, unchanged, can be restored over closed months. Nothing was restored.`);
+      }
     }
 
     // AUD-02: the documents with a schema (the same ones a normal save checks): every field they carry must
@@ -321,23 +319,6 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
       const snap = await t.get(db.collection(coll).where('workspaceId', '==', workspaceId));
       const holds = tables.find(c => c.coll === coll)?.holds;
       const docs = holds ? snap.docs.filter(doc => holds(doc.data() || {})) : snap.docs;
-      // A8-017: an unsigned backup cannot forge workspace.lockDate in JSON to delete or alter
-      // already-closed posted ledger entries; only a server-signed backup from exportWorkspaceBackup
-      // (or a backup preserving all closed-period entries identically) may restore over closed periods.
-      if (coll === 'transactions' && closedNow && !hasVerifiedLockSignature) {
-        const incomingTxById = new Map<string, DocumentData>();
-        for (const r of records.values()) if (r.coll === 'transactions') incomingTxById.set(r.id, r.data);
-        for (const doc of docs) {
-          const txData = doc.data() || {};
-          const txDay = String(txData.date || '').slice(0, 10);
-          if (txDay && txDay <= closedNow && isPostable(txData as never)) {
-            const replacement = incomingTxById.get(doc.id);
-            if (!replacement || canonicalTxFingerprint(replacement) !== canonicalTxFingerprint(txData)) {
-              throw new RestoreError(409, `Books are closed through ${closedNow}: an unverified backup cannot modify or delete closed-period ledger entry transactions/${doc.id}.`);
-            }
-          }
-        }
-      }
       existing.push(docs);
     }
     // A8-017: clear stale derived caches (periodBalances, stockClosings, repostQueue) whenever core books/settlements/stock are restored
@@ -384,6 +365,19 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
       const opening = backupWorkspace.openingBalanceDate;
       if (!current.openingBalanceDate && typeof opening === 'string' && YMD.test(opening)) safe.openingBalanceDate = opening;
       if (Object.keys(safe).length > 0) t.set(db.collection('workspaces').doc(workspaceId), safe, { merge: true });
+    }
+    // A8N-05 (#778): the action that replaces every record says so on the audit trail, in the same transaction:
+    // who, how many rows per table, which file (its checksum) and whether this server had signed it.
+    if (actor?.uid) {
+      const checksum = isRecord(backup.metadata) && typeof backup.metadata.checksum === 'string' ? backup.metadata.checksum : '';
+      await writeServerAuditLog({
+        workspaceId, uid: actor.uid, email: actor.email || '', action: 'WORKSPACE_RESTORED', entityType: 'workspace', entityId: workspaceId,
+        severity: 'warning',
+        details: {
+          description: `Workspace restored from a ${hasVerifiedLockSignature ? 'signed' : 'unsigned'} backup; every restorable record was replaced`,
+          counts: { ...counts }, checksum, signed: hasVerifiedLockSignature,
+        },
+      }, { db, tx: t });
     }
   });
 

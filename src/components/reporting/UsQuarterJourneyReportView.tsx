@@ -6,28 +6,21 @@ import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import {
   US_QUARTER_JOURNEY_CSV_HEADERS, usQuarterJourney, usQuarterJourneyCsvRows, usQuarterOf, usQuarterProblem,
-  type UsQuarter, type UsQuarterStepStatus,
+  type UsQuarter,
 } from '../../lib/usQuarterJourney';
 import type { ReadinessPayment, ReadinessVendor } from '../../lib/vendor1099Readiness';
 import { downloadCsv } from '../../lib/csvExport';
 import { monthCloseState } from '../../lib/periodLock';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
+import { JourneyNotices, JourneySteps } from './JourneySteps';
+import { stepStatusLabel } from './journeyStatus';
 import { runCommand, type CommandBody } from '../../lib/runCommand';
 import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const QUARTER_TEXT = /^\d{4}-Q[1-4]$/;
-const STATUS_LABEL: Record<UsQuarterStepStatus, string> = {
-  done: 'Done from the recorded data',
-  attention: 'Needs attention',
-  'not-applicable': 'Does not apply to this quarter',
-};
-const STATUS_TONE: Record<UsQuarterStepStatus, string> = {
-  done: 'text-[var(--pos)]',
-  attention: 'text-amber-700 dark:text-amber-400',
-  'not-applicable': 'text-[var(--muted)]',
-};
+const STATUS_LABEL = stepStatusLabel('quarter');
 
 /** Only this workspace's rows; a row with no workspace id is a fixture or a shared record. */
 const inWorkspace = <T extends { workspaceId?: string }>(rows: T[] | undefined, workspaceId?: string | null) =>
@@ -146,10 +139,8 @@ export function UsQuarterJourneyPanel({ journey, currency = 'USD', quarterText, 
         onClick={() => journey && downloadCsv(`us-quarter-journey-${journey.quarter}`, US_QUARTER_JOURNEY_CSV_HEADERS, usQuarterJourneyCsvRows(journey))}>Export CSV</button>
     </div>
 
-    {problem && <p role="alert">{problem}</p>}
-    {loading && <p role="status">Loading the quarter&rsquo;s documents and the returns recorded for it…</p>}
-    {partial && <p role="alert">A loaded list is capped or failed, so the totals below are provisional until it is complete.</p>}
-    {journey?.problems.map(item => <p key={item} role="alert">{item}</p>)}
+    <JourneyNotices problem={problem} loading={loading} partial={partial} problems={journey?.problems}
+      loadingText="Loading the quarter&rsquo;s documents and the returns recorded for it…" />
 
     {journey && <p className="text-sm">
       <b>{journey.quarter}</b> ({journey.startDate} to {journey.endDate}) · {journey.done} of {journey.steps.length} steps done
@@ -158,26 +149,10 @@ export function UsQuarterJourneyPanel({ journey, currency = 'USD', quarterText, 
         : journey.nextStep ? ` · next: ${journey.steps.find(s => s.id === journey.nextStep)?.title}.` : ''}
     </p>}
 
-    {journey && <ol className="space-y-3">
-      {journey.steps.map((step, index) => <li key={step.id} className="rounded border border-[var(--line)] p-3 space-y-2">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="font-semibold text-sm">{index + 1}. {step.title}</h3>
-          <span className={`text-sm font-medium ${STATUS_TONE[step.status]}`}>{STATUS_LABEL[step.status]}</span>
-        </div>
-        <p className="text-sm">{step.what}</p>
-        <p className="text-sm text-[var(--muted)]">{step.detail}</p>
-        {step.figures.length > 0 && <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-          {step.figures.map(figure => <li key={`${step.id}-${figure.label}`} className="tabular-nums">
-            <span className="text-[var(--muted)]">{figure.label}: </span>
-            <b>{figure.cents !== undefined ? formatCurrency(figure.cents, currency) : figure.count}</b>
-            {figure.note ? <span className="text-[var(--muted)]"> ({figure.note})</span> : null}
-          </li>)}
-        </ul>}
-        {step.returns.length > 0 && <StateReturnTable returns={step.returns} currency={currency} />}
-        <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)] text-sm"
-          onClick={() => goToPage({ tab: step.tab, sub: step.screen })}>Open {step.screenLabel}</button>
-      </li>)}
-    </ol>}
+    {journey && <JourneySteps steps={journey.steps} currency={currency} formatCurrency={formatCurrency} statusLabel={STATUS_LABEL}
+      afterFigures={step => step.returns.length > 0 ? <StateReturnTable returns={step.returns} currency={currency} /> : null}
+      openScreen={step => <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)] text-sm"
+        onClick={() => goToPage({ tab: step.tab, sub: step.screen })}>Open {step.screenLabel}</button>} />}
   </section>;
 }
 

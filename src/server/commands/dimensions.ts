@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { HttpError } from '../auth/requestUser';
+import { FieldValue } from '../db/firestore';
 import type { CommandContext, CommandDefinition } from './types';
 
 /**
@@ -167,5 +168,157 @@ export const dimensionAxesCommand: CommandDefinition<typeof dimensionAxesInput, 
       { code: 'ROLE_REQUIRED', when: 'The caller is not an owner or accountant.', next: 'Ask a workspace owner to grant an appropriate role.' },
     ],
     next: [{ command: 'workspace.dimensionnode', label: 'Add a value' }],
+  },
+};
+
+/**
+ * The one-off move of a legacy dimension tree off the workspace document.
+ *
+ * Older workspaces kept their whole label tree in a `dimensionNodes` array *on* the workspace row, which is how a
+ * workspace document grows toward the size limit the collection split was meant to prevent. `useLedgerData` used to
+ * do the move itself, in the background, with a `writeBatch` and an `updateDoc(deleteField())` from the browser: no
+ * audit line, no role, and — the part that actually went wrong — no answer. A tab that crashed halfway left some
+ * values in the collection and the rest on the workspace row, and the next load migrated them again.
+ *
+ * This is that move as a command, so the tree can be written once and the legacy field cleared in the same
+ * transaction: either both halves happen or neither does. It refuses a node whose `dimensionId` is missing (the row
+ * id is derived from it, so a nameless one would land somewhere no screen reads), and a batch larger than the
+ * screen's own 450-row chunk — the caller sends the tree in pieces and the answer says how many were written.
+ */
+export const dimensionNodesMigrateInput = z.object({
+  /** the legacy rows, exactly as they sat on the workspace document */
+  nodes: z.array(nodeSchema).max(450),
+  /**
+   * Whether this call is the last of the tree, and may therefore clear the legacy field. A chunked caller sends
+   * `false` for every chunk but the last: clearing on the first one would drop the rest of the tree if a later
+   * chunk failed.
+   */
+  clearLegacy: z.boolean().optional(),
+}).strict();
+
+type MigrateInput = z.output<typeof dimensionNodesMigrateInput>;
+export type DimensionNodesMigrateResult = { migrated: number; cleared: boolean };
+
+export const dimensionNodesMigrateCommand: CommandDefinition<typeof dimensionNodesMigrateInput, DimensionNodesMigrateResult> = {
+  name: 'workspace.dimensionnodesmigrate',
+  input: dimensionNodesMigrateInput,
+  roles: NODE_ROLES,
+  async handler(ctx: CommandContext, tx, input: MigrateInput) {
+    const ref = ctx.db.collection('workspaces').doc(ctx.workspaceId);
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists) {
+      throw Object.assign(new HttpError('This workspace is no longer open.', 404), { code: 'NOT_FOUND' });
+    }
+    const now = new Date().toISOString();
+    for (const node of input.nodes) {
+      const { updatedAt: _sentAt, ...rest } = node;
+      tx.set(ctx.db.collection('dimensionNodes').doc(nodeRowId(ctx.workspaceId, node.dimensionId, node.id)), {
+        ...rest,
+        workspaceId: ctx.workspaceId,
+        updatedAt: now,
+      });
+    }
+    // the legacy field goes in the same transaction as the rows that replace it, so a half-migrated workspace
+    // cannot exist for the next tab to find — but only when this call holds the whole tree (or says it is the last
+    // chunk). A first chunk that cleared it would drop every value the next chunk was meant to carry.
+    const cleared = input.clearLegacy !== false;
+    if (cleared) tx.update(ref, { dimensionNodes: FieldValue.delete() });
+    return { migrated: input.nodes.length, cleared };
+  },
+  async preview(ctx: CommandContext, input: MigrateInput) {
+    const snapshot = await ctx.db.collection('workspaces').doc(ctx.workspaceId).get();
+    if (!snapshot.exists) throw new HttpError('This workspace is no longer open.', 404);
+    return {
+      title: 'Move the label tree into its own collection',
+      lines: [
+        `${input.nodes.length} label(s)`,
+        input.clearLegacy === false ? 'The legacy list stays until the last chunk' : 'The legacy list on the workspace row is cleared',
+      ],
+    };
+  },
+  audit(_input: MigrateInput, result: DimensionNodesMigrateResult) {
+    return {
+      action: 'DIMENSION_NODES_MIGRATED',
+      entityType: 'workspaces',
+      entityId: '',
+      description: `Moved ${result.migrated} label(s) off the workspace document`,
+      details: { migrated: result.migrated, cleared: result.cleared },
+    };
+  },
+  inverse() { return null; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Move a legacy label tree off the workspace row and into the dimensionNodes collection, clearing the old field in the same transaction; do not use it to add a new value, which workspace.dimensionnode does.',
+    example: { nodes: [{ id: 'n1', dimensionId: 'property', description: 'North tower' }] },
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'A label has no axis, or more than 450 arrive at once.', next: 'Send the tree in chunks of at most 450 labels, each with its axis.' },
+      { code: 'NOT_FOUND', when: 'The workspace is no longer open.', next: 'Reload the workspace and try again.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is a viewer.', next: 'Ask an owner, accountant or bookkeeper to run the move.' },
+    ],
+    next: [{ command: 'workspace.dimensionnode', label: 'Change a value' }],
+  },
+};
+
+/**
+ * Many values at once: the settings screen's own two writes.
+ *
+ * `DimensionsSettings` wrote the label tree with a `writeBatch` from the tab, twice — once when the person saved
+ * their edits, and once when it backfilled values from the free-text paths on old transactions. A batch is atomic
+ * inside one tab and nothing more: `uid` and the workspace were whatever the tab held, `updatedAt` was its clock, and
+ * forty new values left no audit line at all.
+ *
+ * This is the same per-value write `workspace.dimensionnode` makes, for up to 450 values, in one transaction. It
+ * deliberately does **not** touch the workspace's legacy `dimensionNodes` field — that is
+ * `workspace.dimensionnodesmigrate`'s job, and a save must not look like a migration.
+ */
+export const dimensionNodesInput = z.object({
+  nodes: z.array(nodeSchema).min(1).max(450),
+}).strict();
+
+type NodesInput = z.output<typeof dimensionNodesInput>;
+export type DimensionNodesSaved = { saved: number; axes: string[] };
+
+export const dimensionNodesCommand: CommandDefinition<typeof dimensionNodesInput, DimensionNodesSaved> = {
+  name: 'workspace.dimensionnodes',
+  input: dimensionNodesInput,
+  roles: NODE_ROLES,
+  async handler(ctx: CommandContext, tx, input: NodesInput) {
+    const now = new Date().toISOString();
+    for (const node of input.nodes) {
+      const { updatedAt: _sentAt, ...rest } = node;
+      tx.set(ctx.db.collection('dimensionNodes').doc(nodeRowId(ctx.workspaceId, node.dimensionId, node.id)), {
+        ...rest,
+        workspaceId: ctx.workspaceId,
+        updatedAt: now,
+      });
+    }
+    const axes = [...new Set(input.nodes.map(node => node.dimensionId))];
+    return { saved: input.nodes.length, axes };
+  },
+  async preview(_ctx: CommandContext, input: NodesInput) {
+    return {
+      title: `Save ${input.nodes.length} label value(s)`,
+      lines: [...new Set(input.nodes.map(node => node.dimensionId))].map(axis => `${axis}: ${input.nodes.filter(node => node.dimensionId === axis).length}`),
+    };
+  },
+  audit(_input: NodesInput, result: DimensionNodesSaved) {
+    return {
+      action: 'DIMENSION_NODES_SAVED',
+      entityType: 'dimensionNodes',
+      entityId: result.axes.join(','),
+      description: `Saved ${result.saved} label value(s)`,
+      details: { saved: result.saved, axes: result.axes },
+    };
+  },
+  inverse() { return null; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Save a batch of label values the workspace groups by (at most 450 at once); do not use it to move a legacy tree off the workspace row, which workspace.dimensionnodesmigrate does.',
+    example: { nodes: [{ id: 'n1', dimensionId: 'property', description: 'North tower' }] },
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'A value has no axis or no code, or more than 450 arrive at once.', next: 'Send at most 450 values, each with its axis and its code.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is a viewer.', next: 'Ask an owner, accountant or bookkeeper to save the values.' },
+    ],
+    next: [{ command: 'workspace.dimensionaxes', label: 'Change which labels the workspace groups by' }],
   },
 };

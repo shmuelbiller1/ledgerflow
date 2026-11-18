@@ -48,8 +48,9 @@ export async function createTask(db: Firestore, input: Actor & { task: TaskInput
   if (!GIVERS.includes(workspaceRole(ws as never, input.uid))) throw new TaskError(403, 'Only owners, accountants and bookkeepers give tasks');
   const assignee = String(input.task.assignee);
   if (!peopleOf(ws).includes(assignee)) throw new TaskError(400, 'That person is not in this workspace');
-  const open = await db.pool.query<{ n: number }>(`select count(*)::int as n from public.documents where workspace_id = $1 and data->>'kind' = $2 and data->>'status' = 'open'`, [input.workspaceId, TASK_KIND]);
-  if ((open.rows[0]?.n || 0) >= MAX_OPEN_TASKS) throw new TaskError(409, `${MAX_OPEN_TASKS} open tasks at most: finish or remove some first`);
+  const open = await db.collection('documents')
+    .where('workspaceId', '==', input.workspaceId).where('kind', '==', TASK_KIND).where('status', '==', 'open').count().get();
+  if (open.data().count >= MAX_OPEN_TASKS) throw new TaskError(409, `${MAX_OPEN_TASKS} open tasks at most: finish or remove some first`);
   const ref = db.collection('documents').doc();
   const record = input.task.record as Task['record'] | null | undefined;
   const task: Omit<Task, 'id'> = {

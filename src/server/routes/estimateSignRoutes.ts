@@ -1,9 +1,10 @@
 import express from 'express';
 import { getDb } from '../db/firestore';
-import { createSignLink, SignError, signEstimate, signView } from '../services/estimateSignService';
+import { SignError, signEstimate, signView } from '../services/estimateSignService';
+import { signLinkCreateCommand } from '../commands/workspaceHousekeeping';
+import { executeCommand } from '../utils/commandExecutor';
+import { legacyAnswer, workspaceInvocation } from '../utils/legacyCommandRoute';
 import { formatTzDate } from '../../lib/calendarDate';
-
-type AuthedRequest = express.Request & { user: { uid: string; email?: string } };
 
 /**
  * Signing an estimate online (Y-20). `signLinkRouter`: make the private link, mounted at
@@ -20,11 +21,11 @@ const fail = (res: express.Response, err: unknown, what: string) => {
 };
 
 signLinkRouter.post('/', async (req, res) => {
-  const { workspaceId, estimateId } = req.params as Record<string, string>;
-  const { user } = req as unknown as AuthedRequest;
-  try {
-    res.json({ status: 'success', ...(await createSignLink(getDb(), { workspaceId, estimateId, uid: user.uid, email: user.email }, today())) });
-  } catch (err) { fail(res, err, 'The signing link could not be made'); }
+  const params = req.params as Record<string, string>;
+  await executeCommand(req, res, {
+    ...workspaceInvocation(req, signLinkCreateCommand, { estimateId: params.estimateId }),
+    formatResponse: legacyAnswer({ badBody: 'Check the estimate', failed: 'The signing link could not be made' }),
+  });
 });
 
 export const publicEstimateRouter = express.Router();

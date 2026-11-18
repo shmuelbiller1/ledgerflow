@@ -1,10 +1,14 @@
+import express from 'express';
 import type { Request, Response } from 'express';
+import type { AddressInfo } from 'node:net';
 import { z } from 'zod';
 import type { RequestUser } from '../../server/auth/requestUser';
 import type { Firestore } from '../../server/db/firestore';
-import type { CommandDefinition, CommandRole } from '../../server/commands/types';
+import type { AnyCommandDefinition, CommandDefinition, CommandRole } from '../../server/commands/types';
 import type { CommandRunnerDependencies } from '../../server/utils/commandExecutor';
 import { FieldValue } from '../../server/db/firestore';
+import { CommandRegistry } from '../../server/commands/registry';
+import { createCommandRouter } from '../../server/routes/commandRoutes';
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -40,7 +44,9 @@ function merge(current: Record<string, unknown>, patch: Record<string, unknown>)
 
 class MemorySnapshot {
   readonly id: string;
-  constructor(private readonly value: Record<string, unknown> | undefined, id: string) { this.id = id; }
+  /** The document this snapshot came from: services mark entries through `snap.ref`, as they do in production. */
+  readonly ref: MemoryRef | undefined;
+  constructor(private readonly value: Record<string, unknown> | undefined, id: string, ref?: MemoryRef) { this.id = id; this.ref = ref; }
   get exists(): boolean { return this.value !== undefined; }
   data(): Record<string, unknown> | undefined { return this.value ? clone(this.value) : undefined; }
 }
@@ -118,7 +124,7 @@ export class ReplayOnRetryMemoryDb extends MemoryDb {
 class MemoryRef {
   readonly path: string;
   constructor(private readonly db: MemoryDb, readonly collectionName: string, readonly id: string) { this.path = `${collectionName}/${id}`; }
-  async get(): Promise<MemorySnapshot> { return new MemorySnapshot(this.db.read(this.path), this.id); }
+  async get(): Promise<MemorySnapshot> { return new MemorySnapshot(this.db.read(this.path), this.id, this); }
   async set(data: Record<string, unknown>): Promise<void> { this.db.recordDirectWrite({ method: 'set', path: this.path, data }); }
   async create(data: Record<string, unknown>): Promise<void> { this.db.recordDirectWrite({ method: 'create', path: this.path, data }); }
   async update(data: Record<string, unknown>): Promise<void> { this.db.recordDirectWrite({ method: 'update', path: this.path, data }); }
@@ -127,8 +133,15 @@ class MemoryRef {
 
 class MemoryQuery {
   private readonly filters: Array<{ field: string; op: string; value: unknown }>;
-  constructor(private readonly db: MemoryDb, private readonly collectionName: string, filters: Array<{ field: string; op: string; value: unknown }> = []) { this.filters = filters; }
-  where(field: string, op: string, value: unknown): MemoryQuery { return new MemoryQuery(this.db, this.collectionName, [...this.filters, { field, op, value }]); }
+  constructor(
+    private readonly db: MemoryDb,
+    private readonly collectionName: string,
+    filters: Array<{ field: string; op: string; value: unknown }> = [],
+    /** `limit(1)` is how a command asks "is there any of these?" without reading the collection */
+    private readonly max?: number,
+  ) { this.filters = filters; }
+  where(field: string, op: string, value: unknown): MemoryQuery { return new MemoryQuery(this.db, this.collectionName, [...this.filters, { field, op, value }], this.max); }
+  limit(count: number): MemoryQuery { return new MemoryQuery(this.db, this.collectionName, this.filters, count); }
   async get(): Promise<{ docs: MemorySnapshot[]; size: number; empty: boolean }> {
     const matches = (row: Record<string, unknown>, filter: { field: string; op: string; value: unknown }) => {
       const current = row[filter.field];
@@ -136,6 +149,7 @@ class MemoryQuery {
       return current === filter.value;
     };
     const docs = this.db.entries(this.collectionName).filter(row => this.filters.every(filter => matches(row.data, filter)))
+      .slice(0, this.max ?? undefined)
       .map(row => new MemorySnapshot(row.data, row.id));
     return { docs, size: docs.length, empty: docs.length === 0 };
   }
@@ -157,8 +171,9 @@ class MemoryTransaction {
     if (ref instanceof MemoryQuery) return ref.get();
     const path = String((ref as { path?: unknown }).path || '');
     const pending = this.writes.get(path);
-    if (pending) return new MemorySnapshot(pending.method === 'delete' ? undefined : pending.data, path.split('/').at(-1) || '');
-    return new MemorySnapshot(this.db.read(path), path.split('/').at(-1) || '');
+    const source = ref instanceof MemoryRef ? ref : undefined;
+    if (pending) return new MemorySnapshot(pending.method === 'delete' ? undefined : pending.data, path.split('/').at(-1) || '', source);
+    return new MemorySnapshot(this.db.read(path), path.split('/').at(-1) || '', source);
   }
   async getAll(...refs: unknown[]): Promise<unknown[]> { return Promise.all(refs.map(ref => this.get(ref))); }
   set(ref: unknown, data: Record<string, unknown>): this { this.stage('set', ref, data); return this; }
@@ -239,3 +254,65 @@ export function runnerDependencies(db: MemoryDb, counters?: TestCounters): Comma
 }
 
 export const invocationInput = (value = 'first') => ({ workspaceId, value });
+
+export interface CommandHarness {
+  db: MemoryDb;
+  counters: TestCounters;
+  registry: CommandRegistry;
+  dependencies: CommandRunnerDependencies;
+  /** run a registered command as `uid`; `workspace` is the one named in the body (the seeded one by default) */
+  run(uid: string, name: string, input: Record<string, unknown>, workspace?: string): Promise<globalThis.Response>;
+  /** ask for a preview: it writes nothing, and the workspace is always the seeded one */
+  preview(uid: string, name: string, input: Record<string, unknown>): Promise<globalThis.Response>;
+  close(): Promise<void>;
+}
+
+/**
+ * The command router over HTTP for a test: a memory database seeded by the caller, the runner's
+ * dependencies and counters, the commands registered, and `run`/`preview` that ask the same router a
+ * route asks. The tests that watch a batch of commands share this rather than rebuild the server.
+ */
+export async function commandHarness(options: {
+  commands: AnyCommandDefinition[];
+  /** the workspace the seeded data belongs to; `run` names it unless told otherwise */
+  workspaceId: string;
+  seed(db: MemoryDb): void;
+}): Promise<CommandHarness> {
+  const db = new MemoryDb();
+  options.seed(db);
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const registry = new CommandRegistry();
+  for (const command of options.commands) registry.register(command);
+
+  const app = express();
+  // the API does not announce what it is built with (helmet does this in server.ts); the harness
+  // answers as the server does
+  app.disable('x-powered-by');
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    const uid = req.header('x-test-uid');
+    if (uid) (req as unknown as { user: RequestUser }).user = { uid, email: `${uid}@example.test`, displayName: 'Test Person', aal: 'aal2' };
+    next();
+  });
+  app.use('/api/v1/commands', createCommandRouter(registry, dependencies));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise<void>(resolve => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+  const run = (uid: string, name: string, input: Record<string, unknown>, workspace = options.workspaceId) => fetch(`${base}/api/v1/commands/${name}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-test-uid': uid },
+    body: JSON.stringify({ workspaceId: workspace, input }),
+  });
+  const preview = (uid: string, name: string, input: Record<string, unknown>) => fetch(`${base}/api/v1/commands/${name}/preview`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-test-uid': uid },
+    body: JSON.stringify({ workspaceId: options.workspaceId, input }),
+  });
+
+  return {
+    db, counters, registry, dependencies, run, preview,
+    async close() { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); },
+  };
+}

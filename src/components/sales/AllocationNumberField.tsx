@@ -25,7 +25,7 @@ export default function AllocationNumberField({ customer, date, netCents, taxCen
     <div className="space-y-1 text-xs">
       <label htmlFor={id} className="font-semibold text-[var(--text)]">Allocation number (מספר הקצאה)</label>
       <input id={id} type="text" inputMode="numeric" maxLength={9} value={value} onChange={e => onChange(e.target.value.replace(/\D/g, ''))}
-        className="w-40 ml-2 px-2 py-1 bg-[var(--surface)] border border-[var(--line)] rounded-md font-mono" />
+        className="w-40 ms-2 px-2 py-1 bg-[var(--surface)] border border-[var(--line)] rounded-md font-mono" />
       <p role="status" className={problem ? 'text-amber-600' : 'text-[var(--muted)]'}>
         {problem || `Needed: a business buyer and more than ${formatCurrency(allocationThresholdCents(date) || 0, 'ILS')} before VAT. Without it the buyer cannot deduct the VAT.`}
       </p>
