@@ -57,7 +57,7 @@ async function measureReport(root: Locator) {
         if (fragments.some(fragment =>
           (clipsX && (fragment.left < rect.left - tolerance || fragment.right > rect.right + tolerance)) ||
           (clipsY && (fragment.top < rect.top - tolerance || fragment.bottom > rect.bottom + tolerance)))) {
-          problems.add(`clipped text: ${text.textContent.trim().slice(0, 110)}`);
+          problems.add(`clipped text: ${text.textContent.trim().slice(0, 110)} in ${node.tagName.toLowerCase()}.${[...node.classList].slice(0, 8).join('.')}`);
           break;
         }
       }

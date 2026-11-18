@@ -236,13 +236,13 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
                 onToggleGroup={(accountId) => setCollapsedGroups(collapsed => toggleAccountGroup(collapsed, accountId))}
                 onDrillDown={setDrillDownTarget} transactions={transactions} asOfDate={asOfDate} />
             </div>
-            <div className="mt-6 pt-4 border-t border-slate-900 flex justify-between items-center relative overflow-hidden gap-4">
+            <div className="mt-6 pt-4 border-t border-slate-900 flex flex-wrap justify-between items-center gap-x-4 gap-y-2">
               <div className="flex items-center gap-1.5">
                  <Activity aria-hidden="true" size={14} className="text-slate-600 shrink-0" />
                  <span className="text-[var(--text)] font-bold uppercase tracking-wider text-[9px]">Total {labels.assetsLabel}</span>
               </div>
-              <div className="text-right">
-                <span className="text-lg font-mono font-bold text-[var(--text)] tracking-tight block leading-none tabular-nums whitespace-nowrap"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(currentData.totalAssets)}</bdi></span>
+              <div className="text-end">
+                <span className="text-lg font-mono font-bold text-[var(--text)] tracking-tight block tabular-nums whitespace-nowrap"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(currentData.totalAssets)}</bdi></span>
                 {isComparative && prevData.totalAssets !== 0 && (
                   <span className={cn("text-[9px] font-bold block mt-1", currentData.totalAssets >= prevData.totalAssets ? "text-emerald-500" : "text-rose-500")}>
                     {(((currentData.totalAssets - prevData.totalAssets) / Math.abs(prevData.totalAssets)) * 100).toFixed(1)}% vs Prior
@@ -383,7 +383,7 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
             </div>
 
             {/* Combined Total Liabilities & Equity */}
-            <div className="mt-6 pt-4 border-t border-slate-900 flex justify-between items-center relative overflow-hidden gap-4">
+            <div className="mt-6 pt-4 border-t border-slate-900 flex flex-wrap justify-between items-center gap-x-4 gap-y-2">
               <div className="space-y-0.5 min-w-0">
                 <span className="text-[var(--text)] font-bold uppercase tracking-wider text-[9px] block">{labels.totalClaimsLabel}</span>
                 {!currentData.isBalanced && (
@@ -396,8 +396,8 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
                   </motion.span>
                 )}
               </div>
-              <div className="text-right shrink-0">
-                <span className="text-lg font-mono font-bold text-[var(--text)] tracking-tight block leading-none tabular-nums whitespace-nowrap">
+              <div className="ms-auto text-end shrink-0">
+                <span className="text-lg font-mono font-bold text-[var(--text)] tracking-tight block tabular-nums whitespace-nowrap">
                   <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(currentData.totalClaims)}</bdi>
                 </span>
                 {isComparative && prevData.totalClaims !== 0 && (
