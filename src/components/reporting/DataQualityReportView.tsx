@@ -15,6 +15,9 @@ import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import { useReportText } from './useReportText';
 
+/** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
+const CODE_NAMES = { c0: 'SKU' } as const;
+
 type FilterScope = 'all' | 'labels' | 'filings' | 'items';
 
 const controlClass = 'min-h-11 rounded border border-[var(--line)] bg-[var(--panel)] px-3 text-sm text-[var(--text)]';
@@ -230,7 +233,7 @@ export function DataQualityReportPanel({
                 <caption className="sr-only">{reportText('r.posted-entries-missing-required-labels', 'Posted entries missing required labels')}</caption>
                 <thead>
                   <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                    {['Date', 'Entry', 'Missing label and account', 'Rule kind', 'Amount', 'Action'].map(h => (
+                    {[reportText('r.date-2', 'Date'), reportText('r.entry', 'Entry'), reportText('r.missing-label-and-account', 'Missing label and account'), reportText('r.rule-kind', 'Rule kind'), reportText('r.amount', 'Amount'), reportText('r.action', 'Action')].map(h => (
                       <th key={h} scope="col" className="text-left py-2 px-2">{h}</th>
                     ))}
                   </tr>
@@ -268,7 +271,7 @@ export function DataQualityReportPanel({
                 <caption className="sr-only">{reportText('r.customers-and-vendors-missing-tax-ids-or-postal', 'Customers and vendors missing tax IDs or postal addresses needed for filings')}</caption>
                 <thead>
                   <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                    {['Contact', 'Kind', 'Country', 'Tax ID (masked)', 'Address', 'Missing', 'Why needed', 'Activity', 'Action'].map(h => (
+                    {[reportText('r.contact', 'Contact'), reportText('r.kind', 'Kind'), reportText('r.country', 'Country'), reportText('r.tax-id-masked', 'Tax ID (masked)'), reportText('r.address', 'Address'), reportText('r.missing', 'Missing'), reportText('r.why-needed', 'Why needed'), reportText('r.activity', 'Activity'), reportText('r.action', 'Action')].map(h => (
                       <th key={h} scope="col" className="text-left py-2 px-2">{h}</th>
                     ))}
                   </tr>
@@ -313,7 +316,7 @@ export function DataQualityReportPanel({
                 <caption className="sr-only">{reportText('r.catalogue-items-missing-unit-cost-or-selling-pri', 'Catalogue items missing unit cost or selling price')}</caption>
                 <thead>
                   <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                    {['Item', 'SKU', 'Type', 'Unit cost', 'Selling price', 'Missing', 'Effect on books', 'Action'].map(h => (
+                    {[reportText('r.item', 'Item'), CODE_NAMES.c0, reportText('r.type', 'Type'), reportText('r.unit-cost', 'Unit cost'), reportText('r.selling-price', 'Selling price'), reportText('r.missing', 'Missing'), reportText('r.effect-on-books', 'Effect on books'), reportText('r.action', 'Action')].map(h => (
                       <th key={h} scope="col" className="text-left py-2 px-2">{h}</th>
                     ))}
                   </tr>

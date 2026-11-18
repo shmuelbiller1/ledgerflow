@@ -138,7 +138,7 @@ export default function IsraeliDocumentTypesView() {
     <ReportTableScroll>
       <table className="w-full text-sm">
         <caption className="text-left font-semibold text-[var(--text)] pb-1">{reportText('r.examples-the-four-supported-types-and-two-refusa', 'Examples — the four supported types and two refusal cases')}</caption>
-        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">{['Example', 'Evidence summary', 'Result'].map(h => <th key={h} scope="col" className="text-left py-1 px-2">{h}</th>)}</tr></thead>
+        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">{[reportText('r.example', 'Example'), reportText('r.evidence-summary', 'Evidence summary'), reportText('r.result', 'Result')].map(h => <th key={h} scope="col" className="text-left py-1 px-2">{h}</th>)}</tr></thead>
         <tbody>
           {EXAMPLES.map(row => {
             const r = classifyIsraeliDocument(row.evidence);

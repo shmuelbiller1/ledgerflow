@@ -7,6 +7,7 @@ import { useReportText, fill } from './useReportText';
 /** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
 const CODE_NAMES = { c0: 'src/lib/tax/usFilingCalendar.ts', c1: 'dueDay none', c2: 'e.g. TX or Texas' } as const;
 
+
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const CSV_HEADERS = ['State', 'Name', 'Frequencies', 'Due day', 'Note', 'Source', 'Checked'] as const;
 
@@ -63,7 +64,7 @@ export default function UsFilingCalendarReportView() {
     <ReportTableScroll>
       <table className="w-full text-sm">
         <caption className="text-left font-semibold text-[var(--text)] pb-1">{reportText('r.state-filing-frequencies-and-due-days-weekend-mo', 'State filing frequencies and due days — weekend move to Monday, holidays not moved')}</caption>
-        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">{['State', 'Name', 'Common frequencies', 'Due', 'Weekend-adjusted due for period end', 'Note', 'Source'].map(h => <th key={h} scope="col" className="text-left py-1 px-2">{h}</th>)}</tr></thead>
+        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">{[reportText('r.state', 'State'), reportText('r.name', 'Name'), reportText('r.common-frequencies', 'Common frequencies'), reportText('r.due-2', 'Due'), reportText('r.weekend-adjusted-due-for-period-end', 'Weekend-adjusted due for period end'), reportText('r.note', 'Note'), reportText('r.source', 'Source')].map(h => <th key={h} scope="col" className="text-left py-1 px-2">{h}</th>)}</tr></thead>
         <tbody>
           {rows.map(row => {
             const due = validPeriod ? filingDueDate(row.state, periodEnd) : undefined;

@@ -150,7 +150,7 @@ export default function DunningLettersReportView() {
       <table className="w-full text-sm">
         <caption>{reportText('r.overdue-invoices-and-the-reminder-due', 'Overdue invoices and the reminder due')}</caption>
         <thead>
-          <tr>{['Preview', 'Invoice', 'Customer', 'Due date', 'Days overdue', 'Outstanding', 'Letter due'].map(head =>
+          <tr>{[reportText('r.preview', 'Preview'), reportText('r.invoice-2', 'Invoice'), reportText('r.customer', 'Customer'), reportText('r.due-date-2', 'Due date'), reportText('r.days-overdue', 'Days overdue'), reportText('r.outstanding', 'Outstanding'), reportText('r.letter-due', 'Letter due')].map(head =>
             <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
         </thead>
         <tbody>

@@ -88,7 +88,7 @@ export default function SampleYearBenchmarkReportView() {
             <caption className="sr-only">{reportText('r.five-heaviest-reports-measured-on-the-12-month-s', 'Five heaviest reports measured on the 12-month sample business fixture')}</caption>
             <thead>
               <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                {['Rank', 'Report', 'Measured (ms)', 'Budget (ms)', 'Rows computed', 'Result'].map(h => (
+                {[reportText('r.rank', 'Rank'), reportText('r.report', 'Report'), reportText('r.measured-ms', 'Measured (ms)'), reportText('r.budget-ms', 'Budget (ms)'), reportText('r.rows-computed', 'Rows computed'), reportText('r.result', 'Result')].map(h => (
                   <th key={h} scope="col" className="text-left py-2 px-2">{h}</th>
                 ))}
               </tr>
@@ -116,7 +116,7 @@ export default function SampleYearBenchmarkReportView() {
             <caption className="sr-only">{reportText('r.all-measured-reports-ordered-from-heaviest-to-fa', 'All measured reports ordered from heaviest to fastest')}</caption>
             <thead>
               <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                {['Rank', 'Report', 'Top 5', 'Measured (ms)', 'Rows computed', 'Result'].map(h => (
+                {[reportText('r.rank', 'Rank'), reportText('r.report', 'Report'), reportText('r.top-5', 'Top 5'), reportText('r.measured-ms', 'Measured (ms)'), reportText('r.rows-computed', 'Rows computed'), reportText('r.result', 'Result')].map(h => (
                   <th key={h} scope="col" className="text-left py-2 px-2">{h}</th>
                 ))}
               </tr>
@@ -144,7 +144,7 @@ export default function SampleYearBenchmarkReportView() {
             <caption className="sr-only">{reportText('r.monthly-document-counts-and-totals-in-the-12-mon', 'Monthly document counts and totals in the 12-month sample business fixture')}</caption>
             <thead>
               <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                {['Month', 'Invoices', 'Bills', 'Purchase orders', 'Payments', 'Stock moves', 'Journal entries', 'Invoiced', 'Billed'].map(h => (
+                {[reportText('r.month', 'Month'), reportText('r.invoices-2', 'Invoices'), reportText('r.bills-2', 'Bills'), reportText('r.purchase-orders', 'Purchase orders'), reportText('r.payments', 'Payments'), reportText('r.stock-moves', 'Stock moves'), reportText('r.journal-entries', 'Journal entries'), reportText('r.invoiced-2', 'Invoiced'), reportText('r.billed-2', 'Billed')].map(h => (
                   <th key={h} scope="col" className="text-left py-2 px-2">{h}</th>
                 ))}
               </tr>

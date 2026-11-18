@@ -102,7 +102,7 @@ export default function MilestoneBillingReportView() {
       <table className="w-full text-sm">
         <caption>{reportText('r.sales-orders-with-a-milestone-schedule', 'Sales orders with a milestone schedule')}</caption>
         <thead>
-          <tr>{['Order', 'Date', 'Customer', 'Order total', 'Invoiced', 'Left to bill', 'Next milestone', 'Unscheduled'].map(head =>
+          <tr>{[reportText('r.order', 'Order'), reportText('r.date-2', 'Date'), reportText('r.customer', 'Customer'), reportText('r.order-total', 'Order total'), reportText('r.invoiced-2', 'Invoiced'), reportText('r.left-to-bill-2', 'Left to bill'), reportText('r.next-milestone', 'Next milestone'), reportText('r.unscheduled', 'Unscheduled')].map(head =>
             <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
         </thead>
         <tbody>

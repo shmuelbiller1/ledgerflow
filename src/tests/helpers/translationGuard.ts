@@ -76,6 +76,9 @@ export function checkTranslatedScreen(
         else if (ts.isBinaryExpression(e) && [ts.SyntaxKind.PlusToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(e.operatorToken.kind)) { scan(e.left); scan(e.right); }
         else if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) scan(e.right);
         else if (ts.isParenthesizedExpression(e)) scan(e.expression);
+        // a list of visible words mapped into the markup: {['Serial', 'Documents'].map(head => <th>{head}</th>)}
+        else if (checkObjectProps && ts.isCallExpression(e) && ts.isPropertyAccessExpression(e.expression) && e.expression.name.text === 'map'
+          && ts.isArrayLiteralExpression(e.expression.expression)) e.expression.expression.elements.forEach(scan);
       };
       scan(node.expression);
     }
