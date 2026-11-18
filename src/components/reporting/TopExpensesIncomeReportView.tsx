@@ -6,6 +6,7 @@ import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
 import { csvMoney } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
+import { useReportText } from './useReportText';
 
 interface Props {
   selectedYear?: number;
@@ -18,6 +19,7 @@ export const TopExpensesIncomeReportView: React.FC<Props> = ({
   startDate,
   endDate
 }) => {
+  const reportText = useReportText();
   const [activeTab, setActiveTab] = useState<'expenses' | 'income'>('expenses');
 
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
@@ -52,10 +54,10 @@ export const TopExpensesIncomeReportView: React.FC<Props> = ({
         <div>
           <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-neutral-800" />
-            Top Financial Line Items
+            {reportText('r.top-financial-line-items', 'Top Financial Line Items')}
           </h2>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Identify the largest individual expenditure and revenue transactions across the ledger.
+            {reportText('r.identify-the-largest-individual-expenditure-and', 'Identify the largest individual expenditure and revenue transactions across the ledger.')}
           </p>
         </div>
         <div className="flex bg-neutral-100 p-1 rounded-lg border border-neutral-200">
@@ -68,7 +70,7 @@ export const TopExpensesIncomeReportView: React.FC<Props> = ({
             }`}
           >
             <TrendingDown className="w-3.5 h-3.5" />
-            Top 25 Expenses
+            {reportText('r.top-25-expenses', 'Top 25 Expenses')}
           </button>
           <button
             onClick={() => setActiveTab('income')}
@@ -79,7 +81,7 @@ export const TopExpensesIncomeReportView: React.FC<Props> = ({
             }`}
           >
             <TrendingUp className="w-3.5 h-3.5" />
-            Top 25 Revenue
+            {reportText('r.top-25-revenue', 'Top 25 Revenue')}
           </button>
         </div>
       </div>
@@ -87,18 +89,18 @@ export const TopExpensesIncomeReportView: React.FC<Props> = ({
       {source !== 'loaded' && (
         <p role="note" className="text-xs text-neutral-600" data-testid="top-lines-source">
           {source === 'server'
-            ? 'Not every entry is loaded in this browser: this list is read from every entry on the server.'
-            : 'Not every entry is loaded in this browser and the server could not be asked: this list covers the loaded entries only, so larger lines may be missing.'}
+            ? reportText('r.not-every-entry-is-loaded-in-this-browser-this-l', 'Not every entry is loaded in this browser: this list is read from every entry on the server.')
+            : reportText('r.not-every-entry-is-loaded-in-this-browser-and-th', 'Not every entry is loaded in this browser and the server could not be asked: this list covers the loaded entries only, so larger lines may be missing.')}
         </p>
       )}
 
       <TanStackDataGrid
-        caption="Top expenses and income"
+        caption={reportText('r.top-expenses-and-income', 'Top expenses and income')}
         data={activeItems}
         columns={columns}
         rowHeaderColumn="description"
         pageSize={25}
-        searchPlaceholder="Search descriptions, payees and accounts..."
+        searchPlaceholder={reportText('r.search-descriptions-payees-and-accounts', 'Search descriptions, payees and accounts...')}
         searchLabel="Search descriptions, payees and accounts"
         columnScope={`report-top-lines-${activeTab}`}
         columnLabel={`Top ${activeTab} columns`}
@@ -109,8 +111,8 @@ export const TopExpensesIncomeReportView: React.FC<Props> = ({
           headers: ['Date', 'Description', 'Payee', 'Account / Category', 'Amount'],
           mapRow: row => [row.date, row.description, row.payee || '', row.accountName, csvMoney(row.amountCents)],
         }}
-        emptyState={<EmptyState title={`No ${activeTab} in this period`} description="Try a wider period." />}
-        filteredEmptyState={<EmptyState title="No record matches your search" description="Try another word or account." />}
+        emptyState={<EmptyState title={activeTab === 'expenses' ? reportText('r.no-expenses-in-period', 'No expenses in this period') : reportText('r.no-income-in-period', 'No income in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
+        filteredEmptyState={<EmptyState title={reportText('r.no-record-matches-your-search', 'No record matches your search')} description={reportText('r.try-another-word-or-account', 'Try another word or account.')} />}
       />
     </div>
   );

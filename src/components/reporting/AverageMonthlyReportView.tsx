@@ -10,6 +10,7 @@ import { Calendar, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react'
 import ReportEmptyState from './ReportEmptyState';
 import { ReportProvenanceNote } from './ReportProvenanceNote';
 import { STATEMENT_COLLECTIONS, useBrowserProvenance } from '../../hooks/useBrowserProvenance';
+import { useReportText } from './useReportText';
 
 interface Props {
   selectedYear?: number;
@@ -18,6 +19,7 @@ interface Props {
 export const AverageMonthlyReportView: React.FC<Props> = ({
   selectedYear = workspaceYearMonth().year
 }) => {
+  const reportText = useReportText();
   const provenance = useBrowserProvenance(STATEMENT_COLLECTIONS, false);
   // L-123 step 4f: with the loaded lists capped, the months come from the server (every entry of the year)
   const { summary, source } = useServerMonthlyAverages(selectedYear);
@@ -37,8 +39,8 @@ export const AverageMonthlyReportView: React.FC<Props> = ({
     ) },
     { id: 'status', accessorFn: row => (row.isExpenseAnomaly || row.isIncomeAnomaly ? 'Variance spike' : 'Normal'), header: 'Status / Anomaly', cell: info => (
       String(info.getValue()) === 'Variance spike'
-        ? <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[10px] font-semibold"><AlertTriangle className="w-3 h-3 text-amber-600" aria-hidden="true" />Variance spike</span>
-        : <span className="text-neutral-400 text-[11px] font-medium">Normal</span>
+        ? <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[10px] font-semibold"><AlertTriangle className="w-3 h-3 text-amber-600" aria-hidden="true" />{reportText('r.variance-spike', 'Variance spike')}</span>
+        : <span className="text-neutral-400 text-[11px] font-medium">{reportText('r.normal', 'Normal')}</span>
     ) },
   ];
   const historyComplete = source === 'server' || provenance.completeness === 'complete';
@@ -49,16 +51,16 @@ export const AverageMonthlyReportView: React.FC<Props> = ({
         <div>
           <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-indigo-600" />
-            Monthly Averages & Outlier Forensics ({selectedYear})
+            {reportText('r.monthly-averages-outlier-forensics', 'Monthly Averages & Outlier Forensics (')}{selectedYear})
           </h2>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Baseline run-rate averages with automated statistical anomaly detection (&gt;50% variance).
+            {reportText('r.baseline-run-rate-averages-with-automated-statis', 'Baseline run-rate averages with automated statistical anomaly detection (>50% variance).')}
           </p>
         </div>
       </div>
-      <RangeReportSourceNote source={source} testId="monthly-averages-source" what="these figures" />
+      <RangeReportSourceNote source={source} testId="monthly-averages-source" what={reportText('r.these-figures', 'these figures')} />
       {noActivity && !historyComplete && <ReportProvenanceNote provenance={provenance} />}
-      {noActivity && <ReportEmptyState title="No income or expenses in the loaded records for this year"
+      {noActivity && <ReportEmptyState title={reportText('r.no-income-or-expenses-in-the-loaded-records-for', 'No income or expenses in the loaded records for this year')}
         description={historyComplete
           ? 'Choose another year, or record posted sales and expense entries first. The twelve months remain visible at zero so the selected period is clear.'
           : 'Loaded ledger history is incomplete or failed. Load full history before treating the whole year as inactive; older posted entries may not be in this browser cache.'} />}
@@ -67,35 +69,35 @@ export const AverageMonthlyReportView: React.FC<Props> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="p-4 bg-white rounded-lg border border-neutral-200 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-neutral-500 uppercase">Monthly Average Revenue</span>
+            <span className="text-xs font-semibold text-neutral-500 uppercase">{reportText('r.monthly-average-revenue', 'Monthly Average Revenue')}</span>
             <TrendingUp className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-xl font-mono font-bold text-emerald-600 mt-2">
             {formatCurrency(summary.monthlyAverageIncomeCents)}
-            <span className="text-xs text-neutral-400 font-normal"> / mo</span>
+            <span className="text-xs text-neutral-400 font-normal"> {reportText('r.mo', '/ mo')}</span>
           </div>
         </div>
 
         <div className="p-4 bg-white rounded-lg border border-neutral-200 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-neutral-500 uppercase">Monthly Average Burn / Expense</span>
+            <span className="text-xs font-semibold text-neutral-500 uppercase">{reportText('r.monthly-average-burn-expense', 'Monthly Average Burn / Expense')}</span>
             <TrendingDown className="w-4 h-4 text-rose-600" />
           </div>
           <div className="text-xl font-mono font-bold text-rose-600 mt-2">
             {formatCurrency(summary.monthlyAverageExpenseCents)}
-            <span className="text-xs text-neutral-400 font-normal"> / mo</span>
+            <span className="text-xs text-neutral-400 font-normal"> {reportText('r.mo', '/ mo')}</span>
           </div>
         </div>
       </div>
 
       {/* Monthly Breakdown Table */}
       <TanStackDataGrid
-        caption="Monthly averages"
+        caption={reportText('r.monthly-averages', 'Monthly averages')}
         data={summary.monthlyData}
         columns={columns}
         rowHeaderColumn="month"
         pageSize={25}
-        searchPlaceholder="Search months..."
+        searchPlaceholder={reportText('r.search-months', 'Search months...')}
         searchLabel="Search months"
         columnScope="report-average-monthly"
         columnLabel="Monthly averages columns"
@@ -112,8 +114,8 @@ export const AverageMonthlyReportView: React.FC<Props> = ({
             row.isExpenseAnomaly || row.isIncomeAnomaly ? 'Variance spike' : 'Normal',
           ],
         }}
-        emptyState={<EmptyState title="No months in this year" description="Choose another year." />}
-        filteredEmptyState={<EmptyState title="No month matches your search" description="Try another month name." />}
+        emptyState={<EmptyState title={reportText('r.no-months-in-this-year', 'No months in this year')} description={reportText('r.choose-another-year', 'Choose another year.')} />}
+        filteredEmptyState={<EmptyState title={reportText('r.no-month-matches-your-search', 'No month matches your search')} description={reportText('r.try-another-month-name', 'Try another month name.')} />}
       />
     </div>
   );

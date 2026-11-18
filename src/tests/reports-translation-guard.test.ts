@@ -28,6 +28,10 @@ const FILES = [
   '../components/reporting/DocumentTrendsView.tsx',
   '../components/ledger/GeneralLedgerView.tsx',
   '../components/ledger/TrialBalanceView.tsx',
+  // EU-G1 part 3: the everyday reports after the starred ones
+  ...['VendorBalanceSummaryView', 'ContactBalanceSummaryView', 'SalesByItemReportView',
+    'InventoryValuationReportView', 'StatementView', 'TaxLiabilityView', 'TopExpensesIncomeReportView', 'AverageMonthlyReportView',
+    'EverydayReportViews', 'FinancialRatiosReportView'].map(name => `../components/reporting/${name}.tsx`),
 ];
 
 test('Reports: the default eight are the ones this guard covers', () => {

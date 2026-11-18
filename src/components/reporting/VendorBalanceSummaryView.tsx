@@ -11,8 +11,10 @@ import { computeVendorBalanceSummary, VendorBalanceSummaryRow } from '../../serv
 import { toast } from 'sonner';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useReportText } from './useReportText';
 
 export const VendorBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOfDate: pageAsOfDate }) => {
+  const reportText = useReportText();
   const vendors = useLedgerStore(s => s.vendors);
   const bills = useLedgerStore(s => s.bills);
   const payments = useLedgerStore(s => s.payments);
@@ -76,24 +78,24 @@ export const VendorBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOf
 
   return (
     <PartyReportLayout
-      title="Vendor Balance Summary"
-      description="Consolidated statement of accounts payable, cumulative billing, and payments across all active suppliers."
+      title={reportText('r.vendor-balance-summary', 'Vendor Balance Summary')}
+      description={reportText('r.consolidated-statement-of-accounts-payable-cumul', 'Consolidated statement of accounts payable, cumulative billing, and payments across all active suppliers.')}
       icon={Building}
-      totalLabel="Total Payables Due"
+      totalLabel={reportText('r.total-payables-due', 'Total Payables Due')}
       totalAmountCents={totalOutstandingCents}
       currency={currency}
-      secondaryTotalLabel="Cumulative Billed"
+      secondaryTotalLabel={reportText('r.cumulative-billed', 'Cumulative Billed')}
       secondaryTotalCents={totalBilledAllCents}
       exportFilename="vendor_balance_summary.csv"
       onExportCSV={handleExportCSV}
       searchTerm={searchTerm}
       onSearchChange={setSearchTerm}
-      searchPlaceholder="Search vendor by name, email, or phone..."
+      searchPlaceholder={reportText('r.search-vendor-by-name-email-or-phone', 'Search vendor by name, email, or phone...')}
       asOfDate={asOfDate}
       onAsOfDateChange={setAsOfDate}
       columns={columns}
       data={filteredRows}
-      emptyMessage="No vendor records found matching search filter."
+      emptyMessage={reportText('r.no-vendor-records-found-matching-search-filter', 'No vendor records found matching search filter.')}
       sumKeys={['totalBilledCents', 'totalPaidCents', 'balanceCents']}
       getRowId={(item) => item.vendorId}
     />
