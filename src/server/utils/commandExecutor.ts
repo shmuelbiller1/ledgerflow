@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { errorMessage, HttpError, requestUser } from '../auth/requestUser';
 import { Request, Response } from 'express';
 import type { Firestore, Transaction as CommandTransaction } from '../db/firestore';
@@ -89,7 +89,7 @@ async function executeLegacyCommand<T>(
     } catch (error) {
       const status = (error as { status?: number }).status || 500;
       if (status >= 500) {
-        const correlationId = `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const correlationId = `err_${Date.now()}_${randomBytes(4).toString('hex')}`;
         console.error('[CommandExecutor:%s] %s failed:', correlationId, operationType, error);
         return res.status(status).json({
           status: 'error',
@@ -120,7 +120,7 @@ async function executeLegacyCommand<T>(
     }
     const status = (error as { status?: number }).status || 500;
     if (status >= 500) {
-      const correlationId = `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const correlationId = `err_${Date.now()}_${randomBytes(4).toString('hex')}`;
       console.error('[CommandExecutor:%s] Idempotent operation %s failed:', correlationId, logSafe(scopedKey), logSafeDetail(error));
       return res.status(status).json({
         status: 'error',
