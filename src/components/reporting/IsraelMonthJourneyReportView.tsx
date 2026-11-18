@@ -232,7 +232,7 @@ export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', mo
     {journey && <p className="text-sm">
       <b>{journey.month}</b> ({journey.startDate} {reportText('r.to-2', 'to')} {journey.endDate}) · {journey.done} {reportText('r.of', 'of')} {journey.steps.length} {reportText('r.steps-done', 'steps done')}
       {journey.readyToClose
-        ? reportText('r.the-month-s-recorded-work-is-complete-here', '· the month’s recorded work is complete here.')
+        ? ` ${reportText('r.the-month-s-recorded-work-is-complete-here', '· the month’s recorded work is complete here.')}`
         : journey.nextStep ? ` ${fill(reportText('r.journey-next', '· next: {step}.'), { step: journey.steps.find(s => s.id === journey.nextStep)?.title ?? '' })}` : ''}
     </p>}
 
@@ -329,7 +329,7 @@ function VatReturnTable({ returns, currency, onRecordFiled }: { returns: IsraelM
         { header: reportText('r.zero-rated', 'Zero-rated'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.zeroRatedSalesCents, currency) },
         { header: reportText('r.input-vat-other', 'Input VAT, other'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.otherInputVatCents, currency) },
         { header: reportText('r.input-vat-equipment', 'Input VAT, equipment'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.fixedAssetInputVatCents, currency) },
-        { header: reportText('r.to-pay-reclaim', 'To pay / reclaim'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => (<>{formatCurrency(Math.abs(r.toPayCents), currency)}{r.toPayCents < 0 ? reportText('r.reclaim', '(reclaim)') : ''}</>) },
+        { header: reportText('r.to-pay-reclaim', 'To pay / reclaim'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => (<>{formatCurrency(Math.abs(r.toPayCents), currency)}{r.toPayCents < 0 ? ` ${reportText('r.reclaim', '(reclaim)')}` : ''}</>) },
         { header: reportText('r.due-date-2', 'Due date'), className: "py-1 px-2 whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => r.dueDate || (r.filing ? `${r.filing} report` : 'not stated') },
         { header: reportText('r.recorded-as-filed', 'Recorded as filed'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.filed ? 'Yes' : onRecordFiled && !r.pending
             ? <button type="button" className="min-h-11 px-3 rounded border border-[var(--line)]" disabled={saving === r.registration}

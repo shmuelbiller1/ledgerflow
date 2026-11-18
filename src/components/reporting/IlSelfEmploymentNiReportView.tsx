@@ -32,8 +32,8 @@ function FigureLine({ label, figure, months = 1 }: { label: string; figure: IlSe
       <b>{label}</b>: {money(figure.totalCents)}
       {months > 1 ? ` ${fill(reportText('r.for-period-average', 'for the period ({amount} a month on average)'), { amount: money(figure.totalCents / months) })}` : ''} {reportText('r.national-insurance', '— national insurance')} {money(figure.niCents)}{reportText('r.health-insurance', ', health insurance')} {money(figure.healthCents)}{reportText('r.charged-on', ', charged on')}{' '}
       {money(figure.baseCents)} {reportText('r.of-which', 'of which')} {money(figure.reducedBaseCents)} {reportText('r.at-the-reduced-rate-and', 'at the reduced rate and')} {money(figure.fullBaseCents)} {reportText('r.at-the-regular-rate', 'at the regular rate')}
-      {figure.clampedToMinimum ? reportText('r.the-income-was-below-the-minimum-assessable-inco', '(the income was below the minimum assessable income, so the minimum was charged)') : ''}
-      {figure.clampedToMaximum ? reportText('r.the-income-was-above-the-maximum-assessable-inco', '(the income was above the maximum assessable income, so only up to it is charged)') : ''}.
+      {figure.clampedToMinimum ? ` ${reportText('r.the-income-was-below-the-minimum-assessable-inco', '(the income was below the minimum assessable income, so the minimum was charged)')}` : ''}
+      {figure.clampedToMaximum ? ` ${reportText('r.the-income-was-above-the-maximum-assessable-inco', '(the income was above the maximum assessable income, so only up to it is charged)')}` : ''}.
     </div>
   );
 }
@@ -82,7 +82,7 @@ export default function IlSelfEmploymentNiReportView() {
             <b>{money(row.minMonthlyIncomeCents)}</b>.
             {row.publishedMinMonthlyAdvanceCents !== undefined
               ? ` ${fill(reportText('r.published-advance-range', 'The Authority\'s published advance for 2026 runs from {min} to {max} a month.'), { min: money(row.publishedMinMonthlyAdvanceCents), max: money(row.publishedMaxMonthlyAdvanceCents) })}`
-              : reportText('r.no-advance-floor-or-ceiling-is-recorded-for-this', 'No advance floor or ceiling is recorded for this year, because this table only carries what was read from the Authority for it.')}
+              : ` ${reportText('r.no-advance-floor-or-ceiling-is-recorded-for-this', 'No advance floor or ceiling is recorded for this year, because this table only carries what was read from the Authority for it.')}`}
           </p>
           <FigureLine label={reportText('r.advance-a-month', 'Advance, a month')} figure={advance} />
           <FigureLine label={reportText('r.settlement-a-quarter', 'Settlement, a quarter')} figure={settlement} months={3} />
