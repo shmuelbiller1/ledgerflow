@@ -1,6 +1,5 @@
 import type { Transaction as LedgerTransaction } from "../../types";
-import { errorMessage } from "../auth/requestUser";
-import { globalAdminConfig, sendError, handleApiError, authenticate, requireAdmin, writeAuditLog, getReportContext } from "../http/serverKit";
+import { globalAdminConfig, sendError, handleApiError, authenticate, requireAdmin, writeAuditLog, writeAuditLogStrict, getReportContext } from "../http/serverKit";
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
 import express from "express";
 import type { DocumentData } from "../db/firestore";
@@ -19,6 +18,12 @@ import {
 } from "../utils/idempotency";
 import { requireSystemJobOrAdmin } from "../auth/systemJobAuth";
 import { registerGiveAccessRoutes } from "./giveAccessRoutes";
+
+/** A system job trigger called by an admin (not the cron secret) leaves an actor row (#826). */
+async function auditManualTrigger(req: express.Request, action: string, details: string): Promise<void> {
+  const user = (req as Partial<AuthenticatedRequest>).user;
+  if (user?.uid) await writeAuditLog(user.uid, user.email ?? '', action, details, 'system');
+}
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerAdminRoutes(app: express.Express, ctx: ServerContext): void {
@@ -202,7 +207,8 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
         users
       });
     } catch (err) {
-      sendError(res, errorMessage(err), 500);
+      console.error("[Admin] List users failed:", err);
+      sendError(res, "Could not load users.", 500);
     }
   });
 
@@ -234,6 +240,8 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
             updatedAt: new Date().toISOString()
           };
           t.set(userRef, updateData, { merge: true });
+          // the grant is logged in the same transaction: no audit row, no privilege change (#826)
+          await writeAuditLogStrict(authReq.user.uid, authReq.user.email!, "ADMIN_USER_UPDATED", `Created user ${userId}`, 'system', {}, updateData, t);
           return { auditResult: { userId, ...updateData }, before: {}, roleChanged: true, newRole: validated.role };
         }
         
@@ -247,20 +255,9 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
 
         const auditResult = { userId, ...before, ...updateData };
 
-        try {
-          await writeAuditLog(
-            authReq.user.uid, 
-            authReq.user.email!, 
-            "ADMIN_USER_UPDATED", 
-            `Updated user ${userId}`, 
-            'system',
-            before,
-            { ...before, ...updateData },
-            t
-          );
-        } catch (auditErr) {
-          console.warn("[Admin User Update] Audit write bypassed:", auditErr);
-        }
+        // an audit failure rolls the change back rather than committing an unlogged privilege change (#826)
+        await writeAuditLogStrict(authReq.user.uid, authReq.user.email!, "ADMIN_USER_UPDATED", `Updated user ${userId}`, 'system',
+          before, { ...before, ...updateData }, t);
 
         return { auditResult, before, roleChanged: validated.role && validated.role !== before.role, newRole: validated.role };
       };
@@ -278,14 +275,13 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
       }
 
       // Update custom claims
-      try {
-        if (validated.role) {
-          await authAdmin.setCustomUserClaims(userId, {
-            admin: validated.role === 'admin'
-          });
+      if (validated.role) {
+        try {
+          await authAdmin.setCustomUserClaims(userId, { admin: validated.role === 'admin' });
+        } catch (claimsErr) {
+          console.error("[Admin User Update] Sign-in role not updated:", claimsErr);
+          return sendError(res, 'The role was saved but the sign-in role was not updated; save it again.', 502);
         }
-      } catch (claimsErr) {
-        console.warn("[Admin User Update] Custom claims update note:", claimsErr);
       }
 
       res.json({ status: "success", data: mutationOutput?.auditResult || { userId, role: validated.role } });
@@ -334,13 +330,14 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
   });
 
   // Scheduled Recurring Processing Endpoint (Authenticated via Admin or System Secret)
-  app.post("/api/v1/system/recurring/process", requireSystemJobOrAdmin, async (_req: express.Request, res: express.Response) => {
+  app.post("/api/v1/system/recurring/process", requireSystemJobOrAdmin, async (req: express.Request, res: express.Response) => {
     try {
+      await auditManualTrigger(req, "SYSTEM_RECURRING_TRIGGERED", "Ran recurring processing by hand");
       const result = await processAllRecurring();
       res.json({ status: "success", data: result });
     } catch (err) {
       console.error("[System Cron] Recurring processing failed:", err);
-      res.status(500).json({ status: "error", message: errorMessage(err) });
+      res.status(500).json({ status: "error", message: "Recurring processing failed." });
     }
   });
 
@@ -350,12 +347,13 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
       const hoursBack = req.body?.hoursBack ? Number(req.body.hoursBack) : 24;
       const recipientEmail = req.body?.recipientEmail ? String(req.body.recipientEmail) : undefined;
       const forceSendZero = Boolean(req.body?.forceSendZero);
+      await auditManualTrigger(req, "SYSTEM_ERROR_DIGEST_TRIGGERED", "Ran the error digest by hand");
 
       const result = await processErrorDigest({ hoursBack, recipientEmail, forceSendZero });
       res.json({ status: "success", data: result });
     } catch (err) {
       console.error("[System Cron] Error digest job failed:", err);
-      res.status(500).json({ status: "error", message: errorMessage(err) });
+      res.status(500).json({ status: "error", message: "Error digest failed." });
     }
   });
 
@@ -366,7 +364,7 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
         globalAdminConfig
       });
     } catch (err) {
-      res.status(500).json({ status: "error", message: errorMessage(err) });
+      handleApiError(res, err);
     }
   });
 
@@ -432,6 +430,7 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
       if (!workspaceId) {
         return res.status(400).json({ status: "error", message: "Missing workspaceId" });
       }
+      await writeAuditLog(authReq.user.uid, authReq.user.email ?? '', "ADMIN_ORPHAN_SCAN", `Ran an orphan scan on ${workspaceId}`, workspaceId);
       const { accounts, transactions } = await getReportContext(authReq, workspaceId);
       const scanResult = TruthEngine.scanOrphanedAccountReferences(accounts, transactions);
       res.json({

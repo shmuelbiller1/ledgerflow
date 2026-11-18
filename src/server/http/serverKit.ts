@@ -372,6 +372,19 @@ export async function writeAuditLog(
 }
 
 /**
+ * Same row as `writeAuditLog`, but a failure throws: for privilege changes, where an unlogged change must roll back (#826).
+ */
+export async function writeAuditLogStrict(
+  userId: string, email: string, action: string, details: string, workspaceId: string,
+  before: unknown, after: unknown, transaction: Transaction,
+) {
+  await writeServerAuditLog({
+    workspaceId, uid: userId, email, action, entityType: 'system', entityId: workspaceId,
+    details: { description: details, before: before || null, after: after || null },
+  }, { db: getDb(), tx: transaction });
+}
+
+/**
  * Shared data fetcher for reports to ensure consistent auth and efficiency
  */
 export async function getReportContext(req: AuthenticatedRequest, workspaceId: string) {
