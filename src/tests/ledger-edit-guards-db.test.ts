@@ -190,6 +190,18 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
     assert.ok(changes.some(c => c.id === draftId && c.before.status === 'draft' && c.after.status === 'completed'), JSON.stringify(changes));
   });
 
+  test('only a platform admin certifies an entry: partial update, whole update and a new entry are refused', async () => {
+    const partial = await send('PUT', `/api/v1/transactions/${handId}`, { partialUpdate: { status: 'certified' } });
+    assert.equal(partial.status, 409, await partial.text());
+    const entry = await read(handId);
+    const whole = await send('PUT', `/api/v1/transactions/${handId}`, { transaction: { ...entry, id: handId, status: 'certified' }, expectedUpdatedAt: entry?.updatedAt });
+    assert.ok(whole.status >= 400, `whole update: ${whole.status} ${await whole.text()}`);
+    assert.equal((await read(handId))?.status, 'completed');
+    const created = await send('POST', '/api/v1/transactions', { transaction: { id: `${ws}_selfcert`, workspaceId: ws, date: '2026-10-02', description: 'x', status: 'certified', type: 'actual', currency: 'USD', exchangeRate: 1, lines: [{ accountId: 'a', amountCents: 100 }, { accountId: 'b', amountCents: -100 }] } });
+    assert.ok(created.status >= 400, `create: ${created.status} ${await created.text()}`);
+    assert.equal(await read(`${ws}_selfcert`), undefined);
+  });
+
   const lines = (r: number, a: number[]) => [{ accountId: `${fxWs}_a`, amountCents: a[0], exchangeRate: r }, { accountId: `${fxWs}_b`, amountCents: a[1], exchangeRate: r }, { accountId: `${fxWs}_b`, amountCents: a[2], exchangeRate: r }];
   const homeOf = (t: Record<string, any> | undefined, account: string) => (t?.lines || []).filter((l: any) => l.accountId === account) // eslint-disable-line @typescript-eslint/no-explicit-any
     .reduce((sum: number, l: any) => sum + (Number.isInteger(l.baseAmountCents) ? l.baseAmountCents : Math.round(l.amountCents * (l.exchangeRate ?? t?.exchangeRate ?? 1))), 0); // eslint-disable-line @typescript-eslint/no-explicit-any

@@ -196,7 +196,10 @@ test('updating one bank line answers its id and fields, and refuses another work
   db.seed(`bankLines/${WS}_line`, { workspaceId: WS, date: '2026-10-20', status: 'pending', amountCents: 1000 });
   db.seed(`bankLines/${OTHER}_line`, { workspaceId: OTHER, date: '2026-10-20', status: 'pending', amountCents: 1000 });
 
-  const updated = await invoke(db, updateBankLineCommand, VIEWER, { workspaceId: WS, id: `${WS}_line`, data: { notes: 'Cheque 118' } });
+  // #830: a viewer is refused; a bookkeeper may change the line
+  const asViewer = await invoke(db, updateBankLineCommand, VIEWER, { workspaceId: WS, id: `${WS}_line`, data: { notes: 'Cheque 118' } });
+  assert.equal(asViewer.status, 403, JSON.stringify(asViewer.body));
+  const updated = await invoke(db, updateBankLineCommand, BOOKKEEPER, { workspaceId: WS, id: `${WS}_line`, data: { notes: 'Cheque 118' } });
   assert.equal(updated.status, 200, JSON.stringify(updated.body));
   assert.equal(updated.body.id, `${WS}_line`);
   assert.deepEqual(updated.body.data, { notes: 'Cheque 118' });

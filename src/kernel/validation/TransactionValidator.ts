@@ -6,6 +6,7 @@ import { getAbsoluteTotal } from '../../lib/txFilters';
 import { SecurityService } from '../../services/securityService';
 import { assertPostingOpen, lockMessage, postingLock } from '../../lib/periodLock';
 import { settleHomeCurrency } from '../../lib/txFilters';
+import { certifyRefusal } from '../../server/services/ledgerEditGuards';
 
 export interface ValidationContext {
   workspaceId: string;
@@ -91,6 +92,9 @@ export class TransactionValidator {
     if (existingTx && (existingTx.status === 'certified' || existingTx.status === 'void') && !context.user.admin) {
       throw new Error(`Forbidden: Transaction ${existingTx.id} status is locked.`);
     }
+
+    const certify = certifyRefusal(existingTx?.status, validatedTx.status, Boolean(context.user.admin));
+    if (certify) throw new Error(`Forbidden: ${certify}`);
 
     // 3. Ownership / Immutability
     if (existingTx && existingTx.workspaceId !== context.workspaceId) {
