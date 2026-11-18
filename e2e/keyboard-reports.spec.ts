@@ -11,8 +11,8 @@ import { seedDemoBooks } from './helpers/demoBooks';
  * Tab/Shift+Tab to the control, Enter/Arrow keys to work it, Escape to leave the drawer.
  *
  * A-274: the same contract across two rows — open the first row's drawer from its arrow button,
- * close it, then open a different row with Enter and close: focus must land on the second row, not
- * back on the first row's arrow (the `openerRef` the arrow set must not survive the second open).
+ * close it, then open a different row with Enter and close: focus must land on the second row.
+ * The first close must not steal focus back after the reader moves to the next row.
  */
 
 async function signInAsGuest(page: Page) {
@@ -192,8 +192,8 @@ test('A-274: A/R aging — arrow-open one row, Enter-open another, focus lands o
   await expect(drawer).toHaveCount(0);
   await expect(firstArrow).toBeFocused();
 
-  // 2. open the second row with Enter on the row itself and close: focus must land on the second
-  //    row — not back on the first row's arrow the previous open left in `openerRef`
+  // 2. move immediately to the second row, open it with Enter, and close it. Focus must stay
+  //    on this row; a delayed restore to the first arrow would steal the next keystroke.
   await second.focus();
   await expect(second).toBeFocused();
   await page.keyboard.press('Enter');
