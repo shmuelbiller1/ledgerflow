@@ -155,7 +155,10 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "csv-parse": "^7.0.2",
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "whatwg-encoding": {
+      "iconv-lite": "^0.7.3"
+    }
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
