@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { useUIStore } from "../../stores/useUIStore";
 import { useDialog } from "../../hooks/useDialog";
@@ -10,6 +10,8 @@ import {
   articlesForScreen,
   findScreenHelpDoc,
 } from "../../lib/helpCenterArticles";
+import HelpLanguagePicker from "./HelpLanguagePicker";
+import { ScreenManual, RelatedArticle } from "./ScreenManual";
 
 export function ScreenHelpDialog({
   entry,
@@ -21,23 +23,26 @@ export function ScreenHelpDialog({
   onClose: () => void;
 }) {
   const { dialogProps, titleId } = useDialog(onClose);
-  const [lang, setLang] = useState<"en" | "he">("en");
-  const screenDoc = useMemo(() => findScreenHelpDoc(activeTab), [activeTab]);
-  const related = useMemo(() => articlesForScreen(activeTab).slice(0, 3), [activeTab]);
+  const [lang, setLang] = useState(() => useUIStore.getState().language);
+  // Reports have individual guides; Settings and the Ledger lenses share their screen’s Help button.
+  const screenId = activeTab === "reports" ? entry.id : activeTab;
+  const screenDoc = findScreenHelpDoc(screenId);
+  const related = articlesForScreen(screenId).slice(0, 3);
 
   return createPortal(
     <div {...dialogProps} className="fixed inset-0 z-[180] bg-black/50 p-3 flex items-center justify-center">
       <div
+        lang={lang} dir={lang === "he" ? "rtl" : "ltr"}
         className="w-full max-w-xl max-h-[85dvh] overflow-y-auto p-5 space-y-4 rounded-xl border bg-[var(--panel)] text-[var(--text)]"
       >
         <h2 id={titleId} className="text-xl font-semibold">
           {lang === "he" ? `עזרה: ${entry.labelHe}` : `Help for ${entry.label}`}
         </h2>
         {/* A-201: the screen's own description in Hebrew; the general page summary only when it has none */}
-        <p dir={lang === "he" ? "rtl" : "ltr"} lang={lang}>
+        <p>
           {lang === "he" ? entry.helpHe || screenDoc.summaryHe : entry.help}
         </p>
-        <p className="text-sm text-[var(--muted)]" dir={lang === "he" ? "rtl" : "ltr"}>
+        <p className="text-sm text-[var(--muted)]">
           {lang === "he"
             ? "אפשר לערוך נתונים משויכים במגירה הצדית שבה היא מוצעת. השתמשו בכפתור ההצמדה בכותרת כדי לשמור דף בהישג יד במעבר למסך אחר."
             : "Related metadata can be edited in the shared side drawer where offered. Use the existing header pin control to keep a page handy while visiting another screen."}
@@ -51,47 +56,18 @@ export function ScreenHelpDialog({
               className="min-h-11 px-4 border rounded"
               onClick={onClose}
             >
-              Close help
+              {lang === "he" ? "סגירת העזרה" : "Close help"}
             </button>
-            <div className="inline-flex rounded border border-[var(--line)] overflow-hidden" role="group" aria-label="Help language">
-              <button
-                type="button"
-                aria-pressed={lang === "en"}
-                onClick={() => setLang("en")}
-                className={`min-h-11 px-3 text-xs font-medium ${lang === "en" ? "bg-[var(--text)] text-[var(--bg)]" : "bg-[var(--surface)] text-[var(--text)]"}`}
-              >
-                English
-              </button>
-              <button
-                type="button"
-                aria-pressed={lang === "he"}
-                onClick={() => setLang("he")}
-                className={`min-h-11 px-3 text-xs font-medium ${lang === "he" ? "bg-[var(--text)] text-[var(--bg)]" : "bg-[var(--surface)] text-[var(--text)]"}`}
-              >
-                עברית
-              </button>
-            </div>
+            <HelpLanguagePicker language={lang} onChange={setLang} />
           </div>
 
-          <div className="space-y-1.5 border-t border-[var(--line)] pt-3">
-            <div className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-              {lang === "he" ? "מדריכים קשורים" : `Related how-to guides (${screenDoc.docPath})`}
-            </div>
-            {related.map(article => (
-              <button
-                key={article.id}
-                type="button"
-                dir={lang === "he" ? "rtl" : "ltr"}
-                onClick={() => {
-                  onClose();
-                  useUIStore.getState().goToPage({ tab: "help" });
-                }}
-                className="w-full text-left min-h-11 px-3 py-2 border border-[var(--line)] rounded-lg bg-[var(--surface)] text-xs font-medium"
-              >
-                <bdi>{lang === "he" ? article.titleHe : article.titleEn}</bdi>
-              </button>
-            ))}
-          </div>
+          <ScreenManual doc={screenDoc} screenId={screenId} lang={lang} />
+          {/* Trial Balance is a Ledger lens, not a Reports route. Keep the parent Ledger guide too. */}
+          {activeTab === "ledger" && <ScreenManual doc={findScreenHelpDoc("trial-balance")} screenId="trial-balance" lang={lang} />}
+          {related.length > 0 && <div className="space-y-2 border-t border-[var(--line)] pt-3">
+            <h3 className="text-sm font-semibold">{lang === "he" ? "מדריכים קשורים" : "Related how-to guides"}</h3>
+            {related.map(article => <RelatedArticle key={article.id} article={article} lang={lang} />)}
+          </div>}
 
           <div className="pt-1">
             <button
@@ -102,7 +78,7 @@ export function ScreenHelpDialog({
                 useUIStore.getState().goToPage({ tab: "help" });
               }}
             >
-              Open Help &amp; Guide
+              {lang === "he" ? "פתיחת מרכז העזרה" : "Open Help & Guide"}
             </button>
           </div>
         </div>

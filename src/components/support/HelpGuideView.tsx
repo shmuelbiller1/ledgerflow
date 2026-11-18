@@ -18,13 +18,14 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useUIStore } from "../../stores/useUIStore";
+import HelpLanguagePicker from "./HelpLanguagePicker";
 import ReleaseNotes from "./ReleaseNotes";
 import AllScreensHelp from "./AllScreensHelp";
 import MainPathGuide from "./MainPathGuide";
 import GuestCountrySamplePicker from "./GuestCountrySamplePicker";
 import FirstMonthOnboardingHub from "./FirstMonthOnboardingHub";
 import AccessibilityAndLanguagePanel from "./AccessibilityAndLanguagePanel";
-import { HOW_TO_ARTICLES, SCREEN_HELP_DOCS, searchHowToArticles } from "../../lib/helpCenterArticles";
+import { HOW_TO_ARTICLES, SCREEN_HELP_DOCS, findScreenHelpDoc, searchHowToArticles } from "../../lib/helpCenterArticles";
 
 import { BRAND_NAME } from '../../config/brand';
 interface SectionDoc {
@@ -33,7 +34,7 @@ interface SectionDoc {
   icon: LucideIcon;
   category: string;
   summary: string;
-  steps: string[];
+  steps: readonly string[];
   tips?: string[];
 }
 
@@ -61,7 +62,7 @@ const GUIDE_SECTIONS: SectionDoc[] = [
     category: "Money In",
     summary: "Create, send, track, and reconcile sales invoices with tax calculations and payment terms.",
     steps: [
-      "Go to Sales and click \"New Invoice\".",
+      "Go to Sales and choose \"Add Invoice\".",
       "Select or type a customer name and set the invoice date and due date.",
       "Add line items with descriptions, quantities, unit prices, and revenue accounts.",
       "Toggle Tax Inclusive if prices already include sales tax, or enter a tax rate percentage.",
@@ -79,7 +80,7 @@ const GUIDE_SECTIONS: SectionDoc[] = [
     category: "Money Out",
     summary: "Record vendor bills, allocate expenses across cost centers, and manage accounts payable.",
     steps: [
-      "Go to Purchases and click \"Record New Bill\".",
+      "Go to Purchases and choose \"Record Bill\".",
       "Select a vendor to auto-fill default expense categories.",
       "Add split line items for multi-category expense allocation.",
       "Attach receipts or drag-and-drop document files.",
@@ -102,17 +103,11 @@ const GUIDE_SECTIONS: SectionDoc[] = [
   },
   {
     id: "banking-reconciliation",
-    title: "Bank Feeds & Zero-Variance Reconciliation",
+    title: "Match bank statement lines",
     icon: Layers,
     category: "Reconcile",
-    summary: "Match imported bank lines against general ledger entries to ensure statement reconciliation.",
-    steps: [
-      "Open Bank Connections to sync transactions or upload statement CSVs.",
-      "Review suggestions in the \"To Review\" inbox.",
-      "Navigate to Reconciliation and enter your statement closing balance and date.",
-      "Check off matching items until Difference reaches exactly $0.00.",
-      "Finalize the reconciliation statement to seal the period."
-    ]
+    summary: findScreenHelpDoc('reconciliation').summaryEn,
+    steps: findScreenHelpDoc('reconciliation').keyTasksEn,
   },
   {
     id: "period-close-reversals",
@@ -284,10 +279,7 @@ export default function HelpGuideView() {
                   {matchingHowTo.length} of {HOW_TO_ARTICLES.length} articles · {SCREEN_HELP_DOCS.length} bilingual screen manuals
                 </p>
               </div>
-              <div className="inline-flex rounded-lg border border-[var(--line)] overflow-hidden" role="group" aria-label="How-to article language">
-                <button type="button" aria-pressed={howToLang === 'en'} onClick={() => setHowToLang('en')} className={`min-h-11 px-3 text-xs font-medium ${howToLang === 'en' ? 'bg-[var(--text)] text-[var(--bg)]' : 'bg-[var(--surface)] text-[var(--text)]'}`}>English</button>
-                <button type="button" aria-pressed={howToLang === 'he'} onClick={() => setHowToLang('he')} className={`min-h-11 px-3 text-xs font-medium ${howToLang === 'he' ? 'bg-[var(--text)] text-[var(--bg)]' : 'bg-[var(--surface)] text-[var(--text)]'}`}>עברית</button>
-              </div>
+              <HelpLanguagePicker language={howToLang} onChange={setHowToLang} />
             </div>
             <div dir={howToLang === 'he' ? 'rtl' : 'ltr'} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {matchingHowTo.map(article => (

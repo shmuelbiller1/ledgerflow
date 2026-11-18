@@ -14,7 +14,7 @@ export default function FirstHourGuide() {
     { title: 'Record a bill', description: 'In Purchases, add a vendor, then choose Record Bill. Review the account, date and amount before saving.', action: 'Open bills', open: () => goToPage({ tab: 'purchases' }) },
     { title: 'Record a payment', description: 'Open an unpaid invoice in Sales and use Receive Payment. For a bill payment, use Purchases. Recording a payment does not send money through your bank.', action: 'Open unpaid invoices', open: () => goToPage({ tab: 'sales' }) },
     { title: 'Import a bank statement', description: 'In Bank Connections, choose Import statement and review the file mapping. Importing bank lines does not mean they have been reconciled.', action: 'Open bank import', open: () => goToPage({ tab: 'banking' }) },
-    { title: 'Reconcile the bank', description: 'Match imported bank lines to existing entries and review differences. Check the statement dates and closing balance before completing reconciliation.', action: 'Open reconciliation', open: () => goToPage({ tab: 'reconciliation' }) },
+    { title: 'Reconcile the bank', description: 'Select a bank line and its entry under To review. Check the dates and amounts before confirming. A match is not a statement close.', action: 'Open reconciliation', open: () => goToPage({ tab: 'reconciliation' }) },
     { title: 'Review profit and loss', description: 'Choose the reporting dates and Generate. Check the results against your posted documents; a balanced report alone does not prove the books are correct.', action: 'Open profit and loss', open: () => goToPage({ tab: 'reports', sub: 'pnl' }) },
   ];
 
