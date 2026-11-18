@@ -1,5 +1,5 @@
 {
-  "writeRoutes": 53,
+  "writeRoutes": 49,
   "directBrowserWrites": 0,
   "routeSites": {
     "src/server/routes/aiRoutes.ts": 1,
@@ -32,9 +32,7 @@
     "src/server/routes/stripeWebhookRoutes.ts": 1,
     "src/server/routes/supportRoutes.ts": 2,
     "src/server/routes/telemetryRoutes.ts": 1,
-    "src/server/routes/transactions/bulkRoutes.ts": 1,
-    "src/server/routes/transactions/crudRoutes.ts": 2,
-    "src/server/routes/transactions/reverseRoutes.ts": 2
+    "src/server/routes/transactions/bulkRoutes.ts": 1
   },
   "browserSites": {},
   "localStoreWrites": 6,
