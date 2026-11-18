@@ -59,7 +59,8 @@ The repository now has 61 migrations. The new file, `20261117210000_assistant_sa
 [#787](https://github.com/shmuelbiller1/ledgerflow/pull/787). The owner believes migrations are up to date;
 this pass did not independently verify the live list. See the [SBX-1 readiness note](#17-nov--sbx-1-overlay-migration)
 before enabling sandbox callers. The merged report/balance PR [#790](https://github.com/shmuelbiller1/ledgerflow/pull/790)
-and the records/metadata SQL group both add **no migration** and require no SQL action.
+and records/metadata PR [#792](https://github.com/shmuelbiller1/ledgerflow/pull/792) are merged. The stock, period,
+and settlement SQL group also adds **no migration**; none of these groups requires SQL action.
 
 ## Payroll, mass entry edits, tags and tax returns now run through registered commands (nothing for you to do)
 

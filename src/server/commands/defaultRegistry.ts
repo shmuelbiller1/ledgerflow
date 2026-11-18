@@ -1,5 +1,6 @@
 import { alertSettingsUpdateCommand } from './alerts';
 import { recordFieldsCommand } from './records';
+import { recordDeleteCommand, recordSaveCommand } from './plainRecords';
 import { presenceBeatCommand, presenceLeaveCommand } from './presence';
 import { auditAppendCommand } from './audit';
 import { importMapRestoreCommand, importMapSaveCommand } from './importMaps';
@@ -163,6 +164,8 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(supportStatusCommand);
   registry.register(auditAppendCommand);
   registry.register(recordFieldsCommand);
+  registry.register(recordSaveCommand);
+  registry.register(recordDeleteCommand);
   registry.register(presenceBeatCommand);
   registry.register(presenceLeaveCommand);
   registry.register(chartAccountCreateCommand);

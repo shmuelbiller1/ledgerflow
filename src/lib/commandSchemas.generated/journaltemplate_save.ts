@@ -15,8 +15,8 @@ export const COMMAND_INPUT_SCHEMA = {
         "type": "object",
         "properties": {
           "accountId": COMMAND_SCHEMA_PARTS.part94,
-          "debitCents": COMMAND_SCHEMA_PARTS.part121,
-          "creditCents": COMMAND_SCHEMA_PARTS.part121,
+          "debitCents": COMMAND_SCHEMA_PARTS.part122,
+          "creditCents": COMMAND_SCHEMA_PARTS.part122,
           "dimensions": {
             "type": "object",
             "propertyNames": {

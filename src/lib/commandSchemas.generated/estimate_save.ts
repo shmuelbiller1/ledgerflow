@@ -8,9 +8,9 @@ export const COMMAND_INPUT_SCHEMA = {
     "number": COMMAND_SCHEMA_PARTS.part49,
     "customerId": COMMAND_SCHEMA_PARTS.part96,
     "customerName": COMMAND_SCHEMA_PARTS.part96,
-    "date": COMMAND_SCHEMA_PARTS.part111,
-    "expiryDate": COMMAND_SCHEMA_PARTS.part111,
-    "amountCents": COMMAND_SCHEMA_PARTS.part121,
+    "date": COMMAND_SCHEMA_PARTS.part112,
+    "expiryDate": COMMAND_SCHEMA_PARTS.part112,
+    "amountCents": COMMAND_SCHEMA_PARTS.part122,
     "currency": {
       "type": "string",
       "minLength": 3,
@@ -40,9 +40,9 @@ export const COMMAND_INPUT_SCHEMA = {
             "minLength": 1,
             "maxLength": 300
           },
-          "quantity": COMMAND_SCHEMA_PARTS.part119,
-          "unitPriceCents": COMMAND_SCHEMA_PARTS.part121,
-          "amountCents": COMMAND_SCHEMA_PARTS.part121
+          "quantity": COMMAND_SCHEMA_PARTS.part120,
+          "unitPriceCents": COMMAND_SCHEMA_PARTS.part122,
+          "amountCents": COMMAND_SCHEMA_PARTS.part122
         },
         "required": [
           "description",
@@ -61,8 +61,8 @@ export const COMMAND_INPUT_SCHEMA = {
         "properties": {
           "id": COMMAND_SCHEMA_PARTS.part93,
           "label": COMMAND_SCHEMA_PARTS.part90,
-          "percent": COMMAND_SCHEMA_PARTS.part108,
-          "due": COMMAND_SCHEMA_PARTS.part111,
+          "percent": COMMAND_SCHEMA_PARTS.part109,
+          "due": COMMAND_SCHEMA_PARTS.part112,
           "invoicedAt": COMMAND_SCHEMA_PARTS.part49
         },
         "required": [

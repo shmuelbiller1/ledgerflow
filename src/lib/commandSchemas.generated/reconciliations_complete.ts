@@ -6,8 +6,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part96,
     "accountId": COMMAND_SCHEMA_PARTS.part45,
-    "statementDate": COMMAND_SCHEMA_PARTS.part111,
-    "statementBalanceCents": COMMAND_SCHEMA_PARTS.part141,
+    "statementDate": COMMAND_SCHEMA_PARTS.part112,
+    "statementBalanceCents": COMMAND_SCHEMA_PARTS.part142,
     "reconciledTransactionIds": {
       "default": COMMAND_SCHEMA_PARTS.part0,
       "maxItems": 5000,

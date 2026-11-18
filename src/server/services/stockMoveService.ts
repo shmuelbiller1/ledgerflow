@@ -59,7 +59,8 @@ export function resetStockMovesReadyForTests(): void {
 }
 
 export function writeStockMoves(db: Firestore, t: DbTransaction, moves: NewStockMove[]): void {
-  if (moves.length === 0 || known?.exists === false) return;
+  // A live missing-table flag must not suppress a draft's stock history.
+  if (moves.length === 0 || (!db.sandboxId && known?.exists === false)) return;
   const now = new Date().toISOString();
   moves.forEach((move, i) => {
     const ref = db.collection('stockMoves').doc();

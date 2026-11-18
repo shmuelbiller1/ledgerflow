@@ -36,10 +36,10 @@ let warned = false;
 
 /** Whether the repostQueue table exists (cached; a missing table is looked for again after a minute). */
 export async function repostQueueReady(db: Firestore): Promise<boolean> {
+  if (db.sandboxId) return db.tablesExist(REPOST_QUEUE);
   if (known && (known.exists || Date.now() - known.at < 60_000)) return known.exists;
   try {
-    const result = await db.pool.query(`select to_regclass('public."repostQueue"') is not null as ok`);
-    known = { exists: Boolean(result.rows[0]?.ok), at: Date.now() };
+    known = { exists: await db.tablesExist(REPOST_QUEUE), at: Date.now() };
   } catch {
     known = { exists: false, at: Date.now() };
   }

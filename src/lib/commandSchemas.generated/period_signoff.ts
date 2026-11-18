@@ -7,7 +7,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "itemId": COMMAND_SCHEMA_PARTS.part89,
     "note": COMMAND_SCHEMA_PARTS.part60,
     "remove": COMMAND_SCHEMA_PARTS.part25,
-    "month": COMMAND_SCHEMA_PARTS.part116
+    "month": COMMAND_SCHEMA_PARTS.part117
   },
   "required": [
     "itemId",

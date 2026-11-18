@@ -26,10 +26,10 @@ export class StockClosingError extends Error {
 let known: { exists: boolean; at: number } | null = null;
 /** Whether the stockClosings table exists (cached; looked for again after a minute when missing). */
 export async function stockClosingsReady(db: Firestore): Promise<boolean> {
+  if (db.sandboxId) return db.tablesExist('stockClosings');
   if (known && (known.exists || Date.now() - known.at < 60_000)) return known.exists;
   try {
-    const result = await db.pool.query(`select to_regclass('public."stockClosings"') is not null as ok`);
-    known = { exists: Boolean(result.rows[0]?.ok), at: Date.now() };
+    known = { exists: await db.tablesExist('stockClosings'), at: Date.now() };
   } catch {
     known = { exists: false, at: Date.now() };
   }

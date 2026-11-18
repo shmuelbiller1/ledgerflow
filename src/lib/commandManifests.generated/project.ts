@@ -18,7 +18,7 @@ export const PROJECT_COMMAND_MANIFEST = [
           "when": "The project is not in the selected workspace, or is already gone.",
           "next": "Reload the projects and choose one in this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part208,
+        COMMAND_SCHEMA_PARTS.part211,
         {
           "code": "INVALID_INPUT",
           "when": "The id is missing or carries a slash.",
@@ -55,7 +55,7 @@ export const PROJECT_COMMAND_MANIFEST = [
           "when": "Nothing is on record for this id in this workspace.",
           "next": "Check the id, and that the project was deleted from this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part208,
+        COMMAND_SCHEMA_PARTS.part211,
         {
           "code": "INVALID_INPUT",
           "when": "The row has no id, or carries an id with a slash.",

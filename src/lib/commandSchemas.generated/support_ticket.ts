@@ -6,7 +6,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "id": COMMAND_SCHEMA_PARTS.part96,
     "subject": COMMAND_SCHEMA_PARTS.part96,
-    "body": COMMAND_SCHEMA_PARTS.part99,
+    "body": COMMAND_SCHEMA_PARTS.part100,
     "priority": {
       "type": "string",
       "enum": [
@@ -16,7 +16,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "urgent"
       ]
     },
-    "errorDiagnostics": COMMAND_SCHEMA_PARTS.part144,
+    "errorDiagnostics": COMMAND_SCHEMA_PARTS.part145,
     "errorLogId": COMMAND_SCHEMA_PARTS.part56
   },
   "required": [

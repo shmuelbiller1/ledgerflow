@@ -23,8 +23,8 @@ export const LEASE_COMMAND_MANIFEST = [
           "when": "The amount is not a positive whole number of cents, or an account or the date is missing.",
           "next": "Send the present value in whole cents, both accounts and a YYYY-MM-DD date."
         },
-        COMMAND_SCHEMA_PARTS.part208,
-        COMMAND_SCHEMA_PARTS.part205
+        COMMAND_SCHEMA_PARTS.part211,
+        COMMAND_SCHEMA_PARTS.part208
       ]
     },
     "runPath": "/api/v1/commands/lease.capitalize",

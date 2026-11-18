@@ -30,6 +30,16 @@ beforeEach(() => {
   useLedgerStore.setState({ bills: [], vendors, accounts: [] });
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    // an ordinary record is written by naming a command now, not by a table write
+    if (url.includes('/commands/record.')) {
+      const body = JSON.parse(String(init?.body || '{}'));
+      const name = url.split('/commands/')[1];
+      writes.push({ fn: name, body: body.input });
+      const answer = name === 'record.save'
+        ? { ok: true, data: { collection: body.input.collection, id: body.input.id, created: Boolean(body.input.create), updatedAt: new Date().toISOString() } }
+        : { ok: true, data: { collection: body.input.collection, id: body.input.id, deleted: true } };
+      return new Response(JSON.stringify(answer), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
     const rpc = url.match(/\/rpc\/(lf_\w+)/);
     if (rpc) { writes.push({ fn: rpc[1], body: JSON.parse(String(init?.body || '{}')) }); return new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } }); }
     if (url.includes('/purchaseOrders')) return new Response(JSON.stringify([open, partly].map(po => ({ id: po.id, data: po, updated_at: po.createdAt }))), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -60,8 +70,9 @@ test('an open order: vendor, delivery and lines change in place, and the total f
   await waitFor(() => assert.ok(screen.getByRole('region', { name: 'Files of Purchase order PO-2026-001' })));
   await type('Quantity of Paper', '6');
   await waitFor(() => assert.equal(writes.length, 1));
-  const set = (writes[0].body.p_set || writes[0].body.p_data) as Record<string, unknown>;
-  assert.equal(writes[0].fn, 'lf_update');
+  const set = writes[0].body.data as Record<string, unknown>;
+  assert.equal(writes[0].fn, 'record.save');
+  assert.deepEqual([writes[0].body.collection, writes[0].body.id], ['purchaseOrders', 'po1'], 'one record, named');
   assert.equal(set.totalAmountCents, 15000);
   assert.deepEqual((set.items as PurchaseOrder['items']).map(i => [i.quantity, i.totalCents]), [[6, 15000]]);
 
@@ -69,7 +80,7 @@ test('an open order: vendor, delivery and lines change in place, and the total f
   fireEvent.change(screen.getByLabelText('Unit price of the new line on PO-2026-001'), { target: { value: '3.50' } });
   await act(async () => { fireEvent.keyDown(screen.getByLabelText('Unit price of the new line on PO-2026-001'), { key: 'Enter' }); });
   await waitFor(() => assert.equal(writes.length, 2));
-  const added = (writes[1].body.p_set || writes[1].body.p_data) as Record<string, unknown>;
+  const added = writes[1].body.data as Record<string, unknown>;
   assert.deepEqual((added.items as PurchaseOrder['items']).map(i => i.description), ['Paper', 'Envelopes']);
   assert.equal(added.totalAmountCents, 10000 + 350);
 
@@ -86,7 +97,7 @@ test('delete only when nothing was received or billed; a viewer edits nothing', 
     await waitFor(() => assert.ok(screen.getByRole('button', { name: 'Delete PO-2026-001' })));
     assert.equal(screen.queryByRole('button', { name: 'Delete PO-2026-002' }), null);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Delete PO-2026-001' })); });
-    await waitFor(() => assert.deepEqual(writes.map(w => [w.fn, w.body.p_id]), [['lf_delete', 'po1']]));
+    await waitFor(() => assert.deepEqual(writes.map(w => [w.fn, w.body.collection, w.body.id]), [['record.delete', 'purchaseOrders', 'po1']]));
   } finally {
     window.confirm = confirm;
   }

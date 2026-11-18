@@ -25,8 +25,8 @@ export const COMMAND_INPUT_SCHEMA = {
         "is1099": COMMAND_SCHEMA_PARTS.part25,
         "isForeign": COMMAND_SCHEMA_PARTS.part25,
         "rating": COMMAND_SCHEMA_PARTS.part21,
-        "tags": COMMAND_SCHEMA_PARTS.part138,
-        "metadata": COMMAND_SCHEMA_PARTS.part144,
+        "tags": COMMAND_SCHEMA_PARTS.part139,
+        "metadata": COMMAND_SCHEMA_PARTS.part145,
         "address": COMMAND_SCHEMA_PARTS.part65,
         "currency": COMMAND_SCHEMA_PARTS.part47,
         "deliveryMethod": COMMAND_SCHEMA_PARTS.part49,
@@ -34,7 +34,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "noteLog": COMMAND_SCHEMA_PARTS.part75,
         "notes": COMMAND_SCHEMA_PARTS.part68,
         "importBatchId": COMMAND_SCHEMA_PARTS.part56,
-        "bankDetails": COMMAND_SCHEMA_PARTS.part228
+        "bankDetails": COMMAND_SCHEMA_PARTS.part231
       },
       "required": COMMAND_SCHEMA_PARTS.part3,
       "additionalProperties": false
