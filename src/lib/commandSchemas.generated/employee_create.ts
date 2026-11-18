@@ -8,10 +8,10 @@ export const COMMAND_INPUT_SCHEMA = {
     "name": COMMAND_SCHEMA_PARTS.part96,
     "email": COMMAND_SCHEMA_PARTS.part223,
     "role": COMMAND_SCHEMA_PARTS.part56,
-    "salaryCents": COMMAND_SCHEMA_PARTS.part125,
-    "payFrequency": COMMAND_SCHEMA_PARTS.part140,
+    "salaryCents": COMMAND_SCHEMA_PARTS.part126,
+    "payFrequency": COMMAND_SCHEMA_PARTS.part141,
     "filingStatus": COMMAND_SCHEMA_PARTS.part50,
-    "workerType": COMMAND_SCHEMA_PARTS.part106,
+    "workerType": COMMAND_SCHEMA_PARTS.part107,
     "state": COMMAND_SCHEMA_PARTS.part50,
     "status": {
       "default": "Active",

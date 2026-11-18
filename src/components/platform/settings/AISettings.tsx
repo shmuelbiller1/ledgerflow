@@ -209,7 +209,7 @@ export default function AISettings() {
             </div>
             <div className="space-y-2">
               <p className="text-xs font-bold text-slate-200 leading-relaxed uppercase tracking-wider">Enterprise Cryptograph Awareness</p>
-              <p className="text-[11px] text-[var(--muted)] leading-relaxed font-medium">
+              <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
                 Your keys enable high-precision fiscal modeling and bypass system-shared quota limitations. Keys are AES-256 encrypted at rest in your secure institutional user profile.
               </p>
             </div>

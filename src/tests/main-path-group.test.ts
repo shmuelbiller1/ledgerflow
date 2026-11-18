@@ -21,8 +21,8 @@ describe('The main path across a group of books', { skip: !process.env.LF_TEST_D
   let base = '';
   let db: import('../server/db/pgFirestore').Firestore;
   let groupId = '';
-  const call = async (path: string, init: { method?: string; body?: unknown } = {}) => {
-    const res = await fetch(`${base}${path}`, { method: init.method || 'GET', headers: { 'content-type': 'application/json', 'x-test-uid': ann }, ...(init.body ? { body: JSON.stringify(init.body) } : {}) });
+  const call = async (path: string, init: { method?: string; body?: unknown; idempotencyKey?: string } = {}) => {
+    const res = await fetch(`${base}${path}`, { method: init.method || 'GET', headers: { 'content-type': 'application/json', 'x-test-uid': ann, ...(init.idempotencyKey ? { 'idempotency-key': init.idempotencyKey } : {}) }, ...(init.body ? { body: JSON.stringify(init.body) } : {}) });
     return { status: res.status, body: await res.json() as Record<string, unknown> };
   };
   const entry = (ws: string, id: string, date: string, debit: string, credit: string, cents: number) => ({
@@ -60,7 +60,7 @@ describe('The main path across a group of books', { skip: !process.env.LF_TEST_D
     server?.close();
     await db.pool.query(`delete from public."workspaceGroups" where data->>'ownerUid' = $1`, [ann]);
     for (const ws of [hold, sub]) {
-      for (const table of ['transactions', 'chartAccounts', 'auditLogs']) await db.pool.query(`delete from public."${table}" where workspace_id = $1`, [ws]);
+      for (const table of ['transactions', 'chartAccounts', 'auditLogs', 'idempotencyKeys']) await db.pool.query(`delete from public."${table}" where workspace_id = $1`, [ws]);
       await db.pool.query('delete from public.workspaces where id = $1', [ws]);
     }
     await db.terminate();
@@ -153,4 +153,19 @@ describe('The main path across a group of books', { skip: !process.env.LF_TEST_D
     assert.equal(total.eliminated.difference, -3800, 'the sides booked in one currency now differ by the rate, and it is said');
     assert.deepEqual([total.eliminated.income, total.eliminated.expense, total.eliminated.profitDifference], [4000, 4400, -400], 'and so do the fee\'s income and cost');
   });
+  test('intercompany retries replay the same pair and audit each workspace once', async () => {
+    const payload = { sourceWorkspaceId: hold, targetWorkspaceId: sub, amountCents: 300, targetAmountCents: 300, date: '2026-04-02', description: 'Retry test', sourceAccountId: `${hold}_cash`, targetAccountId: `${sub}_cash` };
+    const key = `intercompany_retry_${tag}`;
+    const first = await call('/api/v1/transactions/intercompany/post', { method: 'POST', body: payload, idempotencyKey: key });
+    const again = await call('/api/v1/transactions/intercompany/post', { method: 'POST', body: payload, idempotencyKey: key });
+    assert.equal(first.status, 200, JSON.stringify(first.body)); assert.equal(again.status, 200, JSON.stringify(again.body));
+    assert.deepEqual(again.body, first.body);
+    for (const [workspace, id] of [[hold, first.body.sourceTxId], [sub, first.body.targetTxId]] as const) {
+      const logs = await db.collection('auditLogs').where('workspaceId', '==', workspace).where('entityId', '==', id).get();
+      assert.equal(logs.docs.length, 1);
+    }
+
+  });
+
+
 });

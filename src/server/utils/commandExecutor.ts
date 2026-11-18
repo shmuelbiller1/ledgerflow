@@ -307,7 +307,7 @@ async function commandAccess(
   }
   // A command that mints or revokes access is a person's to run: an API key holding a broad scope
   // must not be able to grant itself another key, or a wider one, by calling the command router.
-  if (command.peopleOnly && user.usedApiKeyId) {
+  if ((command.peopleOnly || (personScope && !command.apiKeyAllowed)) && (user.usedApiKeyId || user.developerWorkspaceId)) {
     return { refusal: { ok: false, status: 403, command: command.name, message: 'Forbidden: this command is for a signed-in person, not an API key', code: 'PERSON_ONLY' } };
   }
 
@@ -436,6 +436,8 @@ export async function runRegisteredCommand(
     workspace,
     ...(operationId ? { operationId } : {}),
   };
+  try { await command.authorizeInput?.(initialContext, input); }
+  catch (error) { return errorOutcome(error, command.name); }
   let date: string | undefined;
   try {
     date = resolveCommandDate(command, initialContext, input);
@@ -581,6 +583,8 @@ export async function previewCommand(
     db,
     workspace,
   };
+  try { await command.authorizeInput?.(initialContext, input); }
+  catch (error) { return previewErrorOutcome(error, command.name); }
   const datedValue = command.dated ? valueAtPath(input, command.dated) : undefined;
   let date: string | undefined;
   try {

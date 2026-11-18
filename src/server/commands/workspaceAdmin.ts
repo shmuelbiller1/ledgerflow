@@ -24,6 +24,7 @@ import {
 } from '../services/recordImportService';
 import { countWorkspaceOwners } from '../services/workspaceOwners';
 import { HttpError } from '../auth/requestUser';
+import { isWorkspaceMemberData } from '../db/firestore';
 import type { CommandContext, CommandDefinition } from './types';
 
 const ROLE_LABEL: Record<string, string> = { owner: 'Owner', accountant: 'Accountant', bookkeeper: 'Bookkeeper', viewer: 'Viewer' };
@@ -197,6 +198,8 @@ type UpdateRoleResult = { targetUid: string; role: string; previousRole: string 
 
 export const workspaceUpdateRoleCommand: CommandDefinition<typeof workspaceUpdateRoleInput, UpdateRoleResult> = {
   name: 'workspace.updaterole',
+  // #840: who may run the workspace, and whether it is deleted, is a signed-in owner's decision, not an API key's
+  peopleOnly: true,
   input: workspaceUpdateRoleInput,
   roles: ['owner'],
   async prepare(_ctx, input) {
@@ -208,6 +211,10 @@ export const workspaceUpdateRoleCommand: CommandDefinition<typeof workspaceUpdat
     const ref = ctx.db.collection('workspaces').doc(ctx.workspaceId);
     const data = (await tx.get(ref)).data();
     if (!data) throw new WorkspaceAdminError(404, 'Workspace not found', 'WORKSPACE_NOT_FOUND');
+    // #840: a role is changed for someone already in the workspace; a stranger (or a blank id) joins through an invite
+    if (!targetUid || !isWorkspaceMemberData(data, { uid: targetUid }, ctx.workspaceId)) {
+      throw new WorkspaceAdminError(404, 'That person is not a member of this workspace. Invite them instead (workspace.invite).', 'NOT_A_MEMBER');
+    }
     const { count, ownerUids } = countWorkspaceOwners(data);
     const previousRole = (data.roles as Record<string, string> | undefined)?.[targetUid] || (data.uid === targetUid ? 'owner' : 'viewer');
     // the creator always counts as owner, so never store another role for them; protect the last owner too
@@ -256,13 +263,27 @@ export const workspaceUpdateRoleCommand: CommandDefinition<typeof workspaceUpdat
     example: { targetUid: 'uid_123', role: 'accountant' },
     refusals: [
       { code: 'LAST_OWNER_PROTECTION', when: 'The person is the creator or the last owner and the new role is not owner.', next: 'Make another owner first, then change this one.' },
-      { code: 'NOT_FOUND', when: 'The workspace does not exist.', next: 'Choose a workspace you own.' },
+      { code: 'NOT_FOUND', when: 'The workspace does not exist, or the person is not one of its members.', next: 'Choose a workspace you own, or invite the person with workspace.invite.' },
       { code: 'ROLE_REQUIRED', when: 'The caller is not an owner.', next: 'Ask an owner to change the role.' },
     ],
   },
 };
 
 // --------------------------------------------------------------------------- invite a person
+
+/** Invitations still waiting for an answer and not yet expired: each one will take a seat when accepted. */
+async function pendingInvites(
+  db: CommandContext['db'],
+  workspaceId: string,
+  read: (query: ReturnType<ReturnType<CommandContext['db']['collection']>['where']>) => Promise<{ docs: Array<{ data(): unknown }> }>,
+): Promise<number> {
+  const rows = await read(db.collection('invites').where('workspaceId', '==', workspaceId));
+  const now = Date.now();
+  return rows.docs.filter(doc => {
+    const invite = doc.data() as { status?: string; expiresAt?: string };
+    return (invite.status ?? 'pending') === 'pending' && !(invite.expiresAt && Date.parse(invite.expiresAt) <= now);
+  }).length;
+}
 
 export const workspaceInviteInput = z.object({
   email: z.string().email().max(200),
@@ -273,6 +294,8 @@ type InviteResult = { invite: { id?: string; inviteId?: string; workspaceId: str
 
 export const workspaceInviteCommand: CommandDefinition<typeof workspaceInviteInput, InviteResult, { maxSeats: number; usedSeats: number }> = {
   name: 'workspace.invite',
+  // #840: who may run the workspace, and whether it is deleted, is a signed-in owner's decision, not an API key's
+  peopleOnly: true,
   input: workspaceInviteInput,
   roles: ['owner'],
   async prepare(ctx) {
@@ -281,8 +304,9 @@ export const workspaceInviteCommand: CommandDefinition<typeof workspaceInviteInp
     const members: string[] = Array.isArray(data.members) ? data.members : [];
     // plan's seats, at least 5; bypass billing has no cap
     const maxSeats = Number(data.maxSeats) || Math.max(5, planFor(String(data.plan || 'free')).limits.seats);
-    // unique people: the creator is counted once (ACC-1b)
-    const usedSeats = new Set([...members, String(data.uid || 'owner')]).size;
+    // unique people: the creator is counted once (ACC-1b); a pending invitation holds a seat too (#840)
+    const usedSeats = new Set([...members, String(data.uid || 'owner')]).size
+      + await pendingInvites(ctx.db, ctx.workspaceId, query => query.get());
     if (data.bypassBilling !== true && usedSeats >= maxSeats) {
       throw new WorkspaceAdminError(402, `Payment Required: Workspace seat limit reached (${usedSeats}/${maxSeats} seats used). Upgrade plan to invite more team members.`, 'SEAT_LIMIT_REACHED');
     }
@@ -294,10 +318,12 @@ export const workspaceInviteCommand: CommandDefinition<typeof workspaceInviteInp
     const ref = ctx.db.collection('workspaces').doc(ctx.workspaceId);
     const data = (await tx.get(ref)).data();
     if (!data) throw new WorkspaceAdminError(404, 'Workspace not found', 'WORKSPACE_NOT_FOUND');
-    const { maxSeats, usedSeats } = ctx.prepared as { maxSeats: number; usedSeats: number };
+    const { maxSeats } = ctx.prepared as { maxSeats: number; usedSeats: number };
     const members: string[] = Array.isArray(data.members) ? data.members : [];
-    const seatsNow = new Set([...members, String(data.uid || 'owner')]).size;
-    if (data.bypassBilling !== true && seatsNow >= maxSeats && seatsNow !== usedSeats) {
+    // #840: checked again inside the write, whatever prepare saw, with the pending invitations counted
+    const seatsNow = new Set([...members, String(data.uid || 'owner')]).size
+      + await pendingInvites(ctx.db, ctx.workspaceId, query => tx.get(query) as never);
+    if (data.bypassBilling !== true && seatsNow >= maxSeats) {
       throw new WorkspaceAdminError(402, `Payment Required: Workspace seat limit reached (${seatsNow}/${maxSeats} seats used). Upgrade plan to invite more team members.`, 'SEAT_LIMIT_REACHED');
     }
     const id = invite.id || invite.token;
@@ -326,7 +352,7 @@ export const workspaceInviteCommand: CommandDefinition<typeof workspaceInviteInp
   },
   inverse(_input, result) {
     const inviteId = result.invite.id;
-    return inviteId ? { command: 'workspace.inviterevoke', input: { inviteId } } : null;
+    return inviteId ? { command: 'workspace.revokeinvite', input: { inviteId } } : null;
   },
   risk: 'normal',
   describe: {
@@ -348,6 +374,8 @@ type ScheduleDeletionResult = { scheduledPurgeAt: string; graceDays: number };
 
 export const workspaceScheduleDeletionCommand: CommandDefinition<typeof workspaceScheduleDeletionInput, ScheduleDeletionResult> = {
   name: 'workspace.scheduledeletion',
+  // #840: who may run the workspace, and whether it is deleted, is a signed-in owner's decision, not an API key's
+  peopleOnly: true,
   input: workspaceScheduleDeletionInput,
   roles: ['owner'],
   async handler(ctx, tx) {

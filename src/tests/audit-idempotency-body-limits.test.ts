@@ -8,35 +8,31 @@ import { recordAuthEvent } from '../server/services/authAuditService';
 import type { Firestore } from '../server/db/firestore';
 
 describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON body limits', () => {
-  it('F-10: inventoryRoutes delegates to the command runner; leaseRoutes and revenueRoutes post through the shared journal route', () => {
-    // the inventory writes are registered commands now: the runner owns the operation id, the payload
-    // hash, the single transaction with its ledger entry and the audit line (see inventory-commands.test.ts)
-    const inventory = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/inventoryRoutes.ts'), 'utf8');
-    assert.match(inventory, /\bexecuteCommand\s*\(\s*req\s*,\s*res\s*,\s*\{/, 'inventoryRoutes must run its writes through the command runner');
-    assert.match(inventory, /withLegacyInputIdempotencyHash\(/, 'and keep the legacy request fingerprint for a retry');
-    // the two document-journal routes (ASC 842, ASC 606) are one route: the member check, the lock, the
-    // validator, the idempotent commit and its audit line live in src/server/services/journalDocumentService.ts,
-    // and the route files name the entry. The work below has to happen — in the shared service, which both call.
-    // the steps themselves (membership, lock, validator, idempotent commit, audit line) now live in a
-    // service so a registered command and the address run the same ones; there is no second copy.
-    const steps = fs.readFileSync(path.join(process.cwd(), 'src/server/services/journalDocumentService.ts'), 'utf8');
-    for (const rel of [
-      'src/server/routes/leaseRoutes.ts',
-      'src/server/routes/revenueRoutes.ts',
-    ]) {
-      const src = fs.readFileSync(path.join(process.cwd(), rel), 'utf8');
-      assert.match(src, /\b(?:postJournalDocumentRoute|postJournalDocument)\s*\(/, `${rel} must post its journal through the shared document-journal route`);
-      for (const [name, re] of [
-        ['executeIdempotent/runOptionalIdempotent', /\b(?:executeIdempotent|runOptionalIdempotent)\s*\(/],
-        ['requestPayloadHash', /\b(?:requestPayloadHash|runOptionalIdempotent)\s*\(/],
-        ['ledgerCreate', /\bledgerCreate\s*\(/],
-        ['writeServerAuditLog', /\bwriteServerAuditLog\s*\(/],
-      ] as const) {
-        assert.ok(re.test(src) || re.test(steps), `${rel} must delegate to ${name}, directly or through the shared route`);
-      }
-      assert.doesNotMatch(src, /return res\.json\(idempDoc\.data\(\)\?\.response\)/, `${rel} must not replay unhashed handwritten records`);
+  it('F-10: inventory and vertical journal routes use the command runner and retain request fingerprints', () => {
+    const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), 'utf8');
+    const inventory = read('src/server/routes/inventoryRoutes.ts');
+    assert.match(inventory, /\bexecuteCommand\s*\(\s*req\s*,\s*res\s*,\s*\{/);
+    assert.match(inventory, /withLegacyInputIdempotencyHash\(/);
+    const steps = read('src/server/services/journalDocumentService.ts');
+    const commands = read('src/server/commands/verticalAccounting.ts');
+    const runner = read('src/server/utils/commandExecutor.ts');
+    for (const [rel, command] of [
+      ['src/server/routes/leaseRoutes.ts', 'leaseCapitalizeCommand'],
+      ['src/server/routes/revenueRoutes.ts', 'revenueRecognizeCommand'],
+    ] as const) {
+      const src = read(rel);
+      assert.match(src, /\bexecuteCommand\s*\(\s*req\s*,\s*res\s*,\s*\{/, `${rel} uses the runner`);
+      assert.ok(src.includes(command), `${rel} names its registered command`);
+      assert.match(src, /withLegacyInputIdempotencyHash\(/, `${rel} keeps the legacy input fingerprint`);
+      assert.doesNotMatch(src, /\bpostJournalDocument\s*\(/, `${rel} does not open a second transaction`);
     }
-    assert.doesNotMatch(steps, /return res\.json\(idempDoc\.data\(\)\?\.response\)/, 'the shared route must not replay unhashed handwritten records');
+    assert.match(commands, /\bprepareJournalDocument\(/);
+    assert.match(commands, /\bpostJournalDocumentInTransaction\(/);
+    assert.match(steps, /\bledgerCreate\s*\(/);
+    assert.match(steps, /\bwriteServerAuditLog\s*\(/);
+    assert.match(runner, /\bexecuteIdempotent\s*\(/);
+    assert.match(runner, /\brequestPayloadHash\s*\(/);
+    assert.doesNotMatch(steps, /return res\.json\(idempDoc\.data\(\)\?\.response\)/);
   });
 
   it('C-3 / F-09a: persisting write handlers in src/server/routes/ maintain >= 70% audit coverage and 100% on money/GL/key routes', () => {

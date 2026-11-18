@@ -107,7 +107,7 @@ describe('Slice 3: C-1, C-2, M-5, F-09c ledger door & RLS integrity guards', () 
     const rls = read('supabase/tests/rls.test.sql');
     assert.ok(rls.includes('a bookkeeper writes a warranty record from the browser'), 'RLS suite must cover browser warranty writes');
     assert.ok(rls.includes('and cannot change its warranty date'), 'RLS suite must cover browser edits to saved warranty history');
-    assert.ok(read('src/server/auth/apiAuthenticate.ts').includes("/^(customer|warranty)\\./"), 'Warranty commands use the customer API-key scope');
+    assert.ok(/warranty: 'write:customers'/.test(read('src/server/auth/apiAuthenticate.ts')), 'Warranty commands use the customer API-key scope');
   });
 
   test('AF-15: automation-rule persistence uses registered commands and RLS closes browser DML', () => {

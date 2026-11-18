@@ -29,11 +29,17 @@ import { useSavedViewsStore } from '../../stores/useSavedViewsStore';
 
 import { useAutoRules } from '../../hooks/useAutoRules';
 import { useRecordFocus } from '../../hooks/useRecordFocus';
+import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { VirtualRowProps } from './TransactionGridShared';
 import { byCodeUnit } from '../../lib/codeUnitOrder';
 function useTransactionGridModel() {
   const formId = useId();
+  useLedgerCollections('transactions');
+  const transactionHealth = useScreenDataHealth(['transactions']);
   const transactions = useLedgerStore(s => s.transactions);
+  const truncated = useLedgerStore(s => s.truncatedCollections);
   // search and date range can come from a shared link (?search=&from=&to=) and stay in the address (I-17)
   const [linkedList] = useState(() => listStateFromParams(new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search)));
   const filterCriteria = useUIStore(s => s.filterCriteria);
@@ -99,6 +105,7 @@ function useTransactionGridModel() {
   // A record link (#transactions/transaction/<id>, e.g. from Data Health) opens that entry once it has loaded
   const focusedTxId = useRecordFocus('transaction', { ready: false });
   const [openedFocusId, setOpenedFocusId] = useState<string | null>(null);
+  if (!focusedTxId && openedFocusId !== null) setOpenedFocusId(null);
   if (focusedTxId && openedFocusId !== focusedTxId) {
     const tx = safeTransactions.find(t => t.id === focusedTxId);
     if (tx) {
@@ -501,7 +508,7 @@ function useTransactionGridModel() {
     return data.transactions[index]?.id || `idx-${index}`;
   }, []);
 
-  return { columnLayout, naturalColumnOrder, columnOrder, setColumnWidth, moveColumn, resetColumnLayout, formId, filterCriteria, onFilterApplied, onAction, txActions, onUpdate, onNewEntry, isProMode, isCompactMode, setProMode, setCompactMode, searchTerm, setSearchTerm, viewMode, setViewMode, editingDetailsTx, setEditingDetailsTx, isReverseModeModal, setIsReverseModeModal, lockDate, selectedIds, setSelectedIds, toggleSelectAll, parsingQueue, setParsingQueue, splittingTxId, setSplittingTxId, accounts, projects, dragActive, sortConfig, handleSort, splittingTransaction, activeView, transactionsWithBalance, stats, totalBalancedSum, selectedMetricsResult, activeFilterColumn, setActiveFilterColumn, columnSearchTerms, setColumnSearchTerms, hiddenColumns, show, toggleColumnVisibility, columnFilterValues, toggleColumnFilter, pivotData, isMobileGrid, isTabletGrid, rowHeight, gridCols, selectedTransactions, signedCents, handleExportCSV, handleBulkUpdate, handleBulkSweep, handleDrag, handleDrop, itemData, itemKey, navigationFields, gridAnnouncement, onGridFocusChange, onGridEdit, focusedCell, editingCell };
+  return { columnLayout, naturalColumnOrder, columnOrder, setColumnWidth, moveColumn, resetColumnLayout, formId, filterCriteria, onFilterApplied, onAction, txActions, onUpdate, onNewEntry, isProMode, isCompactMode, setProMode, setCompactMode, searchTerm, setSearchTerm, viewMode, setViewMode, focusedTxId, focusedTxMissing: Boolean(focusedTxId && !safeTransactions.some(tx => tx.id === focusedTxId)), transactionHealth, transactionListCapped: isCollectionCapped(truncated, 'transactions'), editingDetailsTx, setEditingDetailsTx, isReverseModeModal, setIsReverseModeModal, lockDate, selectedIds, setSelectedIds, toggleSelectAll, parsingQueue, setParsingQueue, splittingTxId, setSplittingTxId, accounts, projects, dragActive, sortConfig, handleSort, splittingTransaction, activeView, transactionsWithBalance, stats, totalBalancedSum, selectedMetricsResult, activeFilterColumn, setActiveFilterColumn, columnSearchTerms, setColumnSearchTerms, hiddenColumns, show, toggleColumnVisibility, columnFilterValues, toggleColumnFilter, pivotData, isMobileGrid, isTabletGrid, rowHeight, gridCols, selectedTransactions, signedCents, handleExportCSV, handleBulkUpdate, handleBulkSweep, handleDrag, handleDrop, itemData, itemKey, navigationFields, gridAnnouncement, onGridFocusChange, onGridEdit, focusedCell, editingCell };
 }
 
 export type TransactionGridModel = ReturnType<typeof useTransactionGridModel>;

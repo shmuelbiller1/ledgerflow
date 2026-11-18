@@ -49,9 +49,15 @@ function newCode(): string {
 
 /** The ids of the person's confirmed authenticators (reads Supabase's auth tables, read-only). */
 export async function verifiedFactors(db: Firestore, uid: string): Promise<string[]> {
-  const { rows } = await db.pool.query<{ id: string }>(
-    `select id::text from auth.mfa_factors where user_id = $1::uuid and factor_type::text = 'totp' and status::text = 'verified'`, [uid]);
-  return rows.map(r => r.id);
+  try {
+    const { rows } = await db.pool.query<{ id: string }>(
+      `select id::text from auth.mfa_factors where user_id = $1::uuid and factor_type::text = 'totp' and status::text = 'verified'`, [uid]);
+    return rows.map(r => r.id);
+  } catch (error) {
+    // #821: Supabase's auth ids are UUIDs; an id that is not one has no authenticator there, rather than a 500
+    if ((error as { code?: string })?.code === '22P02') return [];
+    throw error;
+  }
 }
 
 /**

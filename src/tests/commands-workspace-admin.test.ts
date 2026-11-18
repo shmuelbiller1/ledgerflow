@@ -207,3 +207,48 @@ test('removing the personal AI key deletes the stored fields', async () => {
   assert.equal('geminiApiKeyEncrypted' in user, false);
   assert.equal('apiKeySuffix' in user, false);
 });
+
+test('#840: a role is changed only for a member; a stranger or a blank id is refused and nothing is written', async () => {
+  for (const input of [{ role: 'owner', targetUid: 'stranger-uid' }, { role: 'accountant' }]) {
+    const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+    const db = seeded({ members: [owner.uid, 'person-2'] });
+    const outcome = await run(db, counters, workspaceUpdateRoleCommand, input);
+    assert.equal(outcome.ok, false, JSON.stringify(input));
+    if (!outcome.ok) assert.equal(outcome.status, 404);
+    assert.equal(db.read(`workspaces/${ws}`)?.roles, undefined, 'no role was stored for someone outside the workspace');
+    assert.equal(counters.audits, 0);
+  }
+});
+
+test('#840: an invitation undoes through the command that exists, and a pending invitation holds a seat', async () => {
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const db = seeded({ members: [owner.uid], maxSeats: 3 });
+  const first = await run(db, counters, workspaceInviteCommand, { email: 'a@example.test', role: 'viewer' });
+  assert.equal(first.ok, true, JSON.stringify(first));
+  const invite = first.ok ? (first.data as { invite: { id: string } }).invite : null;
+  assert.deepEqual(workspaceInviteCommand.inverse?.({ email: 'a@example.test', role: 'viewer' }, { invite: invite as never })?.command, 'workspace.revokeinvite');
+  // owner + one pending = 2 of 3; the next invitation fills the third seat, the one after is refused
+  assert.equal((await run(db, counters, workspaceInviteCommand, { email: 'b@example.test', role: 'viewer' })).ok, true);
+  const third = await run(db, counters, workspaceInviteCommand, { email: 'c@example.test', role: 'viewer' });
+  assert.equal(third.ok, false);
+  if (!third.ok) assert.equal(third.status, 402);
+  // an expired or revoked invitation no longer holds a seat
+  for (const { id, data } of db.entries('invites')) db.seed(`invites/${id}`, { ...data, status: 'revoked' });
+  assert.equal((await run(db, counters, workspaceInviteCommand, { email: 'c@example.test', role: 'viewer' })).ok, true);
+});
+
+test('#840: an API key cannot change roles, invite, revoke an invitation or schedule the deletion', async () => {
+  const viaKey: RequestUser = { ...owner, usedApiKeyId: 'key-1', developerWorkspaceId: ws };
+  const { workspaceInviteRevokeCommand } = await import('../server/commands/workspaceInvites');
+  for (const [definition, input] of [
+    [workspaceUpdateRoleCommand, { role: 'viewer', targetUid: 'person-2' }],
+    [workspaceInviteCommand, { email: 'x@example.test', role: 'owner' }],
+    [workspaceInviteRevokeCommand, { inviteId: 'inv_1' }],
+    [workspaceScheduleDeletionCommand, {}],
+  ] as const) {
+    const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+    const outcome = await run(seeded({ members: [owner.uid, 'person-2'] }), counters, definition as AnyDefinition, input, viaKey);
+    assert.equal(outcome.ok, false, (definition as AnyDefinition).name);
+    if (!outcome.ok) assert.equal(outcome.code, 'PERSON_ONLY', (definition as AnyDefinition).name);
+  }
+});

@@ -34,7 +34,7 @@ export const BILL_COMMAND_MANIFEST = [
           ]
         }
       },
-      "next": COMMAND_SCHEMA_PARTS.part121,
+      "next": COMMAND_SCHEMA_PARTS.part122,
       "refusals": COMMAND_SCHEMA_PARTS.part266
     },
     "runPath": "/api/v1/commands/bill.create",
@@ -116,7 +116,7 @@ export const BILL_COMMAND_MANIFEST = [
     "description": {
       "sentence": "Update an existing bill and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
       "example": COMMAND_SCHEMA_PARTS.part92,
-      "next": COMMAND_SCHEMA_PARTS.part121,
+      "next": COMMAND_SCHEMA_PARTS.part122,
       "refusals": COMMAND_SCHEMA_PARTS.part266
     },
     "runPath": "/api/v1/commands/bill.update",

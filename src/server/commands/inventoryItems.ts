@@ -15,9 +15,8 @@ import type { CommandContext, CommandDefinition } from './types';
  *
  * - `quantityAtHand` is **not** in the allowlist. Stock arrives through a receipt, a count, an adjustment or an
  *   opening balance, each of which posts the value with it — a card write would change the count without the entry.
- * - `unitCostCents` is settable, but the screen only offers it while the item has no stock; the command cannot know
- *   what the screen showed, so it says in the description what the rule is rather than pretending to enforce a
- *   condition it cannot see.
+ * - `unitCostCents` is settable only while the item has no stock (#839): with stock on hand a different cost is
+ *   refused (`CONFLICT`) and goes through `inventory.revalue`, which posts the difference.
  * - the accounting links (`cogsAccountId`, `inventoryAccountId`, `incomeAccountId`) are left to the settings that own
  *   them, so a card edit cannot silently move where a sale's cost is posted.
  *
@@ -29,10 +28,15 @@ const cents = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const text = (max: number) => z.string().trim().max(max);
 const nonNegative = z.number().int().min(0).max(1_000_000);
 
+/**
+ * #839: a location's reorder band (`min` / `max`), the shape the item model and the screen use
+ * (`Record<locationId, {min, max}>`). It was an array of `{locationId, quantityAtHand}`: that refused every card the
+ * screen saved (it always sends the map) and let a card write a bin's stock with no entry behind it.
+ */
 const locationLevel = z.object({
-  locationId: z.string().trim().min(1).max(120),
-  quantityAtHand: z.number().min(0).max(1_000_000).optional(),
-}).strict();
+  min: nonNegative,
+  max: nonNegative,
+}).strict().refine(level => level.max >= level.min, 'max cannot be below min');
 
 const bundlePart = z.object({
   itemId: z.string().trim().min(1).max(200),
@@ -65,7 +69,8 @@ const cardFields = {
   consignment: text(60).optional(),
   bundleParts: z.array(bundlePart).max(200).optional(),
   assembleOnDemand: z.boolean().optional(),
-  locationLevels: z.array(locationLevel).max(200).optional(),
+  locationLevels: z.record(z.string().trim().min(1).max(120), locationLevel)
+    .refine(levels => Object.keys(levels).length <= 200, 'At most 200 locations').optional(),
   /** the defaults a sale of this item starts with; `null` takes them away, absent leaves them as they were */
   documentDefaults: z.record(z.string(), z.unknown()).nullable().optional(),
   tags: z.array(text(40)).max(40).optional(),
@@ -98,6 +103,18 @@ const INLINE_FIELD_RULES: Record<FieldInput['field'], (value: string | number) =
   unitCostCents: value => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0,
   standardCostCents: value => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0,
 };
+
+/**
+ * #839: an item with stock is valued at its unit cost, so changing that cost on the card would move the stock's value
+ * with no entry behind it. While there is stock the cost changes through a revaluation; the same value is fine.
+ */
+function stockedCostRefusal(existing: ItemRow | undefined, nextCost: unknown): HttpError | null {
+  if (nextCost === undefined || Number(existing?.quantityAtHand || 0) === 0) return null;
+  if (Number(nextCost) === Number(existing?.unitCostCents ?? Number.NaN)) return null;
+  return Object.assign(new HttpError(
+    'This item has stock, so its cost changes through a revaluation (inventory.revalue), which posts the difference.', 409,
+  ), { code: 'CONFLICT' });
+}
 
 function cardPatch(input: SaveInput, existing?: ItemRow): Record<string, unknown> {
   const { id: _id, documentDefaults, ...rest } = input;
@@ -145,6 +162,8 @@ export const inventoryItemSaveCommand: CommandDefinition<typeof inventoryItemSav
     if (!snapshot.exists || existing?.workspaceId !== ctx.workspaceId) {
       throw Object.assign(new HttpError('This item is not in the selected workspace.', 404), { code: 'NOT_FOUND' });
     }
+    const costRefusal = stockedCostRefusal(existing, input.unitCostCents);
+    if (costRefusal) throw costRefusal;
     const patch = cardPatch(input, existing);
     tx.update(ref, { ...patch, updatedAt: now });
     return { id: input.id, created: false, fields: Object.keys(patch) };
@@ -177,6 +196,7 @@ export const inventoryItemSaveCommand: CommandDefinition<typeof inventoryItemSav
     refusals: [
       { code: 'INVALID_INPUT', when: 'A price is not whole cents, the unit is not a whole number, or the payload names a field the card does not keep (`quantityAtHand` is one: stock moves through its own commands).', next: 'Send amounts in cents, and move stock with inventory.adjust, inventory.count or a receipt.' },
       { code: 'NOT_FOUND', when: 'The item being changed is not in the selected workspace.', next: 'Reload the list and choose an item in this workspace.' },
+      { code: 'CONFLICT', when: 'The item has stock and the payload changes its unit cost.', next: 'Change the cost with inventory.revalue, which posts the difference.' },
       { code: 'ROLE_REQUIRED', when: 'The caller is a viewer.', next: 'Ask an owner, accountant or bookkeeper to change the card.' },
     ],
     next: [
@@ -200,6 +220,8 @@ export const inventoryItemFieldCommand: CommandDefinition<typeof inventoryItemFi
     if (!snapshot.exists || existing?.workspaceId !== ctx.workspaceId) {
       throw Object.assign(new HttpError('This item is not in the selected workspace.', 404), { code: 'NOT_FOUND' });
     }
+    const costRefusal = input.field === 'unitCostCents' ? stockedCostRefusal(existing, input.value) : null;
+    if (costRefusal) throw costRefusal;
     tx.update(ref, { [input.field]: input.value, updatedAt: new Date().toISOString() });
     return { id: input.id, created: false, fields: [input.field] };
   },
@@ -227,6 +249,7 @@ export const inventoryItemFieldCommand: CommandDefinition<typeof inventoryItemFi
     refusals: [
       { code: 'INVALID_INPUT', when: 'The field is not one a list cell corrects, or the value does not fit it.', next: 'Send one of name, sku, category, unitPriceCents, unitCostCents, standardCostCents.' },
       { code: 'NOT_FOUND', when: 'The item is not in the selected workspace.', next: 'Reload the list and choose an item in this workspace.' },
+      { code: 'CONFLICT', when: 'The cell is the unit cost and the item has stock.', next: 'Change the cost with inventory.revalue, which posts the difference.' },
       { code: 'ROLE_REQUIRED', when: 'The caller is a viewer.', next: 'Ask an owner, accountant or bookkeeper to correct it.' },
     ],
     next: [{ command: 'inventoryitem.save', label: 'Edit the whole card' }],

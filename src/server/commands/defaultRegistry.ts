@@ -1,3 +1,7 @@
+import { workspaceBudgetControlCommand } from './budgetControl';
+import { journalIntercompanyCommand } from './journalIntercompany';
+import { journalEditCommand, journalDeleteCommand } from './journalEdit';
+import { journalReverseCommand } from './journalReverse';
 import { WORKSPACE_API_COMMANDS } from './workspaceApi';
 import { alertSettingsUpdateCommand } from './alerts';
 import { recordFieldsCommand } from './records';
@@ -146,6 +150,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(dimensionNodesMigrateCommand);
   registry.register(projectDeleteCommand);
   registry.register(projectRestoreCommand);
+  registry.register(workspaceBudgetControlCommand);
   registry.register(workspaceModulesCommand);
   registry.register(employeeCreateCommand);
   registry.register(employeeUpdateCommand);
@@ -303,6 +308,10 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   VERTICAL_ACCOUNTING_COMMANDS.forEach(command => registry.register(command));
   TRANSACTION_HOUSEKEEPING_COMMANDS.forEach(command => registry.register(command));
   for (const command of WORKSPACE_API_COMMANDS) registry.register(command);
+  registry.register(journalIntercompanyCommand);
+  registry.register(journalReverseCommand);
+  registry.register(journalEditCommand);
+  registry.register(journalDeleteCommand);
   return registry;
 }
 

@@ -76,7 +76,7 @@ export const workspaceRestoreBackupCommand: CommandDefinition<typeof restoreInpu
 
 const workspaceProvisionInput = z.object({ fields: z.record(z.string(), z.unknown()) }).strict();
 export const workspaceApiCreateCommand: CommandDefinition<typeof workspaceProvisionInput, { workspace: Record<string, unknown> }> = {
-  name: 'workspace.apicreate', input: workspaceProvisionInput, scope: 'person', roles: ['owner'], denyWorkspaceApiKey: true,
+  name: 'workspace.apicreate', input: workspaceProvisionInput, scope: 'person', roles: ['owner'], denyWorkspaceApiKey: true, apiKeyAllowed: true,
   async handler(ctx, tx, input) {
     if (ctx.user.developerWorkspaceId) throw new HttpError('Forbidden: Workspace-scoped API keys cannot create workspaces', 403);
     const validation = WorkspaceSchema.safeParse({ ...input.fields, id: undefined, uid: ctx.actor, admins: undefined, isClosed: false, lockDate: undefined, createdAt: new Date().toISOString() });

@@ -59,6 +59,11 @@ export const INVENTORYITEM_COMMAND_MANIFEST = [
         },
         COMMAND_SCHEMA_PARTS.part202,
         {
+          "code": "CONFLICT",
+          "when": "The cell is the unit cost and the item has stock.",
+          "next": "Change the cost with inventory.revalue, which posts the difference."
+        },
+        {
           "code": "ROLE_REQUIRED",
           "when": "The caller is a viewer.",
           "next": "Ask an owner, accountant or bookkeeper to correct it."
@@ -100,6 +105,11 @@ export const INVENTORYITEM_COMMAND_MANIFEST = [
           "code": "NOT_FOUND",
           "when": "The item being changed is not in the selected workspace.",
           "next": "Reload the list and choose an item in this workspace."
+        },
+        {
+          "code": "CONFLICT",
+          "when": "The item has stock and the payload changes its unit cost.",
+          "next": "Change the cost with inventory.revalue, which posts the difference."
         },
         {
           "code": "ROLE_REQUIRED",

@@ -122,3 +122,38 @@ test('a new card still needs its name, its price and its cost', async () => {
   assert.equal((missing as unknown as { code: string }).code, 'INVALID_INPUT');
   assert.equal(db.entries('inventory').length, 0);
 });
+
+test('#839: with stock on hand the cost is not changed on the card, by the form or by a cell', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  db.seed('inventory/item_1', { id: 'item_1', workspaceId, name: 'Chair', quantityAtHand: 10, unitCostCents: 1000 });
+  for (const outcome of [
+    await runSave({ id: 'item_1', unitCostCents: 1 }, db),
+    await runField({ id: 'item_1', field: 'unitCostCents', value: 1 }, db),
+  ]) {
+    assert.equal(outcome.ok, false);
+    assert.equal((outcome as unknown as { code?: string }).code, 'CONFLICT');
+  }
+  assert.equal(db.read('inventory/item_1')?.unitCostCents, 1000, 'the stock keeps the value the ledger has');
+  // the same cost, or a price, still saves
+  assert.equal((await runSave({ id: 'item_1', unitCostCents: 1000, unitPriceCents: 2500 }, db)).ok, true);
+  // without stock the cost is the card's to set
+  db.seed('inventory/item_2', { id: 'item_2', workspaceId, name: 'Desk', quantityAtHand: 0, unitCostCents: 500 });
+  assert.equal((await runField({ id: 'item_2', field: 'unitCostCents', value: 700 }, db)).ok, true);
+});
+
+test('#839: the bin levels are the reorder band the screen sends, never a stock quantity', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db);
+  db.seed('inventory/item_1', { id: 'item_1', workspaceId, name: 'Chair', quantityAtHand: 10, unitCostCents: 1000 });
+  // the screen always sends the map, empty or not: both used to be refused
+  assert.equal((await runSave({ id: 'item_1', name: 'Chair', locationLevels: {} }, db)).ok, true);
+  const saved = await runSave({ id: 'item_1', locationLevels: { 'loc-1': { min: 2, max: 8 } } }, db);
+  assert.equal(saved.ok, true, JSON.stringify(saved));
+  assert.deepEqual(db.read('inventory/item_1')?.locationLevels, { 'loc-1': { min: 2, max: 8 } });
+  assert.equal(db.read('inventory/item_1')?.quantityAtHand, 10);
+  // the old array of quantities is not a shape the card takes
+  const forged = await runSave({ id: 'item_1', locationLevels: [{ locationId: 'loc-1', quantityAtHand: 999 }] }, db);
+  assert.equal(forged.ok, false);
+  assert.equal((await runSave({ id: 'item_1', locationLevels: { 'loc-1': { min: 9, max: 2 } } }, db)).ok, false, 'max below min');
+});

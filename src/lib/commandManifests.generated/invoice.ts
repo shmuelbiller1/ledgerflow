@@ -37,7 +37,7 @@ export const INVOICE_COMMAND_MANIFEST = [
           ]
         }
       },
-      "next": COMMAND_SCHEMA_PARTS.part126,
+      "next": COMMAND_SCHEMA_PARTS.part127,
       "refusals": COMMAND_SCHEMA_PARTS.part266
     },
     "runPath": "/api/v1/commands/invoice.create",
@@ -119,7 +119,7 @@ export const INVOICE_COMMAND_MANIFEST = [
     "description": {
       "sentence": "Update an existing invoice and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
       "example": COMMAND_SCHEMA_PARTS.part92,
-      "next": COMMAND_SCHEMA_PARTS.part126,
+      "next": COMMAND_SCHEMA_PARTS.part127,
       "refusals": COMMAND_SCHEMA_PARTS.part266
     },
     "runPath": "/api/v1/commands/invoice.update",

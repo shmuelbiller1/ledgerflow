@@ -90,3 +90,19 @@ export function ledgerMark(t: Updatable, ref: unknown, patch: Record<string, unk
   }
   t.update(ref, patch);
 }
+
+
+/**
+ * Update non-amount fields on an entry read and authorized by the caller in the same transaction.
+ * Status, metadata and posted-entry protections still belong to the caller; this door additionally
+ * refuses changes to the accounting fields that a partial update must never rewrite.
+ */
+export function ledgerUpdateFields(t: Updatable, ref: unknown, patch: Record<string, unknown>): void {
+  const restricted = new Set(['lines', 'amountCents', 'totalAmountCents', 'workspaceId', 'date', 'uid']);
+  const scalarGuards = new Set(['status', 'type', 'isDeleted', 'deletedAt', 'reversalEventId', 'currency', 'exchangeRate', 'baseAmountCents', 'homeAmountCents', 'id']);
+  for (const key of Object.keys(patch)) {
+    const root = key.split('.')[0];
+    if ((restricted.has(root) || (key.includes('.') && scalarGuards.has(root))) && patch[key] !== undefined) throw new LedgerDoorError('Restricted fields cannot be modified via partialUpdate. Use a full transaction update instead.');
+  }
+  t.update(ref, patch);
+}

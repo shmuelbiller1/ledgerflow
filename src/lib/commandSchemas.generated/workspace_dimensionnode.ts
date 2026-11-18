@@ -11,7 +11,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "type": "object",
       "properties": {
         "description": COMMAND_SCHEMA_PARTS.part58,
-        "aliases": COMMAND_SCHEMA_PARTS.part141,
+        "aliases": COMMAND_SCHEMA_PARTS.part142,
         "status": COMMAND_SCHEMA_PARTS.part88,
         "parentId": {
           "anyOf": [

@@ -2,6 +2,12 @@
 
 **Status reconciled 15 Nov 2026 against `main` at `a5b6eb3d853b73b05b0990d1e386862d1ff534bf` (PR #731).** Requirements and acceptance criteria remain in [`CMD-1-commands.md`](CMD-1-commands.md); this file is the live progress checklist, not a replacement prompt.
 
+## Current branch checkpoint
+
+- This batch moves the owner-only budget-control setting to `workspace.budgetcontrol` and makes the legacy lease-capitalization and revenue-recognition addresses invoke their registered commands. Their existing request/response formats and operation types are retained. The AST ratchet falls from **49 to 46 server route sites**, with **0 direct browser-write sites** and **6 sample/local-store sites**. Generated command metadata is refreshed. Full GitHub CI is required before treating the batch as merged or accepted.
+- The bulk posting route remains outside the runner. Its legacy `${workspaceId}_${idempotencyKey}` records, duplicate bank-line filtering, posting-day fingerprint, budget preflight and after-commit effects require parity tests before migrating it. The remaining 46 counted sites are an inventory, not all confirmed eligible writes; the JSON ratchet is authoritative.
+- The zero browser scanner count is not a substitute for end-to-end RLS probes and deployed-screen verification. Proposals, assistant tools, sandbox and the final acceptance gates below are not claimed complete.
+
 ## Verified checkpoint
 
 - [x] The workspace API batch moves all **four** remaining writes in `workspaceApiRoutes.ts` to `workspace.apicreate`, `workspace.addmember`, `workspace.removemember`, and `workspace.restorebackup`. The live ratchet falls from **57 to 53 server sites** (34 to 33 files); direct browser writes stay **0**. The registry has **204 commands / 54 areas**. Backup restore now uses the runner's transaction, retains its detailed in-transaction audit and all closed-period, ownership, file and checksum guards; the high-risk command requires two-step confirmation, while its legacy owner-only route retains its previous gate. Membership changes recheck the last owner inside the transaction; adding a member keeps the seat-cap gate. Workspace creation still ignores caller-supplied identity and privileged fields and refuses workspace-scoped API keys before both execution and replay. Generated artifacts and normal/refusal/retry tests accompany the change. No accounting math or browser policy is changed.

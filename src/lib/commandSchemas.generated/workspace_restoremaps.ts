@@ -6,7 +6,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "maps": {
       "type": "object",
-      "propertyNames": COMMAND_SCHEMA_PARTS.part124,
+      "propertyNames": COMMAND_SCHEMA_PARTS.part125,
       "additionalProperties": {
         "type": "object",
         "properties": {

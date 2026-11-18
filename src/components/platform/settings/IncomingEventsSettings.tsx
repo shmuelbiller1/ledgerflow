@@ -78,7 +78,7 @@ export default function IncomingEventsSettings() {
           <input type="checkbox" checked={problemsOnly} onChange={e => setProblemsOnly(e.target.checked)} /> Only problems ({problems})
         </label>
       </div>
-      {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
+      {error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
       {events === null ? (
         <p className="text-sm text-[var(--muted)]">Loading…</p>
       ) : shown.length === 0 ? (

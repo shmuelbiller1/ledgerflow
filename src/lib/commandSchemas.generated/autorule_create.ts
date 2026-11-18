@@ -15,7 +15,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "action": COMMAND_SCHEMA_PARTS.part268,
         "confidence": COMMAND_SCHEMA_PARTS.part74,
         "isHardened": COMMAND_SCHEMA_PARTS.part25,
-        "priority": COMMAND_SCHEMA_PARTS.part145,
+        "priority": COMMAND_SCHEMA_PARTS.part146,
         "isActive": COMMAND_SCHEMA_PARTS.part25,
         "stopProcessingOnMatch": COMMAND_SCHEMA_PARTS.part25
       },
