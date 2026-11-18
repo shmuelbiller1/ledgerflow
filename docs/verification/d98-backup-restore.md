@@ -20,15 +20,17 @@ It drives the app's own Settings → Backup & Export screen
 3. **Change the records** — the extra January expense is added to the store (what the live
    subscription delivers after the server posts it) and each report moves as the arithmetic says.
 4. **Restore that file** — the downloaded file is put back through the real **Restore backup file**
-   control. The client verifies the checksum, then POSTs the file; the test asserts the request body
-   is **byte-identical** to the file that was exported (`postData() === file text`). The restore
-   transaction then removes the change (the test applies the restored rows as the subscription would).
+   control. The client checks the file and shows its name, the target workspace and the consequences
+   of replacement. Escape cancels and restores focus without sending a request. After reselecting the
+   same file, **Replace workspace records** sends one POST with the exact JSON text. The test applies
+   the restored rows to the store as a subscription would; no server transaction runs in this journey.
 5. **Parity** — P&L, balance sheet and trial balance are the backup's figures again, to the cent, and
    the trial balance still says *Balanced Double-Entry*.
 6. **A damaged file is refused whole** — one amount in the file is changed and uploaded. The client
    fails the checksum, clears the input, and **nothing is posted** (`/restore` request count
-   unchanged). A half-restored workspace is impossible from this screen.
-7. **Axe** — no serious or critical violations on the restored trial balance.
+   unchanged).
+7. **Axe** — the confirmation dialog and restored trial balance are checked for new serious or
+   critical violations; the report’s existing contrast measurements are tracked separately.
 
 Only the HTTP boundary is stubbed: the export body, the restore reply, and report endpoints (500, so
 the screens use their own ledger fallback). The posting and the server's restore transaction are
@@ -75,8 +77,19 @@ $13,600.00 with Cash 9,400.00 and Office Expense 600.00).
 
 - The server's restore transaction (a real database) — covered by the server suites named above.
 - A real authenticated session against a deployed environment (G-24 / G-01 territory).
-- The PITR panel on the same Settings screen is untouched by this journey (it is a cloud-database
-  feature: see the message to AI #1 in `docs/COORDINATION.md`).
+- Provider-side recovery. The unverified Firestore PITR panel was removed (#779). Recovery settings,
+  backup retention, recovery point/time targets and a restore drill must be verified separately
+  against the Supabase setup (S-19 / `docs/FOR_YOU.md`).
+
+## Screen safety regressions (#776 / #779)
+
+The same browser spec checks that a failed full export does not download a file automatically or
+advance the reminder. A user can explicitly download a partial copy on a service failure; renaming
+it does not make it restorable. Access refusals and invalid successful responses do not produce a
+backup. It also checks wrong-workspace refusal, owner-only restore controls, dismissal on workspace
+change, stale file validation on a new sign-in, and an exact, single ZIP restore request despite a
+repeated click while waiting on a server refusal. These are browser tests with stubbed HTTP, not a
+second test of the database restore transaction.
 
 ## Accessibility findings on the restored screen (reported, counted, not hidden)
 
