@@ -74,12 +74,12 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
       <RangeReportSourceNote source={source} testId="income-source-source" />
 
       <TanStackDataGrid
-        caption="Income by source"
+        caption={reportText('r.income-by-source-caption', 'Income by source')}
         data={breakdowns}
         columns={columns}
         rowHeaderColumn="source"
         pageSize={25}
-        searchPlaceholder="Search customers and sources..."
+        searchPlaceholder={reportText('r.search-customers-and-sources', 'Search customers and sources...')}
         searchLabel="Search customers and sources"
         columnScope="report-income-by-source"
         columnLabel="Income by source columns"

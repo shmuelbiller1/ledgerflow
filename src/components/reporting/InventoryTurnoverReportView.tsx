@@ -82,8 +82,8 @@ export default function InventoryTurnoverReportView() {
         <caption>{reportText('r.inventory-turnover-by-item', 'Inventory turnover by item,')} {from} {reportText('r.to-2', 'to')} {to} {reportText('r.values-in', '(values in')} {home})</caption>
         <thead>
           <tr>
-            {['Item', 'Opening units', 'Received', 'Sold (net)', 'Issued (all reasons)', 'Closing units', 'Average units',
-              'Cost of what sold', 'Average value', 'Turnover (units)', 'Turnover (value)', 'Days of stock'].map((head, i) =>
+            {[reportText('r.item', 'Item'), reportText('r.opening-units', 'Opening units'), reportText('r.received', 'Received'), reportText('r.sold-net', 'Sold (net)'), reportText('r.issued-all-reasons', 'Issued (all reasons)'), reportText('r.closing-units', 'Closing units'), reportText('r.average-units', 'Average units'),
+              reportText('r.cost-of-what-sold', 'Cost of what sold'), reportText('r.average-value', 'Average value'), reportText('r.turnover-units', 'Turnover (units)'), reportText('r.turnover-value', 'Turnover (value)'), reportText('r.days-of-stock', 'Days of stock')].map((head, i) =>
               <th key={head} scope="col" className={`${i === 0 ? 'text-left' : 'text-right'} py-1 px-2`}>{head}</th>)}
           </tr>
         </thead>

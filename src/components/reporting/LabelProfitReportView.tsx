@@ -13,7 +13,7 @@ import { useReportText, fill } from './useReportText';
 type Section = 'income' | 'cogs' | 'expense';
 interface Column { value: string; income: number; cogs: number; grossProfit: number; expense: number; netIncome: number; accounts: Record<string, number> }
 interface Report { columns: Column[]; total: Omit<Column, 'value'>; rows: Array<{ id: string; name: string; code?: string; section: Section }> }
-const SECTION_NAMES: Record<Section, string> = { income: 'Income', cogs: 'Cost of goods sold', expense: 'Expenses' };
+const SECTION_ORDER: Section[] = ['income', 'cogs', 'expense'];
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
 /**
@@ -24,6 +24,8 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
  */
 export default function LabelProfitReportView() {
   const reportText = useReportText();
+  const SECTION_NAMES: Record<Section, string> = { income: reportText('r.section-income', 'Income'), cogs: reportText('r.section-cogs', 'Cost of goods sold'), expense: reportText('r.section-expense', 'Expenses') };
+  const sectionTotal = (section: Section) => fill(reportText('r.total-section', 'Total {section}'), { section: SECTION_NAMES[section].toLowerCase() });
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const nodes = useLedgerStore(s => s.dimensionNodes);
   // the roll-up needs every value's parent: with a partial list it would leave children out
@@ -102,7 +104,7 @@ export default function LabelProfitReportView() {
                 <th scope="col" className="text-right font-semibold py-2 px-2">{reportText('r.total', 'Total')}</th>
               </tr>
             </thead>
-            {(Object.keys(SECTION_NAMES) as Section[]).filter(s => report.rows.some(r => r.section === s)).map(section => (
+            {SECTION_ORDER.filter(s => report.rows.some(r => r.section === s)).map(section => (
               <tbody key={section}>
                 <tr><th scope="rowgroup" colSpan={report.columns.length + 2} className="text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)] pt-3">{SECTION_NAMES[section]}</th></tr>
                 {report.rows.filter(r => r.section === section).map(r => (
@@ -113,9 +115,9 @@ export default function LabelProfitReportView() {
                   </tr>
                 ))}
                 <tr className="font-semibold border-b border-[var(--line)]">
-                  <th scope="row" className="text-left py-1">{reportText('r.total', 'Total')} {SECTION_NAMES[section].toLowerCase()}</th>
-                  {report.columns.map(c => <React.Fragment key={c.value}>{cell(c[section], idsOf(section), c.value, `Total ${SECTION_NAMES[section].toLowerCase()}`, section)}</React.Fragment>)}
-                  {cell(report.total[section], idsOf(section), null, `Total ${SECTION_NAMES[section].toLowerCase()}`, section)}
+                  <th scope="row" className="text-left py-1">{sectionTotal(section)}</th>
+                  {report.columns.map(c => <React.Fragment key={c.value}>{cell(c[section], idsOf(section), c.value, sectionTotal(section), section)}</React.Fragment>)}
+                  {cell(report.total[section], idsOf(section), null, sectionTotal(section), section)}
                 </tr>
               </tbody>
             ))}

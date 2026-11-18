@@ -101,12 +101,12 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
       {loading && <LoadingState what={reportText('r.expenses-by-category', 'expenses by category')} rows={4} />}
 
       <TanStackDataGrid
-        caption="Expenses by category"
+        caption={reportText('r.expenses-by-category-caption', 'Expenses by category')}
         data={breakdowns}
         columns={columns}
         rowHeaderColumn="category"
         pageSize={25}
-        searchPlaceholder="Search categories..."
+        searchPlaceholder={reportText('r.search-categories', 'Search categories...')}
         searchLabel="Search categories"
         columnScope="report-expense-by-category"
         columnLabel="Expenses by category columns"
