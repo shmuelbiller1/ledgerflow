@@ -3,6 +3,7 @@ import { Download, Search, LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 import { ShowMoreRows } from '../common/ShowMoreRows';
 import { usePagedRows } from '../../hooks/usePagedRows';
+import { useReportText, fill } from './useReportText';
 
 export interface ColumnDef<T> {
   key: string;
@@ -68,6 +69,7 @@ export function PartyReportLayout<T>({
   getRowId = (_, i) => String(i),
   sumKeys = [],
 }: PartyReportLayoutProps<T>) {
+  const reportText = useReportText();
   // R-5: a year of rows draws its first page at once; the footer totals and the export keep every row
   const paged = usePagedRows(data, `${startDate || ''}|${endDate || ''}|${asOfDate || ''}|${searchTerm || ''}`);
   return (
@@ -110,7 +112,7 @@ export function PartyReportLayout<T>({
             className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl flex items-center gap-2 text-xs shadow-sm transition-colors cursor-pointer"
           >
             <Download aria-hidden="true" className="w-3.5 h-3.5" />
-            Export CSV
+            {reportText('r.export-csv', 'Export CSV')}
           </button>
         </div>
       </div>
@@ -119,7 +121,7 @@ export function PartyReportLayout<T>({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 min-w-[220px] max-w-sm">
           <Search aria-hidden="true" className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-          <input aria-label={searchPlaceholder || "Search report"}
+          <input aria-label={searchPlaceholder || reportText('r.search-report', 'Search report')}
             type="text"
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
@@ -130,8 +132,8 @@ export function PartyReportLayout<T>({
 
         {onAsOfDateChange && (
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-neutral-500 text-[11px] font-semibold uppercase">As of Date:</span>
-            <input aria-label="As of Date"
+            <span className="text-neutral-500 text-[11px] font-semibold uppercase">{reportText('r.as-of-date-2', 'As of Date:')}</span>
+            <input aria-label={reportText('r.as-of-date-3', 'As of Date')}
               type="date"
               value={asOfDate || ''}
               onChange={(e) => onAsOfDateChange(e.target.value)}
@@ -142,15 +144,15 @@ export function PartyReportLayout<T>({
 
         {onStartDateChange && onEndDateChange && (
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-neutral-500 text-[11px] font-semibold uppercase">From:</span>
-            <input aria-label="From date"
+            <span className="text-neutral-500 text-[11px] font-semibold uppercase">{reportText('r.from-4', 'From:')}</span>
+            <input aria-label={reportText('r.from-date', 'From date')}
               type="date"
               value={startDate || ''}
               onChange={(e) => onStartDateChange(e.target.value)}
               className="px-2.5 py-1 text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-900 dark:text-white"
             />
-            <span className="text-neutral-500 text-[11px] font-semibold uppercase">To:</span>
-            <input aria-label="To date"
+            <span className="text-neutral-500 text-[11px] font-semibold uppercase">{reportText('r.to-4', 'To:')}</span>
+            <input aria-label={reportText('r.to-date', 'To date')}
               type="date"
               value={endDate || ''}
               onChange={(e) => onEndDateChange(e.target.value)}
@@ -163,7 +165,7 @@ export function PartyReportLayout<T>({
       {/* Report Table */}
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden shadow-xs">
         {/* the table scrolls inside its box so the header (and totals) stay in view (I-14) */}
-        <div role="region" aria-label="Scrollable party report" tabIndex={0} className="overflow-auto max-h-[70vh] print:max-h-none print:overflow-visible">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
+        <div role="region" aria-label={reportText('r.scrollable-party-report', 'Scrollable party report')} tabIndex={0} className="overflow-auto max-h-[70vh] print:max-h-none print:overflow-visible">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
           <table className="w-full text-left text-xs">
             <caption className="sr-only">{title}</caption>
             <thead className="sticky top-0 z-10 bg-neutral-50 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-semibold uppercase tracking-wider text-[10px]">
@@ -222,7 +224,7 @@ export function PartyReportLayout<T>({
                     <td key={col.key} className={`px-4 py-3 ${col.align === 'right' ? 'text-right font-mono' : col.align === 'center' ? 'text-center' : 'text-left'}`}>
                       {(sumKeys as string[]).includes(col.key)
                         ? formatCurrency(data.reduce((sum, item) => sum + (Number((item as Record<string, unknown>)[col.key]) || 0), 0))
-                        : i === 0 ? `Total (${data.length})` : ''}
+                        : i === 0 ? fill(reportText('r.total-0', 'Total ({0})'), { 0: data.length }) : ''}
                     </td>
                   ))}
                 </tr>

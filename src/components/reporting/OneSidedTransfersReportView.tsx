@@ -10,8 +10,10 @@ import { useUIStore } from '../../stores/useUIStore';
 import { formatCurrency } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
 import { RowTable } from '../ui/RowTable';
+import { useReportText } from './useReportText';
 
 export default function OneSidedTransfersReportView({ endDate = '' }: { endDate?: string }) {
+  const reportText = useReportText();
   const transactions = useLedgerStore(s => s.transactions), accounts = useLedgerStore(s => s.accounts);
   const lines = useLedgerStore(s => s.bankLines), truncated = useLedgerStore(s => s.truncatedCollections);
   const failed = useDataNeedsStore(s => s.failed), workspace = useAuthStore(s => s.currentWorkspaceId);
@@ -25,15 +27,15 @@ export default function OneSidedTransfersReportView({ endDate = '' }: { endDate?
     transactions.filter(r => !workspace || r.workspaceId === workspace),
     lines.filter(r => !workspace || r.workspaceId === workspace), endDate,
   ) : [], [accounts, transactions, lines, workspace, endDate, valid, loading]);
-  return <section aria-label="Transfer counterpart review" className="p-4 space-y-4 min-w-0">
-    <h2 className="text-lg font-semibold">Transfers needing counterpart review</h2>
-    <p className="text-sm text-[var(--muted)]">As of {endDate}, review posted transfers between your own cash or bank accounts when only one ledger cash side exists, the cash sides are unequal, or exactly one side has a matched bank statement line. An unmatched side does not prove the funds never arrived. Separate bank-feed records may be missing their account IDs; those cannot establish a match here.</p>
-    {loading && <p role="status">Loading transactions and bank statements…</p>}
-    {!valid && <p role="alert">Choose a valid report end date.</p>}
-    {partial && <p role="alert">History is incomplete or failed to load. Missing counterpart warnings are provisional.</p>}
+  return <section aria-label={reportText('r.transfer-counterpart-review', 'Transfer counterpart review')} className="p-4 space-y-4 min-w-0">
+    <h2 className="text-lg font-semibold">{reportText('r.transfers-needing-counterpart-review', 'Transfers needing counterpart review')}</h2>
+    <p className="text-sm text-[var(--muted)]">{reportText('r.as-of-2', 'As of')} {endDate}{reportText('r.review-posted-transfers-between-your-own-cash-or', ', review posted transfers between your own cash or bank accounts when only one ledger cash side exists, the cash sides are unequal, or exactly one side has a matched bank statement line. An unmatched side does not prove the funds never arrived. Separate bank-feed records may be missing their account IDs; those cannot establish a match here.')}</p>
+    {loading && <p role="status">{reportText('r.loading-transactions-and-bank-statements', 'Loading transactions and bank statements…')}</p>}
+    {!valid && <p role="alert">{reportText('r.choose-a-valid-report-end-date', 'Choose a valid report end date.')}</p>}
+    {partial && <p role="alert">{reportText('r.history-is-incomplete-or-failed-to-load-missing', 'History is incomplete or failed to load. Missing counterpart warnings are provisional.')}</p>}
     {valid && !loading && <ReportTableScroll><RowTable
       rowClassName="border-t border-[var(--line)]"
-      caption={(<>Transfer counterpart review as of {endDate}</>)}
+      caption={(<>{reportText('r.transfer-counterpart-review-as-of', 'Transfer counterpart review as of')} {endDate}</>)}
       rows={rows}
       rowKey={row => row.id}
       captionClassName=""
@@ -41,12 +43,12 @@ export default function OneSidedTransfersReportView({ endDate = '' }: { endDate?
       headRowClassName=""
       bodyClassName=""
       columns={[
-        { header: "Date / transaction", className: "text-left", headClassName: "", cell: (row) => <button type="button" className="underline text-left" onClick={() => openRecord({ type: 'transaction', id: row.id })}>{row.date} — <bdi>{row.description}</bdi></button> },
-        { header: "From", headClassName: "", cell: (row) => <bdi>{row.fromAccount}</bdi> },
-        { header: "To", headClassName: "", cell: (row) => <bdi>{row.toAccount}</bdi> },
-        { header: "Amount", className: "text-right tabular-nums", headClassName: "", cell: (row) => formatCurrency(row.amountCents, currency) },
-        { header: "Why review", headClassName: "", cell: (row) => row.status },
+        { header: reportText('r.date-transaction', 'Date / transaction'), className: "text-left", headClassName: "", cell: (row) => <button type="button" className="underline text-left" onClick={() => openRecord({ type: 'transaction', id: row.id })}>{row.date} — <bdi>{row.description}</bdi></button> },
+        { header: reportText('r.from', 'From'), headClassName: "", cell: (row) => <bdi>{row.fromAccount}</bdi> },
+        { header: reportText('r.to', 'To'), headClassName: "", cell: (row) => <bdi>{row.toAccount}</bdi> },
+        { header: reportText('r.amount', 'Amount'), className: "text-right tabular-nums", headClassName: "", cell: (row) => formatCurrency(row.amountCents, currency) },
+        { header: reportText('r.why-review', 'Why review'), headClassName: "", cell: (row) => row.status },
       ]}
-    />{!rows.length && <p>No one-sided transfer warnings in the loaded history.</p>}</ReportTableScroll>}
+    />{!rows.length && <p>{reportText('r.no-one-sided-transfer-warnings-in-the-loaded-his', 'No one-sided transfer warnings in the loaded history.')}</p>}</ReportTableScroll>}
   </section>;
 }

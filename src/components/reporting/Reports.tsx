@@ -40,6 +40,7 @@ import { isTransactionInDateRange } from '../../lib/txFilters';
 import { entriesForAccounts } from '../../lib/statementDrill';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import ReportNote from './ReportNote';
+import { useReportText } from './useReportText';
 
 /** R-4: these reports move their own dates, so each shows its note for the dates on screen. */
 const OWN_PERIOD_REPORTS = new Set(['pnl', 'balance-sheet']);
@@ -53,6 +54,7 @@ const monthNames = ["January", "February", "March", "April", "May", "June", "Jul
 const quarterNames = ["Q1", "Q2", "Q3", "Q4"];
 
 const Reports = React.memo(() => {
+  const reportText = useReportText();
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
   const projects = useLedgerStore(s => s.projects);
@@ -292,8 +294,8 @@ const Reports = React.memo(() => {
     <div className="sentence-case-controls w-full max-w-[1400px] mx-auto px-4 sm:px-6 py-6 space-y-6" data-print-root>
       {/* Printed / PDF heading: the report and its period */}
       <div className="hidden print:block">
-        <h1 className="text-xl font-bold">{(REPORT_TABS_REGISTRY.find(t => t.id === activeTab)?.label as Record<string, string> | undefined)?.en || 'Report'}</h1>
-        <p className="text-sm">{customPeriod ? "Custom range" : periodLabel}</p>
+        <h1 className="text-xl font-bold">{(REPORT_TABS_REGISTRY.find(t => t.id === activeTab)?.label as Record<string, string> | undefined)?.en || reportText('r.report', 'Report')}</h1>
+        <p className="text-sm">{customPeriod ? reportText('r.custom-range', 'Custom range') : periodLabel}</p>
         {/* A-220: the printed period in the reader's own date format, with the comparison when there is one */}
         <ReportPeriodHeading
           className="text-sm"
@@ -305,9 +307,9 @@ const Reports = React.memo(() => {
       </div>
       {/* R-4: the note for this report and period, on screen and in the print / PDF */}
       {!OWN_PERIOD_REPORTS.has(activeTab) && <ReportNote key={`${activeTab}|${period.startDate}|${period.endDate}`} report={activeTab} startDate={period.startDate} endDate={period.endDate} />}
-      <section data-print-hide data-testid="reports-heading" aria-label="Reports heading" className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] pb-3">
+      <section data-print-hide data-testid="reports-heading" aria-label={reportText('r.reports-heading', 'Reports heading')} className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] pb-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-[var(--text)]">Reports</h1>
+          <h1 className="text-2xl font-bold text-[var(--text)]">{reportText('r.reports', 'Reports')}</h1>
           {/* A-220: the period in the workspace's own date style, on the line the page already had
               (a second line would grow the heading past the 120 px the UI guide allows) */}
           <p className="text-sm text-[var(--muted)]">
@@ -324,10 +326,10 @@ const Reports = React.memo(() => {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => onAction('export')} className="min-h-11 px-3 flex items-center gap-2 text-sm text-[var(--text)] bg-[var(--surface)] border border-[var(--line)] rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brass)]">
-            <Download size={16} aria-hidden="true" /> Export
+            <Download size={16} aria-hidden="true" /> {reportText('r.export', 'Export')}
           </button>
           <button onClick={printReport} className="min-h-11 px-3 flex items-center gap-2 text-sm text-[var(--text)] bg-[var(--surface)] border border-[var(--line)] rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brass)]">
-            <Printer size={16} aria-hidden="true" /> Print / PDF
+            <Printer size={16} aria-hidden="true" /> {reportText('r.print-pdf', 'Print / PDF')}
           </button>
           <button type="button" onClick={() => {
             const writeText = (text: string) => {
@@ -340,17 +342,17 @@ const Reports = React.memo(() => {
                 : 'Could not copy automatically. The address bar already contains this report link; copy it from there.');
             });
           }} className="min-h-11 px-3 flex items-center gap-2 text-sm text-[var(--text)] bg-[var(--surface)] border border-[var(--line)] rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brass)]">
-            <Link2 size={16} aria-hidden="true" /> Copy link
+            <Link2 size={16} aria-hidden="true" /> {reportText('r.copy-link', 'Copy link')}
           </button>
         </div>
         {linkNotice && <p role="status" className="w-full text-xs text-[var(--muted)]">{linkNotice}</p>}
       </section>
-      <div data-print-hide role="region" aria-label="Report period" className="flex flex-wrap items-center gap-2 [&_button]:min-h-11 [&_select]:min-h-11 [&_button]:min-w-11">
+      <div data-print-hide role="region" aria-label={reportText('r.report-period', 'Report period')} className="flex flex-wrap items-center gap-2 [&_button]:min-h-11 [&_select]:min-h-11 [&_button]:min-w-11">
             {/* A-218: which paper this report prints on, beside the period controls so the page
                 heading stays within the 120 px the UI guide allows on a phone */}
             <PrintLayoutControl columnCount={printColumns} />
             <button onClick={() => onAction('generate')} className="px-3.5 py-1.5 rounded-lg text-sm font-medium bg-[var(--surface)] text-[var(--text)] border border-[var(--line)] hover:border-[var(--brass)] transition-all shadow-xs cursor-pointer">
-              Generate
+              {reportText('r.generate', 'Generate')}
             </button>
             
             <div className="flex items-center gap-1 bg-[var(--panel)] border border-[var(--line)] p-0.5 rounded-lg">
@@ -378,21 +380,21 @@ const Reports = React.memo(() => {
             <select
               value={selectedYear}
               onChange={(e) => { setCustomPeriod(undefined); setSelectedYear(Number(e.target.value)); }}
-              aria-label="Select Year"
+              aria-label={reportText('r.select-year', 'Select Year')}
               className="px-2.5 py-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-[10px] font-bold text-[var(--text)] hover:border-[var(--brass-line)] focus:outline-none focus:ring-1 focus:ring-[var(--brass)] cursor-pointer"
             >
               {availableYears.map(year => (
                 <option key={year} value={year}>{year}</option>
               ))}
             </select>
-            {serverYearsFailed && <span role="status" data-testid="report-years-incomplete" className="text-[10px] text-[var(--muted)]">Older years may be missing: the server could not be asked.</span>}
+            {serverYearsFailed && <span role="status" data-testid="report-years-incomplete" className="text-[10px] text-[var(--muted)]">{reportText('r.older-years-may-be-missing-the-server-could-not', 'Older years may be missing: the server could not be asked.')}</span>}
 
             {/* Dynamic Month/Quarter Selector */}
             {timeframe === 'month' && (
               <select
                 value={selectedMonth}
                 onChange={(e) => { setCustomPeriod(undefined); setSelectedMonth(Number(e.target.value)); }}
-                aria-label="Select Month"
+                aria-label={reportText('r.select-month', 'Select Month')}
                 className="px-2.5 py-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-[10px] font-bold text-[var(--text)] hover:border-[var(--brass-line)] focus:outline-none focus:ring-1 focus:ring-[var(--brass)] cursor-pointer animate-fade-in"
               >
                 {monthNames.map((name, idx) => (
@@ -405,7 +407,7 @@ const Reports = React.memo(() => {
               <select
                 value={selectedQuarter}
                 onChange={(e) => { setCustomPeriod(undefined); setSelectedQuarter(Number(e.target.value)); }}
-                aria-label="Select Quarter"
+                aria-label={reportText('r.select-quarter', 'Select Quarter')}
                 className="px-2.5 py-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-[10px] font-bold text-[var(--text)] hover:border-[var(--brass-line)] focus:outline-none focus:ring-1 focus:ring-[var(--brass)] cursor-pointer animate-fade-in"
               >
                 {quarterNames.map((name, idx) => (
@@ -417,17 +419,17 @@ const Reports = React.memo(() => {
             <select
               value={compareMode}
               onChange={(e) => setCompareMode(e.target.value as CompareMode)}
-              aria-label="Compare to"
+              aria-label={reportText('r.compare-to', 'Compare to')}
               className="px-2.5 py-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-[10px] font-bold text-[var(--text)] hover:border-[var(--brass-line)] focus:outline-none focus:ring-1 focus:ring-[var(--brass)] cursor-pointer"
             >
-              <option value="none">No comparison</option>
-              <option value="previous">vs previous period</option>
-              <option value="lastYear">vs same period last year</option>
+              <option value="none">{reportText('r.no-comparison', 'No comparison')}</option>
+              <option value="previous">{reportText('r.vs-previous-period', 'vs previous period')}</option>
+              <option value="lastYear">{reportText('r.vs-same-period-last-year', 'vs same period last year')}</option>
             </select>
 
             <div className="h-4 w-px bg-[var(--line)]" />
             
-            <button className="min-h-11 px-3 border border-[var(--line)] rounded-md text-xs" onClick={() => setPackPeriod({ startDate: period.startDate, endDate: period.endDate })}>Report pack</button>
+            <button className="min-h-11 px-3 border border-[var(--line)] rounded-md text-xs" onClick={() => setPackPeriod({ startDate: period.startDate, endDate: period.endDate })}>{reportText('r.report-pack', 'Report pack')}</button>
             <EmailMeMondays reportTab={activeTab} />
             <ReportViewsControls state={reportState} onUse={next => {
               setLinked(next);
@@ -441,15 +443,15 @@ const Reports = React.memo(() => {
             }} />
       </div>
 
-      {packPeriod && <React.Suspense fallback={<p role="status">Loading report pack…</p>}><ReportPackDialog {...packPeriod} onClose={() => setPackPeriod(undefined)} /></React.Suspense>}
+      {packPeriod && <React.Suspense fallback={<p role="status">{reportText('r.loading-report-pack', 'Loading report pack…')}</p>}><ReportPackDialog {...packPeriod} onClose={() => setPackPeriod(undefined)} /></React.Suspense>}
 
-      <nav role="navigation" data-print-hide data-testid="report-tabs" aria-label="Report pages">
+      <nav role="navigation" data-print-hide data-testid="report-tabs" aria-label={reportText('r.report-pages', 'Report pages')}>
         <ReportPicker activeTab={activeTab} onSelect={setActiveTab} />
       </nav>
 
       {/* Content */}
       <div className="min-h-[600px]">
-        <React.Suspense fallback={<ReportSkeleton rows={9} columns={4} label="Loading report…" className="p-2 min-h-[600px]" />}>
+        <React.Suspense fallback={<ReportSkeleton rows={9} columns={4} label={reportText('r.loading-report', 'Loading report…')} className="p-2 min-h-[600px]" />}>
           <AnimatePresence mode="wait">
             {REPORT_TABS_REGISTRY.map(tab => {
               if (tab.id !== activeTab) return null;
@@ -512,7 +514,7 @@ const Reports = React.memo(() => {
           className="flex items-center gap-3 px-10 py-5 bg-[var(--surface)] border-2 border-zinc-900 rounded-full text-[var(--text)] font-medium uppercase tracking-wider text-xs hover:bg-zinc-900 hover:text-white transition-all group"
         >
           <Download size={16} className="group-hover:translate-y-0.5 transition-transform" />
-          Workspace exports
+          {reportText('r.workspace-exports', 'Workspace exports')}
         </button>
       </div>
       <React.Suspense fallback={null}>

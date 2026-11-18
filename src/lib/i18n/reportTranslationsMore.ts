@@ -4,6 +4,7 @@ import { EVEN_MORE_REPORT_STRINGS } from './reportTranslationsMore2';
 import { LAST_REPORT_STRINGS } from './reportTranslationsMore3';
 import { FIFTH_REPORT_STRINGS } from './reportTranslationsMore4';
 import { REPORT_STRINGS_5 } from './reportTranslationsMore5';
+import { REPORT_STRINGS_6 } from './reportTranslationsMore6';
 
 export const MORE_REPORT_STRINGS: ScreenStringEntry[] = [
     { key: 'r.charged-on', en: ', charged on', he: ', מחושב על' },
@@ -588,4 +589,5 @@ export const MORE_REPORT_STRINGS: ScreenStringEntry[] = [
   ...LAST_REPORT_STRINGS,
   ...FIFTH_REPORT_STRINGS,
   ...REPORT_STRINGS_5,
+  ...REPORT_STRINGS_6,
 ];

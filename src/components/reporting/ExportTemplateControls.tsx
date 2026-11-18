@@ -3,6 +3,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { exportTemplateKey, MAX_EXPORT_TEMPLATES, parseExportTemplates, templateMatches } from '../../lib/exportTemplates';
 import type { ExportTemplate } from '../../lib/exportTemplates';
 import { validPeriodLayout, type ReportPeriodLayout } from '../../lib/reportPeriodLayout';
+import { useReportText, fill } from './useReportText';
 
 export default function ExportTemplateControls(props: { report: string; columns: string[]; layout: ReportPeriodLayout; onUse: (layout: ReportPeriodLayout) => void }) {
   const user = useAuthStore(state => state.user?.uid || 'guest');
@@ -11,6 +12,7 @@ export default function ExportTemplateControls(props: { report: string; columns:
   return <ScopedTemplates key={JSON.stringify([storageKey, props.columns])} {...props} storageKey={storageKey} user={user} workspace={workspace} />;
 }
 function ScopedTemplates({ report, columns, layout, onUse, storageKey, user, workspace }: { report: string; columns: string[]; layout: ReportPeriodLayout; onUse: (layout: ReportPeriodLayout) => void; storageKey: string; user: string; workspace: string }) {
+  const reportText = useReportText();
   const [templates, setTemplates] = useState(() => { try { return parseExportTemplates(localStorage.getItem(storageKey)); } catch { return []; } });
   const [name, setName] = useState(''), [error, setError] = useState(''), [notice, setNotice] = useState('');
   const current = () => (useAuthStore.getState().user?.uid || 'guest') === user && (useAuthStore.getState().currentWorkspaceId || 'none') === workspace;
@@ -30,11 +32,11 @@ function ScopedTemplates({ report, columns, layout, onUse, storageKey, user, wor
     setNotice(`Saved ${label}`); setName('');
   }
   return <details data-print-hide className="min-w-0 rounded border p-2">
-    <summary className="min-h-11 cursor-pointer">Export templates</summary>
-    <p className="text-xs">Named column choices for {report}, saved for you in this workspace on this device. Use a template, then export CSV. Dates, filters and report data are not stored.</p>
-    <div className="flex flex-wrap gap-2 mt-2"><label className="min-w-0 text-sm">Template name<input value={name} onChange={event => setName(event.target.value)} maxLength={80} className="block min-h-11 max-w-full border rounded px-2" /></label><button type="button" onClick={save} className="min-h-11 border rounded px-3">Save these columns as…</button></div>
-    {templates.length === 0 && <p className="text-xs">No saved templates yet.</p>}
-    <ul>{templates.map(template => { const compatible = templateMatches(template, columns); return <li key={template.name} className="flex flex-wrap items-center gap-2 mt-2"><bdi dir="auto" className="break-words">{template.name}</bdi><button type="button" disabled={!compatible} onClick={() => { if (current() && compatible) { onUse(template.layout); setNotice(`Using ${template.name}`); } }} aria-label={`Use template ${template.name}`} className="min-h-11 border rounded px-3">Use</button><button type="button" onClick={() => persist(templates.filter(item => item.name !== template.name))} aria-label={`Remove template ${template.name}`} className="min-h-11 border rounded px-3">Remove</button>{!compatible && <span className="text-xs">Columns have changed; this template cannot be applied here.</span>}</li>; })}</ul>
+    <summary className="min-h-11 cursor-pointer">{reportText('r.export-templates', 'Export templates')}</summary>
+    <p className="text-xs">{reportText('r.named-column-choices-for', 'Named column choices for')} {report}{reportText('r.saved-for-you-in-this-workspace-on-this-device-u', ', saved for you in this workspace on this device. Use a template, then export CSV. Dates, filters and report data are not stored.')}</p>
+    <div className="flex flex-wrap gap-2 mt-2"><label className="min-w-0 text-sm">{reportText('r.template-name', 'Template name')}<input value={name} onChange={event => setName(event.target.value)} maxLength={80} className="block min-h-11 max-w-full border rounded px-2" /></label><button type="button" onClick={save} className="min-h-11 border rounded px-3">{reportText('r.save-these-columns-as', 'Save these columns as…')}</button></div>
+    {templates.length === 0 && <p className="text-xs">{reportText('r.no-saved-templates-yet', 'No saved templates yet.')}</p>}
+    <ul>{templates.map(template => { const compatible = templateMatches(template, columns); return <li key={template.name} className="flex flex-wrap items-center gap-2 mt-2"><bdi dir="auto" className="break-words">{template.name}</bdi><button type="button" disabled={!compatible} onClick={() => { if (current() && compatible) { onUse(template.layout); setNotice(`Using ${template.name}`); } }} aria-label={fill(reportText('r.use-template-0', 'Use template {0}'), { 0: template.name })} className="min-h-11 border rounded px-3">{reportText('r.use', 'Use')}</button><button type="button" onClick={() => persist(templates.filter(item => item.name !== template.name))} aria-label={fill(reportText('r.remove-template-0', 'Remove template {0}'), { 0: template.name })} className="min-h-11 border rounded px-3">{reportText('r.remove', 'Remove')}</button>{!compatible && <span className="text-xs">{reportText('r.columns-have-changed-this-template-cannot-be-app', 'Columns have changed; this template cannot be applied here.')}</span>}</li>; })}</ul>
     {error && <p role="alert" className="text-sm">{error}</p>}<p role="status" className="sr-only">{notice}</p>
   </details>;
 }

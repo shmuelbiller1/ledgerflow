@@ -4,9 +4,11 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { saveWorkspaceSettings } from '../../lib/workspaceSettingsSave';
 import { EMAILABLE_REPORTS, addMondayEmail, mondayScheduleFor } from '../../lib/emailMeMondays';
+import { useReportText } from './useReportText';
 
 /** EU-F3: one click to get this report every Monday (owners and accountants keep schedules; others see nothing). */
 export default function EmailMeMondays({ reportTab }: { reportTab: string }) {
+  const reportText = useReportText();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const email = useAuthStore(s => s.user?.email) || '';
   const role = useCurrentRole();
@@ -15,7 +17,7 @@ export default function EmailMeMondays({ reportTab }: { reportTab: string }) {
   if (!kind || !workspace?.id || !email || (role !== 'owner' && role !== 'accountant')) return null;
   const schedules = workspace.scheduledReports || [];
   if (mondayScheduleFor(schedules, kind, email)) {
-    return <span className="text-xs text-[var(--muted)]" data-testid="email-me-mondays">Emailed to you every Monday</span>;
+    return <span className="text-xs text-[var(--muted)]" data-testid="email-me-mondays">{reportText('r.emailed-to-you-every-monday', 'Emailed to you every Monday')}</span>;
   }
   const add = async () => {
     if (busy) return;
@@ -37,6 +39,6 @@ export default function EmailMeMondays({ reportTab }: { reportTab: string }) {
   };
   return (
     <button type="button" data-testid="email-me-mondays" disabled={busy} onClick={() => void add()}
-      className="min-h-11 px-3 border border-[var(--line)] rounded-md text-xs disabled:opacity-50">Email me this every Monday</button>
+      className="min-h-11 px-3 border border-[var(--line)] rounded-md text-xs disabled:opacity-50">{reportText('r.email-me-this-every-monday', 'Email me this every Monday')}</button>
   );
 }

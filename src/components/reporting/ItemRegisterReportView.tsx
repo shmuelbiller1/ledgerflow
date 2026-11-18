@@ -59,7 +59,7 @@ export default function ItemRegisterReportView() {
         <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.to', 'To')}<input type="date" value={to} onChange={e => setTo(e.target.value)} className={field} /></label>
       </div>
       {loading && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
-      {!loading && rows.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no', 'No')} {side === 'sales' ? reportText('r.invoice', 'invoice') : reportText('r.bill', 'bill')} {reportText('r.lines-with-a-stock-item-in-this-period', 'lines with a stock item in this period.')}</p>}
+      {!loading && rows.length === 0 && <p className="text-sm text-[var(--muted)]">{side === 'sales' ? reportText('r.no-invoice-stock-lines', 'No invoice lines with a stock item in this period.') : reportText('r.no-bill-stock-lines', 'No bill lines with a stock item in this period.')}</p>}
       {rows.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
           <RowTable

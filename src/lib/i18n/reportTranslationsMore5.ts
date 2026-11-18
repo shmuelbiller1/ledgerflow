@@ -452,12 +452,4 @@ export const REPORT_STRINGS_5: ScreenStringEntry[] = [
   { key: 'r.not-built', en: 'Not built', he: 'לא נבנה' },
   { key: 'r.pcn874-validation', en: 'PCN874 validation', he: 'אימות PCN874' },
   { key: 'r.historical-appendix-draft-checked', en: 'The historical Appendix A draft for {period}, checked record by record. It is', he: 'טיוטת נספח א׳ ההיסטורית לתקופה {period}, שנבדקה רשומה אחר רשומה. היא' },
-  { key: 'r.not-ready-for-filing', en: 'not ready for filing', he: 'אינה מוכנה להגשה' },
-  { key: 'r.historical-not-filed-caution', en: ': the layout dates to 2010 and current validation must be verified independently. Nothing is submitted from this screen.', he: ': המבנה משנת 2010, ויש לאמת בנפרד את התאמתו העדכנית. מסך זה אינו מגיש דבר.' },
-  { key: 'r.pcn874-layout-checks', en: 'PCN874 layout checks', he: 'בדיקות מבנה PCN874' },
-  { key: 'r.actual', en: 'Actual', he: 'בפועל' },
-  { key: 'r.documents-not-represented-in-historical-layout', en: '{count} exempt, reverse-charge or out-of-scope document(s) are not represented in this layout and are never silently dropped.', he: '{count} מסמכים פטורים, בחיוב הפוך או מחוץ לתחום אינם מיוצגים במבנה זה ואינם מושמטים בשקט.' },
-  { key: 'r.pcn874-totals-reconciliation', en: 'PCN874 totals reconciliation', he: 'התאמת סיכומי PCN874' },
-  { key: 'r.whole-shekel-differences-are-never-smoothed-away', en: 'The draft’s whole-shekel totals differ from the VAT report; the difference is shown, never smoothed away. Per-document rounding to whole shekels can explain one shekel per row.', he: 'סכומי הטיוטה בשקלים שלמים שונים מדוח המע״מ; ההפרש מוצג ואינו מוסתר. עיגול כל מסמך לשקל שלם עשוי להסביר הפרש של שקל לכל שורה.' },
-  { key: 'r.draft-widths-download-is-not-filing', en: 'Header {headerLength} characters, {count} transaction row(s) of {width}, closing {closingLength}. Downloading saves the text; it does not file it.', he: 'כותרת: {headerLength} תווים, {count} שורות עסקה באורך {width}, רשומת סיום: {closingLength}. ההורדה שומרת את הטקסט ואינה מגישה אותו.' },
 ];

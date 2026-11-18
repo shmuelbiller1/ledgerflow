@@ -6,6 +6,7 @@ import { readPeriodLayout, savePeriodLayout, movePeriod, validPeriodLayout } fro
 import { orderReportCells } from './orderReportCells';
 import { downloadCsv } from '../../lib/csvExport';
 import { hiddenColumnsCss, readHidden, saveHidden, toggleColumn } from '../../lib/columnChoice';
+import { useReportText, fill } from './useReportText';
 
 /**
  * A named focusable region and native controls let keyboard users scroll wide tables. N-10:
@@ -14,6 +15,7 @@ import { hiddenColumnsCss, readHidden, saveHidden, toggleColumn } from '../../li
  * no rows gets one shared next-action empty state; loading and failure states are never called empty.
  */
 export default function ReportTableScroll({children}:{children:ReactNode}) {
+  const reportText = useReportText();
  const ref=useRef<HTMLDivElement>(null);
  const scope=useId().replace(/[^a-zA-Z0-9_-]/g,'');
  const [headers,setHeaders]=useState<string[]>([]);
@@ -102,16 +104,16 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
  };
  return <>
   {empty&&<div data-print-hide className="mb-2">
-   <ReportEmptyState title="Nothing to show in this table yet"
-    description="Check the selected period, search and filters. If the books are new, save the source invoice, bill, payment or journal first; the report reads saved records and does not invent rows." />
+   <ReportEmptyState title={reportText('r.nothing-to-show-in-this-table-yet', 'Nothing to show in this table yet')}
+    description={reportText('r.check-the-selected-period-search-and-filters-if', 'Check the selected period, search and filters. If the books are new, save the source invoice, bill, payment or journal first; the report reads saved records and does not invent rows.')} />
   </div>}
-  <div ref={ref} data-columns={scope} className="overflow-x-auto" role="region" aria-label="Scrollable report table" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
+  <div ref={ref} data-columns={scope} className="overflow-x-auto" role="region" aria-label={reportText('r.scrollable-report-table', 'Scrollable report table')} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
    <style>{hiddenColumnsCss(scope,effectiveHidden.map(index=>reorderable?order.indexOf(String(index)):index))}</style>
    <div data-print-hide className="sticky start-0 flex flex-wrap gap-2 mb-2">
-    <button type="button" onClick={()=>scroll(-240)} className="min-h-11 px-3 border rounded"><span aria-hidden="true">← </span>Scroll table left</button>
-    <button type="button" onClick={()=>scroll(240)} className="min-h-11 px-3 border rounded">Scroll table right<span aria-hidden="true"> →</span></button>
-    {headers.length>2&&<button type="button" aria-expanded={open} onClick={()=>setOpen(o=>!o)} className="min-h-11 px-3 border rounded">Columns{effectiveHidden.length?` (${effectiveHidden.length} hidden)`:''}</button>}
-    {open&&reorderable&&<button type="button" onClick={exportDisplayed} className="min-h-11 px-3 border rounded">Export displayed rows CSV</button>}
+    <button type="button" onClick={()=>scroll(-240)} className="min-h-11 px-3 border rounded"><span aria-hidden="true">← </span>{reportText('r.scroll-table-left', 'Scroll table left')}</button>
+    <button type="button" onClick={()=>scroll(240)} className="min-h-11 px-3 border rounded">{reportText('r.scroll-table-right', 'Scroll table right')}<span aria-hidden="true"> →</span></button>
+    {headers.length>2&&<button type="button" aria-expanded={open} onClick={()=>setOpen(o=>!o)} className="min-h-11 px-3 border rounded">{reportText('r.columns', 'Columns')}{effectiveHidden.length?` ${fill(reportText('r.0-hidden', '({0} hidden)'), { 0: effectiveHidden.length })}`:''}</button>}
+    {open&&reorderable&&<button type="button" onClick={exportDisplayed} className="min-h-11 px-3 border rounded">{reportText('r.export-displayed-rows-csv', 'Export displayed rows CSV')}</button>}
    </div>
    {open&&reorderable&&report&&<ExportTemplateControls report={report} columns={headers} layout={{order,hidden:effectiveHidden.map(String)}} onUse={next=>{
     const nextOrder=['0',...next.order.filter(id=>id!=='0')];
@@ -121,11 +123,11 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
    }}/>}
    {open&&headers.length>2&&(
     <fieldset data-print-hide className="sticky start-0 mb-2 flex flex-wrap gap-3 text-sm">
-     <legend className="sr-only">Columns to show</legend>
-     {reorderable&&<p className="w-full">CSV includes these displayed rows and columns as shown, including localized text. Use the report’s financial export for plain numeric amounts.</p>}
+     <legend className="sr-only">{reportText('r.columns-to-show', 'Columns to show')}</legend>
+     {reorderable&&<p className="w-full">{reportText('r.csv-includes-these-displayed-rows-and-columns-as', 'CSV includes these displayed rows and columns as shown, including localized text. Use the report’s financial export for plain numeric amounts.')}</p>}
      {order.filter(id=>id!=='0').map(id=>({name:headers[Number(id)],column:Number(id)})).map(c=>(
-      <div key={c.column} className="flex flex-wrap items-center gap-1"><label className="min-h-11 flex items-center gap-1"><input type="checkbox" checked={!effectiveHidden.includes(c.column)} onChange={()=>change(c.column)}/>{c.name||`Column ${c.column+1}`}</label>
-       {reorderable&&<><button type="button" className="min-h-11 px-3 border rounded" aria-label={`Move ${c.name||`Column ${c.column+1}`} earlier`} disabled={order.indexOf(String(c.column))<=1} onClick={()=>move(c.column,-1)}>←</button><button type="button" className="min-h-11 px-3 border rounded" aria-label={`Move ${c.name||`Column ${c.column+1}`} later`} disabled={order.indexOf(String(c.column))===order.length-1} onClick={()=>move(c.column,1)}>→</button></>}
+      <div key={c.column} className="flex flex-wrap items-center gap-1"><label className="min-h-11 flex items-center gap-1"><input type="checkbox" checked={!effectiveHidden.includes(c.column)} onChange={()=>change(c.column)}/>{c.name||fill(reportText('r.column-0', 'Column {0}'), { 0: c.column+1 })}</label>
+       {reorderable&&<><button type="button" className="min-h-11 px-3 border rounded" aria-label={fill(reportText('r.move-0-earlier', 'Move {0} earlier'), { 0: c.name||`Column ${c.column+1}` })} disabled={order.indexOf(String(c.column))<=1} onClick={()=>move(c.column,-1)}>←</button><button type="button" className="min-h-11 px-3 border rounded" aria-label={fill(reportText('r.move-0-later', 'Move {0} later'), { 0: c.name||`Column ${c.column+1}` })} disabled={order.indexOf(String(c.column))===order.length-1} onClick={()=>move(c.column,1)}>→</button></>}
       </div>
      ))}
     </fieldset>

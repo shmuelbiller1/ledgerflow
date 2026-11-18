@@ -1,18 +1,21 @@
 import { FileText } from 'lucide-react';
 import { computeTransactionsByCustomer } from '../../server/reports/partyReports';
 import { TransactionsByPartyView } from './partyTransactionsShared';
+import { useReportText } from './useReportText';
 
 /**
  * Itemized chronological ledger of invoices, receipts, and credits attributed
  * to each customer. The shared behaviour lives in `TransactionsByPartyView`;
  * this file only supplies the customer-specific config.
  */
-export const TransactionsByCustomerView: React.FC<{ startDate?: string; endDate?: string }> = (props) => (
+export const TransactionsByCustomerView: React.FC<{ startDate?: string; endDate?: string }> = (props) => {
+  const reportText = useReportText();
+  return (
   <TransactionsByPartyView
     config={{
-      title: 'Transactions by Customer',
+      title: reportText('r.transactions-by-customer', 'Transactions by Customer'),
       description:
-        'Itemized chronological ledger of invoices, receipts, and credits attributed to each customer.',
+        reportText('r.itemized-chronological-ledger-of-invoices-receip', 'Itemized chronological ledger of invoices, receipts, and credits attributed to each customer.'),
       icon: FileText,
       partyHeader: 'Customer',
       incomeType: 'Invoice',
@@ -21,8 +24,8 @@ export const TransactionsByCustomerView: React.FC<{ startDate?: string; endDate?
       paymentLabel: 'Total Payments Volume',
       exportFilename: 'transactions_by_customer',
       toastMessage: 'Transactions by Customer exported to CSV',
-      searchPlaceholder: 'Filter by customer name, ref, or type...',
-      emptyMessage: 'No customer transactions found matching search filter.',
+      searchPlaceholder: reportText('r.filter-by-customer-name-ref-or-type', 'Filter by customer name, ref, or type...'),
+      emptyMessage: reportText('r.no-customer-transactions-found-matching-search-f', 'No customer transactions found matching search filter.'),
       partyStore: (s) => s.customers,
       docStore1: (s) => s.invoices,
       docStore2: (s) => s.creditNotes,
@@ -38,5 +41,6 @@ export const TransactionsByCustomerView: React.FC<{ startDate?: string; endDate?
     {...props}
   />
 );
+};
 
 export default TransactionsByCustomerView;

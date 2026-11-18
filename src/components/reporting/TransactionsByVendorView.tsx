@@ -1,18 +1,21 @@
 import { FileSpreadsheet } from 'lucide-react';
 import { computeTransactionsByVendor } from '../../server/reports/partyReports';
 import { TransactionsByPartyView } from './partyTransactionsShared';
+import { useReportText } from './useReportText';
 
 /**
  * Itemized chronological register of bills, vendor credits, and disbursement
  * payments per supplier. The shared behaviour lives in `TransactionsByPartyView`;
  * this file only supplies the vendor-specific config.
  */
-export const TransactionsByVendorView: React.FC<{ startDate?: string; endDate?: string }> = (props) => (
+export const TransactionsByVendorView: React.FC<{ startDate?: string; endDate?: string }> = (props) => {
+  const reportText = useReportText();
+  return (
   <TransactionsByPartyView
     config={{
-      title: 'Transactions by Vendor',
+      title: reportText('r.transactions-by-vendor', 'Transactions by Vendor'),
       description:
-        'Itemized chronological register of bills, vendor credits, and disbursement payments per supplier.',
+        reportText('r.itemized-chronological-register-of-bills-vendor', 'Itemized chronological register of bills, vendor credits, and disbursement payments per supplier.'),
       icon: FileSpreadsheet,
       partyHeader: 'Vendor',
       incomeType: 'Bill',
@@ -21,8 +24,8 @@ export const TransactionsByVendorView: React.FC<{ startDate?: string; endDate?: 
       paymentLabel: 'Total Disbursements',
       exportFilename: 'transactions_by_vendor',
       toastMessage: 'Transactions by Vendor exported to CSV',
-      searchPlaceholder: 'Filter by vendor name, ref, or type...',
-      emptyMessage: 'No vendor transactions found matching search filter.',
+      searchPlaceholder: reportText('r.filter-by-vendor-name-ref-or-type', 'Filter by vendor name, ref, or type...'),
+      emptyMessage: reportText('r.no-vendor-transactions-found-matching-search-fil', 'No vendor transactions found matching search filter.'),
       partyStore: (s) => s.vendors,
       docStore1: (s) => s.bills,
       docStore2: (s) => s.vendorCredits,
@@ -38,5 +41,6 @@ export const TransactionsByVendorView: React.FC<{ startDate?: string; endDate?: 
     {...props}
   />
 );
+};
 
 export default TransactionsByVendorView;
