@@ -285,7 +285,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
         </div>
         <div>
           <h2 className="text-xl font-bold text-[var(--text)]">Backup & Export</h2>
-          <p className="text-zinc-500">Securely export your data for backups, accountants, or migration.</p>
+          <p className="text-[var(--muted)]">Securely export your data for backups, accountants, or migration.</p>
         </div>
       </div>
 
@@ -324,7 +324,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
           </p>
           <button 
             onClick={() => setExportOpen(true)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-sm font-medium transition-colors"
           >
             <Download aria-hidden="true" size={16} />
             Choose export

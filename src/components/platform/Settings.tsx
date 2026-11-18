@@ -94,6 +94,7 @@ export default function Settings() {
           <AnimatePresence mode="wait">
             <motion.div
               key={activeSubTab}
+              data-settings-page={activeSubTab}
               initial={{ x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}

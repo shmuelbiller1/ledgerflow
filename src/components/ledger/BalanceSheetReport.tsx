@@ -336,11 +336,11 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
                       INC
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-[var(--text)] uppercase tracking-tight truncate flex items-center gap-1.5">
-                        {labels.retainedEarningsLabel}
+                      <p className="text-xs font-bold text-[var(--text)] uppercase tracking-tight min-w-0 flex items-center gap-1.5">
+                        <span className="min-w-0 [overflow-wrap:anywhere] sm:truncate">{labels.retainedEarningsLabel}</span>
                         <ExternalLink aria-hidden="true" size={10} className="opacity-0 group-hover/row:opacity-100 text-[var(--text)] transition-opacity" />
                       </p>
-                      <p className="text-[8px] font-bold text-[var(--text)] uppercase tracking-wider truncate">{labels.retainedEarningsSub}</p>
+                      <p className="text-[8px] font-bold text-[var(--text)] uppercase tracking-wider [overflow-wrap:anywhere] sm:truncate">{labels.retainedEarningsSub}</p>
                     </div>
                   </div>
                   <div className="flex flex-col items-end shrink-0 ms-2">

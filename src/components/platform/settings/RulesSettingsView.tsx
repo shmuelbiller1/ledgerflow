@@ -16,7 +16,7 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
             <SlidersHorizontal aria-hidden="true" className="w-5 h-5 text-neutral-700" />
             Rules & Automation Engine
           </h2>
-          <p className="text-sm text-neutral-500 mt-1">
+          <p className="text-sm text-[var(--muted)] mt-1">
             Automate categorization, tagging, classification, and validation across all past and future transactions.
           </p>
         </div>

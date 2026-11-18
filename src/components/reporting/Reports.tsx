@@ -494,7 +494,9 @@ const Reports = React.memo(() => {
 
               return (
                 <ViewErrorBoundary key={tab.id} viewName={reportTitle}>
-                  <Component {...standardProps} />
+                  <div data-report-view={tab.id} className="min-w-0">
+                    <Component {...standardProps} />
+                  </div>
                 </ViewErrorBoundary>
               );
             })}
