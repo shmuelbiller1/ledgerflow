@@ -15,14 +15,11 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
     assert.match(inventory, /\bexecuteCommand\s*\(\s*req\s*,\s*res\s*,\s*\{/, 'inventoryRoutes must run its writes through the command runner');
     assert.match(inventory, /withLegacyInputIdempotencyHash\(/, 'and keep the legacy request fingerprint for a retry');
     // the two document-journal routes (ASC 842, ASC 606) are one route: the member check, the lock, the
-    // validator, the idempotent commit and its audit line live in src/server/services/journalDocumentService.ts
-    // (with src/server/http/journalDocumentRoute.ts as the legacy HTTP shape of it), and the route files
-    // name the entry. The work below has to happen — in the shared service, which both call.
-    const shared = fs.readFileSync(path.join(process.cwd(), 'src/server/http/journalDocumentRoute.ts'), 'utf8');
+    // validator, the idempotent commit and its audit line live in src/server/services/journalDocumentService.ts,
+    // and the route files name the entry. The work below has to happen — in the shared service, which both call.
     // the steps themselves (membership, lock, validator, idempotent commit, audit line) now live in a
-    // service so a registered command and the address run the same ones; read both.
-    const service = fs.readFileSync(path.join(process.cwd(), 'src/server/services/journalDocumentService.ts'), 'utf8');
-    const steps = `${shared}\n${service}`;
+    // service so a registered command and the address run the same ones; there is no second copy.
+    const steps = fs.readFileSync(path.join(process.cwd(), 'src/server/services/journalDocumentService.ts'), 'utf8');
     for (const rel of [
       'src/server/routes/leaseRoutes.ts',
       'src/server/routes/revenueRoutes.ts',
@@ -53,7 +50,6 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
     // routes do). The write and its audit line then live in that module: read it too, but only for the
     // factories named here, so an unrelated helper import cannot make a route look audited.
     const ROUTE_FACTORIES: Record<string, string> = {
-      postJournalDocumentRoute: 'src/server/http/journalDocumentRoute.ts',
       postJournalDocument: 'src/server/services/journalDocumentService.ts',
     };
     const sharedSourceFor = (body: string): string => Object.entries(ROUTE_FACTORIES)

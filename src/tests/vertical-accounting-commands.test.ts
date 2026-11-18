@@ -2,9 +2,9 @@
  * The two vertical-accounting journals: capitalising a lease (ASC 842) and recognising revenue
  * (ASC 606).
  *
- * These were already one shared route (`http/journalDocumentRoute.ts`), so what this batch moves is
- * the route's *entry point*, not its steps: the steps are now `services/journalDocumentService.ts`
- * and both the address and the registered command run them. What a test can break here is therefore
+ * These were already one shared route, so what this batch moves is the route's *entry point*, not its
+ * steps: the steps are now `services/journalDocumentService.ts` and both the address and the
+ * registered command run them. What a test can break here is therefore
  * narrow and worth pinning: the metadata an assistant reads, the preview that posts nothing, the
  * role the runner enforces, the fact that both commands post a *balanced* entry through one door,
  * and that the legacy address still answers `{ status: 'ok', message, transactionId }` while a
