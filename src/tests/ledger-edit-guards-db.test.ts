@@ -154,6 +154,31 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
     assert.equal((await read(handId))?.memo, 'Team coffee');
   });
 
+  test('#843: a posted entry keeps its currency and rate; the batch neither un-posts nor certifies it', async () => {
+    for (const partialUpdate of [{ exchangeRate: 2 }, { currency: 'EUR' }, { baseAmountCents: 900 }]) {
+      const refused = await send('PUT', `/api/v1/transactions/${handId}`, { partialUpdate });
+      assert.equal(refused.status, 409, `${JSON.stringify(partialUpdate)}: ${await refused.text()}`);
+    }
+    assert.equal((await read(handId))?.exchangeRate, 1);
+    assert.equal((await read(handId))?.currency, 'USD');
+    const same = await send('PUT', `/api/v1/transactions/${handId}`, { partialUpdate: { exchangeRate: 1, notes: 'same rate' } });
+    assert.equal(same.status, 200, await same.text());
+
+    const { batchWrites } = await import('../server/services/ledgerBatchUpdate');
+    const actor = { workspaceId: ws, uid: 'owner-1' };
+    for (const status of ['draft', 'failed', 'void', 'certified']) {
+      await assert.rejects(batchWrites(db, actor, [{ id: handId, data: { status } }]), (error: Error & { status?: number }) => error.status === 400, status);
+      assert.equal((await read(handId))?.status, 'completed', status);
+    }
+    // a draft may still be moved along, and the audit line carries what it was before
+    const draftId = `${ws}_draft`;
+    await db.collection('transactions').doc(draftId).set({ ...(await read(handId)), id: draftId, status: 'draft', notes: null });
+    assert.deepEqual(await batchWrites(db, actor, [{ id: draftId, data: { status: 'completed' } }]), { updated: 1 });
+    const audit = await db.pool.query(`select data from public."auditLogs" where workspace_id = $1 and data->>'action' = 'TRANSACTIONS_BATCH_UPDATED'`, [ws]);
+    const changes = audit.rows.map(row => (row.data as { details?: { changes?: Array<{ id: string; before: { status: string }; after: { status: string } }> } }).details?.changes || []).flat();
+    assert.ok(changes.some(c => c.id === draftId && c.before.status === 'draft' && c.after.status === 'completed'), JSON.stringify(changes));
+  });
+
   const lines = (r: number, a: number[]) => [{ accountId: `${fxWs}_a`, amountCents: a[0], exchangeRate: r }, { accountId: `${fxWs}_b`, amountCents: a[1], exchangeRate: r }, { accountId: `${fxWs}_b`, amountCents: a[2], exchangeRate: r }];
   const homeOf = (t: Record<string, any> | undefined, account: string) => (t?.lines || []).filter((l: any) => l.accountId === account) // eslint-disable-line @typescript-eslint/no-explicit-any
     .reduce((sum: number, l: any) => sum + (Number.isInteger(l.baseAmountCents) ? l.baseAmountCents : Math.round(l.amountCents * (l.exchangeRate ?? t?.exchangeRate ?? 1))), 0); // eslint-disable-line @typescript-eslint/no-explicit-any
