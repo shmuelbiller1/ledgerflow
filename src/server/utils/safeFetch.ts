@@ -1,3 +1,4 @@
+import { assertOutsideCommandStage } from '../db/pg/commandStage';
 import { errorMessage } from '../auth/requestUser';
 import dns from 'node:dns/promises';
 import net from 'node:net';
@@ -299,6 +300,7 @@ export function requestPinned(target: SafeTarget, init: RequestInit = {}, signal
  * address that was checked (no second DNS lookup) and refuses redirects.
  */
 export async function safeFetch(inputUrl: string, options: SafeFetchOptions = {}): Promise<Response> {
+  assertOutsideCommandStage('Network calls must run after the command has committed');
   const { allowedHostnames, timeoutMs = 10000, resolver, ...fetchOptions } = options;
 
   const target = await resolveSafeTarget(inputUrl, allowedHostnames, resolver);

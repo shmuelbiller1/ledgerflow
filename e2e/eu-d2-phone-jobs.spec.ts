@@ -23,9 +23,9 @@ test('EU-D2: send an invoice — New, Invoice (2 taps)', async ({ page }) => {
   const nav = await openHome(page);
   await nav.getByRole('button', { name: 'New', exact: true }).click(); // tap 1
   await page.getByRole('dialog').getByRole('button', { name: 'Invoice', exact: true }).click(); // tap 2
-  const form = page.getByRole('dialog');
-  await expect(form).toHaveCount(1);
-  await expect(form.getByText(/invoice/i).first()).toBeVisible();
+  // Sales is lazy-loaded. Wait for the invoice form, not the outgoing create menu.
+  await expect(page.getByRole('dialog', { name: 'New invoice', exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('dialog')).toHaveCount(1);
   await noSidewaysScroll(page);
 });
 

@@ -1,3 +1,4 @@
+import { guardEffect } from '../services/sandboxEffects';
 import express from "express";
 import { z } from "zod";
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
@@ -276,6 +277,7 @@ export async function syncOneBank(
   doc: { id: string; ref: { id: string; update: (data: Record<string, unknown>) => Promise<unknown> }; data: () => DocumentData | undefined },
   ctx: { workspaceId: string; uid: string; workspaceCurrency: string; workspaceTimezone?: string },
 ): Promise<BankSyncResult> {
+  guardEffect({ kind: 'bank', action: 'sync', target: doc.id }, db);
   const bank = doc.data() || {};
   const institutionName = String(bank.institutionName || '');
   const leaseId = await claimPlaidSyncLease(db, doc.ref);

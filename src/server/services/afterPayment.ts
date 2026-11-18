@@ -1,7 +1,21 @@
+import type { EffectIntent } from './sandboxEffects';
 import type { DocumentData, Firestore } from '../db/firestore';
 import { notifyPaymentReceived } from './notificationService';
 import { emailRemittance, thankForPayment } from './documentEmailService';
 import { logger } from '../utils/logger';
+
+/** Intent only; recipient suppression, current preferences and delivery stay in the live callback. */
+export function paymentEffectIntents(workspace: DocumentData, payment: DocumentData, options: { remittance: boolean }): EffectIntent[] {
+  if (payment.direction === 'made' && options.remittance) return [{ kind: 'email', action: 'remittance', target: String(payment.id) }];
+  if (payment.direction !== 'received' || !payment.workspaceId) return [];
+  const intents: EffectIntent[] = [{ kind: 'notification', action: 'payment.received', target: String(payment.id) }];
+  if (workspace.reminderSettings?.thankYou && Array.isArray(payment.allocations)) {
+    for (const { documentType, documentId, amountCents } of payment.allocations) {
+      if (documentType === 'invoice' && amountCents > 0) intents.push({ kind: 'email', action: 'payment-receipt', target: String(documentId) });
+    }
+  }
+  return intents;
+}
 
 /**
  * What happens after a payment is saved (all three ways one is recorded: the payment dialog, a

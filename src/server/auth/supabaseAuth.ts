@@ -103,8 +103,9 @@ const twoStepCache = new Map<string, { workspaces: Array<{ id: string; name: str
 export async function workspacesRequiringTwoStep(uid: string): Promise<Array<{ id: string; name: string }>> {
   const hit = twoStepCache.get(uid);
   if (hit && hit.until > Date.now()) return hit.workspaces;
-  const { rows } = await getDb().pool.query<{ id: string; name: string }>(
-    `select id, coalesce(data->>'name', '') as name from public.workspaces
+  const db = getDb();
+  const { rows } = await db.pool.query<{ id: string; name: string }>(
+    `select id, coalesce(data->>'name', '') as name from ${db.tableSource('workspaces')}
       where (data->>'requireTwoStep') = 'true'
         and (data->>'uid' = $1 or jsonb_typeof(data->'roles'->$1) = 'string' or (data->'admins'->$1) = 'true'::jsonb
              or coalesce(data->'members', '[]'::jsonb) ? $1)

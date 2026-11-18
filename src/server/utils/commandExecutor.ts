@@ -7,7 +7,7 @@ import { roleInWorkspace } from '../middleware/requireLedgerWriter';
 import { requirePlanCapacity } from '../middleware/planCapacity';
 import { lockMessage, postingLock } from '../../lib/periodLock';
 import { writeServerAuditLog } from '../services/auditLogService';
-import type { CommandDefinition, CommandExecutionOutcome, CommandInvocation, CommandPreviewOutcome, CommandRole } from '../commands/types';
+import type { AnyCommandDefinition, CommandContext as RegisteredContext, CommandDefinition, CommandExecutionOutcome, CommandInvocation, CommandPreviewOutcome, CommandRole } from '../commands/types';
 import type { Transaction as FirestoreTransaction } from '../db/firestore';
 import { getDb } from '../db/firestore';
 import {
@@ -156,7 +156,7 @@ function valueAtPath(value: unknown, path: string): unknown {
   return current;
 }
 
-class CommandRefusal extends Error {
+export class CommandRefusal extends Error {
   constructor(message: string, readonly status: number, readonly code?: string, readonly details?: unknown) {
     super(message);
     this.name = 'CommandRefusal';
@@ -219,7 +219,7 @@ function defaultResponse(outcome: CommandExecutionOutcome): { status: number; bo
   };
 }
 
-function errorOutcome(error: unknown, command: string): CommandExecutionOutcome {
+export function errorOutcome(error: unknown, command: string): CommandExecutionOutcome {
   if (error instanceof ZodError) {
     return { ok: false, status: 400, command, message: 'Invalid command input', code: 'INVALID_INPUT', details: error.issues, error };
   }
@@ -254,7 +254,7 @@ function previewErrorOutcome(error: unknown, command: string): Exclude<CommandPr
  */
 const PENDING_DELETION_ALLOWED = new Set(['workspace.canceldeletion', 'workspace.retention']);
 
-function assertWorkspaceActiveForCommand(workspace: Record<string, unknown>, commandName: string): void {
+export function assertWorkspaceActiveForCommand(workspace: Record<string, unknown>, commandName: string): void {
   if (workspace.concurrentUserLimit === 0) {
     throw new CommandRefusal('Forbidden: This workspace is administratively suspended/frozen by Systems Administration.', 403, 'WORKSPACE_FROZEN');
   }
@@ -309,6 +309,7 @@ async function commandAccess(
   }
 
   const db = (dependencies.getDb || getDb)();
+  if (db.sandboxId) return { refused: new CommandRefusal('This command entry point requires the live database', 409, 'LIVE_DB_REQUIRED') };
   let workspace: Record<string, unknown> = {};
   let role: CommandRole = 'owner';
   if (!personScope) {
@@ -346,6 +347,52 @@ function safeDerivedOperationId(derived: string | undefined): string | undefined
   return `derived_${createHash('sha256').update(derived, 'utf8').digest('hex').slice(0, 48)}`;
 }
 
+/** Shared commit policy for a direct command and for each explicitly accepted draft step. */
+export function assertCommandCommitAccess(command: AnyCommandDefinition, workspace: Record<string, unknown> | undefined,
+  user: RegisteredContext['user'], workspaceId: string, date?: string): CommandRole {
+  if (!workspace || !isWorkspaceMemberData(workspace, user, workspaceId)) {
+    throw new CommandRefusal('Workspace membership changed before the command committed', 403, 'NOT_A_MEMBER');
+  }
+  const role = roleInWorkspace(workspace, user.uid) as CommandRole;
+  const platformAdminOverride = command.allowPlatformAdmin === true && user.admin === true && !user.developerWorkspaceId;
+  if (!command.roles.includes(role) && !platformAdminOverride) {
+    throw new CommandRefusal('Your workspace role changed before the command committed', 403, 'ROLE_REQUIRED');
+  }
+  assertWorkspaceActiveForCommand(workspace, command.name);
+  const lock = date && postingLock(date, workspace, user.uid);
+  if (lock) throw new CommandRefusal(lockMessage(date, lock), 400, 'PERIOD_LOCKED', { lockDate: lock.through });
+  return role;
+}
+
+export function resolveCommandDate(command: AnyCommandDefinition, ctx: Omit<RegisteredContext, 'prepared' | 'afterCommit'>, input: unknown) {
+  const date = command.dated ? valueAtPath(input, command.dated) : undefined;
+  return (typeof date === 'string' ? date : undefined) || command.resolveDate?.(ctx, input);
+}
+
+export function parseCommandInput(command: AnyCommandDefinition, proposed: unknown, workspaceId: string): unknown {
+  const input = command.input.parse(proposed);
+  if (isRecord(input) && typeof input.workspaceId === 'string' && input.workspaceId !== workspaceId) {
+    throw new CommandRefusal('Input workspaceId must match the command workspace', 400, 'WORKSPACE_MISMATCH');
+  }
+  return input;
+}
+
+export type CommandAfterCommit = Parameters<RegisteredContext['afterCommit']>[0];
+
+export async function handlePreparedCommand(command: AnyCommandDefinition, ctx: RegisteredContext, tx: CommandTransaction,
+  input: unknown, auditWriter: typeof writeServerAuditLog | false = writeServerAuditLog) {
+  const result = await command.handler(ctx, tx, input);
+  const summary = command.audit(input, result);
+  if (summary && auditWriter) {
+    await auditWriter({
+      workspaceId: ctx.workspaceId, uid: ctx.actor, email: ctx.email,
+      action: summary.action, entityType: summary.entityType, entityId: summary.entityId,
+      details: { description: summary.description, ...(summary.details || {}) },
+    }, { db: ctx.db, tx });
+  }
+  return { result, summary };
+}
+
 /** The runner behind both the command router and the legacy wrappers (exported so a test can hold each to its gate). */
 export async function runRegisteredCommand(
   req: Request,
@@ -362,12 +409,9 @@ export async function runRegisteredCommand(
     return { ok: false, status: 403, command: command.name, message: 'High-risk commands require a person signed in with two-step verification; API keys cannot confirm this step.', code: 'TWO_STEP_REQUIRED' };
   }
 
-  const parsed = command.input.safeParse(invocation.input);
-  if (!parsed.success) return errorOutcome(parsed.error, command.name);
-  if (isRecord(parsed.data) && typeof parsed.data.workspaceId === 'string' && parsed.data.workspaceId !== workspaceId) {
-    return { ok: false, status: 400, command: command.name, message: 'Input workspaceId must match the command workspace', code: 'WORKSPACE_MISMATCH' };
-  }
-  const input = parsed.data;
+  let input: unknown;
+  try { input = parseCommandInput(command, invocation.input, workspaceId); }
+  catch (error) { return errorOutcome(error, command.name); }
   const explicitOperationId = extractCanonicalOperationId(req);
   if (explicitOperationId && !OPERATION_ID_SHAPE.test(explicitOperationId)) {
     return { ok: false, status: 400, command: command.name, message: 'Invalid operation ID', code: 'INVALID_OPERATION_ID' };
@@ -389,10 +433,9 @@ export async function runRegisteredCommand(
     workspace,
     ...(operationId ? { operationId } : {}),
   };
-  const datedValue = command.dated ? valueAtPath(input, command.dated) : undefined;
   let date: string | undefined;
   try {
-    date = (typeof datedValue === 'string' ? datedValue : undefined) || command.resolveDate?.(initialContext, input);
+    date = resolveCommandDate(command, initialContext, input);
   } catch (error) {
     return errorOutcome(error, command.name);
   }
@@ -430,7 +473,7 @@ export async function runRegisteredCommand(
     }
   }
 
-  const afterCommitCallbacks: Array<() => Promise<Record<string, unknown> | void> | Record<string, unknown> | void> = [];
+  const afterCommitCallbacks: CommandAfterCommit[] = [];
   let prepared: unknown;
   if (command.prepare) {
     try {
@@ -442,7 +485,7 @@ export async function runRegisteredCommand(
   const context = {
     ...baseContext,
     prepared,
-    afterCommit(callback: () => Promise<Record<string, unknown> | void> | Record<string, unknown> | void) { afterCommitCallbacks.push(callback); },
+    afterCommit(callback: CommandAfterCommit) { afterCommitCallbacks.push(callback); },
   };
   let didRunHandler = false;
 
@@ -453,36 +496,11 @@ export async function runRegisteredCommand(
     didRunHandler = false;
     if (!personScope) {
       const latest = await tx.get(db.collection('workspaces').doc(workspaceId));
-      if (!latest.exists || !isWorkspaceMemberData(latest.data(), user, workspaceId)) {
-        throw new CommandRefusal('Workspace membership changed before the command committed', 403, 'NOT_A_MEMBER');
-      }
-      const latestWorkspace = latest.data() || {};
-      const latestRole = roleInWorkspace(latestWorkspace, user.uid);
-      const platformAdminOverride = command.allowPlatformAdmin === true && user.admin === true && !user.developerWorkspaceId;
-      if (!command.roles.includes(latestRole as CommandRole) && !platformAdminOverride) {
-        throw new CommandRefusal('Your workspace role changed before the command committed', 403, 'ROLE_REQUIRED');
-      }
-      assertWorkspaceActiveForCommand(latestWorkspace, command.name);
-      if (date) {
-        const lock = postingLock(date, latestWorkspace, user.uid);
-        if (lock) throw new CommandRefusal(lockMessage(date, lock), 400, 'PERIOD_LOCKED', { lockDate: lock.through });
-      }
-      context.role = latestRole as CommandRole;
-      context.workspace = latestWorkspace;
+      const latestWorkspace = latest.data();
+      context.role = assertCommandCommitAccess(command, latestWorkspace, user, workspaceId, date);
+      context.workspace = latestWorkspace || {};
     }
-    const result = await command.handler(context, tx, input);
-    const summary = command.audit(input, result);
-    if (summary) {
-      await (dependencies.auditWriter || writeServerAuditLog)({
-        workspaceId,
-        uid: user.uid,
-        email: user.email,
-        action: summary.action,
-        entityType: summary.entityType,
-        entityId: summary.entityId,
-        details: { description: summary.description, ...(summary.details || {}) },
-      }, { db, tx });
-    }
+    const { result } = await handlePreparedCommand(command, context, tx, input, dependencies.auditWriter);
     didRunHandler = true;
     return result;
   };
@@ -506,21 +524,27 @@ export async function runRegisteredCommand(
       result = await db.runTransaction(handlerInTransaction);
     }
     if (didRunHandler) {
-      const responseFields: Record<string, unknown> = {};
-      for (const callback of afterCommitCallbacks) {
-        try {
-          const fields = await callback();
-          if (isRecord(fields)) Object.assign(responseFields, fields);
-        } catch (error) {
-          console.error('[CommandExecutor] Post-commit callback failed:', logSafeDetail(error));
-        }
-      }
-      if (Object.keys(responseFields).length > 0 && isRecord(result)) result = { ...result, ...responseFields };
+      const fields = await runCommandAfterCommit(afterCommitCallbacks);
+      if (Object.keys(fields).length > 0 && isRecord(result)) result = { ...result, ...fields };
     }
     return { ok: true, status: 200, command: command.name, data: result, replayed: Boolean(operationId && !didRunHandler) };
   } catch (error) {
     return errorOutcome(error, command.name);
   }
+}
+
+/** Do not call until the owning transaction has committed. */
+export async function runCommandAfterCommit(callbacks: readonly CommandAfterCommit[]): Promise<Record<string, unknown>> {
+  const responseFields: Record<string, unknown> = {};
+  for (const callback of callbacks) {
+    try {
+      const fields = await callback();
+      if (isRecord(fields)) Object.assign(responseFields, fields);
+    } catch (error) {
+      console.error('[CommandExecutor] Post-commit callback failed:', logSafeDetail(error));
+    }
+  }
+  return responseFields;
 }
 
 /** Run the definition's preview hook after the same authentication and authorization gates as execution. */

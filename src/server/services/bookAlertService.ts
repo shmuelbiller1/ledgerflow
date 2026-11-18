@@ -1,3 +1,4 @@
+import { requireLiveDb } from '../db/firestore';
 import type { Firestore, Transaction as FirestoreTransaction } from '../db/firestore';
 import {
   alertSettingsProblem, budgetsOver, cashLowAction, cashPosition, closeReminderMonth,
@@ -76,7 +77,7 @@ export async function saveAlertSettingsInTransaction(
 }
 
 async function fingerprint(db: Firestore, workspaceId: string): Promise<string> {
-  const parts = BOOK_TABLES.map(t => `select count(*) as n, max(updated_at) as at from public."${t}" where workspace_id = $1`);
+  const parts = BOOK_TABLES.map(t => `select count(*) as n, max(updated_at) as at from ${db.tableSource(t)} where workspace_id = $1`);
   const { rows } = await db.pool.query(`select sum(n)::bigint as n, max(at) as at from (${parts.join(' union all ')}) changes`, [workspaceId]);
   const at = rows[0]?.at as Date | null;
   return `${rows[0]?.n || 0}:${at ? new Date(at).toISOString() : ''}`;
@@ -90,6 +91,7 @@ interface Sent extends AlertsSent { fingerprint?: string }
 
 /** One workspace's alerts for today; returns how many people-notifications went out. */
 export async function checkBookAlerts(db: Firestore, workspaceId: string, now = new Date()): Promise<number> {
+  requireLiveDb(db, 'Book alerts');
   const wsRef = db.collection('workspaces').doc(workspaceId);
   const ws = (await wsRef.get()).data();
   if (!ws || ws.deletedAt) return 0;
@@ -103,7 +105,7 @@ export async function checkBookAlerts(db: Firestore, workspaceId: string, now = 
   // S-08: close last month (only once the workspace has entries at all)
   const month = closeReminderMonth({ lockDate: ws.lockDate, softLockDate: ws.softLockDate, alerts: settings, alertsSent: sent }, today);
   if (month) {
-    const { rows } = await db.pool.query('select 1 from public."transactions" where workspace_id = $1 limit 1', [workspaceId]);
+    const { rows } = await db.pool.query(`select 1 from ${db.tableSource('transactions')} where workspace_id = $1 limit 1`, [workspaceId]);
     if (rows.length) {
       told += await notify(db, {
         workspaceId, kind: 'close.reminder', title: `Time to close ${monthName(month)}`,
@@ -119,7 +121,7 @@ export async function checkBookAlerts(db: Firestore, workspaceId: string, now = 
   const wantsCash = settings.cashLowCents !== undefined && settings.cashLowCents !== null;
   let wantsBudgets = settings.budgetAlerts !== false;
   if (wantsBudgets && !wantsCash && !sent.cashLow) {
-    const { rows } = await db.pool.query(`select 1 from public."budgets" where workspace_id = $1 and data->>'targetType' = 'account' limit 1`, [workspaceId]);
+    const { rows } = await db.pool.query(`select 1 from ${db.tableSource('budgets')} where workspace_id = $1 and data->>'targetType' = 'account' limit 1`, [workspaceId]);
     wantsBudgets = rows.length > 0;
   }
   if (wantsCash || wantsBudgets || sent.cashLow) {
@@ -165,6 +167,7 @@ export async function checkBookAlerts(db: Firestore, workspaceId: string, now = 
 
 /** The nightly run over every workspace (or the given ones), bounded by time. */
 export async function runBookAlerts(db: Firestore, opts: { now?: Date; budgetMs?: number; workspaceIds?: string[] } = {}): Promise<{ checked: number; told: number }> {
+  requireLiveDb(db, 'Book alert job');
   const { now = new Date(), budgetMs = 60_000 } = opts;
   const started = Date.now();
   const ids = opts.workspaceIds || (await db.collection('workspaces').get()).docs.map(d => d.id);

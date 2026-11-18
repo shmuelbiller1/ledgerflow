@@ -1,3 +1,4 @@
+import { guardEffect } from '../services/sandboxEffects';
 /**
  * File storage on Supabase Storage (replaces firebase-admin's storage()).
  * Uses `@supabase/storage-js` directly instead of the umbrella `@supabase/supabase-js`
@@ -91,6 +92,7 @@ export async function deleteFilesWithPrefix(
   prefix: string,
   customFetch?: typeof fetch,
 ): Promise<number> {
+  guardEffect({ kind: 'storage', action: 'delete-prefix' });
   const client = storageClient(customFetch);
   const bucket = storageBucket();
   const files = await listFiles(client, bucket, prefix);

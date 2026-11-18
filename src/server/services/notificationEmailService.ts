@@ -1,3 +1,4 @@
+import { requireLiveDb } from '../db/firestore';
 import type { Firestore, Transaction } from '../db/firestore';
 import { digestEmail, emailMode, noticeEmail, type NotificationEmailMode } from '../../lib/notificationEmail';
 import { isMailConfigured, sendMail } from './mailer';
@@ -49,9 +50,10 @@ export async function emailNoticeNow(recipients: Array<{ uid: string; user?: Rec
 
 /** The nightly digest: for each person who chose it, the notices they have not read since the last one (or a day). */
 export async function runNotificationDigest(db: Firestore, now = new Date()): Promise<number> {
+  requireLiveDb(db, 'Notification digest');
   if (!isMailConfigured()) return 0;
   const { rows: people } = await db.pool.query<{ id: string; data: Record<string, unknown> }>(
-    `select id, data from public.users where data->>'notificationEmail' = 'daily'`);
+    `select id, data from ${db.tableSource('users')} where data->>'notificationEmail' = 'daily'`);
   const names = new Map<string, string>();
   let sent = 0;
   for (const person of people) {
@@ -60,7 +62,7 @@ export async function runNotificationDigest(db: Firestore, now = new Date()): Pr
     const since = typeof person.data.lastDigestAt === 'string' ? person.data.lastDigestAt : new Date(now.getTime() - 86_400_000).toISOString();
     const { rows } = await db.pool.query<{ workspace_id: string; title: string; message: string; created: string }>(
       `select workspace_id, data->>'title' as title, data->>'message' as message, data->>'createdAt' as created
-         from public.notifications
+         from ${db.tableSource('notifications')}
         where data->>'uid' = $1 and coalesce((data->>'read')::boolean, false) = false and data->>'createdAt' > $2
         order by data->>'createdAt' limit 200`, [person.id, since]);
     for (const r of rows) {

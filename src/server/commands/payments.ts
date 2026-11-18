@@ -1,10 +1,11 @@
+import { deferEffects } from '../services/sandboxEffects';
 import { z } from 'zod';
 import type { Transaction } from '../db/firestore';
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import { formatMoney } from '../../lib/moneyFormat';
 import { isIsoDate } from '../../lib/warehouseRecordUtils';
 import { findPaymentType } from '../../lib/paymentTypes';
-import { afterPaymentRecorded } from '../services/afterPayment';
+import { afterPaymentRecorded, paymentEffectIntents } from '../services/afterPayment';
 import {
   applyUnappliedPayment, createPaymentInTransaction, paymentRequestHash, type CreatePaymentPayload,
 } from '../services/paymentService';
@@ -165,8 +166,10 @@ export const paymentReceiveCommand: CommandDefinition<typeof paymentReceiveInput
         : /NOT_FOUND|not found/i.test(message) ? 404 : 400;
       throw Object.assign(new Error(message), { status });
     }
-    ctx.afterCommit(async () => {
-      const remittance = await afterPaymentRecorded(ctx.db, { ...result.payment, id: result.paymentId }, ctx.actor, { remittance: Boolean(_input.sendRemittance) });
+    const payment = { ...result.payment, id: result.paymentId };
+    const options = { remittance: Boolean(_input.sendRemittance) };
+    deferEffects(ctx.db, paymentEffectIntents(ctx.workspace, payment, options), ctx.afterCommit, async () => {
+      const remittance = await afterPaymentRecorded(ctx.db, payment, ctx.actor, options);
       return _input.sendRemittance ? { remittance } : undefined;
     });
     return result;
