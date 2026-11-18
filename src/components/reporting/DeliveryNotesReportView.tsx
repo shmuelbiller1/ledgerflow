@@ -10,6 +10,7 @@ import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import {
   buildDeliveryNote,
+  DELIVERY_NOTE_LABELS,
   deliveryNoteColumns,
   nextDeliveryNoteNumber,
   type DeliveryNoteLanguage,
@@ -84,7 +85,7 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
         lines: (est.lines || []).map(l => {
           const item = l.itemId ? itemsById.get(l.itemId) : undefined;
           return {
-            description: l.description || item?.name || reportText('r.item', 'Item'),
+            description: l.description || item?.name || '',
             unitPriceCents: l.unitPriceCents,
             ...(item?.measurementUnit ? { measurementUnit: item.measurementUnit } : {}),
           };
@@ -143,7 +144,7 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
           lines: invItems.map(l => {
             const item = l.itemId ? itemsById.get(l.itemId) : undefined;
             return {
-              description: l.description || item?.name || reportText('r.item', 'Item'),
+              description: l.description || item?.name || '',
               unitPriceCents: l.rateCents,
               ...(item?.measurementUnit ? { measurementUnit: item.measurementUnit } : {}),
               // A-112: the invoice line's recorded serials and lot print on the note; order and delivery lines record none
@@ -196,8 +197,10 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
 
   const doc = useMemo(() => {
     if (!selected) return null;
+    // a line with no name takes the note's own word for "item", not the screen's language: the note goes to the customer
+    const unnamed = DELIVERY_NOTE_LABELS[language].item;
     return buildDeliveryNote({
-      order: selected.order,
+      order: { ...selected.order, lines: selected.order.lines.map(line => (line.description ? line : { ...line, description: unnamed })) },
       delivery: { ...selected.delivery, date: effectiveDate },
       number: effectiveNumber,
       company: workspace?.name || '',

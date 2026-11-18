@@ -242,7 +242,7 @@ export default function SerialLotLookupReportView({ purchaseOrders: purchaseOrde
         <table className="w-full text-sm">
           <caption>{reportText('r.serials-recorded-twice-for-one-item', 'Serials recorded twice for one item')}</caption>
           <thead>
-            <tr>{['Serial', 'Documents'].map(head =>
+            <tr>{[reportText('r.serial', 'Serial'), reportText('r.documents-heading', 'Documents')].map(head =>
               <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
           </thead>
           <tbody>

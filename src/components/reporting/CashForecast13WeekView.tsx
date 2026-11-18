@@ -151,7 +151,7 @@ export function CashForecast13WeekPanel({ report, currency = 'USD', asOf, onAsOf
         <table className="w-full text-sm">
           <caption className="text-left font-semibold text-[var(--text)] pb-1">{reportText('r.thirteen-weeks-from', 'Thirteen weeks from')} {asOf}{reportText('r.expected-money-in-expected-money-out-and-the-pro', ': expected money in, expected money out and the projected balance')}</caption>
           <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-            {['Week', 'Start', 'End', 'Expected in', 'Expected out', 'Net', 'Projected balance'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
+            {[reportText('r.week', 'Week'), reportText('r.start', 'Start'), reportText('r.end', 'End'), reportText('r.expected-in-2', 'Expected in'), reportText('r.expected-out-2', 'Expected out'), reportText('r.net', 'Net'), reportText('r.projected-balance', 'Projected balance')].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
           </tr></thead>
           <tbody>
             {report.weeks.map(week => <tr key={week.startDate} className="border-b border-[var(--line)]/50">
