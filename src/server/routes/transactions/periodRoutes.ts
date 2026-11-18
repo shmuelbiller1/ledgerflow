@@ -1,7 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
 import { getDb, validateWorkspaceMember } from '../../db/firestore';
-import { writeServerAuditLog } from '../../services/auditLogService';
 import { executeCommand } from '../../utils/commandExecutor';
 import type { CommandExecutionOutcome, CommandInvocation } from '../../commands/types';
 import {
@@ -16,6 +15,7 @@ import { errorMessage, requestUser } from '../../auth/requestUser';
 import { FxRevaluationError, revaluateForeignBalances } from '../../services/fxRevaluationService';
 import { listClosings } from '../../services/periodClosingService';
 import { commandFailureResponse } from '../../utils/commandResponses';
+import { transactionResetCommand } from '../../commands/transactionHousekeeping';
 
 const revaluationBodySchema = z.object({
   workspaceId: z.string().min(1).max(200),
@@ -242,70 +242,25 @@ export function registerPeriodRoutes(transactionRouter: express.Router): void {
     await executeCommand(req, res, closeMonthInvocation(workspaceId, month));
   });
 
+  // Registered command (src/server/commands/transactionHousekeeping.ts). Only a workspace that holds demo
+  // data can be emptied, the owner's confirmation is required, and the audit trail is never cleared — the
+  // answers are the ones this address gave: { status: 'ok' }, or { error } with its own status.
   transactionRouter.post('/reset', async (req, res) => {
-    try {
-      const { workspaceId, confirmReset } = req.body;
-      const user = requestUser(req);
-      const db = getDb();
-      const wsDoc = await db.collection('workspaces').doc(workspaceId).get();
-    
-      // Only the workspace owner or a global admin can completely reset the workspace data
-      if (!wsDoc.exists || (wsDoc.data()?.uid !== user.uid && !user.admin)) {
-        return res.status(403).json({ error: 'Forbidden: Only the workspace owner or a global admin can reset data.' });
-      }
-
-      if (confirmReset !== true) {
-        return res.status(400).json({ error: 'Explicit confirmation required (confirmReset: true).' });
-      }
-      // Real books are never wiped on the spot: delete the workspace instead (30-day window, then
-      // purge). Only a workspace holding demo data can be emptied at once.
-      if (wsDoc.data()?.isDemoLoaded !== true) {
-        return res.status(409).json({ error: 'Only demo data can be cleared at once. To remove real books, delete the workspace (Settings → Security): it is kept for 30 days first.' });
-      }
-
-      // Never wipe auditLogs - the audit trail must be preserved
-      const collections = [
-        'transactions', 'chartAccounts', 'projects', 'budgets', 
-        'vendors', 'customers', 'invoices', 'bills', 
-        'inventory', 'assets', 'recurring', 'employees', 'payRuns', 
-        'taxRates', 'partners', 'autoRules', 'bankLines'
-      ];
-
-      for (const coll of collections) {
-        let hasMore = true;
-        while (hasMore) {
-          const snapshot = await db.collection(coll)
-            .where('workspaceId', '==', workspaceId)
-            .limit(500)
-            .get();
-
-          if (snapshot.empty) {
-            hasMore = false;
-            break;
-          }
-
-          const batch = db.batch();
-          snapshot.docs.forEach(d => batch.delete(d.ref));
-          await batch.commit();
-        }
-      }
-
-      // Record persistent audit log of the reset action
-      await writeServerAuditLog({
-        workspaceId,
-        uid: user.uid,
-        email: user.email || 'authenticated-user',
-        action: 'WORKSPACE_DATA_RESET',
-        entityType: 'workspace',
-        entityId: workspaceId,
-        details: {
-          description: 'All financial and operational records reset by workspace owner.'
-        }
-      }, { db });
-
-      res.json({ status: 'ok' });
-    } catch (e) {
-      res.status(500).json({ error: errorMessage(e) });
+    const { workspaceId, confirmReset } = (req.body || {}) as { workspaceId?: string; confirmReset?: unknown };
+    if (confirmReset !== true) {
+      return res.status(400).json({ error: 'Explicit confirmation required (confirmReset: true).' });
     }
+    await executeCommand(req, res, {
+      definition: transactionResetCommand,
+      workspaceId: typeof workspaceId === 'string' ? workspaceId : '',
+      input: { workspaceId, confirmReset },
+      formatResponse(outcome) {
+        if (outcome.ok) return { status: 200, body: outcome.data as Record<string, unknown> };
+        if (outcome.code === 'ROLE_REQUIRED' || outcome.code === 'NOT_A_MEMBER') {
+          return { status: 403, body: { error: 'Forbidden: Only the workspace owner or a global admin can reset data.' } };
+        }
+        return { status: outcome.status, body: { error: outcome.message } };
+      },
+    });
   });
 }

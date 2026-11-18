@@ -7,6 +7,20 @@ removed from this list.
 
 Last updated: 2026-11-19.
 
+## Emptying a demo workspace and tidying dimension values now run through registered commands (nothing for you to do)
+
+Two more writes go through the registered commands. Emptying a workspace is unchanged in the way that
+matters: it still only works on a workspace holding demo data (real books are deleted with the workspace
+and kept 30 days first), still needs the owner's explicit confirmation, and still never deletes the audit
+trail. The other moves your entries' dimension values from free text onto the dimension nodes they belong
+to; it was already transactional and still refuses to rewrite an entry that sits in a closed period.
+
+Three things that look like writes and are not are now recorded as reviewed exceptions with the reason
+written down: the currency-revaluation *preview* (the same calculation the real revaluation runs, with
+nothing saved), the labelling helper that suggests an account for each entry, and the anomaly scan that
+points out unusually large entries. All three only read and calculate. A test keeps each exception matched
+to a real route, so none of them can quietly outlive the code it describes.
+
 ## Capitalising a lease and recognising revenue now run through registered commands (nothing for you to do)
 
 Two more writes go through the same registered commands as every batch before this one: capitalising a
