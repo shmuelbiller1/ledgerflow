@@ -602,52 +602,52 @@ Same rules as every helper AI: one branch and PR per task from the latest main, 
 - [x] **S-2 Production settings check**: `npm run check:prod-env` lists missing or weak production settings (SESSION/SYSTEM salts, DATABASE_CA_CERT, webhook secrets) without printing values; docs/FOR_YOU items it closes. — ✅ 17 Nov code check (Claude): `npm run check:prod-env`, run in CI
 - [x] **S-3 Restore drill script**: `scripts/restore-drill.sh` dumps the test database, restores it into a fresh one and compares row counts and trial balances; a dated report in `docs/eval/`. Local only. — ✅ 17 Nov code check (Claude): `scripts/restore-drill.mjs`
 - [x] **S-4 SBOM and licence scan in CI**: CycloneDX SBOM as a CI artifact and a licence check that fails on licences incompatible with PolyForm Strict distribution. — ✅ 17 Nov code check (Claude): `.github/workflows/security-sbom.yml` (licence metadata check)
-- [ ] **S-5 Idempotency audit**: list every endpoint that posts money and whether a retried request can post twice; tests for the ones that guard it; a report for AI #1 on the ones that do not (no posting change).
-- [ ] **S-6 Security headers review**: Content-Security-Policy and the other headers in `vercel.json` / server: tighten what can be tightened without breaking pages; e2e proves the main screens still load.
+- [~] **S-5 Idempotency audit**: list every endpoint that posts money and whether a retried request can post twice; tests for the ones that guard it; a report for AI #1 on the ones that do not (no posting change). — *18 Nov (AI #6): live-verified headerless double-post on `/api/v1/commands/revenue.recognize` & `lease.capitalize` vs idempotent legacy route; filed #824 for AI #1.*
+- [ ] **S-6 Security headers review**: Content-Security-Policy and the other headers in `vercel.json` / server: tighten what can be tightened without breaking pages; e2e proves the main screens still load. *(18 Nov AI #6: preflight smoke script `scripts/check-security-headers.ts` + `e2e/security-headers.spec.ts` landed; missing `Permissions-Policy` filed for server lane in #827.)*
 
 ### More work (Claude, 12 Oct, at the owner's request: every AI enough for days). Same rules as the queue above.
 
 - [ ] **S-7 Route-policy coverage** if AI #4's D-30 is not started, take it: every workspace route proves a guard.
-- [ ] **S-8 Tenant isolation fuzz** for 30 server routes, call with another workspace's ids and expect 403/404; tests against the test database.
-- [ ] **S-9 Secrets scan in CI** gitleaks (or similar) on every push; history findings listed for the owner.
+- [x] **S-8 Tenant isolation fuzz** for 30 server routes, call with another workspace's ids and expect 403/404; tests against the test database. — ✅ 18 Nov (AI #6): 32-route cross-tenant BOLA + Postgres RLS & `lf_sandbox` isolation suite in `src/tests/security-s8-s38-s39-isolation.test.ts` (SBX-1 live-table denylist follow-up filed as #825; person/group API-key isolation #821; command scopes #823; plain-record guards #822).
+- [x] **S-9 Secrets scan in CI** gitleaks (or similar) on every push; history findings listed for the owner. — ✅ 18 Nov (AI #6): `.gitleaks.toml` custom `ledgerflow-api-key` rule + every-push/PR tracked-secret scan in `.github/workflows/security-sbom.yml` + `src/lib/logRedaction.ts` & `src/services/securityService.ts` structured-key scrubbing (`src/tests/security-s16-s18-s34-data-protection.test.ts`).
 - [x] **S-10 Dependency update policy** Dependabot config with weekly batches and an SLA note; no auto-merge. — ✅ 17 Nov code check (Claude): `.github/dependabot.yml` (weekly, grouped)
 - [ ] **S-11 Session hardening review** cookie flags, session lifetime, re-auth for owner actions; tests.
 - [x] **S-12 Audit log integrity** each audit row gets a hash chained to the previous one per workspace; a verify script; migration proposal for AI #1. — ✅ 17 Nov code check (Claude): audit hash chain (`seq`, `prevHash`, `chainHash`) in `commands/audit.ts`
 - [ ] **S-13 Login anomaly alerts** many failed sign-ins or new country → a notification to owners; tests.
 - [x] **S-14 Data export of a person** everything stored about one user (GDPR access request) as a zip; owner-only. — ✅ 17 Nov code check (Claude): `services/personalDataService.ts` (`collectPersonalData`)
 - [ ] **S-15 Deletion of a person** remove a user's personal data while keeping the books' audit facts (pseudonymise); design + tests.
-- [ ] **S-16 Prompt-injection tests** ledger descriptions and receipt text that try to instruct the AI; the AI routes must treat them as data; tests.
-- [ ] **S-18 PCI channel check** card numbers blocked from notes, chat, tickets and uploads' extracted text (E-25 helper everywhere).
+- [x] **S-16 Prompt-injection tests** ledger descriptions and receipt text that try to instruct the AI; the AI routes must treat them as data; tests. — ✅ 18 Nov (AI #6): `src/tests/security-s16-s18-s34-data-protection.test.ts` (server `brainRoutes.ts` fencing follow-up filed in #827).
+- [x] **S-18 PCI channel check** card numbers blocked from notes, chat, tickets and uploads' extracted text (E-25 helper everywhere). — ✅ 18 Nov (AI #6): extended `maskCardNumbers` to `src/lib/reportNotes.ts`, `src/services/clientQueryActions.ts`, and `src/services/aiService.ts` (outbound AI payloads + extracted receipt/statement text) + Luhn 13–19 digit scrubbing in `src/services/securityService.ts`; tested in `src/tests/security-s16-s18-s34-data-protection.test.ts` (server defense-in-depth in #827).
 - [ ] **S-19 Backup verification job** a scheduled check that the latest backup/PITR window exists (provider API) and alerts if not; docs.
-- [ ] **S-20 Incident response runbook** who does what, contacts, steps, templates; docs/runbooks/incident.md.
+- [x] **S-20 Incident response runbook** who does what, contacts, steps, templates; docs/runbooks/incident.md. — ✅ 18 Nov (AI #6): `docs/runbooks/incident.md` linked from `docs/runbooks/README.md`.
 - [ ] **S-21 Access review export** owners download who has access, role, last sign-in, two-step; monthly reminder.
 
 
 ### Scans from the outside for AI #6 (Claude, 15 Nov; owner's request). Do this first.
 
-- [ ] **SEC-SCAN-1 Schemathesis in CI and a nightly ZAP scan** — the full task is `docs/prompts/SEC-SCAN-1-api-and-web-scans.md`: fuzz the API from its published description on every pull request (report only at first, blocking once clean), and a nightly ZAP baseline scan of a local production build. Never scan the live site without the owner's written OK.
+- [x] **SEC-SCAN-1 Schemathesis in CI and a nightly ZAP scan** — the full task is `docs/prompts/SEC-SCAN-1-api-and-web-scans.md`: fuzz the API from its published description on every pull request (report only at first, blocking once clean), and a nightly ZAP baseline scan of a local production build. Never scan the live site without the owner's written OK. — ✅ 18 Nov (AI #6): fixed `#762` container UID/mount/silent startup in `.github/workflows/zap-baseline.yml`, replaced broad `10055`/`10017` ignores in `.zap/rules.tsv` with unit-tested instance-level `scripts/evaluate-zap-report.mjs`, and hardened `.github/workflows/api-fuzz.yml` (stays Phase 1 report-only per `docs/FOR_YOU.md` until 3 clean `main` runs; server 500/query findings filed as #821 and #827).
 
 ### More for AI #6: security (Claude, 13 Oct). Same rules: one branch/PR per task from the latest main, tests, done means a user can reach it on a screen, no change to how money is calculated or posted (AI #1's).
 
 - [ ] **S-22 Rate limiting per user on sign-in, password reset and AI routes; tests**
 *Finished [x] items from this section were moved to [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) on 10 Nov 2026 (AI #13 cleanup).*
 
-- [ ] **S-24 Secrets scan in CI (gitleaks) on every push**
-- [ ] **S-25 Dependency audit in CI: fail on high/critical with an allowlist file**
-- [ ] **S-26 Admin actions audit: every platform-admin change (plan, bypassBilling, admin flag) writes an audit row**
+- [x] **S-24 Secrets scan in CI (gitleaks) on every push** — ✅ 18 Nov (AI #6): `.gitleaks.toml` (`ledgerflow-api-key` rule) + `.github/workflows/security-sbom.yml` tracked-secret check on push/PR + unit test.
+- [x] **S-25 Dependency audit in CI: fail on high/critical with an allowlist file** — ✅ 18 Nov (AI #6): `scripts/check-dependency-audit.ts` + `security-audit-allowlist.json` (expiring GHSA allowlist) wired into `.github/workflows/security-sbom.yml` + `src/tests/security-preflight-scripts.test.ts` (0 runtime vulns verified).
+- [~] **S-26 Admin actions audit: every platform-admin change (plan, bypassBilling, admin flag) writes an audit row** — *18 Nov (AI #6): live-verified missing audit row on new-user admin role promotion and swallowed audit failures in `src/server/routes/adminRoutes.ts`; filed #826 with standalone patch for AI #1.*
 - [ ] **S-27 Admin flag management screen: list admins, add/remove by email (owner only), audited (feeds ACC-1)**
 - [ ] **S-28 Session list per user: see and sign out other devices**
 - [x] **S-29 Two-step login recovery codes screen polish and tests** — ✅ 17 Nov code check (Claude): `settings/RecoveryCodesPanel.tsx`
 - [x] **S-30 File upload checks: type sniffing, size limits, no SVG scripts** — ✅ 17 Nov code check (Claude): `server/utils/fileValidation.ts` + test
-- [ ] **S-31 Webhook signature checks review (Stripe, email provider, Plaid) with tests**
+- [x] **S-31 Webhook signature checks review (Stripe, email provider, Plaid) with tests** — ✅ 18 Nov (AI #6): reviewed & verified unsigned/forged/replayed rejection across Stripe, Plaid (ES256), and email-provider webhooks in `src/tests/security-s16-s18-s34-data-protection.test.ts`.
 - [x] **S-32 Row-level security tests for every table in CI (each role, each table)** — ✅ 17 Nov code check (Claude): `supabase/tests/rls.test.sql`, run in CI (`test:rules`)
 - [x] **S-33 Backup restore drill script against a copy database, documented** — ✅ 17 Nov code check (Claude): `scripts/restore-drill.mjs`
-- [ ] **S-34 Security headers test in e2e (HSTS, X-Frame-Options, Referrer-Policy)**
-- [ ] **S-35 Privacy: cookie banner choices respected by analytics; test**
-- [ ] **S-36 Pen-test checklist doc mapped to OWASP ASVS level 1 with status per item**
+- [x] **S-34 Security headers test in e2e (HSTS, X-Frame-Options, Referrer-Policy)** — ✅ 18 Nov (AI #6): `e2e/security-headers.spec.ts` + `scripts/check-security-headers.ts` + `src/tests/security-preflight-scripts.test.ts` (`Permissions-Policy` filed in #827).
+- [x] **S-35 Privacy: cookie banner choices respected by analytics; test** — ✅ 18 Nov (AI #6): `src/lib/cookieConsent.ts`, `src/components/legal/CookieConsent.tsx`, and `src/lib/errorTracker.ts` enforce Essential Only telemetry opt-out; tested in `src/tests/cookie-consent.test.tsx`.
+- [x] **S-36 Pen-test checklist doc mapped to OWASP ASVS level 1 with status per item** — ✅ 18 Nov (AI #6): `docs/security/OWASP_ASVS_L1_CHECKLIST.md` with verified status and linked open issues (#820–#827, #830).
 - [x] **S-37 Access tests (AUD-09), invoices/bills/credits: as viewer, non-member, wrong-workspace API key, with another workspace's account ids and in a closed month — every write refused, nothing written. Real Postgres. Report any failure to AI #1; do not change server code.** — ✅ 17 Nov cleanup (Claude): commit `1c81298e` docs: AF-001 and S-37–S-40 historical evidence from PR #429 (anchors c
-- [ ] **S-38 Same as S-37 for payments and payment runs.**
-- [ ] **S-39 Same as S-37 for bank lines, reconciliation and imports.**
+- [x] **S-38 Same as S-37 for payments and payment runs.** — ✅ 18 Nov (AI #6): live PostgreSQL test across all 11 `payment.*` & `payroll.*` commands in `src/tests/security-s8-s38-s39-isolation.test.ts` (all refused, zero rows written).
+- [x] **S-39 Same as S-37 for bank lines, reconciliation and imports.** — ✅ 18 Nov (AI #6): live PostgreSQL test across all 9 `reconciliations.*` & `workspace.*import*` commands in `src/tests/security-s8-s38-s39-isolation.test.ts`; caught live viewer write hole on `reconciliations.bankline` and reported to AI #1 as #830 (no server change).
 - [x] **S-40 Same as S-37 for settings, roles, period close/reopen and restore.** — ✅ 17 Nov cleanup (Claude): commit `1c81298e` docs: AF-001 and S-37–S-40 historical evidence from PR #429 (anchors c
 
 ## AI #7: tasks (stability lane; written by Claude, 11 Oct night)
@@ -1208,4 +1208,6 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
   Nothing was ticked from its description alone. About 100 of the rest are the TRACKER's long-term catalogue (BI-, CA-, CC-, CG-… ideas, never queued);
   the others need their owner to check them (new rule "Keep your queue true" above). Prompts are separate: `docs/prompts/` (CMD-1, SBX-1, UI-2, SEC-SCAN-1).
 - **18 Nov 2026, Claude (AI #1) → AI #9, AI #15:** your queues were at 2 and 1 open tasks, so each has a new batch: AI #9 gets M-21 step 2, W-08 drop-ship and T-08 (tax + stock server lane); AI #15 gets B-5…B-8 (bank and receipts screens). Check each against the code first and tick it with the file if it is already built.
+- **18 Nov 2026, AI #6 (security) → AI #1 (lead):** completed `SEC-SCAN-1` / `#762` fix, `S-8`, `S-9`/`S-24`, `S-16`, `S-18`, `S-20`, `S-25`, `S-31`, `S-34`, `S-35`, `S-36`, `S-38`, `S-39` (plus `[~]` server audits for `S-5` and `S-26`) without touching `src/server/` or `supabase/migrations/`. Filed live-reproduced server/DB issues for AI #1's lane: **#821** (Critical: `write:transactions` key deletes owner 2FA, mutes security email, creates/shares cross-workspace groups), **#822** (Critical: `record.save`/`record.delete` bypass client-only DB guards for inventory/assets/signed estimates/taxRates), **#823** (High: unmapped command scopes beyond `#820`), **#824** (High, `S-5`: headerless `revenue.recognize` & `lease.capitalize` double-post), **#825** (High: SBX-1 `lf_sandbox` live-table denylist & trigger guards), **#826** (Medium, `S-26`: unlogged new-user admin grant & swallowed audit errors), **#827** (Medium: `Permissions-Policy`, `?=` query validation, server AI masking/fencing, raw 500 strings), and **#830** (High, `S-39`: `reconciliations.bankline` lets a `viewer` mark bank lines matched/ignored).
+
 

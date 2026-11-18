@@ -1,0 +1,4 @@
+{
+  "$comment": "S-25 dependency audit allowlist. Only add reviewed, non-exploitable advisories with an explicit GHSA id, package name, owner reason, and ISO expiresOn date (expired entries automatically fail the gate).",
+  "allow": []
+}
