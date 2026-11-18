@@ -6,7 +6,7 @@ export const TAG_COMMAND_MANIFEST = [
   {
     "name": "tag.change",
     "area": "tag",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Rename a tag across the workspace, merge it into an existing name, or remove it from every row; do not use it to change what a row is — only the label it carries.",
@@ -20,7 +20,7 @@ export const TAG_COMMAND_MANIFEST = [
           "when": "The old name is blank, the new name is longer than 50 characters, or the body has an extra field.",
           "next": "Send just `from` and `to` (null removes the tag)."
         },
-        COMMAND_SCHEMA_PARTS.part167
+        COMMAND_SCHEMA_PARTS.part169
       ]
     },
     "runPath": "/api/v1/commands/tag.change",

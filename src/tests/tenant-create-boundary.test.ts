@@ -18,7 +18,10 @@ test('tenant creation routes are create-only and ignore caller workspace identit
   const account = ledger.slice(ledger.indexOf('app.post("/api/v1/ledger"'), ledger.indexOf('app.get("/api/v1/ledger/diagnostics"'));
   assert.match(creation, /id: undefined,/);
   assert.match(creation, /developerWorkspaceId/);
-  assert.match(creation, /tx\.create\(wsRef, newWorkspace\)/);
+  assert.match(creation, /definition: workspaceApiCreateCommand/);
+  const command = fs.readFileSync('src/server/commands/workspaceApi.ts', 'utf8');
+  assert.match(command, /tx\.create\(ref, workspace\)/);
+  assert.match(command, /denyWorkspaceApiKey: true/);
   assert.doesNotMatch(creation, /doc\(newId\)\.set\(/);
   assert.match(account, /tx\.create\(accRef, newAccount\)/);
   assert.doesNotMatch(account, /doc\(newId\)\.set\(/);
@@ -60,10 +63,10 @@ describe('P0 tenant creation boundaries against live PostgreSQL', { skip: !datab
     .setIssuedAt().setExpirationTime('1h')
     .sign(new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET));
 
-  const post = async (uid: string, path: string, body: object) => {
+  const post = async (uid: string, path: string, body: object, key?: string) => {
     const response = await fetch(base + path, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${await token(uid)}` },
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${await token(uid)}`, ...(key ? { 'idempotency-key': key } : {}) },
       body: JSON.stringify(body),
     });
     return { status: response.status, data: await response.json() as Record<string, unknown> };
@@ -109,6 +112,7 @@ describe('P0 tenant creation boundaries against live PostgreSQL', { skip: !datab
     if (!db) return;
     const workspaceIds = [ownWorkspaceId, victimWorkspaceId, freshWorkspaceId].filter(Boolean);
     try {
+      await db.pool.query('delete from public."idempotencyKeys" where workspace_id = any($1::text[])', [[...workspaceIds, `person:${owner}`]]);
       await db.pool.query('delete from public."auditLogs" where workspace_id = any($1::text[])', [workspaceIds]);
       await db.pool.query('delete from public."chartAccounts" where workspace_id = any($1::text[])', [workspaceIds]);
       await db.pool.query('delete from public."workspaces" where id = any($1::text[])', [workspaceIds]);
@@ -153,4 +157,33 @@ describe('P0 tenant creation boundaries against live PostgreSQL', { skip: !datab
     assert.equal(inserted.status, 201, JSON.stringify(inserted.data));
     assert.equal((await db.collection('chartAccounts').doc(newAccountId).get()).data().workspaceId, ownWorkspaceId);
   });
+  test('membership and restore routes keep their legacy answers and replay safely', async () => {
+    const path = `/api/v1/workspaces/${ownWorkspaceId}`;
+    const add = await post(owner, `${path}/members`, { memberUid: anotherOwner }, `add-${prefix}`);
+    assert.equal(add.status, 200, JSON.stringify(add.data));
+    assert.deepEqual(add.data, { status: 'success', message: `Member ${anotherOwner} added to workspace.`, workspaceId: ownWorkspaceId, members: [anotherOwner] });
+    const addReplay = await post(owner, `${path}/members`, { memberUid: anotherOwner }, `add-${prefix}`);
+    assert.deepEqual(addReplay, add);
+    const del = async (uid: string, target: string, key: string) => {
+      const response = await fetch(`${base}${path}/members/${target}`, { method: 'DELETE', headers: { authorization: `Bearer ${await token(uid)}`, 'idempotency-key': key } });
+      return { status: response.status, data: await response.json() as Record<string, unknown> };
+    };
+    const lastOwner = await del(owner, owner, `last-${prefix}`);
+    assert.equal(lastOwner.status, 400);
+    assert.equal(lastOwner.data.message, 'Cannot demote or remove the last owner of the workspace.');
+    const removed = await del(owner, anotherOwner, `remove-${prefix}`);
+    assert.deepEqual(removed, { status: 200, data: { status: 'success', message: `Member ${anotherOwner} removed from workspace.`, workspaceId: ownWorkspaceId, members: [] } });
+    assert.deepEqual(await del(owner, anotherOwner, `remove-${prefix}`), removed);
+    const backup = { schemaVersion: 1, accounts: [{ id: `restored_${prefix}`, name: 'Restored', type: 'asset' }] };
+    const restored = await post(owner, `${path}/restore`, backup, `restore-${prefix}`);
+    assert.equal(restored.status, 200, JSON.stringify(restored.data));
+    assert.equal(restored.data.success, true);
+    assert.equal(restored.data.message, 'General ledger workspace successfully restored from backup.');
+    assert.deepEqual(await post(owner, `${path}/restore`, backup, `restore-${prefix}`), restored);
+    assert.equal((await db.collection('chartAccounts').doc(`restored_${prefix}`).get()).data().name, 'Restored');
+    const refusal = await post(owner, `${path}/restore`, { workspace: { id: victimWorkspaceId } });
+    assert.equal(refusal.status, 400);
+    assert.equal(refusal.data.message, 'Backup workspace ID does not match target workspace ID');
+  });
+
 });

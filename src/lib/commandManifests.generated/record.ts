@@ -8,7 +8,7 @@ export const RECORD_COMMAND_MANIFEST = [
   {
     "name": "record.delete",
     "area": "record",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Delete one ordinary record (a purchase order, a recurring rule, a tax rate, a project, an asset, an estimate, an inventory item or a loan note); a ledger collection is refused and keeps its own command.",
@@ -41,7 +41,7 @@ export const RECORD_COMMAND_MANIFEST = [
   {
     "name": "record.fields",
     "area": "record",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Change the non-financial fields a screen edits in place — a name, an address, a note, a planning budget — and refuse if someone else changed them first; do not use it for an amount on a document, a posting date or a status, which the record’s own command owns.",
@@ -85,7 +85,7 @@ export const RECORD_COMMAND_MANIFEST = [
   {
     "name": "record.save",
     "area": "record",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Create or save a whole ordinary record — a purchase order, a recurring rule, a tax rate, a project, an asset, an estimate, an inventory item or a loan note — and never a ledger collection, whose own command owns the postings.",

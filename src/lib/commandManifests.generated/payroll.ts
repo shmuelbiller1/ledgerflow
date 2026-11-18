@@ -39,7 +39,7 @@ export const PAYROLL_COMMAND_MANIFEST = [
     "risk": "normal",
     "description": {
       "sentence": "Approve a pay run that is waiting, which posts it; do not use it on a run that already posted — that is payroll.undo.",
-      "example": COMMAND_SCHEMA_PARTS.part36,
+      "example": COMMAND_SCHEMA_PARTS.part37,
       "refusals": [
         {
           "code": "CONFLICT",
@@ -128,7 +128,7 @@ export const PAYROLL_COMMAND_MANIFEST = [
     "risk": "normal",
     "description": {
       "sentence": "Undo a posted pay run while its date is open, or withdraw one still waiting for approval; do not use it to edit a payslip by hand.",
-      "example": COMMAND_SCHEMA_PARTS.part36,
+      "example": COMMAND_SCHEMA_PARTS.part37,
       "refusals": [
         {
           "code": "NOT_FOUND",

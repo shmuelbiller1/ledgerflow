@@ -8,7 +8,7 @@ export const QUERY_COMMAND_MANIFEST = [
   {
     "name": "query.ask",
     "area": "query",
-    "roles": COMMAND_SCHEMA_PARTS.part81,
+    "roles": COMMAND_SCHEMA_PARTS.part82,
     "risk": "normal",
     "description": {
       "sentence": "Ask a client or an accountant about one entry in the books; do not use it to change the entry — the answer is what changes it.",
@@ -41,7 +41,7 @@ export const QUERY_COMMAND_MANIFEST = [
   {
     "name": "query.close",
     "area": "query",
-    "roles": COMMAND_SCHEMA_PARTS.part81,
+    "roles": COMMAND_SCHEMA_PARTS.part82,
     "risk": "normal",
     "description": {
       "sentence": "Close a question about an entry once it is answered; do not use it to delete the conversation — it stays in the record.",
@@ -54,7 +54,7 @@ export const QUERY_COMMAND_MANIFEST = [
           "when": "The caller neither asked it nor is an owner or an accountant.",
           "next": "Ask the person who asked, or an owner, to close it."
         },
-        COMMAND_SCHEMA_PARTS.part179
+        COMMAND_SCHEMA_PARTS.part181
       ]
     },
     "runPath": "/api/v1/commands/query.close",
@@ -64,7 +64,7 @@ export const QUERY_COMMAND_MANIFEST = [
   {
     "name": "query.reply",
     "area": "query",
-    "roles": COMMAND_SCHEMA_PARTS.part81,
+    "roles": COMMAND_SCHEMA_PARTS.part82,
     "risk": "normal",
     "description": {
       "sentence": "Answer a question about an entry, or follow it up; do not use it to close the conversation — that is query.close.",
@@ -83,7 +83,7 @@ export const QUERY_COMMAND_MANIFEST = [
           "when": "The question is closed, or the conversation has as many messages as it may have.",
           "next": "Close it and ask again if it matters."
         },
-        COMMAND_SCHEMA_PARTS.part179
+        COMMAND_SCHEMA_PARTS.part181
       ]
     },
     "runPath": "/api/v1/commands/query.reply",

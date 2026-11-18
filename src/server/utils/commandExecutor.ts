@@ -302,6 +302,9 @@ async function commandAccess(
   if (!personScope && user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) {
     return { refusal: { ok: false, status: 403, command: command.name, message: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}`, code: 'WORKSPACE_SCOPE' } };
   }
+  if (command.denyWorkspaceApiKey && user.developerWorkspaceId) {
+    return { refusal: { ok: false, status: 403, command: command.name, message: 'Forbidden: Workspace-scoped API keys cannot create workspaces', code: 'WORKSPACE_SCOPE' } };
+  }
   // A command that mints or revokes access is a person's to run: an API key holding a broad scope
   // must not be able to grant itself another key, or a wider one, by calling the command router.
   if (command.peopleOnly && user.usedApiKeyId) {

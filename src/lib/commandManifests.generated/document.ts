@@ -6,7 +6,7 @@ export const DOCUMENT_COMMAND_MANIFEST = [
   {
     "name": "document.save",
     "area": "document",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Keep a file with the books (a vault upload, a snapped receipt, an attachment) or link an existing one to the record it belongs to; do not use it to upload — the storage step produces the file first.",

@@ -7,7 +7,7 @@ export const RMA_COMMAND_MANIFEST = [
   {
     "name": "rma.move",
     "area": "rma",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Move a return authorization on — approve it, decline it, record the goods received, or link the credit note; do not use it to skip receiving the goods before a credit note.",
@@ -43,7 +43,7 @@ export const RMA_COMMAND_MANIFEST = [
   {
     "name": "rma.request",
     "area": "rma",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Record a customer’s request to return goods against an issued invoice and give it an RMA number; do not use it to post the credit — the goods are received first.",
