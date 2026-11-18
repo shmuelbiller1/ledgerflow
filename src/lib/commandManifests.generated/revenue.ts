@@ -7,6 +7,7 @@ export const REVENUE_COMMAND_MANIFEST = [
     "name": "revenue.recognize",
     "area": "revenue",
     "roles": COMMAND_SCHEMA_PARTS.part68,
+    "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {
       "sentence": "Recognise revenue under ASC 606, moving an amount out of the deferred balance and into income; do not use it to invoice a customer — that is an invoice.",

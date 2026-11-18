@@ -2,8 +2,9 @@ import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
 import { z } from 'zod';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { postJournalDocument } from '../services/journalDocumentService';
-import { extractCanonicalOperationId } from '../utils/idempotency';
+import { leaseCapitalizeCommand } from '../commands/verticalAccounting';
+import { executeCommand, withLegacyInputIdempotencyHash } from '../utils/commandExecutor';
+import { journalDocumentAnswer } from '../utils/journalDocumentAnswer';
 import { mayPostEntries } from '../http/ledgerWriter';
 import { computePropertyRentRoll, reconcileSecurityDepositTrust } from '../../lib/verticalAccounting';
 import type { Invoice } from '../../types';
@@ -30,39 +31,12 @@ leaseRouter.post('/capitalize', async (req, res) => {
     res.status(400).json({ status: 'error', error: 'Validation failed', details: parsed.error.issues });
     return;
   }
-  try {
-    const user = requestUser(req);
-    const result = await postJournalDocument(getDb(), {
-      operationType: 'LEASE_CAPITALIZE',
-      legacyPrefix: 'lease',
-      message: 'ASC 842 Lease capitalized successfully.',
-      description: ({ leaseName }) => `ASC 842 Initial Recognition: ${leaseName || 'Operating Lease'}`,
-      totalAmountCents: ({ pvAmountCents }) => pvAmountCents,
-      lines: ({ pvAmountCents, rouAssetAccountId, leaseLiabilityAccountId }) => [
-        { accountId: rouAssetAccountId, amountCents: pvAmountCents, description: 'Capitalize PV of lease payments' },
-        { accountId: leaseLiabilityAccountId, amountCents: -pvAmountCents, description: 'Recognize lease liability' },
-      ],
-      operationId: ({ leaseName }) => (leaseName ? `lease_${leaseName.toLowerCase().replace(/[^a-z0-9]/g, '_')}` : undefined),
-      audit: {
-        action: 'LEASE_CAPITALIZED',
-        details: ({ leaseName, pvAmountCents, rouAssetAccountId, leaseLiabilityAccountId }, txDate) => ({
-          description: `Capitalized lease ${leaseName || 'Operating Lease'} (${pvAmountCents} cents) on ${txDate}`,
-          leaseName: leaseName || 'Operating Lease',
-          pvAmountCents,
-          rouAssetAccountId,
-          leaseLiabilityAccountId,
-          date: txDate,
-        }),
-      },
-    }, parsed.data, user, extractCanonicalOperationId(req));
-    res.json(result);
-  } catch (e) {
-    const explicitStatus = (e as { status?: number })?.status;
-    const status = typeof explicitStatus === 'number'
-      ? explicitStatus
-      : (errorMessage(e).includes('Unauthorized') || errorMessage(e).includes('Forbidden') ? 403 : 400);
-    res.status(status).json({ error: errorMessage(e) });
-  }
+  // The legacy route did not enforce the plan-capacity gate. The command API keeps it; the
+  // compatibility invocation preserves this address's established refusal behaviour.
+  await executeCommand(req, res, {
+    definition: withLegacyInputIdempotencyHash({ ...leaseCapitalizeCommand, capacity: undefined }),
+    workspaceId: parsed.data.workspaceId, input: parsed.data, formatResponse: journalDocumentAnswer,
+  });
 });
 
 /**
