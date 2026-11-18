@@ -1,6 +1,7 @@
 /** EU-G1: the second half of the Reports strings (split to stay under the 800-line file limit). */
 import type { ScreenStringEntry } from './screenTranslations';
 import { EVEN_MORE_REPORT_STRINGS } from './reportTranslationsMore2';
+import { LAST_REPORT_STRINGS } from './reportTranslationsMore3';
 
 export const MORE_REPORT_STRINGS: ScreenStringEntry[] = [
     { key: 'r.charged-on', en: ', charged on', he: ', מחושב על' },
@@ -582,4 +583,5 @@ export const MORE_REPORT_STRINGS: ScreenStringEntry[] = [
   { key: 'r.line', en: 'Line', he: 'שורה' },
   { key: 'r.delivered', en: 'Delivered', he: 'סופק' },
   ...EVEN_MORE_REPORT_STRINGS,
+  ...LAST_REPORT_STRINGS,
 ];
