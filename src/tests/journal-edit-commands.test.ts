@@ -52,3 +52,11 @@ test('delete only removes a draft, keeps a deletion audit and replays safely', a
   const posted = setup(); const refused = await run(posted, journalDeleteCommand, { id: 'entry' });
   assert.equal(refused.ok, false); if (!refused.ok) assert.equal(refused.status, 403); assert.ok(posted.read('transactions/entry'));
 });
+
+
+test('a full edit cannot use an account removed or moved after preparation', async () => {
+  const db = setup(); const transaction = { ...db.read('transactions/entry')!, description: 'Correction' };
+  db.beforeTransaction = () => { db.beforeTransaction = undefined; db.seed('chartAccounts/cash', { id: 'cash', workspaceId: 'another-workspace', name: 'Cash' }); };
+  const outcome = await run(db, journalEditCommand, { id: 'entry', transaction });
+  assert.equal(outcome.ok, false); assert.equal(db.read('transactions/entry')?.description, 'Supplies');
+});

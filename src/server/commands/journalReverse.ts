@@ -159,7 +159,7 @@ export const journalReverseCommand: CommandDefinition<typeof journalReverseInput
     };
 
     const validatedReversal = await TransactionValidator.validateAndPrepare(reversalTxPayload, {
-      workspaceId: targetWsId,
+      db, workspaceId: targetWsId,
       user: { uid: user.uid, admin: user.admin },
       wsData,
       accountsMap: accMap
@@ -196,7 +196,7 @@ export const journalReverseCommand: CommandDefinition<typeof journalReverseInput
       };
 
       validatedReplacement = await TransactionValidator.validateAndPrepare(replPayload, {
-        workspaceId: targetWsId,
+        db, workspaceId: targetWsId,
         user: { uid: user.uid, admin: user.admin },
         wsData,
         accountsMap: accMap
