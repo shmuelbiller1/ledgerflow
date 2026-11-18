@@ -125,6 +125,8 @@ a new raw screen cannot slip in when a different screen migrates in the same PR.
 - [x] On this branch: 390/1280, light/dark, English/Hebrew and scoped axe on all three reports
       (`visual-regression.spec.ts`, filter `visual comparison reports`). `column-chooser.test.tsx` also exercises
       a previously migrated report (bank holidays) and checks that moving a bilingual cell keeps its DOM identity.
+      The [visual refresh](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44416325020) captured and
+      rechecked 12 Linux Chromium references. Reviewed: the focused export, right-to-left headings and visible figures.
 
 **Next batch:** `npx tsx scripts/codemod-row-table.ts --files` now offers **15 tables in 14 files**; **131 table
 blocks refused** (including the shared renderers). At the start it offered two and refused 147. Start with the
