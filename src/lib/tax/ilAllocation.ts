@@ -6,6 +6,7 @@
  * on the invoice by hand (docs/FOR_YOU.md 42). Pure.
  */
 import { rateOn, type DatedRate } from './ilVatRates';
+import { convertMinorUnits } from '../currencyMinorUnits';
 
 const ITA = 'https://www.gov.il/he/departments/topics/israel-invoices';
 
@@ -27,7 +28,7 @@ export function allocationThresholdCents(date: string): number | undefined {
 export function needsAllocationNumber(input: { date: string; netCents: number; currency: string; exchangeRate?: number; buyerVatNumber?: string; taxCents: number }): boolean {
   const threshold = allocationThresholdCents(input.date);
   if (threshold === undefined || !input.buyerVatNumber?.trim() || input.taxCents <= 0) return false;
-  const shekels = input.currency === 'ILS' ? input.netCents : Math.round(input.netCents * (input.exchangeRate || 0));
+  const shekels = input.currency === 'ILS' ? input.netCents : convertMinorUnits(input.netCents, input.exchangeRate || 0, input.currency, 'ILS');
   return shekels > threshold;
 }
 

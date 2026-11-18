@@ -77,7 +77,7 @@ export default function SpreadDialog({ kind, document: doc, onClose }: { kind: '
   const holdChoices = useMemo(() => accounts.filter(side.holdFits), [accounts, side]);
   // lines without an account of their own post to the default income/expense account
   const fallback = useMemo(() => accountInUse(DEFAULT_ACCOUNT_SLOTS.find(s => s.key === (kind === 'bill' ? 'expense' : 'revenue'))!, accounts, mappings).account?.id, [kind, accounts, mappings]);
-  const line = useMemo(() => documentLine(doc, accounts, side.role, fallback), [doc, accounts, side, fallback]);
+  const line = useMemo(() => documentLine(doc, accounts, side.role, fallback, currency), [doc, accounts, side, fallback, currency]);
   const rate = typeof doc.exchangeRate === 'number' && doc.exchangeRate > 0 ? doc.exchangeRate : 1;
   const docCurrency = doc.currency || currency;
   const docBaseCents = convertMinorUnits(doc.amountCents || 0, rate, docCurrency, currency);
