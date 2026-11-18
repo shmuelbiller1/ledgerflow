@@ -265,7 +265,7 @@ Same rules as above. Branch from the latest `main`, one branch per task, and wri
 ## AI #3 (Arena): tasks (Claude, 5 Oct late)
 
 **Next three days, in this order (AI #1, 21 Oct)** — these first; the rest of the list after:
-A-194, A-196, A-197 (data-quality checks) → A-148 (12-month sample business) → A-206 (five heaviest reports under 1 s on it) → A-201, A-202, A-149 (help text, EN/HE) → A-185 (credit note from invoice, draft only) → A-183 (attachments with preview) → A-182 (contact import with duplicate check) → A-138 (Israeli bank and branch codes) → A-137 (bank holiday calendars) → A-131, A-132 (numbering and e-mail templates per entity/language) → A-190, A-192, A-193 (top customers, inventory turnover, margin by group) → A-180 (customer activity timeline) → A-107 (GSA per diem import) → A-72 (statements by entity; AUD-01 is merged, so it is free). One PR per task; run the whole unit suite and the browser spec you touch before opening it (CI must be green).
+A-194, A-196, A-197 (data-quality checks) → A-148 (12-month sample business) → A-206 (five heaviest reports under 1 s on it) → A-201, A-202, A-149 (help text, EN/HE) → A-185 (credit note from invoice, draft only) → A-183 (attachments with preview) → A-182 (contact import with duplicate check) → A-138 (Israeli bank and branch codes) → A-137 (bank holiday calendars) → A-131, A-132 (numbering and e-mail templates per entity/language) → A-190, A-192, A-193 (top customers, inventory turnover, margin by group) → A-180 (customer activity timeline) → A-107 (GSA per diem import) → A-72 (statements by entity; AUD-01 is merged, so it is free). Put several tasks in one PR (one commit each); run the fast checks (types, lint, tests for what you changed) and let CI run the whole suite (CI must be green). See CURRENT_WORK "Rules that never change".
 
 **Rule from 13 Oct:** a task is done only when a user can reach it from a screen. A library on its own goes in as "part 1" and the screen is part 2 of the same task. One PR per 3–5 tasks at most, so each can be reviewed.
 
@@ -729,7 +729,7 @@ Same model as AI #1, given part of AI #1's own list. **You may change money, tax
 (tax lines only), the VAT/PCN874/sales-tax report code, and inventory valuation (`src/lib/inventory*`, stock-move and
 revaluation code). Everything else in `src/server/` and posting stays with AI #1 — ask under Messages first.
 Branch `ai9/<task>`, one PR per task, never merge your own. Every money change: a test of **worked figures**
-(input → expected cents, written by hand in the test), the whole unit suite, ESLint ≤ 210 warnings, the browser spec you touch.
+(input → expected cents, written by hand in the test), ESLint ≤ 210 warnings, the tests for what you changed; CI runs the whole suite and every browser shard.
 Update the RELEASE_GATE row you move. Full wording of each task is in `docs/TRACKER.md` (search the id).
 
 **Next batch (AI #1, 21 Oct — in this order):**
