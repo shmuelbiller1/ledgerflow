@@ -14,6 +14,15 @@ import { RowTable } from '../ui/RowTable';
 interface Props { startDate?:string; endDate?:string; asOfDate?:string; compareStartDate?:string; compareEndDate?:string }
 export function AccountBalancesAsOfView({asOfDate='',endDate='',compareEndDate=''}:Props) {
   const reportText = useReportText();
+  const accountTypes = useMemo(() => ({
+    asset: reportText('r.account-type.asset', 'asset'),
+    liability: reportText('r.account-type.liability', 'liability'),
+    equity: reportText('r.account-type.equity', 'equity'),
+    income: reportText('r.account-type.income', 'income'),
+    expense: reportText('r.account-type.expense', 'expense'),
+    cost_of_goods: reportText('r.account-type.cost_of_goods', 'cost of goods'),
+    revenue: reportText('r.account-type.revenue', 'revenue'),
+  }), [reportText]);
   const accounts=useLedgerStore(state=>state.accounts),transactions=useLedgerStore(state=>state.transactions);
   const workspace=useAuthStore(state=>state.currentWorkspaceId),currency=useAuthStore(state=>state.getCurrentWorkspace()?.currency);
   const truncated=useLedgerStore(state=>state.truncatedCollections),failed=useDataNeedsStore(state=>state.failed);
@@ -39,7 +48,7 @@ export function AccountBalancesAsOfView({asOfDate='',endDate='',compareEndDate='
     columns={[
       { header: reportText('r.code', 'Code'), headClassName: "", cell: (row) => row.code },
       { header: reportText('r.account', 'Account'), rowHeader: true, className: "text-start", headClassName: "", cell: (row) => <bdi>{row.name}</bdi> },
-      { header: reportText('r.type', 'Type'), headClassName: "", cell: (row) => reportText(`r.account-type.${row.type}`, row.type) },
+      { header: reportText('r.type', 'Type'), headClassName: "", cell: (row) => accountTypes[row.type] ?? row.type },
       { header: reportText('r.balance', 'Balance'), align: 'right', className: "whitespace-nowrap tabular-nums", headClassName: "", cell: (row) => formatCurrency(row.cents,currency) },
       compared ? { header: reportText('r.previous-balance-change', 'Previous balance / change'), align: 'right', className: "whitespace-nowrap tabular-nums", cellProps: { dir: "ltr" }, headClassName: "", cell: (row) => (<>{formatCurrency(previous.get(row.id)??0,currency)} / {formatCurrency(row.cents-(previous.get(row.id)??0),currency)}</>) } : false,
     ]}

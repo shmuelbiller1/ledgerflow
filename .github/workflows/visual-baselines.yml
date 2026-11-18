@@ -30,7 +30,7 @@ jobs:
           # JavaScript template literals, so `${{ inputs.screens }}` pasted into the run block was
           # expanded *inside* those backticks and reached --grep as the test name instead of the filter.
           SCREENS: ${{ inputs.screens }}
-          PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ github.workspace }}/test-results/visual-capture.json
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/visual-baselines.json
         # `--update-snapshots` still runs every assertion before the screenshot, so a failing wait
         # (a heading that was renamed, a store that never filled) aborts the capture and leaves the
         # reviewer with no images. The JSON report is replayed into the step summary, because the raw
