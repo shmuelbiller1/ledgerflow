@@ -285,7 +285,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
         </div>
         <div>
           <h2 className="text-xl font-bold text-[var(--text)]">Backup & Export</h2>
-          <p className="text-zinc-500">Securely export your data for backups, accountants, or migration.</p>
+          <p className="text-zinc-600 dark:text-zinc-300">Securely export your data for backups, accountants, or migration.</p>
         </div>
       </div>
 
@@ -319,12 +319,12 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
             <FileSpreadsheet aria-hidden="true" className="text-green-500" size={24} />
             <h3 className="font-bold text-[var(--text)]">Data exports</h3>
           </div>
-          <p className="text-sm text-zinc-500 mb-6 min-h-[40px]">
+          <p className="text-sm text-zinc-600 dark:text-zinc-300 mb-6 min-h-[40px]">
             Choose posted ledger lines, complete record fields or one bank account, with period and format controls.
           </p>
           <button 
             onClick={() => setExportOpen(true)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-medium transition-colors"
           >
             <Download aria-hidden="true" size={16} />
             Choose export

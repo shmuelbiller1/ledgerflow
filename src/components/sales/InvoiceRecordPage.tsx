@@ -19,6 +19,8 @@ import { RecordPage, type RecordMetric, type RecordNextAction, type RecordStep }
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 
 interface InvoiceRecordPageProps {
   invoiceId: string;
@@ -45,7 +47,10 @@ export default function InvoiceRecordPage({
   onVoid,
   onOpenCustomer,
 }: InvoiceRecordPageProps) {
-  const { loading } = useLedgerCollections('invoices', 'customers', 'payments', 'auditLogs', 'transactions');
+  useLedgerCollections('invoices', 'customers', 'payments', 'auditLogs', 'transactions');
+  const dataHealth = useScreenDataHealth(['invoices', 'customers', 'payments', 'auditLogs', 'transactions']);
+  const dataNotice = <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message}
+    onRetry={dataHealth.retry} what="this invoice" />;
   const invoices = useLedgerStore(s => s.invoices);
   const customers = useLedgerStore(s => s.customers);
   const payments = useLedgerStore(s => s.payments);
@@ -126,12 +131,14 @@ export default function InvoiceRecordPage({
     return merged.sort((a, b) => String(b.when).localeCompare(String(a.when)));
   }, [auditLogs, invoice]);
 
-  if (loading && !invoice) {
-    return (
-      <div className="p-4 sm:p-6">
-        <LoadingState what="invoice" />
-      </div>
-    );
+  // A deep link may open before the invoice collection arrives. Failure is not "not found":
+  // let the reader retry the failed read, then keep showing loading until a fresh snapshot lands.
+  if (!invoice && dataHealth.failedKeys.includes('invoices')) return (
+    <div className="p-4 sm:p-6 space-y-4">{dataNotice}<EmptyState title="Invoice unavailable"
+      description="The invoice list could not be loaded yet." actionLabel="Back to invoices" onAction={onBack} /></div>
+  );
+  if (!invoice && dataHealth.loadingKeys.includes('invoices')) {
+    return <div className="p-4 sm:p-6"><LoadingState what="invoice" /></div>;
   }
 
   if (!invoice) {
@@ -242,13 +249,11 @@ export default function InvoiceRecordPage({
       }
       steps={isClosed ? undefined : steps}
       nextStepAction={nextStepAction}
-      banner={
-        apprState !== 'off' && apprState !== 'not_needed' ? (
-          <div role="status" className="p-3 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-xs text-[var(--text)]">
-            {approvalDetail(apprState, approvalSettings, invoice.approval, currency)}
-          </div>
-        ) : undefined
-      }
+      banner={<>{dataNotice}{apprState !== 'off' && apprState !== 'not_needed' && (
+        <div role="status" className="p-3 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-xs text-[var(--text)]">
+          {approvalDetail(apprState, approvalSettings, invoice.approval, currency)}
+        </div>
+      )}</>}
       metrics={metrics}
       secondaryActions={
         <>

@@ -420,10 +420,10 @@ before:
 
 ### Next batch for AI #3 (Claude, 10 Nov; A-273…A-277 merged as #600). Same rules: up to five per PR from the latest `main`, tests, done means a user can reach it, no change to how money is calculated or posted.
 - [ ] **A-278 Phone pass on every report**: open each of the report views at 390 px (light and dark); no clipped text, no page-wide sideways scroll (a wide table may scroll inside itself), 44 px touch targets; one Playwright spec looping over the report registry; fix what it finds.
-- [ ] **A-279 Keyboard path on Sales and Purchases**: the invoice, customer, bill and vendor lists — Tab reaches every row and action, Enter opens the record, Escape closes it and focus returns to the row (same pattern as A-270); a browser test per list.
-- [ ] **A-280 Axe sweep of the Settings sub-pages**: all 25 Settings sub-pages at 1280 and 390 px pass axe with no serious/critical violations; fix them; one spec looping over the sub-pages.
+- [x] **A-279 Keyboard path on Sales and Purchases**: the invoice, customer, bill and vendor lists — Tab reaches every row and action, Enter opens the record, Escape closes it and focus returns to the row (same pattern as A-270); a browser test per list. *(AI #3, pending review: `e2e/keyboard-sales-purchases-a279.spec.ts` 4/4 Chromium, two rows and actions per list, exact-opener focus return.)*
+- [x] **A-280 Axe sweep of the Settings sub-pages**: all 25 Settings sub-pages at 1280 and 390 px pass axe with no serious/critical violations; fix them; one spec looping over the sub-pages. *(AI #3, pending review: `e2e/settings-subpages-a280.spec.ts` covers all 32 currently registered sections at both widths, 2/2 Chromium, with contrast checks enabled; UI contrast and scroll-region fixes.)*
 - [ ] **A-281 More screens in the visual set**: add Purchase orders, Journal Entries with a record drawer open, and the Reports picker open to `e2e/visual-regression.spec.ts` (desktop and phone, light and dark); refresh baselines with `visual-baselines.yml` after looking at the images.
-- [ ] **A-282 Loading and failed states for the record drawers**: the transaction, invoice and bill drawers show a loading state and a clear "couldn't load — try again" when the record fetch fails, instead of a blank panel; component tests.
+- [x] **A-282 Loading and failed states for the record drawers**: the transaction, invoice and bill drawers show a loading state and a clear "couldn't load — try again" when the record fetch fails, instead of a blank panel; component tests. *(AI #3, pending review: `src/tests/record-loading-a282.test.tsx` 5/5, including retry, capped transaction list and related-data failure.)*
 
 ## AI #4 (Codex): tasks (written by Claude, 6 Oct)
 

@@ -148,7 +148,7 @@ export function renderEmail(template: EmailTemplate, values: TemplateValues, opt
   const paragraphs = text.split(/\n{2,}/).map(p => {
     const safe = escapeHtml(p).replace(/\n/g, '<br />');
     return link && p.trim() !== '' && p.includes(link)
-      ? `<p>${safe.replace(escapeHtml(link), `<a href="${escapeHtml(encodeURI(link))}" style="color:#2563eb">${escapeHtml(link)}</a>`)}</p>`
+      ? `<p>${safe.replace(escapeHtml(link), `<a href="${escapeHtml(encodeURI(link))}" style="color:#2563eb;text-decoration:underline">${escapeHtml(link)}</a>`)}</p>`
       : `<p>${safe}</p>`;
   });
   const buttonLabel = rtl ? 'לצפייה בחשבונית' : 'View invoice';

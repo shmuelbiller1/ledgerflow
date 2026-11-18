@@ -12,6 +12,8 @@ import SelectionBar from '../transactions/SelectionBar';
 
 import SplitEditor from '../transactions/SplitEditor';
 import TransactionEditModal from '../transactions/TransactionEditModal';
+import { TransactionRecordLoadDialog } from './TransactionRecordLoadDialog';
+import { useUIStore } from '../../stores/useUIStore';
 
 import { TransactionGridToolbar } from './TransactionGridToolbar';
 import { TransactionGridBody } from './TransactionGridBody';
@@ -42,6 +44,7 @@ function useFillWindowHeight() {
 }
 export function TransactionGridView(model: TransactionGridModel) {
  const { filterCriteria, onFilterApplied, txActions, onUpdate, isCompactMode, editingDetailsTx, setEditingDetailsTx, isReverseModeModal, setIsReverseModeModal, lockDate, selectedIds, setSelectedIds, parsingQueue, setParsingQueue, splittingTxId, setSplittingTxId, accounts, projects, dragActive, splittingTransaction, selectedTransactions, handleBulkUpdate, handleDrag, handleDrop } = model;
+ const clearFocusRecord = useUIStore(s => s.clearFocusRecord);
  const { ref: fillRef, style: fillStyle } = useFillWindowHeight();
  return (
     <div
@@ -162,14 +165,22 @@ export function TransactionGridView(model: TransactionGridModel) {
         )}
       </AnimatePresence>
 
-      {editingDetailsTx && (
+      {model.focusedTxId && model.focusedTxMissing && (
+        <TransactionRecordLoadDialog key={model.focusedTxId} id={model.focusedTxId}
+          health={model.transactionHealth} capped={model.transactionListCapped}
+          onClose={() => { setEditingDetailsTx(null); setIsReverseModeModal(false); clearFocusRecord(); }} />
+      )}
+      {editingDetailsTx && (!model.focusedTxId || editingDetailsTx.id === model.focusedTxId) && (
         <TransactionEditModal
           isOpen={!!editingDetailsTx}
           transaction={editingDetailsTx}
           accounts={accounts}
           lockDate={lockDate}
           isReverseAndCorrectMode={isReverseModeModal}
-          onClose={() => { setEditingDetailsTx(null); setIsReverseModeModal(false); }}
+          onClose={() => {
+            setEditingDetailsTx(null); setIsReverseModeModal(false);
+            if (model.focusedTxId === editingDetailsTx.id) clearFocusRecord();
+          }}
           onUpdate={onUpdate || (() => {})}
           onReverseAndCorrect={txActions.handleReverseTransaction}
         />
