@@ -22,6 +22,8 @@ import { BRAND } from '../../../config/brand';
 
 interface RestoreFile { name: string; text: string }
 
+const outlineAction = 'min-h-11 hover:bg-[var(--brass-soft)] hover:text-[var(--brass)]';
+
 function isObject(value: unknown): value is JsonObject {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -269,8 +271,8 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
             </p>
             {restoring && <p role="status" className="text-sm text-[var(--muted)]">Wait for the restore result before trying again.</p>}
             <div className="flex flex-wrap justify-end gap-2">
-              <AsyncButton type="button" variant="outline" className="min-h-11" disabled={restoring} onClick={closeRestore}>Cancel</AsyncButton>
-              <AsyncButton type="button" variant="danger" className="min-h-11 text-[var(--neg)]" loading={restoring} loadingText="Restoring…" onClick={confirmRestore}>
+              <AsyncButton type="button" variant="outline" className={outlineAction} disabled={restoring} onClick={closeRestore}>Cancel</AsyncButton>
+              <AsyncButton type="button" variant="danger" className="min-h-11 text-[var(--neg)] hover:bg-[var(--surface)] hover:underline" loading={restoring} loadingText="Restoring…" onClick={confirmRestore}>
                 Replace workspace records
               </AsyncButton>
             </div>
@@ -288,7 +290,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-[var(--surface)] border border-[var(--line)] rounded-xl p-6">
+        <section aria-label="Full Workspace Backup" className="bg-[var(--surface)] border border-[var(--line)] rounded-xl p-6">
           <div className="flex items-center gap-3 mb-4">
             <Archive aria-hidden="true" className="text-zinc-400" size={24} />
             <h3 className="font-bold text-[var(--text)]">Full Workspace Backup</h3>
@@ -297,7 +299,8 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
             Download a snapshot of your books and settings from the server. Keep it somewhere secure;
             it does not include attached file contents or verify your hosting provider’s backups.
           </p>
-          <AsyncButton type="button" onClick={exportJSON} loadingText="Preparing backup…" className="min-h-11 w-full"
+          <AsyncButton type="button" onClick={exportJSON} loadingText="Preparing backup…"
+            className="min-h-11 w-full text-[var(--ink)] hover:bg-[var(--brass)] hover:underline"
             icon={<Download aria-hidden="true" size={16} />}>
             Export JSON Backup
           </AsyncButton>
@@ -306,10 +309,10 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
           {offerPartial && (
             <div className="mt-4 space-y-2 border-t border-[var(--line)] pt-3">
               <p className="text-sm text-[var(--muted)]">A partial copy contains only data loaded in this browser. It cannot be restored and does not count as a backup.</p>
-              <AsyncButton type="button" variant="outline" onClick={exportPartial} className="min-h-11 w-full">Download partial copy</AsyncButton>
+              <AsyncButton type="button" variant="outline" onClick={exportPartial} className={`${outlineAction} w-full`}>Download partial copy</AsyncButton>
             </div>
           )}
-        </div>
+        </section>
 
         <div className="bg-[var(--surface)] border border-[var(--line)] rounded-xl p-6">
           <div className="flex items-center gap-3 mb-4">
@@ -345,7 +348,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
           </p>
           <input aria-label="Restore backup file" type="file" ref={fileInputRef} onChange={handleFileSelect}
             accept=".json,.zip" className="hidden" disabled={!canRestore} />
-          <AsyncButton type="button" variant="outline" className="min-h-11 w-full"
+          <AsyncButton type="button" variant="outline" className={`${outlineAction} w-full`}
             disabled={!canRestore} aria-disabled={reading || undefined}
             icon={<Upload aria-hidden="true" size={16} />}
             onClick={event => {

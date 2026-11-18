@@ -319,6 +319,11 @@ test('W10 a failed server export offers only a separately named, non-restorable 
   expect(downloads).toEqual([]);
   expect(await backupMarker(page)).toBeNull();
 
+  await page.locator('html').evaluate(element => element.classList.add('light'));
+  await waitForFiniteAnimations(page);
+  const { violations } = await new AxeBuilder({ page }).include('section[aria-label="Full Workspace Backup"]').withRules(['color-contrast']).analyze();
+  expect(violations).toEqual([]);
+
   const [partial] = await Promise.all([
     page.waitForEvent('download'),
     page.getByRole('button', { name: 'Download partial copy' }).click(),
