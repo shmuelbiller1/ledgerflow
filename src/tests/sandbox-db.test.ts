@@ -28,7 +28,7 @@ describe('SBX-1 database handle', { skip: !url && 'LF_TEST_DATABASE_URL not set'
 
   after(async () => {
     await real.pool.query('delete from sandbox.sandboxes where workspace_id = $1', [ws]);
-    for (const table of ['transactions', 'journalEntries', 'periodBalances', 'customers', 'chartAccounts', 'documents', 'rateLimitEntries', 'workspaces']) {
+    for (const table of ['transactions', 'journalEntries', 'periodBalances', 'customers', 'chartAccounts', 'documents', 'workspaces']) {
       await real.pool.query(`delete from public."${table}" where workspace_id = any($1::text[]) or id = any($1::text[])`, [[ws, otherWs]]);
     }
     await real.terminate();
@@ -142,8 +142,8 @@ describe('SBX-1 database handle', { skip: !url && 'LF_TEST_DATABASE_URL not set'
       const live = real.collection(table).doc(id(key));
       await live.create({ workspaceId: ws, ...data });
       const ref = draft.doc(live.path);
-      const version = async () => (await real.pool.query<{ content: string; hash: string; updated_at: Date }>(
-        `select data::text as content, sandbox.content_version(data) as hash, updated_at from public."${table}" where id = $1`, [live.id],
+      const version = async () => (await real.pool.query<{ content: string; hash: string }>(
+        `select data::text as content, sandbox.content_version(data) as hash from public."${table}" where id = $1`, [live.id],
       )).rows[0];
       const copied = async () => (await real.pool.query<{ base_version: string | null }>(
         `select base_version from sandbox."${table}" where sandbox_id = $1 and id = $2`, [sandboxId, live.id],
@@ -155,7 +155,6 @@ describe('SBX-1 database handle', { skip: !url && 'LF_TEST_DATABASE_URL not set'
       await change();
       const latest = await version();
       assert.notEqual(latest.hash, hash);
-      if (table === 'rateLimitEntries') assert.deepEqual(latest.updated_at, initial.updated_at, 'this lf_update path does not move updated_at');
       await ref.update({ note: 'second draft edit' });
       await ref.delete();
       assert.equal(await copied(), hash, 'the version refers to the first copied live row');
@@ -163,9 +162,28 @@ describe('SBX-1 database handle', { skip: !url && 'LF_TEST_DATABASE_URL not set'
     await check('customers', 'hash-patch', { name: 'Before' }, () => real.pool.query(
       `update public.customers set data = jsonb_set(data, '{name}', '"After"') where id = $1`, [id('hash-patch')],
     ));
-    await check('rateLimitEntries', 'hash-rpc', { count: 1 }, () => real.pool.query(
-      `select public.lf_update('rateLimitEntries', $1, '{"count":2}')`, [id('hash-rpc')],
-    ));
+    await check('customers', 'hash-rpc', { name: 'Before' }, async () => {
+      const client = await real.pool.connect();
+      const key = id('hash-rpc');
+      try {
+        await client.query('begin');
+        // The browser RPC's two writes share PostgreSQL's transaction-stable updated_at.
+        // Use a readable book collection rather than exposing live rate-limit counters.
+        const stamp = async () => (await client.query<{ updated_at: string }>(
+          'select updated_at::text from public.customers where id = $1', [key],
+        )).rows[0].updated_at;
+        await client.query("select public.lf_update('customers', $1, '{}')", [key]);
+        const before = await stamp();
+        await client.query(`select public.lf_update('customers', $1, '{"name":"After"}')`, [key]);
+        assert.equal(await stamp(), before, 'the content changed without a new timestamp');
+        await client.query('commit');
+      } catch (error) {
+        await client.query('rollback');
+        throw error;
+      } finally {
+        client.release();
+      }
+    });
     await check('periodBalances', 'hash-trigger', { asOf: '2026-02-28', stale: false }, async () => {
       await real.doc(`transactions/${id('hash-trigger-source')}`).create({ workspaceId: ws, status: 'draft', date: '2026-02-28' });
       assert.equal((await real.doc(`periodBalances/${id('hash-trigger')}`).get()).get('stale'), true);
