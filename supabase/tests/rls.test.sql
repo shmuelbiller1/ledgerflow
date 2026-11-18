@@ -86,6 +86,15 @@ select pg_temp.expect_count('viewer reads invoices', 'u-view', 'select count(*) 
 select pg_temp.expect_count('outsider reads invoices', 'u-out', 'select count(*) from invoices', 0);
 select pg_temp.expect_denied('bookkeeper cannot insert an invoice directly', 'u-book',
   $$insert into invoices(id,data) values ('inv2', '{"workspaceId":"ws1","status":"draft","date":"2026-03-01"}')$$);
+-- #842: a pending invite carries its secret token; only the owner may read it from the browser.
+do $$ begin
+  perform set_config('request.jwt.claims', '', true);
+  insert into invites(id,data) values ('inv-secret', '{"workspaceId":"ws1","email":"new@test.local","role":"accountant","token":"secret-token"}');
+end $$;
+select pg_temp.expect_count('owner reads the pending invite', 'u-owner', 'select count(*) from invites', 1);
+select pg_temp.expect_count('accountant cannot read invite tokens', 'u-acct', 'select count(*) from invites', 0);
+select pg_temp.expect_count('viewer cannot read invite tokens', 'u-view', 'select count(*) from invites', 0);
+select pg_temp.expect_count('outsider cannot read invite tokens', 'u-out', 'select count(*) from invites', 0);
 select pg_temp.expect_denied('viewer cannot insert an invoice directly', 'u-view',
   $$insert into invoices(id,data) values ('inv3', '{"workspaceId":"ws1","status":"draft"}')$$);
 select pg_temp.expect_denied('outsider cannot write an invoice into ws1', 'u-out',

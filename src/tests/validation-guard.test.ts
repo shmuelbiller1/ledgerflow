@@ -35,6 +35,25 @@ describe('Public and Mutating API Validation Guard Suite (§14 Finding F & B-18)
     }
   });
 
+  test('#842: accepting an invite with an unverified email is refused before the invite is read', async () => {
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => { (req as unknown as { user: object }).user = { uid: 'u-unverified', email: 'new@test.local', email_verified: false }; next(); });
+    app.use('/api/v1/invites', invitePublicRouter);
+    const server = await new Promise<ListeningServer>((resolve) => {
+      const s = app.listen(0, '127.0.0.1', () => resolve(s));
+    });
+    const port = (server.address() as AddressInfo).port;
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/v1/invites/aaaaaaaaaaaaaaaaaaaaaaaa/accept`, { method: 'POST' });
+      const body: TestResponseBody & { message: string } = await res.json();
+      assert.equal(res.status, 403);
+      assert.match(body.message, /Verify your email address first/);
+    } finally {
+      server.close();
+    }
+  });
+
   test('publicInvoiceRoutes rejects invalid payment token format with 400 Bad Request', async () => {
     const app = express();
     app.use(express.json());
