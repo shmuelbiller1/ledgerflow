@@ -81,7 +81,7 @@ export const MAIN_PATH: MainPathStep[] = [
   {
     id: 'bank', title: '4. Connect or import the bank', page: { tab: 'banking' },
     before: 'Your bank login (for a connection) or a statement file (CSV, OFX, QBO, QIF or BAI2).',
-    doIt: 'Connect the bank in Bank Connections, or import a statement on Reconcile.',
+    doIt: 'In Bank Connections, connect the bank or choose Import statement. Review the imported lines on Reconcile.',
     changes: 'The statement lines are stored for this bank account; nothing is posted yet.',
     afterwards: 'The lines waiting on Reconcile.',
     affects: 'Reconciliation and the entries you make from the lines.',
