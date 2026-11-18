@@ -230,7 +230,8 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
     try {
       const { workspaceId } = req.params as Record<string, string>;
       await authorizeWorkspace(req as AuthenticatedRequest, workspaceId);
-      const result = await restoreWorkspaceBackup(getDb(), workspaceId, req.body);
+      const authUser = (req as AuthenticatedRequest).user;
+      const result = await restoreWorkspaceBackup(getDb(), workspaceId, req.body, { uid: authUser.uid, email: authUser.email });
       return res.json({ success: true, message: "General ledger workspace successfully restored from backup.", ...result });
     } catch (err) {
       if (err instanceof RestoreError) return sendError(res, errorMessage(err), err.status);

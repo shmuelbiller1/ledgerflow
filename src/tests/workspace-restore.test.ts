@@ -25,7 +25,7 @@ describe('Workspace restore', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, 
   });
 
   after(async () => {
-    for (const table of ['customers', 'invoices', 'transactions', 'chartAccounts', 'workspaces']) {
+    for (const table of ['customers', 'invoices', 'transactions', 'chartAccounts', 'auditLogs', 'workspaces']) {
       await db.pool.query(`delete from public."${table}" where workspace_id in ($1, $2) or id in ($1, $2)`, [ws, other]);
     }
     await db.terminate();
@@ -44,6 +44,24 @@ describe('Workspace restore', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, 
     const restored = (await db.collection('customers').doc(`${ws}_c1`).get()).data();
     assert.equal(restored?.workspaceId, ws);
     assert.equal((await db.collection('workspaces').doc(ws).get()).data()?.name, 'Restored name');
+  });
+
+  test('A8N-05 (#778): an accepted restore writes one WORKSPACE_RESTORED audit line with who, counts, checksum and signature', async () => {
+    const before = await db.pool.query(`select count(*)::int as n from public."auditLogs" where workspace_id = $1`, [ws]);
+    await restoreWorkspaceBackup(db, ws, {
+      workspace: { id: ws, name: 'Restored name' },
+      customers: [{ id: `${ws}_c1`, name: 'Acme' }],
+    }, { uid: 'owner-1', email: 'owner@example.test' });
+    const { rows } = await db.pool.query(
+      `select data from public."auditLogs" where workspace_id = $1 and data->>'action' = 'WORKSPACE_RESTORED' order by created_at desc limit 1`, [ws]);
+    assert.equal(rows.length, 1);
+    const entry = rows[0].data;
+    assert.equal(entry.uid, 'owner-1');
+    assert.deepEqual(entry.details.counts, { customers: 1 });
+    assert.equal(entry.details.signed, false);
+    assert.equal(entry.details.checksum, '');
+    const after = await db.pool.query(`select count(*)::int as n from public."auditLogs" where workspace_id = $1`, [ws]);
+    assert.equal(after.rows[0].n, before.rows[0].n + 1, 'exactly one line per restore');
   });
 
   test('A8N-03 (#776): a file the browser built when the server export failed is refused, and deletes nothing', async () => {
