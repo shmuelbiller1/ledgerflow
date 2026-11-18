@@ -60,3 +60,11 @@ test('a full edit cannot use an account removed or moved after preparation', asy
   const outcome = await run(db, journalEditCommand, { id: 'entry', transaction });
   assert.equal(outcome.ok, false); assert.equal(db.read('transactions/entry')?.description, 'Supplies');
 });
+
+
+test('a stale version cannot expose an entry from a different workspace', async () => {
+  const db = setup(); db.seed('transactions/entry', { ...db.read('transactions/entry')!, workspaceId: 'private-workspace', payee: 'sensitive' });
+  const refused = await run(db, journalEditCommand, { id: 'entry', partialUpdate: { notes: 'x' }, expectedUpdatedAt: 'stale' });
+  assert.equal(refused.ok, false);
+  if (!refused.ok) { assert.equal(refused.status, 403); assert.equal((refused.error as { currentTransaction?: unknown } | undefined)?.currentTransaction, undefined); }
+});

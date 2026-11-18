@@ -52,8 +52,8 @@ export const journalEditCommand: CommandDefinition<typeof editInput, EditResult,
     const snap = await tx.get(ref);
     if (!snap.exists) fail('Not found', 404);
     const current = snap.data() || {};
-    checkVersion(input, current, snap.id);
     if (current.workspaceId !== ctx.workspaceId) fail('Workspace mismatch', 403);
+    checkVersion(input, current, snap.id);
     const ws = (await tx.get(ctx.db.collection('workspaces').doc(ctx.workspaceId))).data();
     if (!isWorkspaceMemberData(ws, ctx.user, ctx.workspaceId)) fail('Not a member', 403);
     const before = auditSnapshot(current as Partial<Entry>);
