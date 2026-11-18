@@ -32,6 +32,7 @@ export interface InvoiceColumnDeps {
   homeCurrency: string;
   canDecideApproval: boolean;
   openRecord: (record: { type: 'invoice'; id: string }) => void;
+  invoiceOpenerId: (id: string) => string;
   updateEntity: (collection: 'invoices', id: string, updates: Partial<Invoice>, successMessage?: string) => Promise<unknown>;
   onEditInvoice: (inv: Invoice) => void;
   onDuplicateInvoice: (draft: Partial<Invoice>) => void;
@@ -60,7 +61,7 @@ function getStatusColor(status: Invoice['status']) {
 export function buildInvoiceColumns(deps: InvoiceColumnDeps): ColumnDef<Invoice, unknown>[] {
   const {
     salesText, canEditContacts, payments, currentWorkspaceId, approvalSettings, homeCurrency,
-    canDecideApproval, openRecord, updateEntity, onEditInvoice, onDuplicateInvoice,
+    canDecideApproval, openRecord, invoiceOpenerId, updateEntity, onEditInvoice, onDuplicateInvoice,
     onOpenPayment, onSpreadInvoice, onReverseWriteOff, onWriteOffInvoice, onEmailInvoice,
     onPreviewPdf, onDecideApproval, onVoidInvoice,
   } = deps;
@@ -74,8 +75,9 @@ export function buildInvoiceColumns(deps: InvoiceColumnDeps): ColumnDef<Invoice,
         return (
           <button
             type="button"
+            id={invoiceOpenerId(inv.id)}
             onClick={() => openRecord({ type: 'invoice', id: inv.id })}
-            className="font-mono font-bold text-[var(--text)] hover:underline cursor-pointer"
+            className="inline-flex min-h-11 items-center font-mono font-bold text-[var(--text)] hover:underline cursor-pointer"
           >
             {inv.number || inv.id}
           </button>

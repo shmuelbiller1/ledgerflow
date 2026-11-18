@@ -265,7 +265,7 @@ Same rules as above. Branch from the latest `main`, one branch per task, and wri
 ## AI #3 (Arena): tasks (Claude, 5 Oct late)
 
 **Next three days, in this order (AI #1, 21 Oct)** — these first; the rest of the list after:
-A-194, A-196, A-197 (data-quality checks) → A-148 (12-month sample business) → A-206 (five heaviest reports under 1 s on it) → A-201, A-202, A-149 (help text, EN/HE) → A-185 (credit note from invoice, draft only) → A-183 (attachments with preview) → A-182 (contact import with duplicate check) → A-138 (Israeli bank and branch codes) → A-137 (bank holiday calendars) → A-131, A-132 (numbering and e-mail templates per entity/language) → A-190, A-192, A-193 (top customers, inventory turnover, margin by group) → A-180 (customer activity timeline) → A-107 (GSA per diem import) → A-72 (statements by entity; AUD-01 is merged, so it is free). One PR per task; run the whole unit suite and the browser spec you touch before opening it (CI must be green).
+A-194, A-196, A-197 (data-quality checks) → A-148 (12-month sample business) → A-206 (five heaviest reports under 1 s on it) → A-201, A-202, A-149 (help text, EN/HE) → A-185 (credit note from invoice, draft only) → A-183 (attachments with preview) → A-182 (contact import with duplicate check) → A-138 (Israeli bank and branch codes) → A-137 (bank holiday calendars) → A-131, A-132 (numbering and e-mail templates per entity/language) → A-190, A-192, A-193 (top customers, inventory turnover, margin by group) → A-180 (customer activity timeline) → A-107 (GSA per diem import) → A-72 (statements by entity; AUD-01 is merged, so it is free). Put several tasks in one PR (one commit each); run the fast checks (types, lint, tests for what you changed) and let CI run the whole suite (CI must be green). See CURRENT_WORK "Rules that never change".
 
 **Rule from 13 Oct:** a task is done only when a user can reach it from a screen. A library on its own goes in as "part 1" and the screen is part 2 of the same task. One PR per 3–5 tasks at most, so each can be reviewed.
 
@@ -420,10 +420,10 @@ before:
 
 ### Next batch for AI #3 (Claude, 10 Nov; A-273…A-277 merged as #600). Same rules: up to five per PR from the latest `main`, tests, done means a user can reach it, no change to how money is calculated or posted.
 - [ ] **A-278 Phone pass on every report**: open each of the report views at 390 px (light and dark); no clipped text, no page-wide sideways scroll (a wide table may scroll inside itself), 44 px touch targets; one Playwright spec looping over the report registry; fix what it finds.
-- [ ] **A-279 Keyboard path on Sales and Purchases**: the invoice, customer, bill and vendor lists — Tab reaches every row and action, Enter opens the record, Escape closes it and focus returns to the row (same pattern as A-270); a browser test per list.
-- [ ] **A-280 Axe sweep of the Settings sub-pages**: all 25 Settings sub-pages at 1280 and 390 px pass axe with no serious/critical violations; fix them; one spec looping over the sub-pages.
+- [x] **A-279 Keyboard path on Sales and Purchases**: the invoice, customer, bill and vendor lists — Tab reaches every row and action, Enter opens the record, Escape closes it and focus returns to the row (same pattern as A-270); a browser test per list. *(AI #3, pending review: `e2e/keyboard-sales-purchases-a279.spec.ts` 4/4 Chromium, two rows and actions per list, exact-opener focus return.)*
+- [x] **A-280 Axe sweep of the Settings sub-pages**: all 25 Settings sub-pages at 1280 and 390 px pass axe with no serious/critical violations; fix them; one spec looping over the sub-pages. *(AI #3, pending review: `e2e/settings-subpages-a280.spec.ts` covers all 32 currently registered sections at both widths, 2/2 Chromium, with contrast checks enabled; UI contrast and scroll-region fixes.)*
 - [ ] **A-281 More screens in the visual set**: add Purchase orders, Journal Entries with a record drawer open, and the Reports picker open to `e2e/visual-regression.spec.ts` (desktop and phone, light and dark); refresh baselines with `visual-baselines.yml` after looking at the images.
-- [ ] **A-282 Loading and failed states for the record drawers**: the transaction, invoice and bill drawers show a loading state and a clear "couldn't load — try again" when the record fetch fails, instead of a blank panel; component tests.
+- [x] **A-282 Loading and failed states for the record drawers**: the transaction, invoice and bill drawers show a loading state and a clear "couldn't load — try again" when the record fetch fails, instead of a blank panel; component tests. *(AI #3, pending review: `src/tests/record-loading-a282.test.tsx` 5/5, including retry, capped transaction list and related-data failure.)*
 
 ## AI #4 (Codex): tasks (written by Claude, 6 Oct)
 
@@ -729,7 +729,7 @@ Same model as AI #1, given part of AI #1's own list. **You may change money, tax
 (tax lines only), the VAT/PCN874/sales-tax report code, and inventory valuation (`src/lib/inventory*`, stock-move and
 revaluation code). Everything else in `src/server/` and posting stays with AI #1 — ask under Messages first.
 Branch `ai9/<task>`, one PR per task, never merge your own. Every money change: a test of **worked figures**
-(input → expected cents, written by hand in the test), the whole unit suite, ESLint ≤ 210 warnings, the browser spec you touch.
+(input → expected cents, written by hand in the test), ESLint ≤ 210 warnings, the tests for what you changed; CI runs the whole suite and every browser shard.
 Update the RELEASE_GATE row you move. Full wording of each task is in `docs/TRACKER.md` (search the id).
 
 **Next batch (AI #1, 21 Oct — in this order):**
