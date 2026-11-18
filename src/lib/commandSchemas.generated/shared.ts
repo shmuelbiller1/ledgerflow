@@ -410,172 +410,177 @@ const schemaPart207 = {
   "next": "Correct the rule fields and retry."
 } as const;
 const schemaPart208 = {
+  "code": "PERIOD_LOCKED",
+  "when": "The posting date falls in a closed period.",
+  "next": "Choose an open date or ask an owner to reopen the period."
+} as const;
+const schemaPart209 = {
   "accountName": schemaPart56,
   "accountNumber": schemaPart56,
   "routingCode": schemaPart54
 } as const;
-const schemaPart209 = {
+const schemaPart210 = {
   "code": "NOT_FOUND",
   "when": "The contact is not in the selected workspace.",
   "next": "Reload the contact list and choose a contact in this workspace."
 } as const;
-const schemaPart210 = {
+const schemaPart211 = {
   "code": "ROLE_REQUIRED",
   "when": "The caller is not an owner, accountant or bookkeeper.",
   "next": "Ask a workspace owner to grant an appropriate role."
 } as const;
-const schemaPart211 = {
+const schemaPart212 = {
   "code": "ROLE_REQUIRED",
   "when": "The caller is not an owner, accountant, or bookkeeper.",
   "next": "Ask a workspace owner to grant an appropriate role."
 } as const;
-const schemaPart212 = {
+const schemaPart213 = {
   "code": "NOT_FOUND",
   "when": "The rule or group is not in the selected workspace.",
   "next": "Reload the rules list and choose an existing rule or group."
 } as const;
-const schemaPart213 = {
+const schemaPart214 = {
   "code": "INVALID_INPUT",
   "when": "A field is missing, a quantity is zero, or the two accounts are the same.",
   "next": "Fix the named field; a change is never zero."
 } as const;
-const schemaPart214 = [schemaPart68, schemaPart21, schemaPart25, schemaPart18, schemaPart141] as const;
-const schemaPart215 = {
+const schemaPart215 = [schemaPart68, schemaPart21, schemaPart25, schemaPart18, schemaPart141] as const;
+const schemaPart216 = {
   "type": "object",
   "properties": schemaPart148,
   "required": schemaPart17,
   "additionalProperties": false
 } as const;
-const schemaPart216 = {
+const schemaPart217 = {
   "type": "object",
   "properties": schemaPart177,
   "additionalProperties": schemaPart1
 } as const;
-const schemaPart217 = {
+const schemaPart218 = {
   "type": "string",
   "maxLength": 200,
   "format": "email",
   "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
 } as const;
-const schemaPart218 = {
+const schemaPart219 = {
   "invoiceLineId": schemaPart96,
   "itemId": schemaPart96,
   "quantity": schemaPart71
 } as const;
-const schemaPart219 = { "anyOf": schemaPart214 } as const;
-const schemaPart220 = {
+const schemaPart220 = { "anyOf": schemaPart215 } as const;
+const schemaPart221 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": schemaPart128,
   "additionalProperties": schemaPart1
 } as const;
-const schemaPart221 = { "workspaceId": schemaPart96, "fromId": schemaPart96, "intoId": schemaPart96 } as const;
-const schemaPart222 = { "name": schemaPart54, "rate": schemaPart78, "taxCents": schemaPart142 } as const;
-const schemaPart223 = {
+const schemaPart222 = { "workspaceId": schemaPart96, "fromId": schemaPart96, "intoId": schemaPart96 } as const;
+const schemaPart223 = { "name": schemaPart54, "rate": schemaPart78, "taxCents": schemaPart142 } as const;
+const schemaPart224 = {
   "code": "CONFLICT",
   "when": "Another save changed or posted this document before the command committed.",
   "next": "Reload the document and review the current ledger before retrying."
 } as const;
-const schemaPart224 = {
+const schemaPart225 = {
   "documentId": schemaPart45,
   "documentType": schemaPart77,
   "amountCents": schemaPart133
 } as const;
-const schemaPart225 = {
+const schemaPart226 = {
   "code": "CONFLICT",
   "when": "One of the accounts is locked, is the workspace bank account, or a record it holds is in a closed period.",
   "next": "Reopen the period or pick another account."
 } as const;
-const schemaPart226 = {
+const schemaPart227 = {
   "code": "PERIOD_LOCKED",
   "when": "The document date or a posting it would reverse is closed for this person.",
   "next": "Choose an open date or ask an authorized owner to reopen the period."
 } as const;
-const schemaPart227 = {
+const schemaPart228 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": schemaPart116,
   "required": schemaPart2,
   "additionalProperties": false
 } as const;
-const schemaPart228 = {
+const schemaPart229 = {
   "code": "INVALID_INPUT",
   "when": "The document is missing required fields or contains an invalid amount, date, or line.",
   "next": "Correct the document details and retry with a new operation key."
 } as const;
-const schemaPart229 = {
+const schemaPart230 = {
   "type": "object",
   "properties": schemaPart164,
   "required": schemaPart33,
   "additionalProperties": false
 } as const;
-const schemaPart230 = { "type": "object", "properties": schemaPart208, "additionalProperties": false } as const;
-const schemaPart231 = [schemaPart170, schemaPart167] as const;
-const schemaPart232 = {
+const schemaPart231 = { "type": "object", "properties": schemaPart209, "additionalProperties": false } as const;
+const schemaPart232 = [schemaPart170, schemaPart167] as const;
+const schemaPart233 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": schemaPart151,
   "required": schemaPart2,
   "additionalProperties": false
 } as const;
-const schemaPart233 = {
+const schemaPart234 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": schemaPart161,
   "required": schemaPart12,
   "additionalProperties": false
 } as const;
-const schemaPart234 = { "minItems": 1, "maxItems": 500, "type": "array", "items": schemaPart229 } as const;
-const schemaPart235 = { "type": "object", "properties": schemaPart222, "required": schemaPart37 } as const;
-const schemaPart236 = {
+const schemaPart235 = { "minItems": 1, "maxItems": 500, "type": "array", "items": schemaPart230 } as const;
+const schemaPart236 = { "type": "object", "properties": schemaPart223, "required": schemaPart37 } as const;
+const schemaPart237 = {
   "billLine": schemaPart122,
   "itemId": schemaPart96,
   "quantity": schemaPart71,
   "valueCents": schemaPart122
 } as const;
-const schemaPart237 = {
+const schemaPart238 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": schemaPart188,
   "required": schemaPart8,
   "additionalProperties": false
 } as const;
-const schemaPart238 = {
+const schemaPart239 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": schemaPart190,
   "required": schemaPart15,
   "additionalProperties": false
 } as const;
-const schemaPart239 = {
-  "type": "object",
-  "propertyNames": schemaPart93,
-  "additionalProperties": schemaPart219
-} as const;
 const schemaPart240 = {
   "type": "object",
-  "properties": schemaPart218,
+  "propertyNames": schemaPart93,
+  "additionalProperties": schemaPart220
+} as const;
+const schemaPart241 = {
+  "type": "object",
+  "properties": schemaPart219,
   "required": schemaPart69,
   "additionalProperties": false
 } as const;
-const schemaPart241 = { "maxItems": 10, "type": "array", "items": schemaPart235 } as const;
-const schemaPart242 = [schemaPart209, schemaPart211] as const;
-const schemaPart243 = {
+const schemaPart242 = { "maxItems": 10, "type": "array", "items": schemaPart236 } as const;
+const schemaPart243 = [schemaPart210, schemaPart212] as const;
+const schemaPart244 = {
   "type": "object",
-  "properties": schemaPart224,
+  "properties": schemaPart225,
   "required": schemaPart76,
   "additionalProperties": false
 } as const;
-const schemaPart244 = { "maxItems": 500, "type": "array", "items": schemaPart240 } as const;
-const schemaPart245 = {
+const schemaPart245 = { "maxItems": 500, "type": "array", "items": schemaPart241 } as const;
+const schemaPart246 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
-  "properties": schemaPart221,
+  "properties": schemaPart222,
   "required": schemaPart26,
   "additionalProperties": false
 } as const;
-const schemaPart246 = { "type": "object", "properties": schemaPart236, "required": schemaPart82 } as const;
-const schemaPart247 = {
+const schemaPart247 = { "type": "object", "properties": schemaPart237, "required": schemaPart82 } as const;
+const schemaPart248 = {
   "state": schemaPart125,
   "thresholdCents": schemaPart122,
   "requestedAt": schemaPart51,
@@ -584,8 +589,8 @@ const schemaPart247 = {
   "decidedBy": schemaPart56,
   "note": schemaPart60
 } as const;
-const schemaPart248 = { "maxItems": 500, "type": "array", "items": schemaPart246 } as const;
-const schemaPart249 = {
+const schemaPart249 = { "maxItems": 500, "type": "array", "items": schemaPart247 } as const;
+const schemaPart250 = {
   "date": schemaPart96,
   "description": schemaPart96,
   "amount": schemaPart96,
@@ -594,9 +599,9 @@ const schemaPart249 = {
   "payee": schemaPart96,
   "memo": schemaPart96
 } as const;
-const schemaPart250 = [schemaPart204, schemaPart225, schemaPart173] as const;
-const schemaPart251 = [schemaPart207, schemaPart212, schemaPart211] as const;
-const schemaPart252 = {
+const schemaPart251 = [schemaPart204, schemaPart226, schemaPart173] as const;
+const schemaPart252 = [schemaPart207, schemaPart213, schemaPart212] as const;
+const schemaPart253 = {
   "id": schemaPart93,
   "dimensionId": schemaPart93,
   "description": schemaPart57,
@@ -606,22 +611,22 @@ const schemaPart252 = {
   "createdAt": schemaPart49,
   "updatedAt": schemaPart49
 } as const;
-const schemaPart253 = { "type": "object", "properties": schemaPart249, "additionalProperties": false } as const;
-const schemaPart254 = {
+const schemaPart254 = { "type": "object", "properties": schemaPart250, "additionalProperties": false } as const;
+const schemaPart255 = {
   "type": "object",
-  "properties": schemaPart247,
+  "properties": schemaPart248,
   "required": schemaPart38,
   "additionalProperties": false
 } as const;
-const schemaPart255 = [schemaPart213, schemaPart193, schemaPart206, schemaPart172] as const;
-const schemaPart256 = {
+const schemaPart256 = [schemaPart214, schemaPart193, schemaPart206, schemaPart172] as const;
+const schemaPart257 = {
   "type": "object",
-  "properties": schemaPart252,
+  "properties": schemaPart253,
   "required": schemaPart63,
   "additionalProperties": false
 } as const;
-const schemaPart257 = [schemaPart207, schemaPart212, schemaPart211, schemaPart182] as const;
-const schemaPart258 = {
+const schemaPart258 = [schemaPart207, schemaPart213, schemaPart212, schemaPart182] as const;
+const schemaPart259 = {
   "vendor": schemaPart56,
   "project": schemaPart56,
   "category": schemaPart56,
@@ -631,11 +636,11 @@ const schemaPart258 = {
   "exactAmount": schemaPart21,
   "minAmountCents": schemaPart21,
   "maxAmountCents": schemaPart21,
-  "dateRange": schemaPart215
+  "dateRange": schemaPart216
 } as const;
-const schemaPart259 = { "type": "object", "properties": schemaPart258, "additionalProperties": false } as const;
-const schemaPart260 = [schemaPart228, schemaPart226, schemaPart223, schemaPart211] as const;
-const schemaPart261 = {
+const schemaPart260 = { "type": "object", "properties": schemaPart259, "additionalProperties": false } as const;
+const schemaPart261 = [schemaPart229, schemaPart227, schemaPart224, schemaPart212] as const;
+const schemaPart262 = {
   "type": schemaPart70,
   "targetAccountId": schemaPart96,
   "targetTransactionKind": schemaPart92,
@@ -657,7 +662,7 @@ const schemaPart261 = {
   "setAmountCents": schemaPart142,
   "deleteTransaction": schemaPart25
 } as const;
-const schemaPart262 = { "type": "object", "properties": schemaPart261, "additionalProperties": false } as const;
+const schemaPart263 = { "type": "object", "properties": schemaPart262, "additionalProperties": false } as const;
 
 export const COMMAND_SCHEMA_PARTS = {
   part0: schemaPart0,
@@ -923,4 +928,5 @@ export const COMMAND_SCHEMA_PARTS = {
   part260: schemaPart260,
   part261: schemaPart261,
   part262: schemaPart262,
+  part263: schemaPart263,
 } as const;

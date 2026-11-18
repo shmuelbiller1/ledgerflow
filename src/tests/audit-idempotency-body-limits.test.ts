@@ -14,27 +14,29 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
     const inventory = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/inventoryRoutes.ts'), 'utf8');
     assert.match(inventory, /\bexecuteCommand\s*\(\s*req\s*,\s*res\s*,\s*\{/, 'inventoryRoutes must run its writes through the command runner');
     assert.match(inventory, /withLegacyInputIdempotencyHash\(/, 'and keep the legacy request fingerprint for a retry');
-    // the two document-journal routes (ASC 842, ASC 606) are one route: src/server/http/journalDocumentRoute.ts
-    // holds the member check, the lock, the validator, the idempotent commit and its audit line, and the
-    // route files name the entry. The work below has to happen — in the shared route, which both call.
-    const shared = fs.readFileSync(path.join(process.cwd(), 'src/server/http/journalDocumentRoute.ts'), 'utf8');
+    // the two document-journal routes (ASC 842, ASC 606) are one route: the member check, the lock, the
+    // validator, the idempotent commit and its audit line live in src/server/services/journalDocumentService.ts,
+    // and the route files name the entry. The work below has to happen — in the shared service, which both call.
+    // the steps themselves (membership, lock, validator, idempotent commit, audit line) now live in a
+    // service so a registered command and the address run the same ones; there is no second copy.
+    const steps = fs.readFileSync(path.join(process.cwd(), 'src/server/services/journalDocumentService.ts'), 'utf8');
     for (const rel of [
       'src/server/routes/leaseRoutes.ts',
       'src/server/routes/revenueRoutes.ts',
     ]) {
       const src = fs.readFileSync(path.join(process.cwd(), rel), 'utf8');
-      assert.match(src, /\bpostJournalDocumentRoute\s*\(/, `${rel} must post its journal through the shared document-journal route`);
+      assert.match(src, /\b(?:postJournalDocumentRoute|postJournalDocument)\s*\(/, `${rel} must post its journal through the shared document-journal route`);
       for (const [name, re] of [
         ['executeIdempotent/runOptionalIdempotent', /\b(?:executeIdempotent|runOptionalIdempotent)\s*\(/],
         ['requestPayloadHash', /\b(?:requestPayloadHash|runOptionalIdempotent)\s*\(/],
         ['ledgerCreate', /\bledgerCreate\s*\(/],
         ['writeServerAuditLog', /\bwriteServerAuditLog\s*\(/],
       ] as const) {
-        assert.ok(re.test(src) || re.test(shared), `${rel} must delegate to ${name}, directly or through the shared route`);
+        assert.ok(re.test(src) || re.test(steps), `${rel} must delegate to ${name}, directly or through the shared route`);
       }
       assert.doesNotMatch(src, /return res\.json\(idempDoc\.data\(\)\?\.response\)/, `${rel} must not replay unhashed handwritten records`);
     }
-    assert.doesNotMatch(shared, /return res\.json\(idempDoc\.data\(\)\?\.response\)/, 'the shared route must not replay unhashed handwritten records');
+    assert.doesNotMatch(steps, /return res\.json\(idempDoc\.data\(\)\?\.response\)/, 'the shared route must not replay unhashed handwritten records');
   });
 
   it('C-3 / F-09a: persisting write handlers in src/server/routes/ maintain >= 70% audit coverage and 100% on money/GL/key routes', () => {
@@ -47,7 +49,9 @@ describe('C-3 / F-09 / F-10 / M-8: Audit coverage, shared idempotency, and JSON 
     // A route may also hand its handler to a route factory in src/server/http (the document-journal
     // routes do). The write and its audit line then live in that module: read it too, but only for the
     // factories named here, so an unrelated helper import cannot make a route look audited.
-    const ROUTE_FACTORIES: Record<string, string> = { postJournalDocumentRoute: 'src/server/http/journalDocumentRoute.ts' };
+    const ROUTE_FACTORIES: Record<string, string> = {
+      postJournalDocument: 'src/server/services/journalDocumentService.ts',
+    };
     const sharedSourceFor = (body: string): string => Object.entries(ROUTE_FACTORIES)
       .filter(([name]) => new RegExp(`\\b${name}\\s*\\(`).test(body))
       .map(([, rel]) => fs.readFileSync(path.join(process.cwd(), rel), 'utf8'))

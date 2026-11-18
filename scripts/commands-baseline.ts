@@ -99,6 +99,16 @@ export const READ_ONLY_ROUTE_EXCEPTIONS: readonly ReadOnlyRouteException[] = [
       + 'a command would add a transaction, a workspace check and an idempotency record around arithmetic '
       + 'that changes nothing.',
   })),
+  ...['/trust-reconciliation', '/rent-roll'].map(route => ({
+    file: 'src/server/routes/leaseRoutes.ts',
+    route,
+    why: 'A calculator over the numbers in the request body: the security-deposit trust reconciliation and '
+      + 'the property rent roll are pure functions in src/lib/verticalAccounting.ts, and the route answers '
+      + 'their result. The rent roll reads the workspace\'s invoices to total what has been billed; nothing '
+      + 'is written, marked or audited, so a command would add a transaction, an idempotency record and a '
+      + 'workspace write check around arithmetic that changes nothing. The lease itself is still posted '
+      + 'through the command (lease.capitalize), and revenue recognition through revenue.recognize.',
+  })),
   {
     file: 'src/server/routes/paymentRoutes.ts',
     route: '/payout-run',

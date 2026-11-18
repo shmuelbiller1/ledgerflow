@@ -116,6 +116,7 @@ import { PAYROLL_COMMANDS } from './payroll';
 import { TRANSACTION_COMMANDS } from './transactions';
 import { TAX_COMMANDS } from './tagAndTax';
 import { WORKSPACE_HOUSEKEEPING_COMMANDS } from './workspaceHousekeeping';
+import { VERTICAL_ACCOUNTING_COMMANDS } from './verticalAccounting';
 import { CommandRegistry } from './registry';
 import { workspaceInviteRevokeCommand } from './workspaceInvites';
 import { workspaceCancelDeletionCommand } from './workspaceLifecycle';
@@ -297,6 +298,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   TRANSACTION_COMMANDS.forEach(command => registry.register(command));
   TAX_COMMANDS.forEach(command => registry.register(command));
   WORKSPACE_HOUSEKEEPING_COMMANDS.forEach(command => registry.register(command));
+  VERTICAL_ACCOUNTING_COMMANDS.forEach(command => registry.register(command));
   return registry;
 }
 
