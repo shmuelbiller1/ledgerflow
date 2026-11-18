@@ -26,6 +26,8 @@ import crypto from 'crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { payrollCents, payrollDate, payrollEntries, readPayrollCsv, type PayrollAccounts } from '../lib/payrollProviderImport';
+import { deriveScopedOperationKey } from '../server/utils/idempotency';
+import { applyJsonBodyParser } from '../server/http/securityMiddleware';
 
 const HEADER = 'Pay Date,Employee,Employee ID,Department,Gross Earnings,Employee Taxes,Employee Deductions,Net Pay,Employer Taxes,Employer Contributions';
 const MAY_15 = [
@@ -122,15 +124,20 @@ describe('PAY-1 on the database', { skip: !url && 'LF_TEST_DATABASE_URL not set'
   let server: Server;
   let base = '';
   let db: import('../server/db/pgFirestore').Firestore;
+  let failAuditOn: string | undefined;
   const acct: Record<string, string> = {};
   let accounts: PayrollAccounts = {};
-  const send = async (uid: string, method: string, path: string, body?: unknown) => {
-    const res = await fetch(`${base}${path}`, { method, headers: { 'content-type': 'application/json', 'x-test-uid': uid }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  const send = async (uid: string, method: string, path: string, body?: unknown, headers?: Record<string, string>) => {
+    const res = await fetch(`${base}${path}`, { method, headers: { 'content-type': 'application/json', 'x-test-uid': uid, ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     return { status: res.status, body: await res.json().catch(() => ({})) as Record<string, any> }; // eslint-disable-line @typescript-eslint/no-explicit-any
   };
+  const legacyImportPath = `/api/v1/workspaces/${ws}/pay-runs/imports`;
   const importFile = (csv: string, extra: Record<string, unknown> = {}, uid = OWNER) =>
-    send(uid, 'POST', `/api/v1/workspaces/${ws}/pay-runs/imports`, { provider: 'gusto', csv, fileName: 'gusto-may.csv', accounts, labelDimensionId: 'property', ...extra });
+    send(uid, 'POST', legacyImportPath, { provider: 'gusto', csv, fileName: 'gusto-may.csv', accounts, labelDimensionId: 'property', ...extra });
   const entries = async () => (await db.collection('transactions').where('workspaceId', '==', ws).get()).docs.map(d => ({ ...d.data(), id: d.id }) as { id: string; date: string; status?: string; reversalEventId?: string; metadata?: Record<string, unknown>; lines: Array<{ accountId: string; amountCents: number; dimensions?: Record<string, string> }> });
+  const payrollAudits = async () => (await db.collection('auditLogs')
+    .where('workspaceId', '==', ws).where('action', '==', 'PAYROLL_IMPORTED').get()).docs
+    .map(d => d.data()).sort((a, b) => Number(a.seq) - Number(b.seq));
   const balance = async (code: string, endDate: string) => {
     const gl = (await send(OWNER, 'GET', `/api/v1/reports/general-ledger?startDate=2026-01-01&endDate=${endDate}&accountId=${acct[code]}&workspaceId=${ws}`)).body;
     return (Array.isArray(gl) ? gl : gl.accounts || []).find((a: { accountId: string }) => a.accountId === acct[code])?.endingBalanceCents ?? 0;
@@ -142,13 +149,23 @@ describe('PAY-1 on the database', { skip: !url && 'LF_TEST_DATABASE_URL not set'
     const { workspaceRouter } = await import('../server/routes/workspaceRoutes');
     const { transactionRouter } = await import('../server/routes/transactionRoutes');
     const { reportRouter } = await import('../server/routes/reportRoutes');
+    const { createCommandRouter } = await import('../server/routes/commandRoutes');
+    const { writeServerAuditLog } = await import('../server/services/auditLogService');
     const { getDb } = await import('../server/db/firestore');
     db = getDb();
     await db.collection('workspaces').doc(ws).set({ uid: OWNER, name: 'Five Facilities', currency: 'USD', timezone: 'UTC', members: [OWNER, 'book'], roles: { book: 'bookkeeper' }, dimensions: [{ id: 'property', name: 'Facility' }] });
     const app = express();
-    app.use(express.json({ limit: '6mb' }));
+    applyJsonBodyParser(app);
     app.use((req, _res, next) => { (req as unknown as { user: { uid: string; email: string } }).user = { uid: String(req.header('x-test-uid')), email: 'owner@five.test' }; next(); });
     app.use('/api/v1/workspaces', workspaceRouter);
+    app.use('/api/v1/commands', createCommandRouter(undefined, {
+      auditWriter: async (entry, options) => {
+        if (entry.action === 'PAYROLL_IMPORTED' && failAuditOn && entry.details.description.includes(failAuditOn)) {
+          throw new Error('Test audit failure on the second pay date');
+        }
+        return writeServerAuditLog(entry, options);
+      },
+    }));
     app.use('/api/v1/transactions', transactionRouter);
     app.use('/api/v1/documents', (await import('../server/routes/documentPostRoutes')).documentPostRouter);
     app.use('/api/v1/reports', reportRouter);
@@ -185,10 +202,50 @@ describe('PAY-1 on the database', { skip: !url && 'LF_TEST_DATABASE_URL not set'
     await db.terminate();
   });
 
+  test('payroll.import preview shows dates, totals and accounts without posting or auditing', async () => {
+    const body = { workspaceId: ws, input: { provider: 'gusto', csv: FILE, accounts, labelDimensionId: 'property' } };
+    const previewPath = '/api/v1/commands/payroll.import/preview';
+    const operationId = 'preview-only';
+    const response = await send(OWNER, 'POST', previewPath, body, { 'x-operation-id': operationId });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    const { preview } = response.body;
+    assert.deepEqual(preview.lines, [
+      '2026-05-15: 5 people, gross $15,000.00, net $11,375.00',
+      '2026-05-29: 1 person, gross $1,000.00, net $750.00',
+    ]);
+    assert.deepEqual(preview.accounts.filter((line: { accountId: string }) => line.accountId === acct['2100']), [
+      { accountId: acct['2100'], accountName: 'Payroll clearing', amountCents: -1_137_500, description: 'Net pay, payroll 2026-05-15' },
+      { accountId: acct['2100'], accountName: 'Payroll clearing', amountCents: -75_000, description: 'Net pay, payroll 2026-05-29' },
+    ]);
+    assert.ok(preview.accounts.some((line: { accountId: string; amountCents: number; description: string }) =>
+      line.accountId === acct['6000'] && line.amountCents === 400_000 && line.description.endsWith('(F1)')));
+    assert.ok(!JSON.stringify(preview).includes('Ana Ruiz'), 'a successful preview should show figures, not employee rows');
+    for (const path of [previewPath, '/api/v1/commands/payroll.import']) {
+      const denied = await send('book', 'POST', path, body);
+      assert.equal(denied.status, 403);
+      assert.equal(denied.body.code, 'ROLE_REQUIRED');
+    }
+    assert.deepEqual(await entries(), []);
+    assert.deepEqual(await payrollAudits(), []);
+    const key = deriveScopedOperationKey(ws, 'payroll.import', operationId);
+    assert.equal((await db.collection('idempotencyKeys').doc(key).get()).exists, false);
+  });
+
   test('the file posts two entries; 2026-05-15 is 1,652,250 split over the five facilities', async () => {
     const res = await importFile(FILE);
     assert.equal(res.status, 200, JSON.stringify(res.body));
     assert.deepEqual(res.body.entries.map((e: { payDate: string; totals: { costCents: number } }) => [e.payDate, e.totals.costCents]), [['2026-05-15', 1_652_250], ['2026-05-29', 110_650]]);
+    const audits = await payrollAudits();
+    assert.deepEqual(audits.map(({ entityId, entityType, uid, email, details }) => ({ entityId, entityType, uid, email, details })), [
+      {
+        entityId: res.body.entries[0].transactionId, entityType: 'transactions', uid: OWNER, email: 'owner@five.test',
+        details: { transactionId: res.body.entries[0].transactionId, description: 'Imported the Gusto (payroll journal) payroll of 2026-05-15: 5 people, gross $15,000.00, net $11,375.00' },
+      }, {
+        entityId: res.body.entries[1].transactionId, entityType: 'transactions', uid: OWNER, email: 'owner@five.test',
+        details: { transactionId: res.body.entries[1].transactionId, description: 'Imported the Gusto (payroll journal) payroll of 2026-05-29: 1 person, gross $1,000.00, net $750.00' },
+      },
+    ]);
+    assert.equal(audits[1].prevHash, audits[0].entryHash, 'both audit entries are in the same chain');
     const may15 = (await entries()).find(e => e.date === '2026-05-15')!;
     assert.equal(may15.metadata?.type, 'payroll-import');
     assert.equal(may15.lines.reduce((s, l) => s + l.amountCents, 0), 0);
@@ -234,21 +291,167 @@ describe('PAY-1 on the database', { skip: !url && 'LF_TEST_DATABASE_URL not set'
     assert.equal((await importFile(FILE)).status, 409);
   });
 
+  test('legacy payroll import keeps its complete success, malformed body and duplicate responses', async () => {
+    const input = {
+      provider: 'gusto', csv: [HEADER, MAY_29[0].replace('05/29/2026', '06/12/2026')].join('\n'),
+      fileName: 'gusto-june.csv', accounts, labelDimensionId: 'property',
+    };
+    const headers = { 'idempotency-key': 'payroll-import-legacy-test' };
+    const refused = await send(OWNER, 'POST', legacyImportPath, { ...input, provider: 'unrecognised' }, headers);
+    assert.deepEqual(refused, { status: 400, body: {
+      status: 'error', message: 'Choose the provider, the file and the accounts', problems: [],
+    } });
+
+    const count = (await entries()).length;
+    const posted = await send(OWNER, 'POST', legacyImportPath, input, headers);
+    const transactionId = posted.body.entries?.[0]?.transactionId;
+    assert.match(String(transactionId), /^payroll-import-[a-f0-9]{32}$/);
+    assert.deepEqual(posted, { status: 200, body: { status: 'success', entries: [{
+      transactionId, payDate: '2026-06-12', totals: {
+        people: 1, grossCents: 100_000, employeeTaxCents: 20_000, deductionCents: 5_000,
+        employerTaxCents: 7_650, employerBenefitCents: 3_000, netCents: 75_000, costCents: 110_650,
+      },
+    }] } });
+
+    const retried = await send(OWNER, 'POST', legacyImportPath, input, headers);
+    assert.deepEqual(retried, { status: 409, body: {
+      status: 'error',
+      message: 'The payroll of 2026-06-12 from this file ($1,000.00 gross, 1 person) is already in the books. Nothing from this file was posted. To correct it, reverse that entry first.',
+      problems: [],
+    } });
+    assert.equal((await entries()).length, count + 1);
+    const key = deriveScopedOperationKey(ws, 'payroll.import', headers['idempotency-key']);
+    assert.equal((await db.collection('idempotencyKeys').doc(key).get()).exists, false);
+  });
+
+  test('legacy payroll import keeps the ledger-validator error for an all-zero pay date', async () => {
+    const csv = 'Pay Date,Employee,Department,Gross Earnings,Net Pay\n2026-07-01,Example Employee,Maple House,0.00,0.00';
+    const count = (await entries()).length;
+    assert.deepEqual(await importFile(csv), { status: 500, body: {
+      status: 'error', message: 'The payroll could not be imported',
+      details: 'Schema validation failed: lines: Too small: expected array to have >=1 items',
+    } });
+    assert.equal((await entries()).length, count);
+  });
+
+  test('payroll.import rolls back both pay dates and the retry key if the second audit fails', async () => {
+    const path = '/api/v1/commands/payroll.import';
+    const input = { provider: 'gusto', csv: [HEADER,
+      MAY_29[0].replace('05/29/2026', '07/10/2026'),
+      MAY_29[0].replace('05/29/2026', '07/24/2026'),
+    ].join('\n'), accounts };
+    const body = { workspaceId: ws, input };
+    const operationId = 'command-payroll-retry';
+    const headers = { 'x-operation-id': operationId };
+    const key = db.collection('idempotencyKeys').doc(deriveScopedOperationKey(ws, 'payroll.import', operationId));
+    const before = { entries: (await entries()).length, audits: (await payrollAudits()).length };
+
+    failAuditOn = '2026-07-24';
+    try {
+      const failed = await send(OWNER, 'POST', path, body, headers);
+      assert.equal(failed.status, 500);
+    } finally {
+      failAuditOn = undefined;
+    }
+    assert.equal((await entries()).length, before.entries);
+    assert.equal((await payrollAudits()).length, before.audits);
+    assert.equal((await key.get()).exists, false);
+
+    const posted = await send(OWNER, 'POST', path, body, headers);
+    assert.equal(posted.status, 200, JSON.stringify(posted.body));
+    assert.equal(posted.body.replayed, false);
+    assert.deepEqual(posted.body.data.entries.map((e: { payDate: string }) => e.payDate), ['2026-07-10', '2026-07-24']);
+    assert.equal((await key.get()).data()?.status, 'success');
+    assert.deepEqual(await send(OWNER, 'POST', path, body, headers), {
+      ...posted, body: { ...posted.body, replayed: true },
+    });
+    const different = await send(OWNER, 'POST', path, { ...body, input: { ...input, fileName: 'other.csv' } }, headers);
+    assert.equal(different.status, 409);
+    assert.equal(different.body.code, 'CONFLICT');
+    for (const duplicatePath of [path, `${path}/preview`]) {
+      const duplicate = await send(OWNER, 'POST', duplicatePath, body);
+      assert.equal(duplicate.status, 409);
+      assert.equal(duplicate.body.code, 'CONFLICT');
+      assert.match(duplicate.body.message, /2026-07-10.*is already in the books/);
+    }
+    assert.equal((await entries()).length, before.entries + 2);
+    assert.equal((await payrollAudits()).length, before.audits + 2);
+    const { payrollImportCommand, payrollImportInput } = await import('../server/commands/payroll');
+    assert.equal(payrollImportCommand.inverse?.(payrollImportInput.parse(input), posted.body.data), null, 'reversing a single journal would not undo the file');
+  });
+
+  test('a single pay date advertises a working journal.reverse inverse', async () => {
+    const { payrollImportCommand, payrollImportInput } = await import('../server/commands/payroll');
+    const example = payrollImportInput.parse(payrollImportCommand.describe.example);
+    assert.deepEqual(readPayrollCsv(example.csv, example.provider).problems, []);
+    const input = { ...example, accounts };
+    const posted = await send(OWNER, 'POST', '/api/v1/commands/payroll.import', { workspaceId: ws, input });
+    assert.equal(posted.status, 200, JSON.stringify(posted.body));
+    const inverse = payrollImportCommand.inverse?.(input, posted.body.data);
+    assert.ok(inverse);
+    assert.equal(inverse.command, 'journal.reverse');
+    const reversed = await send(OWNER, 'POST', `/api/v1/commands/${inverse.command}`, { workspaceId: ws, input: inverse.input });
+    assert.equal(reversed.status, 200, JSON.stringify(reversed.body));
+    const original = await db.collection('transactions').doc(posted.body.data.entries[0].transactionId).get();
+    assert.equal(original.data()?.reversalEventId, reversed.body.data.reversal.id);
+  });
+
   test('refused: a bookkeeper, a closed month, accounts of the wrong kind, an unknown column', async () => {
     const one = [HEADER, MAY_15[0].replace('05/15/2026', '05/20/2026')].join('\n');
-    assert.equal((await importFile(one, {}, 'book')).status, 403);
-    const wrongKind = await importFile(one, { accounts: { ...accounts, withholdings: acct['6000'] } });
-    assert.equal(wrongKind.status, 400);
-    assert.deepEqual(wrongKind.body.problems, ['"Withholdings owed" must be a liability account; Wages is not.']);
+    const denied = { status: 403, body: { status: 'error', message: 'Forbidden: requires one of roles [owner, accountant]' } };
+    assert.deepEqual(await importFile(one, {}, 'book'), denied);
+    assert.deepEqual(await importFile(one, { provider: 'unknown' }, 'book'), denied, 'role check precedes body validation');
+    await db.collection('workspaces').doc(ws).set({ lockDate: '2026-05-31' }, { merge: true });
+    assert.deepEqual(await importFile(one, { accounts: { ...accounts, withholdings: acct['6000'] } }), { status: 400, body: {
+      status: 'error', message: 'Choose accounts of the right kind',
+      problems: ['"Withholdings owed" must be a liability account; Wages is not.'],
+    } }, 'account validation precedes the lock');
     const bankClearing = await importFile(one, { accounts: { ...accounts, clearing: acct['1000'] } });
     assert.match(bankClearing.body.problems[0], /must be a clearing account .* Checking is not/);
     const unknown = await importFile([`${HEADER},Bonus`, `${MAY_15[0]},1.00`].join('\n'));
-    assert.equal(unknown.status, 400);
-    assert.match(unknown.body.problems[0], /"Bonus"/);
-    await db.collection('workspaces').doc(ws).set({ lockDate: '2026-05-31' }, { merge: true });
-    const locked = await importFile(one);
-    assert.equal(locked.status, 409);
-    assert.match(locked.body.message, /Nothing from this file was posted/);
+    assert.deepEqual(unknown, { status: 400, body: {
+      status: 'error', message: 'The file cannot be imported',
+      problems: ['This column is not in the Gusto (payroll journal) column set, so nothing is imported: "Bonus". Remove it from the file, or check the provider.'],
+    } });
+    assert.deepEqual(await importFile(one), { status: 409, body: {
+      status: 'error', message: 'Period Locked: 2026-05-20 is in a closed period (closed through 2026-05-31). Nothing from this file was posted.', problems: [],
+    } });
     assert.equal((await entries()).filter(e => e.date === '2026-05-20').length, 0);
+  });
+
+  test('one closed pay date refuses the whole file on both the preview and the command', async () => {
+    await db.collection('workspaces').doc(ws).set({ lockDate: '2026-05-31' }, { merge: true });
+    const body = { workspaceId: ws, input: { provider: 'gusto', csv: [HEADER,
+      MAY_29[0].replace('05/29/2026', '05/20/2026'),
+      MAY_29[0].replace('05/29/2026', '08/07/2026'),
+    ].join('\n'), accounts } };
+    const before = { entries: (await entries()).length, audits: (await payrollAudits()).length };
+    for (const suffix of ['/preview', '']) {
+      const response = await send(OWNER, 'POST', `/api/v1/commands/payroll.import${suffix}`, body);
+      assert.equal(response.status, 409);
+      assert.equal(response.body.code, 'PERIOD_LOCKED');
+      assert.match(response.body.message, /Nothing from this file was posted/);
+    }
+    assert.equal((await entries()).length, before.entries);
+    assert.equal((await payrollAudits()).length, before.audits);
+  });
+
+  test('the payroll import wrapper does not bypass the runner’s freeze and pending-deletion gates', async () => {
+    const input = { provider: 'gusto', csv: [HEADER, MAY_29[0].replace('05/29/2026', '08/07/2026')].join('\n'), accounts };
+    const workspace = db.collection('workspaces').doc(ws);
+    const count = (await entries()).length;
+    for (const [patch, status, code, message] of [
+      [{ concurrentUserLimit: 0 }, 403, 'WORKSPACE_FROZEN', /administratively suspended/],
+      [{ concurrentUserLimit: 1, status: 'pending_deletion' }, 409, 'WORKSPACE_PENDING_DELETION', /scheduled for deletion/],
+    ] as const) {
+      await workspace.set(patch, { merge: true });
+      const legacy = await send(OWNER, 'POST', legacyImportPath, input);
+      assert.equal(legacy.status, status);
+      assert.match(legacy.body.message, message);
+      const named = await send(OWNER, 'POST', '/api/v1/commands/payroll.import', { workspaceId: ws, input });
+      assert.equal(named.status, status);
+      assert.equal(named.body.code, code);
+    }
+    assert.equal((await entries()).length, count);
   });
 });

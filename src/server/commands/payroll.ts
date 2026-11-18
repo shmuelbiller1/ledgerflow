@@ -6,11 +6,17 @@
  * `payRunService` owns each rule, its transaction, its audit line and its words, so these commands are
  * the registered door in front of it — the same shape as the asset and document-adjustment commands.
  * They declare no `dated`: a closed period is the service's own 409 (`Period Locked: …`), where the
- * runner's dated check would answer 400 first.
+ * runner's dated check would answer 400 first. The separate provider CSV import (PAY-1) posts through
+ * the runner's transaction and audit writer, and checks every date in the file before posting.
  */
 import { z } from 'zod';
 import { approvePayRun, postPayRun, rejectPayRun, setPayrollApproval, undoPayRun } from '../services/payRunService';
-import type { AnyCommandDefinition, CommandDefinition } from './types';
+import { preparePayrollImport, preparePayrollJournals, type PayrollImportResult, type PreparedPayrollImport } from '../services/payrollImportService';
+import { FieldValue } from '../db/firestore';
+import { ledgerWrite } from '../services/ledgerDoor';
+import { formatMoney } from '../../lib/moneyFormat';
+import { PAYROLL_COLUMN_SETS, type PayrollTotals } from '../../lib/payrollProviderImport';
+import type { AnyCommandDefinition, CommandAuditSummary, CommandContext, CommandDefinition } from './types';
 
 /**
  * U-02: owners and accountants run payroll. The approval setting is an owner's. Approving and sending
@@ -200,6 +206,101 @@ export const payRunRejectCommand: CommandDefinition<typeof payRunRejectInput, Re
   },
 };
 
+// --------------------------------------------------------------------------- import
+
+const optionalImportAccount = accountId.optional();
+export const payrollImportInput = z.object({
+  provider: z.enum(['adp', 'gusto', 'paychex']),
+  csv: z.string().min(1).max(5_000_000).describe('The original provider export as CSV text, including the header row.'),
+  fileName: z.string().max(300).optional(),
+  accounts: z.object({
+    wages: optionalImportAccount, employerTaxExpense: optionalImportAccount, employerBenefitExpense: optionalImportAccount,
+    withholdings: optionalImportAccount, deductions: optionalImportAccount, employerTaxLiability: optionalImportAccount,
+    employerBenefitLiability: optionalImportAccount, clearing: optionalImportAccount,
+  }).strict(),
+  labelDimensionId: z.string().min(1).max(100).describe('Workspace dimension used to split expenses by the label column in the file.').optional(),
+}).strict();
+
+type PayrollFile = z.output<typeof payrollImportInput>;
+
+function payrollFileFor(ctx: Pick<CommandContext, 'workspaceId' | 'actor'>, input: PayrollFile) {
+  return { ...input, workspaceId: ctx.workspaceId, uid: ctx.actor };
+}
+
+function payrollFigures(totals: PayrollTotals, currency: string) {
+  const people = `${totals.people} ${totals.people === 1 ? 'person' : 'people'}`;
+  return `${people}, gross ${formatMoney(totals.grossCents, currency)}, net ${formatMoney(totals.netCents, currency)}`;
+}
+
+export const payrollImportCommand: CommandDefinition<typeof payrollImportInput, PayrollImportResult, PreparedPayrollImport, CommandAuditSummary[]> = {
+  name: 'payroll.import',
+  input: payrollImportInput,
+  roles: RUNNERS,
+  peopleOnly: true,
+  // Pay dates are inside the CSV, not one input field. Recheck each one in the transaction and
+  // keep the import's 409 and row-specific message if any of those periods has closed.
+  prepare(ctx, input) {
+    return preparePayrollImport(ctx.db, payrollFileFor(ctx, input));
+  },
+  async handler(ctx, tx, input) {
+    const { currency, journals } = await preparePayrollJournals(
+      ctx.db, payrollFileFor(ctx, input), ctx.prepared as PreparedPayrollImport, ctx.workspace, tx,
+    );
+    const entries: PayrollImportResult['entries'] = [];
+    for (const { payDate, ref, tx: entry } of journals) {
+      await ledgerWrite(tx, ref, { ...entry, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+      entries.push({ transactionId: ref.id, payDate: payDate.payDate, totals: payDate.totals });
+    }
+    return { currency, entries };
+  },
+  async preview(ctx, input) {
+    const file = payrollFileFor(ctx, input);
+    const plan = await preparePayrollImport(ctx.db, file);
+    const { currency, journals } = await preparePayrollJournals(ctx.db, file, plan, ctx.workspace);
+    return {
+      title: `Import ${PAYROLL_COLUMN_SETS[input.provider].name}`,
+      lines: journals.map(({ payDate }) => `${payDate.payDate}: ${payrollFigures(payDate.totals, currency)}`),
+      accounts: journals.flatMap(({ tx }) => tx.lines.map(({ accountId, accountName, amountCents, description, dimensions }) => {
+        const label = input.labelDimensionId && dimensions?.[input.labelDimensionId];
+        return { accountId, accountName, amountCents, description: label ? `${description} (${label})` : description };
+      })),
+    };
+  },
+  audit(input, result) {
+    return result.entries.map(({ transactionId, payDate, totals }) => ({
+      action: 'PAYROLL_IMPORTED', entityType: 'transactions', entityId: transactionId,
+      description: `Imported the ${PAYROLL_COLUMN_SETS[input.provider].name} payroll of ${payDate}: ${payrollFigures(totals, result.currency)}`,
+      details: { transactionId },
+    }));
+  },
+  inverse(_input, result) {
+    // A single entry can be reversed with the normal journal command. Several dates have no single
+    // inverse: open each entry and reverse it using the appropriate date in an open period.
+    if (result.entries.length !== 1) return null;
+    const { transactionId, payDate } = result.entries[0];
+    return { command: 'journal.reverse', input: { id: transactionId, reversalDate: payDate, reason: 'Undo payroll import' } };
+  },
+  risk: 'normal',
+  describe: {
+    sentence: 'Record an outside payroll provider’s completed run as one journal per pay date from its CSV; use it for payroll accounting, not to run payroll or send pay.',
+    example: {
+      provider: 'gusto',
+      csv: 'Pay Date,Employee,Gross Earnings,Net Pay\n2026-06-15,Example Employee,100.00,100.00',
+      fileName: 'payroll-june.csv',
+      accounts: { wages: 'acc_wages', clearing: 'acc_payroll_clearing' },
+    },
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'The provider, file or account mapping is missing or malformed.', next: 'Choose ADP, Gusto or Paychex, a supported CSV export and the payroll accounts.' },
+      { code: 'PAYROLL_FILE_INVALID', when: 'A file column, amount, label or account cannot be used.', next: 'Read the file problems, correct the export or mapping, and preview again.' },
+      { code: 'INVALID_OPERATION_ID', when: 'The operation ID does not have the required format.', next: 'Use up to 128 letters, digits, underscores, hyphens, periods or colons.' },
+      { code: 'PERIOD_LOCKED', when: 'At least one pay date is in a closed period.', next: 'Ask an authorised person to review the closed period before importing; do not change the pay date in the file.' },
+      { code: 'CONFLICT', when: 'The same payroll was already recorded, or the operation ID belongs to another request.', next: 'Check the posted entries or retry the original request as sent; to correct a posting, reverse the affected entry first.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is not an owner or accountant of these books.', next: 'Ask a workspace owner or accountant to import the file.' },
+      { code: 'PERSON_ONLY', when: 'The caller used an API key.', next: 'Sign in as an owner or accountant to import the file.' },
+    ],
+  },
+};
+
 export const PAYROLL_COMMANDS: AnyCommandDefinition[] = [
-  payRunPostCommand, payRunUndoCommand, payRunApprovalCommand, payRunApproveCommand, payRunRejectCommand,
+  payRunPostCommand, payRunUndoCommand, payRunApprovalCommand, payRunApproveCommand, payRunRejectCommand, payrollImportCommand,
 ];

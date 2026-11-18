@@ -7,6 +7,10 @@ removed from this list.
 
 Last updated: 2026-11-19.
 
+## PAY-1: payroll import into frozen books or books scheduled for deletion
+
+**Default taken:** keep the command runner's existing workspace protections on both import addresses. The old payroll import address checked the caller's role but did not check these workspace states. It now refuses an import into frozen books (403) or books scheduled for deletion (409); restore or unfreeze the workspace before importing. The old address, file format and posting rules for active books are unchanged. No migration is needed.
+
 ## Workspace API writes now use commands (nothing for you to do)
 
 Creating a workspace, adding or removing a member, and restoring a backup now go through the registered command runner. The old API addresses and successful answers remain; the restore keeps its backup-integrity, closed-period and owner checks, and removing the last owner is still refused. No database migration is needed for this batch.

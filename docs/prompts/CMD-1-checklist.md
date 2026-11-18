@@ -4,8 +4,8 @@
 
 ## Current branch checkpoint
 
-- This batch moves the owner-only budget-control setting to `workspace.budgetcontrol` and makes the legacy lease-capitalization and revenue-recognition addresses invoke their registered commands. Their existing request/response formats and operation types are retained. The AST ratchet falls from **49 to 46 server route sites**, with **0 direct browser-write sites** and **6 sample/local-store sites**. Generated command metadata is refreshed. Full GitHub CI is required before treating the batch as merged or accepted.
-- The bulk posting route remains outside the runner. Its legacy `${workspaceId}_${idempotencyKey}` records, duplicate bank-line filtering, posting-day fingerprint, budget preflight and after-commit effects require parity tests before migrating it. The remaining 46 counted sites are an inventory, not all confirmed eligible writes; the JSON ratchet is authoritative.
+- This batch moves the PAY-1 provider CSV import to `payroll.import`. The legacy pay-runs address keeps its wire shape and refuses duplicates even if an operation header was sent. The named address supports the runner's keyed replay and a read-only journal preview. Both check every pay date and post all journals and per-date audits together. No payroll calculation, browser write policy or database migration is changed. The AST ratchet falls from **46 to 45 server route sites**; browser and local-store counts are unchanged. Full GitHub CI is required before treating this batch as accepted.
+- The bulk posting route remains outside the runner. Its legacy `${workspaceId}_${idempotencyKey}` records, duplicate bank-line filtering, posting-day fingerprint, budget preflight and after-commit effects require parity tests before migrating it. The remaining counted sites are an inventory, not all confirmed eligible writes; the JSON ratchet is authoritative.
 - The zero browser scanner count is not a substitute for end-to-end RLS probes and deployed-screen verification. Proposals, assistant tools, sandbox and the final acceptance gates below are not claimed complete.
 
 ## Verified checkpoint

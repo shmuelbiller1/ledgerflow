@@ -16,7 +16,7 @@ import { COMMAND_ROLES, type AnyCommandDefinition, type CommandExecutionOutcome 
 import { batchAnswer, recategorizeAnswer } from '../server/utils/ledgerBatchCommandRoute';
 import { BatchVersionConflict } from '../server/services/ledgerBatchUpdate';
 import {
-  PAYROLL_COMMANDS, payRunApproveCommand, payRunApprovalCommand, payRunPostCommand, payRunRejectCommand, payRunUndoCommand,
+  payRunApproveCommand, payRunApprovalCommand, payRunPostCommand, payRunRejectCommand, payRunUndoCommand,
 } from '../server/commands/payroll';
 import { TRANSACTION_COMMANDS, transactionsBatchCommand, transactionsRecategorizeCommand } from '../server/commands/transactions';
 import { TAX_COMMANDS, tagChangeCommand, taxFileCommand } from '../server/commands/tagAndTax';
@@ -30,7 +30,11 @@ const OUTSIDER = 'out-1';
 const WS = 'ws-batch3-test';
 const OTHER = 'ws-batch3-other';
 
-const COMMANDS: AnyCommandDefinition[] = [...PAYROLL_COMMANDS, ...TRANSACTION_COMMANDS, ...TAX_COMMANDS];
+// The provider CSV import uses the runner's transaction and is covered in pay1-payroll-import.test.ts.
+const COMMANDS: AnyCommandDefinition[] = [
+  payRunPostCommand, payRunUndoCommand, payRunApprovalCommand, payRunApproveCommand, payRunRejectCommand,
+  ...TRANSACTION_COMMANDS, ...TAX_COMMANDS,
+];
 
 function seed(db: MemoryDb): void {
   db.seed(`workspaces/${WS}`, {
