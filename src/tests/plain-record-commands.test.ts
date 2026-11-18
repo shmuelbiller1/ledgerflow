@@ -217,7 +217,8 @@ test('money fields stay with the commands that post them (#822)', async () => {
   db.seed('inventory/i-1', { id: 'i-1', workspaceId, name: 'Bolt', quantityAtHand: 5, unitCostCents: 100 });
   db.seed('inventory/i-2', { id: 'i-2', workspaceId, name: 'Nut', quantityAtHand: 0, unitCostCents: 50 });
   db.seed('estimates/e-1', { id: 'e-1', workspaceId, status: 'accepted', totalCents: 9_000 });
-  db.seed('purchaseOrders/po-r', { id: 'po-r', workspaceId, status: 'received' });
+  db.seed('purchaseOrders/po-r', { id: 'po-r', workspaceId, status: 'received', vendorId: 'v-1', totalCents: 500, items: [{ id: 'l1', quantity: 5, unitCostCents: 100, receivedQuantity: 5 }] });
+  db.seed('purchaseOrders/po-p', { id: 'po-p', workspaceId, status: 'partially_received', vendorId: 'v-1', totalCents: 500, items: [{ id: 'l1', quantity: 5, unitCostCents: 100, receivedQuantity: 2 }] });
 
   const conflict = async (p: Promise<{ ok: boolean; code?: string }>) => {
     const r = await p; assert.equal(r.ok, false); if (!r.ok) assert.equal(r.code, 'CONFLICT');
@@ -228,7 +229,17 @@ test('money fields stay with the commands that post them (#822)', async () => {
   await conflict(save(db, { collection: 'inventory', id: 'i-1', data: { unitCostCents: 1 } }));
   await conflict(save(db, { collection: 'inventory', id: 'i-1', data: { quantityAtHand: 50 } }));
   await conflict(save(db, { collection: 'estimates', id: 'e-1', data: { totalCents: 1 } }));
+  // the screen's workflow steps still save: shipment tracking on an accepted order, a second receipt, the bill
+  assert.equal((await save(db, { collection: 'estimates', id: 'e-1', data: { 'metadata.shipments': [{ tracking: 'T1' }] } })).ok, true);
+  assert.equal((await save(db, { collection: 'purchaseOrders', id: 'po-p', data: { status: 'received', items: [{ id: 'l1', quantity: 5, unitCostCents: 100, receivedQuantity: 5 }] } })).ok, true);
+  assert.equal((await save(db, { collection: 'purchaseOrders', id: 'po-r', data: { status: 'billed', billId: 'b-1' } })).ok, true);
+  assert.equal((await save(db, { collection: 'purchaseOrders', id: 'po-r', data: { blanket: null } })).ok, true);
   await conflict(save(db, { collection: 'purchaseOrders', id: 'po-r', data: { status: 'draft' } }));
+  await conflict(save(db, { collection: 'purchaseOrders', id: 'po-r', data: { totalCents: 1 } }));
+  await conflict(save(db, { collection: 'purchaseOrders', id: 'po-p', data: { items: [{ id: 'l1', quantity: 5, unitCostCents: 1, receivedQuantity: 3 }] } }));
+  await conflict(save(db, { collection: 'inventory', id: 'i-2', data: { quantityAtHand: 500 } }));
+  await conflict(save(db, { collection: 'inventory', create: true, data: { name: 'Free stock', quantityAtHand: 9 } }));
+  await conflict(save(db, { collection: 'estimates', id: 'e-1', data: { status: 'draft' } }));
   await conflict(remove(db, { collection: 'assets', id: 'a-1' }));
   await conflict(remove(db, { collection: 'inventory', id: 'i-1' }));
   await conflict(remove(db, { collection: 'purchaseOrders', id: 'po-r' }));
