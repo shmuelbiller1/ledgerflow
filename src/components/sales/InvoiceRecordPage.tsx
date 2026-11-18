@@ -7,6 +7,7 @@ import { differenceInDays } from 'date-fns/differenceInDays';
 import { approvalDetail, approvalStatus, holdsSending } from '../../lib/invoiceApproval';
 import { isPostable } from '../../lib/txFilters';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
@@ -47,10 +48,12 @@ export default function InvoiceRecordPage({
   onVoid,
   onOpenCustomer,
 }: InvoiceRecordPageProps) {
-  const { loading } = useLedgerCollections('invoices', 'customers', 'payments', 'auditLogs', 'transactions');
+  useLedgerCollections('invoices', 'customers', 'payments', 'auditLogs', 'transactions');
   const dataHealth = useScreenDataHealth(['invoices', 'customers', 'payments', 'auditLogs', 'transactions']);
   const dataNotice = <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message}
     onRetry={dataHealth.retry} what="this invoice" />;
+  const isGuest = useAuthStore(s => s.isGuest && !s.user);
+  const invoicesLoaded = useDataNeedsStore(s => s.loaded.invoices);
   const invoices = useLedgerStore(s => s.invoices);
   const customers = useLedgerStore(s => s.customers);
   const payments = useLedgerStore(s => s.payments);
@@ -137,8 +140,8 @@ export default function InvoiceRecordPage({
     <div className="p-4 sm:p-6 space-y-4">{dataNotice}<EmptyState title="Invoice unavailable"
       description="The invoice list could not be loaded yet." actionLabel="Back to invoices" onAction={onBack} /></div>
   );
-  if (!invoice && (loading || dataHealth.loadingKeys.includes('invoices'))) {
-    return <div className="p-4 sm:p-6"><LoadingState what="invoice" /></div>;
+  if (!invoice && !isGuest && (!invoicesLoaded || dataHealth.loadingKeys.includes('invoices'))) {
+    return <div className="p-4 sm:p-6 space-y-4">{dataNotice}<LoadingState what="invoice" /></div>;
   }
 
   if (!invoice) {

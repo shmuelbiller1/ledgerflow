@@ -57,6 +57,16 @@ test('A-282 invoice: loading → failed (not absent) → retry/loading → recor
   assert.ok(screen.getByRole('heading', { name: 'Invoice INV-42' }));
 });
 
+test('A-282 invoice: a secondary collection failure does not keep a missing invoice loading', () => {
+  act(() => useDataNeedsStore.getState().markFailed('transactions', 'Timed out'));
+  render(invoicePage());
+  assert.ok(screen.getByText('Loading invoice…'));
+  assert.ok(screen.getByText(/Timed out/));
+  act(() => useDataNeedsStore.getState().markLoaded('invoices'));
+  assert.equal(screen.queryByText('Loading invoice…'), null);
+  assert.ok(screen.getByRole('heading', { name: 'Invoice not found' }));
+});
+
 test('A-282 invoice: a related collection failure stays visible on an already loaded record', () => {
   markComponentCollectionsLoaded('auditLogs', 'customers', 'invoices', 'payments', 'transactions');
   useLedgerStore.setState({ invoices: [invoice] });
