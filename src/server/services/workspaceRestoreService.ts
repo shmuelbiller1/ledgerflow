@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { DocumentData, Firestore } from '../db/firestore';
+import { BRAND_NAME } from '../../config/brand';
 import { checkLedgerEntry } from './ledgerDoor';
 import { InvoiceSchema, BillSchema, ProjectSchema, CreditNoteSchema, VendorCreditSchema } from '../../schemas';
 
@@ -269,7 +270,7 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
       // unsigned file's closed-month entries field by field missed new entries, voided ones coming back and the
       // fields that hide an entry from reports; a signature leaves nothing to compare.
       if (!hasVerifiedLockSignature) {
-        throw new RestoreError(409, `Books are closed through ${closedNow}: only a backup exported by LedgerFlow, unchanged, can be restored over closed months. Nothing was restored.`);
+        throw new RestoreError(409, `Books are closed through ${closedNow}: only a backup exported by ${BRAND_NAME}, unchanged, can be restored over closed months. Nothing was restored.`);
       }
     }
 
