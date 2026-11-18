@@ -100,7 +100,9 @@ Do not interpret green as a certification of all monetary or data-integrity beha
 
 ## Visual changes
 
-When CI reports screenshot mismatches, download `playwright-failure-diagnostics` from the failed E2E job. Determine whether it is a real layout defect or an intentional change. Fix defects, **or** manually run **Refresh visual baselines** with an appropriate screen filter. That workflow produces `candidate-visual-baselines` as an artifact; it does not push to `main`. Review candidate images, commit only approved new screenshots to a regular PR, and require CI again. Do not simply increase pixel thresholds or mark the visual job as `continue-on-error`.
+When CI reports screenshot mismatches, inspect the failed browser shard's diagnostics. Determine whether it is a real layout defect or an intentional change. Fix defects, **or** manually run **Refresh visual baselines** with an appropriate test-name filter. The selected cases are captured and compared again with pinned Linux Chromium. Candidate images are uploaded as `candidate-visual-baselines` and pushed to a review branch. When dispatching from an Arena branch, `publish_to_source_branch` can return them to that same branch without an artifact download; it never targets `main` or force-pushes. Review the actual candidates before asking for a merge. Do not increase pixel thresholds or make visual comparisons optional to accept a mismatch.
+
+On an unsuccessful selected browser run, the rollup also decodes the available Playwright blobs to name specs with no terminal result. This is a diagnostic, not another gate. A failed assertion is a recorded result; a skipped or unreported test is not automatically a hang. If an upload is missing, inspect the shard's live reporter and logs rather than treating the artifact as complete evidence.
 
 ## Further release checks to add
 

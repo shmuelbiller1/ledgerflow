@@ -4,7 +4,7 @@ import { waitForFiniteAnimations } from './support/a11yGate';
 
 const WIDTH = 390;
 
-test.use({ reducedMotion: 'reduce' });
+test.use({ locale: 'en-US', timezoneId: 'UTC', reducedMotion: 'reduce' });
 
 /** Inspect the actual hit boxes and text fragments, not Tailwind classes. Local table scroll is allowed. */
 async function measureReport(root: Locator) {
@@ -72,6 +72,8 @@ for (const theme of ['light', 'dark'] as const) {
     test(`A-278 phone reports (${theme}): ${reports[0].id} through ${reports.at(-1)!.id}`, async ({ page }) => {
       test.setTimeout(120_000);
       await page.setViewportSize({ width: WIDTH, height: 844 });
+      // The built-in sample is dated 2026. Keep the default report period in that year.
+      await page.clock.setFixedTime(new Date('2026-11-17T12:00:00Z'));
       await page.addInitScript(selectedTheme => {
         localStorage.setItem('isGuest', 'true');
         localStorage.setItem('has_seen_onboarding', 'true');
@@ -82,6 +84,11 @@ for (const theme of ['light', 'dark'] as const) {
       page.on('pageerror', error => crashes.push(error.message));
       await page.goto('/#reports');
       await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b)/);
+      // This status is present but visually hidden on a phone. Require real loaded books,
+      // not a successful geometry check on placeholders or an empty sample after a failed read.
+      const seededBooks = page.getByRole('contentinfo', { name: 'Status bar', includeHidden: true })
+        .getByText(/^[1-9]\d* Accounts · [1-9]\d* Transactions$/);
+      await expect(seededBooks).toHaveCount(1);
       const root = page.locator('#main-content > *').filter({ has: page.getByTestId('reports-heading') });
       const picker = page.getByRole('navigation', { name: 'Report pages', exact: true });
       const summary = picker.locator('summary');
