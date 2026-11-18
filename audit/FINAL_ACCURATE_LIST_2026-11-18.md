@@ -9,11 +9,11 @@
 
 **Implemented on this branch, ready for review.** The historical fixed-width draft builder already existed in `src/lib/tax/pcn874Draft.ts` with 131/60/10 record widths, documentation in `docs/PCN874_DRAFT.md`, and structural tests in `src/tests/pcn874-draft.test.ts`. The missing user-facing validation screen is now implemented and wired to the `pcn874` journey step in `src/components/reporting/IsraelMonthJourneyReportView.tsx`.
 
-The view checks actual header, transaction/detail-row, and closing widths; reports when draft text was not built instead of claiming success; exposes unmapped-document reasons and non-represented document counts; compares draft NIS totals against VAT-report NIS totals without hiding differences; and explicitly says the historical 2010 format is not filing-ready and is never submitted from this screen. The download remains gated by successful build, complete mapping, and a nine-digit dealer number.
+The view checks actual header, transaction/detail-row, and closing widths; reports when draft text was not built instead of claiming success; exposes unmapped-document reasons and non-represented document counts; compares draft NIS totals against VAT-report NIS totals without hiding differences; and explicitly says the historical 2010 format is not filing-ready and is never submitted from this screen. New visible copy has English/Hebrew translations and is covered by the translation guard. The download remains gated by successful build, complete mapping, and a nine-digit dealer number.
 
 Regression coverage in `src/tests/israel-month-journey-view.test.tsx` includes both the refused/unmapped case and a successfully built draft with passing widths. Evidence and full check results: [`docs/verification/ai5-e55-2026-11-18.md`](../docs/verification/ai5-e55-2026-11-18.md).
 
-**Executed checks:** `npm run lint:types` pass; `npm test` 5,734 pass / 0 fail / 8 database-gated skips; `npm run lint:eslint` 0 errors / 2 existing warnings (the touched files have 0 warnings); `npm run build` pass; focused PCN874/view tests 9/9 pass.
+**Executed checks after merging the latest `origin/main` (`13943d15`):** `npm run lint:types` pass; `npm test` 5,780 pass / 0 fail / 8 database-gated skips; `npm run lint:eslint` 0 errors / 2 existing warnings (the touched files have 0 warnings); `npm run build` pass; focused Israel journey/PCN874/translation-guard tests 55/55 pass.
 
 ## Remaining AI #5 queue, as recorded in the live queue
 

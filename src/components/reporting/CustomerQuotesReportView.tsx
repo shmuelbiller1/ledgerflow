@@ -37,6 +37,10 @@ import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import type { Customer, Estimate, RecurringTransaction } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
+import { fill, useReportText } from './useReportText';
+
+/** Code names, paths and URL shapes shown as-is: they are not words to translate (EU-G1). */
+const CODE_NAMES = { signLink: '/e/<token>', signPath: '/e/' } as const;
 
 export default function CustomerQuotesReportView() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -45,6 +49,7 @@ export default function CustomerQuotesReportView() {
 }
 
 function CustomerQuotesContent() {
+  const reportText = useReportText();
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const homeCurrency = (workspace?.currency || 'USD').toUpperCase();
@@ -202,13 +207,12 @@ function CustomerQuotesContent() {
   };
 
   return (
-    <section aria-label="Customer quotes and proposals" className="p-4 space-y-5 min-w-0">
+    <section aria-label={reportText('r.customer-quotes-and-proposals', 'Customer quotes and proposals')} className="p-4 space-y-5 min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2>Customer quotes, proposals &amp; recurring estimates</h2>
+          <h2>{reportText('r.customer-quotes-proposals-recurring-estimates', 'Customer quotes, proposals & recurring estimates')}</h2>
           <p className="text-sm text-[var(--muted)]">
-            Open estimates and one-page proposals by customer with their portal signing link (<code>/e/&lt;token&gt;</code>),
-            optional proposal items, and recurring estimate schedules.
+            {reportText('r.open-estimates-and-one-page-proposals-by-custome', 'Open estimates and one-page proposals by customer with their portal signing link (')}<code>{CODE_NAMES.signLink}</code>{reportText('r.optional-proposal-items-and-recurring-estimate-s', '), optional proposal items, and recurring estimate schedules.')}
           </p>
         </div>
         <button
@@ -217,33 +221,33 @@ function CustomerQuotesContent() {
           disabled={quoteRows.length === 0}
           className="min-h-11 px-3 py-1.5 rounded border text-sm disabled:opacity-50"
         >
-          Download CSV
+          {reportText('r.download-csv', 'Download CSV')}
         </button>
       </div>
 
-      {loading && <p role="status" className="text-sm text-[var(--muted)]">Loading estimates and customers…</p>}
+      {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-estimates-and-customers', 'Loading estimates and customers…')}</p>}
       {partial && (
         <p role="alert" className="text-sm text-amber-700">
-          Estimates or customers are only partly loaded; quotes outside the loaded list are not shown.
+          {reportText('r.estimates-or-customers-are-only-partly-loaded-qu', 'Estimates or customers are only partly loaded; quotes outside the loaded list are not shown.')}
         </p>
       )}
 
       <div className="flex flex-wrap items-end gap-3" data-print-hide>
-        <label className="flex flex-col gap-1 text-sm">Quote state
-          <select aria-label="Quote state" value={quoteState} onChange={event => setQuoteState(event.target.value)}
+        <label className="flex flex-col gap-1 text-sm">{reportText('r.quote-state', 'Quote state')}
+          <select aria-label={reportText('r.quote-state', 'Quote state')} value={quoteState} onChange={event => setQuoteState(event.target.value)}
             className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]">
-            <option value="all">All states</option><option value="open">Open</option><option value="expired">Expired</option><option value="signed">Signed</option>
+            <option value="all">{reportText('r.all-states', 'All states')}</option><option value="open">{reportText('r.open', 'Open')}</option><option value="expired">{reportText('r.expired', 'Expired')}</option><option value="signed">{reportText('r.signed', 'Signed')}</option>
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          Customer
+          {reportText('r.customer', 'Customer')}
           <select
-            aria-label="Filter by customer"
+            aria-label={reportText('r.filter-by-customer', 'Filter by customer')}
             value={customerFilter}
             onChange={e => setCustomerFilter(e.target.value)}
             className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
           >
-            <option value="__all__">All customers</option>
+            <option value="__all__">{reportText('r.all-customers', 'All customers')}</option>
             {wsCustomers.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -251,9 +255,9 @@ function CustomerQuotesContent() {
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          Assessment date
+          {reportText('r.assessment-date', 'Assessment date')}
           <input
-            aria-label="Assessment date"
+            aria-label={reportText('r.assessment-date', 'Assessment date')}
             type="date"
             value={today}
             onChange={e => setToday(e.target.value)}
@@ -263,23 +267,23 @@ function CustomerQuotesContent() {
       </div>
 
       {quoteRows.length === 0 && !loading ? (
-        <p className="text-sm text-[var(--muted)]">No open or signed customer quotes match the selected filter.</p>
+        <p className="text-sm text-[var(--muted)]">{reportText('r.no-open-or-signed-customer-quotes-match-the-sele', 'No open or signed customer quotes match the selected filter.')}</p>
       ) : (
         <ReportTableScroll>
           <table className="w-full min-w-[1100px] text-sm border-collapse">
-            <caption className="sr-only">Customer quotes and proposals as of {today}</caption>
+            <caption className="sr-only">{reportText('r.customer-quotes-and-proposals-as-of', 'Customer quotes and proposals as of')} {today}</caption>
             <thead>
               <tr className="border-b text-left">
-                <th scope="col" className="py-2 pr-3">Quote #</th>
-                <th scope="col" className="py-2 pr-3">Kind</th>
-                <th scope="col" className="py-2 pr-3">Title</th>
-                <th scope="col" className="py-2 pr-3">Customer</th>
-                <th scope="col" className="py-2 pr-3">Date</th>
-                <th scope="col" className="py-2 pr-3">Valid Until</th>
-                <th scope="col" className="py-2 pr-3 text-right">Amount</th>
-                <th scope="col" className="py-2 pr-3">State</th>
-                <th scope="col" className="py-2">Portal Accept Link</th>
-                <th scope="col" className="py-2">Follow-up</th>
+                <th scope="col" className="py-2 pr-3">{reportText('r.quote', 'Quote #')}</th>
+                <th scope="col" className="py-2 pr-3">{reportText('r.kind', 'Kind')}</th>
+                <th scope="col" className="py-2 pr-3">{reportText('r.title', 'Title')}</th>
+                <th scope="col" className="py-2 pr-3">{reportText('r.customer', 'Customer')}</th>
+                <th scope="col" className="py-2 pr-3">{reportText('r.date-2', 'Date')}</th>
+                <th scope="col" className="py-2 pr-3">{reportText('r.valid-until-2', 'Valid Until')}</th>
+                <th scope="col" className="py-2 pr-3 text-right">{reportText('r.amount', 'Amount')}</th>
+                <th scope="col" className="py-2 pr-3">{reportText('r.state', 'State')}</th>
+                <th scope="col" className="py-2">{reportText('r.portal-accept-link', 'Portal Accept Link')}</th>
+                <th scope="col" className="py-2">{reportText('r.follow-up', 'Follow-up')}</th>
               </tr>
             </thead>
             <tbody>
@@ -301,22 +305,22 @@ function CustomerQuotesContent() {
                           href={`/e/${encodeURIComponent(r.signToken)}`}
                           className="text-indigo-600 dark:text-indigo-400 hover:underline font-mono"
                         >
-                          /e/{r.signToken}
+                          {`${CODE_NAMES.signPath}${r.signToken}`}
                         </a>
                       ) : (
-                        <span className="text-[var(--muted)]">{r.problem || 'Send estimate to generate signing link'}</span>
+                        <span className="text-[var(--muted)]">{r.problem || reportText('r.send-estimate-to-generate-signing-link', 'Send estimate to generate signing link')}</span>
                       )}
                     </td>
                     <td className="py-2 align-top min-w-72">{(r.state === 'open' || r.state === 'expired') ? <details>
-                      <summary className="min-h-11 cursor-pointer">Follow-up draft</summary>
-                      <p className="text-sm text-[var(--muted)]">Select and copy this draft, then review it before sending through your usual channel. Nothing is sent or saved here.</p>
-                      <label className="block">Draft for <bdi>{r.number}</bdi>
-                        <textarea aria-label={`Follow-up draft for ${r.number}`} dir="auto" readOnly rows={6}
+                      <summary className="min-h-11 cursor-pointer">{reportText('r.follow-up-draft', 'Follow-up draft')}</summary>
+                      <p className="text-sm text-[var(--muted)]">{reportText('r.select-and-copy-this-draft-then-review-it-before', 'Select and copy this draft, then review it before sending through your usual channel. Nothing is sent or saved here.')}</p>
+                      <label className="block">{reportText('r.draft-for', 'Draft for')} <bdi>{r.number}</bdi>
+                        <textarea aria-label={fill(reportText('r.follow-up-draft-for-0', 'Follow-up draft for {0}'), { 0: r.number })} dir="auto" readOnly rows={6}
                           onFocus={event => event.currentTarget.select()}
                           className="block min-h-11 w-64 max-w-full border rounded p-2 bg-[var(--panel)] text-[var(--text)]"
                           value={`Hello ${r.customerName},\n\nFollowing up on quote ${r.number}.${r.state === 'expired' ? ` Its recorded validity ended${r.expiryDate ? ` on ${r.expiryDate}` : ''}; please contact us for an updated quote before accepting.` : r.expiryDate ? ` Its recorded validity runs through ${r.expiryDate}.` : ''}\n\nWould you like to discuss next steps?`} />
                       </label>
-                    </details> : 'No follow-up draft for this state'}</td>
+                    </details> : reportText('r.no-follow-up-draft-for-this-state', 'No follow-up draft for this state')}</td>
                   </tr>
                 );
               })}
@@ -328,12 +332,12 @@ function CustomerQuotesContent() {
       {selectedEstimate && activeProposal && propTotals && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2 border-t border-[var(--line)]">
           <div className="border border-[var(--line)] rounded p-4 space-y-3 bg-[var(--panel)]">
-            <h3 className="font-semibold text-base">One-page proposal builder ({selectedEstimate.number})</h3>
+            <h3 className="font-semibold text-base">{reportText('r.one-page-proposal-builder', 'One-page proposal builder (')}{selectedEstimate.number})</h3>
             <div className="flex flex-wrap gap-3">
               <label className="flex flex-col gap-1 text-sm">
-                Estimate
+                {reportText('r.estimate', 'Estimate')}
                 <select
-                  aria-label="Proposal estimate"
+                  aria-label={reportText('r.proposal-estimate', 'Proposal estimate')}
                   value={selectedEstimate.id}
                   onChange={e => {
                     setSelectedEstId(e.target.value);
@@ -347,9 +351,9 @@ function CustomerQuotesContent() {
                 </select>
               </label>
               <label className="flex flex-col gap-1 text-sm flex-1 min-w-[14rem]">
-                Proposal title
+                {reportText('r.proposal-title', 'Proposal title')}
                 <input
-                  aria-label="Proposal title"
+                  aria-label={reportText('r.proposal-title', 'Proposal title')}
                   type="text"
                   dir="auto"
                   value={proposalTitle}
@@ -360,24 +364,24 @@ function CustomerQuotesContent() {
               </label>
             </div>
             <label className="flex flex-col gap-1 text-sm">
-              Cover letter
+              {reportText('r.cover-letter', 'Cover letter')}
               <textarea
-                aria-label="Proposal cover letter"
+                aria-label={reportText('r.proposal-cover-letter', 'Proposal cover letter')}
                 rows={2}
                 dir="auto"
                 value={coverLetter}
                 onChange={e => setCoverLetter(e.target.value)}
-                placeholder="Scope summary and introduction for the customer"
+                placeholder={reportText('r.scope-summary-and-introduction-for-the-customer', 'Scope summary and introduction for the customer')}
                 className="border rounded p-2 bg-[var(--panel)] text-[var(--text)]"
               />
             </label>
             <div className="space-y-1 text-sm">
-              <div className="font-medium">Line items (tick optional add-ons):</div>
+              <div className="font-medium">{reportText('r.line-items-tick-optional-add-ons', 'Line items (tick optional add-ons):')}</div>
               {activeProposal.sections[0]?.items.map((item, pos) => (
                 <label key={`${selectedEstimate.id}:${item.description}:${item.unitPriceCents}`} className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    aria-label={`Optional item ${item.description}`}
+                    aria-label={fill(reportText('r.optional-item-0', 'Optional item {0}'), { 0: item.description })}
                     checked={Boolean(optionalPositions[pos])}
                     onChange={e => setOptionalPositions(prev => ({ ...prev, [pos]: e.target.checked }))}
                   />
@@ -387,27 +391,27 @@ function CustomerQuotesContent() {
             </div>
             {propProblem && <p role="alert" className="text-sm text-amber-700">{propProblem}</p>}
             <p className="text-sm text-[var(--muted)]">
-              Required total: <strong>{formatCurrency(propTotals.requiredCents, homeCurrency)}</strong>
+              {reportText('r.required-total', 'Required total:')} <strong>{formatCurrency(propTotals.requiredCents, homeCurrency)}</strong>
               {propTotals.optionalItems > 0 && (
-                <> · Optional add-ons: <strong>{formatCurrency(propTotals.optionalCents, homeCurrency)}</strong> (with optionals: {formatCurrency(propTotals.withOptionalsCents, homeCurrency)})</>
+                <> {reportText('r.optional-add-ons', '· Optional add-ons:')} <strong>{formatCurrency(propTotals.optionalCents, homeCurrency)}</strong> {reportText('r.with-optionals', '(with optionals:')} {formatCurrency(propTotals.withOptionalsCents, homeCurrency)})</>
               )}
             </p>
-            <pre aria-label="One-page proposal text" className="text-xs p-3 rounded border bg-[var(--surface)] whitespace-pre-wrap overflow-x-auto">
+            <pre aria-label={reportText('r.one-page-proposal-text', 'One-page proposal text')} className="text-xs p-3 rounded border bg-[var(--surface)] whitespace-pre-wrap overflow-x-auto">
               {propPageText}
             </pre>
           </div>
 
           {recurringInfo && (
             <div className="border border-[var(--line)] rounded p-4 space-y-3 bg-[var(--panel)]">
-              <h3 className="font-semibold text-base">Recurring estimate schedule ({selectedEstimate.number})</h3>
+              <h3 className="font-semibold text-base">{reportText('r.recurring-estimate-schedule', 'Recurring estimate schedule (')}{selectedEstimate.number})</h3>
               <p className="text-xs text-[var(--muted)]">
-                Each repeat is a new draft estimate with the next number, made by the daily job on its date; nothing is sent. Shown: drafts due on or before {today} (validity window: {recurringInfo.validityDays} days).
+                {reportText('r.each-repeat-is-a-new-draft-estimate-with-the-nex', 'Each repeat is a new draft estimate with the next number, made by the daily job on its date; nothing is sent. Shown: drafts due on or before')} {today} {reportText('r.validity-window', '(validity window:')} {recurringInfo.validityDays} {reportText('r.days', 'days).')}
               </p>
               <div className="flex flex-wrap gap-3">
                 <label className="flex flex-col gap-1 text-sm">
-                  Frequency
+                  {reportText('r.frequency', 'Frequency')}
                   <select
-                    aria-label="Recurring frequency"
+                    aria-label={reportText('r.recurring-frequency', 'Recurring frequency')}
                     value={frequency}
                     onChange={e => setFrequency(e.target.value as RecurringTransaction['frequency'])}
                     className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
@@ -420,7 +424,7 @@ function CustomerQuotesContent() {
                 {canRepeat && (
                   <button type="button" onClick={repeat} disabled={repeating || alreadyRepeating || schedulesUnknown || Boolean(recurringInfo.problem)} aria-busy={repeating}
                     className="self-end min-h-11 px-3 rounded border text-sm disabled:opacity-50">
-                    {alreadyRepeating ? 'Already repeating' : 'Repeat this estimate'}
+                    {alreadyRepeating ? reportText('r.already-repeating', 'Already repeating') : reportText('r.repeat-this-estimate', 'Repeat this estimate')}
                   </button>
                 )}
               </div>
@@ -429,11 +433,11 @@ function CustomerQuotesContent() {
               ) : (
                 <div className="space-y-2 text-sm">
                   <div>
-                    First draft if it had been set to repeat on {today} (a schedule saved now starts from today&apos;s date):{' '}
-                    <strong>{recurringInfo.nextOccurrence || 'None'}</strong>
+                    {reportText('r.first-draft-if-it-had-been-set-to-repeat-on', 'First draft if it had been set to repeat on')} {today} {reportText('r.a-schedule-saved-now-starts-from-today-s-date', '(a schedule saved now starts from today\'s date):')}{' '}
+                    <strong>{recurringInfo.nextOccurrence || reportText('r.none', 'None')}</strong>
                   </div>
                   <div>
-                    Draft quotes due now: <strong>{recurringInfo.drafts.length}</strong>
+                    {reportText('r.draft-quotes-due-now', 'Draft quotes due now:')} <strong>{recurringInfo.drafts.length}</strong>
                     {recurringInfo.drafts.length > 0 && (
                       <span className="text-[var(--muted)]">
                         {' '}({recurringInfo.drafts.map(d => `${d.dueDate} → next ${d.nextOccurrence}`).join('; ')})

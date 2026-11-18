@@ -436,6 +436,8 @@ export async function runRegisteredCommand(
     workspace,
     ...(operationId ? { operationId } : {}),
   };
+  try { await command.authorizeInput?.(initialContext, input); }
+  catch (error) { return errorOutcome(error, command.name); }
   let date: string | undefined;
   try {
     date = resolveCommandDate(command, initialContext, input);
@@ -581,6 +583,8 @@ export async function previewCommand(
     db,
     workspace,
   };
+  try { await command.authorizeInput?.(initialContext, input); }
+  catch (error) { return previewErrorOutcome(error, command.name); }
   const datedValue = command.dated ? valueAtPath(input, command.dated) : undefined;
   let date: string | undefined;
   try {

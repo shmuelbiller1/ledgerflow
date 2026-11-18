@@ -19,8 +19,10 @@ import {
   IL_ANNUAL_VENDOR_CSV_HEADERS,
 } from '../../lib/israeliAnnualPartySummary';
 import { RowTable } from '../ui/RowTable';
+import { useReportText } from './useReportText';
 
 export default function IsraeliAnnualPartySummaryView() {
+  const reportText = useReportText();
   const customers = useLedgerStore(s => s.customers);
   const vendors = useLedgerStore(s => s.vendors);
   const invoices = useLedgerStore(s => s.invoices);
@@ -77,7 +79,7 @@ export default function IsraeliAnnualPartySummaryView() {
   };
 
   if (loading) {
-    return <p className="p-6 text-sm text-slate-600 dark:text-slate-400">Loading annual customer &amp; vendor working paper…</p>;
+    return <p className="p-6 text-sm text-slate-600 dark:text-slate-400">{reportText('r.loading-annual-customer-amp-vendor-working-paper', 'Loading annual customer & vendor working paper…')}</p>;
   }
 
   return (
@@ -86,10 +88,10 @@ export default function IsraeliAnnualPartySummaryView() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <FileSpreadsheet className="w-6 h-6 text-indigo-600" aria-hidden="true" />
-            Israel: Annual Customer &amp; Vendor Summary
+            {reportText('r.israel-annual-customer-amp-vendor-summary', 'Israel: Annual Customer & Vendor Summary')}
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Year-end accountant working paper (calculation only — not an official Israel Tax Authority filing). Summarizes annual billed turnover, VAT, allocation number checks, source tax withheld, collections/payments, and year-end open balances in {baseCurrency} using each document&apos;s stored exchange rate.
+            {reportText('r.year-end-accountant-working-paper-calculation-on', 'Year-end accountant working paper (calculation only — not an official Israel Tax Authority filing). Summarizes annual billed turnover, VAT, allocation number checks, source tax withheld, collections/payments, and year-end open balances in')} {baseCurrency} {reportText('r.using-each-documents-stored-exchange-rate', 'using each document\'s stored exchange rate.')}
           </p>
         </div>
         <button
@@ -97,14 +99,14 @@ export default function IsraeliAnnualPartySummaryView() {
           onClick={exportCsv}
           className="min-h-11 px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2"
         >
-          <Download className="w-4 h-4" aria-hidden="true" /> Export {tab} CSV
+          <Download className="w-4 h-4" aria-hidden="true" /> {reportText('r.export', 'Export')} {tab} {reportText('r.csv', 'CSV')}
         </button>
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <label htmlFor="il-annual-year" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            Tax year
+            {reportText('r.tax-year', 'Tax year')}
           </label>
           <select
             id="il-annual-year"
@@ -118,7 +120,7 @@ export default function IsraeliAnnualPartySummaryView() {
           </select>
         </div>
 
-        <div role="tablist" aria-label="Party side" className="flex gap-2">
+        <div role="tablist" aria-label={reportText('r.party-side', 'Party side')} className="flex gap-2">
           <button
             role="tab"
             type="button"
@@ -130,7 +132,7 @@ export default function IsraeliAnnualPartySummaryView() {
                 : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
             }`}
           >
-            Customers ({summary.customers.length})
+            {reportText('r.customers', 'Customers (')}{summary.customers.length})
           </button>
           <button
             role="tab"
@@ -143,7 +145,7 @@ export default function IsraeliAnnualPartySummaryView() {
                 : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
             }`}
           >
-            Vendors ({summary.vendors.length})
+            {reportText('r.vendors', 'Vendors (')}{summary.vendors.length})
           </button>
         </div>
       </div>
@@ -151,34 +153,34 @@ export default function IsraeliAnnualPartySummaryView() {
       {tab === 'customers' ? (
         summary.customers.length === 0 ? (
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center">
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">No issued customer activity for {year}</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">{reportText('r.no-issued-customer-activity-for', 'No issued customer activity for')} {year}</p>
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
             <RowTable
               rowHeaderColumn={false}
-              caption={(<>Annual customer summary for {year}</>)}
+              caption={(<>{reportText('r.annual-customer-summary-for', 'Annual customer summary for')} {year}</>)}
               rows={summary.customers}
               rowKey={r => r.customerId}
               tableClassName="w-full text-sm text-start"
               headRowClassName="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400"
               bodyClassName="divide-y divide-slate-200 dark:divide-slate-800"
               columns={[
-                { header: "Customer", className: "px-4 py-3 font-medium text-slate-900 dark:text-white", headClassName: "px-4 py-3 text-start", cell: (r) => r.customerName },
-                { header: "Dealer / VAT ID", className: "px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400", headClassName: "px-4 py-3 text-start", cell: (r) => r.maskedTaxId || 'Missing' },
-                { header: "Docs", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => r.documentCount },
-                { header: "Net pre-VAT", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.netSalesCents, baseCurrency) },
-                { header: "VAT", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.vatChargedCents, baseCurrency) },
-                { header: "Gross billed", className: "px-4 py-3 text-end tabular-nums font-semibold", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.grossBilledCents, baseCurrency) },
-                { header: "Collected", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.collectionsInYearCents, baseCurrency) },
-                { header: "Closing open", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.closingOpenCents, baseCurrency) },
-                { header: "Allocation # check", className: "px-4 py-3 text-xs", headClassName: "px-4 py-3 text-start", cell: (r) => r.allocationMissingCount > 0 ? (
+                { header: reportText('r.customer', 'Customer'), className: "px-4 py-3 font-medium text-slate-900 dark:text-white", headClassName: "px-4 py-3 text-start", cell: (r) => r.customerName },
+                { header: reportText('r.dealer-vat-id', 'Dealer / VAT ID'), className: "px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400", headClassName: "px-4 py-3 text-start", cell: (r) => r.maskedTaxId || 'Missing' },
+                { header: reportText('r.docs', 'Docs'), className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => r.documentCount },
+                { header: reportText('r.net-pre-vat', 'Net pre-VAT'), className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.netSalesCents, baseCurrency) },
+                { header: reportText('r.vat', 'VAT'), className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.vatChargedCents, baseCurrency) },
+                { header: reportText('r.gross-billed', 'Gross billed'), className: "px-4 py-3 text-end tabular-nums font-semibold", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.grossBilledCents, baseCurrency) },
+                { header: reportText('r.collected', 'Collected'), className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.collectionsInYearCents, baseCurrency) },
+                { header: reportText('r.closing-open', 'Closing open'), className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.closingOpenCents, baseCurrency) },
+                { header: reportText('r.allocation-check-2', 'Allocation # check'), className: "px-4 py-3 text-xs", headClassName: "px-4 py-3 text-start", cell: (r) => r.allocationMissingCount > 0 ? (
                         <span className="font-semibold text-rose-700 dark:text-rose-300">
-                          {r.allocationMissingCount} missing of {r.allocationRequiredCount}
+                          {r.allocationMissingCount} {reportText('r.missing-of', 'missing of')} {r.allocationRequiredCount}
                         </span>
                       ) : r.allocationRequiredCount > 0 ? (
                         <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                          {r.allocationRecordedCount}/{r.allocationRequiredCount} recorded
+                          {r.allocationRecordedCount}/{r.allocationRequiredCount} {reportText('r.recorded', 'recorded')}
                         </span>
                       ) : (
                         '—'
@@ -189,28 +191,28 @@ export default function IsraeliAnnualPartySummaryView() {
         )
       ) : summary.vendors.length === 0 ? (
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center">
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">No issued vendor activity for {year}</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{reportText('r.no-issued-vendor-activity-for', 'No issued vendor activity for')} {year}</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <RowTable
             rowHeaderColumn={false}
-            caption={(<>Annual vendor summary for {year}</>)}
+            caption={(<>{reportText('r.annual-vendor-summary-for', 'Annual vendor summary for')} {year}</>)}
             rows={summary.vendors}
             rowKey={r => r.vendorId}
             tableClassName="w-full text-sm text-start"
             headRowClassName="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400"
             bodyClassName="divide-y divide-slate-200 dark:divide-slate-800"
             columns={[
-              { header: "Vendor", className: "px-4 py-3 font-medium text-slate-900 dark:text-white", headClassName: "px-4 py-3 text-start", cell: (r) => r.vendorName },
-              { header: "Dealer / Tax ID", className: "px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400", headClassName: "px-4 py-3 text-start", cell: (r) => r.maskedTaxId || 'Missing' },
-              { header: "Docs", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => r.documentCount },
-              { header: "Gross billed", className: "px-4 py-3 text-end tabular-nums font-semibold", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.grossBilledCents, baseCurrency) },
-              { header: "Input VAT", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.inputVatCents, baseCurrency) },
-              { header: "Paid in year", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.paymentsInYearCents, baseCurrency) },
-              { header: "Tax withheld", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.taxWithheldCents, baseCurrency) },
-              { header: "WHT cert", className: "px-4 py-3 text-xs text-slate-600 dark:text-slate-400", headClassName: "px-4 py-3 text-start", cell: (r) => r.withholdingCertificate },
-              { header: "Closing open", className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.closingOpenCents, baseCurrency) },
+              { header: reportText('r.vendor', 'Vendor'), className: "px-4 py-3 font-medium text-slate-900 dark:text-white", headClassName: "px-4 py-3 text-start", cell: (r) => r.vendorName },
+              { header: reportText('r.dealer-tax-id', 'Dealer / Tax ID'), className: "px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400", headClassName: "px-4 py-3 text-start", cell: (r) => r.maskedTaxId || 'Missing' },
+              { header: reportText('r.docs', 'Docs'), className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => r.documentCount },
+              { header: reportText('r.gross-billed', 'Gross billed'), className: "px-4 py-3 text-end tabular-nums font-semibold", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.grossBilledCents, baseCurrency) },
+              { header: reportText('r.input-vat', 'Input VAT'), className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.inputVatCents, baseCurrency) },
+              { header: reportText('r.paid-in-year', 'Paid in year'), className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.paymentsInYearCents, baseCurrency) },
+              { header: reportText('r.tax-withheld', 'Tax withheld'), className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.taxWithheldCents, baseCurrency) },
+              { header: reportText('r.wht-cert', 'WHT cert'), className: "px-4 py-3 text-xs text-slate-600 dark:text-slate-400", headClassName: "px-4 py-3 text-start", cell: (r) => r.withholdingCertificate },
+              { header: reportText('r.closing-open', 'Closing open'), className: "px-4 py-3 text-end tabular-nums", headClassName: "px-4 py-3 text-end", cell: (r) => formatCurrency(r.closingOpenCents, baseCurrency) },
             ]}
           />
         </div>

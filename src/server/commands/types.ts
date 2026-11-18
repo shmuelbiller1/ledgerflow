@@ -84,6 +84,8 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
   /** Resolve an effective date when the command's input omits one (for example, today's workspace-local date). */
   resolveDate?(ctx: Omit<CommandContext, 'prepared' | 'afterCommit'>, input: z.output<Schema>): string | undefined;
   capacity?: MeteredResource;
+  /** Extra read-only input-dependent authorization, including before idempotent replay. Commit must recheck. */
+  authorizeInput?(ctx: Omit<CommandContext, 'prepared' | 'afterCommit'>, input: z.output<Schema>): Promise<void>;
   /** Read-only work needed to prepare the transaction (for example a ledger preview/build). */
   prepare?(ctx: Omit<CommandContext, 'prepared' | 'afterCommit'>, input: z.output<Schema>): Promise<Prepared>;
   handler(ctx: CommandContext, tx: Transaction, input: z.output<Schema>): Promise<Result>;

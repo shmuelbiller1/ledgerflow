@@ -10,9 +10,11 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import { topParties, topPartiesCsvHeaders, topPartiesCsvRows } from '../../lib/topParties';
 import ReportTableScroll from './ReportTableScroll';
+import { useReportText, fill } from './useReportText';
 
 /** A tiny 12-month line. Decorative beside the numbers; the full series is in the label and the CSV. */
 function Sparkline({ values, currency }: { values: number[]; currency: string }) {
+  const reportText = useReportText();
   const width = 96, height = 28, pad = 2;
   const max = Math.max(...values, 0);
   const min = Math.min(...values, 0);
@@ -25,9 +27,9 @@ function Sparkline({ values, currency }: { values: number[]; currency: string })
   const last = values[values.length - 1] || 0;
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img"
-      aria-label={`12-month trend: highest month ${formatCurrency(max, currency)}, latest month ${formatCurrency(last, currency)}`}
+      aria-label={fill(reportText('r.trend-aria', '12-month trend: highest month {max}, latest month {last}'), { max: formatCurrency(max, currency), last: formatCurrency(last, currency) })}
       className="inline-block align-middle">
-      <title>{`Highest month ${formatCurrency(max, currency)} · latest month ${formatCurrency(last, currency)}`}</title>
+      <title>{fill(reportText('r.trend-title', 'Highest month {max} · latest month {last}'), { max: formatCurrency(max, currency), last: formatCurrency(last, currency) })}</title>
       <polyline points={points} fill="none" stroke="var(--brass, #b08d3e)" strokeWidth="1.5" />
     </svg>
   );
@@ -41,6 +43,7 @@ const cell = (cents: number, home: string) => formatCurrency(cents, home);
  * payments as that summary reads them). Read-only.
  */
 export default function TopPartiesReportView() {
+  const reportText = useReportText();
   const customers = useLedgerStore(state => state.customers);
   const vendors = useLedgerStore(state => state.vendors);
   const invoices = useLedgerStore(state => state.invoices);
@@ -82,53 +85,49 @@ export default function TopPartiesReportView() {
   const verb = kind === 'customer' ? 'Invoiced' : 'Billed';
   const periodValid = /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && from <= to;
 
-  return <section aria-label="Top customers and vendors" className="p-4 space-y-4 min-w-0">
-    <h2>Top customers and vendors</h2>
+  return <section aria-label={reportText('r.top-customers-and-vendors', 'Top customers and vendors')} className="p-4 space-y-4 min-w-0">
+    <h2>{reportText('r.top-customers-and-vendors', 'Top customers and vendors')}</h2>
     <p className="text-sm text-[var(--muted)]">
-      The twenty customers invoiced most in the period (or the twenty vendors who billed most), from the
-      customer and supplier period summaries: issued documents only, in {home}. The small line beside each
-      name is the same figure per month for the twelve months ending with the period&apos;s last month;
-      the numbers are in the CSV. Ranking follows the gross amount {kind === 'customer' ? 'invoiced' : 'billed'} in
-      the period — what was paid, credited and still owed at the end is shown beside it.
+      {reportText('r.the-twenty-customers-invoiced-most-in-the-period', 'The twenty customers invoiced most in the period (or the twenty vendors who billed most), from the customer and supplier period summaries: issued documents only, in')} {home}{reportText('r.the-small-line-beside-each-name-is-the-same-figu', '. The small line beside each name is the same figure per month for the twelve months ending with the period\'s last month; the numbers are in the CSV. Ranking follows the gross amount')} {kind === 'customer' ? reportText('r.invoiced', 'invoiced') : reportText('r.billed', 'billed')} {reportText('r.in-the-period-what-was-paid-credited-and-still-o', 'in the period — what was paid, credited and still owed at the end is shown beside it.')}
     </p>
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
-      <label className="flex flex-col gap-1 text-sm">Show
-        <select aria-label="Customers or vendors" className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.show', 'Show')}
+        <select aria-label={reportText('r.customers-or-vendors', 'Customers or vendors')} className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
           value={kind} onChange={e => setKind(e.target.value as 'customer' | 'vendor')}>
-          <option value="customer">Top customers</option>
-          <option value="vendor">Top vendors</option>
+          <option value="customer">{reportText('r.top-customers', 'Top customers')}</option>
+          <option value="vendor">{reportText('r.top-vendors', 'Top vendors')}</option>
         </select>
       </label>
-      <label className="flex flex-col gap-1 text-sm">From
-        <input type="date" aria-label="Period start" className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]" value={from} onChange={e => setFrom(e.target.value)} />
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.from', 'From')}
+        <input type="date" aria-label={reportText('r.period-start', 'Period start')} className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]" value={from} onChange={e => setFrom(e.target.value)} />
       </label>
-      <label className="flex flex-col gap-1 text-sm">To
-        <input type="date" aria-label="Period end" className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]" value={to} onChange={e => setTo(e.target.value)} />
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.to', 'To')}
+        <input type="date" aria-label={reportText('r.period-end', 'Period end')} className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]" value={to} onChange={e => setTo(e.target.value)} />
       </label>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!health.ready || partial || !report.rows.length}
-        onClick={() => downloadCsv(kind === 'customer' ? 'top-customers' : 'top-vendors', topPartiesCsvHeaders(kind, report.months), topPartiesCsvRows(report.rows))}>Export CSV</button>
+        onClick={() => downloadCsv(kind === 'customer' ? 'top-customers' : 'top-vendors', topPartiesCsvHeaders(kind, report.months), topPartiesCsvRows(report.rows))}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
 
-    {!periodValid && <p role="alert" className="text-sm">Choose a valid period: the start must not be after the end.</p>}
-    {health.loadingKeys.length > 0 && <p role="status" className="text-sm text-[var(--muted)]">Loading parties and documents…</p>}
-    <ScreenDataNotice failedKeys={health.failedKeys} message={health.message} onRetry={health.retry} what="this ranking" />
+    {!periodValid && <p role="alert" className="text-sm">{reportText('r.choose-a-valid-period-the-start-must-not-be-afte', 'Choose a valid period: the start must not be after the end.')}</p>}
+    {health.loadingKeys.length > 0 && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-parties-and-documents', 'Loading parties and documents…')}</p>}
+    <ScreenDataNotice failedKeys={health.failedKeys} message={health.message} onRetry={health.retry} what={reportText('r.this-ranking', 'this ranking')} />
     {partial && <ReportProvenanceNote provenance={provenance} />}
     {health.ready && <>
-    {periodValid && report.moreCount > 0 && <p className="text-sm">Showing the top {report.rows.length}; {report.moreCount} more with activity in the period are below the line.</p>}
+    {periodValid && report.moreCount > 0 && <p className="text-sm">{reportText('r.showing-the-top', 'Showing the top')} {report.rows.length}; {report.moreCount} {reportText('r.more-with-activity-in-the-period-are-below-the-l', 'more with activity in the period are below the line.')}</p>}
 
     <ReportTableScroll>
       <table className="w-full text-sm">
-        <caption>Top {kind === 'customer' ? 'customers by amount invoiced' : 'vendors by amount billed'}, {from} to {to} ({home})</caption>
+        <caption>{reportText('r.top', 'Top')} {kind === 'customer' ? reportText('r.customers-by-amount-invoiced', 'customers by amount invoiced') : reportText('r.vendors-by-amount-billed', 'vendors by amount billed')}, {from} {reportText('r.to-2', 'to')} {to} ({home})</caption>
         <thead>
           <tr>
             <th scope="col" className="text-left py-1 px-2">#</th>
             <th scope="col" className="text-left py-1 px-2">{who}</th>
-            <th scope="col" className="text-right py-1 px-2">{verb} in period</th>
-            <th scope="col" className="text-right py-1 px-2">Paid in period</th>
-            <th scope="col" className="text-right py-1 px-2">Credited in period</th>
-            <th scope="col" className="text-right py-1 px-2">Balance at period end</th>
-            <th scope="col" className="text-left py-1 px-2">Trend, 12 months</th>
+            <th scope="col" className="text-right py-1 px-2">{verb} {reportText('r.in-period', 'in period')}</th>
+            <th scope="col" className="text-right py-1 px-2">{reportText('r.paid-in-period', 'Paid in period')}</th>
+            <th scope="col" className="text-right py-1 px-2">{reportText('r.credited-in-period', 'Credited in period')}</th>
+            <th scope="col" className="text-right py-1 px-2">{reportText('r.balance-at-period-end', 'Balance at period end')}</th>
+            <th scope="col" className="text-left py-1 px-2">{reportText('r.trend-12-months', 'Trend, 12 months')}</th>
           </tr>
         </thead>
         <tbody>
@@ -145,14 +144,12 @@ export default function TopPartiesReportView() {
           ))}
         </tbody>
       </table>
-      {!report.rows.length && periodValid && <p data-report-empty-state className="text-sm text-[var(--muted)]">{partial ? 'No activity in the loaded records. Review the full history before relying on this ranking.' : `Nothing was ${kind === 'customer' ? 'invoiced' : 'billed'} in this period. Choose another period or review the issued documents.`}</p>}
+      {!report.rows.length && periodValid && <p data-report-empty-state className="text-sm text-[var(--muted)]">{partial ? reportText('r.no-activity-in-the-loaded-records-review-the-ful', 'No activity in the loaded records. Review the full history before relying on this ranking.') : (kind === 'customer' ? reportText('r.nothing-invoiced-in-period', 'Nothing was invoiced in this period. Choose another period or review the issued documents.') : reportText('r.nothing-billed-in-period', 'Nothing was billed in this period. Choose another period or review the issued documents.'))}</p>}
     </ReportTableScroll>
     </>}
 
     <p className="text-xs text-[var(--muted)]">
-      Foreign-currency documents are included at each document&apos;s own recorded rate, as in the period
-      summaries. The balance is the summary&apos;s balance at the period end (everything invoiced or billed
-      up to then, less payments and credits), not an aging.
+      {reportText('r.foreign-currency-documents-are-included-at-each', 'Foreign-currency documents are included at each document\'s own recorded rate, as in the period summaries. The balance is the summary\'s balance at the period end (everything invoiced or billed up to then, less payments and credits), not an aging.')}
     </p>
   </section>;
 }
