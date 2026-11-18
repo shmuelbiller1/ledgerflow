@@ -915,13 +915,13 @@ The document's ten "do first" items are marked **★**.
 - [ ] **EU-C1 Say why, not a made-up percentage** (§C-1): the review list invents 92 or 75 when no confidence is stored (`InboxView.tsx:22-30`). Show the reason ("rule: Shell → Fuel", "same as the last 4 times", "guess"); one main button "Accept all with a rule or history". Tests.
 - [ ] **EU-C2 Review with the keyboard** (§C-2): up/down, Enter accept, `c` change account, `l` set label, `r` make a rule; listed in the Shortcuts screen. Browser test: fifty lines by keyboard only.
 - [x] **EU-C3 Make a rule at the moment of deciding** (§C-3): the tick box "Always do this for Shell" in the bank import and the review list; a rule can carry labels as well as the account. Tests. — ✅ 17 Nov code check (Claude): "Always do this" in `ledger/InboxView.tsx`
-- [ ] **EU-C5 Reconciliation that starts finished** (§C-5): open on "214 of 220 lines already matched — 6 need you" and show the six. Uses the existing matcher; no change to what counts as a match. Tests.
+- [x] **EU-C5 Reconciliation that starts finished** (§C-5): open on "214 of 220 lines already matched — 6 need you" and show the six. Uses the existing matcher; no change to what counts as a match. Tests. — done in 2e360f8f (`reconciliationSummary.ts`, `eu-c5-reconciliation-starts-finished.test.ts`); ticked 18 Nov by AI #9.
 
 ### 6. First five minutes, phone, reports
 - [ ] **EU-A3 The checklist ticks itself** (§A-3): the same thing as AI #12's **N-1**. **N-1 is built** (`firstWeekChecklist.ts` + `dashboard/FirstWeekChecklist.tsx` on Overview, with a test; ticked 17 Nov, #766): check that it ticks itself as §A-3 asks and only add what is missing — never a second checklist.
 - [ ] **EU-A4 "Coming from QuickBooks?" on the first screen** (§A-4): offer the existing importers in wizard step 1, ending on the trial-balance proof. (New importers are EU-A4b below.)
 - [x] **EU-D2 Three phone jobs in two taps** (§D-2): send an invoice, snap a receipt (after EU-C4), see who owes money. A 390 px browser journey for each. **AI #9: merged in PR #699** (`e2e/eu-d2-phone-jobs.spec.ts`: New → Invoice, New → Snap a receipt, Home → Owed to you).
-- [ ] **EU-F3 Reports people can find** (§F-3): Reports opens on eight starred reports (chosen by business type, changeable by the person); question titles where they help ("Who owes me?"); "Email me this every Monday" on every report using the scheduled-report service (R-3, merged in #608).
+- [x] **EU-F3 Reports people can find** (§F-3): Reports opens on eight starred reports (chosen by business type, changeable by the person); question titles where they help ("Who owes me?"); "Email me this every Monday" on every report using the scheduled-report service (R-3, merged in #608). — done in #697 and 873bb03d (starred reports, question titles, Email me Mondays); ticked 18 Nov by AI #9.
 - [x] **EU-H2 "Your books are safe" card** (§H-2): on the overview — last backup, months closed, problems found, with links. Read-only. — ✅ 17 Nov code check (Claude): `dashboard/BooksSafeCard.tsx`
 
 ### 7. Later
