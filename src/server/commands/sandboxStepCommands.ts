@@ -1,3 +1,4 @@
+import { byCodeUnit } from '../../lib/codeUnitOrder';
 import { commandStageReader, recordCommandReads } from '../db/pg/commandStage';
 import type { Firestore, Transaction } from '../db/firestore';
 import type { RequestUser } from '../auth/requestUser';
@@ -21,7 +22,7 @@ const reviewed: ReadonlyArray<readonly [AnyCommandDefinition, readonly string[]]
   [taskCreateCommand, ['documents']],
 ];
 const commands = new Map(reviewed.map(([command, collections]) => [String(command.name), { command, writable: new Set(collections) }]));
-export const overlayCollections = [...new Set(reviewed.flatMap(([, collections]) => collections))].sort();
+export const overlayCollections = [...new Set(reviewed.flatMap(([, collections]) => collections))].sort(byCodeUnit);
 
 export function stepCommand(name: string) {
   const entry = commands.get(name);

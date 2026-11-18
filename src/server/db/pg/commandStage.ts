@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { byCodeUnit } from '../../../lib/codeUnitOrder';
 import type { Firestore, Transaction } from '../pgFirestore';
 import { quoteIdent, type Runner } from './sql';
 
@@ -84,7 +85,7 @@ async function readVersions(stage: Stage, writes: readonly RecordRef[]): Promise
     written.set(ref.collectionId, ids);
   }
   const versions: RecordVersion[] = [];
-  for (const collectionId of [...new Set([...stage.reads.keys(), ...written.keys()])].sort()) {
+  for (const collectionId of [...new Set([...stage.reads.keys(), ...written.keys()])].sort(byCodeUnit)) {
     const read = stage.reads.get(collectionId);
     const wrote = written.get(collectionId);
     const ids = [...new Set([...(read ?? []), ...(wrote ?? [])])];
