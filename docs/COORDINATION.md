@@ -754,6 +754,9 @@ Update the RELEASE_GATE row you move. Full wording of each task is in `docs/TRAC
 - [x] *(already done — TRACKER_DONE; ticked by AI #9, 11 Nov)* **AUD-20 (P2)** Database TLS: verify the server certificate when `DATABASE_CA_CERT` is set and log a clear warning when it is not (the owner adds the certificate; FOR_YOU #6); test both.
 - [x] *(already done — TRACKER_DONE; ticked by AI #9, 11 Nov)* **BK-10 (P2)** Full workspace archive: one download with every document, entry, attachment list and settings (the backup made complete), restorable by the existing restore; test export → restore → same reports.
 - [ ] **CON-4b (P2, stage C)** From the tracker: the Israeli VAT return record carries its registration; check Eilat s.5 subsections and the PCN874 bi-monthly header month.
+- [ ] **M-21 step 2 (standard costing)** — tracker M-21: step 1 shows the variance only; step 2 posts the purchase-price variance on receipt when an item carries a standard cost, through a command with a database test, and the inventory report values stock at standard. Money posting is your lane here; parity tests against the step-1 numbers first. *(Claude, 18 Nov.)*
+- [ ] **W-08 drop-ship (tracker W-08)** — backorders are done; drop-ship is not: a sales order line marked drop-ship creates the purchase order to the vendor and never moves stock; the bill and the invoice post as today. Command + database test.
+- [ ] **T-08 late changes (tracker T-08, partial)** — finish what the tracker row says is left for changes after a VAT/sales-tax return is filed, box by box; read-only, no change to how returns are calculated.
 Phase 5 (FIFO/lot costing) waits for the owner (FOR_YOU 21 Oct).
 
 **Screen rebuild, second slice (AI #9, 15 Nov — prompt 2 parts 1 and 5).** The review of the first slice named three
@@ -851,6 +854,10 @@ Same rules as AI #12 above. Lane: bank and receipts (screens and tests only; how
 - [x] **B-2 Receipt inbox on a phone** — at 390 px: take a photo, see it read, pick the expense account, save in three taps; a browser test at 390 px. — ✅ 17 Nov cleanup (Claude): ticked elsewhere in the docs
 - [ ] **B-3 Unmatched bank lines by age** — the bank screen shows unmatched lines grouped by how long they have waited (under 7 days, 7–30, over 30), oldest first; tests.
 - [x] **B-4 Duplicate bank line warning** — an imported bank line with the same date, amount and description as one already there is marked "possible duplicate" with a one-click skip; tests. — ✅ 17 Nov cleanup (Claude): ticked elsewhere in the docs
+- [ ] **B-5 Bank line detail** — opening a bank line shows where it came from (import file name and row, or the feed), the rule that categorised it, and the entry it matched; one place, no new data. Test. *(Claude, 18 Nov; check first, and tick with the file if it is already built.)*
+- [ ] **B-6 Receipts with no bank line** — the receipt inbox lists receipts older than 14 days that no bank line has matched, oldest first, each opening the receipt. Test.
+- [ ] **B-7 Bank screen at 390 px** — the bank review and reconciliation screens at phone width: no horizontal scroll, one filled button, the match action reachable by thumb; a browser test at 390 px, light and dark.
+- [ ] **B-8 Keyboard on bank review** — up/down moves between lines, Enter accepts the suggestion, `c` changes the account; the same shortcuts as EU-C2 (AI #14) if that landed first, never a second set. Browser test.
 
 ## New tasks from the bookkeeping-first plan (Claude, 20 Oct; PLAN §17)
 
@@ -1200,4 +1207,5 @@ Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATIO
   went from **485 to 385**: 50 ticked from their finishing commit ("17 Nov cleanup"), 48 more after checking the code itself ("17 Nov code check": the file or test that proves it is named), 2 duplicates struck, and 13 marked `[~]` with what the code shows is still missing.
   Nothing was ticked from its description alone. About 100 of the rest are the TRACKER's long-term catalogue (BI-, CA-, CC-, CG-… ideas, never queued);
   the others need their owner to check them (new rule "Keep your queue true" above). Prompts are separate: `docs/prompts/` (CMD-1, SBX-1, UI-2, SEC-SCAN-1).
+- **18 Nov 2026, Claude (AI #1) → AI #9, AI #15:** your queues were at 2 and 1 open tasks, so each has a new batch: AI #9 gets M-21 step 2, W-08 drop-ship and T-08 (tax + stock server lane); AI #15 gets B-5…B-8 (bank and receipts screens). Check each against the code first and tick it with the file if it is already built.
 
