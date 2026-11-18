@@ -14,7 +14,8 @@ import { isEmailShape } from './textShape';
 export function recordValueAt(record: Record<string, unknown> | undefined, field: string): unknown {
   let current: unknown = record;
   for (const part of field.split('.').filter(Boolean)) {
-    if (!current || typeof current !== 'object') return undefined;
+    // own properties only: a path is a path into the record, never into the prototype chain
+    if (!current || typeof current !== 'object' || !Object.hasOwn(current, part)) return undefined;
     current = (current as Record<string, unknown>)[part];
   }
   return current;

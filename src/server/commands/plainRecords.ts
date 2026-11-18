@@ -24,7 +24,11 @@ const idSchema = z.string().trim().min(1).max(400).refine(id => !id.includes('/'
 
 const collectionSchema = z.enum([...PLAIN_RECORD_COLLECTIONS] as [PlainRecordCollection, ...PlainRecordCollection[]]);
 
-const fieldPathSchema = z.string().trim().min(1).max(200).refine(path => !path.includes('/'), 'A field path cannot contain a slash');
+/** Segments that would walk into the prototype chain instead of into the record. */
+const PROTOTYPE_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
+const fieldPathSchema = z.string().trim().min(1).max(200)
+  .refine(path => !path.includes('/'), 'A field path cannot contain a slash')
+  .refine(path => path.split('.').every(part => !PROTOTYPE_SEGMENTS.has(part)), 'A field path cannot name a prototype key');
 
 export const recordSaveInput = z.object({
   collection: collectionSchema,
@@ -65,7 +69,8 @@ function setAt(target: Record<string, unknown>, path: string, value: unknown): v
   const parts = path.split('.').filter(Boolean);
   let cursor = target;
   for (const part of parts.slice(0, -1)) {
-    const child: unknown = cursor[part];
+    // own properties only: `__proto__` on a plain object answers with the prototype of every object in the process
+    const child: unknown = Object.hasOwn(cursor, part) ? cursor[part] : undefined;
     if (!child || typeof child !== 'object' || Array.isArray(child)) cursor[part] = {};
     cursor = cursor[part] as Record<string, unknown>;
   }
@@ -76,7 +81,7 @@ function unsetAt(target: Record<string, unknown>, path: string): void {
   const parts = path.split('.').filter(Boolean);
   let cursor: Record<string, unknown> | undefined = target;
   for (const part of parts.slice(0, -1)) {
-    const child: unknown = cursor?.[part];
+    const child: unknown = cursor && Object.hasOwn(cursor, part) ? cursor[part] : undefined;
     cursor = child && typeof child === 'object' && !Array.isArray(child) ? child as Record<string, unknown> : undefined;
   }
   if (cursor) delete cursor[parts[parts.length - 1]];

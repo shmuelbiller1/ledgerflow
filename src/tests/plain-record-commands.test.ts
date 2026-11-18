@@ -195,3 +195,17 @@ test('a dotted path lands inside the object, and a removed path is removed from 
   // nothing to write and nothing to remove is not a save
   assert.equal(recordSaveInput.safeParse({ collection: 'inventory', id: 'item-1', data: {} }).success, false);
 });
+
+test('a field path cannot walk into the prototype chain', async () => {
+  const db = seeded();
+  // the schema refuses the segments outright, before a handler ever sees them
+  for (const path of ['__proto__.polluted', 'constructor.prototype.polluted', 'binLocations.__proto__']) {
+    assert.equal(recordSaveInput.safeParse({ collection: 'inventory', id: 'item-1', data: { [path]: true } }).success, false, path);
+    assert.equal(recordSaveInput.safeParse({ collection: 'inventory', id: 'item-1', data: {}, unset: [path] }).success, false, path);
+  }
+  // and the walk itself only follows own properties, so a nested path cannot reach Object.prototype
+  db.seed('inventory/item-1', { id: 'item-1', workspaceId, name: 'Lamp' });
+  const outcome = await save(db, { collection: 'inventory', id: 'item-1', data: { 'binLocations.bin': 'A1' } });
+  assert.equal(outcome.ok, true);
+  assert.equal(({} as Record<string, unknown>).polluted, undefined, 'nothing leaked onto every object in the process');
+});
