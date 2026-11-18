@@ -45,7 +45,9 @@ jobs:
           const skip = /^(src\/tests\/|e2e\/|audit\/|docs\/|supabase-config\.json$)/;
           const patterns = [
             ['PEM private key', /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----/],
+            ['LedgerFlow API key', /\b(?:lf_id_[A-Za-z0-9_-]{8,}\.[A-Fa-f0-9]{64}|lf_(?:live|test)_[A-Za-z0-9_-]{20,})\b/],
             ['Stripe live secret or restricted key', /\b(?:sk|rk)_live_[0-9a-zA-Z]{24,}\b/],
+            ['Stripe webhook signing secret', /\bwhsec_[0-9a-zA-Z]{24,}\b/],
             ['GitHub personal access token', /\b(?:ghp_[0-9a-zA-Z]{36,}|github_pat_[0-9a-zA-Z_]{80,})\b/],
             ['Supabase service-role or personal token', /\bsbp_[0-9a-f]{40,}\b/],
             ['Resend API key', /\bre_[0-9A-Za-z_]{24,}\b/],
@@ -67,6 +69,8 @@ jobs:
             process.exit(1);
           }
           NODE
+      - name: Audit production dependencies against High/Critical threshold (S-25)
+        run: node scripts/check-dependency-audit.ts --allowlist=security-audit-allowlist.json
       - name: Generate CycloneDX software bill of materials
         run: npm sbom --sbom-format=cyclonedx > sbom.json
       - name: Check inventory and record license metadata

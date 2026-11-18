@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { passesCardLuhn } from '../lib/cardNumberMask';
 import { byCodeUnit } from '../lib/codeUnitOrder';
 import { maskEmails } from '../lib/textShape';
 
@@ -55,10 +56,16 @@ export class SecurityService {
   static scrubPII(text: string): string {
     if (!text) return "";
     const beforeEmails = text
-      // Secret API keys (LedgerFlow, Stripe, Google AI/Gemini)
-      .replace(/\b(lf_live_[a-zA-Z0-9_-]+|lf_test_[a-zA-Z0-9_-]+|sk_live_[a-zA-Z0-9_-]+|sk_test_[a-zA-Z0-9_-]+|AIza[a-zA-Z0-9_-]{30,45})\b/g, "[SECRET_KEY_REDACTED]")
-      // Credit card numbers (formatted or contiguous 13-16 digits)
-      .replace(/\b(?:\d{4}[ -]?){3}\d{1,4}\b|\b\d{13,16}\b/g, "[CREDIT_CARD_REDACTED]");
+      // Secret API keys (LedgerFlow structured + legacy, Stripe, Google AI/Gemini)
+      .replace(/\b(lf_id_[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)?|lf_live_[a-zA-Z0-9_-]+|lf_test_[a-zA-Z0-9_-]+|sk_live_[a-zA-Z0-9_-]+|sk_test_[a-zA-Z0-9_-]+|AIza[a-zA-Z0-9_-]{30,45})\b/g, "[SECRET_KEY_REDACTED]")
+      // Payment card numbers (13–19 digits including Amex 4-6-5, Luhn-checked or explicit 4x4 grouping)
+      .replace(/(?<![A-Za-z0-9])(?:\d[ -]?){12,18}\d(?![A-Za-z0-9])/g, candidate => {
+        const digits = candidate.replace(/\D/g, '');
+        if (passesCardLuhn(digits) || /^(?:\d{4}[ -]){3}\d{4}$/.test(candidate)) {
+          return "[CREDIT_CARD_REDACTED]";
+        }
+        return candidate;
+      });
     // Emails, in one pass (Sonar S8786)
     return maskEmails(beforeEmails, "[EMAIL_REDACTED]")
       // Formatted SSNs (e.g. 123-45-6789) or explicitly labeled SSN

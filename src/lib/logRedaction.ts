@@ -42,6 +42,7 @@ function redactEmails(input: string): string {
 }
 const BEARER = /\b(bearer\s+)[A-Za-z0-9._~+/=-]+/gi;
 const API_KEY = /\b(api[_-]?key["']?\s*[:=]\s*["']?)[A-Za-z0-9._-]+/gi;
+const LF_KEY = /\b(?:lf_id_[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)?|lf_(?:live|test)_[A-Za-z0-9_-]+|sk_(?:live|test)_[A-Za-z0-9_-]+)\b/g;
 const PASSWORD = /\b(password|passwd|pwd)["']?\s*[:=]\s*["']?[^\s"',;]+/gi;
 const SECRET = /\b(secret|client[_-]?secret|token)["']?\s*[:=]\s*["']?[^\s"',;]+/gi;
 
@@ -66,6 +67,7 @@ export function redactForLogs(input: string): string {
   const redacted = input
     .replace(BEARER, '$1[REDACTED]')
     .replace(API_KEY, '$1[REDACTED]')
+    .replace(LF_KEY, '[REDACTED]')
     .replace(PASSWORD, (_match, label: string) => `${label}=[REDACTED]`)
     .replace(SECRET, (_match, label: string) => `${label}=[REDACTED]`);
   return redactEmails(redacted)
