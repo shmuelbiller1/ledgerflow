@@ -32,6 +32,9 @@ const FILES = [
   ...['VendorBalanceSummaryView', 'ContactBalanceSummaryView', 'SalesByItemReportView',
     'InventoryValuationReportView', 'StatementView', 'TaxLiabilityView', 'TopExpensesIncomeReportView', 'AverageMonthlyReportView',
     'EverydayReportViews', 'FinancialRatiosReportView'].map(name => `../components/reporting/${name}.tsx`),
+  // EU-G1 part 4: the Israeli reports a Hebrew reader opens first
+  ...['IsraelVatReportView', 'IsraelAdvanceTaxReportView', 'IsraelMonthJourneyReportView', 'IlSelfEmploymentNiReportView',
+    'IsraeliDocumentTypesView', 'IsraeliBankCodesReportView', 'IsraeliAnnualPartySummaryView'].map(name => `../components/reporting/${name}.tsx`),
 ];
 
 test('Reports: the default eight are the ones this guard covers', () => {

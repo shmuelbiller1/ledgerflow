@@ -37,8 +37,8 @@ export const AverageMonthlyReportView: React.FC<Props> = ({
     { id: 'net', accessorFn: row => row.incomeCents - row.expenseCents, header: reportText('r.net-cash-flow', 'Net Cash Flow'), cell: info => (
       <span className={`font-mono font-bold ${Number(info.getValue()) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatCurrency(Number(info.getValue()))}</span>
     ) },
-    { id: 'status', accessorFn: row => (row.isExpenseAnomaly || row.isIncomeAnomaly ? 'Variance spike' : 'Normal'), header: reportText('r.status-anomaly', 'Status / Anomaly'), cell: info => (
-      String(info.getValue()) === 'Variance spike'
+    { id: 'status', accessorFn: row => (row.isExpenseAnomaly || row.isIncomeAnomaly ? reportText('r.variance-spike', 'Variance spike') : reportText('r.normal', 'Normal')), header: reportText('r.status-anomaly', 'Status / Anomaly'), cell: info => (
+      info.row.original.isExpenseAnomaly || info.row.original.isIncomeAnomaly
         ? <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[10px] font-semibold"><AlertTriangle className="w-3 h-3 text-amber-600" aria-hidden="true" />{reportText('r.variance-spike', 'Variance spike')}</span>
         : <span className="text-neutral-400 text-[11px] font-medium">{reportText('r.normal', 'Normal')}</span>
     ) },
