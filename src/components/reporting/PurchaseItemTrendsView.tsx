@@ -11,12 +11,14 @@ import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { purchaseItemCsvRows, purchaseItemTrends, PURCHASE_ITEM_CSV_HEADERS } from '../../lib/purchaseItemTrends';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
+import { useReportText, fill } from './useReportText';
 
 interface Props { endDate?: string; compareEndDate?: string }
 interface History { bills: Bill[]; items: InventoryItem[]; loadedAt: string }
 const validEnd = (date: string) => validCustomReportPeriod({ startDate: date, endDate: date });
 
 function ScopedPurchaseItemTrendsView({ endDate = '', compareEndDate = '' }: Props) {
+  const reportText = useReportText();
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const uid = useAuthStore(state => state.user?.uid);
   const guest = useAuthStore(state => state.isGuest);
@@ -66,23 +68,23 @@ function ScopedPurchaseItemTrendsView({ endDate = '', compareEndDate = '' }: Pro
   };
 
   return (
-    <section aria-label="Purchase trends by item" className="p-4 space-y-4 min-w-0">
-      <h2>Purchase trends by item</h2>
-      <p>Twelve calendar months ending {endDate}; the final month stops on that date. The start-date control does not shorten this window. Months without included item lines are omitted.</p>
-      <p>Gross purchases from the item-wise bill register: units and stored line amounts, with each currency kept separate. Drafts, voids, rejected and cancelled bills, opening documents, undated bills and freight-only lines are excluded. Vendor returns and document-level tax/discount allocation are not included; these amounts are not net inventory cost and will not necessarily match the vendor totals.</p>
+    <section aria-label={reportText('r.purchase-trends-by-item', 'Purchase trends by item')} className="p-4 space-y-4 min-w-0">
+      <h2>{reportText('r.purchase-trends-by-item', 'Purchase trends by item')}</h2>
+      <p>{reportText('r.twelve-calendar-months-ending', 'Twelve calendar months ending')} {endDate}{reportText('r.the-final-month-stops-on-that-date-the-start-dat', '; the final month stops on that date. The start-date control does not shorten this window. Months without included item lines are omitted.')}</p>
+      <p>{reportText('r.gross-purchases-from-the-item-wise-bill-register', 'Gross purchases from the item-wise bill register: units and stored line amounts, with each currency kept separate. Drafts, voids, rejected and cancelled bills, opening documents, undated bills and freight-only lines are excluded. Vendor returns and document-level tax/discount allocation are not included; these amounts are not net inventory cost and will not necessarily match the vendor totals.')}</p>
       <div className="flex flex-wrap gap-2" data-print-hide>
-        {!guest && <button type="button" className="btn-secondary min-h-11 px-3" disabled={busy || !workspaceId || !uid} onClick={() => void load()}>{busy ? 'Loading…' : 'Load / refresh full history'}</button>}
-        <button type="button" className="btn-secondary min-h-11 px-3" disabled={!valid || !rows.length || busy} onClick={() => downloadCsv(`purchase-items-${endDate}.csv`, PURCHASE_ITEM_CSV_HEADERS, purchaseItemCsvRows(rows))}>Export item trends CSV</button>
+        {!guest && <button type="button" className="btn-secondary min-h-11 px-3" disabled={busy || !workspaceId || !uid} onClick={() => void load()}>{busy ? reportText('r.loading', 'Loading…') : reportText('r.load-refresh-full-history', 'Load / refresh full history')}</button>}
+        <button type="button" className="btn-secondary min-h-11 px-3" disabled={!valid || !rows.length || busy} onClick={() => downloadCsv(`purchase-items-${endDate}.csv`, PURCHASE_ITEM_CSV_HEADERS, purchaseItemCsvRows(rows))}>{reportText('r.export-item-trends-csv', 'Export item trends CSV')}</button>
       </div>
-      {!history && <p role="status">{guest ? 'Guest sample: figures use the loaded demonstration records.' : `Provisional: ${incompleteCache ? 'loaded records are incomplete or failed.' : 'loaded records may be incomplete.'} Load full history before relying on these figures.`}</p>}
-      {history && <p role="status">Full bill and item history loaded at {history.loadedAt}. Refresh to include later changes.</p>}
-      {loading && !history && <p role="status">Loading report records…</p>}
-      {!valid && <p role="alert">Choose a valid report end date.</p>}
-      {error && <p role="alert">{error}{history ? ' The last successful history remains displayed.' : ' The cached figures remain provisional.'}</p>}
+      {!history && <p role="status">{guest ? reportText('r.guest-sample-figures-use-the-loaded-demonstratio', 'Guest sample: figures use the loaded demonstration records.') : fill(reportText('r.provisional-0-load-full-history-before-relying-o', 'Provisional: {0} Load full history before relying on these figures.'), { 0: incompleteCache ? 'loaded records are incomplete or failed.' : 'loaded records may be incomplete.' })}</p>}
+      {history && <p role="status">{reportText('r.full-bill-and-item-history-loaded-at', 'Full bill and item history loaded at')} {history.loadedAt}{reportText('r.refresh-to-include-later-changes', '. Refresh to include later changes.')}</p>}
+      {loading && !history && <p role="status">{reportText('r.loading-report-records', 'Loading report records…')}</p>}
+      {!valid && <p role="alert">{reportText('r.choose-a-valid-report-end-date', 'Choose a valid report end date.')}</p>}
+      {error && <p role="alert">{error}{history ? ` ${reportText('r.the-last-successful-history-remains-displayed', 'The last successful history remains displayed.')}` : ` ${reportText('r.the-cached-figures-remain-provisional', 'The cached figures remain provisional.')}`}</p>}
       <ReportTableScroll>
         <table className="w-full text-sm">
-          <caption>Item purchases: 12 months through {endDate}; amounts in each bill's currency</caption>
-          <thead><tr>{compared && <th scope="col">Window</th>}<th scope="col">Month</th><th scope="col">Item</th><th scope="col">Currency</th><th scope="col">Units</th><th scope="col">Line amount</th><th scope="col">Item lines</th></tr></thead>
+          <caption>{reportText('r.item-purchases-12-months-through', 'Item purchases: 12 months through')} {endDate}{reportText('r.amounts-in-each-bill-s-currency', '; amounts in each bill\'s currency')}</caption>
+          <thead><tr>{compared && <th scope="col">{reportText('r.window', 'Window')}</th>}<th scope="col">{reportText('r.month', 'Month')}</th><th scope="col">{reportText('r.item', 'Item')}</th><th scope="col">{reportText('r.currency-2', 'Currency')}</th><th scope="col">{reportText('r.units', 'Units')}</th><th scope="col">{reportText('r.line-amount', 'Line amount')}</th><th scope="col">{reportText('r.item-lines-2', 'Item lines')}</th></tr></thead>
           <tbody>{rows.map(row => <tr key={`${row.period}:${row.id}`}>
             {compared && <td>{row.period}</td>}
             <td>{row.month}</td><th scope="row" className="text-left"><bdi>{row.name}</bdi></th>
@@ -91,7 +93,7 @@ function ScopedPurchaseItemTrendsView({ endDate = '', compareEndDate = '' }: Pro
             <td className="text-right tabular-nums">{row.lines}</td>
           </tr>)}</tbody>
         </table>
-        {valid && !loading && !currentRows.length && <p>No included item purchases in the current twelve-month window.</p>}
+        {valid && !loading && !currentRows.length && <p>{reportText('r.no-included-item-purchases-in-the-current-twelve', 'No included item purchases in the current twelve-month window.')}</p>}
       </ReportTableScroll>
     </section>
   );

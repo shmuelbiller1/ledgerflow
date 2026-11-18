@@ -16,10 +16,12 @@ import { form856Notes, form856Rows, form856Summary, form856Year } from '../../li
 import { form856ReviewExport, type Form856ReviewPayment } from '../../lib/tax/form856ReviewExport';
 import { byCodeUnit } from '../../lib/codeUnitOrder';
 import { RowTable } from '../ui/RowTable';
+import { useReportText } from './useReportText';
 
 const th = 'font-semibold py-1 px-2';
 
 export default function Form856ReportView() {
+  const reportText = useReportText();
   const { loading } = useLedgerCollections('payments');
   const payments = useLedgerStore(s => s.payments);
   const baseCurrency = useLedgerStore(s => s.baseCurrency) || 'ILS';
@@ -68,13 +70,13 @@ export default function Form856ReportView() {
     <section aria-labelledby="form-856-title" className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 id="form-856-title" className="text-lg font-bold text-[var(--text)]">Withholding Report (Form 856)</h2>
+          <h2 id="form-856-title" className="text-lg font-bold text-[var(--text)]">{reportText('r.withholding-report-form-856', 'Withholding Report (Form 856)')}</h2>
           <p className="text-sm text-[var(--muted)]">
-            Tax withheld at source from payments to vendors, per vendor, for one tax year. Read-only: the figures come from the recorded payments, and nothing is filed here.
+            {reportText('r.tax-withheld-at-source-from-payments-to-vendors', 'Tax withheld at source from payments to vendors, per vendor, for one tax year. Read-only: the figures come from the recorded payments, and nothing is filed here.')}
           </p>
         </div>
         <div className="flex items-end gap-2">
-          <label htmlFor="form-856-year" className="text-xs font-semibold text-[var(--muted)]">Year</label>
+          <label htmlFor="form-856-year" className="text-xs font-semibold text-[var(--muted)]">{reportText('r.year', 'Year')}</label>
           <select id="form-856-year" value={year} onChange={e => setYear(e.target.value)}
             className="px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-sm">
             {years.map(y => <option key={y} value={y}>{y}</option>)}
@@ -83,16 +85,16 @@ export default function Form856ReportView() {
         </div>
       </div>
 
-      <div className="space-y-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-sm" aria-label="Form 856 review worksheet">
-        <p className="font-semibold">Review worksheet only — not an official Form 856 filing file</p>
-        <p className="text-[var(--muted)]">The CSV contains sensitive vendor details. The browser payment list may omit older records; even an available download is not proof of complete annual history or accepted filing format. Check source payments and totals independently with an accountant.</p>
+      <div className="space-y-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-sm" aria-label={reportText('r.form-856-review-worksheet', 'Form 856 review worksheet')}>
+        <p className="font-semibold">{reportText('r.review-worksheet-only-not-an-official-form-856-f', 'Review worksheet only — not an official Form 856 filing file')}</p>
+        <p className="text-[var(--muted)]">{reportText('r.the-csv-contains-sensitive-vendor-details-the-br', 'The CSV contains sensitive vendor details. The browser payment list may omit older records; even an available download is not proof of complete annual history or accepted filing format. Check source payments and totals independently with an accountant.')}</p>
         {sourceBlockers.length > 0 && (
-          <ul className="list-disc ps-5 text-[var(--muted)]" aria-label="Worksheet download blockers">
+          <ul className="list-disc ps-5 text-[var(--muted)]" aria-label={reportText('r.worksheet-download-blockers', 'Worksheet download blockers')}>
             {[...new Set(sourceBlockers)].map(message => <li key={message}>{message}</li>)}
           </ul>
         )}
         {sourceBlockers.length === 0 && worksheet.notices.length > 0 && (
-          <ul className="list-disc ps-5 text-[var(--muted)]" aria-label="Worksheet review notes">
+          <ul className="list-disc ps-5 text-[var(--muted)]" aria-label={reportText('r.worksheet-review-notes', 'Worksheet review notes')}>
             {worksheet.notices.map(message => <li key={message}>{message}</li>)}
           </ul>
         )}
@@ -100,7 +102,7 @@ export default function Form856ReportView() {
           <input type="checkbox" checked={acknowledgedScope === scopeKey}
             onChange={event => setAcknowledgedScope(event.target.checked ? scopeKey : '')}
             disabled={sourceBlockers.length > 0 || !worksheet.canDownloadForReview} />
-          I understand this is a review of recorded payments, not a complete or filing-ready return.
+          {reportText('r.i-understand-this-is-a-review-of-recorded-paymen', 'I understand this is a review of recorded payments, not a complete or filing-ready return.')}
         </label>
         <button type="button" disabled={!canDownloadWorksheet}
           onClick={() => {
@@ -108,23 +110,23 @@ export default function Form856ReportView() {
             downloadCsv(`form-856-review-${year}.csv`, [...worksheet.headers], worksheet.rows);
           }}
           className="min-h-11 rounded-xl border border-[var(--line)] px-4 py-2 text-sm font-semibold disabled:opacity-40">
-          Download review worksheet CSV
+          {reportText('r.download-review-worksheet-csv', 'Download review worksheet CSV')}
         </button>
       </div>
 
-      {loading && <p className="text-sm text-[var(--muted)]">Loading…</p>}
+      {loading && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
 
       {rows.length === 0 && !loading && (
-        <p className="text-sm text-[var(--muted)]">No vendor payment in {year} has tax withheld at source.</p>
+        <p className="text-sm text-[var(--muted)]">{reportText('r.no-vendor-payment-in', 'No vendor payment in')} {year} {reportText('r.has-tax-withheld-at-source', 'has tax withheld at source.')}</p>
       )}
 
       {rows.length > 0 && (
         <>
           <dl className="flex flex-wrap gap-x-8 gap-y-1 text-sm">
-            <div className="flex gap-2"><dt className="text-[var(--muted)]">Vendors</dt><dd className="font-mono">{summary.vendors}</dd></div>
-            <div className="flex gap-2"><dt className="text-[var(--muted)]">Payments</dt><dd className="font-mono">{summary.payments}</dd></div>
-            <div className="flex gap-2"><dt className="text-[var(--muted)]">Paid</dt><dd className="font-mono">{money(summary.paidCents)}</dd></div>
-            <div className="flex gap-2"><dt className="text-[var(--muted)]">Withheld</dt><dd className="font-mono">{money(summary.withheldCents)}</dd></div>
+            <div className="flex gap-2"><dt className="text-[var(--muted)]">{reportText('r.vendors-2', 'Vendors')}</dt><dd className="font-mono">{summary.vendors}</dd></div>
+            <div className="flex gap-2"><dt className="text-[var(--muted)]">{reportText('r.payments', 'Payments')}</dt><dd className="font-mono">{summary.payments}</dd></div>
+            <div className="flex gap-2"><dt className="text-[var(--muted)]">{reportText('r.paid', 'Paid')}</dt><dd className="font-mono">{money(summary.paidCents)}</dd></div>
+            <div className="flex gap-2"><dt className="text-[var(--muted)]">{reportText('r.withheld', 'Withheld')}</dt><dd className="font-mono">{money(summary.withheldCents)}</dd></div>
           </dl>
           <ul className="list-disc ps-6 text-sm text-[var(--muted)]">
             {notes.map(note => <li key={note}>{note}</li>)}
@@ -132,7 +134,7 @@ export default function Form856ReportView() {
           <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
             <RowTable
               rowClassName="border-b border-[var(--line)]/50"
-              caption={(<>Per vendor ({rows.length})</>)}
+              caption={(<>{reportText('r.per-vendor', 'Per vendor (')}{rows.length})</>)}
               rows={rows}
               rowKey={row => row.contactId}
               captionClassName="text-left font-semibold text-[var(--text)] pb-1"
@@ -140,16 +142,16 @@ export default function Form856ReportView() {
               headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
               bodyClassName=""
               columns={[
-                { header: "Vendor", className: "text-left font-normal py-1 px-2", headClassName: `text-left ${th}`, cell: (row) => <bdi>{row.name}</bdi> },
-                { header: "Tax id", className: "py-1 px-2 font-mono", headClassName: `text-left ${th}`, cell: (row) => row.taxId || '—' },
-                { header: "Payments", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => row.payments },
-                { header: "Paid", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => money(row.paidCents) },
-                { header: "Base", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => money(row.baseCents) },
-                { header: "Withheld", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => money(row.withheldCents) },
-                { header: "Rate", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => (<>{row.effectiveRatePercent}%</>) },
-                { header: "Certificates", className: "py-1 px-2", headClassName: `text-left ${th}`, cell: (row) => <bdi>{row.certificates.join(', ') || '—'}</bdi> },
-                { header: "Months", className: "py-1 px-2 font-mono", headClassName: `text-left ${th}`, cell: (row) => row.months.join(', ') },
-                { header: "Missing", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => row.missingCertificates || '—' },
+                { header: reportText('r.vendor', 'Vendor'), className: "text-left font-normal py-1 px-2", headClassName: `text-left ${th}`, cell: (row) => <bdi>{row.name}</bdi> },
+                { header: reportText('r.tax-id-2', 'Tax id'), className: "py-1 px-2 font-mono", headClassName: `text-left ${th}`, cell: (row) => row.taxId || '—' },
+                { header: reportText('r.payments', 'Payments'), align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => row.payments },
+                { header: reportText('r.paid', 'Paid'), align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => money(row.paidCents) },
+                { header: reportText('r.base', 'Base'), align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => money(row.baseCents) },
+                { header: reportText('r.withheld', 'Withheld'), align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => money(row.withheldCents) },
+                { header: reportText('r.rate', 'Rate'), align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => (<>{row.effectiveRatePercent}%</>) },
+                { header: reportText('r.certificates', 'Certificates'), className: "py-1 px-2", headClassName: `text-left ${th}`, cell: (row) => <bdi>{row.certificates.join(', ') || '—'}</bdi> },
+                { header: reportText('r.months', 'Months'), className: "py-1 px-2 font-mono", headClassName: `text-left ${th}`, cell: (row) => row.months.join(', ') },
+                { header: reportText('r.missing', 'Missing'), align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (row) => row.missingCertificates || '—' },
               ]}
             />
           </div>

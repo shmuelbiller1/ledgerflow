@@ -52,6 +52,12 @@ const FILES = [
     'BillRetentionReportView', 'MilestoneBillingReportView', 'LandedCostPreviewReportView', 'WorkOrdersView', 'ExpiringLotsReportView',
     'DunningLettersReportView', 'PurchasePriceVarianceReportView', 'ProfitabilityByView', 'ExpenseBillCategories',
     'SampleYearBenchmarkReportView', 'LandedCostPostPanel'].map(name => `../components/reporting/${name}.tsx`),
+  // EU-G1 part 9: twenty smaller reports
+  ...['Form856ReportView', 'BankingValidationReportView', 'ItemRegisterReportView', 'DocumentNumberGapsReportView', 'CustomerItemCodesView',
+    'VendorWithholdingView', 'StandardCostReportView', 'PurchaseItemTrendsView', 'LabelBalanceSheetReportView', 'KitAssemblyReportView',
+    'GoldenYearFixturesSection', 'ExpensePolicyReportView', 'DuplicateContactReviewReportView', 'BackordersReportView', 'AssetRegisterReportView',
+    'AgedInventoryByLotReportView', 'UsNexusWatchReportView', 'ExpenseReceiptChecklistReportView', 'BankHolidaysReportView',
+    'WarehouseBinLocationsPanel'].map(name => `../components/reporting/${name}.tsx`),
 ];
 
 test('Reports: the default eight are the ones this guard covers', () => {

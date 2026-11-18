@@ -18,10 +18,16 @@ import {
   customerItemCodesFromItem,
   upsertCustomerItemCode,
 } from '../../lib/customerItemCodes';
+import { useReportText, fill } from './useReportText';
+
+/** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
+const CODE_NAMES = { c0: 'ACME-PN-402' } as const;
+
 
 const field = 'w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white';
 
 export default function CustomerItemCodesView() {
+  const reportText = useReportText();
   const inventory = useLedgerStore(s => s.inventory);
   const customers = useLedgerStore(s => s.customers);
   const { loading } = useLedgerCollections('inventory', 'customers');
@@ -88,7 +94,7 @@ export default function CustomerItemCodesView() {
   };
 
   if (loading) {
-    return <p className="p-6 text-sm text-slate-600 dark:text-slate-400">Loading customer item codes…</p>;
+    return <p className="p-6 text-sm text-slate-600 dark:text-slate-400">{reportText('r.loading-customer-item-codes', 'Loading customer item codes…')}</p>;
   }
 
   return (
@@ -97,10 +103,10 @@ export default function CustomerItemCodesView() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <Barcode className="w-6 h-6 text-indigo-600" aria-hidden="true" />
-            Customer Item Codes
+            {reportText('r.customer-item-codes', 'Customer Item Codes')}
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Cross-reference each buyer&apos;s part numbers and descriptions against your internal SKUs so incoming customer orders resolve cleanly without altering catalogue SKUs or posted invoices.
+            {reportText('r.cross-reference-each-buyer-s-part-numbers-and-de', 'Cross-reference each buyer\'s part numbers and descriptions against your internal SKUs so incoming customer orders resolve cleanly without altering catalogue SKUs or posted invoices.')}
           </p>
         </div>
         <button
@@ -108,18 +114,18 @@ export default function CustomerItemCodesView() {
           onClick={() => downloadCsv('customer-item-codes.csv', CUSTOMER_ITEM_CODES_CSV_HEADERS, customerItemCodesCsvRows(filtered))}
           className="min-h-11 px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2"
         >
-          <Download className="w-4 h-4" aria-hidden="true" /> Export CSV
+          <Download className="w-4 h-4" aria-hidden="true" /> {reportText('r.export-csv', 'Export CSV')}
         </button>
       </div>
 
       <div>
         <label htmlFor="cic-search" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-          Lookup by buyer part code, customer name, or internal SKU
+          {reportText('r.lookup-by-buyer-part-code-customer-name-or-inter', 'Lookup by buyer part code, customer name, or internal SKU')}
         </label>
         <input
           id="cic-search"
           type="search"
-          placeholder="Search e.g. CUST-9941 or internal SKU…"
+          placeholder={reportText('r.search-e-g-cust-9941-or-internal-sku', 'Search e.g. CUST-9941 or internal SKU…')}
           value={query}
           onChange={e => setQuery(e.target.value)}
           className={field}
@@ -128,34 +134,34 @@ export default function CustomerItemCodesView() {
 
       {canWrite && (
         <form onSubmit={handleSave} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
-          <h2 className="text-sm font-bold text-slate-900 dark:text-white">Add or update buyer part code mapping</h2>
+          <h2 className="text-sm font-bold text-slate-900 dark:text-white">{reportText('r.add-or-update-buyer-part-code-mapping', 'Add or update buyer part code mapping')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
-              <label htmlFor="cic-customer" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Customer</label>
+              <label htmlFor="cic-customer" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.customer', 'Customer')}</label>
               <select id="cic-customer" value={customerId} onChange={e => setCustomerId(e.target.value)} className={field}>
-                <option value="">Select customer…</option>
+                <option value="">{reportText('r.select-customer', 'Select customer…')}</option>
                 {(customers || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <label htmlFor="cic-item" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Internal item</label>
+              <label htmlFor="cic-item" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.internal-item', 'Internal item')}</label>
               <select id="cic-item" value={itemId} onChange={e => setItemId(e.target.value)} className={field}>
-                <option value="">Select item…</option>
+                <option value="">{reportText('r.select-item', 'Select item…')}</option>
                 {(inventory || []).map(it => <option key={it.id} value={it.id}>{it.name}{it.sku ? ` (${it.sku})` : ''}</option>)}
               </select>
             </div>
             <div>
-              <label htmlFor="cic-code" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Buyer part code</label>
-              <input id="cic-code" type="text" maxLength={80} placeholder="ACME-PN-402" value={customerCode} onChange={e => setCustomerCode(e.target.value)} className={field} />
+              <label htmlFor="cic-code" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.buyer-part-code', 'Buyer part code')}</label>
+              <input id="cic-code" type="text" maxLength={80} placeholder={CODE_NAMES.c0} value={customerCode} onChange={e => setCustomerCode(e.target.value)} className={field} />
             </div>
             <div>
-              <label htmlFor="cic-desc" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Buyer item title (optional)</label>
-              <input id="cic-desc" type="text" maxLength={160} placeholder="Buyer PO wording" value={customerDescription} onChange={e => setCustomerDescription(e.target.value)} className={field} />
+              <label htmlFor="cic-desc" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.buyer-item-title-optional', 'Buyer item title (optional)')}</label>
+              <input id="cic-desc" type="text" maxLength={160} placeholder={reportText('r.buyer-po-wording', 'Buyer PO wording')} value={customerDescription} onChange={e => setCustomerDescription(e.target.value)} className={field} />
             </div>
           </div>
           <div className="flex justify-end">
             <button type="submit" className="min-h-11 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white inline-flex items-center gap-1.5">
-              <Plus className="w-4 h-4" aria-hidden="true" /> Save mapping
+              <Plus className="w-4 h-4" aria-hidden="true" /> {reportText('r.save-mapping', 'Save mapping')}
             </button>
           </div>
         </form>
@@ -163,23 +169,23 @@ export default function CustomerItemCodesView() {
 
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center">
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">No buyer part codes matched</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{reportText('r.no-buyer-part-codes-matched', 'No buyer part codes matched')}</p>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-            Add a mapping above to link a customer&apos;s part number to your internal catalogue item.
+            {reportText('r.add-a-mapping-above-to-link-a-customer-s-part-nu', 'Add a mapping above to link a customer\'s part number to your internal catalogue item.')}
           </p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <table className="w-full text-sm text-start">
-            <caption className="sr-only">Customer part numbers cross-reference</caption>
+            <caption className="sr-only">{reportText('r.customer-part-numbers-cross-reference', 'Customer part numbers cross-reference')}</caption>
             <thead className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
               <tr>
-                <th scope="col" className="px-4 py-3 text-start">Customer</th>
-                <th scope="col" className="px-4 py-3 text-start">Buyer part code</th>
-                <th scope="col" className="px-4 py-3 text-start">Buyer title</th>
-                <th scope="col" className="px-4 py-3 text-start">Internal item</th>
-                <th scope="col" className="px-4 py-3 text-start">Internal SKU</th>
-                {canWrite && <th scope="col" className="px-4 py-3 text-end">Actions</th>}
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.customer', 'Customer')}</th>
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.buyer-part-code', 'Buyer part code')}</th>
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.buyer-title', 'Buyer title')}</th>
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.internal-item', 'Internal item')}</th>
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.internal-sku', 'Internal SKU')}</th>
+                {canWrite && <th scope="col" className="px-4 py-3 text-end">{reportText('r.actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -190,7 +196,7 @@ export default function CustomerItemCodesView() {
                     {r.customerCode}
                     {r.duplicateForCustomer && (
                       <span className="ml-2 inline-block px-2 py-0.5 text-[11px] font-sans font-bold rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                        Duplicate for buyer
+                        {reportText('r.duplicate-for-buyer', 'Duplicate for buyer')}
                       </span>
                     )}
                   </td>
@@ -201,7 +207,7 @@ export default function CustomerItemCodesView() {
                     <td className="px-4 py-3 text-end">
                       <button
                         type="button"
-                        aria-label={`Remove ${r.customerCode} for ${r.customerName}`}
+                        aria-label={fill(reportText('r.remove-0-for-1', 'Remove {0} for {1}'), { 0: r.customerCode, 1: r.customerName })}
                         onClick={() => handleRemove(r.itemId, r.customerId)}
                         className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg"
                       >

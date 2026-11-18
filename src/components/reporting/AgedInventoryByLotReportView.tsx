@@ -23,12 +23,14 @@ import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { LoadingState } from '../ui/LoadingState';
 import { EmptyState } from '../ui/EmptyState';
 import type { ColumnDef } from '@tanstack/react-table';
+import { useReportText, fill } from './useReportText';
 
 const field = 'w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white';
 
 export default function AgedInventoryByLotReportView({
   purchaseOrders: purchaseOrdersProp,
 }: { purchaseOrders?: PurchaseOrder[] } = {}) {
+  const reportText = useReportText();
   const inventory = useLedgerStore(s => s.inventory);
   const invoices = useLedgerStore(s => s.invoices);
   const { loading } = useLedgerCollections('inventory', 'invoices');
@@ -60,18 +62,18 @@ export default function AgedInventoryByLotReportView({
    * (days, quantities, cents), never on the formatted text.
    */
   const columns: ColumnDef<AgedLotRow, unknown>[] = [
-    { id: 'item', accessorFn: row => row.itemName, header: 'Item', cell: info => <span className="font-medium"><bdi>{String(info.getValue())}</bdi></span> },
-    { id: 'lot', accessorFn: row => row.lotNumber, header: 'Lot number', cell: info => <span className="font-mono font-semibold text-indigo-700 dark:text-indigo-300"><bdi>{String(info.getValue())}</bdi></span> },
-    { id: 'received', accessorFn: row => row.firstReceivedDate, header: 'Received date', cell: info => <span className="tabular-nums">{String(info.getValue())}</span> },
-    { id: 'age', accessorFn: row => row.ageDays, header: 'Age (days)', cell: info => <span className="tabular-nums font-semibold">{String(info.getValue())}</span> },
-    { id: 'bucket', accessorFn: row => LOT_AGE_BUCKETS.find(b => b.key === row.bucket)?.label || row.bucket, header: 'Bucket' },
-    { id: 'units', accessorFn: row => row.receivedQty, header: 'Received units', cell: info => <span className="tabular-nums">{String(info.getValue())}</span> },
-    { id: 'value', accessorFn: row => row.receivedValueCents, header: 'Receipt value', cell: info => <span className="tabular-nums font-semibold">{formatCurrency(Number(info.getValue()), (info.row.original as AgedLotRow).currency)}</span> },
-    { id: 'expiry', accessorFn: row => row.expiryDate || '', header: 'Expiry', cell: info => {
+    { id: 'item', accessorFn: row => row.itemName, header: reportText('r.item', 'Item'), cell: info => <span className="font-medium"><bdi>{String(info.getValue())}</bdi></span> },
+    { id: 'lot', accessorFn: row => row.lotNumber, header: reportText('r.lot-number', 'Lot number'), cell: info => <span className="font-mono font-semibold text-indigo-700 dark:text-indigo-300"><bdi>{String(info.getValue())}</bdi></span> },
+    { id: 'received', accessorFn: row => row.firstReceivedDate, header: reportText('r.received-date', 'Received date'), cell: info => <span className="tabular-nums">{String(info.getValue())}</span> },
+    { id: 'age', accessorFn: row => row.ageDays, header: reportText('r.age-days', 'Age (days)'), cell: info => <span className="tabular-nums font-semibold">{String(info.getValue())}</span> },
+    { id: 'bucket', accessorFn: row => LOT_AGE_BUCKETS.find(b => b.key === row.bucket)?.label || row.bucket, header: reportText('r.bucket', 'Bucket') },
+    { id: 'units', accessorFn: row => row.receivedQty, header: reportText('r.received-units', 'Received units'), cell: info => <span className="tabular-nums">{String(info.getValue())}</span> },
+    { id: 'value', accessorFn: row => row.receivedValueCents, header: reportText('r.receipt-value', 'Receipt value'), cell: info => <span className="tabular-nums font-semibold">{formatCurrency(Number(info.getValue()), (info.row.original as AgedLotRow).currency)}</span> },
+    { id: 'expiry', accessorFn: row => row.expiryDate || '', header: reportText('r.expiry', 'Expiry'), cell: info => {
       const row = info.row.original as AgedLotRow;
-      return <span className="tabular-nums">{row.expiryDate || '—'}{row.expired && <span className="ms-2 inline-block px-2 py-0.5 text-[11px] font-bold rounded bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300">Expired</span>}</span>;
+      return <span className="tabular-nums">{row.expiryDate || '—'}{row.expired && <span className="ms-2 inline-block px-2 py-0.5 text-[11px] font-bold rounded bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300">{reportText('r.expired', 'Expired')}</span>}</span>;
     } },
-    { id: 'sold', accessorFn: row => row.recordedSoldQty, header: 'Sold refs', cell: info => <span className="tabular-nums text-[var(--muted)]">{Number(info.getValue()) > 0 ? String(info.getValue()) : '—'}</span> },
+    { id: 'sold', accessorFn: row => row.recordedSoldQty, header: reportText('r.sold-refs', 'Sold refs'), cell: info => <span className="tabular-nums text-[var(--muted)]">{Number(info.getValue()) > 0 ? String(info.getValue()) : '—'}</span> },
   ];
 
   const visible = useMemo(
@@ -89,7 +91,7 @@ export default function AgedInventoryByLotReportView({
   if (loading || (ordersLoading && !purchaseOrdersProp)) {
     // a named placeholder, not a bare spinner: the list below can be empty, and I-05 asks the screen
     // that can say "nothing here" to say "still loading" while it does not know yet
-    return <LoadingState what="lot aging" rows={5} />;
+    return <LoadingState what={reportText('r.lot-aging', 'lot aging')} rows={5} />;
   }
 
   return (
@@ -98,10 +100,10 @@ export default function AgedInventoryByLotReportView({
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <Clock className="w-6 h-6 text-indigo-600" aria-hidden="true" />
-            Aged Inventory by Lot
+            {reportText('r.aged-inventory-by-lot', 'Aged Inventory by Lot')}
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Ages each received lot number from its goods-receipt date through the selected date. Because stock moves do not deplete individual lot buckets, received quantities and PO receipt cost are shown faithfully alongside any lot numbers referenced on issued sales invoices.
+            {reportText('r.ages-each-received-lot-number-from-its-goods-rec', 'Ages each received lot number from its goods-receipt date through the selected date. Because stock moves do not deplete individual lot buckets, received quantities and PO receipt cost are shown faithfully alongside any lot numbers referenced on issued sales invoices.')}
           </p>
         </div>
         <button
@@ -109,49 +111,49 @@ export default function AgedInventoryByLotReportView({
           onClick={() => downloadCsv(`aged-inventory-by-lot-${asOfDate}.csv`, AGED_INVENTORY_BY_LOT_CSV_HEADERS, agedInventoryByLotCsvRows(visible))}
           className="min-h-11 px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2"
         >
-          <Download className="w-4 h-4" aria-hidden="true" /> Export CSV
+          <Download className="w-4 h-4" aria-hidden="true" /> {reportText('r.export-csv', 'Export CSV')}
         </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
         <div>
           <label htmlFor="lot-age-asof" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            As of date
+            {reportText('r.as-of-date', 'As of date')}
           </label>
           <input id="lot-age-asof" type="date" value={asOfDate} onChange={e => setAsOfDate(e.target.value)} className={field} />
         </div>
         <div>
           <label htmlFor="lot-age-bucket" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            Age bucket
+            {reportText('r.age-bucket', 'Age bucket')}
           </label>
           <select id="lot-age-bucket" value={bucketFilter} onChange={e => setBucketFilter(e.target.value as 'ALL' | LotAgeBucketKey)} className={field}>
-            <option value="ALL">All age buckets ({rows.length} lots)</option>
+            <option value="ALL">{reportText('r.all-age-buckets', 'All age buckets (')}{rows.length} {reportText('r.lots', 'lots)')}</option>
             {LOT_AGE_BUCKETS.map(b => (
-              <option key={b.key} value={b.key}>{b.label} ({countByBucket[b.key] || 0} received units)</option>
+              <option key={b.key} value={b.key}>{b.label} ({countByBucket[b.key] || 0} {reportText('r.received-units-2', 'received units)')}</option>
             ))}
           </select>
         </div>
       </div>
 
       <TanStackDataGrid
-        caption="Aged inventory by lot table"
+        caption={reportText('r.aged-inventory-by-lot-table', 'Aged inventory by lot table')}
         data={visible}
         columns={columns}
         rowHeaderColumn="lot"
         pageSize={25}
-        searchPlaceholder="Search items, lots and buckets..."
+        searchPlaceholder={reportText('r.search-items-lots-and-buckets', 'Search items, lots and buckets...')}
         searchLabel="Search items, lots and buckets"
         columnScope="report-aged-inventory-by-lot"
         columnLabel="Aged inventory columns"
         columnNames={['Item', 'Lot number', 'Received date', 'Age (days)', 'Bucket', 'Received units', 'Receipt value', 'Expiry', 'Sold refs']}
         exportConfig={{
           filename: `aged-inventory-by-lot-${asOfDate}.csv`,
-          label: 'Export CSV',
+          label: reportText('r.export-csv', 'Export CSV'),
           headers: AGED_INVENTORY_BY_LOT_CSV_HEADERS,
           mapRow: row => agedInventoryByLotCsvRows([row])[0],
         }}
-        emptyState={<EmptyState title={`No lot-numbered receipts on or before ${asOfDate}`} description="Record lot numbers when receiving goods to track lot age and expiry." />}
-        filteredEmptyState={<EmptyState title="No lot matches your search" description="Try another item or lot number." />}
+        emptyState={<EmptyState title={fill(reportText('r.no-lot-numbered-receipts-on-or-before-0', 'No lot-numbered receipts on or before {0}'), { 0: asOfDate })} description={reportText('r.record-lot-numbers-when-receiving-goods-to-track', 'Record lot numbers when receiving goods to track lot age and expiry.')} />}
+        filteredEmptyState={<EmptyState title={reportText('r.no-lot-matches-your-search', 'No lot matches your search')} description={reportText('r.try-another-item-or-lot-number', 'Try another item or lot number.')} />}
       />
     </div>
   );

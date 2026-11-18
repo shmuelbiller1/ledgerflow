@@ -16,10 +16,12 @@ import { kitBuildPlan, type KitBuildPlan } from '../../lib/kitAssembly';
 import { isBundle, type BundleHost } from '../../lib/itemBundles';
 import type { InventoryItem } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
+import { useReportText } from './useReportText';
 
 const CSV_HEADERS = ['Part', 'SKU', 'Per kit', 'On hand', 'Needed for N', 'Left after'];
 
 export default function KitAssemblyReportView() {
+  const reportText = useReportText();
   const inventory = useLedgerStore(s => s.inventory) as InventoryItem[];
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const truncated = useLedgerStore(s => s.truncatedCollections);
@@ -41,38 +43,36 @@ export default function KitAssemblyReportView() {
   const partial = Boolean(truncated.inventory || failed.inventory);
 
   return (
-    <section aria-label="Kit assembly" className="p-4 space-y-4 min-w-0">
+    <section aria-label={reportText('r.kit-assembly', 'Kit assembly')} className="p-4 space-y-4 min-w-0">
       <div>
-        <h2>Kit assembly</h2>
+        <h2>{reportText('r.kit-assembly', 'Kit assembly')}</h2>
         <p className="text-sm text-[var(--muted)]">
-          A kit assembled on demand is built from its parts when it is needed (a bundle keeps no stock of its own).
-          See how many kits the parts on hand can build and what building N would take. This screen records nothing.
+          {reportText('r.a-kit-assembled-on-demand-is-built-from-its-part', 'A kit assembled on demand is built from its parts when it is needed (a bundle keeps no stock of its own). See how many kits the parts on hand can build and what building N would take. This screen records nothing.')}
         </p>
       </div>
 
-      {loading && <p role="status" className="text-sm text-[var(--muted)]">Loading items…</p>}
+      {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-items', 'Loading items…')}</p>}
       {partial && (
         <p role="alert" className="text-sm text-amber-700">
-          Items are only partly loaded; a kit outside the loaded list is not shown.
+          {reportText('r.items-are-only-partly-loaded-a-kit-outside-the-l', 'Items are only partly loaded; a kit outside the loaded list is not shown.')}
         </p>
       )}
 
       {!loading && kits.length === 0 ? (
         <p className="text-sm text-[var(--muted)]">
-          No kits yet: make an item a bundle of other items on Inventory (its parts editor), then mark it
-          “Assemble on demand”.
+          {reportText('r.no-kits-yet-make-an-item-a-bundle-of-other-items', 'No kits yet: make an item a bundle of other items on Inventory (its parts editor), then mark it “Assemble on demand”.')}
         </p>
       ) : plan && kit && (
         <>
           <div className="flex flex-wrap items-end gap-3 text-sm">
-            <label className="flex flex-col gap-1">Kit
-              <select aria-label="Kit" value={kitId} onChange={e => { setPicked(e.target.value); }}
+            <label className="flex flex-col gap-1">{reportText('r.kit', 'Kit')}
+              <select aria-label={reportText('r.kit', 'Kit')} value={kitId} onChange={e => { setPicked(e.target.value); }}
                 className="px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]">
                 {kits.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
               </select>
             </label>
-            <label className="flex flex-col gap-1">How many kits
-              <input aria-label="How many kits" type="number" min={0} step={1} value={count}
+            <label className="flex flex-col gap-1">{reportText('r.how-many-kits', 'How many kits')}
+              <input aria-label={reportText('r.how-many-kits', 'How many kits')} type="number" min={0} step={1} value={count}
                 onChange={e => setCount(e.target.value)}
                 className="px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)] w-28" />
             </label>
@@ -83,27 +83,27 @@ export default function KitAssemblyReportView() {
               }))}
               disabled={!plan.consumption?.length}
               className="min-h-11 px-3 py-1.5 rounded border disabled:opacity-50">
-              Download CSV
+              {reportText('r.download-csv', 'Download CSV')}
             </button>
           </div>
 
           <p className="text-sm">
-            <bdi>{kit.name}</bdi>: <b>{plan.buildableKits}</b> {plan.buildableKits === 1 ? 'kit' : 'kits'} can be built from what is on hand.
-            {kit.assembleOnDemand ? ' Marked “Assemble on demand”.' : ' Not marked “Assemble on demand” (the mark is a note on the item only).'}
+            <bdi>{kit.name}</bdi>: <b>{plan.buildableKits}</b> {plan.buildableKits === 1 ? reportText('r.kit-can-be-built', 'kit can be built from what is on hand.') : reportText('r.kits-can-be-built', 'kits can be built from what is on hand.')}
+            {kit.assembleOnDemand ? ` ${reportText('r.marked-assemble-on-demand', 'Marked “Assemble on demand”.')}` : ` ${reportText('r.not-marked-assemble-on-demand-the-mark-is-a-note', 'Not marked “Assemble on demand” (the mark is a note on the item only).')}`}
           </p>
           {plan.problem && <p role="alert" className="text-sm text-amber-700 dark:text-amber-400">{plan.problem}</p>}
 
           <ReportTableScroll>
             <table className="w-full text-sm">
-              <caption className="sr-only">Components needed for this assembly</caption>
+              <caption className="sr-only">{reportText('r.components-needed-for-this-assembly', 'Components needed for this assembly')}</caption>
               <thead>
                 <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
-                  <th scope="col" className="py-2 pr-3">Part</th>
-                  <th scope="col" className="py-2 pr-3 text-right">Per kit</th>
-                  <th scope="col" className="py-2 pr-3 text-right">On hand</th>
-                  <th scope="col" className="py-2 pr-3 text-right">Kits this part can build</th>
-                  <th scope="col" className="py-2 pr-3 text-right">Needed for {plan.requestedKits ?? 0}</th>
-                  <th scope="col" className="py-2 text-right">Left after</th>
+                  <th scope="col" className="py-2 pr-3">{reportText('r.part', 'Part')}</th>
+                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.per-kit', 'Per kit')}</th>
+                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.on-hand', 'On hand')}</th>
+                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.kits-this-part-can-build', 'Kits this part can build')}</th>
+                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.needed-for', 'Needed for')} {plan.requestedKits ?? 0}</th>
+                  <th scope="col" className="py-2 text-right">{reportText('r.left-after', 'Left after')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -116,7 +116,7 @@ export default function KitAssemblyReportView() {
                         {p.sku && <span className="ml-2 font-mono text-xs text-[var(--muted)]">{p.sku}</span>}
                         {p.shortfallPerKit > 0 && (
                           <span className="block text-xs text-amber-700 dark:text-amber-400">
-                            short {p.shortfallPerKit} per kit
+                            {reportText('r.short', 'short')} {p.shortfallPerKit} {reportText('r.per-kit-2', 'per kit')}
                           </span>
                         )}
                       </th>
@@ -132,8 +132,7 @@ export default function KitAssemblyReportView() {
             </table>
           </ReportTableScroll>
           <p className="text-xs text-[var(--muted)]">
-            Building here is a plan only: nothing is reserved, issued or posted. When the kit is sold, the invoice
-            takes its parts as lines (A-19) and the parts' own stock and cost move as they always do.
+            {reportText('r.building-here-is-a-plan-only-nothing-is-reserved', 'Building here is a plan only: nothing is reserved, issued or posted. When the kit is sold, the invoice takes its parts as lines (A-19) and the parts\' own stock and cost move as they always do.')}
           </p>
         </>
       )}
