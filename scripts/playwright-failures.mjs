@@ -3,7 +3,7 @@
  * Turn a Playwright JSON report into a short Markdown list of what failed and why.
  *
  * Playwright writes the JSON reporter's output to `PLAYWRIGHT_JSON_OUTPUT_NAME` when that is set,
- * otherwise to `playwright-report.json`. A CI job's raw log is not always reachable from the tools a
+ * otherwise to stdout. A CI job's raw log is not always reachable from the tools a
  * reviewer has, but the step summary is, so the reasons are written there.
  *
  * Usage: node scripts/playwright-failures.mjs [report.json]
@@ -16,17 +16,17 @@ import path from 'node:path';
 const REPO_ROOT = path.resolve(import.meta.dirname, '..');
 const requested = path.resolve(REPO_ROOT, process.argv[2] || process.env.PLAYWRIGHT_JSON_OUTPUT_NAME || 'playwright-report.json');
 const reportPath = requested.startsWith(REPO_ROOT + path.sep) && requested.endsWith('.json') ? requested : null;
-if (!reportPath || !fs.existsSync(reportPath)) {
-  say('\n_No Playwright JSON report was written, so the failure reasons are not available._');
-  console.log('::error title=visual baselines::Playwright wrote no JSON report, so the capture failed before any test ran');
-  process.exit(0);
-}
-
 // `--summary <file>` appends the Markdown there and keeps stdout for workflow commands; without it
 // everything goes to stdout, so a bare `node scripts/playwright-failures.mjs report.json` still works.
 const summaryFlag = process.argv.indexOf('--summary');
 const summaryFile = summaryFlag === -1 ? null : process.argv[summaryFlag + 1];
 const say = line => (summaryFile ? fs.appendFileSync(summaryFile, line + '\n') : console.log(line));
+
+if (!reportPath || !fs.existsSync(reportPath)) {
+  say('\n_No Playwright JSON report was written, so the failure reasons are not available._');
+  console.log('::error title=visual baselines::Playwright wrote no JSON report, so the capture failed before any test ran');
+  process.exit(0);
+}
 
 const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
 const failures = [];
