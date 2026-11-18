@@ -88,7 +88,8 @@ function WorkspaceCloseView({ workspaceId }: { workspaceId: string }) {
   const vendorCredits = useLedgerStore(s => s.vendorCredits);
   const journalEntries = useLedgerStore(s => s.journalEntries);
   const assets = useLedgerStore(s => s.assets);
-  useLedgerCollections(...CLOSE_INPUTS);
+  // Name the keys at the call so the on-demand collection guard can verify the subscriptions.
+  useLedgerCollections('accounts', 'assets', 'bankLines', 'bills', 'creditNotes', 'invoices', 'journalEntries', 'transactions', 'vendorCredits');
   const dataHealth = useScreenDataHealth(CLOSE_INPUTS);
   const loadedWorkspaceId = useDataNeedsStore(s => s.loadedWorkspaceId);
   const isGuest = useAuthStore(s => s.isGuest && !s.user);

@@ -48,7 +48,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const keys = isCustomer ? ['customers', 'invoices'] as const : ['vendors', 'bills'] as const;
-  useLedgerCollections(...keys);
+  useLedgerCollections(isCustomer ? 'customers' : 'vendors', isCustomer ? 'invoices' : 'bills');
   const health = useScreenDataHealth(keys);
   const provenance = useBrowserProvenance(keys, false);
   const docsPartial = provenance.completeness !== 'complete';
