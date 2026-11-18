@@ -1,4 +1,8 @@
-import { Children, Fragment, cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react';
+import { Children, Fragment, createContext, cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react';
+
+/** A report owns the layout; an embedded RowTable applies it where its native rows are built.
+ * null outside a report: a document preview must not acquire column controls or indexing. */
+export const ReportColumnOrder = createContext<number[] | null>(null);
 
 interface CellProps { children?: ReactNode; colSpan?: number; rowSpan?: number; 'data-source-column'?: number }
 function flatten(children: ReactNode): ReactElement<CellProps>[] {

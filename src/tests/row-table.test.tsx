@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import { RowTable } from '../components/ui/RowTable';
-import { rowTableCsv, type RowTableColumn } from '../lib/rowTable';
+import { rowTableCsv, type RowTableColumns, type RowTableColumn } from '../lib/rowTable';
 
 interface Schedule { year: string; amount: string; amountCents: number }
 
@@ -57,6 +57,23 @@ describe('RowTable', () => {
     assert.deepEqual(csv.headers, ['Year', 'Depreciation']);
     // the file must not carry a currency symbol: another system reads this
     assert.deepEqual(csv.rows, [['2026', '1200.00'], ['2027', '900.00']]);
+  });
+
+  test('turning off a leading comparison column keeps the row header, figures and financial CSV aligned', () => {
+    const periods = (compare: boolean): RowTableColumns<Schedule> => [
+      compare && { header: 'Period', cell: () => 'Current' },
+      { ...columns[0], rowHeader: true }, columns[1],
+    ];
+    const schedule = (compare: boolean) => <RowTable caption="Schedule" rows={rows} columns={periods(compare)} rowKey={row => row.year} />;
+    const view = render(schedule(true));
+    const year = screen.getByRole('rowheader', { name: '2026' });
+    assert.equal(year.previousElementSibling?.textContent, 'Current');
+    assert.deepEqual(rowTableCsv(periods(true), rows).rows[0], ['Current', '2026', '1200.00']);
+    view.rerender(schedule(false));
+    assert.equal(screen.getByRole('rowheader', { name: '2026' }), year);
+    assert.equal(year.previousElementSibling, null);
+    assert.deepEqual(rowTableCsv(periods(false), rows).headers, ['Year', 'Depreciation']);
+    assert.deepEqual(rowTableCsv(periods(false), rows).rows[0], ['2026', '1200.00']);
   });
 
   test('row order and cell text are the caller\'s, not sorted by the table', () => {

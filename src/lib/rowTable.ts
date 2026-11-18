@@ -31,6 +31,8 @@ export interface RowTableColumn<T, C = never> {
   csvHeader?: string | ((item: C) => string);
   /** The cell contents for one row — and, for a repeated column, one item of `over`. */
   cell: (row: T, item: C) => ReactNode;
+  /** Marks the cell that names the row when another column (e.g. period) precedes it. */
+  rowHeader?: boolean;
   /** Right-align, for money and counts. */
   align?: 'left' | 'right';
   /** A class for this column's body cells only. */
@@ -46,13 +48,14 @@ export interface RowTableColumn<T, C = never> {
   csv?: (row: T, item: C) => string | number;
 }
 
-export type RowTableColumns<T, C = never> = ReadonlyArray<RowTableColumn<T, C>>;
+export type RowTableColumns<T, C = never> = ReadonlyArray<RowTableColumn<T, C> | false>;
 
 /** One column as the table renders it: a spec (or one item of a repeated spec) closed over its item. */
 export interface PlannedColumn<T> {
   /** What identifies the column: its header text, or the item's own value. Not its position, so adding a column
    *  to a screen does not re-key the ones after it. */
   key: string;
+  rowHeader?: boolean;
   header: ReactNode;
   csvHeader: string;
   cell: (row: T) => ReactNode;
@@ -79,6 +82,7 @@ function itemText(item: unknown): string {
 export function planColumns<T, C>(columns: RowTableColumns<T, C>): PlannedColumn<T>[] {
   const planned: PlannedColumn<T>[] = [];
   for (const column of columns) {
+    if (column === false) continue; // one condition governs the heading, every cell and the CSV
     const align = column.align;
     if (column.over !== undefined) {
       for (const item of column.over) {
@@ -102,6 +106,7 @@ export function planColumns<T, C>(columns: RowTableColumns<T, C>): PlannedColumn
     const csv = column.csv as ((row: T) => string | number) | undefined;
     planned.push({
       key: textOf(column.header),
+      rowHeader: column.rowHeader,
       header: column.header,
       csvHeader: typeof column.csvHeader === 'function' ? '' : column.csvHeader ?? textOf(column.header),
       cell,

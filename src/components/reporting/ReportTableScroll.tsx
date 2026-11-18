@@ -1,9 +1,10 @@
+import { fill, useReportText } from './useReportText';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import ExportTemplateControls from './ExportTemplateControls';
 import ReportEmptyState from './ReportEmptyState';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { readPeriodLayout, savePeriodLayout, movePeriod, validPeriodLayout } from '../../lib/reportPeriodLayout';
-import { orderReportCells } from './orderReportCells';
+import { orderReportCells, ReportColumnOrder } from '../ui/reportColumnOrder';
 import { downloadCsv } from '../../lib/csvExport';
 import { hiddenColumnsCss, readHidden, saveHidden, toggleColumn } from '../../lib/columnChoice';
 
@@ -14,6 +15,7 @@ import { hiddenColumnsCss, readHidden, saveHidden, toggleColumn } from '../../li
  * no rows gets one shared next-action empty state; loading and failure states are never called empty.
  */
 export default function ReportTableScroll({children}:{children:ReactNode}) {
+ const reportText = useReportText();
  const ref=useRef<HTMLDivElement>(null);
  const scope=useId().replace(/[^a-zA-Z0-9_-]/g,'');
  const [headers,setHeaders]=useState<string[]>([]);
@@ -100,18 +102,19 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
   });
   downloadCsv('Displayed_report_rows.csv',visible.map(index=>headers[index]),rows);
  };
+ const columnOrder = reorderable ? order.map(Number) : [];
  return <>
   {empty&&<div data-print-hide className="mb-2">
-   <ReportEmptyState title="Nothing to show in this table yet"
-    description="Check the selected period, search and filters. If the books are new, save the source invoice, bill, payment or journal first; the report reads saved records and does not invent rows." />
+   <ReportEmptyState title={reportText('r.empty-table', 'Nothing to show in this table yet')}
+    description={reportText('r.empty-table-help', 'Check the selected period, search and filters. If the books are new, save the source invoice, bill, payment or journal first; the report reads saved records and does not invent rows.')} />
   </div>}
-  <div ref={ref} data-columns={scope} className="overflow-x-auto" role="region" aria-label="Scrollable report table" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
+  <div ref={ref} data-columns={scope} className="overflow-x-auto" role="region" aria-label={reportText('r.scroll-region', 'Scrollable report table')} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
    <style>{hiddenColumnsCss(scope,effectiveHidden.map(index=>reorderable?order.indexOf(String(index)):index))}</style>
    <div data-print-hide className="sticky start-0 flex flex-wrap gap-2 mb-2">
-    <button type="button" onClick={()=>scroll(-240)} className="min-h-11 px-3 border rounded"><span aria-hidden="true">← </span>Scroll table left</button>
-    <button type="button" onClick={()=>scroll(240)} className="min-h-11 px-3 border rounded">Scroll table right<span aria-hidden="true"> →</span></button>
-    {headers.length>2&&<button type="button" aria-expanded={open} onClick={()=>setOpen(o=>!o)} className="min-h-11 px-3 border rounded">Columns{effectiveHidden.length?` (${effectiveHidden.length} hidden)`:''}</button>}
-    {open&&reorderable&&<button type="button" onClick={exportDisplayed} className="min-h-11 px-3 border rounded">Export displayed rows CSV</button>}
+    <button type="button" onClick={()=>scroll(-240)} className="min-h-11 px-3 border rounded"><span aria-hidden="true">← </span>{reportText('r.scroll-left', 'Scroll table left')}</button>
+    <button type="button" onClick={()=>scroll(240)} className="min-h-11 px-3 border rounded">{reportText('r.scroll-right', 'Scroll table right')}<span aria-hidden="true"> →</span></button>
+    {headers.length>2&&<button type="button" aria-expanded={open} onClick={()=>setOpen(o=>!o)} className="min-h-11 px-3 border rounded">{effectiveHidden.length ? fill(reportText('r.columns-hidden', 'Columns ({count} hidden)'), { count: effectiveHidden.length }) : reportText('r.columns', 'Columns')}</button>}
+    {open&&reorderable&&<button type="button" onClick={exportDisplayed} className="min-h-11 px-3 border rounded">{reportText('r.export-displayed', 'Export displayed rows CSV')}</button>}
    </div>
    {open&&reorderable&&report&&<ExportTemplateControls report={report} columns={headers} layout={{order,hidden:effectiveHidden.map(String)}} onUse={next=>{
     const nextOrder=['0',...next.order.filter(id=>id!=='0')];
@@ -121,16 +124,24 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
    }}/>}
    {open&&headers.length>2&&(
     <fieldset data-print-hide className="sticky start-0 mb-2 flex flex-wrap gap-3 text-sm">
-     <legend className="sr-only">Columns to show</legend>
-     {reorderable&&<p className="w-full">CSV includes these displayed rows and columns as shown, including localized text. Use the report’s financial export for plain numeric amounts.</p>}
-     {order.filter(id=>id!=='0').map(id=>({name:headers[Number(id)],column:Number(id)})).map(c=>(
-      <div key={c.column} className="flex flex-wrap items-center gap-1"><label className="min-h-11 flex items-center gap-1"><input type="checkbox" checked={!effectiveHidden.includes(c.column)} onChange={()=>change(c.column)}/>{c.name||`Column ${c.column+1}`}</label>
-       {reorderable&&<><button type="button" className="min-h-11 px-3 border rounded" aria-label={`Move ${c.name||`Column ${c.column+1}`} earlier`} disabled={order.indexOf(String(c.column))<=1} onClick={()=>move(c.column,-1)}>←</button><button type="button" className="min-h-11 px-3 border rounded" aria-label={`Move ${c.name||`Column ${c.column+1}`} later`} disabled={order.indexOf(String(c.column))===order.length-1} onClick={()=>move(c.column,1)}>→</button></>}
-      </div>
-     ))}
+     <legend className="sr-only">{reportText('r.columns-to-show', 'Columns to show')}</legend>
+     {reorderable&&<p className="w-full">{reportText('r.displayed-csv-help', 'CSV includes these displayed rows and columns as shown, including localized text. Use the report’s financial export for plain numeric amounts.')}</p>}
+     {order.slice(1).map((id, position) => {
+       const column = Number(id);
+       const name = headers[column] || fill(reportText('r.column-number', 'Column {number}'), { number: column + 1 });
+       const earlier = fill(reportText('r.move-earlier', 'Move {name} earlier'), { name });
+       const later = fill(reportText('r.move-later', 'Move {name} later'), { name });
+       return <div key={id} className="flex flex-wrap items-center gap-1">
+         <label className="min-h-11 flex items-center gap-1"><input type="checkbox" checked={!effectiveHidden.includes(column)} onChange={() => change(column)} />{name}</label>
+         {reorderable && <>
+           <button type="button" className="min-h-11 px-3 border rounded" aria-label={earlier} title={earlier} disabled={position === 0} onClick={() => move(column, -1)}><span aria-hidden="true" className="inline-block rtl:rotate-180">←</span></button>
+           <button type="button" className="min-h-11 px-3 border rounded" aria-label={later} title={later} disabled={position === order.length - 2} onClick={() => move(column, 1)}><span aria-hidden="true" className="inline-block rtl:rotate-180">→</span></button>
+         </>}
+       </div>;
+     })}
     </fieldset>
    )}
-   {orderReportCells(children,reorderable?order.map(Number):[])}
+   <ReportColumnOrder.Provider value={columnOrder}>{orderReportCells(children, columnOrder)}</ReportColumnOrder.Provider>
   </div>
  </>;
 }

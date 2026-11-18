@@ -10,6 +10,7 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { hiddenColumnsCss, readHidden, saveHidden, toggleColumn } from '../lib/columnChoice';
 import ReportTableScroll from '../components/reporting/ReportTableScroll';
+import BankHolidaysReportView from '../components/reporting/BankHolidaysReportView';
 
 afterEach(() => { cleanup(); localStorage.clear(); });
 
@@ -75,4 +76,21 @@ test('fragment groups keep every header and value without duplicate React keys w
     assert.deepEqual(Array.from(view.container.querySelectorAll('tbody td')).map(cell => cell.textContent), ['אחד One', '$30.00', '2', 'Note']);
     assert.equal(errors.length, 0, 'reconciliation must retain distinct fragment-cell identities');
   } finally { console.error = originalError; }
+});
+
+// The native-table fixtures above cannot catch a report whose rows are owned by a child component.
+test('a migrated bank-holidays report moves the actual bilingual cells without remounting them', async () => {
+  const view = render(<BankHolidaysReportView />);
+  fireEvent.click(await view.findByRole('button', { name: 'Columns' }));
+  const holiday = view.getByText('א׳ פסח', { selector: 'bdi' }).parentElement!;
+  const row = holiday.closest('tr')!;
+  const [date, day, name, banks, note] = Array.from(row.cells);
+  assert.equal(name, holiday);
+  assert.equal(date.scope, 'row');
+  fireEvent.click(view.getByRole('button', { name: 'Move Holiday earlier' }));
+  assert.deepEqual(view.getAllByRole('columnheader').map(cell => cell.textContent), ['Date', 'Holiday', 'Day', 'Banks', 'Note']);
+  [date, name, day, banks, note].forEach((cell, index) => assert.equal(row.cells[index], cell));
+  fireEvent.click(view.getByRole('checkbox', { name: 'Day' }));
+  assert.equal(getComputedStyle(day).display, 'none');
+  assert.notEqual(getComputedStyle(name).display, 'none');
 });
