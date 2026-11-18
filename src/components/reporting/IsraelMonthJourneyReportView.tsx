@@ -201,16 +201,47 @@ export function PCN874ValidationView({ preview }: { preview: ReturnType<typeof i
   const reportText = useReportText();
   if (!preview) return <p className="text-sm text-[var(--muted)]">{reportText('r.no-pcn874-preview-for-this-month', 'No PCN874 preview is available for this month.')}</p>;
   const draft = preview.draft;
-  const layoutChecks = draft ? [
-    { check: reportText('r.header-record', 'Header record'), expected: fill(reportText('r.count-characters', '{count} characters'), { count: PCN874_DRAFT_HEADER_WIDTH }), actual: fill(reportText('r.count-characters', '{count} characters'), { count: draft.header.length }), result: draft.header.length === PCN874_DRAFT_HEADER_WIDTH ? reportText('r.pass', 'Pass') : reportText('r.fail', 'Fail') },
-    { check: reportText('r.transaction-detail-records', 'Transaction/detail records'), expected: fill(reportText('r.rows-of-width', '{count} row(s) of {width}'), { count: draft.transactions.length, width: PCN874_DRAFT_TRANSACTION_WIDTH }), actual: draft.transactions.every(row => row.length === PCN874_DRAFT_TRANSACTION_WIDTH) ? fill(reportText('r.all-rows-characters', 'All rows {width} characters'), { width: PCN874_DRAFT_TRANSACTION_WIDTH }) : fill(reportText('r.a-row-is-not-characters', 'A row is not {width} characters'), { width: PCN874_DRAFT_TRANSACTION_WIDTH }), result: draft.transactions.every(row => row.length === PCN874_DRAFT_TRANSACTION_WIDTH) ? reportText('r.pass', 'Pass') : reportText('r.fail', 'Fail') },
-    { check: reportText('r.closing-record', 'Closing record'), expected: fill(reportText('r.count-characters', '{count} characters'), { count: PCN874_DRAFT_CLOSING_WIDTH }), actual: fill(reportText('r.count-characters', '{count} characters'), { count: draft.closing.length }), result: draft.closing.length === PCN874_DRAFT_CLOSING_WIDTH ? reportText('r.pass', 'Pass') : reportText('r.fail', 'Fail') },
-    { check: reportText('r.mapped-documents', 'Mapped documents'), expected: reportText('r.every-document-written', 'Every document written'), actual: fill(reportText('r.rows-written', '{count} row(s) written'), { count: preview.rows.length }), result: preview.unmapped.length === 0 ? reportText('r.pass', 'Pass') : fill(reportText('r.count-cannot-be-written', '{count} cannot be written'), { count: preview.unmapped.length }) },
-  ] : [
-    { check: reportText('r.header-record', 'Header record'), expected: fill(reportText('r.count-characters', '{count} characters'), { count: PCN874_DRAFT_HEADER_WIDTH }), actual: reportText('r.no-draft-text-built', 'No draft text built'), result: reportText('r.not-built', 'Not built') },
-    { check: reportText('r.transaction-detail-records', 'Transaction/detail records'), expected: fill(reportText('r.count-characters-each', '{count} characters each'), { count: PCN874_DRAFT_TRANSACTION_WIDTH }), actual: reportText('r.no-draft-text-built', 'No draft text built'), result: reportText('r.not-built', 'Not built') },
-    { check: reportText('r.closing-record', 'Closing record'), expected: fill(reportText('r.count-characters', '{count} characters'), { count: PCN874_DRAFT_CLOSING_WIDTH }), actual: reportText('r.no-draft-text-built', 'No draft text built'), result: reportText('r.not-built', 'Not built') },
-    { check: reportText('r.mapped-documents', 'Mapped documents'), expected: reportText('r.every-document-written', 'Every document written'), actual: fill(reportText('r.rows-written', '{count} row(s) written'), { count: preview.rows.length }), result: preview.unmapped.length === 0 ? reportText('r.pass', 'Pass') : fill(reportText('r.count-cannot-be-written', '{count} cannot be written'), { count: preview.unmapped.length }) },
+  const pass = reportText('r.pass', 'Pass');
+  const fail = reportText('r.fail', 'Fail');
+  const notBuilt = reportText('r.not-built', 'Not built');
+  const noDraftText = reportText('r.no-draft-text-built', 'No draft text built');
+  const countCharacters = (count: number) => fill(reportText('r.count-characters', '{count} characters'), { count });
+  const check = (name: string, expected: string, actual: string, valid: boolean) => ({
+    check: name, expected, actual,
+    result: draft ? (valid ? pass : fail) : notBuilt,
+  });
+  const transactionsFit = draft?.transactions.every(row => row.length === PCN874_DRAFT_TRANSACTION_WIDTH) ?? false;
+  const layoutChecks = [
+    check(
+      reportText('r.header-record', 'Header record'),
+      countCharacters(PCN874_DRAFT_HEADER_WIDTH),
+      draft ? countCharacters(draft.header.length) : noDraftText,
+      draft?.header.length === PCN874_DRAFT_HEADER_WIDTH,
+    ),
+    check(
+      reportText('r.transaction-detail-records', 'Transaction/detail records'),
+      draft
+        ? fill(reportText('r.rows-of-width', '{count} row(s) of {width}'), { count: draft.transactions.length, width: PCN874_DRAFT_TRANSACTION_WIDTH })
+        : fill(reportText('r.count-characters-each', '{count} characters each'), { count: PCN874_DRAFT_TRANSACTION_WIDTH }),
+      draft
+        ? transactionsFit
+          ? fill(reportText('r.all-rows-characters', 'All rows {width} characters'), { width: PCN874_DRAFT_TRANSACTION_WIDTH })
+          : fill(reportText('r.a-row-is-not-characters', 'A row is not {width} characters'), { width: PCN874_DRAFT_TRANSACTION_WIDTH })
+        : noDraftText,
+      transactionsFit,
+    ),
+    check(
+      reportText('r.closing-record', 'Closing record'),
+      countCharacters(PCN874_DRAFT_CLOSING_WIDTH),
+      draft ? countCharacters(draft.closing.length) : noDraftText,
+      draft?.closing.length === PCN874_DRAFT_CLOSING_WIDTH,
+    ),
+    {
+      check: reportText('r.mapped-documents', 'Mapped documents'),
+      expected: reportText('r.every-document-written', 'Every document written'),
+      actual: fill(reportText('r.rows-written', '{count} row(s) written'), { count: preview.rows.length }),
+      result: preview.unmapped.length === 0 ? pass : fill(reportText('r.count-cannot-be-written', '{count} cannot be written'), { count: preview.unmapped.length }),
+    },
   ];
   return <div className="space-y-2">
     <h4 className="font-semibold text-sm">{reportText('r.pcn874-validation', 'PCN874 validation')}</h4>

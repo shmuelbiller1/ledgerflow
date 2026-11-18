@@ -13,7 +13,7 @@ The view checks actual header, transaction/detail-row, and closing widths; repor
 
 Regression coverage in `src/tests/israel-month-journey-view.test.tsx` includes both the refused/unmapped case and a successfully built draft with passing widths. Evidence and full check results: [`docs/verification/ai5-e55-2026-11-18.md`](../docs/verification/ai5-e55-2026-11-18.md).
 
-**Executed checks after merging the latest `origin/main` (`13943d15`):** `npm run lint:types` pass; `npm test` 5,780 pass / 0 fail / 8 database-gated skips; `npm run lint:eslint` 0 errors / 2 existing warnings (the touched files have 0 warnings); `npm run build` pass; focused Israel journey/PCN874/translation-guard tests 55/55 pass.
+**Executed checks after merging the latest `origin/main` (`13943d15`):** `npm run lint:types` pass; `npm test` 5,780 pass / 0 fail / 8 database-gated skips; `npm run lint:eslint` 0 errors / 2 existing warnings (the touched files have 0 warnings); `npm run build` pass; focused Israel journey/PCN874/translation-guard tests 66/66 pass. Sonar's first review marked 12.5% duplication on new code; the duplicate draft/no-draft check arrays were consolidated, and the latest analysis is pending. Gitar's initial review found no issues; Codex review was unavailable due to usage limits.
 
 ## Remaining AI #5 queue, as recorded in the live queue
 
