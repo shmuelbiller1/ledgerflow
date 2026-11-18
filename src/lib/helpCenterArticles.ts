@@ -1,4 +1,5 @@
 import { BRAND_NAME } from '../config/brand';
+import { STATEMENT_SCREEN_GUIDES } from './statementScreenGuides';
 export interface ScreenHelpDoc {
   slug: string;
   screenIds: readonly string[];
@@ -9,6 +10,8 @@ export interface ScreenHelpDoc {
   summaryHe: string;
   keyTasksEn: readonly string[];
   keyTasksHe: readonly string[];
+  /** Screenshot of a synthetic workspace, for this screen only (not every screen in its area). */
+  illustration?: { screenId: string; altEn: string; altHe: string };
 }
 
 export interface HowToArticle {
@@ -35,12 +38,25 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     slug: 'overview',
     screenIds: ['dashboard', 'overview', 'practice', 'help', 'glossary', 'support', 'accept-invite'],
     docPath: 'docs/help/overview.md',
-    titleEn: 'Overview & Dashboard',
-    titleHe: 'סקירה כללית ולוח בקרה',
-    summaryEn: 'Check cash on hand, money owed to and by the business, period profit, and open items needing attention.',
-    summaryHe: 'מעקב אחר יתרות מזומן, חובות לקוחות וספקים, רווח תקופתי ומשימות פתוחות לטיפול.',
-    keyTasksEn: ['Switch between Owner Lens and Accountant Lens.', 'Open any summary tile to drill into the report behind it.', 'Add a quick entry or open the setup checklist.'],
-    keyTasksHe: ['מעבר בין תצוגת בעלים לתצוגת רואה חשבון.', 'לחיצה על כל מדד לפתיחת הדוח המפורט.', 'הוספת פקודה מהירה או בדיקת רשימת ההקמה.'],
+    titleEn: 'Overview',
+    titleHe: 'סקירה כללית',
+    summaryEn: 'See how much cash the business has, what customers owe you, what you owe suppliers, and whether the business made a profit.',
+    summaryHe: 'כאן רואים כמה מזומן יש לעסק, כמה הלקוחות חייבים, כמה יש לשלם לספקים והאם העסק הרוויח.',
+    keyTasksEn: [
+      'Choose a month, fiscal quarter, fiscal year or custom range.',
+      'Open a linked summary figure to see the report behind it. Cash is shown at the end date; profit covers the period.',
+      'Look under Needs attention for work to follow up, such as unmatched bank lines.',
+    ],
+    keyTasksHe: [
+      'בחרו חודש, רבעון כספי, שנת כספים או טווח תאריכים משלכם.',
+      'פתחו מדד שיש בו קישור כדי לעיין בדוח שמאחוריו. יתרת המזומן היא ליום הסיום; הרווח מתייחס לתקופה.',
+      'בדקו אילו משימות דורשות טיפול, למשל שורות בנק שעדיין לא הותאמו.',
+    ],
+    illustration: {
+      screenId: 'dashboard',
+      altEn: 'Period selector above the cash, receivables, payables and profit cards.',
+      altHe: 'בחירת תקופה מעל כרטיסי המזומן, חובות הלקוחות, חובות לספקים והרווח.',
+    },
   },
   {
     slug: 'transactions',
@@ -60,58 +76,109 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     slug: 'sales',
     screenIds: ['sales', 'estimates', 'customers'],
     docPath: 'docs/help/sales.md',
-    titleEn: 'Sales, Invoices & Customers',
-    titleHe: 'מכירות, חשבוניות ולקוחות',
-    summaryEn: 'Create quotes and sales invoices, apply customer payments or credit notes, and send statements.',
-    summaryHe: 'הפקת הצעות מחיר וחשבוניות, קליטת תקבולים וזיכויים מלקוחות ושליחת דוחות מצב חשבון.',
-    keyTasksEn: ['Issue customer invoices with line-level revenue accounts and tax codes.', 'Record full or partial customer receipts.', 'Share read-only customer portal or invoice links.'],
-    keyTasksHe: ['הפקת חשבוניות עם סיווג הכנסה וקודי מס לכל שורה.', 'רישום תקבול מלא או חלקי מלקוח.', 'שיתוף קישור צפייה ותשלום ללקוח.'],
+    titleEn: 'Sales and invoices',
+    titleHe: 'מכירות וחשבוניות לקוח',
+    summaryEn: 'Use Sales to keep customer details, issue invoices and see which amounts are still unpaid.',
+    summaryHe: 'במסך המכירות מנהלים את פרטי הלקוחות, מפיקים חשבוניות ובודקים אילו סכומים טרם שולמו.',
+    keyTasksEn: [
+      'On Customers, add the customer or look up their details.',
+      'On Invoices, choose Add Invoice. Check the customer, dates, lines and total before issuing it.',
+      'Open an unpaid invoice to record money the customer actually paid. Issuing an invoice is not receiving payment.',
+    ],
+    keyTasksHe: [
+      'בלשונית הלקוחות הוסיפו לקוח או חפשו את פרטיו.',
+      'בלשונית החשבוניות בחרו בהוספת חשבונית. בדקו את הלקוח, התאריכים, השורות והסכום לפני ההפקה.',
+      'פתחו חשבונית שטרם שולמה כדי לרשום תקבול שהתקבל בפועל. הפקת חשבונית אינה קבלת תשלום.',
+    ],
+    illustration: {
+      screenId: 'sales',
+      altEn: 'Invoices and Customers tabs, Add Invoice and the unpaid invoice list.',
+      altHe: 'לשוניות החשבוניות והלקוחות, הוספת חשבונית ורשימת החשבוניות עם מצב התשלום.',
+    },
   },
   {
     slug: 'purchases',
     screenIds: ['purchases', 'purchase-orders', 'vendors'],
     docPath: 'docs/help/purchases.md',
-    titleEn: 'Purchases, Bills & Suppliers',
-    titleHe: 'רכש, חשבוניות ספקים ומלאי',
-    summaryEn: 'Record supplier bills, manage purchase orders and stock items, and schedule vendor payment runs.',
-    summaryHe: 'קליטת חשבוניות ספקים, ניהול הזמנות רכש ופריטי מלאי וביצוע סבבי תשלום לספקים.',
-    keyTasksEn: ['Enter vendor bills and attach source PDFs or images.', 'Run batch supplier payments with withholding checks.', 'Manage inventory items, units, and reorder thresholds.'],
-    keyTasksHe: ['רישום חשבוניות ספק וצירוף מסמכי מקור.', 'הכנת תשלומים מרוכזים לספקים כולל ניכוי מס במקור.', 'ניהול פריטי מלאי, יחידות מידה והתראות חוסר.'],
+    titleEn: 'Purchases and bills',
+    titleHe: 'רכש וחשבוניות ספק',
+    summaryEn: 'Use Purchases to keep supplier details, enter their bills and see what you owe.',
+    summaryHe: 'במסך הרכש מנהלים את פרטי הספקים, קולטים את החשבוניות שלהם ובודקים כמה העסק חייב.',
+    keyTasksEn: [
+      'On Vendors, find the supplier or add a new one.',
+      'Choose Record Bill and check the supplier, invoice number, dates and amounts against the original bill.',
+      'Review unpaid bills before starting a payment run. An open bill is not evidence that the supplier was paid.',
+    ],
+    keyTasksHe: [
+      'בלשונית הספקים חפשו את הספק או הוסיפו ספק חדש.',
+      'בחרו ברישום חשבונית ספק ובדקו את הספק, מספר החשבונית, התאריכים והסכומים מול המקור.',
+      'עברו על החשבוניות הפתוחות לפני הכנת סבב תשלומים. חשבונית פתוחה אינה אישור שהספק קיבל תשלום.',
+    ],
+    illustration: {
+      screenId: 'purchases',
+      altEn: 'Bill and vendor tabs, Record Bill and the list of bills with their payment status.',
+      altHe: 'לשוניות החשבוניות והספקים, רישום חשבונית ספק ורשימת החשבוניות עם מצב התשלום.',
+    },
   },
   {
     slug: 'banking',
     screenIds: ['banking', 'bank-connections', 'inbox'],
     docPath: 'docs/help/banking.md',
-    titleEn: 'Banking & Statement Imports',
-    titleHe: 'בנקאות וייבוא דפי חשבון',
-    summaryEn: 'Stage and review CSV, OFX, and QFX bank statements or manage connected feeds and cash movements.',
-    summaryHe: 'טעינה ובדיקה מוקדמת של דפי בנק בפורמט CSV, OFX ו-QFX וניהול תנועות קופה ובנק.',
-    keyTasksEn: ['Upload CSV, OFX, or QFX bank statements into staging review.', 'Verify counts and amounts before confirming import.', 'Record direct money-in or money-out cash movements.'],
-    keyTasksHe: ['העלאת קובצי CSV, OFX או QFX לבדיקה מוקדמת.', 'וידוא מספר השורות והסכומים לפני אישור הייבוא.', 'רישום הפקדות ומשיכות ישירות מחשבון הבנק.'],
+    titleEn: 'Banking',
+    titleHe: 'בנקאות',
+    summaryEn: 'Review bank accounts and bring statement activity into the books for matching. A live feed requires a configured provider.',
+    summaryHe: 'כאן בודקים את חשבונות הבנק ומייבאים תנועות מדף הבנק לצורך התאמה. חיבור בנק פעיל מצריך ספק מוגדר.',
+    keyTasksEn: [
+      'Check the bank account card before selecting a feed or recording a movement.',
+      'With a signed-in bookkeeping role, choose Import statement, select the account and review the file before confirming.',
+      'Review the import result, then open Reconcile to match the bank lines with existing entries. An import is not a match.',
+    ],
+    keyTasksHe: [
+      'בדקו את כרטיס החשבון לפני בחירת חיבור בנק או רישום תנועה.',
+      'לאחר כניסה בהרשאת עריכה מתאימה, בחרו בייבוא דף חשבון, בחרו חשבון ובדקו את הקובץ לפני האישור.',
+      'בדקו את תוצאת הייבוא ואז פתחו את מסך ההתאמות כדי לקשר שורות לתנועות קיימות בספרים. הייבוא עצמו אינו התאמה.',
+    ],
+    illustration: {
+      screenId: 'banking',
+      altEn: 'Import statement, money movement controls and two sample bank account cards.',
+      altHe: 'ייבוא דף חשבון, פעולות כספיות ושני כרטיסי חשבון לדוגמה.',
+    },
   },
   {
     slug: 'reconciliation',
     screenIds: ['reconciliation'],
     docPath: 'docs/help/reconciliation.md',
-    titleEn: 'Bank Reconciliation',
-    titleHe: 'התאמות בנקים',
-    summaryEn: 'Match bank statement lines against posted ledger entries and verify zero closing difference.',
-    summaryHe: 'התאמת שורות דף הבנק מול פקודות היומן בספרים עד לאיפוס ההפרש.',
-    keyTasksEn: ['Enter statement date and ending balance.', 'Match suggested pairs or create missing entries.', 'Finish reconciliation once difference equals zero.'],
-    keyTasksHe: ['הזנת תאריך דף הבנק ויתרת הסגירה.', 'אישור התאמות מוצעות או השלמת תנועות חסרות.', 'נעילת ההתאמה לאחר שההפרש עומד על אפס.'],
+    titleEn: 'Match bank lines',
+    titleHe: 'התאמת חשבון בנק',
+    summaryEn: 'Use Reconcile to link bank statement lines to entries already in your books. Matching a line does not close an accounting period.',
+    summaryHe: 'במסך ההתאמות מקשרים בין שורות מדף הבנק לתנועות שכבר נרשמו בספרים. התאמת שורה אינה סגירת תקופה חשבונאית.',
+    keyTasksEn: [
+      'Choose the cash account and open To review to find unmatched bank lines.',
+      'Select a bank line and the corresponding ledger entry. Check their amounts, dates and descriptions before confirming the match.',
+      'Open Matched to inspect earlier matches or undo a wrong match.',
+    ],
+    keyTasksHe: [
+      'בחרו את החשבון ופתחו את רשימת השורות לבדיקה כדי למצוא שורות שטרם הותאמו.',
+      'בחרו שורה מדף הבנק ואת התנועה המתאימה בספרים. בדקו את הסכומים, התאריכים והתיאורים לפני אישור ההתאמה.',
+      'פתחו את רשימת השורות שהותאמו כדי לעיין בהתאמות קודמות או לבטל התאמה שגויה.',
+    ],
+    illustration: {
+      screenId: 'reconciliation',
+      altEn: 'To review and Matched controls above bank lines and ledger entries.',
+      altHe: 'המעבר בין שורות לבדיקה לשורות שהותאמו, מעל שורות הבנק והתנועות בספרים.',
+    },
   },
+  ...STATEMENT_SCREEN_GUIDES,
   {
     slug: 'reports',
     screenIds: [
       'reports',
-      // every report on the Reports tab is described in this page: the page explains the area, and
+      // Reports without their own manual use this page: it explains the area, and
       // each report's own `? Help` has its two-to-four sentence description (A-219)
     'customer-cohorts',
     'asset-register',
     'one-sided-transfers',
     'budget-actual',
-    'pnl',
-    'balance-sheet',
     'group-summary',
     'ask-books',
     'cash-flow',
@@ -222,7 +289,6 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     'mileage-rates',
     'israel-self-employment-ni',
     'israel-advance-tax',
-    'israel-vat-report',
     'banking-validation',
     'us-nexus-watch',
     'tax-code-suggestions',
@@ -314,12 +380,25 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     'shortcuts',
     ],
     docPath: 'docs/help/settings.md',
-    titleEn: 'Workspace Settings, Security & Backups',
-    titleHe: 'הגדרות מערכת, הרשאות וגיבויים',
-    summaryEn: 'Manage team roles, optional modules, tax profiles, appearance/locale formatting, keyboard shortcuts, and JSON backups.',
-    summaryHe: 'ניהול הרשאות צוות, מודולים אופציונליים, פרופילי מס, עיצוב ושפה, קיצורי מקלדת וגיבויי JSON.',
-    keyTasksEn: ['Export and verify checksummed JSON backups before major changes.', 'Invite team members as owner, accountant, bookkeeper, or viewer.', 'Turn optional modules on or off without losing records.'],
-    keyTasksHe: ['ייצוא ושחזור גיבוי JSON מאומת בחתימת SHA-256.', 'ניהול הרשאות משתמשים (בעלים, רו״ח, מנה״ח, צופה).', 'הפעלה או הסתרה של מודולים מבלי למחוק נתונים.'],
+    titleEn: 'Workspace settings',
+    titleHe: 'הגדרות סביבת העבודה',
+    summaryEn: 'Use Settings to find the options for these books. Your role determines which changes you can save.',
+    summaryHe: 'במסך ההגדרות מוצאים את האפשרויות לספרי העסק. ההרשאה שלכם קובעת אילו שינויים תוכלו לשמור.',
+    keyTasksEn: [
+      'Search for a setting or choose a section, such as Appearance & Display.',
+      'Open Team & Invites to review access to this workspace.',
+      'Use Backup & Export to download a backup before major changes. A file checksum is not proof that the backup is complete or can be restored.',
+    ],
+    keyTasksHe: [
+      'חפשו הגדרה או בחרו מדור, למשל הגדרות תצוגה.',
+      'פתחו את מדור הצוות וההזמנות כדי לבדוק למי יש גישה לספרים האלה.',
+      'לפני שינויים גדולים הורידו גיבוי ממדור הגיבוי והייצוא. ערך ביקורת של קובץ אינו הוכחה שהגיבוי מלא או שניתן לשחזר אותו.',
+    ],
+    illustration: {
+      screenId: 'settings',
+      altEn: 'Search settings above Workspace, Accounting, and Documents & sales sections.',
+      altHe: 'חיפוש הגדרות מעל מדורי סביבת העבודה, החשבונאות והמסמכים והמכירות.',
+    },
   },
   {
     slug: 'tasks-and-time',
@@ -450,8 +529,8 @@ export const HOW_TO_ARTICLES: readonly HowToArticle[] = [
     titleHe: 'הפקה ושליחה של חשבונית ללקוח',
     summaryEn: 'Issue an itemized invoice mapped to revenue accounts and verify its receivable entry.',
     summaryHe: 'הפקת חשבונית מפורטת המשויכת לחשבון הכנסות ובדיקת רישומה בכרטסת הלקוח.',
-    stepsEn: ['Open Sales and select New Invoice.', 'Pick or enter the customer, set invoice and due dates, and add descriptions, quantities, rates, and revenue accounts.', 'Click Send Invoice, then check Account Statement in Reports to confirm the open balance.'],
-    stepsHe: ['פתחו את מסך המכירות ולחצו על חשבונית חדשה.', 'בחרו לקוח, הגדירו תאריך ותנאי תשלום והוסיפו שורות פירוט, כמות, מחיר וחשבון הכנסה.', 'לחצו על שליחת חשבונית ובדקו את היתרה הפתוחה בדוח מצב חשבון לקוח.'],
+    stepsEn: ['Open Sales, choose Invoices, then Add Invoice.', 'Pick or enter the customer, set invoice and due dates, and add descriptions, quantities, rates, and revenue accounts.', 'Click Send Invoice, then check Account Statement in Reports to confirm the open balance.'],
+    stepsHe: ['פתחו את רשימת החשבוניות במסך המכירות ובחרו בהוספת חשבונית.', 'בחרו לקוח, הגדירו תאריך ותנאי תשלום והוסיפו שורות פירוט, כמות, מחיר וחשבון הכנסה.', 'לחצו על שליחת חשבונית ובדקו את היתרה הפתוחה בדוח מצב חשבון לקוח.'],
   },
   {
     id: 'howto-04-receive-payment',
@@ -462,8 +541,8 @@ export const HOW_TO_ARTICLES: readonly HowToArticle[] = [
     titleHe: 'קליטת תקבול מלא או חלקי מלקוח',
     summaryEn: 'Allocate incoming bank transfers or checks across one or multiple open invoices.',
     summaryHe: 'שיוך העברה בנקאית או שיק לחשבונית פתוחה אחת או למספר חשבוניות.',
-    stepsEn: ['Open Receive Payment from Sales.', 'Select the customer, deposit cash account, payment date, reference, and amount received.', 'Allocate the exact amount per invoice (or apply oldest first) and post the payment.'],
-    stepsHe: ['פתחו קבלת תשלום ממסך המכירות.', 'בחרו לקוח, חשבון בנק להפקדה, תאריך, אסמכתא וסכום התקבול.', 'שייכו את הסכום לחשבוניות הפתוחות ואשרו את הרישום.'],
+    stepsEn: ['In Sales → Invoices, choose Receive Payment on the unpaid invoice.', 'Select the customer, deposit cash account, payment date, reference, and amount received.', 'Allocate the exact amount per invoice (or apply oldest first) and post the payment.'],
+    stepsHe: ['במסך המכירות, ברשימת החשבוניות, בחרו בקבלת תשלום בשורה של החשבונית שטרם שולמה.', 'בחרו לקוח, חשבון בנק להפקדה, תאריך, אסמכתא וסכום התקבול.', 'שייכו את הסכום לחשבוניות הפתוחות ואשרו את הרישום.'],
   },
   {
     id: 'howto-05-quotes-to-orders',
@@ -498,7 +577,7 @@ export const HOW_TO_ARTICLES: readonly HowToArticle[] = [
     titleHe: 'רישום חשבונית ספק וצירוף מסמך מקור',
     summaryEn: 'Enter payable bills by expense account or label and attach the supplier invoice file.',
     summaryHe: 'קליטת חשבונית ספק לפי סעיפי הוצאה ותגיות וצירוף קובץ המקור.',
-    stepsEn: ['Go to Purchases and click Record New Bill.', 'Choose the supplier, bill number, bill date, due date, and split lines across expense accounts.', 'Attach the supplier PDF or image receipt and save to post to Accounts Payable.'],
+    stepsEn: ['Go to Purchases and choose Record Bill.', 'Choose the supplier, bill number, bill date, due date, and split lines across expense accounts.', 'Attach the supplier PDF or image receipt and save to post to Accounts Payable.'],
     stepsHe: ['עברו לרכש ולחצו על רישום חשבונית ספק חדשה.', 'בחרו ספק, מספר חשבונית, תאריכים ופירוט שורות ההוצאה.', 'צרפו קובץ PDF או תמונה ושמרו לרישום מול ספקים.'],
   },
   {
@@ -532,12 +611,12 @@ export const HOW_TO_ARTICLES: readonly HowToArticle[] = [
     screenId: 'reconciliation',
     target: { tab: 'reconciliation' },
     category: 'Banking',
-    titleEn: 'Reconcile a bank account to a zero difference',
-    titleHe: 'התאמת חשבון בנק להפרש אפס',
-    summaryEn: 'Match imported bank lines to ledger entries and seal the statement closing balance.',
-    summaryHe: 'הצלבת שורות דף הבנק מול תנועות היומן ונעילת יתרת הסגירה.',
-    stepsEn: ['Open Reconciliation, select the bank account, and enter statement ending date and balance.', 'Tick matching ledger entries or post missing bank fees/interest.', 'Confirm Difference reads 0.00 before finishing the reconciliation.'],
-    stepsHe: ['פתחו התאמות, בחרו חשבון בנק והזינו תאריך ויתרת סגירה מהדף.', 'סמנו תנועות תואמות או השלימו עמלות בנק חסרות.', 'ודאו שההפרש עומד על 0.00 בדיוק לפני סיום ההתאמה.'],
+    titleEn: 'Match a bank statement line to a ledger entry',
+    titleHe: 'התאמת חשבון בנק: קישור שורה לתנועה בספרים',
+    summaryEn: 'Check one suggested pair against the statement before accepting it.',
+    summaryHe: 'בדקו את זוג התנועות המוצע מול דף הבנק לפני אישור ההתאמה.',
+    stepsEn: ['Under To review, select a statement line for the right account.', 'Choose the ledger entry for the same movement. A suggested match is not a confirmed one.', 'Check the pair, choose Confirm match, then find it under Matched. If it was wrong, use Undo match.'],
+    stepsHe: ['ברשימה לבדיקה בחרו שורה מדף הבנק של החשבון המתאים.', 'בחרו את התנועה המקבילה בספרים. הצעת התאמה אינה אישור התאמה.', 'בדקו את הזוג, אשרו את ההתאמה וחפשו אותה ברשימת השורות שהותאמו. אם נפלה טעות, בטלו את ההתאמה.'],
   },
   {
     id: 'howto-11-labels-dimensions',
@@ -677,8 +756,7 @@ export function findScreenHelpDoc(activeTab: string): ScreenHelpDoc {
 }
 
 export function articlesForScreen(activeTab: string): HowToArticle[] {
-  const direct = HOW_TO_ARTICLES.filter(article => article.screenId === activeTab);
-  return direct.length > 0 ? direct : HOW_TO_ARTICLES.slice(0, 3);
+  return HOW_TO_ARTICLES.filter(article => article.screenId === activeTab || (article.target.tab === 'reports' && article.target.sub === activeTab));
 }
 
 /** G-11: Bilingual search across all 20 EN/HE how-to articles AND screen help docs. */

@@ -1,15 +1,21 @@
-# Workspace Settings, Security & Backups · הגדרות מערכת, הרשאות וגיבויים
+# Workspace settings · הגדרות סביבת העבודה
 
 ## English
-The **Settings** screen organizes workspace configuration into five searchable groups: Workspace, Accounting, Documents & sales, Automation, and Data & developer.
 
-1. Export SHA-256 checksummed JSON backups in **Backup & Export** before bulk imports or structural changes.
-2. Manage team roles (`owner`, `accountant`, `bookkeeper`, `viewer`), two-step verification, and optional workspace **Modules**.
-3. Configure locale money formatting (`he-IL`, `en-US`, accounting brackets), custom keyboard speed dials, and entity tax profiles.
+Use Settings to find the options for these books. Your role determines which changes you can save.
+
+1. Search for a setting or choose a section, such as Appearance & Display.
+2. Open Team & Invites to review access to this workspace.
+3. Use Backup & Export to download a backup before major changes. A file checksum is not proof that the backup is complete or can be restored.
 
 ## עברית
-מסך **ההגדרות** מחולק לחמש קבוצות הניתנות לחיפוש מהיר: סביבת עבודה, חשבונאות, מסמכים ומכירות, אוטומציה ונתונים ומפתחים.
 
-1. ייצאו גיבוי JSON מלא החתום ב-SHA-256 תחת **גיבוי וייצוא** לפני שינויים מהותיים.
-2. נהלו הרשאות צוות (בעלים, רואה חשבון, מנהל חשבונות, צופה), אימות דו-שלבי ו**מודולים** אופציונליים.
-3. התאימו תצוגת סכומים (עברית/אנגלית, סוגריים חשבונאיים), קיצורי מקלדת ופרופילי מס.
+במסך ההגדרות מוצאים את האפשרויות לספרי העסק. ההרשאה שלכם קובעת אילו שינויים תוכלו לשמור.
+
+1. חפשו הגדרה או בחרו מדור, למשל הגדרות תצוגה.
+2. פתחו את מדור הצוות וההזמנות כדי לבדוק למי יש גישה לספרים האלה.
+3. לפני שינויים גדולים הורידו גיבוי ממדור הגיבוי והייצוא. ערך ביקורת של קובץ אינו הוכחה שהגיבוי מלא או שניתן לשחזר אותו.
+
+![Search settings above Workspace, Accounting, and Documents & sales sections. · חיפוש הגדרות מעל מדורי סביבת העבודה, החשבונאות והמסמכים והמכירות.](../../public/help/settings.webp)
+
+*Sample books · ספרים לדוגמה*

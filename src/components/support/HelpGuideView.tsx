@@ -24,7 +24,7 @@ import MainPathGuide from "./MainPathGuide";
 import GuestCountrySamplePicker from "./GuestCountrySamplePicker";
 import FirstMonthOnboardingHub from "./FirstMonthOnboardingHub";
 import AccessibilityAndLanguagePanel from "./AccessibilityAndLanguagePanel";
-import { HOW_TO_ARTICLES, SCREEN_HELP_DOCS, searchHowToArticles } from "../../lib/helpCenterArticles";
+import { HOW_TO_ARTICLES, SCREEN_HELP_DOCS, findScreenHelpDoc, searchHowToArticles } from "../../lib/helpCenterArticles";
 
 import { BRAND_NAME } from '../../config/brand';
 interface SectionDoc {
@@ -33,7 +33,7 @@ interface SectionDoc {
   icon: LucideIcon;
   category: string;
   summary: string;
-  steps: string[];
+  steps: readonly string[];
   tips?: string[];
 }
 
@@ -61,7 +61,7 @@ const GUIDE_SECTIONS: SectionDoc[] = [
     category: "Money In",
     summary: "Create, send, track, and reconcile sales invoices with tax calculations and payment terms.",
     steps: [
-      "Go to Sales and click \"New Invoice\".",
+      "Go to Sales and choose \"Add Invoice\".",
       "Select or type a customer name and set the invoice date and due date.",
       "Add line items with descriptions, quantities, unit prices, and revenue accounts.",
       "Toggle Tax Inclusive if prices already include sales tax, or enter a tax rate percentage.",
@@ -79,7 +79,7 @@ const GUIDE_SECTIONS: SectionDoc[] = [
     category: "Money Out",
     summary: "Record vendor bills, allocate expenses across cost centers, and manage accounts payable.",
     steps: [
-      "Go to Purchases and click \"Record New Bill\".",
+      "Go to Purchases and choose \"Record Bill\".",
       "Select a vendor to auto-fill default expense categories.",
       "Add split line items for multi-category expense allocation.",
       "Attach receipts or drag-and-drop document files.",
@@ -102,17 +102,11 @@ const GUIDE_SECTIONS: SectionDoc[] = [
   },
   {
     id: "banking-reconciliation",
-    title: "Bank Feeds & Zero-Variance Reconciliation",
+    title: "Match bank statement lines",
     icon: Layers,
     category: "Reconcile",
-    summary: "Match imported bank lines against general ledger entries to ensure statement reconciliation.",
-    steps: [
-      "Open Bank Connections to sync transactions or upload statement CSVs.",
-      "Review suggestions in the \"To Review\" inbox.",
-      "Navigate to Reconciliation and enter your statement closing balance and date.",
-      "Check off matching items until Difference reaches exactly $0.00.",
-      "Finalize the reconciliation statement to seal the period."
-    ]
+    summary: findScreenHelpDoc('reconciliation').summaryEn,
+    steps: findScreenHelpDoc('reconciliation').keyTasksEn,
   },
   {
     id: "period-close-reversals",
