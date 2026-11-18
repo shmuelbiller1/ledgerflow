@@ -112,7 +112,7 @@ export const RECORD_COMMAND_MANIFEST = [
         },
         {
           "code": "CONFLICT",
-          "when": "A create names an id that is already taken.",
+          "when": "A create names an id that is already taken, or the save changes a field only a ledger command may change (asset depreciation or disposal, stock or cost of a stocked item, an accepted estimate, a received purchase order).",
           "next": "Open that record and save it, or let the server choose the id."
         },
         {
