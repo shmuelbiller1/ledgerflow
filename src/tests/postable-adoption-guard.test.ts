@@ -130,16 +130,15 @@ test('Adoption Guard verification test (temporary assertions)', () => {
   }
 });
 
-test('Adoption Guard: Financial statements and exports must leverage server-authoritative endpoints', () => {
-  const exportAndStatementFiles = [
-    'src/components/platform/settings/BackupExportSettings.tsx',
+test('Adoption Guard: Financial statements must leverage server-authoritative endpoints', () => {
+  const statementFiles = [
     'src/components/ledger/BalanceSheetView.tsx',
     'src/components/ledger/ProfitAndLossView.tsx',
     'src/components/ledger/TrialBalanceView.tsx',
     'src/components/ledger/CashFlowView.tsx'
   ];
 
-  for (const file of exportAndStatementFiles) {
+  for (const file of statementFiles) {
     const content = readFileSync(file, 'utf8');
     const usesServerHook = content.includes('useFinancialReporting') || content.includes('/api/v1/workspaces');
     const branchesOnResult = content.includes('isServerAuthoritative') || content.includes('usedServer');
@@ -151,3 +150,10 @@ test('Adoption Guard: Financial statements and exports must leverage server-auth
   }
 });
 
+
+test('Adoption Guard: only the verified server export can advance the backup reminder', () => {
+  const backup = readFileSync('src/components/platform/settings/BackupExportSettings.tsx', 'utf8');
+  assert.match(backup, /path:\s*`\/api\/v1\/workspaces\/[^`\n]+\/export`/);
+  assert.match(backup, /await verifiedBackupCollections\(payload, workspaceId\);[\s\S]*?downloadJson\(payload, 'backup', workspaceId\);[\s\S]*?recordBackupCompleted\(workspaceId\);/);
+  assert.equal([...backup.matchAll(/\brecordBackupCompleted\(/g)].length, 1, 'the partial-copy path must not advance the reminder');
+});

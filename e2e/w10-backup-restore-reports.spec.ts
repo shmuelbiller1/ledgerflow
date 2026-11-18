@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import { test, expect, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import { mountJourney, remountJourney, setLedgerField, settleStyles } from './support/journeyFixture';
-import { expectNoNewAccessibilityIssues, settleAnimations } from './support/a11yGate';
+import { expectNoNewAccessibilityIssues, waitForFiniteAnimations } from './support/a11yGate';
+import { buildWorkspaceArchive } from '../src/lib/workspaceArchive';
 
 /**
  * D-98 · W10 (RELEASE_GATE): backup → change records → restore → the P&L, balance sheet and trial
@@ -10,7 +12,7 @@ import { expectNoNewAccessibilityIssues, settleAnimations } from './support/a11y
  *
  * This journey uses the real Settings → Backup & Export screen (`BackupExportSettings.tsx`):
  *  - "Export JSON Backup" downloads the backup file from the server export;
- *  - "Restore backup file" reads that same file back, checks its SHA-256 checksum and uploads it.
+ *  - "Restore backup file" checks the file's SHA-256 and uploads it only when the owner confirms.
  * Only the server's HTTP boundary is stubbed (the export body, the restore reply and the report
  * endpoints); the client code that builds the file, verifies the checksum and posts it is the
  * app's own. The server's own restore transaction is covered by `src/tests/backup-restore.test.ts`
@@ -102,7 +104,7 @@ function backupPayload(transactions: Tx[]) {
     accounts: ACCOUNTS,
     metadata: {
       transactionCount: transactions.length,
-      totalCount: transactions.length,
+      counts: { transactions: transactions.length, accounts: ACCOUNTS.length },
       currency: 'USD',
       serverAuthoritative: true,
     },
@@ -119,21 +121,35 @@ function fileChecksum(fileText: string): string {
 
 const BACKUP_SCREEN = { module: '/src/components/platform/settings/BackupExportSettings.tsx' };
 
-async function mountBackupScreen(page: Page, ledger: Tx[]) {
-  await mountJourney(page, {
+async function mountBackupScreen(page: Page, ledger: Tx[], options: { exportStatus?: number; role?: 'owner' | 'viewer'; invalidExport?: boolean } = {}) {
+  return mountJourney(page, {
     workspaceId: WORKSPACE,
+    role: options.role,
     ledger: { accounts: ACCOUNTS, transactions: ledger, customers: [], vendors: [], invoices: [], bills: [], payments: [] },
     mounts: [BACKUP_SCREEN],
     api: request => {
       // the reports fall back to the ledger the app already has (BUG-02 fallback path)
       if (request.url.includes('/api/v1/reports/')) return { status: 500, json: {} };
-      if (request.url.includes(`/api/v1/workspaces/${WORKSPACE}/export`)) return { json: backupPayload(ledger) };
+      if (request.url.includes(`/api/v1/workspaces/${WORKSPACE}/export`)) {
+        if (options.exportStatus) return { status: options.exportStatus, json: { error: 'Backup unavailable.' } };
+        if (options.invalidExport) return { json: {} };
+        return { json: backupPayload(ledger) };
+      }
       if (request.url.includes(`/api/v1/workspaces/${WORKSPACE}/restore`)) {
         return { json: { success: true, message: 'Workspace restored from the backup file.', counts: { transactions: ledger.length } } };
       }
       return null;
     },
   });
+}
+
+const restoreDialog = (page: Page) => page.getByRole('dialog', { name: 'Restore backup?' });
+const fileInput = (page: Page) => page.getByLabel('Restore backup file');
+const restoreButton = (page: Page) => page.getByRole('button', { name: 'Restore Workspace', exact: true });
+const backupMarker = (page: Page) => page.evaluate(id => localStorage.getItem(`ledgerflow:last_backup:${id}`), WORKSPACE);
+
+async function selectJsonBackup(page: Page, name: string, text: string) {
+  await fileInput(page).setInputFiles({ name, mimeType: 'application/json', buffer: Buffer.from(text) });
 }
 
 async function exportBackup(page: Page): Promise<string> {
@@ -147,14 +163,28 @@ async function exportBackup(page: Page): Promise<string> {
   return fs.readFileSync(path!, 'utf8');
 }
 
-async function restoreBackup(page: Page, fileText: string) {
-  const restoreRequest = page.waitForRequest(request => request.url().includes('/restore') && request.method() === 'POST');
-  await page.locator('input[aria-label="Restore backup file"]').setInputFiles({
-    name: 'ledgerflow-backup.json',
-    mimeType: 'application/json',
-    buffer: Buffer.from(fileText, 'utf8'),
-  });
-  return restoreRequest;
+async function restoreBackup(page: Page, fileText: string, restoreUploads: string[]) {
+  await restoreButton(page).focus();
+  await selectJsonBackup(page, 'ledgerflow-backup.json', fileText);
+  const dialog = restoreDialog(page);
+  await expect(dialog).toContainText('Journey Books');
+  await expect(dialog).toContainText('ledgerflow-backup.json');
+  await expect(dialog).toContainText('replaces');
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  expect(restoreUploads).toHaveLength(0);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(restoreButton(page)).toBeFocused();
+  expect(restoreUploads).toHaveLength(0);
+
+  await selectJsonBackup(page, 'ledgerflow-backup.json', fileText);
+  await expect(dialog).toBeVisible();
+  const [request] = await Promise.all([
+    page.waitForRequest(request => request.url().endsWith('/restore') && request.method() === 'POST'),
+    dialog.getByRole('button', { name: 'Replace workspace records' }).click(),
+  ]);
+  await expect(dialog).toHaveCount(0);
+  return request;
 }
 
 async function showProfitAndLoss(page: Page) {
@@ -196,6 +226,7 @@ for (const width of [390, 1280]) {
     await expect(page.getByRole('heading', { name: 'Backup & Export' })).toBeVisible();
     const backupFile = await exportBackup(page);
 
+    await expect.poll(() => backupMarker(page)).not.toBeNull();
     const exported = JSON.parse(backupFile) as { transactions: Tx[]; accounts: Account[]; metadata: { checksum: string } };
     expect(exported.transactions.map(t => t.id)).toEqual(['t1', 't2']);
     expect(exported.accounts).toHaveLength(6);
@@ -235,9 +266,9 @@ for (const width of [390, 1280]) {
     // ---------------------------------------------------------------- 4. restore the file the test downloaded
     await mountBackupScreen(page, CHANGED_TXS);       // the app after the change
     await expect(page.getByRole('heading', { name: 'Backup & Export' })).toBeVisible();
-    const restoreRequest = await restoreBackup(page, backupFile);
+    const restoreRequest = await restoreBackup(page, backupFile, restoreUploads);
     const sent = JSON.parse(restoreRequest.postData() || '{}') as { transactions?: Tx[]; metadata?: { checksum?: string } };
-    expect(restoreUploads.length).toBeGreaterThanOrEqual(1);
+    expect(restoreUploads).toHaveLength(1);
     // the client uploads the file it read, checksum verified first — untouched
     expect(sent.metadata?.checksum).toBe(exported.metadata.checksum);
     expect(sent.transactions?.map(t => t.id)).toEqual(['t1', 't2']);
@@ -262,17 +293,10 @@ for (const width of [390, 1280]) {
     const tampered = JSON.parse(backupFile) as { transactions: Tx[] };
     tampered.transactions[0].totalAmountCents = 999999;
     await mountBackupScreen(page, BACKUP_TXS);
-    const uploadsBefore = restoreUploads.length;
-    const damagedInput = page.locator('input[aria-label="Restore backup file"]');
-    await damagedInput.setInputFiles({
-      name: 'ledgerflow-backup.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(JSON.stringify(tampered), 'utf8'),
-    });
-    // the client reads the file, fails the checksum and clears the input; nothing is posted
-    await expect.poll(() => damagedInput.evaluate((input: HTMLInputElement) => input.value), { timeout: 5000 }).toBe('');
-    await settleAnimations(page, 500);
-    expect(restoreUploads, 'a damaged backup must never reach the server').toHaveLength(uploadsBefore);
+    await selectJsonBackup(page, 'ledgerflow-backup.json', JSON.stringify(tampered));
+    await expect(page.getByRole('alert')).toContainText('Checksum verification failed');
+    await expect(restoreDialog(page)).toHaveCount(0);
+    expect(restoreUploads, 'a damaged backup must never reach the server').toHaveLength(1);
 
     // ---------------------------------------------------------------- 7. accessibility of the restored screen
     await showTrialBalance(page);
@@ -283,3 +307,179 @@ for (const width of [390, 1280]) {
     expect(pageErrors, 'page errors').toEqual([]);
   });
 }
+
+test('W10 a failed server export offers only a separately named, non-restorable partial copy', async ({ page }) => {
+  const { requests } = await mountBackupScreen(page, BACKUP_TXS, { exportStatus: 503 });
+  const downloads: string[] = [];
+  page.on('download', download => downloads.push(download.suggestedFilename()));
+  await expect(page.getByRole('heading', { name: 'Firestore Point-In-Time Recovery', exact: false })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Verify Backup Policy' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Export JSON Backup' }).click();
+  await expect(page.getByRole('alert')).toContainText('The full backup could not be downloaded');
+  expect(downloads).toEqual([]);
+  expect(await backupMarker(page)).toBeNull();
+
+  await page.locator('html').evaluate(element => element.classList.add('light'));
+  await waitForFiniteAnimations(page);
+  const { violations } = await new AxeBuilder({ page }).include('section[aria-label="Full Workspace Backup"]').withRules(['color-contrast']).analyze();
+  expect(violations).toEqual([]);
+
+  const [partial] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Download partial copy' }).click(),
+  ]);
+  const filename = partial.suggestedFilename();
+  expect(filename).toMatch(/^ledgerflow-partial-export-w10-backup-\d{4}-\d{2}-\d{2}\.json$/);
+  const text = fs.readFileSync((await partial.path())!, 'utf8');
+  expect(JSON.parse(text).metadata.serverAuthoritative).toBe(false);
+  expect(JSON.parse(text).metadata.checksum).toBe(fileChecksum(text));
+  expect(await backupMarker(page)).toBeNull();
+
+  // Earlier browser copies had the full filename. The format marker, not the filename, controls refusal.
+  await selectJsonBackup(page, 'ledgerflow-backup.json', text);
+  await expect(page.getByRole('alert').filter({ hasText: 'cannot be restored' })).toBeVisible();
+  await expect(restoreDialog(page)).toHaveCount(0);
+  expect(requests.filter(request => request.url.endsWith('/restore'))).toHaveLength(0);
+});
+
+for (const [scenario, options] of [
+  ['the server refuses access', { exportStatus: 403 }],
+  ['a successful response is not a backup', { invalidExport: true }],
+] as const) {
+  test(`W10 does not mark a backup complete when ${scenario}`, async ({ page }) => {
+    await mountBackupScreen(page, BACKUP_TXS, options);
+    const downloads: string[] = [];
+    page.on('download', download => downloads.push(download.suggestedFilename()));
+    await page.getByRole('button', { name: 'Export JSON Backup' }).click();
+    await expect(page.getByRole('alert')).toContainText('The full backup could not be downloaded');
+    await expect(page.getByRole('button', { name: 'Download partial copy' })).toHaveCount(0);
+    expect(downloads).toEqual([]);
+    expect(await backupMarker(page)).toBeNull();
+  });
+}
+
+test('W10 a blocked reminder write does not report a failed download', async ({ page }) => {
+  await mountBackupScreen(page, BACKUP_TXS);
+  await page.evaluate(id => {
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (this === localStorage && key === `ledgerflow:last_backup:${id}`) {
+        throw new DOMException('Storage is full', 'QuotaExceededError');
+      }
+      setItem.call(this, key, value);
+    };
+  }, WORKSPACE);
+  const text = await exportBackup(page);
+  expect(JSON.parse(text).metadata.checksum).toBe(fileChecksum(text));
+  await expect(page.getByRole('status')).toContainText('The backup download started, but the reminder could not be updated');
+  await expect(page.getByRole('alert').filter({ hasText: 'The full backup could not be downloaded' })).toHaveCount(0);
+  expect(await backupMarker(page)).toBeNull();
+});
+
+test('W10 a workspace archive requires confirmation and submits its exact JSON once on server refusal', async ({ page }) => {
+  await mountBackupScreen(page, BACKUP_TXS);
+  const payload = backupPayload(BACKUP_TXS);
+  const archive = await buildWorkspaceArchive(payload, WORKSPACE);
+  const { promise: canReply, resolve: releaseResponse } = Promise.withResolvers<void>();
+  const uploads: string[] = [];
+  await page.route('**/restore', async route => {
+    uploads.push(route.request().postData() ?? '');
+    await canReply;
+    await route.fulfill({ status: 409, json: { error: 'Books are closed through 2026-01-31.' } });
+  });
+  try {
+    await fileInput(page).setInputFiles({ name: 'workspace-archive.zip', mimeType: 'application/zip', buffer: Buffer.from(await archive.blob.arrayBuffer()) });
+    const dialog = restoreDialog(page);
+    const cancel = dialog.getByRole('button', { name: 'Cancel' });
+    const confirm = dialog.getByRole('button', { name: 'Replace workspace records' });
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(confirm).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(cancel).toBeFocused();
+    expect(uploads).toHaveLength(0);
+    await waitForFiniteAnimations(page);
+    const { violations } = await new AxeBuilder({ page }).include('[role="dialog"]').analyze();
+    expect(violations.filter(violation => violation.impact === 'serious' || violation.impact === 'critical')).toEqual([]);
+
+    await confirm.click({ clickCount: 2 });
+    await expect(dialog.getByRole('button', { name: 'Restoring…' })).toBeDisabled();
+    await page.keyboard.press('Tab');
+    await expect(dialog).toBeFocused();
+    await expect(cancel).toBeDisabled();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeVisible();
+    await expect.poll(() => uploads).toEqual([JSON.stringify(payload, null, 2)]);
+  } finally {
+    releaseResponse();
+  }
+  await expect(restoreDialog(page)).toHaveCount(0);
+  await expect(page.getByRole('alert')).toContainText('Books are closed through 2026-01-31');
+  expect(uploads).toHaveLength(1);
+});
+
+test('W10 discards a staged backup when the owner changes workspace', async ({ page }) => {
+  const { requests } = await mountBackupScreen(page, BACKUP_TXS);
+  await selectJsonBackup(page, 'ledgerflow-backup.json', JSON.stringify(backupPayload(BACKUP_TXS)));
+  await expect(restoreDialog(page)).toBeVisible();
+
+  await page.evaluate(async () => {
+    const path = '/src/stores/useAuthStore.ts';
+    const { useAuthStore } = await import(/* @vite-ignore */ path) as typeof import('../src/stores/useAuthStore');
+    const auth = useAuthStore.getState();
+    auth.setWorkspaces([...auth.workspaces, { ...auth.workspaces[0], id: 'other-books', name: 'Other Books' }]);
+    auth.setCurrentWorkspaceId('other-books');
+  });
+
+  await expect(restoreDialog(page)).toHaveCount(0);
+  await expect(restoreButton(page)).toBeEnabled();
+  expect(requests.filter(request => request.url.endsWith('/restore'))).toHaveLength(0);
+});
+
+test('W10 refuses a checksummed backup from another workspace before confirmation', async ({ page }) => {
+  const { requests } = await mountBackupScreen(page, BACKUP_TXS);
+  const payload = backupPayload(BACKUP_TXS);
+  payload.workspace.id = 'other-books';
+  const text = JSON.stringify(payload);
+  payload.metadata.checksum = fileChecksum(text);
+  await selectJsonBackup(page, 'other-workspace.json', JSON.stringify(payload));
+  await expect(page.getByRole('alert')).toContainText('belongs to a different workspace');
+  await expect(restoreDialog(page)).toHaveCount(0);
+  expect(requests.filter(request => request.url.endsWith('/restore'))).toHaveLength(0);
+});
+
+test('W10 drops a file still being checked when a new sign-in starts for the same user', async ({ page }) => {
+  const { requests } = await mountBackupScreen(page, BACKUP_TXS);
+  // Pause only this file read. Let the genuine validator finish after the new sign-in.
+  await page.evaluate(() => {
+    const readFile = File.prototype.text;
+    File.prototype.text = async function () {
+      File.prototype.text = readFile;
+      await new Promise<void>(resolve => {
+        window.addEventListener('w10-resume-file-read', () => resolve(), { once: true });
+      });
+      return readFile.call(this);
+    };
+  });
+  const text = JSON.stringify(backupPayload(BACKUP_TXS));
+  await selectJsonBackup(page, 'old-session.json', text);
+  await expect(page.getByRole('button', { name: 'Checking backup…' })).toBeVisible();
+  await page.evaluate(async () => {
+    const path = '/src/stores/useAuthStore.ts';
+    const { useAuthStore } = await import(/* @vite-ignore */ path) as typeof import('../src/stores/useAuthStore');
+    const { user, setUser } = useAuthStore.getState();
+    if (!user) throw new Error('Expected a signed-in fixture owner');
+    setUser({ ...user, getIdTokenResult: async () => ({ claims: {}, token: '', expirationTime: '', issuedAtTime: '', signInProvider: null }) });
+    window.dispatchEvent(new Event('w10-resume-file-read'));
+  });
+  await expect(restoreButton(page)).toBeEnabled();
+  await selectJsonBackup(page, 'new-session.json', text);
+  await expect(restoreDialog(page)).toContainText('new-session.json');
+  expect(requests.filter(request => request.url.endsWith('/restore'))).toHaveLength(0);
+});
+
+test('W10 shows the owner requirement without enabling restore for a viewer', async ({ page }) => {
+  await mountBackupScreen(page, BACKUP_TXS, { role: 'viewer' });
+  await expect(restoreButton(page)).toBeDisabled();
+  await expect(page.getByText('Only a signed-in workspace owner can restore a backup.')).toBeVisible();
+});

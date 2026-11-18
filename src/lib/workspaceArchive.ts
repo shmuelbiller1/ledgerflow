@@ -114,12 +114,15 @@ export function makeStoredZip(files: readonly ZipEntry[]): Blob {
 }
 
 /** The server computes SHA-256 over the backup before appending metadata.checksum. */
-async function backupChecksumMatches(payload: JsonObject): Promise<boolean> {
-  if (!obj(payload.metadata)) return false;
-  const { checksum, ...withoutChecksum } = payload.metadata;
+export async function backupChecksum(payload: JsonObject & { metadata: JsonObject }): Promise<string> {
+  const { checksum: _checksum, ...withoutChecksum } = payload.metadata;
   const original = { ...payload, metadata: withoutChecksum };
   const digest = await crypto.subtle.digest('SHA-256', textEncoder.encode(JSON.stringify(original)));
-  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('') === checksum;
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function backupChecksumMatches(payload: JsonObject): Promise<boolean> {
+  return obj(payload.metadata) && await backupChecksum({ ...payload, metadata: payload.metadata }) === payload.metadata.checksum;
 }
 
 export interface WorkspaceArchiveResult {
