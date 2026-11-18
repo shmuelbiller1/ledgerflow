@@ -247,23 +247,26 @@ export default function TaxLiabilityView({ startDate: pageStartDate, endDate: pa
         ))}
       </div>
       {byRate.length > 0 && (
-        <RowTable
-          rowHeaderColumn={false}
-          caption={(<>{reportText('r.tax-by-rate-collected-minus-paid', 'Tax by rate (collected minus paid)')}</>)}
-          rows={byRate}
-          rowKey={r => `${r.name}|${r.rate}`}
-          captionClassName="text-start font-semibold p-2"
-          tableClassName="w-full text-xs border border-[var(--line)] rounded-xl overflow-hidden"
-          headRowClassName="text-[var(--muted)] border-b border-[var(--line)]"
-          columns={[
-            { header: reportText('r.tax', 'Tax'), className: "p-2", headClassName: "text-start p-2", cell: (r) => (<>{r.name} {r.rate}%</>) },
-            { header: reportText('r.taxable-sales', 'Taxable sales'), align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.salesNetCents) },
-            { header: reportText('r.collected', 'Collected'), align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.salesTaxCents) },
-            { header: reportText('r.taxable-purchases', 'Taxable purchases'), align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.purchasesNetCents) },
-            { header: reportText('r.paid', 'Paid'), align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.purchasesTaxCents) },
-            { header: reportText('r.net', 'Net'), align: 'right', className: "p-2 font-mono tabular-nums font-semibold", headClassName: "p-2", cell: (r) => renderMoney(r.netTaxCents) },
-          ]}
-        />
+        <div className="min-w-0 overflow-x-auto print:overflow-visible" role="region"
+          aria-label={reportText('r.tax-by-rate-collected-minus-paid', 'Tax by rate (collected minus paid)')} tabIndex={0}>{/* NOSONAR: S6845 — keyboard access to the wide table */}
+          <RowTable
+            rowHeaderColumn={false}
+            caption={(<>{reportText('r.tax-by-rate-collected-minus-paid', 'Tax by rate (collected minus paid)')}</>)}
+            rows={byRate}
+            rowKey={r => `${r.name}|${r.rate}`}
+            captionClassName="text-start font-semibold p-2"
+            tableClassName="w-full text-xs border border-[var(--line)] rounded-xl overflow-hidden"
+            headRowClassName="text-[var(--muted)] border-b border-[var(--line)]"
+            columns={[
+              { header: reportText('r.tax', 'Tax'), className: "p-2", headClassName: "text-start p-2", cell: (r) => (<>{r.name} {r.rate}%</>) },
+              { header: reportText('r.taxable-sales', 'Taxable sales'), align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.salesNetCents) },
+              { header: reportText('r.collected', 'Collected'), align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.salesTaxCents) },
+              { header: reportText('r.taxable-purchases', 'Taxable purchases'), align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.purchasesNetCents) },
+              { header: reportText('r.paid', 'Paid'), align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.purchasesTaxCents) },
+              { header: reportText('r.net', 'Net'), align: 'right', className: "p-2 font-mono tabular-nums font-semibold", headClassName: "p-2", cell: (r) => renderMoney(r.netTaxCents) },
+            ]}
+          />
+        </div>
       )}
       {taxReturn.sales.out_of_scope.netCents !== 0 && (
         <p className="text-xs text-[var(--muted)]">{reportText('r.sales-of', 'Sales of')} {renderMoney(taxReturn.sales.out_of_scope.netCents)} {reportText('r.have-no-tax-code-and-are-not-in-the-boxes-if-the', 'have no tax code and are not in the boxes. If they are taxable, zero-rated or exempt, set a tax code on those invoices.')}</p>
@@ -283,21 +286,24 @@ export default function TaxLiabilityView({ startDate: pageStartDate, endDate: pa
       )}
 
       {filed && filed.length > 0 && (
-        <RowTable
-          rowHeaderColumn={false}
-          caption={(<>{reportText('r.filed-returns', 'Filed returns')}</>)}
-          rows={filed}
-          rowKey={r => r.id}
-          captionClassName="text-start font-semibold p-2"
-          tableClassName="w-full text-xs border border-[var(--line)] rounded-xl overflow-hidden"
-          headRowClassName="text-[var(--muted)] border-b border-[var(--line)]"
-          columns={[
-            { header: reportText('r.period', 'Period'), className: "p-2", headClassName: "text-start p-2", cell: (r) => <button type="button" className="underline" onClick={() => { setStartDate(r.startDate); setEndDate(r.endDate); }}><bdi>{r.startDate} – {r.endDate}</bdi></button> },
-            { header: reportText('r.reference', 'Reference'), className: "p-2", headClassName: "text-start p-2", cell: (r) => r.reference || '—' },
-            { header: reportText('r.filed-2', 'Filed'), className: "p-2", headClassName: "text-start p-2", cell: (r) => <bdi>{r.filedAt.slice(0, 10)}</bdi> },
-            { header: reportText('r.net-tax', 'Net tax'), align: 'right', className: "p-2 font-mono", headClassName: "p-2", cell: (r) => renderMoney(r.boxes.find(b => b.key === '5')?.cents || 0) },
-          ]}
-        />
+        <div className="min-w-0 overflow-x-auto print:overflow-visible" role="region"
+          aria-label={reportText('r.filed-returns', 'Filed returns')} tabIndex={0}>{/* NOSONAR: S6845 — keyboard access to the wide table */}
+          <RowTable
+            rowHeaderColumn={false}
+            caption={(<>{reportText('r.filed-returns', 'Filed returns')}</>)}
+            rows={filed}
+            rowKey={r => r.id}
+            captionClassName="text-start font-semibold p-2"
+            tableClassName="w-full text-xs border border-[var(--line)] rounded-xl overflow-hidden"
+            headRowClassName="text-[var(--muted)] border-b border-[var(--line)]"
+            columns={[
+              { header: reportText('r.period', 'Period'), className: "p-2", headClassName: "text-start p-2", cell: (r) => <button type="button" className="underline" onClick={() => { setStartDate(r.startDate); setEndDate(r.endDate); }}><bdi>{r.startDate} – {r.endDate}</bdi></button> },
+              { header: reportText('r.reference', 'Reference'), className: "p-2", headClassName: "text-start p-2", cell: (r) => r.reference || '—' },
+              { header: reportText('r.filed-2', 'Filed'), className: "p-2", headClassName: "text-start p-2", cell: (r) => <bdi>{r.filedAt.slice(0, 10)}</bdi> },
+              { header: reportText('r.net-tax', 'Net tax'), align: 'right', className: "p-2 font-mono", headClassName: "p-2", cell: (r) => renderMoney(r.boxes.find(b => b.key === '5')?.cents || 0) },
+            ]}
+          />
+        </div>
       )}
     </div>
   );

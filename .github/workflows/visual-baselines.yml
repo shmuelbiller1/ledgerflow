@@ -1,7 +1,8 @@
 name: Refresh visual baselines
 # Manual review workflow: captures updated images on the Linux Chromium used by CI.
 # It NEVER pushes to main. Candidate images go to a review branch `visual-baselines/<run id>`
-# (and the artifact); a reviewer opens the images there and merges the branch only after looking.
+# (and the artifact), or opt in to returning them on the Arena branch that requested the capture.
+# Treat either as candidates: review the actual images before asking the lead to merge.
 permissions:
   contents: write
 on:
@@ -10,6 +11,10 @@ on:
       screens:
         description: 'Test-name filter, e.g. "pnl|balance-sheet"'
         required: true
+      publish_to_source_branch:
+        description: 'Return candidates to the triggering arena/* branch instead of creating a review branch'
+        type: boolean
+        default: false
 jobs:
   capture:
     runs-on: ubuntu-latest
@@ -58,17 +63,26 @@ jobs:
             playwright-report/
           retention-days: 7
           if-no-files-found: ignore
-      - name: Push candidates to a review branch (never main)
+      - name: Publish candidates for visual review
         if: success()
         env:
-          BRANCH: visual-baselines/${{ github.run_id }}
+          PUBLISH_HERE: ${{ inputs.publish_to_source_branch }}
           # passed through the environment, never pasted into the script: it is typed by whoever runs the workflow
           SCREENS: ${{ inputs.screens }}
         run: |
+          target="refs/heads/visual-baselines/${GITHUB_RUN_ID}"
+          if [[ "$PUBLISH_HERE" == true ]]; then
+            if [[ ! "$GITHUB_REF" =~ ^refs/heads/arena/[a-zA-Z0-9._-]+$ ]]; then
+              echo "Only a triggering Arena branch can receive candidates in place." >&2
+              exit 1
+            fi
+            target="$GITHUB_REF"
+          fi
           git add e2e/__screenshots__
           if git diff --cached --quiet; then echo "No image changed"; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "test: candidate visual baselines (${SCREENS}) for review"
-          git push origin "HEAD:refs/heads/$BRANCH"
-          echo "Review branch: $BRANCH" >> "$GITHUB_STEP_SUMMARY"
+          # Not a force push: if another commit landed on the source branch, keep it intact.
+          git push origin "HEAD:$target"
+          echo "Review candidates on ${target#refs/heads/}" >> "$GITHUB_STEP_SUMMARY"

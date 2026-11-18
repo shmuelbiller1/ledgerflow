@@ -59,7 +59,17 @@ for (const width of [390, 1024, 1280]) for (const theme of ['light', 'dark']) {
         }, longName);
         const name = page.getByTitle(longName, { exact: true });
         await expect(name).toBeVisible();
-        expect(await name.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
+        const labelLayout = await name.evaluate(el => {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          return {
+            clipped: el.scrollWidth > el.clientWidth + 1,
+            lines: new Set([...range.getClientRects()].map(rect => rect.top)).size,
+          };
+        });
+        // Keep the amount intact while giving the account name room to wrap on phones.
+        expect(labelLayout.clipped).toBe(width >= 640);
+        if (width < 640) expect(labelLayout.lines).toBeGreaterThan(1);
         const row = name.locator('xpath=ancestor::button[1]');
         await expect(row.locator('bdi').first()).toHaveText('$3,000,000,000.00');
         expect(await row.evaluate(el => {

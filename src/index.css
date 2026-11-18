@@ -341,6 +341,14 @@
   }
   input[type="checkbox"], input[type="radio"] { width: 44px; height: 44px; flex-shrink: 0; }
   label:has(input[type="checkbox"]), label:has(input[type="radio"]) { min-height: 44px; }
+  /* Report table and reference links are standalone targets, unlike inline links in prose. */
+  [data-report-view] a[href]:not(.sr-only):is(:not(p a), .block, .inline-block, .flex, .inline-flex) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    min-width: 44px;
+    overflow-wrap: anywhere;
+  }
   [data-testid="tx-header"] > [data-column] { padding: 4px; gap: 0; }
   [data-column="select"] { padding-inline: 0; overflow: visible; }
 }

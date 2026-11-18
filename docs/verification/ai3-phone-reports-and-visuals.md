@@ -1,0 +1,43 @@
+# Phone reports, visual references, and browser diagnostics
+
+This batch changes report presentation, browser checks, and diagnostics. It does not change financial figures, document mutations, roles, database migrations, test budgets, or the required browser gate.
+
+## A-278: every registered report at 390 px
+
+`e2e/phone-report-registry.spec.ts` opens all **135** registered reports through the real picker on the sample books at **390 px**, in light and dark (**270 report views**, 28 tests). It measures document and child overflow, clipped HTML text, and 44 × 44 px hit areas for standalone controls. Internal table scrolling and inline links in prose are not page overflow or undersized standalone controls.
+
+The red run found 14 affected views. At phone width, Balance Sheet account names now wrap, date controls on party reports fit without hiding their labels, Delivery Notes and Customer Quotes source selectors can shrink, and Sales Tax Liability tables scroll inside named keyboard-focusable regions. Standalone report links use the existing phone target size. All 28 batches passed locally in Chromium 153, including a rerun against the built assets with a fixed sample date and an explicit loaded-books check. The pre-existing report-layout test still requires its original **$3,000,000,000.00** to fit; it now also requires the very long mixed Hebrew/English account name to wrap on a phone and keep desktop truncation.
+
+The [hosted sweep of the earlier revision](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44417134277/job/135201188986) caught a clipped **$511,427.51** Balance Sheet total in both themes. The total rows now let items wrap, keep each amount intact, and use a normal line box without clipping it. A local control that restored only the old styles clipped the same total by 1.66–1.77 px at 107%–118% text size in both themes; the new styles fit it. The affected phone batches passed twice in each theme. The geometry check still uses the same tolerance and now names the clipping container.
+
+Broader report verification exposed a focus race in the aging drill-down: after `useDialog` restored the opener, a queued second restore could steal focus from the next row or search control. The drill-down now focuses the actual opener and lets the shared dialog hook restore it once. Both failures reproduced before the change; the three keyboard journeys passed three consecutive runs afterward (**9/9**). A separate print race compared the PDF of a loading report with that of the loaded report. The tests now wait for the report, sample books, fonts, and aging rows where needed; the paper, page count and geometry assertions are unchanged. After syncing `main`, **12 print and 7 keyboard journeys** passed together. The Balance Sheet print and both 390 px layout neighbors passed again after the total fix. No changes to aging results or detail contents.
+
+## A-281: reviewed screenshots
+
+**12 new references**, each desktop/phone × light/dark: Purchase Orders with an expanded order and a populated line, the Journal entry editor opened through a real record link, and the open Reports picker. The [initial pinned Linux capture and comparison](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44408482990) also refreshed the two Balance Sheet phone images for the wrapping account names. After the total-row fix, the [pinned 16-case capture and comparison](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44419705355) changed only the four Balance Sheet images (`d01abd97`). The before/after review in both themes showed that the changes were confined to the totals and the footer displaced by the 10 px height increase; the **$3,000.00** totals are unchanged. The local Chromium was used for behavioral preflight, not as a source of committed pixels.
+
+## #836: incomplete browser report diagnostics
+
+For the selected unsuccessful browser run, the rollup reads a bounded Playwright JSON merge of uploaded blobs, including nested suites. It distinguishes incomplete results from recorded failures and intentionally skipped tests. Absent or corrupt evidence is unknown, not evidence that a spec hung; the warning gives a short reason. The merger writes to an isolated temporary JSON file so runner progress text and inherited output paths cannot replace the data. Success and workflow cancellation do not trigger the diagnostic. The required exit check and live reporter are unchanged. **13/13** helper tests passed locally, including a real failure-limited blob and a run with extra text on the merge process's stdout. The full source/CI utility step passed **106/106** locally with CI variables set. An intentional test failure verified that the step annotates the error and still exits nonzero.
+
+## Parallel work: A-279, A-280, A-282
+
+While this batch was underway, [#869](https://github.com/shmuelbiller1/ledgerflow/pull/869) merged these three items. Its [I-05 guard failure on main](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44414016297/job/135189594194) was reproduced and fixed locally before the lead's fix landed in [#870](https://github.com/shmuelbiller1/ledgerflow/pull/870). The PR takes the implementation from `main` and retains just the regression test: a pending secondary read must not hide a confirmed missing invoice.
+
+The [follow-on Journal link finding](https://github.com/shmuelbiller1/ledgerflow/pull/869#issuecomment-6993334391) still reproduced in Chromium after #869 merged: changing the URL to a second cached entry kept the first entry's description. Keying the editor by entry ID changed the same browser reproduction from red to green. The candidate and evidence are handed off in [#873](https://github.com/shmuelbiller1/ledgerflow/issues/873). No change to the editor or save path is included here.
+
+## Performance follow-ups: #834 and #833 remain open
+
+Node 24.22.3, two available CPUs, PostgreSQL 17 for the integration suite. The source timing runs used the locked dependencies, no concurrent browser/build, and `CI` unset. Reproduce the unchanged assertions with:
+
+```sh
+env -u CI NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic \
+  node_modules/.bin/tsx --test --test-force-exit --test-concurrency=1 \
+  src/tests/r5-every-report-speed.test.tsx src/tests/report-speed-12m.test.tsx
+```
+
+- **#834 — cold import vs. cached import.** The ten-module A-229 preload was **2,549.78 ms** in the unchanged test (native budget **1,500 ms**). A scratch probe timed a second import of the same modules in the same process: **2,374.31 / 0.95 ms** cold / warm with the normal tsx cache and **3,209.26 / 0.83 ms** with `TSX_DISABLE_CACHE=1`. A separate source profile on `2b4c5ecb` sampled the main thread only around the preload. Package metadata reads were the largest named bucket (about **1.0 s**); tsx, esbuild, and other Node loader frames were also visible. It is not a profile of the browser or report mounts. The cold assertion still fails locally; the budget was not raised or moved.
+- **#833 — report mount vs. computation.** All **151** R-5 views were under **1,000 ms** on the three focused runs; Top Parties took **375–455 ms** there. Separately, on the unchanged scale-4 year (4,880 entries, 1,440 invoices, 864 bills), eight direct calls per mode to the existing `topParties` computation took **411–452 ms** for customers and **331–369 ms** for vendors, excluding fixture construction and DOM work. Those are separate samples, not a subtraction from the jsdom mount. They show that the ranking computation is worth profiling if the mount miss repeats; they do not establish that the previously reported miss is fixed.
+- **Built browser.** Local Chromium 153 loaded the production Vite assets with the same scale-4 guest year. Each route was opened in a fresh context, then reloaded with service workers blocked. The wall clock stopped at the route's visible control/heading (populated rows for Top Parties) and confirmed **4,880** entries in the shell. Across the ten A-229 routes, cold navigation took **1.70–2.83 s** and reload **0.86–2.49 s**. Top Parties took **2.22 / 1.57 s**. The browser observed **70–158** distinct same-origin JS requests by route readiness (which can include cached requests on reload). These are single local end-to-end samples, including app boot, guest data hydration, resources, render and locator polling. They are neither the source-preload gate nor production-user latency.
+
+Keep fixture contents, calculations, and native and hosted budget policy unchanged. The next useful samples are repeated built navigations on agreed reference hardware, with script transfer/evaluation and guest workspace hydration timed separately.

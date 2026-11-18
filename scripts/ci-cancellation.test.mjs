@@ -40,12 +40,20 @@ test('browser cleanup runs after failures but not after workflow cancellation', 
   for (const [name, step] of [
     ['e2e_shards', 'Upload browser reports and failure diagnostics'],
     ['e2e', 'Upload combined report'],
-    ['e2e', 'Say which suites a cancelled shard never reached'],
     ['e2e', 'Require every shard to succeed'],
   ]) {
     const config = job(name);
     assert.match(config, new RegExp(`- name: ${step}\\n        if: \\$\\{\\{ !cancelled\\(\\)( && needs\\.changes\\.outputs\\.browser_mode != 'skip')? \\}\\}`), `${name}: ${step}`);
   }
+});
+
+test('incomplete browser diagnostics run only for the selected unsuccessful mode', () => {
+  const step = job('e2e').split('- name: Describe incomplete tests from available browser reports')[1]?.split('- name:')[0];
+  assert.ok(step);
+  assert.match(step, /!cancelled\(\) &&/);
+  assert.match(step, /browser_mode == 'full' && needs\.e2e_shards\.result != 'success'/);
+  assert.match(step, /browser_mode == 'targeted' && needs\.e2e_targeted\.result != 'success'/);
+  assert.match(step, /node scripts\/unfinished-suites\.mjs/);
 });
 
 test('a docs-only pull request skips the long runs but still runs the tests that read a doc', () => {
