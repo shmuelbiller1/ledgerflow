@@ -16,6 +16,7 @@ import { runCommand } from '../../lib/runCommand';
 import { RowTable } from '../ui/RowTable';
 import { JourneyNotices, JourneySteps } from './JourneySteps';
 import { stepStatusLabel } from './journeyStatus';
+import { PCN874_DRAFT_CLOSING_WIDTH, PCN874_DRAFT_HEADER_WIDTH, PCN874_DRAFT_TRANSACTION_WIDTH } from '../../lib/tax/pcn874Draft';
 import { useReportText, fill } from './useReportText';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
@@ -189,6 +190,123 @@ function downloadText(name: string, text: string) {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * E-55: PCN874 validation screen. Verifies the historical fixed-width draft before any download:
+ * the transaction/detail record layout (header 131, each detail row 60, closing 10) and the
+ * totals/reconciliation check (draft NIS beside the VAT report NIS). Read-only: it never files.
+ * The detailed draft, unmapped list and comparison stay in the section below; this view is the
+ * step's own check, with its own captions so the two never share an accessible name.
+ */
+export function PCN874ValidationView({ preview }: { preview: ReturnType<typeof ilPcn874Preview> | null }) {
+  const reportText = useReportText();
+  if (!preview) return <p className="text-sm text-[var(--muted)]">{reportText('r.no-pcn874-preview-for-this-month', 'No PCN874 preview is available for this month.')}</p>;
+  const draft = preview.draft;
+  const pass = reportText('r.pass', 'Pass');
+  const fail = reportText('r.fail', 'Fail');
+  const notBuilt = reportText('r.not-built', 'Not built');
+  const noDraftText = reportText('r.no-draft-text-built', 'No draft text built');
+  const countCharacters = (count: number) => fill(reportText('r.count-characters', '{count} characters'), { count });
+  const check = (name: string, expected: string, actual: string, valid: boolean) => ({
+    check: name, expected, actual,
+    result: draft ? (valid ? pass : fail) : notBuilt,
+  });
+  const fixedWidthCheck = (name: string, width: number, actualLength?: number) => check(
+    name,
+    countCharacters(width),
+    actualLength === undefined ? noDraftText : countCharacters(actualLength),
+    actualLength === width,
+  );
+  const transactionsFit = draft?.transactions.every(row => row.length === PCN874_DRAFT_TRANSACTION_WIDTH) ?? false;
+  const layoutChecks = [
+    fixedWidthCheck(reportText('r.header-record', 'Header record'), PCN874_DRAFT_HEADER_WIDTH, draft?.header.length),
+    check(
+      reportText('r.transaction-detail-records', 'Transaction/detail records'),
+      draft
+        ? fill(reportText('r.rows-of-width', '{count} row(s) of {width}'), { count: draft.transactions.length, width: PCN874_DRAFT_TRANSACTION_WIDTH })
+        : fill(reportText('r.count-characters-each', '{count} characters each'), { count: PCN874_DRAFT_TRANSACTION_WIDTH }),
+      draft
+        ? transactionsFit
+          ? fill(reportText('r.all-rows-characters', 'All rows {width} characters'), { width: PCN874_DRAFT_TRANSACTION_WIDTH })
+          : fill(reportText('r.a-row-is-not-characters', 'A row is not {width} characters'), { width: PCN874_DRAFT_TRANSACTION_WIDTH })
+        : noDraftText,
+      transactionsFit,
+    ),
+    fixedWidthCheck(reportText('r.closing-record', 'Closing record'), PCN874_DRAFT_CLOSING_WIDTH, draft?.closing.length),
+    {
+      check: reportText('r.mapped-documents', 'Mapped documents'),
+      expected: reportText('r.every-document-written', 'Every document written'),
+      actual: fill(reportText('r.rows-written', '{count} row(s) written'), { count: preview.rows.length }),
+      result: preview.unmapped.length === 0 ? pass : fill(reportText('r.count-cannot-be-written', '{count} cannot be written'), { count: preview.unmapped.length }),
+    },
+  ];
+  type LayoutCheck = (typeof layoutChecks)[number];
+  type Comparison = (typeof preview.comparison)[number];
+  const firstColumn = <T,>(header: string, cell: (row: T) => React.ReactNode) => ({
+    header, className: 'text-left font-normal py-1 px-2', headClassName: 'text-left py-1 px-2', cell,
+  });
+  const dataColumn = <T,>(header: string, cell: (row: T) => React.ReactNode, className = 'py-1 px-2') => ({
+    header, className, headClassName: 'text-left py-1 px-2', cell,
+  });
+  return <div className="space-y-2">
+    <h4 className="font-semibold text-sm">{reportText('r.pcn874-validation', 'PCN874 validation')}</h4>
+    <p className="text-sm text-[var(--muted)]">
+      {fill(reportText('r.historical-appendix-draft-checked', 'The historical Appendix A draft for {period}, checked record by record. It is'), { period: preview.startMonth === preview.endMonth ? preview.startMonth : fill(reportText('r.month-range', '{from} to {to}'), { from: preview.startMonth, to: preview.endMonth }) })}
+      {' '}<b>{reportText('r.not-ready-for-filing', 'not ready for filing')}</b>{reportText('r.historical-not-filed-caution', ': the layout dates to 2010 and current validation must be verified independently. Nothing is submitted from this screen.')}
+    </p>
+    {preview.problem && <p className="text-sm text-amber-700 dark:text-amber-400">{preview.problem}</p>}
+    <ReportTableScroll>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>{reportText('r.pcn874-layout-checks', 'PCN874 layout checks')}</>)}
+        rows={layoutChecks}
+        rowKey={row => row.check}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        bodyClassName=""
+        columns={[
+          firstColumn<LayoutCheck>(reportText('r.check', 'Check'), row => row.check),
+          dataColumn<LayoutCheck>(reportText('r.expected', 'Expected'), row => row.expected),
+          dataColumn<LayoutCheck>(reportText('r.actual', 'Actual'), row => row.actual),
+          dataColumn<LayoutCheck>(reportText('r.result', 'Result'), row => row.result),
+        ]}
+      />
+    </ReportTableScroll>
+    {preview.unmapped.length > 0 && <ul className="list-disc pl-5 text-sm space-y-1">
+      {preview.unmapped.map(row => <li key={`${row.kind}:${row.documentId}`}>
+        {row.documentId} ({row.kind}{row.number ? ` ${row.number}` : ''}): {row.reason}
+      </li>)}
+    </ul>}
+    {preview.notRepresented > 0 && <p className="text-sm text-[var(--muted)]">
+      {fill(reportText('r.documents-not-represented-in-historical-layout', '{count} exempt, reverse-charge or out-of-scope document(s) are not represented in this layout and are never silently dropped.'), { count: preview.notRepresented })}
+    </p>}
+    {preview.comparison.length > 0 && <ReportTableScroll>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>{reportText('r.pcn874-totals-reconciliation', 'PCN874 totals reconciliation')}</>)}
+        rows={preview.comparison}
+        rowKey={row => row.label}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        bodyClassName=""
+        columns={[
+          firstColumn<Comparison>(reportText('r.figure', 'Figure'), row => row.label),
+          dataColumn<Comparison>(reportText('r.draft-nis', 'Draft (NIS)'), row => row.draftNis.toLocaleString('en-US'), 'py-1 px-2 tabular-nums'),
+          dataColumn<Comparison>(reportText('r.vat-report-nis', 'VAT report (NIS)'), row => row.returnNis.toLocaleString('en-US'), 'py-1 px-2 tabular-nums'),
+          dataColumn<Comparison>(reportText('r.difference-nis', 'Difference (NIS)'), row => row.differenceNis.toLocaleString('en-US'), 'py-1 px-2 tabular-nums'),
+        ]}
+      />
+    </ReportTableScroll>}
+    {preview.comparison.some(row => row.differenceNis !== 0) && <p className="text-sm">
+      {reportText('r.whole-shekel-differences-are-never-smoothed-away', 'The draft’s whole-shekel totals differ from the VAT report; the difference is shown, never smoothed away. Per-document rounding to whole shekels can explain one shekel per row.')}
+    </p>}
+    {draft && <p className="text-sm">
+      {fill(reportText('r.draft-widths-download-is-not-filing', 'Header {headerLength} characters, {count} transaction row(s) of {width}, closing {closingLength}. Downloading saves the text; it does not file it.'), { headerLength: draft.header.length, count: draft.transactions.length, width: PCN874_DRAFT_TRANSACTION_WIDTH, closingLength: draft.closing.length })}
+    </p>}
+  </div>;
+}
+
 export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', monthText, onMonthChange, dealerId, onDealerIdChange, loading = false, partial = false, onRecordFiled }: {
   /** CON-4b: owners and accountants record one registration's return as filed */
   onRecordFiled?: (r: { registration: string; startDate: string; endDate: string }) => Promise<void>;
@@ -242,7 +360,7 @@ export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', mo
         {step.allocation.length > 0 && <AllocationTable cases={step.allocation} currency={currency} />}
       </>}
       openScreen={step => step.id === 'pcn874'
-        ? <p className="text-sm text-[var(--muted)]">{reportText('r.the-draft-every-document-that-cannot-be-written', 'The draft, every document that cannot be written and the comparison with the report are below.')}</p>
+        ? <PCN874ValidationView preview={preview} />
         : <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)] text-sm"
           onClick={() => goToPage({ tab: step.tab, sub: step.screen })}>{reportText('r.open', 'Open')} {step.screenLabel}</button>} />}
 

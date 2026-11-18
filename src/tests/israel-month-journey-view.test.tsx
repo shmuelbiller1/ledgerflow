@@ -68,11 +68,31 @@ test('A-152 screen: the PCN874 section says it is not filing-ready and lists wha
   panel();
   assert.ok(screen.getByRole('heading', { name: 'PCN874 historical draft' }));
   assert.match(screen.getByText(/not filing-ready/).textContent ?? '', /not filing-ready/);
+  const layout = screen.getByRole('table', { name: 'PCN874 layout checks' });
+  assert.match(layout.textContent ?? '', /Header record.*131 characters.*No draft text built.*Not built/);
+  assert.match(layout.textContent ?? '', /Mapped documents.*2 row\(s\) written.*1 cannot be written/);
+  const reconciliation = screen.getByRole('table', { name: 'PCN874 totals reconciliation' });
+  assert.match(reconciliation.textContent ?? '', /Draft \(NIS\).*VAT report \(NIS\).*Difference \(NIS\)/);
+  assert.ok(screen.getAllByText(/Nothing is submitted from this screen/).length >= 1);
   const table = screen.getByRole('table', { name: /Documents that cannot be written/ });
   assert.match(table.textContent ?? '', /1002/);
   assert.match(table.textContent ?? '', /VAT\/dealer number/);
   assert.equal(screen.queryByRole('button', { name: 'Download PCN874 draft' }), screen.getByRole('button', { name: 'Download PCN874 draft' }));
   assert.ok(screen.getAllByText(/row\(s\)/).length >= 1, 'the row count is stated');
+});
+
+test('E-55 validation checks the built fixed-width records when all documents map', () => {
+  const validPreview = ilPcn874Preview({
+    month: '2026-09', generatedOn: '2026-10-19', currency: 'ILS', dealerId: '514000000',
+    invoices: [invoices[0]], bills, customers, vendors,
+    returns: journey().steps.find(s => s.id === 'vat-report')!.returns,
+  });
+  assert.ok(validPreview.draft, 'all remaining documents map to a draft');
+  panel({ preview: validPreview });
+  const layout = screen.getByRole('table', { name: 'PCN874 layout checks' });
+  assert.match(layout.textContent ?? '', /Header record.*131 characters.*131 characters.*Pass/);
+  assert.match(layout.textContent ?? '', /Transaction\/detail records.*2 row\(s\) of 60.*All rows 60 characters.*Pass/);
+  assert.match(layout.textContent ?? '', /Closing record.*10 characters.*10 characters.*Pass/);
 });
 
 test('A-152 screen: the download is offered only when every document maps and the dealer number is nine digits', () => {
