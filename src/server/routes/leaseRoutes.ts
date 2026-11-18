@@ -2,8 +2,9 @@ import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
 import { z } from 'zod';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
+import { postJournalDocument } from '../services/journalDocumentService';
+import { extractCanonicalOperationId } from '../utils/idempotency';
 import { mayPostEntries } from '../http/ledgerWriter';
-import { postJournalDocumentRoute } from '../http/journalDocumentRoute';
 import { computePropertyRentRoll, reconcileSecurityDepositTrust } from '../../lib/verticalAccounting';
 import type { Invoice } from '../../types';
 
@@ -19,31 +20,50 @@ const CapitalizeLeaseSchema = z.object({
 export const leaseRouter = express.Router();
 
 // ASC 842: capitalising a lease puts the present value on the balance sheet — an asset against a
-// liability. The steps are the shared document-journal route's; this route names the entry.
-leaseRouter.post('/capitalize', postJournalDocumentRoute({
-  schema: CapitalizeLeaseSchema,
-  operationType: 'LEASE_CAPITALIZE',
-  legacyPrefix: 'lease',
-  message: 'ASC 842 Lease capitalized successfully.',
-  description: ({ leaseName }) => `ASC 842 Initial Recognition: ${leaseName || 'Operating Lease'}`,
-  totalAmountCents: ({ pvAmountCents }) => pvAmountCents,
-  lines: ({ pvAmountCents, rouAssetAccountId, leaseLiabilityAccountId }) => [
-    { accountId: rouAssetAccountId, amountCents: pvAmountCents, description: 'Capitalize PV of lease payments' },
-    { accountId: leaseLiabilityAccountId, amountCents: -pvAmountCents, description: 'Recognize lease liability' },
-  ],
-  operationId: ({ leaseName }) => (leaseName ? `lease_${leaseName.toLowerCase().replace(/[^a-z0-9]/g, '_')}` : undefined),
-  audit: {
-    action: 'LEASE_CAPITALIZED',
-    details: ({ leaseName, pvAmountCents, rouAssetAccountId, leaseLiabilityAccountId }, txDate) => ({
-      description: `Capitalized lease ${leaseName || 'Operating Lease'} (${pvAmountCents} cents) on ${txDate}`,
-      leaseName: leaseName || 'Operating Lease',
-      pvAmountCents,
-      rouAssetAccountId,
-      leaseLiabilityAccountId,
-      date: txDate,
-    }),
-  },
-}));
+// liability. The steps are the shared document-journal service's; this route names the entry and,
+// since the screen still calls this address, keeps the answer the address has always given
+// ({ status: 'ok', message, transactionId }, and { error } when it is refused). `lease.capitalize`
+// runs the same service through the command runner.
+leaseRouter.post('/capitalize', async (req, res) => {
+  const parsed = CapitalizeLeaseSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ status: 'error', error: 'Validation failed', details: parsed.error.issues });
+    return;
+  }
+  try {
+    const user = requestUser(req);
+    const result = await postJournalDocument(getDb(), {
+      operationType: 'LEASE_CAPITALIZE',
+      legacyPrefix: 'lease',
+      message: 'ASC 842 Lease capitalized successfully.',
+      description: ({ leaseName }) => `ASC 842 Initial Recognition: ${leaseName || 'Operating Lease'}`,
+      totalAmountCents: ({ pvAmountCents }) => pvAmountCents,
+      lines: ({ pvAmountCents, rouAssetAccountId, leaseLiabilityAccountId }) => [
+        { accountId: rouAssetAccountId, amountCents: pvAmountCents, description: 'Capitalize PV of lease payments' },
+        { accountId: leaseLiabilityAccountId, amountCents: -pvAmountCents, description: 'Recognize lease liability' },
+      ],
+      operationId: ({ leaseName }) => (leaseName ? `lease_${leaseName.toLowerCase().replace(/[^a-z0-9]/g, '_')}` : undefined),
+      audit: {
+        action: 'LEASE_CAPITALIZED',
+        details: ({ leaseName, pvAmountCents, rouAssetAccountId, leaseLiabilityAccountId }, txDate) => ({
+          description: `Capitalized lease ${leaseName || 'Operating Lease'} (${pvAmountCents} cents) on ${txDate}`,
+          leaseName: leaseName || 'Operating Lease',
+          pvAmountCents,
+          rouAssetAccountId,
+          leaseLiabilityAccountId,
+          date: txDate,
+        }),
+      },
+    }, parsed.data, user, extractCanonicalOperationId(req));
+    res.json(result);
+  } catch (e) {
+    const explicitStatus = (e as { status?: number })?.status;
+    const status = typeof explicitStatus === 'number'
+      ? explicitStatus
+      : (errorMessage(e).includes('Unauthorized') || errorMessage(e).includes('Forbidden') ? 403 : 400);
+    res.status(status).json({ error: errorMessage(e) });
+  }
+});
 
 /**
  * The workspace a vertical read names in its body, once the caller is a member who may post entries:

@@ -5,7 +5,22 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-11-18.
+Last updated: 2026-11-19.
+
+## Capitalising a lease and recognising revenue now run through registered commands (nothing for you to do)
+
+Two more writes go through the same registered commands as every batch before this one: capitalising a
+lease (putting the present value of its payments on the balance sheet, ASC 842) and recognising revenue
+(moving an amount out of deferred income, ASC 606). Both already went through one shared piece of code,
+so this batch moved that code into a service and put a named command in front of it; the screen and any
+API caller keep exactly the same request and the same answer.
+
+Two other things on the lease address, the security-deposit trust reconciliation and the property rent
+roll, are deliberately *not* commands. They do arithmetic on the numbers the screen sends and answer the
+result; the rent roll looks at your invoices to total what has been billed, and neither one writes,
+changes or records anything. A command around them would add a database transaction and an audit entry
+for a calculation, so they are recorded as reviewed exceptions with that reason written down, and a test
+keeps them honest.
 
 ## Merging records, journal templates, security settings and scheduled reports now run through registered commands (nothing for you to do)
 

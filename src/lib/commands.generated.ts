@@ -21,6 +21,7 @@ import { INVENTORYITEM_COMMAND_MANIFEST } from './commandManifests.generated/inv
 import { INVOICE_COMMAND_MANIFEST } from './commandManifests.generated/invoice';
 import { JOURNAL_COMMAND_MANIFEST } from './commandManifests.generated/journal';
 import { JOURNALTEMPLATE_COMMAND_MANIFEST } from './commandManifests.generated/journaltemplate';
+import { LEASE_COMMAND_MANIFEST } from './commandManifests.generated/lease';
 import { LOAN_COMMAND_MANIFEST } from './commandManifests.generated/loan';
 import { NOTIFICATION_COMMAND_MANIFEST } from './commandManifests.generated/notification';
 import { NUMBERING_COMMAND_MANIFEST } from './commandManifests.generated/numbering';
@@ -34,6 +35,7 @@ import { QUERY_COMMAND_MANIFEST } from './commandManifests.generated/query';
 import { RECONCILIATIONS_COMMAND_MANIFEST } from './commandManifests.generated/reconciliations';
 import { RECORD_COMMAND_MANIFEST } from './commandManifests.generated/record';
 import { REPORTSCHEDULE_COMMAND_MANIFEST } from './commandManifests.generated/reportschedule';
+import { REVENUE_COMMAND_MANIFEST } from './commandManifests.generated/revenue';
 import { RMA_COMMAND_MANIFEST } from './commandManifests.generated/rma';
 import { SAVEDLIST_COMMAND_MANIFEST } from './commandManifests.generated/savedlist';
 import { SECURITY_COMMAND_MANIFEST } from './commandManifests.generated/security';
@@ -73,6 +75,7 @@ export const COMMAND_MANIFEST = [
   ...INVOICE_COMMAND_MANIFEST,
   ...JOURNAL_COMMAND_MANIFEST,
   ...JOURNALTEMPLATE_COMMAND_MANIFEST,
+  ...LEASE_COMMAND_MANIFEST,
   ...LOAN_COMMAND_MANIFEST,
   ...NOTIFICATION_COMMAND_MANIFEST,
   ...NUMBERING_COMMAND_MANIFEST,
@@ -86,6 +89,7 @@ export const COMMAND_MANIFEST = [
   ...RECONCILIATIONS_COMMAND_MANIFEST,
   ...RECORD_COMMAND_MANIFEST,
   ...REPORTSCHEDULE_COMMAND_MANIFEST,
+  ...REVENUE_COMMAND_MANIFEST,
   ...RMA_COMMAND_MANIFEST,
   ...SAVEDLIST_COMMAND_MANIFEST,
   ...SECURITY_COMMAND_MANIFEST,
