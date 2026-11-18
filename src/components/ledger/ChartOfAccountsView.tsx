@@ -225,7 +225,7 @@ export default function ChartOfAccountsView({ accounts, searchTerm, formatCurren
           <Archive aria-hidden="true" size={13} /> {showArchived ? 'Hide archived accounts' : `Show archived accounts (${archivedCount})`}
         </button>
       )}
-      <div className="overflow-x-auto" role="region" aria-label="Chart of accounts table" tabIndex={0}>
+      <div className="overflow-x-auto" role="region" aria-label="Chart of accounts table" tabIndex={0}>{/* NOSONAR: S6845 — focusable scroll region lets keyboard users pan the wide table on narrow screens */}
         <table className="w-full border-collapse text-start text-xs min-w-[750px]">
           <caption className="sr-only">Chart of accounts</caption>
           <thead>

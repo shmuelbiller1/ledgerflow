@@ -10,19 +10,50 @@ test.describe('H-1 RTL Hebrew · H-4 screen-reader/axe · H-6 empty & failed-loa
     test(`Hebrew RTL layout, focusable wide table, empty/error retry, and axe check at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       const accounts = [
-        { id: 'grp', uid: 'journey-user', workspaceId: WORKSPACE, code: '1000', name: 'מזומנים ובנקים', type: 'asset', category: 'Cash', openingBalanceCents: 0 },
-        { id: 'bank', uid: 'journey-user', workspaceId: WORKSPACE, code: '1010', name: 'עו״ש בנק לאומי', type: 'asset', category: 'Cash', parentId: 'grp', openingBalanceCents: 250_000 },
-        { id: 'eq', uid: 'journey-user', workspaceId: WORKSPACE, code: '3000', name: 'הון עצמי', type: 'equity', category: 'Equity', openingBalanceCents: 250_000 },
+        { id: 'grp', uid: 'journey-user', workspaceId: WORKSPACE, code: '1000', name: 'מזומנים ובנקים', type: 'asset', category: 'Cash', balanceCents: 0 },
+        { id: 'bank', uid: 'journey-user', workspaceId: WORKSPACE, code: '1010', name: 'עו״ש בנק לאומי', type: 'asset', category: 'Cash', parentId: 'grp', balanceCents: 250_000 },
+        { id: 'eq', uid: 'journey-user', workspaceId: WORKSPACE, code: '3000', name: 'הון עצמי', type: 'equity', category: 'Equity', balanceCents: -250_000 },
+      ];
+      const transactions = [
+        {
+          id: 'tx-open',
+          uid: 'journey-user',
+          workspaceId: WORKSPACE,
+          date: '2026-01-15',
+          description: 'הפקדת הון פתיחה',
+          status: 'completed',
+          posted: true,
+          type: 'actual',
+          currency: 'ILS',
+          totalAmountCents: 250_000,
+          lines: [
+            { accountId: 'bank', accountName: 'עו״ש בנק לאומי', debitCents: 250_000, creditCents: 0, amountCents: 250_000 },
+            { accountId: 'eq', accountName: 'הון עצמי', debitCents: 0, creditCents: 250_000, amountCents: -250_000 },
+          ],
+        },
       ];
 
+      let failTaxReturns = true;
       const journey = await mountJourney(page, {
         workspaceId: WORKSPACE,
-        ledger: { accounts, transactions: [], invoices: [], bills: [], creditNotes: [], vendorCredits: [] },
+        ledger: { accounts, transactions, invoices: [], bills: [], creditNotes: [], vendorCredits: [] },
         mounts: [{
           module: '/src/components/ledger/TrialBalanceView.tsx',
           props: { accounts, formatCurrency: '__fn:formatCurrency', onDrillDown: '__fn:noop' },
         }],
+        api: request => {
+          if (request.url.includes('/api/v1/reports/')) return { status: 500, json: {} };
+          if (request.url.includes(`/api/v1/workspaces/${WORKSPACE}/tax-returns`)) {
+            return failTaxReturns
+              ? { status: 503, json: { error: 'Service temporarily down.' } }
+              : { status: 200, json: { returns: [] } };
+          }
+          return null;
+        },
       });
+
+      await page.getByLabel('As of date').fill('2026-01-31');
+      await expect(page.getByText('Total Trial Balance')).toBeVisible();
 
       // Switch page into Hebrew RTL and verify logical right-edge alignment + child indentation + focusable table region.
       await page.evaluate(async () => {
@@ -99,24 +130,25 @@ test.describe('H-1 RTL Hebrew · H-4 screen-reader/axe · H-6 empty & failed-loa
       await notice.getByRole('button', { name: 'Try again' }).click();
       await expect(notice).toHaveCount(0);
 
+      // Re-mark invoices loaded for the next mount.
+      await page.evaluate(async () => {
+        const mod = '/src/stores/useDataNeedsStore.ts';
+        const { useDataNeedsStore } = await import(/* @vite-ignore */ mod) as typeof import('../src/stores/useDataNeedsStore');
+        const st = useDataNeedsStore.getState();
+        useDataNeedsStore.setState({ loaded: { ...st.loaded, invoices: true }, failed: {} });
+      });
+
       const vatAxe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).disableRules(['color-contrast']).analyze();
       expect(vatAxe.violations.filter(v => v.impact === 'critical' || v.impact === 'serious').map(v => v.id)).toEqual([]);
 
       // Mount TaxLiabilityView: verify filing stays disabled when /tax-returns fails and re-enables on retry.
-      let failReturns = true;
-      await page.route(`**/api/v1/workspaces/${WORKSPACE}/tax-returns`, route => {
-        if (failReturns && route.request().method() === 'GET') {
-          return route.fulfill({ status: 503, json: { status: 'error', error: 'Service down.' } });
-        }
-        return route.fulfill({ status: 200, json: { returns: [] } });
-      });
       await remountJourney(page, [{
         module: '/src/components/reporting/TaxLiabilityView.tsx',
         props: { startDate: '2026-09-01', endDate: '2026-09-30' },
       }]);
       await expect(page.getByText(/Couldn't load previously filed returns/i)).toBeVisible();
       await expect(page.getByRole('button', { name: 'File this return' })).toBeDisabled();
-      failReturns = false;
+      failTaxReturns = false;
       await page.getByRole('button', { name: 'Try again' }).click();
       await expect(page.getByRole('button', { name: 'File this return' })).toBeEnabled();
 
