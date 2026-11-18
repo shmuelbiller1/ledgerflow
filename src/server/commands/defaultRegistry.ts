@@ -1,3 +1,4 @@
+import { WORKSPACE_API_COMMANDS } from './workspaceApi';
 import { alertSettingsUpdateCommand } from './alerts';
 import { recordFieldsCommand } from './records';
 import { recordDeleteCommand, recordSaveCommand } from './plainRecords';
@@ -301,6 +302,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   WORKSPACE_HOUSEKEEPING_COMMANDS.forEach(command => registry.register(command));
   VERTICAL_ACCOUNTING_COMMANDS.forEach(command => registry.register(command));
   TRANSACTION_HOUSEKEEPING_COMMANDS.forEach(command => registry.register(command));
+  for (const command of WORKSPACE_API_COMMANDS) registry.register(command);
   return registry;
 }
 

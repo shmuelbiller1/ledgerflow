@@ -6,7 +6,7 @@ export const REVENUE_COMMAND_MANIFEST = [
   {
     "name": "revenue.recognize",
     "area": "revenue",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Recognise revenue under ASC 606, moving an amount out of the deferred balance and into income; do not use it to invoice a customer — that is an invoice.",
@@ -24,8 +24,8 @@ export const REVENUE_COMMAND_MANIFEST = [
           "when": "The amount is not a positive whole number of cents, or an account or the date is missing.",
           "next": "Send the amount in whole cents, both accounts and a YYYY-MM-DD date."
         },
-        COMMAND_SCHEMA_PARTS.part211,
-        COMMAND_SCHEMA_PARTS.part208
+        COMMAND_SCHEMA_PARTS.part213,
+        COMMAND_SCHEMA_PARTS.part210
       ]
     },
     "runPath": "/api/v1/commands/revenue.recognize",

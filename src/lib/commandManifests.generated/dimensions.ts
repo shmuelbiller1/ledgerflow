@@ -6,7 +6,7 @@ export const DIMENSIONS_COMMAND_MANIFEST = [
   {
     "name": "dimensions.migrate",
     "area": "dimensions",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {
@@ -15,7 +15,7 @@ export const DIMENSIONS_COMMAND_MANIFEST = [
         "workspaceId": "ws_123"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part211,
+        COMMAND_SCHEMA_PARTS.part213,
         {
           "code": "PERIOD_LOCKED",
           "when": "An entry it would rewrite is dated in a closed period.",

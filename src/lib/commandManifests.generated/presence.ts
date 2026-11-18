@@ -7,7 +7,7 @@ export const PRESENCE_COMMAND_MANIFEST = [
   {
     "name": "presence.beat",
     "area": "presence",
-    "roles": COMMAND_SCHEMA_PARTS.part81,
+    "roles": COMMAND_SCHEMA_PARTS.part82,
     "risk": "normal",
     "description": {
       "sentence": "Say that this person is still looking at this workspace, so the collaborator list can show them; do not use it to mark anyone else present — the row is always the caller’s own.",
@@ -21,7 +21,7 @@ export const PRESENCE_COMMAND_MANIFEST = [
           "when": "There is no display name.",
           "next": "Send the name the presence list should show."
         },
-        COMMAND_SCHEMA_PARTS.part192
+        COMMAND_SCHEMA_PARTS.part194
       ]
     },
     "runPath": "/api/v1/commands/presence.beat",
@@ -31,13 +31,13 @@ export const PRESENCE_COMMAND_MANIFEST = [
   {
     "name": "presence.leave",
     "area": "presence",
-    "roles": COMMAND_SCHEMA_PARTS.part81,
+    "roles": COMMAND_SCHEMA_PARTS.part82,
     "risk": "normal",
     "description": {
       "sentence": "Take this person out of the collaborator list; do not use it to remove anyone else — the row deleted is always the caller’s own.",
       "example": COMMAND_SCHEMA_PARTS.part1,
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part192
+        COMMAND_SCHEMA_PARTS.part194
       ],
       "next": [
         {

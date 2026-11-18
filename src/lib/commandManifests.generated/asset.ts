@@ -53,7 +53,7 @@ export const ASSET_COMMAND_MANIFEST = [
   {
     "name": "asset.dispose",
     "area": "asset",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Sell or scrap a fixed asset, wholly or in part, in one entry with the gain or loss; do not use it to move an asset to another location — that is asset.transfer.",
@@ -87,7 +87,7 @@ export const ASSET_COMMAND_MANIFEST = [
   {
     "name": "asset.placeservice",
     "area": "asset",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Place an asset that was built rather than bought in service, starting its depreciation; do not use it to buy an asset.",
@@ -116,7 +116,7 @@ export const ASSET_COMMAND_MANIFEST = [
   {
     "name": "asset.transfer",
     "area": "asset",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Move a fixed asset to another location or another balance-sheet account, posting the move when the accounts change; do not use it to sell the asset — that is asset.dispose.",
@@ -145,7 +145,7 @@ export const ASSET_COMMAND_MANIFEST = [
   {
     "name": "asset.undispose",
     "area": "asset",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Undo the latest disposal of a fixed asset while its date is open; do not use it to edit the entry by hand.",
@@ -170,7 +170,7 @@ export const ASSET_COMMAND_MANIFEST = [
   {
     "name": "asset.undoplaceservice",
     "area": "asset",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Undo placing an asset in service while nothing has happened to it since; do not use it to change depreciation by hand.",
@@ -190,7 +190,7 @@ export const ASSET_COMMAND_MANIFEST = [
   {
     "name": "asset.undotransfer",
     "area": "asset",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Undo the latest move of a fixed asset while its date is open; do not use it to edit the asset by hand.",

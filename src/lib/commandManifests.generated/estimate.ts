@@ -8,7 +8,7 @@ export const ESTIMATE_COMMAND_MANIFEST = [
   {
     "name": "estimate.save",
     "area": "estimate",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Write a quote or change its terms, lines and milestone schedule while it is still a quote; do not use it to invoice it, which invoice.create does.",
@@ -32,7 +32,7 @@ export const ESTIMATE_COMMAND_MANIFEST = [
           "when": "The quote is already accepted, declined or converted and the change touches its lines or total.",
           "next": "Write a new quote; an accepted order's terms are what the customer agreed to."
         },
-        COMMAND_SCHEMA_PARTS.part197,
+        COMMAND_SCHEMA_PARTS.part199,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is a viewer.",
@@ -53,7 +53,7 @@ export const ESTIMATE_COMMAND_MANIFEST = [
   {
     "name": "estimate.signlink",
     "area": "estimate",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Mint the private link a customer uses to read and sign one estimate; do not use it to send an invoice — invoices have their own send.",
@@ -66,7 +66,7 @@ export const ESTIMATE_COMMAND_MANIFEST = [
           "when": "The estimate is not in this workspace, or is not one that can be signed.",
           "next": "Reload the estimate."
         },
-        COMMAND_SCHEMA_PARTS.part167
+        COMMAND_SCHEMA_PARTS.part169
       ]
     },
     "runPath": "/api/v1/commands/estimate.signlink",
@@ -76,7 +76,7 @@ export const ESTIMATE_COMMAND_MANIFEST = [
   {
     "name": "estimate.status",
     "area": "estimate",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Accept a quote as an order, decline it, or record the invoice that converted it; do not use it to create the invoice, which invoice.create does first.",
@@ -96,7 +96,7 @@ export const ESTIMATE_COMMAND_MANIFEST = [
           "when": "A conversion does not name the invoice that took the quote over.",
           "next": "Create the invoice first, then pass its id."
         },
-        COMMAND_SCHEMA_PARTS.part197,
+        COMMAND_SCHEMA_PARTS.part199,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is a viewer.",

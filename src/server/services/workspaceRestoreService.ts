@@ -1,5 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
-import type { DocumentData, Firestore } from '../db/firestore';
+import type { DocumentData, Firestore, Transaction } from '../db/firestore';
 import { BRAND_NAME } from '../../config/brand';
 import { writeServerAuditLog } from './auditLogService';
 import { checkLedgerEntry } from './ledgerDoor';
@@ -162,7 +162,7 @@ function latestDate(a: unknown, b: unknown): string {
 
 export interface RestoreActor { uid: string; email?: string }
 
-export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string, backup: unknown, actor?: RestoreActor): Promise<RestoreResult> {
+export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string, backup: unknown, actor?: RestoreActor, transaction?: Transaction): Promise<RestoreResult> {
   if (!isRecord(backup)) throw new RestoreError(400, 'Invalid backup payload');
   const backupWorkspace = backup.workspace;
   if (backupWorkspace !== undefined && (!isRecord(backupWorkspace) || backupWorkspace.id !== workspaceId)) {
@@ -253,7 +253,7 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
   // or added, between checking and writing can no longer slip past the checks.
   const counts: Record<string, number> = {};
   let attachments: RestoreResult['attachments'];
-  await db.runTransaction(async t => {
+  const restore = async (t: Transaction) => {
     // a retried transaction (serialization conflict) counts again from zero, or the answer doubles
     for (const key of Object.keys(counts)) delete counts[key];
     // Closed books are never replaced by an older state: a backup may be restored over closed periods
@@ -379,7 +379,9 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
         },
       }, { db, tx: t });
     }
-  });
+  };
+  if (transaction) await restore(transaction);
+  else await db.runTransaction(restore);
 
   return {
     restoredCollections: Array.from(new Set(RESTORE_COLLECTIONS.filter(c => backup[c.key] != null).map(c => c.key))),

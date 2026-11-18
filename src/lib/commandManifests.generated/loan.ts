@@ -6,7 +6,7 @@ export const LOAN_COMMAND_MANIFEST = [
   {
     "name": "loan.payment",
     "area": "loan",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Record that one instalment of a loan was paid, against the entry that posted it; do not use it to post the payment, which is a journal entry.",

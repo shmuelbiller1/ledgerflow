@@ -77,6 +77,8 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
    * provider key), and an API key that could mint keys would grant itself more than it was given.
    */
   peopleOnly?: boolean;
+  /** Person-scoped workspace creation must not be performed (or replayed) by a workspace-scoped key. */
+  denyWorkspaceApiKey?: boolean;
   /** Dot path into the validated input; the runner checks this date against the workspace period lock. */
   dated?: string;
   /** Resolve an effective date when the command's input omits one (for example, today's workspace-local date). */

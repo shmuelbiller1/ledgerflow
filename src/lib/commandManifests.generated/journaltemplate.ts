@@ -7,7 +7,7 @@ export const JOURNALTEMPLATE_COMMAND_MANIFEST = [
   {
     "name": "journaltemplate.remove",
     "area": "journaltemplate",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Remove a saved journal template; nothing in the books changes, because a template only filled the form.",
@@ -20,7 +20,7 @@ export const JOURNALTEMPLATE_COMMAND_MANIFEST = [
           "when": "The template is not in this workspace, or was already removed.",
           "next": "Reload the template list."
         },
-        COMMAND_SCHEMA_PARTS.part167
+        COMMAND_SCHEMA_PARTS.part169
       ]
     },
     "runPath": "/api/v1/commands/journaltemplate.remove",
@@ -30,7 +30,7 @@ export const JOURNALTEMPLATE_COMMAND_MANIFEST = [
   {
     "name": "journaltemplate.save",
     "area": "journaltemplate",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Save a journal-entry template under a name, replacing one of the same name; do not use it to post — a template only fills the form.",
@@ -55,7 +55,7 @@ export const JOURNALTEMPLATE_COMMAND_MANIFEST = [
           "when": "The lines do not balance, there are fewer than two, or an account is not in this workspace.",
           "next": "Balance the lines and use this workspace's accounts."
         },
-        COMMAND_SCHEMA_PARTS.part167
+        COMMAND_SCHEMA_PARTS.part169
       ]
     },
     "runPath": "/api/v1/commands/journaltemplate.save",

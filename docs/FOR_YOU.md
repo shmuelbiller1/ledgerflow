@@ -7,6 +7,10 @@ removed from this list.
 
 Last updated: 2026-11-19.
 
+## Workspace API writes now use commands (nothing for you to do)
+
+Creating a workspace, adding or removing a member, and restoring a backup now go through the registered command runner. The old API addresses and successful answers remain; the restore keeps its backup-integrity, closed-period and owner checks, and removing the last owner is still refused. No database migration is needed for this batch.
+
 ## Emptying a demo workspace and tidying dimension values now run through registered commands (nothing for you to do)
 
 Two more writes go through the registered commands. Emptying a workspace is unchanged in the way that

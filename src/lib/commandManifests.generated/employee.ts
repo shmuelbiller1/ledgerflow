@@ -7,7 +7,7 @@ export const EMPLOYEE_COMMAND_MANIFEST = [
   {
     "name": "employee.create",
     "area": "employee",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Add one person to the payroll roster with their salary and filing details; do not use it to pay them, which a pay run does.",
@@ -50,7 +50,7 @@ export const EMPLOYEE_COMMAND_MANIFEST = [
   {
     "name": "employee.update",
     "area": "employee",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Change a roster entry — rate, pay type, deductions, holiday hours, direct deposit, title or status; do not use it to change what a pay run already paid.",

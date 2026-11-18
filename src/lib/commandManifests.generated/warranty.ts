@@ -6,7 +6,7 @@ export const WARRANTY_COMMAND_MANIFEST = [
   {
     "name": "warranty.update",
     "area": "warranty",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Set the warranty end date for a serial on an issued invoice and preserve who changed it; do not use this command to change inventory, invoices, or posted amounts.",
@@ -33,7 +33,7 @@ export const WARRANTY_COMMAND_MANIFEST = [
           "when": "The customer, invoice line, or serial changed before the update.",
           "next": "Reload the warranty register and select the current serial row."
         },
-        COMMAND_SCHEMA_PARTS.part212
+        COMMAND_SCHEMA_PARTS.part214
       ]
     },
     "runPath": "/api/v1/commands/warranty.update",

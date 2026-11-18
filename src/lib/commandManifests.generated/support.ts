@@ -8,7 +8,7 @@ export const SUPPORT_COMMAND_MANIFEST = [
   {
     "name": "support.message",
     "area": "support",
-    "roles": COMMAND_SCHEMA_PARTS.part81,
+    "roles": COMMAND_SCHEMA_PARTS.part82,
     "risk": "normal",
     "description": {
       "sentence": "Add a message to a support ticket and move its unread flags and stage; do not use it to open a ticket, which support.ticket does.",
@@ -22,7 +22,7 @@ export const SUPPORT_COMMAND_MANIFEST = [
           "when": "The message is empty or over 5000 characters.",
           "next": "Send a message of 1–5000 characters."
         },
-        COMMAND_SCHEMA_PARTS.part199,
+        COMMAND_SCHEMA_PARTS.part201,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller sends `authorRole: admin` without the platform role.",
@@ -46,7 +46,7 @@ export const SUPPORT_COMMAND_MANIFEST = [
         "status": "resolved"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part199,
+        COMMAND_SCHEMA_PARTS.part201,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner or accountant.",
@@ -61,7 +61,7 @@ export const SUPPORT_COMMAND_MANIFEST = [
   {
     "name": "support.ticket",
     "area": "support",
-    "roles": COMMAND_SCHEMA_PARTS.part81,
+    "roles": COMMAND_SCHEMA_PARTS.part82,
     "risk": "normal",
     "description": {
       "sentence": "Open a support ticket with the message that describes the problem, in one step; do not use it to reply — support.message does that.",
