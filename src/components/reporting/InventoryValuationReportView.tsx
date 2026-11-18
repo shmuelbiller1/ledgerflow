@@ -13,6 +13,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { inventoryAsOf, type InventoryAsOf } from '../../lib/inventoryAsOf';
 import type { ItemDetails } from '../../lib/stockMoves';
 import { StockClosingPanel } from './StockClosingPanel';
+import { useReportText, fill } from './useReportText';
 
 type Row = InventoryValuationRow & { unknownReason?: string };
 /** the start of any stock history: `itemDetails` from here has nothing before it */
@@ -30,6 +31,7 @@ async function readHistory(workspaceId: string, endDate: string): Promise<ItemDe
  * account in the books (src/server/reports/itemReports.ts).
  */
 export const InventoryValuationReportView: React.FC<{ asOfDate?: string }> = ({ asOfDate: pageAsOfDate }) => {
+  const reportText = useReportText();
   const inventory = useLedgerStore(s => s.inventory);
   const accounts = useLedgerStore(s => s.accounts);
   const transactions = useLedgerStore(s => s.transactions);
@@ -99,78 +101,78 @@ export const InventoryValuationReportView: React.FC<{ asOfDate?: string }> = ({ 
     toast.success('Inventory Valuation exported to CSV');
   };
 
-  const unknown = (r: Row) => r.unknownReason ? <span className="text-[var(--muted)]">Unknown</span> : null;
+  const unknown = (r: Row) => r.unknownReason ? <span className="text-[var(--muted)]">{reportText('r.unknown', 'Unknown')}</span> : null;
   const columns: ColumnDef<Row>[] = [
     {
       key: 'name',
-      header: 'Item',
+      header: reportText('r.item', 'Item'),
       render: (r) => (
         <div>
           <div className="font-semibold text-[var(--text)]">{r.name}</div>
           <div className="text-[10px] text-[var(--muted)]">{[r.sku, r.category].filter(Boolean).join(' · ')}</div>
-          {r.unknownReason && <div className="text-[10px] text-[var(--muted)]">Not known on {asOfDate}: {r.unknownReason}</div>}
+          {r.unknownReason && <div className="text-[10px] text-[var(--muted)]">{reportText('r.not-known-on', 'Not known on')} {asOfDate}: {r.unknownReason}</div>}
         </div>
       ),
     },
     {
       key: 'quantity',
-      header: 'On hand',
+      header: reportText('r.on-hand', 'On hand'),
       align: 'right',
       render: (r) => unknown(r) || (
         <span className={r.quantity < 0 ? 'text-[var(--neg)] font-semibold' : r.belowReorder ? 'text-[var(--brass)] font-semibold' : ''}>
-          {r.quantity}{r.quantity < 0 ? ' (negative)' : r.belowReorder ? ' (reorder)' : ''}
+          {r.quantity}{r.quantity < 0 ? ` ${reportText('r.negative', '(negative)')}` : r.belowReorder ? ` ${reportText('r.reorder', '(reorder)')}` : ''}
         </span>
       ),
     },
-    { key: 'unitCostCents', header: 'Unit cost', align: 'right', render: (r) => unknown(r) || formatCurrency(r.unitCostCents, currency) },
-    { key: 'valueCents', header: 'Value', align: 'right', render: (r) => unknown(r) || <span className="font-semibold">{formatCurrency(r.valueCents, currency)}</span> },
-    { key: 'sharePct', header: 'Share', align: 'right', render: (r) => unknown(r) || `${r.sharePct}%` },
+    { key: 'unitCostCents', header: reportText('r.unit-cost', 'Unit cost'), align: 'right', render: (r) => unknown(r) || formatCurrency(r.unitCostCents, currency) },
+    { key: 'valueCents', header: reportText('r.value', 'Value'), align: 'right', render: (r) => unknown(r) || <span className="font-semibold">{formatCurrency(r.valueCents, currency)}</span> },
+    { key: 'sharePct', header: reportText('r.share', 'Share'), align: 'right', render: (r) => unknown(r) || `${r.sharePct}%` },
   ];
 
   return (
     <div className="space-y-4">
       <PartyReportLayout
-        title="Inventory Valuation"
+        title={reportText('r.inventory-valuation', 'Inventory Valuation')}
         description={past
-          ? `Stock on hand at cost on ${asOfDate}, from the stock history, beside the Inventory account in the books on the same date.`
-          : "Stock on hand at cost today, beside the Inventory account in the books today."}
+          ? fill(reportText('r.stock-on-hand-at-cost-on', 'Stock on hand at cost on {date}, from the stock history, beside the Inventory account in the books on the same date.'), { date: asOfDate })
+          : reportText('r.stock-on-hand-at-cost-today-beside-the-inventory', 'Stock on hand at cost today, beside the Inventory account in the books today.')}
         icon={Boxes}
-        totalLabel={past && asOf && !asOf.complete ? 'Stock value of the items known on the date' : 'Stock value'}
+        totalLabel={past && asOf && !asOf.complete ? reportText('r.stock-value-of-the-items-known-on-the-date', 'Stock value of the items known on the date') : reportText('r.stock-value', 'Stock value')}
         totalAmountCents={stockValueCents}
         currency={currency}
-        totalDisplay={past && !asOf ? (historyError ? 'Not available' : 'Reading…') : undefined}
-        secondaryTotalLabel="Inventory account in the books"
+        totalDisplay={past && !asOf ? (historyError ? reportText('r.not-available', 'Not available') : reportText('r.reading', 'Reading…')) : undefined}
+        secondaryTotalLabel={reportText('r.inventory-account-in-the-books', 'Inventory account in the books')}
         secondaryTotalCents={report.ledgerValueCents}
         exportFilename="inventory_valuation.csv"
         onExportCSV={exportCsv}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        searchPlaceholder="Search item, SKU or category..."
+        searchPlaceholder={reportText('r.search-item-sku-or-category', 'Search item, SKU or category...')}
         asOfDate={asOfDate}
         onAsOfDateChange={setAsOfDate}
         columns={columns}
         data={shown}
-        emptyMessage={past ? (asOf ? `No stock on ${asOfDate} in the stock history.` : historyError ? 'The stock on this date is not available.' : 'Reading the stock history…') : 'No items yet. Add them in Inventory.'}
+        emptyMessage={past ? (asOf ? fill(reportText('r.no-stock-on-date', 'No stock on {date} in the stock history.'), { date: asOfDate }) : historyError ? reportText('r.the-stock-on-this-date-is-not-available', 'The stock on this date is not available.') : reportText('r.reading-the-stock-history', 'Reading the stock history…')) : reportText('r.no-items-yet-add-them-in-inventory', 'No items yet. Add them in Inventory.')}
         sumKeys={['valueCents']}
         getRowId={(r) => r.itemId}
       />
-      {past && !asOf && !historyError && <p role="status" className="text-xs text-[var(--muted)]">Reading the stock history for {asOfDate}…</p>}
+      {past && !asOf && !historyError && <p role="status" className="text-xs text-[var(--muted)]">{reportText('r.reading-the-stock-history-for', 'Reading the stock history for')} {asOfDate}…</p>}
       {historyError && <p role="alert" className="text-xs p-3 rounded-lg border border-[var(--brass)] text-[var(--text)]">
-        The stock on {asOfDate} is not available: {historyError}. Today&rsquo;s stock is not shown in its place, and the books are not compared.
+        {reportText('r.the-stock-on', 'The stock on')} {asOfDate} {reportText('r.is-not-available', 'is not available:')} {historyError}{reportText('r.todays-stock-not-shown', '. Today’s stock is not shown in its place, and the books are not compared.')}
       </p>}
-      {future && <p role="alert" className="text-xs p-3 rounded-lg border border-[var(--brass)] text-[var(--text)]">{asOfDate} is after today, so there is no stock or books valuation for it yet. Today&rsquo;s stock is shown and not compared.</p>}
+      {future && <p role="alert" className="text-xs p-3 rounded-lg border border-[var(--brass)] text-[var(--text)]">{asOfDate} {reportText('r.is-after-today-so-there-is-no-stock-or-books-val', 'is after today, so there is no stock or books valuation for it yet. Today’s stock is shown and not compared.')}</p>}
       {rows.length > 0 && !future && (
         <p role="status" className={`text-xs p-3 rounded-lg border ${comparable && differenceCents === 0 ? 'border-[var(--line)] text-[var(--muted)]' : 'border-[var(--brass)] text-[var(--text)]'}`}>
           {past && asOf && !asOf.complete
-            ? `${asOf.unknownItems} item(s) have no stock history that explains them on ${asOfDate}, so the stock value on that date is not complete and is not compared with the books.`
+            ? fill(reportText('r.items-without-stock-history', '{n} item(s) have no stock history that explains them on {date}, so the stock value on that date is not complete and is not compared with the books.'), { n: asOf.unknownItems, date: asOfDate })
             : itemsPartial
-              ? 'The loaded item list is capped, so the stock value here may leave items out and is not compared with the books.'
+              ? reportText('r.the-loaded-item-list-is-capped-so-the-stock-valu', 'The loaded item list is capped, so the stock value here may leave items out and is not compared with the books.')
             : ledgerPartial
-              ? 'The loaded entries are capped, so the Inventory account here may be incomplete and is not compared with the stock.'
+              ? reportText('r.the-loaded-entries-are-capped-so-the-inventory-a', 'The loaded entries are capped, so the Inventory account here may be incomplete and is not compared with the stock.')
               : differenceCents === 0
-                ? 'The stock list and the Inventory account agree.'
-                : `The stock list is ${formatCurrency(Math.abs(differenceCents), currency)} ${differenceCents > 0 ? 'more' : 'less'} than the Inventory account. A purchase, stock count or sale is recorded on one side only (bills don't add stock to items yet).`}
-          {negativeStockItems > 0 && ` ${negativeStockItems} item(s) have negative stock and are valued at 0.`}
+                ? reportText('r.the-stock-list-and-the-inventory-account-agree', 'The stock list and the Inventory account agree.')
+                : fill(differenceCents > 0 ? reportText('r.stock-list-more', 'The stock list is {amount} more than the Inventory account. A purchase, stock count or sale is recorded on one side only (bills don\'t add stock to items yet).') : reportText('r.stock-list-less', 'The stock list is {amount} less than the Inventory account. A purchase, stock count or sale is recorded on one side only (bills don\'t add stock to items yet).'), { amount: formatCurrency(Math.abs(differenceCents), currency) })}
+          {negativeStockItems > 0 && ` ${fill(reportText('r.items-negative-stock', '{n} item(s) have negative stock and are valued at 0.'), { n: negativeStockItems })}`}
         </p>
       )}
       <StockClosingPanel workspaceId={workspaceId} />

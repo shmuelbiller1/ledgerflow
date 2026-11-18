@@ -99,7 +99,7 @@ export async function moduleRecords(db: Firestore, workspaceId: string): Promise
   for (const [id, sources] of Object.entries(MODULE_RECORDS)) {
     let n = 0;
     for (const { table, where } of sources.filter(x => existing.has(x.table))) {
-      const { rows } = await db.pool.query(`select count(*)::int as n from public."${table}" where workspace_id = $1${where ? ` and ${where}` : ''}`, [workspaceId]);
+      const rows = await db.readRows<{ n: number }>(`select count(*)::int as n from ${db.tableSource(table)} where workspace_id = $1${where ? ` and ${where}` : ''}`, [workspaceId]);
       n += rows[0]?.n || 0;
     }
     counts[id] = n;

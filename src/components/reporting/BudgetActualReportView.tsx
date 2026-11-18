@@ -63,7 +63,7 @@ export default function BudgetActualReportView({ selectedYear = new Date().getFu
       if (useAuthStore.getState().currentWorkspaceId !== workspaceId || useAuthStore.getState().user?.uid !== user?.uid) return;
       const rows = snapshots.map(snap => snap.docs.map(document => ({ ...document.data(), id: document.id })));
       setHistory({ key, budgets: rows[0] as SavedBudget[], accounts: rows[1] as ChartAccount[], transactions: rows[2] as Transaction[] });
-    } catch { setError({ key, message: 'Could not load complete history. Retry; the figures below remain provisional.' }); }
+    } catch { setError({ key, message: reportText('r.history-incomplete', 'Could not load complete history. Retry; the figures below remain provisional.') }); }
     finally { pending.current = false; setBusyKey(previous => previous === key ? null : previous); }
   }
   return <section aria-label={reportText('r.budget-vs-actual', 'Budget vs Actual')} className="space-y-4 p-4 max-w-full">
@@ -86,11 +86,11 @@ export default function BudgetActualReportView({ selectedYear = new Date().getFu
       headRowClassName=""
       bodyClassName=""
       columns={[
-        { header: "Period", className: "p-3", headClassName: "p-3", cell: (column) => column.period.label },
-        { header: "Budget", className: "p-3", headClassName: "p-3", cell: (column) => formatCurrency(column.budgetCents) },
-        { header: "Actual", headClassName: "p-3", cell: (column) => <button type="button" className="min-h-11 px-3 underline tabular-nums" aria-label={fill(reportText('r.budget-drill', '{amount}: entries for {account}, {period}'), { amount: formatCurrency(column.actualCents), account: report.account.name, period: column.period.label })} onClick={() => setDrill({ key, name: report.account.name, transactions: column.drillTransactions, explain: { accountIds: [report.account.id], startDate: column.period.startDate, endDate: column.period.endDate, expectedCents: column.actualCents, sign: isDebitNatureType(report.account.type) ? 1 : -1, label: column.period.label } })}>{formatCurrency(column.actualCents)}</button> },
-        { header: "Difference", className: "p-3", headClassName: "p-3", cell: (column) => formatCurrency(column.differenceCents) },
-        { header: "% used", className: "p-3", headClassName: "p-3", cell: (column) => column.percentUsed === null ? '—' : `${column.percentUsed.toFixed(1)}%` },
+        { header: reportText('r.col-period', 'Period'), className: "p-3", headClassName: "p-3", cell: (column) => column.period.label },
+        { header: reportText('r.col-budget', 'Budget'), className: "p-3", headClassName: "p-3", cell: (column) => formatCurrency(column.budgetCents) },
+        { header: reportText('r.col-actual', 'Actual'), headClassName: "p-3", cell: (column) => <button type="button" className="min-h-11 px-3 underline tabular-nums" aria-label={fill(reportText('r.budget-drill', '{amount}: entries for {account}, {period}'), { amount: formatCurrency(column.actualCents), account: report.account.name, period: column.period.label })} onClick={() => setDrill({ key, name: report.account.name, transactions: column.drillTransactions, explain: { accountIds: [report.account.id], startDate: column.period.startDate, endDate: column.period.endDate, expectedCents: column.actualCents, sign: isDebitNatureType(report.account.type) ? 1 : -1, label: column.period.label } })}>{formatCurrency(column.actualCents)}</button> },
+        { header: reportText('r.col-difference', 'Difference'), className: "p-3", headClassName: "p-3", cell: (column) => formatCurrency(column.differenceCents) },
+        { header: reportText('r.col-pct-used', '% used'), className: "p-3", headClassName: "p-3", cell: (column) => column.percentUsed === null ? '—' : `${column.percentUsed.toFixed(1)}%` },
       ]}
     /></div>}
     <DrillDownModal key={key} isOpen={drill?.key === key} onClose={() => setDrill(null)} accountName={drill?.name || ''} transactions={drill?.key === key ? drill.transactions : []} explain={drill?.key === key ? drill.explain : undefined} formatCurrency={formatCurrency} from="Budget vs Actual" />

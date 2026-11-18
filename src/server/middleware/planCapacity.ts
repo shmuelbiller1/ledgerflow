@@ -1,7 +1,7 @@
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
 import { PLANS, planFor, type PlanLimits } from '../../lib/plans';
-import { getDb } from '../db/firestore';
+import { getDb, requireLiveDb } from '../db/firestore';
 import type { Firestore } from '../db/firestore';
 
 export type MeteredResource =
@@ -185,6 +185,7 @@ export interface WorkspaceUsage {
  * people with access, and document storage — while entries are counted for visibility without a cap.
  */
 export async function workspaceUsage(db: Firestore, workspaceId: string): Promise<WorkspaceUsage | null> {
+  requireLiveDb(db, 'Workspace usage');
   const ws = (await db.collection('workspaces').doc(workspaceId).get()).data();
   if (!ws) return null;
   const plan = String(ws.plan || 'free').toLowerCase();
@@ -193,11 +194,11 @@ export async function workspaceUsage(db: Firestore, workspaceId: string): Promis
   const currentMonth = new Date().toISOString().slice(0, 7);
 
   const [txRes, groupRes, clientRes, unitRes, payRes] = await Promise.all([
-    db.pool.query('select count(*)::int as n from public.transactions where workspace_id = $1', [workspaceId]),
+    db.pool.query(`select count(*)::int as n from ${db.tableSource('transactions')} where workspace_id = $1`, [workspaceId]),
     ownerUid
       ? db.pool.query(
           `select coalesce(max(jsonb_array_length(coalesce(data->'workspaceIds', '[]'::jsonb))), 1)::int as n
-             from public."workspaceGroups"
+             from ${db.tableSource('workspaceGroups')}
             where data->>'ownerUid' = $1`,
           [ownerUid],
         )
@@ -205,7 +206,7 @@ export async function workspaceUsage(db: Firestore, workspaceId: string): Promis
     ownerUid
       ? db.pool.query(
           `select count(*)::int as n
-             from public.workspaces
+             from ${db.tableSource('workspaces')}
             where data->>'uid' = $1
                or coalesce(data->'members', '[]'::jsonb) ? $1
                or (data->'roles' ? $1)`,
@@ -214,14 +215,14 @@ export async function workspaceUsage(db: Firestore, workspaceId: string): Promis
       : Promise.resolve({ rows: [{ n: 1 }] }),
     db.pool.query(
       `select count(*)::int as n
-         from public.projects
+         from ${db.tableSource('projects')}
         where workspace_id = $1
           and (coalesce(data->>'unitType', '') = 'rental_unit' or coalesce((data->>'monthlyRentCents')::bigint, 0) > 0)`,
       [workspaceId],
     ),
     db.pool.query(
       `select coalesce(sum((data->>'amountCents')::bigint), 0)::bigint as vol
-         from public.payments
+         from ${db.tableSource('payments')}
         where workspace_id = $1
           and coalesce(data->>'status', 'completed') not in ('void', 'failed')
           and left(coalesce(data->>'paymentDate', data->>'date', ''), 7) = $2`,

@@ -34,133 +34,134 @@ const schemaPart31 = ["owner", "accountant"] as const;
 const schemaPart32 = { "customerId": "cus_1" } as const;
 const schemaPart33 = ["position", "quantity"] as const;
 const schemaPart34 = { "assetId": "asset_123" } as const;
-const schemaPart35 = ["employee", "contractor"] as const;
-const schemaPart36 = { "payRunId": "payrun_123" } as const;
-const schemaPart37 = ["name", "rate", "taxCents"] as const;
-const schemaPart38 = ["state", "thresholdCents"] as const;
-const schemaPart39 = ["accountId", "amountCents"] as const;
-const schemaPart40 = { "type": "number", "const": 2 } as const;
-const schemaPart41 = { "type": "array", "items": schemaPart1 } as const;
-const schemaPart42 = ["monthly", "weekly", "yearly"] as const;
-const schemaPart43 = { "type": "number", "minimum": 0 } as const;
-const schemaPart44 = ["ws_holding", "ws_subsidiary"] as const;
-const schemaPart45 = { "type": "string", "minLength": 1 } as const;
-const schemaPart46 = { "type": "string", "format": "uri" } as const;
-const schemaPart47 = { "type": "string", "maxLength": 10 } as const;
-const schemaPart48 = { "type": "string", "maxLength": 20 } as const;
-const schemaPart49 = { "type": "string", "maxLength": 40 } as const;
-const schemaPart50 = { "type": "string", "maxLength": 50 } as const;
-const schemaPart51 = { "type": "string", "maxLength": 60 } as const;
-const schemaPart52 = { "type": "string", "maxLength": 80 } as const;
-const schemaPart53 = { "default": "USD", "type": "string" } as const;
-const schemaPart54 = { "type": "string", "maxLength": 100 } as const;
-const schemaPart55 = { "type": "string", "maxLength": 120 } as const;
-const schemaPart56 = { "type": "string", "maxLength": 200 } as const;
-const schemaPart57 = { "type": "string", "maxLength": 300 } as const;
-const schemaPart58 = { "type": "string", "maxLength": 320 } as const;
-const schemaPart59 = { "type": "string", "maxLength": 400 } as const;
-const schemaPart60 = { "type": "string", "maxLength": 500 } as const;
-const schemaPart61 = ["Active", "Terminated", "On leave"] as const;
-const schemaPart62 = ["awaiting", "approved", "rejected"] as const;
-const schemaPart63 = ["id", "dimensionId", "description"] as const;
-const schemaPart64 = { "type": "string", "maxLength": 1000 } as const;
-const schemaPart65 = { "type": "string", "maxLength": 2000 } as const;
-const schemaPart66 = { "type": "string", "maxLength": 5000 } as const;
-const schemaPart67 = ["owner", "accountant", "bookkeeper"] as const;
-const schemaPart68 = { "type": "string", "maxLength": 10000 } as const;
-const schemaPart69 = ["invoiceLineId", "itemId", "quantity"] as const;
-const schemaPart70 = { "type": "string", "const": "categorize" } as const;
-const schemaPart71 = { "type": "number", "exclusiveMinimum": 0 } as const;
-const schemaPart72 = { "fromId": "acc_old", "intoId": "acc_new" } as const;
-const schemaPart73 = { "type": "number", "minimum": 0, "maximum": 1 } as const;
-const schemaPart74 = { "type": "array", "items": schemaPart22 } as const;
-const schemaPart75 = { "maxItems": 500, "type": "array", "items": schemaPart1 } as const;
-const schemaPart76 = ["documentId", "documentType", "amountCents"] as const;
-const schemaPart77 = { "type": "string", "enum": schemaPart23 } as const;
-const schemaPart78 = { "type": "number", "minimum": 0, "maximum": 100 } as const;
-const schemaPart79 = { "type": "integer", "minimum": 0, "maximum": 20 } as const;
-const schemaPart80 = { "type": "integer", "minimum": 2, "maximum": 60 } as const;
-const schemaPart81 = ["owner", "accountant", "bookkeeper", "viewer"] as const;
-const schemaPart82 = ["billLine", "itemId", "quantity", "valueCents"] as const;
-const schemaPart83 = ["weekly", "biweekly", "semimonthly", "monthly"] as const;
-const schemaPart84 = { "type": "string", "minLength": 3, "maxLength": 3 } as const;
-const schemaPart85 = { "type": "integer", "minimum": 30, "maximum": 365 } as const;
-const schemaPart86 = { "type": "string", "pattern": "^\\d{4}-\\d{2}$" } as const;
-const schemaPart87 = { "type": "string", "enum": schemaPart27 } as const;
-const schemaPart88 = { "type": "string", "enum": schemaPart28 } as const;
-const schemaPart89 = { "type": "string", "minLength": 1, "maxLength": 40 } as const;
-const schemaPart90 = { "type": "string", "minLength": 1, "maxLength": 80 } as const;
-const schemaPart91 = { "id": "document_123", "data": schemaPart24 } as const;
-const schemaPart92 = { "type": "string", "enum": schemaPart30 } as const;
-const schemaPart93 = { "type": "string", "minLength": 1, "maxLength": 120 } as const;
-const schemaPart94 = { "type": "string", "minLength": 1, "maxLength": 127 } as const;
-const schemaPart95 = { "type": "string", "minLength": 1, "maxLength": 160 } as const;
-const schemaPart96 = { "type": "string", "minLength": 1, "maxLength": 200 } as const;
-const schemaPart97 = { "type": "string", "minLength": 1, "maxLength": 400 } as const;
-const schemaPart98 = { "type": "string", "minLength": 1, "maxLength": 500 } as const;
-const schemaPart99 = { "type": "string", "minLength": 5, "maxLength": 500 } as const;
-const schemaPart100 = { "type": "string", "minLength": 1, "maxLength": 5000 } as const;
-const schemaPart101 = ["high-value", "repeat", "service-tier", "standard"] as const;
-const schemaPart102 = { "command": "bill.create", "label": "Record a bill" } as const;
-const schemaPart103 = { "command": "invoice.create", "label": "New invoice" } as const;
-const schemaPart104 = { "default": 1, "type": "number", "exclusiveMinimum": 0 } as const;
-const schemaPart105 = { "type": "string", "enum": schemaPart35 } as const;
-const schemaPart106 = { "type": "string", "pattern": "^dlv_[a-z0-9]{8,40}$" } as const;
-const schemaPart107 = [schemaPart102] as const;
-const schemaPart108 = [schemaPart56, schemaPart18] as const;
-const schemaPart109 = { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,80}$" } as const;
-const schemaPart110 = [schemaPart103] as const;
-const schemaPart111 = { "type": "number", "exclusiveMinimum": 0, "maximum": 100 } as const;
-const schemaPart112 = { "status": "matched", "matchedTransactionId": "tx_123" } as const;
-const schemaPart113 = { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,100}$" } as const;
-const schemaPart114 = { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" } as const;
-const schemaPart115 = ["draft", "open", "applied", "partially_applied", "void"] as const;
-const schemaPart116 = { "command": "payment.receive", "label": "Pay this bill" } as const;
-const schemaPart117 = { "type": "string", "enum": schemaPart42 } as const;
-const schemaPart118 = { "id": schemaPart96 } as const;
-const schemaPart119 = { "type": "string", "pattern": "^\\d{4}-(0[1-9]|1[0-2])$" } as const;
-const schemaPart120 = [schemaPart116] as const;
-const schemaPart121 = { "command": "payment.receive", "label": "Record a payment" } as const;
-const schemaPart122 = { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 } as const;
-const schemaPart123 = { "type": "string", "pattern": "^csv_\\d{1,3}_[0-9a-f]{8}$" } as const;
-const schemaPart124 = { "type": "integer", "minimum": 0, "maximum": 9007199254740991 } as const;
-const schemaPart125 = [schemaPart121] as const;
-const schemaPart126 = { "reason": schemaPart98 } as const;
-const schemaPart127 = { "type": "string", "enum": schemaPart62 } as const;
-const schemaPart128 = { "anyOf": schemaPart108 } as const;
-const schemaPart129 = { "type": "invoice", "id": "invoice_123", "label": "Invoice INV-12" } as const;
-const schemaPart130 = { "workspaceId": schemaPart96 } as const;
-const schemaPart131 = { "id": "n1", "dimensionId": "property", "description": "North tower" } as const;
-const schemaPart132 = { "command": "workspace.dimensionaxes", "label": "Manage the labels" } as const;
-const schemaPart133 = ["standard", "zero_rated", "exempt", "reverse_charge", "out_of_scope"] as const;
-const schemaPart134 = [schemaPart131] as const;
-const schemaPart135 = { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 } as const;
-const schemaPart136 = ["invoice", "bill", "estimate", "creditNote", "vendorCredit", "payment"] as const;
-const schemaPart137 = ["lead", "qualified", "proposal", "won", "lost", "delinquent", "inactive"] as const;
-const schemaPart138 = [schemaPart46, schemaPart60] as const;
-const schemaPart139 = { "type": "string", "enum": schemaPart83 } as const;
-const schemaPart140 = { "maxItems": 50, "type": "array", "items": schemaPart57 } as const;
-const schemaPart141 = { "maxItems": 200, "type": "array", "items": schemaPart54 } as const;
-const schemaPart142 = { "maxItems": 100, "type": "array", "items": schemaPart56 } as const;
-const schemaPart143 = { "maxItems": 200, "type": "array", "items": schemaPart59 } as const;
-const schemaPart144 = { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 } as const;
-const schemaPart145 = { "type": "string", "enum": schemaPart101 } as const;
-const schemaPart146 = { "nodes": schemaPart134 } as const;
-const schemaPart147 = {
+const schemaPart35 = { "memberUid": "user_123" } as const;
+const schemaPart36 = ["employee", "contractor"] as const;
+const schemaPart37 = { "payRunId": "payrun_123" } as const;
+const schemaPart38 = ["name", "rate", "taxCents"] as const;
+const schemaPart39 = ["state", "thresholdCents"] as const;
+const schemaPart40 = ["accountId", "amountCents"] as const;
+const schemaPart41 = { "type": "number", "const": 2 } as const;
+const schemaPart42 = { "type": "array", "items": schemaPart1 } as const;
+const schemaPart43 = ["monthly", "weekly", "yearly"] as const;
+const schemaPart44 = { "type": "number", "minimum": 0 } as const;
+const schemaPart45 = ["ws_holding", "ws_subsidiary"] as const;
+const schemaPart46 = { "type": "string", "minLength": 1 } as const;
+const schemaPart47 = { "type": "string", "format": "uri" } as const;
+const schemaPart48 = { "type": "string", "maxLength": 10 } as const;
+const schemaPart49 = { "type": "string", "maxLength": 20 } as const;
+const schemaPart50 = { "type": "string", "maxLength": 40 } as const;
+const schemaPart51 = { "type": "string", "maxLength": 50 } as const;
+const schemaPart52 = { "type": "string", "maxLength": 60 } as const;
+const schemaPart53 = { "type": "string", "maxLength": 80 } as const;
+const schemaPart54 = { "default": "USD", "type": "string" } as const;
+const schemaPart55 = { "type": "string", "maxLength": 100 } as const;
+const schemaPart56 = { "type": "string", "maxLength": 120 } as const;
+const schemaPart57 = { "type": "string", "maxLength": 200 } as const;
+const schemaPart58 = { "type": "string", "maxLength": 300 } as const;
+const schemaPart59 = { "type": "string", "maxLength": 320 } as const;
+const schemaPart60 = { "type": "string", "maxLength": 400 } as const;
+const schemaPart61 = { "type": "string", "maxLength": 500 } as const;
+const schemaPart62 = ["Active", "Terminated", "On leave"] as const;
+const schemaPart63 = ["awaiting", "approved", "rejected"] as const;
+const schemaPart64 = ["id", "dimensionId", "description"] as const;
+const schemaPart65 = { "type": "string", "maxLength": 1000 } as const;
+const schemaPart66 = { "type": "string", "maxLength": 2000 } as const;
+const schemaPart67 = { "type": "string", "maxLength": 5000 } as const;
+const schemaPart68 = ["owner", "accountant", "bookkeeper"] as const;
+const schemaPart69 = { "type": "string", "maxLength": 10000 } as const;
+const schemaPart70 = ["invoiceLineId", "itemId", "quantity"] as const;
+const schemaPart71 = { "type": "string", "const": "categorize" } as const;
+const schemaPart72 = { "type": "number", "exclusiveMinimum": 0 } as const;
+const schemaPart73 = { "fromId": "acc_old", "intoId": "acc_new" } as const;
+const schemaPart74 = { "type": "number", "minimum": 0, "maximum": 1 } as const;
+const schemaPart75 = { "type": "array", "items": schemaPart22 } as const;
+const schemaPart76 = { "maxItems": 500, "type": "array", "items": schemaPart1 } as const;
+const schemaPart77 = ["documentId", "documentType", "amountCents"] as const;
+const schemaPart78 = { "type": "string", "enum": schemaPart23 } as const;
+const schemaPart79 = { "type": "number", "minimum": 0, "maximum": 100 } as const;
+const schemaPart80 = { "type": "integer", "minimum": 0, "maximum": 20 } as const;
+const schemaPart81 = { "type": "integer", "minimum": 2, "maximum": 60 } as const;
+const schemaPart82 = ["owner", "accountant", "bookkeeper", "viewer"] as const;
+const schemaPart83 = ["billLine", "itemId", "quantity", "valueCents"] as const;
+const schemaPart84 = ["weekly", "biweekly", "semimonthly", "monthly"] as const;
+const schemaPart85 = { "type": "string", "minLength": 3, "maxLength": 3 } as const;
+const schemaPart86 = { "type": "integer", "minimum": 30, "maximum": 365 } as const;
+const schemaPart87 = { "type": "string", "pattern": "^\\d{4}-\\d{2}$" } as const;
+const schemaPart88 = { "type": "string", "enum": schemaPart27 } as const;
+const schemaPart89 = { "type": "string", "enum": schemaPart28 } as const;
+const schemaPart90 = { "type": "string", "minLength": 1, "maxLength": 40 } as const;
+const schemaPart91 = { "type": "string", "minLength": 1, "maxLength": 80 } as const;
+const schemaPart92 = { "id": "document_123", "data": schemaPart24 } as const;
+const schemaPart93 = { "type": "string", "enum": schemaPart30 } as const;
+const schemaPart94 = { "type": "string", "minLength": 1, "maxLength": 120 } as const;
+const schemaPart95 = { "type": "string", "minLength": 1, "maxLength": 127 } as const;
+const schemaPart96 = { "type": "string", "minLength": 1, "maxLength": 160 } as const;
+const schemaPart97 = { "type": "string", "minLength": 1, "maxLength": 200 } as const;
+const schemaPart98 = { "type": "string", "minLength": 1, "maxLength": 400 } as const;
+const schemaPart99 = { "type": "string", "minLength": 1, "maxLength": 500 } as const;
+const schemaPart100 = { "type": "string", "minLength": 5, "maxLength": 500 } as const;
+const schemaPart101 = { "type": "string", "minLength": 1, "maxLength": 5000 } as const;
+const schemaPart102 = ["high-value", "repeat", "service-tier", "standard"] as const;
+const schemaPart103 = { "command": "bill.create", "label": "Record a bill" } as const;
+const schemaPart104 = { "command": "invoice.create", "label": "New invoice" } as const;
+const schemaPart105 = { "default": 1, "type": "number", "exclusiveMinimum": 0 } as const;
+const schemaPart106 = { "type": "string", "enum": schemaPart36 } as const;
+const schemaPart107 = { "type": "string", "pattern": "^dlv_[a-z0-9]{8,40}$" } as const;
+const schemaPart108 = [schemaPart103] as const;
+const schemaPart109 = [schemaPart57, schemaPart18] as const;
+const schemaPart110 = { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,80}$" } as const;
+const schemaPart111 = [schemaPart104] as const;
+const schemaPart112 = { "type": "number", "exclusiveMinimum": 0, "maximum": 100 } as const;
+const schemaPart113 = { "status": "matched", "matchedTransactionId": "tx_123" } as const;
+const schemaPart114 = { "type": "string", "pattern": "^[A-Za-z0-9_-]{8,100}$" } as const;
+const schemaPart115 = { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" } as const;
+const schemaPart116 = ["draft", "open", "applied", "partially_applied", "void"] as const;
+const schemaPart117 = { "command": "payment.receive", "label": "Pay this bill" } as const;
+const schemaPart118 = { "type": "string", "enum": schemaPart43 } as const;
+const schemaPart119 = { "id": schemaPart97 } as const;
+const schemaPart120 = { "type": "string", "pattern": "^\\d{4}-(0[1-9]|1[0-2])$" } as const;
+const schemaPart121 = [schemaPart117] as const;
+const schemaPart122 = { "command": "payment.receive", "label": "Record a payment" } as const;
+const schemaPart123 = { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 } as const;
+const schemaPart124 = { "type": "string", "pattern": "^csv_\\d{1,3}_[0-9a-f]{8}$" } as const;
+const schemaPart125 = { "type": "integer", "minimum": 0, "maximum": 9007199254740991 } as const;
+const schemaPart126 = [schemaPart122] as const;
+const schemaPart127 = { "reason": schemaPart99 } as const;
+const schemaPart128 = { "type": "string", "enum": schemaPart63 } as const;
+const schemaPart129 = { "anyOf": schemaPart109 } as const;
+const schemaPart130 = { "type": "invoice", "id": "invoice_123", "label": "Invoice INV-12" } as const;
+const schemaPart131 = { "workspaceId": schemaPart97 } as const;
+const schemaPart132 = { "id": "n1", "dimensionId": "property", "description": "North tower" } as const;
+const schemaPart133 = { "command": "workspace.dimensionaxes", "label": "Manage the labels" } as const;
+const schemaPart134 = ["standard", "zero_rated", "exempt", "reverse_charge", "out_of_scope"] as const;
+const schemaPart135 = [schemaPart132] as const;
+const schemaPart136 = { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 } as const;
+const schemaPart137 = ["invoice", "bill", "estimate", "creditNote", "vendorCredit", "payment"] as const;
+const schemaPart138 = ["lead", "qualified", "proposal", "won", "lost", "delinquent", "inactive"] as const;
+const schemaPart139 = [schemaPart47, schemaPart61] as const;
+const schemaPart140 = { "type": "string", "enum": schemaPart84 } as const;
+const schemaPart141 = { "maxItems": 50, "type": "array", "items": schemaPart58 } as const;
+const schemaPart142 = { "maxItems": 200, "type": "array", "items": schemaPart55 } as const;
+const schemaPart143 = { "maxItems": 100, "type": "array", "items": schemaPart57 } as const;
+const schemaPart144 = { "maxItems": 200, "type": "array", "items": schemaPart60 } as const;
+const schemaPart145 = { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 } as const;
+const schemaPart146 = { "type": "string", "enum": schemaPart102 } as const;
+const schemaPart147 = { "nodes": schemaPart135 } as const;
+const schemaPart148 = {
   "type": "object",
   "propertyNames": schemaPart22,
   "additionalProperties": schemaPart1
 } as const;
-const schemaPart148 = { "anyOf": schemaPart138 } as const;
-const schemaPart149 = { "type": "string", "enum": schemaPart115 } as const;
-const schemaPart150 = { "start": schemaPart49, "end": schemaPart49 } as const;
-const schemaPart151 = {
+const schemaPart149 = { "anyOf": schemaPart139 } as const;
+const schemaPart150 = { "type": "string", "enum": schemaPart116 } as const;
+const schemaPart151 = { "start": schemaPart50, "end": schemaPart50 } as const;
+const schemaPart152 = {
   "command": "workspace.modules",
   "label": "Choose which screens this workspace shows"
 } as const;
-const schemaPart152 = { "minItems": 1, "maxItems": 500, "type": "array", "items": schemaPart45 } as const;
-const schemaPart153 = { "id": schemaPart96, "postingDay": schemaPart22 } as const;
-const schemaPart154 = [
+const schemaPart153 = { "minItems": 1, "maxItems": 500, "type": "array", "items": schemaPart46 } as const;
+const schemaPart154 = { "id": schemaPart97, "postingDay": schemaPart22 } as const;
+const schemaPart155 = [
   "standard",
   "recurring",
   "progress",
@@ -169,25 +170,25 @@ const schemaPart154 = [
   "change-order",
   "time-materials"
 ] as const;
-const schemaPart155 = {
+const schemaPart156 = {
   "code": "NOT_FOUND",
   "when": "The workspace is not found.",
   "next": "Check the workspace."
 } as const;
-const schemaPart156 = {
+const schemaPart157 = {
   "code": "NOT_FOUND",
   "when": "The workspace is not found.",
   "next": "Check the workspace id."
 } as const;
-const schemaPart157 = [schemaPart144, schemaPart18] as const;
-const schemaPart158 = { "type": "string", "enum": schemaPart133 } as const;
-const schemaPart159 = {
+const schemaPart158 = [schemaPart145, schemaPart18] as const;
+const schemaPart159 = { "type": "string", "enum": schemaPart134 } as const;
+const schemaPart160 = {
   "type": "object",
   "propertyNames": schemaPart22,
   "additionalProperties": schemaPart22
 } as const;
-const schemaPart160 = { "type": "string", "enum": schemaPart136 } as const;
-const schemaPart161 = [
+const schemaPart161 = { "type": "string", "enum": schemaPart137 } as const;
+const schemaPart162 = [
   "assets",
   "estimates",
   "inventory",
@@ -197,28 +198,33 @@ const schemaPart161 = [
   "recurring",
   "taxRates"
 ] as const;
-const schemaPart162 = { "type": "string", "enum": schemaPart137 } as const;
-const schemaPart163 = { "workspaceId": schemaPart96, "required": schemaPart25 } as const;
-const schemaPart164 = { "default": "open", "type": "string", "enum": schemaPart115 } as const;
-const schemaPart165 = {
+const schemaPart163 = {
+  "code": "ROLE_REQUIRED",
+  "when": "The caller is not an owner.",
+  "next": "Ask a workspace owner."
+} as const;
+const schemaPart164 = { "type": "string", "enum": schemaPart138 } as const;
+const schemaPart165 = { "workspaceId": schemaPart97, "required": schemaPart25 } as const;
+const schemaPart166 = { "default": "open", "type": "string", "enum": schemaPart116 } as const;
+const schemaPart167 = {
   "code": "NOT_FOUND",
   "when": "The workspace does not exist.",
   "next": "Choose a workspace you own."
 } as const;
-const schemaPart166 = { "position": schemaPart124, "quantity": schemaPart21 } as const;
-const schemaPart167 = {
+const schemaPart168 = { "position": schemaPart125, "quantity": schemaPart21 } as const;
+const schemaPart169 = {
   "code": "NOT_FOUND",
   "when": "The workspace no longer exists.",
   "next": "Choose an existing workspace."
 } as const;
-const schemaPart168 = { "anyOf": schemaPart157 } as const;
-const schemaPart169 = {
+const schemaPart170 = { "anyOf": schemaPart158 } as const;
+const schemaPart171 = {
   "code": "FORBIDDEN",
   "when": "The caller is a viewer.",
   "next": "Ask an owner, accountant or bookkeeper."
 } as const;
-const schemaPart170 = { "type": "array", "items": schemaPart147 } as const;
-const schemaPart171 = [
+const schemaPart172 = { "type": "array", "items": schemaPart148 } as const;
+const schemaPart173 = [
   "draft",
   "pending",
   "approved",
@@ -230,33 +236,33 @@ const schemaPart171 = [
   "rejected",
   "cancelled"
 ] as const;
-const schemaPart172 = {
+const schemaPart174 = {
   "code": "NOT_FOUND",
   "when": "The customer is not in this workspace.",
   "next": "Reload the customer list."
 } as const;
-const schemaPart173 = {
+const schemaPart175 = {
   "code": "NOT_FOUND",
   "when": "The workspace is no longer open.",
   "next": "Reload the workspace and try again."
 } as const;
-const schemaPart174 = {
+const schemaPart176 = {
   "code": "PERIOD_LOCKED",
   "when": "The date falls in a closed period.",
   "next": "Use a date in an open period."
 } as const;
-const schemaPart175 = {
+const schemaPart177 = {
   "code": "FORBIDDEN",
   "when": "The caller is a bookkeeper or a viewer.",
   "next": "Ask an owner or an accountant."
 } as const;
-const schemaPart176 = {
+const schemaPart178 = {
   "code": "WORKSPACE_NOT_FOUND",
   "when": "The workspace no longer exists.",
   "next": "Choose an existing workspace."
 } as const;
-const schemaPart177 = { "type": "string", "enum": schemaPart154 } as const;
-const schemaPart178 = [
+const schemaPart179 = { "type": "string", "enum": schemaPart155 } as const;
+const schemaPart180 = [
   "draft",
   "pending",
   "paid",
@@ -269,7 +275,7 @@ const schemaPart178 = [
   "void",
   "cancelled"
 ] as const;
-const schemaPart179 = {
+const schemaPart181 = {
   "date": schemaPart1,
   "minutes": schemaPart1,
   "description": schemaPart1,
@@ -279,392 +285,392 @@ const schemaPart179 = {
   "rateCents": schemaPart1,
   "person": schemaPart1
 } as const;
-const schemaPart180 = {
+const schemaPart182 = {
   "code": "FORBIDDEN",
   "when": "The caller is not an owner or an accountant.",
   "next": "Ask an owner or an accountant."
 } as const;
-const schemaPart181 = {
+const schemaPart183 = {
   "code": "NOT_FOUND",
   "when": "The question is not in this workspace.",
   "next": "Check the question in this workspace."
 } as const;
-const schemaPart182 = {
+const schemaPart184 = {
   "code": "UNAUTHENTICATED",
   "when": "The request has no signed-in person.",
   "next": "Sign in and run the command again."
 } as const;
-const schemaPart183 = {
+const schemaPart185 = {
   "code": "WORKSPACE_NOT_FOUND",
   "when": "The named workspace no longer exists.",
   "next": "Choose an existing workspace."
 } as const;
-const schemaPart184 = {
+const schemaPart186 = {
   "code": "CONFLICT",
   "when": "A rule id or group name is already in use.",
   "next": "Choose a different id or group name."
 } as const;
-const schemaPart185 = {
+const schemaPart187 = {
   "code": "NOT_FOUND",
   "when": "The group is not yours or does not exist.",
   "next": "List your groups and use one of them."
 } as const;
-const schemaPart186 = { "type": "string", "enum": schemaPart161 } as const;
-const schemaPart187 = {
+const schemaPart188 = { "type": "string", "enum": schemaPart162 } as const;
+const schemaPart189 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": schemaPart1,
   "additionalProperties": false
 } as const;
-const schemaPart188 = {
+const schemaPart190 = {
   "code": "NOT_FOUND",
   "when": "The bank line is not in this workspace.",
   "next": "Sync the feed again or check the line id."
 } as const;
-const schemaPart189 = {
+const schemaPart191 = {
   "code": "WORKSPACE_NOT_FOUND",
   "when": "The workspace no longer exists.",
   "next": "Choose an existing workspace and retry."
 } as const;
-const schemaPart190 = { "workspaceId": schemaPart96, "assetId": schemaPart96 } as const;
-const schemaPart191 = {
+const schemaPart192 = { "workspaceId": schemaPart97, "assetId": schemaPart97 } as const;
+const schemaPart193 = {
   "code": "INVALID_INPUT",
   "when": "The month is malformed or has not ended.",
   "next": "Choose an ended month in YYYY-MM format."
 } as const;
-const schemaPart192 = { "workspaceId": schemaPart96, "customerId": schemaPart96 } as const;
-const schemaPart193 = {
+const schemaPart194 = { "workspaceId": schemaPart97, "customerId": schemaPart97 } as const;
+const schemaPart195 = {
   "code": "ROLE_REQUIRED",
   "when": "The caller is a viewer.",
   "next": "Ask an owner, accountant or bookkeeper to change the plan."
 } as const;
-const schemaPart194 = {
+const schemaPart196 = {
   "code": "NOT_A_MEMBER",
   "when": "The caller is not a member of the workspace.",
   "next": "Open a workspace the person belongs to."
 } as const;
-const schemaPart195 = {
+const schemaPart197 = {
   "code": "NOT_FOUND",
   "when": "An item or an account is not in this workspace.",
   "next": "Use items and accounts of this workspace."
 } as const;
-const schemaPart196 = { "type": "string", "enum": schemaPart171 } as const;
-const schemaPart197 = {
+const schemaPart198 = { "type": "string", "enum": schemaPart173 } as const;
+const schemaPart199 = {
   "code": "NOT_FOUND",
   "when": "The task is not in the selected workspace.",
   "next": "Reload the task list and choose an existing task."
 } as const;
-const schemaPart198 = {
+const schemaPart200 = {
   "code": "FORBIDDEN",
   "when": "The caller is not an owner, accountant or bookkeeper.",
   "next": "Ask a workspace owner for a writing role."
 } as const;
-const schemaPart199 = {
+const schemaPart201 = {
   "code": "NOT_FOUND",
   "when": "The quote is not in the selected workspace.",
   "next": "Reload the quotes and choose one in this workspace."
 } as const;
-const schemaPart200 = {
+const schemaPart202 = {
   "code": "NOT_FOUND",
   "when": "The item is not in the selected workspace.",
   "next": "Reload the list and choose an item in this workspace."
 } as const;
-const schemaPart201 = {
+const schemaPart203 = {
   "code": "NOT_FOUND",
   "when": "The ticket is not in the selected workspace.",
   "next": "Reload support and choose a ticket in this workspace."
 } as const;
-const schemaPart202 = { "type": "string", "enum": schemaPart178 } as const;
-const schemaPart203 = {
+const schemaPart204 = { "type": "string", "enum": schemaPart180 } as const;
+const schemaPart205 = {
   "code": "NOT_FOUND",
   "when": "The time entry is not in the selected workspace.",
   "next": "Reload the time list and select an existing entry."
 } as const;
-const schemaPart204 = {
+const schemaPart206 = {
   "type": "object",
-  "properties": schemaPart126,
+  "properties": schemaPart127,
   "required": schemaPart6,
   "additionalProperties": false
 } as const;
-const schemaPart205 = {
+const schemaPart207 = {
   "code": "CONFLICT",
   "when": "The line is already matched, or it is in another currency.",
   "next": "Pick a pending line in the books' currency."
 } as const;
-const schemaPart206 = {
+const schemaPart208 = {
   "code": "INVALID_INPUT",
   "when": "An account is missing, or the two are the same.",
   "next": "Name the account to move from and the one to keep."
 } as const;
-const schemaPart207 = {
+const schemaPart209 = {
   "code": "NOT_FOUND",
   "when": "The account is not in the selected workspace.",
   "next": "Reload the chart and choose an account in this workspace."
 } as const;
-const schemaPart208 = {
+const schemaPart210 = {
   "code": "CONFLICT",
   "when": "The change would take the quantity below zero, or nothing would change.",
   "next": "Check the quantity on hand first."
 } as const;
-const schemaPart209 = {
+const schemaPart211 = {
   "code": "INVALID_INPUT",
   "when": "The rule or group input is malformed or exceeds supported limits.",
   "next": "Correct the rule fields and retry."
 } as const;
-const schemaPart210 = {
+const schemaPart212 = {
   "code": "PERIOD_LOCKED",
   "when": "The posting date falls in a closed period.",
   "next": "Choose an open date or ask an owner to reopen the period."
 } as const;
-const schemaPart211 = {
-  "accountName": schemaPart56,
-  "accountNumber": schemaPart56,
-  "routingCode": schemaPart54
+const schemaPart213 = {
+  "accountName": schemaPart57,
+  "accountNumber": schemaPart57,
+  "routingCode": schemaPart55
 } as const;
-const schemaPart212 = {
+const schemaPart214 = {
   "code": "NOT_FOUND",
   "when": "The contact is not in the selected workspace.",
   "next": "Reload the contact list and choose a contact in this workspace."
 } as const;
-const schemaPart213 = {
+const schemaPart215 = {
   "code": "ROLE_REQUIRED",
   "when": "The caller is not an owner, accountant or bookkeeper.",
   "next": "Ask a workspace owner to grant an appropriate role."
 } as const;
-const schemaPart214 = {
+const schemaPart216 = {
   "code": "ROLE_REQUIRED",
   "when": "The caller is not an owner, accountant, or bookkeeper.",
   "next": "Ask a workspace owner to grant an appropriate role."
 } as const;
-const schemaPart215 = {
+const schemaPart217 = {
   "code": "NOT_FOUND",
   "when": "The rule or group is not in the selected workspace.",
   "next": "Reload the rules list and choose an existing rule or group."
 } as const;
-const schemaPart216 = {
+const schemaPart218 = {
   "code": "INVALID_INPUT",
   "when": "A field is missing, a quantity is zero, or the two accounts are the same.",
   "next": "Fix the named field; a change is never zero."
 } as const;
-const schemaPart217 = [schemaPart68, schemaPart21, schemaPart25, schemaPart18, schemaPart143] as const;
-const schemaPart218 = {
+const schemaPart219 = [schemaPart69, schemaPart21, schemaPart25, schemaPart18, schemaPart144] as const;
+const schemaPart220 = {
   "type": "object",
-  "properties": schemaPart150,
+  "properties": schemaPart151,
   "required": schemaPart17,
   "additionalProperties": false
 } as const;
-const schemaPart219 = {
+const schemaPart221 = {
   "type": "object",
-  "properties": schemaPart179,
+  "properties": schemaPart181,
   "additionalProperties": schemaPart1
 } as const;
-const schemaPart220 = {
+const schemaPart222 = {
   "type": "string",
   "maxLength": 200,
   "format": "email",
   "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
 } as const;
-const schemaPart221 = {
-  "invoiceLineId": schemaPart96,
-  "itemId": schemaPart96,
-  "quantity": schemaPart71
-} as const;
-const schemaPart222 = { "anyOf": schemaPart217 } as const;
 const schemaPart223 = {
+  "invoiceLineId": schemaPart97,
+  "itemId": schemaPart97,
+  "quantity": schemaPart72
+} as const;
+const schemaPart224 = { "anyOf": schemaPart219 } as const;
+const schemaPart225 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
-  "properties": schemaPart130,
+  "properties": schemaPart131,
   "additionalProperties": schemaPart1
 } as const;
-const schemaPart224 = { "workspaceId": schemaPart96, "fromId": schemaPart96, "intoId": schemaPart96 } as const;
-const schemaPart225 = { "name": schemaPart54, "rate": schemaPart78, "taxCents": schemaPart144 } as const;
-const schemaPart226 = {
+const schemaPart226 = { "workspaceId": schemaPart97, "fromId": schemaPart97, "intoId": schemaPart97 } as const;
+const schemaPart227 = { "name": schemaPart55, "rate": schemaPart79, "taxCents": schemaPart145 } as const;
+const schemaPart228 = {
   "code": "CONFLICT",
   "when": "Another save changed or posted this document before the command committed.",
   "next": "Reload the document and review the current ledger before retrying."
 } as const;
-const schemaPart227 = {
-  "documentId": schemaPart45,
-  "documentType": schemaPart77,
-  "amountCents": schemaPart135
+const schemaPart229 = {
+  "documentId": schemaPart46,
+  "documentType": schemaPart78,
+  "amountCents": schemaPart136
 } as const;
-const schemaPart228 = {
+const schemaPart230 = {
   "code": "CONFLICT",
   "when": "One of the accounts is locked, is the workspace bank account, or a record it holds is in a closed period.",
   "next": "Reopen the period or pick another account."
 } as const;
-const schemaPart229 = {
+const schemaPart231 = {
   "code": "PERIOD_LOCKED",
   "when": "The document date or a posting it would reverse is closed for this person.",
   "next": "Choose an open date or ask an authorized owner to reopen the period."
 } as const;
-const schemaPart230 = {
+const schemaPart232 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
-  "properties": schemaPart118,
+  "properties": schemaPart119,
   "required": schemaPart2,
   "additionalProperties": false
 } as const;
-const schemaPart231 = {
+const schemaPart233 = {
   "code": "INVALID_INPUT",
   "when": "The document is missing required fields or contains an invalid amount, date, or line.",
   "next": "Correct the document details and retry with a new operation key."
 } as const;
-const schemaPart232 = {
+const schemaPart234 = {
   "type": "object",
-  "properties": schemaPart166,
+  "properties": schemaPart168,
   "required": schemaPart33,
   "additionalProperties": false
 } as const;
-const schemaPart233 = { "type": "object", "properties": schemaPart211, "additionalProperties": false } as const;
-const schemaPart234 = [schemaPart172, schemaPart169] as const;
-const schemaPart235 = {
+const schemaPart235 = { "type": "object", "properties": schemaPart213, "additionalProperties": false } as const;
+const schemaPart236 = [schemaPart174, schemaPart171] as const;
+const schemaPart237 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
-  "properties": schemaPart153,
+  "properties": schemaPart154,
   "required": schemaPart2,
   "additionalProperties": false
 } as const;
-const schemaPart236 = {
+const schemaPart238 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
-  "properties": schemaPart163,
+  "properties": schemaPart165,
   "required": schemaPart12,
   "additionalProperties": false
 } as const;
-const schemaPart237 = { "minItems": 1, "maxItems": 500, "type": "array", "items": schemaPart232 } as const;
-const schemaPart238 = { "type": "object", "properties": schemaPart225, "required": schemaPart37 } as const;
-const schemaPart239 = {
-  "billLine": schemaPart124,
-  "itemId": schemaPart96,
-  "quantity": schemaPart71,
-  "valueCents": schemaPart124
-} as const;
-const schemaPart240 = {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": schemaPart190,
-  "required": schemaPart8,
-  "additionalProperties": false
-} as const;
+const schemaPart239 = { "minItems": 1, "maxItems": 500, "type": "array", "items": schemaPart234 } as const;
+const schemaPart240 = { "type": "object", "properties": schemaPart227, "required": schemaPart38 } as const;
 const schemaPart241 = {
+  "billLine": schemaPart125,
+  "itemId": schemaPart97,
+  "quantity": schemaPart72,
+  "valueCents": schemaPart125
+} as const;
+const schemaPart242 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": schemaPart192,
+  "required": schemaPart8,
+  "additionalProperties": false
+} as const;
+const schemaPart243 = {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": schemaPart194,
   "required": schemaPart15,
   "additionalProperties": false
 } as const;
-const schemaPart242 = {
+const schemaPart244 = {
   "type": "object",
-  "propertyNames": schemaPart93,
-  "additionalProperties": schemaPart222
+  "propertyNames": schemaPart94,
+  "additionalProperties": schemaPart224
 } as const;
-const schemaPart243 = {
+const schemaPart245 = {
   "type": "object",
-  "properties": schemaPart221,
-  "required": schemaPart69,
+  "properties": schemaPart223,
+  "required": schemaPart70,
   "additionalProperties": false
 } as const;
-const schemaPart244 = { "maxItems": 10, "type": "array", "items": schemaPart238 } as const;
-const schemaPart245 = [schemaPart212, schemaPart214] as const;
-const schemaPart246 = {
-  "type": "object",
-  "properties": schemaPart227,
-  "required": schemaPart76,
-  "additionalProperties": false
-} as const;
-const schemaPart247 = { "maxItems": 500, "type": "array", "items": schemaPart243 } as const;
+const schemaPart246 = { "maxItems": 10, "type": "array", "items": schemaPart240 } as const;
+const schemaPart247 = [schemaPart214, schemaPart216] as const;
 const schemaPart248 = {
+  "type": "object",
+  "properties": schemaPart229,
+  "required": schemaPart77,
+  "additionalProperties": false
+} as const;
+const schemaPart249 = { "maxItems": 500, "type": "array", "items": schemaPart245 } as const;
+const schemaPart250 = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
-  "properties": schemaPart224,
+  "properties": schemaPart226,
   "required": schemaPart26,
   "additionalProperties": false
 } as const;
-const schemaPart249 = { "type": "object", "properties": schemaPart239, "required": schemaPart82 } as const;
-const schemaPart250 = {
-  "state": schemaPart127,
-  "thresholdCents": schemaPart124,
-  "requestedAt": schemaPart51,
-  "requestedBy": schemaPart56,
-  "decidedAt": schemaPart51,
-  "decidedBy": schemaPart56,
-  "note": schemaPart60
-} as const;
-const schemaPart251 = { "maxItems": 500, "type": "array", "items": schemaPart249 } as const;
+const schemaPart251 = { "type": "object", "properties": schemaPart241, "required": schemaPart83 } as const;
 const schemaPart252 = {
-  "date": schemaPart96,
-  "description": schemaPart96,
-  "amount": schemaPart96,
-  "debit": schemaPart96,
-  "credit": schemaPart96,
-  "payee": schemaPart96,
-  "memo": schemaPart96
+  "state": schemaPart128,
+  "thresholdCents": schemaPart125,
+  "requestedAt": schemaPart52,
+  "requestedBy": schemaPart57,
+  "decidedAt": schemaPart52,
+  "decidedBy": schemaPart57,
+  "note": schemaPart61
 } as const;
-const schemaPart253 = [schemaPart206, schemaPart228, schemaPart175] as const;
-const schemaPart254 = [schemaPart209, schemaPart215, schemaPart214] as const;
-const schemaPart255 = {
-  "id": schemaPart93,
-  "dimensionId": schemaPart93,
-  "description": schemaPart57,
-  "aliases": schemaPart140,
-  "status": schemaPart87,
-  "parentId": schemaPart93,
-  "createdAt": schemaPart49,
-  "updatedAt": schemaPart49
+const schemaPart253 = { "maxItems": 500, "type": "array", "items": schemaPart251 } as const;
+const schemaPart254 = {
+  "date": schemaPart97,
+  "description": schemaPart97,
+  "amount": schemaPart97,
+  "debit": schemaPart97,
+  "credit": schemaPart97,
+  "payee": schemaPart97,
+  "memo": schemaPart97
 } as const;
-const schemaPart256 = { "type": "object", "properties": schemaPart252, "additionalProperties": false } as const;
+const schemaPart255 = [schemaPart208, schemaPart230, schemaPart177] as const;
+const schemaPart256 = [schemaPart211, schemaPart217, schemaPart216] as const;
 const schemaPart257 = {
-  "type": "object",
-  "properties": schemaPart250,
-  "required": schemaPart38,
-  "additionalProperties": false
+  "id": schemaPart94,
+  "dimensionId": schemaPart94,
+  "description": schemaPart58,
+  "aliases": schemaPart141,
+  "status": schemaPart88,
+  "parentId": schemaPart94,
+  "createdAt": schemaPart50,
+  "updatedAt": schemaPart50
 } as const;
-const schemaPart258 = [schemaPart216, schemaPart195, schemaPart208, schemaPart174] as const;
+const schemaPart258 = { "type": "object", "properties": schemaPart254, "additionalProperties": false } as const;
 const schemaPart259 = {
   "type": "object",
-  "properties": schemaPart255,
-  "required": schemaPart63,
+  "properties": schemaPart252,
+  "required": schemaPart39,
   "additionalProperties": false
 } as const;
-const schemaPart260 = [schemaPart209, schemaPart215, schemaPart214, schemaPart184] as const;
+const schemaPart260 = [schemaPart218, schemaPart197, schemaPart210, schemaPart176] as const;
 const schemaPart261 = {
-  "vendor": schemaPart56,
-  "project": schemaPart56,
-  "category": schemaPart56,
-  "descriptionContains": schemaPart56,
-  "descriptionStartsWith": schemaPart56,
+  "type": "object",
+  "properties": schemaPart257,
+  "required": schemaPart64,
+  "additionalProperties": false
+} as const;
+const schemaPart262 = [schemaPart211, schemaPart217, schemaPart216, schemaPart186] as const;
+const schemaPart263 = {
+  "vendor": schemaPart57,
+  "project": schemaPart57,
+  "category": schemaPart57,
+  "descriptionContains": schemaPart57,
+  "descriptionStartsWith": schemaPart57,
   "amountThreshold": schemaPart21,
   "exactAmount": schemaPart21,
   "minAmountCents": schemaPart21,
   "maxAmountCents": schemaPart21,
-  "dateRange": schemaPart218
+  "dateRange": schemaPart220
 } as const;
-const schemaPart262 = { "type": "object", "properties": schemaPart261, "additionalProperties": false } as const;
-const schemaPart263 = [schemaPart231, schemaPart229, schemaPart226, schemaPart214] as const;
-const schemaPart264 = {
-  "type": schemaPart70,
-  "targetAccountId": schemaPart96,
-  "targetTransactionKind": schemaPart92,
-  "bankAccountId": schemaPart96,
-  "contactId": schemaPart96,
-  "targetNodeId": schemaPart96,
-  "targetProject": schemaPart56,
-  "targetCategory": schemaPart56,
-  "targetClass": schemaPart56,
-  "targetLocation": schemaPart56,
-  "targetDimensions": schemaPart159,
-  "targetTags": schemaPart142,
+const schemaPart264 = { "type": "object", "properties": schemaPart263, "additionalProperties": false } as const;
+const schemaPart265 = [schemaPart233, schemaPart231, schemaPart228, schemaPart216] as const;
+const schemaPart266 = {
+  "type": schemaPart71,
+  "targetAccountId": schemaPart97,
+  "targetTransactionKind": schemaPart93,
+  "bankAccountId": schemaPart97,
+  "contactId": schemaPart97,
+  "targetNodeId": schemaPart97,
+  "targetProject": schemaPart57,
+  "targetCategory": schemaPart57,
+  "targetClass": schemaPart57,
+  "targetLocation": schemaPart57,
+  "targetDimensions": schemaPart160,
+  "targetTags": schemaPart143,
   "flagForReview": schemaPart25,
-  "descriptionPrefix": schemaPart60,
-  "descriptionSuffix": schemaPart60,
-  "setNotes": schemaPart66,
-  "addTags": schemaPart142,
-  "removeTags": schemaPart142,
-  "setAmountCents": schemaPart144,
+  "descriptionPrefix": schemaPart61,
+  "descriptionSuffix": schemaPart61,
+  "setNotes": schemaPart67,
+  "addTags": schemaPart143,
+  "removeTags": schemaPart143,
+  "setAmountCents": schemaPart145,
   "deleteTransaction": schemaPart25
 } as const;
-const schemaPart265 = { "type": "object", "properties": schemaPart264, "additionalProperties": false } as const;
+const schemaPart267 = { "type": "object", "properties": schemaPart266, "additionalProperties": false } as const;
 
 export const COMMAND_SCHEMA_PARTS = {
   part0: schemaPart0,
@@ -933,4 +939,6 @@ export const COMMAND_SCHEMA_PARTS = {
   part263: schemaPart263,
   part264: schemaPart264,
   part265: schemaPart265,
+  part266: schemaPart266,
+  part267: schemaPart267,
 } as const;

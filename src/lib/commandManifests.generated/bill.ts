@@ -10,7 +10,7 @@ export const BILL_COMMAND_MANIFEST = [
   {
     "name": "bill.create",
     "area": "bill",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Create a bill and let the server build its ledger entries from the saved document; do not use this command to record a payment or edit an existing bill.",
@@ -34,8 +34,8 @@ export const BILL_COMMAND_MANIFEST = [
           ]
         }
       },
-      "next": COMMAND_SCHEMA_PARTS.part120,
-      "refusals": COMMAND_SCHEMA_PARTS.part263
+      "next": COMMAND_SCHEMA_PARTS.part121,
+      "refusals": COMMAND_SCHEMA_PARTS.part265
     },
     "runPath": "/api/v1/commands/bill.create",
     "previewPath": "/api/v1/commands/bill.create/preview",
@@ -44,12 +44,12 @@ export const BILL_COMMAND_MANIFEST = [
   {
     "name": "bill.delete",
     "area": "bill",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Delete a bill and let the server reverse its live ledger entries; do not use this command to void or write off a document.",
       "example": COMMAND_SCHEMA_PARTS.part29,
-      "refusals": COMMAND_SCHEMA_PARTS.part263
+      "refusals": COMMAND_SCHEMA_PARTS.part265
     },
     "runPath": "/api/v1/commands/bill.delete",
     "previewPath": "/api/v1/commands/bill.delete/preview",
@@ -58,7 +58,7 @@ export const BILL_COMMAND_MANIFEST = [
   {
     "name": "bill.spread",
     "area": "bill",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Spread a posted bill's expense over the months it covers; do not use it on a draft bill or to change what the bill costs.",
@@ -79,7 +79,7 @@ export const BILL_COMMAND_MANIFEST = [
           "when": "The amount is more than the bill, the months are outside 2–60, or the account is not an expense account.",
           "next": "Choose an expense account and no more than the bill over 2 to 60 months."
         },
-        COMMAND_SCHEMA_PARTS.part169
+        COMMAND_SCHEMA_PARTS.part171
       ]
     },
     "runPath": "/api/v1/commands/bill.spread",
@@ -89,7 +89,7 @@ export const BILL_COMMAND_MANIFEST = [
   {
     "name": "bill.spreadundo",
     "area": "bill",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Undo spreading a bill over months while none of its months is closed; do not use it to void the bill.",
@@ -111,13 +111,13 @@ export const BILL_COMMAND_MANIFEST = [
   {
     "name": "bill.update",
     "area": "bill",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Update an existing bill and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
-      "example": COMMAND_SCHEMA_PARTS.part91,
-      "next": COMMAND_SCHEMA_PARTS.part120,
-      "refusals": COMMAND_SCHEMA_PARTS.part263
+      "example": COMMAND_SCHEMA_PARTS.part92,
+      "next": COMMAND_SCHEMA_PARTS.part121,
+      "refusals": COMMAND_SCHEMA_PARTS.part265
     },
     "runPath": "/api/v1/commands/bill.update",
     "previewPath": "/api/v1/commands/bill.update/preview",

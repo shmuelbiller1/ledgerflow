@@ -4,18 +4,18 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part93,
-    "name": COMMAND_SCHEMA_PARTS.part95,
-    "email": COMMAND_SCHEMA_PARTS.part220,
-    "role": COMMAND_SCHEMA_PARTS.part55,
-    "salaryCents": COMMAND_SCHEMA_PARTS.part124,
-    "payFrequency": COMMAND_SCHEMA_PARTS.part139,
-    "filingStatus": COMMAND_SCHEMA_PARTS.part49,
-    "workerType": COMMAND_SCHEMA_PARTS.part105,
-    "state": COMMAND_SCHEMA_PARTS.part49,
+    "id": COMMAND_SCHEMA_PARTS.part94,
+    "name": COMMAND_SCHEMA_PARTS.part96,
+    "email": COMMAND_SCHEMA_PARTS.part222,
+    "role": COMMAND_SCHEMA_PARTS.part56,
+    "salaryCents": COMMAND_SCHEMA_PARTS.part125,
+    "payFrequency": COMMAND_SCHEMA_PARTS.part140,
+    "filingStatus": COMMAND_SCHEMA_PARTS.part50,
+    "workerType": COMMAND_SCHEMA_PARTS.part106,
+    "state": COMMAND_SCHEMA_PARTS.part50,
     "status": {
       "type": "string",
-      "enum": COMMAND_SCHEMA_PARTS.part61
+      "enum": COMMAND_SCHEMA_PARTS.part62
     },
     "payType": {
       "type": "string",
@@ -24,16 +24,16 @@ export const COMMAND_INPUT_SCHEMA = {
         "hourly"
       ]
     },
-    "hourlyRateCents": COMMAND_SCHEMA_PARTS.part124,
-    "timeUid": COMMAND_SCHEMA_PARTS.part55,
+    "hourlyRateCents": COMMAND_SCHEMA_PARTS.part125,
+    "timeUid": COMMAND_SCHEMA_PARTS.part56,
     "deductions": {
       "maxItems": 40,
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part93,
-          "name": COMMAND_SCHEMA_PARTS.part93,
+          "id": COMMAND_SCHEMA_PARTS.part94,
+          "name": COMMAND_SCHEMA_PARTS.part94,
           "kind": {
             "type": "string",
             "enum": [
@@ -42,9 +42,9 @@ export const COMMAND_INPUT_SCHEMA = {
               "garnishment"
             ]
           },
-          "amountCents": COMMAND_SCHEMA_PARTS.part124,
-          "percent": COMMAND_SCHEMA_PARTS.part78,
-          "maxPercent": COMMAND_SCHEMA_PARTS.part78
+          "amountCents": COMMAND_SCHEMA_PARTS.part125,
+          "percent": COMMAND_SCHEMA_PARTS.part79,
+          "maxPercent": COMMAND_SCHEMA_PARTS.part79
         },
         "required": [
           "id",
@@ -54,8 +54,8 @@ export const COMMAND_INPUT_SCHEMA = {
         "additionalProperties": false
       }
     },
-    "bankRouting": COMMAND_SCHEMA_PARTS.part48,
-    "bankAccount": COMMAND_SCHEMA_PARTS.part49,
+    "bankRouting": COMMAND_SCHEMA_PARTS.part49,
+    "bankAccount": COMMAND_SCHEMA_PARTS.part50,
     "bankAccountType": {
       "type": "string",
       "enum": [
@@ -79,14 +79,14 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part93,
-          "date": COMMAND_SCHEMA_PARTS.part114,
+          "id": COMMAND_SCHEMA_PARTS.part94,
+          "date": COMMAND_SCHEMA_PARTS.part115,
           "hours": {
             "type": "number",
             "minimum": -1000,
             "maximum": 1000
           },
-          "note": COMMAND_SCHEMA_PARTS.part56
+          "note": COMMAND_SCHEMA_PARTS.part57
         },
         "required": [
           "date",

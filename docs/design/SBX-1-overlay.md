@@ -1,10 +1,11 @@
-# SBX-1: overlay storage and data-handle checkpoint
+# SBX-1: overlay storage, scoped reads and private review
 
 The storage slice of [SBX-1](../prompts/SBX-1-assistant-sandbox.md) merged in #787 after the CMD-1
 prerequisites: periods (#731), accounts (#743, chart coverage #774), inventory (#752), workspace
 administration and settings (#767, #769). The report/balance slice adds worked HTTP read parity and the
 first group of raw-SQL conversions. **No production caller selects a sandbox**. The public report and
-balance mounts still use the live handle, and no command, token issuer or screen creates a sandbox.
+balance mounts still use the live handle. The review service described below is internal; no assistant
+credential, public route, command-registry entry or screen can create or accept a sandbox.
 
 ## Database and server boundary
 
@@ -32,7 +33,7 @@ balance mounts still use the live handle, and no command, token issuer or screen
   *arbitrary SQL supplied by a caller*: no entry point takes SQL from a request.
 - The first change keeps the SHA-256 of the live JSONB content as `base_version`; subsequent edits
   and tombstones retain it. A new row stores a null base version. This checkpoint records the
-  version, but does not rebuild or mark steps for re-check.
+  version for the review service below.
 - New document-table migrations register the table in `public.lf_rules`, then run
   `call sandbox.install_overlay('tableName');` as the migration owner. Review any table-specific
   trigger or cross-record constraints; do not copy indexes, FKs or triggers wholesale. The database
@@ -130,22 +131,65 @@ commands or change their live behavior.
   It checks cold probes on a single connection, a 750-cent draft stock move despite a live missing flag,
   the live audit chain and fallback, and refusal before a draft repost reads the queue.
 
-## Remaining checklist (in SBX-1 order)
+## Durable steps and review (service layer)
+
+The internal entry points are `openSandbox` and `reviewSandbox` in `src/server/commands/sandboxReview.ts`.
+The caller must supply a verified person session, not an API key. The service checks the binding,
+current live membership, writer role, workspace status and workspace MFA policy in the batch. An
+admin who is not a writer in these books cannot act as the person. Neither the regular command router
+nor the public report mounts accept a sandbox id.
+
+- **Draft:** `add` stores successful, schema-parsed inputs with their stable record IDs, row content
+  versions and typed effect intentions. The reviewed list is `customer.create`, `invoice.create`
+  (no stock-moving writes), `payment.receive` and `tasks.create`. An unreviewed command or table write
+  is refused. The draft role cannot reserve an audit head or consume a live sequence. The step can
+  only use its scoped transaction: accidental global reads, separate writes and provider-result calls
+  fail the stage, even if caught. Other workspaces' rows remain invisible.
+- **Review:** `review` rebuilds provisional rows through the same handlers on a current snapshot. Each
+  edit, reorder, reject or accept supplies the revision it was shown. A change to a depended-on row,
+  an earlier draft or the posting preview can mark an affected step `needs-recheck`; a step that no
+  longer validates is `failed` with a reason. A rechecked step needs an explicit selection and
+  confirmation of the new revision; Accept All skips it. Invalid edits or orders roll back the rebuild.
+- **Accept:** Selection includes required earlier writes and explicit record links. Each selected step uses the shared
+  runner’s validation, prepare hook, handler and audit path as the person, inside one serializable
+  transaction. The next step sees the previous one's writes in
+  that transaction. Live targets must still belong to these books, and a new record cannot overwrite
+  an occupied ID. The batch verifies the reviewed write targets, posting date, money and effect
+  intentions before committing. It never copies overlay rows to `public`. A failure names the
+  step and rolls back the selected writes, audit and draft-state changes. Remaining drafts are rebuilt
+  on the result in the same transaction.
+- **Numbers and effects:** Payment series reservations are provisional until acceptance, which invokes
+  the real allocator. Invoices retain the caller's number as in the existing `invoice.create` contract.
+  Draft previews do not run arbitrary `afterCommit` callbacks. Only the committed live attempt runs
+  them (best effort, as with direct commands; not a durable mail outbox). Typed preview intents are
+  not provider payloads and do not promise delivery. Existing inverse hooks are recorded where
+  available; Undo itself is not exposed.
+- **Limits:** At most three active sandboxes per person, 200 unresolved steps per sandbox and 50 MB
+  of accounted active draft data per workspace. A whole-draft rejection clears the overlay and closes
+  the binding. Expired drafts cannot be used; a scheduled cleanup of expired/closed history is still
+  needed. No new migration is needed for this slice.
+
+The remaining document SQL ratchet moves **20 → 0**. Module record counts now read the scoped
+relation. Auth lookups, usage metering, cross-workspace rollups and scheduled jobs stay live-only.
+The outside-effects source guard catches direct transport use in command definitions; it is a review
+alarm, not proof about every service a future command might call.
+
+### Verification and remaining scope
+
+`src/tests/sandbox-review.test.ts` runs the service against PostgreSQL. A dependent customer, invoice
+and receipt produce **12,500¢ income, 3,000¢ cash, and 9,500¢ receivable** in the draft without
+changing live books. The original receipt preview is `PAY-0008`; after a live series change it must be
+reviewed again, and acceptance saves `PAY-0019`. An unrelated task stays private. Further cases cover
+edit/reorder/reject, stale versions and closed periods, task capacity, a later-step refusal, forced
+serialization retries, another sandbox's isolation, occupied live IDs and a concurrent live save.
+Run just the local workflow with `LF_TEST_DATABASE_URL` set to a migrated local test DB and
+`npx tsx scripts/sandbox-review-smoke.ts`.
 
 | Step | Status |
 | --- | --- |
-| Overlay schema, role and data handle | Merged in #787. Live migration/login not independently verified in this pass. |
-| Empty-overlay equivalence | List/paging/stream and report pack verified in #787; worked single-workspace HTTP report and balance figures verified in #790. Multi-workspace consolidation is not a single-workspace read. |
-| Raw SQL, caches and effect stub | Reports, records, settlement and stock SQL scoped. Next: metering, auth, modules, alerts and jobs. Retain live-only behavior where required, never silently read live from a sandbox. The effect stub and its ratchet are still open. |
-| Run steps and prove isolation | Not started. Stable ids, provisional numbering, customer → invoice → payment, live-save concurrency, every command leaving all real tables/sequences/audit and external effects unchanged. |
-| Accept/edit/reject and Undo | Not started. Dependency closure, authorization, transactional real replay, inverse and rebuild, high-risk confirmation. |
-| Conflicts and housekeeping | Content versions exist; recheck, plan/period changes, fresh previews, quotas and expiry cleanup are not implemented. |
-| Tools and screen | Not exposed. Sandbox-only reads, assistant token refusal on all live writes, untrusted-input tests and the review screen still required. |
+| Overlay schema, role, scoped reads | Foundation #787; reads and settlement #790, #792, #793. Live migration/login capability has not been independently verified here. |
+| Draft, review, and real replay | Internal lifecycle above for four reviewed commands. The whole command registry, stock moves, caller-owned counters beyond the reviewed path, and high-risk or plan-metered commands are not admitted. |
+| Read tools, assistant credential and review screen | Not implemented. They must enforce private scope and cannot expose a route to accept as an assistant. |
+| Undo and housekeeping | Some accepted steps have an inverse; no Undo handler. Active limits and expiry checks work; scheduled deletion is open. |
 
-Remaining raw-SQL groups (one PR per group, counts are relation references):
-
-| Group | References | Files (see `sandbox-sql-baseline.json`) |
-| --- | ---: | --- |
-| Live access, usage and jobs | 20 | Auth, plan capacity, asset reminders, book alerts, ledger health, module usage, email digest, practice dashboard |
-
-No new database migration in these read and readiness slices. SBX-2 speed work stays out of these steps.
+SBX-2 product speed work is separate.

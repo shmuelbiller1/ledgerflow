@@ -8,7 +8,15 @@
  * Honesty rules: a card with no usable name is reported, never invented; extra email/phone
  * values are kept in Notes, never silently dropped; an unreadable encoding is reported.
  */
-import { findDuplicateContactCandidates, type DuplicateMatchSignal, type ReviewContact, type ReviewContactKind } from './contactDuplicateReview';
+import {
+  findDuplicateContactCandidates,
+  normalizedEmail,
+  normalizedPhone,
+  normalizedTaxId,
+  type DuplicateMatchSignal,
+  type ReviewContact,
+  type ReviewContactKind,
+} from './contactDuplicateReview';
 
 /** Column names match the importer's customer/vendor field labels exactly. */
 export const CONTACT_IMPORT_HEADERS = ['Name', 'Email', 'Phone', 'Tax ID', 'Address', 'Website', 'Notes'] as const;
@@ -210,6 +218,8 @@ export interface ContactImportDuplicateCheck {
   /** Same email/phone/tax ID but a different name: these still create a second record. */
   possible: { row: number; name: string; existingName: string; signals: DuplicateMatchSignal[] }[];
   possibleTotal: number;
+  /** The candidate matcher omitted pairs or large shared-value groups. */
+  incomplete: boolean;
 }
 
 const LIMIT = 20;
@@ -236,12 +246,15 @@ export function contactImportDuplicates(
       if (willSkip.length < LIMIT) willSkip.push({ row: row.row, name: row.name, existingName: hit.name });
     }
   }
-  const merged: ReviewContact[] = [
-    ...existing,
-    ...incoming
-      .filter(r => !skippedRows.has(r.row))
-      .map(r => ({ id: `incoming:${r.row}`, kind: reviewKind, name: r.name, email: r.email, phone: r.phone, taxId: r.taxId })),
-  ];
+  const keysOf = (c: { email?: string; phone?: string; taxId?: string }) => [
+    normalizedEmail(c.email || ''), normalizedPhone(c.phone || ''), normalizedTaxId(c.taxId || ''),
+  ].filter(Boolean);
+  const incomingContacts = incoming
+    .filter(r => !skippedRows.has(r.row))
+    .map(r => ({ id: `incoming:${r.row}`, kind: reviewKind, name: r.name, email: r.email, phone: r.phone, taxId: r.taxId }));
+  const incomingKeys = new Set(incomingContacts.flatMap(keysOf));
+  const relevant = existing.filter(c => keysOf(c).some(k => incomingKeys.has(k)));
+  const merged: ReviewContact[] = [...relevant, ...incomingContacts];
   const review = findDuplicateContactCandidates(merged);
   const possible: ContactImportDuplicateCheck['possible'] = [];
   let possibleTotal = 0;
@@ -249,15 +262,17 @@ export function contactImportDuplicates(
     const incomingSide = pair.left.id.startsWith('incoming:') ? pair.left : pair.right.id.startsWith('incoming:') ? pair.right : null;
     const existingSide = incomingSide === pair.left ? pair.right : pair.left;
     if (!incomingSide || existingSide.id.startsWith('incoming:')) continue;
+    const signals = pair.signals.filter(s => s !== 'name');
+    if (signals.length === 0) continue;
     possibleTotal += 1;
     if (possible.length < LIMIT) {
       possible.push({
         row: Number(incomingSide.id.slice('incoming:'.length)),
         name: incomingSide.name,
         existingName: existingSide.name,
-        signals: pair.signals.filter(s => s !== 'name'),
+        signals,
       });
     }
   }
-  return { willSkip, willSkipTotal: skippedRows.size, possible, possibleTotal };
+  return { willSkip, willSkipTotal: skippedRows.size, possible, possibleTotal, incomplete: review.truncated || review.ambiguousBuckets > 0 };
 }

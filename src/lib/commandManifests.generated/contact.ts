@@ -7,7 +7,7 @@ export const CONTACT_COMMAND_MANIFEST = [
   {
     "name": "contact.delete",
     "area": "contact",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Delete a customer or vendor that nothing refers to; do not use it to remove one that has documents — merge it into another instead.",
@@ -26,7 +26,7 @@ export const CONTACT_COMMAND_MANIFEST = [
           "when": "No such customer or vendor in this workspace.",
           "next": "Reload the list."
         },
-        COMMAND_SCHEMA_PARTS.part169
+        COMMAND_SCHEMA_PARTS.part171
       ]
     },
     "runPath": "/api/v1/commands/contact.delete",
@@ -56,7 +56,7 @@ export const CONTACT_COMMAND_MANIFEST = [
           "when": "The two are the same record, or one is referred to by something a merge cannot move.",
           "next": "Pick the record to keep and try again."
         },
-        COMMAND_SCHEMA_PARTS.part175
+        COMMAND_SCHEMA_PARTS.part177
       ]
     },
     "runPath": "/api/v1/commands/contact.merge",

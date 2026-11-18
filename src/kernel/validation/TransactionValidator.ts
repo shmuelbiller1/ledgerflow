@@ -1,6 +1,6 @@
 import { Transaction } from '../../types';
 import { DoubleEntryValidator } from './DoubleEntryValidator';
-import { getDb } from '../../server/db/firestore';
+import { getDb, type Firestore } from '../../server/db/firestore';
 import { TransactionSchema } from '../../schemas';
 import { getAbsoluteTotal } from '../../lib/txFilters';
 import { SecurityService } from '../../services/securityService';
@@ -11,6 +11,7 @@ export interface ValidationContext {
   workspaceId: string;
   user: { uid: string; admin?: boolean };
   wsData: import("../../lib/periodLock").PeriodLockSettings | undefined;
+  db?: Firestore;
   accountsMap?: Map<string, { workspaceId?: string; name?: string } | undefined>;
 }
 
@@ -44,7 +45,7 @@ export class TransactionValidator {
     existingTx?: Transaction,
     t?: Pick<import("../../server/db/pgFirestore").Transaction, 'getAll'>
   ): Promise<Transaction> {
-    const db = getDb();
+    const db = context.db ?? getDb();
     
     // Ensure ownership & workspace (N14: Unconditionally enforce ownership)
     transaction.workspaceId = context.workspaceId;

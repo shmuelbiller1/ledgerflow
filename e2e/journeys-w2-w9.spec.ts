@@ -439,8 +439,8 @@ test('F-45 W9 browser: close September 2026, a late posting is refused, reopen w
   const journey = page.locator('section[aria-labelledby="close-journey"]');
   await expect(journey.getByRole('heading', { name: 'Close journey' })).toBeVisible();
 
-  // Clean month: 5 of 9 steps done, only the lock is left; the owner closes it.
-  await expect(journey.getByText(/5 of 9 steps done/)).toBeVisible();
+  // Clean month: 3 of 9 steps done, only the lock is left; the owner closes it.
+  await expect(journey.getByText(/3 of 9 steps done/)).toBeVisible();
   await expect(journey.getByText('2026-09 is open.')).toBeVisible();
   const closeBtn = page.getByRole('button', { name: 'Close 2026-09', exact: true });
   await expect(closeBtn).toBeEnabled();

@@ -1,18 +1,16 @@
+import { executeCommand, withLegacyInputIdempotencyHash } from '../utils/commandExecutor';
+import { workspaceApiCreateCommand, workspaceMemberAddCommand, workspaceMemberRemoveCommand, workspaceRestoreBackupCommand } from '../commands/workspaceApi';
+import type { CommandExecutionOutcome } from '../commands/types';
 import { errorMessage } from "../auth/requestUser";
 import { formatTzDate, sendError, handleApiError, authorizeWorkspace } from "../http/serverKit";
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
 import { apiAuthenticate } from "../auth/apiAuthenticate";
-import { countWorkspaceOwners, requireWorkspaceRole } from "./workspaceRoutes";
-import { writeServerAuditLog } from "../services/auditLogService";
-import { requirePlanCapacity } from "../middleware/planCapacity";
+import { requireWorkspaceRole } from "./workspaceRoutes";
 import express from "express";
-import crypto from "crypto";
 import { WorkspaceSchema } from "../../schemas";
 import { getDb } from "../db/firestore";
 import type { DocumentData } from "../db/firestore";
-import { exportWorkspaceBackup, restoreWorkspaceBackup, RestoreError } from "../services/workspaceRestoreService";
-import { authAdmin } from "../auth/supabaseAuth";
-import { NEW_WORKSPACE_MODULES } from '../../lib/modules';
+import { exportWorkspaceBackup } from "../services/workspaceRestoreService";
 import { BRAND } from '../../config/brand';
 import { computeLedgerCloseAnchor, verifyAuditHashChain, type HashChainableAuditEntry } from '../../lib/auditHashChain';
 import { z } from 'zod';
@@ -20,6 +18,12 @@ import { z } from 'zod';
 const AuditVerifyQuerySchema = z.object({
   asOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
+
+/** The legacy API sends errors as status/message, not the command router's envelope. */
+function apiCommandError(outcome: Exclude<CommandExecutionOutcome, { ok: true }>): { status: number; body: unknown } {
+  if (outcome.code === 'SEAT_CAPACITY_EXCEEDED' && outcome.details) return { status: outcome.status, body: outcome.details };
+  return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+}
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerContext): void {
@@ -56,66 +60,17 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
   });
 
   app.post("/api/v1/workspaces", apiAuthenticate, async (req: express.Request, res: express.Response) => {
-    try {
-      const authReq = req as AuthenticatedRequest;
-      // A workspace-scoped API key must never provision another workspace.
-      if (authReq.user.developerWorkspaceId) {
-        return sendError(res, "Forbidden: Workspace-scoped API keys cannot create workspaces", 403);
-      }
-      const uid = authReq.user.uid;
-      const validation = WorkspaceSchema.safeParse({
-        ...req.body,
-        // Creation identity and privileged state are always server-owned, even if sent by a client.
-        id: undefined,
-        uid,
-        admins: undefined,
-        isClosed: false,
-        lockDate: undefined,
-        createdAt: new Date().toISOString()
-      });
-      if (!validation.success) {
-        return sendError(res, "Validation Error: " + validation.error.issues.map((e) => `${e.path.join('.')}: ${errorMessage(e)}`).join(', '), 400);
-      }
-      const db = getDb();
-      const newId = `ws_${crypto.randomUUID().replace(/-/g, '')}`;
-      const newWorkspace = {
-        // BB-07: a new workspace starts with the everyday screens; the rest is turned on when wanted
-        modules: NEW_WORKSPACE_MODULES,
-        ...validation.data,
-        id: newId,
-        uid,
-        createdAt: validation.data.createdAt || new Date().toISOString()
-      };
-      // The privileged DB adapter bypasses browser RLS: never overwrite an existing tenant.
-      await db.runTransaction(async (tx) => {
-        const wsRef = db.collection("workspaces").doc(newId);
-        if ((await tx.get(wsRef)).exists) throw new Error("CONFLICT: Workspace ID already exists");
-        tx.create(wsRef, newWorkspace);
-      });
-      await writeServerAuditLog({
-        workspaceId: newId,
-        uid,
-        email: (req as AuthenticatedRequest).user?.email,
-        action: 'WORKSPACE_CREATED',
-        entityType: 'workspace',
-        entityId: newId,
-        details: {
-          description: `Created workspace "${newWorkspace.name}"`,
-          currency: newWorkspace.currency,
-        },
-      }, { db });
-      res.status(201).json({
-        status: "success",
-        message: "Workspace created successfully.",
-        workspace: newWorkspace
-      });
-    } catch (err) {
-      const message = errorMessage(err);
-      if (message.includes("CONFLICT") || message.includes("ALREADY_EXISTS")) {
-        return sendError(res, "Workspace ID already exists", 409);
-      }
-      sendError(res, message, 500);
-    }
+    const user = (req as AuthenticatedRequest).user;
+    if (user.developerWorkspaceId) return sendError(res, 'Forbidden: Workspace-scoped API keys cannot create workspaces', 403);
+    const validation = WorkspaceSchema.safeParse({ ...req.body, id: undefined, uid: user.uid, admins: undefined, isClosed: false, lockDate: undefined, createdAt: new Date().toISOString() });
+    if (!validation.success) return sendError(res, 'Validation Error: ' + validation.error.issues.map(e => `${e.path.join('.')}: ${errorMessage(e)}`).join(', '), 400);
+    await executeCommand(req, res, {
+      definition: workspaceApiCreateCommand, workspaceId: '', input: { fields: req.body || {} },
+      formatResponse(outcome) {
+        if (outcome.ok) return { status: 201, body: { status: 'success', message: 'Workspace created successfully.', workspace: (outcome.data as { workspace: unknown }).workspace } };
+        return apiCommandError(outcome);
+      },
+    });
   });
 
   // --- Workspace Member Management Endpoints ---
@@ -225,127 +180,52 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
   app.get("/api/v1/workspaces/:workspaceId/export", apiAuthenticate, handleWorkspaceExport);
   app.get("/api/workspaces/:workspaceId/export", apiAuthenticate, handleWorkspaceExport);
 
-  // Owner only: a restore replaces every record in the workspace (all or nothing).
+  // Keep the legacy access, plan and answer gates; the registered commands own the writes.
   app.post("/api/v1/workspaces/:workspaceId/restore", apiAuthenticate, requireWorkspaceRole(['owner']), async (req: express.Request, res: express.Response) => {
     try {
-      const { workspaceId } = req.params as Record<string, string>;
+      const workspaceId = String(req.params.workspaceId);
       await authorizeWorkspace(req as AuthenticatedRequest, workspaceId);
-      const authUser = (req as AuthenticatedRequest).user;
-      const result = await restoreWorkspaceBackup(getDb(), workspaceId, req.body, { uid: authUser.uid, email: authUser.email });
-      return res.json({ success: true, message: "General ledger workspace successfully restored from backup.", ...result });
-    } catch (err) {
-      if (err instanceof RestoreError) return sendError(res, errorMessage(err), err.status);
-      handleApiError(res, err);
-    }
+      await executeCommand(req, res, {
+        definition: workspaceRestoreBackupCommand, workspaceId, input: { backup: req.body }, legacyRoute: true,
+        formatResponse(outcome) {
+          if (outcome.ok) return { status: 200, body: { success: true, message: 'General ledger workspace successfully restored from backup.', ...(outcome.data as Record<string, unknown>) } };
+          return apiCommandError(outcome);
+        },
+      });
+    } catch (err) { handleApiError(res, err); }
   });
 
-  app.post("/api/v1/workspaces/:workspaceId/members", apiAuthenticate, requireWorkspaceRole(['owner']), requirePlanCapacity('seats'), async (req: express.Request, res: express.Response) => {
+  app.post("/api/v1/workspaces/:workspaceId/members", apiAuthenticate, requireWorkspaceRole(['owner']), async (req: express.Request, res: express.Response) => {
     try {
-      const { workspaceId } = req.params as Record<string, string>;
+      const workspaceId = String(req.params.workspaceId);
+      await authorizeWorkspace(req as AuthenticatedRequest, workspaceId);
       const { memberUid, email } = req.body;
-      const authReq = req as AuthenticatedRequest;
-      await authorizeWorkspace(authReq, workspaceId);
-
-      if (!memberUid && !email) {
-        return sendError(res, "Either memberUid or email must be provided", 400);
-      }
-
-      const db = getDb();
-      let targetUid = memberUid;
-
-      if (!targetUid && email) {
-        try {
-          const userByEmail = await authAdmin.getUserByEmail(email);
-          targetUid = userByEmail.uid;
-        } catch {
-          // If auth user not found by email, use hashed/sanitized placeholder ID
-          targetUid = `uid_${crypto.createHash('md5').update(email.toLowerCase().trim()).digest('hex').slice(0, 16)}`;
-        }
-      }
-
-      const wsRef = db.collection("workspaces").doc(workspaceId);
-      const wsDoc = await wsRef.get();
-      if (!wsDoc.exists) {
-        return sendError(res, "Workspace not found", 404);
-      }
-
-      const data = wsDoc.data() || {};
-      const existingMembers: string[] = Array.isArray(data.members) ? data.members : [];
-
-      if (!existingMembers.includes(targetUid)) {
-        existingMembers.push(targetUid);
-        await wsRef.update({
-          members: existingMembers,
-          updatedAt: new Date().toISOString()
-        });
-      }
-
-      res.json({
-        status: "success",
-        message: `Member ${targetUid} added to workspace.`,
-        workspaceId,
-        members: existingMembers
+      if (!memberUid && !email) return sendError(res, 'Either memberUid or email must be provided', 400);
+      await executeCommand(req, res, {
+        definition: workspaceMemberAddCommand, workspaceId, input: { ...(memberUid ? { memberUid } : {}), ...(email ? { email } : {}) },
+        formatResponse(outcome) {
+          if (!outcome.ok) return apiCommandError(outcome);
+          const result = outcome.data as { memberUid: string; members: string[] };
+          return { status: 200, body: { status: 'success', message: `Member ${result.memberUid} added to workspace.`, workspaceId, members: result.members } };
+        },
       });
-    } catch (err) {
-      handleApiError(res, err);
-    }
+    } catch (err) { handleApiError(res, err); }
   });
 
   app.delete("/api/v1/workspaces/:workspaceId/members/:memberUid", apiAuthenticate, requireWorkspaceRole(['owner']), async (req: express.Request, res: express.Response) => {
     try {
-      const { workspaceId, memberUid } = req.params as Record<string, string>;
-      const authReq = req as AuthenticatedRequest;
-      await authorizeWorkspace(authReq, workspaceId);
-
-      const db = getDb();
-      const wsRef = db.collection("workspaces").doc(workspaceId);
-      const wsDoc = await wsRef.get();
-      if (!wsDoc.exists) {
-        return sendError(res, "Workspace not found", 404);
-      }
-
-      const data = wsDoc.data() || {};
-      const { count, ownerUids } = countWorkspaceOwners(data);
-
-      // Refuse to remove last owner
-      if (ownerUids.includes(memberUid) && count <= 1) {
-        return sendError(res, "Cannot demote or remove the last owner of the workspace.", 400);
-      }
-
-      const existingMembers: string[] = Array.isArray(data.members) ? data.members : [];
-      const updatedMembers = existingMembers.filter(m => m !== memberUid);
-      const updatedRoles = { ...(data.roles || {}) };
-      delete updatedRoles[memberUid];
-
-      await wsRef.update({
-        members: updatedMembers,
-        roles: updatedRoles,
-        updatedAt: new Date().toISOString()
+      const workspaceId = String(req.params.workspaceId);
+      const memberUid = String(req.params.memberUid);
+      await authorizeWorkspace(req as AuthenticatedRequest, workspaceId);
+      await executeCommand(req, res, {
+        definition: withLegacyInputIdempotencyHash(workspaceMemberRemoveCommand), workspaceId, input: { memberUid },
+        formatResponse(outcome) {
+          if (!outcome.ok) return apiCommandError(outcome);
+          const result = outcome.data as { members: string[] };
+          return { status: 200, body: { status: 'success', message: `Member ${memberUid} removed from workspace.`, workspaceId, members: result.members } };
+        },
       });
-
-      // Write audit log
-      await writeServerAuditLog({
-        workspaceId,
-        uid: authReq.user.uid,
-        email: authReq.user.email || '',
-        action: 'MEMBER_REMOVED',
-        entityType: 'workspace',
-        entityId: workspaceId,
-        details: {
-          removedUid: memberUid,
-          description: `Member ${memberUid} removed from workspace`
-        }
-      }, { db });
-
-      res.json({
-        status: "success",
-        message: `Member ${memberUid} removed from workspace.`,
-        workspaceId,
-        members: updatedMembers
-      });
-    } catch (err) {
-      handleApiError(res, err);
-    }
+    } catch (err) { handleApiError(res, err); }
   });
 
   /** Strategy 5: Verify cryptographic SHA-256 hash-chain integrity + ledger close anchor for a workspace. */

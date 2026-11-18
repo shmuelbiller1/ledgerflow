@@ -8,15 +8,15 @@ export const CUSTOMER_COMMAND_MANIFEST = [
   {
     "name": "customer.balance",
     "area": "customer",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Recompute the stored balance of a customer (what they still owe) from the open documents the workspace holds, so a cached total cannot disagree with the records; do not use it to post, pay or settle anything.",
       "example": {
         "id": "customer_123"
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part245,
-      "next": COMMAND_SCHEMA_PARTS.part110
+      "refusals": COMMAND_SCHEMA_PARTS.part247,
+      "next": COMMAND_SCHEMA_PARTS.part111
     },
     "runPath": "/api/v1/commands/customer.balance",
     "previewPath": "/api/v1/commands/customer.balance/preview",
@@ -25,11 +25,11 @@ export const CUSTOMER_COMMAND_MANIFEST = [
   {
     "name": "customer.create",
     "area": "customer",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Create a customer profile for sales documents; do not use this command to change a balance or record a payment.",
-      "next": COMMAND_SCHEMA_PARTS.part110,
+      "next": COMMAND_SCHEMA_PARTS.part111,
       "example": {
         "customer": {
           "name": "Acme Design",
@@ -62,11 +62,11 @@ export const CUSTOMER_COMMAND_MANIFEST = [
   {
     "name": "customer.update",
     "area": "customer",
-    "roles": COMMAND_SCHEMA_PARTS.part67,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "risk": "normal",
     "description": {
       "sentence": "Update a customer profile without changing its server-managed identity or balance; metadata keys merge, and send null to remove one. Do not use this command to record a payment.",
-      "next": COMMAND_SCHEMA_PARTS.part110,
+      "next": COMMAND_SCHEMA_PARTS.part111,
       "example": {
         "id": "customer_123",
         "data": {

@@ -12,12 +12,14 @@ import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import {
   computeContactBalanceSummary, computeCustomerBalanceSummary, computeVendorBalanceSummary, ContactBalanceSummaryRow,
 } from '../../server/reports/partyReports';
+import { useReportText } from './useReportText';
 
 /**
  * Contact Balance Summary (J-03): every customer and vendor with what they owe you, what you owe
  * them and the net, on one row when a business is both (src/server/reports/partyReports.ts).
  */
 export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOfDate: pageAsOfDate }) => {
+  const reportText = useReportText();
   const customers = useLedgerStore(s => s.customers);
   const vendors = useLedgerStore(s => s.vendors);
   const invoices = useLedgerStore(s => s.invoices);
@@ -66,7 +68,7 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
   const columns: ColumnDef<ContactBalanceSummaryRow>[] = [
     {
       key: 'name',
-      header: 'Contact',
+      header: reportText('r.contact', 'Contact'),
       render: (r) => (
         <div>
           <div className="font-semibold text-[var(--text)]">{r.name}</div>
@@ -74,11 +76,11 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
         </div>
       ),
     },
-    { key: 'receivableCents', header: 'They owe you', align: 'right', render: (r) => formatCurrency(r.receivableCents, currency) },
-    { key: 'payableCents', header: 'You owe them', align: 'right', render: (r) => formatCurrency(r.payableCents, currency) },
+    { key: 'receivableCents', header: reportText('r.they-owe-you', 'They owe you'), align: 'right', render: (r) => formatCurrency(r.receivableCents, currency) },
+    { key: 'payableCents', header: reportText('r.you-owe-them', 'You owe them'), align: 'right', render: (r) => formatCurrency(r.payableCents, currency) },
     {
       key: 'netCents',
-      header: 'Net',
+      header: reportText('r.net', 'Net'),
       align: 'right',
       render: (r) => (
         <span className={`font-bold ${r.netCents > 0 ? 'text-[var(--pos)]' : r.netCents < 0 ? 'text-[var(--neg)]' : 'text-[var(--muted)]'}`}>
@@ -90,22 +92,22 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
 
   return (
     <PartyReportLayout
-      title="Contact Balance Summary"
-      description="What each customer and vendor owes you and what you owe them, with one row for a business that is both."
+      title={reportText('r.contact-balance-summary', 'Contact Balance Summary')}
+      description={reportText('r.what-each-customer-and-vendor-owes-you-and-what', 'What each customer and vendor owes you and what you owe them, with one row for a business that is both.')}
       icon={Contact}
-      totalLabel="Net (owed to you minus owed by you)"
+      totalLabel={reportText('r.net-owed-to-you-minus-owed-by-you', 'Net (owed to you minus owed by you)')}
       totalAmountCents={netCents}
       currency={currency}
       exportFilename="contact_balance_summary.csv"
       onExportCSV={exportCsv}
       searchTerm={searchTerm}
       onSearchChange={setSearchTerm}
-      searchPlaceholder="Search contact by name or email..."
+      searchPlaceholder={reportText('r.search-contact-by-name-or-email', 'Search contact by name or email...')}
       asOfDate={asOfDate}
       onAsOfDateChange={setAsOfDate}
       columns={columns}
       data={shown}
-      emptyMessage="No customers or vendors match the search."
+      emptyMessage={reportText('r.no-customers-or-vendors-match-the-search', 'No customers or vendors match the search.')}
       sumKeys={['receivableCents', 'payableCents', 'netCents']}
       getRowId={(r) => r.key}
     />

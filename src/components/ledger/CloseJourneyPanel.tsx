@@ -4,9 +4,9 @@ import { useUIStore } from '../../stores/useUIStore';
 import { closeJourney, type CloseJourneyStatus } from '../../lib/closeJourney';
 import type { CloseItem } from '../../lib/closeChecklist';
 import type { MonthCloseState } from '../../lib/periodLock';
-import type { AppTab } from '../../types';
 import { cn, formatCurrency } from '../../lib/utils';
 import ReportTableScroll from '../reporting/ReportTableScroll';
+import CloseReportLink from './CloseReportLink';
 import { RowTable } from '../ui/RowTable';
 
 const STATUS: Record<CloseJourneyStatus, { label: string; tone: string; icon: React.ReactNode }> = {
@@ -23,7 +23,7 @@ const STATUS: Record<CloseJourneyStatus, { label: string; tone: string; icon: Re
  * remains the place where items are signed off and the month is closed.
  */
 export default function CloseJourneyPanel({
-  month, state, items, accounts, bankLines, invoices, bills, journalEntries, currency = 'USD',
+  month, state, items, accounts, bankLines, invoices, bills, journalEntries, currency = 'USD', partial = false,
 }: {
   month: string;
   state: MonthCloseState;
@@ -34,6 +34,7 @@ export default function CloseJourneyPanel({
   bills?: Parameters<typeof closeJourney>[0]['bills'];
   journalEntries?: Parameters<typeof closeJourney>[0]['journalEntries'];
   currency?: string;
+  partial?: boolean;
 }) {
   const goToPage = useUIStore(s => s.goToPage);
   const journey = useMemo(() => closeJourney({
@@ -54,13 +55,19 @@ export default function CloseJourneyPanel({
     {journey.problems.map(problem => <p key={problem} role="alert" className="text-sm text-[var(--neg)]">{problem}</p>)}
 
     <p className="text-sm text-[var(--text)]">
-      {journey.done} of {journey.steps.length} steps done
+      {journey.done} of {journey.steps.length} steps done{partial && ' in the loaded data only'}
       {journey.blockers ? ` · ${journey.blockers} blocking` : ''}
       {journey.attention ? ` · ${journey.attention} needing attention` : ''}
-      {journey.readyToClose
+      {!partial && journey.readyToClose
         ? ' · nothing in the recorded data blocks the close.'
         : journey.nextStep ? ` · next: ${journey.steps.find(s => s.id === journey.nextStep)?.title}.` : ''}
     </p>
+
+    <div className="flex flex-wrap items-center gap-x-4 text-sm">
+      <p>Review these reports before locking {month}:</p>
+      <CloseReportLink report="pnl" label="Open Profit & Loss" endDate={journey.endDate} />
+      <CloseReportLink report="balance-sheet" label="Open Balance Sheet" endDate={journey.endDate} />
+    </div>
 
     <ol className="space-y-3">
       {journey.steps.map((step, index) => {
@@ -98,10 +105,13 @@ export default function CloseJourneyPanel({
                   ]}
                 />
               </ReportTableScroll>}
-              <button type="button" onClick={() => goToPage({ tab: step.tab as AppTab, sub: step.screen })}
-                className="mt-2 text-xs font-semibold text-[var(--brass)] hover:underline inline-flex items-center gap-1">
-                Open {step.screenLabel} <ArrowRight className="w-3 h-3" aria-hidden="true" />
-              </button>
+              {step.tab === 'reports' ? <CloseReportLink report={step.screen} label={`Open ${step.screenLabel}`}
+                endDate={step.id === 'trial-balance' ? journey.endDate : undefined} /> : (
+                <button type="button" onClick={() => goToPage({ tab: step.tab })}
+                  className="min-h-11 mt-2 text-sm font-semibold text-[var(--brass)] hover:underline inline-flex items-center gap-1">
+                  Open {step.screenLabel} <ArrowRight className="w-3 h-3" aria-hidden="true" />
+                </button>
+              )}
             </div>
           </div>
         </li>;

@@ -280,7 +280,7 @@ test('SEC-SCAN-1: api-fuzz.yml, zap-baseline.yml, and .zap/rules.tsv satisfy pin
     if (!trimmed || trimmed.startsWith('#')) continue;
     activeRuleCount += 1;
     const cols = trimmed.split('\t');
-    assert.ok(cols.length >= 2 && cols.length <= 3, `.zap/rules.tsv line ${idx + 1} must have 2-3 tab-separated columns`);
+    assert.equal(cols.length, 3, `.zap/rules.tsv line ${idx + 1} must have 3 tab-separated columns`);
     assert.match(cols[0], /^\d+$/);
     assert.ok(['IGNORE', 'INFO', 'WARN', 'FAIL'].includes(cols[1]));
     assert.equal(broadlyMutedForbidden.has(cols[0]), false, `Rule ${cols[0]} must not be suppressed wholesale in .zap/rules.tsv`);
@@ -288,6 +288,12 @@ test('SEC-SCAN-1: api-fuzz.yml, zap-baseline.yml, and .zap/rules.tsv satisfy pin
     assert.ok(prevComment.startsWith('#'), `.zap/rules.tsv rule ${cols[0]} must be preceded by an explanatory comment`);
   }
   assert.ok(activeRuleCount >= 1);
+  // ZAP treats INFO and IGNORE as plugin-wide, not as scoped by the third column.
+  const acceptedIds = ruleLines.filter(line => line && !line.startsWith('#'))
+    .map(line => line.split('\t'))
+    .filter(([, action]) => action === 'INFO' || action === 'IGNORE')
+    .map(([id]) => id);
+  assert.deepEqual(acceptedIds, ['10035'], 'do not hide all CSP or external-script alerts');
 });
 
 test('SEC-SCAN-1: evaluate-zap-report fails closed on corrupt reports and blocks unexpected CSP or third-party script alerts', () => {

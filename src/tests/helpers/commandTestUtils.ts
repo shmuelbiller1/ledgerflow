@@ -150,7 +150,9 @@ class MemoryQuery {
     };
     const docs = this.db.entries(this.collectionName).filter(row => this.filters.every(filter => matches(row.data, filter)))
       .slice(0, this.max ?? undefined)
-      .map(row => new MemorySnapshot(row.data, row.id));
+      // every snapshot carries the reference it came from, as production snapshots do: a service deletes
+      // `snap.ref` (`tx.delete(doc.ref)`), and without it a bulk delete fails only in the test harness
+      .map(row => new MemorySnapshot(row.data, row.id, new MemoryRef(this.db, this.collectionName, row.id)));
     return { docs, size: docs.length, empty: docs.length === 0 };
   }
 }
@@ -168,6 +170,10 @@ class MemoryTransaction {
   private readonly writes = new Map<string, StoredWrite>();
   constructor(private readonly db: MemoryDb) {}
   async get(ref: unknown): Promise<unknown> {
+    // the same rule the real transaction enforces (db/pgFirestore.ts): a read once a write is queued
+    // throws. Without it a handler that reads after writing passes here and fails in production, which
+    // is exactly how the first draft of transaction.reset shipped broken.
+    if (this.writes.size > 0) throw new Error('Firestore transactions require all reads to be executed before all writes');
     if (ref instanceof MemoryQuery) return ref.get();
     const path = String((ref as { path?: unknown }).path || '');
     const pending = this.writes.get(path);

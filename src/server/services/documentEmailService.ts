@@ -1,3 +1,4 @@
+import { guardEffect } from './sandboxEffects';
 import { takeCopyMark } from './copyMarkService';
 import type { TaxProfiles } from '../../lib/tax/profile';
 import crypto from 'crypto';
@@ -74,6 +75,7 @@ export interface EmailInvoiceInput {
 }
 
 export async function emailInvoice(db: Firestore, input: EmailInvoiceInput) {
+  guardEffect({ kind: 'email', action: 'invoice', target: input.invoiceId }, db);
   const workspace = (await db.collection('workspaces').doc(input.workspaceId).get()).data();
   if (!workspace) throw new EmailSendError(404, 'Workspace not found');
   if (!input.system && !WRITER_ROLES.includes(workspaceRole(workspace, input.uid))) throw new EmailSendError(403, 'Viewers cannot send emails');
@@ -179,6 +181,7 @@ export async function emailInvoice(db: Firestore, input: EmailInvoiceInput) {
  * every send or failure is in the invoice's send log. Returns what happened per invoice.
  */
 export async function thankForPayment(db: Firestore, input: { workspaceId: string; allocations: Array<{ documentId: string; documentType: string; amountCents: number }> }): Promise<Array<{ invoiceId: string; result: string }>> {
+  guardEffect({ kind: 'email', action: 'payment-receipt' }, db);
   const out: Array<{ invoiceId: string; result: string }> = [];
   const invoices = (input.allocations || []).filter(a => a.documentType === 'invoice' && a.amountCents > 0);
   if (invoices.length === 0) return out;
@@ -240,6 +243,7 @@ export interface StatementBatchResult {
  * or bounced are skipped with the reason; one failure doesn't stop the rest. Writers only.
  */
 export async function emailStatements(db: Firestore, input: { workspaceId: string; uid: string; customerIds?: string[]; system?: boolean; startDate?: string; endDate?: string }): Promise<StatementBatchResult> {
+  guardEffect({ kind: 'email', action: 'statement' }, db);
   const workspace = (await db.collection('workspaces').doc(input.workspaceId).get()).data();
   if (!workspace) throw new EmailSendError(404, 'Workspace not found');
   if (!input.system && !WRITER_ROLES.includes(workspaceRole(workspace, input.uid))) throw new EmailSendError(403, 'Viewers cannot send emails');
@@ -288,6 +292,7 @@ export async function emailStatements(db: Firestore, input: { workspaceId: strin
  * when the person paying asked for it. Best effort: returns what happened, never undoes the payment.
  */
 export async function emailRemittance(db: Firestore, payment: DocumentData): Promise<string> {
+  guardEffect({ kind: 'email', action: 'remittance', target: typeof payment.id === 'string' ? payment.id : undefined }, db);
   if (payment.direction !== 'made' || !payment.workspaceId || !payment.contactId) return 'not a vendor payment';
   const workspace = (await db.collection('workspaces').doc(String(payment.workspaceId)).get()).data();
   if (!workspace) return 'no workspace';

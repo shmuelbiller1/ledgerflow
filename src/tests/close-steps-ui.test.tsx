@@ -10,6 +10,8 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import MonthEndCloseView from '../components/ledger/MonthEndCloseView';
 import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
+import { useLedgerStore } from '../stores/useLedgerStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { getSupabase } from '../lib/db/client';
 import type { CloseStep } from '../lib/closeSteps';
@@ -22,8 +24,11 @@ const steps: CloseStep[] = [
 
 describe('Month-End Close: this client\'s own steps', () => {
   let calls: Call[] = [];
+  let refusePeriods: boolean;
   beforeEach(() => {
     calls = [];
+    refusePeriods = false;
+    useLedgerStore.setState({ truncatedCollections: {}, isDataTruncated: false });
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const body = typeof init?.body === 'string' ? JSON.parse(init.body) : {};
@@ -31,6 +36,7 @@ describe('Month-End Close: this client\'s own steps', () => {
         url, method: init?.method || 'GET', body,
         ...(init?.headers ? { headers: init.headers as Record<string, string> } : {}),
       });
+      if (refusePeriods && url.includes('/rest/v1/periods')) return new Response('{}', { status: 403 });
       let answer: unknown = url.includes('/rest/v1/') ? [] : null;
       if (url.endsWith('/api/v1/commands/period.yearclose')) {
         answer = { status: 'success', command: 'period.yearclose', data: { yearStart: '2025-01-01', closingDate: '2025-12-31', lockPeriod: false, year: { netIncome: 25_000 }, closingVersion: null } };
@@ -45,7 +51,8 @@ describe('Month-End Close: this client\'s own steps', () => {
   const open = (role: 'owner' | 'accountant' | 'bookkeeper', extra: Array<Record<string, unknown>> = []) => {
     const ws = setComponentWorkspace(role);
     useAuthStore.setState({ workspaces: [{ ...ws, closeSteps: steps } as never, ...extra as never[]] });
-    markComponentCollectionsLoaded('assets', 'bankLines', 'bills', 'invoices');
+    markComponentCollectionsLoaded('accounts', 'assets', 'bankLines', 'bills', 'creditNotes', 'invoices', 'journalEntries', 'transactions', 'vendorCredits');
+    useDataNeedsStore.setState({ loadedWorkspaceId: ws.id });
     render(<MonthEndCloseView />);
     fireEvent.change(screen.getByLabelText('Month'), { target: { value: '2026-05' } });
   };
@@ -65,16 +72,59 @@ describe('Month-End Close: this client\'s own steps', () => {
     assert.ok(screen.getByText('Get the payroll report'));
     assert.equal(screen.queryByText('File the VAT return'), null, 'a year-end step is not due in May');
     assert.equal(screen.queryByRole('button', { name: /this client's steps/ }), null, 'a bookkeeper does not edit the steps');
-    // the month's sign-offs are read first
-    await waitFor(() => assert.ok(calls.some(c => c.url.includes('/rest/v1/periods') && c.url.includes('2026-05'))));
-    await act(async () => { await new Promise(r => setTimeout(r, 10)); });
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Sign off: Get the payroll report' })); });
+    const signOff = await screen.findByRole('button', { name: 'Sign off: Get the payroll report' });
+    fireEvent.click(signOff);
     await waitFor(() => assert.ok(calls.some(c => c.url.endsWith('/periods/2026-05/sign-off'))));
     assert.deepEqual(calls.find(c => c.url.endsWith('/sign-off'))!.body, { itemId: 'step:cs_payroll01', remove: false });
     assert.ok(await screen.findByRole('button', { name: 'Remove sign-off: Get the payroll report' }));
 
     fireEvent.change(screen.getByLabelText('Month'), { target: { value: '2026-12' } });
     assert.ok(screen.getByText('File the VAT return'), 'due at the year end');
+    assert.equal(Boolean(screen.queryByRole('button', { name: 'Remove sign-off: Get the payroll report' })), false,
+      'the May sign-off must not appear in December while December is loading');
+  });
+
+  test('a failed period read does not mean there are no sign-offs; retry reads the chosen month', async () => {
+    refusePeriods = true;
+    open('owner');
+    const retry = await screen.findByRole('button', { name: 'Retry sign-offs' });
+    assert.equal((screen.getByRole('button', { name: 'Close 2026-05' }) as HTMLButtonElement).disabled, true);
+    assert.equal(Boolean(screen.queryByRole('button', { name: 'Sign off: Get the payroll report' })), false);
+    refusePeriods = false;
+    fireEvent.click(retry);
+    assert.ok(await screen.findByRole('button', { name: 'Sign off: Get the payroll report' }));
+  });
+
+  test('switching books does not show the previous book’s sign-off or figures while the new data loads', async () => {
+    open('owner');
+    const signOff = await screen.findByRole('button', { name: 'Sign off: Get the payroll report' });
+    fireEvent.click(signOff);
+    await screen.findByRole('button', { name: 'Remove sign-off: Get the payroll report' });
+    const book = useAuthStore.getState().getCurrentWorkspace()!;
+    act(() => useAuthStore.setState({ currentWorkspaceId: 'other-book', workspaces: [{ ...book, id: 'other-book' }] }));
+    fireEvent.change(screen.getByLabelText('Month'), { target: { value: '2026-05' } });
+    assert.ok(screen.getByText(/Loading the entries and documents/));
+    assert.equal(Boolean(screen.queryByRole('heading', { name: 'Close journey' })), false);
+    assert.equal(Boolean(screen.queryByRole('button', { name: 'Remove sign-off: Get the payroll report' })), false);
+    act(() => useDataNeedsStore.setState({ loadedWorkspaceId: 'other-book' }));
+    assert.ok(await screen.findByRole('button', { name: 'Sign off: Get the payroll report' }));
+  });
+
+  test('failed core collections do not read as clean; capped entries block a misleading workbook', async () => {
+    open('owner');
+    const packageButton = screen.getByRole('button', { name: 'Close package (.xlsx)' }) as HTMLButtonElement;
+    await waitFor(() => assert.equal(packageButton.disabled, false));
+    act(() => useDataNeedsStore.getState().markFailed('transactions', 'Server refused the read'));
+    assert.ok(screen.getByText(/Couldn't load entries for the close checklist/));
+    assert.equal(Boolean(screen.queryByText('Debits equal credits through the end of the month.')), false);
+    assert.equal((screen.getByRole('button', { name: /Soft close/ }) as HTMLButtonElement).disabled, true);
+    assert.equal(packageButton.disabled, true);
+    act(() => {
+      useDataNeedsStore.getState().markLoaded('transactions');
+      useLedgerStore.setState({ truncatedCollections: { transactions: true }, isDataTruncated: true });
+    });
+    assert.ok(screen.getByText(/loaded records omit some history/));
+    assert.equal(packageButton.disabled, true);
   });
 
   test('an accountant adds a step, copies another client\'s and saves the list', async () => {

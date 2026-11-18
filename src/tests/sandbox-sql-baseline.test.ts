@@ -30,13 +30,7 @@ test('the SQL inventory does not count the scoped source helper, auth tables or 
   assert.equal(countRawRelations('sample.ts', source, collections), 0);
 });
 
-test('no direct document relations are added; shrink the per-file SQL baseline when converting a group', () => {
-  const baseline = JSON.parse(fs.readFileSync('sandbox-sql-baseline.json', 'utf8')) as Record<string, number>;
-  const actual = scanSandboxSql();
-  for (const [file, count] of Object.entries(actual)) {
-    assert.ok(count <= (baseline[file] ?? 0), `${file}: ${count} unscoped relations (was ${baseline[file] ?? 0}); use the data layer or db.tableSource()`);
-    assert.doesNotMatch(file, /(?:\/reports\/|\/(?:reportRoutes|operationalReportRoutes|balanceRoutes|balanceService|stockMoveService)\.ts$)/,
-      'the report/balance read group has a zero budget for direct document relations');
-  }
-  assert.deepEqual(actual, baseline, 'remove the converted references from the baseline (never add to it)');
+test('the sandbox document SQL ratchet has a hard zero budget', () => {
+  assert.deepEqual(JSON.parse(fs.readFileSync('sandbox-sql-baseline.json', 'utf8')), {});
+  assert.deepEqual(scanSandboxSql(), {}, 'use the data layer or db.tableSource() for document SQL');
 });

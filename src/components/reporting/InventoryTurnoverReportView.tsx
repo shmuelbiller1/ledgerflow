@@ -7,6 +7,7 @@ import { inventoryTurnover, turnoverCsvRows, TURNOVER_CSV_HEADERS } from '../../
 import ReportTableScroll from './ReportTableScroll';
 import { inBackground } from '../../lib/inBackground';
 import { runCommand } from '../../lib/runCommand';
+import { useReportText } from './useReportText';
 
 const qty = (n: number) => String(Math.round(n * 100) / 100);
 const ratio = (n: number | null) => (n === null ? '—' : n.toFixed(2));
@@ -17,6 +18,7 @@ const ratio = (n: number | null) => (n === null ? '—' : n.toFixed(2));
  * shows, per item, what sold against the average held. Read-only.
  */
 export default function InventoryTurnoverReportView() {
+  const reportText = useReportText();
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const workspaceId = workspace?.id || '';
   const home = workspace?.currency || 'USD';
@@ -51,41 +53,37 @@ export default function InventoryTurnoverReportView() {
     [current, from, to],
   );
 
-  return <section aria-label="Inventory turnover" className="p-4 space-y-4 min-w-0">
-    <h2>Inventory turnover</h2>
+  return <section aria-label={reportText('r.inventory-turnover', 'Inventory turnover')} className="p-4 space-y-4 min-w-0">
+    <h2>{reportText('r.inventory-turnover', 'Inventory turnover')}</h2>
     <p className="text-sm text-[var(--muted)]">
-      How many times each item&apos;s average stock sold through in the period, from the stock history the
-      server keeps. Sold is the net of sales and returns; stock that left for another reason (a count
-      write-off, a purchase return) is under Issued, never in Sold. The average is (opening + closing) ÷ 2 —
-      a two-point average, not a daily one. Where nothing sold, or the average is not positive, the
-      turnover is — rather than an invented number.
+      {reportText('r.inventory-turnover-intro', 'How many times each item\'s average stock sold through in the period, from the stock history the server keeps. Sold is the net of sales and returns; stock that left for another reason (a count write-off, a purchase return) is under Issued, never in Sold. The average is (opening + closing) ÷ 2 — a two-point average, not a daily one. Where nothing sold, or the average is not positive, the turnover is — rather than an invented number.')}
     </p>
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
-      <label className="flex flex-col gap-1 text-sm">From
-        <input type="date" aria-label="Period start" className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]" value={from} onChange={e => setFrom(e.target.value)} />
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.from', 'From')}
+        <input type="date" aria-label={reportText('r.period-start', 'Period start')} className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]" value={from} onChange={e => setFrom(e.target.value)} />
       </label>
-      <label className="flex flex-col gap-1 text-sm">To
-        <input type="date" aria-label="Period end" className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]" value={to} onChange={e => setTo(e.target.value)} />
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.to', 'To')}
+        <input type="date" aria-label={reportText('r.period-end', 'Period end')} className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]" value={to} onChange={e => setTo(e.target.value)} />
       </label>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!rows.length}
-        onClick={() => downloadCsv('inventory-turnover', [...TURNOVER_CSV_HEADERS], turnoverCsvRows(rows))}>Export CSV</button>
+        onClick={() => downloadCsv('inventory-turnover', [...TURNOVER_CSV_HEADERS], turnoverCsvRows(rows))}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
 
-    {!periodValid && <p role="alert" className="text-sm">Choose a valid period: the start must not be after the end.</p>}
-    {loading && <p role="status" className="text-sm text-[var(--muted)]">Reading the stock history…</p>}
+    {!periodValid && <p role="alert" className="text-sm">{reportText('r.choose-a-valid-period-the-start-must-not-be-afte', 'Choose a valid period: the start must not be after the end.')}</p>}
+    {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.reading-the-stock-history', 'Reading the stock history…')}</p>}
     {current?.error && <div className="space-y-2">
-      <p role="alert" className="text-sm">The stock history could not be read: {current.error}</p>
-      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={() => setAttempt(n => n + 1)}>Retry</button>
+      <p role="alert" className="text-sm">{reportText('r.the-stock-history-could-not-be-read', 'The stock history could not be read:')} {current.error}</p>
+      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={() => setAttempt(n => n + 1)}>{reportText('r.retry', 'Retry')}</button>
     </div>}
 
     <ReportTableScroll>
       <table className="w-full text-sm">
-        <caption>Inventory turnover by item, {from} to {to} (values in {home})</caption>
+        <caption>{reportText('r.inventory-turnover-by-item', 'Inventory turnover by item,')} {from} {reportText('r.to-2', 'to')} {to} {reportText('r.values-in', '(values in')} {home})</caption>
         <thead>
           <tr>
-            {['Item', 'Opening units', 'Received', 'Sold (net)', 'Issued (all reasons)', 'Closing units', 'Average units',
-              'Cost of what sold', 'Average value', 'Turnover (units)', 'Turnover (value)', 'Days of stock'].map((head, i) =>
+            {[reportText('r.item', 'Item'), reportText('r.opening-units', 'Opening units'), reportText('r.received', 'Received'), reportText('r.sold-net', 'Sold (net)'), reportText('r.issued-all-reasons', 'Issued (all reasons)'), reportText('r.closing-units', 'Closing units'), reportText('r.average-units', 'Average units'),
+              reportText('r.cost-of-what-sold', 'Cost of what sold'), reportText('r.average-value', 'Average value'), reportText('r.turnover-units', 'Turnover (units)'), reportText('r.turnover-value', 'Turnover (value)'), reportText('r.days-of-stock', 'Days of stock')].map((head, i) =>
               <th key={head} scope="col" className={`${i === 0 ? 'text-left' : 'text-right'} py-1 px-2`}>{head}</th>)}
           </tr>
         </thead>
@@ -93,7 +91,7 @@ export default function InventoryTurnoverReportView() {
           {rows.map(row => (
             <tr key={row.itemId} className="border-b border-[var(--line)]/50">
               <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.itemName}</bdi>
-                {row.note === 'negative-stock' && <span className="text-[var(--muted)]"> · stock was negative</span>}</th>
+                {row.note === 'negative-stock' && <span className="text-[var(--muted)]"> {reportText('r.stock-was-negative', '· stock was negative')}</span>}</th>
               <td className="py-1 px-2 text-right tabular-nums">{qty(row.openingQty)}</td>
               <td className="py-1 px-2 text-right tabular-nums">{qty(row.receivedQty)}</td>
               <td className="py-1 px-2 text-right tabular-nums">{qty(row.soldQty)}</td>
@@ -109,13 +107,11 @@ export default function InventoryTurnoverReportView() {
           ))}
         </tbody>
       </table>
-      {current?.items && !rows.length && <p className="text-sm text-[var(--muted)]">No item has stock or a stock movement in this period.</p>}
+      {current?.items && !rows.length && <p className="text-sm text-[var(--muted)]">{reportText('r.no-item-has-stock-or-a-stock-movement-in-this-pe', 'No item has stock or a stock movement in this period.')}</p>}
     </ReportTableScroll>
 
     <p className="text-xs text-[var(--muted)]">
-      Values are the stock ledger&apos;s own, as in Inventory Valuation. Days of stock is the period&apos;s days
-      divided by the units turnover — about how long the average stock lasts at this period&apos;s pace, not a
-      promise about the next one.
+      {reportText('r.inventory-turnover-footnote', 'Values are the stock ledger\'s own, as in Inventory Valuation. Days of stock is the period\'s days divided by the units turnover — about how long the average stock lasts at this period\'s pace, not a promise about the next one.')}
     </p>
   </section>;
 }

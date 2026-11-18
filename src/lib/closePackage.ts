@@ -5,10 +5,11 @@
  * - Trial balance on the last day of the month (debits, credits, balance; a total row);
  * - The month's general ledger, line by line;
  * - Questions about the month's entries (BD-07) with the latest answer.
- * Pure: the screen writes these into the spreadsheet. Money is in whole units with two decimals, as
+ * Pure: the screen writes these into the spreadsheet. Money is in major units (workspace currency for the ledger, entry currency for questions), as
  * numbers (not text), so the sheet adds up.
  */
 import type { ChartAccount, Transaction } from '../types';
+import { getCurrencyDivisor } from './moneyFormat';
 import { openingDebitCents } from './accountUtils';
 import type { ClientQuery } from './clientQueries';
 import { STATUS_LABEL } from './clientQueries';
@@ -26,6 +27,7 @@ interface SignOff { by: string; at: string; note?: string }
 export interface ClosePackageInput {
   month: string;
   monthEnd: string;
+  currency?: string;
   state: string;
   closedThrough: string;
   items: ChecklistRow[];
@@ -35,8 +37,6 @@ export interface ClosePackageInput {
   queries: ClientQuery[];
 }
 
-const units = (cents: number) => Math.round(cents) / 100;
-
 function statusText(item: ChecklistRow, signed?: SignOff): string {
   if (signed) return `Signed off by ${signed.by} on ${signed.at.slice(0, 10)}${signed.note ? `: ${signed.note}` : ''}`;
   if (item.status === 'done') return 'Done';
@@ -44,6 +44,8 @@ function statusText(item: ChecklistRow, signed?: SignOff): string {
 }
 
 export function closePackageSheets(input: ClosePackageInput): SheetSpec[] {
+  const divisor = getCurrencyDivisor(input.currency || 'USD');
+  const units = (minor: number) => Math.round(minor) / divisor;
   const posted = input.transactions.filter(t => isPostable(t) && String(t.date || '').slice(0, 10) <= input.monthEnd);
   const inMonth = posted.filter(t => String(t.date || '').slice(0, 7) === input.month);
 
@@ -101,13 +103,15 @@ export function closePackageSheets(input: ClosePackageInput): SheetSpec[] {
     name: 'Questions',
     columns: [
       { header: 'Entry date', key: 'date', width: 12 }, { header: 'Entry', key: 'entry', width: 30 }, { header: 'Amount', key: 'amount', width: 14, money: true },
-      { header: 'Status', key: 'status', width: 22 }, { header: 'Question', key: 'question', width: 50 }, { header: 'Latest answer', key: 'answer', width: 50 },
+      { header: 'Currency', key: 'currency', width: 12 }, { header: 'Status', key: 'status', width: 22 },
+      { header: 'Question', key: 'question', width: 50 }, { header: 'Latest answer', key: 'answer', width: 50 },
     ],
     rows: input.queries.filter(q => String(q.entry?.date || '').slice(0, 7) === input.month).map(q => {
       const messages = q.messages || [];
       const answer = [...messages].reverse().find(m => m.uid !== q.askedBy);
+      const currency = q.entry?.currency || input.currency || 'USD';
       return {
-        date: String(q.entry?.date || ''), entry: q.entry?.description || q.transactionId, amount: units(q.entry?.amountCents || 0),
+        date: String(q.entry?.date || ''), entry: q.entry?.description || q.transactionId, amount: Math.round(q.entry?.amountCents || 0) / getCurrencyDivisor(currency), currency,
         status: STATUS_LABEL[q.status] || q.status, question: messages[0]?.text || '', answer: answer?.text || '',
       };
     }),

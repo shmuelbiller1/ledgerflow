@@ -1,3 +1,4 @@
+import { guardEffect } from './sandboxEffects';
 import { safeFetch } from '../utils/safeFetch';
 
 const RATE_HOST = 'api.exchangerate-api.com';
@@ -60,6 +61,7 @@ export class FxService {
     const safeFrom = this.normalizeCurrencyCode(from, 'from');
     const safeTo = this.normalizeCurrencyCode(to, 'to');
     if (safeFrom === safeTo) return 1.0;
+    guardEffect({ kind: 'exchange-rate', action: 'fetch', target: `${safeFrom}/${safeTo}` });
     
     const cacheKey = `${safeFrom}_${safeTo}`;
     const cached = this.cache[cacheKey];
@@ -91,6 +93,7 @@ export class FxService {
    */
   static async getRatesForBase(base: string): Promise<Record<string, number>> {
     const safeBase = this.normalizeCurrencyCode(base, 'base');
+    guardEffect({ kind: 'exchange-rate', action: 'fetch', target: safeBase });
     let rates: Record<string, number> | null = null;
     try {
       rates = await this.latest(safeBase);

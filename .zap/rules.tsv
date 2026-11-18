@@ -1,11 +1,13 @@
 # LedgerFlow OWASP ZAP Baseline Rule Configuration (SEC-SCAN-1)
-# Format: <plugin_id><TAB><IGNORE|INFO|WARN|FAIL>[<TAB><optional_url_regex>]
+# ZAP baseline reads three tab-separated fields: plugin ID, action, and its generated description.
+# INFO/IGNORE apply to the entire plugin, not just URLs in the third field (ZAP 2.16.1
+# docker/zap_common.py load_config). Keep exceptions narrowly justified for the whole target.
 # Policy: NEVER silence broad vulnerability rules (such as 10055 CSP or 10017 Cross-Domain JS)
 # here. Instance-level evaluation of documented S-23 CSP and payment-SDK baselines happens in
 # `scripts/evaluate-zap-report.mjs`, so unexpected directives or script origins always fail CI.
 # Low-severity rule 10063 (Permissions-Policy) stays visible until server issue #827 lands.
 
-# 10035 — Strict-Transport-Security Header Not Set:
-# The CI baseline scan targets plain-HTTP http://127.0.0.1:3000 without TLS termination;
-# RFC 6797 scopes HSTS to HTTPS, which is enforced at the edge (vercel.json + Helmet HSTS).
-10035	INFO	^http://127\.0\.0\.1:3000/.*
+# 10035 — Strict-Transport-Security Header Not Set: the only target is an HTTP loopback
+# test server (http://127.0.0.1:3000), not the HTTPS edge; RFC 6797 scopes HSTS to HTTPS,
+# which is enforced at the edge (vercel.json + Helmet HSTS) and must be verified at deployment.
+10035	INFO	Strict-Transport-Security Header Not Set

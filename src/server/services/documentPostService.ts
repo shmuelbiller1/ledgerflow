@@ -1,3 +1,4 @@
+import { commandStageId } from '../db/pg/commandStage';
 import crypto from 'crypto';
 import { itemsExceedTotal } from '../../lib/documentItemsCheck';
 import { isWorkspaceMemberData, type Firestore, type Transaction as FirestoreTransaction } from '../db/firestore';
@@ -277,12 +278,13 @@ export async function prepareDocumentPost(db: Firestore, user: RequestUser, inpu
 
   const captured = context.capture || [];
   if (captured.length !== 1) throw new BulkRefusal(500, { error: `The ${NAMES[collection]} could not be posted (built ${captured.length} saves)` });
-  const transactions = captured[0].txs.map(tx => ({ ...tx, id: tx.id || crypto.randomUUID() })) as unknown as Transaction[];
+  const transactions = captured[0].txs.map(tx => ({ ...tx, id: commandStageId(db, 'transactions', () => tx.id || crypto.randomUUID()) })) as unknown as Transaction[];
   const validatedTransactions: Transaction[] = [];
   for (const transaction of transactions) {
     transaction.uid = user.uid;
     transaction.workspaceId = workspaceId;
     validatedTransactions.push(await TransactionValidator.validateAndPrepare(transaction, {
+      db,
       workspaceId,
       user: { uid: user.uid, admin: user.admin },
       wsData: wsRecord,

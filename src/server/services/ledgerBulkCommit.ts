@@ -1,3 +1,4 @@
+import { deferEffects } from './sandboxEffects';
 import { isDeepStrictEqual } from 'node:util';
 import { ApprovalRefused, serverApproval } from './invoiceApprovalGuard';
 import { approvalEvent, notifyApproval, type ApprovalEvent } from './approvalNotifications';
@@ -422,7 +423,9 @@ export async function commitLedgerBulk(db: Firestore, user: RequestUser, request
   const notice = approvalNotice as { invoiceId: string; invoice: Record<string, unknown>; event: ApprovalEvent } | null;
   if (notice) {
     const sendNotice = () => notifyApproval(db, { workspaceId: wsId, ...notice, actorUid: user.uid });
-    if (options.afterCommit) options.afterCommit(sendNotice);
+    if (options.afterCommit) {
+      deferEffects(db, [{ kind: 'notification', action: notice.event === 'requested' ? 'approval.requested' : 'approval.decided', target: notice.invoiceId }], options.afterCommit, sendNotice);
+    }
     else await sendNotice();
   }
   return { body, transactions: validatedTransactions, committed: true };

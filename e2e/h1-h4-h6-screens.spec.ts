@@ -66,7 +66,8 @@ test.describe('H-1 RTL Hebrew · H-4 screen-reader/axe · H-6 empty & failed-loa
       await settleStyles(page);
       await settleAnimations(page, 400);
 
-      const region = page.getByRole('region', { name: 'Trial balance table' });
+      // the page is in Hebrew now, so the table region carries its Hebrew name (EU-G1)
+      const region = page.getByRole('region', { name: 'טבלת מאזן בוחן' });
       await expect(region).toHaveAttribute('tabindex', '0');
 
       const childPadding = await page.getByText('עו״ש בנק לאומי').evaluate(el => {
@@ -149,11 +150,12 @@ test.describe('H-1 RTL Hebrew · H-4 screen-reader/axe · H-6 empty & failed-loa
         module: '/src/components/reporting/TaxLiabilityView.tsx',
         props: { startDate: '2026-09-01', endDate: '2026-09-30' },
       }]);
-      await expect(page.getByText(/Couldn't load previously filed returns/i)).toBeVisible();
-      await expect(page.getByRole('button', { name: 'File this return' })).toBeDisabled();
+      // still in Hebrew: the tax return's own text is translated (EU-G1)
+      await expect(page.getByText('לא ניתן היה לטעון דוחות שהוגשו בעבר.')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'הגשת הדוח' })).toBeDisabled();
       failTaxReturns = false;
-      await page.getByRole('button', { name: 'Try again' }).click();
-      await expect(page.getByRole('button', { name: 'File this return' })).toBeEnabled();
+      await page.getByRole('button', { name: 'נסו שוב' }).click();
+      await expect(page.getByRole('button', { name: 'הגשת הדוח' })).toBeEnabled();
 
       const taxAxe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).disableRules(['color-contrast']).analyze();
       expect(taxAxe.violations.filter(v => v.impact === 'critical' || v.impact === 'serious').map(v => v.id)).toEqual([]);
