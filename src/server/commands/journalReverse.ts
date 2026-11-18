@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ledgerCreate } from '../services/ledgerDoor';
+import { ledgerCreate, ledgerMark } from '../services/ledgerDoor';
 import { FieldValue, isWorkspaceMemberData, type DocumentData } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { TransactionTemplates } from '../../kernel/templates/TransactionTemplates';
@@ -219,7 +219,7 @@ export const journalReverseCommand: CommandDefinition<typeof journalReverseInput
     });
 
     // B: Set reversalEventId on original (narrow exemption on locked period)
-    t.update(txRef, {
+    ledgerMark(t, txRef, {
       reversalEventId: reversalId,
       updatedAt: FieldValue.serverTimestamp()
     });

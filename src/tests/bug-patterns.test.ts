@@ -191,3 +191,14 @@ test('AU-6: the door refuses entries that could not be valid', async () => {
   assert.throws(() => checkLedgerEntry({ ...ok, lines: [{ accountId: 'a', amountCents: 5.5 }, { accountId: 'b', amountCents: -5.5 }] }), /whole cents/);
   assert.throws(() => checkLedgerEntry({ ...ok, totalAmountCents: 900 }), /does not match/);
 });
+
+
+test('AU-6: partial ledger fields cannot patch accounting fields or their nested paths', async () => {
+  const { ledgerUpdateFields } = await import('../server/services/ledgerDoor');
+  let calls = 0;
+  const writer = { update() { calls++; } };
+  assert.throws(() => ledgerUpdateFields(writer, {}, { 'lines.0.amountCents': 1000 }), /Restricted fields/);
+  assert.throws(() => ledgerUpdateFields(writer, {}, { workspaceId: 'other' }), /Restricted fields/);
+  ledgerUpdateFields(writer, {}, { notes: 'checked' });
+  assert.equal(calls, 1);
+});

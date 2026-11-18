@@ -6,6 +6,7 @@ import { refusedLabels, refusedLabelsMessage } from '../../lib/requiredLabels';
 import type { DimensionDefinition, Transaction as Entry } from '../../types';
 import { HttpError } from '../auth/requestUser';
 import { FieldValue, isWorkspaceMemberData } from '../db/firestore';
+import { ledgerRewrite, ledgerUpdateFields } from '../services/ledgerDoor';
 import { revaluationEntryLock } from '../services/stockRevaluationService';
 import { auditSnapshot, certifyRefusal, documentEntryRefusal, isPostedEntry, postedDeletionRefusal, postedStatusRefusal } from '../services/ledgerEditGuards';
 import { deletionSentence, deletionSnapshot } from '../services/deletionRecord';
@@ -76,7 +77,7 @@ export const journalEditCommand: CommandDefinition<typeof editInput, EditResult,
       if (partial.status && !allowed.includes(String(partial.status))) fail(`Invalid status '${partial.status}'.`);
       const safe = { ...partial }; delete safe.workspaceId; delete safe.uid; delete safe.id; delete safe.expectedUpdatedAt;
       const after = auditSnapshot({ ...current, ...safe } as Partial<Entry>);
-      tx.update(ref, { ...safe, updatedAt: FieldValue.serverTimestamp() });
+      ledgerUpdateFields(tx, ref, { ...safe, updatedAt: FieldValue.serverTimestamp() });
       return { transactionId: input.id, before, after, partial: true };
     }
     const prepared = ctx.prepared as EditPrepared;
@@ -98,7 +99,7 @@ export const journalEditCommand: CommandDefinition<typeof editInput, EditResult,
     }
     const save = { ...validated } as Entry & { expectedUpdatedAt?: unknown }; delete save.expectedUpdatedAt;
     const after = auditSnapshot(save);
-    tx.update(ref, { ...save, updatedAt: FieldValue.serverTimestamp() });
+    ledgerRewrite(tx, ref, { ...save, updatedAt: FieldValue.serverTimestamp() });
     return { transactionId: input.id, transaction: prepared.transaction, before, after, partial: false };
   },
   async preview(ctx, input) {
