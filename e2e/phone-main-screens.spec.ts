@@ -118,6 +118,9 @@ const innerScreens = [
     name: 'purchases → bills',
     tab: 'purchases',
     async open(page: Page) {
+      // Bills is the default sub-tab, but the screen is loaded lazily: click it like the other screens so the step
+      // waits for the screen (a busy runner showed "Loading…" past the 5 s expect and failed on four PRs)
+      await page.getByRole('button', { name: /^Bills \(\d+\)$/ }).click();
       await expect(page.locator('[data-list-columns="purchase-bills"]')).toBeVisible();
     },
   },
