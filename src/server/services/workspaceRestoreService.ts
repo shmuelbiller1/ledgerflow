@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { DocumentData, Firestore } from '../db/firestore';
 import { BRAND_NAME } from '../../config/brand';
+import { writeServerAuditLog } from './auditLogService';
 import { checkLedgerEntry } from './ledgerDoor';
 import { InvoiceSchema, BillSchema, ProjectSchema, CreditNoteSchema, VendorCreditSchema } from '../../schemas';
 
@@ -159,7 +160,9 @@ function latestDate(a: unknown, b: unknown): string {
   return x > y ? x : y;
 }
 
-export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string, backup: unknown): Promise<RestoreResult> {
+export interface RestoreActor { uid: string; email?: string }
+
+export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string, backup: unknown, actor?: RestoreActor): Promise<RestoreResult> {
   if (!isRecord(backup)) throw new RestoreError(400, 'Invalid backup payload');
   const backupWorkspace = backup.workspace;
   if (backupWorkspace !== undefined && (!isRecord(backupWorkspace) || backupWorkspace.id !== workspaceId)) {
@@ -362,6 +365,19 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
       const opening = backupWorkspace.openingBalanceDate;
       if (!current.openingBalanceDate && typeof opening === 'string' && YMD.test(opening)) safe.openingBalanceDate = opening;
       if (Object.keys(safe).length > 0) t.set(db.collection('workspaces').doc(workspaceId), safe, { merge: true });
+    }
+    // A8N-05 (#778): the action that replaces every record says so on the audit trail, in the same transaction:
+    // who, how many rows per table, which file (its checksum) and whether this server had signed it.
+    if (actor?.uid) {
+      const checksum = isRecord(backup.metadata) && typeof backup.metadata.checksum === 'string' ? backup.metadata.checksum : '';
+      await writeServerAuditLog({
+        workspaceId, uid: actor.uid, email: actor.email || '', action: 'WORKSPACE_RESTORED', entityType: 'workspace', entityId: workspaceId,
+        severity: 'warning',
+        details: {
+          description: `Workspace restored from a ${hasVerifiedLockSignature ? 'signed' : 'unsigned'} backup; every restorable record was replaced`,
+          counts: { ...counts }, checksum, signed: hasVerifiedLockSignature,
+        },
+      }, { db, tx: t });
     }
   });
 
