@@ -52,11 +52,8 @@ not a workspace.
 
 ## Database changes (migrations): status
 
-**⚠ Waiting for one approval (18 Nov):** `20261118120000_invites_owner_read.sql` (#842, merged in #847: only owners can read
-pending invites and their secret tokens). Claude tried to apply it twice; both times the Supabase approval prompt was not
-answered before the session restarted, so it is **not on the live database yet**. When you next see the Supabase prompt for
-`invites_owner_read`, approve it (or choose "Always allow"). Until then a viewer can still read invite tokens on the live site.
-The code half (a verified email is needed to accept an invite) is already deployed.
+**✅ 18 Nov:** `20261118120000_invites_owner_read.sql` (#842, merged in #847) is now applied on the live database: only
+owners can read pending invites and their tokens. Nothing is waiting to be run.
 
 **17 Nov: the last confirmed live list was 60 of 60, before SBX-1 PR #787.** Older notes below that ask you
 to run one of those migrations in the SQL editor are done; ignore them. You don't need to run SQL yourself.
