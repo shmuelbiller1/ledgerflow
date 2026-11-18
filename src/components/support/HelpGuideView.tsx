@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useUIStore } from "../../stores/useUIStore";
+import HelpLanguagePicker from "./HelpLanguagePicker";
 import ReleaseNotes from "./ReleaseNotes";
 import AllScreensHelp from "./AllScreensHelp";
 import MainPathGuide from "./MainPathGuide";
@@ -278,10 +279,7 @@ export default function HelpGuideView() {
                   {matchingHowTo.length} of {HOW_TO_ARTICLES.length} articles · {SCREEN_HELP_DOCS.length} bilingual screen manuals
                 </p>
               </div>
-              <div className="inline-flex rounded-lg border border-[var(--line)] overflow-hidden" role="group" aria-label="How-to article language">
-                <button type="button" aria-pressed={howToLang === 'en'} onClick={() => setHowToLang('en')} className={`min-h-11 px-3 text-xs font-medium ${howToLang === 'en' ? 'bg-[var(--text)] text-[var(--bg)]' : 'bg-[var(--surface)] text-[var(--text)]'}`}>English</button>
-                <button type="button" aria-pressed={howToLang === 'he'} onClick={() => setHowToLang('he')} className={`min-h-11 px-3 text-xs font-medium ${howToLang === 'he' ? 'bg-[var(--text)] text-[var(--bg)]' : 'bg-[var(--surface)] text-[var(--text)]'}`}>עברית</button>
-              </div>
+              <HelpLanguagePicker language={howToLang} onChange={setHowToLang} />
             </div>
             <div dir={howToLang === 'he' ? 'rtl' : 'ltr'} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {matchingHowTo.map(article => (

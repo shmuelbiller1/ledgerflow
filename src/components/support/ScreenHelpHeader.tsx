@@ -10,6 +10,7 @@ import {
   articlesForScreen,
   findScreenHelpDoc,
 } from "../../lib/helpCenterArticles";
+import HelpLanguagePicker from "./HelpLanguagePicker";
 import { ScreenManual, RelatedArticle } from "./ScreenManual";
 
 export function ScreenHelpDialog({
@@ -57,24 +58,7 @@ export function ScreenHelpDialog({
             >
               {lang === "he" ? "סגירת העזרה" : "Close help"}
             </button>
-            <div className="inline-flex rounded border border-[var(--line)] overflow-hidden" role="group" aria-label={lang === "he" ? "שפת המדריך" : "Help language"}>
-              <button
-                type="button"
-                lang="en" aria-pressed={lang === "en"}
-                onClick={() => setLang("en")}
-                className={`min-h-11 px-3 text-xs font-medium ${lang === "en" ? "bg-[var(--text)] text-[var(--bg)]" : "bg-[var(--surface)] text-[var(--text)]"}`}
-              >
-                English
-              </button>
-              <button
-                type="button"
-                lang="he" aria-pressed={lang === "he"}
-                onClick={() => setLang("he")}
-                className={`min-h-11 px-3 text-xs font-medium ${lang === "he" ? "bg-[var(--text)] text-[var(--bg)]" : "bg-[var(--surface)] text-[var(--text)]"}`}
-              >
-                עברית
-              </button>
-            </div>
+            <HelpLanguagePicker language={lang} onChange={setLang} />
           </div>
 
           <ScreenManual doc={screenDoc} screenId={screenId} lang={lang} />

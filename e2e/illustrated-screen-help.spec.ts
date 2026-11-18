@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+import { waitForFiniteAnimations } from './support/a11yGate';
 
-// Read the manuals via the real screen controls. In particular, ?report=trial-balance is NOT the trial balance.
+// Enter the actual screens, including Trial Balance within the Ledger’s Accountant Lens.
 const screens = [
   ['/#dashboard', 'Overview', 'Overview', 'overview'],
   ['/#sales', 'Sales', 'Sales and invoices', 'sales'],
@@ -112,3 +114,33 @@ test('#828: the label and Israeli month how-tos open the promised report', async
     await expect(page).toHaveURL(/#reports$/);
   }
 });
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`#832: the active language is readable in both Help pickers (${theme})`, async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(value => localStorage.setItem('lf_theme', value), theme);
+    await page.goto('/#sales');
+    await page.getByRole('button', { name: 'Help for Sales' }).click();
+    for (const container of ['[role="dialog"]', '#main-content']) {
+      if (container === '#main-content') {
+        await page.getByRole('button', { name: 'פתיחת מרכז העזרה' }).click();
+        await page.getByRole('button', { name: /^How-to \(/ }).click();
+      }
+      const selector = `${container} [role="group"] button[aria-pressed="true"][lang]`;
+      for (const name of ['English', 'עברית']) {
+        const button = page.locator(container).getByRole('button', { name, exact: true });
+        await button.click();
+        await expect(page.locator(selector)).toHaveAccessibleName(name);
+        // Leave the hover tint and let colour transitions settle before measuring.
+        await page.mouse.move(0, 0);
+        await waitForFiniteAnimations(page);
+        const result = await new AxeBuilder({ page }).include(selector).withRules(['color-contrast']).analyze();
+        expect(result.violations).toEqual([]);
+        // A skipped or indeterminate contrast calculation isn't a passing measurement.
+        expect(result.passes.find(rule => rule.id === 'color-contrast')?.nodes,
+          JSON.stringify(result.incomplete.map(rule => rule.nodes.map(node => node.failureSummary)))).toHaveLength(1);
+      }
+    }
+  });
+}
