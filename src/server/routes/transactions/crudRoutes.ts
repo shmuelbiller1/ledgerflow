@@ -1,7 +1,6 @@
 import express from 'express';
 import { LabelFilterError, matchesLabelFilters, parseLabelFilters, type LabelDef } from '../../../lib/labelQueryFilter';
 import { BudgetBlocked, budgetWarningsFor, enforceBudgetControl, type BudgetWarning } from '../../services/budgetGuard';
-import { revaluationEntryLock } from '../../services/stockRevaluationService';
 import { ledgerCreate } from '../../services/ledgerDoor';
 import { FieldValue } from '../../db/firestore';
 import { TransactionValidator } from '../../../kernel/validation/TransactionValidator';
@@ -10,19 +9,26 @@ import type { Transaction, TransactionLine } from '../../../types';
 import { getDb, isWorkspaceMemberData } from '../../db/firestore';
 import type { DocumentData } from '../../db/firestore';
 import { getAbsoluteTotal } from '../../../lib/txFilters';
-import { executeCommand } from '../../utils/commandExecutor';
+import { executeCommand, withLegacyInputIdempotencyHash } from '../../utils/commandExecutor';
+import { journalDeleteCommand, journalEditCommand } from '../../commands/journalEdit';
+import type { CommandExecutionOutcome } from '../../commands/types';
 import { deriveScopedOperationKey, extractCanonicalOperationId } from '../../utils/idempotency';
 import { requirePlanCapacity } from '../../middleware/planCapacity';
 import { requireOpenPeriod } from '../../middleware/periodLock';
 import { writeServerAuditLog } from '../../services/auditLogService';
-import { deletionSentence, deletionSnapshot } from '../../services/deletionRecord';
-import { assertPostingOpen, lockMessage, postingLock } from '../../../lib/periodLock';
+import { lockMessage, postingLock } from '../../../lib/periodLock';
 import { errorMessage, HttpError, requestUser } from '../../auth/requestUser';
-import { enforceDoubleEntrySafety, ifMatchVersion, isUpdatedAtMismatch } from './helpers';
+import { enforceDoubleEntrySafety, ifMatchVersion } from './helpers';
 import { FieldsError, parseFields, pickFields } from '../../http/sparseFields';
 import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels';
-import { auditSnapshot, documentEntryRefusal, isPostedEntry, postedDeletionRefusal, postedStatusRefusal } from '../../services/ledgerEditGuards';
 import { documentPostedByServer } from './bulkRoutes';
+
+function journalEditError(outcome: Exclude<CommandExecutionOutcome, { ok: true }>): { status: number; body: unknown } {
+  const error = outcome.error as { currentTransaction?: unknown; missingLabels?: unknown } | undefined;
+  const message = error ? errorMessage(error) : outcome.message;
+  if (message === 'version_conflict') return { status: outcome.status, body: { error: message, message: 'This transaction was modified by another user.', currentTransaction: error?.currentTransaction } };
+  return { status: outcome.status === 500 ? 400 : outcome.status, body: { error: message, ...(error?.missingLabels ? { missingLabels: error.missingLabels } : {}) } };
+}
 
 /**
  * Audit F3: what a journal save checks inside its own transaction, against the workspace as it is now: the actor is
@@ -263,284 +269,45 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
 
   transactionRouter.put('/:id', requireOpenPeriod('transactions'), enforceDoubleEntrySafety, async (req, res) => {
     try {
-      const { id } = req.params as Record<string, string>;
+      const id = String(req.params.id);
       const { partialUpdate } = req.body;
       let { transaction } = req.body;
-      const user = requestUser(req);
-      const db = getDb();
-
-      // Support flat API payloads: { workspaceId, lines, date, ... }
-      if (!transaction && !partialUpdate && (req.body.workspaceId || req.body.lines || req.body.date)) {
-        transaction = { ...req.body, id };
-      }
-    
-      // For partial updates (like flagging or voiding)
-      if (partialUpdate) {
-        let authoritativeWsId = '';
-        let beforeEdit: Record<string, unknown> | null = null;
-        let afterEdit: Record<string, unknown> | null = null;
-        await db.runTransaction(async (t) => {
-           const txRef = db.collection('transactions').doc(id);
-           const doc = await t.get(txRef);
-           if (!doc.exists) throw new Error('Not found');
-           const txData = doc.data();
-
-           // Optimistic concurrency check
-           const expectedUpdatedAt = req.body.expectedUpdatedAt || partialUpdate.expectedUpdatedAt || ifMatchVersion(req.header('if-match'));
-           if (isUpdatedAtMismatch(expectedUpdatedAt, txData?.updatedAt)) {
-             throw Object.assign(new Error('version_conflict'), { currentTransaction: { ...txData, id: doc.id } });
-           }
-
-           const wsId = txData?.workspaceId;
-           authoritativeWsId = wsId;
-           // Verify workspace inside the same transaction so no second pool client is checked out while holding t
-           const wsDoc = await t.get(db.collection('workspaces').doc(wsId));
-           const wsData = wsDoc.data();
-           if (!wsDoc.exists || !isWorkspaceMemberData(wsData, user, wsId)) {
-             throw new Error('Not a member');
-           }
-           if (txData?.date) assertPostingOpen(txData.date, wsData, user.uid);
-           if ((txData?.status === 'certified' || txData?.status === 'void') && !user.admin) {
-             throw new Error(`Forbidden: Transaction status is locked (${txData?.status}).`);
-           }
-
-           // #652/#662: a document's entry is changed through the document, and a posted entry is never
-           // un-posted in place (a status of failed/draft drops it from every report). Same rule as the
-           // browser's isDocumentEntry, applied where it cannot be bypassed.
-           // ISS-130 is a more specific lock; preserve its existing refusal
-           // and response code before applying the general posted-entry guards.
-           const lockedField = Object.keys(partialUpdate).some(k => ['status', 'type', 'reversalEventId', 'isDeleted', 'deletedAt'].includes(k) || k === 'metadata' || k.startsWith('metadata.'));
-           const revaluation = lockedField ? revaluationEntryLock(txData) : null;
-           if (revaluation) throw new Error(revaluation);
-           const documentRefusal = documentEntryRefusal(txData as { metadata?: Record<string, unknown> }, Boolean(user.admin), Object.keys(partialUpdate));
-           if (documentRefusal) throw new HttpError(documentRefusal, 409);
-           const unpostRefusal = postedStatusRefusal(txData as Partial<Transaction>, partialUpdate.status, Boolean(user.admin)) ||
-             postedDeletionRefusal(txData as Partial<Transaction>, partialUpdate as Partial<Transaction>, Boolean(user.admin));
-           if (unpostRefusal) throw new HttpError(unpostRefusal, 409);
-           // #843: a posted entry's currency and rate are its figures too — restating them in place
-           // changes home-currency reporting with no correction on the books; reverse and re-post instead
-           if (!user.admin && isPostedEntry(txData as Partial<Transaction>)
-             && ['exchangeRate', 'currency', 'baseAmountCents', 'homeAmountCents'].some(key => key in partialUpdate && (partialUpdate as Record<string, unknown>)[key] !== (txData as Record<string, unknown>)?.[key])) {
-             throw new HttpError('A posted entry\'s currency and exchange rate are not changed in place. Post a reversing entry and a corrected one instead.', 409);
-           }
-           beforeEdit = auditSnapshot(txData as Partial<Transaction>);
-         
-           if (partialUpdate.lines !== undefined || partialUpdate.amountCents !== undefined || partialUpdate.totalAmountCents !== undefined || partialUpdate.workspaceId !== undefined || partialUpdate.date !== undefined || partialUpdate.uid !== undefined) {
-             throw new Error('Restricted fields cannot be modified via partialUpdate. Use a full transaction update instead.');
-           }
-
-           const allowedStatuses = ['draft', 'pending', 'certified', 'void', 'reconciled', 'completed', 'failed', 'flagged', 'reviewed', 'overdue', 'approved'];
-           if (partialUpdate.status && !allowedStatuses.includes(partialUpdate.status)) {
-             throw new Error(`Invalid status '${partialUpdate.status}'.`);
-           }
-
-           const safePartial = { ...partialUpdate };
-           delete safePartial.workspaceId;
-           delete safePartial.uid;
-           delete safePartial.id;
-           delete safePartial.expectedUpdatedAt;
-
-           afterEdit = auditSnapshot({ ...txData, ...safePartial } as Partial<Transaction>);
-           t.update(txRef, { ...safePartial, updatedAt: FieldValue.serverTimestamp() });
-        });
-
-        await writeServerAuditLog({
-          workspaceId: authoritativeWsId || "unknown",
-          uid: user.uid,
-          email: user.email || "developer@ledgerflow.io",
-          action: "TRANSACTION_UPDATED_PARTIAL",
-          entityType: "transaction",
-          entityId: id,
-          details: {
-            description: `Partial update on transaction ref [${id}].`,
-            // #652(d): an auditor needs what changed, not only that something did
-            before: beforeEdit,
-            after: afterEdit,
-          }
-        }, { db });
-
-        return res.json({ status: 'ok', transactionId: id });
-      }
-
-      if (!transaction || !transaction.workspaceId) return res.status(400).json({ error: 'Invalid payload: missing workspaceId' });
-      if (!transaction.id) transaction.id = id;
-      transaction.uid = user.uid; // Enforce ownership
-      const wsDoc = await db.collection('workspaces').doc(transaction.workspaceId).get();
-      const wsData = wsDoc.data();
-      if (!wsDoc.exists || !isWorkspaceMemberData(wsData, user, transaction.workspaceId)) {
-        return res.status(403).json({ error: 'Not a member' });
-      }
-
-      // Load existing tx to pass to validator
-      const existingTxSnap = await db.collection('transactions').doc(id).get();
-      const existingTx = existingTxSnap.exists ? existingTxSnap.data() as Transaction : undefined;
-
-      // #652: a document's entry is changed through the document; the browser already refuses it.
-      const documentRefusal = documentEntryRefusal(existingTx as { metadata?: Record<string, unknown> } | undefined, Boolean(user.admin));
-      if (documentRefusal) return res.status(409).json({ error: documentRefusal });
-      let beforeEdit: Record<string, unknown> | null = null;
-      let afterEdit: Record<string, unknown> | null = null;
-
-      const validatedTx = await TransactionValidator.validateAndPrepare(transaction, {
-        workspaceId: transaction.workspaceId,
-        user: { uid: user.uid, admin: user.admin },
-        wsData
-      }, existingTx);
-      // Z-12: a required label whose rule refuses
-      const missing = refusedLabels(validatedTx, wsData?.dimensions);
-      if (missing.length > 0) return res.status(400).json({ error: refusedLabelsMessage(missing), missingLabels: missing });
-
-      await db.runTransaction(async (t) => {
-        const txRef = db.collection('transactions').doc(id);
-        const doc = await t.get(txRef);
-        if (!doc.exists) throw new Error('Not found');
-
-        // Optimistic concurrency check
-        const expectedUpdatedAt = req.body.expectedUpdatedAt || transaction?.expectedUpdatedAt || ifMatchVersion(req.header('if-match'));
-        if (isUpdatedAtMismatch(expectedUpdatedAt, doc.data()?.updatedAt)) {
-          throw Object.assign(new Error('version_conflict'), { currentTransaction: { ...doc.data(), id: doc.id } });
-        }
-
-        if (doc.data()?.workspaceId !== transaction.workspaceId) throw new Error('Workspace mismatch');
-        // Recheck against the row read inside this same database transaction: an
-        // entry can acquire a document link after the earlier validation read.
-        const currentDocumentRefusal = documentEntryRefusal(doc.data() as { metadata?: Record<string, unknown> }, Boolean(user.admin));
-        if (currentDocumentRefusal) throw new HttpError(currentDocumentRefusal, 409);
-        const revaluation = revaluationEntryLock(doc.data()); // ISS-130
-        if (revaluation) throw new Error(revaluation);
-        if ((doc.data()?.status === 'certified' || doc.data()?.status === 'void' || doc.data()?.isCleared === true) && !user.admin) {
-          throw new Error('Cannot modify certified, cleared, or voided transactions');
-        }
-        const unpostRefusal = postedStatusRefusal(doc.data() as Partial<Transaction>, validatedTx.status, Boolean(user.admin)) ||
-          postedDeletionRefusal(doc.data() as Partial<Transaction>, transaction as Partial<Transaction>, Boolean(user.admin));
-        if (unpostRefusal) throw new HttpError(unpostRefusal, 409);
-        beforeEdit = auditSnapshot(doc.data() as Partial<Transaction>);
-        // audit F3: the old and the new date against the workspace as it is now, inside the save
-        assertStillOpen((await t.get(db.collection('workspaces').doc(transaction.workspaceId))).data(), user, [doc.data()?.date, validatedTx.date]);
-
-        const txToSave = { ...validatedTx };
-        delete (txToSave as { expectedUpdatedAt?: unknown }).expectedUpdatedAt;
-
-        afterEdit = auditSnapshot(txToSave as Partial<Transaction>);
-        t.update(txRef, { ...txToSave, updatedAt: FieldValue.serverTimestamp() });
+      if (!transaction && !partialUpdate && (req.body.workspaceId || req.body.lines || req.body.date)) transaction = { ...req.body, id };
+      if (!partialUpdate && (!transaction || !transaction.workspaceId)) return res.status(400).json({ error: 'Invalid payload: missing workspaceId' });
+      const snap = await getDb().collection('transactions').doc(id).get();
+      const workspaceId = String(partialUpdate ? snap.data()?.workspaceId || '' : transaction.workspaceId);
+      if (!workspaceId) return res.status(snap.exists ? 400 : 404).json({ error: snap.exists ? 'Corrupt transaction: missing workspaceId' : 'Not found' });
+      const match = ifMatchVersion(req.header('if-match'));
+      const expectedUpdatedAt = req.body.expectedUpdatedAt || partialUpdate?.expectedUpdatedAt || transaction?.expectedUpdatedAt || match;
+      await executeCommand(req, res, {
+        definition: withLegacyInputIdempotencyHash(journalEditCommand), workspaceId,
+        input: { id, ...(partialUpdate ? { partialUpdate } : { transaction }), ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}), ...(match ? { ifMatch: true } : {}) },
+        formatResponse(outcome) {
+          if (!outcome.ok) return journalEditError(outcome);
+          const result = outcome.data as { transactionId: string; transaction?: unknown; partial: boolean };
+          return { status: 200, body: { status: 'ok', transactionId: result.transactionId, ...(!result.partial ? { data: result.transaction } : {}) } };
+        },
       });
-
-      await writeServerAuditLog({
-        workspaceId: transaction.workspaceId,
-        uid: user.uid,
-        email: user.email || "developer@ledgerflow.io",
-        action: "TRANSACTION_UPDATED",
-        entityType: "transaction",
-        entityId: id,
-        details: {
-          description: `Full update on transaction ref [${id}].`,
-          before: beforeEdit,
-          after: afterEdit,
-        }
-      }, { db });
-
-      res.json({ status: 'ok', transactionId: id, data: transaction });
-    } catch (e) {
-      if (errorMessage(e) === 'version_conflict') {
-         // Z-05: a stale If-Match is a failed precondition (412); a stale expectedUpdatedAt stays 409
-         return res.status(ifMatchVersion(req.header('if-match')) ? 412 : 409).json({
-           error: 'version_conflict',
-           message: 'This transaction was modified by another user.',
-           currentTransaction: (e as { currentTransaction?: unknown }).currentTransaction
-         });
-      }
-      if (errorMessage(e) === 'Not found') {
-         return res.status(404).json({ error: errorMessage(e) });
-      }
-      if (errorMessage(e) === 'Not a member' || errorMessage(e) === 'Workspace mismatch' || errorMessage(e).includes('Forbidden')) {
-         return res.status(403).json({ error: errorMessage(e) });
-      }
-      // #652/#662: a refusal that carries its own status (a document entry is a 409, not a malformed request)
-      const refusedStatus = (e as { status?: unknown }).status;
-      if (typeof refusedStatus === 'number' && refusedStatus >= 400 && refusedStatus < 500) {
-        return res.status(refusedStatus).json({ error: errorMessage(e) });
-      }
-      res.status(400).json({ error: errorMessage(e) }); 
-    }
+    } catch (error) { return res.status(400).json({ error: errorMessage(error) }); }
   });
 
   transactionRouter.delete('/:id', requireOpenPeriod('transactions'), async (req, res) => {
     try {
-      const { id } = req.params as Record<string, string>;
-      const workspaceId = (req.query.workspaceId as string) || (req.body?.workspaceId as string);
-      const user = requestUser(req);
-      const db = getDb();
-      const txRef = db.collection('transactions').doc(id);
-      const doc = await txRef.get();
-      if (!doc.exists) {
-        return res.status(404).json({ error: 'Transaction not found' });
-      }
-      const data = doc.data();
-      const transactionWsId = data?.workspaceId;
-      if (!transactionWsId) {
-        return res.status(400).json({ error: 'Corrupt transaction: missing workspaceId' });
-      }
-      if (workspaceId && workspaceId !== transactionWsId) {
-        return res.status(403).json({ error: 'Workspace mismatch: transaction belongs to a different workspace' });
-      }
-      const wsDoc = await db.collection('workspaces').doc(transactionWsId).get();
-      const wsData = wsDoc.data();
-      if (!wsDoc.exists || !isWorkspaceMemberData(wsData, user, transactionWsId)) {
-        return res.status(403).json({ error: 'Not a member' });
-      }
-
-      const lock = data?.date ? postingLock(data.date, wsData, user.uid) : null;
-      if (lock) return res.status(400).json({ error: lockMessage(data?.date, lock) });
-      const revaluation = revaluationEntryLock(data); // ISS-130
-      if (revaluation) return res.status(409).json({ error: revaluation });
-
-      if ((data?.status === 'certified' || data?.status === 'void' || data?.isCleared === true || data?.reconciled === true || data?.isReconciled === true) && !user.admin) {
-        return res.status(403).json({ error: `Forbidden: Transaction status is audited, cleared, reconciled, or locked (${data?.status}). Destructive actions are restricted to administrators.` });
-      }
-      const meta = (data?.metadata || {}) as Record<string, unknown>;
-      if (meta.invoiceId || meta.billId || meta.paymentId || meta.creditNoteId || meta.vendorCreditId) {
-        return res.status(409).json({ error: 'Cannot delete a ledger entry posted by a source document; void or reverse the document instead.' });
-      }
-      if (isPostedEntry(data as Partial<Transaction>) && !user.admin) {
-        return res.status(409).json({ error: 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.' });
-      }
-
-      // audit F3: the entry and the workspace read again inside the delete, so a period closed (or the entry
-      // certified, cleared or changed) since the checks above is not deleted after all
-      const refused = await db.runTransaction(async (t) => {
-        const now = await t.get(txRef);
-        if (!now.exists) return 'gone';
-        const nowData = now.data();
-        if ((nowData?.status === 'certified' || nowData?.status === 'void' || nowData?.isCleared === true || nowData?.reconciled === true || nowData?.isReconciled === true) && !user.admin) return 'locked';
-        const nowMeta = (nowData?.metadata || {}) as Record<string, unknown>;
-        if (nowMeta.invoiceId || nowMeta.billId || nowMeta.paymentId || nowMeta.creditNoteId || nowMeta.vendorCreditId) return 'Cannot delete a ledger entry posted by a source document; void or reverse the document instead.';
-        if (isPostedEntry(nowData as Partial<Transaction>) && !user.admin) return 'Posted ledger entries cannot be hard-deleted; post a reversing entry via POST /api/v1/transactions/:id/reverse.';
-        const wsNow = (await t.get(db.collection('workspaces').doc(transactionWsId))).data();
-        try { assertStillOpen(wsNow, user, [nowData?.date]); } catch (err) { return errorMessage(err); }
-        t.delete(txRef);
-        return '';
+      const id = String(req.params.id);
+      const requested = (req.query.workspaceId as string) || (req.body?.workspaceId as string);
+      const snap = await getDb().collection('transactions').doc(id).get();
+      const actual = snap.data()?.workspaceId as string | undefined;
+      if (!snap.exists && !requested) return res.status(404).json({ error: 'Transaction not found' });
+      if (snap.exists && !actual) return res.status(400).json({ error: 'Corrupt transaction: missing workspaceId' });
+      if (actual && requested && requested !== actual) return res.status(403).json({ error: 'Workspace mismatch: transaction belongs to a different workspace' });
+      const workspaceId = actual || requested!;
+      await executeCommand(req, res, {
+        definition: withLegacyInputIdempotencyHash(journalDeleteCommand), workspaceId, input: { id },
+        formatResponse(outcome) {
+          if (!outcome.ok) return journalEditError(outcome);
+          return { status: 200, body: { status: 'ok', deletedId: (outcome.data as { deletedId: string }).deletedId } };
+        },
       });
-      if (refused === 'gone') return res.status(404).json({ error: 'Transaction not found' });
-      if (refused === 'locked') return res.status(403).json({ error: 'Forbidden: Transaction status is audited, cleared, or locked. Destructive actions are restricted to administrators.' });
-      if (refused) return res.status(refused === 'Not a member' ? 403 : 400).json({ error: refused });
-
-      await writeServerAuditLog({
-        workspaceId: transactionWsId,
-        uid: user.uid,
-        email: user.email || "developer@ledgerflow.io",
-        action: "TRANSACTION_DELETED",
-        entityType: "transaction",
-        entityId: id,
-        // what was deleted, kept in the audit trail (CA-10)
-        details: {
-          description: deletionSentence('transactions', id, data || {}),
-          deleted: deletionSnapshot(data || {}),
-        }
-      }, { db });
-
-      res.json({ status: 'ok', deletedId: id });
-    } catch (e) {
-      res.status(500).json({ error: errorMessage(e) });
-    }
+    } catch (error) { return res.status(500).json({ error: errorMessage(error) }); }
   });
 }
