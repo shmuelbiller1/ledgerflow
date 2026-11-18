@@ -259,9 +259,8 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {exportOpen && <WorkspaceExportDialog onClose={() => setExportOpen(false)} />}
       {restoreFile && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
-          <div {...dialogProps} aria-describedby={`${titleId}-warning`}
-            className="max-h-[90dvh] w-full max-w-lg space-y-4 overflow-y-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 text-[var(--text)] shadow-xl">
+        <div {...dialogProps} aria-describedby={`${titleId}-warning`} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+          <div className="max-h-[90dvh] w-full max-w-lg space-y-4 overflow-y-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 text-[var(--text)] shadow-xl">
             <h2 id={titleId} className="text-lg font-bold">Restore backup?</h2>
             <p className="break-words text-sm">File: <strong><bdi>{restoreFile.name}</bdi></strong></p>
             <p id={`${titleId}-warning`} className="break-words text-sm">
