@@ -13,8 +13,10 @@ import FirstHourGuide from './onboarding/FirstHourGuide';
 import SetupWizard from './onboarding/SetupWizard';
 import OpeningBalancesSetup from './onboarding/OpeningBalancesSetup';
 import { useCurrentRole } from '../hooks/useCurrentRole';
+import { useScreenDataHealth } from '../hooks/useScreenDataHealth';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { LoadingState } from './ui/LoadingState';
+import { ScreenDataNotice } from './ui/ScreenDataNotice';
 import SavedViewsBar from './ui/SavedViewsBar';
 import { cn } from '../lib/utils';
 import DashboardWidgets from './dashboard/DashboardWidgets';
@@ -22,6 +24,8 @@ import FirstWeekChecklist from './dashboard/FirstWeekChecklist';
 
 import { useShallow } from 'zustand/react/shallow';
 import SinceLastVisitCard from './SinceLastVisitCard';
+
+const DASHBOARD_COLLECTIONS = ['accounts', 'transactions', 'invoices', 'bills', 'bankLines'] as const;
 
 export default function Dashboard() {
   const { 
@@ -52,6 +56,7 @@ export default function Dashboard() {
   const transactionsFailure = useDataNeedsStore(s => s.failed.transactions);
   const accountsFailure = useDataNeedsStore(s => s.failed.accounts);
   const retryCollection = useDataNeedsStore(s => s.retry);
+  const dataHealth = useScreenDataHealth(DASHBOARD_COLLECTIONS);
   const loadFailure = transactionsFailure || accountsFailure;
   const workspaceForSetup = workspaces.find(w => w.id === currentWorkspaceId);
   const needsSetup = !isGuest && Boolean(workspaceForSetup) && !workspaceForSetup?.setupCompletedAt && rawTransactions.length === 0;
@@ -131,6 +136,13 @@ export default function Dashboard() {
         </PageHeader>
       </header>
 
+      <ScreenDataNotice
+        failedKeys={dataHealth.failedKeys}
+        message={dataHealth.message}
+        onRetry={dataHealth.retry}
+        what="your overview"
+      />
+
       {!isGuest && (role === 'owner' || role === 'accountant') && !currentWorkspace?.openingBalanceDate && (
         <section className="p-4 rounded-xl border border-[var(--line)] bg-[var(--surface)] space-y-3" aria-labelledby="bring-in-numbers">
           <h2 id="bring-in-numbers" className="font-semibold">Bring in last year's numbers</h2>
@@ -142,7 +154,7 @@ export default function Dashboard() {
       )}
 
       <details className="group border border-[var(--line)] rounded-xl px-4 bg-[var(--surface)] open:pb-4">
-        <summary className="min-h-11 flex items-center gap-2 cursor-pointer text-sm font-semibold focus-visible:outline-2 focus-visible:outline-[var(--brass)]">First-hour bookkeeping guide<span className="ml-auto text-xs font-normal text-[var(--muted)] group-open:hidden">Show</span><span className="ml-auto text-xs font-normal text-[var(--muted)] hidden group-open:inline">Hide</span></summary>
+        <summary className="min-h-11 flex items-center gap-2 cursor-pointer text-sm font-semibold focus-visible:outline-2 focus-visible:outline-[var(--brass)]">First-hour bookkeeping guide<span className="ms-auto text-xs font-normal text-[var(--muted)] group-open:hidden">Show</span><span className="ms-auto text-xs font-normal text-[var(--muted)] hidden group-open:inline">Hide</span></summary>
         <FirstHourGuide />
       </details>
       <FirstWeekChecklist key={`${currentUserId || 'guest'}:${currentWorkspaceId || 'none'}`} />
@@ -182,7 +194,7 @@ export default function Dashboard() {
               type="button"
               onClick={() => setTemplateSelectorOpen(true)}
               className={cn(
-                "flex items-center gap-3 p-3 rounded-xl border text-left transition-colors min-h-11",
+                "flex items-center gap-3 p-3 rounded-xl border text-start transition-colors min-h-11",
                 hasAccounts
                   ? "bg-[var(--surface)] border-[var(--brass-line)]/50"
                   : "bg-[var(--panel)] border-[var(--brass-line)] hover:border-[var(--brass)]"
@@ -206,7 +218,7 @@ export default function Dashboard() {
               type="button"
               onClick={() => setActiveTab('banking')}
               className={cn(
-                "flex items-center gap-3 p-3 rounded-xl border text-left transition-colors min-h-11",
+                "flex items-center gap-3 p-3 rounded-xl border text-start transition-colors min-h-11",
                 hasTransactions
                   ? "bg-[var(--surface)] border-[var(--brass-line)]/50"
                   : "bg-[var(--panel)] border-[var(--line)] hover:border-[var(--brass-line)]"
@@ -230,7 +242,7 @@ export default function Dashboard() {
               type="button"
               onClick={() => hasTransactions ? setActiveTab('reconciliation') : setQuickEntryOpen(true)}
               className={cn(
-                "flex items-center gap-3 p-3 rounded-xl border text-left transition-colors min-h-11",
+                "flex items-center gap-3 p-3 rounded-xl border text-start transition-colors min-h-11",
                 hasTransactions
                   ? "bg-[var(--surface)] border-[var(--brass-line)]/50"
                   : "bg-[var(--panel)] border-[var(--line)] hover:border-[var(--brass-line)]"

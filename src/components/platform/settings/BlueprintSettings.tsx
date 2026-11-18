@@ -241,9 +241,9 @@ export default function BlueprintSettings() {
                   type="date"
                   value={selectedLockDate}
                   onChange={(e) => setSelectedLockDate(e.target.value)}
-                  className="w-full bg-[var(--surface)] hover:bg-[var(--ink)] border border-[var(--line)] focus:border-zinc-400 focus:outline-none p-3 pl-10 rounded-[32px] text-xs font-bold tracking-wider"
+                  className="w-full bg-[var(--surface)] hover:bg-[var(--ink)] border border-[var(--line)] focus:border-zinc-400 focus:outline-none p-3 ps-10 rounded-[32px] text-xs font-bold tracking-wider"
                 />
-                <Calendar aria-hidden="true" size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+                <Calendar aria-hidden="true" size={13} className="absolute start-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
               </div>
               <AsyncButton
                 type="button"
@@ -446,7 +446,7 @@ export default function BlueprintSettings() {
                 key={tab.id}
                 aria-pressed={!isHidden}
                 onClick={() => toggleTabVisibility(tab.id)}
-                className={`w-full text-left p-5 rounded-[32px] border transition-all flex items-center justify-between cursor-pointer group ${
+                className={`w-full text-start p-5 rounded-[32px] border transition-all flex items-center justify-between cursor-pointer group ${
                   isHidden 
                     ? 'border-gray-200 bg-gray-50/50 text-[var(--muted)] hover:border-gray-300' 
                     : 'border-[var(--line)] hover:border-indigo-200 bg-[var(--surface)] text-[var(--text)] shadow-xs'
@@ -460,7 +460,7 @@ export default function BlueprintSettings() {
                   }`}>
                     {React.createElement(tab.icon, { size: 16, 'aria-hidden': true })}
                   </div>
-                  <div className="text-left">
+                  <div className="text-start">
                     <p className={`text-xs font-black uppercase tracking-wider ${isHidden ? 'line-through text-gray-400' : 'text-[var(--text)]'}`}>
                       {((tab as typeof tab & { name?: string }).label?.[language] || (tab as typeof tab & { name?: string }).label?.['en']) || (tab as typeof tab & { name?: string }).name || tab.id}
                     </p>
@@ -505,9 +505,9 @@ export default function BlueprintSettings() {
               placeholder="Search labels..."
               value={lexiconSearch}
               onChange={(e) => setLexiconSearch(e.target.value)}
-              className="bg-[var(--surface)] p-2.5 pl-9 pr-4 text-xs font-bold hover:bg-[var(--ink)] border border-[var(--line)] focus:border-zinc-400 focus:outline-none rounded-xl w-60 tracking-wider"
+              className="bg-[var(--surface)] p-2.5 ps-9 pe-4 text-xs font-bold hover:bg-[var(--ink)] border border-[var(--line)] focus:border-zinc-400 focus:outline-none rounded-xl w-60 tracking-wider"
             />
-            <Search aria-hidden="true" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+            <Search aria-hidden="true" size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
           </div>
         </div>
 
@@ -532,9 +532,9 @@ export default function BlueprintSettings() {
                   </div>
                   {!isEditing && (
                     <div className="text-xs space-y-1 text-gray-700">
-                      <p><span className="text-gray-400 font-bold mr-1">[EN]</span> {lexiconOverrides[key]?.en || originalVal.en}</p>
+                      <p><span className="text-gray-400 font-bold me-1">[EN]</span> {lexiconOverrides[key]?.en || originalVal.en}</p>
                       {originalVal.he && (
-                        <p><span className="text-gray-400 font-bold mr-1">[HE]</span> {lexiconOverrides[key]?.he || originalVal.he}</p>
+                        <p><span className="text-gray-400 font-bold me-1">[HE]</span> {lexiconOverrides[key]?.he || originalVal.he}</p>
                       )}
                     </div>
                   )}

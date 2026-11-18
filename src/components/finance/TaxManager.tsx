@@ -275,7 +275,7 @@ export default function TaxManager({
                aria-label="Tax reserve fiscal year"
                value={selectedYear}
                onChange={(e) => setSelectedYear(Number.parseInt(e.target.value, 10))}
-               className="px-6 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] text-[10px] font-black uppercase tracking-widest text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all appearance-none cursor-pointer pr-10 shadow-sm"
+               className="px-6 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] text-[10px] font-black uppercase tracking-widest text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all appearance-none cursor-pointer pe-10 shadow-sm"
              >
                {[2023, 2024, 2025, 2026].map(year => (
                  <option key={year} value={year}>{year} Fiscal Domain</option>
@@ -435,7 +435,7 @@ export default function TaxManager({
           <div className="bg-[var(--surface)] rounded-[32px] border border-[var(--line)] overflow-hidden shadow-sm relative group">
             <div className="absolute technical-grid inset-0 opacity-[0.01] pointer-events-none" />
             <div className="overflow-x-auto" role="region" aria-label="Tax liability accounts" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-              <table className="w-full text-left relative z-10 min-w-[700px]">
+              <table className="w-full text-start relative z-10 min-w-[700px]">
                 <caption className="sr-only">Tax liability accounts</caption>
               <thead>
                 <tr className="bg-[var(--ink)] border-b border-[var(--line)]">

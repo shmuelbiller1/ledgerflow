@@ -35,9 +35,7 @@ function openingTag(text: string, start: number): { tag: string; end: number } {
 }
 
 /** AI #1's reserved files; the lead fixes these, the list shrinks as they do. */
-const LEAD_OWNS: Record<string, number> = {
-  'src/components/sales/EstimatesView.tsx': 2,
-};
+const LEAD_OWNS: Record<string, number> = {};
 
 interface Unnamed { file: string; line: number; icon: string }
 

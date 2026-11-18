@@ -66,7 +66,7 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
       <div className="flex items-center gap-3 flex-1">
         <button aria-label="Open navigation menu"
           onClick={() => setSidebarOpen(true)}
-          className="lg:hidden p-2 -ml-2 text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+          className="lg:hidden p-2 -ms-2 text-[var(--muted)] hover:text-[var(--text)] transition-colors"
         >
           <Menu aria-hidden="true" size={20} />
         </button>
@@ -84,13 +84,13 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
             {currentRole}
           </span>
           {collaborators.length > 0 && (
-            <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-[var(--line)]">
+            <div className="flex items-center gap-1.5 ms-2 ps-2 border-s border-[var(--line)]">
               <Users aria-hidden="true" size={13} className="text-[var(--brass)]" />
-              <div className="flex -space-x-1.5">
-                {collaborators.slice(0, 3).map(c => (
+              <div className="flex items-center">
+                {collaborators.slice(0, 3).map((c, idx) => (
                   <div 
                     key={c.id} 
-                    className="w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center text-white ring-1 ring-white" 
+                    className={`w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center text-white ring-1 ring-white ${idx > 0 ? '-ms-1.5' : ''}`}
                     style={{ backgroundColor: c.color }}
                     title={`${c.name} (${c.email})`}
                   >
@@ -114,8 +114,8 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
           <span className="font-mono text-[12px] text-[var(--faint)] truncate">
             Search, or type what you want to do
           </span>
-          <div className="ml-auto flex items-center gap-1 shrink-0">
-            <kbd className="px-1.5 py-0.5 text-[10px] bg-[var(--surface)] border border-[var(--line)] rounded font-mono text-[var(--faint)]">⌘K</kbd>
+          <div className="ms-auto flex items-center gap-1 shrink-0">
+            <kbd dir="ltr" className="px-1.5 py-0.5 text-[10px] bg-[var(--surface)] border border-[var(--line)] rounded font-mono text-[var(--faint)]">⌘K</kbd>
           </div>
         </button>
       </div>
@@ -128,7 +128,7 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
         */}
         <button
           onClick={() => setCommandPaletteOpen(true)}
-          className="md:hidden -ml-1 w-11 h-11 inline-flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--elevated)] rounded-lg transition-colors"
+          className="md:hidden -ms-1 w-11 h-11 inline-flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--elevated)] rounded-lg transition-colors"
           title="Search, or type what you want to do"
           aria-label="Search, or type what you want to do"
         >
@@ -154,7 +154,7 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
         >
           <Bell aria-hidden="true" size={17} />
           {unread > 0 && (
-            <span className="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-bold bg-indigo-600 text-white rounded-full leading-none" aria-hidden="true">
+            <span className="absolute top-1 end-1 px-1.5 py-0.5 text-[10px] font-bold bg-indigo-600 text-white rounded-full leading-none" aria-hidden="true">
               {unread > 9 ? '9+' : unread}
             </span>
           )}
@@ -187,12 +187,12 @@ const Header = React.memo(function Header({ onLogout, onLoginPrompt }: HeaderPro
             )}
             <button
               type="button"
-
               onClick={onLogout}
+              aria-label={`Logged in as ${user.email || 'user'}${isAdmin ? ' (Administrator)' : ''}. Click to Log Out.`}
               title={`Logged in as ${user.email}${isAdmin ? ' (Administrator)' : ''}. Click to Log Out.`}
               className="h-8 w-8 rounded-full bg-[var(--brass-soft)] border border-[var(--brass-line)] flex items-center justify-center text-[var(--brass)] text-[11px] font-mono font-bold cursor-pointer hover:bg-[var(--brass)] hover:text-black transition-colors"
             >
-              {user.email?.[0]?.toUpperCase() || 'S'}
+              <span aria-hidden="true">{user.email?.[0]?.toUpperCase() || 'S'}</span>
             </button>
           </div>
         ) : (

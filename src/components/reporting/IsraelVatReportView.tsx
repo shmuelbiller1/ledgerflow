@@ -2,9 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { Printer, Download, Receipt } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useUIStore } from '../../stores/useUIStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
-import { isCollectionCapped } from '../../lib/ledgerCollections';
+import { isCollectionCapped, type LedgerKey } from '../../lib/ledgerCollections';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import { formatCurrency, getLocalDateISO, workspaceYearMonth } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
@@ -15,6 +17,9 @@ import { withEquipment } from '../../lib/tax/ilVatEquipment';
 import { ilVatRegistrations } from '../../lib/israelMonthJourney';
 import { ilVatReportCsvHeaders, ilVatReportCsvRows } from '../../lib/ilVatReportCsv';
 import ReportTableScroll from './ReportTableScroll';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+
+const IL_VAT_COLLECTIONS = ['invoices', 'bills', 'creditNotes', 'vendorCredits', 'accounts'] as const;
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -80,6 +85,8 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
 
   // The equipment split reads the chart of accounts, so that list must be ready too.
   const { loading } = useLedgerCollections('invoices', 'bills', 'creditNotes', 'vendorCredits', 'accounts');
+  const dataHealth = useScreenDataHealth(IL_VAT_COLLECTIONS);
+  const setActiveTab = useUIStore(state => state.setActiveTab);
 
   // Default period: current fiscal year start or month start to today
   const [startDate, setStartDate] = usePageSyncedState(
@@ -151,6 +158,11 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
     onEndDateChange={setEndDate}
     loading={loading}
     partial={partial}
+    failedKeys={dataHealth.failedKeys}
+    failureMessage={dataHealth.message}
+    onRetryFailed={dataHealth.retry}
+    onOpenSettings={() => setActiveTab('settings')}
+    onOpenInvoices={() => setActiveTab('sales')}
     missingRegistration={registrations.length === 0}
     currency={currency}
     mixedBillsCount={mixedBillsCount}
@@ -175,6 +187,11 @@ export function IsraelVatReportPanel({
   onEndDateChange,
   loading = false,
   partial = false,
+  failedKeys = [],
+  failureMessage,
+  onRetryFailed,
+  onOpenSettings,
+  onOpenInvoices,
   missingRegistration = false,
   currency = PANEL_CURRENCY_FALLBACK,
   mixedBillsCount = 0,
@@ -190,6 +207,11 @@ export function IsraelVatReportPanel({
   onEndDateChange: (value: string) => void;
   loading?: boolean;
   partial?: boolean;
+  failedKeys?: readonly LedgerKey[];
+  failureMessage?: string;
+  onRetryFailed?: () => void;
+  onOpenSettings?: () => void;
+  onOpenInvoices?: () => void;
   missingRegistration?: boolean;
   currency?: string;
   mixedBillsCount?: number;
@@ -198,6 +220,9 @@ export function IsraelVatReportPanel({
   const Heading = embedded ? 'h2' : 'h1';
   const dealerNumber = activeReg.split(':').pop() || activeReg;
   const csvHeaders = ilVatReportCsvHeaders(currency);
+  const renderMoney = (cents: number) => (
+    <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(cents, currency)}</bdi>
+  );
 
   const validDates = DATE_REGEX.test(startDate) && DATE_REGEX.test(endDate) && startDate <= endDate;
 
@@ -228,7 +253,7 @@ export function IsraelVatReportPanel({
           </button>
           <button
             type="button"
-            disabled={!report || loading || partial || missingRegistration}
+            disabled={!report || loading || partial || failedKeys.length > 0 || missingRegistration}
             onClick={() => {
               if (report) {
                 downloadCsv(`israel-vat-report-${report.startDate}-to-${report.endDate}.csv`, csvHeaders, ilVatReportCsvRows(report));
@@ -282,12 +307,35 @@ export function IsraelVatReportPanel({
         </label>
       </div>
 
+      {failedKeys.length > 0 && onRetryFailed && (
+        <div data-print-hide>
+          <ScreenDataNotice
+            failedKeys={failedKeys}
+            message={failureMessage}
+            onRetry={onRetryFailed}
+            what="this VAT report"
+          />
+        </div>
+      )}
       {loading && <p role="status" className="text-sm">Loading documents and VAT registrations…</p>}
       {partial && <p role="alert" className="text-sm text-amber-700 dark:text-amber-400">A loaded list is capped or failed, so the figures below are provisional until all records are loaded.</p>}
       {missingRegistration && (
-        <p role="alert" className="text-sm text-rose-600">
-          No Israeli VAT registration is configured for this period. Add one in Settings → Tax profiles before preparing a VAT report; figures cannot be calculated without a registration.
-        </p>
+        <div className="space-y-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4">
+          <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">
+            No Israeli VAT registration is configured for this period. Add one in Settings → Tax profiles before preparing a VAT report; figures cannot be calculated without a registration.
+          </p>
+          {onOpenSettings && (
+            <div data-print-hide>
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-[var(--panel)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[var(--elevated)]"
+              >
+                Open Settings
+              </button>
+            </div>
+          )}
+        </div>
       )}
       {currency !== 'ILS' && (
         <p className="text-xs text-amber-700 dark:text-amber-400">
@@ -305,89 +353,111 @@ export function IsraelVatReportPanel({
       {report && (
         <div className="space-y-4">
           <div className="text-sm text-[var(--muted)] flex flex-wrap gap-x-6 gap-y-1">
-            <span>Dealer number: <b>{dealerNumber}</b></span>
-            <span>Period: <b>{report.startDate}</b> to <b>{report.endDate}</b></span>
+            <span>Dealer number: <b><bdi>{dealerNumber}</bdi></b></span>
+            <span>Period: <b><bdi>{report.startDate}</bdi></b> to <b><bdi>{report.endDate}</bdi></b></span>
             <span>Documents evaluated: <b>{report.documentCount}</b></span>
-            <span>Currency: <b>{currency}</b></span>
+            <span>Currency: <b><bdi>{currency}</bdi></b></span>
           </div>
+
+          {!loading && !partial && failedKeys.length === 0 && report.documentCount === 0 && (
+            <div
+              data-testid="il-vat-empty-period"
+              data-print-hide
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-xs"
+            >
+              <p className="text-[var(--muted)]">
+                <strong className="text-[var(--text)]">No counted VAT documents in this period.</strong>{' '}
+                Choose another date range, or issue an invoice or record a supplier bill under this registration to populate the return.
+              </p>
+              {onOpenInvoices && (
+                <button
+                  type="button"
+                  onClick={onOpenInvoices}
+                  className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-[var(--line)] bg-[var(--panel)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[var(--elevated)]"
+                >
+                  Open Invoices
+                </button>
+              )}
+            </div>
+          )}
 
           <ReportTableScroll>
             <table className="w-full text-sm">
-              <caption className="text-left font-semibold text-[var(--text)] pb-2">
+              <caption className="text-start font-semibold text-[var(--text)] pb-2">
                 Periodic VAT Return Summary (ריכוז דוח תקופתי למע״מ - טופס 836)
               </caption>
               <thead>
                 <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                  <th scope="col" className="text-left py-2 px-3">Field (שדה)</th>
-                  <th scope="col" className="text-left py-2 px-3">Hebrew Description (תיאור)</th>
+                  <th scope="col" className="text-start py-2 px-3">Field (שדה)</th>
+                  <th scope="col" className="text-start py-2 px-3">Hebrew Description (תיאור)</th>
                   <th scope="col" className="text-right py-2 px-3">Amount (סכום)</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-left font-normal py-2 px-3">
+                  <th scope="row" className="text-start font-normal py-2 px-3">
                     Taxable sales (excluding VAT)
                   </th>
                   <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">עסקאות חייבות במס (ללא מע״מ)</td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums font-medium">
-                    {formatCurrency(report.taxableSalesCents, currency)}
+                    {renderMoney(report.taxableSalesCents)}
                   </td>
                 </tr>
                 <tr className="border-b border-[var(--line)]/50 bg-[var(--surface)]/40">
-                  <th scope="row" className="text-left font-semibold py-2 px-3">
+                  <th scope="row" className="text-start font-semibold py-2 px-3">
                     Output VAT
                   </th>
                   <td className="py-2 px-3 text-[var(--muted)] font-semibold" dir="rtl">מע״מ עסקאות</td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums font-bold">
-                    {formatCurrency(report.outputVatCents, currency)}
+                    {renderMoney(report.outputVatCents)}
                   </td>
                 </tr>
                 <tr className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-left font-normal py-2 px-3">
+                  <th scope="row" className="text-start font-normal py-2 px-3">
                     Zero-rated sales
                   </th>
                   <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">עסקאות בשיעור אפס (יצוא וכד׳)</td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums">
-                    {formatCurrency(report.zeroRatedSalesCents, currency)}
+                    {renderMoney(report.zeroRatedSalesCents)}
                   </td>
                 </tr>
                 <tr className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-left font-normal py-2 px-3">
+                  <th scope="row" className="text-start font-normal py-2 px-3">
                     Exempt sales
                   </th>
                   <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">עסקאות פטורות</td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums">
-                    {formatCurrency(report.exemptSalesCents, currency)}
+                    {renderMoney(report.exemptSalesCents)}
                   </td>
                 </tr>
                 <tr className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-left font-normal py-2 px-3">
+                  <th scope="row" className="text-start font-normal py-2 px-3">
                     Input VAT on fixed assets (equipment)
                   </th>
                   <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">מס תשומות על ציוד (נכסים קבועים)</td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums">
-                    {formatCurrency(report.fixedAssetInputVatCents, currency)}
+                    {renderMoney(report.fixedAssetInputVatCents)}
                   </td>
                 </tr>
                 <tr className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-left font-normal py-2 px-3">
+                  <th scope="row" className="text-start font-normal py-2 px-3">
                     Input VAT on other purchases
                   </th>
                   <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">מס תשומות אחרות (הוצאות שוטפות)</td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums">
-                    {formatCurrency(report.otherInputVatCents, currency)}
+                    {renderMoney(report.otherInputVatCents)}
                   </td>
                 </tr>
                 <tr className="border-t-2 border-[var(--line)] bg-[var(--panel)]">
-                  <th scope="row" className="text-left font-bold py-3 px-3">
+                  <th scope="row" className="text-start font-bold py-3 px-3">
                     {report.toPayCents >= 0 ? 'Total VAT to pay' : 'Total VAT to reclaim'}
                   </th>
                   <td className="py-3 px-3 text-[var(--muted)] font-bold" dir="rtl">
                     {report.toPayCents >= 0 ? 'סך הכל לתשלום' : 'סך הכל להחזר'}
                   </td>
                   <td className={`py-3 px-3 text-right font-mono tabular-nums font-extrabold text-base ${report.toPayCents >= 0 ? 'text-[var(--text)]' : 'text-[var(--pos)]'}`}>
-                    {formatCurrency(Math.abs(report.toPayCents), currency)}
-                    {report.toPayCents < 0 && <span className="text-xs font-normal ml-1">(reclaim / להחזר)</span>}
+                    {renderMoney(Math.abs(report.toPayCents))}
+                    {report.toPayCents < 0 && <span className="text-xs font-normal ms-1">(reclaim / להחזר)</span>}
                   </td>
                 </tr>
               </tbody>

@@ -75,7 +75,7 @@ export function ProfitAndLossAccountRows<Row extends ProfitAndLossRow>({
                 });
               }}
               title={fill(reportText('r.drill-into', 'Click to drill down into {name}'), { name: acc.name })}
-              className="w-full text-left flex items-center justify-between p-3 bg-[var(--ink)]/50 rounded-lg border border-transparent hover:border-indigo-300 dark:hover:border-indigo-800 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-all group gap-4 min-w-0 cursor-pointer"
+              className="w-full text-start flex items-center justify-between p-3 bg-[var(--ink)]/50 rounded-lg border border-transparent hover:border-indigo-300 dark:hover:border-indigo-800 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-all group gap-4 min-w-0 cursor-pointer"
             >
               <div className="flex items-center gap-2 min-w-0">
                 <span className="font-mono text-[8px] font-bold text-[var(--muted)] bg-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] uppercase shrink-0">{acc.code}</span>

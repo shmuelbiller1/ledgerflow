@@ -427,7 +427,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
               fieldErrors={fieldErrors}
               repeatAction={lastForVendor && splitsEmpty ? (
                 <button type="button" onClick={repeatLast}
-                  className="ml-auto mr-2 px-3 py-2 rounded-xl text-[10px] font-semibold uppercase tracking-wider border border-[var(--line)] text-[var(--text)] hover:border-[var(--brass-line)]">
+                  className="ms-auto me-2 px-3 py-2 rounded-xl text-[10px] font-semibold uppercase tracking-wider border border-[var(--line)] text-[var(--text)] hover:border-[var(--brass-line)]">
                   Same as last bill ({lastForVendor.splits?.length} line{lastForVendor.splits?.length === 1 ? '' : 's'})
                 </button>
               ) : undefined}

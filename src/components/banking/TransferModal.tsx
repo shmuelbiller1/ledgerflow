@@ -316,7 +316,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                   {bankText('transfer.none', 'No unmatched inter-account transfer pairs detected in the current ledger.')}
                 </div>
               ) : (
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-72 overflow-y-auto pe-1">
                   {candidates.map(cand => (
                     <div key={JSON.stringify([cand.outflowTx.id, cand.inflowTx.id])} className="p-3 bg-neutral-50 border border-neutral-200 rounded-lg flex items-center justify-between gap-3 text-xs">
                       <div>
