@@ -17,6 +17,9 @@ test('the Israeli allocation number: a yen invoice over the threshold needs one,
   const base = { date: '2026-08-10', buyerVatNumber: '514000000', taxCents: 1 };
   assert.equal(needsAllocationNumber({ ...base, netCents: 5_000_000, currency: 'JPY', exchangeRate: 0.025 }), true);
   assert.equal(needsAllocationNumber({ ...base, netCents: 300_000, currency: 'KWD', exchangeRate: 12 }), false);
+  // no rate yet: not judged, rather than read as shekels (Gitar on #878)
+  assert.equal(needsAllocationNumber({ ...base, netCents: 600_000, currency: 'USD' }), false);
+  assert.equal(needsAllocationNumber({ ...base, netCents: 5_000_000, currency: 'JPY', exchangeRate: 0 }), false);
 });
 
 test('a yen sale is reported in dollars on the US state return', () => {

@@ -28,7 +28,9 @@ export function allocationThresholdCents(date: string): number | undefined {
 export function needsAllocationNumber(input: { date: string; netCents: number; currency: string; exchangeRate?: number; buyerVatNumber?: string; taxCents: number }): boolean {
   const threshold = allocationThresholdCents(input.date);
   if (threshold === undefined || !input.buyerVatNumber?.trim() || input.taxCents <= 0) return false;
-  const shekels = input.currency === 'ILS' ? input.netCents : convertMinorUnits(input.netCents, input.exchangeRate || 0, input.currency, 'ILS');
+  // a foreign invoice without its rate yet is not judged (the rate fills in before it is issued)
+  if (input.currency !== 'ILS' && !(input.exchangeRate && input.exchangeRate > 0)) return false;
+  const shekels = input.currency === 'ILS' ? input.netCents : convertMinorUnits(input.netCents, input.exchangeRate as number, input.currency, 'ILS');
   return shekels > threshold;
 }
 
