@@ -210,14 +210,15 @@ export function PCN874ValidationView({ preview }: { preview: ReturnType<typeof i
     check: name, expected, actual,
     result: draft ? (valid ? pass : fail) : notBuilt,
   });
+  const fixedWidthCheck = (name: string, width: number, actualLength?: number) => check(
+    name,
+    countCharacters(width),
+    actualLength === undefined ? noDraftText : countCharacters(actualLength),
+    actualLength === width,
+  );
   const transactionsFit = draft?.transactions.every(row => row.length === PCN874_DRAFT_TRANSACTION_WIDTH) ?? false;
   const layoutChecks = [
-    check(
-      reportText('r.header-record', 'Header record'),
-      countCharacters(PCN874_DRAFT_HEADER_WIDTH),
-      draft ? countCharacters(draft.header.length) : noDraftText,
-      draft?.header.length === PCN874_DRAFT_HEADER_WIDTH,
-    ),
+    fixedWidthCheck(reportText('r.header-record', 'Header record'), PCN874_DRAFT_HEADER_WIDTH, draft?.header.length),
     check(
       reportText('r.transaction-detail-records', 'Transaction/detail records'),
       draft
@@ -230,12 +231,7 @@ export function PCN874ValidationView({ preview }: { preview: ReturnType<typeof i
         : noDraftText,
       transactionsFit,
     ),
-    check(
-      reportText('r.closing-record', 'Closing record'),
-      countCharacters(PCN874_DRAFT_CLOSING_WIDTH),
-      draft ? countCharacters(draft.closing.length) : noDraftText,
-      draft?.closing.length === PCN874_DRAFT_CLOSING_WIDTH,
-    ),
+    fixedWidthCheck(reportText('r.closing-record', 'Closing record'), PCN874_DRAFT_CLOSING_WIDTH, draft?.closing.length),
     {
       check: reportText('r.mapped-documents', 'Mapped documents'),
       expected: reportText('r.every-document-written', 'Every document written'),
@@ -243,6 +239,14 @@ export function PCN874ValidationView({ preview }: { preview: ReturnType<typeof i
       result: preview.unmapped.length === 0 ? pass : fill(reportText('r.count-cannot-be-written', '{count} cannot be written'), { count: preview.unmapped.length }),
     },
   ];
+  type LayoutCheck = (typeof layoutChecks)[number];
+  type Comparison = (typeof preview.comparison)[number];
+  const firstColumn = <T,>(header: string, cell: (row: T) => React.ReactNode) => ({
+    header, className: 'text-left font-normal py-1 px-2', headClassName: 'text-left py-1 px-2', cell,
+  });
+  const dataColumn = <T,>(header: string, cell: (row: T) => React.ReactNode, className = 'py-1 px-2') => ({
+    header, className, headClassName: 'text-left py-1 px-2', cell,
+  });
   return <div className="space-y-2">
     <h4 className="font-semibold text-sm">{reportText('r.pcn874-validation', 'PCN874 validation')}</h4>
     <p className="text-sm text-[var(--muted)]">
@@ -261,10 +265,10 @@ export function PCN874ValidationView({ preview }: { preview: ReturnType<typeof i
         headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
         bodyClassName=""
         columns={[
-          { header: reportText('r.check', 'Check'), className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.check },
-          { header: reportText('r.expected', 'Expected'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.expected },
-          { header: reportText('r.actual', 'Actual'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.actual },
-          { header: reportText('r.result', 'Result'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.result },
+          firstColumn<LayoutCheck>(reportText('r.check', 'Check'), row => row.check),
+          dataColumn<LayoutCheck>(reportText('r.expected', 'Expected'), row => row.expected),
+          dataColumn<LayoutCheck>(reportText('r.actual', 'Actual'), row => row.actual),
+          dataColumn<LayoutCheck>(reportText('r.result', 'Result'), row => row.result),
         ]}
       />
     </ReportTableScroll>
@@ -287,10 +291,10 @@ export function PCN874ValidationView({ preview }: { preview: ReturnType<typeof i
         headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
         bodyClassName=""
         columns={[
-          { header: reportText('r.figure', 'Figure'), className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.label },
-          { header: reportText('r.draft-nis', 'Draft (NIS)'), className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.draftNis.toLocaleString('en-US') },
-          { header: reportText('r.vat-report-nis', 'VAT report (NIS)'), className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.returnNis.toLocaleString('en-US') },
-          { header: reportText('r.difference-nis', 'Difference (NIS)'), className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.differenceNis.toLocaleString('en-US') },
+          firstColumn<Comparison>(reportText('r.figure', 'Figure'), row => row.label),
+          dataColumn<Comparison>(reportText('r.draft-nis', 'Draft (NIS)'), row => row.draftNis.toLocaleString('en-US'), 'py-1 px-2 tabular-nums'),
+          dataColumn<Comparison>(reportText('r.vat-report-nis', 'VAT report (NIS)'), row => row.returnNis.toLocaleString('en-US'), 'py-1 px-2 tabular-nums'),
+          dataColumn<Comparison>(reportText('r.difference-nis', 'Difference (NIS)'), row => row.differenceNis.toLocaleString('en-US'), 'py-1 px-2 tabular-nums'),
         ]}
       />
     </ReportTableScroll>}
