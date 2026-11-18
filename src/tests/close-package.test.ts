@@ -65,5 +65,6 @@ test('the workbook preserves minor units for a JPY ledger and a KWD question', (
   });
   assert.deepEqual([tb.rows.at(-1)?.debit, tb.rows.at(-1)?.credit], [40000, 40000]);
   assert.deepEqual(gl.rows.map(r => r.amount), [40000, -40000]);
+  assert.equal(questions.columns.find(column => column.key === 'currency')?.header, 'Currency', 'the workbook only writes declared columns');
   assert.deepEqual([questions.rows[0].currency, questions.rows[0].amount], ['KWD', 1.234]);
 });

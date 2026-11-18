@@ -103,7 +103,8 @@ export function closePackageSheets(input: ClosePackageInput): SheetSpec[] {
     name: 'Questions',
     columns: [
       { header: 'Entry date', key: 'date', width: 12 }, { header: 'Entry', key: 'entry', width: 30 }, { header: 'Amount', key: 'amount', width: 14, money: true },
-      { header: 'Status', key: 'status', width: 22 }, { header: 'Question', key: 'question', width: 50 }, { header: 'Latest answer', key: 'answer', width: 50 },
+      { header: 'Currency', key: 'currency', width: 12 }, { header: 'Status', key: 'status', width: 22 },
+      { header: 'Question', key: 'question', width: 50 }, { header: 'Latest answer', key: 'answer', width: 50 },
     ],
     rows: input.queries.filter(q => String(q.entry?.date || '').slice(0, 7) === input.month).map(q => {
       const messages = q.messages || [];
