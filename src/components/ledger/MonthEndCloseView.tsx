@@ -280,7 +280,13 @@ function WorkspaceCloseView({ workspaceId }: { workspaceId: string }) {
       for (const sheet of sheets) {
         const ws = workbook.addWorksheet(sheet.name);
         ws.columns = sheet.columns.map(c => ({ header: c.header, key: c.key, width: c.width, ...(c.money ? { style: { numFmt: sheet.name === 'Questions' ? '#,##0.###' : numFmt } } : {}) }));
-        for (const row of sheet.rows) ws.addRow(row);
+        for (const row of sheet.rows) {
+          const added = ws.addRow(row);
+          if (sheet.name === 'Questions') {
+            const d = getCurrencyFractionDigits(String((row as { currency?: string }).currency || baseCurrency));
+            added.getCell('amount').numFmt = d ? `#,##0.${'0'.repeat(d)}` : '#,##0';
+          }
+        }
       }
       await downloadWorkbook(workbook, `Close_Package_${month}.xlsx`);
       if (scope.isCurrent()) toast.success('Close package downloaded.', { id: toastId });
