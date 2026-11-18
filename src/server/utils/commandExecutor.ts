@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { errorMessage, HttpError, requestUser } from '../auth/requestUser';
 import { Request, Response } from 'express';
 import type { Firestore, Transaction as CommandTransaction } from '../db/firestore';
@@ -331,6 +332,20 @@ async function commandAccess(
   return { user, personScope, workspaceId, db, workspace, role };
 }
 
+const OPERATION_ID_SHAPE = /^[A-Za-z0-9_.:-]{1,128}$/;
+
+/**
+ * #824: an id the server derives from the input (a contract id and period, a lease name) is the caller's own
+ * text, so it can hold spaces, slashes or accents. One that already has the safe shape is used as it is (it
+ * then matches the record the old route wrote); any other is replaced by a stable hash of itself, so the
+ * repeated call still finds the same record instead of being refused or naming an unsafe record id.
+ */
+function safeDerivedOperationId(derived: string | undefined): string | undefined {
+  if (!derived) return undefined;
+  if (OPERATION_ID_SHAPE.test(derived)) return derived;
+  return `derived_${createHash('sha256').update(derived, 'utf8').digest('hex').slice(0, 48)}`;
+}
+
 /** The runner behind both the command router and the legacy wrappers (exported so a test can hold each to its gate). */
 export async function runRegisteredCommand(
   req: Request,
@@ -353,10 +368,11 @@ export async function runRegisteredCommand(
     return { ok: false, status: 400, command: command.name, message: 'Input workspaceId must match the command workspace', code: 'WORKSPACE_MISMATCH' };
   }
   const input = parsed.data;
-  const operationId = extractCanonicalOperationId(req) || command.defaultOperationId?.(input);
-  if (operationId && !/^[A-Za-z0-9_.:-]{1,128}$/.test(operationId)) {
+  const explicitOperationId = extractCanonicalOperationId(req);
+  if (explicitOperationId && !OPERATION_ID_SHAPE.test(explicitOperationId)) {
     return { ok: false, status: 400, command: command.name, message: 'Invalid operation ID', code: 'INVALID_OPERATION_ID' };
   }
+  const operationId = explicitOperationId || safeDerivedOperationId(command.defaultOperationId?.(input));
 
   const operationType = command.operationType || command.name;
   const initialContext = {

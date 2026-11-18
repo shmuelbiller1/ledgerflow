@@ -86,6 +86,16 @@ describe('#824 vertical journals without an Idempotency-Key', { skip: !url && 'L
     assert.equal(await entries(), before + 1);
   });
 
+  test('a contract id with a slash, a space and an accent is not refused, and still posts once', async () => {
+    const input = { contractId: 'INV/100 Café', periodId: '2026-07', amountCents: 4200, deferredAccountId: `${ws}_deferred`, revenueAccountId: `${ws}_revenue`, date: '2026-07-31' };
+    const before = await entries();
+    const first = await run('revenue.recognize', input);
+    const second = await run('revenue.recognize', input);
+    assert.equal(second.replayed, true);
+    assert.equal(second.data?.transactionId, first.data?.transactionId);
+    assert.equal(await entries(), before + 1);
+  });
+
   test('input that names nothing to derive from posts each time, as the old address did', async () => {
     const input = { amountCents: 1000, deferredAccountId: `${ws}_deferred`, revenueAccountId: `${ws}_revenue`, date: '2026-06-30' };
     const before = await entries();
