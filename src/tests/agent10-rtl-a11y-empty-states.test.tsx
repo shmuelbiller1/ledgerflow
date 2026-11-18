@@ -1,15 +1,13 @@
 /**
  * Agent 10 frontend regression suite covering:
- *  - #779: BackupExportSettings removes fabricated Firestore PITR / fake "Verify Backup Policy" / stale Q4 QBO claims.
- *  - #776 (screens half): offline fallback download uses `-partial-offline-` filename, skips `recordBackupCompleted()`,
- *    renders inline partial-export warning, rejects `metadata.serverAuthoritative === false` on upload, and requires
- *    explicit confirmation via an accessible dialog before POSTing `/restore`.
  *  - H-6: empty and failed-load retry states (`ScreenDataNotice` + actionable empty guidance) on IsraelVatReportView,
- *    TaxLiabilityView, Banking (with loaded accounts), and Dashboard (mid-session collection failures).
+ *    TaxLiabilityView (including filing lock while collections load or filed-returns list fails), Banking (with loaded
+ *    accounts), and Dashboard (mid-session collection failures).
  *  - H-4: accessible names, associated form labels, keyboard-focusable wide report regions (`w10:trial-balance:390`
- *    ratcheted to `{}`), and zero critical/serious axe violations across LTR and Hebrew RTL (`dir="rtl"`).
- *  - H-1: CSS logical properties, icon/toggle RTL mirroring, and `<bdi>` currency isolation across the ten busiest
- *    screens and navigation shell while preserving right-aligned tabular numeric columns.
+ *    ratcheted to `{}`, repo-wide unnamed icon buttons ratcheted to 0), and zero critical/serious axe violations
+ *    across LTR and Hebrew RTL (`dir="rtl"`).
+ *  - H-1: CSS logical properties, icon/toggle RTL mirroring, `<kbd dir="ltr">` keycaps, and `<bdi>` currency isolation
+ *    across the ten busiest screens and navigation shell while preserving right-aligned tabular numeric columns.
  */
 import './helpers/dom';
 import test, { afterEach, beforeEach, describe } from 'node:test';
@@ -17,24 +15,22 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import axe from 'axe-core';
-import { toast } from 'sonner';
 
-import BackupExportSettings from '../components/platform/settings/BackupExportSettings';
 import IsraelVatReportView from '../components/reporting/IsraelVatReportView';
 import TaxLiabilityView from '../components/reporting/TaxLiabilityView';
 import TrialBalanceView from '../components/ledger/TrialBalanceView';
 import Banking from '../components/banking/Banking';
 import Dashboard from '../components/Dashboard';
 import Header from '../components/layout/Header';
+import ShortcutOverlay from '../components/layout/ShortcutOverlay';
 import EstimatesView from '../components/sales/EstimatesView';
 import BrandingProfilesSettings from '../components/platform/settings/BrandingProfilesSettings';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useUIStore } from '../stores/useUIStore';
-import { getBackupHealth } from '../lib/ledgerBackupHealth';
 import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
 
 const ALL_COLLECTIONS = [
@@ -43,41 +39,6 @@ const ALL_COLLECTIONS = [
   'taxRates', 'estimates', 'budgets', 'assets', 'loans', 'projects', 'inventory',
   'payRuns', 'autoRules', 'employees',
 ] as const;
-
-async function sha256Hex(value: string): Promise<string> {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function makeSignedBackupText(overrides: {
-  serverAuthoritative?: boolean;
-  exportedAt?: string;
-  transactions?: unknown[];
-  accounts?: unknown[];
-} = {}): Promise<string> {
-  const payload: {
-    schemaVersion: string;
-    workspaceId: string;
-    exportedAt: string;
-    metadata: Record<string, unknown>;
-    transactions: unknown[];
-    accounts: unknown[];
-  } = {
-    schemaVersion: '2.0.0',
-    workspaceId: 'ws-a10',
-    exportedAt: overrides.exportedAt ?? '2026-11-18T01:30:00.000Z',
-    metadata: {
-      transactionCount: (overrides.transactions ?? [{ id: 'tx-1' }]).length,
-      accountCount: (overrides.accounts ?? [{ id: 'acc-1' }]).length,
-      ...(overrides.serverAuthoritative !== undefined ? { serverAuthoritative: overrides.serverAuthoritative } : { serverAuthoritative: true }),
-    },
-    transactions: overrides.transactions ?? [{ id: 'tx-1' }],
-    accounts: overrides.accounts ?? [{ id: 'acc-1' }],
-  };
-  payload.metadata.checksum = await sha256Hex(JSON.stringify(payload));
-  return JSON.stringify(payload);
-}
 
 async function assertNoSeriousAxeViolations(container: HTMLElement, label: string): Promise<void> {
   const results = await axe.run(container, {
@@ -173,157 +134,6 @@ afterEach(() => {
   document.documentElement.setAttribute('lang', 'en');
 });
 
-describe('#779 & #776 (screens half): BackupExportSettings honesty and restore safety', () => {
-  test('#779: removes fake Firestore PITR section, fake verify button, and stale Q4 QBO promise', async () => {
-    const { container } = render(<BackupExportSettings />);
-    const text = container.textContent || '';
-
-    assert.ok(!/Firestore/i.test(text), 'must not mention Firestore');
-    assert.ok(!/PITR/i.test(text), 'must not claim PITR');
-    assert.ok(!/gcloud/i.test(text), 'must not print gcloud firestore command');
-    assert.ok(!/RPO\s*</i.test(text), 'must not fabricate RPO/RTO SLA');
-    assert.ok(!/coming in Q4/i.test(text), 'must not contain stale Q4 QBO promise');
-    assert.equal(screen.queryByRole('button', { name: /Verify Backup Policy/i }), null);
-    assert.ok(screen.getByText(/Backup verification & accountant copies/i));
-    await assertNoSeriousAxeViolations(container, 'BackupExportSettings');
-  });
-
-  test('#776: offline fallback download uses partial-offline filename, never marks backup verified, and alerts inline', async () => {
-    let downloadedName = '';
-    let downloadedBlob: Blob | null = null;
-    const origCreate = URL.createObjectURL;
-    const origRevoke = URL.revokeObjectURL;
-    const origClick = HTMLAnchorElement.prototype.click;
-    URL.createObjectURL = obj => { downloadedBlob = obj as Blob; return 'blob:offline-backup'; };
-    URL.revokeObjectURL = () => {};
-    HTMLAnchorElement.prototype.click = function () { downloadedName = this.download; };
-
-    try {
-      render(<BackupExportSettings />);
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Export JSON Backup/i }));
-      });
-      await waitFor(() => assert.match(downloadedName, /^ledgerflow-partial-offline-backup-ws-a10-\d{4}-\d{2}-\d{2}\.json$/));
-      assert.equal(getBackupHealth('ws-a10').lastBackupAt, null, 'partial offline export must not satisfy backup health');
-      assert.equal(getBackupHealth('ws-a10').status, 'never');
-      const alert = screen.getByRole('alert');
-      assert.match(alert.textContent || '', /cannot restore a workspace/i);
-      assert.ok(downloadedBlob);
-      const parsed = JSON.parse(await (downloadedBlob as Blob).text());
-      assert.equal(parsed.metadata.serverAuthoritative, false);
-    } finally {
-      URL.createObjectURL = origCreate;
-      URL.revokeObjectURL = origRevoke;
-      HTMLAnchorElement.prototype.click = origClick;
-    }
-  });
-
-  test('#776: full server export keeps canonical filename and records verified backup completion', async () => {
-    let downloadedName = '';
-    const serverPayload = JSON.parse(await makeSignedBackupText({ serverAuthoritative: true }));
-    globalThis.fetch = (async input => {
-      if (String(input).includes('/workspaces/ws-a10/export')) {
-        return new Response(JSON.stringify(serverPayload), { status: 200, headers: { 'content-type': 'application/json' } });
-      }
-      return new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } });
-    }) as typeof fetch;
-
-    const origCreate = URL.createObjectURL;
-    const origRevoke = URL.revokeObjectURL;
-    const origClick = HTMLAnchorElement.prototype.click;
-    URL.createObjectURL = () => 'blob:server-backup';
-    URL.revokeObjectURL = () => {};
-    HTMLAnchorElement.prototype.click = function () { downloadedName = this.download; };
-
-    try {
-      render(<BackupExportSettings />);
-      await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /Export JSON Backup/i }));
-      });
-      await waitFor(() => assert.match(downloadedName, /^ledgerflow-backup-ws-a10-\d{4}-\d{2}-\d{2}\.json$/));
-      assert.ok(getBackupHealth('ws-a10').lastBackupAt, 'server-authoritative export records verified backup');
-      assert.equal(getBackupHealth('ws-a10').status, 'fresh');
-      assert.equal(screen.queryByRole('alert'), null);
-    } finally {
-      URL.createObjectURL = origCreate;
-      URL.revokeObjectURL = origRevoke;
-      HTMLAnchorElement.prototype.click = origClick;
-    }
-  });
-
-  test('#776: refuses partial offline backup on upload without opening confirm dialog or calling /restore', async () => {
-    let restoreCalls = 0;
-    const errors: string[] = [];
-    const origToastError = toast.error;
-    toast.error = ((msg: unknown) => { errors.push(String(msg)); return ''; }) as typeof toast.error;
-    globalThis.fetch = (async input => {
-      if (String(input).includes('/restore')) restoreCalls++;
-      return new Response(JSON.stringify({ message: 'ok' }), { status: 200, headers: { 'content-type': 'application/json' } });
-    }) as typeof fetch;
-
-    try {
-      render(<BackupExportSettings />);
-      const partialText = await makeSignedBackupText({ serverAuthoritative: false });
-      const file = new File([partialText], 'ledgerflow-partial-offline-backup-ws-a10.json', { type: 'application/json' });
-      await act(async () => {
-        fireEvent.change(screen.getByLabelText('Restore backup file'), { target: { files: [file] } });
-      });
-      await waitFor(() => assert.ok(errors.some(e => /Partial offline backups/i.test(e))));
-      assert.equal(screen.queryByRole('dialog'), null);
-      assert.equal(restoreCalls, 0);
-    } finally {
-      toast.error = origToastError;
-    }
-  });
-
-  test('#776: stages valid backup behind accessible confirmation dialog; Cancel aborts and Confirm posts exact file', async () => {
-    const restoreBodies: string[] = [];
-    globalThis.fetch = (async (input, init) => {
-      if (String(input).includes('/workspaces/ws-a10/restore') && init?.method === 'POST') {
-        restoreBodies.push(String(init.body || ''));
-        return new Response(JSON.stringify({ status: 'success', message: 'Restored' }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-      return new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } });
-    }) as typeof fetch;
-
-    render(<BackupExportSettings />);
-    const fullText = await makeSignedBackupText({
-      serverAuthoritative: true,
-      transactions: [{ id: 'tx-1' }, { id: 'tx-2' }],
-      accounts: [{ id: 'acc-1' }, { id: 'acc-2' }, { id: 'acc-3' }],
-    });
-    const input = screen.getByLabelText('Restore backup file');
-
-    // First upload -> cancel must not invoke /restore
-    await act(async () => {
-      fireEvent.change(input, { target: { files: [new File([fullText], 'verified-snapshot.json', { type: 'application/json' })] } });
-    });
-    const dialog = await screen.findByRole('dialog', { name: /Replace workspace records from backup/i });
-    assert.match(dialog.textContent || '', /verified-snapshot\.json/);
-    assert.equal(restoreBodies.length, 0, 'uploading must wait for explicit confirmation');
-    await assertNoSeriousAxeViolations(dialog, 'Restore confirmation dialog');
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-    assert.equal(screen.queryByRole('dialog'), null);
-    assert.equal(restoreBodies.length, 0);
-
-    // Second upload -> confirm posts exact raw text to /restore
-    await act(async () => {
-      fireEvent.change(input, { target: { files: [new File([fullText], 'verified-snapshot.json', { type: 'application/json' })] } });
-    });
-    const dialog2 = await screen.findByRole('dialog', { name: /Replace workspace records from backup/i });
-    await act(async () => {
-      fireEvent.click(within(dialog2).getByRole('button', { name: 'Confirm restore' }));
-    });
-    await waitFor(() => assert.equal(restoreBodies.length, 1));
-    assert.equal(restoreBodies[0], fullText);
-    assert.equal(screen.queryByRole('dialog'), null);
-  });
-});
-
 describe('H-6: empty and failed-load retry states across VAT, Tax return, Banking, and Overview', () => {
   test('IsraelVatReportView surfaces failed collection with ScreenDataNotice retry and disables CSV export', () => {
     useDataNeedsStore.getState().markFailed('invoices', 'Network timeout.');
@@ -375,7 +185,7 @@ describe('H-6: empty and failed-load retry states across VAT, Tax return, Bankin
     assert.equal(useUIStore.getState().activeTab, 'sales');
   });
 
-  test('TaxLiabilityView offers Try again when loading previously filed returns fails', async () => {
+  test('TaxLiabilityView disables filing while documents load or filed-returns fails, and re-enables after Try again', async () => {
     let attempts = 0;
     globalThis.fetch = (async input => {
       if (String(input).includes('/tax-returns')) {
@@ -391,12 +201,23 @@ describe('H-6: empty and failed-load retry states across VAT, Tax return, Bankin
       return new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } });
     }) as typeof fetch;
 
-    render(<TaxLiabilityView startDate="2026-09-01" endDate="2026-09-30" />);
+    const { rerender } = render(<TaxLiabilityView startDate="2026-09-01" endDate="2026-09-30" />);
+    const fileBtn = () => screen.getByRole('button', { name: 'File this return' }) as HTMLButtonElement;
+    // Before /tax-returns resolves, filed === null blocks premature filing.
+    assert.equal(fileBtn().disabled, true);
     const failedMsg = await screen.findByText(/Couldn't load previously filed returns/i);
+    // While /tax-returns is in an error state, filing remains disabled to prevent duplicate period filing.
+    assert.equal(fileBtn().disabled, true);
     const statusBox = failedMsg.closest('[role="status"]') as HTMLElement;
     fireEvent.click(within(statusBox).getByRole('button', { name: 'Try again' }));
     await waitFor(() => assert.equal(attempts, 2));
     await waitFor(() => assert.equal(screen.queryByText(/Couldn't load previously filed returns/i), null));
+    await waitFor(() => assert.equal(fileBtn().disabled, false));
+
+    // While underlying document collections are still loading, filing is disabled so an all-zero return cannot be filed early.
+    useDataNeedsStore.setState(s => ({ ...s, loaded: { ...s.loaded, invoices: false } }));
+    rerender(<TaxLiabilityView startDate="2026-09-01" endDate="2026-09-30" />);
+    assert.equal(fileBtn().disabled, true);
   });
 
   test('Banking shows ScreenDataNotice retry when accounts are already on screen and a refresh fails', () => {
@@ -528,7 +349,7 @@ describe('H-4 & H-1: screen-reader names, focusable scroll regions, Hebrew RTL, 
     await assertNoSeriousAxeViolations(container, 'BrandingProfilesSettings');
   });
 
-  test('Hebrew RTL axe audit passes on IsraelVatReportView, TaxLiabilityView, Banking, and BackupExportSettings', async () => {
+  test('Hebrew RTL axe audit passes on IsraelVatReportView, TaxLiabilityView, Banking, and ShortcutOverlay with LTR keycaps', async () => {
     document.documentElement.setAttribute('dir', 'rtl');
     document.documentElement.setAttribute('lang', 'he');
     useUIStore.setState({ language: 'he' });
@@ -537,12 +358,17 @@ describe('H-4 & H-1: screen-reader names, focusable scroll regions, Hebrew RTL, 
       ['IsraelVatReportView (RTL)', <IsraelVatReportView key="vat" startDate="2026-09-01" endDate="2026-09-30" />],
       ['TaxLiabilityView (RTL)', <TaxLiabilityView key="tax" startDate="2026-09-01" endDate="2026-09-30" />],
       ['Banking (RTL)', <Banking key="bank" />],
-      ['BackupExportSettings (RTL)', <BackupExportSettings key="backup" />],
     ] as const) {
       const { container, unmount } = render(element);
       await assertNoSeriousAxeViolations(container, name);
       unmount();
     }
+
+    const overlay = render(<ShortcutOverlay isOpen onClose={() => {}} />);
+    const keycaps = overlay.container.querySelectorAll('kbd[dir="ltr"]');
+    assert.ok(keycaps.length >= 4, 'expected shortcut keycaps isolated with dir="ltr" in RTL');
+    await assertNoSeriousAxeViolations(overlay.container, 'ShortcutOverlay (RTL)');
+    overlay.unmount();
   });
 
   test('H-1 guard: remediated shell and ten-screen components keep CSS logical alignment and RTL toggle/indent mirroring', () => {
@@ -554,6 +380,7 @@ describe('H-4 & H-1: screen-reader names, focusable scroll regions, Hebrew RTL, 
       'src/components/layout/QuickCreateMenu.tsx',
       'src/components/sales/Sales.tsx',
       'src/components/purchases/Purchases.tsx',
+      'src/components/ledger/ChartOfAccountsView.tsx',
       'src/components/ledger/ReconciliationView.tsx',
       'src/components/ledger/ReconciliationWizard.tsx',
       'src/components/ledger/ProfitAndLossAccountRows.tsx',

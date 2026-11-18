@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import { createHash } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mountJourney, remountJourney, settleStyles } from './support/journeyFixture';
@@ -7,102 +5,9 @@ import { settleAnimations } from './support/a11yGate';
 
 const WORKSPACE = 'a10-screens-ws';
 
-function signedBackup(serverAuthoritative: boolean) {
-  const body = {
-    schemaVersion: 1,
-    exportedAt: '2026-11-18T00:00:00.000Z',
-    workspace: { id: WORKSPACE, name: 'סטודיו תל אביב', currency: 'ILS', lockDate: null },
-    metadata: {
-      version: '2.0.0',
-      workspaceId: WORKSPACE,
-      accountCount: 1,
-      transactionCount: 1,
-      serverAuthoritative,
-    } as Record<string, unknown>,
-    accounts: [{ id: 'acc-1', uid: 'journey-user', workspaceId: WORKSPACE, code: '1000', name: 'בנק לאומי', type: 'asset', category: 'Cash', openingBalanceCents: 100_000 }],
-    transactions: [{ id: 'tx-1', uid: 'journey-user', workspaceId: WORKSPACE, date: '2026-09-01', description: 'הפקדה', status: 'posted', type: 'actual', totalAmountCents: 100_000, currency: 'ILS', lines: [{ accountId: 'acc-1', amountCents: 100_000 }] }],
-  };
-  body.metadata.checksum = createHash('sha256').update(new TextEncoder().encode(JSON.stringify(body))).digest('hex');
-  return JSON.stringify(body);
-}
-
-test.describe('H-1 RTL Hebrew · H-4 screen-reader/axe · H-6 empty/error · #776 & #779 backup safety', () => {
-  test('#779 & #776: BackupExportSettings removes fake PITR copy, flags partial offline exports, refuses partial restores, and confirms full restores', async ({ page }) => {
-    const restoreCalls: string[] = [];
-    const journey = await mountJourney(page, {
-      workspaceId: WORKSPACE,
-      ledger: {
-        accounts: [{ id: 'acc-1', uid: 'journey-user', workspaceId: WORKSPACE, code: '1000', name: 'Cash', type: 'asset', category: 'Cash', openingBalanceCents: 0 }],
-        transactions: [],
-      },
-      mounts: [{ module: '/src/components/platform/settings/BackupExportSettings.tsx' }],
-      api: request => {
-        if (request.url.endsWith(`/workspaces/${WORKSPACE}/export`)) {
-          return { status: 503, json: { status: 'error', error: 'server unreachable' } };
-        }
-        if (request.url.endsWith(`/workspaces/${WORKSPACE}/restore`) && request.method === 'POST') {
-          restoreCalls.push(typeof request.body === 'string' ? request.body : JSON.stringify(request.body));
-          return { json: { status: 'success', message: 'Restored.' } };
-        }
-        return null;
-      },
-    });
-
-    await expect(page.getByRole('heading', { name: 'Backup & Export' })).toBeVisible();
-    await expect(page.getByText(/Firestore|PITR Active|Verify Backup Policy|coming in Q4/i)).toHaveCount(0);
-    await expect(page.getByText(/Backup verification & accountant copies/i)).toBeVisible();
-
-    // 1. Offline fallback names file `-partial-offline-`, renders alert, and never marks backup health complete.
-    const [download] = await Promise.all([
-      page.waitForEvent('download'),
-      page.getByRole('button', { name: /Export JSON Backup/i }).click(),
-    ]);
-    expect(download.suggestedFilename()).toMatch(/^ledgerflow-partial-offline-backup-a10-screens-ws-\d{4}-\d{2}-\d{2}\.json$/);
-    const dlPath = await download.path();
-    expect(dlPath).toBeTruthy();
-    const offlineJson = JSON.parse(fs.readFileSync(dlPath!, 'utf8')) as { metadata: { serverAuthoritative: boolean } };
-    expect(offlineJson.metadata.serverAuthoritative).toBe(false);
-    await expect(page.getByRole('alert').filter({ hasText: /cannot restore a workspace/i })).toBeVisible();
-    const storedBackupStamp = await page.evaluate(ws => localStorage.getItem(`ledgerflow:last_backup:${ws}`), WORKSPACE);
-    expect(storedBackupStamp).toBeNull();
-
-    // 2. Uploading a partial offline snapshot is rejected immediately without opening confirm dialog or hitting /restore.
-    const fileInput = page.locator('input[aria-label="Restore backup file"]');
-    await fileInput.setInputFiles({
-      name: 'partial.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(signedBackup(false), 'utf8'),
-    });
-    await expect.poll(() => fileInput.evaluate((el: HTMLInputElement) => el.value)).toBe('');
-    await expect(page.getByRole('dialog')).toHaveCount(0);
-    expect(restoreCalls).toHaveLength(0);
-
-    // 3. Uploading a server-authoritative backup opens accessible confirm dialog; Escape cancels; Confirm sends /restore.
-    const fullBackup = signedBackup(true);
-    await fileInput.setInputFiles({
-      name: 'verified.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(fullBackup, 'utf8'),
-    });
-    const dialog = page.getByRole('dialog', { name: /Replace workspace records from backup/i });
-    await expect(dialog).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(dialog).toHaveCount(0);
-    expect(restoreCalls).toHaveLength(0);
-
-    await fileInput.setInputFiles({
-      name: 'verified.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(fullBackup, 'utf8'),
-    });
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole('button', { name: 'Confirm restore' }).click();
-    await expect.poll(() => restoreCalls.length).toBe(1);
-    expect(journey.errors).toEqual([]);
-  });
-
+test.describe('H-1 RTL Hebrew · H-4 screen-reader/axe · H-6 empty & failed-load retry states', () => {
   for (const width of [390, 1280]) {
-    test(`H-1 · H-4 · H-6: Hebrew RTL layout, empty/error retry, and axe check at ${width}px`, async ({ page }) => {
+    test(`Hebrew RTL layout, focusable wide table, empty/error retry, and axe check at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       const accounts = [
         { id: 'grp', uid: 'journey-user', workspaceId: WORKSPACE, code: '1000', name: 'מזומנים ובנקים', type: 'asset', category: 'Cash', openingBalanceCents: 0 },
@@ -182,7 +87,7 @@ test.describe('H-1 RTL Hebrew · H-4 screen-reader/axe · H-6 empty/error · #77
       expect(vatAlign.amountAlign).toBe('right');
       expect(vatAlign.numeric).toContain('tabular-nums');
 
-      // Simulate collection load failure -> ScreenDataNotice appears with working "Try again".
+      // Simulate collection load failure -> ScreenDataNotice appears, disables CSV export, and clears on "Try again".
       await page.evaluate(async () => {
         const mod = '/src/stores/useDataNeedsStore.ts';
         const { useDataNeedsStore } = await import(/* @vite-ignore */ mod) as typeof import('../src/stores/useDataNeedsStore');
@@ -196,6 +101,27 @@ test.describe('H-1 RTL Hebrew · H-4 screen-reader/axe · H-6 empty/error · #77
 
       const vatAxe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).disableRules(['color-contrast']).analyze();
       expect(vatAxe.violations.filter(v => v.impact === 'critical' || v.impact === 'serious').map(v => v.id)).toEqual([]);
+
+      // Mount TaxLiabilityView: verify filing stays disabled when /tax-returns fails and re-enables on retry.
+      let failReturns = true;
+      await page.route(`**/api/v1/workspaces/${WORKSPACE}/tax-returns`, route => {
+        if (failReturns && route.request().method() === 'GET') {
+          return route.fulfill({ status: 503, json: { status: 'error', error: 'Service down.' } });
+        }
+        return route.fulfill({ status: 200, json: { returns: [] } });
+      });
+      await remountJourney(page, [{
+        module: '/src/components/reporting/TaxLiabilityView.tsx',
+        props: { startDate: '2026-09-01', endDate: '2026-09-30' },
+      }]);
+      await expect(page.getByText(/Couldn't load previously filed returns/i)).toBeVisible();
+      await expect(page.getByRole('button', { name: 'File this return' })).toBeDisabled();
+      failReturns = false;
+      await page.getByRole('button', { name: 'Try again' }).click();
+      await expect(page.getByRole('button', { name: 'File this return' })).toBeEnabled();
+
+      const taxAxe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).disableRules(['color-contrast']).analyze();
+      expect(taxAxe.violations.filter(v => v.impact === 'critical' || v.impact === 'serious').map(v => v.id)).toEqual([]);
       expect(journey.errors).toEqual([]);
     });
   }

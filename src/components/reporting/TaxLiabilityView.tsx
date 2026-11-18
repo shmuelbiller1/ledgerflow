@@ -74,8 +74,13 @@ export default function TaxLiabilityView({ startDate: pageStartDate, endDate: pa
     startDate, endDate, baseCurrency: currency,
   }), [invoices, bills, creditNotes, vendorCredits, startDate, endDate, currency]);
 
-  const [filed, setFiled] = useState<FiledReturn[] | null>(null);
-  const [filedError, setFiledError] = useState<string | null>(null);
+  const [filedState, setFiledState] = useState<{ workspaceId: string; returns: FiledReturn[] | null; error: string | null }>({
+    workspaceId: '',
+    returns: null,
+    error: null,
+  });
+  const filed = filedState.workspaceId === workspaceId ? filedState.returns : null;
+  const filedError = filedState.workspaceId === workspaceId ? filedState.error : null;
   const [version, setVersion] = useState(0);
   const [reference, setReference] = useState('');
   const [busy, setBusy] = useState(false);
@@ -86,14 +91,16 @@ export default function TaxLiabilityView({ startDate: pageStartDate, endDate: pa
     api(base)
       .then(d => {
         if (!cancelled) {
-          setFiledError(null);
-          setFiled(d.returns || []);
+          setFiledState({ workspaceId, returns: d.returns || [], error: null });
         }
       })
       .catch(err => {
         if (!cancelled) {
-          setFiledError(err instanceof Error ? err.message : 'Check your connection, then try again.');
-          setFiled([]);
+          setFiledState({
+            workspaceId,
+            returns: null,
+            error: err instanceof Error ? err.message : 'Check your connection, then try again.',
+          });
         }
       });
     return () => { cancelled = true; };
@@ -266,7 +273,7 @@ export default function TaxLiabilityView({ startDate: pageStartDate, endDate: pa
             <label htmlFor="tax-ref" className="block text-xs font-semibold mb-1">Reference (optional)</label>
             <input id="tax-ref" value={reference} maxLength={100} onChange={e => setReference(e.target.value)} placeholder="e.g. Q3 2026" className="min-h-11 px-3 py-1.5 text-xs bg-[var(--panel)] border border-[var(--line)] rounded-lg" />
           </div>
-          <button type="button" disabled={busy || !workspaceId || dataHealth.failedKeys.length > 0} onClick={fileReturn} className="min-h-11 px-4 py-2 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-sm font-bold disabled:opacity-50">
+          <button type="button" disabled={busy || !workspaceId || loading || filed === null || Boolean(filedError) || dataHealth.failedKeys.length > 0} onClick={fileReturn} className="min-h-11 px-4 py-2 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-sm font-bold disabled:opacity-50">
             File this return
           </button>
           <p className="text-xs text-[var(--muted)]">Keeps a copy of these numbers. Submitting to the tax office is done on their website.</p>
