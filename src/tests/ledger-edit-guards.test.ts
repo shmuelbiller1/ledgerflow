@@ -16,7 +16,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {
+import { certifyRefusal,
   auditSnapshot,
   documentEntryRefusal,
   isPostedEntry,
@@ -206,4 +206,12 @@ test('both generic entry routes call the guards (wiring, not only the helper)', 
   assert.match(crud, /before: beforeEdit/);
   assert.match(crud, /after: afterEdit/);
   assert.match(crud, /afterEdit = auditSnapshot\(\{ \.\.\.txData, \.\.\.safePartial \}/, 'partial-update audit fields must match before snapshot');
+});
+
+test('certifyRefusal: only a platform admin moves an entry to certified', () => {
+  assert.match(String(certifyRefusal('completed', 'certified')), /not certified/);
+  assert.match(String(certifyRefusal(undefined, 'certified')), /not certified/);
+  assert.equal(certifyRefusal('completed', 'certified', true), null);
+  assert.equal(certifyRefusal('certified', 'certified'), null);
+  assert.equal(certifyRefusal('completed', 'reviewed'), null);
 });

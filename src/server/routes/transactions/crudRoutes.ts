@@ -21,7 +21,7 @@ import { errorMessage, HttpError, requestUser } from '../../auth/requestUser';
 import { enforceDoubleEntrySafety, ifMatchVersion, isUpdatedAtMismatch } from './helpers';
 import { FieldsError, parseFields, pickFields } from '../../http/sparseFields';
 import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels';
-import { auditSnapshot, documentEntryRefusal, isPostedEntry, postedDeletionRefusal, postedStatusRefusal } from '../../services/ledgerEditGuards';
+import { auditSnapshot, certifyRefusal, documentEntryRefusal, isPostedEntry, postedDeletionRefusal, postedStatusRefusal } from '../../services/ledgerEditGuards';
 import { documentPostedByServer } from './bulkRoutes';
 
 /**
@@ -314,7 +314,8 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
            if (revaluation) throw new Error(revaluation);
            const documentRefusal = documentEntryRefusal(txData as { metadata?: Record<string, unknown> }, Boolean(user.admin), Object.keys(partialUpdate));
            if (documentRefusal) throw new HttpError(documentRefusal, 409);
-           const unpostRefusal = postedStatusRefusal(txData as Partial<Transaction>, partialUpdate.status, Boolean(user.admin)) ||
+           const unpostRefusal = certifyRefusal(txData?.status, partialUpdate.status, Boolean(user.admin)) ||
+             postedStatusRefusal(txData as Partial<Transaction>, partialUpdate.status, Boolean(user.admin)) ||
              postedDeletionRefusal(txData as Partial<Transaction>, partialUpdate as Partial<Transaction>, Boolean(user.admin));
            if (unpostRefusal) throw new HttpError(unpostRefusal, 409);
            // #843: a posted entry's currency and rate are its figures too — restating them in place

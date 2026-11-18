@@ -465,9 +465,22 @@ export async function prepareUpdateBankLine(
   if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), { uid, admin: input.admin }, workspaceId)) {
     throw new UpdateBankLineError(403, 'Not a member');
   }
+  // #830: matching or ignoring a line takes it out of the reconciliation and the month-end checks, so it
+  // is a ledger writer's act, in an open period — the same as every other reconciliation command
+  if (!input.admin && !LEDGER_WRITER_ROLES.includes(roleInWorkspace(wsDoc.data(), uid))) {
+    throw new UpdateBankLineError(403, 'Only owners, accountants and bookkeepers change bank lines');
+  }
   const lineSnap = await db.collection('bankLines').doc(id).get();
   if (!lineSnap.exists || lineSnap.data()?.workspaceId !== workspaceId) {
     throw new UpdateBankLineError(404, `Bank line ${id} not found in workspace`);
+  }
+  const lineDate = lineSnap.data()?.date;
+  if (typeof lineDate === 'string' && lineDate) {
+    try {
+      assertPostingOpen(lineDate, wsDoc.data() as never, uid);
+    } catch (error) {
+      throw new UpdateBankLineError(409, error instanceof Error ? error.message : String(error));
+    }
   }
   return { workspace: wsDoc.data() || {} };
 }
@@ -486,6 +499,13 @@ export async function updateBankLineInTransaction(
 ): Promise<{ id: string; data: Record<string, unknown> }> {
   // Strict allowlist validation (#78) - rejects any unknown or protected properties
   const validatedData = BankLineUpdateSchema.parse(input.data) as Record<string, unknown>;
+  // #830: a line is matched only to an entry of its own workspace
+  if (typeof validatedData.matchedTransactionId === 'string' && validatedData.matchedTransactionId) {
+    const matched = await t.get(db.collection('transactions').doc(validatedData.matchedTransactionId));
+    if (!matched.exists || matched.data()?.workspaceId !== input.workspaceId) {
+      throw new UpdateBankLineError(404, `Entry ${validatedData.matchedTransactionId} not found in workspace`);
+    }
+  }
   t.update(db.collection('bankLines').doc(input.id), { ...validatedData, updatedAt: FieldValue.serverTimestamp() });
   return { id: input.id, data: validatedData };
 }
