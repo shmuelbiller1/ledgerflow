@@ -1,15 +1,21 @@
-# Purchases, Bills & Suppliers · רכש, חשבוניות ספקים ומלאי
+# Purchases and bills · רכש וחשבוניות ספק
 
 ## English
-The **Purchases** area records supplier bills, vendor credits, purchase orders, inventory items, and supplier payment runs.
 
-1. Enter vendor bills across expense or inventory accounts and attach original supplier documents.
-2. Configure item units of measure, bundles, reorder thresholds, and cycle counts for tracked stock.
-3. Settle open bills individually or in batch payment runs, checking vendor tax IDs and withholding certificates before payment.
+Use Purchases to keep supplier details, enter their bills and see what you owe.
+
+1. On Vendors, find the supplier or add a new one.
+2. Choose Record Bill and check the supplier, invoice number, dates and amounts against the original bill.
+3. Review unpaid bills before starting a payment run. An open bill is not evidence that the supplier was paid.
 
 ## עברית
-אזור **הרכש וההוצאות** משמש לרישום חשבוניות ספקים, זיכויי ספק, הזמנות רכש, ניהול מלאי וסבבי תשלום.
 
-1. רשמו חשבוניות ספק לפי חשבונות הוצאה או מלאי וצרפו את מסמכי המקור.
-2. נהלו פריטי מלאי, יחידות מידה, ערכות והתראות מלאי מינימלי.
-3. בצעו תשלומים לספקים תוך בדיקת תוקף אישורי ניכוי מס במקור ופרטי זיהוי מס.
+במסך הרכש מנהלים את פרטי הספקים, קולטים את החשבוניות שלהם ובודקים כמה העסק חייב.
+
+1. בלשונית הספקים חפשו את הספק או הוסיפו ספק חדש.
+2. בחרו ברישום חשבונית ספק ובדקו את הספק, מספר החשבונית, התאריכים והסכומים מול המקור.
+3. עברו על החשבוניות הפתוחות לפני הכנת סבב תשלומים. חשבונית פתוחה אינה אישור שהספק קיבל תשלום.
+
+![Bill and vendor tabs, Record Bill and the list of bills with their payment status. · לשוניות החשבוניות והספקים, רישום חשבונית ספק ורשימת החשבוניות עם מצב התשלום.](../../public/help/purchases.webp)
+
+*Sample books · ספרים לדוגמה*

@@ -106,7 +106,7 @@ export default function ChartOfAccountsView({ accounts, searchTerm, formatCurren
           depth > 0 && "bg-[var(--ink)]/20"
         )}>
           <td className="p-4 font-mono text-xs text-[var(--muted)]" onClick={() => hasChildren && toggleExpand(account.id)}>
-            <div className="flex items-center gap-2" style={{ paddingLeft: `${depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
+            <div className="flex items-center gap-2" style={{ paddingInlineStart: `${depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
               {hasChildren ? (
                 <AccountGroupToggle label={account.name} expanded={isExpanded}
                   onToggle={(event) => { event.stopPropagation(); toggleExpand(account.id); }} />
@@ -225,8 +225,8 @@ export default function ChartOfAccountsView({ accounts, searchTerm, formatCurren
           <Archive aria-hidden="true" size={13} /> {showArchived ? 'Hide archived accounts' : `Show archived accounts (${archivedCount})`}
         </button>
       )}
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-left text-xs min-w-[750px]">
+      <div className="overflow-x-auto" role="region" aria-label="Chart of accounts table" tabIndex={0}>{/* NOSONAR: S6845 — focusable scroll region lets keyboard users pan the wide table on narrow screens */}
+        <table className="w-full border-collapse text-start text-xs min-w-[750px]">
           <caption className="sr-only">Chart of accounts</caption>
           <thead>
             <tr className="border-b border-[var(--line)] bg-[var(--ink)]/70 text-[var(--muted)] font-bold uppercase tracking-wider">

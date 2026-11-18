@@ -62,7 +62,7 @@ export default function WithholdingField({ vendor, date, allocations, bills, cur
     <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 text-xs space-y-1">
       <label htmlFor={id} className="font-semibold text-slate-700 dark:text-slate-300">Tax withheld at source, %</label>
       <input id={id} type="number" min="0" max="100" step="0.01" value={rate} onChange={e => { setRate(e.target.value); setTyped(e.target.value !== ''); }} placeholder="0"
-        className="w-24 ml-2 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md font-mono text-right" />
+        className="w-24 ms-2 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md font-mono text-right" />
       {found?.state === 'good' && <p className="text-[var(--muted)]">Certificate {found.certificate.number || ''}: {found.certificate.ratePercent}%{found.certificate.expires ? `, good until ${found.certificate.expires}` : ''}.</p>}
       {found?.state === 'expired' && <p role="status" className="text-amber-600">Their withholding certificate ran out on {found.certificate.expires}: ask for a new one, or withhold at the full rate.</p>}
       {withheld > 0 && <p role="status">Withheld {formatCurrency(withheld, currency)} on {formatCurrency(paid - vat, currency)} before VAT; the vendor gets {formatCurrency(paid - withheld, currency)}.</p>}

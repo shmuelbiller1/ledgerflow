@@ -92,12 +92,12 @@ export default function NeedsAttentionCard() {
         <ul className="mt-2 divide-y divide-[var(--line)]">
           {rows.map(row => (
             <li key={row.id}>
-              <button type="button" onClick={() => (row.record ? openRecord(row.record) : goToPage(row.page))} className="w-full flex items-center justify-between gap-3 py-2 text-left hover:bg-[var(--elevated)] rounded">
+              <button type="button" onClick={() => (row.record ? openRecord(row.record) : goToPage(row.page))} className="w-full flex items-center justify-between gap-3 py-2 text-start hover:bg-[var(--elevated)] rounded">
                 <span>
                   <span className="block text-sm font-semibold text-[var(--text)]">{row.text}</span>
                   <span className="block text-xs text-[var(--muted)]">{row.why} For {row.who}.</span>
                 </span>
-                <ChevronRight aria-hidden="true" size={16} className="shrink-0 text-[var(--muted)]" />
+                <ChevronRight aria-hidden="true" size={16} className="shrink-0 text-[var(--muted)] rtl:rotate-180" />
               </button>
             </li>
           ))}

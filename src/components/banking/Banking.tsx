@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { useCurrentRole, hasRoleAtLeast } from '../../hooks/useCurrentRole';
 import { Building, CheckCircle2, RefreshCw, Landmark, ArrowRightLeft, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,7 +20,10 @@ import CashMovementDialog from './CashMovementDialog';
 import ConnectedBanks from './ConnectedBanks';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { translateScreenString } from '../../lib/i18n/screenTranslations';
+
+const BANKING_COLLECTIONS = ['accounts', 'bankLines', 'transactions'] as const;
 
 /** Ledger account types as words; an unknown value is shown as stored. */
 function accountTypeLabel(value: string | undefined, bankText: (key: string, fallback: string) => string): string {
@@ -53,6 +57,7 @@ export default function Banking() {
   // what happened if it could not be read (D-88: one action in each state)
   // (the shared hook knows demo mode has no database, so a demo never waits forever)
   const { loading } = useLedgerCollections('accounts');
+  const dataHealth = useScreenDataHealth(BANKING_COLLECTIONS);
   const accountsError = useDataNeedsStore(s => s.failed.accounts);
   const retryAccounts = useDataNeedsStore(s => s.retry);
   const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null);
@@ -155,6 +160,15 @@ export default function Banking() {
         </div>
 
         <ConnectedBanks />
+
+        {!(accountsError && accounts.length === 0) && (
+          <ScreenDataNotice
+            failedKeys={dataHealth.failedKeys}
+            message={dataHealth.message}
+            onRetry={dataHealth.retry}
+            what={bankText('error.whatBankAccounts', 'your bank accounts')}
+          />
+        )}
 
         {accountsError && accounts.length === 0 ? (
           <div role="alert" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-8 text-center">
