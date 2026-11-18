@@ -346,7 +346,14 @@ hand-convert a table the codemod still refuses.
       id `project.delete` answered with), and the deleted row is kept by the server rather than by the tab. Still
       open: wiring `entry.inverse` through `useCommand` so a screen that deletes through the hook gets the same
       toast without hand-writing it — the manifest already carries the name and the input.
-- [ ] The offered next step in the toast ("Invoice saved. Send it · Record a payment · New invoice").
+- [x] **The offered next step in the toast** ("Invoice 1042 saved. Send it · Record a payment · New invoice").
+      `invoiceSavedSteps()` (`src/lib/nextSteps.ts`) decides the list from the saved document, and the payment
+      button wears the manifest's words for `payment.receive` — a step the manifest stops offering leaves the
+      toast with it. Sending is the screen's own word (it is an email, not a ledger command), `Send it` only on a
+      draft, and `New invoice` only once the document exists; a settled invoice gets the sentence and no dead
+      button. `NextStepToast.tsx` draws it with `toast.custom` because sonner's `action` holds one button: real
+      `<button>`s, dismiss-before-run. Pinned by `record-next-step.test.ts` (labels held to `offeredSteps`) and
+      `next-step-toast.test.tsx` (the buttons, the press, the closed offer).
 
 ## 4. One record page
 

@@ -12,6 +12,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { COMMAND_MANIFEST } from '../lib/commands.generated';
 import { offeredSteps } from '../hooks/useCommand';
+import { invoiceSavedSteps } from '../lib/nextSteps';
 
 const registered = new Set(COMMAND_MANIFEST.map(command => command.name));
 
@@ -45,4 +46,33 @@ test('the invoice record page takes its payment step from the manifest', () => {
   assert.match(source, /offeredSteps\('invoice\.update'\)/, 'the page reads the step instead of deciding it');
   assert.match(source, /label: paymentStep\?\.label/, 'and shows the manifest’s words for it');
   assert.doesNotMatch(source, /label: 'Record payment'/, 'the hard-coded label is gone, not left beside the new one');
+});
+
+test('the toast after an invoice save offers the same payment step the page does', () => {
+  const payment = offeredSteps('invoice.update').find(step => step.command === 'payment.receive');
+  assert.ok(payment, 'the manifest still offers the payment, or the toast has nothing to show');
+  const labels = invoiceSavedSteps({ status: 'issued', amountCents: 10_000, amountPaidCents: 0 }).map(step => step.label);
+  assert.deepEqual(labels, [payment.label], 'the payment button says what the manifest says, and only that is left to do');
+});
+
+test('a fresh draft can be sent, paid or replaced; a sent one only waited on', () => {
+  assert.deepEqual(invoiceSavedSteps({ status: 'draft', amountCents: 10_000, amountPaidCents: 0 }).map(step => step.action), ['send', 'payment', 'new']);
+  // once it has left the building there is nothing to send and nothing to replace
+  assert.deepEqual(invoiceSavedSteps({ status: 'issued', amountCents: 10_000, amountPaidCents: 0 }).map(step => step.action), ['payment']);
+  // a settled invoice owes nothing, so the toast does not offer to take a payment
+  assert.deepEqual(invoiceSavedSteps({ status: 'issued', amountCents: 10_000, amountPaidCents: 10_000 }).map(step => step.action), []);
+  // paid off but never issued: still yours to send, and a payment is not one of them
+  assert.deepEqual(invoiceSavedSteps({ status: 'draft', amountCents: 5_000, amountPaidCents: 5_000 }).map(step => step.action), ['send', 'new']);
+  // nothing owed is nothing to collect, even when the document is only a draft
+  assert.deepEqual(invoiceSavedSteps({}).map(step => step.action), ['new']);
+});
+
+test('the toast is built from buttons, not a single action, and every step opens the screen it names', () => {
+  const source = fs.readFileSync(path.join('src', 'components', 'common', 'NextStepToast.tsx'), 'utf8');
+  assert.match(source, /toast\.custom/, 'a saved document has more than one next step, so the toast draws them');
+  assert.match(source, /<button/, 'a step is a button a person can reach, not a link-shaped div');
+  assert.match(source, /toast\.dismiss\(id\)/, 'the offer closes before the next screen opens');
+  const sales = fs.readFileSync(path.join('src', 'components', 'sales', 'Sales.tsx'), 'utf8');
+  assert.match(sales, /showSavedToast\(/, 'the save ends with the offer');
+  assert.match(sales, /invoiceSavedSteps\(savedInvoice\)/, 'and the offer comes from the saved document, not a guess');
 });

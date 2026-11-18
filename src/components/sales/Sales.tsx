@@ -48,6 +48,8 @@ import DocumentBulkBar from '../ui/DocumentBulkBar';
 import { calculateNextOccurrence } from '../../lib/recurringEngine';
 import CustomerDetailView from './CustomerDetailView';
 import InvoiceRecordPage from './InvoiceRecordPage';
+import { showSavedToast } from '../common/NextStepToast';
+import { invoiceSavedSteps } from '../../lib/nextSteps';
 import { approvalDecision, isApproverRole } from '../../lib/invoiceApproval';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
@@ -162,6 +164,16 @@ export default function Sales() {
   const archivedCustomers = useMemo(() => customers.filter(isArchivedParty).length, [customers]);
   const shownCustomers = useMemo(() => customers.filter(c => hasTag(c, customerTag) && (showArchivedCustomers || !isArchivedParty(c))), [customers, customerTag, showArchivedCustomers]);
 
+  const openPaymentForInvoice = useCallback((inv: Invoice) => {
+    if (inv.customerId) {
+      setPaymentContactId(inv.customerId);
+      setPaymentDocumentId(inv.id);
+      setIsPaymentModalOpen(true);
+    } else {
+      toast.error('Invoice is missing a customer.');
+    }
+  }, []);
+
   const onAddInvoice = useCallback(async (input: Partial<Invoice> & { receiptPayment?: ReceiptPayment; attachmentFiles?: File[] }) => {
     const { receiptPayment, attachmentFiles, ...rest } = input;
     let data = rest;
@@ -200,6 +212,13 @@ export default function Sales() {
     } else {
       res = await addEntity('invoices', data);
       if (!res) throw new Error('Invoice not saved');
+      // the save ends with what to do next, in the manifest's words: send a draft, take the payment, start another
+      const savedInvoice = { ...data, id: res.id } as Invoice;
+      showSavedToast(`Invoice ${data.number || res.id} saved`, invoiceSavedSteps(savedInvoice), action => {
+        if (action === 'send') setEmailInvoice(savedInvoice);
+        else if (action === 'payment') openPaymentForInvoice(savedInvoice);
+        else setIsInvoiceModalOpen(true);
+      });
       if (res && receiptPayment) await recordReceiptPayment(currentWorkspaceId || '', { ...data, id: res.id }, receiptPayment);
       const uid = useAuthStore.getState().user?.uid;
       if (res && uid && Array.isArray(attachmentFiles) && attachmentFiles.length) {
@@ -238,7 +257,7 @@ export default function Sales() {
       }, 'Recurring schedule registered');
     }
     return res;
-  }, [addEntity, updateEntity, currentWorkspaceId]);
+  }, [addEntity, updateEntity, currentWorkspaceId, openPaymentForInvoice]);
 
   const onAddCustomer = (data: Partial<Customer>) => {
     if (data.id) {
@@ -317,16 +336,6 @@ export default function Sales() {
     if (inv.revenueSchedule && !(await undoSpreadRequest('invoice', currentWorkspaceId || '', inv.id))) return;
     inBackground(onAddInvoice({ id: inv.id, status: 'void' }));
   }, [currentWorkspaceId, onAddInvoice]);
-
-  const openPaymentForInvoice = useCallback((inv: Invoice) => {
-    if (inv.customerId) {
-      setPaymentContactId(inv.customerId);
-      setPaymentDocumentId(inv.id);
-      setIsPaymentModalOpen(true);
-    } else {
-      toast.error('Invoice is missing a customer.');
-    }
-  }, []);
 
   const invoiceColumns = useMemo(() => buildInvoiceColumns({
     salesText,
