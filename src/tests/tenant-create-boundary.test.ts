@@ -186,4 +186,15 @@ describe('P0 tenant creation boundaries against live PostgreSQL', { skip: !datab
     assert.equal(refusal.data.message, 'Backup workspace ID does not match target workspace ID');
   });
 
+  test('adding the last seat replays before the capacity gate and a new request keeps the 402 body', async () => {
+    await db.collection('workspaces').doc(ownWorkspaceId).set({ uid: owner, name: 'Owner Books', currency: 'USD', maxSeats: 1, members: [] });
+    const path = `/api/v1/workspaces/${ownWorkspaceId}/members`;
+    const first = await post(owner, path, { memberUid: anotherOwner }, `last-seat-${prefix}`);
+    assert.equal(first.status, 200, JSON.stringify(first.data));
+    assert.deepEqual(await post(owner, path, { memberUid: anotherOwner }, `last-seat-${prefix}`), first);
+    const full = await post(owner, path, { memberUid: 'someone-else' }, `over-cap-${prefix}`);
+    assert.equal(full.status, 402);
+    assert.deepEqual(full.data, { status: 'error', message: 'Payment Required: Plan user seat limit reached (1/1). Upgrade workspace plan to invite more team members.', code: 'SEAT_CAPACITY_EXCEEDED', cap: 1, current: 1 });
+  });
+
 });

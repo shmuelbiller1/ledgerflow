@@ -6,7 +6,6 @@ import { formatTzDate, sendError, handleApiError, authorizeWorkspace } from "../
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
 import { apiAuthenticate } from "../auth/apiAuthenticate";
 import { requireWorkspaceRole } from "./workspaceRoutes";
-import { requirePlanCapacity } from "../middleware/planCapacity";
 import express from "express";
 import { WorkspaceSchema } from "../../schemas";
 import { getDb } from "../db/firestore";
@@ -22,6 +21,7 @@ const AuditVerifyQuerySchema = z.object({
 
 /** The legacy API sends errors as status/message, not the command router's envelope. */
 function apiCommandError(outcome: Exclude<CommandExecutionOutcome, { ok: true }>): { status: number; body: unknown } {
+  if (outcome.code === 'SEAT_CAPACITY_EXCEEDED' && outcome.details) return { status: outcome.status, body: outcome.details };
   return { status: outcome.status, body: { status: 'error', message: outcome.message } };
 }
 
@@ -195,7 +195,7 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
     } catch (err) { handleApiError(res, err); }
   });
 
-  app.post("/api/v1/workspaces/:workspaceId/members", apiAuthenticate, requireWorkspaceRole(['owner']), requirePlanCapacity('seats'), async (req: express.Request, res: express.Response) => {
+  app.post("/api/v1/workspaces/:workspaceId/members", apiAuthenticate, requireWorkspaceRole(['owner']), async (req: express.Request, res: express.Response) => {
     try {
       const workspaceId = String(req.params.workspaceId);
       await authorizeWorkspace(req as AuthenticatedRequest, workspaceId);

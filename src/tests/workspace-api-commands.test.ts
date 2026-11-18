@@ -79,3 +79,21 @@ test('API workspace creation owns privileged fields, refuses scoped keys and ret
   const denied = await run(db, workspaceApiCreateCommand, input, 'create-1', { ...owner, developerWorkspaceId: workspaceId });
   assert.equal(denied.ok, false); if (!denied.ok) assert.equal(denied.status, 403);
 });
+
+
+test('the seat-cap gate runs for a new add, but not for the replay that filled the last seat', async () => {
+  const db = setup();
+  seedWorkspace(db, workspaceId, { members: [] });
+  let checks = 0;
+  const deps = { ...runnerDependencies(db), async checkCapacity() {
+    checks++;
+    const members = db.read(`workspaces/${workspaceId}`)?.members as string[];
+    if (members.length >= 1) throw Object.assign(new Error('seat limit reached'), { status: 402, code: 'SEAT_CAPACITY_EXCEEDED', body: { status: 'error', message: 'seat limit reached', cap: 1, current: 1 } });
+  } };
+  const input = { memberUid: 'new-user' };
+  const invoke = (key: string) => runRegisteredCommand(fakeRequest(owner, input, key), { definition: workspaceMemberAddCommand, workspaceId, input }, deps);
+  const first = await invoke('seat-key'); assert.equal(first.ok, true);
+  const retry = await invoke('seat-key'); assert.equal(retry.ok && retry.replayed, true); assert.equal(checks, 1);
+  const next = await invoke('other-key'); assert.equal(next.ok, false); if (!next.ok) { assert.equal(next.status, 402); assert.equal(next.code, 'SEAT_CAPACITY_EXCEEDED'); }
+  assert.equal(checks, 2);
+});
