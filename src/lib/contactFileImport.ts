@@ -8,7 +8,15 @@
  * Honesty rules: a card with no usable name is reported, never invented; extra email/phone
  * values are kept in Notes, never silently dropped; an unreadable encoding is reported.
  */
-import { findDuplicateContactCandidates, type DuplicateMatchSignal, type ReviewContact, type ReviewContactKind } from './contactDuplicateReview';
+import {
+  findDuplicateContactCandidates,
+  normalizedEmail,
+  normalizedPhone,
+  normalizedTaxId,
+  type DuplicateMatchSignal,
+  type ReviewContact,
+  type ReviewContactKind,
+} from './contactDuplicateReview';
 
 /** Column names match the importer's customer/vendor field labels exactly. */
 export const CONTACT_IMPORT_HEADERS = ['Name', 'Email', 'Phone', 'Tax ID', 'Address', 'Website', 'Notes'] as const;
@@ -238,12 +246,15 @@ export function contactImportDuplicates(
       if (willSkip.length < LIMIT) willSkip.push({ row: row.row, name: row.name, existingName: hit.name });
     }
   }
-  const merged: ReviewContact[] = [
-    ...existing,
-    ...incoming
-      .filter(r => !skippedRows.has(r.row))
-      .map(r => ({ id: `incoming:${r.row}`, kind: reviewKind, name: r.name, email: r.email, phone: r.phone, taxId: r.taxId })),
-  ];
+  const keysOf = (c: { email?: string; phone?: string; taxId?: string }) => [
+    normalizedEmail(c.email || ''), normalizedPhone(c.phone || ''), normalizedTaxId(c.taxId || ''),
+  ].filter(Boolean);
+  const incomingContacts = incoming
+    .filter(r => !skippedRows.has(r.row))
+    .map(r => ({ id: `incoming:${r.row}`, kind: reviewKind, name: r.name, email: r.email, phone: r.phone, taxId: r.taxId }));
+  const incomingKeys = new Set(incomingContacts.flatMap(keysOf));
+  const relevant = existing.filter(c => keysOf(c).some(k => incomingKeys.has(k)));
+  const merged: ReviewContact[] = [...relevant, ...incomingContacts];
   const review = findDuplicateContactCandidates(merged);
   const possible: ContactImportDuplicateCheck['possible'] = [];
   let possibleTotal = 0;

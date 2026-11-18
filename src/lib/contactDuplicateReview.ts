@@ -46,15 +46,15 @@ function normalizedName(value: string): string {
   return normalizeSearchText(value).replace(/[^\p{L}\p{M}\p{N}]/gu, '');
 }
 
-function normalizedTaxId(value: string): string {
+export function normalizedTaxId(value: string): string {
   return normalizeSearchText(value).replace(/[^\p{L}\p{N}]/gu, '');
 }
 
-function normalizedEmail(value: string): string {
+export function normalizedEmail(value: string): string {
   return normalizeSearchText(value).trim();
 }
 
-function normalizedPhone(value: string): string {
+export function normalizedPhone(value: string): string {
   return normalizeSearchText(value).replace(/[^0-9]/g, '');
 }
 

@@ -139,4 +139,10 @@ test('duplicate import review ignores weak name-only pairs and reports omitted l
   }));
   const limited = contactImportDuplicates('customers', [{ row: 2, name: 'New Company', email: 'shared@example.com' }], crowded);
   assert.equal(limited.incomplete, true);
+
+  const unrelatedCrowd: ReviewContact[] = Array.from({ length: 41 }, (_, i) => ({
+    id: `unrelated${i}`, kind: 'customer', name: `Other Company ${i}`, email: 'unrelated@example.com',
+  }));
+  const unrelated = contactImportDuplicates('customers', [{ row: 2, name: 'Fresh Company', email: 'fresh@example.com' }], unrelatedCrowd);
+  assert.equal(unrelated.incomplete, false);
 });
