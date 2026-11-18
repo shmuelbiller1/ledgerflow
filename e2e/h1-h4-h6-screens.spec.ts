@@ -66,7 +66,8 @@ test.describe('H-1 RTL Hebrew · H-4 screen-reader/axe · H-6 empty & failed-loa
       await settleStyles(page);
       await settleAnimations(page, 400);
 
-      const region = page.getByRole('region', { name: 'Trial balance table' });
+      // the page is in Hebrew now, so the table region carries its Hebrew name (EU-G1)
+      const region = page.getByRole('region', { name: 'טבלת מאזן בוחן' });
       await expect(region).toHaveAttribute('tabindex', '0');
 
       const childPadding = await page.getByText('עו״ש בנק לאומי').evaluate(el => {
