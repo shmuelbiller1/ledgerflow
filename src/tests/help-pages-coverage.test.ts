@@ -104,7 +104,7 @@ test('A-219: pages are named after the areas they cover, and slugs are unique', 
 });
 
 test('N-2: the ten contextual manuals agree with their bilingual pages and ship the pictured screen', () => {
-  // These are the ten named in COORDINATION H-1. Trial Balance is a lens inside Ledger, not a Reports route.
+  // These are the ten named in COORDINATION H-1. Use the Ledger’s Trial Balance, not the party-linked report.
   const expected = ['dashboard', 'sales', 'purchases', 'banking', 'reconciliation', 'pnl', 'balance-sheet',
     'trial-balance', 'israel-vat-report', 'settings'];
   const illustrated = SCREEN_HELP_DOCS.filter(doc => doc.illustration);

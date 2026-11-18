@@ -1,5 +1,5 @@
 import { BRAND_NAME } from '../config/brand';
-import { STATEMENT_SCREEN_GUIDES } from './statementScreenGuides';
+import illustratedGuides from './help/illustratedGuides.json';
 export interface ScreenHelpDoc {
   slug: string;
   screenIds: readonly string[];
@@ -34,30 +34,16 @@ export interface HowToArticle {
  * linked directly from each main screen's contextual `? Help` dialog and searchable in Help & Guide.
  */
 export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
-  {
-    slug: 'overview',
-    screenIds: ['dashboard', 'overview', 'practice', 'help', 'glossary', 'support', 'accept-invite'],
-    docPath: 'docs/help/overview.md',
-    titleEn: 'Overview',
-    titleHe: 'סקירה כללית',
-    summaryEn: 'See how much cash the business has, what customers owe you, what you owe suppliers, and whether the business made a profit.',
-    summaryHe: 'כאן רואים כמה מזומן יש לעסק, כמה הלקוחות חייבים, כמה יש לשלם לספקים והאם העסק הרוויח.',
-    keyTasksEn: [
-      'Choose a month, fiscal quarter, fiscal year or custom range.',
-      'Open a linked summary figure to see the report behind it. Cash is shown at the end date; profit covers the period.',
-      'Look under Needs attention for work to follow up, such as unmatched bank lines.',
-    ],
-    keyTasksHe: [
-      'בחרו חודש, רבעון כספי, שנת כספים או טווח תאריכים משלכם.',
-      'פתחו מדד שיש בו קישור כדי לעיין בדוח שמאחוריו. יתרת המזומן היא ליום הסיום; הרווח מתייחס לתקופה.',
-      'בדקו אילו משימות דורשות טיפול, למשל שורות בנק שעדיין לא הותאמו.',
-    ],
-    illustration: {
-      screenId: 'dashboard',
-      altEn: 'Period selector above the cash, receivables, payables and profit cards.',
-      altHe: 'בחירת תקופה מעל כרטיסי המזומן, חובות הלקוחות, חובות לספקים והרווח.',
-    },
-  },
+  ...Object.entries(illustratedGuides).map(([slug, { screenIds, en, he }]): ScreenHelpDoc => ({
+    slug,
+    screenIds,
+    docPath: `docs/help/${slug}.md`,
+    titleEn: en.title, titleHe: he.title,
+    summaryEn: en.purpose, summaryHe: he.purpose,
+    keyTasksEn: en.tasks, keyTasksHe: he.tasks,
+    // The first ID is the pictured screen; additional IDs share the area guide, not its illustration.
+    illustration: { screenId: screenIds[0], altEn: en.alt, altHe: he.alt },
+  })),
   {
     slug: 'transactions',
     screenIds: [
@@ -72,103 +58,6 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     keyTasksEn: ['Filter entries by date, account, status, or text.', 'Verify every posted entry balances debits and credits.', 'Reverse and correct locked-period entries safely.'],
     keyTasksHe: ['סינון פקודות לפי תאריך, חשבון, סטטוס או טקסט.', 'וידוא שכל פקודה מאושרת מאוזנת בין חובה לזכות.', 'ביצוע ביטול ותיקון לתנועות בתקופה נעולה.'],
   },
-  {
-    slug: 'sales',
-    screenIds: ['sales', 'estimates', 'customers'],
-    docPath: 'docs/help/sales.md',
-    titleEn: 'Sales and invoices',
-    titleHe: 'מכירות וחשבוניות לקוח',
-    summaryEn: 'Use Sales to keep customer details, issue invoices and see which amounts are still unpaid.',
-    summaryHe: 'במסך המכירות מנהלים את פרטי הלקוחות, מפיקים חשבוניות ובודקים אילו סכומים טרם שולמו.',
-    keyTasksEn: [
-      'On Customers, add the customer or look up their details.',
-      'On Invoices, choose Add Invoice. Check the customer, dates, lines and total before issuing it.',
-      'Open an unpaid invoice to record money the customer actually paid. Issuing an invoice is not receiving payment.',
-    ],
-    keyTasksHe: [
-      'בלשונית הלקוחות הוסיפו לקוח או חפשו את פרטיו.',
-      'בלשונית החשבוניות בחרו בהוספת חשבונית. בדקו את הלקוח, התאריכים, השורות והסכום לפני ההפקה.',
-      'פתחו חשבונית שטרם שולמה כדי לרשום תקבול שהתקבל בפועל. הפקת חשבונית אינה קבלת תשלום.',
-    ],
-    illustration: {
-      screenId: 'sales',
-      altEn: 'Invoices and Customers tabs, Add Invoice and the unpaid invoice list.',
-      altHe: 'לשוניות החשבוניות והלקוחות, הוספת חשבונית ורשימת החשבוניות עם מצב התשלום.',
-    },
-  },
-  {
-    slug: 'purchases',
-    screenIds: ['purchases', 'purchase-orders', 'vendors'],
-    docPath: 'docs/help/purchases.md',
-    titleEn: 'Purchases and bills',
-    titleHe: 'רכש וחשבוניות ספק',
-    summaryEn: 'Use Purchases to keep supplier details, enter their bills and see what you owe.',
-    summaryHe: 'במסך הרכש מנהלים את פרטי הספקים, קולטים את החשבוניות שלהם ובודקים כמה העסק חייב.',
-    keyTasksEn: [
-      'On Vendors, find the supplier or add a new one.',
-      'Choose Record Bill and check the supplier, invoice number, dates and amounts against the original bill.',
-      'Review unpaid bills before starting a payment run. An open bill is not evidence that the supplier was paid.',
-    ],
-    keyTasksHe: [
-      'בלשונית הספקים חפשו את הספק או הוסיפו ספק חדש.',
-      'בחרו ברישום חשבונית ספק ובדקו את הספק, מספר החשבונית, התאריכים והסכומים מול המקור.',
-      'עברו על החשבוניות הפתוחות לפני הכנת סבב תשלומים. חשבונית פתוחה אינה אישור שהספק קיבל תשלום.',
-    ],
-    illustration: {
-      screenId: 'purchases',
-      altEn: 'Bill and vendor tabs, Record Bill and the list of bills with their payment status.',
-      altHe: 'לשוניות החשבוניות והספקים, רישום חשבונית ספק ורשימת החשבוניות עם מצב התשלום.',
-    },
-  },
-  {
-    slug: 'banking',
-    screenIds: ['banking', 'bank-connections', 'inbox'],
-    docPath: 'docs/help/banking.md',
-    titleEn: 'Banking',
-    titleHe: 'בנקאות',
-    summaryEn: 'Review bank accounts and bring statement activity into the books for matching. A live feed requires a configured provider.',
-    summaryHe: 'כאן בודקים את חשבונות הבנק ומייבאים תנועות מדף הבנק לצורך התאמה. חיבור בנק פעיל מצריך ספק מוגדר.',
-    keyTasksEn: [
-      'Check the bank account card before selecting a feed or recording a movement.',
-      'With a signed-in bookkeeping role, choose Import statement, select the account and review the file before confirming.',
-      'Review the import result, then open Reconcile to match the bank lines with existing entries. An import is not a match.',
-    ],
-    keyTasksHe: [
-      'בדקו את כרטיס החשבון לפני בחירת חיבור בנק או רישום תנועה.',
-      'לאחר כניסה בהרשאת עריכה מתאימה, בחרו בייבוא דף חשבון, בחרו חשבון ובדקו את הקובץ לפני האישור.',
-      'בדקו את תוצאת הייבוא ואז פתחו את מסך ההתאמות כדי לקשר שורות לתנועות קיימות בספרים. הייבוא עצמו אינו התאמה.',
-    ],
-    illustration: {
-      screenId: 'banking',
-      altEn: 'Import statement, money movement controls and two sample bank account cards.',
-      altHe: 'ייבוא דף חשבון, פעולות כספיות ושני כרטיסי חשבון לדוגמה.',
-    },
-  },
-  {
-    slug: 'reconciliation',
-    screenIds: ['reconciliation'],
-    docPath: 'docs/help/reconciliation.md',
-    titleEn: 'Match bank lines',
-    titleHe: 'התאמת חשבון בנק',
-    summaryEn: 'Use Reconcile to link bank statement lines to entries already in your books. Matching a line does not close an accounting period.',
-    summaryHe: 'במסך ההתאמות מקשרים בין שורות מדף הבנק לתנועות שכבר נרשמו בספרים. התאמת שורה אינה סגירת תקופה חשבונאית.',
-    keyTasksEn: [
-      'Choose the cash account and open To review to find unmatched bank lines.',
-      'Select a bank line and the corresponding ledger entry. Check their amounts, dates and descriptions before confirming the match.',
-      'Open Matched to inspect earlier matches or undo a wrong match.',
-    ],
-    keyTasksHe: [
-      'בחרו את החשבון ופתחו את רשימת השורות לבדיקה כדי למצוא שורות שטרם הותאמו.',
-      'בחרו שורה מדף הבנק ואת התנועה המתאימה בספרים. בדקו את הסכומים, התאריכים והתיאורים לפני אישור ההתאמה.',
-      'פתחו את רשימת השורות שהותאמו כדי לעיין בהתאמות קודמות או לבטל התאמה שגויה.',
-    ],
-    illustration: {
-      screenId: 'reconciliation',
-      altEn: 'To review and Matched controls above bank lines and ledger entries.',
-      altHe: 'המעבר בין שורות לבדיקה לשורות שהותאמו, מעל שורות הבנק והתנועות בספרים.',
-    },
-  },
-  ...STATEMENT_SCREEN_GUIDES,
   {
     slug: 'reports',
     screenIds: [
@@ -341,64 +230,6 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     summaryHe: 'בדיקת שלמות הספרים, צפייה ביומן הביקורת, ניהול ניירות עבודה ונעילת חודשים סגורים.',
     keyTasksEn: ['Inspect Data Health for duplicates, missing accounts, or imbalances.', 'Attach month-end workpapers and lock completed periods.', 'Review consolidated Group Summary across multiple books.'],
     keyTasksHe: ['בדיקת תקינות נתונים לאיתור כפילויות או חוסר איזון.', 'צירוף ניירות עבודה ונעילת תקופות חשבונאיות.', 'צפייה בדוח מאוחד לקבוצת חברות וייצואו ל-CSV.'],
-  },
-  {
-    slug: 'settings',
-    screenIds: [
-      'settings', 'api-hub',
-    'rules',
-    'dimensions',
-    'tax-profiles',
-    'appearance',
-    'team',
-    'billing',
-    'templates',
-    'security',
-    'rule',
-    'developer',
-    'import',
-    'emails',
-    'branding',
-    'branding-profiles',
-    'numbering',
-    'defaults',
-    'schedule',
-    'incoming-events',
-    'tags',
-    'scheduled-reports',
-    'alerts',
-    'modules',
-    'groups',
-    'split-rules',
-    'price-lists',
-    'price-list-import',
-    'custom-fields',
-    'sales-reps',
-    'stages',
-    'currencies',
-    'export',
-    'shortcuts',
-    ],
-    docPath: 'docs/help/settings.md',
-    titleEn: 'Workspace settings',
-    titleHe: 'הגדרות סביבת העבודה',
-    summaryEn: 'Use Settings to find the options for these books. Your role determines which changes you can save.',
-    summaryHe: 'במסך ההגדרות מוצאים את האפשרויות לספרי העסק. ההרשאה שלכם קובעת אילו שינויים תוכלו לשמור.',
-    keyTasksEn: [
-      'Search for a setting or choose a section, such as Appearance & Display.',
-      'Open Team & Invites to review access to this workspace.',
-      'Use Backup & Export to download a backup before major changes. A file checksum is not proof that the backup is complete or can be restored.',
-    ],
-    keyTasksHe: [
-      'חפשו הגדרה או בחרו מדור, למשל הגדרות תצוגה.',
-      'פתחו את מדור הצוות וההזמנות כדי לבדוק למי יש גישה לספרים האלה.',
-      'לפני שינויים גדולים הורידו גיבוי ממדור הגיבוי והייצוא. ערך ביקורת של קובץ אינו הוכחה שהגיבוי מלא או שניתן לשחזר אותו.',
-    ],
-    illustration: {
-      screenId: 'settings',
-      altEn: 'Search settings above Workspace, Accounting, and Documents & sales sections.',
-      altHe: 'חיפוש הגדרות מעל מדורי סביבת העבודה, החשבונאות והמסמכים והמכירות.',
-    },
   },
   {
     slug: 'tasks-and-time',
