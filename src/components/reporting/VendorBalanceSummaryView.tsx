@@ -65,14 +65,14 @@ export const VendorBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOf
   };
 
   const columns: ColumnDef<VendorBalanceSummaryRow>[] = [
-    { key: 'name', header: 'Vendor', render: partyNameCell },
-    { key: 'openBillsCount', header: 'Open Bills', align: 'center',
+    { key: 'name', header: reportText('r.vendor', 'Vendor'), render: partyNameCell },
+    { key: 'openBillsCount', header: reportText('r.open-bills', 'Open Bills'), align: 'center',
       render: (item) => partyOpenCountCell(item.openBillsCount) },
-    { key: 'totalBilledCents', header: 'Total Billed', align: 'right',
+    { key: 'totalBilledCents', header: reportText('r.total-billed', 'Total Billed'), align: 'right',
       render: (item) => formatCurrency(item.totalBilledCents, currency) },
-    { key: 'totalPaidCents', header: 'Total Paid', align: 'right',
+    { key: 'totalPaidCents', header: reportText('r.total-paid', 'Total Paid'), align: 'right',
       render: (item) => partyPaidCell(item.totalPaidCents, currency) },
-    { key: 'balanceCents', header: 'Balance Due', align: 'right',
+    { key: 'balanceCents', header: reportText('r.balance-due', 'Balance Due'), align: 'right',
       render: (item) => partyBalanceCell(item.balanceCents, currency, 'amber') },
   ];
 

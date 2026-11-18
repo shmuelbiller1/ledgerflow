@@ -105,7 +105,7 @@ export const InventoryValuationReportView: React.FC<{ asOfDate?: string }> = ({ 
   const columns: ColumnDef<Row>[] = [
     {
       key: 'name',
-      header: 'Item',
+      header: reportText('r.item', 'Item'),
       render: (r) => (
         <div>
           <div className="font-semibold text-[var(--text)]">{r.name}</div>
@@ -116,7 +116,7 @@ export const InventoryValuationReportView: React.FC<{ asOfDate?: string }> = ({ 
     },
     {
       key: 'quantity',
-      header: 'On hand',
+      header: reportText('r.on-hand', 'On hand'),
       align: 'right',
       render: (r) => unknown(r) || (
         <span className={r.quantity < 0 ? 'text-[var(--neg)] font-semibold' : r.belowReorder ? 'text-[var(--brass)] font-semibold' : ''}>
@@ -124,9 +124,9 @@ export const InventoryValuationReportView: React.FC<{ asOfDate?: string }> = ({ 
         </span>
       ),
     },
-    { key: 'unitCostCents', header: 'Unit cost', align: 'right', render: (r) => unknown(r) || formatCurrency(r.unitCostCents, currency) },
-    { key: 'valueCents', header: 'Value', align: 'right', render: (r) => unknown(r) || <span className="font-semibold">{formatCurrency(r.valueCents, currency)}</span> },
-    { key: 'sharePct', header: 'Share', align: 'right', render: (r) => unknown(r) || `${r.sharePct}%` },
+    { key: 'unitCostCents', header: reportText('r.unit-cost', 'Unit cost'), align: 'right', render: (r) => unknown(r) || formatCurrency(r.unitCostCents, currency) },
+    { key: 'valueCents', header: reportText('r.value', 'Value'), align: 'right', render: (r) => unknown(r) || <span className="font-semibold">{formatCurrency(r.valueCents, currency)}</span> },
+    { key: 'sharePct', header: reportText('r.share', 'Share'), align: 'right', render: (r) => unknown(r) || `${r.sharePct}%` },
   ];
 
   return (
@@ -134,13 +134,13 @@ export const InventoryValuationReportView: React.FC<{ asOfDate?: string }> = ({ 
       <PartyReportLayout
         title={reportText('r.inventory-valuation', 'Inventory Valuation')}
         description={past
-          ? `Stock on hand at cost on ${asOfDate}, from the stock history, beside the Inventory account in the books on the same date.`
-          : "Stock on hand at cost today, beside the Inventory account in the books today."}
+          ? fill(reportText('r.stock-on-hand-at-cost-on', 'Stock on hand at cost on {date}, from the stock history, beside the Inventory account in the books on the same date.'), { date: asOfDate })
+          : reportText('r.stock-on-hand-at-cost-today-beside-the-inventory', 'Stock on hand at cost today, beside the Inventory account in the books today.')}
         icon={Boxes}
-        totalLabel={past && asOf && !asOf.complete ? 'Stock value of the items known on the date' : 'Stock value'}
+        totalLabel={past && asOf && !asOf.complete ? reportText('r.stock-value-of-the-items-known-on-the-date', 'Stock value of the items known on the date') : reportText('r.stock-value', 'Stock value')}
         totalAmountCents={stockValueCents}
         currency={currency}
-        totalDisplay={past && !asOf ? (historyError ? 'Not available' : 'Reading…') : undefined}
+        totalDisplay={past && !asOf ? (historyError ? reportText('r.not-available', 'Not available') : reportText('r.reading', 'Reading…')) : undefined}
         secondaryTotalLabel={reportText('r.inventory-account-in-the-books', 'Inventory account in the books')}
         secondaryTotalCents={report.ledgerValueCents}
         exportFilename="inventory_valuation.csv"
@@ -152,7 +152,7 @@ export const InventoryValuationReportView: React.FC<{ asOfDate?: string }> = ({ 
         onAsOfDateChange={setAsOfDate}
         columns={columns}
         data={shown}
-        emptyMessage={past ? (asOf ? `No stock on ${asOfDate} in the stock history.` : historyError ? 'The stock on this date is not available.' : 'Reading the stock history…') : 'No items yet. Add them in Inventory.'}
+        emptyMessage={past ? (asOf ? fill(reportText('r.no-stock-on-date', 'No stock on {date} in the stock history.'), { date: asOfDate }) : historyError ? reportText('r.the-stock-on-this-date-is-not-available', 'The stock on this date is not available.') : reportText('r.reading-the-stock-history', 'Reading the stock history…')) : reportText('r.no-items-yet-add-them-in-inventory', 'No items yet. Add them in Inventory.')}
         sumKeys={['valueCents']}
         getRowId={(r) => r.itemId}
       />

@@ -29,14 +29,14 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
 
   /** One row per customer or source: how much came in, and what share of the period it is. */
   const columns: ColumnDef<(typeof breakdowns)[number], unknown>[] = [
-    { id: 'source', accessorFn: row => row.source, header: 'Customer / Revenue Source', cell: info => (
+    { id: 'source', accessorFn: row => row.source, header: reportText('r.customer-revenue-source', 'Customer / Revenue Source'), cell: info => (
       <span className="flex items-center gap-2">
         <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
         <bdi>{String(info.getValue())}</bdi>
       </span>
     ) },
-    { id: 'count', accessorFn: row => row.transactionCount, header: 'Invoices / Entries', cell: info => <span className="font-mono">{String(info.getValue())}</span> },
-    { id: 'share', accessorFn: row => row.percentage, header: 'Revenue Contribution', cell: info => (
+    { id: 'count', accessorFn: row => row.transactionCount, header: reportText('r.invoices-entries', 'Invoices / Entries'), cell: info => <span className="font-mono">{String(info.getValue())}</span> },
+    { id: 'share', accessorFn: row => row.percentage, header: reportText('r.revenue-contribution', 'Revenue Contribution'), cell: info => (
       <span className="flex items-center justify-end gap-2">
         <span className="w-24 bg-neutral-100 rounded-full h-1.5 overflow-hidden" aria-hidden="true">
           <span className="block bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(100, Number(info.getValue()))}%` }} />
@@ -44,7 +44,7 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
         <span className="font-mono w-12 text-right">{Number(info.getValue()).toFixed(1)}%</span>
       </span>
     ) },
-    { id: 'total', accessorFn: row => row.totalAmountCents, header: 'Total Inflow', cell: info => <span className="font-mono font-semibold text-emerald-600">{formatCurrency(Number(info.getValue()))}</span> },
+    { id: 'total', accessorFn: row => row.totalAmountCents, header: reportText('r.total-inflow', 'Total Inflow'), cell: info => <span className="font-mono font-semibold text-emerald-600">{formatCurrency(Number(info.getValue()))}</span> },
   ];
 
   const totalIncomeCents = useMemo(() => {
@@ -86,7 +86,7 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
         columnNames={['Customer / Revenue Source', 'Invoices / Entries', 'Revenue Contribution', 'Total Inflow']}
         exportConfig={{
           filename: 'income-by-source.csv',
-          label: 'Export CSV',
+          label: reportText('r.export-csv', 'Export CSV'),
           headers: ['Customer / Revenue Source', 'Invoices / Entries', 'Share of inflow %', 'Total Inflow'],
           mapRow: row => [row.source, row.transactionCount, row.percentage.toFixed(1), csvMoney(row.totalAmountCents)],
         }}

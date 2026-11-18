@@ -68,7 +68,7 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
   const columns: ColumnDef<ContactBalanceSummaryRow>[] = [
     {
       key: 'name',
-      header: 'Contact',
+      header: reportText('r.contact', 'Contact'),
       render: (r) => (
         <div>
           <div className="font-semibold text-[var(--text)]">{r.name}</div>
@@ -76,11 +76,11 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
         </div>
       ),
     },
-    { key: 'receivableCents', header: 'They owe you', align: 'right', render: (r) => formatCurrency(r.receivableCents, currency) },
-    { key: 'payableCents', header: 'You owe them', align: 'right', render: (r) => formatCurrency(r.payableCents, currency) },
+    { key: 'receivableCents', header: reportText('r.they-owe-you', 'They owe you'), align: 'right', render: (r) => formatCurrency(r.receivableCents, currency) },
+    { key: 'payableCents', header: reportText('r.you-owe-them', 'You owe them'), align: 'right', render: (r) => formatCurrency(r.payableCents, currency) },
     {
       key: 'netCents',
-      header: 'Net',
+      header: reportText('r.net', 'Net'),
       align: 'right',
       render: (r) => (
         <span className={`font-bold ${r.netCents > 0 ? 'text-[var(--pos)]' : r.netCents < 0 ? 'text-[var(--neg)]' : 'text-[var(--muted)]'}`}>

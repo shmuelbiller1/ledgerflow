@@ -8,7 +8,7 @@ import { starredReports } from '../lib/starredReports';
 import { fill } from '../components/reporting/useReportText';
 
 // the shared visible props, plus the report-layout props that are shown as text (Gitar on #852)
-const REPORT_PROPS = new Set(['aria-label', 'title', 'description', 'label', 'placeholder', 'alt', 'what', 'actionLabel', 'totalLabel', 'secondaryTotalLabel', 'searchPlaceholder', 'emptyMessage', 'caption', 'header']);
+const REPORT_PROPS = new Set(['aria-label', 'title', 'description', 'label', 'placeholder', 'alt', 'what', 'actionLabel', 'totalLabel', 'secondaryTotalLabel', 'searchPlaceholder', 'emptyMessage', 'caption', 'header', 'totalDisplay']);
 
 // the default top eight (pnl, balance-sheet, cash-flow, ar-aging, ap-aging, expense-by-category,
 // gross-profit-by-customer, budget-actual) and the files that draw them; A/R and A/P share one view
@@ -40,7 +40,7 @@ test('Reports: the default eight are the ones this guard covers', () => {
 
 for (const rel of FILES) {
   test(`Reports ${rel.split('/').pop()}: no visible English outside reportText, and every key has Hebrew`, () => {
-    const r = checkTranslatedScreen(fileURLToPath(new URL(rel, import.meta.url)), 'reports', 'reportText', REPORT_PROPS);
+    const r = checkTranslatedScreen(fileURLToPath(new URL(rel, import.meta.url)), 'reports', 'reportText', REPORT_PROPS, true, true);
     assert.deepEqual(r.untranslated, [], 'Wrap new visible report text with reportText and add its EN/HE entry.');
     assert.deepEqual(r.badKeys, []);
     assert.ok(r.calls > 0);

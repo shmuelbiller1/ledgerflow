@@ -9,6 +9,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import DrillDownModal, { type ExplainRequest } from '../layout/DrillDownModal';
 import { rollUp } from '../../lib/labelTree';
 import { useReportText, fill } from './useReportText';
+import { useReportDates } from './useReportDates';
 
 type Section = 'income' | 'cogs' | 'expense';
 interface Column { value: string; income: number; cogs: number; grossProfit: number; expense: number; netIncome: number; accounts: Record<string, number> }
@@ -24,6 +25,7 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
  */
 export default function LabelProfitReportView() {
   const reportText = useReportText();
+  const reportDates = useReportDates();
   const SECTION_NAMES: Record<Section, string> = { income: reportText('r.section-income', 'Income'), cogs: reportText('r.section-cogs', 'Cost of goods sold'), expense: reportText('r.section-expense', 'Expenses') };
   const sectionTotal = (section: Section) => fill(reportText('r.total-section', 'Total {section}'), { section: SECTION_NAMES[section].toLowerCase() });
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
@@ -64,7 +66,7 @@ export default function LabelProfitReportView() {
     <td className="text-right font-mono py-1 px-2">
       {cents === 0 || accountIds.length === 0 ? (cents === 0 ? '' : formatCurrency(cents, currency)) : (
         <button type="button" className="hover:underline" onClick={() => setDrill({
-          name, explain: { accountIds, startDate, endDate, expectedCents: cents, sign: section === 'income' ? -1 : 1, ...(value !== null ? { labelFilter: { dimensionId, value }, label: `${dimensionName} ${valueName(value)}, ${startDate} to ${endDate}` } : {}) },
+          name, explain: { accountIds, startDate, endDate, expectedCents: cents, sign: section === 'income' ? -1 : 1, ...(value !== null ? { labelFilter: { dimensionId, value }, label: fill(reportText('r.label-value-period', '{label} {value}, {period}'), { label: dimensionName, value: valueName(value), period: reportDates.periodText(startDate, endDate) }) } : {}) },
         })}>
           {formatCurrency(cents, currency)}<span className="sr-only"> {name}{value !== null ? ` ${fill(reportText('r.for-value', 'for {value}'), { value: valueName(value) })}` : ` ${reportText('r.in-total', 'in total')}`}{reportText('r.open-the-entries', ': open the entries')}</span>
         </button>

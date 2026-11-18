@@ -32,7 +32,7 @@ import { useBalanceEntries } from '../../hooks/useBalanceEntries';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import PrintLayoutControl from '../reporting/PrintLayoutControl';
-import { useReportText } from '../reporting/useReportText';
+import { useReportText, fill } from '../reporting/useReportText';
 
 /** the trial balance worked out here also reads the journal entries */
 const TB_COLLECTIONS = [...STATEMENT_COLLECTIONS, 'journalEntries'] as const;
@@ -611,7 +611,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                     // the footer totals gross debits and gross credits; the lines behind them are the
                     // same posted lines, and they net to zero because every entry balances. No expected
                     // figure is sent, so the modal does not warn about a "mismatch" that is arithmetic.
-                    label: `Total debit column at ${asOfDate} · every posted line. This column totals the period’s gross debits; the lines net to zero because each entry balances.`,
+                    label: fill(reportText('r.total-debit-column-at', 'Total debit column at {date} · every posted line. This column totals the period’s gross debits; the lines net to zero because each entry balances.'), { date: asOfDate }),
                   })}
                   title={reportText('r.open-every-posted-line-behind-the-total-debit-co', 'Open every posted line behind the total debit column')}
                   className="min-h-11 underline decoration-dotted underline-offset-2 hover:text-indigo-600 focus-visible:text-indigo-600"
@@ -625,7 +625,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                   onClick={() => onDrillDown('Total trial balance', {
                     asOfDate,
                     accountIds: trialBalance.lines.map(line => line.id),
-                    label: `Total credit column at ${asOfDate} · every posted line. This column totals the period’s gross credits; the lines net to zero because each entry balances.`,
+                    label: fill(reportText('r.total-credit-column-at', 'Total credit column at {date} · every posted line. This column totals the period’s gross credits; the lines net to zero because each entry balances.'), { date: asOfDate }),
                   })}
                   title={reportText('r.open-every-posted-line-behind-the-total-credit-c', 'Open every posted line behind the total credit column')}
                   className="min-h-11 underline decoration-dotted underline-offset-2 hover:text-indigo-600 focus-visible:text-indigo-600"

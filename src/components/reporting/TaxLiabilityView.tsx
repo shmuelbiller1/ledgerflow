@@ -239,9 +239,9 @@ export default function TaxLiabilityView({ startDate: pageStartDate, endDate: pa
             tableClassName="w-full text-xs border border-[var(--line)] rounded-xl overflow-hidden"
             headRowClassName="text-[var(--muted)] border-b border-[var(--line)]"
             columns={[
-              { header: "Treatment", className: "p-2", headClassName: "text-start p-2", cell: (t) => TAX_TREATMENTS[t] },
-              { header: "Excluding tax", align: 'right', className: "p-2 font-mono", headClassName: "p-2", cell: (t) => renderMoney(taxReturn[side][t].netCents) },
-              { header: "Tax", align: 'right', className: "p-2 font-mono", headClassName: "p-2", cell: (t) => renderMoney(taxReturn[side][t].taxCents) },
+              { header: reportText('r.treatment', 'Treatment'), className: "p-2", headClassName: "text-start p-2", cell: (t) => TAX_TREATMENTS[t] },
+              { header: reportText('r.excluding-tax', 'Excluding tax'), align: 'right', className: "p-2 font-mono", headClassName: "p-2", cell: (t) => renderMoney(taxReturn[side][t].netCents) },
+              { header: reportText('r.tax', 'Tax'), align: 'right', className: "p-2 font-mono", headClassName: "p-2", cell: (t) => renderMoney(taxReturn[side][t].taxCents) },
             ]}
           />
         ))}
@@ -256,12 +256,12 @@ export default function TaxLiabilityView({ startDate: pageStartDate, endDate: pa
           tableClassName="w-full text-xs border border-[var(--line)] rounded-xl overflow-hidden"
           headRowClassName="text-[var(--muted)] border-b border-[var(--line)]"
           columns={[
-            { header: "Tax", className: "p-2", headClassName: "text-start p-2", cell: (r) => (<>{r.name} {r.rate}%</>) },
-            { header: "Taxable sales", align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.salesNetCents) },
-            { header: "Collected", align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.salesTaxCents) },
-            { header: "Taxable purchases", align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.purchasesNetCents) },
-            { header: "Paid", align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.purchasesTaxCents) },
-            { header: "Net", align: 'right', className: "p-2 font-mono tabular-nums font-semibold", headClassName: "p-2", cell: (r) => renderMoney(r.netTaxCents) },
+            { header: reportText('r.tax', 'Tax'), className: "p-2", headClassName: "text-start p-2", cell: (r) => (<>{r.name} {r.rate}%</>) },
+            { header: reportText('r.taxable-sales', 'Taxable sales'), align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.salesNetCents) },
+            { header: reportText('r.collected', 'Collected'), align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.salesTaxCents) },
+            { header: reportText('r.taxable-purchases', 'Taxable purchases'), align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.purchasesNetCents) },
+            { header: reportText('r.paid', 'Paid'), align: 'right', className: "p-2 font-mono tabular-nums", headClassName: "p-2", cell: (r) => renderMoney(r.purchasesTaxCents) },
+            { header: reportText('r.net', 'Net'), align: 'right', className: "p-2 font-mono tabular-nums font-semibold", headClassName: "p-2", cell: (r) => renderMoney(r.netTaxCents) },
           ]}
         />
       )}
@@ -292,10 +292,10 @@ export default function TaxLiabilityView({ startDate: pageStartDate, endDate: pa
           tableClassName="w-full text-xs border border-[var(--line)] rounded-xl overflow-hidden"
           headRowClassName="text-[var(--muted)] border-b border-[var(--line)]"
           columns={[
-            { header: "Period", className: "p-2", headClassName: "text-start p-2", cell: (r) => <button type="button" className="underline" onClick={() => { setStartDate(r.startDate); setEndDate(r.endDate); }}><bdi>{r.startDate} – {r.endDate}</bdi></button> },
-            { header: "Reference", className: "p-2", headClassName: "text-start p-2", cell: (r) => r.reference || '—' },
-            { header: "Filed", className: "p-2", headClassName: "text-start p-2", cell: (r) => <bdi>{r.filedAt.slice(0, 10)}</bdi> },
-            { header: "Net tax", align: 'right', className: "p-2 font-mono", headClassName: "p-2", cell: (r) => renderMoney(r.boxes.find(b => b.key === '5')?.cents || 0) },
+            { header: reportText('r.period', 'Period'), className: "p-2", headClassName: "text-start p-2", cell: (r) => <button type="button" className="underline" onClick={() => { setStartDate(r.startDate); setEndDate(r.endDate); }}><bdi>{r.startDate} – {r.endDate}</bdi></button> },
+            { header: reportText('r.reference', 'Reference'), className: "p-2", headClassName: "text-start p-2", cell: (r) => r.reference || '—' },
+            { header: reportText('r.filed-2', 'Filed'), className: "p-2", headClassName: "text-start p-2", cell: (r) => <bdi>{r.filedAt.slice(0, 10)}</bdi> },
+            { header: reportText('r.net-tax', 'Net tax'), align: 'right', className: "p-2 font-mono", headClassName: "p-2", cell: (r) => renderMoney(r.boxes.find(b => b.key === '5')?.cents || 0) },
           ]}
         />
       )}

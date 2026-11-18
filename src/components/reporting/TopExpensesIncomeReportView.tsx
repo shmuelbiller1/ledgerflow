@@ -35,15 +35,15 @@ export const TopExpensesIncomeReportView: React.FC<Props> = ({
    * as the old table showed); the amount is coloured by the tab, and the sort is on the cents.
    */
   const columns: ColumnDef<(typeof activeItems)[number], unknown>[] = [
-    { id: 'date', accessorFn: row => row.date, header: 'Date', cell: info => <span className="font-mono whitespace-nowrap">{formatDate(String(info.getValue()))}</span> },
-    { id: 'description', accessorFn: row => `${row.description} ${row.payee ?? ''}`.trim(), header: 'Description & Payee', cell: info => {
+    { id: 'date', accessorFn: row => row.date, header: reportText('r.date-2', 'Date'), cell: info => <span className="font-mono whitespace-nowrap">{formatDate(String(info.getValue()))}</span> },
+    { id: 'description', accessorFn: row => `${row.description} ${row.payee ?? ''}`.trim(), header: reportText('r.description-payee', 'Description & Payee'), cell: info => {
       const row = info.row.original as (typeof activeItems)[number];
       return <span className="font-medium"><bdi>{row.description}</bdi>{row.payee ? <span className="block text-[11px] text-[var(--muted)] mt-0.5"><bdi>{row.payee}</bdi></span> : null}</span>;
     } },
-    { id: 'account', accessorFn: row => row.accountName, header: 'Account / Category', cell: info => (
+    { id: 'account', accessorFn: row => row.accountName, header: reportText('r.account-category', 'Account / Category'), cell: info => (
       <span className="bg-[var(--elevated)] px-2 py-0.5 rounded-sm border border-[var(--line)] text-[11px]"><bdi>{String(info.getValue())}</bdi></span>
     ) },
-    { id: 'amount', accessorFn: row => row.amountCents, header: 'Amount', cell: info => (
+    { id: 'amount', accessorFn: row => row.amountCents, header: reportText('r.amount', 'Amount'), cell: info => (
       <span className={`font-mono font-bold ${activeTab === 'expenses' ? 'text-rose-600' : 'text-emerald-600'}`}>{formatCurrency(Number(info.getValue()))}</span>
     ) },
   ];
@@ -107,7 +107,7 @@ export const TopExpensesIncomeReportView: React.FC<Props> = ({
         columnNames={['Date', 'Description & Payee', 'Account / Category', 'Amount']}
         exportConfig={{
           filename: `top-${activeTab}.csv`,
-          label: 'Export CSV',
+          label: reportText('r.export-csv', 'Export CSV'),
           headers: ['Date', 'Description', 'Payee', 'Account / Category', 'Amount'],
           mapRow: row => [row.date, row.description, row.payee || '', row.accountName, csvMoney(row.amountCents)],
         }}

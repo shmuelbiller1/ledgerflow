@@ -56,7 +56,6 @@
   "src/components/reporting/IsraelMonthJourneyReportView.tsx",
   "src/components/reporting/IsraelVatReportView.tsx",
   "src/components/reporting/JournalSheetReportView.tsx",
-  "src/components/reporting/LabelProfitReportView.tsx",
   "src/components/reporting/LandedCostPostPanel.tsx",
   "src/components/reporting/LandedCostPreviewReportView.tsx",
   "src/components/reporting/MileageRatesReportView.tsx",
