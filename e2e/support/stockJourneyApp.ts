@@ -2,6 +2,8 @@ import type { AddressInfo } from 'node:net';
 import type { Bill, ChartAccount, Customer, InventoryItem, Invoice, Transaction, Vendor } from '../../src/types';
 export type StockTables = { chartAccounts: ChartAccount; inventory: InventoryItem; vendors: Vendor; customers: Customer; transactions: Transaction; bills: Bill; invoices: Invoice };
 
+export interface CapturedMail { to: string; subject: string; pdfNames: string[] }
+
 /** Real posting/report routers and a disposable workspace in the test database.
  * Authentication is injected at this boundary; this does not certify hosted sign-in.
  */
@@ -19,6 +21,18 @@ async function start() {
     // payment has to go through the router that records payments
     import('../../src/server/routes/paymentRoutes'),
   ]);
+  // The email route, its PDF and its send log are real. Only the external provider is a test
+  // mailbox; never send an email from a browser test, even if a developer has provider keys set.
+  const mail: CapturedMail[] = [];
+  const { setMailTransportForTests } = await import('../../src/server/services/mailer');
+  setMailTransportForTests(async message => {
+    const pdfNames = (message.attachments ?? []).filter(file => {
+      const bytes = Buffer.isBuffer(file.content) ? file.content : Buffer.from(file.content, 'base64');
+      return file.contentType === 'application/pdf' && bytes.subarray(0, 5).toString() === '%PDF-';
+    }).map(file => file.filename);
+    mail.push({ to: message.to, subject: message.subject, pdfNames });
+    return { delivered: true, provider: 'test', messageId: `test-mail-${mail.length}` };
+  });
   const db = getDb();
   const app = express();
   app.use(express.json());
@@ -57,7 +71,7 @@ async function start() {
   for (const [id, name] of [['oak', 'Oak Supply'], ['elm', 'Elm Supply']]) await db.collection('vendors').doc(`${workspaceId}-${id}`).set({ workspaceId, uid: JOURNEY_USER.uid, name, status: 'active' });
   await db.collection('customers').doc(`${workspaceId}-acme`).set({ workspaceId, uid: JOURNEY_USER.uid, name: 'Acme', status: 'active' });
   const ledger = async () => ({ accounts: await all('chartAccounts'), inventory: await all('inventory'), vendors: await all('vendors'), customers: await all('customers'), transactions: await all('transactions'), bills: await all('bills'), invoices: await all('invoices') });
-  return { base, itemId, all, ledger, close };
+  return { base, itemId, all, ledger, mail, close };
   } catch (error) { await close(); throw error; }
 
 }
@@ -68,9 +82,15 @@ try {
   const host = await start();
   process.send?.({ ready: host.base, itemId: host.itemId });
   let closing = false;
-  process.on('message', async (message: { id: number; command: 'all' | 'ledger' | 'close'; table?: keyof StockTables }) => {
+  process.on('message', async (message: { id: number; command: 'all' | 'ledger' | 'mail' | 'close'; table?: keyof StockTables }) => {
     try {
-      const value = message.command === 'all' ? await host.all(message.table!) : message.command === 'ledger' ? await host.ledger() : await host.close();
+      let value: unknown;
+      switch (message.command) {
+        case 'mail': value = host.mail; break;
+        case 'all': value = await host.all(message.table!); break;
+        case 'ledger': value = await host.ledger(); break;
+        case 'close': await host.close(); break;
+      }
       if (message.command === 'close') { closing = true; process.send?.({ id: message.id, value }, () => process.exit(0)); }
       else process.send?.({ id: message.id, value });
     } catch (error) { process.send?.({ id: message.id, error: error instanceof Error ? error.message : String(error) }); }
