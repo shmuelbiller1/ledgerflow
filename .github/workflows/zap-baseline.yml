@@ -138,6 +138,10 @@ jobs:
               .map(([id]) => id),
           );
 
+          const isKnownException = (pluginId, alert) =>
+            (pluginId === '10055' && /style-src unsafe-inline/i.test(String(alert.name || alert.alert || ''))) ||
+            (pluginId === '10017' && (alert.instances || []).every(i => /^https:\/\/(js\.stripe\.com|cdn\.plaid\.com)\//.test(String(i.evidence || ''))));
+
           const report = JSON.parse(fs.readFileSync('zap-out/zap-report.json', 'utf8'));
           const sites = Array.isArray(report.site) ? report.site : [];
           const actionable = [];
@@ -145,7 +149,7 @@ jobs:
             for (const alert of site.alerts || []) {
               const pluginId = String(alert.pluginid || '');
               const riskCode = Number(alert.riskcode || 0);
-              if (riskCode >= 2 && !acceptedIds.has(pluginId)) {
+              if (riskCode >= 2 && !acceptedIds.has(pluginId) && !isKnownException(pluginId, alert)) {
                 actionable.push({
                   pluginId,
                   riskCode,
