@@ -25,6 +25,12 @@ const asset: FixedAsset = {
   accumulatedDepreciationCents: 20000, status: 'active', createdAt: '2026-01-01',
   maintenance: [{ id: 'old', date: '2026-03-01', description: 'New tyres', costCents: 40000, by: 'Tyre shop' }],
 };
+/** The maintenance note is a field of the asset, so the save names `record.save` now instead of a table write. */
+const isAssetWrite = (url: string) => url.includes('/lf_update') || url.includes('/commands/record.save');
+const assetFieldsOf = (body: unknown): Record<string, unknown> => {
+  const envelope = body as { input?: { data?: Record<string, unknown> }; p_set?: Record<string, unknown> };
+  return envelope.input?.data ?? envelope.p_set ?? {};
+};
 const response = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 function setup() {
   setComponentWorkspace('bookkeeper');
@@ -107,14 +113,20 @@ test('tag duplicate lookup refuses changed workspace/permissions and read failur
 test('inline tag editing refuses a real request-boundary duplicate and retains a working retry', async () => {
   setup();
   let duplicate = true;
-  const writes: Array<{ p_set: Record<string, unknown> }> = [];
+  // the tag is a field of the asset, so it is `record.fields` now: one call, with the tag the row showed
+  const writes: Array<{ input: { collection: string; id: string; fields: Record<string, unknown>; expected: Record<string, unknown> } }> = [];
   globalThis.fetch = (async (input, init) => {
-    const url = new URL(String(input));
+    // the command goes out as a Request in some paths, so the URL is read from whichever shape arrived
+    // a command's path is relative, so it is resolved against the page the way the browser would
+    const url = new URL(input instanceof Request ? input.url : String(input), 'http://localhost');
     if (url.pathname.endsWith('/assets') && url.searchParams.has('id')) return response({ id: asset.id, data: asset });
     if (url.pathname.endsWith('/assets')) return response([
       { id: asset.id, data: asset }, ...(duplicate ? [{ id: 'other', data: { workspaceId: asset.workspaceId, assetTag: 'at-0002', status: 'disposed' } }] : []),
     ]);
-    if (url.pathname.endsWith('/lf_update')) writes.push(JSON.parse(String(init?.body)));
+    if (url.pathname.endsWith('/commands/record.fields')) {
+      writes.push(JSON.parse(String(init?.body)));
+      return response({ ok: true, data: { collection: 'assets', id: asset.id, fields: ['assetTag'], updatedAt: '2026-01-02T00:00:00Z' } });
+    }
     return response([]);
   }) as typeof fetch;
   render(<AssetInlineDetails asset={asset} />);
@@ -127,8 +139,11 @@ test('inline tag editing refuses a real request-boundary duplicate and retains a
   duplicate = false;
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Retry Tag of ציוד' })); });
   await waitFor(() => assert.equal(writes.length, 1));
-  assert.equal(writes[0].p_set.assetTag, 'AT-0002');
-  assert.deepEqual(Object.keys(writes[0].p_set).sort(), ['assetTag', 'updatedAt']);
+  assert.deepEqual([writes[0].input.collection, writes[0].input.id], ['assets', asset.id]);
+  assert.equal(writes[0].input.fields.assetTag, 'AT-0002');
+  assert.deepEqual(Object.keys(writes[0].input.fields), ['assetTag'], 'the command stamps the timestamp, the tab does not');
+  // this asset had no tag yet, so its expectation is "still untagged": a tag saved elsewhere meanwhile is a refusal
+  assert.equal(writes[0].input.expected.assetTag, '', 'the row showed no tag, and the command compares that too');
   assert.equal(useLedgerStore.getState().assets[0].purchasePriceCents, 1200000);
 });
 
@@ -137,8 +152,9 @@ test('refused maintenance save keeps the draft; retry and removal write only met
   let refuse = true;
   const writes: Array<{ p_set: Record<string, unknown> }> = [];
   globalThis.fetch = (async (input, init) => {
-    if (String(input).includes('/lf_update')) {
-      writes.push(JSON.parse(String(init?.body)));
+    if (isAssetWrite(String(input))) {
+      const body = JSON.parse(String(init?.body));
+      writes.push({ p_set: assetFieldsOf(body) });
       if (refuse) return response({ code: '42501', message: 'Permission denied for asset note' }, 403);
     }
     return response([]);
@@ -154,7 +170,7 @@ test('refused maintenance save keeps the draft; retry and removal write only met
   refuse = false;
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Note it' })); });
   assert.equal((screen.getByLabelText('What was done') as HTMLInputElement).value, '');
-  assert.deepEqual(Object.keys(writes.at(-1)!.p_set).sort(), ['maintenance', 'updatedAt']);
+  assert.deepEqual(Object.keys(writes.at(-1)!.p_set).sort(), ['maintenance'], 'the server stamps the timestamp');
   const saved = writes.at(-1)!.p_set.maintenance as NonNullable<FixedAsset['maintenance']>;
   assert.equal(saved[0].description, 'בדיקת ציוד'); assert.equal(saved[0].costCents, 12025);
   view.rerender(<MaintenanceLog asset={{ ...asset, maintenance: saved }} currency="USD" />);
@@ -167,7 +183,7 @@ test('maintenance blocks double submits, rejects fractional-cent text and viewer
   let release: (value: Response) => void = () => {};
   let writes = 0;
   globalThis.fetch = (async input => {
-    if (String(input).includes('/lf_update')) { writes += 1; return new Promise<Response>(resolve => { release = resolve; }); }
+    if (isAssetWrite(String(input))) { writes += 1; return new Promise<Response>(resolve => { release = resolve; }); }
     return response([]);
   }) as typeof fetch;
   render(<MaintenanceLog asset={asset} currency="USD" />);
@@ -191,7 +207,7 @@ test('permission loss with a pending maintenance save keeps the draft and does n
   let release: (value: Response) => void = () => {};
   let writes = 0;
   globalThis.fetch = (async input => {
-    if (String(input).includes('/lf_update')) {
+    if (isAssetWrite(String(input))) {
       writes += 1;
       return new Promise<Response>(resolve => { release = resolve; });
     }
@@ -215,7 +231,7 @@ test('permission loss with a pending maintenance save keeps the draft and does n
 test('workspace switch clears maintenance draft and ignores a late successful save', async () => {
   setup();
   let release: (value: Response) => void = () => {};
-  globalThis.fetch = (async input => String(input).includes('/lf_update') ? new Promise<Response>(resolve => { release = resolve; }) : response([])) as typeof fetch;
+  globalThis.fetch = (async input => isAssetWrite(String(input)) ? new Promise<Response>(resolve => { release = resolve; }) : response([])) as typeof fetch;
   const view = render(<MaintenanceLog asset={asset} currency="USD" />);
   fireEvent.change(screen.getByLabelText('What was done'), { target: { value: 'Old workspace draft' } });
   fireEvent.click(screen.getByRole('button', { name: 'Note it' }));
@@ -230,12 +246,12 @@ test('workspace switch clears maintenance draft and ignores a late successful sa
 
 test('maintenance files load on expansion and attach to the real assets collection', async () => {
   setup();
-  const writes: Array<{ p_data: Record<string, unknown> }> = [];
+  const writes: Array<{ workspaceId: string; input: Record<string, unknown> }> = [];
   let reads = 0;
   globalThis.fetch = (async (input, init) => {
     const url = String(input);
     if (url.includes('/documents?')) reads += 1;
-    if (url.includes('/lf_set')) writes.push(JSON.parse(String(init?.body)));
+    if (url.includes('/commands/document.save')) writes.push(JSON.parse(String(init?.body)));
     return response([]);
   }) as typeof fetch;
   const view = render(<MaintenanceLog asset={asset} currency="USD" />);
@@ -246,10 +262,13 @@ test('maintenance files load on expansion and attach to the real assets collecti
   const file = new window.File(['service'], 'receipt.txt', { type: 'text/plain' });
   fireEvent.change(screen.getByLabelText('Attach files to Asset maintenance: ציוד'), { target: { files: [file] } });
   await waitFor(() => assert.equal(writes.length, 1));
-  assert.equal(writes[0].p_data.linkedCollection, 'assets');
-  assert.equal(writes[0].p_data.linkedId, asset.id);
-  assert.equal(writes[0].p_data.linkedLabel, 'Asset maintenance: ציוד');
-  assert.equal(writes[0].p_data.workspaceId, asset.workspaceId);
+  // one command for the row: the collection, the record it hangs from and the workspace the file is filed into
+  const [sent] = writes;
+  assert.equal(sent.input.linkedCollection, 'assets');
+  assert.equal(sent.input.linkedId, asset.id);
+  assert.equal(sent.input.linkedLabel, 'Asset maintenance: ציוד');
+  assert.equal(sent.workspaceId, asset.workspaceId);
+  assert.equal('workspaceId' in sent.input, false, 'document.save stamps the workspace from the session');
 });
 
 test('labels retain QR support, add SVG Code 128 and purchase date, and isolate the print root', async () => {

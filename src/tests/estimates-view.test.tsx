@@ -26,11 +26,11 @@ test('estimate creation preserves mixed-language fields in the persisted request
   fireEvent.change(view.getByLabelText('Expiration Date'), { target: { value: '2026-12-31' } });
   fireEvent.change(view.getByLabelText('Description / Project Scope'), { target: { value: 'מערכת ERP / פרויקט א' } });
   fireEvent.click(view.getByRole('button', { name: 'Save Estimate' }));
-  await waitFor(() => assert.ok(calls.some(c => c.url.includes('/rpc/lf_set'))));
-  const request = calls.find(c => c.url.includes('/rpc/lf_set'))!;
-  const body = request.body as { p_table: string; p_data: Record<string, unknown> };
-  assert.equal(body.p_table, 'estimates');
-  for (const [key, value] of Object.entries({ number: 'EST-2026-1', customerId: 'cust-1', customerName: 'לקוח Acme', amountCents: 12345, expiryDate: '2026-12-31', description: 'מערכת ERP / פרויקט א', status: 'draft', workspaceId: 'component-workspace' })) assert.equal(body.p_data[key], value);
+  await waitFor(() => assert.ok(calls.some(c => c.url.includes('/commands/estimate.save'))));
+  const request = calls.find(c => c.url.includes('/commands/estimate.save'))!;
+  const body = request.body as { workspaceId: string; input: Record<string, unknown> };
+  assert.equal(body.workspaceId, body.input.workspaceId ?? 'component-workspace', 'the write is scoped to the open workspace');
+  for (const [key, value] of Object.entries({ number: 'EST-2026-1', customerId: 'cust-1', customerName: 'לקוח Acme', amountCents: 12345, expiryDate: '2026-12-31', description: 'מערכת ERP / פרויקט א', status: 'draft' })) assert.equal(body.input[key], value);
   assert.deepEqual(calls.find(c => c.url.endsWith('/next-number'))!.body, { type: 'estimate' });
   await waitFor(() => assert.equal(view.queryByRole('button', { name: 'Save Estimate' }), null));
 });
@@ -71,5 +71,5 @@ test('without a number from the series nothing is saved (no random EST-1234 that
   fireEvent.click(view.getByRole('button', { name: 'Save Estimate' }));
   await waitFor(() => assert.ok(calls.some(c => c.url.endsWith('/next-number'))));
   await waitFor(() => assert.ok(view.getByRole('button', { name: 'Save Estimate' })));
-  assert.equal(calls.some(c => c.url.includes('/rpc/lf_set')), false, 'nothing written');
+  assert.equal(calls.some(c => c.url.includes('/commands/estimate.')), false, 'nothing written');
 });

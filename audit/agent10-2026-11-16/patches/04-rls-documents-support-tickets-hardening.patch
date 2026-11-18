@@ -1,0 +1,46 @@
+diff --git a/supabase/migrations/20261116000001_harden_documents_and_support_tickets_rls.sql b/supabase/migrations/20261116000001_harden_documents_and_support_tickets_rls.sql
+new file mode 100644
+index 0000000..20b3be2
+--- /dev/null
++++ b/supabase/migrations/20261116000001_harden_documents_and_support_tickets_rls.sql
+@@ -0,0 +1,40 @@
++-- Harden public.documents and public."supportTickets" RLS + lf_rules (2026-11-16 audit A1-A6):
++-- 1. public.documents holds BOTH browser-uploaded attachments/Vault files AND server-only workflow
++--    documents (`stageSets`, `journalTemplate`, `timeEntry`, `timeRates`, tasks). Direct browser
++--    clients must:
++--      - hold writer role (`owner`, `accountant`, `bookkeeper`) via `lf_can_write(workspace_id)`,
++--        never `viewer`;
++--      - be limited to client attachment/Vault fields (blocking `kind`, `sets`, `lines`,
++--        `paidRunId`, `hours`, `date`, `employeeId`, `rateCents`, `status`, `assignee`, `dueDate`,
++--        `priority`, `linkedTransactionId`).
++-- 2. public."supportTickets" updates must be restricted to platform admins, the ticket's own
++--    author (`data->>'uid' = lf_uid()`), or workspace owners/accountants (`lf_can_admin`), so
++--    a workspace `viewer` cannot close or resolve another member's ticket.
++
++drop policy if exists own_insert on public.documents;
++create policy own_insert on public.documents for insert to authenticated
++  with check (data->>'uid' = public.lf_uid() and public.lf_can_write(workspace_id));
++
++drop policy if exists own_update on public.documents;
++create policy own_update on public.documents for update to authenticated
++  using (data->>'uid' = public.lf_uid() and public.lf_can_write(workspace_id))
++  with check (data->>'uid' = public.lf_uid() and public.lf_can_write(workspace_id));
++
++update public.lf_rules
++   set allowed_keys = array[
++     'id','uid','workspaceId','name','title','description','fileUrl','mimeType','sizeBytes',
++     'tags','linkedCollection','linkedId','linkedLabel','notes','metadata','createdAt','updatedAt'
++   ],
++       immutable_keys = array['workspaceId']
++ where table_name = 'documents';
++
++drop policy if exists ticket_update on public."supportTickets";
++create policy ticket_update on public."supportTickets" for update to authenticated
++  using (
++    public.lf_is_platform_admin()
++    or (public.lf_is_member(workspace_id) and (data->>'uid' = public.lf_uid() or public.lf_can_admin(workspace_id)))
++  )
++  with check (
++    public.lf_is_platform_admin()
++    or (public.lf_is_member(workspace_id) and (data->>'uid' = public.lf_uid() or public.lf_can_admin(workspace_id)))
++  );

@@ -21,6 +21,9 @@ export class CommandRegistry {
     if (!definition.describe.sentence.trim() || !definition.describe.example || definition.describe.refusals.length === 0) {
       throw new Error(`Command ${definition.name} needs a sentence, an example, and at least one refusal`);
     }
+    if (definition.scope === 'person' && (definition.capacity || definition.dated)) {
+      throw new Error(`Command ${definition.name} is person-scoped: it has no workspace for a period lock or plan limit`);
+    }
     const existing = this.areas.get(area);
     if (existing?.has(definition.name)) throw new Error(`Duplicate command: ${definition.name}`);
     const commands = existing || new Map<string, AnyCommandDefinition>();

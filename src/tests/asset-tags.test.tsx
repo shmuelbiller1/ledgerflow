@@ -45,15 +45,21 @@ describe('Asset tags', () => {
     setComponentWorkspace('bookkeeper');
     useLedgerStore.setState({ assets: register, accounts: [] } as never);
     markComponentCollectionsLoaded('assets');
-    const writes: Array<{ p_id?: string; p_set?: Record<string, unknown> }> = [];
+    // giving tags is two command calls now, one per asset; the tag rides in the record's fields
+    const writes: Array<{ id?: string; collection?: string; data?: Record<string, unknown> }> = [];
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('lf_update') && typeof init?.body === 'string') writes.push(JSON.parse(init.body));
+      if (String(input).includes('/commands/record.save') && typeof init?.body === 'string') {
+        const { input: sent } = JSON.parse(init.body) as { input: { collection: string; id: string; data: Record<string, unknown> } };
+        writes.push({ id: sent.id, collection: sent.collection, data: sent.data });
+        return new Response(JSON.stringify({ ok: true, data: { collection: sent.collection, id: sent.id, created: false, updatedAt: new Date().toISOString() } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
       return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch;
     render(<FixedAssetsView />);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Give tags (2)' })); });
     await waitFor(() => assert.equal(writes.length, 2));
-    assert.deepEqual(writes.map(w => [w.p_id, w.p_set?.assetTag]), [['laptop', 'AT-0008'], ['van', 'AT-0009']]);
+    assert.deepEqual(writes.map(w => [w.id, w.data?.assetTag]), [['laptop', 'AT-0008'], ['van', 'AT-0009']]);
+    assert.deepEqual(writes.map(w => w.collection), ['assets', 'assets']);
     fireEvent.change(screen.getByLabelText(/^Find/), { target: { value: 'AT-0007' } });
     assert.ok(screen.getByRole('button', { name: inlineEditName('Edit Name of Press') }));
     assert.equal(screen.queryByRole('button', { name: inlineEditName('Edit Name of Delivery van') }), null);

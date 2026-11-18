@@ -121,6 +121,7 @@ export function renderCommandArtifacts(): Record<string, string> {
     area: command.name.split('.')[0],
     roles: [...command.roles],
     ...(command.allowPlatformAdmin ? { allowPlatformAdmin: true } : {}),
+    ...(command.scope === 'person' ? { scope: 'person' } : {}),
     risk: command.risk,
     description: command.describe,
     inputSchema: z.toJSONSchema(command.input, { io: 'input', unrepresentable: 'any' }),

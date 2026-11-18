@@ -1,0 +1,130 @@
+diff --git a/src/server/routes/transactions/bulkRoutes.ts b/src/server/routes/transactions/bulkRoutes.ts
+index 344ae2c..4ff7c27 100644
+--- a/src/server/routes/transactions/bulkRoutes.ts
++++ b/src/server/routes/transactions/bulkRoutes.ts
+@@ -15,6 +15,7 @@ import { MAX_RECATEGORIZE, RecategorizeError, recategorize } from '../../service
+ import { workspaceRole } from '../../../lib/periodLock';
+ import { BulkRefusal, commitLedgerBulk } from '../../services/ledgerBulkCommit';
+ import { writeServerAuditLog } from '../../services/auditLogService';
++import { documentEntryRefusal, postedDeletionRefusal, postedStatusRefusal } from '../../services/ledgerEditGuards';
+ 
+ 
+ const SERVER_POSTED: Record<string, string> = { invoices: 'Invoices', bills: 'Bills', creditNotes: 'Credit notes', vendorCredits: 'Vendor credits' };
+@@ -136,11 +137,11 @@ export function registerTransactionBulkRoutes(transactionRouter: express.Router)
+            if (isUpdatedAtMismatch(expectedUpdatedAt as never, txData?.updatedAt)) {
+              return { id, current: { ...txData, id: txDoc.id } };
+            }
+-           const txMeta = (txData?.metadata || {}) as Record<string, unknown>;
+-           if ((updateData.lines !== undefined || updateData.status !== undefined) &&
+-               (txMeta.invoiceId || txMeta.billId || txMeta.paymentId || txMeta.creditNoteId || txMeta.vendorCreditId)) {
+-             throw new Error(`Entry ${id} belongs to a source document; update or void the document instead.`);
+-           }
++           const docRefusal = documentEntryRefusal(txData as { metadata?: Record<string, unknown> }, Boolean(user.admin), Object.keys(updateData));
++           if (docRefusal) throw new Error(`Entry ${id}: ${docRefusal}`);
++           const unpostRefusal = postedStatusRefusal(txData as Partial<Transaction>, updateData.status, Boolean(user.admin)) ||
++             postedDeletionRefusal(txData as Partial<Transaction>, updateData as Partial<Transaction>, Boolean(user.admin));
++           if (unpostRefusal) throw new Error(`Entry ${id}: ${unpostRefusal}`);
+            if (updateData.lines !== undefined) {
+              const lines = updateData.lines as Array<{ accountId?: string; amountCents?: number }>;
+              if (!Array.isArray(lines) || lines.length < 2) throw new Error(`Entry ${id} needs at least two lines`);
+diff --git a/src/server/routes/transactions/crudRoutes.ts b/src/server/routes/transactions/crudRoutes.ts
+index 9b6fe66..0b678c1 100644
+--- a/src/server/routes/transactions/crudRoutes.ts
++++ b/src/server/routes/transactions/crudRoutes.ts
+@@ -143,13 +143,20 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
+       if (!transaction || !transaction.workspaceId) throw new HttpError('Invalid payload', 400);
+       // a copy: req.body stays the client's JSON, which the idempotency fingerprint is computed from
+       const draft = { ...transaction, uid: user.uid };
+-      if (!draft.totalAmountCents) draft.totalAmountCents = getAbsoluteTotal(draft);
++      if (!draft.totalAmountCents && Array.isArray(draft.lines) && draft.lines.every((l: unknown) => l !== null && typeof l === 'object')) {
++        draft.totalAmountCents = getAbsoluteTotal(draft);
++      }
+       const parsed = TransactionSchema.safeParse(draft);
+       if (!parsed.success) throw Object.assign(new HttpError('Schema validation failed', 400), { details: parsed.error.issues });
+       const transactionToSave = { ...parsed.data, id: parsed.data.id || db.collection("transactions").doc().id } as Transaction;
+       const wsData = (await db.collection('workspaces').doc(transactionToSave.workspaceId).get()).data();
+       if (!isWorkspaceMemberData(wsData, user, transactionToSave.workspaceId)) throw new HttpError('Not a member', 403);
+-      validatedTx = await TransactionValidator.validateAndPrepare(transactionToSave, { workspaceId: transactionToSave.workspaceId, user: { uid: user.uid, admin: user.admin }, wsData });
++      try {
++        validatedTx = await TransactionValidator.validateAndPrepare(transactionToSave, { workspaceId: transactionToSave.workspaceId, user: { uid: user.uid, admin: user.admin }, wsData });
++      } catch (err) {
++        if ((err as { status?: number })?.status) throw err;
++        throw new HttpError(errorMessage(err), /Period Locked/i.test(errorMessage(err)) ? 409 : 400);
++      }
+       // Z-12: a required label whose rule refuses
+       const missing = refusedLabels(validatedTx, wsData?.dimensions);
+       if (missing.length > 0) throw new HttpError(refusedLabelsMessage(missing), 400);
+@@ -222,7 +229,9 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
+       const ids = new Set<string>();
+       for (const [index, raw] of (transactions as Array<Record<string, unknown>>).entries()) {
+         const entry: Record<string, unknown> = { ...(raw || {}), workspaceId, uid: user.uid };
+-        if (!entry.totalAmountCents) entry.totalAmountCents = getAbsoluteTotal(entry as unknown as Transaction);
++        if (!entry.totalAmountCents && Array.isArray(entry.lines) && entry.lines.every((l: unknown) => l !== null && typeof l === 'object')) {
++          entry.totalAmountCents = getAbsoluteTotal(entry as unknown as Transaction);
++        }
+         const parsed = TransactionSchema.safeParse(entry);
+         if (!parsed.success) throw Object.assign(new HttpError(`Entry ${index}: schema validation failed`, 400), { details: parsed.error.issues });
+         const id = parsed.data.id || db.collection('transactions').doc().id;
+@@ -314,8 +323,8 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
+            if (unpostRefusal) throw new HttpError(unpostRefusal, 409);
+            beforeEdit = auditSnapshot(txData as Partial<Transaction>);
+          
+-           if (partialUpdate.lines !== undefined || partialUpdate.amountCents !== undefined || partialUpdate.totalAmountCents !== undefined || partialUpdate.workspaceId !== undefined || partialUpdate.date !== undefined || partialUpdate.uid !== undefined) {
+-             throw new Error('Restricted fields cannot be modified via partialUpdate. Use a full transaction update instead.');
++           if (partialUpdate.lines !== undefined || partialUpdate.amountCents !== undefined || partialUpdate.totalAmountCents !== undefined || partialUpdate.baseAmountCents !== undefined || partialUpdate.exchangeRate !== undefined || partialUpdate.currency !== undefined || partialUpdate.originalCurrency !== undefined || partialUpdate.workspaceId !== undefined || partialUpdate.date !== undefined || partialUpdate.uid !== undefined) {
++             throw new HttpError('Restricted fields cannot be modified via partialUpdate. Use a full transaction update instead.', 400);
+            }
+ 
+            const allowedStatuses = ['draft', 'pending', 'certified', 'void', 'reconciled', 'completed', 'failed', 'flagged', 'reviewed', 'overdue', 'approved'];
+diff --git a/src/server/routes/transactions/reconcileRoutes.ts b/src/server/routes/transactions/reconcileRoutes.ts
+index 3a8beed..f9d11d4 100644
+--- a/src/server/routes/transactions/reconcileRoutes.ts
++++ b/src/server/routes/transactions/reconcileRoutes.ts
+@@ -17,6 +17,7 @@ import { z } from 'zod';
+ import { writeServerAuditLog } from '../../services/auditLogService';
+ import { assertPostingOpen } from '../../../lib/periodLock';
+ import { errorMessage, requestUser } from '../../auth/requestUser';
++import { isDocumentPosting, postedDeletionRefusal, postedStatusRefusal } from '../../services/ledgerEditGuards';
+ import type { ExternalBankLine } from './helpers';
+ 
+ /** POST /reconcile: an endpoint for complex reconciliations (match, unmatch, clear in one batch). */
+@@ -173,6 +174,18 @@ export async function handleReconcile(req: express.Request, res: express.Respons
+             delete safeData.workspaceId;
+             delete safeData.uid;
+ 
++            const unpostRefusal = postedStatusRefusal(existingTxData, safeData.status, Boolean(user.admin)) ||
++              postedDeletionRefusal(existingTxData, safeData, Boolean(user.admin));
++            if (unpostRefusal) throw new Error(unpostRefusal);
++            if (!user.admin && isDocumentPosting(existingTxData)) {
++              const nonReconcileFields = Object.keys(safeData).some(k =>
++                ['lines', 'amountCents', 'totalAmountCents', 'baseAmountCents', 'exchangeRate', 'currency', 'date', 'type', 'metadata', 'reversalEventId'].includes(k) || k.startsWith('metadata.'),
++              );
++              if (nonReconcileFields) {
++                throw new Error(`Transaction ${op.id} belongs to a source document; figures, dates, and metadata cannot be rewritten during reconciliation.`);
++              }
++            }
++
+             const merged = { ...existingTxData, ...safeData } as Transaction;
+             settleHomeCurrency(merged);
+             
+diff --git a/src/server/services/ledgerEditGuards.ts b/src/server/services/ledgerEditGuards.ts
+index 21b11a9..7780fc4 100644
+--- a/src/server/services/ledgerEditGuards.ts
++++ b/src/server/services/ledgerEditGuards.ts
+@@ -51,7 +51,7 @@ export function touchesFinancialField(keys: string[]): boolean {
+  * import, a landed cost, depreciation, a close) carry a `type` too, and the product reverses exactly
+  * those in place — restoring stock, allowing a corrected payroll file — through this same route.
+  */
+-const DOCUMENT_LINK_KEYS = ['invoiceId', 'billId', 'paymentId', 'creditNoteId', 'vendorCreditId', 'estimateId', 'expenseId', 'depositId', 'purchaseOrderId'];
++const DOCUMENT_LINK_KEYS = ['invoiceId', 'billId', 'paymentId', 'creditNoteId', 'vendorCreditId', 'refundOfCreditId', 'estimateId', 'expenseId', 'depositId', 'purchaseOrderId'];
+ 
+ /** The `metadata.type` values the invoice, bill, payment and credit postings write for the document itself. */
+ const DOCUMENT_POSTING_TYPES = new Set([
+@@ -60,6 +60,7 @@ const DOCUMENT_POSTING_TYPES = new Set([
+   'payment-posting', 'payment-application', 'payment-reversal', 'standalone-payment',
+   'credit-note-issuance', 'credit-note-reversal',
+   'vendor-credit-issuance', 'vendor-credit-reversal',
++  'credit-refund', 'credit-application-fx',
+ ]);
+ 
+ /**

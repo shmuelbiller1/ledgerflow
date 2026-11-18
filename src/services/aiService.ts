@@ -7,7 +7,46 @@ import { Transaction, Project, ChartAccount, AnalyticalMetrics } from "../types"
 import { IntentResolver } from "../lib/intentResolver";
 import { getIdToken } from "../firebase";
 import { useAuthStore } from "../stores/useAuthStore";
+import { maskCardNumbers } from '../lib/cardNumberMask';
 import { countBeforeWord } from '../lib/textShape';
+
+const UNMASKED_PAYLOAD_KEYS = new Set([
+  'workspaceId',
+  'selectedModel',
+  'id',
+  'accountId',
+  'customerId',
+  'vendorId',
+  'projectId',
+  'base64Data',
+  'imageBase64',
+  'fileBase64',
+  'mimeType',
+]);
+
+/** S-18: mask plausible card numbers in free-text fields before sending to AI routes, without altering binary/ID fields or mutating caller state. */
+export function scrubAiPayloadCards<T>(value: T, key?: string, depth = 0): T {
+  if (depth > 8 || value === null || value === undefined) return value;
+  if (key && UNMASKED_PAYLOAD_KEYS.has(key)) return value;
+  if (typeof value === 'string') {
+    if (value.startsWith('data:')) return value;
+    return maskCardNumbers(value) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => scrubAiPayloadCards(item, undefined, depth + 1)) as T;
+  }
+  if (typeof value === 'object') {
+    const rec = value as Record<string, unknown>;
+    const mime = typeof rec.mimeType === 'string' ? rec.mimeType.toLowerCase() : '';
+    const binaryContent = Boolean(mime && !mime.startsWith('text/') && !mime.includes('csv') && !mime.includes('json'));
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(rec)) {
+      out[k] = k === 'content' && binaryContent ? v : scrubAiPayloadCards(v, k, depth + 1);
+    }
+    return out as T;
+  }
+  return value;
+}
 
 export interface StrategicDirectives {
   directives: string[];
@@ -26,13 +65,14 @@ class AIService {
     
     const selectedModel = typeof window !== 'undefined' ? (localStorage.getItem('lf_selected_ai_model') || 'Gemini 3.8 Flash (Default)') : 'Gemini 3.8 Flash (Default)';
     const workspaceId = payload?.workspaceId || useAuthStore.getState().currentWorkspaceId;
+    const safePayload = scrubAiPayloadCards(payload);
     const response = await fetch("/api/ai/process", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${idToken || 'guest-token'}`
       },
-      body: JSON.stringify({ task, payload: { ...payload, workspaceId, selectedModel } })
+      body: JSON.stringify({ task, payload: { ...safePayload, workspaceId, selectedModel } })
     });
 
     if (!response.ok) {
@@ -138,11 +178,12 @@ class AIService {
     });
 
     try {
-      return await this.callBackend<ParsedReceiptData>('parse-receipt', {
-        base64Data, 
-        mimeType: file.type, 
+      const receipt = await this.callBackend<ParsedReceiptData>('parse-receipt', {
+        base64Data,
+        mimeType: file.type,
         context: labels.join(', ') + (heuristicCache ? JSON.stringify(heuristicCache) : '')
       });
+      return scrubAiPayloadCards(receipt);
     } catch {
        return null;
     }
@@ -153,7 +194,7 @@ class AIService {
       if (typeof input === 'string') {
         const payload = { content: input, mimeType: 'text/plain', context: labels.join(', ') + context };
         const result = await this.callBackend<ResolvedEntry[] & { transactions?: ResolvedEntry[] }>('parse-statement', payload);
-        return result.transactions || result || [];
+        return scrubAiPayloadCards(result.transactions || result || []);
       } else {
         const base64Data = await new Promise<string>((resolve) => {
           const reader = new FileReader();
@@ -162,7 +203,7 @@ class AIService {
         });
         const payload = { content: base64Data, mimeType: input.type, context: labels.join(', ') + context };
         const result = await this.callBackend<ResolvedEntry[] & { transactions?: ResolvedEntry[] }>('parse-statement', payload);
-        return result.transactions || result || [];
+        return scrubAiPayloadCards(result.transactions || result || []);
       }
     } catch (error) {
       console.error("Statement parsing failed:", error);

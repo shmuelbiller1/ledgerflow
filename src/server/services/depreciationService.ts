@@ -67,8 +67,18 @@ export async function runDepreciation(db: Firestore, input: { workspaceId: strin
       const target = depreciationThrough(asset, input.month);
       const amount = target - (asset.accumulatedDepreciationCents || 0);
       if (amount <= 0) continue;
-      const expense = (asset.expenseAccountId && byId.get(asset.expenseAccountId)) || defaults.expense;
-      const accumulated = (asset.accumulatedAccountId && byId.get(asset.accumulatedAccountId)) || defaults.accumulated;
+      const expenseCandidate = asset.expenseAccountId ? byId.get(asset.expenseAccountId) : undefined;
+      const accumulatedCandidate = asset.accumulatedAccountId ? byId.get(asset.accumulatedAccountId) : undefined;
+      const validExpense = expenseCandidate && active(expenseCandidate) && ['expense', 'cost_of_goods'].includes(String(expenseCandidate.type).toLowerCase()) ? expenseCandidate : undefined;
+      const validAccumulated = accumulatedCandidate && active(accumulatedCandidate) && String(accumulatedCandidate.type).toLowerCase() === 'asset' ? accumulatedCandidate : undefined;
+      if (asset.expenseAccountId && !validExpense) {
+        throw new DepreciationError(400, `The depreciation expense account on ${asset.name} is archived or not an expense account`);
+      }
+      if (asset.accumulatedAccountId && !validAccumulated) {
+        throw new DepreciationError(400, `The accumulated depreciation account on ${asset.name} is archived or not an asset account`);
+      }
+      const expense = validExpense || defaults.expense;
+      const accumulated = validAccumulated || defaults.accumulated;
       if (!expense || !accumulated) {
         missing.push(asset.name);
         continue;

@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import crypto from 'crypto';
 import { FieldValue, Firestore, FirestoreError, Timestamp } from '../server/db/pgFirestore';
 import type { DocumentSnapshot } from '../server/db/pgFirestore';
+import { seedSandbox } from './helpers/sandbox';
 
 const url = process.env.LF_TEST_DATABASE_URL;
 const ws = `ws_pgtest_${crypto.randomBytes(4).toString('hex')}`;
@@ -19,12 +20,15 @@ function errorCode(err: unknown): number | undefined {
 
 describe('Postgres Firestore layer', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, () => {
   let db: Firestore;
+  let emptyOverlay: Firestore;
 
-  before(() => {
+  before(async () => {
     db = new Firestore({ connectionString: url, max: 8 });
+    emptyOverlay = db.forSandbox(await seedSandbox(db, ws));
   });
 
   after(async () => {
+    await db.pool.query('delete from sandbox.sandboxes where workspace_id = $1', [ws]);
     for (const table of ['documents', 'transactions', 'idempotencyKeys', 'workspaceShards']) {
       await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id like $2`, [ws, `${ws}%`]);
     }
@@ -133,35 +137,43 @@ describe('Postgres Firestore layer', { skip: !url && 'LF_TEST_DATABASE_URL not s
       batch.set(db.collection('transactions').doc(`${ws}_${id}`), { workspaceId: ws, ...rest });
     }
     await batch.commit();
-    const base = db.collection('transactions').where('workspaceId', '==', ws);
-    const ids = (docs: DocumentSnapshot[]) => docs.map(d => d.id.replace(`${ws}_`, ''));
+    const readLists = async (reader: Firestore) => {
+      const base = reader.collection('transactions').where('workspaceId', '==', ws);
+      const seen: Array<Array<{ id: string; data: unknown }>> = [];
+      const ids = (docs: DocumentSnapshot[]) => {
+        seen.push(docs.map(d => ({ id: d.id, data: d.data() })));
+        return docs.map(d => d.id.replace(`${ws}_`, ''));
+      };
 
-    assert.deepEqual(ids((await base.where('status', '==', 'posted').get()).docs), ['t1', 't3', 't5']);
-    assert.deepEqual(ids((await base.where('status', 'in', ['draft', 'void']).get()).docs), ['t2', 't4']);
-    assert.deepEqual(ids((await base.where('date', '>=', '2026-01-06').where('date', '<=', '2026-02-28').get()).docs), ['t3']);
-    assert.deepEqual(ids((await base.where('amount', '>', 6).get()).docs), ['t1', 't2', 't4']);
-    assert.deepEqual(ids((await base.where('tags', 'array-contains', 'y').get()).docs), ['t2', 't3']);
-    assert.deepEqual(ids((await base.where('tags', 'array-contains-any', ['x', 'q']).get()).docs), ['t1', 't3']);
-    assert.deepEqual(ids((await base.where('status', '!=', 'posted').get()).docs), ['t2', 't4']);
+      assert.deepEqual(ids((await base.where('status', '==', 'posted').get()).docs), ['t1', 't3', 't5']);
+      assert.deepEqual(ids((await base.where('status', 'in', ['draft', 'void']).get()).docs), ['t2', 't4']);
+      assert.deepEqual(ids((await base.where('date', '>=', '2026-01-06').where('date', '<=', '2026-02-28').get()).docs), ['t3']);
+      assert.deepEqual(ids((await base.where('amount', '>', 6).get()).docs), ['t1', 't2', 't4']);
+      assert.deepEqual(ids((await base.where('tags', 'array-contains', 'y').get()).docs), ['t2', 't3']);
+      assert.deepEqual(ids((await base.where('tags', 'array-contains-any', ['x', 'q']).get()).docs), ['t1', 't3']);
+      assert.deepEqual(ids((await base.where('status', '!=', 'posted').get()).docs), ['t2', 't4']);
 
-    const byDate = base.orderBy('date', 'desc').orderBy('__name__', 'desc');
-    const all = await byDate.get();
-    assert.deepEqual(ids(all.docs), ['t4', 't3', 't2', 't1']);
+      const byDate = base.orderBy('date', 'desc').orderBy('__name__', 'desc');
+      const all = await byDate.get();
+      assert.deepEqual(ids(all.docs), ['t4', 't3', 't2', 't1']);
 
-    const page1 = await byDate.limit(2).get();
-    assert.deepEqual(ids(page1.docs), ['t4', 't3']);
-    const page2 = await byDate.startAfter(page1.docs[1]).limit(2).get();
-    assert.deepEqual(ids(page2.docs), ['t2', 't1']);
-    const page3 = await byDate.startAfter(page2.docs[1]).limit(2).get();
-    assert.equal(page3.empty, true);
+      const page1 = await byDate.limit(2).get();
+      assert.deepEqual(ids(page1.docs), ['t4', 't3']);
+      const page2 = await byDate.startAfter(page1.docs[1]).limit(2).get();
+      assert.deepEqual(ids(page2.docs), ['t2', 't1']);
+      const page3 = await byDate.startAfter(page2.docs[1]).limit(2).get();
+      assert.equal(page3.empty, true);
 
-    assert.deepEqual(ids((await base.orderBy('date').startAt('2026-02-01').get()).docs), ['t3', 't4']);
-    assert.deepEqual(ids((await base.orderBy('date').endBefore('2026-02-01').get()).docs), ['t1', 't2']);
-    assert.deepEqual(ids((await base.orderBy('amount').offset(1).limit(2).get()).docs), ['t3', 't4']);
+      assert.deepEqual(ids((await base.orderBy('date').startAt('2026-02-01').get()).docs), ['t3', 't4']);
+      assert.deepEqual(ids((await base.orderBy('date').endBefore('2026-02-01').get()).docs), ['t1', 't2']);
+      assert.deepEqual(ids((await base.orderBy('amount').offset(1).limit(2).get()).docs), ['t3', 't4']);
 
-    assert.equal((await base.count().get()).data().count, 5);
-    assert.equal((await base.where('status', '==', 'posted').limit(2).count().get()).data().count, 2);
-    assert.deepEqual(ids((await db.collectionGroup('transactions').where('workspaceId', '==', ws).where('amount', '==', 5).get()).docs), ['t3']);
+      assert.equal((await base.count().get()).data().count, 5);
+      assert.equal((await base.where('status', '==', 'posted').limit(2).count().get()).data().count, 2);
+      assert.deepEqual(ids((await reader.collectionGroup('transactions').where('workspaceId', '==', ws).where('amount', '==', 5).get()).docs), ['t3']);
+      return seen;
+    };
+    assert.deepEqual(await readLists(emptyOverlay), await readLists(db));
   });
 
   test('stream() pages through large results', async () => {
@@ -173,12 +185,16 @@ describe('Postgres Firestore layer', { skip: !url && 'LF_TEST_DATABASE_URL not s
       }
       await batch.commit();
     }
-    const seen: number[] = [];
-    for await (const doc of db.collection('documents').where('workspaceId', '==', ws).where('kind', '==', 'stream').stream()) {
-      seen.push((doc as DocumentSnapshot).data()!.i);
-    }
-    assert.equal(seen.length, total);
-    assert.equal(new Set(seen).size, total);
+    const stream = async (reader: Firestore) => {
+      const seen: number[] = [];
+      for await (const doc of reader.collection('documents').where('workspaceId', '==', ws).where('kind', '==', 'stream').stream()) {
+        seen.push((doc as DocumentSnapshot).data()!.i);
+      }
+      assert.equal(seen.length, total);
+      assert.equal(new Set(seen).size, total);
+      return seen;
+    };
+    assert.deepEqual(await stream(emptyOverlay), await stream(db));
   });
 
   test('getAll keeps order and reports missing documents', async () => {

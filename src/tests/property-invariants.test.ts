@@ -9,6 +9,38 @@ import { typesSource } from './helpers/typesSource';
 
 describe('A-04 & H-30: Property Invariants & Double-Entry Equality Suite', () => {
 
+  /** The journal a template produced, shaped the way the validator reads it. */
+  function journalFor(id: string, description: string, totalAmountCents: number, currency: string, lines: TransactionLine[]): Transaction {
+    return {
+      id,
+      uid: 'user-test',
+      workspaceId: 'ws-test',
+      date: '2026-06-01',
+      description,
+      totalAmountCents,
+      currency,
+      status: 'completed',
+      type: 'actual',
+      createdAt: new Date().toISOString(),
+      lines,
+    };
+  }
+
+  /** A posting's debits and credits, each summed without its sign. */
+  function postingTotals(lines: TransactionLine[]): { debitCents: number; creditCents: number } {
+    return {
+      debitCents: lines.filter(l => l.amountCents > 0).reduce((sum, l) => sum + l.amountCents, 0),
+      creditCents: lines.filter(l => l.amountCents < 0).reduce((sum, l) => sum + Math.abs(l.amountCents), 0),
+    };
+  }
+
+  /** The posting passes the double-entry validator, and its debits equal its credits to the cent. */
+  function assertBalancedPosting(label: string, tx: Transaction) {
+    assert.doesNotThrow(() => DoubleEntryValidator.validateJournalEntry(tx));
+    const { debitCents, creditCents } = postingTotals(tx.lines);
+    assert.strictEqual(debitCents, creditCents, `${label} debits must equal credits exactly`);
+  }
+
   test('Every generated Invoice template posting set satisfies totalDebit === totalCredit exactly', () => {
     // Test 1,000 randomized permutations of invoices
     for (let i = 0; i < 1000; i++) {
@@ -33,30 +65,7 @@ describe('A-04 & H-30: Property Invariants & Double-Entry Equality Suite', () =>
         retainageAccount: retainageCents > 0 ? { id: 'acc-ret-1', name: 'Retainage Receivable' } : null
       });
 
-      const tx: Transaction = {
-        id: `tx-inv-${i}`,
-        uid: 'user-test',
-        workspaceId: 'ws-test',
-        date: '2026-06-01',
-        description: `Invoice INV-${i + 1000}`,
-        totalAmountCents: totalCents,
-        currency: 'USD',
-        status: 'completed',
-        type: 'actual',
-        createdAt: new Date().toISOString(),
-        lines
-      };
-
-      assert.doesNotThrow(() => DoubleEntryValidator.validateJournalEntry(tx));
-
-      const totalDebit = lines
-        .filter(l => l.amountCents > 0)
-        .reduce((sum, l) => sum + l.amountCents, 0);
-      const totalCredit = lines
-        .filter(l => l.amountCents < 0)
-        .reduce((sum, l) => sum + Math.abs(l.amountCents), 0);
-
-      assert.strictEqual(totalDebit, totalCredit, `Invoice ${i} debits must equal credits exactly`);
+      assertBalancedPosting(`Invoice ${i}`, journalFor(`tx-inv-${i}`, `Invoice INV-${i + 1000}`, totalCents, 'USD', lines));
     }
   });
 
@@ -84,30 +93,7 @@ describe('A-04 & H-30: Property Invariants & Double-Entry Equality Suite', () =>
         retainageAccount: retainageCents > 0 ? { id: 'acc-ret-pay-1', name: 'Retainage Payable' } : null
       });
 
-      const tx: Transaction = {
-        id: `tx-bill-${i}`,
-        uid: 'user-test',
-        workspaceId: 'ws-test',
-        date: '2026-06-01',
-        description: `Bill BILL-${i + 1000}`,
-        totalAmountCents: totalCents,
-        currency: 'EUR',
-        status: 'completed',
-        type: 'actual',
-        createdAt: new Date().toISOString(),
-        lines
-      };
-
-      assert.doesNotThrow(() => DoubleEntryValidator.validateJournalEntry(tx));
-
-      const totalDebit = lines
-        .filter(l => l.amountCents > 0)
-        .reduce((sum, l) => sum + l.amountCents, 0);
-      const totalCredit = lines
-        .filter(l => l.amountCents < 0)
-        .reduce((sum, l) => sum + Math.abs(l.amountCents), 0);
-
-      assert.strictEqual(totalDebit, totalCredit, `Bill ${i} debits must equal credits exactly`);
+      assertBalancedPosting(`Bill ${i}`, journalFor(`tx-bill-${i}`, `Bill BILL-${i + 1000}`, totalCents, 'EUR', lines));
     }
   });
 
@@ -144,19 +130,7 @@ describe('A-04 & H-30: Property Invariants & Double-Entry Equality Suite', () =>
         amountCents: -totalAmountCents
       });
 
-      const tx: Transaction = {
-        id: `tx-split-${iter}`,
-        uid: 'user-test',
-        workspaceId: 'ws-test',
-        date: '2026-06-01',
-        description: `Split journal entry #${iter}`,
-        totalAmountCents,
-        currency: 'USD',
-        status: 'completed',
-        type: 'actual',
-        createdAt: new Date().toISOString(),
-        lines
-      };
+      const tx = journalFor(`tx-split-${iter}`, `Split journal entry #${iter}`, totalAmountCents, 'USD', lines);
 
       assert.doesNotThrow(() => DoubleEntryValidator.validateJournalEntry(tx));
     }

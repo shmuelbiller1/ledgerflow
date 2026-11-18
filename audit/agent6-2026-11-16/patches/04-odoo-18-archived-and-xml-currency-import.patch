@@ -1,0 +1,65 @@
+diff --git a/src/lib/odooImport.ts b/src/lib/odooImport.ts
+index 04d0f5f..9e6ba7f 100644
+--- a/src/lib/odooImport.ts
++++ b/src/lib/odooImport.ts
+@@ -54,6 +54,8 @@ const ODOO_ACCOUNT_TYPES: Record<string, string> = {
+ 
+ const yes = (raw: string) => ['true', 'yes', '1'].includes(raw.trim().toLowerCase());
+ const no = (raw: string) => ['false', 'no', '0'].includes(raw.trim().toLowerCase());
++/** Odoo import-compatible exports write built-in currency XML IDs as `base.EUR`, `base.USD`, etc. */
++const odooCurrency = (raw: string) => raw.trim().replace(/^base\.([a-z]{3})$/i, '$1');
+ 
+ /** Pure normalisation; validation, duplicates, permissions and the write stay where they are. */
+ export function normalizeOdooCsv(kind: ImportKind, table: readonly (readonly string[])[]): string[][] {
+@@ -64,16 +66,16 @@ export function normalizeOdooCsv(kind: ImportKind, table: readonly (readonly str
+     return [ACCOUNTS_HEADER, ...rows.map(row => {
+       const code = columnText(header, row, 'Code', 'code');
+       const typeRaw = columnText(header, row, 'Type', 'account_type');
+-      // the account import has no archived state: a deprecated account is held back (no type, so
+-      // the preview lists it) instead of coming back as an active account
+-      const deprecated = yes(columnText(header, row, 'Deprecated', 'deprecated'));
++      // the account import has no archived state: a deprecated (Odoo 16–17) or inactive (Odoo 18)
++      // account is held back (no type, so the preview lists it) instead of coming back as active
++      const deprecated = yes(columnText(header, row, 'Deprecated', 'deprecated')) || no(columnText(header, row, 'Active', 'active'));
+       return [
+         columnText(header, row, 'Account Name', 'Name', 'name') || code,
+         code,
+         deprecated || !typeRaw ? '' : (ODOO_ACCOUNT_TYPES[typeRaw.toLowerCase()] ?? ''),
+         '', '',
+         deprecated ? 'Deprecated in Odoo: not imported as an active account. Remove this row, or set its type to bring it back on purpose.' : '',
+-        columnText(header, row, 'Account Currency', 'Currency', 'currency_id'),
++        odooCurrency(columnText(header, row, 'Account Currency', 'Currency', 'currency_id', 'currency_id/id')),
+       ];
+     })];
+   }
+@@ -106,8 +108,8 @@ export function normalizeOdooCsv(kind: ImportKind, table: readonly (readonly str
+       columnText(header, row, 'Cost', 'standard_price'),
+       '', // never stage opening stock from a catalogue export
+       '',
+-      columnText(header, row, 'Unit of Measure', 'uom_id'),
+-      columnText(header, row, 'Product Category', 'categ_id'),
++      columnText(header, row, 'Unit of Measure', 'uom_id', 'uom_id/id'),
++      columnText(header, row, 'Product Category', 'categ_id', 'categ_id/id'),
+     ];
+   })];
+ }
+diff --git a/src/tests/eu-a4b-odoo-import.test.ts b/src/tests/eu-a4b-odoo-import.test.ts
+index 241d368..f207989 100644
+--- a/src/tests/eu-a4b-odoo-import.test.ts
++++ b/src/tests/eu-a4b-odoo-import.test.ts
+@@ -76,3 +76,15 @@ test('EU-A4b Odoo contacts: an empty Phone falls back to Mobile', () => {
+   const r = prepared('customers', [['Name', 'Phone', 'Mobile'], ['Deco Addict', '', '+1 555 0199']]).result;
+   assert.equal(r.records[0].data.phone, '+1 555 0199');
+ });
++
++test('EU-A4b Odoo 18 archived accounts (Active=False) and currency_id/id XML IDs (base.EUR)', () => {
++  const { result } = prepared('accounts', [
++    ['id', 'code', 'name', 'account_type', 'active', 'currency_id/id'],
++    ['account.eur_bank', '101402', 'EUR Bank', 'asset_cash', 'True', 'base.EUR'],
++    ['account.old_rent', '620000', 'Archived Rent', 'expense', 'False', ''],
++  ]);
++  assert.equal(result.records.length, 1);
++  assert.equal(result.records[0].data.code, '101402');
++  assert.equal(result.records[0].data.currency, 'EUR');
++  assert.deepEqual(result.errors.map(e => [e.row, e.field]), [[3, 'type']]);
++});

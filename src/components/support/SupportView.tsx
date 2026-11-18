@@ -1,4 +1,4 @@
-import { runCommand, ServerCommandError } from '../../lib/runCommand';
+import { runNamedCommand } from '../../lib/commandByName';
 import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import { 
   Headphones, 
@@ -22,13 +22,11 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useSupportStore } from '../../stores/useSupportStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { useSupportData } from '../../hooks/useSupportData';
-import { SupportTicket, Priority, SupportMessage } from '../../types';
+import { SupportTicket, Priority } from '../../types';
 import { getLatestErrorDiagnostic } from '../../lib/errorTracker';
 import { format } from 'date-fns';
 import { cn } from '../../lib/utils';
 import { useTimeout } from '../../hooks/useTimeout';
-import { db } from '../../firebase';
-import { doc, setDoc, updateDoc } from '../../lib/db/firestore';
 import { Labelled } from '../ui/Labelled';
 import AttachmentsPanel from '../common/AttachmentsPanel';
 import { maskCardNumbers } from '../../lib/cardNumberMask';
@@ -118,64 +116,22 @@ export default function SupportView() {
     setIsSending(true);
     try {
       const ticketId = secureId('ticket-');
-      const fallbackMessageId = secureId('msg-');
-      if (!ticketId || !fallbackMessageId) throw new Error('Secure random identifiers are unavailable');
-      const createdAt = new Date().toISOString();
-      
+      if (!ticketId) throw new Error('Secure random identifiers are unavailable');
       const safeSubject = maskCardNumbers(newTicketSubject);
       const safeInitialMessage = maskCardNumbers(initialMessage);
-      const newTicket: SupportTicket = {
+
+      // `support.ticket` opens the ticket AND its first message in one transaction: the ticket can no longer exist
+      // without the description, and the row's owner and workspace come from the session rather than the tab
+      await runNamedCommand('support.ticket', {
         id: ticketId,
-        workspaceId: currentWorkspace.id,
-        uid: user?.uid || '',
         subject: safeSubject,
-        status: 'open',
+        body: safeInitialMessage,
         priority: newTicketPriority,
-        createdAt,
-        updatedAt: createdAt,
-        lastMessageAt: createdAt,
-        lastMessageBy: user?.uid || '',
-        unreadForUser: false,
-        unreadForAdmin: true,
         ...(attachDiagnostics && latestError ? {
           errorLogId: latestError.errorLogId,
-          errorDiagnostics: latestError.diagnostics
-        } : {})
-      };
-
-      await setDoc(doc(db, 'supportTickets', ticketId), newTicket);
-
-      let sentViaApi = false;
-      try {
-        await runCommand({
-          path: `/api/v1/support/tickets/${ticketId}/messages`,
-          method: 'POST',
-          body: { body: safeInitialMessage, authorRole: 'user' },
-        });
-        sentViaApi = true;
-      } catch (apiErr) {
-        // A 2xx whose body was cut off means the server already took the message; writing it again
-        // from the browser would show it twice. A refusal (any status the server chose to answer
-        // with) or a request that never arrived still falls back, as before.
-        // A 2xx with an unreadable body means the server took the message; that is a send that
-        // happened, so it must neither write a second copy nor read as a failure to the person.
-        if (apiErr instanceof ServerCommandError && apiErr.accepted) { sentViaApi = true; }
-        else console.warn('API message send failed, using client write:', apiErr);
-      }
-
-      if (!sentViaApi) {
-        const messageId = fallbackMessageId;
-        const newMessage: SupportMessage = {
-          id: messageId,
-          ticketId,
-          workspaceId: currentWorkspace.id,
-          authorUid: user?.uid || '',
-          authorRole: 'user',
-          body: safeInitialMessage,
-          createdAt
-        };
-        await setDoc(doc(db, 'supportMessages', messageId), newMessage);
-      }
+          errorDiagnostics: latestError.diagnostics,
+        } : {}),
+      }, { workspaceId: currentWorkspace.id });
 
       setIsCreating(false);
       setNewTicketSubject('');
@@ -196,44 +152,13 @@ export default function SupportView() {
     setIsSending(true);
     const textToSend = maskCardNumbers(messageInput.trim());
     try {
-      let sentViaApi = false;
-      try {
-        await runCommand({
-          path: `/api/v1/support/tickets/${selectedTicketId}/messages`,
-          method: 'POST',
-          body: { body: textToSend, authorRole: isAdmin ? 'admin' : 'user' },
-        });
-        sentViaApi = true;
-      } catch (apiErr) {
-        // see the note above: a 2xx with a cut body was already accepted by the server
-        // see the note above: an accepted send whose answer was unreadable is still a send
-        if (apiErr instanceof ServerCommandError && apiErr.accepted) { sentViaApi = true; }
-        else console.warn('API send message failed, using client write:', apiErr);
-      }
-
-      if (!sentViaApi) {
-        const messageId = secureId('msg-');
-        if (!messageId) throw new Error('Secure random identifiers are unavailable');
-        const createdAt = new Date().toISOString();
-        const newMessage: SupportMessage = {
-          id: messageId,
-          ticketId: selectedTicketId,
-          workspaceId: currentWorkspace.id,
-          authorUid: user?.uid || '',
-          authorRole: isAdmin ? 'admin' : 'user',
-          body: textToSend,
-          createdAt
-        };
-        await setDoc(doc(db, 'supportMessages', messageId), newMessage);
-        await updateDoc(doc(db, 'supportTickets', selectedTicketId), {
-          lastMessageAt: createdAt,
-          lastMessageBy: user?.uid || '',
-          updatedAt: createdAt,
-          unreadForUser: isAdmin,
-          unreadForAdmin: !isAdmin,
-          status: isAdmin ? 'pending_user' : 'pending_support'
-        });
-      }
+      // one command: the message and the ticket's unread flags and stage move together, so a reply can never be
+      // stored without the list knowing it arrived
+      await runNamedCommand('support.message', {
+        ticketId: selectedTicketId,
+        body: textToSend,
+        authorRole: isAdmin ? 'admin' : 'user',
+      }, { workspaceId: currentWorkspace.id });
 
       setMessageInput('');
     } catch (err) {
@@ -252,20 +177,7 @@ export default function SupportView() {
       ),
     }));
     try {
-      let updatedViaApi = false;
-      try {
-        await runCommand({ path: `/api/v1/support/tickets/${selectedTicketId}/status`, method: 'PATCH', body: { status } });
-        updatedViaApi = true;
-      } catch (apiErr) {
-        console.warn('API update status failed, using client write:', apiErr);
-      }
-
-      if (!updatedViaApi) {
-        await updateDoc(doc(db, 'supportTickets', selectedTicketId), {
-          status,
-          updatedAt: new Date().toISOString()
-        });
-      }
+      await runNamedCommand('support.status', { ticketId: selectedTicketId, status }, { workspaceId: currentWorkspace?.id || '' });
     } catch (err) {
       console.error(err);
       alert('Failed to update status');

@@ -94,17 +94,49 @@ export default function Sales() {
   const detailOpenerId = useDetailReturnFocus(selectedCustomerId);
 
   const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'customers'>('invoices');
-  // EU-I3: a draft from the free maker opens only in the sample company (a guest with no account)
+  // EU-I3: a draft from the free maker opens in the sample company or in the signed-in workspace that stashed it
   const sampleSession = useAuthStore(st => st.isGuest && !st.user);
   const signedInUid = useAuthStore(st => st.user?.uid);
   const workspaceIdNow = useAuthStore(st => st.currentWorkspaceId);
-  const [freeDraft] = useState(() => (typeof window === 'undefined' || (!sampleSession && !signedInUid) ? null : readFreeInvoice(window.localStorage, { sample: sampleSession, uid: signedInUid, workspaceId: workspaceIdNow || undefined })));
+  const currentFreeSessionKey = `${sampleSession}:${signedInUid || ''}:${workspaceIdNow || ''}`;
+  const [freeDraftSessionKey, setFreeDraftSessionKey] = useState(currentFreeSessionKey);
+  const [freeDraftDismissed, setFreeDraftDismissed] = useState(false);
+  const [freeDraft, setFreeDraft] = useState<Partial<Invoice> | null>(() => (
+    typeof window === 'undefined' || (!sampleSession && !signedInUid)
+      ? null
+      : readFreeInvoice(window.localStorage, { sample: sampleSession, uid: signedInUid, workspaceId: workspaceIdNow || undefined })
+  ));
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(Boolean(freeDraft));
   const [openingOpen, setOpeningOpen] = useState(false);
   const [receiptMode, setReceiptMode] = useState(false);
   const [newInvoiceFor, setNewInvoiceFor] = useState<Partial<Invoice> | undefined>(() => (freeDraft ? withCustomer(freeDraft, customers) : undefined));
+  if (currentFreeSessionKey !== freeDraftSessionKey) {
+    setFreeDraftSessionKey(currentFreeSessionKey);
+    if (!freeDraft && !freeDraftDismissed && typeof window !== 'undefined' && (sampleSession || (signedInUid && workspaceIdNow))) {
+      const loaded = readFreeInvoice(window.localStorage, { sample: sampleSession, uid: signedInUid, workspaceId: workspaceIdNow || undefined });
+      if (loaded) {
+        setFreeDraft(loaded);
+        setNewInvoiceFor(withCustomer(loaded, customers));
+        setIsInvoiceModalOpen(true);
+      }
+    }
+  }
+  // A free-maker draft whose customer was only typed ('new-…') takes the real customer once the list
+  // has it. The result is written back into state once, so the modal's initial invoice keeps one
+  // reference and a later customers update never refills the form over the person's edits.
+  if (newInvoiceFor?.metadata?.source === 'free-invoice-maker' && typeof newInvoiceFor.customerId === 'string'
+    && newInvoiceFor.customerId.startsWith('new-') && customers.length > 0) {
+    const resolved = withCustomer(newInvoiceFor, customers);
+    if (typeof resolved.customerId === 'string' && !resolved.customerId.startsWith('new-')) {
+      setNewInvoiceFor({ ...newInvoiceFor, customerId: resolved.customerId, customerName: resolved.customerName });
+    }
+  }
+  const modalInitialInvoice = newInvoiceFor;
   // the stored copy stays until the draft is saved or deliberately closed, so a reload keeps it
-  const finishFreeDraft = () => { if (freeDraft) clearFreeInvoice(window.localStorage); };
+  const finishFreeDraft = () => {
+    setFreeDraftDismissed(true);
+    if (freeDraft) clearFreeInvoice(window.localStorage);
+  };
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [customerTag, setCustomerTag] = useState<string | null>(null);
   const [showArchivedCustomers, setShowArchivedCustomers] = useState(false);
@@ -338,7 +370,7 @@ export default function Sales() {
         <InvoiceModal key={`${newInvoiceFor?.id || 'new'}${receiptMode ? '-receipt' : ''}`} isOpen={isInvoiceModalOpen} receipt={receiptMode}
           onClose={() => { finishFreeDraft(); setIsInvoiceModalOpen(false); setNewInvoiceFor(undefined); setReceiptMode(false); }}
           onSave={async (inv) => { await onAddInvoice(inv); finishFreeDraft(); setIsInvoiceModalOpen(false); setNewInvoiceFor(undefined); setReceiptMode(false); }}
-          customers={customers} accounts={accounts} initialInvoice={newInvoiceFor} />
+          customers={customers} accounts={accounts} initialInvoice={modalInitialInvoice} />
       )}
       <CustomerModal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)}
         onSave={async (cust) => {

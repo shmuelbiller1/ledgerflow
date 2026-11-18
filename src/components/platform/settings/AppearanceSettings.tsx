@@ -20,11 +20,10 @@ import { useUIStore } from '../../../stores/useUIStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import MoneyDisplayPanel from './MoneyDisplayPanel';
 import InstallAppPanel from './InstallAppPanel';
-import { db } from '../../../firebase';
 import { PaymentTermsSettings } from './PaymentTermsSettings';
 import { PaymentTypesSettings } from './PaymentTypesSettings';
 import { CustomerGroupsSettings } from './CustomerGroupsSettings';
-import { doc, updateDoc } from '../../../lib/db/firestore';
+import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
 
 export default function AppearanceSettings() {
   const settingsId = useId();
@@ -61,9 +60,7 @@ export default function AppearanceSettings() {
     if (!currentWorkspaceId) return;
     setIsUpdatingZone(true);
     try {
-      await updateDoc(doc(db, 'workspaces', currentWorkspaceId), {
-        timezone: newZone
-      });
+      await saveWorkspaceSettings(currentWorkspaceId, { timezone: newZone });
       const updated = workspaces.map(w => {
         if (w.id === currentWorkspaceId) {
           return { ...w, timezone: newZone };
@@ -84,7 +81,7 @@ export default function AppearanceSettings() {
   const handleFiscalStartChange = async (month: number) => {
     if (!currentWorkspaceId) return;
     try {
-      await updateDoc(doc(db, 'workspaces', currentWorkspaceId), { fiscalYearStartMonth: month, fiscalYearStartDay: 1 });
+      await saveWorkspaceSettings(currentWorkspaceId, { fiscalYearStartMonth: month, fiscalYearStartDay: 1 });
       setWorkspaces(workspaces.map(w => (w.id === currentWorkspaceId ? { ...w, fiscalYearStartMonth: month, fiscalYearStartDay: 1 } : w)));
       toast.success('Fiscal year start saved');
     } catch (err) {
@@ -106,7 +103,7 @@ export default function AppearanceSettings() {
     if (!workspaceId || isSavingTaxRounding || !canSetTaxRounding) return;
     setIsSavingTaxRounding(true);
     const startedBy = useAuthStore.getState().user?.uid;
-    updateDoc(doc(db, 'workspaces', workspaceId), { taxRounding: mode }).then(() => {
+    saveWorkspaceSettings(workspaceId, { taxRounding: mode }).then(() => {
       // a reply that arrives after a sign-out or account switch must not write the old account's workspaces back
       const now = useAuthStore.getState();
       if (now.user?.uid !== startedBy) return;
@@ -248,7 +245,7 @@ export default function AppearanceSettings() {
               aria-pressed={fontFamily === font.id}
               onClick={() => setFontFamily(font.id as unknown as "system" | "inter" | "jakarta" | "serif" | "mono")}
               className={cn(
-                "p-5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 group",
+                "p-5 rounded-xl border text-start transition-all cursor-pointer flex flex-col justify-between gap-3 group",
                 fontFamily === font.id
                   ? "bg-[var(--brass-soft)] border-[var(--brass)] ring-1 ring-[var(--brass)] shadow-sm"
                   : "bg-[var(--panel)] border-[var(--line)] hover:border-[var(--brass-line)]"
@@ -494,7 +491,7 @@ export default function AppearanceSettings() {
             >
               <div className={cn(
                 "w-5 h-5 rounded-full bg-black transition-transform",
-                highContrast ? "translate-x-6" : "translate-x-0"
+                highContrast ? "translate-x-6 rtl:-translate-x-6" : "translate-x-0"
               )} />
             </button>
           </div>
@@ -518,7 +515,7 @@ export default function AppearanceSettings() {
             >
               <div className={cn(
                 "w-5 h-5 rounded-full bg-black transition-transform",
-                reduceMotion ? "translate-x-6" : "translate-x-0"
+                reduceMotion ? "translate-x-6 rtl:-translate-x-6" : "translate-x-0"
               )} />
             </button>
           </div>

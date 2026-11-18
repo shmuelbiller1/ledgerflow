@@ -2,9 +2,7 @@ import { roundCents } from '../../lib/cents';
 import { planReturnEntries, returnableLines, returnProblem } from '../../lib/salesReturns';
 import { isIncomeAccount, resolveAccountRole } from '../../lib/accountUtils';
 import { CreditNote, VendorCredit } from '../../types';
-import { isPostable } from '../../lib/txFilters';
-import { TransactionTemplates } from '../../kernel/templates/TransactionTemplates';
-import { getAccounts, getTransactions, getWorkspaces, inBaseCurrency, verifyLockDate, resolveAccount, postTxsServerApi, reversalDate, findAccount, getInvoices, postingToday, documentMinorRate } from './postingCore';
+import { getAccounts, getTransactions, getWorkspaces, inBaseCurrency, verifyLockDate, resolveAccount, postTxsServerApi, findAccount, getInvoices, postingToday, documentMinorRate, liveDocumentPostings, reversalEntries } from './postingCore';
 import type { EntityMutation, LedgerPostContext, PostableTransaction } from './postingCore';
 
 /**
@@ -45,41 +43,17 @@ export async function postCreditNoteLedger(
   );
 
   // Reversals of prior CN postings
-  const allTxs = getTransactions(context).filter(t => t.metadata?.creditNoteId === creditNoteId);
-  const reversedIds = new Set(allTxs.filter(t => t.metadata?.isReversal).map(t => t.metadata?.reversesTxId || t.metadata?.reversedTransactionId));
-  
-  const existingTxs = allTxs.filter(t => 
-    isPostable(t) && 
-    !t.metadata?.isReversal &&
-    !reversedIds.has(t.id)
-  );
-
-  const txsToPost: PostableTransaction[] = [];
   const today = postingToday(context);
-
-  for (const prevTx of existingTxs) {
-    txsToPost.push({
-      uid,
-      workspaceId,
-      date: reversalDate(prevTx.date, today, context),
-      description: `Reversal of prior credit note posting (CN ${creditNoteId})`,
-      totalAmountCents: prevTx.totalAmountCents,
-      currency: prevTx.currency || 'USD',
-      exchangeRate: prevTx.exchangeRate || 1,
-      status: 'completed',
-      type: 'actual',
-      createdAt: new Date().toISOString(),
-      metadata: {
-        creditNoteId,
-        type: 'credit-note-reversal',
-        reversesTxId: prevTx.id,
-        isReversal: true,
-        // a returned-goods entry's reversal names its invoice too (BF-06)
-        ...(prevTx.metadata?.invoiceId ? { invoiceId: prevTx.metadata.invoiceId } : {})
-      },
-      lines: TransactionTemplates.buildReversalLines(prevTx.lines || [], prevTx.description)
-    });
-  }
+  const txsToPost = reversalEntries(liveDocumentPostings(getTransactions(context), t => t.metadata?.creditNoteId === creditNoteId), {
+    uid, workspaceId, today, context,
+    describe: () => `Reversal of prior credit note posting (CN ${creditNoteId})`,
+    metadata: (prevTx) => ({
+      creditNoteId,
+      type: 'credit-note-reversal',
+      // a returned-goods entry's reversal names its invoice too (BF-06)
+      ...(prevTx.metadata?.invoiceId ? { invoiceId: prevTx.metadata.invoiceId } : {})
+    })
+  });
 
   // A draft has no financial effect: saving one posts nothing, and taking an issued credit back to draft reverses
   // its posting like a void does (audit F1, 5 Nov). Only issuing it (open) posts it.
@@ -194,39 +168,12 @@ export async function postVendorCreditLedger(
   );
 
   // Reversals of prior VC postings
-  const allTxs = getTransactions(context).filter(t => t.metadata?.vendorCreditId === vendorCreditId);
-  const reversedIds = new Set(allTxs.filter(t => t.metadata?.isReversal).map(t => t.metadata?.reversesTxId || t.metadata?.reversedTransactionId));
-  
-  const existingTxs = allTxs.filter(t => 
-    isPostable(t) && 
-    !t.metadata?.isReversal &&
-    !reversedIds.has(t.id)
-  );
-
-  const txsToPost: PostableTransaction[] = [];
   const today = postingToday(context);
-
-  for (const prevTx of existingTxs) {
-    txsToPost.push({
-      uid,
-      workspaceId,
-      date: reversalDate(prevTx.date, today, context),
-      description: `Reversal of prior vendor credit posting (VC ${vendorCreditId})`,
-      totalAmountCents: prevTx.totalAmountCents,
-      currency: prevTx.currency || 'USD',
-      exchangeRate: prevTx.exchangeRate || 1,
-      status: 'completed',
-      type: 'actual',
-      createdAt: new Date().toISOString(),
-      metadata: {
-        vendorCreditId,
-        type: 'vendor-credit-reversal',
-        reversesTxId: prevTx.id,
-        isReversal: true
-      },
-      lines: TransactionTemplates.buildReversalLines(prevTx.lines || [], prevTx.description)
-    });
-  }
+  const txsToPost = reversalEntries(liveDocumentPostings(getTransactions(context), t => t.metadata?.vendorCreditId === vendorCreditId), {
+    uid, workspaceId, today, context,
+    describe: () => `Reversal of prior vendor credit posting (VC ${vendorCreditId})`,
+    metadata: () => ({ vendorCreditId, type: 'vendor-credit-reversal' })
+  });
 
   // A draft has no financial effect: saving one posts nothing, and taking an issued credit back to draft reverses
   // its posting like a void does (audit F1, 5 Nov). Only issuing it (open) posts it.

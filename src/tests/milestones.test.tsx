@@ -35,9 +35,10 @@ describe('On screen', () => {
   test('set the milestones, invoice the next one, and it is marked invoiced', async () => {
     setComponentWorkspace('owner');
     const estimate = { id: 'est1', number: 'EST-1', customerId: 'c1', customerName: 'Acme', status: 'accepted', orderedAt: '2026-10-01', amountCents: 100000, date: '2026-10-01', lines: [{ description: 'Kitchen', quantity: 1, unitPriceCents: 100000, amountCents: 100000 }] } as unknown as Estimate;
-    const writes: Array<{ p_id?: string; p_set?: Record<string, unknown> }> = [];
+    const writes: Array<{ input?: { id?: string; milestones?: Milestone[] } }> = [];
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('lf_update') && typeof init?.body === 'string') writes.push(JSON.parse(init.body));
+      // the schedule is part of the quote's terms, so it goes through estimate.save
+      if (String(input).includes('/commands/estimate.save') && typeof init?.body === 'string') writes.push(JSON.parse(init.body));
       return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch;
     const parts: OrderPart[] = [];
@@ -53,13 +54,13 @@ describe('On screen', () => {
     fireEvent.change(screen.getByLabelText('Milestone 2 percentage'), { target: { value: '70' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save milestones' })); });
     await waitFor(() => assert.equal(writes.length, 1));
-    assert.deepEqual((writes[0].p_set?.milestones as Milestone[]).map(m => [m.label, m.percent]), [['Signing', 30], ['The rest', 70]]);
+    assert.deepEqual((writes[0].input?.milestones || []).map(m => [m.label, m.percent]), [['Signing', 30], ['The rest', 70]]);
     fireEvent.click(screen.getByRole('button', { name: /Invoice the next milestone: Signing \(30%\)/ }));
     assert.equal((screen.getByLabelText('Percentage of the order') as HTMLInputElement).value, '30');
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Create .*300\.00 invoice/ })); });
     assert.deepEqual(parts, [{ mode: 'percent', percent: 30 }]);
     await waitFor(() => assert.equal(writes.length, 2));
-    const marked = writes[1].p_set?.milestones as Milestone[];
+    const marked = writes[1].input?.milestones as Milestone[];
     assert.ok(marked[0].invoicedAt, 'Signing is invoiced');
     assert.equal(marked[1].invoicedAt, undefined);
   });

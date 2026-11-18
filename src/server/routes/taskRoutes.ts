@@ -12,6 +12,7 @@ import { watchCreateCommand, watchRemoveCommand } from '../commands/watches';
 import { entryLinkCreateCommand, entryLinkRemoveCommand } from '../commands/entryLinks';
 import { timeInvoiceCommand, timeLogCommand, timeMoveCommand, timeRatesCommand, timeRemoveCommand, timeUpdateCommand } from '../commands/time';
 import { stageDefineCommand, stageMoveCommand } from '../commands/stages';
+import { commandFailureResponse } from '../utils/commandResponses';
 
 /**
  * Tasks (BG-02, BG-03), mounted at /api/v1/workspaces/:workspaceId/tasks (workspaceRoutes.ts, every
@@ -50,14 +51,7 @@ async function runLegacyCommand<Schema extends import('zod').ZodType, Result, Pr
       if (outcome.code === 'ROLE_REQUIRED' && roleFailure) {
         return { status: outcome.status, body: { status: 'error', message: roleFailure } };
       }
-      if (outcome.status >= 500) {
-        const error = outcome.error;
-        return {
-          status: outcome.status,
-          body: { status: 'error', message: failureMessage, details: error instanceof Error ? error.message : String(error || outcome.message) },
-        };
-      }
-      return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+      return commandFailureResponse(outcome, failureMessage);
     },
   });
 }

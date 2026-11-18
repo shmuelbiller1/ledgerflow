@@ -9,6 +9,7 @@ import { normalizeSearchText } from '../../lib/textNormalization';
 import { formatCurrency } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 
@@ -84,25 +85,27 @@ export function PurchasePriceVariancePanel({ rows, from = '', to = '', loading =
     <p className="text-sm"><b>Vendor/item comparisons:</b> {visible.length} · <b>with peer baseline:</b> {comparable}</p>
 
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>Purchase-price variance{from || to ? ` from ${from || 'any date'} to ${to || 'any date'}` : ' in the loaded bill history'}; peer comparisons remain within currency</caption>
-        <thead><tr>
-          {['Vendor', 'Item', 'Currency', 'Purchases', 'Units', 'Vendor average', 'Peer median', 'Variance', 'Variance %'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-        </tr></thead>
-        <tbody>
-          {visible.map(row => <tr key={`${row.vendorId}:${row.itemId}:${row.currency}`} className="border-b border-[var(--line)]/50">
-            <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.vendorName}</bdi></th>
-            <td className="py-1 px-2"><bdi>{row.itemName}</bdi>{row.sku ? <span className="text-[var(--muted)]"> ({row.sku})</span> : null}</td>
-            <td className="py-1 px-2">{row.currency}</td>
-            <td className="py-1 px-2">{row.purchases}</td>
-            <td className="py-1 px-2">{row.units}</td>
-            <td className="py-1 px-2">{formatCurrency(row.averageUnitCents, row.currency)}</td>
-            <td className="py-1 px-2">{row.peerMedianUnitCents === undefined ? 'No peer baseline' : formatCurrency(row.peerMedianUnitCents, row.currency)}</td>
-            <td className="py-1 px-2">{row.varianceUnitCents === undefined ? '—' : `${formatCurrency(row.varianceUnitCents, row.currency)} ${row.varianceUnitCents > 0 ? '(higher)' : row.varianceUnitCents < 0 ? '(lower)' : '(same)'}`}</td>
-            <td className="py-1 px-2">{row.variancePercent === undefined ? '—' : `${row.variancePercent > 0 ? '+' : ''}${row.variancePercent.toFixed(2)}%`}</td>
-          </tr>)}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>Purchase-price variance{from || to ? ` from ${from || 'any date'} to ${to || 'any date'}` : ' in the loaded bill history'}; peer comparisons remain within currency</>)}
+        rows={visible}
+        rowKey={row => `${row.vendorId}:${row.itemId}:${row.currency}`}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        columns={[
+          { header: "Vendor", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.vendorName}</bdi> },
+          { header: "Item", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<><bdi>{row.itemName}</bdi>{row.sku ? <span className="text-[var(--muted)]"> ({row.sku})</span> : null}</>) },
+          { header: "Currency", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.currency },
+          { header: "Purchases", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.purchases },
+          { header: "Units", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.units },
+          { header: "Vendor average", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.averageUnitCents, row.currency) },
+          { header: "Peer median", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.peerMedianUnitCents === undefined ? 'No peer baseline' : formatCurrency(row.peerMedianUnitCents, row.currency) },
+          { header: "Variance", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.varianceUnitCents === undefined ? '—' : `${formatCurrency(row.varianceUnitCents, row.currency)} ${row.varianceUnitCents > 0 ? '(higher)' : row.varianceUnitCents < 0 ? '(lower)' : '(same)'}` },
+          { header: "Variance %", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.variancePercent === undefined ? '—' : `${row.variancePercent > 0 ? '+' : ''}${row.variancePercent.toFixed(2)}%` },
+        ]}
+      />
       {validPeriod && !loading && !visible.length && <p className="text-sm text-[var(--muted)]">No comparable bill line has an item and positive units in this period.</p>}
     </ReportTableScroll>
   </section>;

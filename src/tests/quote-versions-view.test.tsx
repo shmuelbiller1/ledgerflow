@@ -16,11 +16,15 @@ import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { getSupabase } from '../lib/db/client';
 
-/** Database writes go through the Supabase `lf_update` RPC; let those succeed and nothing else. */
+/** A version is recorded on the estimate's own metadata, through the record command; let those succeed. */
 function stubDbWrites(): void {
-  globalThis.fetch = (async (input: RequestInfo | URL) => (
-    String(input).includes('/rpc/') ? new Response('{}', { status: 200 }) : new Response('{}', { status: 404 })
-  )) as typeof fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes('/commands/record.save')) {
+      return new Response(JSON.stringify({ ok: true, data: { collection: 'estimates', id: 'e1', created: false, updatedAt: '' } }), { status: 200 });
+    }
+    return String(input).includes('/rpc/') ? new Response('{}', { status: 200 }) : new Response('{}', { status: 404 });
+  }) as typeof fetch;
 }
 
 const juneLines = [

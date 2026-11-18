@@ -241,8 +241,10 @@ export function scanFinancialIntegrity(root = process.cwd()): FinancialFinding[]
           }
         }
         // Payment creation that bypasses the idempotent path remains a backwards-compatible risk.
-        if (name === 'createPaymentAtomic' && relative.endsWith('/paymentRoutes.ts')) {
-          findings.push({ kind: 'server-unkeyed-payment-path', file: relative, line: line(n), name: 'createPaymentAtomic', issue: 114 });
+        // The route no longer posts a payment itself (it runs `payment.receive`), so the check follows
+        // the write to where payments are built: a runner command that calls the builder directly.
+        if (name === 'createPaymentInTransaction' && relative === 'src/server/commands/payments.ts') {
+          findings.push({ kind: 'server-unkeyed-payment-path', file: relative, line: line(n), name, issue: 114 });
         }
       }
       ts.forEachChild(n, visit);

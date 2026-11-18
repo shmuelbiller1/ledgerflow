@@ -2,292 +2,174 @@ import express from 'express';
 import { z } from 'zod';
 import type { Firestore } from '../db/firestore';
 import { getDb, validateWorkspaceMember } from '../db/firestore';
-import { applyUnappliedPayment, committedPaymentReplay, createPaymentAtomic, createPaymentIdempotent, PaymentApplyError } from '../services/paymentService';
-import { voidPayment } from '../services/paymentVoidService';
-import { extractCanonicalOperationId } from '../utils/idempotency';
+import { committedPaymentReplay, createPaymentIdempotent, PaymentApplyError } from '../services/paymentService';
+
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import { isIsoDate } from '../../lib/warehouseRecordUtils';
 import { getWorkspaceUserRole, AuthenticatedRequest, requireWorkspaceRole } from './workspaceRoutes';
-import { applyCredit, autoApplyCredits, CreditError, refundCredit } from '../services/creditService';
-import { createDeposit, DepositError } from '../services/depositService';
+import { CreditError } from '../services/creditService';
+import { DepositError } from '../services/depositService';
 import { writeServerAuditLog } from '../services/auditLogService';
-import { afterPaymentRecorded } from '../services/afterPayment';
-import { findPaymentType } from '../../lib/paymentTypes';
+
 import { computePlatformFeeQuote, summarizePaymentVolume } from '../../lib/paymentVolumeFee';
 import { checkoutParamsFingerprint, getStripe, type Stripe } from '../services/stripeService';
+import { executeCommand } from '../utils/commandExecutor';
+import {
+  paymentApplyCommand, paymentCreditApplyCommand, paymentCreditRefundCommand, paymentCreditsAutoApplyCommand,
+  paymentDepositCommand, paymentReceiveCommand, paymentVoidCommand,
+} from '../commands/payments';
+import type { CommandExecutionOutcome } from '../commands/types';
 
 export const paymentRouter = express.Router();
 
-const paymentAllocationSchema = z.object({
-  documentId: z.string().min(1),
-  documentType: z.enum(['invoice', 'bill']),
-  amountCents: z.number().int().positive()
-});
-
-const paymentInputSchema = z.object({
-  workspaceId: z.string().min(1),
-  amountCents: z.number().int().positive(),
-  // audit F5: a real calendar date (2026-02-30 and 'not-a-date' are refused before anything is written)
-  paymentDate: z.string().refine(isIsoDate, 'paymentDate must be a real date (YYYY-MM-DD)').optional(),
-  cashAccountId: z.string().min(1),
-  paymentMethod: z.string().optional(),
-  /** CC-09: one of the workspace's payment types; the server takes its method and name from the workspace */
-  paymentTypeId: z.string().min(1).max(40).optional(),
-  referenceNumber: z.string().optional(),
-  memo: z.string().optional(),
-  customerId: z.string().optional(),
-  vendorId: z.string().optional(),
-  entityName: z.string().optional(),
-  offsetAccountId: z.string().optional(),
-  allocations: z.array(paymentAllocationSchema).default([]),
-  /** K-25: email the vendor a remittance advice afterwards (not stored on the payment). */
-  sendRemittance: z.boolean().optional(),
-  /** Home-currency units for one unit of a foreign document's currency on the payment day (L-192). */
-  paymentExchangeRate: z.number().positive().max(1e6).optional(),
-  paymentRateSource: z.enum(['typed', 'last-used', 'live', 'books-on-date']).optional(),
-  /** BE-05: a deposit for this estimate */
-  estimateId: z.string().min(1).max(200).optional(),
-  /** IL-5: tax withheld at source from a payment to a vendor, its rate and certificate */
-  withheldCents: z.number().int().nonnegative().optional(),
-  withholdingRatePercent: z.number().min(0).max(100).optional(),
-  withholdingCertificate: z.string().max(40).optional(),
-});
+/**
+ * POST /api/v1/payments: record a payment and apply it to open documents. The registered
+ * `payment.receive` command owns the schema, the role and period gates, the replay-safe posting and
+ * the audit line; this keeps the legacy address, body and `{ status: 'success', data }` answer, and
+ * still accepts the database the route's tests inject. `handleCreatePayment` stays exported for the
+ * two suites that call it directly (atomicity, audit F4/F5).
+ */
+function paymentAnswer(outcome: CommandExecutionOutcome, sendRemittance: boolean, workspaceId: unknown): { status: number; body: unknown } {
+  // `replayed` is part of the answer: a retry says so, as the route's own idempotent path did
+  if (outcome.ok) return { status: 200, body: { status: 'success', data: { ...(outcome.data as Record<string, unknown>), replayed: outcome.replayed } } };
+  const message = outcome.message;
+  if (outcome.error instanceof z.ZodError) {
+    return { status: 400, body: { status: 'error', message: 'Invalid payment payload', details: outcome.error.issues } };
+  }
+  // a missing workspace is refused before any schema is read: the legacy body said the same, in words
+  if (!String(workspaceId || '').trim()) {
+    return { status: 400, body: { status: 'error', message: 'Invalid payment payload', details: [{ path: ['workspaceId'], message: 'Required' }] } };
+  }
+  if (outcome.code === 'INVALID_OPERATION_ID') {
+    return { status: 400, body: { status: 'error', message: 'Invalid payment operation ID' } };
+  }
+  if (outcome.status === 403) return { status: 403, body: { status: 'error', message } };
+  if (outcome.status === 409) return { status: 409, body: { status: 'error', message } };
+  if (outcome.status === 404) return { status: 404, body: { status: 'error', message } };
+  if (outcome.code === 'PERIOD_LOCKED') {
+    // the legacy answer to a closed period on this route was a 400 carrying the lock's wording
+    return { status: 400, body: { status: 'error', message } };
+  }
+  return { status: 400, body: { status: 'error', message: sendRemittance && !message ? 'The payment could not be recorded' : message } };
+}
 
 export async function handleCreatePayment(req: express.Request, res: express.Response, dbOverride?: Firestore) {
-  try {
-    const authReq = req as Partial<AuthenticatedRequest>;
-    if (!authReq.user?.uid) {
-      return res.status(401).json({ status: 'error', message: 'Sign in required' });
-    }
-
-    const parsed = paymentInputSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ status: 'error', message: 'Invalid payment payload', details: parsed.error.issues });
-    }
-    const { workspaceId, sendRemittance, paymentTypeId, ...rest } = parsed.data;
-
-    const db = dbOverride || getDb();
-    const { data: wsData } = await validateWorkspaceMember(db, workspaceId, authReq.user);
-    const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
-    if (!authReq.user.admin) {
-      const userRole = await getWorkspaceUserRole(db, workspaceId, authReq.user.uid);
-      if (!['owner', 'accountant', 'bookkeeper'].includes(userRole)) {
-        return res.status(403).json({ status: 'error', message: 'Forbidden: requires owner, accountant, or bookkeeper role' });
-      }
-    }
-
-    const operationId = extractCanonicalOperationId(req);
-    if (operationId && !/^[A-Za-z0-9_.:-]{1,128}$/.test(operationId)) {
-      return res.status(400).json({ status: 'error', message: 'Invalid payment operation ID' });
-    }
-    // CC-09: a payment type is looked up in the workspace, never trusted from the client. An idempotent
-    // request with a type is matched on what was sent (the type's id), not on its current name or method,
-    // so renaming or removing the type cannot turn a retry into a conflict or a second payment.
-    const typedRequestFingerprint = () => ({ ...rest, paymentTypeId, paymentDate: rest.paymentDate || null, workspaceId, uid: authReq.user!.uid });
-    let payload: typeof rest & { paymentType?: { id: string; name: string } } = rest;
-    if (paymentTypeId) {
-      const type = findPaymentType(wsData?.paymentTypes, paymentTypeId);
-      if (!type) {
-        // the same operation may already have been recorded (its reply lost) before the type was removed:
-        // hand that payment back rather than ask for another type, which would record it a second time
-        const committed = operationId ? await committedPaymentReplay(db, workspaceId, operationId, authReq.user.uid, typedRequestFingerprint()) : null;
-        if (committed) return res.json({ status: 'success', data: committed });
-        return res.status(400).json({ status: 'error', message: 'That payment type is no longer in Settings. Choose another and try again.' });
-      }
-      payload = { ...rest, paymentMethod: type.method, paymentType: { id: type.id, name: type.name } };
-    }
-    // Existing clients without an operation ID remain compatible; callers with a stable ID
-    // receive replay-safe posting, including when the server committed but HTTP response was lost.
-    const paymentInput = { ...payload, paymentDate: payload.paymentDate || getDateInTimezoneISO(new Date(), wsTimezone), workspaceId, uid: authReq.user.uid };
-    const authorization = { platformAdmin: authReq.user.admin === true };
-    const result = operationId
-      ? await createPaymentIdempotent(db, paymentInput, operationId, paymentTypeId ? typedRequestFingerprint() : undefined, authorization)
-      : { ...(await createPaymentAtomic(db, paymentInput, authorization)), replayed: false };
-    // Notifications/e-mails are side effects, not part of the payment transaction. Never repeat
-    // them when replaying an already-committed payment operation.
-    const remittance = result.replayed ? undefined : await afterPaymentRecorded(db, { ...result.payment, id: result.paymentId }, authReq.user.uid, { remittance: sendRemittance });
-
-    res.json({ status: 'success', data: { ...result, ...(sendRemittance ? { remittance } : {}) } });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message === 'FORBIDDEN' || message.includes('Forbidden') || message.includes('Unauthorized') || message.includes('Security Violation')) {
-      return res.status(403).json({ status: 'error', message });
-    }
-    if ((err as { status?: number }).status === 409) return res.status(409).json({ status: 'error', message });
-    if (message === 'NOT_FOUND' || message.includes('not found')) {
-      return res.status(404).json({ status: 'error', message });
-    }
-    res.status(400).json({ status: 'error', message });
-  }
+  const authReq = req as Partial<AuthenticatedRequest>;
+  if (!authReq.user?.uid) return res.status(401).json({ status: 'error', message: 'Sign in required' });
+  const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+  // `operationId` reached this route in the body as well as in a header; the command's input is strict
+  const { operationId: _bodyOperationId, ...input } = body;
+  await executeCommand(req, res, {
+    definition: paymentReceiveCommand,
+    workspaceId: String(body.workspaceId || ''),
+    input,
+    formatResponse: outcome => paymentAnswer(outcome, body.sendRemittance === true, body.workspaceId),
+  }, dbOverride ? { getDb: () => dbOverride } : undefined);
 }
 
-paymentRouter.post('/', (req, res) => handleCreatePayment(req, res));
-
-
-
-// Credit notes / vendor credits: apply to an open invoice / bill, or refund
-const creditApplySchema = z.object({
-  workspaceId: z.string().min(1),
-  kind: z.enum(['customer', 'vendor']),
-  creditId: z.string().min(1),
-  documentId: z.string().min(1),
-  amountCents: z.number().int().positive(),
-  date: z.string().refine(isIsoDate, 'date must be a real date (YYYY-MM-DD)').optional(),
-});
-const creditRefundSchema = z.object({
-  workspaceId: z.string().min(1),
-  kind: z.enum(['customer', 'vendor']),
-  creditId: z.string().min(1),
-  amountCents: z.number().int().positive(),
-  cashAccountId: z.string().min(1),
-  date: z.string().refine(isIsoDate, 'date must be a real date (YYYY-MM-DD)').optional(),
-  memo: z.string().max(500).optional(),
+paymentRouter.post('/', async (req, res) => {
+  await handleCreatePayment(req, res);
 });
 
-async function handleCredit(req: express.Request, res: express.Response, action: 'apply' | 'refund') {
-  try {
-    const user = (req as AuthenticatedRequest).user;
-    const db = getDb();
-    let result: Record<string, unknown>;
-    if (action === 'apply') {
-      const input = creditApplySchema.parse(req.body);
-      result = await applyCredit(db, { ...input, uid: user.uid, operationId: extractCanonicalOperationId({ headers: req.headers }) });
-    } else {
-      const input = creditRefundSchema.parse(req.body);
-      result = await refundCredit(db, { ...input, uid: user.uid });
-    }
-    const { workspaceId, kind, creditId, amountCents } = req.body;
-    await writeServerAuditLog({
-      workspaceId, uid: user.uid, email: user.email || '', action: action === 'apply' ? 'CREDIT_APPLIED' : 'CREDIT_REFUNDED',
-      entityType: kind === 'vendor' ? 'vendorCredit' : 'creditNote', entityId: creditId,
-      details: { amountCents, documentId: req.body.documentId, description: `${action === 'apply' ? 'Applied' : 'Refunded'} ${amountCents} cents of credit ${creditId}` },
-    }, { db });
-    res.json({ status: 'success', data: result });
-  } catch (err) {
-    if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Invalid request', details: err.issues });
-    if (err instanceof CreditError) return res.status(err.status).json({ status: 'error', message: err.message });
-    res.status(400).json({ status: 'error', message: err instanceof Error ? err.message : String(err) });
-  }
-}
 
+
+// The roles these five writes always required, checked before the body is read (the commands check
+// them again, and before the period: the same order the route middleware had).
 const ledgerWriters = requireWorkspaceRole(['owner', 'accountant', 'bookkeeper']);
-paymentRouter.post('/credits/apply', ledgerWriters, (req, res) => handleCredit(req, res, 'apply'));
-paymentRouter.post('/credits/refund', ledgerWriters, (req, res) => handleCredit(req, res, 'refund'));
+
+// Credit notes / vendor credits: apply to an open invoice / bill, or refund.
+// The command owns the schema, the role check, the date and the audit line inside the service's own
+// transaction; these two addresses keep their `{ status: 'success', data }` / `{ status: 'error' }` answer.
+const creditAnswer = (outcome: CommandExecutionOutcome): { status: number; body: unknown } => outcome.ok
+  ? { status: 200, body: { status: 'success', data: outcome.data } }
+  : outcome.error instanceof z.ZodError
+    ? { status: 400, body: { status: 'error', message: 'Invalid request', details: outcome.error.issues } }
+    : outcome.error instanceof CreditError
+      ? { status: outcome.error.status, body: { status: 'error', message: outcome.error.message } }
+      : { status: 400, body: { status: 'error', message: outcome.message } };
+
+paymentRouter.post('/credits/apply', ledgerWriters, async (req, res) => {
+  await executeCommand(req, res, {
+    definition: paymentCreditApplyCommand,
+    workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+    input: req.body,
+    formatResponse: creditAnswer,
+  });
+});
+
+paymentRouter.post('/credits/refund', ledgerWriters, async (req, res) => {
+  await executeCommand(req, res, {
+    definition: paymentCreditRefundCommand,
+    workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+    input: req.body,
+    formatResponse: creditAnswer,
+  });
+});
 
 // BE-06: every open credit (of one customer/vendor, or all) to their open invoices/bills, oldest first
-const autoApplySchema = z.object({
-  workspaceId: z.string().min(1),
-  kind: z.enum(['customer', 'vendor']),
-  partyId: z.string().min(1).max(200).optional(),
-});
 paymentRouter.post('/credits/auto-apply', ledgerWriters, async (req, res) => {
-  try {
-    const input = autoApplySchema.parse(req.body);
-    const user = (req as AuthenticatedRequest).user;
-    const db = getDb();
-    const result = await autoApplyCredits(db, { ...input, uid: user.uid });
-    if (result.applications.length) {
-      await writeServerAuditLog({
-        workspaceId: input.workspaceId, uid: user.uid, email: user.email || '', action: 'CREDITS_AUTO_APPLIED',
-        entityType: input.kind === 'vendor' ? 'vendorCredit' : 'creditNote', entityId: input.partyId || 'all',
-        details: { applications: result.applications, description: `Applied ${result.totalCents} cents of open credits to ${result.applications.length} ${input.kind === 'vendor' ? 'bill' : 'invoice'} line(s)` },
-      }, { db });
-    }
-    res.json({ status: 'success', data: result });
-  } catch (err) {
-    if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Invalid request', details: err.issues });
-    if (err instanceof CreditError) return res.status(err.status).json({ status: 'error', message: err.message });
-    res.status(500).json({ status: 'error', message: 'The credits could not be applied', details: err instanceof Error ? err.message : String(err) });
-  }
+  await executeCommand(req, res, {
+    definition: paymentCreditsAutoApplyCommand,
+    workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+    input: req.body,
+    formatResponse: (outcome) => {
+      if (outcome.ok) return { status: 200, body: { status: 'success', data: outcome.data } };
+      if (outcome.error instanceof z.ZodError) return { status: 400, body: { status: 'error', message: 'Invalid request', details: outcome.error.issues } };
+      if (outcome.error instanceof CreditError) return { status: outcome.error.status, body: { status: 'error', message: outcome.error.message } };
+      return { status: 500, body: { status: 'error', message: 'The credits could not be applied', details: outcome.message } };
+    },
+  });
 });
 
 // Make deposit: payments waiting in Undeposited Funds go to the bank in one entry
-const depositSchema = z.object({
-  workspaceId: z.string().min(1),
-  bankAccountId: z.string().min(1),
-  date: z.string().refine(isIsoDate, 'date must be a real date (YYYY-MM-DD)').optional(),
-  paymentIds: z.array(z.string().min(1)).min(1).max(500),
-  memo: z.string().max(500).optional(),
-});
-
 paymentRouter.post('/deposits', ledgerWriters, async (req, res) => {
-  try {
-    const user = (req as AuthenticatedRequest).user;
-    const input = depositSchema.parse(req.body);
-    const db = getDb();
-    const result = await createDeposit(db, { ...input, uid: user.uid });
-    await writeServerAuditLog({
-      workspaceId: input.workspaceId, uid: user.uid, email: user.email || '', action: 'DEPOSIT_MADE',
-      entityType: 'transaction', entityId: result.transactionId,
-      details: { paymentIds: input.paymentIds, totalCents: result.totalCents, description: `Deposited ${result.count} payment(s) totalling ${result.totalCents} cents` },
-    }, { db });
-    res.json({ status: 'success', data: result });
-  } catch (err) {
-    if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Invalid request', details: err.issues });
-    if (err instanceof DepositError) return res.status(err.status).json({ status: 'error', message: err.message });
-    res.status(400).json({ status: 'error', message: err instanceof Error ? err.message : String(err) });
-  }
+  await executeCommand(req, res, {
+    definition: paymentDepositCommand,
+    workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+    input: req.body,
+    formatResponse: (outcome) => {
+      if (outcome.ok) return { status: 200, body: { status: 'success', data: outcome.data } };
+      if (outcome.error instanceof z.ZodError) return { status: 400, body: { status: 'error', message: 'Invalid request', details: outcome.error.issues } };
+      if (outcome.error instanceof DepositError) return { status: outcome.error.status, body: { status: 'error', message: outcome.error.message } };
+      return { status: 400, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 // registered last: '/:paymentId/apply' must not catch '/credits/apply'
-const applySchema = z.object({
-  workspaceId: z.string().min(1),
-  allocations: z.array(paymentAllocationSchema).min(1).max(100),
-  date: z.string().refine(isIsoDate, 'date must be a real date (YYYY-MM-DD)').optional(),
-}).strict();
-
 /** BE-12, K-18: apply a payment's unapplied part (a deposit or prepayment) to invoices or bills. */
 paymentRouter.post('/:paymentId/apply', async (req, res) => {
-  const authReq = req as unknown as Partial<AuthenticatedRequest>;
-  if (!authReq.user?.uid) return res.status(401).json({ status: 'error', message: 'Sign in required' });
-  const parsed = applySchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ status: 'error', message: 'Invalid request', details: parsed.error.issues });
-  try {
-    const db = getDb();
-    const { data: wsData } = await validateWorkspaceMember(db, parsed.data.workspaceId, authReq.user);
-    const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
-    const result = await applyUnappliedPayment(db, {
-      workspaceId: parsed.data.workspaceId, uid: authReq.user.uid, paymentId: String((req.params as Record<string, string>).paymentId),
-      allocations: parsed.data.allocations, date: parsed.data.date || getDateInTimezoneISO(new Date(), wsTimezone),
-      operationId: extractCanonicalOperationId({ headers: req.headers }),
-    });
-    res.json({ status: 'success', data: result });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (err instanceof PaymentApplyError) return res.status(err.status).json({ status: 'error', message });
-    if (/Period Locked/i.test(message)) return res.status(409).json({ status: 'error', message });
-    if (/not a member|Forbidden|Unauthorized/i.test(message)) return res.status(403).json({ status: 'error', message });
-    res.status(400).json({ status: 'error', message });
-  }
+  await executeCommand(req, res, {
+    definition: paymentApplyCommand,
+    workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+    input: { ...(req.body as Record<string, unknown>), paymentId: String((req.params as Record<string, string>).paymentId) },
+    formatResponse: (outcome) => {
+      if (outcome.ok) return { status: 200, body: { status: 'success', data: outcome.data } };
+      if (outcome.error instanceof z.ZodError) return { status: 400, body: { status: 'error', message: 'Invalid request', details: outcome.error.issues } };
+      if (outcome.error instanceof PaymentApplyError) return { status: outcome.error.status, body: { status: 'error', message: outcome.error.message } };
+      // a closed period stayed a 409 on this route, as the apply service always answered it
+      if (/Period Locked/i.test(outcome.message)) return { status: 409, body: { status: 'error', message: outcome.message } };
+      if (/not a member|Forbidden|Unauthorized/i.test(outcome.message)) return { status: 403, body: { status: 'error', message: outcome.message } };
+      return { status: 400, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
-
-const voidSchema = z.object({
-  workspaceId: z.string().min(1),
-  date: z.string().refine(isIsoDate, 'date must be a real date (YYYY-MM-DD)').optional(),
-  reason: z.string().max(300).optional(),
-}).strict();
 
 /** EG-2 step 4: void a payment: its entries reversed, its ledger rows reversed, its documents due again. A retry posts nothing. */
 paymentRouter.post('/:paymentId/void', async (req, res) => {
-  const authReq = req as unknown as Partial<AuthenticatedRequest>;
-  if (!authReq.user?.uid) return res.status(401).json({ status: 'error', message: 'Sign in required' });
-  const parsed = voidSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ status: 'error', message: 'Invalid request', details: parsed.error.issues });
-  try {
-    const db = getDb();
-    await validateWorkspaceMember(db, parsed.data.workspaceId, authReq.user);
-    const result = await voidPayment(db, {
-      workspaceId: parsed.data.workspaceId, uid: authReq.user.uid, paymentId: String((req.params as Record<string, string>).paymentId),
-      date: parsed.data.date, reason: parsed.data.reason,
-    });
-    res.json({ status: 'success', data: result });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (err instanceof PaymentApplyError) return res.status(err.status).json({ status: 'error', message });
-    if (/Period Locked/i.test(message)) return res.status(409).json({ status: 'error', message });
-    if (/not a member|Forbidden|Unauthorized/i.test(message)) return res.status(403).json({ status: 'error', message });
-    res.status(400).json({ status: 'error', message });
-  }
+  await executeCommand(req, res, {
+    definition: paymentVoidCommand,
+    workspaceId: String((req.body as { workspaceId?: unknown } | undefined)?.workspaceId || ''),
+    input: { ...(req.body as Record<string, unknown>), paymentId: String((req.params as Record<string, string>).paymentId) },
+    formatResponse: (outcome) => {
+      if (outcome.ok) return { status: 200, body: { status: 'success', data: outcome.data } };
+      if (outcome.error instanceof z.ZodError) return { status: 400, body: { status: 'error', message: 'Invalid request', details: outcome.error.issues } };
+      if (outcome.error instanceof PaymentApplyError) return { status: outcome.error.status, body: { status: 'error', message: outcome.error.message } };
+      if (/Period Locked/i.test(outcome.message)) return { status: 409, body: { status: 'error', message: outcome.message } };
+      if (/not a member|Forbidden|Unauthorized/i.test(outcome.message)) return { status: 403, body: { status: 'error', message: outcome.message } };
+      return { status: 400, body: { status: 'error', message: outcome.message } };
+    },
+  });
 });
 
 const payoutRunItemSchema = z.object({

@@ -7,8 +7,7 @@ import {
   matchDimensionNode,
   registerDimensionNodeInline,
   setDimensionNodeAliasesInline,
-  setDimensionNodeStatusInline,
-} from '../../../lib/dimensionNodeActions';
+  setDimensionNodeStatusInline } from '../../../lib/dimensionNodeActions';
 import { slashConversionPlan, treeOrder } from '../../../lib/labelTree';
 import { LabelParentSelect, SlashConversionOffer } from './LabelTreeControls';
 import { attempt, identityScope } from '../../../lib/serverAction';
@@ -20,7 +19,8 @@ import { hasRoleAtLeast, useCurrentRole } from '../../../hooks/useCurrentRole';
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Archive, Check, Database, Layers, RefreshCw, ShieldCheck, Lock } from 'lucide-react';
 import { toast } from 'sonner';
-import { doc, updateDoc, writeBatch } from '../../../lib/db/firestore';
+import { saveWorkspaceAxes } from '../../../lib/workspaceSettingsSave';
+import { saveDimensionNodes } from '../../../lib/recordWrites';
 import { db } from '../../../firebase';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
@@ -281,22 +281,11 @@ function DimensionsSettingsContent() {
     setIsSaving(true);
     try {
       if (db) {
-        const wsRef = doc(db, 'workspaces', currentWorkspaceId);
-        await updateDoc(wsRef, {
-          dimensions
-        });
+        await saveWorkspaceAxes(currentWorkspaceId, dimensions);
 
-        // Write individual nodes in batch
-        const batch = writeBatch(db);
-        dimensionNodes.forEach(node => {
-          const docId = `${currentWorkspaceId}_${node.dimensionId}_${node.id}`;
-          const nodeRef = doc(db, 'dimensionNodes', docId);
-          batch.set(nodeRef, {
-            ...node,
-            workspaceId: currentWorkspaceId
-          });
-        });
-        await batch.commit();
+        // one command for the values: the batch was atomic inside this tab and nothing more — no workspace check
+        // on each row, no audit line, and `updatedAt` from the browser's clock
+        await saveDimensionNodes(currentWorkspaceId, dimensionNodes);
       }
 
       // Update store slice
@@ -408,18 +397,7 @@ function DimensionsSettingsContent() {
 
       setDimensionNodes(allNodes);
 
-      if (db) {
-        const batch = writeBatch(db);
-        allNodes.forEach(node => {
-          const docId = `${currentWorkspaceId}_${node.dimensionId}_${node.id}`;
-          const nodeRef = doc(db, 'dimensionNodes', docId);
-          batch.set(nodeRef, {
-            ...node,
-            workspaceId: currentWorkspaceId
-          });
-        });
-        await batch.commit();
-      }
+      if (db) await saveDimensionNodes(currentWorkspaceId, allNodes);
 
       // Update store slice
       storeSetDimensionNodes(allNodes);
@@ -770,8 +748,8 @@ function DimensionsSettingsContent() {
         onSaved={saved => setDimensions(prev => prev.map(d => ({ ...d, requiredOn: saved.find(x => x.id === d.id)?.requiredOn })))} />
       <LabelRoles dimensions={dimensions} onSaved={saved => setDimensions(prev => prev.map(d => ({ ...d, role: saved.find(x => x.id === d.id)?.role })))} />
 
-      {/* Save Button Bar */}
-      {canWrite && (
+      {/* Save Button Bar — saving the label axes is workspace.dimensionaxes, which only owners and accountants may run */}
+      {canAdmin && (
       <div className="flex justify-end pt-6 border-t border-[var(--line)]">
         <AsyncButton
           type="button"

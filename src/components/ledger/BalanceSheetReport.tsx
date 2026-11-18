@@ -4,7 +4,7 @@ import { AlertCircle, Layers, HandCoins, ShieldCheck, Activity, FileSpreadsheet,
 import { cn } from '../../lib/utils';
 import type { ChartAccount } from '../../types';
 import { accountGroupLayout, groupSubtotals, toggleAccountGroup, visibleGroupRows } from '../../lib/accountGroups';
-import { AccountGroupRow, AccountGroupSubtotal } from './AccountGroupControls';
+import { BalanceSheetAccountRows } from './BalanceSheetAccountRows';
 import { isEarningsAccount, isPostable, isTransactionInDateRange } from '../../lib/txFilters';
 import { motion } from 'motion/react';
 import MonthNavigator from '../ui/MonthNavigator';
@@ -17,7 +17,7 @@ import ReportPeriodHeading from '../reporting/ReportPeriodHeading';
 import ReportEmptyState from '../reporting/ReportEmptyState';
 import ReportNote from '../reporting/ReportNote';
 
-export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, showPercent, setShowPercent, columnStartDate, columnCompareStartDate, accounts, formatCurrency, formId, transactions, asOfDate, setAsOfDate, isComparative, setIsComparative, priorDate, setPriorDate, sortBy, sortDir, drillDownTarget, setDrillDownTarget, basis, chooseBasis, cashReady, provenance, loadingStates, isServerAuthoritative, loadServerReport, toggleSort, labels, currentData, prevData, exportBalanceSheet, getVarianceAndPct }: BalanceSheetModel) {
+export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, showPercent, setShowPercent, columnStartDate, columnCompareStartDate, accounts, formatCurrency, formId, transactions, asOfDate, setAsOfDate, isComparative, setIsComparative, priorDate, setPriorDate, sortBy, sortDir, drillDownTarget, setDrillDownTarget, basis, chooseBasis, cashReady, provenance, loadingStates, isServerAuthoritative, loadServerReport, toggleSort, labels, currentData, prevData, exportBalanceSheet }: BalanceSheetModel) {
 
   // C-95: the totals open the posted entries they are made of (the server explains the same figure).
   // On cash basis the server's totals carry cash adjustments the posted lines do not hold (unapplied
@@ -103,7 +103,7 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
             <label htmlFor={`${formId}-comparative`} aria-label="Comparative Year-on-Year" className="flex min-h-11 items-center gap-2 cursor-pointer rounded focus-within:outline focus-within:outline-2 focus-within:outline-[var(--brass)]">
               <input id={`${formId}-comparative`} type="checkbox" className="sr-only" checked={isComparative} disabled={basis === 'cash'} onChange={(e) => setIsComparative(e.target.checked)} />
               <span aria-hidden="true" className={cn("w-8 h-4 shrink-0 rounded-full flex items-center p-0.5", isComparative ? "bg-indigo-500" : "bg-slate-300")}>
-                <span className={cn("w-3 h-3 bg-[var(--surface)] rounded-full shadow-sm", isComparative ? "translate-x-4" : "translate-x-0")} />
+                <span className={cn("w-3 h-3 bg-[var(--surface)] rounded-full shadow-sm", isComparative ? "translate-x-4 rtl:-translate-x-4" : "translate-x-0")} />
               </span>
               <span className="text-[10px] text-[var(--text)]">Previous year</span>
             </label>
@@ -218,7 +218,7 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
           className="bg-[var(--surface)] rounded-xl border border-[var(--line)]/80 shadow-3xs overflow-hidden group hover:border-slate-300 transition-all flex flex-col"
         >
           <div className="p-4 border-b border-[var(--line)] bg-[var(--ink)]/50 flex justify-between items-center relative overflow-hidden shrink-0">
-            <div className="absolute top-0 right-0 p-2 opacity-[0.015] pointer-events-none group-hover:rotate-6 transition-transform duration-700">
+            <div className="absolute top-0 end-0 p-2 opacity-[0.015] pointer-events-none group-hover:rotate-6 transition-transform duration-700">
               <Layers aria-hidden="true" size={80} className="text-[var(--text)]" />
             </div>
             <div className="relative z-10">
@@ -228,57 +228,13 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
           </div>
           <div className="p-4 flex-1 flex flex-col justify-between">
             <div className="space-y-2">
-              {assetGroups.rows.map(row => {
-                if (row.kind === 'subtotal') return (
-                  <AccountGroupSubtotal key={row.key} label={row.label} depth={row.depth}
-                    amount={assetGroups.subtotals.get(row.member.id)?.amount || 0} formatMoney={formatCurrency} />
-                );
-                const acc = row.member;
-                const curVal = currentData.assets[acc.id] || 0;
-                const prVal = isComparative ? prevData.assets[acc.id] || 0 : curVal;
-                const variance = getVarianceAndPct(curVal, prVal);
-
-                return (
-                  <AccountGroupRow key={row.key} depth={row.depth} hasChildren={row.hasChildren} label={acc.name}
-                    expanded={!collapsedGroups.has(acc.id)}
-                    onToggle={() => setCollapsedGroups(collapsed => toggleAccountGroup(collapsed, acc.id))}>
-                  <button
-                    type="button" onClick={() => {
-                      const matchedTxs = transactions.filter(t => isPostable(t) && isTransactionInDateRange(t, undefined, asOfDate) && t.lines?.some(l => l.accountId === acc.id || l.accountName === acc.name));
-                      setDrillDownTarget({ accountName: acc.name, transactions: matchedTxs, explain: { accountIds: [acc.id], endDate: asOfDate || undefined, expectedCents: curVal, sign: 1 } });
-                    }}
-                    title={`Click to drill down into ${acc.name}`}
-                    className="w-full text-left flex justify-between items-center hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 p-2 rounded-lg transition-all border border-transparent hover:border-indigo-300 dark:hover:border-indigo-800 min-w-0 cursor-pointer group/row"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 bg-[var(--ink)] text-[var(--muted)] rounded-md flex items-center justify-center text-[9px] font-bold font-mono border border-[var(--line)] shrink-0">
-                        {acc.code}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-[var(--text)] group-hover/row:text-indigo-600 transition-colors uppercase tracking-tight truncate flex items-center gap-1.5">
-                          <span className="truncate" title={acc.name}>{acc.name}</span>
-                          <ExternalLink aria-hidden="true" size={10} className="opacity-0 group-hover/row:opacity-100 text-indigo-500 transition-opacity" />
-                        </p>
-                        <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider truncate">{acc.category || 'Direct Asset'}</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end shrink-0 ml-2">
-                      <span className="font-mono font-bold text-[var(--text)] text-xs tabular-nums whitespace-nowrap"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(curVal)}</bdi></span>
-                      {isComparative && (
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono text-[8px] text-[var(--muted)] tabular-nums whitespace-nowrap">prev: <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prVal)}</bdi></span>
-                          {variance.pct !== null && prVal !== 0 && (
-                            <span className={cn("text-[8px] font-bold", variance.pct >= 0 ? "text-emerald-500" : "text-rose-500")}>
-                              {variance.pct >= 0 ? '+' : ''}{variance.pct.toFixed(1)}%
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                  </AccountGroupRow>
-                );
-              })}
+              <BalanceSheetAccountRows
+                rows={assetGroups.rows} subtotals={assetGroups.subtotals} balances={currentData.assets}
+                priorBalances={prevData.assets} isComparative={isComparative} greenWhen="up"
+                fallbackCategory="Direct Asset" formatCurrency={formatCurrency}
+                collapsedGroups={collapsedGroups}
+                onToggleGroup={(accountId) => setCollapsedGroups(collapsed => toggleAccountGroup(collapsed, accountId))}
+                onDrillDown={setDrillDownTarget} transactions={transactions} asOfDate={asOfDate} />
             </div>
             <div className="mt-6 pt-4 border-t border-slate-900 flex justify-between items-center relative overflow-hidden gap-4">
               <div className="flex items-center gap-1.5">
@@ -312,7 +268,7 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
           className="bg-[var(--surface)] rounded-xl border border-[var(--line)]/80 shadow-3xs overflow-hidden group hover:border-slate-300 transition-all flex flex-col"
         >
           <div className="p-4 border-b border-[var(--line)] bg-[var(--ink)]/50 flex justify-between items-center relative overflow-hidden shrink-0">
-            <div className="absolute top-0 right-0 p-2 opacity-[0.015] pointer-events-none group-hover:-rotate-6 transition-transform duration-700">
+            <div className="absolute top-0 end-0 p-2 opacity-[0.015] pointer-events-none group-hover:-rotate-6 transition-transform duration-700">
                <HandCoins aria-hidden="true" size={80} className="text-[var(--text)]" />
             </div>
             <div className="relative z-10">
@@ -325,57 +281,13 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
               {/* Liabilities Section */}
               <div className="space-y-2">
                 <p className="text-[8px] font-bold text-[var(--muted)] uppercase tracking-wider truncate border-b border-[var(--line)] pb-2">{labels.liabilitiesLabel}</p>
-                {liabilityGroups.rows.map(row => {
-                  if (row.kind === 'subtotal') return (
-                    <AccountGroupSubtotal key={row.key} label={row.label} depth={row.depth}
-                      amount={liabilityGroups.subtotals.get(row.member.id)?.amount || 0} formatMoney={formatCurrency} />
-                  );
-                  const acc = row.member;
-                  const curVal = currentData.liabilities[acc.id] || 0;
-                  const prVal = isComparative ? prevData.liabilities[acc.id] || 0 : curVal;
-                  const variance = getVarianceAndPct(curVal, prVal);
-
-                  return (
-                    <AccountGroupRow key={row.key} depth={row.depth} hasChildren={row.hasChildren} label={acc.name}
-                      expanded={!collapsedGroups.has(acc.id)}
-                      onToggle={() => setCollapsedGroups(collapsed => toggleAccountGroup(collapsed, acc.id))}>
-                    <button
-                      type="button" onClick={() => {
-                        const matchedTxs = transactions.filter(t => isPostable(t) && isTransactionInDateRange(t, undefined, asOfDate) && t.lines?.some(l => l.accountId === acc.id || l.accountName === acc.name));
-                        setDrillDownTarget({ accountName: acc.name, transactions: matchedTxs, explain: { accountIds: [acc.id], endDate: asOfDate || undefined, expectedCents: curVal, sign: -1 } });
-                      }}
-                      title={`Click to drill down into ${acc.name}`}
-                      className="w-full text-left flex justify-between items-center hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 p-2 rounded-lg transition-all border border-transparent hover:border-indigo-300 dark:hover:border-indigo-800 min-w-0 cursor-pointer group/row"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 bg-[var(--ink)] text-[var(--muted)] rounded-md flex items-center justify-center text-[9px] font-bold font-mono border border-[var(--line)] shrink-0">
-                          {acc.code}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-[var(--text)] group-hover/row:text-indigo-600 transition-colors uppercase tracking-tight truncate flex items-center gap-1.5">
-                            <span className="truncate" title={acc.name}>{acc.name}</span>
-                            <ExternalLink aria-hidden="true" size={10} className="opacity-0 group-hover/row:opacity-100 text-indigo-500 transition-opacity" />
-                          </p>
-                          <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider truncate">{acc.category || 'Current Liability'}</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end shrink-0 ml-2">
-                        <span className="font-mono font-bold text-[var(--text)] text-xs tabular-nums whitespace-nowrap"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(curVal)}</bdi></span>
-                        {isComparative && (
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="font-mono text-[8px] text-[var(--muted)] tabular-nums whitespace-nowrap">prev: <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prVal)}</bdi></span>
-                            {variance.pct !== null && prVal !== 0 && (
-                              <span className={cn("text-[8px] font-bold", variance.pct <= 0 ? "text-emerald-500" : "text-rose-500")}>
-                                {variance.pct >= 0 ? '+' : ''}{variance.pct.toFixed(1)}%
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                    </AccountGroupRow>
-                  );
-                })}
+                <BalanceSheetAccountRows
+                  rows={liabilityGroups.rows} subtotals={liabilityGroups.subtotals} balances={currentData.liabilities}
+                  priorBalances={prevData.liabilities} isComparative={isComparative} greenWhen="down"
+                  fallbackCategory="Current Liability" formatCurrency={formatCurrency}
+                  collapsedGroups={collapsedGroups}
+                  onToggleGroup={(accountId) => setCollapsedGroups(collapsed => toggleAccountGroup(collapsed, accountId))}
+                  onDrillDown={setDrillDownTarget} transactions={transactions} asOfDate={asOfDate} />
                 {Boolean(currentData.notApplied) && (
                   <div className="flex justify-between items-center p-3 text-xs text-[var(--text)]">
                     <span>Paid, not yet applied to an invoice or bill</span>
@@ -399,57 +311,13 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
               {/* Equity Section */}
               <div className="space-y-2">
                 <p className="text-[8px] font-bold text-[var(--muted)] uppercase tracking-wider truncate border-b border-[var(--line)] pb-2">{labels.equityLabel}</p>
-                {equityGroups.rows.map(row => {
-                  if (row.kind === 'subtotal') return (
-                    <AccountGroupSubtotal key={row.key} label={row.label} depth={row.depth}
-                      amount={equityGroups.subtotals.get(row.member.id)?.amount || 0} formatMoney={formatCurrency} />
-                  );
-                  const acc = row.member;
-                  const curVal = currentData.equity[acc.id] || 0;
-                  const prVal = isComparative ? prevData.equity[acc.id] || 0 : curVal;
-                  const variance = getVarianceAndPct(curVal, prVal);
-
-                  return (
-                    <AccountGroupRow key={row.key} depth={row.depth} hasChildren={row.hasChildren} label={acc.name}
-                      expanded={!collapsedGroups.has(acc.id)}
-                      onToggle={() => setCollapsedGroups(collapsed => toggleAccountGroup(collapsed, acc.id))}>
-                    <button
-                      type="button" onClick={() => {
-                        const matchedTxs = transactions.filter(t => isPostable(t) && isTransactionInDateRange(t, undefined, asOfDate) && t.lines?.some(l => l.accountId === acc.id || l.accountName === acc.name));
-                        setDrillDownTarget({ accountName: acc.name, transactions: matchedTxs, explain: { accountIds: [acc.id], endDate: asOfDate || undefined, expectedCents: curVal, sign: -1 } });
-                      }}
-                      title={`Click to drill down into ${acc.name}`}
-                      className="w-full text-left flex justify-between items-center hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 p-2 rounded-lg transition-all border border-transparent hover:border-indigo-300 dark:hover:border-indigo-800 min-w-0 cursor-pointer group/row"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 bg-[var(--ink)] text-[var(--muted)] rounded-md flex items-center justify-center text-[9px] font-bold font-mono border border-[var(--line)] shrink-0">
-                          {acc.code}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-[var(--text)] group-hover/row:text-indigo-600 transition-colors uppercase tracking-tight truncate flex items-center gap-1.5">
-                            <span className="truncate" title={acc.name}>{acc.name}</span>
-                            <ExternalLink aria-hidden="true" size={10} className="opacity-0 group-hover/row:opacity-100 text-indigo-500 transition-opacity" />
-                          </p>
-                          <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider truncate">{acc.category || 'Owner Equity'}</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end shrink-0 ml-2">
-                        <span className="font-mono font-bold text-[var(--text)] text-xs tabular-nums whitespace-nowrap"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(curVal)}</bdi></span>
-                        {isComparative && (
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="font-mono text-[8px] text-[var(--muted)] tabular-nums whitespace-nowrap">prev: <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prVal)}</bdi></span>
-                            {variance.pct !== null && prVal !== 0 && (
-                              <span className={cn("text-[8px] font-bold", variance.pct <= 0 ? "text-emerald-500" : "text-rose-500")}>
-                                {variance.pct >= 0 ? '+' : ''}{variance.pct.toFixed(1)}%
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                    </AccountGroupRow>
-                  );
-                })}
+                <BalanceSheetAccountRows
+                  rows={equityGroups.rows} subtotals={equityGroups.subtotals} balances={currentData.equity}
+                  priorBalances={prevData.equity} isComparative={isComparative} greenWhen="down"
+                  fallbackCategory="Owner Equity" formatCurrency={formatCurrency}
+                  collapsedGroups={collapsedGroups}
+                  onToggleGroup={(accountId) => setCollapsedGroups(collapsed => toggleAccountGroup(collapsed, accountId))}
+                  onDrillDown={setDrillDownTarget} transactions={transactions} asOfDate={asOfDate} />
 
                 {/* Retained Earnings Line Item */}
                 <button
@@ -461,7 +329,7 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
                     setDrillDownTarget({ accountName: 'Retained Earnings (Income & Expenses)', transactions: matchedTxs });
                   }}
                   title="Click to drill down into Retained Earnings transaction activity"
-                  className="w-full text-left flex justify-between items-center bg-[var(--brass-soft)] hover:bg-[var(--surface)] text-[var(--text)] p-2 rounded-lg transition-all border border-[var(--brass-line)] hover:border-[var(--brass)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brass)] min-h-11 min-w-0 cursor-pointer group/row"
+                  className="w-full text-start flex justify-between items-center bg-[var(--brass-soft)] hover:bg-[var(--surface)] text-[var(--text)] p-2 rounded-lg transition-all border border-[var(--brass-line)] hover:border-[var(--brass)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brass)] min-h-11 min-w-0 cursor-pointer group/row"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-8 h-8 bg-[var(--panel)] text-[var(--text)] rounded-md flex items-center justify-center text-[9px] font-bold font-mono border border-[var(--line)] shrink-0">
@@ -475,7 +343,7 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
                       <p className="text-[8px] font-bold text-[var(--text)] uppercase tracking-wider truncate">{labels.retainedEarningsSub}</p>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end shrink-0 ml-2">
+                  <div className="flex flex-col items-end shrink-0 ms-2">
                     <span className="font-mono font-bold text-xs text-[var(--text)] tabular-nums whitespace-nowrap">
                       <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(currentData.netIncome)}</bdi>
                     </span>

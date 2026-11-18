@@ -1,79 +1,88 @@
+/**
+ * Pay runs (U-02, U-10, U-11), mounted at /api/v1/workspaces/:workspaceId/pay-runs
+ * (workspaceRoutes.ts, owners and accountants). Every write is a registered command
+ * (src/server/commands/payroll.ts): POST posts a run for the pay date (or sends it for an owner's
+ * approval); DELETE /:payRunId undoes it while the date is open, or withdraws it while it waits;
+ * owners approve or send it back and turn approval on or off. The handlers keep their answers —
+ * `{ status: 'success', ...result }`, the handler's own 400 sentence for a malformed body, the
+ * service's status and words for a refusal, and the handler's sentence with the cause for a 500.
+ *
+ * The payslip PDF (U-01) is a read and stays here.
+ */
 import express from 'express';
-import { z } from 'zod';
 import { getDb } from '../db/firestore';
-import { approvePayRun, PayRunError, postPayRun, rejectPayRun, setPayrollApproval, undoPayRun } from '../services/payRunService';
-import { generatePayslipPdf, layoutPayslip } from '../services/payslipPdf';
+import {
+  payRunApprovalCommand, payRunApproveCommand, payRunPostCommand, payRunRejectCommand, payRunUndoCommand,
+} from '../commands/payroll';
+import type { AnyCommandDefinition, CommandExecutionOutcome } from '../commands/types';
+import { executeCommand } from '../utils/commandExecutor';
+import { layoutPayslip, generatePayslipPdf } from '../services/payslipPdf';
 import type { PayRunEmployeeLine } from '../../lib/payRunPosting';
 import { payrollImportRouter } from './payrollImportRoutes';
 
-/**
- * Pay runs (U-02), mounted at /api/v1/workspaces/:workspaceId/pay-runs (workspaceRoutes.ts, owners
- * and accountants). POST posts a run for the pay date (or, U-10, sends it for an owner's approval);
- * DELETE /:payRunId undoes it while the date is open, or withdraws it while it waits. Owners:
- * POST /:payRunId/approve or /reject, and PUT /approval turns approval on or off.
- */
 export const payRunRouter = express.Router({ mergeParams: true });
 // PAY-1: an outside payroll provider's results, one entry per pay date (payrollImportRoutes.ts)
 payRunRouter.use('/imports', payrollImportRouter);
 
-type AuthedRequest = express.Request & { user: { uid: string; email?: string } };
-const schema = z.object({
-  date: z.string().max(10),
-  bankAccountId: z.string().min(1).max(200),
-  wagesAccountId: z.string().min(1).max(200),
-  taxExpenseAccountId: z.string().min(1).max(200),
-  liabilitiesAccountId: z.string().min(1).max(200),
-  again: z.boolean().optional(),
-  schedule: z.enum(['all', 'Weekly', 'Bi-Weekly', 'Monthly']).optional(),
-}).strict();
+/** The address names the workspace and the run; the body carries the rest. */
+function invocation(req: express.Request, definition: AnyCommandDefinition, extra: Record<string, unknown> = {}) {
+  const params = req.params as Record<string, string>;
+  const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+  const workspaceId = String(params.workspaceId || '');
+  const runId = params.payRunId ? { payRunId: String(params.payRunId) } : {};
+  return { definition, workspaceId, input: { ...body, ...runId, ...extra, workspaceId } };
+}
 
-const actor = (req: express.Request) => {
-  const { user } = req as unknown as AuthedRequest;
-  return { workspaceId: String((req.params as Record<string, string>).workspaceId), uid: user.uid, email: user.email };
-};
-const fail = (res: express.Response, err: unknown, what: string) => {
-  if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Choose the pay date and the four accounts' });
-  if (err instanceof PayRunError) return res.status(err.status).json({ status: 'error', message: err.message });
-  res.status(500).json({ status: 'error', message: what, details: err instanceof Error ? err.message : String(err) });
-};
+/** The legacy answers: the handler's own sentence for a bad body, `details` kept on a 500. */
+function answer(badBody: string, what: string) {
+  return (outcome: CommandExecutionOutcome): { status: number; body: unknown } => {
+    if (outcome.ok) return { status: 200, body: { status: 'success', ...(outcome.data as Record<string, unknown>) } };
+    if (outcome.code === 'INVALID_INPUT') return { status: 400, body: { status: 'error', message: badBody } };
+    if (outcome.status < 500) return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+    const cause = outcome.error instanceof Error ? outcome.error.message : String(outcome.error ?? outcome.message);
+    return { status: 500, body: { status: 'error', message: what, details: cause } };
+  };
+}
 
 payRunRouter.post('/', async (req, res) => {
-  try {
-    res.json({ status: 'success', ...(await postPayRun(getDb(), { ...actor(req), ...schema.parse(req.body) })) });
-  } catch (err) { fail(res, err, 'The pay run could not be posted'); }
+  await executeCommand(req, res, {
+    ...invocation(req, payRunPostCommand),
+    formatResponse: answer('Choose the pay date and the four accounts', 'The pay run could not be posted'),
+  });
 });
 
 payRunRouter.delete('/:payRunId', async (req, res) => {
-  try {
-    res.json({ status: 'success', ...(await undoPayRun(getDb(), { ...actor(req), payRunId: String(req.params.payRunId) })) });
-  } catch (err) { fail(res, err, 'The pay run could not be undone'); }
+  await executeCommand(req, res, {
+    ...invocation(req, payRunUndoCommand),
+    formatResponse: answer('Choose the pay date and the four accounts', 'The pay run could not be undone'),
+  });
 });
 
 payRunRouter.put('/approval', async (req, res) => {
-  try {
-    const { required } = z.object({ required: z.boolean() }).strict().parse(req.body);
-    res.json({ status: 'success', ...(await setPayrollApproval(getDb(), { ...actor(req), required })) });
-  } catch (err) { fail(res, err, 'The setting could not be saved'); }
+  await executeCommand(req, res, {
+    ...invocation(req, payRunApprovalCommand),
+    formatResponse: answer('Choose the pay date and the four accounts', 'The setting could not be saved'),
+  });
 });
 
 payRunRouter.post('/:payRunId/approve', async (req, res) => {
-  try {
-    const { again } = z.object({ again: z.boolean().optional() }).strict().parse(req.body || {});
-    res.json({ status: 'success', ...(await approvePayRun(getDb(), { ...actor(req), payRunId: String(req.params.payRunId), again })) });
-  } catch (err) { fail(res, err, 'The pay run could not be approved'); }
+  await executeCommand(req, res, {
+    ...invocation(req, payRunApproveCommand),
+    formatResponse: answer('Choose the pay date and the four accounts', 'The pay run could not be approved'),
+  });
 });
 
 payRunRouter.post('/:payRunId/reject', async (req, res) => {
-  try {
-    const { note } = z.object({ note: z.string().max(500).optional() }).strict().parse(req.body || {});
-    res.json({ status: 'success', ...(await rejectPayRun(getDb(), { ...actor(req), payRunId: String(req.params.payRunId), note })) });
-  } catch (err) { fail(res, err, 'The pay run could not be sent back'); }
+  await executeCommand(req, res, {
+    ...invocation(req, payRunRejectCommand),
+    formatResponse: answer('Choose the pay date and the four accounts', 'The pay run could not be sent back'),
+  });
 });
 
 // U-01: one employee's payslip for a posted run (PDF)
 payRunRouter.get('/:payRunId/payslips/:employeeId', async (req, res) => {
   try {
-    const { workspaceId } = actor(req);
+    const workspaceId = String((req.params as Record<string, string>).workspaceId);
     const db = getDb();
     const run = (await db.collection('payRuns').doc(String(req.params.payRunId)).get()).data();
     if (!run || run.workspaceId !== workspaceId) return res.status(404).json({ status: 'error', message: 'That pay run is not in this workspace' });
@@ -90,5 +99,8 @@ payRunRouter.get('/:payRunId/payslips/:employeeId', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Disposition', `inline; filename="payslip_${layout.payDate}_${layout.employee.replace(/[^\w.-]+/g, '_')}.pdf"`);
     res.send(pdf);
-  } catch (err) { fail(res, err, 'The payslip could not be made'); }
+  } catch (err) {
+    const cause = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ status: 'error', message: 'The payslip could not be made', details: cause });
+  }
 });

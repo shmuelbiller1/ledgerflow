@@ -164,7 +164,7 @@ function classSource(tag: string): string | undefined {
   return end === -1 ? undefined : tag.slice(start, end + 1);
 }
 
-function classOf(tag: string): string[] {
+export function classOf(tag: string): string[] {
   const at = tag.search(/\bclassName=/);
   if (at === -1) return [];
   const value = tag.slice(at + 'className='.length);
@@ -174,8 +174,17 @@ function classOf(tag: string): string[] {
   if (quoted) return (quoted[1] ?? quoted[2] ?? '').split(/\s+/).filter(Boolean);
   const template = /^\{`([^`]*)`\}/.exec(value);
   if (template) return template[1].split(/\s+/).filter(Boolean);
-  const inExpression = /^\{[^}]*`([^`]*)`[^}]*\}/.exec(value);
-  return (inExpression?.[1] ?? '').split(/\s+/).filter(Boolean);
+  // Examine template delimiters once instead of backtracking over overlapping text.
+  if (!value.startsWith('{')) return [];
+  const openingTick = value.indexOf('`', 1);
+  if (openingTick === -1 || value.slice(1, openingTick).includes('}')) return [];
+  const closingTick = value.indexOf('`', openingTick + 1);
+  if (closingTick === -1) return [];
+  const closingBrace = value.indexOf('}', closingTick + 1);
+  if (closingBrace === -1) return [];
+  const secondTemplate = value.indexOf('`', closingTick + 1);
+  if (secondTemplate !== -1 && secondTemplate < closingBrace) return []; // ambiguous: do not guess
+  return value.slice(openingTick + 1, closingTick).split(/\s+/).filter(Boolean);
 }
 
 /** The value of `name=` on a tag, unwrapped from quotes or braces. */
@@ -481,6 +490,178 @@ function readCells(rowInner: string): Cell[] | undefined {
   return cells;
 }
 
+/** The names of `['Date', 'Day']`, or `undefined` when the list is not written out. */
+function headerNames(list: string): string[] | undefined {
+  const text = list.trim();
+  if (!text.startsWith('[') || !text.endsWith(']')) return undefined;
+  const names: string[] = [];
+  const inner = text.slice(1, -1);
+  let at = 0;
+  while (at < inner.length) {
+    const quote = inner[at];
+    if (quote === ',' || /\s/.test(quote)) {
+      at++;
+      continue;
+    }
+    if (quote !== "'" && quote !== '"') return undefined; // an identifier, a template, a spread
+    const end = inner.indexOf(quote, at + 1);
+    if (end === -1) return undefined;
+    names.push(inner.slice(at + 1, end));
+    at = end + 1;
+  }
+  return names;
+}
+
+/**
+ * `cell: (row) => …`, with the row named `_row` when the cell never reads it — an unused argument is a lint
+ * warning, and the sweep may not add one. The argument stays, because a column that drops it is the one the
+ * component has to infer `over`'s item type from.
+ */
+function cellArrow(row: string, content: string): string {
+  const value = jsxValue(content);
+  return new RegExp(`\\b${row}\\b`).test(value) ? `(${row}) => ${value}` : `(_${row}) => ${value}`;
+}
+
+/** The `{…}` groups a body is made of, or `undefined` when it is not only those. */
+function splitExpressions(source: string): string[] | undefined {
+  const chunks: string[] = [];
+  let at = 0;
+  const text = source.trim();
+  while (at < text.length) {
+    if (/\s/.test(text[at])) {
+      at++;
+      continue;
+    }
+    if (text[at] !== '{') return undefined;
+    const end = skipExpression(text, at);
+    if (end === at) return undefined;
+    chunks.push(text.slice(at, end));
+    at = end;
+  }
+  return chunks;
+}
+
+/** The first `target` at nesting depth zero, skipping strings. */
+export function topLevelIndexOf(text: string, target: string): number {
+  let depth = 0;
+  let at = 0;
+  while (at < text.length) {
+    const char = text[at];
+    if (char === "'" || char === '"' || char === '`') {
+      const end = endOfString(text, at);
+      if (end === -1) return -1;
+      at = end;
+      continue;
+    }
+    if (char === '(' || char === '[' || char === '{') depth++;
+    else if (char === ')' || char === ']' || char === '}') depth--;
+    else if (depth === 0 && text.startsWith(target, at)) return at;
+    at++;
+  }
+  return -1;
+}
+
+/** The `:` that closes the ternary opened by the `?` at `from`. */
+export function matchingColon(text: string, from: number): number {
+  let depth = 0;
+  let questions = 0;
+  let at = from + 1;
+  while (at < text.length) {
+    const char = text[at];
+    if (char === "'" || char === '"' || char === '`') {
+      const end = endOfString(text, at);
+      if (end === -1) return -1;
+      at = end;
+      continue;
+    }
+    if (char === '(' || char === '[' || char === '{') depth++;
+    else if (char === ')' || char === ']' || char === '}') depth--;
+    else if (depth === 0 && char === '?') questions++;
+    else if (depth === 0 && char === ':') {
+      if (questions === 0) return at;
+      questions--;
+    }
+    at++;
+  }
+  return -1;
+}
+
+/**
+ * `list.length === 0`, with the `&&` or `?` that follows it — the *whole* condition of an empty state. A
+ * condition that only contains an emptiness test (`!loading && rows.length === 0`, or `other.length === 0` above
+ * a different list) would show the sentence at the wrong time once the component decides when to show it, so it
+ * is not an empty state at all.
+ */
+function isEmptyTestOf(condition: string, list: string): boolean {
+  const test = condition
+    .trim()
+    .replace(/(&&|\?)$/, '')
+    .trim()
+    .replace(/^\(([\s\S]*)\)$/, '$1')
+    .trim();
+  const escaped = list.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^(?:${escaped}\\.length\\s*===?\\s*0|!\\s*${escaped}\\.length)$`).test(test);
+}
+
+/**
+ * `{list.length === 0 ? <tr>…</tr> : list.map(row => <tr>…</tr>)}` — the sentence and the rows as one
+ * expression, in either order — read as the map and the row it stands in for.
+ */
+function readEmptyStateTernary(chunk: string): { map: string; row: string; condition: string } | undefined {
+  const text = chunk.slice(1, -1).trim();
+  const questionAt = topLevelIndexOf(text, '?');
+  if (questionAt === -1) return undefined;
+  const colonAt = matchingColon(text, questionAt);
+  if (colonAt === -1) return undefined;
+  const condition = text.slice(0, questionAt).trim();
+  if (!/(\.length\s*===?\s*0|!\s*[A-Za-z_$][\w$.]*\s*\.length)/.test(condition)) return undefined;
+  const whenEmpty = text.slice(questionAt + 1, colonAt).trim();
+  const whenRows = text.slice(colonAt + 1).trim();
+  // `(\n <tr>…</tr>\n)` and `(\n list.map(…)\n)` are the same branches without their wrapper
+  const unwrap = (value: string): string => {
+    const text = value.trim();
+    return text.startsWith('(') && closingParen(text, 0) === text.length - 1 ? text.slice(1, -1).trim() : text;
+  };
+  for (const [side, other] of [[whenEmpty, whenRows], [whenRows, whenEmpty]] as const) {
+    const mapped = unwrap(side);
+    if (!readMapped(`{${mapped}}`)) continue;
+    const row = unwrap(other);
+    if (!/^<tr\b/.test(row)) continue;
+    const end = skipElement(row, 0, 'tr');
+    if (end === 0 || row.slice(end).trim() !== '') continue;
+    return { map: mapped, row: row.slice(0, end), condition };
+  }
+  return undefined;
+}
+
+/**
+ * `{list.length === 0 && <tr>…</tr>}` — the sentence a report prints inside its body when it has no rows — as
+ * the row itself. A row that appears conditionally for another reason is not an empty state and is refused: the
+ * condition has to be about the list being empty.
+ */
+export function readEmptyStateRow(chunk: string, list: string): string | undefined {
+  const text = chunk.slice(1, -1).trim();
+  // Find an actual <tr boundary without a regex that can backtrack on long whitespace.
+  let tagAt = text.indexOf('<tr');
+  while (tagAt !== -1 && /[A-Za-z0-9_]/.test(text[tagAt + 3] ?? '')) {
+    tagAt = text.indexOf('<tr', tagAt + 3);
+  }
+  if (tagAt === -1) return undefined;
+  let rowAt = tagAt;
+  while (rowAt > 0 && /\s/.test(text[rowAt - 1])) rowAt--;
+  if (text[rowAt - 1] === '(') rowAt--;
+  if (rowAt <= 0) return undefined;
+  const condition = text.slice(0, rowAt).trim();
+  const body = text.slice(rowAt).trim().replace(/^\(/, '').trimStart();
+  const end = skipElement(body, 0, 'tr');
+  if (end === 0) return undefined;
+  // `{cond && <tr>…</tr>}`, `{cond ? <tr>…</tr> : null}`, and either of those inside parentheses
+  const trailing = body.slice(end).trim().replace(/^\)/, '').trim();
+  if (trailing !== '' && trailing !== ': null' && trailing !== ':null') return undefined;
+  if (!isEmptyTestOf(condition, list)) return undefined;
+  return body.slice(0, end);
+}
+
 /** Convert the table that starts at `start`, or say why it cannot. */
 export function attemptConvert(source: string, start: number): Attempt {
   const line = source.slice(0, start).split('\n').length;
@@ -520,13 +701,20 @@ export function attemptConvert(source: string, start: number): Attempt {
   const head = readHead(headInner);
   if (!head) return { reason: 'a header row that is not one of the shapes the table can take' };
 
-  // a table with a footer has a totals row; a sweep that dropped it would silently delete a sum from a report,
-  // so every other part of the table has to be accounted for before this can go ahead
-  if (/<tfoot\b/.test(table)) return { reason: 'a totals row in a footer (a sum is not a column)' };
+  // the totals row keeps its own markup and moves into the component's `footer`, which renders it as a `<tfoot>`:
+  // a sweep that dropped it would silently delete a sum from a report
+  const footAt = table.indexOf('<tfoot');
+  const footEnd = footAt === -1 ? -1 : skipElement(table, footAt, 'tfoot');
+  const footerInner = footAt === -1
+    ? undefined
+    : table.slice(skipOpeningTag(table, footAt), footEnd - '</tfoot>'.length).trim();
+  if (footAt !== -1 && !footerInner) return { reason: 'an empty footer' };
+  const footerClass = footAt === -1 ? '' : classOf(openTagAt(table, footAt)).join(' ');
   const otherParts = table
     .replace(/<caption[\s\S]*?<\/caption>/, '')
     .replace(/<thead[\s\S]*?<\/thead>/, '')
     .replace(/<tbody[\s\S]*?<\/tbody>/, '')
+    .replace(/<tfoot[\s\S]*?<\/tfoot>/, '')
     .replace(/<\/?table\b[^>]*>/g, '')
     .trim();
   if (otherParts) return { reason: 'something outside the caption, header and body that a rewrite would drop' };
@@ -536,13 +724,29 @@ export function attemptConvert(source: string, start: number): Attempt {
   const tbodyOpen = openTagAt(table, bodyAt);
   const tbodyEnd = skipElement(table, bodyAt, 'tbody');
   const bodyInner = table.slice(skipOpeningTag(table, bodyAt), tbodyEnd - '</tbody>'.length).trim();
-  if (!bodyInner.startsWith('{') || skipExpression(bodyInner, 0) !== bodyInner.length) {
-    return { reason: 'a body that is not one expression: an empty-state row beside the rows, or a literal row' };
-  }
-  const expression = bodyInner.slice(1, -1).trim();
+  const chunks = splitExpressions(bodyInner);
+  const notOneExpression = { reason: 'a body that is not one expression: an empty-state row beside the rows, or a literal row' };
+  if (!chunks || chunks.length === 0) return notOneExpression;
+  const maps = chunks.filter(chunk => readMapped(chunk) !== undefined);
+  if (maps.length > 1) return { reason: 'a body with more than one map' };
+  // `{cond ? <tr>empty</tr> : list.map(…)}` is one expression, not a map: read both halves out of it
+  const ternary = maps.length === 0 && chunks.length === 1 ? readEmptyStateTernary(chunks[0]) : undefined;
+  if (maps.length === 0 && !ternary) return { reason: 'a body that is not a map' };
+  const extra = maps.length > 0 ? chunks.filter(chunk => chunk !== maps[0]) : [];
+  if (extra.length > 1) return { reason: 'a body with more than one map' };
+  const emptyChunk = ternary ? undefined : extra.length === 1 ? extra[0] : undefined;
+  const expression = (ternary ? ternary.map : maps[0].slice(1, -1).trim()).trim();
   const mapAt = expression.indexOf('.map(');
   if (mapAt === -1) return { reason: 'a body that is not a map' };
   const list = expression.slice(0, mapAt).trim();
+  // the row a report shows when its list is empty stays a row inside the body: the component renders it in place
+  // of the rows, so the table, its head and its columns are still there to say what the sentence is about. The
+  // condition has to be *this* list being empty — that is the whole of it, not a part of `!loading && …`
+  if (ternary && !isEmptyTestOf(ternary.condition, list)) {
+    return { reason: 'an empty state whose condition is not this list being empty' };
+  }
+  const emptyRow = ternary ? ternary.row : emptyChunk === undefined ? undefined : readEmptyStateRow(emptyChunk, list);
+  if (emptyChunk !== undefined && emptyRow === undefined) return notOneExpression;
   // the map's own callback: everything from its `(` to the `)` that closes it, found by balance so a nested
   // `map` inside a cell does not end the body
   const close = closingParen(expression, mapAt + 4);
@@ -580,6 +784,12 @@ export function attemptConvert(source: string, start: number): Attempt {
   // a class that reads the row (`cn('p-3', m.amountCents < 0 ? …)`) is computed per row: it has to stay inside
   // the cell, because a column-level `className` is evaluated once, outside the row's scope
   const readsRow = new RegExp(`\\b${row}\\.`);
+  // and a *header* class that reads the header's own item (`\`${head === 'Amount' ? 'text-right' : 'text-left'}\``)
+  // is the same problem one level up: the item exists inside the header's map, not in the column list
+  const headClassSource = 'cellTag' in head ? classSource(head.cellTag) ?? '' : '';
+  if ('parameter' in head && headClassSource.includes('${') && new RegExp(`\\b${head.parameter}\\b`).test(headClassSource)) {
+    return { reason: 'a header class that reads the header item, which a column cannot see' };
+  }
   if (cells.some(cell => cell.rawClass && readsRow.test(cell.rawClass))) {
     return { reason: 'a class computed from the row, which belongs inside the cell' };
   }
@@ -621,7 +831,20 @@ export function attemptConvert(source: string, start: number): Attempt {
   if (nestedCells.length === 1 && cells.indexOf(nestedCells[0]) !== cells.length - 1) {
     return { reason: 'a nested map that is not the last column' };
   }
-  if (literalCells.length !== fixedHeaders.length) {
+  // the columns a header declares: its own cells, or the names it maps over when the header is a literal list.
+  // The array shape used to be compared against an empty list, so every one of them was refused
+  const arrayNames = head.kind === 'array' ? headerNames(head.list) : undefined;
+  if (head.kind === 'array' && arrayNames === undefined) {
+    return { reason: 'a header list that is computed, not written out' };
+  }
+  // the repeated column is one column, and an array header has no other written-out cells to put beside it
+  if (head.kind === 'array' && nestedCells.length === 1 && literalCells.length > 0) {
+    return { reason: 'an array header whose row mixes written-out cells with a nested map' };
+  }
+  const declaredColumns = head.kind === 'array'
+    ? (nestedCells.length === 1 ? 0 : arrayNames!.length)
+    : fixedHeaders.length;
+  if (literalCells.length !== declaredColumns) {
     return { reason: 'a row that does not line up with its header' };
   }
 
@@ -633,7 +856,7 @@ export function attemptConvert(source: string, start: number): Attempt {
       alignEntry(header.classes, cell.classes),
       ...classesOf(header.raw, cell.rawClass, header.classes, cell.classes),
       cellPropsEntry(cell.extra, row),
-      `cell: (${row}) => ${jsxValue(cell.content)}`,
+      `cell: ${cellArrow(row, cell.content)}`,
     ]));
   });
 
@@ -657,20 +880,14 @@ export function attemptConvert(source: string, start: number): Attempt {
     ]));
   } else if (head.kind === 'array') {
     // `{['Date', 'Day', 'Holiday'].map(head => <th>{head}</th>)}`: the columns are the literal list itself
-    const items = list.match(/^\[([\s\S]*)\]$/);
-    if (!items) return { reason: 'a header list that is computed, not written out' };
-    const names = [...items[1].matchAll(/'([^']*)'|"([^"]*)"/g)].map(match => match[1] ?? match[2]);
-    if (names.length !== literalCells.length || names.some(name => name === undefined)) {
-      return { reason: 'a header list that does not match the cells of a row' };
-    }
-    names.forEach((name, index) => {
+    (arrayNames ?? []).forEach((name, index) => {
       const cell = literalCells[index];
       entries.push(entry([
         `header: ${literal(name)}`,
         alignEntry(classOf(head.headTag), cell.classes),
         ...classesOf(classSource(head.headTag), cell.rawClass, classOf(head.headTag), cell.classes),
         cellPropsEntry(cell.extra, row),
-        `cell: (${row}) => ${jsxValue(cell.content)}`,
+        `cell: ${cellArrow(row, cell.content)}`,
       ]));
     });
   } else if (head.kind === 'computed') {
@@ -692,6 +909,9 @@ export function attemptConvert(source: string, start: number): Attempt {
   if (tableClass !== 'w-full text-xs') props.push(`        tableClassName=${attr(tableClass)}`);
   if (headRowClass !== 'text-[var(--muted)]') props.push(`        headRowClassName=${attr(headRowClass)}`);
   if (bodyClass !== 'divide-y divide-[var(--line)]') props.push(`        bodyClassName=${attr(bodyClass)}`);
+  if (emptyRow !== undefined) props.push(`        emptyRow={${jsxValue(emptyRow)}}`);
+  if (footerInner !== undefined) props.push(`        footer={${jsxValue(footerInner)}}`);
+  if (footerClass) props.push(`        footerClassName=${attr(footerClass)}`);
 
   const lineStart = source.lastIndexOf('\n', start) + 1;
   const lineIndent = (source.slice(lineStart, start).match(/^\s*/) ?? [''])[0];

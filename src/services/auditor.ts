@@ -55,14 +55,11 @@ export const DoubleEntryAuditor = {
     // Causal Integrity Check: All transactions with a verification block are part of the cryptographic sequence.
     // We do NOT filter to isPostable() because void/deleted transactions still exist in the immutable chain.
     // Only entries that record a link (`previousHash`) are checked: the server signs every entry it writes
-    // (`hash`) without linking it, and an unlinked signed entry is not a broken link.
-    const chainTxs = chronosTxs.filter(t => typeof t.verification?.previousHash === 'string' && t.verification.previousHash !== '');
-    // the first linked entry may point at an unlinked signed entry (or 'genesis'); any other pointer is broken
-    const signedHashes = new Set(chronosTxs.map(t => t.verification?.hash).filter((h): h is string => typeof h === 'string'));
-    const chainTxIndexMap = new Map<string, number>();
-    chainTxs.forEach((ct, idx) => {
-      if (ct.id) chainTxIndexMap.set(ct.id, idx);
-    });
+    // (`hash`) without linking it, and an unlinked signed entry is not a broken link. A linked entry is
+    // valid when it points to the preceding linked entry's hash, to an unlinked server-signed entry strictly
+    // between the preceding linked entry and itself, or (for the very first linked entry) to 'genesis'.
+    let lastLinkedHash: string | null = null;
+    const interveningUnlinkedHashes = new Set<string>();
 
     // Optimized Duplicate Detection using Bucketing
     const signatureBuckets = new Map<number, { id: string; sig: number[] }[]>();
@@ -71,18 +68,22 @@ export const DoubleEntryAuditor = {
     // 1. Audit Transactions & Hash Chain
     chronosTxs.forEach((t, i) => {
       const isActive = isPostable(t);
-      
-      // Verify Cryptographic Link (O(1) map lookup to eliminate O(N^2) inner loop - F6)
-      if (typeof t.verification?.previousHash === 'string' && t.verification.previousHash !== '' && t.id) {
-        const chainIdx = chainTxIndexMap.get(t.id);
-        const link = t.verification.previousHash;
-        const broken = chainIdx === undefined ? false
-          : chainIdx > 0 ? link !== chainTxs[chainIdx - 1].verification?.hash
-          : link !== 'genesis' && !signedHashes.has(link as string);
-        if (broken) {
+      const currentHash = typeof t.verification?.hash === 'string' && t.verification.hash !== '' ? t.verification.hash : null;
+      const link = typeof t.verification?.previousHash === 'string' && t.verification.previousHash !== '' ? t.verification.previousHash : null;
+
+      // Verify Cryptographic Link in a single chronological pass (O(1) per entry)
+      if (link !== null) {
+        const validLink = lastLinkedHash === null
+          ? link === 'genesis' || interveningUnlinkedHashes.has(link)
+          : link === lastLinkedHash || interveningUnlinkedHashes.has(link);
+        if (!validLink) {
           hashChainValid = false;
           if (brokenChainIndex === null) brokenChainIndex = i;
         }
+        lastLinkedHash = currentHash;
+        interveningUnlinkedHashes.clear();
+      } else if (currentHash !== null) {
+        interveningUnlinkedHashes.add(currentHash);
       }
 
       // Only perform financial auditing on postable entries

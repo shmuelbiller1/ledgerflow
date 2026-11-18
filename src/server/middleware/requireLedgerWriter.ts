@@ -1,6 +1,6 @@
 import type express from 'express';
 import { getDb } from '../db/firestore';
-import { getWorkspaceUserRole } from '../routes/workspaceRoutes';
+import { getWorkspaceUserRole } from '../auth/workspaceRole';
 
 /** Roles that may change the books (the database policies use the same list). */
 export const LEDGER_WRITER_ROLES = ['owner', 'accountant', 'bookkeeper'];
@@ -17,7 +17,11 @@ export function roleInWorkspace(workspace: { uid?: unknown; roles?: unknown } | 
 }
 
 function asId(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  return typeof value === 'string' && value.trim() && !value.includes('/') && !value.includes('\0') ? value.trim() : undefined;
+}
+
+function hasMalformedId(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== '' && !asId(value);
 }
 
 /**
@@ -39,8 +43,13 @@ export async function targetWorkspaces(req: express.Request): Promise<Set<string
 
   const byId = /^\/([^/]+)(\/reverse)?$/.exec(req.path);
   if (byId && (req.method === 'PUT' || req.method === 'DELETE' || byId[2])) {
-    const snap = await getDb().collection('transactions').doc(decodeURIComponent(byId[1])).get();
-    addId(snap.data()?.workspaceId);
+    let decoded: string;
+    try { decoded = decodeURIComponent(byId[1]); } catch { decoded = ''; }
+    const docId = asId(decoded);
+    if (docId) {
+      const snap = await getDb().collection('transactions').doc(docId).get();
+      addId(snap.data()?.workspaceId);
+    }
   }
   return ids;
 }
@@ -53,6 +62,11 @@ export async function requireLedgerWriter(req: express.Request, res: express.Res
   if (READ_METHODS.has(req.method)) return next();
   const user = (req as express.Request & { user?: { uid?: string; admin?: boolean } }).user;
   if (!user?.uid) return res.status(401).json({ error: 'Sign in required' });
+  const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+  const txObj = (body.transaction && typeof body.transaction === 'object' ? body.transaction : {}) as Record<string, unknown>;
+  if (hasMalformedId(body.workspaceId) || hasMalformedId(txObj.workspaceId) || hasMalformedId(req.query.workspaceId)) {
+    return res.status(400).json({ status: 'error', error: 'Invalid workspaceId', message: 'Invalid workspaceId' });
+  }
   if (user.admin) return next();
   try {
     const workspaces = await targetWorkspaces(req);

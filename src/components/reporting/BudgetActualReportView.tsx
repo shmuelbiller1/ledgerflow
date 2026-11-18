@@ -15,6 +15,7 @@ import { formatCurrency } from '../../lib/utils';
 import { Labelled } from '../ui/Labelled';
 import DrillDownModal, { type ExplainRequest } from '../layout/DrillDownModal';
 import { isDebitNatureType } from '../../lib/accountUtils';
+import { RowTable } from '../ui/RowTable';
 
 type History = { key: string; budgets: SavedBudget[]; accounts: ChartAccount[]; transactions: Transaction[] };
 export default function BudgetActualReportView({ selectedYear = new Date().getFullYear(), startDate, endDate }: { selectedYear?: number; startDate?: string; endDate?: string }) {
@@ -76,7 +77,22 @@ export default function BudgetActualReportView({ selectedYear = new Date().getFu
     </div>
     {!current && !activeServer && <p role="status">{guest ? reportText('r.guest-sample-figures-use-the-loaded-demonstratio', 'Guest sample: figures use the loaded demonstration records.') : reportText('r.provisional-loaded-records-may-be-incomplete-loa', 'Provisional: loaded records may be incomplete. Load full history before relying on these figures.')}</p>}
     {error?.key === key && <p role="alert">{error.message}</p>}
-    {!budget ? <p>{reportText('r.no-saved-account-budgets-define-an-account-targe', 'No saved account budgets. Define an account target in Planning → Budgets.')}</p> : !report ? <p>{reportText('r.choose-a-budget-with-one-unambiguous-chart-accou', 'Choose a budget with one unambiguous chart account.')}</p> : <div className="overflow-x-auto" role="region" aria-label={reportText('r.budget-vs-actual-figures', 'Budget vs actual figures')} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<table className="w-full text-right"><caption className="text-left">{report.account.code} · {report.account.name}</caption><thead><tr>{[reportText('r.col-period', 'Period'), reportText('r.col-budget', 'Budget'), reportText('r.col-actual', 'Actual'), reportText('r.col-difference', 'Difference'), reportText('r.col-pct-used', '% used')].map(label => <th scope="col" key={label} className="p-3">{label}</th>)}</tr></thead><tbody>{report.columns.map(column => <tr key={column.period.id}><th scope="row" className="p-3">{column.period.label}</th><td className="p-3">{formatCurrency(column.budgetCents)}</td><td><button type="button" className="min-h-11 px-3 underline tabular-nums" aria-label={fill(reportText('r.budget-drill', '{amount}: entries for {account}, {period}'), { amount: formatCurrency(column.actualCents), account: report.account.name, period: column.period.label })} onClick={() => setDrill({ key, name: report.account.name, transactions: column.drillTransactions, explain: { accountIds: [report.account.id], startDate: column.period.startDate, endDate: column.period.endDate, expectedCents: column.actualCents, sign: isDebitNatureType(report.account.type) ? 1 : -1, label: column.period.label } })}>{formatCurrency(column.actualCents)}</button></td><td className="p-3">{formatCurrency(column.differenceCents)}</td><td className="p-3">{column.percentUsed === null ? '—' : `${column.percentUsed.toFixed(1)}%`}</td></tr>)}</tbody></table></div>}
+    {!budget ? <p>{reportText('r.no-saved-account-budgets-define-an-account-targe', 'No saved account budgets. Define an account target in Planning → Budgets.')}</p> : !report ? <p>{reportText('r.choose-a-budget-with-one-unambiguous-chart-accou', 'Choose a budget with one unambiguous chart account.')}</p> : <div className="overflow-x-auto" role="region" aria-label={reportText('r.budget-vs-actual-figures', 'Budget vs actual figures')} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<RowTable
+      caption={(<>{report.account.code} · {report.account.name}</>)}
+      rows={report.columns}
+      rowKey={column => column.period.id}
+      captionClassName="text-left"
+      tableClassName="w-full text-right"
+      headRowClassName=""
+      bodyClassName=""
+      columns={[
+        { header: reportText('r.col-period', 'Period'), className: "p-3", headClassName: "p-3", cell: (column) => column.period.label },
+        { header: reportText('r.col-budget', 'Budget'), className: "p-3", headClassName: "p-3", cell: (column) => formatCurrency(column.budgetCents) },
+        { header: reportText('r.col-actual', 'Actual'), headClassName: "p-3", cell: (column) => <button type="button" className="min-h-11 px-3 underline tabular-nums" aria-label={fill(reportText('r.budget-drill', '{amount}: entries for {account}, {period}'), { amount: formatCurrency(column.actualCents), account: report.account.name, period: column.period.label })} onClick={() => setDrill({ key, name: report.account.name, transactions: column.drillTransactions, explain: { accountIds: [report.account.id], startDate: column.period.startDate, endDate: column.period.endDate, expectedCents: column.actualCents, sign: isDebitNatureType(report.account.type) ? 1 : -1, label: column.period.label } })}>{formatCurrency(column.actualCents)}</button> },
+        { header: reportText('r.col-difference', 'Difference'), className: "p-3", headClassName: "p-3", cell: (column) => formatCurrency(column.differenceCents) },
+        { header: reportText('r.col-pct-used', '% used'), className: "p-3", headClassName: "p-3", cell: (column) => column.percentUsed === null ? '—' : `${column.percentUsed.toFixed(1)}%` },
+      ]}
+    /></div>}
     <DrillDownModal key={key} isOpen={drill?.key === key} onClose={() => setDrill(null)} accountName={drill?.name || ''} transactions={drill?.key === key ? drill.transactions : []} explain={drill?.key === key ? drill.explain : undefined} formatCurrency={formatCurrency} from="Budget vs Actual" />
   </section>;
 }

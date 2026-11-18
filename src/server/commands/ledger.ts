@@ -8,6 +8,7 @@ import { FieldValue } from '../db/firestore';
 import { BudgetBlocked, budgetWarningsFor, enforceBudgetControl, type BudgetWarning } from '../services/budgetGuard';
 import { refusedLabels, refusedLabelsMessage } from '../../lib/requiredLabels';
 import { HttpError } from '../auth/requestUser';
+import { documentPostedByServer } from '../routes/transactions/bulkRoutes';
 import type { CommandContext, CommandDefinition } from './types';
 
 const JournalEntryInputSchema = TransactionSchema.extend({
@@ -31,6 +32,8 @@ async function prepareJournal(ctx: Omit<CommandContext, 'prepared' | 'afterCommi
   if (!draft.totalAmountCents) draft.totalAmountCents = getAbsoluteTotal(draft as unknown as Transaction);
   const parsed = TransactionSchema.safeParse(draft);
   if (!parsed.success) throw Object.assign(new HttpError('Schema validation failed', 400), { details: parsed.error.issues });
+  const docKey = documentPostedByServer({ transactions: [parsed.data] });
+  if (docKey) throw new HttpError(`${docKey} are saved and posted by the server; use the document command instead of journal.create.`, 400);
   const transactionToSave = { ...parsed.data, id: parsed.data.id || db.collection('transactions').doc().id } as Transaction;
   const validated = await TransactionValidator.validateAndPrepare(transactionToSave, {
     workspaceId: transactionToSave.workspaceId,
@@ -62,7 +65,7 @@ export const journalCreateCommand: CommandDefinition<typeof journalCreateInput, 
     try {
       const budgetWarnings = enforceBudgetControl(wsNow, prepared.planned);
       const ref = ctx.db.collection('transactions').doc(prepared.transaction.id);
-      if ((await tx.get(ref)).exists) throw new Error('Duplicate request processing: Transaction ID already exists');
+      if ((await tx.get(ref)).exists) throw new HttpError('Duplicate request processing: Transaction ID already exists', 409);
       ledgerCreate(tx, ref, {
         ...prepared.transaction,
         createdAt: FieldValue.serverTimestamp(),

@@ -48,8 +48,9 @@ test('financial scanner detects each #112–#114 failure mechanism and SQL trust
           await batch.commit();
         }
       }`);
-    put('src/server/routes/paymentRoutes.ts', `
-      async function payment(db: any, payload: any) { return createPaymentAtomic(db, payload); }`);
+    // the route runs the command now, so the scanner must find the unkeyed builder where it is used
+    put('src/server/commands/payments.ts', `
+      async function payment(db: any, tx: any, payload: any) { return createPaymentInTransaction(db, tx, payload, {}); }`);
     put('supabase/migrations/2026_guard.sql', `
       create function public.lf_guard() returns trigger as $
       begin
@@ -75,7 +76,10 @@ test('financial scanner reads the real server and migration tree (not just scree
   // no longer find them. Their behaviour is tested against the database in transaction-batch-safety.
   assert.ok(!risks.some(f => f.issue === 112), '#112 came back: batch edits must use the allowed-field list');
   assert.ok(!risks.some(f => f.issue === 113), '#113 came back: batch edits must commit in one transaction');
-  assert.ok(risks.some(f => f.issue === 114), '#114 backwards-compatible unkeyed payment path not detected');
+  // #114: the payment write moved out of paymentRoutes.ts into the `payment.receive` command, and the
+  // scanner follows it there — a payment built without the idempotent path is still a finding.
+  assert.ok(risks.some(f => f.issue === 114),
+    '#114 backwards-compatible unkeyed payment path not detected (src/server/commands/payments.ts)');
 });
 
 // A file-level check was too weak: any unrelated finding in the file could masquerade as

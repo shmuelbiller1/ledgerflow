@@ -1,13 +1,12 @@
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { roundCents } from '../../lib/cents';
 import { Bill } from '../../types';
-import { isPostable } from '../../lib/txFilters';
 import { calculateDocumentTax, cashPostedWithDocumentCents } from '../../lib/documentMath';
 import { TransactionTemplates } from '../../kernel/templates/TransactionTemplates';
 import { allocateCents } from '../../lib/Allocation';
 import { BILL_ACCRUAL_TYPE, billItemProblem, billStockLines } from '../../lib/billStock';
-import { getAccounts, getTransactions, getWorkspaces, inBaseCurrency, verifyLockDate, findAccount, resolveAccount, lineAccounts, postTxsServerApi, reversalDate, postingToday, documentMinorRate, taxLineStamp } from './postingCore';
-import type { EntityMutation, LedgerPostContext, PostableTransaction } from './postingCore';
+import { getAccounts, getTransactions, getWorkspaces, inBaseCurrency, verifyLockDate, findAccount, resolveAccount, lineAccounts, postTxsServerApi, postingToday, documentMinorRate, taxLineStamp, liveDocumentPostings, reversalEntries } from './postingCore';
+import type { EntityMutation, LedgerPostContext } from './postingCore';
 
 /**
  * Post standard double-entry journal entries for a bill.
@@ -61,42 +60,13 @@ export async function postBillLedger(
     'Cash & Cash Equivalents'
   );
 
-  // Find prior active non-reversal postings for this bill
-  // Improved logic: exclude any transaction that has ALREADY been reversed
-  const allTxs = getTransactions(context).filter(t => t.metadata?.billId === billId);
-  const reversedIds = new Set(allTxs.filter(t => t.metadata?.isReversal).map(t => t.metadata?.reversesTxId || t.metadata?.reversedTransactionId));
-  
-  const existingTxs = allTxs.filter(t => 
-    isPostable(t) && 
-    !t.metadata?.isReversal &&
-    !reversedIds.has(t.id)
-  );
-
-  const txsToPost: PostableTransaction[] = [];
+  // 1. Reversing entries for the standing postings (a posting already reversed is left alone)
   const today = postingToday(context);
-
-  // 1. Reversing entries for existing postings
-  for (const prevTx of existingTxs) {
-    txsToPost.push({
-      uid,
-      workspaceId,
-      date: reversalDate(prevTx.date, today, context),
-      description: `Reversal of prior bill posting (Bill ${billData.number || billId})`,
-      totalAmountCents: prevTx.totalAmountCents,
-      currency: prevTx.currency || 'USD',
-      exchangeRate: prevTx.exchangeRate || 1,
-      status: 'completed',
-      type: 'actual',
-      createdAt: new Date().toISOString(),
-      metadata: {
-        billId,
-        type: 'bill-reversal',
-        reversesTxId: prevTx.id,
-        isReversal: true
-      },
-      lines: TransactionTemplates.buildReversalLines(prevTx.lines || [], prevTx.description)
-    });
-  }
+  const txsToPost = reversalEntries(liveDocumentPostings(getTransactions(context), t => t.metadata?.billId === billId), {
+    uid, workspaceId, today, context,
+    describe: () => `Reversal of prior bill posting (Bill ${billData.number || billId})`,
+    metadata: () => ({ billId, type: 'bill-reversal' })
+  });
 
   const status = billData.status || 'pending';
   if (status === 'draft' || status === 'rejected' || status === 'void' || status === 'cancelled') {

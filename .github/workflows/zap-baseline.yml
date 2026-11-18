@@ -1,0 +1,171 @@
+name: Nightly OWASP ZAP baseline scan
+
+# SEC-SCAN-1: Passive + spider baseline web security scan against a locally built and booted
+# LedgerFlow production server (NEVER the live production URL).
+on:
+  schedule:
+    - cron: '47 2 * * *'   # 02:47 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: zap-baseline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zap-baseline:
+    name: OWASP ZAP baseline (local production build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:17.12
+        env:
+          POSTGRES_PASSWORD: postgres # NOSONAR: S2068 — ephemeral CI test database password, not a production credential
+          POSTGRES_DB: lf_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      LF_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lf_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lf_test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.3
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          NODE_ENV: development
+          npm_config_production: 'false'
+          HUSKY: '0'
+
+      - name: Apply Supabase migrations to ephemeral test database
+        run: npm run db:test-setup
+
+      - name: Build production client and server bundles
+        run: npm run build
+
+      - name: Boot local production server and run pinned OWASP ZAP 2.16.1 baseline scan
+        run: |
+          set -euo pipefail
+          rm -rf zap-out
+          install -d -m 0755 zap-out
+          cp .zap/rules.tsv zap-out/rules.tsv
+
+          SESSION_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          SALT_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          INVITE_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          echo "::add-mask::$SESSION_VAL"
+          echo "::add-mask::$SALT_VAL"
+          echo "::add-mask::$INVITE_VAL"
+
+          NODE_ENV=production \
+          PORT=3000 \
+          APP_URL=http://127.0.0.1:3000 \
+          SESSION_SECRET="$SESSION_VAL" \
+          SYSTEM_SALT="$SALT_VAL" \
+          INVITE_SECRET="$INVITE_VAL" \
+          node build/server.cjs > /tmp/lf-zap-server-prod.log 2>&1 &
+          SERVER_PID=$!
+          # every exit path (a failed scan included) stops the server, hands zap-out back to the runner and keeps the
+          # server log in the uploaded reports — the log matters most when the scan fails
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; sudo chown -R "$(id -u):$(id -g)" zap-out 2>/dev/null || true; cp /tmp/lf-zap-server-prod.log zap-out/server-prod.log 2>/dev/null || true' EXIT
+
+          SERVER_READY=0
+          for _ in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1; then
+              SERVER_READY=1
+              break
+            fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              echo "Production server exited before becoming healthy:" >&2
+              cat /tmp/lf-zap-server-prod.log >&2 || true
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$SERVER_READY" -ne 1 ]; then
+            echo "Timed out waiting for http://127.0.0.1:3000/api/health:" >&2
+            cat /tmp/lf-zap-server-prod.log >&2 || true
+            exit 1
+          fi
+          curl -fsS http://127.0.0.1:3000/api/health
+          curl -fsSI http://127.0.0.1:3000/ >/dev/null
+
+          # ghcr.io/zaproxy/zaproxy:2.16.1 runs as built-in non-root user `zap` (UID 1000,
+          # HOME=/home/zap/), while ubuntu-24.04 runner is UID 1001. Hand ownership of the
+          # isolated report directory to UID 1000 without granting world-writable bits.
+          sudo chown -R 1000:1000 zap-out
+          set +e
+          docker run --rm --network host \
+            -v "$PWD/zap-out:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:2.16.1 \
+            zap-baseline.py \
+              -t http://127.0.0.1:3000 \
+              -c rules.tsv \
+              -z "-silent" \
+              -r zap-report.html \
+              -J zap-report.json \
+              -w zap-report.md \
+              -I
+          ZAP_EXIT=$?
+          set -e
+          if [ "$ZAP_EXIT" -ne 0 ]; then
+            echo "zap-baseline.py exited with status $ZAP_EXIT" >&2
+            exit "$ZAP_EXIT"
+          fi
+          test -s zap-out/zap-report.json
+          test -s zap-out/zap-report.html
+          test -s zap-out/zap-report.md
+
+      - name: Upload ZAP HTML, JSON, and Markdown reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zap-baseline-report-${{ github.sha }}
+          path: |
+            zap-out/zap-report.html
+            zap-out/zap-report.json
+            zap-out/zap-report.md
+            zap-out/server-prod.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Evaluate ZAP JSON report with narrow baseline checks
+        id: eval_zap
+        if: ${{ !cancelled() }}
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/evaluate-zap-report.mjs
+
+      - name: File or update GitHub issue on scheduled ZAP failure
+        if: ${{ failure() && steps.eval_zap.outcome == 'failure' && github.event_name == 'schedule' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -s zap-out/actionable-alerts.md
+          TITLE="Security: Nightly OWASP ZAP baseline reported Medium/High alert(s)"
+          EXISTING="$(/usr/bin/gh issue list --state open --search "\"$TITLE\" in:title" --json number,title --jq ".[] | select(.title == \"$TITLE\") | .number" | head -n 1)"
+          if [ -n "$EXISTING" ]; then
+            /usr/bin/gh issue comment "$EXISTING" --body-file zap-out/actionable-alerts.md
+          else
+            /usr/bin/gh issue create --title "$TITLE" --body-file zap-out/actionable-alerts.md
+          fi

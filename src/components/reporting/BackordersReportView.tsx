@@ -4,6 +4,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useCollection } from '../../hooks/useCollection';
 import type { PurchaseOrder } from '../../types';
 import { backorders, ordersReadyToRelease, releasableLines, shortages } from '../../lib/backorders';
+import { RowTable } from '../ui/RowTable';
 
 const qty = (n: number) => String(Math.round(n * 100) / 100);
 const th = 'font-semibold py-1 px-2';
@@ -33,24 +34,23 @@ export default function BackordersReportView() {
       </div>
       {(loading || loadingOrders) && <p className="text-sm text-[var(--muted)]">Loading…</p>}
       <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
-        <table className="w-full text-sm">
-          <caption className="text-left font-semibold text-[var(--text)] pb-1">Ready to release ({releasable.length})</caption>
-          <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-            <th scope="col" className={`text-left ${th}`}>Order</th><th scope="col" className={`text-left ${th}`}>Customer</th><th scope="col" className={`text-left ${th}`}>Item</th>
-            <th scope="col" className={`text-right ${th}`}>To deliver</th>
-          </tr></thead>
-          <tbody>
-            {releasable.length === 0 && <tr><td colSpan={4} className="py-2 px-2 text-[var(--muted)]">Stock on hand does not fully cover any waiting line yet. When stock arrives, the lines it completes appear here.</td></tr>}
-            {releasable.map(r => (
-              <tr key={`ready-${r.orderId}-${r.itemId}-${r.left}`} className="border-b border-[var(--line)]/50">
-                <th scope="row" className="text-left font-mono font-normal py-1 px-2">{r.number}</th>
-                <td className="py-1 px-2"><bdi>{r.customerName}</bdi></td>
-                <td className="py-1 px-2"><bdi>{r.item}</bdi></td>
-                <td className="text-right font-mono py-1 px-2">{qty(r.left)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <RowTable
+          rowClassName="border-b border-[var(--line)]/50"
+          caption={(<>Ready to release ({releasable.length})</>)}
+          rows={releasable}
+          rowKey={r => `ready-${r.orderId}-${r.itemId}-${r.left}`}
+          captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+          tableClassName="w-full text-sm"
+          headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+          bodyClassName=""
+          emptyRow={<tr><td colSpan={4} className="py-2 px-2 text-[var(--muted)]">Stock on hand does not fully cover any waiting line yet. When stock arrives, the lines it completes appear here.</td></tr>}
+          columns={[
+            { header: "Order", className: "text-left font-mono font-normal py-1 px-2", headClassName: `text-left ${th}`, cell: (r) => r.number },
+            { header: "Customer", className: "py-1 px-2", headClassName: `text-left ${th}`, cell: (r) => <bdi>{r.customerName}</bdi> },
+            { header: "Item", className: "py-1 px-2", headClassName: `text-left ${th}`, cell: (r) => <bdi>{r.item}</bdi> },
+            { header: "To deliver", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (r) => qty(r.left) },
+          ]}
+        />
         {releasable.length > 0 && <p className="text-sm text-[var(--muted)] pt-2">
           {readyOrders.length > 0
             ? <>{readyOrders.length} order(s) can be delivered in full from stock on hand. </>
@@ -59,21 +59,23 @@ export default function BackordersReportView() {
         </p>}
       </div>
       <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
-        <table className="w-full text-sm">
-          <caption className="text-left font-semibold text-[var(--text)] pb-1">Short items ({short.length})</caption>
-          <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]"><th scope="col" className={`text-left ${th}`}>Item</th><th scope="col" className={`text-right ${th}`}>Short</th><th scope="col" className={`text-right ${th}`}>On order from vendors</th><th scope="col" className={`text-right ${th}`}>Still to buy</th></tr></thead>
-          <tbody>
-            {short.length === 0 && <tr><td colSpan={4} className="py-2 px-2 text-[var(--muted)]">Stock on hand covers every order.</td></tr>}
-            {short.map(s => (
-              <tr key={s.itemId} className="border-b border-[var(--line)]/50">
-                <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{s.item}</bdi></th>
-                <td className="text-right font-mono py-1 px-2">{qty(s.short)}</td>
-                <td className="text-right font-mono py-1 px-2">{qty(s.onOrder)}</td>
-                <td className="text-right font-mono py-1 px-2">{qty(Math.max(0, s.short - s.onOrder))}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <RowTable
+          rowClassName="border-b border-[var(--line)]/50"
+          caption={(<>Short items ({short.length})</>)}
+          rows={short}
+          rowKey={s => s.itemId}
+          captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+          tableClassName="w-full text-sm"
+          headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+          bodyClassName=""
+          emptyRow={<tr><td colSpan={4} className="py-2 px-2 text-[var(--muted)]">Stock on hand covers every order.</td></tr>}
+          columns={[
+            { header: "Item", className: "text-left font-normal py-1 px-2", headClassName: `text-left ${th}`, cell: (s) => <bdi>{s.item}</bdi> },
+            { header: "Short", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (s) => qty(s.short) },
+            { header: "On order from vendors", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (s) => qty(s.onOrder) },
+            { header: "Still to buy", align: 'right', className: "font-mono py-1 px-2", headClassName: `text-right ${th}`, cell: (s) => qty(Math.max(0, s.short - s.onOrder)) },
+          ]}
+        />
       </div>
       <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
         <table className="w-full text-sm">

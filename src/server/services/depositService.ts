@@ -4,7 +4,12 @@ import type { DocumentData, Firestore } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { isUndepositedFundsAccount, resolveAccountRole } from '../../lib/accountUtils';
 import { getDateInTimezoneISO } from '../../lib/calendarDate';
+import { convertMinorUnits } from '../../lib/currencyMinorUnits';
+import { workspaceRole } from '../../lib/periodLock';
+import { writeServerAuditLog } from './auditLogService';
 import type { ChartAccount } from '../../types';
+
+const DEPOSIT_WRITER_ROLES = ['owner', 'accountant', 'bookkeeper'];
 
 /**
  * "Make deposit" (K-20): customer payments received into the Undeposited Funds account are taken
@@ -42,6 +47,10 @@ export async function createDeposit(db: Firestore, input: CreateDepositInput) {
     );
     const workspace = workspaceSnap.data();
     if (!workspace) throw new DepositError(404, 'Workspace not found');
+    if (!DEPOSIT_WRITER_ROLES.includes(workspaceRole(workspace, input.uid))) {
+      throw new DepositError(403, 'Only owners, accountants, and bookkeepers can record bank deposits');
+    }
+    const baseCurrency = String(workspace.currency || 'USD').toUpperCase();
     const depositDate = input.date || getDateInTimezoneISO(new Date(), typeof workspace.timezone === 'string' ? workspace.timezone : undefined);
     const bank = bankSnap.data() as ChartAccount | undefined;
     if (!bank || bank.workspaceId !== input.workspaceId || resolveAccountRole(bank) !== 'cash' || isUndepositedFundsAccount(bank)) {
@@ -63,7 +72,20 @@ export async function createDeposit(db: Firestore, input: CreateDepositInput) {
       throw new DepositError(400, 'These payments are not waiting in an Undeposited Funds account');
     }
 
-    const totalCents = payments.reduce((sum, p) => sum + (Number(p.amountCents) || 0), 0);
+    // A8-016: convert each payment from its own currency/minor-units into workspace base currency
+    // (or read exact baseAmountCents if present) so foreign/JPY/KWD payments clear Undeposited Funds
+    // cleanly instead of summing raw foreign minor units as base currency.
+    const totalCents = payments.reduce((sum, p) => {
+      const pCurrency = String(p.currency || baseCurrency).toUpperCase();
+      if (typeof p.baseAmountCents === 'number' && Number.isSafeInteger(p.baseAmountCents) && p.baseAmountCents > 0) {
+        return sum + p.baseAmountCents;
+      }
+      const pRate = typeof p.exchangeRate === 'number' && Number.isFinite(p.exchangeRate) && p.exchangeRate > 0 ? p.exchangeRate : 1;
+      const converted = pCurrency === baseCurrency
+        ? (Number(p.amountCents) || 0)
+        : convertMinorUnits(Number(p.amountCents) || 0, pRate, pCurrency, baseCurrency);
+      return sum + converted;
+    }, 0);
     if (!Number.isSafeInteger(totalCents) || totalCents <= 0) throw new DepositError(400, 'Nothing to deposit');
     const description = `Deposit of ${payments.length} payment${payments.length === 1 ? '' : 's'}${input.memo ? `: ${input.memo}` : ''}`;
     const ledgerTx = await TransactionValidator.validateAndPrepare({
@@ -73,7 +95,7 @@ export async function createDeposit(db: Firestore, input: CreateDepositInput) {
       date: depositDate,
       description,
       totalAmountCents: totalCents,
-      currency: workspace.currency || 'USD',
+      currency: baseCurrency,
       exchangeRate: 1,
       status: 'completed',
       type: 'actual',
@@ -88,6 +110,14 @@ export async function createDeposit(db: Firestore, input: CreateDepositInput) {
     for (const p of payments) {
       t.update(db.collection('payments').doc(p.id), { depositTransactionId: ledgerTx.id, depositedAt: depositDate, updatedAt: new Date().toISOString() });
     }
+    await writeServerAuditLog({
+      workspaceId: input.workspaceId,
+      uid: input.uid,
+      action: 'BANK_DEPOSIT_CREATED',
+      entityType: 'transaction',
+      entityId: ledgerTx.id,
+      details: { description, totalCents, paymentIds, bankAccountId: input.bankAccountId, date: depositDate },
+    }, { db, tx: t });
     return { transactionId: ledgerTx.id, totalCents, count: payments.length };
   });
 }

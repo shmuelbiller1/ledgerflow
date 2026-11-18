@@ -1,0 +1,10 @@
+{
+  "src/server/auth/supabaseAuth.ts": 1,
+  "src/server/middleware/planCapacity.ts": 5,
+  "src/server/services/assetReminderService.ts": 1,
+  "src/server/services/bookAlertService.ts": 3,
+  "src/server/services/ledgerHealthService.ts": 1,
+  "src/server/services/moduleService.ts": 1,
+  "src/server/services/notificationEmailService.ts": 2,
+  "src/server/services/practiceService.ts": 6
+}

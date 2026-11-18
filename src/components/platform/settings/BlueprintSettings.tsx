@@ -3,8 +3,7 @@ import { useUIStore } from '../../../stores/useUIStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useTransactionActions } from '../../../hooks/useTransactionActions';
-import { db } from '../../../firebase';
-import { doc, updateDoc } from '../../../lib/db/firestore';
+import { saveWorkspaceSettings } from '../../../lib/workspaceSettingsSave';
 import { APP_TABS, SYSTEM_GLOSSARY } from '../../../config/registry';
 import { Sliders, Eye, EyeOff, Search, Save, Calendar, Globe, Check, SlidersHorizontal, FolderLock, Plus, Trash2, AlertTriangle, Zap } from 'lucide-react';
 import { toast } from 'sonner';
@@ -89,9 +88,7 @@ export default function BlueprintSettings() {
     if (!currentWorkspaceId) return;
     setIsSavingMappings(true);
     try {
-      await updateDoc(doc(db, 'workspaces', currentWorkspaceId), {
-        defaultAccountMappings: mappings
-      });
+      await saveWorkspaceSettings(currentWorkspaceId, { defaultAccountMappings: mappings });
       toast.success('Ingestion Mappings Active', {
         description: 'Default transaction split and fallback routing channels updated.'
       });
@@ -138,19 +135,19 @@ export default function BlueprintSettings() {
     }
   };
 
-  // Switch workspace currency
+  // Switch workspace currency. `workspace.settings` decides whether it may change at all: before a document exists
+  // it is a setting, afterwards it is a migration of every stored amount, and the command refuses it.
   const handleSaveCurrency = async (curr: string) => {
-    setBaseCurrency(curr);
-    
     if (currentWorkspaceId) {
        try {
-         await updateDoc(doc(db, 'workspaces', currentWorkspaceId), {
-           currency: curr
-         });
+         await saveWorkspaceSettings(currentWorkspaceId, { currency: curr });
        } catch (err) {
          console.error("Failed to persist currency:", err);
+         toast.error(`Currency not changed: ${err instanceof Error ? err.message : String(err)}`);
+         return;
        }
     }
+    setBaseCurrency(curr);
 
     // Custom label trick: override the DollarSign default or app symbols
     setLexiconOverride('currencySymbol', 'en', curr === 'ILS' ? '₪' : curr === 'EUR' ? '€' : curr === 'GBP' ? '£' : '$');
@@ -244,9 +241,9 @@ export default function BlueprintSettings() {
                   type="date"
                   value={selectedLockDate}
                   onChange={(e) => setSelectedLockDate(e.target.value)}
-                  className="w-full bg-[var(--surface)] hover:bg-[var(--ink)] border border-[var(--line)] focus:border-zinc-400 focus:outline-none p-3 pl-10 rounded-[32px] text-xs font-bold tracking-wider"
+                  className="w-full bg-[var(--surface)] hover:bg-[var(--ink)] border border-[var(--line)] focus:border-zinc-400 focus:outline-none p-3 ps-10 rounded-[32px] text-xs font-bold tracking-wider"
                 />
-                <Calendar aria-hidden="true" size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+                <Calendar aria-hidden="true" size={13} className="absolute start-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
               </div>
               <AsyncButton
                 type="button"
@@ -449,7 +446,7 @@ export default function BlueprintSettings() {
                 key={tab.id}
                 aria-pressed={!isHidden}
                 onClick={() => toggleTabVisibility(tab.id)}
-                className={`w-full text-left p-5 rounded-[32px] border transition-all flex items-center justify-between cursor-pointer group ${
+                className={`w-full text-start p-5 rounded-[32px] border transition-all flex items-center justify-between cursor-pointer group ${
                   isHidden 
                     ? 'border-gray-200 bg-gray-50/50 text-[var(--muted)] hover:border-gray-300' 
                     : 'border-[var(--line)] hover:border-indigo-200 bg-[var(--surface)] text-[var(--text)] shadow-xs'
@@ -463,7 +460,7 @@ export default function BlueprintSettings() {
                   }`}>
                     {React.createElement(tab.icon, { size: 16, 'aria-hidden': true })}
                   </div>
-                  <div className="text-left">
+                  <div className="text-start">
                     <p className={`text-xs font-black uppercase tracking-wider ${isHidden ? 'line-through text-gray-400' : 'text-[var(--text)]'}`}>
                       {((tab as typeof tab & { name?: string }).label?.[language] || (tab as typeof tab & { name?: string }).label?.['en']) || (tab as typeof tab & { name?: string }).name || tab.id}
                     </p>
@@ -508,9 +505,9 @@ export default function BlueprintSettings() {
               placeholder="Search labels..."
               value={lexiconSearch}
               onChange={(e) => setLexiconSearch(e.target.value)}
-              className="bg-[var(--surface)] p-2.5 pl-9 pr-4 text-xs font-bold hover:bg-[var(--ink)] border border-[var(--line)] focus:border-zinc-400 focus:outline-none rounded-xl w-60 tracking-wider"
+              className="bg-[var(--surface)] p-2.5 ps-9 pe-4 text-xs font-bold hover:bg-[var(--ink)] border border-[var(--line)] focus:border-zinc-400 focus:outline-none rounded-xl w-60 tracking-wider"
             />
-            <Search aria-hidden="true" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+            <Search aria-hidden="true" size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
           </div>
         </div>
 
@@ -535,9 +532,9 @@ export default function BlueprintSettings() {
                   </div>
                   {!isEditing && (
                     <div className="text-xs space-y-1 text-gray-700">
-                      <p><span className="text-gray-400 font-bold mr-1">[EN]</span> {lexiconOverrides[key]?.en || originalVal.en}</p>
+                      <p><span className="text-gray-400 font-bold me-1">[EN]</span> {lexiconOverrides[key]?.en || originalVal.en}</p>
                       {originalVal.he && (
-                        <p><span className="text-gray-400 font-bold mr-1">[HE]</span> {lexiconOverrides[key]?.he || originalVal.he}</p>
+                        <p><span className="text-gray-400 font-bold me-1">[HE]</span> {lexiconOverrides[key]?.he || originalVal.he}</p>
                       )}
                     </div>
                   )}

@@ -86,6 +86,15 @@ select pg_temp.expect_count('viewer reads invoices', 'u-view', 'select count(*) 
 select pg_temp.expect_count('outsider reads invoices', 'u-out', 'select count(*) from invoices', 0);
 select pg_temp.expect_denied('bookkeeper cannot insert an invoice directly', 'u-book',
   $$insert into invoices(id,data) values ('inv2', '{"workspaceId":"ws1","status":"draft","date":"2026-03-01"}')$$);
+-- #842: a pending invite carries its secret token; only the owner may read it from the browser.
+do $$ begin
+  perform set_config('request.jwt.claims', '', true);
+  insert into invites(id,data) values ('inv-secret', '{"workspaceId":"ws1","email":"new@test.local","role":"accountant","token":"secret-token"}');
+end $$;
+select pg_temp.expect_count('owner reads the pending invite', 'u-owner', 'select count(*) from invites', 1);
+select pg_temp.expect_count('accountant cannot read invite tokens', 'u-acct', 'select count(*) from invites', 0);
+select pg_temp.expect_count('viewer cannot read invite tokens', 'u-view', 'select count(*) from invites', 0);
+select pg_temp.expect_count('outsider cannot read invite tokens', 'u-out', 'select count(*) from invites', 0);
 select pg_temp.expect_denied('viewer cannot insert an invoice directly', 'u-view',
   $$insert into invoices(id,data) values ('inv3', '{"workspaceId":"ws1","status":"draft"}')$$);
 select pg_temp.expect_denied('outsider cannot write an invoice into ws1', 'u-out',
@@ -960,6 +969,231 @@ begin
     raise exception 'FAIL C-2: database accepted an unbalanced posted transaction';
   end if;
 end $$;
+
+-- Agent #8 (2026-11-16): A8-010 (MFA two_step_login on all user tables), A8-009 (documents kind guard),
+-- and A7N-06 / A8-012 (assets server-managed accounting fields).
+do $a8$
+declare
+  missing_mfa text[];
+  mfa_uid text := '00000000-0000-4000-8000-00000000a810';
+begin
+  -- A8-010: Every user-accessible RLS table must enforce restrictive two_step_login
+  select array_agg(t.tablename order by t.tablename) into missing_mfa
+  from pg_tables t
+  where t.schemaname = 'public'
+    and t.rowsecurity = true
+    and t.tablename not in ('lf_rules', 'rateLimitEntries', 'recoveryCodes')
+    and not exists (
+      select 1 from pg_policies p
+      where p.schemaname = 'public' and p.tablename = t.tablename
+        and p.policyname = 'two_step_login' and p.permissive = 'RESTRICTIVE'
+    );
+  if coalesce(array_length(missing_mfa, 1), 0) > 0 then
+    raise exception 'FAIL A8-010: tables missing restrictive two_step_login policy: %', missing_mfa;
+  end if;
+
+  -- A8-010 behavioral proof: aal1 user with verified TOTP factor cannot read/write loans or purchaseOrders, aal2 can
+  perform set_config('request.jwt.claims', '', true);
+  insert into auth.users (id, email) values (mfa_uid::uuid, 'a8-mfa@test.local');
+  update public.workspaces
+     set data = jsonb_set(data, array['roles', mfa_uid], '"bookkeeper"'::jsonb, true)
+   where id = 'ws1';
+  insert into auth.mfa_factors (id, user_id, factor_type, status, created_at, updated_at)
+  values ('00000000-0000-4000-8000-00000000f810', mfa_uid::uuid, 'totp', 'verified', now(), now());
+  insert into public.loans (id, data)
+  values ('a8-mfa-loan', '{"workspaceId":"ws1","name":"Equipment Loan","principalCents":50000}'::jsonb);
+  insert into public."purchaseOrders" (id, data)
+  values ('a8-mfa-po', '{"workspaceId":"ws1","number":"PO-A8","status":"draft","totalCents":1000}'::jsonb);
+
+  if pg_temp.count_as(mfa_uid, 'aal1', $$select count(*) from public.loans where id = 'a8-mfa-loan'$$) <> 0 then
+    raise exception 'FAIL A8-010: aal1 session read public.loans despite verified TOTP';
+  end if;
+  if pg_temp.try_as(mfa_uid, $$insert into public.loans (id, data) values ('a8-mfa-loan-2', '{"workspaceId":"ws1","name":"Bypass","principalCents":100}'::jsonb)$$) then
+    raise exception 'FAIL A8-010: aal1 session inserted into public.loans despite verified TOTP';
+  end if;
+  if pg_temp.count_as(mfa_uid, 'aal1', $$select count(*) from public."purchaseOrders" where id = 'a8-mfa-po'$$) <> 0 then
+    raise exception 'FAIL A8-010: aal1 session read public.purchaseOrders despite verified TOTP';
+  end if;
+  if pg_temp.count_as(mfa_uid, 'aal2', $$select count(*) from public.loans where id = 'a8-mfa-loan'$$) <> 1 then
+    raise exception 'FAIL A8-010: aal2 session could not read public.loans';
+  end if;
+
+  -- A8-009: browser viewer/owner cannot forge server-managed kind records in public.documents,
+  -- while ordinary file attachments still succeed
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.documents (id, data)
+  values ('a8-srv-time', '{"workspaceId":"ws1","uid":"u-view","kind":"timeEntry","status":"open","minutes":60,"person":"u-view"}'::jsonb);
+
+  if pg_temp.try_as('u-view', $$insert into public.documents (id, data) values ('ws1_stageSets', '{"workspaceId":"ws1","uid":"u-view","kind":"stageSets","sets":[]}'::jsonb)$$) then
+    raise exception 'FAIL A8-009: viewer forged kind=stageSets row in public.documents';
+  end if;
+  if pg_temp.try_as('u-view', $$insert into public.documents (id, data) values ('a8-forged-time', '{"workspaceId":"ws1","uid":"u-view","kind":"timeEntry","status":"approved","paidRunId":"run1"}'::jsonb)$$) then
+    raise exception 'FAIL A8-009: viewer forged kind=timeEntry row in public.documents';
+  end if;
+  if pg_temp.try_as('u-view', $$update public.documents set data = data || '{"status":"approved"}'::jsonb where id = 'a8-srv-time'$$) then
+    raise exception 'FAIL A8-009: viewer updated server-managed timeEntry row in public.documents';
+  end if;
+  if not pg_temp.try_as('u-view', $$insert into public.documents (id, data) values ('a8-plain-file', '{"workspaceId":"ws1","uid":"u-view","name":"receipt.pdf","fileUrl":"https://example.test/r.pdf"}'::jsonb)$$) then
+    raise exception 'FAIL A8-009: plain file upload in public.documents was wrongly blocked';
+  end if;
+
+  -- A7N-06 / A8-012: browser cannot forge or mutate server-managed accounting fields on public.assets
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.assets (id, data)
+  values ('a8-srv-asset', '{"workspaceId":"ws1","name":"Server Laptop","purchasePriceCents":100000,"accumulatedDepreciationCents":20000,"depreciatedThrough":"2026-03","status":"active"}'::jsonb);
+
+  if not pg_temp.try_as('u-book', $$insert into public.assets (id, data) values ('a8-cli-asset', '{"workspaceId":"ws1","name":"Desk","purchasePriceCents":50000,"accumulatedDepreciationCents":0,"status":"active"}'::jsonb)$$) then
+    raise exception 'FAIL A7N-06: legitimate new asset insert was wrongly blocked';
+  end if;
+  if not pg_temp.try_as('u-book', $$update public.assets set data = data || '{"assetTag":"AST-001"}'::jsonb where id = 'a8-srv-asset'$$) then
+    raise exception 'FAIL A7N-06: legitimate asset metadata update (assetTag) was wrongly blocked';
+  end if;
+  if pg_temp.try_as('u-book', $$update public.assets set data = data || '{"status":"disposed","disposalTransactionId":"victim-tx-id"}'::jsonb where id = 'a8-srv-asset'$$) then
+    raise exception 'FAIL A8-012: browser bookkeeper forged disposalTransactionId on public.assets';
+  end if;
+  if pg_temp.try_as('u-book', $$update public.assets set data = data || '{"accumulatedDepreciationCents":0}'::jsonb where id = 'a8-srv-asset'$$) then
+    raise exception 'FAIL A7N-06: browser bookkeeper overwrote accumulatedDepreciationCents on public.assets';
+  end if;
+  if pg_temp.try_as('u-book', $$delete from public.assets where id = 'a8-srv-asset'$$) then
+    raise exception 'FAIL A7N-06: browser bookkeeper deleted depreciated asset directly';
+  end if;
+end $a8$;
+
+-- SBX-1: the browser (even a workspace owner) cannot see or mutate sandbox storage.
+select pg_temp.expect_denied('sandbox metadata read', 'u-owner', $$select * from sandbox.sandboxes$$);
+select pg_temp.expect_denied('sandbox metadata insert', 'u-owner',
+  $$insert into sandbox.sandboxes (id, workspace_id, person_id) values ('11111111-1111-1111-1111-111111111111', 'ws1', 'u-owner')$$);
+select pg_temp.expect_denied('sandbox steps read', 'u-owner', $$select * from sandbox."sandboxSteps"$$);
+select pg_temp.expect_denied('sandbox steps update', 'u-owner', $$update sandbox."sandboxSteps" set state = 'accepted'$$);
+select pg_temp.expect_denied('sandbox overlay update', 'u-owner', $$update sandbox.customers set deleted = true$$);
+select pg_temp.expect_denied('sandbox merged read', 'u-owner', $$select * from sandbox_read.customers$$);
+
+-- Require a privilege error, not a zero-row insert/update/delete or a validation error.
+create function pg_temp.expect_privilege_denied(label text, stmt text) returns void language plpgsql as $$
+begin
+  execute stmt;
+  raise exception 'FAIL %: expected to be refused, but it succeeded', label;
+exception when insufficient_privilege then
+  return;
+end $$;
+
+do $sandbox_catalog$
+declare
+  t record;
+  role_name text;
+begin
+  if exists (select from pg_roles where rolname = 'lf_sandbox'
+    and (rolcanlogin or rolsuper or rolcreaterole or rolcreatedb or rolreplication or rolbypassrls))
+    or has_database_privilege('lf_sandbox', current_database(), 'CREATE')
+    or has_schema_privilege('lf_sandbox', 'public', 'CREATE') then
+    raise exception 'FAIL sandbox role is not restricted';
+  end if;
+  foreach role_name in array array['anon', 'authenticated', 'service_role'] loop
+    if pg_has_role(role_name, 'lf_sandbox', 'MEMBER')
+       or has_schema_privilege(role_name, 'sandbox', 'USAGE')
+       or has_schema_privilege(role_name, 'sandbox_read', 'USAGE') then
+      raise exception 'FAIL sandbox is reachable by %', role_name;
+    end if;
+  end loop;
+
+  -- Use the actual id + jsonb data columns, not just lf_rules, to catch a forgotten registration.
+  for t in
+    select c.oid, c.relname, exists (select from pg_attribute
+      where attrelid = c.oid and attname = 'data' and atttypid = 'jsonb'::regtype and not attisdropped)
+      and exists (select from pg_attribute
+      where attrelid = c.oid and attname = 'id' and atttypid = 'text'::regtype and not attisdropped) as document
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind in ('r', 'p')
+  loop
+    if t.document and (not exists (select from public.lf_rules where table_name = t.relname)
+      or to_regclass(format('sandbox.%I', t.relname)) is null
+      or to_regclass(format('sandbox_read.%I', t.relname)) is null) then
+      raise exception 'FAIL missing sandbox overlay/read source for public.%', t.relname;
+    end if;
+    if has_table_privilege('lf_sandbox', t.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
+       or has_any_column_privilege('lf_sandbox', t.oid, 'INSERT, UPDATE, REFERENCES') then
+      raise exception 'FAIL sandbox role has write/lock privileges on public.%', t.relname;
+    end if;
+  end loop;
+  if exists (select from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and case when c.relkind = 'S' then has_sequence_privilege('lf_sandbox', c.oid, 'USAGE, UPDATE') else false end) then
+    raise exception 'FAIL sandbox role has privileges to advance a public sequence';
+  end if;
+  if exists (select from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('public', 'private') and p.prosecdef and p.prorettype <> 'trigger'::regtype
+      and has_schema_privilege('lf_sandbox', n.oid, 'USAGE') and has_function_privilege('lf_sandbox', p.oid, 'EXECUTE')) then
+    raise exception 'FAIL sandbox role can call an unreviewed SECURITY DEFINER function';
+  end if;
+
+  -- Never silently promote an unreviewed trigger to the overlay. The named exceptions and their
+  -- replacements or deferred work are recorded in docs/design/SBX-1-overlay.md.
+  for t in
+    select c.relname, tr.tgname, tr.tgfoid, tr.tgtype, p.proname
+    from pg_trigger tr join pg_class c on c.oid = tr.tgrelid join pg_proc p on p.oid = tr.tgfoid
+    where c.relnamespace = 'public'::regnamespace and not tr.tgisinternal
+  loop
+    if exists (select from pg_trigger tr where tr.tgrelid = to_regclass(format('sandbox.%I', t.relname))
+      and tr.tgname = t.tgname and tr.tgtype = t.tgtype and tr.tgfoid = t.tgfoid)
+      is distinct from (t.proname not in ('lf_guard_special', 'lf_guard_invoice_approval',
+        'lf_period_balances_stale', 'lf_repost_mark', 'lf_stock_move_db_seq')) then
+      raise exception 'FAIL review sandbox trigger parity for %.%', t.relname, t.tgname;
+    end if;
+  end loop;
+end $sandbox_catalog$;
+
+do $sandbox_boundary$
+declare
+  draft uuid := '11111111-1111-1111-1111-111111111111';
+  another uuid := '22222222-2222-2222-2222-222222222222';
+  before_seq record;
+  after_seq record;
+begin
+  perform set_config('request.jwt.claims', '', true);
+  insert into sandbox.sandboxes (id, workspace_id, person_id) values (draft, 'ws1', 'u-owner'), (another, 'ws1', 'u-book');
+  insert into public.customers (id, data) values
+    ('sbx-live', '{"workspaceId":"ws1","name":"Live"}'), ('sbx-unrelated', '{"workspaceId":"ws-other","name":"Foreign"}');
+  insert into sandbox.customers (sandbox_id, id, data, created_at) values
+    (another, 'sbx-other-draft', '{"workspaceId":"ws1","name":"Other draft"}', now());
+  select last_value, is_called into before_seq from public."stockMoves_db_seq";
+
+  execute 'set local role lf_sandbox';
+  if exists (select from public.customers where id = 'sbx-live') then
+    raise exception 'FAIL sandbox role read a live record without a scope';
+  end if;
+  perform set_config('lf.sandbox_id', draft::text, true);
+  if not exists (select from sandbox_read.customers where id = 'sbx-live')
+     or exists (select from public.customers where id = 'sbx-unrelated')
+     or exists (select from sandbox.customers where id = 'sbx-other-draft') then
+    raise exception 'FAIL sandbox read scope';
+  end if;
+  perform pg_temp.expect_privilege_denied('sandbox role inserts public',
+    $$insert into public.customers (id, data) values ('sbx-forbidden', '{"workspaceId":"ws1"}')$$);
+  perform pg_temp.expect_privilege_denied('sandbox role updates public',
+    $$update public.customers set data = data where id = 'sbx-live'$$);
+  perform pg_temp.expect_privilege_denied('sandbox role deletes public',
+    $$delete from public.customers where id = 'sbx-live'$$);
+  perform pg_temp.expect_privilege_denied('sandbox role locks public rows',
+    $$select id from public.customers where id = 'sbx-live' for update$$);
+  perform pg_temp.expect_privilege_denied('sandbox role calls a live write RPC',
+    $$select public.lf_update('customers', 'sbx-live', '{"name":"Refused"}')$$);
+  perform pg_temp.expect_privilege_denied('sandbox role advances a live sequence',
+    $$select nextval('public."stockMoves_db_seq"')$$);
+  perform pg_temp.expect_privilege_denied('sandbox role writes to another sandbox',
+    $$insert into sandbox.customers (sandbox_id, id, data, created_at) values
+      ('22222222-2222-2222-2222-222222222222', 'sbx-forbidden', '{"workspaceId":"ws1"}', now())$$);
+  insert into sandbox."stockMoves" (sandbox_id, id, data, created_at) values
+    (draft, 'sbx-move', '{"workspaceId":"ws1","itemId":"sbx-item","date":"2026-03-01","kind":"adjustment"}', now());
+  if not exists (select from sandbox_read."stockMoves" where id = 'sbx-move' and not (data ? 'dbSeq')) then
+    raise exception 'FAIL overlay stock move missing or assigned a real sequence';
+  end if;
+  execute 'reset role';
+  perform set_config('lf.sandbox_id', '', true);
+
+  select last_value, is_called into after_seq from public."stockMoves_db_seq";
+  if before_seq is distinct from after_seq or exists (select from public."stockMoves" where id = 'sbx-move') then
+    raise exception 'FAIL overlay stock write touched real data or consumed a sequence';
+  end if;
+end $sandbox_boundary$;
 
 select 'ALL RLS TESTS PASSED' as result;
 rollback;

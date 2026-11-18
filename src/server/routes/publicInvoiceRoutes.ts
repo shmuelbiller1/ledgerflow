@@ -45,6 +45,11 @@ publicInvoiceRouter.get('/:token', async (req, res) => {
     const doc = snapshot.docs[0];
     const invoice = doc.data();
 
+    // A8-023: never expose internal draft, void, cancelled, or rejected invoices on the unauthenticated link
+    if (['draft', 'void', 'voided', 'cancelled', 'rejected'].includes(String(invoice.status || '').toLowerCase())) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
     interface RawInvoiceLine { description?: string; quantity?: number; unitPriceCents?: number; amountCents?: number }
     const lineTotal = Array.isArray(invoice.lines) 
       ? (invoice.lines as RawInvoiceLine[]).reduce((sum: number, l: RawInvoiceLine) => {
@@ -122,7 +127,7 @@ publicInvoiceRouter.post('/:token/pay', async (req, res) => {
     const doc = snapshot.docs[0];
     const invoice = doc.data();
 
-    const payableStatuses = ['sent', 'unpaid', 'pending', 'overdue', 'approved', 'invoiced'];
+    const payableStatuses = ['sent', 'unpaid', 'pending', 'overdue', 'approved', 'invoiced', 'partially_paid'];
     if (!payableStatuses.includes(invoice.status) || invoice.isLocked === true) {
       return res.status(400).json({ 
         error: `Invoice cannot be paid. Current status: ${invoice.status || 'unknown'}${invoice.isLocked ? ' (locked)' : ''}` 

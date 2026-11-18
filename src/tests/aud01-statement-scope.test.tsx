@@ -16,6 +16,7 @@
  * − 5,000 + 99,000 = 139,000. A date that is not real, or a period that ends before it starts, is refused by all three.
  */
 import { stubFetch } from './helpers/dom';
+import { withSandboxReadApi } from './helpers/sandboxReadApi';
 import test, { after, afterEach, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'crypto';
@@ -156,6 +157,12 @@ describe('the server JSON and the PDF on a real database', { skip: !url && 'LF_T
     assert.equal(res.status, 200, JSON.stringify(body));
     assert.deepEqual([body.startDate, body.endDate, body.openingBalanceCents, body.endingBalanceCents], ['2026-04-01', '2026-06-30', 25_000, 40_000]);
     assert.deepEqual(body.entries.map((e: { date: string; type: string; reference: string; runningBalanceCents: number }) => [e.date, e.type, e.reference, e.runningBalanceCents]), ROWS);
+    await withSandboxReadApi(db, WS, OWNER, async origin => {
+      const requestUrl = new URL(res.url);
+      const scoped = await realFetch(`${origin}${requestUrl.pathname}${requestUrl.search}`, { headers: { 'x-test-uid': OWNER } });
+      assert.equal(scoped.status, 200);
+      assert.deepEqual(await scoped.json(), body);
+    });
   });
 
   test('the PDF: the period, the opening row 250.00, the same rows, balance 400.00', async () => {

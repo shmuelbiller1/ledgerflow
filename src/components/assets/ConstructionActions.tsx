@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { db } from '../../firebase';
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
-import { doc, updateDoc } from '../../lib/db/firestore';
+import { addAssetCost } from '../../lib/recordWrites';
 import { useDialog } from '../../hooks/useDialog';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency, formatDate, isAmountText, parseAmountToCents } from '../../lib/utils';
@@ -36,9 +35,12 @@ export function ConstructionActions({ asset, accounts, workspaceId, today, curre
     if (!(cents > 0)) { toast.error('Enter what it cost'); return; }
     setBusy(true);
     try {
+      // `asset.costaddition` appends the one cost and derives the new basis from the list it reads, so the two
+      // cannot disagree; the screen mirrors the answer into the store
+      const { purchasePriceCents } = await addAssetCost(workspaceId, asset, {
+        date, amountCents: cents, ...(note.trim() ? { note: note.trim().slice(0, 120) } : {}),
+      });
       const costAdditions = [...(asset.costAdditions || []), { date, amountCents: cents, ...(note.trim() ? { note: note.trim().slice(0, 120) } : {}) }];
-      const purchasePriceCents = (asset.purchasePriceCents || 0) + cents;
-      await updateDoc(doc(db, 'assets', asset.id), { purchasePriceCents, costAdditions, updatedAt: new Date().toISOString() });
       useLedgerStore.setState(state => ({ assets: state.assets.map(a => (a.id === asset.id ? { ...a, purchasePriceCents, costAdditions } : a)) }));
       toast.success(`${formatCurrency(cents, currency)} added to ${asset.name}`);
       setMode('');

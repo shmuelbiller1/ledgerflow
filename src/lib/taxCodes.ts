@@ -16,6 +16,7 @@
 
 import { calculateDocumentNet, calculateDocumentTax, includedTaxExact, netFromGross } from './documentMath';
 import type { DocumentTaxInput } from './documentMath';
+import { minorUnitRate } from './currencyMinorUnits';
 
 export type TaxTreatment = 'standard' | 'zero_rated' | 'exempt' | 'reverse_charge' | 'out_of_scope';
 
@@ -202,6 +203,7 @@ export interface TaxReturnDocument {
   date?: string;
   issueDate?: string;
   status?: string;
+  currency?: string;
   exchangeRate?: number;
   taxTreatment?: TaxTreatment;
   /** Net (excluding tax) and tax in the document currency, as saved on the document. */
@@ -235,7 +237,10 @@ function inPeriod(doc: TaxReturnDocument, start: string, end: string) {
   return d >= start && d <= end;
 }
 
-const toBase = (cents: number, rate?: number) => Math.round(cents * (rate && rate > 0 ? rate : 1));
+const toBase = (cents: number, rate?: number, currency?: string, baseCurrency?: string) => {
+  const r = rate && rate > 0 ? rate : 1;
+  return Math.round(cents * (currency && baseCurrency ? minorUnitRate(r, currency, baseCurrency) : r));
+};
 
 /**
  * The return for a period. Credit notes and vendor credits are passed with `credit: true` groups
@@ -252,6 +257,7 @@ export function computeTaxReturn(input: {
   purchaseCredits?: TaxReturnDocument[];
   startDate: string;
   endDate: string;
+  baseCurrency?: string;
 }): TaxReturn {
   const sales = emptyTotals();
   const purchases = emptyTotals();
@@ -262,9 +268,9 @@ export function computeTaxReturn(input: {
     for (const doc of docs || []) {
       if (!counted.has(String(doc.status)) || !inPeriod(doc, input.startDate, input.endDate)) continue;
       const treatment = doc.taxTreatment || (doc.taxCents > 0 ? 'standard' : 'out_of_scope');
-      totals[treatment].netCents += sign * toBase(doc.netCents, doc.exchangeRate);
-      totals[treatment].taxCents += sign * toBase(doc.taxCents, doc.exchangeRate);
-      if (purchase && treatment === 'reverse_charge') reverseChargeCents += sign * toBase(doc.selfAssessedCents || 0, doc.exchangeRate);
+      totals[treatment].netCents += sign * toBase(doc.netCents, doc.exchangeRate, doc.currency, input.baseCurrency);
+      totals[treatment].taxCents += sign * toBase(doc.taxCents, doc.exchangeRate, doc.currency, input.baseCurrency);
+      if (purchase && treatment === 'reverse_charge') reverseChargeCents += sign * toBase(doc.selfAssessedCents || 0, doc.exchangeRate, doc.currency, input.baseCurrency);
       documentCount++;
     }
   };

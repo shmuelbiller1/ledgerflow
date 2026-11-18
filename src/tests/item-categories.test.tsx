@@ -36,15 +36,18 @@ describe('Category manager', () => {
   beforeEach(() => setComponentWorkspace());
   afterEach(async () => { cleanup(); await getSupabase().auth.dispose(); });
 
-  test('merging Tools into Parts updates every Tools item in one batch', async () => {
+  test('merging Tools into Parts asks the command once, and the command renames every item the workspace holds', async () => {
     const calls = stubFetchWithBodies(200, null);
     render(<CategoryManagerDialog items={items} onClose={() => {}} />);
     assert.ok(screen.getByText('2 items'));
     fireEvent.change(screen.getByLabelText('New name for Tools'), { target: { value: 'Parts' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Merge into Parts' })); });
-    await waitFor(() => assert.ok(calls.some(c => c.url.includes('/rpc/lf_batch'))));
-    const ops = (calls.find(c => c.url.includes('/rpc/lf_batch'))!.body as { p_ops: Array<{ op: string; table: string; id: string; data: Record<string, unknown> }> }).p_ops;
-    assert.deepEqual(ops.map(o => [o.op, o.table, o.id, o.data.category]), [['update', 'inventory', 'c', 'Parts']]);
+    await waitFor(() => assert.ok(calls.some(c => c.url.includes('/commands/inventory.categoryrename'))));
+    // one call, not one per item: the server reads the cards and renames the ones that carry the name, including
+    // items this page never loaded
+    const body = calls.find(c => c.url.includes('/commands/inventory.categoryrename'))!.body as { workspaceId: string; input: { from: string; to: string } };
+    assert.deepEqual([body.input.from, body.input.to], ['Tools', 'Parts']);
+    assert.equal(body.workspaceId, 'component-workspace');
   });
 
   test('clearing the name removes the category; unchanged names cannot be saved', async () => {
@@ -53,8 +56,8 @@ describe('Category manager', () => {
     assert.equal((screen.getAllByRole('button', { name: 'Rename' })[0] as HTMLButtonElement).disabled, true);
     fireEvent.change(screen.getByLabelText('New name for Parts'), { target: { value: '' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Remove' })); });
-    await waitFor(() => assert.ok(calls.some(c => c.url.includes('/rpc/lf_batch'))));
-    const ops = (calls.find(c => c.url.includes('/rpc/lf_batch'))!.body as { p_ops: Array<{ id: string; data: Record<string, unknown> }> }).p_ops;
-    assert.deepEqual(ops.map(o => [o.id, o.data.category]), [['a', ''], ['b', '']]);
+    await waitFor(() => assert.ok(calls.some(c => c.url.includes('/commands/inventory.categoryrename'))));
+    const body = calls.find(c => c.url.includes('/commands/inventory.categoryrename'))!.body as { input: { from: string; to?: string } };
+    assert.deepEqual([body.input.from, body.input.to], ['Parts', ''], 'an empty name removes the category');
   });
 });

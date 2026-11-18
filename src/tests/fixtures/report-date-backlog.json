@@ -45,7 +45,6 @@
   "src/components/reporting/ExpensePolicyReportView.tsx",
   "src/components/reporting/FinancialRatiosReportView.tsx",
   "src/components/reporting/ForensicAuditor.tsx",
-  "src/components/reporting/GoldenTaxFixturesReportView.tsx",
   "src/components/reporting/GroupSummaryReportView.tsx",
   "src/components/reporting/IlSelfEmploymentNiReportView.tsx",
   "src/components/reporting/ImportAcceptanceView.tsx",

@@ -5,20 +5,32 @@
  * after unchanged in total. More than is at the "from" location is refused; so is a date in a closed
  * period. Owners, accountants and bookkeepers; audited.
  */
-import type { Firestore } from '../db/firestore';
+import type { Firestore, Transaction } from '../db/firestore';
 import { assertPeriodOpen } from '../db/firestore';
 import { stockByLocation, transferProblem, type StockMove } from '../../lib/stockMoves';
 import { stockMovesReady, writeStockMoves } from './stockMoveService';
 import { writeServerAuditLog } from './auditLogService';
 import { StockAdjustmentError } from './stockAdjustmentService';
 
-export async function transferStock(db: Firestore, input: {
+export interface StockTransferInput {
   workspaceId: string; uid: string; email?: string; itemId: string; from: string; to: string; quantity: number; date: string; note?: string;
-}) {
+}
+
+/** The period and stock-history checks ahead of the write (read-only). */
+export async function prepareTransferStock(db: Firestore, input: StockTransferInput): Promise<void> {
   await assertPeriodOpen(db, input.workspaceId, input.date, input.uid);
   // locations are known only from the stock history (W-02)
   if (!(await stockMovesReady(db))) throw new StockAdjustmentError(503, 'Stock locations need the stock history, which this server does not have yet. Ask the owner to apply the stock-moves database update.');
-  return db.runTransaction(async t => {
+}
+
+export async function transferStock(db: Firestore, input: StockTransferInput) {
+  await prepareTransferStock(db, input);
+  return db.runTransaction(t => transferStockInTransaction(db, t, input));
+}
+
+/** The write, inside a transaction the caller owns: the two history rows, no posting. */
+export async function transferStockInTransaction(db: Firestore, t: Transaction, input: StockTransferInput) {
+  {
     const snap = await t.get(db.collection('inventory').doc(input.itemId));
     const item = snap.exists ? snap.data() : undefined;
     if (!item || item.workspaceId !== input.workspaceId) throw new StockAdjustmentError(404, `Item ${input.itemId} not found`);
@@ -40,5 +52,5 @@ export async function transferStock(db: Firestore, input: {
       details: { description: `Moved ${input.quantity} of ${item.name || input.itemId} from ${input.from || 'no location'} to ${input.to || 'no location'}${input.note ? `: ${input.note}` : ''}` },
     }, { db, tx: t });
     return { moved: input.quantity, from: input.from, to: input.to };
-  });
+  }
 }

@@ -17,6 +17,7 @@ import {
   SERIAL_LOOKUP_CSV_HEADERS, type SerialPlacement, type SerializedLine,
 } from '../../lib/serialNumbers';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 interface DocLike {
   id: string;
@@ -140,27 +141,26 @@ export default function SerialLotLookupReportView({ purchaseOrders: purchaseOrde
 
       {query.trim() ? (
         <ReportTableScroll>
-          <table className="w-full text-sm">
-            <caption>Documents carrying a matching serial</caption>
-            <thead>
-              <tr>{['Serial', 'Item', 'Document', 'Type', 'Date', 'Line', 'Description', 'Lot'].map(head =>
-                <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-            </thead>
-            <tbody>
-              {matches.map(row => (
-                <tr key={`${row.itemId}:${row.documentId}:${row.line}:${row.serial}`} className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.serial}</bdi></th>
-                  <td className="py-1 px-2"><bdi>{itemName(row.itemId)}</bdi></td>
-                  <td className="py-1 px-2">{row.documentId}</td>
-                  <td className="py-1 px-2">{row.documentType}</td>
-                  <td className="py-1 px-2">{row.date || '—'}</td>
-                  <td className="py-1 px-2">{row.line}</td>
-                  <td className="py-1 px-2"><bdi>{row.description || '—'}</bdi></td>
-                  <td className="py-1 px-2">{row.lotNumber || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <RowTable
+            rowClassName="border-b border-[var(--line)]/50"
+            caption={(<>Documents carrying a matching serial</>)}
+            rows={matches}
+            rowKey={row => `${row.itemId}:${row.documentId}:${row.line}:${row.serial}`}
+            captionClassName=""
+            tableClassName="w-full text-sm"
+            headRowClassName=""
+            bodyClassName=""
+            columns={[
+              { header: "Serial", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.serial}</bdi> },
+              { header: "Item", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{itemName(row.itemId)}</bdi> },
+              { header: "Document", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.documentId },
+              { header: "Type", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.documentType },
+              { header: "Date", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.date || '—' },
+              { header: "Line", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.line },
+              { header: "Description", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.description || '—'}</bdi> },
+              { header: "Lot", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.lotNumber || '—' },
+            ]}
+          />
           {matches.length === 0 && <p className="text-sm text-[var(--muted)]">No serial on a loaded document matches this search.</p>}
         </ReportTableScroll>
       ) : (
@@ -191,48 +191,46 @@ export default function SerialLotLookupReportView({ purchaseOrders: purchaseOrde
             Lots of <bdi>{selected.name || selected.sku || selected.id}</bdi>
           </h3>
           <ReportTableScroll>
-            <table className="w-full text-sm">
-              <caption>Lots recorded for this item</caption>
-              <thead>
-                <tr>{['Lot', 'Lines', 'Units', 'First seen', 'Last seen'].map(head =>
-                  <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-              </thead>
-              <tbody>
-                {lots.map(lot => (
-                  <tr key={lot.lotNumber} className="border-b border-[var(--line)]/50">
-                    <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{lot.lotNumber}</bdi></th>
-                    <td className="py-1 px-2">{lot.lines}</td>
-                    <td className="py-1 px-2">{lot.quantity}</td>
-                    <td className="py-1 px-2">{lot.firstDate || '—'}</td>
-                    <td className="py-1 px-2">{lot.lastDate || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <RowTable
+              rowClassName="border-b border-[var(--line)]/50"
+              caption={(<>Lots recorded for this item</>)}
+              rows={lots}
+              rowKey={lot => lot.lotNumber}
+              captionClassName=""
+              tableClassName="w-full text-sm"
+              headRowClassName=""
+              bodyClassName=""
+              columns={[
+                { header: "Lot", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (lot) => <bdi>{lot.lotNumber}</bdi> },
+                { header: "Lines", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (lot) => lot.lines },
+                { header: "Units", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (lot) => lot.quantity },
+                { header: "First seen", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (lot) => lot.firstDate || '—' },
+                { header: "Last seen", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (lot) => lot.lastDate || '—' },
+              ]}
+            />
             {lots.length === 0 && <p className="text-sm text-[var(--muted)]">No lot is recorded for this item.</p>}
           </ReportTableScroll>
 
           <h3 className="text-sm font-semibold text-[var(--text)]">Serials of this item</h3>
           <ReportTableScroll>
-            <table className="w-full text-sm">
-              <caption>Serial numbers recorded for this item</caption>
-              <thead>
-                <tr>{['Serial', 'Document', 'Type', 'Date', 'Line', 'Lot'].map(head =>
-                  <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-              </thead>
-              <tbody>
-                {selectedSerials.map(row => (
-                  <tr key={`${row.documentId}:${row.line}:${row.serial}`} className="border-b border-[var(--line)]/50">
-                    <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.serial}</bdi></th>
-                    <td className="py-1 px-2">{row.documentId}</td>
-                    <td className="py-1 px-2">{row.documentType}</td>
-                    <td className="py-1 px-2">{row.date || '—'}</td>
-                    <td className="py-1 px-2">{row.line}</td>
-                    <td className="py-1 px-2">{row.lotNumber || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <RowTable
+              rowClassName="border-b border-[var(--line)]/50"
+              caption={(<>Serial numbers recorded for this item</>)}
+              rows={selectedSerials}
+              rowKey={row => `${row.documentId}:${row.line}:${row.serial}`}
+              captionClassName=""
+              tableClassName="w-full text-sm"
+              headRowClassName=""
+              bodyClassName=""
+              columns={[
+                { header: "Serial", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.serial}</bdi> },
+                { header: "Document", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.documentId },
+                { header: "Type", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.documentType },
+                { header: "Date", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.date || '—' },
+                { header: "Line", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.line },
+                { header: "Lot", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.lotNumber || '—' },
+              ]}
+            />
             {selectedSerials.length === 0 && <p className="text-sm text-[var(--muted)]">No serial is recorded for this item.</p>}
           </ReportTableScroll>
         </>

@@ -1,10 +1,12 @@
 import { getIdToken } from '../firebase';
 import { runCommand as runServerCommand } from '../lib/runCommand';
 import { guestSession, assertGuestSession, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
+import { localSet, localUpdate } from '../lib/db/localStore';
+import { deletePlainRecord, savePlainRecord } from '../lib/recordWrites';
 import { withSamplePosting } from '../lib/guestPosting';
 import { workspaceActor } from '../lib/guestActor';
 import { savedInOtherWorkspace, workspaceChangedSince } from '../lib/saveWorkspace';
-import { collection, updateDoc, deleteDoc, doc, setDoc, query, where, getDocs, getDoc } from '../lib/db/firestore';
+import { collection, doc, query, where, getDocs, getDoc } from '../lib/db/firestore';
 import { learnedPatternId } from '../lib/learnedPatterns';
 import { db } from '../firebase';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -203,8 +205,14 @@ export function useEntityOperations() {
   const syncEntityBalance = async (entityType: 'customers' | 'vendors', entityId: string, sampleSession: object | null) => {
     if (!entityId || !currentWorkspaceId) return;
     try {
-      if (sampleSession) assertGuestSession(sampleSession);
-      const entityRef = doc(db, entityType, entityId);
+      // a live workspace asks the server, which reads every open document for this contact — the tab's own copy
+      // is only what it has seen, so two tabs synced a moment apart used to write different balances for the
+      // same contact, and neither was wrong about the rows it could see
+      if (!sampleSession) {
+        await runDocumentCommand(entityType === 'customers' ? 'customer.balance' : 'vendor.balance', currentWorkspaceId, { id: entityId });
+        return;
+      }
+      assertGuestSession(sampleSession);
       let balanceCents = 0;
 
       if (entityType === 'customers') {
@@ -228,7 +236,7 @@ export function useEntityOperations() {
         balanceCents = vendorBills.reduce((sum, b) => sum + toBaseCents(calculateAmountDue(b), b.exchangeRate, b.currency, homeCurrency), 0);
       }
 
-      await updateDoc(entityRef, {
+      await localUpdate(entityType, entityId, {
         balanceCents,
         updatedAt: new Date().toISOString()
       });
@@ -245,31 +253,33 @@ export function useEntityOperations() {
     // N-14: collision-free (Hebrew included), same id as before for plain Latin text
     const patternId = learnedPatternId(cleanDesc);
     try {
-      const patternRef = doc(db, 'rulePatterns', `${currentWorkspaceId}_${patternId}`);
       const existing = analyticalPatternCache[cleanDesc];
-      
-      await setDoc(patternRef, {
-        uid: user.uid,
-        workspaceId: currentWorkspaceId,
-        description: cleanDesc,
-        accountId,
-        accountName,
-        count: (existing?.count || 0) + 1,
-        lastUpdated: new Date().toISOString()
-      }, { merge: true });
+      // the count and the delta are the workspace's record, so a live workspace asks the server for both in one
+      // command: two tabs filing the same description used to write the same "1" from their own caches
+      if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
+        await localSet('rulePatterns', `${currentWorkspaceId}_${patternId}`, {
+          uid: user.uid,
+          workspaceId: currentWorkspaceId,
+          description: cleanDesc,
+          accountId,
+          accountName,
+          count: (existing?.count || 0) + 1,
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
 
-      // Feed delta learning to learnedDeltas for AI and categorization models
-      const deltaId = `${currentWorkspaceId}_${patternId}`;
-      const deltaRef = doc(db, 'learnedDeltas', deltaId);
-      await setDoc(deltaRef, {
-        id: deltaId,
-        uid: user.uid,
-        workspaceId: currentWorkspaceId,
-        apiKeyId: "human_web_console",
-        description: cleanDesc.slice(0, 500),
-        category: (accountName || "General").slice(0, 100),
-        timestamp: new Date().toISOString()
-      }, { merge: true });
+        // Feed delta learning to learnedDeltas for AI and categorization models
+        await localSet('learnedDeltas', `${currentWorkspaceId}_${patternId}`, {
+          id: `${currentWorkspaceId}_${patternId}`,
+          uid: user.uid,
+          workspaceId: currentWorkspaceId,
+          apiKeyId: "human_web_console",
+          description: cleanDesc.slice(0, 500),
+          category: (accountName || "General").slice(0, 100),
+          timestamp: new Date().toISOString()
+        }, { merge: true });
+      } else {
+        await runDocumentCommand('autorule.learn', currentWorkspaceId, { description: cleanDesc, accountId, accountName });
+      }
     } catch (e) {
       console.warn("Soft learning deferred", e);
     }
@@ -301,7 +311,7 @@ export function useEntityOperations() {
     const sampleSession = guestSession();
     try {
       assertCustomerHistoryServerManaged(path, data as Record<string, unknown>);
-      const docId = doc(collection(db, path)).id;
+      let docId = doc(collection(db, path)).id;
       const finalData = {
         ...data,
         id: docId,
@@ -366,8 +376,19 @@ export function useEntityOperations() {
         });
       } else if (path === 'reconciliations' || path === 'payments' || path === 'journalEntries') {
         throw new Error(`Direct browser creation on ${path} is disabled; use the server ledger API.`);
+      } else if (path === 'chartAccounts' && !sampleSession && currentWorkspaceId !== SAMPLE_WORKSPACE_ID) {
+        // an account is not an ordinary record: the chart's command keeps its code unique and its balance at zero
+        const account = finalData as Record<string, unknown>;
+        const created = await runDocumentCommand('chartaccount.create', currentWorkspaceId, {
+          code: String(account.code || ''), name: String(account.name || ''), type: String(account.type || ''),
+          ...(account.category ? { category: String(account.category) } : {}),
+          ...(account.description ? { description: String(account.description) } : {}),
+        });
+        // the chart chooses the id; a caller that needs to name the new account uses the one the server answered with
+        const createdId = (created as { id?: unknown } | undefined)?.id;
+        if (typeof createdId === 'string' && createdId) docId = createdId;
       } else {
-        await setDoc(doc(db, path, docId), finalData);
+        await savePlainRecord(currentWorkspaceId, path, docId, finalData, { create: true });
       }
 
       // LEARNING: If we added something with a description and a category, learn it.
@@ -526,7 +547,8 @@ export function useEntityOperations() {
         if ((path === 'customers' || path === 'vendors') && isRecord(metadataPatch) && currentWorkspaceId) {
           localData.metadata = await mergeLocalPartyMetadata(path, id, currentWorkspaceId, metadataPatch);
         }
-        await updateDoc(doc(db, path, id), localData);
+        if (!currentWorkspaceId) throw new Error('Sign in and choose a workspace before updating this record.');
+        await savePlainRecord(currentWorkspaceId, path, id, localData);
       }
 
       // PREV-5: a reply after another workspace was opened says where it was saved, never "saved" here
@@ -586,7 +608,8 @@ export function useEntityOperations() {
             : `Direct browser deletion on ${path} is disabled; use the server ledger API.`,
         );
       } else {
-        await deleteDoc(doc(db, path, id));
+        if (!currentWorkspaceId) throw new Error('Sign in and choose a workspace before deleting this record.');
+        await deletePlainRecord(currentWorkspaceId, path, id);
       }
 
       // PREV-5: a reply after another workspace was opened says where it was saved, never "saved" here

@@ -49,7 +49,23 @@ export default function AssetRegisterReportView({ endDate }: { endDate?: string 
         { header: "Book value", className: "text-right", headClassName: "", cell: (r) => money(r.bookValueCents) },
       ]}
     /></ReportTableScroll>
-    <ReportTableScroll><table className="w-full text-sm"><caption>Category totals as of {date}</caption><thead><tr><th scope="col">Category</th><th scope="col">Assets</th><th scope="col">Cost</th><th scope="col">Depreciation</th><th scope="col">Book value</th></tr></thead><tbody>{report.categories.map(g => <tr key={g.category}><th scope="row" className="text-left"><bdi>{g.category}</bdi></th><td>{g.count}</td><td>{money(g.costCents)}</td><td>{money(g.depreciationCents)}</td><td>{money(g.bookValueCents)}</td></tr>)}</tbody><tfoot><tr><th scope="row" className="text-left">Total</th><td>{report.totals.count}</td><td>{money(report.totals.costCents)}</td><td>{money(report.totals.depreciationCents)}</td><td>{money(report.totals.bookValueCents)}</td></tr></tfoot></table></ReportTableScroll>
+    <ReportTableScroll><RowTable
+      caption={(<>Category totals as of {date}</>)}
+      rows={report.categories}
+      rowKey={g => g.category}
+      captionClassName=""
+      tableClassName="w-full text-sm"
+      headRowClassName=""
+      bodyClassName=""
+      footer={<tr><th scope="row" className="text-left">Total</th><td>{report.totals.count}</td><td>{money(report.totals.costCents)}</td><td>{money(report.totals.depreciationCents)}</td><td>{money(report.totals.bookValueCents)}</td></tr>}
+      columns={[
+        { header: "Category", className: "text-left", headClassName: "", cell: (g) => <bdi>{g.category}</bdi> },
+        { header: "Assets", headClassName: "", cell: (g) => g.count },
+        { header: "Cost", headClassName: "", cell: (g) => money(g.costCents) },
+        { header: "Depreciation", headClassName: "", cell: (g) => money(g.depreciationCents) },
+        { header: "Book value", headClassName: "", cell: (g) => money(g.bookValueCents) },
+      ]}
+    /></ReportTableScroll>
     {report.rows.length === 0 && <p>No assets acquired and held through this date.</p>}</>}
   </section>;
 }

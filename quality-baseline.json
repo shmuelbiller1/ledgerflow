@@ -10,9 +10,9 @@
   "suppressionCount": 0,
   "untestedViews": 0,
   "overlaysWithoutDialog": 0,
-  "rawTables": 158,
+  "rawTables": 126,
   "handTypedApiCalls": 5,
-  "directDbWrites": 93,
+  "directDbWrites": 0,
   "unreachableActions": 0,
   "screensWithManyPrimaryButtons": 0
 }

@@ -16,8 +16,13 @@ import type { TaxRate } from '../types';
 
 const vat = { id: 'vat', name: 'VAT', rate: 0.2, type: 'Sales', workspaceId: 'component-workspace' } as TaxRate;
 const gst = { id: 'gst', name: 'GST+PST', rate: 0.12, type: 'Sales', workspaceId: 'component-workspace', components: [{ name: 'GST', rate: 5 }, { name: 'PST', rate: 7 }] } as TaxRate;
-const updates = (calls: Array<{ url: string; body?: unknown }>) =>
-  calls.filter(c => c.url.includes('/rpc/lf_update')).map(c => c.body as { p_table: string; p_id: string; p_set: Record<string, unknown> });
+/** A tax rate is an ordinary record: the save names `record.save` and the patch is `input.data`. */
+const updates = (calls: Array<{ url: string; body?: unknown }>) => calls
+  .filter(c => c.url.includes('/commands/record.'))
+  .map(c => {
+    const { input } = (c.body as { input: { collection: string; id: string; data?: Record<string, unknown> } });
+    return { p_table: input.collection, p_id: input.id, p_set: input.data || {} };
+  });
 
 beforeEach(() => {
   setComponentWorkspace('owner');

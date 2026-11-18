@@ -155,7 +155,13 @@ describe('Client queries (database)', { skip: !url && 'LF_TEST_DATABASE_URL not 
   });
 
   test('the browser cannot write questions; members read them', async () => {
-    const policies = (await db.pool.query(`select cmd from pg_policies where tablename = 'clientQueries'`)).rows.map(r => r.cmd);
-    assert.deepEqual(policies, ['SELECT']);
+    const policies = (await db.pool.query(`select schemaname, policyname, cmd, roles::text[] as roles
+      from pg_policies where tablename = 'clientQueries' and permissive = 'PERMISSIVE'
+      order by schemaname, policyname`)).rows;
+    assert.deepEqual(policies, [
+      { schemaname: 'public', policyname: 'member_read', cmd: 'SELECT', roles: ['authenticated'] },
+      { schemaname: 'public', policyname: 'sandbox_read_workspace', cmd: 'SELECT', roles: ['lf_sandbox'] },
+      { schemaname: 'sandbox', policyname: 'scoped_overlay', cmd: 'ALL', roles: ['lf_sandbox'] },
+    ]);
   });
 });

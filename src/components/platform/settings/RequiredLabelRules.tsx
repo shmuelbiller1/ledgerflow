@@ -8,8 +8,7 @@ import { displayDimensionName } from '../../../lib/dimensionUtils';
  */
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { doc, updateDoc } from '../../../lib/db/firestore';
-import { db } from '../../../firebase';
+import { saveWorkspaceAxes } from '../../../lib/workspaceSettingsSave';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
@@ -38,7 +37,7 @@ export function RequiredLabelRules({ dimensions, onSaved }: { dimensions: Dimens
     setError('');
     try {
       const next = withRequiredOn(saved, axis.id, requiredOn);
-      await updateDoc(doc(db, 'workspaces', workspace.id), { dimensions: next });
+      await saveWorkspaceAxes(workspace.id, next);
       setWorkspaces(useAuthStore.getState().workspaces.map(w => (w.id === workspace.id ? { ...w, dimensions: next } : w)));
       onSaved(next);
       toast.success(done);

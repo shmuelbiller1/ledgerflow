@@ -14,6 +14,7 @@ import {
   type PriceListImportReadResult, type PriceListImportPlan,
 } from '../../../lib/priceListImport';
 import type { PriceList } from '../../../lib/priceLists';
+import { RowTable } from '../../ui/RowTable';
 
 const PROBLEM_CSV_HEADERS = ['Record', 'Problem'];
 
@@ -151,18 +152,22 @@ export default function PriceListImportView() {
         ? <p role="alert" className="text-sm">{plan.problem} — the import cannot be saved like this; fix the file or the lists.</p>
         : <>
           <ReportTableScroll>
-            <table className="w-full text-sm">
-              <caption>The lists after the import</caption>
-              <thead><tr>{['List', 'Currency', 'Prices on it', 'Discount'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr></thead>
-              <tbody>
-                {plan.lists.map(l => <tr key={l.id} className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{l.name}</bdi>{plan.previous.every(p => p.id !== l.id) ? ' (new)' : ''}</th>
-                  <td className="py-1 px-2">{l.currency || home}</td>
-                  <td className="py-1 px-2">{Object.keys(l.prices || {}).length}</td>
-                  <td className="py-1 px-2">{l.discountPercent ? `${l.discountPercent}%` : '—'}</td>
-                </tr>)}
-              </tbody>
-            </table>
+            <RowTable
+              rowClassName="border-b border-[var(--line)]/50"
+              caption={(<>The lists after the import</>)}
+              rows={plan.lists}
+              rowKey={l => l.id}
+              captionClassName=""
+              tableClassName="w-full text-sm"
+              headRowClassName=""
+              bodyClassName=""
+              columns={[
+                { header: "List", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (l) => (<><bdi>{l.name}</bdi>{plan.previous.every(p => p.id !== l.id) ? ' (new)' : ''}</>) },
+                { header: "Currency", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (l) => l.currency || home },
+                { header: "Prices on it", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (l) => Object.keys(l.prices || {}).length },
+                { header: "Discount", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (l) => l.discountPercent ? `${l.discountPercent}%` : '—' },
+              ]}
+            />
           </ReportTableScroll>
           <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={busy || !canChange || (isGuest && !localSample)}
             onClick={() => plan && save(plan.lists, `Price lists imported: ${plan.pricesSet} price(s) set${plan.createdLists ? `, ${plan.createdLists} list(s) created` : ''}. Undo is available on this screen.`, plan)}>

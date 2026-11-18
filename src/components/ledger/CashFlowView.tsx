@@ -293,7 +293,7 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
             )}>
               <div className={cn(
                 "w-3 h-3 bg-[var(--surface)] rounded-full shadow-sm transition-transform duration-300",
-                isComparative ? "translate-x-4" : "translate-x-0"
+                isComparative ? "translate-x-4 rtl:-translate-x-4" : "translate-x-0"
               )} />
             </div>
             <div className="flex flex-col">

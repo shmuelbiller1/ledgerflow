@@ -1,17 +1,52 @@
+import express from 'express';
 import type { Request, Response } from 'express';
+import type { AddressInfo } from 'node:net';
 import { z } from 'zod';
 import type { RequestUser } from '../../server/auth/requestUser';
 import type { Firestore } from '../../server/db/firestore';
-import type { CommandDefinition, CommandRole } from '../../server/commands/types';
+import type { AnyCommandDefinition, CommandDefinition, CommandRole } from '../../server/commands/types';
 import type { CommandRunnerDependencies } from '../../server/utils/commandExecutor';
+import { FieldValue } from '../../server/db/firestore';
+import { CommandRegistry } from '../../server/commands/registry';
+import { createCommandRouter } from '../../server/routes/commandRoutes';
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+/** The memory database stores a server timestamp as a plain ISO string, as the Postgres layer does. */
+function plain(value: unknown): unknown {
+  if (value instanceof FieldValue) return value.kind === 'serverTimestamp' ? new Date().toISOString() : null;
+  if (Array.isArray(value)) return value.map(plain);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, inner]) => [key, plain(inner)]));
+  }
+  return value;
+}
+
+/**
+ * A write's fields as stored: a plain object replaces the value it names (as this harness always
+ * wrote), `FieldValue.increment` adds to it, and a server timestamp becomes an ISO string.
+ */
+function merge(current: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...current };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value instanceof FieldValue && value.kind === 'increment') {
+      merged[key] = Number(merged[key] || 0) + Number(value.operand);
+    } else if (value instanceof FieldValue && value.kind === 'delete') {
+      delete merged[key];
+    } else {
+      merged[key] = plain(value);
+    }
+  }
+  return merged;
+}
+
 class MemorySnapshot {
   readonly id: string;
-  constructor(private readonly value: Record<string, unknown> | undefined, id: string) { this.id = id; }
+  /** The document this snapshot came from: services mark entries through `snap.ref`, as they do in production. */
+  readonly ref: MemoryRef | undefined;
+  constructor(private readonly value: Record<string, unknown> | undefined, id: string, ref?: MemoryRef) { this.id = id; this.ref = ref; }
   get exists(): boolean { return this.value !== undefined; }
   data(): Record<string, unknown> | undefined { return this.value ? clone(this.value) : undefined; }
 }
@@ -33,6 +68,11 @@ export class MemoryDb {
     const prefix = `${collection}/`;
     return [...this.documents.entries()].filter(([path]) => path.startsWith(prefix))
       .map(([path, data]) => ({ id: path.slice(prefix.length), data: clone(data) }));
+  }
+
+  /** `getAll` over several references, as the Postgres layer offers it (account validation reads accounts so). */
+  async getAll(...refs: MemoryRef[]): Promise<MemorySnapshot[]> {
+    return Promise.all(refs.map(ref => ref.get()));
   }
 
   collection(name: string): MemoryCollection { return new MemoryCollection(this, name); }
@@ -58,9 +98,9 @@ export class MemoryDb {
       this.documents.set(write.path, clone(write.data || {}));
     } else if (write.method === 'update') {
       if (!current) throw Object.assign(new Error(`NOT_FOUND: ${write.path}`), { code: 5 });
-      this.documents.set(write.path, { ...current, ...clone(write.data || {}) });
+      this.documents.set(write.path, merge(current, write.data || {}));
     } else {
-      this.documents.set(write.path, clone(write.data || {}));
+      this.documents.set(write.path, merge({}, write.data || {}));
     }
   }
 }
@@ -84,7 +124,7 @@ export class ReplayOnRetryMemoryDb extends MemoryDb {
 class MemoryRef {
   readonly path: string;
   constructor(private readonly db: MemoryDb, readonly collectionName: string, readonly id: string) { this.path = `${collectionName}/${id}`; }
-  async get(): Promise<MemorySnapshot> { return new MemorySnapshot(this.db.read(this.path), this.id); }
+  async get(): Promise<MemorySnapshot> { return new MemorySnapshot(this.db.read(this.path), this.id, this); }
   async set(data: Record<string, unknown>): Promise<void> { this.db.recordDirectWrite({ method: 'set', path: this.path, data }); }
   async create(data: Record<string, unknown>): Promise<void> { this.db.recordDirectWrite({ method: 'create', path: this.path, data }); }
   async update(data: Record<string, unknown>): Promise<void> { this.db.recordDirectWrite({ method: 'update', path: this.path, data }); }
@@ -92,11 +132,24 @@ class MemoryRef {
 }
 
 class MemoryQuery {
-  private readonly filters: Array<{ field: string; value: unknown }>;
-  constructor(private readonly db: MemoryDb, private readonly collectionName: string, filters: Array<{ field: string; value: unknown }> = []) { this.filters = filters; }
-  where(field: string, _op: string, value: unknown): MemoryQuery { return new MemoryQuery(this.db, this.collectionName, [...this.filters, { field, value }]); }
+  private readonly filters: Array<{ field: string; op: string; value: unknown }>;
+  constructor(
+    private readonly db: MemoryDb,
+    private readonly collectionName: string,
+    filters: Array<{ field: string; op: string; value: unknown }> = [],
+    /** `limit(1)` is how a command asks "is there any of these?" without reading the collection */
+    private readonly max?: number,
+  ) { this.filters = filters; }
+  where(field: string, op: string, value: unknown): MemoryQuery { return new MemoryQuery(this.db, this.collectionName, [...this.filters, { field, op, value }], this.max); }
+  limit(count: number): MemoryQuery { return new MemoryQuery(this.db, this.collectionName, this.filters, count); }
   async get(): Promise<{ docs: MemorySnapshot[]; size: number; empty: boolean }> {
-    const docs = this.db.entries(this.collectionName).filter(row => this.filters.every(filter => row.data[filter.field] === filter.value))
+    const matches = (row: Record<string, unknown>, filter: { field: string; op: string; value: unknown }) => {
+      const current = row[filter.field];
+      if (filter.op === 'array-contains') return Array.isArray(current) && current.includes(filter.value);
+      return current === filter.value;
+    };
+    const docs = this.db.entries(this.collectionName).filter(row => this.filters.every(filter => matches(row.data, filter)))
+      .slice(0, this.max ?? undefined)
       .map(row => new MemorySnapshot(row.data, row.id));
     return { docs, size: docs.length, empty: docs.length === 0 };
   }
@@ -118,8 +171,9 @@ class MemoryTransaction {
     if (ref instanceof MemoryQuery) return ref.get();
     const path = String((ref as { path?: unknown }).path || '');
     const pending = this.writes.get(path);
-    if (pending) return new MemorySnapshot(pending.method === 'delete' ? undefined : pending.data, path.split('/').at(-1) || '');
-    return new MemorySnapshot(this.db.read(path), path.split('/').at(-1) || '');
+    const source = ref instanceof MemoryRef ? ref : undefined;
+    if (pending) return new MemorySnapshot(pending.method === 'delete' ? undefined : pending.data, path.split('/').at(-1) || '', source);
+    return new MemorySnapshot(this.db.read(path), path.split('/').at(-1) || '', source);
   }
   async getAll(...refs: unknown[]): Promise<unknown[]> { return Promise.all(refs.map(ref => this.get(ref))); }
   set(ref: unknown, data: Record<string, unknown>): this { this.stage('set', ref, data); return this; }
@@ -128,7 +182,8 @@ class MemoryTransaction {
   delete(ref: unknown): this { this.stage('delete', ref); return this; }
   private stage(method: StoredWrite['method'], ref: unknown, data?: Record<string, unknown>): void {
     const path = String((ref as { path?: unknown }).path || '');
-    this.writes.set(path, { method, path, ...(data ? { data: clone(data) } : {}) });
+    // kept as written: a FieldValue.increment must reach the commit as itself, not as a plain object
+    this.writes.set(path, { method, path, ...(data ? { data } : {}) });
   }
   commit(): void { for (const write of this.writes.values()) this.db.apply(write); }
 }
@@ -199,3 +254,65 @@ export function runnerDependencies(db: MemoryDb, counters?: TestCounters): Comma
 }
 
 export const invocationInput = (value = 'first') => ({ workspaceId, value });
+
+export interface CommandHarness {
+  db: MemoryDb;
+  counters: TestCounters;
+  registry: CommandRegistry;
+  dependencies: CommandRunnerDependencies;
+  /** run a registered command as `uid`; `workspace` is the one named in the body (the seeded one by default) */
+  run(uid: string, name: string, input: Record<string, unknown>, workspace?: string): Promise<globalThis.Response>;
+  /** ask for a preview: it writes nothing, and the workspace is always the seeded one */
+  preview(uid: string, name: string, input: Record<string, unknown>): Promise<globalThis.Response>;
+  close(): Promise<void>;
+}
+
+/**
+ * The command router over HTTP for a test: a memory database seeded by the caller, the runner's
+ * dependencies and counters, the commands registered, and `run`/`preview` that ask the same router a
+ * route asks. The tests that watch a batch of commands share this rather than rebuild the server.
+ */
+export async function commandHarness(options: {
+  commands: AnyCommandDefinition[];
+  /** the workspace the seeded data belongs to; `run` names it unless told otherwise */
+  workspaceId: string;
+  seed(db: MemoryDb): void;
+}): Promise<CommandHarness> {
+  const db = new MemoryDb();
+  options.seed(db);
+  const counters: TestCounters = { runs: 0, previews: 0, afterCommit: 0, audits: 0 };
+  const dependencies = runnerDependencies(db, counters);
+  const registry = new CommandRegistry();
+  for (const command of options.commands) registry.register(command);
+
+  const app = express();
+  // the API does not announce what it is built with (helmet does this in server.ts); the harness
+  // answers as the server does
+  app.disable('x-powered-by');
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    const uid = req.header('x-test-uid');
+    if (uid) (req as unknown as { user: RequestUser }).user = { uid, email: `${uid}@example.test`, displayName: 'Test Person', aal: 'aal2' };
+    next();
+  });
+  app.use('/api/v1/commands', createCommandRouter(registry, dependencies));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise<void>(resolve => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+  const run = (uid: string, name: string, input: Record<string, unknown>, workspace = options.workspaceId) => fetch(`${base}/api/v1/commands/${name}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-test-uid': uid },
+    body: JSON.stringify({ workspaceId: workspace, input }),
+  });
+  const preview = (uid: string, name: string, input: Record<string, unknown>) => fetch(`${base}/api/v1/commands/${name}/preview`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-test-uid': uid },
+    body: JSON.stringify({ workspaceId: options.workspaceId, input }),
+  });
+
+  return {
+    db, counters, registry, dependencies, run, preview,
+    async close() { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); },
+  };
+}

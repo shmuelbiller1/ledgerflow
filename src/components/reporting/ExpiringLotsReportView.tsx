@@ -21,6 +21,7 @@ import {
 } from '../../lib/expiringLots';
 import type { InventoryItem, Invoice, PurchaseOrder } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 const STATUS_LABEL: Record<LotExpiryStatus, string> = {
   expired: 'Expired',
@@ -166,31 +167,30 @@ export default function ExpiringLotsReportView({ purchaseOrders: purchaseOrdersP
         </p>
       ) : (
         <ReportTableScroll>
-          <table className="w-full text-sm">
-            <caption>Lots with their expiry, receipts and recorded sales</caption>
-            <thead>
-              <tr>{['Item', 'Lot', 'Status', 'Days left', 'Expiry', 'Received units', 'Receipts', 'Received from', 'First received', 'Last received', 'Recorded at sale', 'Last sold'].map(head =>
-                <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-            </thead>
-            <tbody>
-              {paged.visible.map(row => (
-                <tr key={`${row.itemId}:${row.lotNumber}`} className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.itemName}</bdi></th>
-                  <td className="py-1 px-2"><bdi>{row.lotNumber}</bdi></td>
-                  <td className="py-1 px-2">{STATUS_LABEL[row.status]}</td>
-                  <td className="py-1 px-2 tabular-nums">{row.daysLeft ?? '—'}</td>
-                  <td className="py-1 px-2">{row.expiryDates.join(', ') || '—'}</td>
-                  <td className="py-1 px-2 tabular-nums">{row.receivedQty}</td>
-                  <td className="py-1 px-2">{row.receiptNumbers.join(', ') || '—'}</td>
-                  <td className="py-1 px-2"><bdi>{row.receivedFrom.join(', ') || '—'}</bdi></td>
-                  <td className="py-1 px-2">{row.firstReceived || '—'}</td>
-                  <td className="py-1 px-2">{row.lastReceived || '—'}</td>
-                  <td className="py-1 px-2 tabular-nums">{row.soldQty || '—'}</td>
-                  <td className="py-1 px-2">{row.lastSold || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <RowTable
+            rowClassName="border-b border-[var(--line)]/50"
+            caption={(<>Lots with their expiry, receipts and recorded sales</>)}
+            rows={paged.visible}
+            rowKey={row => `${row.itemId}:${row.lotNumber}`}
+            captionClassName=""
+            tableClassName="w-full text-sm"
+            headRowClassName=""
+            bodyClassName=""
+            columns={[
+              { header: "Item", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.itemName}</bdi> },
+              { header: "Lot", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.lotNumber}</bdi> },
+              { header: "Status", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => STATUS_LABEL[row.status] },
+              { header: "Days left", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.daysLeft ?? '—' },
+              { header: "Expiry", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.expiryDates.join(', ') || '—' },
+              { header: "Received units", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.receivedQty },
+              { header: "Receipts", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.receiptNumbers.join(', ') || '—' },
+              { header: "Received from", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.receivedFrom.join(', ') || '—'}</bdi> },
+              { header: "First received", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.firstReceived || '—' },
+              { header: "Last received", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.lastReceived || '—' },
+              { header: "Recorded at sale", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.soldQty || '—' },
+              { header: "Last sold", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.lastSold || '—' },
+            ]}
+          />
           <ShowMoreRows shown={paged.visible.length} total={paged.total} noun="lots" onMore={paged.more} onAll={paged.all} />
         </ReportTableScroll>
       )}

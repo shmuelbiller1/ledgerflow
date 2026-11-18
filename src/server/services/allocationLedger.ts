@@ -8,7 +8,7 @@
  */
 import { minorUnitRate } from '../../lib/currencyMinorUnits';
 import { allocateCents } from '../../kernel/templates/TransactionTemplates';
-import type { Firestore } from '../db/firestore';
+import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 
 export type AllocationKind = 'payment' | 'advance_application' | 'credit' | 'write_off' | 'deposit' | 'manual' | 'reversal';
 export type AllocationSide = 'receivable' | 'payable';
@@ -93,20 +93,17 @@ function recordAllocationLedgerReady(exists: boolean): boolean {
  * Pass the active `Transaction` when called inside `db.runTransaction` so cold-start probes reuse
  * the checked-out transaction client instead of acquiring a second connection from `db.pool`.
  */
-export async function allocationLedgerReady(db: Firestore, t?: unknown): Promise<boolean> {
-  const pool = (db as unknown as { pool?: { query: (q: string) => Promise<{ rows: Array<{ ok: boolean }> }> } }).pool;
-  if (!pool) return false;
+export async function allocationLedgerReady(db: Firestore, t?: DbTransaction): Promise<boolean> {
+  if (db.sandboxId) return (t ?? db).tablesExist(ALLOCATIONS, ALLOCATION_OPERATIONS);
+  if (typeof db.tablesExist !== 'function') return false;
   if (ready || Date.now() - readyAt < 60_000) return ready;
-  const txTablesExist = (t as { tablesExist?: (...names: string[]) => Promise<boolean> } | undefined)?.tablesExist;
-  if (typeof txTablesExist === 'function') {
-    const exists = await txTablesExist.call(t, 'paymentAllocations', 'allocationOperations');
-    return recordAllocationLedgerReady(exists);
+  if (typeof t?.tablesExist === 'function') {
+    return recordAllocationLedgerReady(await t.tablesExist(ALLOCATIONS, ALLOCATION_OPERATIONS));
   }
   if (readyInFlight) return readyInFlight;
   const probe: Promise<boolean> = (async () => {
     try {
-      const result = await pool.query(`select to_regclass('public."paymentAllocations"') is not null and to_regclass('public."allocationOperations"') is not null as ok`);
-      return recordAllocationLedgerReady(Boolean(result.rows[0]?.ok));
+      return recordAllocationLedgerReady(await db.tablesExist(ALLOCATIONS, ALLOCATION_OPERATIONS));
     } catch {
       return recordAllocationLedgerReady(false);
     }

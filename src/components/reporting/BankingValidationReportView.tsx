@@ -3,6 +3,7 @@ import { IBAN_COUNTRY_SPECS, ibanLengthFor, ibanProblem, ibanValidCountry } from
 import { validRouting } from '../../lib/nacha';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 const IBAN_CSV = ['Country', 'Country name', 'IBAN length', 'Source'];
 const ibanRows = IBAN_COUNTRY_SPECS.map(r => [r.country, r.countryName, String(r.length), r.source.url]);
@@ -71,22 +72,23 @@ export default function BankingValidationReportView() {
       </div>
 
       <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption className="text-left font-semibold pb-1">IBAN lengths per country (SWIFT IBAN Registry, ISO 13616)</caption>
-          <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-            {['Country', 'Country name', 'Length', 'Source'].map(h => <th key={h} scope="col" className="text-left py-1 px-2">{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {IBAN_COUNTRY_SPECS.map(r => (
-              <tr key={r.country} className="border-b border-[var(--line)]/50">
-                <td className="py-1 px-2 font-mono">{r.country}</td>
-                <td className="py-1 px-2">{r.countryName}</td>
-                <td className="py-1 px-2 tabular-nums">{r.length}</td>
-                <td className="py-1 px-2"><a className="underline break-all" href={r.source.url}>{r.source.authority}</a> · {r.source.retrieved}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <RowTable
+          rowHeaderColumn={false}
+          rowClassName="border-b border-[var(--line)]/50"
+          caption={(<>IBAN lengths per country (SWIFT IBAN Registry, ISO 13616)</>)}
+          rows={IBAN_COUNTRY_SPECS}
+          rowKey={r => r.country}
+          captionClassName="text-left font-semibold pb-1"
+          tableClassName="w-full text-sm"
+          headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+          bodyClassName=""
+          columns={[
+            { header: "Country", className: "py-1 px-2 font-mono", headClassName: "text-left py-1 px-2", cell: (r) => r.country },
+            { header: "Country name", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.countryName },
+            { header: "Length", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (r) => r.length },
+            { header: "Source", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => (<><a className="underline break-all" href={r.source.url}>{r.source.authority}</a> · {r.source.retrieved}</>) },
+          ]}
+        />
       </ReportTableScroll>
       <p className="text-xs text-[var(--muted)]">US routing checksum: (3·(d0+d3+d6)+7·(d1+d4+d7)+(d2+d5+d8)) mod 10 = 0. IBAN check: mod-97 = 1 (ISO 7064). This table is for data quality; it does not guarantee an account exists or that a bank will accept the IBAN.</p>
     </section>

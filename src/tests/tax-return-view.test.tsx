@@ -18,7 +18,7 @@ afterEach(() => { cleanup(); window.confirm = originalConfirm; });
 test('tax filing sends the visible period and mixed-language reference only after confirmation', async () => {
   const calls = stubFetchWithBodies(200, { returns: [] });
   const view = render(<TaxLiabilityView startDate="2026-03-01" endDate="2026-03-31" />);
-  await waitFor(() => assert.ok(calls.some(c => c.method === 'GET')));
+  await waitFor(() => assert.equal((view.getByRole('button', { name: 'File this return' }) as HTMLButtonElement).disabled, false));
   assert.equal((view.getByLabelText('From') as HTMLInputElement).value, '2026-03-01');
   assert.ok(view.getByText('0 documents'));
   fireEvent.change(view.getByLabelText('Reference (optional)'), { target: { value: '  רבעון Q1  ' } });

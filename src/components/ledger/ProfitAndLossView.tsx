@@ -2,7 +2,7 @@ import { fill, useReportText } from '../reporting/useReportText';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import type { Transaction } from '../../types';
 import React, { useId, useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { TrendingUp, TrendingDown, FileSpreadsheet, Activity, Target, Zap, ArrowUp, ArrowDown, ExternalLink } from 'lucide-react';
+import { TrendingUp, TrendingDown, FileSpreadsheet, Activity, Target, Zap, ArrowUp, ArrowDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn, getLocalDateISO, monthBoundsISO, formatCurrency } from '../../lib/utils';
 import { toast } from 'sonner';
@@ -21,7 +21,7 @@ import { StatementColumns } from './StatementColumns';
 import type { ReportColumnMode } from '../../lib/reportColumns';
 import DrillDownModal, { type ExplainRequest } from '../layout/DrillDownModal';
 import { accountGroupLayout, groupSubtotals, hasAccountGroups, toggleAccountGroup, visibleGroupRows } from '../../lib/accountGroups';
-import { AccountGroupRow, AccountGroupSubtotal } from './AccountGroupControls';
+import { ProfitAndLossAccountRows } from './ProfitAndLossAccountRows';
 import { scopeTransactionsToLabel } from '../../lib/reportLabelScope';
 import { ReportProvenanceNote } from '../reporting/ReportProvenanceNote';
 import { STATEMENT_COLLECTIONS, useBrowserProvenance } from '../../hooks/useBrowserProvenance';
@@ -398,7 +398,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
             <label htmlFor={`${formId}-comparative`} aria-label={reportText('r.comparative-mode-sp', 'Comparative Mode')} className="flex min-h-11 items-center gap-2 cursor-pointer rounded focus-within:outline focus-within:outline-2 focus-within:outline-[var(--brass)]">
               <input id={`${formId}-comparative`} type="checkbox" className="sr-only" checked={isComparative} disabled={basis === 'cash'} onChange={(e) => setIsComparative(e.target.checked)} />
               <span aria-hidden="true" className={cn("w-8 h-4 shrink-0 rounded-full flex items-center p-0.5", isComparative ? "bg-indigo-500" : "bg-slate-300")}>
-                <span className={cn("w-3 h-3 bg-[var(--surface)] rounded-full shadow-sm", isComparative ? "translate-x-4" : "translate-x-0")} />
+                <span className={cn("w-3 h-3 bg-[var(--surface)] rounded-full shadow-sm", isComparative ? "translate-x-4 rtl:-translate-x-4" : "translate-x-0")} />
               </span>
               <span className="text-[10px] text-[var(--text)]">{compareTo === 'budget' ? reportText('r.budget', 'Budget') : reportText('r.prior-period-b', 'Prior period')}</span>
             </label>
@@ -516,7 +516,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
             >{reportText('r.entries', 'Entries')}</button>
             {isComparative && prevData.netIncome !== 0 && (
                <span className={cn(
-                 "text-[9px] font-bold ml-auto", 
+                 "text-[9px] font-bold ms-auto", 
                  (data.netIncome || 0) >= prevData.netIncome ? "text-emerald-400" : "text-rose-400"
                )}>
                  {(((data.netIncome || 0) - prevData.netIncome) / Math.abs(prevData.netIncome) * 100).toFixed(1)}{reportText('r.vs', '% vs ')}{vsBudget ? reportText('r.budget', 'Budget') : reportText('r.prior', 'Prior')}
@@ -571,7 +571,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                 </button>
               ))}
             </div>
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0 ml-2" />
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0 ms-2" />
           </div>
         </div>
         
@@ -599,62 +599,13 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
               </div>
             </div>
             <div className={cn("grid gap-4", incomeGroups.grouped ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2")}>
-              {incomeGroups.rows.map(row => {
-                if (row.kind === 'subtotal') return (
-                  <AccountGroupSubtotal key={row.key} label={row.label} depth={row.depth}
-                    amount={incomeGroups.subtotals.get(row.member.id)?.amount || 0} formatMoney={formatCurrency} />
-                );
-                const id = row.member.id;
-                const acc = row.member;
-                const prevAcc = (prevData.income?.accounts as Record<string, PLAccount>)[id];
-                const prevBalance = prevAcc ? prevAcc.balance : 0;
-                const balance = acc.balance || 0;
-                const variance = isComparative && prevBalance !== 0 ? ((balance - prevBalance) / Math.abs(prevBalance)) * 100 : null;
-
-                return (
-                  <AccountGroupRow key={row.key} depth={row.depth} hasChildren={row.hasChildren} label={acc.name}
-                    expanded={!collapsedGroups.has(id)}
-                    onToggle={() => setCollapsedGroups(collapsed => toggleAccountGroup(collapsed, id))}>
-                  <button
-                    type="button" onClick={() => {
-                      const matchedTxs = transactions.filter(t => 
-                        isTransactionInDateRange(t, dateRange.start, dateRange.end) && 
-                        t.lines?.some(l => l.accountId === id || l.accountName === acc.name)
-                      );
-                      drill({
-                        accountName: acc.name,
-                        transactions: matchedTxs,
-                        // N-12: explained from the server, adding up to this figure
-                        explain: { accountIds: [id], startDate: dateRange.start || undefined, endDate: dateRange.end || undefined, expectedCents: balance, sign: -1, ...(labelFilter ? { labelFilter } : {}) }
-                      });
-                    }}
-                    title={fill(reportText('r.drill-into', 'Click to drill down into {name}'), { name: acc.name })}
-                    className="w-full text-left flex items-center justify-between p-3 bg-[var(--ink)]/50 rounded-lg border border-transparent hover:border-indigo-300 dark:hover:border-indigo-800 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-all group gap-4 min-w-0 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-mono text-[8px] font-bold text-[var(--muted)] bg-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] uppercase shrink-0">{acc.code}</span>
-                      <span className="text-[var(--text)] font-bold group-hover:text-indigo-600 transition-colors uppercase tracking-tight text-xs break-words min-w-0 flex items-center gap-1.5">
-                        {acc.name}
-                        <ExternalLink aria-hidden="true" size={10} className="opacity-0 group-hover:opacity-100 text-indigo-500 transition-opacity" />
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-end shrink-0">
-                      <span className="font-mono text-[var(--text)] text-xs font-semibold tabular-nums"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(balance)}</bdi></span>
-                      {isComparative && (
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono text-[8px] text-[var(--muted)] tabular-nums">{reportText('r.prev', 'prev: ')}<bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prevBalance)}</bdi></span>
-                          {variance !== null && (
-                            <span className={cn("text-[9px] font-bold", variance >= 0 ? "text-emerald-500" : "text-rose-500")}>
-                              {variance >= 0 ? '+' : ''}{variance.toFixed(1)}%
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                  </AccountGroupRow>
-                );
-              })}
+              <ProfitAndLossAccountRows
+                rows={incomeGroups.rows} subtotals={incomeGroups.subtotals}
+                priorAccounts={prevData.income?.accounts} isComparative={isComparative} greenWhen="up" drillSign={-1}
+                formatCurrency={formatCurrency} collapsedGroups={collapsedGroups}
+                onToggleGroup={(accountId) => setCollapsedGroups(collapsed => toggleAccountGroup(collapsed, accountId))}
+                onDrillDown={drill} transactions={transactions}
+                startDate={dateRange.start} endDate={dateRange.end} labelFilter={labelFilter} />
             </div>
           </section>
 
@@ -681,62 +632,13 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
                </div>
             </div>
             <div className={cn("grid gap-4", expenseGroups.grouped ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2")}>
-              {expenseGroups.rows.map(row => {
-                if (row.kind === 'subtotal') return (
-                  <AccountGroupSubtotal key={row.key} label={row.label} depth={row.depth}
-                    amount={expenseGroups.subtotals.get(row.member.id)?.amount || 0} formatMoney={formatCurrency} />
-                );
-                const id = row.member.id;
-                const acc = row.member;
-                const prevAcc = (prevData.expense?.accounts as Record<string, PLAccount>)[id];
-                const prevBalance = prevAcc ? prevAcc.balance : 0;
-                const balance = acc.balance || 0;
-                const variance = isComparative && prevBalance !== 0 ? ((balance - prevBalance) / Math.abs(prevBalance)) * 100 : null;
-
-                return (
-                  <AccountGroupRow key={row.key} depth={row.depth} hasChildren={row.hasChildren} label={acc.name}
-                    expanded={!collapsedGroups.has(id)}
-                    onToggle={() => setCollapsedGroups(collapsed => toggleAccountGroup(collapsed, id))}>
-                  <button
-                    type="button" onClick={() => {
-                      const matchedTxs = transactions.filter(t => 
-                        isTransactionInDateRange(t, dateRange.start, dateRange.end) && 
-                        t.lines?.some(l => l.accountId === id || l.accountName === acc.name)
-                      );
-                      drill({
-                        accountName: acc.name,
-                        transactions: matchedTxs,
-                        // N-12: explained from the server, adding up to this figure
-                        explain: { accountIds: [id], startDate: dateRange.start || undefined, endDate: dateRange.end || undefined, expectedCents: balance, sign: 1, ...(labelFilter ? { labelFilter } : {}) }
-                      });
-                    }}
-                    title={fill(reportText('r.drill-into', 'Click to drill down into {name}'), { name: acc.name })}
-                    className="w-full text-left flex items-center justify-between p-3 bg-[var(--ink)]/50 rounded-lg border border-transparent hover:border-indigo-300 dark:hover:border-indigo-800 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-all group gap-4 min-w-0 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-mono text-[8px] font-bold text-[var(--muted)] bg-[var(--ink)] px-1.5 py-0.5 rounded border border-[var(--line)] uppercase shrink-0">{acc.code}</span>
-                      <span className="text-[var(--text)] font-bold group-hover:text-indigo-600 transition-colors uppercase tracking-tight text-xs break-words min-w-0 flex items-center gap-1.5">
-                        {acc.name}
-                        <ExternalLink aria-hidden="true" size={10} className="opacity-0 group-hover:opacity-100 text-indigo-500 transition-opacity" />
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-end shrink-0">
-                      <span className="font-mono text-[var(--text)] text-xs font-semibold tabular-nums"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(balance)}</bdi></span>
-                      {isComparative && (
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono text-[8px] text-[var(--muted)] tabular-nums">{reportText('r.prev', 'prev: ')}<bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prevBalance)}</bdi></span>
-                          {variance !== null && (
-                            <span className={cn("text-[9px] font-bold", variance <= 0 ? "text-emerald-500" : "text-rose-500")}>
-                              {variance >= 0 ? '+' : ''}{variance.toFixed(1)}%
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                  </AccountGroupRow>
-                );
-              })}
+              <ProfitAndLossAccountRows
+                rows={expenseGroups.rows} subtotals={expenseGroups.subtotals}
+                priorAccounts={prevData.expense?.accounts} isComparative={isComparative} greenWhen="down" drillSign={1}
+                formatCurrency={formatCurrency} collapsedGroups={collapsedGroups}
+                onToggleGroup={(accountId) => setCollapsedGroups(collapsed => toggleAccountGroup(collapsed, accountId))}
+                onDrillDown={drill} transactions={transactions}
+                startDate={dateRange.start} endDate={dateRange.end} labelFilter={labelFilter} />
             </div>
           </section>
 
@@ -748,7 +650,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
             </div>
             <div className="flex flex-col items-end sm:items-center sm:flex-row gap-4 text-right tabular-nums">
               {isComparative && prevData.netIncome !== 0 && (
-                <div className="flex flex-col sm:items-end items-end mr-4">
+                <div className="flex flex-col sm:items-end items-end me-4">
                   <span className="text-[9px] font-bold text-[var(--muted)] font-medium tracking-wider mb-1">{reportText('r.prior-period', 'PRIOR PERIOD')}</span>
                   <span className="font-mono text-sm text-slate-300 line-through opacity-70">
                     <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(prevData.netIncome)}</bdi>

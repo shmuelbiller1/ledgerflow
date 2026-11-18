@@ -220,6 +220,38 @@ test('phone warehouse edits retain refused drafts, retry, export Hebrew CSV and 
     expect(request.method()).toBe('GET');
     return route.fulfill({ json: {} });
   });
+  // a bin is a field of the inventory item: assigned or cleared through `record.save`, which refuses the first time
+  await page.route('**/api/v1/commands/record.save', async route => {
+    const body = route.request().postDataJSON() as { input: { collection: string; id: string; data?: Record<string, unknown>; unset?: string[] } };
+    writes.push({ p_table: body.input.collection, p_id: body.input.id, p_set: body.input.data || {} });
+    if (refuseNext) {
+      refuseNext = false;
+      return await route.fulfill({ status: 403, json: { message: 'Warehouse save refused', code: '42501' } });
+    }
+    await page.evaluate(async ({ path, id, data, unset }) => {
+      const storePath = '/src/stores/useLedgerStore.ts';
+      const { useLedgerStore } = await import(storePath);
+      const rows = (useLedgerStore.getState() as unknown as Record<string, Array<{ id: string }>>)[path];
+      useLedgerStore.setState({ [path]: rows.map((row: { id: string }) => {
+        if (row.id !== id) return row;
+        const next = structuredClone(row) as Record<string, unknown>;
+        for (const [field, value] of Object.entries(data || {})) {
+          const keys = field.split('.');
+          let target = next;
+          for (const key of keys.slice(0, -1)) target = (target[key] ??= {}) as Record<string, unknown>;
+          target[keys[keys.length - 1]] = value;
+        }
+        for (const field of unset || []) {
+          const keys = field.split('.');
+          let target: Record<string, unknown> | undefined = next;
+          for (const key of keys.slice(0, -1)) target = target?.[key] as Record<string, unknown> | undefined;
+          if (target) delete target[keys[keys.length - 1]];
+        }
+        return next;
+      }) });
+    }, { path: body.input.collection, id: body.input.id, data: body.input.data, unset: body.input.unset });
+    return await route.fulfill({ status: 200, json: { ok: true, data: { collection: body.input.collection, id: body.input.id, created: false, updatedAt: new Date().toISOString() } } });
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   await mount(page);
   await enterWarehouse(page);
@@ -259,7 +291,8 @@ test('phone warehouse edits retain refused drafts, retry, export Hebrew CSV and 
   expect(writes).toHaveLength(3);
   for (const write of writes) {
     expect(['inventory', 'estimates', 'customers']).toContain(write.p_table);
-    expect(Object.keys(write.p_set).every(key => key === 'updatedAt' || key.startsWith('binLocations.') || key.startsWith('metadata.warehouseShipmentsBySource.'))).toBe(true);
+    // the server stamps updatedAt now, so the tab sends the field itself
+    expect(Object.keys(write.p_set).every(key => key.startsWith('binLocations.') || key.startsWith('metadata.warehouseShipmentsBySource.'))).toBe(true);
   }
   expect(warrantyCommands).toHaveLength(1);
   expect(warrantyCommands[0]).toMatchObject({

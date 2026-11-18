@@ -5,11 +5,17 @@ import type { AddressInfo } from 'node:net';
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { RequestUser } from '../server/auth/requestUser';
-import { requiredApiKeyScope } from '../server/auth/apiAuthenticate';
+import { acceptsPasswordOnlySession, requiredApiKeyScope } from '../server/auth/apiAuthenticate';
 import { API_KEY_SCOPE_IDS, validateApiKeyScopes } from '../lib/apiScopes';
 import { AVAILABLE_SCOPES } from '../components/platform/ApiHubShared';
 import type { Firestore } from '../server/db/firestore';
 import { CommandRegistry } from '../server/commands/registry';
+import { workspaceSettingsCommand } from '../server/commands/workspaceSettingsPanel';
+import { budgetDeleteCommand, budgetSaveCommand } from '../server/commands/budgets';
+import { chartAccountUpdateCommand } from '../server/commands/chartAccounts';
+import { employeeCreateCommand, employeeUpdateCommand } from '../server/commands/employees';
+import { estimateSaveCommand, estimateStatusCommand } from '../server/commands/estimates';
+import { inventoryItemDeleteCommand, inventoryItemFieldCommand, inventoryItemSaveCommand } from '../server/commands/inventoryItems';
 import { createDefaultCommandRegistry } from '../server/commands/defaultRegistry';
 import { alertSettingsUpdateCommand } from '../server/commands/alerts';
 import { importMapRestoreCommand, importMapSaveCommand } from '../server/commands/importMaps';
@@ -47,31 +53,13 @@ import {
   captureResponse, fakeRequest, invocationInput, MemoryDb, owner, recordingCommand, ReplayOnRetryMemoryDb,
   runnerDependencies, seedWorkspace, type TestCounters, workspaceId,
 } from './helpers/commandTestUtils';
+import { REGISTERED_COMMAND_AREAS, REGISTERED_COMMAND_NAMES } from './fixtures/registeredCommands';
 
 
 test('the default registry is sorted and unique across the registered command domains', () => {
   const registry = createDefaultCommandRegistry();
-  assert.deepEqual(registry.names(), [
-    'alerts.update',
-    'autorule.create', 'autorule.delete', 'autorule.group', 'autorule.recordhits', 'autorule.update',
-    'bill.create', 'bill.delete', 'bill.update',
-    'creditnote.create', 'creditnote.delete', 'creditnote.update',
-    'customer.create', 'customer.update',
-    'entrylink.create', 'entrylink.remove',
-    'invoice.create', 'invoice.delete', 'invoice.update',
-    'journal.create', 'numbering.update', 'payment.receive',
-    'period.balancesrebuild', 'period.close', 'period.closesteps', 'period.depreciation', 'period.fxrevaluation', 'period.fxrevaluationundo', 'period.relock', 'period.reopen', 'period.signoff', 'period.unlock', 'period.yearclose',
-    'stages.define', 'stages.move',
-    'tasks.create', 'tasks.remove', 'tasks.status',
-    'time.invoice', 'time.log', 'time.move', 'time.rates', 'time.remove', 'time.update',
-    'vendor.create', 'vendor.update',
-    'vendorcredit.create', 'vendorcredit.delete', 'vendorcredit.update',
-    'warranty.update',
-    'watches.create', 'watches.remove',
-    'workspace.canceldeletion', 'workspace.importmap', 'workspace.modules', 'workspace.nextnumber', 'workspace.openingbalances', 'workspace.restoremaps',
-    'workspace.retention', 'workspace.revokeinvite', 'workspace.setupcomplete',
-  ]);
-  assert.deepEqual(registry.areaNames(), ['alerts', 'autorule', 'bill', 'creditnote', 'customer', 'entrylink', 'invoice', 'journal', 'numbering', 'payment', 'period', 'stages', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches', 'workspace']);
+  assert.deepEqual(registry.names(), [...REGISTERED_COMMAND_NAMES]);
+  assert.deepEqual(registry.areaNames(), [...REGISTERED_COMMAND_AREAS]);
   assert.equal(registry.get('alerts.update'), alertSettingsUpdateCommand);
   assert.equal(registry.get('payment.receive'), paymentReceiveCommand);
   assert.equal(registry.get('numbering.update'), numberingUpdateCommand);
@@ -90,6 +78,17 @@ test('the default registry is sorted and unique across the registered command do
   assert.equal(periodYearCloseCommand.allowPlatformAdmin, true);
   assert.equal(registry.get('workspace.importmap'), importMapSaveCommand);
   assert.equal(registry.get('workspace.restoremaps'), importMapRestoreCommand);
+  assert.equal(registry.get('workspace.settings'), workspaceSettingsCommand);
+  assert.equal(registry.get('chartaccount.update'), chartAccountUpdateCommand);
+  assert.equal(registry.get('employee.create'), employeeCreateCommand);
+  assert.equal(registry.get('employee.update'), employeeUpdateCommand);
+  assert.equal(registry.get('estimate.save'), estimateSaveCommand);
+  assert.equal(registry.get('estimate.status'), estimateStatusCommand);
+  assert.equal(registry.get('inventoryitem.save'), inventoryItemSaveCommand);
+  assert.equal(registry.get('inventoryitem.field'), inventoryItemFieldCommand);
+  assert.equal(registry.get('inventoryitem.delete'), inventoryItemDeleteCommand);
+  assert.equal(registry.get('budget.save'), budgetSaveCommand);
+  assert.equal(registry.get('budget.delete'), budgetDeleteCommand);
   assert.equal(registry.get('tasks.create'), taskCreateCommand);
   assert.equal(registry.get('watches.create'), watchCreateCommand);
   assert.equal(registry.get('unknown.create'), undefined);
@@ -165,6 +164,14 @@ test('API-key scopes validate exact, unique permissions and command paths use th
   assert.deepEqual(validateApiKeyScopes(['write:vendors', 'write:vendors']), { ok: false, reason: 'duplicate' });
   assert.deepEqual(AVAILABLE_SCOPES.map(scope => scope.id), [...API_KEY_SCOPE_IDS]);
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/customer.create'), 'write:customers');
+  // L-85: the lost-authenticator call is the one that accepts a password-only session, and it must
+  // work through the command that replaced the legacy URL's body.
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/account/recovery-codes/use'), true);
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/commands/account.userecoverycode'), true);
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/commands/account.userecoverycode?x=1'), true);
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/commands/account.makerecoverycodes'), false);
+  assert.equal(acceptsPasswordOnlySession('POST', '/api/v1/commands/groups.share'), false);
+  assert.equal(acceptsPasswordOnlySession('GET', '/api/v1/commands/account.userecoverycode'), false);
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/customer.update'), 'write:customers');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/warranty.update'), 'write:customers');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/autorule.create'), 'write:rules');
@@ -192,6 +199,10 @@ test('API-key scopes validate exact, unique permissions and command paths use th
     assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:transactions');
   }
   assert.equal(requiredApiKeyScope('GET', '/api/v1/commands'), 'read:transactions');
+  // Person-scoped commands keep the scope the legacy /api/v1/account writes always required.
+  for (const name of ['account.makerecoverycodes', 'account.userecoverycode', 'account.setnotificationemail', 'groups.create', 'groups.share', 'groups.delete']) {
+    assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:transactions');
+  }
   assert.equal(requiredApiKeyScope('POST', '/api/v1/transactions'), 'write:transactions');
 });
 
@@ -433,7 +444,10 @@ test('period.balancesrebuild targets only missing closed-year snapshots and stal
 test('period.balancesrebuild writes stale snapshots in the command transaction and replays safely', async () => {
   const db = new MemoryDb();
   seedWorkspace(db);
-  Object.assign(db, { pool: { query: async () => ({ rows: [{ ok: true }] }) } });
+  Object.assign(db, { async tablesExist(...names: string[]) {
+    assert.deepEqual(names, ['periodBalances']);
+    return true;
+  } });
   db.seed(`periodBalances/${workspaceId}_2025-12-31`, {
     workspaceId, asOf: '2025-12-31', accounts: { old: 1 }, byLabel: {}, retainedEarnings: 0,
     entryCount: 1, checksum: 'stale', builtAt: '2026-01-01T00:00:00.000Z', builtBy: 'old-build', stale: true,

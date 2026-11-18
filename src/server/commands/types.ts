@@ -60,8 +60,23 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
   name: `${string}.${string}`;
   input: Schema;
   roles: readonly CommandRole[];
+  /**
+   * `person` commands act on the caller's own account (two-step recovery codes, notice emails,
+   * groups of books): the runner asks only for a signed-in person, not for a workspace and one of
+   * its roles, and none is granted one — `ctx.role` is 'owner' and `ctx.workspace` is empty. The
+   * idempotency and audit scope becomes `person:<uid>`. A person command cannot declare `dated` or
+   * `capacity` (both read workspace state), and its `roles` list is informational: every signed-in
+   * person may run it on their own account. Defaults to `workspace`.
+   */
+  scope?: 'workspace' | 'person';
   /** Permit platform admins outside the workspace roles list; never grants this override to API keys. */
   allowPlatformAdmin?: boolean;
+  /**
+   * Refuse a request that arrived on an API key (`lf_...`), so only a signed-in person runs it. The
+   * addresses these commands replaced were person-only (minting or revoking a key, saving an AI
+   * provider key), and an API key that could mint keys would grant itself more than it was given.
+   */
+  peopleOnly?: boolean;
   /** Dot path into the validated input; the runner checks this date against the workspace period lock. */
   dated?: string;
   /** Resolve an effective date when the command's input omits one (for example, today's workspace-local date). */
@@ -78,6 +93,12 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
   describe: CommandDescription;
   /** A temporary compatibility operation type used by an old route while its UI/API is switched over. */
   operationType?: string;
+  /**
+   * The idempotency id to use when the caller sends no `Idempotency-Key` (#824): a command whose input names
+   * the thing it posts once (a contract and period, a lease) derives the same id the old route did, so a
+   * repeated call replays instead of posting a second entry. Undefined: no key, as before.
+   */
+  defaultOperationId?(input: z.output<Schema>): string | undefined;
   /** The old idempotency record key, if this command adopts a pre-command operation. */
   legacyKey?(workspaceId: string, operationId: string): string;
   /** Preserve the old request fingerprint when a route is adopted; defaults to requestPayloadHash(req.body). */
@@ -92,6 +113,13 @@ export interface CommandInvocation {
   input: unknown;
   /** Existing routes can preserve their established wire response while calling the same runner. */
   formatResponse?(outcome: CommandExecutionOutcome): { status: number; body: unknown };
+  /**
+   * The address had no two-step gate of its own before it called this command, so a command marked
+   * high-risk for the command router keeps its established answer here. Only the legacy wrappers set
+   * this, and only where the route's own role check was the whole gate (the security settings, the
+   * account merge); the command router still requires a code-confirmed session.
+   */
+  legacyRoute?: boolean;
 }
 
 export type CommandExecutionOutcome =

@@ -266,8 +266,8 @@ function Scoped() {
           <fieldset disabled={busy || !canEdit} className="space-y-4">
             <legend className="sr-only">Own branding fields</legend>
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-[var(--text)]">Logo (PNG or JPEG, up to {MAX_LOGO_BYTES / 1000} KB)</label>
-              <input type="file" accept="image/png,image/jpeg" onChange={e => pickLogo(e.target.files?.[0])} className="text-xs" />
+              <label htmlFor="branding-logo" className="block text-xs font-semibold text-[var(--text)]">Logo (PNG or JPEG, up to {MAX_LOGO_BYTES / 1000} KB)</label>
+              <input id="branding-logo" type="file" accept="image/png,image/jpeg" onChange={e => pickLogo(e.target.files?.[0])} className="text-xs" />
               {editing.draft.logoDataUrl && (
                 <div className="flex items-center gap-3">
                   <img src={editing.draft.logoDataUrl} alt="Logo preview" className="max-h-14 max-w-[160px] border border-[var(--line)] rounded bg-white p-1" />

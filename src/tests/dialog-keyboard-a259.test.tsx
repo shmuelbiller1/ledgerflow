@@ -121,7 +121,8 @@ describe('A-259: hover-only row actions also appear for keyboard focus', () => {
     ['src/components/forensics/Vault.tsx', 1],
     ['src/components/intelligence/Copilot.tsx', 1],
     ['src/components/ledger/CashFlowView.tsx', 1],
-    ['src/components/ledger/ProfitAndLossView.tsx', 2],
+    // the P&L's drill icon: one shared row now prints it for the income and the expense sections
+    ['src/components/ledger/ProfitAndLossAccountRows.tsx', 1],
     ['src/components/planning/CashFlowPredictor.tsx', 1],
     ['src/components/projects/ProjectPipeline.tsx', 1],
     ['src/components/layout/CommandPalette.tsx', 1],

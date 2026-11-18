@@ -228,6 +228,10 @@ describe('Inline label creation, renaming, and new dimensions across transaction
         rpcCalls.push({ url, body });
         return new Response(JSON.stringify(null), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
+      if (method === 'POST' && url.includes('/api/v1/commands/')) {
+        rpcCalls.push({ url, body });
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
       if (method === 'POST' && /\/rest\/v1\/dimensionNodes\b/.test(url)) {
         rpcCalls.push({ url, body });
         return new Response(JSON.stringify([body]), { status: 201, headers: { 'Content-Type': 'application/json' } });
@@ -566,6 +570,8 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     await act(async () => {
       fireEvent.keyDown(descInput, { key: 'Enter' });
     });
+    // a new label still reserves its row directly: "create only, tell me if the id is taken" is what the
+    // retry-on-conflict loop needs, and the command that would replace it has no conflict answer yet
     await waitFor(() => {
       assert.ok(rpcCalls.some(c => /\/rest\/v1\/dimensionNodes\b/.test(c.url)));
     });
@@ -585,12 +591,10 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     });
     await waitFor(() => {
       assert.ok(
-        rpcCalls.some(
-          c =>
-            c.url.includes('lf_update') &&
-            c.body.p_table === 'dimensionNodes' &&
-            Array.isArray((c.body.p_set as { aliases?: string[] })?.aliases),
-        ),
+        rpcCalls.some(c => {
+          const fields = (c.body.input as { fields?: { aliases?: string[] } } | undefined)?.fields;
+          return c.url.includes('/commands/workspace.dimensionnode') && Array.isArray(fields?.aliases);
+        }),
       );
     });
     assert.deepEqual(useLedgerStore.getState().dimensionNodes.find(n => n.id === 'P6')?.aliases, ['Café', 'תל אביב']);
@@ -601,12 +605,10 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     });
     await waitFor(() => {
       assert.ok(
-        rpcCalls.some(
-          c =>
-            c.url.includes('lf_update') &&
-            c.body.p_table === 'dimensionNodes' &&
-            (c.body.p_set as { status?: string })?.status === 'archived',
-        ),
+        rpcCalls.some(c => {
+          const fields = (c.body.input as { fields?: { status?: string } } | undefined)?.fields;
+          return c.url.includes('/commands/workspace.dimensionnode') && fields?.status === 'archived';
+        }),
       );
     });
     assert.equal(useLedgerStore.getState().dimensionNodes.find(n => n.id === 'P5')?.status, 'archived');
@@ -618,10 +620,10 @@ describe('Inline label creation, renaming, and new dimensions across transaction
       fireEvent.click(screen.getByRole('button', { name: 'Create label' }));
     });
     await waitFor(() => {
-      assert.ok(rpcCalls.some(c => c.url.includes('lf_update') && c.body.p_table === 'workspaces'));
+      assert.ok(rpcCalls.some(c => c.url.includes('/commands/workspace.dimensionaxes')));
     });
-    const wsUpdate = rpcCalls.find(c => c.url.includes('lf_update') && c.body.p_table === 'workspaces')!;
-    const savedAxes = (wsUpdate.body.p_set as { dimensions?: DimensionDefinition[] }).dimensions || [];
+    const wsUpdate = rpcCalls.find(c => c.url.includes('/commands/workspace.dimensionaxes'))!;
+    const savedAxes = (wsUpdate.body.input as { dimensions?: DimensionDefinition[] }).dimensions || [];
     assert.equal(savedAxes.some(d => d.id === 'store' && d.name === 'Store'), true);
     assert.equal(useAuthStore.getState().getCurrentWorkspace()?.dimensions?.some(d => d.id === 'store'), true);
   });

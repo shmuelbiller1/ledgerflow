@@ -126,7 +126,17 @@ export async function voidPayment(db: Firestore, input: { workspaceId: string; u
     const reversals: Array<{ original: StoredEntry; chunks: Array<Record<string, unknown>> }> = [];
     for (const e of toReverse) {
       const description = `Void of payment ${payment.number || paymentId}${reason ? `: ${reason}` : ''}`;
-      const negated = (e.lines || []).map(l => ({ ...l, amountCents: -(Number(l.amountCents) || 0), description: `Reversal: ${l.description || e.description || ''}` }));
+      // A8-019: negate baseAmountCents alongside amountCents so settleHomeCurrency does not preserve
+      // same-sign home-currency amounts and double Cash/AR on FX payment voids.
+      const negated = (e.lines || []).map(l => {
+        const rawBase = (l as { baseAmountCents?: unknown }).baseAmountCents;
+        return {
+          ...l,
+          amountCents: -(Number(l.amountCents) || 0),
+          ...(typeof rawBase === 'number' && Number.isFinite(rawBase) ? { baseAmountCents: -rawBase } : {}),
+          description: `Reversal: ${l.description || e.description || ''}`,
+        };
+      });
       let parts: Array<typeof negated>;
       try {
         parts = balancedChunks(negated, MAX_ENTRY_LINES);

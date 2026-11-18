@@ -99,7 +99,7 @@ migration in `docs/FOR_YOU.md`: it is applied to the live database after its pul
 From the list, generate `src/server/openapi.ts` (every command, with its schema), the typed client in
 `sdk/ledgerflowClient.ts`, and a browser-safe export of the command names, schemas and role lists.
 The generator is part of batch 0 and runs for every command added after it; a test fails when any
-output is out of date. The screens work (`UI-2-screens-on-commands-prompt.md`) builds on these files.
+output is out of date. The screens work (`docs/prompts/UI-2-screens.md`) builds on these files.
 
 ### 7. A ratchet, so the work can only go forward
 

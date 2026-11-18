@@ -7,6 +7,7 @@ import type { MonthCloseState } from '../../lib/periodLock';
 import type { AppTab } from '../../types';
 import { cn, formatCurrency } from '../../lib/utils';
 import ReportTableScroll from '../reporting/ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 
 const STATUS: Record<CloseJourneyStatus, { label: string; tone: string; icon: React.ReactNode }> = {
   done: { label: 'Done', tone: 'text-[var(--pos)]', icon: <CheckCircle2 className="w-5 h-5 text-[var(--pos)]" aria-hidden="true" /> },
@@ -81,19 +82,21 @@ export default function CloseJourneyPanel({
                 </li>)}
               </ul>}
               {step.banks.length > 0 && <ReportTableScroll>
-                <table className="w-full text-sm mt-2">
-                  <caption className="text-left font-semibold text-[var(--text)] pb-1">Each bank account for {month}</caption>
-                  <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                    {['Account', 'Bank lines', 'Not matched'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-                  </tr></thead>
-                  <tbody>
-                    {step.banks.map(row => <tr key={row.accountId || 'unassigned'} className="border-b border-[var(--line)]/50">
-                      <th scope="row" className="text-left font-normal py-1 px-2">{row.accountName}{row.unassigned ? ' (check them)' : ''}</th>
-                      <td className="py-1 px-2 tabular-nums">{row.lines}</td>
-                      <td className="py-1 px-2 tabular-nums">{row.unmatched}</td>
-                    </tr>)}
-                  </tbody>
-                </table>
+                <RowTable
+                  rowClassName="border-b border-[var(--line)]/50"
+                  caption={(<>Each bank account for {month}</>)}
+                  rows={step.banks}
+                  rowKey={row => row.accountId || 'unassigned'}
+                  captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+                  tableClassName="w-full text-sm mt-2"
+                  headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+                  bodyClassName=""
+                  columns={[
+                    { header: "Account", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>{row.accountName}{row.unassigned ? ' (check them)' : ''}</>) },
+                    { header: "Bank lines", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.lines },
+                    { header: "Not matched", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.unmatched },
+                  ]}
+                />
               </ReportTableScroll>}
               <button type="button" onClick={() => goToPage({ tab: step.tab as AppTab, sub: step.screen })}
                 className="mt-2 text-xs font-semibold text-[var(--brass)] hover:underline inline-flex items-center gap-1">

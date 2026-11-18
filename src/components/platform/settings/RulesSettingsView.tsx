@@ -189,13 +189,13 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
         </div>
 
         <div className="relative w-full sm:w-64">
-          <Search aria-hidden="true" className="w-3.5 h-3.5 absolute left-3 top-2.5 text-neutral-400" />
+          <Search aria-hidden="true" className="w-3.5 h-3.5 absolute start-3 top-2.5 text-neutral-400" />
           <input aria-label="Search rules"
             type="text"
             placeholder="Search rules..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-xs border border-neutral-200 rounded-md bg-white focus:outline-hidden focus:ring-1 focus:ring-neutral-400"
+            className="w-full ps-8 pe-3 py-1.5 text-xs border border-neutral-200 rounded-md bg-white focus:outline-hidden focus:ring-1 focus:ring-neutral-400"
           />
         </div>
       </div>
@@ -211,7 +211,7 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
                 validate={next => String(next).trim().length > 0 && String(next).trim().length <= 120 ? null : 'Enter a group name of 1–120 characters.'} />
               <button type="button" aria-label={`Enable group ${group}`} aria-pressed={!disabledGroups.has(group)}
                 disabled={!canEditRules || isUpdatingGroup} onClick={() => void handleToggleGroup(group)}
-                className="min-h-11 min-w-11 px-3 text-xs border-l border-neutral-200 disabled:opacity-50">
+                className="min-h-11 min-w-11 px-3 text-xs border-s border-neutral-200 disabled:opacity-50">
                 {disabledGroups.has(group) ? 'Off' : 'On'}
               </button>
             </div>
@@ -229,7 +229,7 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
         />
       ) : (
         <div role="region" aria-label="Automation rules table" tabIndex={0} className="bg-white border border-neutral-200 rounded-lg overflow-x-auto shadow-xs">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-start text-xs">
             <caption className="sr-only">Automation rules</caption>
             <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-semibold uppercase tracking-wider">
               <tr>

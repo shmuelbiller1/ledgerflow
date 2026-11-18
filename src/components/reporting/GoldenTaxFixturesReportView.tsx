@@ -7,6 +7,7 @@ import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import { formatCurrency } from '../../lib/utils';
 import GoldenYearFixturesSection from './GoldenYearFixturesSection';
+import { RowTable } from '../ui/RowTable';
 
 const money = (cents: number, currency: string) => formatCurrency(cents, currency);
 
@@ -70,47 +71,51 @@ export function GoldenTaxFixturesPanel({ invoices, bills, failures }: {
 
     <h3 className="font-semibold text-sm">Invoices ({inv.length})</h3>
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption className="text-left font-semibold text-[var(--text)] pb-1">Golden invoices with expected tax per case</caption>
-        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-          {['Case', 'Date', 'Place', 'Treatment', 'Net', 'Expected tax', 'Gross', 'Check'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-        </tr></thead>
-        <tbody>
-          {inv.map(c => <tr key={c.id} className="border-b border-[var(--line)]/50">
-            <th scope="row" className="text-left font-normal py-1 px-2 font-mono">{c.id}</th>
-            <td className="py-1 px-2 tabular-nums">{c.date}</td>
-            <td className="py-1 px-2">{c.country} · {c.place}</td>
-            <td className="py-1 px-2">{c.treatment}</td>
-            <td className="py-1 px-2 tabular-nums">{money(c.lines.reduce((s, l) => s + l.netCents, 0), c.currency)}</td>
-            <td className="py-1 px-2 tabular-nums">{money(c.expectedTaxTotalCents, c.currency)}</td>
-            <td className="py-1 px-2 tabular-nums">{money(c.expectedGrossCents, c.currency)}</td>
-            <td className="py-1 px-2">{failedIds.has(c.id) ? 'Fails — see above' : 'Matches table'}</td>
-          </tr>)}
-        </tbody>
-      </table>
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>Golden invoices with expected tax per case</>)}
+        rows={inv}
+        rowKey={c => c.id}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        bodyClassName=""
+        columns={[
+          { header: "Case", className: "text-left font-normal py-1 px-2 font-mono", headClassName: "text-left py-1 px-2", cell: (c) => c.id },
+          { header: "Date", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (c) => c.date },
+          { header: "Place", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => (<>{c.country} · {c.place}</>) },
+          { header: "Treatment", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => c.treatment },
+          { header: "Net", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (c) => money(c.lines.reduce((s, l) => s + l.netCents, 0), c.currency) },
+          { header: "Expected tax", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (c) => money(c.expectedTaxTotalCents, c.currency) },
+          { header: "Gross", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (c) => money(c.expectedGrossCents, c.currency) },
+          { header: "Check", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => failedIds.has(c.id) ? 'Fails — see above' : 'Matches table' },
+        ]}
+      />
       {!inv.length && <p className="text-sm text-[var(--muted)]">No invoice fixtures for this choice.</p>}
     </ReportTableScroll>
 
     <h3 className="font-semibold text-sm">Purchase bills ({bil.length})</h3>
     <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption className="text-left font-semibold text-[var(--text)] pb-1">Golden bills: Israel withholding at source and US 1099 thresholds</caption>
-        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-          {['Case', 'Date', 'Kind', 'Paid', 'Expected', 'Check'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-        </tr></thead>
-        <tbody>
-          {bil.map(b => <tr key={b.id} className="border-b border-[var(--line)]/50">
-            <th scope="row" className="text-left font-normal py-1 px-2 font-mono">{b.id}</th>
-            <td className="py-1 px-2 tabular-nums">{b.date}</td>
-            <td className="py-1 px-2">{b.country === 'IL' ? `IL withholding · ${b.paymentType} · ${b.residence}` : `US ${b.form} box ${b.box}`}</td>
-            <td className="py-1 px-2 tabular-nums">{money(b.paidCents, b.currency)}</td>
-            <td className="py-1 px-2 tabular-nums">{b.country === 'IL'
+      <RowTable
+        rowClassName="border-b border-[var(--line)]/50"
+        caption={(<>Golden bills: Israel withholding at source and US 1099 thresholds</>)}
+        rows={bil}
+        rowKey={b => b.id}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        bodyClassName=""
+        columns={[
+          { header: "Case", className: "text-left font-normal py-1 px-2 font-mono", headClassName: "text-left py-1 px-2", cell: (b) => b.id },
+          { header: "Date", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (b) => b.date },
+          { header: "Kind", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (b) => b.country === 'IL' ? `IL withholding · ${b.paymentType} · ${b.residence}` : `US ${b.form} box ${b.box}` },
+          { header: "Paid", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (b) => money(b.paidCents, b.currency) },
+          { header: "Expected", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (b) => b.country === 'IL'
               ? `${b.expectedRatePercent}% → ${money(b.expectedWithheldCents ?? 0, b.currency)} withheld`
-              : `${money(b.expectedThresholdCents ?? 0, b.currency)} threshold → ${b.expectedReportable ? 'reportable' : 'below threshold'}`}</td>
-            <td className="py-1 px-2">{failedIds.has(b.id) ? 'Fails — see above' : 'Matches table'}</td>
-          </tr>)}
-        </tbody>
-      </table>
+              : `${money(b.expectedThresholdCents ?? 0, b.currency)} threshold → ${b.expectedReportable ? 'reportable' : 'below threshold'}` },
+          { header: "Check", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (b) => failedIds.has(b.id) ? 'Fails — see above' : 'Matches table' },
+        ]}
+      />
       {!bil.length && <p className="text-sm text-[var(--muted)]">No bill fixtures for this choice.</p>}
     </ReportTableScroll>
   </section>;

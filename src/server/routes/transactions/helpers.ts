@@ -68,7 +68,11 @@ export function enforceDoubleEntrySafety(req: Request, res: Response, next: Next
 
 /**
  * Optimistic Concurrency Control: detects if existing transaction was updated since client read it.
+ * The comparison is a pure function and lives in `lib/recordVersion.ts` so the batch-update service can
+ * use it inside its transaction without importing from `routes/`; it is re-exported here for the routes.
  */
+export { isUpdatedAtMismatch } from '../../../lib/recordVersion';
+
 /**
  * Z-05: the version a client sends in an `If-Match` header (an entry's ETag is its `updatedAt` in
  * quotes; a weak `W/` prefix is accepted). `*` means any version, so it checks nothing.
@@ -77,23 +81,4 @@ export function ifMatchVersion(header: string | undefined): string | undefined {
   const value = String(header || '').trim().replace(/^W\//, '');
   if (!value || value === '*') return undefined;
   return value.replace(/^"(.*)"$/, '$1') || undefined;
-}
-
-export function isUpdatedAtMismatch(expected: unknown, current: unknown): boolean {
-  if (!expected || !current) return false;
-  type TimestampLike = { toMillis?: () => number; toDate?: () => Date; seconds?: number; nanoseconds?: number };
-  const getMs = (raw: unknown): number | null => {
-    const v = (raw && typeof raw === 'object' ? raw : {}) as TimestampLike;
-    if (typeof v.toMillis === 'function') return v.toMillis();
-    if (typeof v.toDate === 'function') return v.toDate().getTime();
-    if (typeof v.seconds === 'number') return v.seconds * 1000 + Math.floor((v.nanoseconds || 0) / 1e6);
-    const ms = new Date(raw as string | number | Date).getTime();
-    return Number.isNaN(ms) ? null : ms;
-  };
-  const expMs = getMs(expected);
-  const curMs = getMs(current);
-  if (expMs === null || curMs === null) {
-    return String(expected) !== String(current);
-  }
-  return Math.abs(expMs - curMs) > 100;
 }

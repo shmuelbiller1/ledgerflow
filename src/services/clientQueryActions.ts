@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, limit, onSnapshot, query, where } from '../lib/db/firestore';
+import { maskCardNumbers } from '../lib/cardNumberMask';
 import { sortQueries, type ClientQuery } from '../lib/clientQueries';
 import { runCommand } from '../lib/runCommand';
 
@@ -15,11 +16,11 @@ async function call<T>(workspaceId: string, path: string, body: unknown): Promis
 }
 
 export async function askAboutEntry(workspaceId: string, transactionId: string, question: string): Promise<ClientQuery> {
-  return (await call<{ query: ClientQuery }>(workspaceId, '', { transactionId, question })).query;
+  return (await call<{ query: ClientQuery }>(workspaceId, '', { transactionId, question: maskCardNumbers(question) })).query;
 }
 
 export async function replyToQuery(workspaceId: string, queryId: string, text: string): Promise<ClientQuery> {
-  return (await call<{ query: ClientQuery }>(workspaceId, `/${encodeURIComponent(queryId)}/reply`, { text })).query;
+  return (await call<{ query: ClientQuery }>(workspaceId, `/${encodeURIComponent(queryId)}/reply`, { text: maskCardNumbers(text) })).query;
 }
 
 export async function closeQuery(workspaceId: string, queryId: string): Promise<void> {

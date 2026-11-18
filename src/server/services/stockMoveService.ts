@@ -32,17 +32,15 @@ function recordStockMovesReady(exists: boolean): boolean {
  * the checked-out transaction client instead of acquiring a second connection from `db.pool`.
  */
 export async function stockMovesReady(db: Firestore, t?: DbTransaction): Promise<boolean> {
+  if (db.sandboxId) return (t ?? db).tablesExist('stockMoves');
   if (known && (known.exists || Date.now() - known.at < 60_000)) return known.exists;
-  const txTablesExist = (t as { tablesExist?: (...names: string[]) => Promise<boolean> } | undefined)?.tablesExist;
-  if (typeof txTablesExist === 'function' && (db as unknown as { pool?: unknown }).pool) {
-    const exists = await txTablesExist.call(t, 'stockMoves');
-    return recordStockMovesReady(exists);
+  if (t && typeof t.tablesExist === 'function') {
+    return recordStockMovesReady(await t.tablesExist('stockMoves'));
   }
   if (inFlight) return inFlight;
   const probe: Promise<boolean> = (async () => {
     try {
-      const result = await db.pool.query(`select to_regclass('public."stockMoves"') is not null as ok`);
-      return recordStockMovesReady(Boolean(result.rows[0]?.ok));
+      return recordStockMovesReady(await db.tablesExist('stockMoves'));
     } catch {
       return recordStockMovesReady(false);
     }
@@ -61,7 +59,8 @@ export function resetStockMovesReadyForTests(): void {
 }
 
 export function writeStockMoves(db: Firestore, t: DbTransaction, moves: NewStockMove[]): void {
-  if (moves.length === 0 || known?.exists === false) return;
+  // A live missing-table flag must not suppress a draft's stock history.
+  if (moves.length === 0 || (!db.sandboxId && known?.exists === false)) return;
   const now = new Date().toISOString();
   moves.forEach((move, i) => {
     const ref = db.collection('stockMoves').doc();

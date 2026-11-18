@@ -10,8 +10,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { Camera, X } from 'lucide-react';
-import { addDoc, collection, doc, updateDoc } from '../../lib/db/firestore';
-import { db } from '../../firebase';
+import { saveDocument } from '../../lib/recordWrites';
 import { useDialog } from '../../hooks/useDialog';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { workspaceActor } from '../../lib/guestActor';
@@ -55,9 +54,9 @@ export default function SnapReceiptDialog({ onClose, writes }: { onClose: () => 
   useLedgerCollections('vendors');
   const { addEntity } = useEntityOperations();
   const io: ReceiptWrites = writes || {
-    saveDocument: async data => (await addDoc(collection(db, 'documents'), data)).id,
+    saveDocument: async data => (await saveDocument(workspace?.id || '', data)).id,
     saveBill: async bill => (await addEntity('bills', bill))?.id ?? null,
-    linkDocument: async (docId, link) => { await updateDoc(doc(db, 'documents', docId), link); },
+    linkDocument: async (docId, link) => { await saveDocument(workspace?.id || '', { id: docId, ...link }); },
   };
   const ids = { photo: useId(), vendor: useId(), amount: useId(), date: useId() };
 

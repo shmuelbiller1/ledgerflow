@@ -1,6 +1,6 @@
 import { useDialog } from '../../hooks/useDialog';
+import { ModalShell } from '../ui/ModalShell';
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
 import { 
   Sparkles, 
   Wand2, 
@@ -136,21 +136,8 @@ export default function AICustomBlueprint({ isOpen, onClose, onGenerated }: AICu
   if (!isOpen) return null;
 
   return (
-    <div {...overlayDialogProps} className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-zinc-900/60 backdrop-blur-md"
-      />
-      
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-4xl bg-[var(--surface)] rounded-[40px] shadow-2xl border border-[var(--line)] overflow-hidden flex flex-col max-h-[90dvh]"
-      >
+    <ModalShell dialogProps={overlayDialogProps} onClose={onClose} layer="z-[300]"
+      panelClassName="w-full max-w-4xl bg-[var(--surface)] rounded-[40px] shadow-2xl border border-[var(--line)] overflow-hidden flex flex-col max-h-[90dvh]">
         {/* Header */}
         <div className="p-4 md:p-10 border-b border-[var(--line)] flex items-center justify-between bg-[var(--ink)]/50">
           <div className="flex items-center gap-5">
@@ -320,7 +307,6 @@ export default function AICustomBlueprint({ isOpen, onClose, onGenerated }: AICu
             AI-generated blueprints are starting points. You can always customize accounts and dashboard nodes later.
           </p>
         </div>
-      </motion.div>
-    </div>
+    </ModalShell>
   );
 }

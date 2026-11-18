@@ -11,6 +11,11 @@ import { buildCommandInput, formForCommand, type SchemaField } from '../../lib/c
  * the form opens with the two and puts the rest behind one "More options" line. A person who knows what
  * they are doing can open it; a person who does not is not shown 41 boxes they will not fill in.
  *
+ * It is the only form of its kind. A second one used to sit beside it — a `SchemaForm` that took a zod object
+ * directly — and it had no callers: one screen imported it under an alias and never rendered it. Every form the
+ * app needs is a command's form, so the fields come from the command's schema and there is nothing to keep in
+ * step by hand.
+ *
  * What this deliberately is not: a replacement for the hand-built invoice and bill forms. Those do
  * arithmetic, pick accounts from the chart, and show a running total — a schema form shows the fields a
  * command takes and nothing else. This is the form for the commands that never had one, and the shape

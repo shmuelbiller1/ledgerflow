@@ -5,7 +5,170 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-11-15.
+Last updated: 2026-11-19.
+
+## Capitalising a lease and recognising revenue now run through registered commands (nothing for you to do)
+
+Two more writes go through the same registered commands as every batch before this one: capitalising a
+lease (putting the present value of its payments on the balance sheet, ASC 842) and recognising revenue
+(moving an amount out of deferred income, ASC 606). Both already went through one shared piece of code,
+so this batch moved that code into a service and put a named command in front of it; the screen and any
+API caller keep exactly the same request and the same answer.
+
+Two other things on the lease address, the security-deposit trust reconciliation and the property rent
+roll, are deliberately *not* commands. They do arithmetic on the numbers the screen sends and answer the
+result; the rent roll looks at your invoices to total what has been billed, and neither one writes,
+changes or records anything. A command around them would add a database transaction and an audit entry
+for a calculation, so they are recorded as reviewed exceptions with that reason written down, and a test
+keeps them honest.
+
+## Merging records, journal templates, security settings and scheduled reports now run through registered commands (nothing for you to do)
+
+Fourteen more writes now go through the same registered commands as every batch before this one, in
+seven small areas: merging two chart accounts (and asking what a merge would do first), merging two duplicate
+customers or vendors and deleting one that nothing refers to, saving and removing journal-entry
+templates, turning on two-step login for everyone and the two-person rule, previewing and sending a
+scheduled report, saving the branding that documents print with, and minting or turning off the private
+link a customer uses to see their own invoices (and the one they use to sign an estimate).
+
+Every screen and API call keeps exactly the same request and answer. Two answers were briefly at risk and
+are now held by tests: asking "may this contact be deleted?" (`?check=1`) still deletes nothing and answers
+that it may, and a merge refused because a date is closed still lists the closed dates. These addresses worded a rejected
+request three different ways ("Choose the account to merge and the one to keep", "Invalid request" with
+the details, and the first issue's own sentence), so each keeps its own words — checked one by one, not
+assumed. A merge that a locked period or a protected account refuses is still the rule's own 404 or 409
+with its own sentence.
+
+Three of these can be undone exactly, because they are switches: the two-step and two-person settings
+advertise the command that puts them back, and a portal link's undo is the command that turns it off. The rest cannot be — a merge cannot be told apart from two
+records that were always one, and a sent report cannot be un-sent — so they say so rather than offering
+an undo that would do something else.
+
+The measured count of server write routes not yet on a command fell from 78 to 64, across 42 files to
+36. The browser count is at 5 and that is the floor for now: three of those writes are the sample
+company's local path and two are adapters that write the in-browser guest store, which is deliberately
+not a workspace.
+
+
+## Database changes (migrations): status
+
+**✅ 18 Nov:** `20261118120000_invites_owner_read.sql` (#842, merged in #847) is now applied on the live database: only
+owners can read pending invites and their tokens. Nothing is waiting to be run.
+
+**17 Nov: the last confirmed live list was 60 of 60, before SBX-1 PR #787.** Older notes below that ask you
+to run one of those migrations in the SQL editor are done; ignore them. You don't need to run SQL yourself.
+
+The repository now has 61 migrations. The new file, `20261117210000_assistant_sandbox_overlay.sql`, merged in
+[#787](https://github.com/shmuelbiller1/ledgerflow/pull/787). The owner believes migrations are up to date;
+this pass did not independently verify the live list. See the [SBX-1 readiness note](#17-nov--sbx-1-overlay-migration)
+before enabling sandbox callers. The merged report/balance PR [#790](https://github.com/shmuelbiller1/ledgerflow/pull/790)
+and records/metadata PR [#792](https://github.com/shmuelbiller1/ledgerflow/pull/792) are merged. The stock, period,
+and settlement SQL group also adds **no migration**; none of these groups requires SQL action.
+
+## Payroll, mass entry edits, tags and tax returns now run through registered commands (nothing for you to do)
+
+Four more areas now go through the same registered commands as the period, account, inventory,
+reconciliation and payment batches: running payroll for a pay date, undoing a run while its month is
+still open, turning the owner's approval on or off, approving a run that is waiting, and sending one
+back with a note; moving the non-bank side of many bank entries to another account at once, and changing
+the notes, labels, flags or review state of up to two thousand entries in one go; renaming, merging or
+removing a tag everywhere it is used; and filing a tax return for a period.
+
+Every screen and API call keeps exactly the same request and answer, including the two things people
+notice most: a run in a closed month is still answered by the rule that owns it (a 409 in its own
+words, not a 400), and a batch that hits a version conflict still answers 409 with the entry as another
+person left it, having saved nothing. Payroll's approval rule is unchanged — an accountant can prepare
+a run, only an owner can approve it, and nobody can approve their own run.
+
+Two pieces of that work moved out of the route file into named services without changing a line of
+their logic: the mass entry update, so that its read-check-then-write transaction is one thing a command
+can call, and the small version comparison it uses, which a service may not import from the routes
+folder. Nothing observable changed.
+
+The seven calculation endpoints under `/api/v1/math` (depreciation, inventory averages and order
+quantity, amortization, KPIs, time-value maths and valuation) are deliberately *not* commands. They open
+no database at all — you send numbers, they send answers — so wrapping them would add a transaction and
+an audit line for arithmetic that changes nothing. They are now recorded as read-only with that reason
+written down, and a test checks the record still matches the code.
+
+The measured count of server write routes not yet on a command fell from 94 to 78 (the demo in the
+browser is unchanged at 62).
+
+## Assets, bad debt, spreads, returns and client questions now run through registered commands (nothing for you to do)
+
+Eight route areas now go through the same registered commands as the period, account, inventory,
+reconciliation and payment batches: selling or scrapping a fixed asset and undoing it (including part
+of an asset), moving an asset to another location or account and undoing that, placing a built asset
+in service and undoing that, writing off a bad debt and reversing the write-off, spreading a bill's
+expense or an invoice's income over months and undoing the spread, asking for goods to be returned
+against an invoice (an RMA) and moving it on, and asking, answering or closing a question about an
+entry in the books.
+
+Every screen and API call keeps exactly the same request and answer. A closed period is still answered
+by the rule that owns it, with the same status and the same words — a write-off or a spread in a closed
+month is still a 409, not a 400 — because those services check the lock themselves and the command
+door lets them answer. Each of these services already writes its own audit line, so each write still
+leaves exactly one entry in the trail, never a second summary line.
+
+One structural change came with it: the role lookup that the command runner uses inside its transaction
+lived in the main workspace router, which made the routers and the runner import each other in a circle.
+It now lives on its own (`src/server/auth/workspaceRole.ts`) and both sides import it, so no route can
+read a router before that router has been built. Nothing observable changed.
+
+The measured count of server write routes not yet on a command fell from 111 to 94 (the demo in the
+browser is unchanged at 62).
+
+## Payments, saved lists, API keys and workspace administration now run through registered commands (nothing for you to do)
+
+The last writes in four areas now go through the same registered commands as the period, account,
+inventory and reconciliation batches: recording a payment and applying it to open documents, applying
+or refunding a credit note or vendor credit, applying every open credit at once, a bank deposit,
+applying a payment's unapplied part later and voiding a payment; the eight saved lists in Settings
+(allocation rules, price lists, sales reps, dashboards, approval delegates, tax profiles, payment types
+and customer groups); minting and revoking API keys and keeping or removing your own AI provider key;
+and applying a chart-of-accounts template, importing records from a spreadsheet (and undoing an
+import), changing someone's role, inviting a person and scheduling a workspace for deletion.
+
+Every screen and API call keeps exactly the same request and answer, so nothing changes for you. An
+API key's secret is still shown once and never stored or replayed, the key keeps its
+`lf_id_<workspace>_<16 hex>` shape, the seat cap still answers 402 before an invitation is made, the
+last owner still cannot be demoted, and a bookkeeper still cannot import a chart of accounts. One
+thing is stricter, never looser: an import's audit line and the records it creates now commit together,
+so an import that fails halfway leaves neither.
+
+The measured count of server write routes not yet on a command fell from 148 to 111 (the demo in the
+browser is unchanged). The next batch takes the remaining route areas, starting with the largest ones.
+
+## Bank reconciliation now runs through registered commands (nothing for you to do)
+
+The eleven reconciliation writes under `/api/v1/transactions` — the batch that matches, unmatches
+and corrects bank lines and entries in one request, marking entries cleared (and taking that back),
+editing one bank line, completing a reconciliation against a statement, paying invoices or bills
+with a bank line, splitting a line over several accounts, and re-running the bank rules — now go
+through the same registered commands as the period, account and inventory batches. Every screen and
+API call keeps exactly the same request and answer (`{ status: 'ok', ... }`, the same error messages
+and status codes: a closed period stays a 400, a closed statement stays a 409, a line in another
+currency stays a 400, a missing entry stays a 404), so nothing changes for you, and a retried request
+still never marks or posts anything twice.
+
+One route deliberately did **not** become a command: `POST /reconciliation/match` only suggests which
+entry an outside bank line probably matches. It writes nothing, so it stays an ordinary read route,
+and the ratchet records it as a read-only exception with the reason beside it rather than wrapping a
+read in a transaction.
+
+## Inventory writes now run through registered commands (nothing for you to do)
+
+The twelve stock writes under `/api/v1/inventory` — recording cost of goods sold, adjusting or
+counting stock, a revaluation, the two stock settings, deliveries, returns and their undo, a
+transfer between locations, the stock closing, and a landed cost with its undo — now go through the
+same registered commands as the period and account batches. The screens and the API keep exactly the
+same requests and answers (`{ status: 'ok', ... }`, the same error messages and status codes), so
+nothing changes for you, and a retried request still never posts twice.
+
+**There is no database migration in this batch** — no browser write access changed, so there is
+nothing to apply after deployment. The only thing that would need your attention is a follow-up: the
+remaining browser writes (106 call sites) are still open, and each of those batches comes with its own
+migration list here.
 
 ## The ledger screen cannot become a plain list (default taken: keep it as it is)
 
@@ -653,8 +816,22 @@ migration and remain in the CMD-1 write inventory. The current plan is [`docs/pr
 ## 15 Nov — outside security scans (your OK given: "so add it")
 
 Task SEC-SCAN-1 (AI #6): Schemathesis tests the API on every pull request, and a ZAP scan runs nightly,
-both against a local copy in CI, never the live site. *Still yours to decide:* scanning the live site.
-To allow it, write here "OK to scan <address>" (passive scan only). *Default:* not scanned.
+both against a local copy in CI, never the live site. Schemathesis is still **Phase 1 report-only**; do not
+make it a merge blocker until it has completed **three consecutive clean runs on `main` with reports uploaded**,
+then update this note and remove its `continue-on-error` setting. Investigation found the zero-job cause:
+the pip install command used unquoted `--only-binary :all:` in a YAML plain scalar, where `: ` is parsed as a
+mapping delimiter. A local YAML parse reproduces the error; the latest `main` file still had this form. The
+install command on PR #756 shell-quotes the value as `--only-binary=':all:'`, preserving pip's argument and
+validating as YAML; the contract test prevents regression. This PR fix now starts the GitHub job. Runs `43992691517`, `43993423090` and `43994179756` each ran migrations
+and Schemathesis, verified JUnit output, and uploaded reports. `43993423090` has an annotation recording
+Schemathesis exit code 1, masked at job level by report-only; the other two have no failed-step annotation.
+The artifact bytes could not be read from this sandbox, so none can be certified as clean here. Review the reports
+in GitHub before interpreting findings. Main runs `43981616172`, `43983831337`, `43991078303` and `43992114900`
+all failed with zero jobs and no reports; none count toward the promotion gate.
+A local production-bundle smoke check returned HTTP 200 for `/api/health` and `/`, but ZAP itself has not run.
+Keep Phase 1 report-only; manual dispatch on `main` still awaits the workflow fix reaching the default branch.
+*Still yours to decide:* scanning the live site. To allow it, write here "OK to scan <address>" (passive scan
+only). *Default:* not scanned.
 
 
 ## 16 Nov — AI #9: two small defaults in the EU queue (no action needed unless you disagree)
@@ -662,3 +839,58 @@ To allow it, write here "OK to scan <address>" (passive scan only). *Default:* n
 - **Record imports and labels (EU-E9):** customers, vendors, items and accounts have no label field, so their CSV imports do not read label columns. *Default:* left as is. Labels are on entries and lines only. Write here "add labels to records" to change it.
 - **Free invoice maker (EU-I3, `/make-invoice`):** "Save this and track who paid" opens the **sample company** with the invoice as a draft. Nothing is saved to a server until the person signs up. *Default:* this flow. Write here if you want it to go to sign-up first instead.
 - **EU-A4b, Israeli importers (AI #9, 16 Nov).** Hashavshevet, Rivhit and Priority don't publish their export columns, and I won't guess them. If you can, export one small file from each (chart of accounts and customers) and put it in the repo or the tracker. Until then, their exports can still come in through "Standard spreadsheet", which already reads Hebrew headings. Odoo is done.
+
+## 16 Nov — account routes become commands: two defaults taken (person scope, API keys)
+
+Batch 4 of CMD-1 moves the ten `/api/v1/account` writes (recovery codes, the notice-email choice,
+and groups of books) onto registered commands. These routes are about **you the person**, not about
+one workspace, so they needed two decisions that were never written down:
+
+- **Person scope.** A command can now be scoped to a person instead of a workspace: no workspace
+  membership, role, or capacity gate applies (your account is yours; there is no "role" on it), and
+  the audit entry is filed under you. *Default used:* roles stay informational for these commands —
+  a signed-in person is always the owner of their own account data. If you later want, say, a
+  shared "family admin" to be able to manage someone else's groups, that is a new decision.
+- **API keys may call them, like before.** The legacy routes sat behind the API-key check only, so
+  a developer's API key could already make recovery codes or share a group as its owner. *Default
+  used:* keys keep working under the key owner's person scope and keep the same `write:transactions`
+  permission the old routes required — no new key permission was invented. If you would rather walls
+  these off from API keys entirely, say so and I will add a "session only" flag.
+
+**One visible change in this batch.** Recovery codes are shown once. Before, if the browser
+retried "make new codes" after a dropped connection it got the same ten codes back; now the retry
+comes back as *"these codes were already shown — make new ones if you did not keep them"*. That is
+deliberate: keeping the codes so they could be replayed meant ten working ways past two-step login
+sat in plain text in the database and its backups for a month. The screen marks the request so a
+retry is rare; when it happens the answer now tells you what to do instead of pretending.
+
+One more detail of that flow: if the authenticator cannot be removed (Supabase auth tables briefly
+unavailable), the code is put back and the answer is an error telling you to try again — not a
+success that has quietly used up a code while your old authenticator is still the one signing you in.
+
+## 17 Nov — migration waiting: `20261116120000_deleted_projects.sql` (#759, AI #1)
+
+PR #759 (undo for deleting a project) is merged. Its migration creates the `deletedProjects` table, and until it runs
+on the live database, deleting a project and then undoing it can fail on the live site. Either run the file in the
+Supabase SQL editor, or tell me and I will apply it through the connector (you approve the prompt). **Default:** not
+applied until you choose.
+
+## 17 Nov — should a transaction-only API key be able to close a year? (Agent #7 A7S-01, AI #1)
+
+Year close, FX revaluation (and its undo) and the balances rebuild need the API-key scope `write:transactions`,
+as their old `/api/v1/transactions/...` addresses always did. Agent #7 suggests `write:workspaces` instead, so an
+integration that only posts entries cannot lock a year or restate the books. That breaks any integration whose key
+has only `write:transactions` and uses these. **Default:** unchanged (`write:transactions`); the draft-trap half of
+the same finding is fixed separately. Say "tighten the period scopes" and I will make the change (patch 10's
+`apiAuthenticate.ts` hunk plus the test in `commands.test.ts`).
+
+## 17 Nov — SBX-1 overlay migration
+
+`supabase/migrations/20261117210000_assistant_sandbox_overlay.sql` merged in #787. If it is not already
+recorded in the live migration history, the release lead should apply it there **only after its code is
+deployed**. It creates the private overlay, merged read views, and restricted database role. Before
+exposing any sandbox tools, verify that the application's database login can `SET ROLE lf_sandbox`:
+the migration grants this to the migration login, which may differ. Never grant it to browser or
+service-key roles, and keep `sandbox` and `sandbox_read` out of Supabase's exposed schemas. The test
+database passed with this migration; live state was not independently checked in the report read pass.
+No assistant routes are enabled by the migration or by the report read pass.

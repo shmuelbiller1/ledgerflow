@@ -1,6 +1,6 @@
 import { ledgerWrite } from './ledgerDoor';
 import { FieldValue } from '../db/firestore';
-import type { Firestore } from '../db/firestore';
+import type { Firestore, Transaction as DbTransaction } from '../db/firestore';
 import { assertPeriodOpen, validateWorkspaceAccounts } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import type { ValidationContext } from '../../kernel/validation/TransactionValidator';
@@ -85,7 +85,19 @@ export function revaluationEntryLock(entry: { metadata?: Record<string, unknown>
 /** The entry id for a request: the same request always names the same entry. */
 export const revaluationEntryId = (requestId: string) => `stock-revaluation-${requestId}`;
 
+export interface StockRevaluationSetup {
+  inventoryAcc: { id: string; name: string };
+  offsetAcc: { id: string; name: string };
+  currency: string;
+}
+
 export async function revalueStock(db: Firestore, input: StockRevaluationInput): Promise<StockRevaluationResult> {
+  const prepared = await prepareRevalueStock(db, input);
+  return db.runTransaction(t => revalueStockInTransaction(db, t, input, prepared));
+}
+
+/** The checks and account reads ahead of the write (read-only); a future date and a bad account are refused here. */
+export async function prepareRevalueStock(db: Firestore, input: StockRevaluationInput): Promise<StockRevaluationSetup> {
   const { workspaceId, date } = input;
   if (!/^[A-Za-z0-9_-]{8,80}$/.test(input.requestId)) throw new StockRevaluationError(400, 'A revaluation needs a request id (8–80 letters, digits, - or _)');
   if (!Number.isInteger(input.newUnitCostCents) || input.newUnitCostCents < 0) throw new StockRevaluationError(400, 'The new cost must be whole cents, zero or more');
@@ -103,12 +115,17 @@ export async function revalueStock(db: Firestore, input: StockRevaluationInput):
   // #259 review: the new cost takes effect now, so the entry cannot be dated after today
   const today = formatTzDate(new Date(), typeof input.wsData?.timezone === 'string' ? input.wsData.timezone : 'UTC');
   if (date > today) throw new StockRevaluationError(400, `A revaluation cannot be dated after today (${today}): the new cost applies from now`);
-  const currency = String(input.wsData?.currency || 'USD');
   await stockMovesReady(db);
+  return { inventoryAcc: { id: inventoryAcc.id, name: inventoryAcc.name }, offsetAcc: { id: offsetAcc.id, name: offsetAcc.name }, currency: String(input.wsData?.currency || 'USD') };
+}
+
+/** The write, inside a transaction the caller owns. */
+export async function revalueStockInTransaction(db: Firestore, t: DbTransaction, input: StockRevaluationInput, prepared: StockRevaluationSetup): Promise<StockRevaluationResult> {
+  const { workspaceId, date } = input;
+  const { inventoryAcc, offsetAcc, currency } = prepared;
   const entryRef = db.collection('transactions').doc(revaluationEntryId(input.requestId));
   const itemRef = db.collection('inventory').doc(input.itemId);
-
-  return db.runTransaction(async t => {
+  {
     // a retry: the entry exists already, so report it and change nothing
     const earlier = await t.get(entryRef);
     if (earlier.exists) {
@@ -169,5 +186,5 @@ export async function revalueStock(db: Firestore, input: StockRevaluationInput):
       unitCostCents: input.newUnitCostCents, valueCents, transactionId, documentType: 'adjustment' as const, uid: input.user.uid,
     }]);
     return { transactionId, itemId: input.itemId, name, quantity, oldUnitCostCents, newUnitCostCents: input.newUnitCostCents, valueCents, replayed: false };
-  });
+  }
 }

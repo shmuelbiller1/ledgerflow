@@ -35,7 +35,10 @@ async function mentioning(db: Firestore, workspaceId: string, accountId: string)
   // a table whose migration is not applied yet is skipped (it has no rows to change)
   const existing = await db.tables();
   for (const table of [...TABLES, 'chartAccounts'].filter(name => existing.has(name))) {
-    const { rows } = await db.pool.query(`select id from public."${table}" where workspace_id = $1 and position($2 in data::text) > 0`, [workspaceId, needle]);
+    const rows = await db.readRows<{ id: string }>(
+      `select id from ${db.tableSource(table)} where workspace_id = $1 and position($2 in data::text) > 0`,
+      [workspaceId, needle],
+    );
     for (const r of rows) found.push({ table, id: String(r.id) });
   }
   return found;

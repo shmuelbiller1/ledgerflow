@@ -9,6 +9,7 @@
  */
 import type { Bill, ChartAccount, Invoice, Transaction, TransactionLine } from '../types';
 import { calculateDocumentTax } from './documentMath';
+import { minorUnitRate } from './currencyMinorUnits';
 import { isPostable, lineAmount } from './txFilters';
 import { activeAccruals, reversedTransactionIds } from './postingCheck';
 
@@ -50,6 +51,7 @@ function check(
   kind: Kind,
   docs: Array<(Invoice | Bill) & { party: string }>,
   transactions: Transaction[],
+  baseCurrency?: string,
 ): TaxDifference[] {
   const key = kind === 'invoice' ? 'invoiceId' : 'billId';
   const accruals = activeAccruals(transactions, key, `${kind}-accrual`);
@@ -75,7 +77,9 @@ function check(
       for (const line of adj.lines || []) if (line.accountId === meta(adj).taxAccountId) posted += taxSide(kind, lineAmount(line, adj));
     }
     const rate = doc.exchangeRate && doc.exchangeRate > 0 ? doc.exchangeRate : 1;
-    const expected = Math.round(calculateDocumentTax(doc) * rate);
+    const booksCurrency = baseCurrency || (typeof entry.currency === 'string' && entry.currency ? entry.currency : undefined);
+    const factor = doc.currency && booksCurrency ? minorUnitRate(rate, doc.currency, booksCurrency) : rate;
+    const expected = Math.round(calculateDocumentTax(doc) * factor);
     if (expected === posted) continue;
     const tax = largestLine(taxLines)?.line;
     const offset = largestLine(lines.filter(x => OFFSET_LINE[kind].test(x.line.description || '')))?.line;
@@ -89,10 +93,10 @@ function check(
   return out;
 }
 
-export function findTaxDifferences(input: { invoices: Invoice[]; bills: Bill[]; transactions: Transaction[] }): TaxDifference[] {
+export function findTaxDifferences(input: { invoices: Invoice[]; bills: Bill[]; transactions: Transaction[]; baseCurrency?: string }): TaxDifference[] {
   return [
-    ...check('invoice', input.invoices.map(i => ({ ...i, party: i.customerName || '' })), input.transactions),
-    ...check('bill', input.bills.map(b => ({ ...b, party: b.vendorName || '' })), input.transactions),
+    ...check('invoice', input.invoices.map(i => ({ ...i, party: i.customerName || '' })), input.transactions, input.baseCurrency),
+    ...check('bill', input.bills.map(b => ({ ...b, party: b.vendorName || '' })), input.transactions, input.baseCurrency),
   ];
 }
 

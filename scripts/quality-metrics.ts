@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { importEdges } from './import-edges.mjs';
+import { orphanFiles } from './module-graph.mjs';
 
 export interface QualityMetrics {
   anyCount: number;
@@ -32,119 +32,7 @@ export interface QualityMetrics {
 }
 
 function computeOrphanFiles(rootDir: string): number {
-  function getAllFiles(dir: string, fileList: string[] = []): string[] {
-    if (!fs.existsSync(dir)) return fileList;
-    const files = fs.readdirSync(dir);
-    for (const file of files) {
-      const fullPath = path.join(dir, file);
-      const stat = fs.statSync(fullPath);
-      if (stat.isDirectory()) {
-        if (!['node_modules', 'dist', '.git', 'coverage', 'tests'].includes(file)) {
-          getAllFiles(fullPath, fileList);
-        }
-      } else {
-        if (/\.(ts|tsx|js|jsx)$/.test(file)) {
-          fileList.push(fullPath);
-        }
-      }
-    }
-    return fileList;
-  }
-
-  function resolveImportPath(importerPath: string, importSource: string): string | null {
-    if (!importSource.startsWith('.')) return null;
-    const importerDir = path.dirname(importerPath);
-    const resolvedBase = path.resolve(importerDir, importSource);
-    const candidates = [
-      resolvedBase,
-      `${resolvedBase}.ts`,
-      `${resolvedBase}.tsx`,
-      `${resolvedBase}.js`,
-      `${resolvedBase}.jsx`,
-      path.join(resolvedBase, 'index.ts'),
-      path.join(resolvedBase, 'index.tsx')
-    ];
-    for (const candidate of candidates) {
-      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
-        return candidate;
-      }
-    }
-    return null;
-  }
-
-  function expandGlob(importerPath: string, globPattern: string): string[] {
-    if (!globPattern.startsWith('.')) return [];
-    const importerDir = path.dirname(importerPath);
-    const globClean = globPattern.replace(/\*\.\w+$/, '');
-    const targetDir = path.resolve(importerDir, globClean);
-    if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) return [];
-    return fs.readdirSync(targetDir)
-      .map(f => path.join(targetDir, f))
-      .filter(f => fs.existsSync(f) && fs.statSync(f).isFile());
-  }
-
-  const entryPoints = [
-    path.resolve(rootDir, 'src/main.tsx'),
-    path.resolve(rootDir, 'src/App.tsx'),
-    path.resolve(rootDir, 'server.ts'),
-    path.resolve(rootDir, 'src/config/registry.tsx'),
-    // scripts run by hand (npx tsx scripts/<name>.ts) are entry points too
-    ...(fs.existsSync(path.resolve(rootDir, 'scripts'))
-      ? fs.readdirSync(path.resolve(rootDir, 'scripts')).filter(f => f.endsWith('.ts')).map(f => path.resolve(rootDir, 'scripts', f))
-      : []),
-  ].filter(f => fs.existsSync(f));
-
-  const visited = new Set<string>();
-  const queue = [...entryPoints];
-  queue.forEach(e => visited.add(path.resolve(e)));
-
-  while (queue.length > 0) {
-    const currentPath = queue.shift()!;
-    if (!fs.existsSync(currentPath)) continue;
-
-    const content = fs.readFileSync(currentPath, 'utf-8');
-    for (const source of importEdges(currentPath, content)) {
-      if (source.includes('*')) {
-        const globMatches = expandGlob(currentPath, source);
-        for (const gm of globMatches) {
-          const resolved = path.resolve(gm);
-          if (!visited.has(resolved)) {
-            visited.add(resolved);
-            queue.push(resolved);
-          }
-        }
-      } else {
-        const resolved = resolveImportPath(currentPath, source);
-        if (resolved && !visited.has(resolved)) {
-          visited.add(resolved);
-          queue.push(resolved);
-        }
-      }
-    }
-  }
-
-  const allSrcFiles = getAllFiles(path.resolve(rootDir, 'src'));
-  const rootFiles = ['server.ts', 'vite.config.ts'].map(f => path.resolve(rootDir, f)).filter(f => fs.existsSync(f));
-  const codeFiles = [...allSrcFiles, ...rootFiles].map(f => path.resolve(f)).filter(f => {
-    const bn = path.basename(f);
-    if (bn.endsWith('.test.ts') || bn.endsWith('.test.tsx') || bn.endsWith('.d.ts')) return false;
-    return true;
-  });
-
-  const ignoredFiles = new Set([
-    'src/vite-env.d.ts',
-    'vite.config.ts'
-  ]);
-
-  let orphans = 0;
-  for (const file of codeFiles) {
-    const relPath = path.relative(rootDir, file);
-    if (ignoredFiles.has(relPath)) continue;
-    if (!visited.has(path.resolve(file))) {
-      orphans++;
-    }
-  }
-  return orphans;
+  return orphanFiles(rootDir).length;
 }
 
 /**
@@ -321,6 +209,36 @@ function computeUnreachableActions(rootDir: string): number {
  * appear on the same line as the `className`, and this codebase writes most elements across several
  * lines — so it silently found almost nothing and reported a comfortable zero.
  */
+/**
+ * Scan each portion of JSX once for the most recent wizard-step condition.
+ * Avoid repeatedly matching a backtracking regex over each file prefix.
+ */
+export function wizardStepInRange(text: string, from: number, to: number): string | undefined {
+  let last: string | undefined;
+  let cursor = from;
+  while (cursor < to) {
+    const brace = text.indexOf('{', cursor);
+    if (brace === -1 || brace >= to) break;
+    cursor = brace + 1;
+    let at = cursor;
+    while (at < to && /\s/.test(text[at])) at++;
+    if (!text.startsWith('step', at) || /[A-Za-z0-9_$]/.test(text[at + 4] ?? '')) continue;
+    at += 4;
+    while (at < to && /\s/.test(text[at])) at++;
+    if (!text.startsWith('===', at)) continue;
+    at += 3;
+    while (at < to && /\s/.test(text[at])) at++;
+    const andAt = text.indexOf('&&', at);
+    if (andAt === -1 || andAt >= to) continue;
+    const candidate = text.slice(at, andAt).trim();
+    if (!candidate || /[&{}]/.test(candidate)) continue;
+    let afterAnd = andAt + 2;
+    while (afterAnd < to && /\s/.test(text[afterAnd])) afterAnd++;
+    if (afterAnd < to && text[afterAnd] === '(') last = candidate;
+  }
+  return last;
+}
+
 function computeScreensWithManyPrimaryButtons(rootDir: string): number {
   /**
    * A filled button, not a tint. `bg-indigo-600/[0.03]` on a selected row is a wash behind content —
@@ -336,9 +254,11 @@ function computeScreensWithManyPrimaryButtons(rootDir: string): number {
     const text = fs.readFileSync(file, 'utf8');
     const perStep = new Map<string, number>();
     let step = '';
+    let stepScanFrom = 0;
     for (const tag of openingButtonTags(text)) {
-      const stepHere = [...text.slice(0, tag.index).matchAll(/\{\s*step\s*===\s*([^&]+?)\s*&&\s*\(/g)].at(-1);
-      if (stepHere) step = stepHere[1].trim();
+      const stepHere = wizardStepInRange(text, stepScanFrom, tag.index);
+      if (stepHere !== undefined) step = stepHere;
+      stepScanFrom = tag.index;
       if (!filled.test(tag.attributes)) continue;
       // a class that is one arm of a ternary is a selected state, not an action. Test only the
       // className value, not every attribute: `disabled={a ? b : c}` is not a selected state.
@@ -462,6 +382,9 @@ export function computeQualityMetrics(rootDir: string = process.cwd()): QualityM
         entry.isFile() &&
         /\.(ts|tsx|js|jsx)$/.test(entry.name) &&
         !entry.name.includes('.test.') &&
+        // machine output is not maintained by hand: a generated file growing past 800 lines is the generator's
+        // business (it splits by command), not a reviewer's, so it is not counted as a maintainability regression
+        !fullPath.includes('.generated') &&
         !entry.name.endsWith('.d.ts')
       ) {
         scanFile(fullPath);

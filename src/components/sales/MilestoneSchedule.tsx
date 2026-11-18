@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { db } from '../../firebase';
-import { doc, updateDoc } from '../../lib/db/firestore';
 import { formatDate } from '../../lib/utils';
 import { milestonesProblem, nextMilestone, type Milestone } from '../../lib/milestones';
+import { saveEstimate } from '../../lib/recordWrites';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 const field = 'px-2 py-1 text-xs bg-[var(--ink)] border border-[var(--line)] rounded text-[var(--text)]';
 const newId = () => globalThis.crypto.randomUUID().slice(0, 8);
@@ -19,6 +19,8 @@ export function MilestoneSchedule({ estimateId, milestones, canWrite, onPick, on
   onPick: (m: Milestone) => void;
   onSaved: (list: Milestone[]) => void;
 }) {
+  // the open workspace: a milestone write names the workspace it belongs to, not the one the tab last saw
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const [editing, setEditing] = useState<Array<Milestone & { percentText: string }> | null>(null);
   const [busy, setBusy] = useState(false);
   const next = nextMilestone(milestones);
@@ -29,7 +31,7 @@ export function MilestoneSchedule({ estimateId, milestones, canWrite, onPick, on
     setBusy(true);
     try {
       const list = draft.map(m => ({ id: m.id, label: m.label.trim(), percent: m.percent, ...(m.due ? { due: m.due } : {}), ...(m.invoicedAt ? { invoicedAt: m.invoicedAt } : {}) }));
-      await updateDoc(doc(db, 'estimates', estimateId), { milestones: list, updatedAt: new Date().toISOString() });
+      await saveEstimate(workspaceId, { id: estimateId, milestones: list });
       onSaved(list);
       setEditing(null);
     } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); } finally { setBusy(false); }

@@ -1,4 +1,7 @@
-import { doc, getFirestore, onSnapshot, updateDoc } from './db/firestore';
+import { doc, getFirestore, onSnapshot } from './db/firestore';
+import { runNamedCommand } from './commandByName';
+import { localUpdate } from './db/localStore';
+import { guestSession } from './db/guestDatabase';
 import {
   normalizeReportPreferences,
   reportPreferenceScopeKey,
@@ -62,15 +65,15 @@ export const reportPreferencesDb: ReportPreferencesSyncAdapter = {
       ...normalizeReportPreferences(input),
       updatedAt,
     };
-    // A dotted update is atomic inside the user's own profile. Saving book A cannot replace book B,
-    // and account export/deletion already include this profile; no separate personal-data table exists.
-    await updateDoc(doc(getFirestore(), 'users', input.uid), {
-      [`reportPreferences.${scopeKey}`]: {
-        uid: input.uid,
-        workspaceId: input.workspaceId,
-        ...snapshot,
-      },
-      updatedAt,
+    // One dotted field per book, so saving book A cannot replace book B. `user.preferences` writes that dotted
+    // field on the server and types `updatedAt` there; the sample company has no profile row to write, so its tab
+    // keeps the layout in its own copy instead of asking.
+    if (guestSession()) {
+      await localUpdate('users', input.uid, { [`reportPreferences.${scopeKey}`]: { uid: input.uid, workspaceId: input.workspaceId, ...snapshot }, updatedAt });
+      return;
+    }
+    await runNamedCommand('user.preferences', {
+      reportPreferences: { scopeKey, workspaceId: input.workspaceId, preferences: snapshot },
     });
   },
 };

@@ -67,7 +67,7 @@ export default function ShortcutOverlay({ isOpen, onClose }: ShortcutOverlayProp
                 <button aria-label="Close" 
                   onClick={onClose}
                   className="w-12 h-12 rounded-full bg-[var(--surface)] border border-[var(--line)] flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] hover:border-slate-800 transition-all shadow-sm"
-                ><X size={20} /></button>
+                ><X aria-hidden="true" size={20} /></button>
               </div>
             </div>
             
@@ -95,15 +95,15 @@ export default function ShortcutOverlay({ isOpen, onClose }: ShortcutOverlayProp
                     >
                       <div className="flex items-center gap-4">
                         <div className="w-8 h-8 rounded-lg bg-[var(--ink)] border border-[var(--line)] flex items-center justify-center text-[var(--muted)] group-hover:text-indigo-600 transition-colors">
-                          <s.icon size={16} />
+                          <s.icon aria-hidden="true" size={16} />
                         </div>
-                        <span className="text-sm font-semibold text-slate-700">{s.desc}</span>
+                        <span className="text-sm font-semibold text-[var(--text)]">{s.desc}</span>
                       </div>
                       
                       <div className="flex items-center gap-2">
-                        <span className="px-3 py-1.5 min-h-[30px] min-w-[32px] rounded-lg bg-slate-100 border border-[var(--line)] text-slate-700 text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center shadow-inner">
+                        <kbd dir="ltr" className="px-3 py-1.5 min-h-[30px] min-w-[32px] rounded-lg bg-slate-100 border border-[var(--line)] text-slate-700 text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center shadow-inner">
                           {s.key}
-                        </span>
+                        </kbd>
                       </div>
                     </div>
                   ))}
@@ -136,9 +136,9 @@ export default function ShortcutOverlay({ isOpen, onClose }: ShortcutOverlayProp
                           </div>
                           
                           <div className="flex items-center gap-2">
-                            <span className="px-3 py-1.5 min-h-[30px] min-w-[32px] rounded-lg bg-[var(--surface)] border border-indigo-200 text-indigo-700 text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center shadow-sm">
+                            <kbd dir="ltr" className="px-3 py-1.5 min-h-[30px] min-w-[32px] rounded-lg bg-[var(--surface)] border border-indigo-200 text-indigo-700 text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center shadow-sm">
                               {shortcutLabel(`alt+${key}`, mac)}
-                            </span>
+                            </kbd>
                           </div>
                         </div>
                       );

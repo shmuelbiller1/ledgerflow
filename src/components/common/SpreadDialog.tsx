@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { resolveAccountRole } from '../../lib/accountUtils';
-import { formatCurrency, readAmountCents } from '../../lib/utils';
+import { formatCurrency, minorToMajor, readAmountCents } from '../../lib/utils';
+import { convertMinorUnits, currencyDigits } from '../../lib/currencyMinorUnits';
 import { DEFAULT_ACCOUNT_SLOTS, accountInUse } from '../../lib/accountDefaults';
 import { deferredRevenueAccount, documentLine, prepaidAccount, spreadPlan, spreadProblem } from '../../lib/prepaidSchedule';
 import type { ChartAccount } from '../../types';
@@ -13,12 +14,27 @@ import { useDialog } from '../../hooks/useDialog';
 
 const inputClass = 'w-full p-2 bg-[var(--panel)] border border-[var(--line)] rounded-lg text-[var(--text)]';
 
+/** Parse user-typed spread amount into integer minor units of `currency` without `* 100` scaling bugs on JPY/KWD. */
+function readSpreadMinorUnits(text: string, currency: string): number | null {
+  const digits = currencyDigits(currency);
+  if (digits === 2) return readAmountCents(text);
+  const cleaned = text.trim().replace(/[\s,](?=\d{3}(\D|$))/g, '');
+  if (!cleaned) return null;
+  const m = /^(\d+)(?:\.(\d+))?$/.exec(cleaned);
+  if (!m) return null;
+  const frac = m[2] || '';
+  if (frac.length > digits) return null;
+  const minor = Number(m[1]) * 10 ** digits + Number((frac.padEnd(digits, '0')) || 0);
+  return Number.isSafeInteger(minor) ? minor : null;
+}
+
 export interface SpreadableDocument {
   id: string;
   number?: string;
   date?: string;
   issueDate?: string;
   amountCents?: number;
+  currency?: string;
   exchangeRate?: number;
   vendorName?: string;
   customerName?: string;
@@ -63,19 +79,28 @@ export default function SpreadDialog({ kind, document: doc, onClose }: { kind: '
   const fallback = useMemo(() => accountInUse(DEFAULT_ACCOUNT_SLOTS.find(s => s.key === (kind === 'bill' ? 'expense' : 'revenue'))!, accounts, mappings).account?.id, [kind, accounts, mappings]);
   const line = useMemo(() => documentLine(doc, accounts, side.role, fallback), [doc, accounts, side, fallback]);
   const rate = typeof doc.exchangeRate === 'number' && doc.exchangeRate > 0 ? doc.exchangeRate : 1;
-  const docBaseCents = Math.round((doc.amountCents || 0) * rate);
+  const docCurrency = doc.currency || currency;
+  const docBaseCents = convertMinorUnits(doc.amountCents || 0, rate, docCurrency, currency);
+  const initialSpreadCents = useMemo(() => {
+    if (!line) return docBaseCents;
+    const rawLineSum = [...(doc.items || []), ...(doc.splits || [])]
+      .filter(l => (l.accountId || fallback) === line.accountId)
+      .reduce((s, l) => s + (Number(l.amountCents) || 0), 0);
+    return Math.min(convertMinorUnits(rawLineSum, rate, docCurrency, currency), docBaseCents);
+  }, [line, doc.items, doc.splits, fallback, rate, docCurrency, currency, docBaseCents]);
+  const digits = currencyDigits(currency);
   const date = String(doc.date || doc.issueDate || '').slice(0, 10);
   const foundHold = useMemo(() => side.findHold(accounts, mappings), [side, accounts, mappings]);
 
   const [accountId, setAccountId] = useState(line?.accountId || '');
   const [holdAccountId, setHoldAccountId] = useState(foundHold?.id || '');
-  const [amount, setAmount] = useState(((line?.baseCents ?? docBaseCents) / 100).toFixed(2));
+  const [amount, setAmount] = useState(() => minorToMajor(initialSpreadCents, currency).toFixed(digits));
   const [months, setMonths] = useState('12');
   const [startMonth, setStartMonth] = useState(date.slice(0, 7));
   const [busy, setBusy] = useState(false);
   const { dialogProps, titleId } = useDialog(onClose);
 
-  const input = { date, amountCents: readAmountCents(amount) ?? Number.NaN, months: Number(months), startMonth };
+  const input = { date, amountCents: readSpreadMinorUnits(amount, currency) ?? Number.NaN, months: Number(months), startMonth };
   const problem = spreadProblem(input, docBaseCents, kind)
     || (!accountId ? `Choose the ${side.accountLabel.toLowerCase()}` : null)
     || (!holdAccountId ? `Choose the ${side.holdName} account` : null);

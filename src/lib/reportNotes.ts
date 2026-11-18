@@ -3,6 +3,8 @@
  * (`reportNotes`), shown above the report on screen and in its print / PDF. The database checks the same limits
  * (migration 20261110010000_report_notes).
  */
+import { maskCardNumbers } from './cardNumberMask';
+
 export const REPORT_NOTE_MAX = 500;
 export const REPORT_NOTES_MAX = 500;
 
@@ -13,7 +15,7 @@ export function reportNoteKey(report: string, startDate: string, endDate: string
 
 /** The notes after setting (or, with blank text, removing) one; or the reason it cannot be saved. */
 export function withReportNote(notes: Record<string, string> | undefined, key: string, text: string): { notes: Record<string, string> } | { problem: string } {
-  const value = text.trim();
+  const value = maskCardNumbers(text.trim());
   if (value.length > REPORT_NOTE_MAX) return { problem: `A note is at most ${REPORT_NOTE_MAX} characters` };
   const next = { ...(notes || {}) };
   if (value) next[key] = value; else delete next[key];

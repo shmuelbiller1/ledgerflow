@@ -31,9 +31,9 @@ const key = (tag: string) => tag.trim().toLocaleLowerCase();
 export async function listTags(db: Firestore, workspaceId: string): Promise<TagUse[]> {
   const byKey = new Map<string, { spellings: Map<string, number>; byKind: Record<string, number> }>();
   for (const table of Object.keys(TAGGED)) {
-    const { rows } = await db.pool.query<{ tag: string; n: number }>(
+    const rows = await db.readRows<{ tag: string; n: number }>(
       `select t.tag, count(*)::int as n
-         from public."${table}" d,
+         from ${db.tableSource(table)} d,
               jsonb_array_elements_text(case when jsonb_typeof(d.data->'tags') = 'array' then d.data->'tags' else '[]'::jsonb end) as t(tag)
         where d.workspace_id = $1
         group by t.tag`,
@@ -79,8 +79,8 @@ export async function changeTag(db: Firestore, workspaceId: string, from: string
   if (target !== null && target === source) return 0;
   let changed = 0;
   for (const table of Object.keys(TAGGED)) {
-    const { rows } = await db.pool.query<{ id: string }>(
-      `select d.id from public."${table}" d
+    const rows = await db.readRows<{ id: string }>(
+      `select d.id from ${db.tableSource(table)} d
         where d.workspace_id = $1 and jsonb_typeof(d.data->'tags') = 'array'
           and exists (select 1 from jsonb_array_elements_text(d.data->'tags') t(tag) where lower(trim(t.tag)) = lower($2))`,
       [workspaceId, source],

@@ -5,8 +5,7 @@ import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { db } from '../../firebase';
-import { addDoc, collection } from '../../lib/db/firestore';
+import { localAdd } from '../../lib/db/localStore';
 import { guestSession, SAMPLE_WORKSPACE_ID } from '../../lib/db/guestDatabase';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useBankRules } from '../../hooks/useBankRules';
@@ -53,8 +52,8 @@ export default function InboxView() {
       if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
         const createdAt = new Date().toISOString();
         const localRule = { ...rule, uid, workspaceId: currentWorkspaceId, createdAt };
-        const ref = await addDoc(collection(db, 'autoRules'), localRule);
-        saved = { ...localRule, id: ref.id } as AutoRule;
+        const id = await localAdd('autoRules', localRule);
+        saved = { ...localRule, id } as AutoRule;
       } else {
         const result = await runCommand('autorule.create', { rule: rule as Record<string, unknown> });
         saved = result.rule as AutoRule;

@@ -6,8 +6,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "modules": {
       "type": "object",
-      "propertyNames": COMMAND_SCHEMA_PARTS.part10,
-      "additionalProperties": COMMAND_SCHEMA_PARTS.part12
+      "propertyNames": COMMAND_SCHEMA_PARTS.part22,
+      "additionalProperties": COMMAND_SCHEMA_PARTS.part25
     }
   },
   "required": [

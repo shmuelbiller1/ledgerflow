@@ -1,8 +1,6 @@
 import { runCommand, commandErrorMessage, ServerCommandError } from '../../lib/runCommand';
 import { inlineRecordAdapter } from '../../lib/inlineRecordAdapter';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
-import { doc, setDoc } from '../../lib/db/firestore';
-import { db } from '../../firebase';
 import { EmployeeInlineDetails } from './EmployeeInlineDetails';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useEffect, useState, useMemo, useRef } from 'react';
@@ -38,6 +36,7 @@ import { asPaidFor, hoursToPay, isHourly, type PayableTime } from '../../lib/hou
 import { isEmailShape } from '../../lib/textShape';
 import { secureId } from '../../lib/secureId';
 import { RowTable } from '../ui/RowTable';
+import { addEmployee } from '../../lib/recordWrites';
 
 const PayrollViewContent: React.FC = () => {
   const employees = useLedgerStore(s => (s.employees || []) as Employee[]);
@@ -189,7 +188,7 @@ const PayrollViewContent: React.FC = () => {
 
     employeeBusy.current = true; setEmployeeSaving(true); setEmployeeError('');
     try {
-      await setDoc(doc(db, 'employees', newEmp.id), newEmp);
+      await addEmployee(newEmp.workspaceId, { ...newEmp });
       const current = inlineRecordAdapter.session();
       if (!current?.writable || current.uid !== session.uid || current.workspaceId !== session.workspaceId) throw new Error('Workspace changed. Reopen the roster.');
       useLedgerStore.setState(state => ({ employees: [...state.employees.filter(employee => employee.id !== newEmp.id), newEmp] }));
@@ -216,8 +215,7 @@ const PayrollViewContent: React.FC = () => {
         data = await runCommand<PayRunAnswer>({
           path: `/api/v1/workspaces/${encodeURIComponent(currentWorkspace.id)}/pay-runs`,
           method: 'POST',
-          body: { date: runPayDate, bankAccountId: selectedBankAccountId, wagesAccountId, taxExpenseAccountId, liabilitiesAccountId, ...(runSchedule !== 'all' ? { schedule: runSchedule } : {}), ...(again ? { again } : {}) },
-        });
+          body: { date: runPayDate, bankAccountId: selectedBankAccountId, wagesAccountId, taxExpenseAccountId, liabilitiesAccountId, ...(runSchedule !== 'all' ? { schedule: runSchedule } : {}), ...(again ? { again } : {}) } });
       } catch (err) {
         // a 409 here is not a failure: it is the server saying a pay run for this date is already
         // posted or waiting, and asking whether a second one is really wanted. That question keeps
@@ -234,8 +232,7 @@ const PayrollViewContent: React.FC = () => {
         employeeCount: (data.employees || []).length, status: waits ? 'awaiting_approval' : 'processed', createdAt: new Date().toISOString(),
         ...(waits ? { submittedByEmail: user?.email || '' } : { transactionId: data.transactionId }),
         schedule: runSchedule, employees: data.employees || [], grossCents: data.grossCents, netCents: data.netCents, withheldCents: data.withheldCents,
-        employerTaxCents: data.employerTaxCents, deductionsCents: data.deductionsCents,
-      };
+        employerTaxCents: data.employerTaxCents, deductionsCents: data.deductionsCents };
       setPayRuns([...payRuns.filter(r => r.id !== record.id), record]);
       setIsGeneratingRun(false);
       setSuccessMessage(waits

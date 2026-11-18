@@ -2,7 +2,7 @@ import { useDialog } from '../../hooks/useDialog';
 import React, { useEffect, useState } from 'react';
 import { X, Download, ExternalLink, Loader2, AlertCircle, FileText } from 'lucide-react';
 import { toast } from 'sonner';
-import { downloadDocumentPdf, fetchDocumentPdfBlob, type PdfDocumentKind } from '../../services/documentDownloads';
+import { downloadDocumentPdf, fetchDocumentPdfPreview, type PdfDocumentKind } from '../../services/documentDownloads';
 
 export type { PdfDocumentKind };
 
@@ -30,6 +30,7 @@ export default function PdfPreviewModal({
 }: PdfPreviewModalProps) {
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(onClose, isOpen);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [previewOnly, setPreviewOnly] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,14 +43,17 @@ export default function PdfPreviewModal({
       if (!isMounted) return;
       if (!isOpen || !documentId || !workspaceId) {
         setBlobUrl(null);
+        setPreviewOnly(false);
         return;
       }
 
       setIsLoading(true);
       setError(null);
+      setPreviewOnly(false);
       try {
-        const blob = await fetchDocumentPdfBlob(documentType, documentId, workspaceId, { startDate: periodStartDate, endDate: periodEndDate });
+        const { blob, previewOnly: serverHonoredPreview } = await fetchDocumentPdfPreview(documentType, documentId, workspaceId, { startDate: periodStartDate, endDate: periodEndDate });
         if (!isMounted) return;
+        setPreviewOnly(serverHonoredPreview);
         setBlobUrl(URL.createObjectURL(blob));
         setIsLoading(false);
       } catch (err: unknown) {
@@ -72,7 +76,9 @@ export default function PdfPreviewModal({
   const downloadName = filename || `${documentType}_${documentId}.pdf`;
 
   const handleDownload = () => {
-    if (blobUrl) {
+    // Reuse the preview blob unless the server signaled X-Preview-Only: 1 (patch 03),
+    // so an unpatched server does not downgrade the downloaded file to a 'copy'.
+    if (blobUrl && !previewOnly) {
       const a = document.createElement('a');
       a.href = blobUrl;
       a.download = downloadName;
@@ -80,9 +86,9 @@ export default function PdfPreviewModal({
       a.click();
       document.body.removeChild(a);
       toast.success('PDF downloaded');
-    } else {
-      void downloadDocumentPdf(documentType, documentId, workspaceId, downloadName, period);
+      return;
     }
+    void downloadDocumentPdf(documentType, documentId, workspaceId, downloadName, period);
   };
 
   const handleOpenNewTab = () => {
@@ -155,9 +161,11 @@ export default function PdfPreviewModal({
                 onClick={() => {
                   setError(null);
                   setIsLoading(true);
-                  void fetchDocumentPdfBlob(documentType, documentId, workspaceId, period)
-                    .then((blob) => {
+                  setPreviewOnly(false);
+                  void fetchDocumentPdfPreview(documentType, documentId, workspaceId, period)
+                    .then(({ blob, previewOnly: serverHonoredPreview }) => {
                       const url = URL.createObjectURL(blob);
+                      setPreviewOnly(serverHonoredPreview);
                       setBlobUrl(url);
                       setIsLoading(false);
                     })

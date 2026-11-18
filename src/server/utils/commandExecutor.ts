@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto';
 import { errorMessage, HttpError, requestUser } from '../auth/requestUser';
 import { Request, Response } from 'express';
 import type { Firestore, Transaction as CommandTransaction } from '../db/firestore';
@@ -88,7 +89,7 @@ async function executeLegacyCommand<T>(
     } catch (error) {
       const status = (error as { status?: number }).status || 500;
       if (status >= 500) {
-        const correlationId = `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const correlationId = `err_${Date.now()}_${randomBytes(4).toString('hex')}`;
         console.error('[CommandExecutor:%s] %s failed:', correlationId, operationType, error);
         return res.status(status).json({
           status: 'error',
@@ -119,7 +120,7 @@ async function executeLegacyCommand<T>(
     }
     const status = (error as { status?: number }).status || 500;
     if (status >= 500) {
-      const correlationId = `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const correlationId = `err_${Date.now()}_${randomBytes(4).toString('hex')}`;
       console.error('[CommandExecutor:%s] Idempotent operation %s failed:', correlationId, logSafe(scopedKey), logSafeDetail(error));
       return res.status(status).json({
         status: 'error',
@@ -247,39 +248,117 @@ function previewErrorOutcome(error: unknown, command: string): Exclude<CommandPr
     : outcome;
 }
 
-async function runRegisteredCommand(
+/**
+ * Commands a workspace scheduled for deletion still accepts: cancelling the deletion, and retention
+ * (a legal hold or a longer grace period), which must stay possible until the purge runs.
+ */
+const PENDING_DELETION_ALLOWED = new Set(['workspace.canceldeletion', 'workspace.retention']);
+
+function assertWorkspaceActiveForCommand(workspace: Record<string, unknown>, commandName: string): void {
+  if (workspace.concurrentUserLimit === 0) {
+    throw new CommandRefusal('Forbidden: This workspace is administratively suspended/frozen by Systems Administration.', 403, 'WORKSPACE_FROZEN');
+  }
+  if (workspace.status === 'pending_deletion' && !PENDING_DELETION_ALLOWED.has(commandName)) {
+    throw new CommandRefusal('This workspace is scheduled for deletion and cannot accept changes. Restore it first.', 409, 'WORKSPACE_PENDING_DELETION');
+  }
+}
+
+/** The idempotency and audit scope of a person-scoped command (no workspace gates it). */
+export function personCommandScope(uid: string): string {
+  return `person:${uid}`;
+}
+
+type CommandAccessRefusal = Extract<CommandExecutionOutcome, { ok: false }>;
+
+interface CommandAccess {
+  user: NonNullable<ReturnType<typeof requestUser>>;
+  personScope: boolean;
+  workspaceId: string;
+  db: ReturnType<typeof getDb>;
+  workspace: Record<string, unknown>;
+  role: CommandRole;
+}
+
+/**
+ * The gates every command call passes before its own input is read: a signed-in person, a workspace
+ * the caller may see (and, for a person-scoped command, their own scope), a role the command allows,
+ * and — when the caller asks — a workspace that is still open for changes. Execution and preview ask
+ * the same questions here, so a preview can never answer for a command the runner would refuse.
+ */
+async function commandAccess(
+  req: Request,
+  invocation: CommandInvocation,
+  dependencies: CommandRunnerDependencies,
+  options: { assertActive: boolean },
+): Promise<CommandAccess | { refusal: CommandAccessRefusal } | { refused: unknown }> {
+  const command = invocation.definition;
+  const user = requestUser(req);
+  if (!user?.uid) return { refusal: { ok: false, status: 401, command: command.name, message: 'Sign in required', code: 'UNAUTHENTICATED' } };
+  const personScope = command.scope === 'person';
+  const workspaceId = personScope
+    ? personCommandScope(user.uid)
+    : (typeof invocation.workspaceId === 'string' ? invocation.workspaceId.trim() : '');
+  if (!workspaceId) return { refusal: { ok: false, status: 400, command: command.name, message: 'Workspace ID is required', code: 'WORKSPACE_REQUIRED' } };
+  if (!personScope && user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) {
+    return { refusal: { ok: false, status: 403, command: command.name, message: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}`, code: 'WORKSPACE_SCOPE' } };
+  }
+  // A command that mints or revokes access is a person's to run: an API key holding a broad scope
+  // must not be able to grant itself another key, or a wider one, by calling the command router.
+  if (command.peopleOnly && user.usedApiKeyId) {
+    return { refusal: { ok: false, status: 403, command: command.name, message: 'Forbidden: this command is for a signed-in person, not an API key', code: 'PERSON_ONLY' } };
+  }
+
+  const db = (dependencies.getDb || getDb)();
+  let workspace: Record<string, unknown> = {};
+  let role: CommandRole = 'owner';
+  if (!personScope) {
+    try {
+      const snapshot = await db.collection('workspaces').doc(workspaceId).get();
+      if (!snapshot.exists) throw new CommandRefusal('Workspace not found', 404, 'WORKSPACE_NOT_FOUND');
+      const data = snapshot.data() || {};
+      if (!isWorkspaceMemberData(data, user, workspaceId)) throw new CommandRefusal('Not a member of this workspace', 403, 'NOT_A_MEMBER');
+      const workspaceRole = roleInWorkspace(data, user.uid) as CommandRole;
+      const platformAdminOverride = command.allowPlatformAdmin === true && user.admin === true && !user.developerWorkspaceId;
+      if (!command.roles.includes(workspaceRole) && !platformAdminOverride) {
+        throw new CommandRefusal(`Forbidden: command ${command.name} requires one of [${command.roles.join(', ')}]`, 403, 'ROLE_REQUIRED');
+      }
+      if (options.assertActive) assertWorkspaceActiveForCommand(data, command.name);
+      role = workspaceRole;
+      workspace = data;
+    } catch (error) {
+      return { refused: error };
+    }
+  }
+  return { user, personScope, workspaceId, db, workspace, role };
+}
+
+const OPERATION_ID_SHAPE = /^[A-Za-z0-9_.:-]{1,128}$/;
+
+/**
+ * #824: an id the server derives from the input (a contract id and period, a lease name) is the caller's own
+ * text, so it can hold spaces, slashes or accents. One that already has the safe shape is used as it is (it
+ * then matches the record the old route wrote); any other is replaced by a stable hash of itself, so the
+ * repeated call still finds the same record instead of being refused or naming an unsafe record id.
+ */
+function safeDerivedOperationId(derived: string | undefined): string | undefined {
+  if (!derived) return undefined;
+  if (OPERATION_ID_SHAPE.test(derived)) return derived;
+  return `derived_${createHash('sha256').update(derived, 'utf8').digest('hex').slice(0, 48)}`;
+}
+
+/** The runner behind both the command router and the legacy wrappers (exported so a test can hold each to its gate). */
+export async function runRegisteredCommand(
   req: Request,
   invocation: CommandInvocation,
   dependencies: CommandRunnerDependencies = {},
 ): Promise<CommandExecutionOutcome> {
   const command = invocation.definition;
-  const user = requestUser(req);
-  if (!user?.uid) return { ok: false, status: 401, command: command.name, message: 'Sign in required', code: 'UNAUTHENTICATED' };
-  const workspaceId = typeof invocation.workspaceId === 'string' ? invocation.workspaceId.trim() : '';
-  if (!workspaceId) return { ok: false, status: 400, command: command.name, message: 'Workspace ID is required', code: 'WORKSPACE_REQUIRED' };
-  if (user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) {
-    return { ok: false, status: 403, command: command.name, message: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}`, code: 'WORKSPACE_SCOPE' };
-  }
+  const access = await commandAccess(req, invocation, dependencies, { assertActive: true });
+  if ('refusal' in access) return access.refusal;
+  if ('refused' in access) return errorOutcome(access.refused, command.name);
+  const { user, personScope, workspaceId, db, role, workspace } = access;
 
-  const db = (dependencies.getDb || getDb)();
-  let workspace: Record<string, unknown>;
-  let role: string;
-  try {
-    const snapshot = await db.collection('workspaces').doc(workspaceId).get();
-    if (!snapshot.exists) throw new CommandRefusal('Workspace not found', 404, 'WORKSPACE_NOT_FOUND');
-    const data = snapshot.data() || {};
-    if (!isWorkspaceMemberData(data, user, workspaceId)) throw new CommandRefusal('Not a member of this workspace', 403, 'NOT_A_MEMBER');
-    role = roleInWorkspace(data, user.uid);
-    const platformAdminOverride = command.allowPlatformAdmin === true && user.admin === true && !user.developerWorkspaceId;
-    if (!command.roles.includes(role as CommandRole) && !platformAdminOverride) {
-      throw new CommandRefusal(`Forbidden: command ${command.name} requires one of [${command.roles.join(', ')}]`, 403, 'ROLE_REQUIRED');
-    }
-    workspace = data;
-  } catch (error) {
-    return errorOutcome(error, command.name);
-  }
-
-  if (command.risk === 'high' && (user.developerWorkspaceId || user.aal !== 'aal2')) {
+  if (command.risk === 'high' && !invocation.legacyRoute && (user.developerWorkspaceId || user.aal !== 'aal2')) {
     return { ok: false, status: 403, command: command.name, message: 'High-risk commands require a person signed in with two-step verification; API keys cannot confirm this step.', code: 'TWO_STEP_REQUIRED' };
   }
 
@@ -289,17 +368,22 @@ async function runRegisteredCommand(
     return { ok: false, status: 400, command: command.name, message: 'Input workspaceId must match the command workspace', code: 'WORKSPACE_MISMATCH' };
   }
   const input = parsed.data;
-  const operationId = extractCanonicalOperationId(req);
-  if (operationId && !/^[A-Za-z0-9_.:-]{1,128}$/.test(operationId)) {
+  const explicitOperationId = extractCanonicalOperationId(req);
+  if (explicitOperationId && !OPERATION_ID_SHAPE.test(explicitOperationId)) {
     return { ok: false, status: 400, command: command.name, message: 'Invalid operation ID', code: 'INVALID_OPERATION_ID' };
   }
+  const operationId = explicitOperationId || safeDerivedOperationId(command.defaultOperationId?.(input));
+  // #824: a derived id stands for the thing posted (a contract's period, a lease), not for one person's request,
+  // so its record carries no actor, as the old route's did: a teammate repeating the same contract and period
+  // gets the replay rather than an "already used by another user" refusal.
+  const idempotencyActor = explicitOperationId ? user.uid : '';
 
   const operationType = command.operationType || command.name;
   const initialContext = {
     actor: user.uid,
     email: user.email,
     workspaceId,
-    role: role as CommandRole,
+    role,
     user,
     db,
     workspace,
@@ -325,7 +409,7 @@ async function runRegisteredCommand(
       const previous = await db.collection('idempotencyKeys').doc(scopedKey).get();
       const record = previous.data();
       if (record?.status === 'success') {
-        assertSameRequest(record, user.uid, payloadHash);
+        assertSameRequest(record, idempotencyActor, payloadHash);
         return { ok: true, status: 200, command: command.name, data: record.result, replayed: true };
       }
     } catch (error) {
@@ -367,22 +451,25 @@ async function runRegisteredCommand(
     // registered by the final successful attempt are run after commit.
     afterCommitCallbacks.length = 0;
     didRunHandler = false;
-    const latest = await tx.get(db.collection('workspaces').doc(workspaceId));
-    if (!latest.exists || !isWorkspaceMemberData(latest.data(), user, workspaceId)) {
-      throw new CommandRefusal('Workspace membership changed before the command committed', 403, 'NOT_A_MEMBER');
+    if (!personScope) {
+      const latest = await tx.get(db.collection('workspaces').doc(workspaceId));
+      if (!latest.exists || !isWorkspaceMemberData(latest.data(), user, workspaceId)) {
+        throw new CommandRefusal('Workspace membership changed before the command committed', 403, 'NOT_A_MEMBER');
+      }
+      const latestWorkspace = latest.data() || {};
+      const latestRole = roleInWorkspace(latestWorkspace, user.uid);
+      const platformAdminOverride = command.allowPlatformAdmin === true && user.admin === true && !user.developerWorkspaceId;
+      if (!command.roles.includes(latestRole as CommandRole) && !platformAdminOverride) {
+        throw new CommandRefusal('Your workspace role changed before the command committed', 403, 'ROLE_REQUIRED');
+      }
+      assertWorkspaceActiveForCommand(latestWorkspace, command.name);
+      if (date) {
+        const lock = postingLock(date, latestWorkspace, user.uid);
+        if (lock) throw new CommandRefusal(lockMessage(date, lock), 400, 'PERIOD_LOCKED', { lockDate: lock.through });
+      }
+      context.role = latestRole as CommandRole;
+      context.workspace = latestWorkspace;
     }
-    const latestWorkspace = latest.data() || {};
-    const latestRole = roleInWorkspace(latestWorkspace, user.uid);
-    const platformAdminOverride = command.allowPlatformAdmin === true && user.admin === true && !user.developerWorkspaceId;
-    if (!command.roles.includes(latestRole as CommandRole) && !platformAdminOverride) {
-      throw new CommandRefusal('Your workspace role changed before the command committed', 403, 'ROLE_REQUIRED');
-    }
-    if (date) {
-      const lock = postingLock(date, latestWorkspace, user.uid);
-      if (lock) throw new CommandRefusal(lockMessage(date, lock), 400, 'PERIOD_LOCKED', { lockDate: lock.through });
-    }
-    context.role = latestRole as CommandRole;
-    context.workspace = latestWorkspace;
     const result = await command.handler(context, tx, input);
     const summary = command.audit(input, result);
     if (summary) {
@@ -405,7 +492,7 @@ async function runRegisteredCommand(
     if (operationId) {
       const scopedKey = deriveScopedOperationKey(workspaceId, operationType, operationId);
       result = await executeIdempotent(scopedKey, {
-        actor: user.uid,
+        actor: idempotencyActor,
         workspaceId,
         operationType,
         payloadHash,
@@ -443,32 +530,12 @@ export async function previewCommand(
   dependencies: CommandRunnerDependencies = {},
 ): Promise<CommandPreviewOutcome> {
   const command = invocation.definition;
-  const user = requestUser(req);
-  if (!user?.uid) return { ok: false, status: 401, command: command.name, message: 'Sign in required', code: 'UNAUTHENTICATED' };
-  const workspaceId = typeof invocation.workspaceId === 'string' ? invocation.workspaceId.trim() : '';
-  if (!workspaceId) return { ok: false, status: 400, command: command.name, message: 'Workspace ID is required', code: 'WORKSPACE_REQUIRED' };
-  if (user.developerWorkspaceId && user.developerWorkspaceId !== workspaceId) {
-    return { ok: false, status: 403, command: command.name, message: `Forbidden: API key is scoped strictly to workspace ${user.developerWorkspaceId}`, code: 'WORKSPACE_SCOPE' };
-  }
+  const access = await commandAccess(req, invocation, dependencies, { assertActive: false });
+  if ('refusal' in access) return access.refusal;
+  if ('refused' in access) return previewErrorOutcome(access.refused, command.name);
+  const { user, workspaceId, db, role, workspace } = access;
 
-  const db = (dependencies.getDb || getDb)();
-  let workspace: Record<string, unknown>;
-  let role: string;
-  try {
-    const snapshot = await db.collection('workspaces').doc(workspaceId).get();
-    if (!snapshot.exists) throw new CommandRefusal('Workspace not found', 404, 'WORKSPACE_NOT_FOUND');
-    const data = snapshot.data() || {};
-    if (!isWorkspaceMemberData(data, user, workspaceId)) throw new CommandRefusal('Not a member of this workspace', 403, 'NOT_A_MEMBER');
-    role = roleInWorkspace(data, user.uid);
-    const platformAdminOverride = command.allowPlatformAdmin === true && user.admin === true && !user.developerWorkspaceId;
-    if (!command.roles.includes(role as CommandRole) && !platformAdminOverride) {
-      throw new CommandRefusal(`Forbidden: command ${command.name} requires one of [${command.roles.join(', ')}]`, 403, 'ROLE_REQUIRED');
-    }
-    workspace = data;
-  } catch (error) {
-    return previewErrorOutcome(error, command.name);
-  }
-  if (command.risk === 'high' && (user.developerWorkspaceId || user.aal !== 'aal2')) {
+  if (command.risk === 'high' && !invocation.legacyRoute && (user.developerWorkspaceId || user.aal !== 'aal2')) {
     return { ok: false, status: 403, command: command.name, message: 'High-risk commands require a person signed in with two-step verification; API keys cannot confirm this step.', code: 'TWO_STEP_REQUIRED' };
   }
 
@@ -482,7 +549,7 @@ export async function previewCommand(
     actor: user.uid,
     email: user.email,
     workspaceId,
-    role: role as CommandRole,
+    role,
     user,
     db,
     workspace,

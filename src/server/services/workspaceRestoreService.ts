@@ -1,6 +1,28 @@
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { DocumentData, Firestore } from '../db/firestore';
+import { BRAND_NAME } from '../../config/brand';
+import { writeServerAuditLog } from './auditLogService';
 import { checkLedgerEntry } from './ledgerDoor';
 import { InvoiceSchema, BillSchema, ProjectSchema, CreditNoteSchema, VendorCreditSchema } from '../../schemas';
+
+// Only caches that are rebuilt from the restored books. paymentAllocations / allocationOperations (the
+// EG-2 payment ledger, append-only) and periodClosings (close history) are records, not caches: a restore
+// cannot write them back, so it must never delete them.
+const DERIVED_RESTORE_TABLES = [
+  'periodBalances',
+  'stockClosings',
+  'repostQueue',
+] as const;
+
+function backupHmacSecret(): string {
+  return process.env.SYSTEM_SALT || 'ledgerflow-backup-hmac';
+}
+
+function signBackupLockState(workspaceId: string, lockDate: string, softLockDate: string, checksum: string): string {
+  return createHmac('sha256', backupHmacSecret())
+    .update(`${workspaceId}|${lockDate}|${softLockDate}|${checksum}`, 'utf8')
+    .digest('hex');
+}
 
 /**
  * Restores a workspace from a backup file (the export's JSON), all or nothing.
@@ -62,6 +84,12 @@ export const RESTORE_COLLECTIONS: RestoreTable[] = [
   { key: 'periods', coll: 'periods' },
   // W-02: the stock history goes with the quantities (an older backup without it clears it)
   { key: 'stockMoves', coll: 'stockMoves' },
+  // The EG-2 payment ledger and the close history are records, not caches: a backup carries them and a
+  // restore writes them back with the payments they belong to (an older backup without them clears them,
+  // so no allocation row outlives the payments it points at).
+  { key: 'paymentAllocations', coll: 'paymentAllocations' },
+  { key: 'allocationOperations', coll: 'allocationOperations' },
+  { key: 'periodClosings', coll: 'periodClosings' },
   // BK-10: the rest of the workspace's own records — templates, learned bank-rule patterns, forecast
   // scenarios, loans, filed tax returns, the fixed-asset table, client queries, and the `documents`
   // rows that are records (tasks, time entries, stage and rate settings), not files.
@@ -132,7 +160,9 @@ function latestDate(a: unknown, b: unknown): string {
   return x > y ? x : y;
 }
 
-export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string, backup: unknown): Promise<RestoreResult> {
+export interface RestoreActor { uid: string; email?: string }
+
+export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string, backup: unknown, actor?: RestoreActor): Promise<RestoreResult> {
   if (!isRecord(backup)) throw new RestoreError(400, 'Invalid backup payload');
   const backupWorkspace = backup.workspace;
   if (backupWorkspace !== undefined && (!isRecord(backupWorkspace) || backupWorkspace.id !== workspaceId)) {
@@ -179,6 +209,45 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
     }
   }
 
+  // A8N-03 (#776): a file the Backup screen built in the browser when the server export failed holds only the
+  // lists the screen had loaded. Restoring it would delete every record it does not carry, so it is never
+  // accepted as a backup.
+  if (isRecord(backup.metadata) && backup.metadata.serverAuthoritative === false) {
+    throw new RestoreError(400, 'This file was saved by the browser when the server backup failed; it holds only what the screen had loaded and cannot replace the books. Nothing was restored. Make a new backup from Settings → Backup.');
+  }
+
+  // A8-017: verify backup checksum and server HMAC lockSignature when present so a modified export
+  // cannot forge workspace.lockDate to overwrite closed periods.
+  let hasVerifiedLockSignature = false;
+  if (isRecord(backup.metadata)) {
+    const rawChecksum = typeof backup.metadata.checksum === 'string' ? backup.metadata.checksum : '';
+    const rawSig = typeof backup.metadata.lockSignature === 'string' ? backup.metadata.lockSignature : '';
+    if (rawChecksum) {
+      const { checksum: _c, ...withoutChecksum } = backup.metadata;
+      const computed = createHash('sha256').update(JSON.stringify({ ...backup, metadata: withoutChecksum })).digest('hex');
+      if (computed !== rawChecksum) {
+        throw new RestoreError(400, 'Backup checksum mismatch: the backup file was modified after export; nothing was restored.');
+      }
+      if (rawSig && isRecord(backupWorkspace)) {
+        const { lockSignature: _s, ...baseMeta } = withoutChecksum;
+        const baseHash = createHash('sha256').update(JSON.stringify({ ...backup, metadata: baseMeta })).digest('hex');
+        const expectedSig = signBackupLockState(
+          workspaceId,
+          typeof backupWorkspace.lockDate === 'string' ? backupWorkspace.lockDate : '',
+          typeof backupWorkspace.softLockDate === 'string' ? backupWorkspace.softLockDate : '',
+          baseHash,
+        );
+        const a = Buffer.from(rawSig, 'utf8');
+        const b = Buffer.from(expectedSig, 'utf8');
+        if (a.length === b.length && timingSafeEqual(a, b)) {
+          hasVerifiedLockSignature = true;
+        } else {
+          throw new RestoreError(409, 'Backup lock-period signature is invalid; nothing was restored.');
+        }
+      }
+    }
+  }
+
   // AUD-02: the closed-books check, the ownership check and the reads of what is deleted all happen
   // inside the one serializable transaction that writes the backup — a month closed, or a record moved
   // or added, between checking and writing can no longer slip past the checks.
@@ -199,6 +268,12 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
         throw new RestoreError(409, closedInBackup
           ? `Books are closed through ${closedNow}, but this backup was made when they were closed through ${closedInBackup}: it can't replace the months closed since. Use a backup made after the close, or reopen those months first (Month-End Close).`
           : `Books are closed through ${closedNow}, and this backup was made before any month was closed: it can't replace closed periods. Use a backup made after the close.`);
+      }
+      // A8N-02 (#777): once a month is closed, only a backup signed by this server may be restored. Comparing an
+      // unsigned file's closed-month entries field by field missed new entries, voided ones coming back and the
+      // fields that hide an entry from reports; a signature leaves nothing to compare.
+      if (!hasVerifiedLockSignature) {
+        throw new RestoreError(409, `Books are closed through ${closedNow}: only a backup exported by ${BRAND_NAME}, unchanged, can be restored over closed months. Nothing was restored.`);
       }
     }
 
@@ -243,7 +318,23 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
     for (const coll of colls) {
       const snap = await t.get(db.collection(coll).where('workspaceId', '==', workspaceId));
       const holds = tables.find(c => c.coll === coll)?.holds;
-      existing.push(holds ? snap.docs.filter(doc => holds(doc.data() || {})) : snap.docs);
+      const docs = holds ? snap.docs.filter(doc => holds(doc.data() || {})) : snap.docs;
+      existing.push(docs);
+    }
+    // A8-017: clear stale derived caches (periodBalances, stockClosings, repostQueue) whenever core books/settlements/stock are restored
+    // so reports and payment voids never read stale pre-restore derived rows.
+    const shouldClearDerived = colls.some(c => ['transactions', 'payments', 'invoices', 'bills', 'creditNotes', 'vendorCredits', 'stockMoves'].includes(c));
+    const staleDerivedDocs: Array<{ ref: Parameters<typeof t.delete>[0] }> = [];
+    if (shouldClearDerived) {
+      for (const derivedColl of DERIVED_RESTORE_TABLES) {
+        if (colls.includes(derivedColl)) continue;
+        try {
+          const snap = await t.get(db.collection(derivedColl).where('workspaceId', '==', workspaceId));
+          for (const doc of snap.docs) staleDerivedDocs.push(doc);
+        } catch {
+          // Derived table may not exist on older schemas; skip cleanly
+        }
+      }
     }
     if (Array.isArray(attachmentList)) {
       const { createHash } = await import('node:crypto');
@@ -255,6 +346,7 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
       attachments = { listed: attachmentList.length, present: attachmentList.length - missing.length, missing };
     }
     for (const docs of existing) docs.forEach(doc => t.delete(doc.ref));
+    for (const doc of staleDerivedDocs) t.delete(doc.ref);
     for (const r of records.values()) {
       t.set(db.collection(r.coll).doc(r.id), r.data);
       counts[r.coll] = (counts[r.coll] || 0) + 1;
@@ -273,6 +365,19 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
       const opening = backupWorkspace.openingBalanceDate;
       if (!current.openingBalanceDate && typeof opening === 'string' && YMD.test(opening)) safe.openingBalanceDate = opening;
       if (Object.keys(safe).length > 0) t.set(db.collection('workspaces').doc(workspaceId), safe, { merge: true });
+    }
+    // A8N-05 (#778): the action that replaces every record says so on the audit trail, in the same transaction:
+    // who, how many rows per table, which file (its checksum) and whether this server had signed it.
+    if (actor?.uid) {
+      const checksum = isRecord(backup.metadata) && typeof backup.metadata.checksum === 'string' ? backup.metadata.checksum : '';
+      await writeServerAuditLog({
+        workspaceId, uid: actor.uid, email: actor.email || '', action: 'WORKSPACE_RESTORED', entityType: 'workspace', entityId: workspaceId,
+        severity: 'warning',
+        details: {
+          description: `Workspace restored from a ${hasVerifiedLockSignature ? 'signed' : 'unsigned'} backup; every restorable record was replaced`,
+          counts: { ...counts }, checksum, signed: hasVerifiedLockSignature,
+        },
+      }, { db, tx: t });
     }
   });
 
@@ -326,6 +431,13 @@ export async function exportWorkspaceBackup(db: Firestore, workspaceId: string, 
     exportedBy,
     serverAuthoritative: true,
   };
+  const baseHash = sha256(JSON.stringify(payload));
+  payload.metadata.lockSignature = signBackupLockState(
+    workspaceId,
+    typeof wsData.lockDate === 'string' ? wsData.lockDate : '',
+    typeof wsData.softLockDate === 'string' ? wsData.softLockDate : '',
+    baseHash,
+  );
   payload.metadata.checksum = sha256(JSON.stringify(payload));
   return payload;
 }

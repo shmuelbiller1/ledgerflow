@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
-import { scanCommandWrites, type CommandWriteCounts } from '../../scripts/commands-baseline';
+import { READ_ONLY_ROUTE_EXCEPTIONS, scanCommandWrites, type CommandWriteCounts } from '../../scripts/commands-baseline';
 
-type CommandBaseline = Pick<CommandWriteCounts, 'writeRoutes' | 'directBrowserWrites' | 'routeSites' | 'browserSites'>;
+type CommandBaseline = Pick<CommandWriteCounts, 'writeRoutes' | 'directBrowserWrites' | 'routeSites' | 'browserSites' | 'localStoreWrites' | 'localStoreSites'>;
 const baseline = JSON.parse(fs.readFileSync('commands-baseline.json', 'utf8')) as CommandBaseline;
 const current = scanCommandWrites();
 
-function assertSitesDoNotIncrease(kind: 'routeSites' | 'browserSites', label: string): void {
+function assertSitesDoNotIncrease(kind: 'routeSites' | 'browserSites' | 'localStoreSites', label: string): void {
   const increases = Object.entries(current[kind])
     .filter(([file, count]) => count > (baseline[kind][file] ?? 0))
     .map(([file, count]) => `${file}: ${count} > ${baseline[kind][file] ?? 0}`);
@@ -25,7 +25,33 @@ test('command migration ratchet: direct browser writes never increase by file', 
     `${current.directBrowserWrites} direct browser writes > baseline ${baseline.directBrowserWrites}`);
 });
 
+test('the sample company\'s own store is counted, and only shrinks', () => {
+  // the demo has no workspace on the server, so its writes go to the in-memory guest database — through
+  // `src/lib/db/localStore.ts`, which asserts a guest session before every call. They are counted here so
+  // "the browser writes in exactly two places" stays a measurement: a file outside `src/lib/db` that gains
+  // one still fails the test above, and the local store may not grow either.
+  assertSitesDoNotIncrease('localStoreSites', 'Local store');
+  assert.ok(current.localStoreWrites <= baseline.localStoreWrites,
+    `${current.localStoreWrites} local-store writes > baseline ${baseline.localStoreWrites}`);
+});
+
 test('command baseline totals agree with their per-file counts', () => {
   assert.equal(baseline.writeRoutes, Object.values(baseline.routeSites).reduce((sum, count) => sum + count, 0));
   assert.equal(baseline.directBrowserWrites, Object.values(baseline.browserSites).reduce((sum, count) => sum + count, 0));
+  assert.equal(baseline.localStoreWrites, Object.values(baseline.localStoreSites).reduce((sum, count) => sum + count, 0));
+});
+
+test('every read-only route exception still names a real POST route that writes nothing', () => {
+  // An exception is a claim about the code, so it is checked against the code: the route must still be
+  // declared, and each one is listed once.
+  for (const exception of READ_ONLY_ROUTE_EXCEPTIONS) {
+    assert.equal(fs.existsSync(exception.file), true, `${exception.file} still exists`);
+    const source = fs.readFileSync(exception.file, 'utf8');
+    // a router may write its path with any quote; the check is that the address is still declared there
+    const quoted = ['\'', '"', '`'].map(quote => `${quote}${exception.route}${quote}`);
+    assert.ok(quoted.some(literal => source.includes(literal)), `${exception.file} still declares ${exception.route}`);
+    assert.ok(exception.why.length > 40, `${exception.route} says why it is read-only`);
+  }
+  assert.equal(new Set(READ_ONLY_ROUTE_EXCEPTIONS.map(e => `${e.file}:${e.route}`)).size, READ_ONLY_ROUTE_EXCEPTIONS.length,
+    'each read-only exception is listed once');
 });

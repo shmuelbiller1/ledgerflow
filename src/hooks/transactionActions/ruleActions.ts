@@ -1,5 +1,6 @@
 import { runCommand as sendCommand } from '../../lib/runCommand';
-import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where } from '../../lib/db/firestore';
+import { collection, getDocs, query, where } from '../../lib/db/firestore';
+import { localAdd, localDelete, localUpdate } from '../../lib/db/localStore';
 import { guestSession, SAMPLE_WORKSPACE_ID } from '../../lib/db/guestDatabase';
 import { db } from '../../firebase';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -28,10 +29,10 @@ export function createRuleActions(ctx: ActionContext, runCommand: RunRegisteredC
       const { uid: _uid, workspaceId: _workspaceId, createdAt: _createdAt, hitCount: _hitCount, lastTriggeredAt: _lastTriggeredAt, ...ruleData } = data;
       let saved: AutoRule;
       if (guestSession() || originWorkspaceId === SAMPLE_WORKSPACE_ID) {
-        const ref = await addDoc(collection(db, 'autoRules'), {
+        const id = await localAdd('autoRules', {
           ...ruleData, uid: actorUid, workspaceId: originWorkspaceId, createdAt: new Date().toISOString(),
         });
-        saved = { ...ruleData, id: ref.id, uid: actorUid, workspaceId: originWorkspaceId, createdAt: new Date().toISOString() } as AutoRule;
+        saved = { ...ruleData, id, uid: actorUid, workspaceId: originWorkspaceId, createdAt: new Date().toISOString() } as AutoRule;
       } else {
         const result = await runCommand('autorule.create', { rule: ruleData as Record<string, unknown> });
         saved = result.rule as AutoRule;
@@ -52,7 +53,7 @@ export function createRuleActions(ctx: ActionContext, runCommand: RunRegisteredC
     const existing = (useLedgerStore.getState().autoRules as AutoRule[]).find(rule => rule.id === id && rule.workspaceId === currentWorkspaceId);
     if (!existing) return;
     try {
-      if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) await deleteDoc(doc(db, 'autoRules', id));
+      if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) await localDelete('autoRules', id);
       else await runCommand('autorule.delete', { id });
       useLedgerStore.getState().setAutoRules((useLedgerStore.getState().autoRules as AutoRule[]).filter(rule => rule.id !== id));
       toast.success('Rule removed');
@@ -70,7 +71,7 @@ export function createRuleActions(ctx: ActionContext, runCommand: RunRegisteredC
       const data = Object.fromEntries(editable.filter(key => (updates as Record<string, unknown>)[key] !== undefined).map(key => [key, (updates as Record<string, unknown>)[key]]));
       if (!Object.keys(data).length) return;
       if (guestSession() || currentWorkspaceId === SAMPLE_WORKSPACE_ID) {
-        await updateDoc(doc(db, 'autoRules', id), { ...data, updatedAt: new Date().toISOString() });
+        await localUpdate('autoRules', id, { ...data, updatedAt: new Date().toISOString() });
       } else {
         await runCommand('autorule.update', { id, data });
       }

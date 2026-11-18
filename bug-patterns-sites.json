@@ -141,7 +141,6 @@
   "swallowing-action|src/components/assets/ConstructionActions.tsx|addCost": 1,
   "swallowing-action|src/components/auth/AcceptInviteView.tsx|handleAcceptInvite": 1,
   "swallowing-action|src/components/banking/Banking.tsx|handleSyncNow": 1,
-  "swallowing-action|src/components/common/SchemaForm.tsx|handleSubmit": 1,
   "swallowing-action|src/components/finance/AccountRegisterView.tsx|handleToggleCleared": 1,
   "swallowing-action|src/components/finance/IntercompanyManager.tsx|handlePostIntercompany": 1,
   "swallowing-action|src/components/finance/LoansView.tsx|saveLoan": 1,

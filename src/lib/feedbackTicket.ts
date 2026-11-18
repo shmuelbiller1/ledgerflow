@@ -1,5 +1,4 @@
-import { doc, writeBatch } from './db/firestore';
-import { db } from '../firebase';
+import { runNamedCommand } from './commandByName';
 import { useAuthStore } from '../stores/useAuthStore';
 import type { SupportTicket, SupportMessage } from '../types';
 import appPackage from '../../package.json';
@@ -44,9 +43,13 @@ export async function sendFeedback(workspaceId: string, uid: string, screen: str
   const state = useAuthStore.getState();
   if (state.currentWorkspaceId !== workspaceId || state.user?.uid !== uid) throw new Error('Workspace changed. Reopen feedback.');
   const records = feedbackRecords({ id: `feedback-${crypto.randomUUID()}`, workspaceId, uid, screen, body, kind, date: new Date().toISOString() });
-  const batch = writeBatch(db);
-  batch.set(doc(db, 'supportTickets', records.ticket.id), records.ticket);
-  batch.set(doc(db, 'supportMessages', records.message.id), records.message);
-  await batch.commit();
+  // `support.ticket` writes the ticket and its first message in ONE transaction on the server, with the owner and the
+  // workspace taken from the session — the tab's batch could name a workspace the person had already left
+  await runNamedCommand('support.ticket', {
+    id: records.ticket.id,
+    subject: records.ticket.subject || feedbackSubject(screen, kind),
+    body: records.message.body,
+    errorDiagnostics: records.ticket.errorDiagnostics,
+  }, { workspaceId });
   return records.ticket.id;
 }

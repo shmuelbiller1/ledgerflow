@@ -190,6 +190,8 @@ describe('BK-10 workspace archive → restore (database)', { skip: !url && 'LF_T
   });
 
   test('a backup can\'t carry a file, or replace a stored one, through its document records', async () => {
+    // these hand-made files are unsigned; with a month closed they are refused before the file check (#777)
+    await db.collection('workspaces').doc(ws).update({ lockDate: '', softLockDate: '' });
     await assert.rejects(restoreWorkspaceBackup(db, ws, { workspace: { id: ws, lockDate: '2026-01-31' }, documentRecords: [{ id: id('x'), fileUrl: FILE_URL }] }),
       (e: unknown) => e instanceof RestoreError && e.status === 400 && /files are not restored/.test(e.message));
     await db.collection('documents').doc(id('att')).set({ workspaceId: ws, name: 'contract.pdf', fileUrl: FILE_URL });

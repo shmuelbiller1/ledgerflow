@@ -18,15 +18,21 @@ test('feedback keeps exact Hebrew body, screen and app version in allowed suppor
  assert.match(records.message.body,/שלום mixed data 12$/);assert.equal(records.message.ticketId,records.ticket.id);
  assert.throws(()=>feedbackRecords({id:'f',uid:'u',workspaceId:'w',screen:'dashboard',body:' '.repeat(5),date:''}),/Describe/);
 });
-test('feedback from any screen is a single atomic ticket+message save, with named keyboard-cancellable dialog',async()=>{
+test('feedback from any screen is one command that writes the ticket and its message together',async()=>{
  setup();const calls:Record<string,unknown>[]=[];
- globalThis.fetch=async(input,init)=>{if(String(input).includes('/rpc/lf_batch'))calls.push(JSON.parse(String(init?.body)));return new Response('null',{headers:{'Content-Type':'application/json'}});};
+ globalThis.fetch=async(input,init)=>{if(String(input).includes('/commands/support.ticket'))calls.push(JSON.parse(String(init?.body)));return new Response('null',{headers:{'Content-Type':'application/json'}});};
  render(<FeedbackWidget/>);const opener=screen.getByRole('button',{name:'Send feedback'});
  await act(async()=>fireEvent.click(opener));assert.ok(screen.getByRole('dialog',{name:'Send feedback'}));assert.match(screen.getByText(/Screen: Reports · Budget vs Actual \(reports\/budget-actual\)/).textContent || '',/App version/);
  fireEvent.change(screen.getByLabelText('What happened?'),{target:{value:'Mixed labels are confusing שלום'}});
  await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Send'})));
- assert.equal(calls.length,1);const ops=calls[0].p_ops as {table:string;id:string;data:Record<string,unknown>}[];
- assert.deepEqual(ops.map(op=>op.table),['supportTickets','supportMessages']);assert.equal(ops[1].data.ticketId,ops[0].id);assert.match(String(ops[1].data.body),/Mixed labels are confusing שלום$/);assert.ok(screen.queryByRole('dialog') === null);
+ assert.equal(calls.length,1);
+ // one POST: the command opens the ticket and writes its first message in the same transaction, so a ticket can
+ // never exist without the description it was opened for
+ const sent = calls[0] as { workspaceId: string; input: { id: string; subject: string; body: string } };
+ assert.equal(sent.workspaceId,'component-workspace');
+ assert.equal(sent.input.subject,'Bug: Reports · Budget vs Actual (reports/budget-actual)');
+ assert.match(sent.input.body,/Mixed labels are confusing שלום$/);
+ assert.ok(screen.queryByRole('dialog') === null);
  await act(async()=>fireEvent.click(opener));assert.equal((screen.getByLabelText('What happened?') as HTMLTextAreaElement).value,'');
  await act(async()=>fireEvent.keyDown(screen.getByLabelText('What happened?'),{key:'Escape'}));assert.ok(screen.queryByRole('dialog') === null);
 });
@@ -78,9 +84,13 @@ test('a chosen Hebrew screenshot is saved on the confirmed ticket through the ex
  setup(); const batches: Record<string, unknown>[] = [], files: Record<string, unknown>[] = [];
  globalThis.fetch = async (input, init) => {
   const body = JSON.parse(String(init?.body || '{}')) as Record<string, unknown>;
-  if (String(input).includes('/rpc/lf_batch')) batches.push(body);
-  if (String(input).includes('/rpc/lf_set') && body.p_table === 'documents') files.push(body);
-  return new Response('null', { headers: { 'Content-Type': 'application/json' } });
+  if (String(input).includes('/commands/support.ticket')) batches.push(body);
+  if (String(input).includes('/commands/document.save')) files.push(body);
+  // the ticket command answers with the id it wrote, which is what the screenshot is then attached to
+  const data = String(input).includes('/commands/support.ticket')
+    ? { id: (body.input as { id: string }).id }
+    : { id: 'file-1' };
+  return new Response(JSON.stringify({ ok: true, data }), { headers: { 'Content-Type': 'application/json' } });
  };
  render(<FeedbackWidget />); fireEvent.click(screen.getByRole('button', { name: 'Send feedback' }));
  fireEvent.change(screen.getByLabelText('What happened?'), { target: { value: 'צילום with mixed labels' } });
@@ -88,10 +98,12 @@ test('a chosen Hebrew screenshot is saved on the confirmed ticket through the ex
  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Send' })));
  await waitFor(() => assert.ok(screen.queryByRole('dialog') === null));
  assert.equal(batches.length, 1); assert.equal(files.length, 1);
- const ticket = (batches[0].p_ops as { id: string; data: Record<string, unknown> }[])[0];
- const image = files[0].p_data as Record<string, unknown>;
+ const ticket = batches[0].input as { id: string; subject: string };
+ const image = files[0].input as Record<string, unknown>;
  assert.equal(image.linkedCollection, 'supportTickets'); assert.equal(image.linkedId, ticket.id);
- assert.equal(image.linkedLabel, ticket.data.subject); assert.equal(image.workspaceId, 'component-workspace'); assert.equal(image.uid, 'test-user');
+ assert.equal(image.linkedLabel, ticket.subject);
+ assert.equal('uid' in image, false, 'document.save stamps the owner from the session');
+ assert.equal((files[0] as { workspaceId: string }).workspaceId, 'component-workspace');
  assert.equal(image.name, 'צילום-מסך.png'); assert.equal(image.mimeType, 'image/png'); assert.match(String(image.fileUrl), /^data:image\/png;base64,/);
 });
 
@@ -99,10 +111,14 @@ test('a refused screenshot retains the saved ticket, body and image; retry canno
  setup(); let tickets = 0, attempts = 0; const targets: string[] = [];
  globalThis.fetch = async (input, init) => {
   const body = JSON.parse(String(init?.body || '{}')) as Record<string, unknown>;
-  if (String(input).includes('/rpc/lf_batch')) tickets++;
-  if (String(input).includes('/rpc/lf_set') && body.p_table === 'documents') {
-   attempts++; targets.push(String((body.p_data as Record<string, unknown>).linkedId));
+  if (String(input).includes('/commands/support.ticket')) {
+   tickets++;
+   return new Response(JSON.stringify({ ok: true, data: { id: (body.input as { id: string }).id } }), { headers: { 'Content-Type': 'application/json' } });
+  }
+  if (String(input).includes('/commands/document.save')) {
+   attempts++; targets.push(String((body.input as Record<string, unknown>).linkedId));
    if (attempts === 1) return new Response(JSON.stringify({ message: 'Image refused' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+   return new Response(JSON.stringify({ ok: true, data: { id: `file-${attempts}` } }), { headers: { 'Content-Type': 'application/json' } });
   }
   return new Response('null', { headers: { 'Content-Type': 'application/json' } });
  };
@@ -124,7 +140,7 @@ test('a refused screenshot retains the saved ticket, body and image; retry canno
 test('switching workspace during ticket creation prevents a screenshot from being queued after the old response', async () => {
  setup(); let complete: (response: Response) => void = () => {}; let attachments = 0;
  globalThis.fetch = async (input) => {
-  if (String(input).includes('/rpc/lf_batch')) return await new Promise<Response>(resolve => { complete = resolve; });
+  if (String(input).includes('/commands/support.ticket')) return await new Promise<Response>(resolve => { complete = resolve; });
   attachments++; return new Response('null', { headers: { 'Content-Type': 'application/json' } });
  };
  render(<FeedbackWidget />); fireEvent.click(screen.getByRole('button', { name: 'Send feedback' }));

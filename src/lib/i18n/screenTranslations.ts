@@ -229,6 +229,7 @@ export const SCREEN_TRANSLATION_TABLE: readonly ScreenTranslationBundle[] = [
       { key: 'action.transfer', en: 'Transfer Funds', he: 'העברת כספים' },
       { key: 'action.deposit', en: 'Make deposit', he: 'הפקדה' },
       { key: 'error.loadTitle', en: 'We couldn\'t load your bank accounts', he: 'לא הצלחנו לטעון את חשבונות הבנק' },
+      { key: 'error.whatBankAccounts', en: 'your bank accounts', he: 'חשבונות הבנק שלך' },
       { key: 'error.loadBody', en: 'Your chart of accounts did not arrive, so nothing can be listed here yet.', he: 'לוח החשבונות לא נטען, ולכן עדיין אין מה להציג כאן.' },
       { key: 'action.retry', en: 'Try again', he: 'ניסיון נוסף' },
       { key: 'status.ready', en: 'Ready', he: 'מוכן' },

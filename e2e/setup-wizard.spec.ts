@@ -8,13 +8,14 @@ import { BUSINESS_TEMPLATES } from '../src/lib/businessTemplates';
  * It guards the first-run save bug fixed on 27 Oct by migration
  * `20261027000000_server_fields_allowed`: the wizard's workspace write must carry every allowlisted
  * field (`name`, `currency`, `timezone`, `fiscalYearStartMonth`, `fiscalYearStartDay`) — if the
- * wizard stops sending one, or the write stops being the `lf_update` row update, this fails here
- * even though the component suite (`setup-wizard-journey.test.tsx`) checks the same walk in jsdom.
+ * wizard stops sending one, or the step stops going through the `workspace.settings` command, this
+ * fails here even though the component suite (`setup-wizard-journey.test.tsx`) checks the same walk
+ * in jsdom.
  *
  * Honest scope: the database boundary is the journey harness's stub (plus a capture route for the
- * `lf_update` RPC), so this proves the browser walk and the exact writes the screen sends. That a
- * live Supabase row keeps them is proven by the RLS/database suites and the 27 Oct migration tests,
- * not by this spec.
+ * `workspace.settings` command), so this proves the browser walk and the exact writes the screen
+ * sends. That a live Supabase row keeps them is proven by the RLS/database suites and the 27 Oct
+ * migration tests, not by this spec.
  */
 
 const WORKSPACE = 'setup-wizard-browser';
@@ -46,12 +47,15 @@ test('A-234 browser: the set-up wizard saves every step and re-opens on the save
     },
   });
 
-  // Capture the workspace row write itself (registered after the harness's broad /rest/v1 stub, so
-  // Playwright runs this handler first for this RPC).
-  const workspaceWrites: Array<{ p_table?: string; p_id?: string; p_set?: Record<string, unknown> }> = [];
-  await page.route('**/rest/v1/rpc/lf_update**', async (route) => {
-    try { workspaceWrites.push(route.request().postDataJSON() as never); } catch { /* asserted below */ }
-    await route.fulfill({ status: 200, json: {} });
+  // Capture the settings command itself (registered after the harness's broad stub, so Playwright runs
+  // this handler first for this request). The row patch the wizard used to send is that command now.
+  const settingsWrites: Array<{ workspaceId?: string; input?: Record<string, unknown> }> = [];
+  await page.route('**/api/v1/commands/workspace.settings**', async (route) => {
+    try { settingsWrites.push(route.request().postDataJSON() as never); } catch { /* asserted below */ }
+    await route.fulfill({ status: 200, json: { status: 'success', data: { changed: [], updatedAt: '2026-01-01T00:00:00Z' } } });
+  });
+  await page.route('**/api/v1/commands/workspace.dimensionaxes**', async (route) => {
+    await route.fulfill({ status: 200, json: { status: 'success', data: { dimensions: [] } } });
   });
 
   // ---- Step 1, “Your business”
@@ -62,11 +66,10 @@ test('A-234 browser: the set-up wizard saves every step and re-opens on the save
   await page.getByLabel('Financial year starts in').selectOption('4');
   await page.getByRole('button', { name: 'Next', exact: true }).click();
 
-  await expect.poll(() => workspaceWrites.length, { message: 'the business step wrote the workspace row' }).toBeGreaterThan(0);
-  const write = workspaceWrites[0];
-  expect(write.p_table).toBe('workspaces');
-  expect(write.p_id).toBe(WORKSPACE);
-  const written = write.p_set ?? {};
+  await expect.poll(() => settingsWrites.length, { message: 'the business step wrote the workspace row' }).toBeGreaterThan(0);
+  const write = settingsWrites[0];
+  expect(write.workspaceId).toBe(WORKSPACE);
+  const written = write.input ?? {};
   for (const field of ['name', 'currency', 'timezone', 'fiscalYearStartMonth', 'fiscalYearStartDay']) {
     expect(field in written, `the wizard sends ${field} (the server allowlist has to keep it)`).toBe(true);
   }
