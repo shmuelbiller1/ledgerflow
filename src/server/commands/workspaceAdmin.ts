@@ -24,6 +24,7 @@ import {
 } from '../services/recordImportService';
 import { countWorkspaceOwners } from '../services/workspaceOwners';
 import { HttpError } from '../auth/requestUser';
+import { isWorkspaceMemberData } from '../db/firestore';
 import type { CommandContext, CommandDefinition } from './types';
 
 const ROLE_LABEL: Record<string, string> = { owner: 'Owner', accountant: 'Accountant', bookkeeper: 'Bookkeeper', viewer: 'Viewer' };
@@ -211,8 +212,7 @@ export const workspaceUpdateRoleCommand: CommandDefinition<typeof workspaceUpdat
     const data = (await tx.get(ref)).data();
     if (!data) throw new WorkspaceAdminError(404, 'Workspace not found', 'WORKSPACE_NOT_FOUND');
     // #840: a role is changed for someone already in the workspace; a stranger (or a blank id) joins through an invite
-    const members: string[] = Array.isArray(data.members) ? data.members.map(String) : [];
-    if (!targetUid || (data.uid !== targetUid && !members.includes(targetUid))) {
+    if (!targetUid || !isWorkspaceMemberData(data, { uid: targetUid }, ctx.workspaceId)) {
       throw new WorkspaceAdminError(404, 'That person is not a member of this workspace. Invite them instead (workspace.invite).', 'NOT_A_MEMBER');
     }
     const { count, ownerUids } = countWorkspaceOwners(data);
