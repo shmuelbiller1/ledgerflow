@@ -15,7 +15,23 @@ function fixture() {
 const blobDirectory = dir => path.join(dir, 'playwright-reports', 'blob-report');
 const readBlobDiagnostics = dir => spawnSync(process.execPath, [path.join(root, 'scripts', 'unfinished-suites.mjs')], {
   cwd: dir, encoding: 'utf8', timeout: 30_000,
+  env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_FILE: path.join(dir, 'unexpected-merge-output.json') },
 });
+
+function runBlobFixture(dir, reporter, extraEnv = {}) {
+  const env = {
+    ...process.env, ...extraEnv,
+    PLAYWRIGHT_BLOB_OUTPUT_DIR: blobDirectory(dir),
+    PLAYWRIGHT_BLOB_OUTPUT_NAME: 'fixture.zip',
+    PLAYWRIGHT_JSON_OUTPUT_FILE: path.join(dir, 'final.json'),
+  };
+  delete env.PLAYWRIGHT_BLOB_OUTPUT_FILE;
+  const result = spawnSync(process.execPath, [
+    'node_modules/playwright/cli.js', 'test', '--config', path.join(dir, 'playwright.config.js'), '--reporter', reporter,
+  ], { cwd: root, env, encoding: 'utf8', timeout: 30_000 });
+  assert.ok(fs.existsSync(path.join(blobDirectory(dir), 'fixture.zip')), `Playwright did not create the fixture blob:\n${result.stdout}\n${result.stderr}`);
+  return result;
+}
 
 test('live reporter records a running test and clears it at completion', () => {
   const dir = fixture(), old = process.env.WATCH_REPORT;
@@ -76,7 +92,7 @@ test('Playwright loads the reporter and exposes the current test before onEnd', 
   try {
     fs.writeFileSync(path.join(dir, 'playwright.config.js'), `export default { testDir: ${JSON.stringify(dir)}, outputDir: ${JSON.stringify(path.join(dir, 'output'))}, workers: 1 };`);
     fs.writeFileSync(path.join(dir, 'live.spec.js'), `import { test, expect } from '@playwright/test';\nimport fs from 'node:fs';\ntest('sees live state', async () => { await expect.poll(() => { try { const report = JSON.parse(fs.readFileSync(process.env.WATCH_REPORT, 'utf8')); return report.active.map(x => x.title).join(' '); } catch { return ''; } }, { timeout: 5000 }).toContain('sees live state'); });`);
-    const result = spawnSync(process.execPath, ['node_modules/playwright/cli.js', 'test', '--config', path.join(dir, 'playwright.config.js'), '--reporter=list,json,blob,./scripts/playwright-live-reporter.mjs'], { cwd: root, env: { ...process.env, WATCH_REPORT: report, PLAYWRIGHT_JSON_OUTPUT_NAME: path.join(dir, 'final.json'), PLAYWRIGHT_BLOB_OUTPUT_DIR: blobDirectory(dir) }, encoding: 'utf8', timeout: 30_000 });
+    const result = runBlobFixture(dir, 'list,json,blob,./scripts/playwright-live-reporter.mjs', { WATCH_REPORT: report });
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     assert.deepEqual(readLive(report).active, []);
     assert.equal(readLive(path.join(dir, 'final.json')).suites.length, 1);
@@ -84,6 +100,8 @@ test('Playwright loads the reporter and exposes the current test before onEnd', 
     assert.equal(diagnostics.status, 0, diagnostics.stderr);
     assert.match(diagnostics.stdout, /No unfinished tests recorded in 1 reported spec file/);
     assert.doesNotMatch(diagnostics.stdout, /::(?:error|warning)::/);
+    assert.equal(fs.existsSync(path.join(dir, 'unexpected-merge-output.json')), false);
+    assert.deepEqual(fs.readdirSync(blobDirectory(dir)).filter(name => name.startsWith('.diagnostic-')), []);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -98,9 +116,7 @@ test('blob diagnostics distinguish a finished failure from a spec with no record
       test('not reached', () => { throw new Error('should not run after maxFailures'); });`);
     fs.writeFileSync(path.join(dir, 'c-expected-skip.spec.js'), `import {test} from '@playwright/test';
       test.skip('intentionally skipped', () => {});`);
-    const result = spawnSync(process.execPath, ['node_modules/playwright/cli.js', 'test', '--config', config, '--reporter=blob'], {
-      cwd: root, env: { ...process.env, PLAYWRIGHT_BLOB_OUTPUT_DIR: blobDirectory(dir) }, encoding: 'utf8', timeout: 30_000,
-    });
+    const result = runBlobFixture(dir, 'blob');
     assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
     const diagnostics = readBlobDiagnostics(dir);
     assert.equal(diagnostics.status, 0, diagnostics.stderr);

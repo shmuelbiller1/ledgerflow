@@ -1,6 +1,6 @@
 # Phone reports, visual references, and browser diagnostics
 
-This batch changes report presentation and browser checks, and fixes an invoice loading guard regression found on `main`. It does not change financial figures, document mutations, roles, database migrations, test budgets, or the required browser gate.
+This batch changes report presentation, browser checks, and diagnostics. It does not change financial figures, document mutations, roles, database migrations, test budgets, or the required browser gate.
 
 ## A-278: every registered report at 390 px
 
@@ -16,13 +16,13 @@ Broader report verification exposed a focus race in the aging drill-down: after 
 
 ## #836: incomplete browser report diagnostics
 
-For the selected unsuccessful browser run, the rollup reads a bounded Playwright JSON merge of uploaded blobs, including nested suites. It distinguishes incomplete results from recorded failures and intentionally skipped tests. Absent/corrupt report data is unknown, not evidence that a spec hung. Success and workflow cancellation do not trigger the diagnostic. The required exit check and live reporter are unchanged. **13/13** helper tests pass, including a real Playwright blob from a run stopped at its failure limit. The full source/CI utility step passed **106/106** locally with CI variables set. An intentional test failure verified that the step annotates the error and still exits nonzero.
+For the selected unsuccessful browser run, the rollup reads a bounded Playwright JSON merge of uploaded blobs, including nested suites. It distinguishes incomplete results from recorded failures and intentionally skipped tests. Absent or corrupt evidence is unknown, not evidence that a spec hung; the warning gives a short reason. The merger writes to an isolated temporary JSON file so runner progress text and inherited output paths cannot replace the data. Success and workflow cancellation do not trigger the diagnostic. The required exit check and live reporter are unchanged. **13/13** helper tests passed locally, including a real failure-limited blob and a run with extra text on the merge process's stdout. The full source/CI utility step passed **106/106** locally with CI variables set. An intentional test failure verified that the step annotates the error and still exits nonzero.
 
 ## Parallel work: A-279, A-280, A-282
 
-While this batch was underway, [#869](https://github.com/shmuelbiller1/ledgerflow/pull/869) opened and merged for these three items. This PR does not duplicate those implementations. Once #869 merged, [main CI's I-05 guard](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44414016297/job/135189594194) failed because the invoice page had replaced the shared loading signal with a separate store read. The follow-up keeps the existing invoice-specific readiness check and uses the same shared loading signal as bills. The guard and record tests passed **11/11**; the new case fails if an outstanding secondary read is allowed to hide a confirmed missing invoice.
+While this batch was underway, [#869](https://github.com/shmuelbiller1/ledgerflow/pull/869) merged these three items. Its [I-05 guard failure on main](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44414016297/job/135189594194) was reproduced and fixed locally before the lead's fix landed in [#870](https://github.com/shmuelbiller1/ledgerflow/pull/870). The PR takes the implementation from `main` and retains just the regression test: a pending secondary read must not hide a confirmed missing invoice.
 
-The [follow-on-link finding](https://github.com/shmuelbiller1/ledgerflow/pull/869#issuecomment-6993334391) was reproduced against the transaction-grid changes from #869 at `dd46bf03`: opening a different cached entry while an editor was open kept the original description. Keying the editor by entry ID changed the same test from red to green. The fix and test were handed off there rather than duplicated in this PR.
+The [follow-on Journal link finding](https://github.com/shmuelbiller1/ledgerflow/pull/869#issuecomment-6993334391) still reproduced in Chromium after #869 merged: changing the URL to a second cached entry kept the first entry's description. Keying the editor by entry ID changed the same browser reproduction from red to green. The candidate and evidence are handed off in [#873](https://github.com/shmuelbiller1/ledgerflow/issues/873). No change to the editor or save path is included here.
 
 ## Performance follow-ups: #834 and #833 remain open
 

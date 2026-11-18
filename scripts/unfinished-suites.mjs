@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
-const root = path.resolve(import.meta.dirname, '..');
+const root = fs.realpathSync(path.resolve(import.meta.dirname, '..'));
+const MAX_REPORT_BYTES = 32 * 1024 * 1024;
 const terminalStatuses = new Set(['passed', 'failed', 'timedOut']);
 const byCodeUnit = (left, right) => left < right ? -1 : left > right ? 1 : 0;
 const escapeData = value => stripVTControlCharacters(value).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
@@ -19,15 +20,28 @@ function readReport() {
   const blobs = fs.readdirSync(directory, { withFileTypes: true }).filter(entry => entry.name.endsWith('.zip'));
   if (!blobs.length || blobs.some(entry => !entry.isFile())) throw new Error('No usable blob reports');
 
-  // The ZIP headers do not contain test paths. Decode with locked Playwright and bounded JSON.
-  // Use the verified upload directory as cwd; no caller-supplied path becomes a CLI argument.
-  const env = { ...process.env };
-  for (const key of ['PLAYWRIGHT_JSON_OUTPUT_FILE', 'PLAYWRIGHT_JSON_OUTPUT_DIR', 'PLAYWRIGHT_JSON_OUTPUT_NAME']) delete env[key];
-  const merged = spawnSync(process.execPath, [
-    path.join(root, 'node_modules', 'playwright', 'cli.js'), 'merge-reports', '--reporter=json', '.',
-  ], { cwd: directory, env, encoding: 'utf8', timeout: 20_000, maxBuffer: 32 * 1024 * 1024 });
-  if (merged.status !== 0) throw new Error('Could not decode Playwright blobs');
-  return JSON.parse(merged.stdout);
+  // Use the verified upload directory as cwd, with fixed CLI arguments. Keep the machine-readable
+  // report separate from Playwright's progress and runner messages, and discard it after reading.
+  const scratch = fs.mkdtempSync(path.join(directory, '.diagnostic-'));
+  try {
+    const output = path.join(scratch, 'merged.json');
+    const env = { ...process.env, PLAYWRIGHT_JSON_OUTPUT_FILE: output };
+    delete env.PLAYWRIGHT_JSON_OUTPUT_DIR;
+    delete env.PLAYWRIGHT_JSON_OUTPUT_NAME;
+    const merged = spawnSync(process.execPath, [
+      path.join(root, 'node_modules', 'playwright', 'cli.js'), 'merge-reports', '--reporter=json', '.',
+    ], { cwd: directory, env, encoding: 'utf8', timeout: 20_000, maxBuffer: MAX_REPORT_BYTES });
+    if (merged.error) throw new Error(`Playwright merge did not complete (${merged.error.code || 'spawn error'})`);
+    if (merged.status !== 0) {
+      const hint = merged.stderr.trim().split(/\r?\n/, 1)[0];
+      throw new Error(`Playwright merge exited with ${merged.status ?? merged.signal ?? 'unknown status'}${hint ? `: ${hint}` : ''}`);
+    }
+    if (!fs.existsSync(output)) throw new Error('Playwright did not write the JSON report');
+    if (fs.statSync(output).size > MAX_REPORT_BYTES) throw new Error('Playwright JSON exceeded the diagnostic size limit');
+    return JSON.parse(fs.readFileSync(output, 'utf8'));
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
 }
 
 function describeReport(report) {
@@ -56,6 +70,7 @@ function describeReport(report) {
 
 try {
   describeReport(readReport());
-} catch {
-  console.log('::warning::No usable Playwright blob report was available; unfinished tests are unknown. See the shard log and live diagnostics.');
+} catch (error) {
+  const reason = error?.code === 'ENOENT' ? 'downloaded reports not found' : (error?.message || 'unexpected error');
+  console.log(`::warning::No usable Playwright blob report was available; unfinished tests are unknown. See the shard log and live diagnostics. ${escapeData(reason.slice(0, 240))}`);
 }
