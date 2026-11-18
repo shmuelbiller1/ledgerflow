@@ -22,7 +22,8 @@ import { runCommand } from '../../lib/runCommand';
 import { useReportText, fill } from './useReportText';
 
 /** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
-const CODE_NAMES = { c0: 'SKU' } as const;
+// storedItemFallback is saved on the request record, so it stays one fixed value in every language (shown translated on screen)
+const CODE_NAMES = { c0: 'SKU', storedItemFallback: 'Inventory item' } as const;
 
 const field = 'min-h-11 min-w-0 max-w-full border rounded px-3 py-2 bg-[var(--panel)] text-[var(--text)]';
 const UNISSUED = new Set(['draft', 'rejected', 'void', 'cancelled']);
@@ -164,13 +165,13 @@ export default function ReturnAuthorizationsPanel() {
       if (!raw.trim()) return [];
       const quantity = Number(raw);
       if (!(quantity > 0)) return [{
-        invoiceLineId: line.id, itemId: line.itemId || '', description: line.description || reportText('r.inventory-item', 'Inventory item'),
+        invoiceLineId: line.id, itemId: line.itemId || '', description: line.description || CODE_NAMES.storedItemFallback,
         quantity, soldQuantity: Number(line.quantity),
       }];
       return [{
         invoiceLineId: line.id,
         itemId: line.itemId || '',
-        description: line.description || itemById.get(line.itemId || '')?.name || reportText('r.inventory-item', 'Inventory item'),
+        description: line.description || itemById.get(line.itemId || '')?.name || CODE_NAMES.storedItemFallback,
         quantity,
         soldQuantity: Number(line.quantity),
       }];

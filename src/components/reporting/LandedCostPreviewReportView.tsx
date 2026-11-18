@@ -20,7 +20,7 @@ import {
 } from '../../lib/landedCostPreview';
 import { findItemByBarcode, isScannerBurst, readScan } from '../../lib/barcodeScan';
 import { downloadCsv } from '../../lib/csvExport';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, formatDate } from '../../lib/utils';
 import type { Bill, ChartAccount, InventoryItem, Vendor } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
 import LandedCostPostPanel from './LandedCostPostPanel';
@@ -100,7 +100,7 @@ export default function LandedCostPreviewReportView() {
         const date = bill.date || bill.issueDate || bill.dueDate || '';
         out.push({
           key: bill.id,
-          label: fill(reportText('r.0-receipt-1-2', '{0} · Receipt {1} · {2}'), { 0: refNumber, 1: date, 2: vendorName }),
+          label: fill(reportText('r.0-receipt-1-2', '{0} · Receipt {1} · {2}'), { 0: refNumber, 1: formatDate(date), 2: vendorName }),
           currency: billCurrency,
           date,
           refNumber,

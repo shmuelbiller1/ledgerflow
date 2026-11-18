@@ -9,7 +9,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useCollection } from '../../hooks/useCollection';
 import { downloadCsv } from '../../lib/csvExport';
-import { formatCurrency, getLocalDateISO } from '../../lib/utils';
+import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import type { PurchaseOrder } from '../../types';
 import {
   AGED_INVENTORY_BY_LOT_CSV_HEADERS,
@@ -152,7 +152,7 @@ export default function AgedInventoryByLotReportView({
           headers: AGED_INVENTORY_BY_LOT_CSV_HEADERS,
           mapRow: row => agedInventoryByLotCsvRows([row])[0],
         }}
-        emptyState={<EmptyState title={fill(reportText('r.no-lot-numbered-receipts-on-or-before-0', 'No lot-numbered receipts on or before {0}'), { 0: asOfDate })} description={reportText('r.record-lot-numbers-when-receiving-goods-to-track', 'Record lot numbers when receiving goods to track lot age and expiry.')} />}
+        emptyState={<EmptyState title={fill(reportText('r.no-lot-numbered-receipts-on-or-before-0', 'No lot-numbered receipts on or before {0}'), { 0: formatDate(asOfDate) })} description={reportText('r.record-lot-numbers-when-receiving-goods-to-track', 'Record lot numbers when receiving goods to track lot age and expiry.')} />}
         filteredEmptyState={<EmptyState title={reportText('r.no-lot-matches-your-search', 'No lot matches your search')} description={reportText('r.try-another-item-or-lot-number', 'Try another item or lot number.')} />}
       />
     </div>

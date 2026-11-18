@@ -24,7 +24,7 @@ describe('Tax rule coverage screen', () => {
     const texas = within(table).getAllByRole('row').find(row => (row.textContent || '').includes('US/TX'));
     assert.ok(texas, 'Texas is a row');
     assert.match(texas!.textContent || '', /us-sales-tax/, 'the packs behind the row are named');
-    assert.match(screen.getByText(/place\(s\) ·/).textContent || '', /rule\(s\) in force on 2026-10-13/);
+    assert.match(screen.getByText(/place\(s\) ·/).textContent || '', /rule\(s\) in force on Oct 13, 2026/);
     // the gaps are the places that have rules but none of a kind, never a place the packs are silent about
     const filingGap = screen.getByText(/^Filing:/).closest('p')!;
     assert.match(filingGap.textContent || '', /covered place\(s\) have no rule of this kind/);

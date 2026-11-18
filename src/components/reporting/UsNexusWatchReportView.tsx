@@ -4,7 +4,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { usNexusWatch, US_NEXUS_SUPPORTED_STATES, type NexusSaleDocument, type NexusYear, type UsNexusWatch } from '../../lib/tax/usNexusWatch';
-import { formatCurrency, getLocalDateISO } from '../../lib/utils';
+import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import ReportTableScroll from './ReportTableScroll';
 
@@ -84,7 +84,7 @@ export function UsNexusWatchPanel({ watch, currency = 'USD', asOf, onAsOfChange,
       <table className="w-full text-sm">
         <caption className="text-left font-semibold text-[var(--text)] pb-1">{reportText('r.sales-by-state-against-the-economic-nexus-thresh', 'Sales by state against the economic-nexus thresholds')}</caption>
         <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-          {[...(entities > 1 ? ['Entity'] : []), reportText('r.state', 'State'), reportText('r.status', 'Status'), fill(reportText('r.this-year-to-0', 'This year to {0}'), { 0: watch.asOf }), reportText('r.last-year-2', 'Last year'), reportText('r.threshold', 'Threshold'), reportText('r.permit', 'Permit'), reportText('r.table', 'Table')].map(head =>
+          {[...(entities > 1 ? ['Entity'] : []), reportText('r.state', 'State'), reportText('r.status', 'Status'), fill(reportText('r.this-year-to-0', 'This year to {0}'), { 0: formatDate(watch.asOf) }), reportText('r.last-year-2', 'Last year'), reportText('r.threshold', 'Threshold'), reportText('r.permit', 'Permit'), reportText('r.table', 'Table')].map(head =>
             <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
         </tr></thead>
         <tbody>

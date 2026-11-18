@@ -4,7 +4,7 @@ import {
   type CoverageKind,
 } from '../../lib/rules/coverage';
 import { IL_VAT_SPECIAL_AREAS, ilVatAreaKeyFor, ilVatAreaNames } from '../../lib/tax/ilVat';
-import { getLocalDateISO } from '../../lib/utils';
+import { formatDate, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import { byCodeUnit } from '../../lib/codeUnitOrder';
@@ -63,7 +63,7 @@ export default function RulePackCoverageReportView({ asOfDate = '' }: { asOfDate
     </div>
 
     <p className="text-sm" data-print-hide>
-      {coverage.totals.places} {reportText('r.place-s', 'place(s) ·')} {coverage.totals.rules} {reportText('r.rule-s-in-force', 'rule(s) in force')}{asOf ? ` ${fill(reportText('r.on-0', 'on {0}'), { 0: asOf })}` : ''} · {coverage.totals.packs} {reportText('r.pack-s', 'pack(s)')}
+      {coverage.totals.places} {reportText('r.place-s', 'place(s) ·')} {coverage.totals.rules} {reportText('r.rule-s-in-force', 'rule(s) in force')}{asOf ? ` ${fill(reportText('r.on-0', 'on {0}'), { 0: formatDate(asOf) })}` : ''} · {coverage.totals.packs} {reportText('r.pack-s', 'pack(s)')}
       {rows.length !== coverage.rows.length ? ` ${fill(reportText('r.0-shown-with-these-filters', '· {0} shown with these filters'), { 0: rows.length })}` : ''}
     </p>
 
@@ -74,7 +74,7 @@ export default function RulePackCoverageReportView({ asOfDate = '' }: { asOfDate
 
     <ReportTableScroll>
       <table className="w-full text-sm">
-        <caption>{reportText('r.rule-pack-coverage', 'Rule pack coverage')}{asOf ? fill(reportText('r.rules-in-force-on-0', ', rules in force on {0}'), { 0: asOf }) : ''}</caption>
+        <caption>{reportText('r.rule-pack-coverage', 'Rule pack coverage')}{asOf ? fill(reportText('r.rules-in-force-on-0', ', rules in force on {0}'), { 0: formatDate(asOf) }) : ''}</caption>
         <thead>
           <tr>
             <th scope="col" className="text-left py-1 px-2">{reportText('r.place', 'Place')}</th>

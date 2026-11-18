@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
-import { formatCurrency, getLocalDateISO } from '../../lib/utils';
+import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { exportGroupSummaryCsv } from '../../lib/groupSummaryExport';
 import { ratesKey, type WorkspaceGroup } from '../../lib/workspaceGroups';
 import { averageFromTimeframe, parseRates, rateFromQuote, type TranslationRates } from '../../lib/translationRates';
@@ -15,16 +15,20 @@ interface Issue { workspaceId: string; transactionId: string; date: string; desc
 interface Eliminated { assets: number; liabilities: number; difference: number; income?: number; cogs?: number; expense?: number; profitDifference?: number; investment?: number; goodwill?: number; belowBookValue?: number }
 interface OtherOwners { equity: number; netIncome: number }
 interface AccountLine { key: string; section: 'income' | 'cogs' | 'expense' | 'asset' | 'liability' | 'equity'; name: string; code?: string; alsoNamed?: string[]; combined?: string[]; byMember: Record<string, number>; total: number }
-const SECTION_NAMES: Record<AccountLine['section'], string> = { income: 'Income', cogs: 'Cost of goods sold', expense: 'Expenses', asset: 'Assets', liability: 'Liabilities', equity: 'Equity' };
+const SECTION_ORDER: AccountLine['section'][] = ['income', 'cogs', 'expense', 'asset', 'liability', 'equity'];
+const sectionName = (sec: AccountLine['section'], reportText: ReturnType<typeof useReportText>) => ({
+  income: reportText('r.gs-income', 'Income'), cogs: reportText('r.gs-cogs', 'Cost of goods sold'), expense: reportText('r.gs-expenses', 'Expenses'),
+  asset: reportText('r.gs-assets', 'Assets'), liability: reportText('r.gs-liabilities', 'Liabilities'), equity: reportText('r.gs-equity', 'Equity'),
+}[sec]);
 interface Summary { group: { id: string; name: string }; members: Member[]; total: (Figures & { currency: string; cta?: number; eliminated?: Eliminated; otherOwners?: OtherOwners; associates?: { profit: number; equity: number } }) | null; parent?: { workspaceId: string; name: string } | null; accountLines?: AccountLine[]; lineMerges?: { canCombine: boolean; merges: Record<string, string> }; notIncluded: number; intercompany?: { matched: number; unmatched: Issue[] } }
 
 /** Why an intercompany entry has no match (Z-19), in words. */
-const whyUnmatched = (i: Issue) => ({
-  missing: `Its match in ${i.withName} is missing`,
-  undone: `Its match in ${i.withName} was undone`,
-  amount: `${formatCurrency(i.otherAmountCents || 0, i.currency)} in ${i.withName}`,
-  'outside-group': 'The other company is not in this group',
-  'not-open': 'The other company is not one you can open',
+const whyUnmatched = (i: Issue, reportText: ReturnType<typeof useReportText>) => ({
+  missing: fillText(reportText('r.gs-match-missing', 'Its match in {0} is missing'), { 0: i.withName ?? '' }),
+  undone: fillText(reportText('r.gs-match-undone', 'Its match in {0} was undone'), { 0: i.withName ?? '' }),
+  amount: fillText(reportText('r.gs-match-amount', '{0} in {1}'), { 0: formatCurrency(i.otherAmountCents || 0, i.currency), 1: i.withName ?? '' }),
+  'outside-group': reportText('r.gs-outside-group', 'The other company is not in this group'),
+  'not-open': reportText('r.gs-not-open', 'The other company is not one you can open'),
 }[i.reason]);
 type Entered = Record<string, Partial<Record<keyof TranslationRates, string>>>;
 
@@ -218,9 +222,9 @@ export default function GroupSummaryReportView() {
       {foreign.map(currency => (
         <fieldset key={currency} className="flex flex-wrap items-end gap-2 rounded-lg border border-[var(--line)] p-3 text-xs">
           <legend className="px-1 font-semibold text-[var(--text)]">{reportText('r.1', '1')} {currency} {reportText('r.in', 'in')} {reportCurrency}</legend>
-          {rateInput(currency, 'closing', `At ${endDate} (assets, liabilities)`)}
-          {rateInput(currency, 'average', 'Average (income, costs)')}
-          {rateInput(currency, 'historical', 'Historical (equity)')}
+          {rateInput(currency, 'closing', fillText(reportText('r.gs-rate-closing', 'At {0} (assets, liabilities)'), { 0: formatDate(endDate) }))}
+          {rateInput(currency, 'average', reportText('r.gs-rate-average', 'Average (income, costs)'))}
+          {rateInput(currency, 'historical', reportText('r.gs-rate-historical', 'Historical (equity)'))}
           <button type="button" onClick={() => void fill(currency)} disabled={filling !== ''} className="rounded-lg border border-[var(--line)] px-2.5 py-1 font-semibold text-[var(--text)] disabled:opacity-50">
             {reportText('r.fill-from-the-rate-service', 'Fill from the rate service')}<span className="sr-only"> {reportText('r.for', 'for')} {currency}</span>
           </button>
@@ -262,7 +266,7 @@ export default function GroupSummaryReportView() {
                     <th scope="row" className="text-left font-normal py-1.5">{row.label}</th>
                     {summary.members.map(m => (
                       <td key={m.workspaceId} className="text-right font-mono py-1.5 px-2">
-                        <button type="button" onClick={() => open(m, row.report)} className="hover:underline" title={fillText(reportText('r.open-the-0-of-1', 'Open the {0} of {1}'), { 0: row.report === 'pnl' ? 'profit and loss' : 'balance sheet', 1: m.name })}>
+                        <button type="button" onClick={() => open(m, row.report)} className="hover:underline" title={fillText(reportText('r.open-the-0-of-1', 'Open the {0} of {1}'), { 0: row.report === 'pnl' ? reportText('r.profit-and-loss-lc', 'profit and loss') : reportText('r.balance-sheet-lc', 'balance sheet'), 1: m.name })}>
                           {m.translated && summary.total ? formatCurrency(m.translated[row.key], summary.total.currency) : formatCurrency(m[row.key], m.currency)}<span className="sr-only"> {row.label} {reportText('r.of', 'of')} {m.name}{reportText('r.open-its-report', ': open its report')}</span>
                         </button>
                       </td>
@@ -308,9 +312,9 @@ export default function GroupSummaryReportView() {
                     <th scope="col" className="text-right font-semibold py-2 px-2">{reportText('r.together', 'Together')}</th>
                   </tr>
                 </thead>
-                {(Object.keys(SECTION_NAMES) as AccountLine['section'][]).filter(sec => summary.accountLines!.some(l => l.section === sec)).map(sec => (
+                {SECTION_ORDER.filter(sec => summary.accountLines!.some(l => l.section === sec)).map(sec => (
                   <tbody key={sec}>
-                    <tr><th scope="rowgroup" colSpan={summary.members.length + 2} className="text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)] pt-3">{SECTION_NAMES[sec]}</th></tr>
+                    <tr><th scope="rowgroup" colSpan={summary.members.length + 2} className="text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)] pt-3">{sectionName(sec, reportText)}</th></tr>
                     {summary.accountLines!.filter(l => l.section === sec).map(l => (
                       <tr key={l.key} className="border-b border-[var(--line)]/50">
                         <th scope="row" className="text-left font-normal py-1">
@@ -400,7 +404,7 @@ export default function GroupSummaryReportView() {
                             </button>
                           </td>
                           <td className="py-1 text-right font-mono">{formatCurrency(i.amountCents, i.currency)}</td>
-                          <td className="py-1 pl-2">{whyUnmatched(i)}</td>
+                          <td className="py-1 pl-2">{whyUnmatched(i, reportText)}</td>
                         </tr>
                       );
                     })}
