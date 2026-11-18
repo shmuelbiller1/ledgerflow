@@ -7,6 +7,7 @@ import ImportSettings from '../components/platform/settings/ImportSettings';
 import { setComponentWorkspace, markComponentCollectionsLoaded } from './helpers/componentFixtures';
 import { stubFetch } from './helpers/dom';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { auth } from '../firebase';
 import { getSupabase } from '../lib/db/client';
@@ -139,4 +140,32 @@ test('A-182 an address book cannot be switched to items mid-import', async () =>
   // still on customers with the contacts import intact (an error toast explains why)
   assert.match(screen.getByRole('status').textContent || '', /Address book read: 2 contacts/);
   assert.match(document.body.textContent || '', /2 rows ready/);
+});
+
+test('duplicate check warns when the customer list is capped instead of claiming no matches', async () => {
+  useLedgerStore.setState({ customers: [], truncatedCollections: { customers: true } });
+  render(<ImportSettings />);
+  await upload('contacts.csv', 'Name,Email\nNew Company,new@example.com');
+  assert.match(document.body.textContent || '', /existing contact list is incomplete or failed to load/i);
+  assert.doesNotMatch(document.body.textContent || '', /No matches were found in the loaded customer list/);
+});
+
+
+test('duplicate check warns on a failed customer subscription even after an earlier load', async () => {
+  useDataNeedsStore.getState().markFailed('customers', 'Connection lost');
+  useLedgerStore.setState({ customers: [], truncatedCollections: {} });
+  render(<ImportSettings />);
+  await upload('contacts.csv', 'Name,Email\nNew Company,new@example.com');
+  assert.match(document.body.textContent || '', /existing contact list is incomplete or failed to load/i);
+  assert.doesNotMatch(document.body.textContent || '', /No matches were found in the loaded customer list/);
+});
+
+test('duplicate check warns if the candidate matcher omits a large shared-email group', async () => {
+  useLedgerStore.setState({ customers: Array.from({ length: 40 }, (_, i) => ({
+    id: `c${i}`, uid: 'test-user', workspaceId: 'component-workspace', name: `Company ${i}`, email: 'shared@example.com',
+  })), truncatedCollections: {} } as never);
+  render(<ImportSettings />);
+  await upload('contacts.csv', 'Name,Email\nNew Company,shared@example.com');
+  assert.match(document.body.textContent || '', /potential matches were omitted/i);
+  assert.doesNotMatch(document.body.textContent || '', /No matches were found in the loaded customer list/);
 });

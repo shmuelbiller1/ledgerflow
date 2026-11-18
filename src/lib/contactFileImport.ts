@@ -210,6 +210,8 @@ export interface ContactImportDuplicateCheck {
   /** Same email/phone/tax ID but a different name: these still create a second record. */
   possible: { row: number; name: string; existingName: string; signals: DuplicateMatchSignal[] }[];
   possibleTotal: number;
+  /** The candidate matcher omitted pairs or large shared-value groups. */
+  incomplete: boolean;
 }
 
 const LIMIT = 20;
@@ -249,15 +251,17 @@ export function contactImportDuplicates(
     const incomingSide = pair.left.id.startsWith('incoming:') ? pair.left : pair.right.id.startsWith('incoming:') ? pair.right : null;
     const existingSide = incomingSide === pair.left ? pair.right : pair.left;
     if (!incomingSide || existingSide.id.startsWith('incoming:')) continue;
+    const signals = pair.signals.filter(s => s !== 'name');
+    if (signals.length === 0) continue;
     possibleTotal += 1;
     if (possible.length < LIMIT) {
       possible.push({
         row: Number(incomingSide.id.slice('incoming:'.length)),
         name: incomingSide.name,
         existingName: existingSide.name,
-        signals: pair.signals.filter(s => s !== 'name'),
+        signals,
       });
     }
   }
-  return { willSkip, willSkipTotal: skippedRows.size, possible, possibleTotal };
+  return { willSkip, willSkipTotal: skippedRows.size, possible, possibleTotal, incomplete: review.truncated || review.ambiguousBuckets > 0 };
 }

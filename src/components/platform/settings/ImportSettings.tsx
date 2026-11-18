@@ -31,6 +31,8 @@ import {
 import type { ReviewContact } from '../../../lib/contactDuplicateReview';
 import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../../hooks/useLedgerCollections';
+import { useDataNeedsStore } from '../../../stores/useDataNeedsStore';
+import { isCollectionCapped } from '../../../lib/ledgerCollections';
 import { reconcileImportCounts } from '../../../lib/importCountReconciliation';
 import { cleanupContactImportRows } from '../../../lib/contactImportCleanup';
 import { MigrationTrialBalanceProof } from './MigrationTrialBalanceProof';
@@ -173,6 +175,10 @@ export default function ImportSettings() {
 
   // A-182: pre-import duplicate check against the records already in this workspace.
   const { loading: contactsLoading } = useLedgerCollections('customers', 'vendors');
+  const failedContacts = useDataNeedsStore(s => s.failed);
+  const truncatedContacts = useLedgerStore(s => s.truncatedCollections);
+  const contactKey = kind === 'customers' || kind === 'vendors' ? kind : null;
+  const contactsIncomplete = contactKey !== null && (Boolean(failedContacts[contactKey]) || isCollectionCapped(truncatedContacts, contactKey));
   const storeCustomers = useLedgerStore(s => s.customers);
   const storeVendors = useLedgerStore(s => s.vendors);
   const duplicateCheck = useMemo(() => {
@@ -504,16 +510,18 @@ export default function ImportSettings() {
             {(kind === 'customers' || kind === 'vendors') && prepared.records.length > 0 && (
               <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-3 space-y-2">
                 <h4 className="text-xs font-bold text-[var(--text)]">Duplicate check</h4>
+                {contactsIncomplete && <p role="alert" className="text-xs text-[var(--neg)]">The existing contact list is incomplete or failed to load. This check may miss matches; retry loading or review contacts before importing.</p>}
                 {contactsLoading || !duplicateCheck ? (
                   <p className="text-xs text-[var(--muted)]">Still loading your existing {kind === 'customers' ? 'customers' : 'vendors'} — the check against them will appear here before you import.</p>
                 ) : (
                   <>
-                    {duplicateCheck.willSkipTotal === 0 && duplicateCheck.possibleTotal === 0 && (
-                      <p className="text-xs text-[var(--muted)]">No row matches an existing {kind === 'customers' ? 'customer' : 'vendor'} by name, email address, phone number or tax ID.</p>
+                    {duplicateCheck.incomplete && <p role="alert" className="text-xs text-[var(--neg)]">Some potential matches were omitted because the comparison limit was reached. Review contacts before importing.</p>}
+                    {duplicateCheck.willSkipTotal === 0 && duplicateCheck.possibleTotal === 0 && !contactsIncomplete && !duplicateCheck.incomplete && (
+                      <p className="text-xs text-[var(--muted)]">No matches were found in the loaded {kind === 'customers' ? 'customer' : 'vendor'} list using the available comparison rules. Review before importing; this is not a guarantee.</p>
                     )}
                     {duplicateCheck.willSkipTotal > 0 && (
                       <>
-                        <p className="text-xs text-[var(--text)]"><strong>{duplicateCheck.willSkipTotal}</strong> row{duplicateCheck.willSkipTotal === 1 ? '' : 's'} {duplicateCheck.willSkipTotal === 1 ? 'has' : 'have'} exactly the same name as a {kind === 'customers' ? 'customer' : 'vendor'} already here, so the import will skip {duplicateCheck.willSkipTotal === 1 ? 'it' : 'them'} — nobody is created twice.</p>
+                        <p className="text-xs text-[var(--text)]"><strong>{duplicateCheck.willSkipTotal}</strong> row{duplicateCheck.willSkipTotal === 1 ? '' : 's'} {duplicateCheck.willSkipTotal === 1 ? 'has' : 'have'} exactly the same name as a {kind === 'customers' ? 'customer' : 'vendor'} already here, so the server is expected to skip {duplicateCheck.willSkipTotal === 1 ? 'it' : 'them'} if the existing record is still present.</p>
                         <ul className="text-xs text-[var(--muted)] space-y-0.5" aria-label="Rows that will be skipped as duplicates">
                           {duplicateCheck.willSkip.map(d => (
                             <li key={`skip-${d.row}`}>Row {d.row}: &ldquo;{d.name}&rdquo; matches &ldquo;{d.existingName}&rdquo;</li>
@@ -523,7 +531,7 @@ export default function ImportSettings() {
                     )}
                     {duplicateCheck.possibleTotal > 0 && (
                       <>
-                        <p className="text-xs text-[var(--text)]"><strong>{duplicateCheck.possibleTotal}</strong> row{duplicateCheck.possibleTotal === 1 ? '' : 's'} share{duplicateCheck.possibleTotal === 1 ? 's' : ''} an email address, phone number or tax ID with an existing {kind === 'customers' ? 'customer' : 'vendor'} but the name is different, so importing <strong>will</strong> create a second record. Check {duplicateCheck.possibleTotal === 1 ? 'it' : 'them'} first:</p>
+                        <p className="text-xs text-[var(--text)]"><strong>{duplicateCheck.possibleTotal}</strong> potential match{duplicateCheck.possibleTotal === 1 ? '' : 'es'} share an email address, phone number or tax ID with an existing {kind === 'customers' ? 'customer' : 'vendor'} but the name is different. The server normally creates a separate record for a different name. Check these first:</p>
                         <ul className="text-xs text-[var(--muted)] space-y-0.5" aria-label="Rows that look like existing contacts">
                           {duplicateCheck.possible.map(d => (
                             <li key={`possible-${d.row}`}>Row {d.row}: &ldquo;{d.name}&rdquo; looks like &ldquo;{d.existingName}&rdquo; (same {d.signals.map(s => (s === 'tax-id' ? 'tax ID' : s === 'email' ? 'email address' : 'phone number')).join(' and ')})</li>

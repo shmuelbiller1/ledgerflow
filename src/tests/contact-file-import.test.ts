@@ -128,3 +128,15 @@ test('duplicate check: exact name will be skipped; shared email with a different
   assert.ok(twin);
   assert.ok(twin.signals.includes('phone'));
 });
+
+test('duplicate import review ignores weak name-only pairs and reports omitted large groups', () => {
+  const existing: ReviewContact[] = [{ id: 'c1', kind: 'customer', name: 'North Shore' }];
+  const nameOnly = contactImportDuplicates('customers', [{ row: 2, name: 'North-Shore' }], existing);
+  assert.equal(nameOnly.possibleTotal, 0);
+  assert.equal(nameOnly.incomplete, false);
+  const crowded: ReviewContact[] = Array.from({ length: 40 }, (_, i) => ({
+    id: `c${i}`, kind: 'customer', name: `Company ${i}`, email: 'shared@example.com',
+  }));
+  const limited = contactImportDuplicates('customers', [{ row: 2, name: 'New Company', email: 'shared@example.com' }], crowded);
+  assert.equal(limited.incomplete, true);
+});
