@@ -204,7 +204,8 @@ test('API-key scopes validate exact, unique permissions and command paths use th
   // audit entries and the record/contact commands that reach any collection
   for (const name of ['account.makerecoverycodes', 'account.userecoverycode', 'account.setnotificationemail', 'groups.create', 'groups.share',
     'groups.delete', 'record.fields', 'record.save', 'record.delete', 'contact.delete', 'contact.merge', 'portal.linkcreate', 'portal.linkrevoke',
-    'estimate.signlink', 'payroll.approval', 'auditlog.append', 'savedlist.taxprofiles', 'security.twostep', 'some.newarea']) {
+    'estimate.signlink', 'payroll.approval', 'auditlog.append', 'savedlist.taxprofiles', 'security.twostep', 'some.newarea',
+    'constructor.x', 'tostring.x', '__proto__.x', 'hasownproperty.x']) {
     assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:workspaces', name);
   }
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/chartaccount.create'), 'write:ledger');

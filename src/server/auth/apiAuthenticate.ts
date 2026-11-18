@@ -52,7 +52,8 @@ export function requiredApiKeyScope(method: string, path: string): string {
     // governance, portal links, audit entries and the record/contact commands that reach any collection —
     // needs `write:workspaces`, which no API key is issued with, instead of falling through to
     // `write:transactions` (the fallback that let a transactions-only key rewrite customers and settings).
-    return COMMAND_AREA_SCOPE[area] ?? 'write:workspaces';
+    // own keys only: `constructor.x` or `__proto__.x` must not find an inherited property instead of failing closed
+    return Object.hasOwn(COMMAND_AREA_SCOPE, area) ? COMMAND_AREA_SCOPE[area] : 'write:workspaces';
   }
   if (cleanPath.includes('/transactions')) return isWrite ? 'write:transactions' : 'read:transactions';
   if (cleanPath.includes('/projects')) return isWrite ? 'write:projects' : 'read:projects';
