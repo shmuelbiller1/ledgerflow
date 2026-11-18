@@ -1,208 +1,121 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { mountJourney, remountJourney } from './support/journeyFixture';
 import { stockJourneyServer } from './support/stockJourneyServer';
+import { tabTo } from './support/tabTo';
 
-/**
- * The acceptance test for the whole rebuild, written the way the task words it:
- *
- *   a first-time user, 390px wide, keyboard only —
- *   create a customer, send an invoice, record its payment, open the profit and loss.
- *
- * Three things make this test worth more than the sum of its steps:
- *
- * 1. **Keyboard only.** Every action is `focus()` + `Enter`/`Tab` or typing. No `click()`. A screen
- *    that only works with a mouse fails here even if it looks right.
- * 2. **390px.** The screen where most of the app's buttons are hidden behind hover states, and where
- *    the search bar is `hidden md:flex` — which is why the header now has a phone trigger.
- * 3. **The real server.** Invoices and payments post through the production command routers into a
- *    disposable Postgres workspace, and the profit and loss is read back from the real report route.
- *    Nothing in this test computes the numbers it asserts.
- *
- * If this test is green, the four steps a new business actually takes work. If it is not, nothing
- * else in the rebuild matters very much.
- */
-test.use({ reducedMotion: 'reduce' });
-
-test('a first-time user at 390px, keyboard only: customer → invoice → payment → profit and loss', async ({ page }, testInfo) => {
+// Signed-in workspace with an isolated Postgres database. No focus shortcuts, synthetic tab changes
+// or direct report mounts. Fixture refreshes represent subscription snapshots, not financial writes.
+// Email goes through the production route to the test transport, never a real recipient.
+test.use({ reducedMotion: 'reduce', timezoneId: 'UTC' });
+for (const width of [390, 1280]) test(`a first-time user at ${width}px, keyboard only: customer → email invoice → payment → profit and loss`, async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const databaseUrl = process.env.LF_TEST_DATABASE_URL;
   if (process.env.CI) expect(databaseUrl, 'CI must run this against the real test Postgres').toBeTruthy();
   test.skip(!databaseUrl, 'Requires isolated test Postgres; set LF_TEST_DATABASE_URL and run db:test-setup.');
-
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width, height: 844 });
+  await page.clock.setFixedTime(new Date('2026-04-15T12:00:00Z'));
   const workspaceId = `first-hour-${randomUUID()}`;
-  // The server seeds the chart of accounts and one customer for the invoice to be addressed to; the
-  // journey creates its own customer before using it.
+  const customerName = 'Acme Corp', recipient = `first-hour-${width}@example.test`;
   const server = await stockJourneyServer(workspaceId);
-  const postings: Array<{ path: string; status: number; body: Record<string, unknown> }> = [];
-
   try {
-    const ledger = await server.ledger();
-    const { errors } = await mountJourney(page, {
-      workspaceId,
-      ledger,
-      mounts: [{ module: '/src/components/sales/Sales.tsx' }],
-    });
-
-    // Every API call is answered by the production routers and the real database, not by a stub.
+    const { errors } = await mountJourney(page, { workspaceId, ledger: await server.ledger(), mounts: [] });
     await page.route('**/api/**', async route => {
-      const request = route.request();
-      const url = new URL(request.url());
+      const req = route.request(), url = new URL(req.url());
       const response = await page.request.fetch(`${server.base}${url.pathname}${url.search}`, {
-        method: request.method(),
-        headers: request.headers(),
-        data: request.postDataBuffer() ?? undefined,
-      });
-      // the two writes this journey makes: an invoice than a received payment
-      if (/\/commands\/invoice\.create$|\/api\/v1\/payments$/.test(url.pathname)) {
-        postings.push({ path: url.pathname, status: response.status(), body: request.postDataJSON() as Record<string, unknown> });
-      }
-      await route.fulfill({ response });
-    });
-
-    // ---- 1. Create a customer, with the keyboard -------------------------------------------------
-    // Sales opens on Invoices because that is the daily job; the second tab is the customer list.
-    const customersTab = page.getByRole('button', { name: 'Customers', exact: true });
-    await customersTab.focus();
-    await page.keyboard.press('Enter');
-    await expect(customersTab).toHaveAttribute('aria-pressed', 'true');
-
-    const addCustomer = page.getByRole('button', { name: 'Add Customer', exact: true });
-    await expect(addCustomer).toBeVisible();
-    await addCustomer.focus();
-    await expect(addCustomer).toBeFocused();
-    await page.keyboard.press('Enter');
-
-    const customerDialog = page.getByRole('dialog');
-    await expect(customerDialog).toBeVisible();
-    // The name field is first; typing goes straight into it because focus moved into the dialog.
-    await page.keyboard.type('Acme Corp');
-    await expect(customerDialog.locator('input[name="partyName"]')).toHaveValue('Acme Corp');
-    // Tab to the submit button rather than clicking it: proof the form is reachable in order.
-    const saveCustomer = customerDialog.getByRole('button', { name: 'Save Customer', exact: true });
-    await saveCustomer.focus();
-    await page.keyboard.press('Enter');
-    await expect(customerDialog).toHaveCount(0);
-    await expect.poll(async () => (await server.all('customers')).some(c => c.name === 'Acme Corp')).toBe(true);
-
-    // ---- 2. Send an invoice ----------------------------------------------------------------------
-    // The customer the person just created has to be in the screen's list, or the invoice form tries to
-    // create a second one inline and the save is refused. A real client refreshes after a write.
-    await server.refresh(page);
-    await remountJourney(page, [{ module: '/src/components/sales/Sales.tsx' }]);
-    // Sales opens on Invoices. Adding a customer leaves you on the customer list (correctly), so the
-    // next step is the same second tab a person presses to get back to the invoice list.
-    const invoicesTab = page.getByRole('button', { name: 'Invoices', exact: true });
-    await invoicesTab.focus();
-    await page.keyboard.press('Enter');
-    await expect(invoicesTab).toHaveAttribute('aria-pressed', 'true');
-
-    // The invoice form allocates its number from the server, so the click and the numbering reply are
-    // waited for together — the same sequence the W13 purchase-and-sale journey uses.
-    const numbering = page.waitForResponse(response => response.url().endsWith('/next-number') && response.request().method() === 'POST', { timeout: 20000 });
-    const addInvoice = page.getByRole('button', { name: 'Add Invoice', exact: true });
-    await expect(addInvoice).toBeVisible();
-    await addInvoice.focus();
-    await page.keyboard.press('Enter');
-    expect((await numbering).status()).toBe(200);
-
-    const invoice = page.getByRole('dialog');
-    await expect(invoice).toBeVisible();
-    await invoice.locator('#inv-customer').fill('Acme Corp');
-    // the number, dates and terms live behind the details summary
-    await invoice.locator('summary').click();
-    await invoice.locator('#inv-number').fill('INV-FIRST');
-    await invoice.locator('#inv-date').fill('2026-04-15');
-    await invoice.locator('#inv-due-date').fill('2026-05-15');
-    await invoice.locator('#inv-item-desc-0').fill('Website design');
-    await invoice.locator('#inv-item-qty-0').fill('1');
-    await invoice.locator('#inv-item-rate-0').fill('900.00');
-    await invoice.locator('#inv-item-acc-0').fill('Sales');
-    await expect(invoice.getByText('$900.00').first()).toBeVisible();
-
-    const sendInvoice = invoice.getByRole('button', { name: /Save & Close/i });
-    await sendInvoice.focus();
-    await expect(sendInvoice).toBeFocused();
-    await page.keyboard.press('Enter');
-
-    // If the form refused, say what it said rather than timing out with no reason. The form keeps the
-    // draft open and puts the reason on screen (a field alert or a toast), so the message is right there.
-    const refusal = await invoice.evaluate(dialog => {
-      const alerts = Array.from(dialog.querySelectorAll('[role="alert"]')).map(node => (node.textContent || '').trim());
-      const toast = Array.from(document.querySelectorAll('[data-sonner-toast], li[role="status"]'))
-        .map(node => (node.textContent || '').trim());
-      return [...alerts, ...toast].filter(Boolean).join(' | ');
-    }).catch(() => '');
-    await expect(invoice, `the invoice form closes when the server takes it. On screen: ${refusal || 'nothing said'}`)
-      .toHaveCount(0, { timeout: 20000 });
-
-    await expect.poll(() => postings.length).toBeGreaterThanOrEqual(1);
-    expect(postings[0].path).toBe('/api/v1/commands/invoice.create');
-    expect(postings[0].status, `invoice.create said: ${JSON.stringify(postings[0].body).slice(0, 400)}`).toBe(200);
-    await expect.poll(async () => (await server.all('invoices')).length).toBe(1);
-    const savedInvoice = (await server.all('invoices'))[0];
-    expect(savedInvoice.amountCents).toBe(90000);
-
-    // ---- 3. Record the payment -------------------------------------------------------------------
-    // The server has the invoice; the browser's cache does not, because `mountJourney` seeds the ledger
-    // once and stubs further reads. A real client refreshes after a write, so this does the same before
-    // looking for the row's payment button — otherwise the test would be the only client that works.
-    await server.refresh(page);
-    await remountJourney(page, [{ module: '/src/components/sales/Sales.tsx' }]);
-    const invoicesAgain = page.getByRole('button', { name: 'Invoices', exact: true });
-    await invoicesAgain.focus();
-    await page.keyboard.press('Enter');
-    const receive = page.getByRole('button', { name: new RegExp(`Receive payment for invoice ${savedInvoice.number || ''}`, 'i') });
-    await expect(receive).toBeVisible();
-    await receive.focus();
-    await expect(receive).toBeFocused();
-    await page.keyboard.press('Enter');
-
-    const payment = page.getByRole('dialog');
-    await expect(payment).toBeVisible();
-    const recordPayment = payment.getByRole('button', { name: /Record & Post Payment/i });
-    await recordPayment.focus();
-    await page.keyboard.press('Enter');
-
-    await expect.poll(() => postings.length).toBe(2);
-    expect(postings[1].path).toBe('/api/v1/payments');
-    expect(postings[1].status, `payments said: ${JSON.stringify(postings[1].body).slice(0, 400)}`).toBe(200);
-    await expect.poll(async () => (await server.all('invoices'))[0]?.status).toBe('paid');
-
-    // ---- 4. Open the profit and loss --------------------------------------------------------------
-    // A journey fixture renders the screens it is given and no app shell, so "open" here means going to
-    // the report the way the person does after doing the work, with the ledger the server actually
-    // wrote. What matters is that the report agrees with the server: $900 of income, no expenses, $900
-    // net — read from the real server below, not computed by this test.
-    const { errors: reportErrors } = await mountJourney(page, {
-      workspaceId,
-      ledger: await server.ledger(),
-      mounts: [{ module: '/src/components/ledger/ProfitAndLossView.tsx', props: { startDate: '2000-01-01', endDate: '2100-01-01' } }],
-    });
-    await page.route('**/api/**', async route => {
-      const request = route.request();
-      const url = new URL(request.url());
-      const response = await page.request.fetch(`${server.base}${url.pathname}${url.search}`, {
-        method: request.method(),
-        headers: request.headers(),
-        data: request.postDataBuffer() ?? undefined,
+        method: req.method(), headers: req.headers(), data: req.postDataBuffer() ?? undefined,
       });
       await route.fulfill({ response });
     });
-    await expect(page.getByText('$900.00').first()).toBeVisible();
-    expect(reportErrors).toEqual([]);
+    // App normally supplies the full-height shell and initial responsive sidebar state before
+    // mounting RootLayout. Set those once; all subsequent navigation happens through its UI.
+    await page.evaluate(async () => {
+      const { useUIStore } = await import('/src/stores/useUIStore.ts');
+      useUIStore.getState().setSidebarOpen(innerWidth >= 1024);
+      document.getElementById('root')!.classList.add('h-[100dvh]', 'w-full', 'overflow-hidden', 'flex', 'flex-col');
+    });
+    await remountJourney(page, [{ module: '/src/core/layout/RootLayout.tsx', exportName: 'RootLayout' }]);
+    const button = (name: string | RegExp, root: Locator = page.locator('body')) => root.getByRole('button', { name, exact: true });
+    const press = async (target: Locator, backwards = false) => {
+      await tabTo(page, target, backwards); await page.keyboard.press('Enter');
+    };
+    const typeIn = async (target: Locator, value: string) => {
+      await tabTo(page, target); await page.keyboard.press('ControlOrMeta+a'); await page.keyboard.insertText(value);
+      await expect(target).toHaveValue(value);
+    };
+    const submit = async (control: Locator, path: string) => {
+      await tabTo(page, control);
+      const [reply] = await Promise.all([
+        page.waitForResponse(res => res.request().method() === 'POST' && new URL(res.url()).pathname.endsWith(path)),
+        page.keyboard.press('Enter'),
+      ]);
+      expect(reply.status(), path).toBe(200);
+      return reply;
+    };
+    const main = page.locator('#main-content'), dialog = page.getByRole('dialog');
+    const daily = page.getByRole('navigation', { name: 'Daily tools' });
+    if (width === 390) await press(button('Open navigation menu'));
+    await press(button('Sales', daily));
+    if (width === 390) await expect(daily, 'the chosen page must not be obscured by the phone navigation').toBeHidden();
+    else await expect(daily).toBeVisible();
+    await press(button('Customers', main));
+    await press(button('Add Customer', main));
+    await expect(dialog.locator('[name="partyName"]')).toBeFocused();
+    await page.keyboard.type(customerName);
+    await typeIn(dialog.getByLabel('Email Address'), recipient);
+    await submit(button('Save Customer', dialog), '/commands/customer.create');
+    await expect(dialog).toHaveCount(0);
+    const customers = (await server.all('customers')).filter(c => c.name === customerName);
+    expect(customers).toMatchObject([{ email: recipient }]);
+    await server.refresh(page);
 
-    const pnl = await fetch(`${server.base}/api/v1/reports/profit-and-loss?workspaceId=${workspaceId}&startDate=2000-01-01&endDate=2100-01-01`);
-    expect(pnl.status).toBe(200);
-    const statement = await pnl.json() as { income: { total: number }; netIncome: number };
-    expect(statement.income.total).toBe(90000);
-    expect(statement.netIncome).toBe(90000);
+    await press(button('Invoices', main));
+    await submit(button('Add Invoice', main), '/next-number');
+    await typeIn(dialog.locator('#inv-customer'), customerName);
+    await press(dialog.locator('summary'));
+    await typeIn(dialog.locator('#inv-number'), 'INV-FIRST');
+    await expect(dialog.locator('#inv-date')).toHaveValue('2026-04-15');
+    await typeIn(dialog.locator('#inv-item-desc-0'), 'Website design');
+    await typeIn(dialog.locator('#inv-item-rate-0'), '900');
+    await typeIn(dialog.locator('#inv-item-acc-0'), 'Sales');
+    await expect(dialog.getByText('$900.00').first()).toBeVisible();
+    await submit(button(/Save & Close/i, dialog), '/commands/invoice.create');
+    await expect(dialog).toHaveCount(0);
+    const invoices = await server.all('invoices');
+    expect(invoices).toMatchObject([{ number: 'INV-FIRST', customerId: customers[0].id, amountCents: 90000 }]);
+    expect(await server.mail(), 'issuing an invoice is not the same as emailing it').toEqual([]);
+    await server.refresh(page);
 
-    // Nothing threw on the way. A console error here is a dead end a person hit and worked around.
+    await press(button('Email the invoice', main));
+    await expect(dialog.getByLabel('To', { exact: true })).toHaveValue(recipient);
+    await expect(dialog.getByLabel('Email', { exact: true })).toHaveValue('invoice');
+    await submit(button('Send', dialog), `/emails/invoices/${invoices[0].id}`);
+    await expect(dialog.getByText(`Sent · ${recipient}`, { exact: true })).toBeVisible();
+    expect(await server.mail()).toEqual([{ to: recipient, subject: expect.stringContaining('INV-FIRST'), pdfNames: ['invoice_INV-FIRST.pdf'] }]);
+    expect((await server.all('invoices'))[0].metadata?.sendCount).toBe(1);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await server.refresh(page);
+
+    await press(button('Receive payment for invoice INV-FIRST', main));
+    const receipt = await submit(button('Record & Post Payment', dialog), '/api/v1/payments');
+    expect(receipt.request().postDataJSON()).toMatchObject({
+      workspaceId, amountCents: 90000, allocations: [{ documentId: invoices[0].id, amountCents: 90000 }],
+    });
+    await expect(dialog).toHaveCount(0);
+    expect((await server.all('invoices'))[0].status).toBe('paid');
+    await server.refresh(page);
+
+    await tabTo(page, button('Reports', width === 390 ? page.getByRole('navigation', { name: 'Phone navigation' }) : daily));
+    const [pnl] = await Promise.all([
+      page.waitForResponse(res => new URL(res.url()).pathname === '/api/v1/reports/profit-and-loss' && res.request().method() === 'GET'),
+      page.keyboard.press('Enter'),
+    ]);
+    await expect(main.getByRole('heading', { name: /Profit & Loss/i }).first()).toBeVisible();
+    expect(pnl.status()).toBe(200);
+    expect(await pnl.json()).toMatchObject({ income: { total: 90000 }, netIncome: 90000 });
+    await expect(main.getByText('$900.00', { exact: true }).first()).toBeVisible();
     expect(errors).toEqual([]);
-    await page.screenshot({ path: testInfo.outputPath('first-hour-390.png'), fullPage: true });
-  } finally {
-    await server.close();
-  }
+    await page.screenshot({ path: testInfo.outputPath(`first-hour-${width}.png`), fullPage: true });
+  } finally { await server.close(); }
 });

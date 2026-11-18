@@ -34,6 +34,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
+import { guardedTableColumns, onlyAttributes } from './guarded-table-columns';
 
 export interface Conversion {
   file: string;
@@ -426,6 +427,7 @@ function readHead(inner: string): HeadShape | undefined {
     }
     const end = skipElement(trimmed, at, 'th');
     const source = trimmed.slice(at, end);
+    if (!onlyAttributes(openTagAt(source, 0), ['scope', 'className'])) return undefined;
     const literalCell = LITERAL_HEAD_CELL.exec(source.replace(/\s+/g, ' '));
     if (literalCell) {
       cells.push({ content: literalCell[2].trim(), classes: classOf(`<th${literalCell[1]}>`), raw: classSource(`<th${literalCell[1]}>`) });
@@ -698,7 +700,8 @@ export function attemptConvert(source: string, start: number): Attempt {
   const headRow = openTagAt(thead, headRowAt);
   const headInner = thead.slice(skipOpeningTag(thead, headRowAt), thead.lastIndexOf('</tr>'));
   if (attributeOf(headRow, 'onClick') !== undefined) return { reason: 'a sortable header row (the grid owns sorting)' };
-  const head = readHead(headInner);
+  const guardedHead = guardedTableColumns(headInner, true);
+  const head = readHead(guardedHead?.inner ?? headInner);
   if (!head) return { reason: 'a header row that is not one of the shapes the table can take' };
 
   // the totals row keeps its own markup and moves into the component's `footer`, which renders it as a `<tfoot>`:
@@ -775,11 +778,22 @@ export function attemptConvert(source: string, start: number): Attempt {
   const trKey = attributeOf(trOpen, 'key');
   if (!trKey) return { reason: 'a row with no key, and the screen key is the one to keep' };
   if (/\bonClick=|\bonKeyDown=|\bonDoubleClick=|\btabIndex=/.test(trOpen)) return { reason: 'a row the user acts on' };
+  if (!onlyAttributes(trOpen, ['key', 'className'])) {
+    return { reason: 'a row attribute a rewrite would drop' };
+  }
   const rowClassName = classOf(trOpen).join(' ');
 
-  const cells = readCells(rendered.slice(skipOpeningTag(rendered, trAt), trEnd - '</tr>'.length));
+  const rowInner = rendered.slice(skipOpeningTag(rendered, trAt), trEnd - '</tr>'.length);
+  const guardedBody = guardedTableColumns(rowInner, false);
+  if (guardedHead || guardedBody) {
+    if (!guardedHead || !guardedBody || guardedHead.guards.length !== guardedBody.guards.length ||
+        guardedHead.guards.some((guard, index) => guard !== guardedBody.guards[index] || guard === row)) {
+      return { reason: 'a conditional column whose header and cell do not share a table-level flag' };
+    }
+  }
+  const cells = readCells(guardedBody?.inner ?? rowInner);
   if (!cells) return { reason: 'a cell this script could not read as one column' };
-  const rowHeaderColumn = cells[0].rowHeader;
+  const rowHeaderAt = cells.findIndex(cell => cell.rowHeader);
 
   // a class that reads the row (`cn('p-3', m.amountCents < 0 ? …)`) is computed per row: it has to stay inside
   // the cell, because a column-level `className` is evaluated once, outside the row's scope
@@ -801,7 +815,10 @@ export function attemptConvert(source: string, start: number): Attempt {
   if (classSource(trOpen) && readsRow.test(classSource(trOpen)!)) {
     return { reason: 'a row class that reads the row, so the row changes with its data' };
   }
-  if (cells.slice(1).some(cell => cell.rowHeader)) return { reason: 'a row header after the first column' };
+  if (classSource(trOpen)?.startsWith('{')) return { reason: 'a computed row class this script cannot preserve' };
+  if (cells.some((cell, index) => cell.rowHeader && (index !== rowHeaderAt || cell.nested || guardedBody?.guards[index]))) {
+    return { reason: 'a row header that is repeated or conditional' };
+  }
 
   const tableClass = classOf(tableOpen).join(' ');
   // the head's class is on the `<thead>` when it is `sticky top-0`, and on the `<tr>` when it is a colour:
@@ -810,8 +827,8 @@ export function attemptConvert(source: string, start: number): Attempt {
   const bodyClass = classOf(tbodyOpen).join(' ');
 
   const entries: string[] = [];
-  const entry = (parts: (string | string[] | false | undefined)[]) =>
-    `{ ${parts.flat().filter(Boolean).join(', ')} },`;
+  const entry = (parts: (string | string[] | false | undefined)[], guard?: string) =>
+    `${guard ? `${guard} ? ` : ''}{ ${parts.flat().filter(Boolean).join(', ')} }${guard ? ' : false' : ''},`;
 
   /** `cell: row => …` for a literal cell, from the row's name and the cell's own expression. */
   const cellCallback = (content: string, extra?: string) =>
@@ -853,11 +870,12 @@ export function attemptConvert(source: string, start: number): Attempt {
     const text = header.content;
     entries.push(entry([
       /[<{]/.test(text) ? `header: ${jsxValue(text)}` : `header: ${literal(text)}`,
+      index > 0 && cell.rowHeader && 'rowHeader: true',
       alignEntry(header.classes, cell.classes),
       ...classesOf(header.raw, cell.rawClass, header.classes, cell.classes),
       cellPropsEntry(cell.extra, row),
       `cell: ${cellArrow(row, cell.content)}`,
-    ]));
+    ], guardedHead?.guards[index]));
   });
 
   if (nestedCells.length === 1) {
@@ -884,6 +902,7 @@ export function attemptConvert(source: string, start: number): Attempt {
       const cell = literalCells[index];
       entries.push(entry([
         `header: ${literal(name)}`,
+        index > 0 && cell.rowHeader && 'rowHeader: true',
         alignEntry(classOf(head.headTag), cell.classes),
         ...classesOf(classSource(head.headTag), cell.rawClass, classOf(head.headTag), cell.classes),
         cellPropsEntry(cell.extra, row),
@@ -898,7 +917,7 @@ export function attemptConvert(source: string, start: number): Attempt {
 
   const props: string[] = [];
   if (tableKey) props.push(`        key={${tableKey}}`);
-  if (!rowHeaderColumn) props.push('        rowHeaderColumn={false}');
+  if (rowHeaderAt === -1) props.push('        rowHeaderColumn={false}');
   if (rowClassName) props.push(`        rowClassName=${attr(rowClassName)}`);
   props.push(`        caption={${jsxValue(captionBody)}}`);
   props.push(`        rows={${list}}`);

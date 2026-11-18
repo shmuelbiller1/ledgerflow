@@ -106,10 +106,8 @@ export async function mountJourney(page: Page, options: JourneyOptions): Promise
     refresh.default.injectIntoGlobalHook(window);
     Object.assign(window, { $RefreshReg$: () => {}, $RefreshSig$: () => (type: unknown) => type, __vite_plugin_react_preamble_installed__: true });
 
-    const [{ default: React }, { default: { createRoot } }, { MotionConfig }, { useAuthStore }, { useLedgerStore }, { useDataNeedsStore }] = await Promise.all([
-      import('/node_modules/.vite/deps/react.js'),
-      import('/node_modules/.vite/deps/react-dom_client.js'),
-      import('/node_modules/.vite/deps/motion_react.js'),
+    const [{ React, createRoot, MotionConfig }, { useAuthStore }, { useLedgerStore }, { useDataNeedsStore }] = await Promise.all([
+      import('/e2e/support/journeyRuntime.ts'),
       import('/src/stores/useAuthStore.ts'),
       import('/src/stores/useLedgerStore.ts'),
       import('/src/stores/useDataNeedsStore.ts'),

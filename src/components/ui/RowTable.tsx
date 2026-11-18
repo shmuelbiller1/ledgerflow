@@ -21,7 +21,8 @@
  * The shared grid is still the answer for a list that needs sorting, searching, column choice or a saved
  * view. This is for the table that is part of a sentence.
  */
-import type { ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
+import { ReportColumnOrder, orderReportCells } from './reportColumnOrder';
 import { planColumns, type RowTableColumns } from '../../lib/rowTable';
 
 export type { RowTableColumn, RowTableColumns } from '../../lib/rowTable';
@@ -37,7 +38,7 @@ export interface RowTableProps<T, C = never> {
   columns: RowTableColumns<T, C>;
   /** A stable identity per row. Defaults to the index, which is only safe for a static table. */
   rowKey?: (row: T, index: number) => string | number;
-  /** The first column is a row header — the record's own name. */
+  /** Name rows by the marked column (the first by default); false for tables without a row header. */
   rowHeaderColumn?: boolean;
   /** An extra class for the row-header cells only. Empty by default: most screens' first column is not bold,
    *  and the sweep must not make it bold. */
@@ -85,10 +86,12 @@ export function RowTable<T, C = never>({
   emptyRow,
   empty,
 }: RowTableProps<T, C>) {
+  const order = useContext(ReportColumnOrder);
   if (rows.length === 0 && empty !== undefined) return <>{empty}</>;
   const keyOf = rowKey ?? ((_row: T, position: number) => position);
   const planned = planColumns(columns);
-  return (
+  const header = rowHeaderColumn ? planned.find(column => column.rowHeader) ?? planned[0] : undefined;
+  const table = (
     <table className={tableClassName}>
       <caption className={captionClassName}>{caption}</caption>
       <thead className={headRowClassName}>
@@ -103,11 +106,10 @@ export function RowTable<T, C = never>({
       <tbody className={bodyClassName}>
         {rows.length === 0 && emptyRow !== undefined ? emptyRow : rows.map((row, position) => (
           <tr key={keyOf(row, position)} className={rowClassName}>
-            {planned.map((column, index) => {
+            {planned.map(column => {
               const className = alignClass(column.align, column.className);
               const cellProps = typeof column.cellProps === 'function' ? column.cellProps(row) : column.cellProps;
-              // the first column names the record, so it is a header cell for the row it starts
-              if (index === 0 && rowHeaderColumn) {
+              if (column === header) {
                 return <th key={column.key} scope="row" className={`${className} ${rowHeaderClassName}`.trim()} {...cellProps}>{column.cell(row)}</th>;
               }
               return <td key={column.key} className={className} {...cellProps}>{column.cell(row)}</td>;
@@ -118,4 +120,5 @@ export function RowTable<T, C = never>({
       {footer !== undefined ? <tfoot className={footerClassName}>{footer}</tfoot> : null}
     </table>
   );
+  return order === null ? table : orderReportCells(table, order);
 }

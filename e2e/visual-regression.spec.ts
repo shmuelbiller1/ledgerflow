@@ -1,3 +1,4 @@
+import { checkComparisonReports } from './support/reportRowTableJourney';
 import { installSmallSample } from './helpers/sampleFixture';
 import { test, expect } from '@playwright/test';
 import { waitForFiniteAnimations } from './support/a11yGate';
@@ -88,4 +89,11 @@ for (const width of [1280, 390]) for (const theme of ['light', 'dark'] as const)
       });
     });
   }
+}
+
+// Include the open chooser, translated table headings and a non-first row header in baseline review.
+for (const width of [390, 1280]) for (const theme of ['light', 'dark'] as const) {
+  test(`visual comparison reports ${width} ${theme}`, async ({ page }) => {
+    await checkComparisonReports(page, width, theme);
+  });
 }
