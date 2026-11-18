@@ -1,5 +1,5 @@
 {
-  "writeRoutes": 49,
+  "writeRoutes": 46,
   "directBrowserWrites": 0,
   "routeSites": {
     "src/server/routes/aiRoutes.ts": 1,
@@ -8,7 +8,6 @@
     "src/server/routes/billingRoutes.ts": 4,
     "src/server/routes/brainRoutes.ts": 2,
     "src/server/routes/brandingRoutes.ts": 1,
-    "src/server/routes/budgetControlRoutes.ts": 1,
     "src/server/routes/consolidationRoutes.ts": 1,
     "src/server/routes/cspReportRoutes.ts": 2,
     "src/server/routes/developerApiRoutes.ts": 4,
@@ -17,7 +16,6 @@
     "src/server/routes/emailRoutes.ts": 3,
     "src/server/routes/estimateSignRoutes.ts": 1,
     "src/server/routes/invitePublicRoutes.ts": 1,
-    "src/server/routes/leaseRoutes.ts": 1,
     "src/server/routes/ledgerMatchRoutes.ts": 1,
     "src/server/routes/logsUploadRoutes.ts": 1,
     "src/server/routes/metricsAuditRoutes.ts": 1,
@@ -28,7 +26,6 @@
     "src/server/routes/publicInvoiceRoutes.ts": 1,
     "src/server/routes/reportRoutes.ts": 1,
     "src/server/routes/repostRoutes.ts": 1,
-    "src/server/routes/revenueRoutes.ts": 1,
     "src/server/routes/stripeWebhookRoutes.ts": 1,
     "src/server/routes/supportRoutes.ts": 2,
     "src/server/routes/telemetryRoutes.ts": 1,

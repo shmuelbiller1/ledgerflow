@@ -3,29 +3,30 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema181 } from '../commandSchemas
 import { COMMAND_INPUT_SCHEMA as commandInputSchema182 } from '../commandSchemas.generated/workspace_apicreate';
 import { COMMAND_INPUT_SCHEMA as commandInputSchema183 } from '../commandSchemas.generated/workspace_applytemplate';
 import { COMMAND_INPUT_SCHEMA as commandInputSchema184 } from '../commandSchemas.generated/workspace_branding';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema185 } from '../commandSchemas.generated/workspace_canceldeletion';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema186 } from '../commandSchemas.generated/workspace_create';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema187 } from '../commandSchemas.generated/workspace_dimensionaxes';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema188 } from '../commandSchemas.generated/workspace_dimensionnode';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema189 } from '../commandSchemas.generated/workspace_dimensionnodes';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema190 } from '../commandSchemas.generated/workspace_dimensionnodesmigrate';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema191 } from '../commandSchemas.generated/workspace_importmap';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema192 } from '../commandSchemas.generated/workspace_importrecords';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema193 } from '../commandSchemas.generated/workspace_invite';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema194 } from '../commandSchemas.generated/workspace_modules';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema195 } from '../commandSchemas.generated/workspace_nextnumber';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema196 } from '../commandSchemas.generated/workspace_openingbalances';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema197 } from '../commandSchemas.generated/workspace_removemember';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema198 } from '../commandSchemas.generated/workspace_restorebackup';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema199 } from '../commandSchemas.generated/workspace_restoremaps';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema200 } from '../commandSchemas.generated/workspace_retention';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema201 } from '../commandSchemas.generated/workspace_revokeinvite';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema202 } from '../commandSchemas.generated/workspace_savetemplate';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema203 } from '../commandSchemas.generated/workspace_scheduledeletion';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema204 } from '../commandSchemas.generated/workspace_settings';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema205 } from '../commandSchemas.generated/workspace_setupcomplete';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema206 } from '../commandSchemas.generated/workspace_undoimport';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema207 } from '../commandSchemas.generated/workspace_updaterole';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema185 } from '../commandSchemas.generated/workspace_budgetcontrol';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema186 } from '../commandSchemas.generated/workspace_canceldeletion';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema187 } from '../commandSchemas.generated/workspace_create';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema188 } from '../commandSchemas.generated/workspace_dimensionaxes';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema189 } from '../commandSchemas.generated/workspace_dimensionnode';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema190 } from '../commandSchemas.generated/workspace_dimensionnodes';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema191 } from '../commandSchemas.generated/workspace_dimensionnodesmigrate';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema192 } from '../commandSchemas.generated/workspace_importmap';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema193 } from '../commandSchemas.generated/workspace_importrecords';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema194 } from '../commandSchemas.generated/workspace_invite';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema195 } from '../commandSchemas.generated/workspace_modules';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema196 } from '../commandSchemas.generated/workspace_nextnumber';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema197 } from '../commandSchemas.generated/workspace_openingbalances';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema198 } from '../commandSchemas.generated/workspace_removemember';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema199 } from '../commandSchemas.generated/workspace_restorebackup';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema200 } from '../commandSchemas.generated/workspace_restoremaps';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema201 } from '../commandSchemas.generated/workspace_retention';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema202 } from '../commandSchemas.generated/workspace_revokeinvite';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema203 } from '../commandSchemas.generated/workspace_savetemplate';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema204 } from '../commandSchemas.generated/workspace_scheduledeletion';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema205 } from '../commandSchemas.generated/workspace_settings';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema206 } from '../commandSchemas.generated/workspace_setupcomplete';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema207 } from '../commandSchemas.generated/workspace_undoimport';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema208 } from '../commandSchemas.generated/workspace_updaterole';
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const WORKSPACE_COMMAND_MANIFEST = [
@@ -140,6 +141,33 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     inputSchema: commandInputSchema184
   },
   {
+    "name": "workspace.budgetcontrol",
+    "area": "workspace",
+    "roles": COMMAND_SCHEMA_PARTS.part5,
+    "risk": "normal",
+    "description": {
+      "sentence": "Set whether over-budget posting is ignored, warned or blocked; do not use it to change a budget amount.",
+      "example": {
+        "budgetControl": "block"
+      },
+      "refusals": [
+        {
+          "code": "INVALID_INPUT",
+          "when": "The mode is not off, warn or block.",
+          "next": "Choose one of the three modes."
+        },
+        {
+          "code": "ROLE_REQUIRED",
+          "when": "The caller is not the workspace owner.",
+          "next": "Ask the owner to change this setting."
+        }
+      ]
+    },
+    "runPath": "/api/v1/commands/workspace.budgetcontrol",
+    "previewPath": "/api/v1/commands/workspace.budgetcontrol/preview",
+    inputSchema: commandInputSchema185
+  },
+  {
     "name": "workspace.canceldeletion",
     "area": "workspace",
     "roles": COMMAND_SCHEMA_PARTS.part5,
@@ -163,7 +191,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.canceldeletion",
     "previewPath": "/api/v1/commands/workspace.canceldeletion/preview",
-    inputSchema: commandInputSchema185
+    inputSchema: commandInputSchema186
   },
   {
     "name": "workspace.create",
@@ -193,7 +221,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.create",
     "previewPath": "/api/v1/commands/workspace.create/preview",
-    inputSchema: commandInputSchema186
+    inputSchema: commandInputSchema187
   },
   {
     "name": "workspace.dimensionaxes",
@@ -236,7 +264,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.dimensionaxes",
     "previewPath": "/api/v1/commands/workspace.dimensionaxes/preview",
-    inputSchema: commandInputSchema187
+    inputSchema: commandInputSchema188
   },
   {
     "name": "workspace.dimensionnode",
@@ -271,7 +299,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.dimensionnode",
     "previewPath": "/api/v1/commands/workspace.dimensionnode/preview",
-    inputSchema: commandInputSchema188
+    inputSchema: commandInputSchema189
   },
   {
     "name": "workspace.dimensionnodes",
@@ -302,7 +330,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.dimensionnodes",
     "previewPath": "/api/v1/commands/workspace.dimensionnodes/preview",
-    inputSchema: commandInputSchema189
+    inputSchema: commandInputSchema190
   },
   {
     "name": "workspace.dimensionnodesmigrate",
@@ -334,7 +362,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.dimensionnodesmigrate",
     "previewPath": "/api/v1/commands/workspace.dimensionnodesmigrate/preview",
-    inputSchema: commandInputSchema190
+    inputSchema: commandInputSchema191
   },
   {
     "name": "workspace.importmap",
@@ -369,7 +397,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.importmap",
     "previewPath": "/api/v1/commands/workspace.importmap/preview",
-    inputSchema: commandInputSchema191
+    inputSchema: commandInputSchema192
   },
   {
     "name": "workspace.importrecords",
@@ -401,7 +429,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.importrecords",
     "previewPath": "/api/v1/commands/workspace.importrecords/preview",
-    inputSchema: commandInputSchema192
+    inputSchema: commandInputSchema193
   },
   {
     "name": "workspace.invite",
@@ -434,7 +462,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.invite",
     "previewPath": "/api/v1/commands/workspace.invite/preview",
-    inputSchema: commandInputSchema193
+    inputSchema: commandInputSchema194
   },
   {
     "name": "workspace.modules",
@@ -465,7 +493,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.modules",
     "previewPath": "/api/v1/commands/workspace.modules/preview",
-    inputSchema: commandInputSchema194
+    inputSchema: commandInputSchema195
   },
   {
     "name": "workspace.nextnumber",
@@ -493,7 +521,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.nextnumber",
     "previewPath": "/api/v1/commands/workspace.nextnumber/preview",
-    inputSchema: commandInputSchema195
+    inputSchema: commandInputSchema196
   },
   {
     "name": "workspace.openingbalances",
@@ -546,7 +574,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.openingbalances",
     "previewPath": "/api/v1/commands/workspace.openingbalances/preview",
-    inputSchema: commandInputSchema196
+    inputSchema: commandInputSchema197
   },
   {
     "name": "workspace.removemember",
@@ -567,7 +595,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.removemember",
     "previewPath": "/api/v1/commands/workspace.removemember/preview",
-    inputSchema: commandInputSchema197
+    inputSchema: commandInputSchema198
   },
   {
     "name": "workspace.restorebackup",
@@ -592,7 +620,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.restorebackup",
     "previewPath": "/api/v1/commands/workspace.restorebackup/preview",
-    inputSchema: commandInputSchema198
+    inputSchema: commandInputSchema199
   },
   {
     "name": "workspace.restoremaps",
@@ -620,7 +648,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.restoremaps",
     "previewPath": "/api/v1/commands/workspace.restoremaps/preview",
-    inputSchema: commandInputSchema199
+    inputSchema: commandInputSchema200
   },
   {
     "name": "workspace.retention",
@@ -651,7 +679,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.retention",
     "previewPath": "/api/v1/commands/workspace.retention/preview",
-    inputSchema: commandInputSchema200
+    inputSchema: commandInputSchema201
   },
   {
     "name": "workspace.revokeinvite",
@@ -688,7 +716,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.revokeinvite",
     "previewPath": "/api/v1/commands/workspace.revokeinvite/preview",
-    inputSchema: commandInputSchema201
+    inputSchema: commandInputSchema202
   },
   {
     "name": "workspace.savetemplate",
@@ -721,7 +749,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.savetemplate",
     "previewPath": "/api/v1/commands/workspace.savetemplate/preview",
-    inputSchema: commandInputSchema202
+    inputSchema: commandInputSchema203
   },
   {
     "name": "workspace.scheduledeletion",
@@ -746,7 +774,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.scheduledeletion",
     "previewPath": "/api/v1/commands/workspace.scheduledeletion/preview",
-    inputSchema: commandInputSchema203
+    inputSchema: commandInputSchema204
   },
   {
     "name": "workspace.settings",
@@ -785,7 +813,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.settings",
     "previewPath": "/api/v1/commands/workspace.settings/preview",
-    inputSchema: commandInputSchema204
+    inputSchema: commandInputSchema205
   },
   {
     "name": "workspace.setupcomplete",
@@ -806,7 +834,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.setupcomplete",
     "previewPath": "/api/v1/commands/workspace.setupcomplete/preview",
-    inputSchema: commandInputSchema205
+    inputSchema: commandInputSchema206
   },
   {
     "name": "workspace.undoimport",
@@ -838,7 +866,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.undoimport",
     "previewPath": "/api/v1/commands/workspace.undoimport/preview",
-    inputSchema: commandInputSchema206
+    inputSchema: commandInputSchema207
   },
   {
     "name": "workspace.updaterole",
@@ -871,6 +899,6 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.updaterole",
     "previewPath": "/api/v1/commands/workspace.updaterole/preview",
-    inputSchema: commandInputSchema207
+    inputSchema: commandInputSchema208
   },
 ] as const;

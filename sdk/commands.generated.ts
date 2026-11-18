@@ -186,6 +186,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "workspace.apicreate",
   "workspace.applytemplate",
   "workspace.branding",
+  "workspace.budgetcontrol",
   "workspace.canceldeletion",
   "workspace.create",
   "workspace.dimensionaxes",
