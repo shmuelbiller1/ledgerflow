@@ -77,7 +77,9 @@ const NESTED_MAPS = new Set(['reportNotes']);
  */
 const BOOKS = [
   'transactions', 'invoices', 'bills', 'journalEntries', 'creditNotes', 'vendorCredits', 'payments', 'estimates',
-  'purchaseOrders', 'assets', 'inventory', 'payRuns', 'loans', 'bankLines',
+  'purchaseOrders', 'assets', 'inventory', 'stockMoves', 'payRuns', 'loans', 'bankLines',
+  // a recurring rule posts its stored amount on its next run, and a budget is read in the home currency (Gitar, #862)
+  'recurring', 'budgets',
 ] as const;
 
 const HAS_BOOKS = 'This workspace already has entries in its books, so its home currency cannot be changed here.';

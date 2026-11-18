@@ -118,11 +118,13 @@ test('#841: the currency is a real ISO code and the tax rounding one of the thre
   assert.equal(workspaceSettingsInput.safeParse({ taxRounding: 'banker' }).success, false);
 });
 
-test('#841: a credit note, a payment, an asset, stock, a bank line or an opening balance keeps the home currency', async () => {
+test('#841: a credit note, a payment, an asset, stock, a bank line, a recurring rule, a budget or an opening balance keeps the home currency', async () => {
   const cases: Array<[string, Record<string, unknown>]> = [
     ['creditNotes/c1', { amountCents: 100 }], ['payments/p1', { amountCents: 100 }], ['assets/a1', { costCents: 100_000 }],
     ['inventory/i1', { unitCostCents: 100 }], ['bankLines/b1', { amountCents: -100 }], ['loans/l1', { principalCents: 100 }],
     ['chartAccounts/acc1', { name: 'Cash', openingBalanceCents: 100_000 }],
+    ['recurring/r1', { amountCents: 100_000, frequency: 'monthly' }], ['budgets/bu1', { amountCents: 50_000 }],
+    ['stockMoves/sm1', { valueCents: 100 }],
   ];
   for (const [path, fields] of cases) {
     const db = new MemoryDb();
