@@ -6,9 +6,9 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part46,
     "orderId": COMMAND_SCHEMA_PARTS.part46,
-    "deliveryId": COMMAND_SCHEMA_PARTS.part107,
-    "date": COMMAND_SCHEMA_PARTS.part115,
-    "lines": COMMAND_SCHEMA_PARTS.part239,
+    "deliveryId": COMMAND_SCHEMA_PARTS.part108,
+    "date": COMMAND_SCHEMA_PARTS.part116,
+    "lines": COMMAND_SCHEMA_PARTS.part240,
     "inventoryAccountId": COMMAND_SCHEMA_PARTS.part46,
     "cogsAccountId": COMMAND_SCHEMA_PARTS.part46,
     "locationId": COMMAND_SCHEMA_PARTS.part57,

@@ -54,7 +54,7 @@ export const QUERY_COMMAND_MANIFEST = [
           "when": "The caller neither asked it nor is an owner or an accountant.",
           "next": "Ask the person who asked, or an owner, to close it."
         },
-        COMMAND_SCHEMA_PARTS.part182
+        COMMAND_SCHEMA_PARTS.part183
       ]
     },
     "runPath": "/api/v1/commands/query.close",
@@ -83,7 +83,7 @@ export const QUERY_COMMAND_MANIFEST = [
           "when": "The question is closed, or the conversation has as many messages as it may have.",
           "next": "Close it and ask again if it matters."
         },
-        COMMAND_SCHEMA_PARTS.part182
+        COMMAND_SCHEMA_PARTS.part183
       ]
     },
     "runPath": "/api/v1/commands/query.reply",

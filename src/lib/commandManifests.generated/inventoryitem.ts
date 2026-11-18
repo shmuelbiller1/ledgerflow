@@ -21,7 +21,7 @@ export const INVENTORYITEM_COMMAND_MANIFEST = [
           "when": "The item still has stock on hand, which the books count as value.",
           "next": "Record the stock out with a count or an adjustment, then remove the card."
         },
-        COMMAND_SCHEMA_PARTS.part201,
+        COMMAND_SCHEMA_PARTS.part202,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is a viewer.",
@@ -57,7 +57,12 @@ export const INVENTORYITEM_COMMAND_MANIFEST = [
           "when": "The field is not one a list cell corrects, or the value does not fit it.",
           "next": "Send one of name, sku, category, unitPriceCents, unitCostCents, standardCostCents."
         },
-        COMMAND_SCHEMA_PARTS.part201,
+        COMMAND_SCHEMA_PARTS.part202,
+        {
+          "code": "CONFLICT",
+          "when": "The cell is the unit cost and the item has stock.",
+          "next": "Change the cost with inventory.revalue, which posts the difference."
+        },
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is a viewer.",
@@ -100,6 +105,11 @@ export const INVENTORYITEM_COMMAND_MANIFEST = [
           "code": "NOT_FOUND",
           "when": "The item being changed is not in the selected workspace.",
           "next": "Reload the list and choose an item in this workspace."
+        },
+        {
+          "code": "CONFLICT",
+          "when": "The item has stock and the payload changes its unit cost.",
+          "next": "Change the cost with inventory.revalue, which posts the difference."
         },
         {
           "code": "ROLE_REQUIRED",

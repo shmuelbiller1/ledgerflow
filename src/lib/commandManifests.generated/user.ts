@@ -70,7 +70,7 @@ export const USER_COMMAND_MANIFEST = [
           "when": "Nothing was named, or a notice is not a scalar or a report layout has no scope.",
           "next": "Send the notices, or one report’s scope key and layout."
         },
-        COMMAND_SCHEMA_PARTS.part183
+        COMMAND_SCHEMA_PARTS.part184
       ],
       "next": [
         {
@@ -98,7 +98,7 @@ export const USER_COMMAND_MANIFEST = [
           "when": "The input carries any field.",
           "next": "Send an empty object: the profile is built from the signed-in person."
         },
-        COMMAND_SCHEMA_PARTS.part183
+        COMMAND_SCHEMA_PARTS.part184
       ],
       "next": [
         {

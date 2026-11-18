@@ -36,7 +36,7 @@ export const STAGES_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to define stages."
         },
-        COMMAND_SCHEMA_PARTS.part168
+        COMMAND_SCHEMA_PARTS.part169
       ]
     },
     "runPath": "/api/v1/commands/stages.define",
