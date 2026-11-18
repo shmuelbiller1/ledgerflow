@@ -26,6 +26,8 @@ export function checkTranslatedScreen(
   visibleProps: ReadonlySet<string> = VISIBLE_PROPS,
   /** Whether strings written into the markup ({'Sync Feed'}) are checked. */
   checkMarkupStrings = true,
+  /** Whether object-literal properties with a visible name ({ header: 'Vendor' }) are checked too. */
+  checkObjectProps = false,
 ): TranslationReport {
   const source = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const bundle = SCREEN_TRANSLATION_TABLE.find(b => b.screenId === screenId);
@@ -45,6 +47,24 @@ export function checkTranslatedScreen(
       : ts.isTemplateExpression(node) ? [node.head.text, ...node.templateSpans.map(s => s.literal.text)].join(' ') : null;
   const flag = (node: ts.Node, text: string) => untranslated.push(`${lineOf(node)}: ${text.replace(/\s+/g, ' ').trim()}`);
 
+  // CSV / Excel export columns stay in English on purpose (a file for a spreadsheet or an accountant)
+  const insideExport = (node: ts.Node): boolean => {
+    for (let n: ts.Node | undefined = node.parent; n; n = n.parent) {
+      const name = ts.isFunctionDeclaration(n) ? n.name?.text
+        : (ts.isArrowFunction(n) || ts.isFunctionExpression(n)) && ts.isVariableDeclaration(n.parent) ? n.parent.name.getText(source) : undefined;
+      if (name && /export/i.test(name)) return true;
+    }
+    return false;
+  };
+  // a prop value: a string, or each branch of a condition / fallback (busy ? 'Reading…' : 'Not available')
+  const scanValue = (e: ts.Node, name: string): void => {
+    const text = stringOf(e);
+    if (text !== null) { if (hasLetters(text) && !insideHelper(e)) flag(e, `${name}=${text}`); return; }
+    if (ts.isConditionalExpression(e)) { scanValue(e.whenTrue, name); scanValue(e.whenFalse, name); }
+    else if (ts.isBinaryExpression(e) && [ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(e.operatorToken.kind)) { scanValue(e.left, name); scanValue(e.right, name); }
+    else if (ts.isParenthesizedExpression(e)) scanValue(e.expression, name);
+  };
+
   const visit = (node: ts.Node): void => {
     if (ts.isJsxText(node) && /[\p{L}\p{N}]/u.test(node.getText(source))) flag(node, node.getText(source));
     // a string written straight into the markup: {'Sync Feed'} or {busy ? 'Syncing...' : 'Sync Feed'}
@@ -59,11 +79,14 @@ export function checkTranslatedScreen(
       };
       scan(node.expression);
     }
+    // a visible prop or column definition written as an object: { header: 'Vendor' }, { label: busy ? 'Reading…' : 'Value' }
+    if (checkObjectProps && ts.isPropertyAssignment(node) && visibleProps.has(node.name.getText(source).replace(/^['"]|['"]$/g, '')) && !insideExport(node)) {
+      scanValue(node.initializer, node.name.getText(source));
+    }
     if (ts.isJsxAttribute(node) && visibleProps.has(node.name.getText(source)) && node.initializer) {
       const init = node.initializer;
       const value = ts.isStringLiteral(init) ? init : ts.isJsxExpression(init) ? init.expression : undefined;
-      const text = value ? stringOf(value) : null;
-      if (value && text !== null && hasLetters(text) && !insideHelper(value)) flag(value, `${node.name.getText(source)}=${text}`);
+      if (value) scanValue(value, node.name.getText(source));
     }
     if (ts.isCallExpression(node) && node.expression.getText(source) === helper) {
       calls++;

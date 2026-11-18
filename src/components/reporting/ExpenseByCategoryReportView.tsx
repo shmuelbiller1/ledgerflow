@@ -50,14 +50,14 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
    * what they came to. The share sorts on the number, not the printed percentage.
    */
   const columns: ColumnDef<(typeof breakdowns)[number], unknown>[] = [
-    { id: 'category', accessorFn: row => row.category, header: 'Category', cell: info => (
+    { id: 'category', accessorFn: row => row.category, header: reportText('r.category', 'Category'), cell: info => (
       <span className="flex items-center gap-2">
         <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" aria-hidden="true" />
         <bdi>{String(info.getValue())}</bdi>
       </span>
     ) },
-    { id: 'count', accessorFn: row => row.transactionCount, header: 'Transactions', cell: info => <span className="font-mono">{String(info.getValue())}</span> },
-    { id: 'share', accessorFn: row => row.percentage, header: 'Share', cell: info => (
+    { id: 'count', accessorFn: row => row.transactionCount, header: reportText('r.transactions', 'Transactions'), cell: info => <span className="font-mono">{String(info.getValue())}</span> },
+    { id: 'share', accessorFn: row => row.percentage, header: reportText('r.share', 'Share'), cell: info => (
       <span className="flex items-center justify-end gap-2">
         <span className="w-24 bg-neutral-100 rounded-full h-1.5 overflow-hidden" aria-hidden="true">
           <span className="block bg-rose-500 h-full rounded-full" style={{ width: `${Math.min(100, Number(info.getValue()))}%` }} />
@@ -65,7 +65,7 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
         <span className="font-mono w-12 text-right">{Number(info.getValue()).toFixed(1)}%</span>
       </span>
     ) },
-    { id: 'total', accessorFn: row => row.totalAmountCents, header: 'Total Outflow', cell: info => <span className="font-mono font-semibold text-rose-600">{formatCurrency(Number(info.getValue()))}</span> },
+    { id: 'total', accessorFn: row => row.totalAmountCents, header: reportText('r.total-outflow', 'Total Outflow'), cell: info => <span className="font-mono font-semibold text-rose-600">{formatCurrency(Number(info.getValue()))}</span> },
   ];
 
   const totalExpenseCents = useMemo(() => {
@@ -101,19 +101,19 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
       {loading && <LoadingState what={reportText('r.expenses-by-category', 'expenses by category')} rows={4} />}
 
       <TanStackDataGrid
-        caption="Expenses by category"
+        caption={reportText('r.expenses-by-category-caption', 'Expenses by category')}
         data={breakdowns}
         columns={columns}
         rowHeaderColumn="category"
         pageSize={25}
-        searchPlaceholder="Search categories..."
+        searchPlaceholder={reportText('r.search-categories', 'Search categories...')}
         searchLabel="Search categories"
         columnScope="report-expense-by-category"
         columnLabel="Expenses by category columns"
         columnNames={['Category', 'Transactions', 'Share', 'Total Outflow']}
         exportConfig={{
           filename: 'expenses-by-category.csv',
-          label: 'Export CSV',
+          label: reportText('r.export-csv', 'Export CSV'),
           headers: ['Category', 'Transactions', 'Share %', 'Total Outflow'],
           mapRow: row => [row.category, row.transactionCount, row.percentage.toFixed(1), csvMoney(row.totalAmountCents)],
         }}

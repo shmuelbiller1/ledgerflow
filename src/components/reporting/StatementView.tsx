@@ -19,6 +19,7 @@ import {
   entityStatementNote,
   scopeStatementDocuments,
 } from '../../lib/statementByEntity';
+import { useReportText, fill } from './useReportText';
 
 interface StatementViewProps {
   startDate?: string;
@@ -28,6 +29,7 @@ interface StatementViewProps {
 }
 
 export default function StatementView({ startDate: pageStartDate, endDate: pageEndDate, embedded = false }: StatementViewProps = {}) {
+  const reportText = useReportText();
   const Heading = embedded ? 'h2' : 'h1';
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -138,9 +140,9 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
             <FileText className="w-6 h-6" />
           </div>
           <div>
-            <Heading className="text-xl font-bold text-slate-900 dark:text-white">Account Statement</Heading>
+            <Heading className="text-xl font-bold text-slate-900 dark:text-white">{reportText('r.account-statement', 'Account Statement')}</Heading>
             <p className="text-xs text-[var(--muted)] dark:text-slate-400">
-              Customer and Vendor itemized account balance & transaction statements
+              {reportText('r.customer-and-vendor-itemized-account-balance-tra', 'Customer and Vendor itemized account balance & transaction statements')}
             </p>
           </div>
         </div>
@@ -152,20 +154,20 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
               <button
                 onClick={() => setIsPreviewOpen(true)}
                 disabled={Boolean(activeEntity)}
-                title={activeEntity ? 'The PDF covers the whole account; choose All entities to use it' : undefined}
+                title={activeEntity ? reportText('r.the-pdf-covers-the-whole-account-choose-all-enti', 'The PDF covers the whole account; choose All entities to use it') : undefined}
                 className="inline-flex items-center gap-2 min-h-11 px-3.5 py-2 text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-200 dark:border-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Eye className="w-4 h-4" />
-                Preview PDF
+                {reportText('r.preview-pdf', 'Preview PDF')}
               </button>
               <button
                 onClick={() => downloadDocumentPdf('statement', selectedContact.id, currentWorkspaceId || 'default', `statement_${selectedContact.name || selectedContact.id}.pdf`, scope)}
                 disabled={Boolean(activeEntity)}
-                title={activeEntity ? 'The PDF covers the whole account; choose All entities to use it' : undefined}
+                title={activeEntity ? reportText('r.the-pdf-covers-the-whole-account-choose-all-enti', 'The PDF covers the whole account; choose All entities to use it') : undefined}
                 className="inline-flex items-center gap-2 min-h-11 px-3.5 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Download className="w-4 h-4" />
-                Download PDF
+                {reportText('r.download-pdf', 'Download PDF')}
               </button>
             </>
           )}
@@ -174,7 +176,7 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
             className="inline-flex items-center gap-2 min-h-11 px-3.5 py-2 text-xs font-semibold bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-lg transition-colors"
           >
             <Printer className="w-4 h-4" />
-            Print Statement
+            {reportText('r.print-statement', 'Print Statement')}
           </button>
         </div>
       </div>
@@ -190,7 +192,7 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
             }}
             className={`min-h-11 px-3 py-1 text-xs font-semibold rounded-md ${type === 'customer' ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}
           >
-            Customer Statement
+            {reportText('r.customer-statement', 'Customer Statement')}
           </button>
           <button
             type="button"
@@ -200,12 +202,12 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
             }}
             className={`min-h-11 px-3 py-1 text-xs font-semibold rounded-md ${type === 'vendor' ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-xs' : 'text-slate-600 dark:text-slate-400'}`}
           >
-            Vendor Statement
+            {reportText('r.vendor-statement', 'Vendor Statement')}
           </button>
         </div>
 
         <div>
-          <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label={<>Select {type === 'customer' ? 'Customer' : 'Vendor'}</>}>
+          <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label={<>{reportText('r.select', 'Select')} {type === 'customer' ? reportText('r.customer', 'Customer') : reportText('r.vendor', 'Vendor')}</>}>
             <select
               value={selectedContact?.id || ''}
               onChange={e => setContactId(e.target.value)}
@@ -223,15 +225,15 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
         {entityChoices.length > 0 && (
           <div>
             {/* A-72: one entity label of this contact's documents, or the whole account */}
-            <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label="Entity label">
+            <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label={reportText('r.entity-label', 'Entity label')}>
               <select
                 value={activeEntity}
                 onChange={e => setEntity(e.target.value)}
                 aria-describedby="statement-entity-note"
-                aria-label="Entity label for this statement"
+                aria-label={reportText('r.entity-label-for-this-statement', 'Entity label for this statement')}
                 className="px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white min-w-[160px]"
               >
-                <option value="">All entities (whole account)</option>
+                <option value="">{reportText('r.all-entities-whole-account', 'All entities (whole account)')}</option>
                 {entityChoices.map(choice => (
                   <option key={choice} value={choice}>{choice}</option>
                 ))}
@@ -241,7 +243,7 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
         )}
 
         <div>
-          <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label="From">
+          <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label={reportText('r.from', 'From')}>
             <input
               type="date"
               value={startDate}
@@ -252,7 +254,7 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
         </div>
 
         <div>
-          <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label="To">
+          <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label={reportText('r.to', 'To')}>
             <input
               type="date"
               value={endDate}
@@ -284,18 +286,18 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
       {/* Printable Statement Canvas */}
       {'error' in resolved ? null : !statementData || !selectedContact ? (
         <div className="p-12 text-center text-sm text-[var(--muted)]">
-          Please select a {type === 'customer' ? 'customer' : 'vendor'} to view statement.
+          {reportText('r.please-select-a', 'Please select a')} {type === 'customer' ? reportText('r.customer-2', 'customer') : reportText('r.vendor-2', 'vendor')} {reportText('r.to-view-statement', 'to view statement.')}
         </div>
       ) : (
         <div id="statement-sheet" data-print-root={embedded ? undefined : ''} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 sm:p-8 space-y-6 sm:space-y-8 shadow-sm">
           {/* Statement Header Card */}
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start border-b border-slate-200 dark:border-slate-800 pb-6">
             <div>
-              <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">STATEMENT OF ACCOUNT</h2>
-              <p className="text-xs text-[var(--muted)] mt-1">Period: {statementData.startDate} to {statementData.endDate}</p>
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{reportText('r.statement-of-account', 'STATEMENT OF ACCOUNT')}</h2>
+              <p className="text-xs text-[var(--muted)] mt-1">{reportText('r.period-2', 'Period:')} {statementData.startDate} {reportText('r.to-2', 'to')} {statementData.endDate}</p>
               {activeEntity && (
                 <p className="text-xs text-[var(--muted)] mt-1">
-                  Entity: {activeEntity} — this statement covers this entity only, not the whole account.
+                  {reportText('r.entity', 'Entity:')} {activeEntity} {reportText('r.this-statement-covers-this-entity-only-not-the-w', '— this statement covers this entity only, not the whole account.')}
                 </p>
               )}
             </div>
@@ -308,21 +310,21 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
           {/* Statement Overview Cards */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
-              <span className="text-xs text-[var(--muted)] uppercase font-semibold">Opening Balance</span>
+              <span className="text-xs text-[var(--muted)] uppercase font-semibold">{reportText('r.opening-balance', 'Opening Balance')}</span>
               <div className="text-lg font-bold font-mono text-slate-900 dark:text-white mt-1">
                 {formatCurrency(statementData.openingBalanceCents)}
               </div>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
-              <span className="text-xs text-[var(--muted)] uppercase font-semibold">Total Period Billed</span>
+              <span className="text-xs text-[var(--muted)] uppercase font-semibold">{reportText('r.total-period-billed', 'Total Period Billed')}</span>
               <div className="text-lg font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-1">
                 {formatCurrency(statementData.entries.reduce((sum, e) => sum + (e.debitCents || 0), 0))}
               </div>
             </div>
 
             <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20">
-              <span className="text-xs text-purple-600 dark:text-purple-400 uppercase font-bold">Ending Outstanding Balance</span>
+              <span className="text-xs text-purple-600 dark:text-purple-400 uppercase font-bold">{reportText('r.ending-outstanding-balance', 'Ending Outstanding Balance')}</span>
               <div className="text-xl font-bold font-mono text-purple-700 dark:text-purple-300 mt-1">
                 {formatCurrency(statementData.endingBalanceCents)}
               </div>
@@ -331,24 +333,24 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
 
           {/* Activity Table */}
           {/* A phone scrolls this table sideways, so the scrolling area must be reachable by keyboard. */}
-          <div role="group" aria-label="Statement activity" className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto">
-            <a href="#statement-activity-end" className="sr-only focus:not-sr-only focus:block focus:p-2 focus:underline">Skip to the end of the statement rows</a>
+          <div role="group" aria-label={reportText('r.statement-activity', 'Statement activity')} className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto">
+            <a href="#statement-activity-end" className="sr-only focus:not-sr-only focus:block focus:p-2 focus:underline">{reportText('r.skip-to-the-end-of-the-statement-rows', 'Skip to the end of the statement rows')}</a>
             <table className="w-full text-left text-xs">
-              <caption className="sr-only">Account statement</caption>
+              <caption className="sr-only">{reportText('r.account-statement-2', 'Account statement')}</caption>
               <thead>
                 <tr className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase text-[10px] font-bold">
-                  <th scope="col" className="py-3 px-4">Date</th>
-                  <th scope="col" className="py-3 px-4">Transaction Type</th>
-                  <th scope="col" className="py-3 px-4">Reference / #</th>
-                  <th scope="col" className="py-3 px-4 text-right">Amount Billed</th>
-                  <th scope="col" className="py-3 px-4 text-right">Amount Paid</th>
-                  <th scope="col" className="py-3 px-4 text-right">Running Balance</th>
+                  <th scope="col" className="py-3 px-4">{reportText('r.date-2', 'Date')}</th>
+                  <th scope="col" className="py-3 px-4">{reportText('r.transaction-type', 'Transaction Type')}</th>
+                  <th scope="col" className="py-3 px-4">{reportText('r.reference-no', 'Reference / #')}</th>
+                  <th scope="col" className="py-3 px-4 text-right">{reportText('r.amount-billed', 'Amount Billed')}</th>
+                  <th scope="col" className="py-3 px-4 text-right">{reportText('r.amount-paid', 'Amount Paid')}</th>
+                  <th scope="col" className="py-3 px-4 text-right">{reportText('r.running-balance', 'Running Balance')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
                 <tr className="bg-slate-50/50 dark:bg-slate-900/30 font-semibold">
                   <td className="py-2.5 px-4 text-[var(--muted)]">{statementData.startDate}</td>
-                  <td className="py-2.5 px-4 font-sans italic text-[var(--muted)]" colSpan={4}>Opening Balance Brought Forward</td>
+                  <td className="py-2.5 px-4 font-sans italic text-[var(--muted)]" colSpan={4}>{reportText('r.opening-balance-brought-forward', 'Opening Balance Brought Forward')}</td>
                   <td className="py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white">
                     {formatCurrency(statementData.openingBalanceCents)}
                   </td>
@@ -380,7 +382,7 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
         <PdfPreviewModal
           isOpen={isPreviewOpen}
           onClose={() => setIsPreviewOpen(false)}
-          title={`Account Statement - ${selectedContact.name || selectedContact.id}`}
+          title={fill(reportText('r.account-statement-for', 'Account Statement - {name}'), { name: selectedContact.name || selectedContact.id })}
           documentType="statement"
           documentId={selectedContact.id}
           workspaceId={currentWorkspaceId || 'default'}

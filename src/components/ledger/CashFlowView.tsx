@@ -91,7 +91,7 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
   const labels = useMemo(() => {
     if (businessType === 'personal') {
       return {
-        title: "Statement of Cash Flows (Household)",
+        title: reportText('r.statement-of-cash-flows-household', 'Statement of Cash Flows (Household)'),
         operating: "Living & Household Cash Flow",
         operatingSub: "Daily living inflows & standard expenses",
         investing: "Asset Portfolio & Savings Flows",
@@ -104,7 +104,7 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
       };
     } else if (businessType === 'nonprofit') {
       return {
-        title: "Statement of Cash Flows (Fund)",
+        title: reportText('r.statement-of-cash-flows-fund', 'Statement of Cash Flows (Fund)'),
         operating: "Operating & Public Program Cash Flow",
         operatingSub: "Charitable grant receipts & program spending outflows",
         investing: "Charitable Capital & Program Outlays",
@@ -117,7 +117,7 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
       };
     } else {
       return {
-        title: "Statement of Cash Flows",
+        title: reportText('r.statement-of-cash-flows', 'Statement of Cash Flows'),
         operating: "Operating Activities",
         operatingSub: "Core operational receipts & vendor disbursements",
         investing: "Investing Activities",
@@ -129,7 +129,7 @@ export default function CashFlowView({ startDate, endDate, compareStartDate, com
         netSectionLabel: (sec: string) => `Net Cash from ${sec}`
       };
     }
-  }, [businessType]);
+  }, [businessType, reportText]);
 
   const localCalculation = useMemo(() => {
     // the same statement the server builds (src/server/reports/computeReports.ts, tested)

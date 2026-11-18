@@ -7,6 +7,7 @@ import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
 import { csvMoney } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
+import { useReportText } from './useReportText';
 
 interface Props {
   selectedYear?: number;
@@ -19,6 +20,7 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
   startDate,
   endDate
 }) => {
+  const reportText = useReportText();
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
   const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
 
@@ -27,14 +29,14 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
 
   /** One row per customer or source: how much came in, and what share of the period it is. */
   const columns: ColumnDef<(typeof breakdowns)[number], unknown>[] = [
-    { id: 'source', accessorFn: row => row.source, header: 'Customer / Revenue Source', cell: info => (
+    { id: 'source', accessorFn: row => row.source, header: reportText('r.customer-revenue-source', 'Customer / Revenue Source'), cell: info => (
       <span className="flex items-center gap-2">
         <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
         <bdi>{String(info.getValue())}</bdi>
       </span>
     ) },
-    { id: 'count', accessorFn: row => row.transactionCount, header: 'Invoices / Entries', cell: info => <span className="font-mono">{String(info.getValue())}</span> },
-    { id: 'share', accessorFn: row => row.percentage, header: 'Revenue Contribution', cell: info => (
+    { id: 'count', accessorFn: row => row.transactionCount, header: reportText('r.invoices-entries', 'Invoices / Entries'), cell: info => <span className="font-mono">{String(info.getValue())}</span> },
+    { id: 'share', accessorFn: row => row.percentage, header: reportText('r.revenue-contribution', 'Revenue Contribution'), cell: info => (
       <span className="flex items-center justify-end gap-2">
         <span className="w-24 bg-neutral-100 rounded-full h-1.5 overflow-hidden" aria-hidden="true">
           <span className="block bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(100, Number(info.getValue()))}%` }} />
@@ -42,7 +44,7 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
         <span className="font-mono w-12 text-right">{Number(info.getValue()).toFixed(1)}%</span>
       </span>
     ) },
-    { id: 'total', accessorFn: row => row.totalAmountCents, header: 'Total Inflow', cell: info => <span className="font-mono font-semibold text-emerald-600">{formatCurrency(Number(info.getValue()))}</span> },
+    { id: 'total', accessorFn: row => row.totalAmountCents, header: reportText('r.total-inflow', 'Total Inflow'), cell: info => <span className="font-mono font-semibold text-emerald-600">{formatCurrency(Number(info.getValue()))}</span> },
   ];
 
   const totalIncomeCents = useMemo(() => {
@@ -55,14 +57,14 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
         <div>
           <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-emerald-600" />
-            Income by Source & Customer
+            {reportText('r.income-by-source-customer', 'Income by Source & Customer')}
           </h2>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Concentration and revenue generation breakdown across clients, revenue channels, and payees.
+            {reportText('r.concentration-and-revenue-generation-breakdown-a', 'Concentration and revenue generation breakdown across clients, revenue channels, and payees.')}
           </p>
         </div>
         <div className="text-right">
-          <div className="text-xs text-neutral-500 uppercase font-semibold">Total Revenue</div>
+          <div className="text-xs text-neutral-500 uppercase font-semibold">{reportText('r.total-revenue', 'Total Revenue')}</div>
           <div className="text-lg font-mono font-bold text-emerald-600">
             {formatCurrency(totalIncomeCents)}
           </div>
@@ -72,24 +74,24 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
       <RangeReportSourceNote source={source} testId="income-source-source" />
 
       <TanStackDataGrid
-        caption="Income by source"
+        caption={reportText('r.income-by-source-caption', 'Income by source')}
         data={breakdowns}
         columns={columns}
         rowHeaderColumn="source"
         pageSize={25}
-        searchPlaceholder="Search customers and sources..."
+        searchPlaceholder={reportText('r.search-customers-and-sources', 'Search customers and sources...')}
         searchLabel="Search customers and sources"
         columnScope="report-income-by-source"
         columnLabel="Income by source columns"
         columnNames={['Customer / Revenue Source', 'Invoices / Entries', 'Revenue Contribution', 'Total Inflow']}
         exportConfig={{
           filename: 'income-by-source.csv',
-          label: 'Export CSV',
+          label: reportText('r.export-csv', 'Export CSV'),
           headers: ['Customer / Revenue Source', 'Invoices / Entries', 'Share of inflow %', 'Total Inflow'],
           mapRow: row => [row.source, row.transactionCount, row.percentage.toFixed(1), csvMoney(row.totalAmountCents)],
         }}
-        emptyState={<EmptyState title="No income in this period" description="Try a wider period." />}
-        filteredEmptyState={<EmptyState title="No source matches your search" description="Try another customer name." />}
+        emptyState={<EmptyState title={reportText('r.no-income-in-this-period', 'No income in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
+        filteredEmptyState={<EmptyState title={reportText('r.no-source-matches-your-search', 'No source matches your search')} description={reportText('r.try-another-customer-name', 'Try another customer name.')} />}
       />
     </div>
   );

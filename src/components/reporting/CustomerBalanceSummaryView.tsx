@@ -11,8 +11,10 @@ import { computeCustomerBalanceSummary, CustomerBalanceSummaryRow } from '../../
 import { toast } from 'sonner';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useReportText } from './useReportText';
 
 export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOfDate: pageAsOfDate }) => {
+  const reportText = useReportText();
   const customers = useLedgerStore(s => s.customers);
   const invoices = useLedgerStore(s => s.invoices);
   const payments = useLedgerStore(s => s.payments);
@@ -63,37 +65,37 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
   };
 
   const columns: ColumnDef<CustomerBalanceSummaryRow>[] = [
-    { key: 'name', header: 'Customer', render: partyNameCell },
-    { key: 'openInvoicesCount', header: 'Open Invoices', align: 'center',
+    { key: 'name', header: reportText('r.customer', 'Customer'), render: partyNameCell },
+    { key: 'openInvoicesCount', header: reportText('r.open-invoices', 'Open Invoices'), align: 'center',
       render: (item) => partyOpenCountCell(item.openInvoicesCount) },
-    { key: 'totalInvoicedCents', header: 'Total Invoiced', align: 'right',
+    { key: 'totalInvoicedCents', header: reportText('r.total-invoiced', 'Total Invoiced'), align: 'right',
       render: (item) => formatCurrency(item.totalInvoicedCents, currency) },
-    { key: 'totalPaidCents', header: 'Total Paid', align: 'right',
+    { key: 'totalPaidCents', header: reportText('r.total-paid', 'Total Paid'), align: 'right',
       render: (item) => partyPaidCell(item.totalPaidCents, currency) },
-    { key: 'balanceCents', header: 'Balance Due', align: 'right',
+    { key: 'balanceCents', header: reportText('r.balance-due', 'Balance Due'), align: 'right',
       render: (item) => partyBalanceCell(item.balanceCents, currency, 'rose') },
   ];
 
   return (
     <PartyReportLayout
-      title="Customer Balance Summary"
-      description="Consolidated statement of account balances, cumulative invoicing, and payments across all active customers."
+      title={reportText('r.customer-balance-summary', 'Customer Balance Summary')}
+      description={reportText('r.consolidated-statement-of-account-balances-cumul', 'Consolidated statement of account balances, cumulative invoicing, and payments across all active customers.')}
       icon={Users}
-      totalLabel="Total Receivables Due"
+      totalLabel={reportText('r.total-receivables-due', 'Total Receivables Due')}
       totalAmountCents={totalOutstandingCents}
       currency={currency}
-      secondaryTotalLabel="Cumulative Invoiced"
+      secondaryTotalLabel={reportText('r.cumulative-invoiced', 'Cumulative Invoiced')}
       secondaryTotalCents={totalInvoicedAllCents}
       exportFilename="customer_balance_summary.csv"
       onExportCSV={handleExportCSV}
       searchTerm={searchTerm}
       onSearchChange={setSearchTerm}
-      searchPlaceholder="Search customer by name, email, or phone..."
+      searchPlaceholder={reportText('r.search-customer-by-name-email-phone', 'Search customer by name, email, or phone...')}
       asOfDate={asOfDate}
       onAsOfDateChange={setAsOfDate}
       columns={columns}
       data={filteredRows}
-      emptyMessage="No customer records found matching search filter."
+      emptyMessage={reportText('r.no-customer-records-match', 'No customer records found matching search filter.')}
       sumKeys={['totalInvoicedCents', 'totalPaidCents', 'balanceCents']}
       getRowId={(item) => item.customerId}
     />

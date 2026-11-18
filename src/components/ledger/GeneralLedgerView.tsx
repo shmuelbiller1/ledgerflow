@@ -13,6 +13,7 @@ import { printElementById } from '../../lib/printRoot';
 import { useReportDates } from '../reporting/useReportDates';
 import { useReportLabelFilter } from '../reporting/ReportLabelFilter';
 import { scopeTransactionsToLabel } from '../../lib/reportLabelScope';
+import { useReportText } from '../reporting/useReportText';
 
 function keyedLedgerEntries(entries: ReturnType<typeof computeGeneralLedger>['accounts'][number]['entries']) {
   const occurrences = new Map<string, number>();
@@ -30,6 +31,7 @@ type LedgerAccount = ReturnType<typeof computeGeneralLedger>['accounts'][number]
 
 /** One account's ledger. #642: a busy account (the bank) draws its first page of lines at once; printing draws them all. */
 function AccountLedgerCard({ acc, resetKey, dateText }: { acc: LedgerAccount; resetKey: string; dateText: (date: string) => string }) {
+  const reportText = useReportText();
   const keyed = useMemo(() => keyedLedgerEntries(acc.entries), [acc.entries]);
   // fifty lines per account at first: a ledger of forty accounts would otherwise draw thousands of rows at once
   const paged = usePagedRows(keyed, resetKey, undefined, 50);
@@ -39,7 +41,7 @@ function AccountLedgerCard({ acc, resetKey, dateText }: { acc: LedgerAccount; re
       <div className="flex flex-wrap items-center justify-between gap-2 p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
         <div>
           <span className="text-xs font-mono px-2 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 mr-2 font-bold">
-            {acc.accountCode || 'N/A'}
+            {acc.accountCode || reportText('r.n-a', 'N/A')}
           </span>
           <span className="text-sm font-bold text-slate-900 dark:text-white">
             {acc.accountName}
@@ -50,25 +52,25 @@ function AccountLedgerCard({ acc, resetKey, dateText }: { acc: LedgerAccount; re
         </div>
         <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-xs font-mono">
           <div>
-            <span className="text-[var(--muted)] mr-1">Opening:</span>
+            <span className="text-[var(--muted)] mr-1">{reportText('r.opening', 'Opening:')}</span>
             <span className="font-semibold text-slate-700 dark:text-slate-300">
               {formatCurrency(acc.openingBalanceCents)}
             </span>
           </div>
           <div>
-            <span className="text-[var(--muted)] mr-1">Period Debits:</span>
+            <span className="text-[var(--muted)] mr-1">{reportText('r.period-debits', 'Period Debits:')}</span>
             <span className="font-semibold text-emerald-600 dark:text-emerald-400">
               +{formatCurrency(acc.periodDebitsCents)}
             </span>
           </div>
           <div>
-            <span className="text-[var(--muted)] mr-1">Period Credits:</span>
+            <span className="text-[var(--muted)] mr-1">{reportText('r.period-credits', 'Period Credits:')}</span>
             <span className="font-semibold text-rose-600 dark:text-rose-400">
               -{formatCurrency(acc.periodCreditsCents)}
             </span>
           </div>
           <div className="pl-2 border-l border-slate-300 dark:border-slate-700">
-            <span className="text-[var(--muted)] mr-1">Ending:</span>
+            <span className="text-[var(--muted)] mr-1">{reportText('r.ending', 'Ending:')}</span>
             <span className="font-bold text-slate-900 dark:text-white">
               {formatCurrency(acc.endingBalanceCents)}
             </span>
@@ -79,20 +81,20 @@ function AccountLedgerCard({ acc, resetKey, dateText }: { acc: LedgerAccount; re
       {/* Entries Table */}
       {acc.entries.length === 0 ? (
         <div className="p-4 text-center text-xs text-[var(--muted)]">
-          No transactions recorded in selected period
+          {reportText('r.no-transactions-recorded-in-selected-period', 'No transactions recorded in selected period')}
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <caption className="sr-only">General Ledger</caption>
+            <caption className="sr-only">{reportText('r.general-ledger', 'General Ledger')}</caption>
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 text-[var(--muted)] font-semibold uppercase text-[10px]">
-                <th scope="col" className="py-2.5 px-4">Date</th>
-                <th scope="col" className="py-2.5 px-4">Description</th>
-                <th scope="col" className="py-2.5 px-4">Reference</th>
-                <th scope="col" className="py-2.5 px-4 text-right">Debit</th>
-                <th scope="col" className="py-2.5 px-4 text-right">Credit</th>
-                <th scope="col" className="py-2.5 px-4 text-right">Running Balance</th>
+                <th scope="col" className="py-2.5 px-4">{reportText('r.date-2', 'Date')}</th>
+                <th scope="col" className="py-2.5 px-4">{reportText('r.description', 'Description')}</th>
+                <th scope="col" className="py-2.5 px-4">{reportText('r.reference', 'Reference')}</th>
+                <th scope="col" className="py-2.5 px-4 text-right">{reportText('r.debit', 'Debit')}</th>
+                <th scope="col" className="py-2.5 px-4 text-right">{reportText('r.credit', 'Credit')}</th>
+                <th scope="col" className="py-2.5 px-4 text-right">{reportText('r.running-balance', 'Running Balance')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
@@ -122,6 +124,7 @@ function AccountLedgerCard({ acc, resetKey, dateText }: { acc: LedgerAccount; re
 }
 
 export default function GeneralLedgerView({ startDate: pageStartDate, endDate: pageEndDate, embedded = false }: { startDate?: string; endDate?: string; embedded?: boolean } = {}) {
+  const reportText = useReportText();
   const accounts = useLedgerStore(s => s.accounts);
   const reportDates = useReportDates();
 
@@ -163,11 +166,11 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       <div id="general-ledger-sheet" data-print-root={embedded ? undefined : ''} className="space-y-6">
         <div className="hidden print:block">
-          <h1 className="text-xl font-bold">General Ledger</h1>
-          <p className="text-xs">{selectedAccountId === 'all' ? 'All accounts' : accounts.find(a => a.id === selectedAccountId)?.name || 'Account'} · {reportDates.periodText(startDate, endDate)}</p>
-          {labelFilter && !capped && <p className="text-xs">Only {labelFilter.dimensionId} = {labelFilter.value}; opening balances not carried by a label are left out.</p>}
+          <h1 className="text-xl font-bold">{reportText('r.general-ledger', 'General Ledger')}</h1>
+          <p className="text-xs">{selectedAccountId === 'all' ? reportText('r.all-accounts', 'All accounts') : accounts.find(a => a.id === selectedAccountId)?.name || reportText('r.account', 'Account')} · {reportDates.periodText(startDate, endDate)}</p>
+          {labelFilter && !capped && <p className="text-xs">{reportText('r.only', 'Only')} {labelFilter.dimensionId} = {labelFilter.value}{reportText('r.opening-balances-not-carried-by-a-label-are-left', '; opening balances not carried by a label are left out.')}</p>}
         </div>
-      <RangeReportSourceNote source={source} testId="general-ledger-source" what="these balances and lines" />
+      <RangeReportSourceNote source={source} testId="general-ledger-source" what={reportText('r.these-balances-and-lines', 'these balances and lines')} />
       {/* Header */}
       <div data-print-hide className="flex flex-wrap items-start sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div className="flex items-center gap-3">
@@ -176,10 +179,10 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
           </div>
           <div>
             {embedded
-              ? <h2 className="text-xl font-bold text-slate-900 dark:text-white">General Ledger</h2>
-              : <h1 className="text-xl font-bold text-slate-900 dark:text-white">General Ledger</h1>}
+              ? <h2 className="text-xl font-bold text-slate-900 dark:text-white">{reportText('r.general-ledger', 'General Ledger')}</h2>
+              : <h1 className="text-xl font-bold text-slate-900 dark:text-white">{reportText('r.general-ledger', 'General Ledger')}</h1>}
             <p className="text-xs text-[var(--muted)] dark:text-slate-400">
-              Complete itemized transaction ledger for all chart of accounts
+              {reportText('r.complete-itemized-transaction-ledger-for-all-cha', 'Complete itemized transaction ledger for all chart of accounts')}
             </p>
           </div>
         </div>
@@ -189,7 +192,7 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
           className="inline-flex items-center gap-2 min-h-11 px-3.5 py-2 text-xs font-semibold bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-lg transition-colors print:hidden"
         >
           <Printer aria-hidden="true" className="w-4 h-4" />
-          Print Ledger
+          {reportText('r.print-ledger', 'Print Ledger')}
         </button>
       </div>
 
@@ -197,7 +200,7 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
       <div data-print-hide className="flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800">
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label="From">
+            <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label={reportText('r.from', 'From')}>
               <input
                 type="date"
                 value={startDate}
@@ -207,7 +210,7 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
             </Labelled>
           </div>
           <div>
-            <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label="To">
+            <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label={reportText('r.to', 'To')}>
               <input
                 type="date"
                 value={endDate}
@@ -217,13 +220,13 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
             </Labelled>
           </div>
           <div>
-            <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label="Account">
+            <Labelled labelClassName="block text-[10px] font-bold text-[var(--muted)] uppercase mb-1" label={reportText('r.account', 'Account')}>
               <select
                 value={selectedAccountId}
                 onChange={e => setSelectedAccountId(e.target.value)}
                 className="min-h-11 px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white max-w-full"
               >
-                <option value="all">All Accounts ({accounts.length})</option>
+                <option value="all">{reportText('r.all-accounts-2', 'All Accounts (')}{accounts.length})</option>
                 {accounts.map(a => (
                   <option key={a.id} value={a.id}>
                     {a.code ? `${a.code} - ${a.name}` : a.name}
@@ -238,9 +241,9 @@ export default function GeneralLedgerView({ startDate: pageStartDate, endDate: p
 
         <div className="relative w-full sm:w-auto">
           <Search aria-hidden="true" className="w-4 h-4 absolute left-3 top-3.5 text-[var(--muted)]" />
-          <input aria-label="Search GL accounts"
+          <input aria-label={reportText('r.search-gl-accounts', 'Search GL accounts')}
             type="text"
-            placeholder="Search GL accounts..."
+            placeholder={reportText('r.search-gl-accounts-2', 'Search GL accounts...')}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="min-h-11 pl-9 pr-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white w-full sm:w-56"

@@ -154,7 +154,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
   const labels = useMemo(() => {
     if (businessType === 'personal') {
       return {
-        title: "Income & Expenditures (Household)",
+        title: reportText('r.income-expenditures-household', 'Income & Expenditures (Household)'),
         inflowLabel: "Household Inflows",
         inflowSub: "Generating Income",
         outflowLabel: "Living Expenditures",
@@ -168,7 +168,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
       };
     } else if (businessType === 'nonprofit') {
       return {
-        title: "Statement of Activities",
+        title: reportText('r.statement-of-activities', 'Statement of Activities'),
         inflowLabel: "Fundraising & Program Revenues",
         inflowSub: "Public Contribution Inflows",
         outflowLabel: "Operating Expenditures",
@@ -182,7 +182,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
       };
     } else {
       return {
-        title: "Profit & Loss Statement",
+        title: reportText('r.profit-loss-statement', 'Profit & Loss Statement'),
         inflowLabel: "Income",
         inflowSub: "Total income",
         outflowLabel: "Expenses",
@@ -195,7 +195,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
         exportName: "Profit_and_Loss_Statement"
       };
     }
-  }, [businessType]);
+  }, [businessType, reportText]);
 
   const localCalculation = useMemo(() => {
     const defaultData: PLData = {
