@@ -1,10 +1,8 @@
 import express from 'express';
 import { z } from 'zod';
-import { errorMessage, requestUser } from '../auth/requestUser';
-import { getDb } from '../db/firestore';
-import { postJournalDocument } from '../services/journalDocumentService';
-import { extractCanonicalOperationId } from '../utils/idempotency';
-import { leaseRevenueRecognizeSpec } from '../commands/verticalAccounting';
+import { revenueRecognizeCommand } from '../commands/verticalAccounting';
+import { executeCommand, withLegacyInputIdempotencyHash } from '../utils/commandExecutor';
+import { journalDocumentAnswer } from '../utils/journalDocumentAnswer';
 
 const RecognizeRevenueSchema = z.object({
   workspaceId: z.string().min(1, 'workspaceId is required'),
@@ -29,15 +27,9 @@ revenueRouter.post('/recognize', async (req, res) => {
     res.status(400).json({ status: 'error', error: 'Validation failed', details: parsed.error.issues });
     return;
   }
-  try {
-    const user = requestUser(req);
-    const result = await postJournalDocument(getDb(), leaseRevenueRecognizeSpec, parsed.data, user, extractCanonicalOperationId(req));
-    res.json(result);
-  } catch (e) {
-    const explicitStatus = (e as { status?: number })?.status;
-    const status = typeof explicitStatus === 'number'
-      ? explicitStatus
-      : (errorMessage(e).includes('Unauthorized') || errorMessage(e).includes('Forbidden') ? 403 : 400);
-    res.status(status).json({ error: errorMessage(e) });
-  }
+  // Keep the legacy address's existing capacity behaviour; the command API has its own gate.
+  await executeCommand(req, res, {
+    definition: withLegacyInputIdempotencyHash({ ...revenueRecognizeCommand, capacity: undefined }),
+    workspaceId: parsed.data.workspaceId, input: parsed.data, formatResponse: journalDocumentAnswer,
+  });
 });

@@ -452,7 +452,7 @@ function DimensionsSettingsContent() {
               <ShieldCheck aria-hidden="true" size={12} className="text-emerald-500" /> Stable value Identity
             </div>
             <p className="text-slate-600 font-medium leading-relaxed">
-              Transactions store short stable codes (e.g. <code className="text-emerald-600 font-bold">P1</code>). Changing the description instantly updates all past transactions.
+              Transactions store short stable codes (e.g. <code className="text-emerald-800 dark:text-emerald-300 font-bold">P1</code>). Changing the description instantly updates all past transactions.
             </p>
           </div>
 
@@ -471,7 +471,7 @@ function DimensionsSettingsContent() {
       {canWrite && (
       <div className="p-6 bg-gradient-to-r from-indigo-950/20 via-purple-950/10 to-transparent border border-indigo-500/20 rounded-[28px] flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="space-y-1 max-w-xl">
-          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-full text-[10px] font-bold uppercase tracking-widest">
+          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 bg-indigo-500/10 text-indigo-800 dark:text-indigo-300 rounded-full text-[10px] font-bold uppercase tracking-widest">
             <Database aria-hidden="true" size={12} /> Auto-Migration Engine
           </div>
           <h3 className="text-base font-bold text-[var(--text)]">Migrate Free-Text Labels to Values</h3>
@@ -485,7 +485,7 @@ function DimensionsSettingsContent() {
             type="button"
             loading={isMigrating}
             onClick={handleRunBackfillOnly}
-            className="px-4 py-3 bg-[var(--surface)] border border-indigo-500/40 hover:bg-indigo-500/10 text-indigo-300 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap"
+            className="px-4 py-3 bg-[var(--surface)] border border-indigo-500/40 hover:bg-indigo-500/10 text-indigo-800 dark:text-indigo-300 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap"
           >
             <Database aria-hidden="true" size={14} />
             One-Time Value backfill
@@ -592,7 +592,7 @@ function DimensionsSettingsContent() {
                       {dim.id}
                     </span>
                     {dim.systemDefault && (
-                      <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[9px] font-bold uppercase rounded-full">
+                      <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 text-[9px] font-bold uppercase rounded-full">
                         System Default
                       </span>
                     )}

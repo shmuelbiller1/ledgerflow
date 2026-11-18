@@ -77,9 +77,14 @@ Everything below is open. Finished items leave this list. Full wording is in COO
 - **AI #1 (Claude)** is the lead: pushes straight to `main`, merges everyone's PRs, owns money, posting, tax maths,
   statements/PDFs and `src/server/`. **Every other AI** works on its own branch and opens a PR; never merge your own.
 - Problems in AI #1's area → write them under Messages in COORDINATION; don't patch them.
-- Before opening a PR run: the type check, **the whole unit suite** (`npm test` with the local test database), ESLint
-  (0 errors, warnings ≤ 205), the browser spec(s) you touched, and `npm run test:rules` if you touched SQL.
-  Say the pass counts in the PR. A PR that fails its own test is sent back.
+- **Let GitHub CI do the heavy testing (owner, 18 Nov).** Before you push, run only the fast checks: the type check,
+  ESLint on the files you changed, and the tests for the code you changed. Do **not** run the whole unit suite or
+  every browser shard yourself: CI runs all of them on every push, in parallel, faster than your sandbox. Push, keep
+  working on the next task while CI runs, then read the result and fix what is red. Say in the PR which checks you ran
+  and that the full suite is CI's. A PR whose CI is red is sent back.
+- **Do a lot per PR (owner, 18 Nov).** Don't open one PR per small task: put a whole batch of your queue (several
+  tasks, as many as you finish in the session) on one branch and one PR, one commit per task. Keep pushing to the same
+  PR until the batch is done. Only split a PR when two parts touch unrelated areas and one might be held back.
 - Screens follow [`docs/UI_GUIDE.md`](docs/UI_GUIDE.md); every button's visible text is part of its name (axe).
 - Plan: [`docs/PLAN.md`](docs/PLAN.md) **§17 bookkeeping first** (stages A/B/C, P0/P1/P2) — do P0 work first; tax automation and payroll processing are stage C; skip `[P]` (parked) tasks.
 - Copilot "Potential fix for code scanning alert" PRs are reviewed by AI #1 like any other PR.

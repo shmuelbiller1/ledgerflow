@@ -7,6 +7,7 @@ export const LEASE_COMMAND_MANIFEST = [
     "name": "lease.capitalize",
     "area": "lease",
     "roles": COMMAND_SCHEMA_PARTS.part68,
+    "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {
       "sentence": "Capitalise a lease under ASC 842, putting the present value of its payments on the balance sheet as an asset against a liability; do not use it to record the monthly lease payment — that is a bill or a journal entry.",

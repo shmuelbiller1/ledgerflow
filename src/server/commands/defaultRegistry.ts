@@ -1,3 +1,4 @@
+import { workspaceBudgetControlCommand } from './budgetControl';
 import { journalIntercompanyCommand } from './journalIntercompany';
 import { journalEditCommand, journalDeleteCommand } from './journalEdit';
 import { journalReverseCommand } from './journalReverse';
@@ -149,6 +150,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(dimensionNodesMigrateCommand);
   registry.register(projectDeleteCommand);
   registry.register(projectRestoreCommand);
+  registry.register(workspaceBudgetControlCommand);
   registry.register(workspaceModulesCommand);
   registry.register(employeeCreateCommand);
   registry.register(employeeUpdateCommand);

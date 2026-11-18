@@ -110,7 +110,7 @@ const INLINE_FIELD_RULES: Record<FieldInput['field'], (value: string | number) =
  */
 function stockedCostRefusal(existing: ItemRow | undefined, nextCost: unknown): HttpError | null {
   if (nextCost === undefined || Number(existing?.quantityAtHand || 0) === 0) return null;
-  if (Number(nextCost) === Number(existing?.unitCostCents ?? NaN)) return null;
+  if (Number(nextCost) === Number(existing?.unitCostCents ?? Number.NaN)) return null;
   return Object.assign(new HttpError(
     'This item has stock, so its cost changes through a revaluation (inventory.revalue), which posts the difference.', 409,
   ), { code: 'CONFLICT' });

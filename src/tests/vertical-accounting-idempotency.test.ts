@@ -13,6 +13,7 @@ import pg from 'pg';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createCommandRouter } from '../server/routes/commandRoutes';
+import { deriveScopedOperationKey, requestPayloadHash } from '../server/utils/idempotency';
 import type { Firestore } from '../server/db/pgFirestore';
 
 const url = process.env.LF_TEST_DATABASE_URL;
@@ -57,6 +58,8 @@ describe('#824 vertical journals without an Idempotency-Key', { skip: !url && 'L
       next();
     });
     app.use('/api/v1/commands', createCommandRouter(undefined, { getDb: () => serverDb! }));
+    app.use('/api/v1/leases', (await import('../server/routes/leaseRoutes')).leaseRouter);
+    app.use('/api/v1/revenue', (await import('../server/routes/revenueRoutes')).revenueRouter);
     server = app.listen(0, '127.0.0.1');
     await new Promise<void>(resolve => server!.once('listening', resolve));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -119,4 +122,34 @@ describe('#824 vertical journals without an Idempotency-Key', { skip: !url && 'L
     assert.notEqual(second.replayed, true);
     assert.equal(await entries(), before + 2);
   });
+  test('legacy lease and revenue addresses keep their answer and replay the same entry', async () => {
+    const cases = [
+      ['/api/v1/leases/capitalize', { workspaceId: ws, leaseName: 'Legacy office', pvAmountCents: 120000, rouAssetAccountId: `${ws}_rou`, leaseLiabilityAccountId: `${ws}_lease`, date: '2026-05-01' }],
+      ['/api/v1/revenue/recognize', { workspaceId: ws, contractId: 'Legacy contract', periodId: '2026-05', amountCents: 10000, deferredAccountId: `${ws}_deferred`, revenueAccountId: `${ws}_revenue`, date: '2026-05-01' }],
+    ] as const;
+    for (const [path, body] of cases) {
+      const before = await entries();
+      const send = (payload: unknown) => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': owner }, body: JSON.stringify(payload) });
+      const first = await send(body); const firstBody = await first.json() as Record<string, unknown>;
+      const retry = await send(body); const retryBody = await retry.json() as Record<string, unknown>;
+      assert.equal(first.status, 200, JSON.stringify(firstBody)); assert.equal(retry.status, 200, JSON.stringify(retryBody));
+      assert.deepEqual(retryBody, firstBody); assert.equal(firstBody.status, 'ok'); assert.ok(firstBody.transactionId);
+      assert.equal(await entries(), before + 1);
+      const logs = await client.query("select count(*)::int as n from public.\"auditLogs\" where workspace_id = $1 and data->>'entityId' = $2", [ws, firstBody.transactionId]);
+      assert.equal(logs.rows[0].n, 1);
+      const invalid = await send({ ...body, date: 'bad' }); assert.equal(invalid.status, 400);
+      assert.equal((await invalid.json() as { error: string }).error, 'Validation failed');
+    }
+  });
+
+  test('a pre-migration legacy idempotency record remains replayable', async () => {
+    const body = { workspaceId: ws, leaseName: 'Previous office', pvAmountCents: 1200, rouAssetAccountId: `${ws}_rou`, leaseLiabilityAccountId: `${ws}_lease`, date: '2026-05-01' };
+    const result = { status: 'ok', message: 'ASC 842 Lease capitalized successfully.', transactionId: `${ws}_previous` };
+    const key = deriveScopedOperationKey(ws, 'LEASE_CAPITALIZE', 'lease_previous_office');
+    await serverDb!.collection('idempotencyKeys').doc(key).set({ status: 'success', actor: '', workspaceId: ws, payloadHash: requestPayloadHash(body), result });
+    const before = await entries();
+    const response = await fetch(`${base}/api/v1/leases/capitalize`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': owner }, body: JSON.stringify(body) });
+    assert.equal(response.status, 200); assert.deepEqual(await response.json(), result); assert.equal(await entries(), before);
+  });
+
 });

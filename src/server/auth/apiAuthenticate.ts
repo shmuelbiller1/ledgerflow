@@ -10,6 +10,26 @@ import type { AuthenticatedRequest, AuthUser } from "../http/serverKit";
 import { BRAND_NAME } from '../../config/brand';
 
 /** Which existing API-key scope gates a request; command write scopes are deliberately domain-specific. */
+/** #823: the API-key scope each command area writes under; an area not listed here is not open to keys. */
+const COMMAND_AREA_SCOPE: Readonly<Record<string, string>> = {
+  // the books: entries, documents, payments, stock, assets, reconciliation
+  journal: 'write:transactions', journaltemplate: 'write:transactions', payment: 'write:transactions',
+  invoice: 'write:transactions', bill: 'write:transactions', creditnote: 'write:transactions',
+  vendorcredit: 'write:transactions', estimate: 'write:transactions', document: 'write:transactions',
+  inventory: 'write:transactions', inventoryitem: 'write:transactions', rma: 'write:transactions',
+  asset: 'write:transactions', loan: 'write:transactions', lease: 'write:transactions',
+  revenue: 'write:transactions', reconciliations: 'write:transactions', transaction: 'write:transactions',
+  period: 'write:transactions',
+  // the chart and the plan
+  chartaccount: 'write:ledger', budget: 'write:ledger',
+  // contacts and their own records
+  customer: 'write:customers', warranty: 'write:customers', vendor: 'write:vendors',
+  autorule: 'write:rules', project: 'write:projects',
+  // workspace and team features keep the scope of their legacy /workspaces routes
+  alerts: 'write:workspaces', tasks: 'write:workspaces', watches: 'write:workspaces', entrylink: 'write:workspaces',
+  time: 'write:workspaces', stages: 'write:workspaces', workspace: 'write:workspaces', numbering: 'write:workspaces',
+};
+
 export function requiredApiKeyScope(method: string, path: string): string {
   const cleanPath = path.toLowerCase().split('?')[0].replace(/\/$/, '');
   const isWrite = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase());
@@ -23,16 +43,17 @@ export function requiredApiKeyScope(method: string, path: string): string {
     const match = /\/commands\/([^/]+)/.exec(cleanPath);
     let name = match?.[1] || '';
     try { name = decodeURIComponent(name); } catch { /* an invalid name will be refused by the command router */ }
-    if (/^autorule\./.test(name)) return 'write:rules';
     // Period-management commands keep the legacy /workspaces/:id/periods restriction; in
     // particular, transaction integrations must not gain permission to unlock or reopen books.
     if (/^period\.(close|closesteps|depreciation|relock|reopen|signoff|unlock)$/.test(name)) return 'write:workspaces';
-    // Workspace/team features use the same scope as their legacy /workspaces routes.
-    if (/^(alerts|tasks|watches|entrylink|time|stages|workspace|numbering)\./.test(name)) return 'write:workspaces';
-    if (/^(customer|warranty)\./.test(name)) return 'write:customers';
-    if (/^vendor\./.test(name)) return 'write:vendors';
-    if (/^(journal|payment|invoice|bill|creditnote|vendorcredit)\./.test(name)) return 'write:transactions';
-    return 'write:transactions';
+    if (name === 'estimate.signlink') return 'write:workspaces';
+    const area = name.split('.')[0];
+    // #823: every command area is named here. One that is not listed — a new area, or settings, payroll
+    // governance, portal links, audit entries and the record/contact commands that reach any collection —
+    // needs `write:workspaces`, which no API key is issued with, instead of falling through to
+    // `write:transactions` (the fallback that let a transactions-only key rewrite customers and settings).
+    // own keys only: `constructor.x` or `__proto__.x` must not find an inherited property instead of failing closed
+    return Object.hasOwn(COMMAND_AREA_SCOPE, area) ? COMMAND_AREA_SCOPE[area] : 'write:workspaces';
   }
   if (cleanPath.includes('/transactions')) return isWrite ? 'write:transactions' : 'read:transactions';
   if (cleanPath.includes('/projects')) return isWrite ? 'write:projects' : 'read:projects';

@@ -48,18 +48,11 @@ test('both vertical journals are registered with an example that parses and refu
   assert.equal(revenueRecognizeCommand.dated, 'date');
 });
 
-test('the route names the same entry the command does, so the two cannot drift', () => {
-  // The address keeps its own copy of the spec (it must, to answer its own schema), and the command has
-  // one; a test holds the important parts together rather than trusting two literals to stay equal.
-  const route = readFileSync(path.join(process.cwd(), 'src/server/routes/leaseRoutes.ts'), 'utf8');
-  for (const needle of [
-    "'LEASE_CAPITALIZE'", "'lease'", "'ASC 842 Lease capitalized successfully.'",
-    'Capitalize PV of lease payments', 'Recognize lease liability', "'LEASE_CAPITALIZED'",
-  ]) {
-    assert.ok(route.includes(needle), `the route still names ${needle}`);
-  }
-  assert.match(route, /\bpostJournalDocument\s*\(/, 'and it posts through the shared service, not a private copy');
-  // the spec objects are exported so a future screen or test can read what the entry will be
+test('both legacy routes invoke the registered commands and share their specs', () => {
+  const lease = readFileSync(path.join(process.cwd(), 'src/server/routes/leaseRoutes.ts'), 'utf8');
+  const revenue = readFileSync(path.join(process.cwd(), 'src/server/routes/revenueRoutes.ts'), 'utf8');
+  assert.match(lease, /withLegacyInputIdempotencyHash\(\{ \.\.\.leaseCapitalizeCommand/);
+  assert.match(revenue, /withLegacyInputIdempotencyHash\(\{ \.\.\.revenueRecognizeCommand/);
   assert.equal(leaseCapitalizeSpec.operationType, 'LEASE_CAPITALIZE');
   assert.equal(leaseRevenueRecognizeSpec.operationType, 'REVENUE_RECOGNIZE');
 });
