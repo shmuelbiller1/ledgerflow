@@ -36,6 +36,17 @@ test('S-35: malformed stored consent re-displays banner and Accept All persists 
   fireEvent.click(view.getByRole('button', { name: /accept all/i }));
   assert.equal(getCookieConsent(), 'all');
   assert.equal(isOptionalTelemetryAllowed(), true);
+
+  // Backward compatibility: legacy plain-string and `{ essential, analytics }` stored formats
+  localStorage.setItem(COOKIE_CONSENT_KEY, 'accepted');
+  assert.equal(getCookieConsent(), 'all');
+  assert.equal(isOptionalTelemetryAllowed(), true);
+  assert.equal(render(<CookieConsent />).container.firstChild, null);
+
+  localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify({ essential: true, analytics: false }));
+  assert.equal(getCookieConsent(), 'essential');
+  assert.equal(isOptionalTelemetryAllowed(), false);
+  assert.equal(render(<CookieConsent />).container.firstChild, null);
 });
 
 test('S-35: Essential Only blocks automatic telemetry shipping while keeping local diagnostics and explicit support reports working', async () => {

@@ -238,10 +238,11 @@ test('SEC-SCAN-1: api-fuzz.yml, zap-baseline.yml, and .zap/rules.tsv satisfy pin
   assert.doesNotMatch(zapBaseline, /tsx server\.ts/);
   // #762: runner UID 1001 vs container `zap` UID 1000 broke /home/zap/zap.yaml; never override `-u`.
   assert.doesNotMatch(zapBaseline, /-u\s+["']?\$\(id -u\)/);
-  assert.match(zapBaseline, /chmod 1777 zap-out/);
+  assert.match(zapBaseline, /sudo chown -R 1000:1000 zap-out/);
+  assert.doesNotMatch(zapBaseline, /chmod\s+[01]?777/);
   assert.match(zapBaseline, /-z\s+"-silent"/);
   assert.match(zapBaseline, /test -s zap-out\/zap-report\.json/);
-  assert.match(zapBaseline, /node scripts\/evaluate-zap-report\.mjs zap-out\/zap-report\.json/);
+  assert.match(zapBaseline, /node scripts\/evaluate-zap-report\.mjs/);
   assert.match(zapBaseline, /http:\/\/127\.0\.0\.1:3000/);
   assert.doesNotMatch(zapBaseline, /https:\/\/.*ledgerflow/i);
 

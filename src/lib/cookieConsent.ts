@@ -36,11 +36,21 @@ export function getCookieConsent(): CookieConsentChoice | null {
     return null;
   }
   if (!raw) return null;
+  const trimmed = raw.trim();
+  // Backward compatibility with legacy plain-string consent entries.
+  if (trimmed === 'accepted' || trimmed === 'all') return 'all';
+  if (trimmed === 'essential') return 'essential';
   try {
-    const parsed: unknown = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object' && 'choice' in parsed) {
-      const choice = (parsed as { choice?: unknown }).choice;
-      if (choice === 'all' || choice === 'essential') return choice;
+    const parsed: unknown = JSON.parse(trimmed);
+    if (parsed && typeof parsed === 'object') {
+      const record = parsed as { choice?: unknown; essential?: unknown; analytics?: unknown };
+      if (record.choice === 'all' || record.choice === 'essential') {
+        return record.choice;
+      }
+      // Backward compatibility with structured `{ essential: true, analytics: boolean }` entries.
+      if (typeof record.analytics === 'boolean') {
+        return record.analytics ? 'all' : 'essential';
+      }
     }
   } catch {
     // Malformed entry falls back to null so the banner can re-prompt cleanly.

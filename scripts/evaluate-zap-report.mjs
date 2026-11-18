@@ -28,7 +28,7 @@
  *    issue #827) remain visible in the summary and uploaded artifacts.
  */
 import fs from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const LOOPBACK_URI = /^http:\/\/127\.0\.0\.1:3000(?:[/?#]|$)/;
@@ -172,7 +172,7 @@ export function evaluateZapReportJson(rawJson, options = {}) {
     for (const alert of alerts) {
       const pluginId = String(alert?.pluginid || '');
       const alertRef = String(alert?.alertRef || pluginId);
-      const riskCode = Number(alert?.riskcode ?? NaN);
+      const riskCode = Number(alert?.riskcode ?? Number.NaN);
       const riskDesc = String(alert?.riskdesc || `risk=${riskCode}`);
       const name = String(alert?.name || alert?.alert || 'Unnamed ZAP alert');
       const instances = Array.isArray(alert?.instances) ? alert.instances : [];
@@ -238,10 +238,12 @@ export function formatZapSummaryMarkdown(result) {
   return `${lines.join('\n')}\n`;
 }
 
+const DEFAULT_ZAP_REPORT_REL = path.join('zap-out', 'zap-report.json');
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const reportPath = process.argv[2] || 'zap-out/zap-report.json';
-  if (!fs.existsSync(reportPath)) {
-    console.error(`ZAP report file not found at ${reportPath}; failing closed.`);
+  const reportPath = path.resolve(process.cwd(), DEFAULT_ZAP_REPORT_REL);
+  if (!fs.existsSync(reportPath) || fs.lstatSync(reportPath).isSymbolicLink()) {
+    console.error(`ZAP report file not found at ${DEFAULT_ZAP_REPORT_REL}; failing closed.`);
     process.exit(1);
   }
   const result = evaluateZapReportJson(fs.readFileSync(reportPath, 'utf8'));
@@ -253,28 +255,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   }
 
   if (!result.passed) {
-    const summaryLines = result.actionable.map(
-      a => `- [${a.riskDesc}] (${a.alertRef}) ${a.name} — ${a.count} instance(s)`,
-    );
-    if (process.env.EVENT_NAME === 'schedule' && process.env.GH_TOKEN) {
-      const title = 'Security: Nightly OWASP ZAP baseline reported Medium/High alert(s)';
-      const existing = JSON.parse(
-        execFileSync('gh', ['issue', 'list', '--state', 'open', '--search', `"${title}" in:title`, '--json', 'number,title'], { encoding: 'utf8' }),
-      );
-      const body = [
-        'Nightly OWASP ZAP baseline detected unaccepted Medium/High alert(s) against the local production build:',
-        '',
-        ...summaryLines,
-        '',
-        `Workflow run: ${process.env.RUN_URL || '(local)'}`,
-      ].join('\n');
-      const match = existing.find(item => item.title === title);
-      if (match) {
-        execFileSync('gh', ['issue', 'comment', String(match.number), '--body', body], { stdio: 'inherit' });
-      } else {
-        execFileSync('gh', ['issue', 'create', '--title', title, '--body', body], { stdio: 'inherit' });
-      }
-    }
+    const alertSummaryPath = path.resolve(process.cwd(), 'zap-out', 'actionable-alerts.md');
+    const summaryBody = [
+      'Nightly OWASP ZAP baseline detected unaccepted Medium/High alert(s) against the local production build:',
+      '',
+      ...result.actionable.map(a => `- [${a.riskDesc}] (${a.alertRef}) ${a.name} — ${a.count} instance(s)`),
+      '',
+      `Workflow run: ${process.env.RUN_URL || '(local)'}`,
+    ].join('\n');
+    fs.writeFileSync(alertSummaryPath, summaryBody, 'utf8');
     process.exit(1);
   }
 }

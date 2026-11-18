@@ -83,10 +83,50 @@ test('S-24: evaluateNpmAudit passes on zero high/critical production vulns and f
         fixAvailable: true,
         via: [{ title: 'ReDoS in extglob', url: 'https://github.com/advisories/GHSA-fc5q-39xc-vjpf' }],
       },
+      // Transitive wrapper referencing `picomatch` by package-name string (npm 7+ format)
+      readdirp: {
+        severity: 'high',
+        isDirect: false,
+        fixAvailable: true,
+        via: ['picomatch'],
+      },
+      chokidar: {
+        severity: 'high',
+        isDirect: true,
+        fixAvailable: true,
+        via: ['readdirp'],
+      },
     },
   }), { allowlist: activeAllow });
   assert.equal(waived.passed, true);
-  assert.equal(waived.allowlisted.length, 1);
+  assert.equal(waived.allowlisted.length, 3);
+
+  // Wrapper reaching BOTH an allowlisted advisory and an unallowlisted advisory MUST still block
+  const partialTransitive = evaluateNpmAudit(JSON.stringify({
+    vulnerabilities: {
+      picomatch: {
+        severity: 'high',
+        isDirect: false,
+        fixAvailable: true,
+        via: [{ title: 'ReDoS in extglob', url: 'https://github.com/advisories/GHSA-fc5q-39xc-vjpf' }],
+      },
+      braces: {
+        severity: 'high',
+        isDirect: false,
+        fixAvailable: true,
+        via: [{ title: 'Unbounded expansion', url: 'https://github.com/advisories/GHSA-grv7-fg5c-xmjg' }],
+      },
+      micromatch: {
+        severity: 'high',
+        isDirect: true,
+        fixAvailable: true,
+        via: ['picomatch', 'braces'],
+      },
+    },
+  }), { allowlist: activeAllow });
+  assert.equal(partialTransitive.passed, false);
+  assert.deepEqual(partialTransitive.blocking.map(v => v.name), ['braces', 'micromatch']);
+  assert.deepEqual(partialTransitive.allowlisted.map(v => v.name), ['picomatch']);
 
   const expiredAllow = parseAuditAllowlist(JSON.stringify({
     allow: [{

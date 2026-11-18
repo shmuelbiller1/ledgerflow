@@ -66,12 +66,8 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf zap-out
-          mkdir -p zap-out
-          # ghcr.io/zaproxy/zaproxy:2.16.1 runs as built-in non-root user `zap` (UID 1000,
-          # HOME=/home/zap/), while ubuntu-24.04 runner is UID 1001. Keeping the image's own
-          # non-root user avoids EACCES on /home/zap/zap.yaml; grant the ephemeral mount dir
-          # write access for UID 1000 (matching upstream zaproxy/action-baseline).
-          chmod 1777 zap-out
+          install -d -m 0755 zap-out
+          cp .zap/rules.tsv zap-out/rules.tsv
 
           SESSION_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
           SALT_VAL="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
@@ -86,7 +82,7 @@ jobs:
           SESSION_SECRET="$SESSION_VAL" \
           SYSTEM_SALT="$SALT_VAL" \
           INVITE_SECRET="$INVITE_VAL" \
-          node build/server.cjs > zap-out/server-prod.log 2>&1 &
+          node build/server.cjs > /tmp/lf-zap-server-prod.log 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 
@@ -98,20 +94,23 @@ jobs:
             fi
             if ! kill -0 "$SERVER_PID" 2>/dev/null; then
               echo "Production server exited before becoming healthy:" >&2
-              cat zap-out/server-prod.log >&2 || true
+              cat /tmp/lf-zap-server-prod.log >&2 || true
               exit 1
             fi
             sleep 1
           done
           if [ "$SERVER_READY" -ne 1 ]; then
             echo "Timed out waiting for http://127.0.0.1:3000/api/health:" >&2
-            cat zap-out/server-prod.log >&2 || true
+            cat /tmp/lf-zap-server-prod.log >&2 || true
             exit 1
           fi
           curl -fsS http://127.0.0.1:3000/api/health
           curl -fsSI http://127.0.0.1:3000/ >/dev/null
 
-          cp .zap/rules.tsv zap-out/rules.tsv
+          # ghcr.io/zaproxy/zaproxy:2.16.1 runs as built-in non-root user `zap` (UID 1000,
+          # HOME=/home/zap/), while ubuntu-24.04 runner is UID 1001. Hand ownership of the
+          # isolated report directory to UID 1000 without granting world-writable bits.
+          sudo chown -R 1000:1000 zap-out
           set +e
           docker run --rm --network host \
             -v "$PWD/zap-out:/zap/wrk:rw" \
@@ -133,6 +132,8 @@ jobs:
           test -s zap-out/zap-report.json
           test -s zap-out/zap-report.html
           test -s zap-out/zap-report.md
+          sudo chown -R "$(id -u):$(id -g)" zap-out
+          cp /tmp/lf-zap-server-prod.log zap-out/server-prod.log
 
       - name: Upload ZAP HTML, JSON, and Markdown reports
         if: ${{ !cancelled() }}
@@ -148,9 +149,23 @@ jobs:
           retention-days: 30
 
       - name: Evaluate ZAP JSON report with narrow baseline checks
+        id: eval_zap
         if: ${{ !cancelled() }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EVENT_NAME: ${{ github.event_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node scripts/evaluate-zap-report.mjs zap-out/zap-report.json
+        run: node scripts/evaluate-zap-report.mjs
+
+      - name: File or update GitHub issue on scheduled ZAP failure
+        if: ${{ failure() && steps.eval_zap.outcome == 'failure' && github.event_name == 'schedule' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -s zap-out/actionable-alerts.md
+          TITLE="Security: Nightly OWASP ZAP baseline reported Medium/High alert(s)"
+          EXISTING="$(/usr/bin/gh issue list --state open --search "\"$TITLE\" in:title" --json number,title --jq ".[] | select(.title == \"$TITLE\") | .number" | head -n 1)"
+          if [ -n "$EXISTING" ]; then
+            /usr/bin/gh issue comment "$EXISTING" --body-file zap-out/actionable-alerts.md
+          else
+            /usr/bin/gh issue create --title "$TITLE" --body-file zap-out/actionable-alerts.md
+          fi

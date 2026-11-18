@@ -15,6 +15,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export type AuditSeverity = 'info' | 'low' | 'moderate' | 'high' | 'critical';
@@ -78,6 +79,79 @@ function extractAdvisoryInfo(via: unknown): { labels: string[]; ghsaIds: string[
     }
   }
   return { labels, ghsaIds };
+}
+
+interface RawVulnEntry {
+  severity?: unknown;
+  isDirect?: unknown;
+  fixAvailable?: unknown;
+  via?: unknown;
+}
+
+interface ReachableAdvisory {
+  package: string;
+  ghsa: string;
+}
+
+/**
+ * Resolve every leaf advisory reachable from `pkgName` through npm 7+ `via` chains
+ * (including package-name string references on dependent wrappers). Returns `null`
+ * if any leaf advisory lacks a GHSA id or references a missing vulnerability entry,
+ * so `isCoveredByAllowlist` fails closed.
+ */
+function collectReachableAdvisories(
+  pkgName: string,
+  vulns: Record<string, RawVulnEntry>,
+  visited = new Set<string>(),
+): ReachableAdvisory[] | null {
+  if (visited.has(pkgName)) return [];
+  visited.add(pkgName);
+  const entry = vulns[pkgName];
+  if (!entry || typeof entry !== 'object' || !Array.isArray(entry.via) || entry.via.length === 0) {
+    return null;
+  }
+  const found: ReachableAdvisory[] = [];
+  for (const item of entry.via) {
+    if (typeof item === 'string') {
+      if (!Object.prototype.hasOwnProperty.call(vulns, item)) return null;
+      const nested = collectReachableAdvisories(item, vulns, visited);
+      if (nested === null) return null;
+      found.push(...nested);
+    } else if (item && typeof item === 'object') {
+      const url = typeof (item as { url?: unknown }).url === 'string' ? String((item as { url: string }).url) : '';
+      const ghsa = url.match(/GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}/i)?.[0];
+      if (!ghsa) return null;
+      found.push({ package: pkgName, ghsa });
+    } else {
+      return null;
+    }
+  }
+  return found;
+}
+
+function resolveBundledNpmCli(): string {
+  const binDir = path.dirname(process.execPath);
+  const candidates = [
+    path.resolve(binDir, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.resolve(binDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    '/usr/local/lib/node_modules/npm/bin/npm-cli.js',
+    '/usr/lib/node_modules/npm/bin/npm-cli.js',
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  throw new Error(`Could not locate bundled npm-cli.js relative to ${process.execPath}.`);
+}
+
+function resolveWorkspaceAllowlistPath(rawArg: string): string {
+  if (rawArg.includes('\0')) throw new Error('Invalid allowlist path.');
+  const root = path.resolve(process.cwd());
+  const resolved = path.resolve(root, rawArg);
+  const rel = path.relative(root, resolved);
+  if (rel.startsWith('..') || path.isAbsolute(rel) || !resolved.endsWith('.json')) {
+    throw new Error('Allowlist file must be a .json file inside the repository root.');
+  }
+  return resolved;
 }
 
 export function parseAuditAllowlist(rawJson: string, todayIso = new Date().toISOString().slice(0, 10)): AuditAllowlistEntry[] {
@@ -157,9 +231,13 @@ export function evaluateNpmAudit(
       advisories: labels,
       ghsaIds,
     };
+    const reachable = collectReachableAdvisories(pkgName, doc.vulnerabilities);
     const isCoveredByAllowlist =
-      ghsaIds.length > 0
-      && ghsaIds.every(id => allowlist.some(a => a.package === pkgName && a.ghsa.toLowerCase() === id.toLowerCase()));
+      reachable !== null
+      && reachable.length > 0
+      && reachable.every(adv =>
+        allowlist.some(a => a.package === adv.package && a.ghsa.toLowerCase() === adv.ghsa.toLowerCase()),
+      );
     if (SEVERITY_RANK[severity] >= minRank) {
       if (isCoveredByAllowlist) {
         allowlisted.push(summary);
@@ -223,9 +301,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const failOn = parseFailOnArg(argv);
   const allowlistArg = argv.find(a => a.startsWith('--allowlist='))?.slice('--allowlist='.length)
     || (fs.existsSync('security-audit-allowlist.json') ? 'security-audit-allowlist.json' : undefined);
-  const allowlist = allowlistArg ? parseAuditAllowlist(fs.readFileSync(allowlistArg, 'utf8')) : [];
-  const args = includeDev ? ['audit', '--json'] : ['audit', '--omit=dev', '--json'];
-  const proc = spawnSync('npm', args, { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
+  const allowlistPath = allowlistArg ? resolveWorkspaceAllowlistPath(allowlistArg) : undefined;
+  const allowlist = allowlistPath ? parseAuditAllowlist(fs.readFileSync(allowlistPath, 'utf8')) : [];
+  const npmCli = resolveBundledNpmCli();
+  const args = includeDev ? [npmCli, 'audit', '--json'] : [npmCli, 'audit', '--omit=dev', '--json'];
+  const proc = spawnSync(process.execPath, args, { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
   if (proc.error) {
     console.error(`FAIL — Could not invoke npm audit: ${proc.error.message}`);
     process.exit(1);
