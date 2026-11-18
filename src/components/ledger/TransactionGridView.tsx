@@ -19,7 +19,6 @@ import type { TransactionGridModel } from './TransactionGrid';
 import { copyWithFeedback } from '../../lib/clipboard';
 import { inBackground } from '../../lib/inBackground';
 import { useEffect, useRef, useState } from 'react';
-import { useUIStore } from '../../stores/useUIStore';
 
 /**
  * Desktop: the card takes the window height from where it starts, so only the table rows scroll and the
@@ -165,18 +164,12 @@ export function TransactionGridView(model: TransactionGridModel) {
 
       {editingDetailsTx && (
         <TransactionEditModal
-          key={editingDetailsTx.id}
           isOpen={!!editingDetailsTx}
           transaction={editingDetailsTx}
           accounts={accounts}
           lockDate={lockDate}
           isReverseAndCorrectMode={isReverseModeModal}
-          onClose={() => {
-            setEditingDetailsTx(null);
-            setIsReverseModeModal(false);
-            const { focusRecord, clearFocusRecord } = useUIStore.getState();
-            if (focusRecord?.type === 'transaction' && focusRecord.id === editingDetailsTx.id) clearFocusRecord();
-          }}
+          onClose={() => { setEditingDetailsTx(null); setIsReverseModeModal(false); }}
           onUpdate={onUpdate || (() => {})}
           onReverseAndCorrect={txActions.handleReverseTransaction}
         />

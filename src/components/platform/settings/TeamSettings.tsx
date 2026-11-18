@@ -175,7 +175,7 @@ function ScopedTeamSettings() {
         <div className="p-4 bg-[var(--ink)]/50 border border-[var(--line)] rounded-2xl shrink-0 space-y-2 min-w-[200px]">
           <div className="flex items-center justify-between text-xs font-bold">
             <span className="text-[var(--muted)] uppercase tracking-wider text-[10px]">Seat Capacity</span>
-            <span className={isSeatLimitReached ? "text-[var(--brass)] font-mono" : "text-[var(--pos)] font-mono"}>
+            <span className={isSeatLimitReached ? "text-amber-500 font-mono" : "text-emerald-500 font-mono"}>
               {activeSeatCount} / {unlimitedSeats ? 'Unlimited' : maxSeats} Used
             </span>
           </div>
@@ -195,7 +195,7 @@ function ScopedTeamSettings() {
       <RequireRole requiredRole="owner" disableOnly tooltip="Only the workspace owner can invite new members">
         <div className="p-6 bg-[var(--surface)] border border-[var(--line)] rounded-[24px] space-y-5">
           <div className="text-xs font-black uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
-            <UserPlus aria-hidden="true" size={15} className="text-indigo-800 dark:text-indigo-300" /> Invite Team Member or Accountant
+            <UserPlus aria-hidden="true" size={15} className="text-indigo-500" /> Invite Team Member or Accountant
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
@@ -234,17 +234,17 @@ function ScopedTeamSettings() {
 
           {/* Selected Role Powers Explainer */}
           <div className="p-4 bg-[var(--ink)]/40 border border-[var(--line)] rounded-2xl space-y-2">
-            <div className="flex items-center justify-between text-xs font-black text-indigo-800 dark:text-indigo-300 uppercase tracking-wider">
+            <div className="flex items-center justify-between text-xs font-black text-indigo-400 uppercase tracking-wider">
               <span>Role Powers: {ROLE_DESCRIPTIONS[selectedRole].title}</span>
               <Shield aria-hidden="true" size={14} />
             </div>
-            <p className="text-xs text-[var(--text)]">
+            <p className="text-xs text-slate-300">
               {ROLE_DESCRIPTIONS[selectedRole].summary}
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
               {ROLE_DESCRIPTIONS[selectedRole].permissions.map((perm) => (
-                <span key={perm} className="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-800 dark:text-indigo-300 text-[10px] font-semibold rounded-md flex items-center gap-1">
-                  <Check aria-hidden="true" size={10} className="text-indigo-800 dark:text-indigo-300" /> {perm}
+                <span key={perm} className="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[10px] font-semibold rounded-md flex items-center gap-1">
+                  <Check aria-hidden="true" size={10} className="text-indigo-400" /> {perm}
                 </span>
               ))}
             </div>
@@ -277,7 +277,7 @@ function ScopedTeamSettings() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleCopyInviteLink(inv.token)}
-                    className="px-2.5 py-1.5 bg-[var(--surface)] border border-[var(--line)] hover:border-indigo-500 text-[var(--text)] rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
+                    className="px-2.5 py-1.5 bg-[var(--surface)] border border-[var(--line)] hover:border-indigo-500 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
                     title="Copy invite acceptance link"
                   >
                     <Copy aria-hidden="true" size={12} />
@@ -304,7 +304,7 @@ function ScopedTeamSettings() {
       <div className="p-6 bg-[var(--surface)] border border-[var(--line)] rounded-[24px] space-y-4">
         <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
           <div className="text-xs font-black uppercase tracking-wider text-[var(--muted)] flex items-center gap-2">
-            <Users aria-hidden="true" size={16} className="text-indigo-800 dark:text-indigo-300" />
+            <Users aria-hidden="true" size={16} className="text-indigo-500" />
             Authorized Active Workspace Members ({activeSeatCount})
           </div>
           <button
@@ -322,18 +322,18 @@ function ScopedTeamSettings() {
             {/* Owner Row */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-[var(--ink)]/40 border border-[var(--line)] gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-indigo-600/10 border border-indigo-500/30 text-indigo-800 dark:text-indigo-300 font-black flex items-center justify-center text-xs">
+                <div className="w-9 h-9 rounded-full bg-indigo-600/10 border border-indigo-500/30 text-indigo-500 font-black flex items-center justify-center text-xs">
                   OW
                 </div>
                 <div>
                   <div className="text-xs font-bold text-[var(--text)] font-mono flex items-center gap-2">
                     {ownerUid || currentWorkspace?.uid || 'Primary Owner'}
-                    <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-indigo-500/10 text-indigo-800 dark:text-indigo-300 border border-indigo-500/20">
+                    <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                       Primary
                     </span>
                   </div>
                   <div className="text-[10px] text-[var(--muted)] flex items-center gap-1">
-                    <ShieldCheck aria-hidden="true" size={10} className="text-indigo-800 dark:text-indigo-300" /> Workspace Creator & Owner
+                    <ShieldCheck aria-hidden="true" size={10} className="text-indigo-500" /> Workspace Creator & Owner
                   </div>
                 </div>
               </div>
@@ -341,11 +341,11 @@ function ScopedTeamSettings() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleOpenMemberActivity(ownerUid || currentWorkspace?.uid || '')}
-                  className="px-2.5 py-1 bg-[var(--surface)] border border-[var(--line)] hover:border-indigo-500 text-[var(--text)] rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all"
+                  className="px-2.5 py-1 bg-[var(--surface)] border border-[var(--line)] hover:border-indigo-500 text-slate-300 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all"
                 >
                   <Activity aria-hidden="true" size={12} /> Activity Log
                 </button>
-                <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg bg-indigo-500/10 text-indigo-800 dark:text-indigo-300 border border-indigo-500/20">
+                <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                   Owner
                 </span>
               </div>
@@ -359,13 +359,13 @@ function ScopedTeamSettings() {
               return (
                 <div key={mUid} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-[var(--ink)]/20 border border-[var(--line)] gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-emerald-600/10 border border-emerald-500/30 text-[var(--pos)] font-bold flex items-center justify-center text-xs font-mono">
+                    <div className="w-9 h-9 rounded-full bg-emerald-600/10 border border-emerald-500/30 text-emerald-500 font-bold flex items-center justify-center text-xs font-mono">
                       {currentRole.substring(0, 2).toUpperCase()}
                     </div>
                     <div>
                       <div className="text-xs font-bold text-[var(--text)] font-mono">{mUid}</div>
                       <div className="text-[10px] text-[var(--muted)] flex items-center gap-1">
-                        <Check aria-hidden="true" size={10} className="text-[var(--pos)]" /> Active Member
+                        <Check aria-hidden="true" size={10} className="text-emerald-500" /> Active Member
                       </div>
                     </div>
                   </div>
@@ -373,7 +373,7 @@ function ScopedTeamSettings() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => handleOpenMemberActivity(mUid)}
-                      className="px-2.5 py-1 bg-[var(--surface)] border border-[var(--line)] hover:border-indigo-500 text-[var(--text)] rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all"
+                      className="px-2.5 py-1 bg-[var(--surface)] border border-[var(--line)] hover:border-indigo-500 text-slate-300 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all"
                     >
                       <Activity aria-hidden="true" size={12} /> Activity
                     </button>
@@ -417,7 +417,7 @@ function ScopedTeamSettings() {
           <div className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
             <div className="p-4 border-b border-[var(--line)] flex items-center justify-between bg-[var(--ink)]/40">
               <div className="flex items-center gap-2">
-                <Activity aria-hidden="true" size={18} className="text-indigo-800 dark:text-indigo-300" />
+                <Activity aria-hidden="true" size={18} className="text-indigo-500" />
                 <h3 id={overlayTitleId} className="text-sm font-bold text-[var(--text)] uppercase tracking-wider">
                   Member Activity History — {selectedMemberForLogs.email || selectedMemberForLogs.uid}
                 </h3>
@@ -442,7 +442,7 @@ function ScopedTeamSettings() {
                   <div key={log.id} className="p-3 bg-[var(--ink)]/30 border border-[var(--line)] rounded-xl flex items-center justify-between text-xs">
                     <div>
                       <div className="font-bold text-[var(--text)] uppercase tracking-tight flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded text-[8px] bg-indigo-500/10 text-indigo-800 dark:text-indigo-300 font-black">
+                        <span className="px-2 py-0.5 rounded text-[8px] bg-indigo-500/10 text-indigo-400 font-black">
                           {log.action}
                         </span>
                         <span>{log.entityType}</span>

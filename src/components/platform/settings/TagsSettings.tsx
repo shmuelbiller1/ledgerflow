@@ -88,7 +88,7 @@ export default function TagsSettings() {
         <p className="text-sm text-[var(--muted)]">Every tag used in this workspace and where. Rename one everywhere at once; renaming it to another tag&apos;s name merges the two.</p>
       </div>
       <input type="search" aria-label="Find a tag" value={search} onChange={e => setSearch(e.target.value)} placeholder="Find a tag" className={`${field} w-64`} dir="auto" />
-      {error && <p role="alert" className="text-sm text-[var(--neg)]">{error}</p>}
+      {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
       {tags === null ? (
         <p className="text-sm text-[var(--muted)]">Loading…</p>
       ) : shown.length === 0 ? (

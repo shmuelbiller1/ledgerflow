@@ -18,7 +18,8 @@ import AttachmentsPanel from '../common/AttachmentsPanel';
 import RecordNotesPanel from '../common/RecordNotesPanel';
 import { RecordPage, type RecordMetric, type RecordNextAction, type RecordStep } from '../common/RecordPage';
 import InlineEdit from '../ui/InlineEdit';
-import { LinkedRecordStatus } from '../common/LinkedRecordStatus';
+import { EmptyState } from '../ui/EmptyState';
+import { LoadingState } from '../ui/LoadingState';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { billMayBeVoided } from './billVoidEligibility';
@@ -38,7 +39,7 @@ export interface BillRecordPageProps {
 export default function BillRecordPage({
   billId, onBack, onEdit, onPay, onPreviewPdf, onVoid, onOpenVendor, onApproveClaim,
 }: BillRecordPageProps) {
-  useLedgerCollections('bills', 'vendors', 'payments', 'auditLogs');
+  const { loading } = useLedgerCollections('bills', 'vendors', 'payments', 'auditLogs');
   const dataHealth = useScreenDataHealth(['bills', 'vendors', 'payments', 'auditLogs']);
   const dataNotice = <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message}
     onRetry={dataHealth.retry} what="this bill" />;
@@ -83,7 +84,16 @@ export default function BillRecordPage({
     return (logs.length ? logs : derived).sort((a, b) => String(b.when).localeCompare(String(a.when)));
   }, [auditLogs, bill]);
 
-  if (!bill) return <LinkedRecordStatus kind="bill" onBack={onBack} />;
+  if (!bill && dataHealth.failedKeys.includes('bills')) return (
+    <div className="p-4 sm:p-6 space-y-4">{dataNotice}<EmptyState title="Bill unavailable"
+      description="The bill list could not be loaded yet." actionLabel="Back to bills" onAction={onBack} /></div>
+  );
+  if (loading && !bill && dataHealth.loadingKeys.includes('bills')) return <div className="p-4 sm:p-6"><LoadingState what="bill" /></div>;
+  if (!bill) return (
+    <div className="p-4 sm:p-6"><EmptyState title="Bill not found"
+      description="This bill may have been deleted or belongs to another workspace."
+      actionLabel="Back to bills" onAction={onBack} /></div>
+  );
 
   const label = bill.number ? `Bill ${bill.number}` : `Bill ${bill.id}`;
   const currency = bill.currency || homeCurrency;

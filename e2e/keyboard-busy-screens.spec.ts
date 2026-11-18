@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { keyboardRecordPageRoundTrip, keyboardRoundTrip, tabThroughRowActions, tabTo } from './support/keyboardRoundTrip';
+import { keyboardRoundTrip } from './support/keyboardRoundTrip';
 import { mountJourney } from './support/journeyFixture';
 
 /**
@@ -46,12 +46,7 @@ test('A-259 Sales: invoice row → Edit invoice dialog → Escape → focus back
     mounts: [{ module: '/src/components/sales/Sales.tsx' }],
   });
   await expect(page.getByText('Acme Corp', { exact: true }).first()).toBeVisible();
-  const editInvoice = page.getByRole('button', { name: 'Edit invoice 1001', exact: true });
-  await tabTo(page, editInvoice);
-  await keyboardRoundTrip(page, editInvoice, 'Edit invoice 1001');
-  const invoice = page.getByRole('button', { name: '1001', exact: true });
-  await tabThroughRowActions(page, invoice);
-  await keyboardRecordPageRoundTrip(page, invoice, 'Back to invoices');
+  await keyboardRoundTrip(page, page.getByRole('button', { name: 'Edit invoice 1001', exact: true }), 'Edit invoice 1001');
   expect(errors).toEqual([]);
 });
 
@@ -76,12 +71,7 @@ test('A-259 Purchases: bill row → Edit bill dialog → Escape → focus back o
     mounts: [{ module: '/src/components/purchases/Purchases.tsx' }],
   });
   await expect(page.getByText('Parts Ltd', { exact: true }).first()).toBeVisible();
-  const editBill = page.getByRole('button', { name: 'Edit bill 2001', exact: true });
-  await tabTo(page, editBill);
-  await keyboardRoundTrip(page, editBill, 'Edit bill 2001');
-  const bill = page.getByRole('button', { name: 'Open bill 2001', exact: true });
-  await tabThroughRowActions(page, bill);
-  await keyboardRecordPageRoundTrip(page, bill, 'Back to bills');
+  await keyboardRoundTrip(page, page.getByRole('button', { name: 'Edit bill 2001', exact: true }), 'Edit bill 2001');
   expect(errors).toEqual([]);
 });
 

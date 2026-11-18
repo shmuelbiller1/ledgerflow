@@ -452,7 +452,7 @@ function DimensionsSettingsContent() {
               <ShieldCheck aria-hidden="true" size={12} className="text-emerald-500" /> Stable value Identity
             </div>
             <p className="text-slate-600 font-medium leading-relaxed">
-              Transactions store short stable codes (e.g. <code className="text-[var(--pos)] font-bold">P1</code>). Changing the description instantly updates all past transactions.
+              Transactions store short stable codes (e.g. <code className="text-emerald-600 font-bold">P1</code>). Changing the description instantly updates all past transactions.
             </p>
           </div>
 
@@ -485,7 +485,7 @@ function DimensionsSettingsContent() {
             type="button"
             loading={isMigrating}
             onClick={handleRunBackfillOnly}
-            className="px-4 py-3 bg-[var(--surface)] border border-indigo-500/40 hover:bg-indigo-500/10 text-indigo-800 dark:text-indigo-300 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap"
+            className="px-4 py-3 bg-[var(--surface)] border border-indigo-500/40 hover:bg-indigo-500/10 text-indigo-300 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap"
           >
             <Database aria-hidden="true" size={14} />
             One-Time Value backfill

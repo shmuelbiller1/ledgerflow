@@ -217,7 +217,7 @@ export default function EmailSettings() {
             <div dir={preview.dir} className="rounded-xl border border-[var(--line)] bg-white text-slate-800 overflow-hidden">
               <div className="px-4 py-2 border-b border-slate-200 text-xs"><strong>Subject:</strong> {preview.subject}</div>
               {/* The preview HTML is built from escaped text by renderEmail */}
-              <div className="text-sm [&_a]:underline" dangerouslySetInnerHTML={{ __html: preview.html }} />
+              <div className="text-sm" dangerouslySetInnerHTML={{ __html: preview.html }} />
             </div>
           </div>
         </div>

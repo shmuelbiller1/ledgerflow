@@ -85,25 +85,12 @@ export function RecordPage({
     backRef.current?.focus();
   }, [focusKey]);
 
-  const handleEscape = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Escape' || event.defaultPrevented || event.repeat) return;
-    const target = event.target;
-    // An inline editor, popup or portaled control gets its own Escape. Only the record's
-    // ordinary controls can go Back; the rest of the app retains its keyboard behavior.
-    if (!(target instanceof Element) || !event.currentTarget.contains(target) ||
-        target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="combobox"], [role="listbox"], [role="menu"], [role="dialog"], dialog[open]')) return;
-    event.preventDefault();
-    event.stopPropagation();
-    onBack();
-  };
-
   return (
-    <div dir={dir} lang={lang} onKeyDown={handleEscape} className="w-full max-w-6xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8 text-[var(--text)]">
+    <div dir={dir} lang={lang} className="w-full max-w-6xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8 text-[var(--text)]">
       <div>
         <button
           ref={backRef}
           type="button"
-          aria-keyshortcuts="Escape"
           onClick={onBack}
           className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-indigo-700 dark:text-indigo-300 hover:underline mb-3"
         >

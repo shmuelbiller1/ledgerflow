@@ -76,8 +76,7 @@ export default function CurrenciesSettings() {
         />
         <p className="text-xs text-[var(--muted)]" aria-live="polite">Showing {referenceRows.length} of {ISO_CURRENCY_REFERENCE.length} currency codes.</p>
         {referenceRows.length === 0 ? <p className="text-sm text-[var(--muted)]">No ISO 4217 currencies match this search.</p> : (
-          <div className="max-h-[32rem] overflow-auto rounded border border-[var(--line)]"
-            role="region" aria-label="Scrollable currency reference" tabIndex={0}>{/* NOSONAR: S6845 — keyboard access to the reference table */}
+          <div className="max-h-[32rem] overflow-auto rounded border border-[var(--line)]">
             <RowTable
               rowClassName="border-t border-[var(--line)]/50"
               caption={(<>ISO 4217 currency codes, names, symbols and minor-unit digits</>)}

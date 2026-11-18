@@ -177,7 +177,7 @@ export default function AppearanceSettings() {
                 )}
               >
                 <span className="font-bold text-xs uppercase tracking-wider">{preset.label}</span>
-                <span className="font-mono text-[10px]">{preset.scale}%</span>
+                <span className="font-mono text-[10px] opacity-75">{preset.scale}%</span>
               </button>
             ))}
           </div>

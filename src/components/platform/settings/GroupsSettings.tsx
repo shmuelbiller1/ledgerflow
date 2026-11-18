@@ -171,7 +171,7 @@ export default function GroupsSettings() {
         <h2 id="groups-title" className="text-lg font-bold text-[var(--text)] flex items-center gap-2"><FolderTree className="w-5 h-5" aria-hidden="true" /> Groups of books</h2>
         <p className="text-sm text-[var(--muted)]">Group the workspaces you can open, e.g. a holding and its companies, or clients by kind. Only you and the people you share a group with see it, and a workspace in a group stays exactly as it is.</p>
       </div>
-      {error && <p role="alert" className="text-sm text-[var(--neg)]">Your groups could not be loaded: {error}</p>}
+      {error && <p role="alert" className="text-sm text-rose-600">Your groups could not be loaded: {error}</p>}
       {groups === null ? <p className="text-sm text-[var(--muted)]">Loading…</p> : (
         <ul className="rounded-xl border border-[var(--line)] bg-[var(--surface)] divide-y divide-[var(--line)]">
           {groups.length === 0 && <li className="p-4 text-sm text-[var(--muted)]">No groups yet.</li>}

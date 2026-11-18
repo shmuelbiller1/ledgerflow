@@ -341,11 +341,6 @@
   [data-column="select"] { padding-inline: 0; overflow: visible; }
 }
 
-/* The light rich-error toast uses a pink surface, even when the app is dark. */
-[data-sonner-toaster][data-sonner-theme='light'] [data-sonner-toast][data-type='error'] {
-  --error-text: #a9412c;
-}
-
 /* Reports/settings retain authored labels and acronyms instead of forcing all caps.
    Include descendants because nested icons/labels can carry their own utilities. */
 .sentence-case-controls :is(button, h1, h2, h3, h4, h5, h6),

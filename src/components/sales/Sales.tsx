@@ -291,7 +291,6 @@ export default function Sales() {
     ready: invoices.length > 0,
     onFocus: () => { setActiveSubTab('invoices'); setSelectedCustomerId(null); setSearchTerm(''); },
   });
-  const invoiceOpenerId = useDetailReturnFocus(focusedInvoiceId);
 
   const reverseWriteOff = useCallback(async (inv: Invoice) => {
     if (!currentWorkspaceId) return;
@@ -360,7 +359,6 @@ export default function Sales() {
     homeCurrency,
     canDecideApproval,
     openRecord,
-    invoiceOpenerId,
     updateEntity,
     onEditInvoice: inv => { setNewInvoiceFor(inv); setIsInvoiceModalOpen(true); },
     onDuplicateInvoice: draft => { setNewInvoiceFor(draft); setIsInvoiceModalOpen(true); },
@@ -374,7 +372,7 @@ export default function Sales() {
     onVoidInvoice: voidInvoice,
   }), [
     salesText, canEditContacts, payments, currentWorkspaceId, approvalSettings, homeCurrency,
-    canDecideApproval, openRecord, invoiceOpenerId, updateEntity, openPaymentForInvoice, reverseWriteOff, decideApproval, voidInvoice,
+    canDecideApproval, openRecord, updateEntity, openPaymentForInvoice, reverseWriteOff, decideApproval, voidInvoice,
   ]);
 
   const customerColumns = useMemo(() => buildCustomerColumns({

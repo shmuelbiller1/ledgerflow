@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 
 /** Detail pages replace their list, so the original opener unmounts. Focus its new DOM node on Back. */
 export function useDetailReturnFocus(selectedId: string | null) {
@@ -10,5 +10,5 @@ export function useDetailReturnFocus(selectedId: string | null) {
     }
     previous.current = selectedId;
   }, [selectedId, prefix]);
-  return useCallback((recordId: string) => `${prefix}-${recordId}`, [prefix]);
+  return (recordId: string) => `${prefix}-${recordId}`;
 }
