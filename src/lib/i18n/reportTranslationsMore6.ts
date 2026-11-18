@@ -614,4 +614,8 @@ export const REPORT_STRINGS_6: ScreenStringEntry[] = [
   { key: 'r.loading-quarter-docs', en: 'Loading the quarter’s documents and the returns recorded for it…', he: 'טוען את מסמכי הרבעון ואת הדוחות שנרשמו עבורו…' },
   { key: 'r.came-from', en: 'Came from', he: 'הגיע מ-' },
   { key: 'r.went-to', en: 'Went to', he: 'יצא ל-' },
+  { key: 'r.journey-done', en: 'Done from the recorded data', he: 'בוצע לפי הנתונים שנרשמו' },
+  { key: 'r.journey-attention', en: 'Needs attention', he: 'דורש טיפול' },
+  { key: 'r.journey-na-month', en: 'Does not apply to this month', he: 'לא חל על החודש הזה' },
+  { key: 'r.journey-na-quarter', en: 'Does not apply to this quarter', he: 'לא חל על הרבעון הזה' },
 ];

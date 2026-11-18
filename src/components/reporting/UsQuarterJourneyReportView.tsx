@@ -26,7 +26,6 @@ const CODE_NAMES = { c0: '2026-Q3' } as const;
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const QUARTER_TEXT = /^\d{4}-Q[1-4]$/;
-const STATUS_LABEL = stepStatusLabel('quarter');
 
 /** Only this workspace's rows; a row with no workspace id is a fixture or a shared record. */
 const inWorkspace = <T extends { workspaceId?: string }>(rows: T[] | undefined, workspaceId?: string | null) =>
@@ -151,7 +150,7 @@ export function UsQuarterJourneyPanel({ journey, currency = 'USD', quarterText, 
         : journey.nextStep ? ` ${fill(reportText('r.next-0', '· next: {0}.'), { 0: journey.steps.find(s => s.id === journey.nextStep)?.title ?? '' })}` : ''}
     </p>}
 
-    {journey && <JourneySteps steps={journey.steps} currency={currency} formatCurrency={formatCurrency} statusLabel={STATUS_LABEL}
+    {journey && <JourneySteps steps={journey.steps} currency={currency} formatCurrency={formatCurrency} statusLabel={stepStatusLabel('quarter', reportText)}
       afterFigures={step => step.returns.length > 0 ? <StateReturnTable returns={step.returns} currency={currency} /> : null}
       openScreen={step => <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)] text-sm"
         onClick={() => goToPage({ tab: step.tab, sub: step.screen })}>{reportText('r.open', 'Open')} {step.screenLabel}</button>} />}
