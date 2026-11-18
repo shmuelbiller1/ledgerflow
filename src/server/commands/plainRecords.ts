@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { HttpError } from '../auth/requestUser';
+import { guardPlainRecordDelete, guardPlainRecordSave } from './plainRecordGuards';
 import {
   PLAIN_RECORD_COLLECTIONS, PLAIN_RECORD_SERVER_KEYS, isPlainRecordCollection, type PlainRecordCollection,
 } from '../../lib/plainRecords';
@@ -127,6 +128,7 @@ export const recordSaveCommand: CommandDefinition<typeof recordSaveInput, Record
     const merged: RecordRow = create ? {} : { ...(existing ?? {}) };
     for (const [field, value] of Object.entries(data)) setAt(merged, field, value);
     for (const field of input.unset ?? []) unsetAt(merged, field);
+    guardPlainRecordSave(input.collection, existing, merged);
     tx.set(ref, create
       ? { ...merged, id, uid: ctx.user.uid, workspaceId: ctx.workspaceId, createdAt: now, updatedAt: now }
       : { ...merged, id, uid: existing?.uid ?? ctx.user.uid, workspaceId: ctx.workspaceId, createdAt: existing?.createdAt ?? now, updatedAt: now });
@@ -158,7 +160,7 @@ export const recordSaveCommand: CommandDefinition<typeof recordSaveInput, Record
     refusals: [
       { code: 'INVALID_INPUT', when: 'The collection is not an ordinary record, the record is empty or too large, or a field name is empty.', next: 'Use the command that owns that collection, or send the fields the screen shows.' },
       { code: 'NOT_FOUND', when: 'The record is not in the selected workspace, or a save names an id that does not exist without asking to create it.', next: 'Reload the list and open a record in this workspace.' },
-      { code: 'CONFLICT', when: 'A create names an id that is already taken.', next: 'Open that record and save it, or let the server choose the id.' },
+      { code: 'CONFLICT', when: 'A create names an id that is already taken, or the save changes a field only a ledger command may change (asset depreciation or disposal, stock or cost of a stocked item, an accepted estimate, a received purchase order).', next: 'Open that record and save it, or let the server choose the id.' },
       { code: 'ROLE_REQUIRED', when: 'The caller is a viewer.', next: 'Ask an owner, accountant or bookkeeper to save the record.' },
     ],
   },
@@ -176,6 +178,7 @@ export const recordDeleteCommand: CommandDefinition<typeof recordDeleteInput, Re
     if (!record || record.workspaceId !== ctx.workspaceId) {
       throw Object.assign(new HttpError('This record is not in the selected workspace.', 404), { code: 'NOT_FOUND' });
     }
+    guardPlainRecordDelete(input.collection, record);
     tx.delete(ref);
     return { collection: input.collection, id: input.id, deleted: true as const };
   },

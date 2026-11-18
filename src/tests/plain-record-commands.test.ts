@@ -209,3 +209,51 @@ test('a field path cannot walk into the prototype chain', async () => {
   assert.equal(outcome.ok, true);
   assert.equal(({} as Record<string, unknown>).polluted, undefined, 'nothing leaked onto every object in the process');
 });
+
+test('money fields stay with the commands that post them (#822)', async () => {
+  const db = seeded();
+  db.seed('assets/a-1', { id: 'a-1', workspaceId, name: 'Van', status: 'active', accumulatedDepreciationCents: 1_000, depreciatedThrough: '2026-09-30' });
+  db.seed('assets/a-2', { id: 'a-2', workspaceId, name: 'Desk', status: 'active' });
+  db.seed('inventory/i-1', { id: 'i-1', workspaceId, name: 'Bolt', quantityAtHand: 5, unitCostCents: 100 });
+  db.seed('inventory/i-2', { id: 'i-2', workspaceId, name: 'Nut', quantityAtHand: 0, unitCostCents: 50 });
+  db.seed('estimates/e-1', { id: 'e-1', workspaceId, status: 'accepted', totalCents: 9_000 });
+  db.seed('purchaseOrders/po-r', { id: 'po-r', workspaceId, status: 'received', vendorId: 'v-1', totalCents: 500, items: [{ id: 'l1', quantity: 5, unitCostCents: 100, receivedQuantity: 5 }] });
+  db.seed('purchaseOrders/po-p', { id: 'po-p', workspaceId, status: 'partially_received', vendorId: 'v-1', totalCents: 500, items: [{ id: 'l1', quantity: 5, unitCostCents: 100, receivedQuantity: 2 }] });
+
+  const conflict = async (p: Promise<{ ok: boolean; code?: string }>) => {
+    const r = await p; assert.equal(r.ok, false); if (!r.ok) assert.equal(r.code, 'CONFLICT');
+  };
+  await conflict(save(db, { collection: 'assets', id: 'a-1', data: { accumulatedDepreciationCents: 0 } }));
+  await conflict(save(db, { collection: 'assets', id: 'a-2', data: { status: 'disposed' } }));
+  await conflict(save(db, { collection: 'assets', create: true, data: { name: 'X', disposalTransactionId: 't' } }));
+  await conflict(save(db, { collection: 'inventory', id: 'i-1', data: { unitCostCents: 1 } }));
+  await conflict(save(db, { collection: 'inventory', id: 'i-1', data: { quantityAtHand: 50 } }));
+  await conflict(save(db, { collection: 'estimates', id: 'e-1', data: { totalCents: 1 } }));
+  // the screen's workflow steps still save: shipment tracking on an accepted order, a second receipt, the bill
+  assert.equal((await save(db, { collection: 'estimates', id: 'e-1', data: { 'metadata.shipments': [{ tracking: 'T1' }] } })).ok, true);
+  assert.equal((await save(db, { collection: 'purchaseOrders', id: 'po-p', data: { status: 'received', items: [{ id: 'l1', quantity: 5, unitCostCents: 100, receivedQuantity: 5 }] } })).ok, true);
+  assert.equal((await save(db, { collection: 'purchaseOrders', id: 'po-r', data: { status: 'billed', billId: 'b-1' } })).ok, true);
+  assert.equal((await save(db, { collection: 'purchaseOrders', id: 'po-r', data: { blanket: null } })).ok, true);
+  await conflict(save(db, { collection: 'purchaseOrders', id: 'po-r', data: { status: 'draft' } }));
+  await conflict(save(db, { collection: 'purchaseOrders', id: 'po-r', data: { totalCents: 1 } }));
+  await conflict(save(db, { collection: 'purchaseOrders', id: 'po-p', data: { items: [{ id: 'l1', quantity: 5, unitCostCents: 1, receivedQuantity: 3 }] } }));
+  await conflict(save(db, { collection: 'inventory', id: 'i-2', data: { quantityAtHand: 500 } }));
+  await conflict(save(db, { collection: 'inventory', create: true, data: { name: 'Free stock', quantityAtHand: 9 } }));
+  await conflict(save(db, { collection: 'estimates', id: 'e-1', data: { status: 'draft' } }));
+  await conflict(remove(db, { collection: 'assets', id: 'a-1' }));
+  await conflict(remove(db, { collection: 'inventory', id: 'i-1' }));
+  await conflict(remove(db, { collection: 'purchaseOrders', id: 'po-r' }));
+  assert.equal(db.read('assets/a-1')?.accumulatedDepreciationCents, 1_000);
+  assert.equal(db.read('inventory/i-1')?.unitCostCents, 100);
+
+  const badRate = await save(db, { collection: 'taxRates', id: 'tax-1', data: { rate: 170 } });
+  assert.equal(badRate.ok, false);
+  if (!badRate.ok) assert.equal(badRate.code, 'INVALID_INPUT');
+
+  // ordinary edits still go through
+  assert.equal((await save(db, { collection: 'assets', id: 'a-1', data: { name: 'Blue van' } })).ok, true);
+  assert.equal((await save(db, { collection: 'inventory', id: 'i-1', data: { name: 'Bolt M6' } })).ok, true);
+  assert.equal((await save(db, { collection: 'inventory', id: 'i-2', data: { unitCostCents: 60 } })).ok, true);
+  assert.equal((await remove(db, { collection: 'assets', id: 'a-2' })).ok, true);
+  assert.equal((await remove(db, { collection: 'inventory', id: 'i-2' })).ok, true);
+});
