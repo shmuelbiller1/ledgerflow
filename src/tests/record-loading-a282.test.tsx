@@ -57,6 +57,14 @@ test('A-282 invoice: loading → failed (not absent) → retry/loading → recor
   assert.ok(screen.getByRole('heading', { name: 'Invoice INV-42' }));
 });
 
+test('A-282 invoice: a pending secondary read does not hide a confirmed missing invoice', () => {
+  markComponentCollectionsLoaded('invoices');
+  assert.equal(Boolean(useDataNeedsStore.getState().loaded.transactions), false);
+  render(invoicePage());
+  assert.ok(screen.getByRole('heading', { name: 'Invoice not found' }));
+  assert.equal(screen.queryByText('Loading invoice…'), null);
+});
+
 test('A-282 invoice: a secondary collection failure does not keep a missing invoice loading', () => {
   act(() => useDataNeedsStore.getState().markFailed('transactions', 'Timed out'));
   render(invoicePage());
