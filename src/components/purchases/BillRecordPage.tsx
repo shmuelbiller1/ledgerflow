@@ -22,6 +22,7 @@ import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { billMayBeVoided } from './billVoidEligibility';
 
 export interface BillRecordPageProps {
   billId: string;
@@ -111,6 +112,7 @@ export default function BillRecordPage({
   // A submitted expense claim is decided by the existing owner/accountant action, not by
   // opening an ordinary bill editor (whose Approve Bill button does not decide the claim).
   const canEditBill = canEdit && !isClosed && claim?.state !== 'submitted';
+  const canVoidBill = canEdit && billMayBeVoided(bill);
 
   // The saved document's lifecycle is about this bill, not the whole vendor relationship. A pending
   // bill opens the existing editor for approval; an expense claim uses its existing decision action.
@@ -174,7 +176,7 @@ export default function BillRecordPage({
           className="inline-flex min-h-11 items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold hover:bg-[var(--elevated)]">
           <Eye aria-hidden="true" size={14} /> Preview PDF
         </button>
-        {canEditBill && <button type="button" onClick={() => onVoid(bill)}
+        {canVoidBill && <button type="button" onClick={() => onVoid(bill)}
           className="inline-flex min-h-11 items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30">
           <Trash2 aria-hidden="true" size={14} /> Void
         </button>}

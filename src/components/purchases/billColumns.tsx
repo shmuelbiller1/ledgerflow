@@ -9,6 +9,7 @@ import { spreadProgress } from '../../lib/prepaidSchedule';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { claimOf } from '../../lib/expenseClaims';
 import { inBackground } from '../../lib/inBackground';
+import { billMayBeVoided } from './billVoidEligibility';
 
 type PurchaseText = (key: string, fallback: string) => string;
 
@@ -199,7 +200,7 @@ export function buildBillColumns({
                 {purchasesText('action.pay', 'Pay')}
               </button>
             )}
-            {canEditBill(b) && b.status !== 'paid' && b.status !== 'void' && (
+            {canEditContacts && billMayBeVoided(b) && (
               <button
                 type="button"
                 onClick={e => { e.stopPropagation(); inBackground(onVoid(b)); }}

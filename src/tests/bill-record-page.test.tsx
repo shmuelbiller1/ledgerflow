@@ -100,15 +100,26 @@ describe('BillRecordPage on the shared record shell', () => {
     assert.ok(screen.getByRole('button', { name: 'Review and approve' }));
   });
 
-  test('settled or void bills show zero still due and cannot offer another payment', () => {
-    mountRecord();
+  test('paid, settled and part-paid bills cannot be voided while payments are attached', () => {
+    const { selected } = mountRecord();
     act(() => { useLedgerStore.setState({ bills: [currentBill({ status: 'paid', amountPaidCents: 0 })] }); });
     assert.match(progressStep() || '', /Paid/);
     assert.equal(screen.queryByRole('button', { name: 'Pay this bill' }), null);
+    assert.equal(screen.queryByRole('button', { name: 'Void' }), null, 'legacy paid status must be enough');
     assert.match(screen.getByText('Still due').parentElement?.textContent || '', /\$0\.00/);
+    act(() => { useLedgerStore.setState({ bills: [currentBill({ status: 'approved', amountPaidCents: 12000 })] }); });
+    assert.match(progressStep() || '', /Paid/);
+    assert.equal(screen.queryByRole('button', { name: 'Void' }), null, 'a settled approved bill may have a stale status');
+    act(() => { useLedgerStore.setState({ bills: [currentBill({ status: 'partially_paid', amountPaidCents: 3000, settledByRecordsCents: 3000 })] }); });
+    assert.equal(screen.queryByRole('button', { name: 'Void' }), null, 'partial payments must be undone first');
+    assert.ok(screen.getByRole('button', { name: 'Pay this bill' }), 'the remaining balance is payable');
+    act(() => { useLedgerStore.setState({ bills: [currentBill()] }); });
+    fireEvent.click(screen.getByRole('button', { name: 'Void' }));
+    assert.deepEqual(selected, ['void'], 'an unsettled bill can still be voided');
     act(() => { useLedgerStore.setState({ bills: [currentBill({ status: 'void' })] }); });
     assert.equal(screen.queryByRole('navigation', { name: 'Record progress' }), null);
     assert.equal(screen.queryByRole('button', { name: 'Pay this bill' }), null);
+    assert.equal(screen.queryByRole('button', { name: 'Void' }), null);
     assert.match(screen.getByText('Still due').parentElement?.textContent || '', /\$0\.00/);
     assert.match(screen.getByText('Paid').parentElement?.textContent || '', /\$0\.00/);
   });
@@ -185,7 +196,7 @@ test('Purchases opens a bill from its list, retains the editor and returns focus
   view.unmount();
 });
 
-test('Purchases only offers Pay in the bill row after approval, with a vendor and an amount due', () => {
+test('Purchases gates Pay and Void in bill rows by approval, settlement and role', () => {
   const claim = { state: 'submitted' as const, submittedBy: 'claimant', submittedAt: '2026-10-02T00:00:00Z' };
   act(() => useLedgerStore.setState({ bills: [
     currentBill({ id: 'draft', number: 'D-1', status: 'draft' }),
@@ -193,6 +204,8 @@ test('Purchases only offers Pay in the bill row after approval, with a vendor an
     currentBill({ id: 'claim', number: 'C-1', status: 'draft', metadata: { expenseClaim: claim } }),
     currentBill({ id: 'no-vendor', number: 'N-1', vendorId: '' }),
     currentBill({ id: 'settled', number: 'S-1', amountPaidCents: 12000 }),
+    currentBill({ id: 'paid', number: 'P-1', status: 'paid', amountPaidCents: 0 }),
+    currentBill({ id: 'partial', number: 'PP-1', status: 'partially_paid', amountPaidCents: 3000, settledByRecordsCents: 3000 }),
     currentBill({ id: 'approved', number: 'A-1' }),
   ] }));
   render(<Purchases />);
@@ -201,14 +214,50 @@ test('Purchases only offers Pay in the bill row after approval, with a vendor an
     assert.ok(row, `${number} has a list row`);
     return within(row).queryByRole('button', { name: 'Pay' });
   };
-  for (const number of ['D-1', 'W-1', 'C-1', 'N-1', 'S-1']) {
+  for (const number of ['D-1', 'W-1', 'C-1', 'N-1', 'S-1', 'P-1']) {
     assert.equal(payFor(number), null, `${number} cannot be paid`);
   }
-  const claimRow = screen.getByRole('button', { name: 'Open bill C-1' }).closest('tr')!;
+  const rowFor = (number: string) => {
+    const row = screen.getByRole('button', { name: `Open bill ${number}` }).closest('tr');
+    assert.ok(row);
+    return row;
+  };
+  const claimRow = rowFor('C-1');
   assert.equal(within(claimRow).queryByRole('button', { name: 'Edit bill C-1' }), null);
   assert.equal(within(claimRow).queryByRole('button', { name: 'Void' }), null);
   assert.equal(within(claimRow).queryByRole('button', { name: 'Delete draft bill C-1' }), null);
+  for (const number of ['S-1', 'P-1', 'PP-1']) {
+    assert.equal(within(rowFor(number)).queryByRole('button', { name: 'Void' }), null, `${number} has an attached settlement`);
+  }
+  assert.ok(within(rowFor('A-1')).getByRole('button', { name: 'Void' }), 'an unsettled bill can be voided');
   assert.ok(payFor('A-1'), 'an approved bill with an amount due offers Pay');
+});
+
+test('Purchases rechecks the current bill if it becomes paid during Void confirmation', async () => {
+  const confirmBefore = window.confirm;
+  const fetchBefore = globalThis.fetch;
+  let confirmed = false;
+  const updates: string[] = [];
+  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes('/commands/bill.update')) updates.push(String(input));
+    return fetchBefore(input, init);
+  }) as typeof fetch;
+  window.confirm = () => {
+    confirmed = true;
+    useLedgerStore.setState({ bills: [currentBill({ status: 'paid', amountPaidCents: 12000 })] });
+    return true;
+  };
+  try {
+    render(<Purchases />);
+    const row = screen.getByRole('button', { name: 'Open bill B-24' }).closest('tr')!;
+    await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Void' })); });
+    assert.ok(confirmed);
+    assert.equal(updates.length, 0, 'a stale Void action must not issue a bill.update');
+    assert.equal(useLedgerStore.getState().bills[0].status, 'paid');
+  } finally {
+    window.confirm = confirmBefore;
+    globalThis.fetch = fetchBefore;
+  }
 });
 
 test('Purchases leaves viewers a readable list without create or payment buttons', () => {

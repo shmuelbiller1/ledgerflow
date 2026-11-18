@@ -34,6 +34,7 @@ import PartyRowActions, { ArchivedBadge, ShowArchivedToggle } from '../common/Pa
 import VendorRecordPage from './VendorRecordPage';
 import BillRecordPage from './BillRecordPage';
 import { buildBillColumns } from './billColumns';
+import { billMayBeVoided } from './billVoidEligibility';
 import ReceivePaymentModal from '../sales/ReceivePaymentModal';
 import { toast } from 'sonner';
 import { attachFiles, attachSummary } from '../../services/attachmentActions';
@@ -224,12 +225,24 @@ export default function Purchases() {
   }, [undoSpread]);
 
   const handleVoidBill = useCallback(async (b: Bill) => {
-    const spread = b.prepaidSchedule ? ' Its spread over months is undone too.' : '';
-    if (safeConfirm(`Void ${describeBill(b)}? It stays on record as void and its entries are reversed.${spread}`)) {
-      if (b.prepaidSchedule && !(await undoSpread(b))) return;
-      await updateEntity('bills', b.id, { status: 'void' }, 'Bill voided');
+    // The row/page may be stale by the time the confirmation is answered. The server also
+    // checks settlements, but do not start a reversal from a now-paid or submitted bill.
+    const current = useLedgerStore.getState().bills.find(row => row.id === b.id);
+    if (!canEditContacts || !current || !billMayBeVoided(current)) {
+      toast.error('This bill has changed or has a payment. Refresh it before voiding.');
+      return;
     }
-  }, [undoSpread, updateEntity]);
+    const spread = current.prepaidSchedule ? ' Its spread over months is undone too.' : '';
+    if (safeConfirm(`Void ${describeBill(current)}? It stays on record as void and its entries are reversed.${spread}`)) {
+      if (current.prepaidSchedule && !(await undoSpread(current))) return;
+      const latest = useLedgerStore.getState().bills.find(row => row.id === b.id);
+      if (!latest || !billMayBeVoided(latest)) {
+        toast.error('This bill has changed or has a payment. Refresh it before voiding.');
+        return;
+      }
+      await updateEntity('bills', latest.id, { status: 'void' }, 'Bill voided');
+    }
+  }, [canEditContacts, undoSpread, updateEntity]);
 
   const openBillPayment = useCallback((bill: Bill) => {
     if (!bill.vendorId || !['approved', 'unpaid', 'overdue', 'partially_paid'].includes(bill.status) ||
