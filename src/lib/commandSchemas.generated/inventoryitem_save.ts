@@ -8,14 +8,10 @@ export const COMMAND_INPUT_SCHEMA = {
     "name": COMMAND_SCHEMA_PARTS.part97,
     "sku": COMMAND_SCHEMA_PARTS.part56,
     "description": COMMAND_SCHEMA_PARTS.part66,
-    "unitPriceCents": COMMAND_SCHEMA_PARTS.part125,
-    "unitCostCents": COMMAND_SCHEMA_PARTS.part125,
-    "standardCostCents": COMMAND_SCHEMA_PARTS.part125,
-    "reorderPoint": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 1000000
-    },
+    "unitPriceCents": COMMAND_SCHEMA_PARTS.part126,
+    "unitCostCents": COMMAND_SCHEMA_PARTS.part126,
+    "standardCostCents": COMMAND_SCHEMA_PARTS.part126,
+    "reorderPoint": COMMAND_SCHEMA_PARTS.part102,
     "measurementUnit": COMMAND_SCHEMA_PARTS.part50,
     "unitsPerPackage": {
       "type": "integer",
@@ -60,27 +56,24 @@ export const COMMAND_INPUT_SCHEMA = {
     },
     "assembleOnDemand": COMMAND_SCHEMA_PARTS.part25,
     "locationLevels": {
-      "maxItems": 200,
-      "type": "array",
-      "items": {
+      "type": "object",
+      "propertyNames": COMMAND_SCHEMA_PARTS.part94,
+      "additionalProperties": {
         "type": "object",
         "properties": {
-          "locationId": COMMAND_SCHEMA_PARTS.part94,
-          "quantityAtHand": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1000000
-          }
+          "min": COMMAND_SCHEMA_PARTS.part102,
+          "max": COMMAND_SCHEMA_PARTS.part102
         },
         "required": [
-          "locationId"
+          "min",
+          "max"
         ],
         "additionalProperties": false
       }
     },
     "documentDefaults": {
       "anyOf": [
-        COMMAND_SCHEMA_PARTS.part148,
+        COMMAND_SCHEMA_PARTS.part149,
         COMMAND_SCHEMA_PARTS.part18
       ]
     },

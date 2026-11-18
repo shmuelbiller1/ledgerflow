@@ -5,8 +5,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "id": COMMAND_SCHEMA_PARTS.part97,
-    "transaction": COMMAND_SCHEMA_PARTS.part148,
-    "partialUpdate": COMMAND_SCHEMA_PARTS.part148,
+    "transaction": COMMAND_SCHEMA_PARTS.part149,
+    "partialUpdate": COMMAND_SCHEMA_PARTS.part149,
     "expectedUpdatedAt": COMMAND_SCHEMA_PARTS.part1,
     "ifMatch": COMMAND_SCHEMA_PARTS.part25
   },

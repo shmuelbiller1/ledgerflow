@@ -19,10 +19,10 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
       "sentence": "Change a bank line the feed brought in — its note, its suggestion or its matched entry; do not use it to edit a posted entry — that is reconciliations.reconcile.",
       "example": {
         "id": "bankline_123",
-        "data": COMMAND_SCHEMA_PARTS.part113
+        "data": COMMAND_SCHEMA_PARTS.part114
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part215,
+        COMMAND_SCHEMA_PARTS.part216,
         {
           "code": "NOT_FOUND",
           "when": "The bank line, or the entry it is matched to, is not in this workspace.",
@@ -61,8 +61,8 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
         ]
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part189,
-        COMMAND_SCHEMA_PARTS.part206,
+        COMMAND_SCHEMA_PARTS.part190,
+        COMMAND_SCHEMA_PARTS.part207,
         {
           "code": "INVALID_INPUT",
           "when": "The documents are not all for the same customer or vendor, or they add up to more than the line.",
@@ -95,8 +95,8 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
         ]
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part189,
-        COMMAND_SCHEMA_PARTS.part206,
+        COMMAND_SCHEMA_PARTS.part190,
+        COMMAND_SCHEMA_PARTS.part207,
         {
           "code": "INVALID_INPUT",
           "when": "The splits do not add up to the line, or one names the bank account itself.",
@@ -119,8 +119,8 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
         "limit": 200
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part181,
-        COMMAND_SCHEMA_PARTS.part157
+        COMMAND_SCHEMA_PARTS.part182,
+        COMMAND_SCHEMA_PARTS.part158
       ]
     },
     "runPath": "/api/v1/commands/reconciliations.bankrules",
@@ -225,7 +225,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
           {
             "id": "bankline_123",
             "type": "updateBankLine",
-            "data": COMMAND_SCHEMA_PARTS.part113
+            "data": COMMAND_SCHEMA_PARTS.part114
           }
         ]
       },
@@ -235,8 +235,8 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
           "when": "An operation has no id, an unknown type, or the batch is empty or over 250.",
           "next": "Send between 1 and 250 operations, each with an id and a known type."
         },
-        COMMAND_SCHEMA_PARTS.part157,
-        COMMAND_SCHEMA_PARTS.part215,
+        COMMAND_SCHEMA_PARTS.part158,
+        COMMAND_SCHEMA_PARTS.part216,
         {
           "code": "PERIOD_LOCKED",
           "when": "A line or entry in the batch is dated in a closed period.",
