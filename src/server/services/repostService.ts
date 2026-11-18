@@ -349,6 +349,8 @@ export async function repostQueueOf(db: Firestore, workspaceId: string): Promise
 
 /** POST /api/v1/repost: every open row (or the chosen keys), one database transaction per key. */
 export async function runRepost(db: Firestore, input: RepostRunInput): Promise<RepostRunResult> {
+  // The live dirty-mark trigger does not run on the overlay. A draft repost needs its own queue first.
+  if (db.sandboxId) throw new RepostError(409, 'Repost is not available in a sandbox yet');
   if (!/^[A-Za-z0-9_-]{8,80}$/.test(input.runId)) throw new RepostError(400, 'A repost run needs a run id (8–80 letters, digits, - or _)');
   if ((input.keys && input.keys.length === 0) || (input.kinds && input.kinds.length === 0)) throw new RepostError(400, 'Choose at least one item (keys) or kind, or leave the list out to run every open row');
   if (input.kinds && input.kinds.some(k => k !== STOCK_COST_KIND)) throw new RepostError(400, `Only ${STOCK_COST_KIND} can be reposted so far`);

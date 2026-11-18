@@ -83,7 +83,7 @@ commands before enabling them. Do not substitute a second accounting implementat
   `entriesRead` and `closedThrough` can therefore differ, but not the figures. Sandbox responses are
   not cacheable by the browser. Live cache and snapshot selection still work as before.
 
-## Records and metadata SQL
+## Records and metadata SQL (merged in #792)
 
 Account-merge candidates, entry links, stages, tag enumeration/rename, time entries, and watch
 lookups now read through the supplied handle's merged table sources. The open-task cap uses the
@@ -92,6 +92,16 @@ it scans workspaces and notifies people. The audit writer exits before reserving
 for a draft, so scoped tag and link edits never reserve or add a real audit entry. This removes
 **10** references and takes the SQL ratchet from **36 to 26**. It does not enable assistant
 commands or change their live behavior.
+
+## Stock, period and settlement SQL
+
+- The payment-allocation, period-closing, stock-closing and repost probes use `tablesExist`. A draft
+  bypasses all four live readiness flags, and settlement and period probes within a transaction
+  use its checked-out client. A live missing-table flag cannot suppress draft stock history.
+- The audit fallback reads through the scoped adapter. Draft audit writes still return before
+  reserving a chain head. Draft stock history keeps `seq` but never assigns a live `dbSeq`.
+  Repost execution refuses a draft until it has a draft dirty queue; the live trigger stays off overlays.
+- This lowers the document SQL ratchet **26 → 20** without a migration or any change to ledger figures.
 
 ## Verification
 
@@ -116,13 +126,17 @@ commands or change their live behavior.
   three original tags. It also checks link visibility and refusals, watch timestamps, merged
   stage assignments, per-person time ordering, account-merge candidate counts and the task limit.
 
+- `sandbox-readiness.test.ts` uses PostgreSQL to compare missing draft relations with warm live flags.
+  It checks cold probes on a single connection, a 750-cent draft stock move despite a live missing flag,
+  the live audit chain and fallback, and refusal before a draft repost reads the queue.
+
 ## Remaining checklist (in SBX-1 order)
 
 | Step | Status |
 | --- | --- |
 | Overlay schema, role and data handle | Merged in #787. Live migration/login not independently verified in this pass. |
 | Empty-overlay equivalence | List/paging/stream and report pack verified in #787; worked single-workspace HTTP report and balance figures verified in #790. Multi-workspace consolidation is not a single-workspace read. |
-| Raw SQL, caches and effect stub | Reports and record metadata scoped. Next groups: period/stock and payment allocation readiness (`allocationLedgerReady`), repost and audit; then remaining metering, auth, alerts and jobs. Retain live-only behavior where required, never silently read live from a sandbox. The effect stub and its ratchet are still open. |
+| Raw SQL, caches and effect stub | Reports, records, settlement and stock SQL scoped. Next: metering, auth, modules, alerts and jobs. Retain live-only behavior where required, never silently read live from a sandbox. The effect stub and its ratchet are still open. |
 | Run steps and prove isolation | Not started. Stable ids, provisional numbering, customer → invoice → payment, live-save concurrency, every command leaving all real tables/sequences/audit and external effects unchanged. |
 | Accept/edit/reject and Undo | Not started. Dependency closure, authorization, transactional real replay, inverse and rebuild, high-risk confirmation. |
 | Conflicts and housekeeping | Content versions exist; recheck, plan/period changes, fresh previews, quotas and expiry cleanup are not implemented. |
@@ -132,7 +146,6 @@ Remaining raw-SQL groups (one PR per group, counts are relation references):
 
 | Group | References | Files (see `sandbox-sql-baseline.json`) |
 | --- | ---: | --- |
-| Stock, period and settlement plumbing | 6 | Allocation readiness, audit fallback, period and stock closing, repost marker |
 | Live access, usage and jobs | 20 | Auth, plan capacity, asset reminders, book alerts, ledger health, module usage, email digest, practice dashboard |
 
-No new database migration in the report or record-read slices. SBX-2 speed work stays out of these steps.
+No new database migration in these read and readiness slices. SBX-2 speed work stays out of these steps.

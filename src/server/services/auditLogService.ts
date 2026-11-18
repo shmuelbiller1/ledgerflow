@@ -163,11 +163,10 @@ async function resolveNextChainHead(
     return { seq: 1, prevHash: GENESIS_AUDIT_HASH };
   }
   try {
-    const pool = (db as unknown as { pool?: { query: (sql: string, params: unknown[]) => Promise<{ rows: Array<{ seq?: string; hash?: string }> }> } }).pool;
-    if (pool && typeof pool.query === 'function') {
-      const res = await pool.query(
+    if (typeof db.readRows === 'function') {
+      const [top] = await db.readRows<{ seq?: string; hash?: string }>(
         `select data->>'seq' as seq, data->>'entryHash' as hash
-           from public."auditLogs"
+           from ${db.tableSource('auditLogs')}
           where workspace_id = $1
             and (data->>'seq') ~ '^[0-9]+$'
             and jsonb_typeof(data->'entryHash') = 'string'
@@ -175,7 +174,6 @@ async function resolveNextChainHead(
           limit 1`,
         [workspaceId],
       );
-      const top = res.rows[0];
       if (top?.seq && top?.hash) {
         return { seq: Number(top.seq) + 1, prevHash: top.hash };
       }
