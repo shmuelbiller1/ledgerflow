@@ -263,7 +263,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The value is not in the selected workspace.",
           "next": "Reload the labels and choose a value in this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part214
+        COMMAND_SCHEMA_PARTS.part215
       ],
       "next": [
         COMMAND_SCHEMA_PARTS.part131

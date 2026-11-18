@@ -15,7 +15,7 @@ export const VENDOR_COMMAND_MANIFEST = [
       "example": {
         "id": "vendor_123"
       },
-      "refusals": COMMAND_SCHEMA_PARTS.part245,
+      "refusals": COMMAND_SCHEMA_PARTS.part246,
       "next": COMMAND_SCHEMA_PARTS.part109
     },
     "runPath": "/api/v1/commands/vendor.balance",

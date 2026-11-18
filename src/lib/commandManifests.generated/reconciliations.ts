@@ -12,7 +12,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
   {
     "name": "reconciliations.bankline",
     "area": "reconciliations",
-    "roles": COMMAND_SCHEMA_PARTS.part82,
+    "roles": COMMAND_SCHEMA_PARTS.part68,
     "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {
@@ -22,12 +22,17 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
         "data": COMMAND_SCHEMA_PARTS.part111
       },
       "refusals": [
+        COMMAND_SCHEMA_PARTS.part214,
         {
-          "code": "FORBIDDEN",
-          "when": "The caller is not a member of the workspace.",
-          "next": "Ask a member of the workspace."
+          "code": "NOT_FOUND",
+          "when": "The bank line, or the entry it is matched to, is not in this workspace.",
+          "next": "Sync the feed again or check the ids."
         },
-        COMMAND_SCHEMA_PARTS.part188,
+        {
+          "code": "CONFLICT",
+          "when": "The bank line is dated in a closed period.",
+          "next": "Reopen the period or leave the line as it is."
+        },
         {
           "code": "INVALID_INPUT",
           "when": "A field is not one a bank line allows, or a value has the wrong shape.",
@@ -231,11 +236,7 @@ export const RECONCILIATIONS_COMMAND_MANIFEST = [
           "next": "Send between 1 and 250 operations, each with an id and a known type."
         },
         COMMAND_SCHEMA_PARTS.part155,
-        {
-          "code": "FORBIDDEN",
-          "when": "The caller is not an owner, accountant or bookkeeper of the workspace.",
-          "next": "Ask an owner, accountant or bookkeeper."
-        },
+        COMMAND_SCHEMA_PARTS.part214,
         {
           "code": "PERIOD_LOCKED",
           "when": "A line or entry in the batch is dated in a closed period.",

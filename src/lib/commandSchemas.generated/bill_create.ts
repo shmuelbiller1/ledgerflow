@@ -47,7 +47,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "lineSumCents": COMMAND_SCHEMA_PARTS.part143,
         "taxCodeId": COMMAND_SCHEMA_PARTS.part57,
         "taxTreatment": COMMAND_SCHEMA_PARTS.part157,
-        "taxBreakdown": COMMAND_SCHEMA_PARTS.part244,
+        "taxBreakdown": COMMAND_SCHEMA_PARTS.part245,
         "pricesIncludeTax": COMMAND_SCHEMA_PARTS.part25
       },
       "required": [

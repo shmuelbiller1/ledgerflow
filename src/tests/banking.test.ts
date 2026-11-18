@@ -133,4 +133,31 @@ describe('Banking', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, () => {
     await pendingLine('v', 100);
     assert.equal((await post('view-1', `/bank-lines/${id('v')}/split`, { bankAccountId: id('bank'), splits: [{ accountId: id('sales'), amountCents: 100 }] })).status, 403);
   });
+
+  test('#830: only a ledger writer changes a bank line, in an open period, matched to an entry of this workspace', async () => {
+    const patch = async (uid: string, lineId: string, data: Record<string, unknown>) => {
+      const res = await fetch(`${base}/api/v1/transactions/bank-lines/${lineId}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json', 'x-test-uid': uid }, body: JSON.stringify({ workspaceId: ws, ...data }),
+      });
+      return res.status;
+    };
+    await pendingLine('p830', -5000);
+    await db.collection('transactions').doc(id('own-tx')).set({ workspaceId: ws, uid: 'owner-1', date: '2026-06-10', status: 'completed', totalAmountCents: 5000, lines: [{ accountId: id('bank'), amountCents: -5000 }, { accountId: id('supplies'), amountCents: 5000 }] });
+    await db.collection('transactions').doc(`other_${suffix}`).set({ workspaceId: `other_${suffix}`, uid: 'x', date: '2026-06-10', status: 'draft', totalAmountCents: 0, lines: [] });
+    assert.equal(await patch('view-1', id('p830'), { status: 'matched', matchedTransactionId: id('own-tx') }), 403);
+    assert.equal(await patch('owner-1', id('p830'), { status: 'matched', matchedTransactionId: `other_${suffix}` }), 404);
+    assert.equal((await data('bankLines', id('p830'))).status, 'pending');
+    assert.equal(await patch('owner-1', id('p830'), { status: 'matched', matchedTransactionId: id('own-tx') }), 200);
+    assert.equal((await data('bankLines', id('p830'))).matchedTransactionId, id('own-tx'));
+    // a line in a closed period stays as it is
+    await pendingLine('closed830', -100);
+    await db.collection('workspaces').doc(ws).update({ lockDate: '2026-06-30' });
+    try {
+      assert.equal(await patch('owner-1', id('closed830'), { status: 'ignored' }), 409);
+      assert.equal((await data('bankLines', id('closed830'))).status, 'pending');
+    } finally {
+      await db.collection('workspaces').doc(ws).update({ lockDate: null });
+      await db.collection('transactions').doc(`other_${suffix}`).delete();
+    }
+  });
 });

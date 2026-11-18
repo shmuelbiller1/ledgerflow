@@ -12,7 +12,7 @@ export const PORTAL_COMMAND_MANIFEST = [
     "description": {
       "sentence": "Mint the private link a customer uses to see their own invoices and balance; do not send it to anyone but that customer — it is a way into their account.",
       "example": COMMAND_SCHEMA_PARTS.part32,
-      "refusals": COMMAND_SCHEMA_PARTS.part234
+      "refusals": COMMAND_SCHEMA_PARTS.part235
     },
     "runPath": "/api/v1/commands/portal.linkcreate",
     "previewPath": "/api/v1/commands/portal.linkcreate/preview",
@@ -26,7 +26,7 @@ export const PORTAL_COMMAND_MANIFEST = [
     "description": {
       "sentence": "Turn off a customer's portal link so it stops working; do not use it to hide an invoice — void or correct the invoice instead.",
       "example": COMMAND_SCHEMA_PARTS.part32,
-      "refusals": COMMAND_SCHEMA_PARTS.part234
+      "refusals": COMMAND_SCHEMA_PARTS.part235
     },
     "runPath": "/api/v1/commands/portal.linkrevoke",
     "previewPath": "/api/v1/commands/portal.linkrevoke/preview",
