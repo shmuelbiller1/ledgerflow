@@ -27,6 +27,17 @@ async function openAndReturn(page: Page, opener: Locator, heading: string, back:
   await expect(opener, 'Escape returns to the row that opened this record').toBeFocused();
 }
 
+type RowVisit = { opener: Locator; heading: string; back: string; action: Locator; label: string };
+
+/** Exercise both rows in tab order, including a real row action after each focus return. */
+async function visitTwoRows(page: Page, rows: readonly [RowVisit, RowVisit]) {
+  for (const [index, row] of rows.entries()) {
+    await tabTo(page, row.opener, row.label);
+    await openAndReturn(page, row.opener, row.heading, row.back);
+    await tabTo(page, row.action, `${index === 0 ? 'first' : 'second'} ${row.label} action`);
+  }
+}
+
 const salesLedger = {
   customers: [
     { id: 'cust-acme', uid: 'journey-user', workspaceId: 'kbd-sales-records', name: 'Acme Corp', email: 'acme@example.test', status: 'active' },
@@ -54,14 +65,12 @@ test('A-279 invoice list: Tab through two rows/actions, Enter opens, Escape rest
   const { errors } = await mountJourney(page, { workspaceId: 'kbd-sales-records', ledger: salesLedger, mounts: [{ module: '/src/components/sales/Sales.tsx' }] });
   await expect(page.getByRole('table', { name: 'Invoices' })).toBeVisible();
   await page.getByPlaceholder('Search invoices by customer or number...').focus();
-  const first = page.getByRole('button', { name: '1001', exact: true });
-  const second = page.getByRole('button', { name: '1002', exact: true });
-  await tabTo(page, first, 'invoice 1001');
-  await openAndReturn(page, first, 'Invoice 1001', 'Back to invoices');
-  await tabTo(page, page.getByRole('button', { name: 'Edit invoice 1001' }), 'first invoice action');
-  await tabTo(page, second, 'invoice 1002');
-  await openAndReturn(page, second, 'Invoice 1002', 'Back to invoices');
-  await tabTo(page, page.getByRole('button', { name: 'Edit invoice 1002' }), 'second invoice action');
+  await visitTwoRows(page, [
+    { opener: page.getByRole('button', { name: '1001', exact: true }), heading: 'Invoice 1001', back: 'Back to invoices',
+      action: page.getByRole('button', { name: 'Edit invoice 1001' }), label: 'invoice 1001' },
+    { opener: page.getByRole('button', { name: '1002', exact: true }), heading: 'Invoice 1002', back: 'Back to invoices',
+      action: page.getByRole('button', { name: 'Edit invoice 1002' }), label: 'invoice 1002' },
+  ]);
   expect(errors).toEqual([]);
 });
 
@@ -71,14 +80,12 @@ test('A-279 customer list: Tab through both profile rows/actions, Enter opens, E
   const { errors } = await mountJourney(page, { workspaceId: 'kbd-sales-records', ledger: salesLedger, mounts: [{ module: '/src/components/sales/Sales.tsx' }] });
   await page.getByRole('button', { name: 'Customers', exact: true }).click();
   await page.getByPlaceholder('Search customers by name or email...').focus();
-  const first = page.getByRole('button', { name: 'View customer Acme Corp' });
-  const second = page.getByRole('button', { name: 'View customer Beta LLC' });
-  await tabTo(page, first, 'Acme profile');
-  await openAndReturn(page, first, 'Acme Corp', 'Back to Customers');
-  await tabTo(page, page.getByRole('button', { name: 'Reminders on' }).first(), 'first customer action');
-  await tabTo(page, second, 'Beta profile');
-  await openAndReturn(page, second, 'Beta LLC', 'Back to Customers');
-  await tabTo(page, page.getByRole('button', { name: 'Reminders on' }).last(), 'second customer action');
+  await visitTwoRows(page, [
+    { opener: page.getByRole('button', { name: 'View customer Acme Corp' }), heading: 'Acme Corp', back: 'Back to Customers',
+      action: page.getByRole('button', { name: 'Reminders on' }).first(), label: 'Acme profile' },
+    { opener: page.getByRole('button', { name: 'View customer Beta LLC' }), heading: 'Beta LLC', back: 'Back to Customers',
+      action: page.getByRole('button', { name: 'Reminders on' }).last(), label: 'Beta profile' },
+  ]);
   expect(errors).toEqual([]);
 });
 
@@ -87,14 +94,12 @@ test('A-279 bill list: Tab through two rows/actions, Enter opens, Escape restore
   await page.setViewportSize({ width: 1280, height: 900 });
   const { errors } = await mountJourney(page, { workspaceId: 'kbd-purchases-records', ledger: purchasesLedger, mounts: [{ module: '/src/components/purchases/Purchases.tsx' }] });
   await page.getByPlaceholder('Search bills...').focus();
-  const first = page.getByRole('button', { name: 'Open bill 2001' });
-  const second = page.getByRole('button', { name: 'Open bill 2002' });
-  await tabTo(page, first, 'bill 2001');
-  await openAndReturn(page, first, 'Bill 2001', 'Back to bills');
-  await tabTo(page, page.getByRole('button', { name: 'Edit bill 2001' }), 'first bill action');
-  await tabTo(page, second, 'bill 2002');
-  await openAndReturn(page, second, 'Bill 2002', 'Back to bills');
-  await tabTo(page, page.getByRole('button', { name: 'Edit bill 2002' }), 'second bill action');
+  await visitTwoRows(page, [
+    { opener: page.getByRole('button', { name: 'Open bill 2001' }), heading: 'Bill 2001', back: 'Back to bills',
+      action: page.getByRole('button', { name: 'Edit bill 2001' }), label: 'bill 2001' },
+    { opener: page.getByRole('button', { name: 'Open bill 2002' }), heading: 'Bill 2002', back: 'Back to bills',
+      action: page.getByRole('button', { name: 'Edit bill 2002' }), label: 'bill 2002' },
+  ]);
   expect(errors).toEqual([]);
 });
 
@@ -104,13 +109,11 @@ test('A-279 vendor list: Tab through two profile rows/actions, Enter opens, Esca
   const { errors } = await mountJourney(page, { workspaceId: 'kbd-purchases-records', ledger: purchasesLedger, mounts: [{ module: '/src/components/purchases/Purchases.tsx' }] });
   await page.getByRole('button', { name: 'Vendors (2)' }).click();
   await page.getByPlaceholder('Search vendors...').focus();
-  const first = page.getByRole('button', { name: 'View vendor Parts Ltd' });
-  const second = page.getByRole('button', { name: 'View vendor Paper Co' });
-  await tabTo(page, first, 'Parts profile');
-  await openAndReturn(page, first, 'Parts Ltd', 'Back to Vendors');
-  await tabTo(page, page.getByRole('button', { name: /Edit Category of Parts Ltd/ }), 'first vendor action');
-  await tabTo(page, second, 'Paper profile');
-  await openAndReturn(page, second, 'Paper Co', 'Back to Vendors');
-  await tabTo(page, page.getByRole('button', { name: /Edit Category of Paper Co/ }), 'second vendor action');
+  await visitTwoRows(page, [
+    { opener: page.getByRole('button', { name: 'View vendor Parts Ltd' }), heading: 'Parts Ltd', back: 'Back to Vendors',
+      action: page.getByRole('button', { name: /Edit Category of Parts Ltd/ }), label: 'Parts profile' },
+    { opener: page.getByRole('button', { name: 'View vendor Paper Co' }), heading: 'Paper Co', back: 'Back to Vendors',
+      action: page.getByRole('button', { name: /Edit Category of Paper Co/ }), label: 'Paper profile' },
+  ]);
   expect(errors).toEqual([]);
 });

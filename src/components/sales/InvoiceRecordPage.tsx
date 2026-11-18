@@ -47,7 +47,7 @@ export default function InvoiceRecordPage({
   onVoid,
   onOpenCustomer,
 }: InvoiceRecordPageProps) {
-  useLedgerCollections('invoices', 'customers', 'payments', 'auditLogs', 'transactions');
+  const { loading } = useLedgerCollections('invoices', 'customers', 'payments', 'auditLogs', 'transactions');
   const dataHealth = useScreenDataHealth(['invoices', 'customers', 'payments', 'auditLogs', 'transactions']);
   const dataNotice = <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message}
     onRetry={dataHealth.retry} what="this invoice" />;
@@ -137,7 +137,7 @@ export default function InvoiceRecordPage({
     <div className="p-4 sm:p-6 space-y-4">{dataNotice}<EmptyState title="Invoice unavailable"
       description="The invoice list could not be loaded yet." actionLabel="Back to invoices" onAction={onBack} /></div>
   );
-  if (!invoice && dataHealth.loadingKeys.includes('invoices')) {
+  if (!invoice && (loading || dataHealth.loadingKeys.includes('invoices'))) {
     return <div className="p-4 sm:p-6"><LoadingState what="invoice" /></div>;
   }
 
