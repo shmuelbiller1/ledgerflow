@@ -8,6 +8,7 @@ import { budgetedResult, budgetLabel } from '../../lib/budgetByLabel';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import DrillDownModal, { type ExplainRequest } from '../layout/DrillDownModal';
 import { rollUp } from '../../lib/labelTree';
+import { useReportText, fill } from './useReportText';
 
 type Section = 'income' | 'cogs' | 'expense';
 interface Column { value: string; income: number; cogs: number; grossProfit: number; expense: number; netIncome: number; accounts: Record<string, number> }
@@ -22,6 +23,7 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
  * (src/server/reports/byLabel.ts); each figure opens the entries behind it.
  */
 export default function LabelProfitReportView() {
+  const reportText = useReportText();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const nodes = useLedgerStore(s => s.dimensionNodes);
   // the roll-up needs every value's parent: with a partial list it would leave children out
@@ -62,7 +64,7 @@ export default function LabelProfitReportView() {
         <button type="button" className="hover:underline" onClick={() => setDrill({
           name, explain: { accountIds, startDate, endDate, expectedCents: cents, sign: section === 'income' ? -1 : 1, ...(value !== null ? { labelFilter: { dimensionId, value }, label: `${dimensionName} ${valueName(value)}, ${startDate} to ${endDate}` } : {}) },
         })}>
-          {formatCurrency(cents, currency)}<span className="sr-only"> {name}{value !== null ? ` for ${valueName(value)}` : ' in total'}: open the entries</span>
+          {formatCurrency(cents, currency)}<span className="sr-only"> {name}{value !== null ? ` ${fill(reportText('r.for-value', 'for {value}'), { value: valueName(value) })}` : ` ${reportText('r.in-total', 'in total')}`}{reportText('r.open-the-entries', ': open the entries')}</span>
         </button>
       )}
     </td>
@@ -71,33 +73,33 @@ export default function LabelProfitReportView() {
 
   return (
     <section aria-labelledby="by-label-title" className="space-y-4">
-      <h2 id="by-label-title" className="text-lg font-bold text-[var(--text)]">Profit by label</h2>
+      <h2 id="by-label-title" className="text-lg font-bold text-[var(--text)]">{reportText('r.profit-by-label', 'Profit by label')}</h2>
       {dimensions.length === 0 ? (
-        <p className="text-sm text-[var(--muted)]">No labels yet: add one (Property, Project, Location…) in Settings → Labels, and put it on lines.</p>
+        <p className="text-sm text-[var(--muted)]">{reportText('r.no-labels-yet-add-one-property-project-location', 'No labels yet: add one (Property, Project, Location…) in Settings → Labels, and put it on lines.')}</p>
       ) : (
         <div className="flex flex-wrap items-end gap-3 text-sm">
-          <label className="flex flex-col gap-1 text-[var(--muted)]">Label
+          <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.label', 'Label')}
             <select value={dimensionId} onChange={e => setPicked(e.target.value)} className={field}>
               {dimensions.map(d => <option key={d.id} value={d.id}>{displayDimensionName(d)}</option>)}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[var(--muted)]">From<input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={field} /></label>
-          <label className="flex flex-col gap-1 text-[var(--muted)]">To<input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={field} /></label>
+          <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.from', 'From')}<input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={field} /></label>
+          <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.to', 'To')}<input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={field} /></label>
         </div>
       )}
-      {startDate > endDate && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">The period starts after it ends.</p>}
-      {key && !shown && <p className="text-sm text-[var(--muted)]">Loading…</p>}
+      {startDate > endDate && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{reportText('r.the-period-starts-after-it-ends', 'The period starts after it ends.')}</p>}
+      {key && !shown && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
       {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
-      {report && report.columns.length === 0 && <p className="text-sm text-[var(--muted)]">No income or costs in this period.</p>}
+      {report && report.columns.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-income-or-costs-in-this-period', 'No income or costs in this period.')}</p>}
       {report && report.columns.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
           <table className="w-full text-sm">
-            <caption className="text-left text-xs text-[var(--muted)] pb-1">Each value of {dimensionName}, and the lines without one; together they add up to the profit and loss of the period. Posted entries only.</caption>
+            <caption className="text-left text-xs text-[var(--muted)] pb-1">{reportText('r.each-value-of', 'Each value of')} {dimensionName}{reportText('r.and-the-lines-without-one-together-they-add-up-t', ', and the lines without one; together they add up to the profit and loss of the period. Posted entries only.')}</caption>
             <thead>
               <tr className="border-b border-[var(--line)] text-[var(--muted)]">
-                <th scope="col" className="text-left font-semibold py-2">Account</th>
+                <th scope="col" className="text-left font-semibold py-2">{reportText('r.account', 'Account')}</th>
                 {report.columns.map(c => <th key={c.value} scope="col" className="text-right font-semibold py-2 px-2"><bdi>{valueName(c.value)}</bdi></th>)}
-                <th scope="col" className="text-right font-semibold py-2 px-2">Total</th>
+                <th scope="col" className="text-right font-semibold py-2 px-2">{reportText('r.total', 'Total')}</th>
               </tr>
             </thead>
             {(Object.keys(SECTION_NAMES) as Section[]).filter(s => report.rows.some(r => r.section === s)).map(section => (
@@ -111,7 +113,7 @@ export default function LabelProfitReportView() {
                   </tr>
                 ))}
                 <tr className="font-semibold border-b border-[var(--line)]">
-                  <th scope="row" className="text-left py-1">Total {SECTION_NAMES[section].toLowerCase()}</th>
+                  <th scope="row" className="text-left py-1">{reportText('r.total', 'Total')} {SECTION_NAMES[section].toLowerCase()}</th>
                   {report.columns.map(c => <React.Fragment key={c.value}>{cell(c[section], idsOf(section), c.value, `Total ${SECTION_NAMES[section].toLowerCase()}`, section)}</React.Fragment>)}
                   {cell(report.total[section], idsOf(section), null, `Total ${SECTION_NAMES[section].toLowerCase()}`, section)}
                 </tr>
@@ -151,18 +153,18 @@ export default function LabelProfitReportView() {
                 return (
                   <>
                     <tr data-testid="label-budget-row">
-                      <th scope="row" className="text-left py-1">Budgeted result</th>
+                      <th scope="row" className="text-left py-1">{reportText('r.budgeted-result', 'Budgeted result')}</th>
                       {budgeted.map((b, i) => <td key={report.columns[i].value} className="text-right font-mono py-1 px-2">{formatCurrency(b || 0, currency)}</td>)}
                       <td className="text-right font-mono py-1 px-2">{formatCurrency(total, currency)}</td>
                     </tr>
                     <tr className="font-semibold">
-                      <th scope="row" className="text-left py-1">Net income vs budget</th>
+                      <th scope="row" className="text-left py-1">{reportText('r.net-income-vs-budget', 'Net income vs budget')}</th>
                       {report.columns.map((c, i) => <td key={c.value} className="text-right font-mono py-1 px-2">{formatCurrency(c.netIncome - (budgeted[i] || 0), currency)}</td>)}
                       <td className="text-right font-mono py-1 px-2">{formatCurrency(report.total.netIncome - total, currency)}</td>
                     </tr>
                     {budgetOnly.length > 0 && (
                       <tr><td colSpan={report.columns.length + 2} className="text-xs text-[var(--muted)] pt-1" data-testid="label-budget-only">
-                        Budgeted with no activity in this period (in the total): {budgetOnly.map(v => `${valueName(v.value)} ${formatCurrency(v.cents, currency)}`).join(', ')}
+                        {reportText('r.budgeted-with-no-activity-in-this-period-in-the', 'Budgeted with no activity in this period (in the total):')} {budgetOnly.map(v => `${valueName(v.value)} ${formatCurrency(v.cents, currency)}`).join(', ')}
                       </td></tr>
                     )}
                   </>
@@ -182,16 +184,16 @@ export default function LabelProfitReportView() {
         const rows = rollUp(nodes || [], dimensionId, id => netById.get(id) || 0);
         if (!rows.length) return null;
         if (nodesPartial) {
-          return <p role="status" className="text-sm text-[var(--muted)]">Totals with children are not shown: this workspace has more label values than were loaded, so some children could be missing from a parent&apos;s total.</p>;
+          return <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.totals-with-children-are-not-shown-this-workspac', 'Totals with children are not shown: this workspace has more label values than were loaded, so some children could be missing from a parent\'s total.')}</p>;
         }
         return (
-          <section aria-label="Totals with children" className="space-y-1 text-sm" data-testid="label-rollup">
-            <h3 className="font-semibold">Net income with children</h3>
+          <section aria-label={reportText('r.totals-with-children', 'Totals with children')} className="space-y-1 text-sm" data-testid="label-rollup">
+            <h3 className="font-semibold">{reportText('r.net-income-with-children', 'Net income with children')}</h3>
             <div aria-hidden="true" className="grid grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,8rem))] gap-2 text-xs text-[var(--muted)]">
-              <span>{dimensionName}</span><span className="text-right">Own</span><span className="text-right">Children</span><span className="text-right">Total</span>
+              <span>{dimensionName}</span><span className="text-right">{reportText('r.own', 'Own')}</span><span className="text-right">{reportText('r.children', 'Children')}</span><span className="text-right">{reportText('r.total', 'Total')}</span>
             </div>
             {rows.map(r => (
-              <div key={r.id} role="group" aria-label={`${r.name}: own ${formatCurrency(r.own, currency)}, children ${formatCurrency(r.children, currency)}, total ${formatCurrency(r.total, currency)}`}
+              <div key={r.id} role="group" aria-label={fill(reportText('r.label-rollup-row', '{name}: own {own}, children {children}, total {total}'), { name: r.name, own: formatCurrency(r.own, currency), children: formatCurrency(r.children, currency), total: formatCurrency(r.total, currency) })}
                 className="grid grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,8rem))] gap-2 border-t border-[var(--line)] py-1">
                 <bdi className="truncate">{r.name}</bdi>
                 <span className="text-right font-mono">{formatCurrency(r.own, currency)}</span>

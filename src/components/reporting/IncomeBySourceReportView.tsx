@@ -7,6 +7,7 @@ import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
 import { csvMoney } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
+import { useReportText } from './useReportText';
 
 interface Props {
   selectedYear?: number;
@@ -19,6 +20,7 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
   startDate,
   endDate
 }) => {
+  const reportText = useReportText();
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
   const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
 
@@ -55,14 +57,14 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
         <div>
           <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-emerald-600" />
-            Income by Source & Customer
+            {reportText('r.income-by-source-customer', 'Income by Source & Customer')}
           </h2>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Concentration and revenue generation breakdown across clients, revenue channels, and payees.
+            {reportText('r.concentration-and-revenue-generation-breakdown-a', 'Concentration and revenue generation breakdown across clients, revenue channels, and payees.')}
           </p>
         </div>
         <div className="text-right">
-          <div className="text-xs text-neutral-500 uppercase font-semibold">Total Revenue</div>
+          <div className="text-xs text-neutral-500 uppercase font-semibold">{reportText('r.total-revenue', 'Total Revenue')}</div>
           <div className="text-lg font-mono font-bold text-emerald-600">
             {formatCurrency(totalIncomeCents)}
           </div>
@@ -88,8 +90,8 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
           headers: ['Customer / Revenue Source', 'Invoices / Entries', 'Share of inflow %', 'Total Inflow'],
           mapRow: row => [row.source, row.transactionCount, row.percentage.toFixed(1), csvMoney(row.totalAmountCents)],
         }}
-        emptyState={<EmptyState title="No income in this period" description="Try a wider period." />}
-        filteredEmptyState={<EmptyState title="No source matches your search" description="Try another customer name." />}
+        emptyState={<EmptyState title={reportText('r.no-income-in-this-period', 'No income in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
+        filteredEmptyState={<EmptyState title={reportText('r.no-source-matches-your-search', 'No source matches your search')} description={reportText('r.try-another-customer-name', 'Try another customer name.')} />}
       />
     </div>
   );

@@ -17,6 +17,14 @@ const FILES = [
   '../components/reporting/ExpenseByCategoryReportView.tsx',
   '../components/reporting/CustomerGrossProfitView.tsx',
   '../components/reporting/BudgetActualReportView.tsx',
+  // EU-G1 part 2: the reports other kinds of business see starred (starredReports.ts), plus the trial balance and general ledger
+  '../components/reporting/InventoryTurnoverReportView.tsx',
+  '../components/reporting/LabelProfitReportView.tsx',
+  '../components/reporting/IncomeBySourceReportView.tsx',
+  '../components/reporting/CustomerBalanceSummaryView.tsx',
+  '../components/reporting/DocumentTrendsView.tsx',
+  '../components/ledger/GeneralLedgerView.tsx',
+  '../components/ledger/TrialBalanceView.tsx',
 ];
 
 test('Reports: the default eight are the ones this guard covers', () => {
@@ -36,4 +44,6 @@ test('Reports: templates keep their values and read in Hebrew', () => {
   assert.equal(fill(translateScreenString('reports', 'r.open-name', 'he', ''), { name: 'Ca$$h & Co' }), 'פתיחת Ca$$h & Co');
   assert.equal(fill(translateScreenString('reports', 'r.n-days-overdue', 'en', '{n} days overdue'), { n: 12 }), '12 days overdue');
   assert.equal(translateScreenString('reports', 'r.total-outstanding', 'he', ''), 'סך הכול פתוח');
+  assert.equal(translateScreenString('reports', 'r.bucket.d90plus', 'he', ''), 'מעל 90 ימים');
+  assert.equal(fill(translateScreenString('reports', 'r.label-rollup-row', 'he', ''), { name: 'A', own: '1', children: '2', total: '3' }), 'A: עצמי 1, תת-ערכים 2, סך הכול 3');
 });

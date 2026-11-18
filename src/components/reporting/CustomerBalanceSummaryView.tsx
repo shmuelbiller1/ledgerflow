@@ -11,8 +11,10 @@ import { computeCustomerBalanceSummary, CustomerBalanceSummaryRow } from '../../
 import { toast } from 'sonner';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useReportText } from './useReportText';
 
 export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOfDate: pageAsOfDate }) => {
+  const reportText = useReportText();
   const customers = useLedgerStore(s => s.customers);
   const invoices = useLedgerStore(s => s.invoices);
   const payments = useLedgerStore(s => s.payments);
@@ -76,8 +78,8 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
 
   return (
     <PartyReportLayout
-      title="Customer Balance Summary"
-      description="Consolidated statement of account balances, cumulative invoicing, and payments across all active customers."
+      title={reportText('r.customer-balance-summary', 'Customer Balance Summary')}
+      description={reportText('r.consolidated-statement-of-account-balances-cumul', 'Consolidated statement of account balances, cumulative invoicing, and payments across all active customers.')}
       icon={Users}
       totalLabel="Total Receivables Due"
       totalAmountCents={totalOutstandingCents}

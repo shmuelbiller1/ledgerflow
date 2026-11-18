@@ -32,6 +32,7 @@ import { useBalanceEntries } from '../../hooks/useBalanceEntries';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import PrintLayoutControl from '../reporting/PrintLayoutControl';
+import { useReportText } from '../reporting/useReportText';
 
 /** the trial balance worked out here also reads the journal entries */
 const TB_COLLECTIONS = [...STATEMENT_COLLECTIONS, 'journalEntries'] as const;
@@ -51,6 +52,7 @@ type SortField = 'code' | 'name' | 'type' | 'debit' | 'credit';
 type SortDir = 'asc' | 'desc';
 
 export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown }: TrialBalanceViewProps) {
+  const reportText = useReportText();
   const transactions = useLedgerStore(s => s.transactions || []);
   const journalEntries = useLedgerStore(s => s.journalEntries || []);
   // A-235: the trial balance reads the chart of accounts, the entries and the journal entries
@@ -351,11 +353,11 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
     // A-277: the trial balance is its own print root, so printing from the Ledger tab prints the
     // trial balance alone (the shared print stylesheet hides the app shell around it).
     <div className="space-y-4" data-print-root>
-      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what="this report" />
+      <ScreenDataNotice failedKeys={dataHealth.failedKeys} message={dataHealth.message} onRetry={dataHealth.retry} what={reportText('r.this-report', 'this report')} />
       {/* AUD-10: where these figures come from */}
       <ReportProvenanceNote id="tb-statement-provenance" provenance={provenance} onRefresh={loadServerReport} busy={loadingStates.trialBalance} />
       {!(isServerAuthoritative && serverData) && serverAsOf && (
-        <p data-testid="tb-balances-source" className="text-xs text-[var(--muted)]">Balances include every entry through {serverAsOf} as summed by the server, plus the loaded entries after it.</p>
+        <p data-testid="tb-balances-source" className="text-xs text-[var(--muted)]">{reportText('r.balances-include-every-entry-through', 'Balances include every entry through')} {serverAsOf} {reportText('r.as-summed-by-the-server-plus-the-loaded-entries', 'as summed by the server, plus the loaded entries after it.')}</p>
       )}
 
 
@@ -367,9 +369,9 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
           <div>
             <div className="flex items-center gap-1.5 text-[9px] font-bold text-[var(--muted)] uppercase tracking-widest truncate mb-1">
                <Scale aria-hidden="true" size={12} className="shrink-0" />
-               Double-Entry Stability Protocol
+               {reportText('r.double-entry-stability-protocol', 'Double-Entry Stability Protocol')}
             </div>
-            <h2 className="text-xl font-bold text-[var(--text)] tracking-tight">Trial Balance</h2>
+            <h2 className="text-xl font-bold text-[var(--text)] tracking-tight">{reportText('r.trial-balance', 'Trial Balance')}</h2>
             {/* A-220: the as-of date in the reader's own date style */}
             <ReportPeriodHeading
               asOf
@@ -385,8 +387,8 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
               />
               <div className="flex items-center gap-1.5 bg-[var(--ink)] px-2.5 py-1 rounded-lg border border-[var(--line)]">
                 <Calendar aria-hidden="true" size={13} className="text-[var(--muted)]" />
-                <span className="text-[10px] font-bold text-[var(--muted)] uppercase">As of:</span>
-                <input aria-label="As of date"
+                <span className="text-[10px] font-bold text-[var(--muted)] uppercase">{reportText('r.as-of', 'As of:')}</span>
+                <input aria-label={reportText('r.as-of-date', 'As of date')}
                   type="date"
                   value={asOfDate}
                   onChange={(e) => setAsOfDate(e.target.value)}
@@ -400,25 +402,25 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                 onClick={() => setPresetDate('today')}
                 className="min-h-11 px-3 py-1 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--muted)] hover:text-[var(--text)] rounded border border-[var(--line)] transition-colors"
               >
-                Today
+                {reportText('r.today', 'Today')}
               </button>
               <button 
                 onClick={() => setPresetDate('last_month')}
                 className="min-h-11 px-3 py-1 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--muted)] hover:text-[var(--text)] rounded border border-[var(--line)] transition-colors"
               >
-                Last Month
+                {reportText('r.last-month', 'Last Month')}
               </button>
               <button 
                 onClick={() => setPresetDate('last_quarter')}
                 className="min-h-11 px-3 py-1 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--muted)] hover:text-[var(--text)] rounded border border-[var(--line)] transition-colors"
               >
-                Last Qtr
+                {reportText('r.last-qtr', 'Last Qtr')}
               </button>
               <button 
                 onClick={() => setPresetDate('last_year')}
                 className="min-h-11 px-3 py-1 bg-[var(--ink)] hover:bg-[var(--line)] text-[var(--muted)] hover:text-[var(--text)] rounded border border-[var(--line)] transition-colors"
               >
-                Last Year
+                {reportText('r.last-year', 'Last Year')}
               </button>
             </div>
           </div>
@@ -426,11 +428,11 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
 
         <div className="flex flex-wrap items-center gap-6">
           <div className="text-start sm:text-right">
-            <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">Total Debits</p>
+            <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">{reportText('r.total-debits', 'Total Debits')}</p>
             <p className="text-base font-bold font-mono text-[var(--text)] tabular-nums"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(trialBalance.totalDebits)}</bdi></p>
           </div>
           <div className="text-start sm:text-right">
-            <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">Total Credits</p>
+            <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">{reportText('r.total-credits', 'Total Credits')}</p>
             <p className="text-base font-bold font-mono text-[var(--text)] tabular-nums"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(trialBalance.totalCredits)}</bdi></p>
           </div>
           <motion.div 
@@ -443,7 +445,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
             )}
           >
             {trialBalance.isBalanced ? <CheckCircle2 aria-hidden="true" size={12} className="shrink-0 text-emerald-500" /> : <AlertCircle aria-hidden="true" size={12} className="shrink-0" />}
-            {trialBalance.isBalanced ? "Balanced Double-Entry" : "System Imbalance"}
+            {trialBalance.isBalanced ? reportText('r.balanced-double-entry', 'Balanced Double-Entry') : reportText('r.system-imbalance', 'System Imbalance')}
           </motion.div>
         </div>
       </div>
@@ -451,7 +453,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
       {/* Action Toolbar */}
       <div className="px-5 py-2.5 bg-[var(--ink)]/40 border-b border-[var(--line)] flex items-center justify-between gap-4">
         <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
-          {trialBalance.lines.length} Active Ledger Accounts
+          {trialBalance.lines.length} {reportText('r.active-ledger-accounts', 'Active Ledger Accounts')}
         </span>
         <div className="flex flex-wrap items-center gap-2">
           {/* A-277: the paper choice and Print, like the Reports page (both stay off the paper) */}
@@ -460,28 +462,28 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
             type="button"
             onClick={() => window.print()}
             className="min-h-11 flex items-center gap-1.5 px-3 py-1 bg-[var(--surface)] text-[var(--muted)] border border-[var(--line)] rounded-lg text-[9px] font-bold uppercase tracking-wider hover:text-[var(--text)] transition-all cursor-pointer"
-            aria-label="Print trial balance">
-            <Printer aria-hidden="true" size={11} /> Print
+            aria-label={reportText('r.print-trial-balance', 'Print trial balance')}>
+            <Printer aria-hidden="true" size={11} /> {reportText('r.print', 'Print')}
           </button>
           <button 
             onClick={handleExportCSV}
             className="min-h-11 flex items-center gap-1.5 px-3 py-1 bg-[var(--surface)] text-[var(--muted)] border border-[var(--line)] rounded-lg text-[9px] font-bold uppercase tracking-wider hover:text-[var(--text)] transition-all cursor-pointer"
-           aria-label="CSV">
-            <Download aria-hidden="true" size={11} /> CSV
+           aria-label={reportText('r.csv', 'CSV')}>
+            <Download aria-hidden="true" size={11} /> {reportText('r.csv', 'CSV')}
           </button>
           <button 
             onClick={handleExportExcel}
             className="min-h-11 flex items-center gap-1.5 px-3 py-1 bg-emerald-600/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 rounded-lg text-[9px] font-bold uppercase tracking-wider hover:bg-emerald-600/20 transition-all cursor-pointer"
-           aria-label="Excel">
-            <FileSpreadsheet aria-hidden="true" size={11} /> Excel
+           aria-label={reportText('r.excel', 'Excel')}>
+            <FileSpreadsheet aria-hidden="true" size={11} /> {reportText('r.excel', 'Excel')}
           </button>
         </div>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto relative z-10 custom-scrollbar" role="region" aria-label="Trial balance table" tabIndex={0}>{/* NOSONAR: S6845 — focusable scroll region lets keyboard users pan the wide table on narrow screens */}
+      <div className="overflow-x-auto relative z-10 custom-scrollbar" role="region" aria-label={reportText('r.trial-balance-table', 'Trial balance table')} tabIndex={0}>{/* NOSONAR: S6845 — focusable scroll region lets keyboard users pan the wide table on narrow screens */}
         <table className="w-full text-start min-w-[700px] text-xs">
-          <caption className="sr-only">Trial Balance</caption>
+          <caption className="sr-only">{reportText('r.trial-balance', 'Trial Balance')}</caption>
           <thead>
             <tr className="bg-slate-900 text-white whitespace-nowrap select-none">
               <th scope="col"
@@ -489,7 +491,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                 className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <span>Account Code</span>
+                  <span>{reportText('r.account-code', 'Account Code')}</span>
                   {renderSortIcon('code')}
                 </div>
               </th>
@@ -498,7 +500,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                 className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <span>Account Name & Classification</span>
+                  <span>{reportText('r.account-name-classification', 'Account Name & Classification')}</span>
                   {renderSortIcon('name')}
                 </div>
               </th>
@@ -507,7 +509,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                 className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-right cursor-pointer hover:bg-slate-800 transition-colors"
               >
                 <div className="flex items-center justify-end gap-2">
-                  <span>Debit Balance</span>
+                  <span>{reportText('r.debit-balance', 'Debit Balance')}</span>
                   {renderSortIcon('debit')}
                 </div>
               </th>
@@ -516,7 +518,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                 className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-right cursor-pointer hover:bg-slate-800 transition-colors"
               >
                 <div className="flex items-center justify-end gap-2">
-                  <span>Credit Balance</span>
+                  <span>{reportText('r.credit-balance', 'Credit Balance')}</span>
                   {renderSortIcon('credit')}
                 </div>
               </th>
@@ -570,7 +572,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                         {row.member.name}
                       </p>
                       <p className="text-[8px] font-bold text-[var(--muted)] uppercase tracking-wider">
-                        {row.member.type} Classification • {((row.member as typeof row.member & { category?: string }).category) || 'Standard'}
+                        {row.member.type} {reportText('r.classification', 'Classification •')} {((row.member as typeof row.member & { category?: string }).category) || reportText('r.standard', 'Standard')}
                       </p>
                     </div>
                   </div>
@@ -587,7 +589,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
             {trialBalance.lines.length === 0 && (
               <tr>
                 <td colSpan={4} className="py-12 text-center text-[var(--muted)] text-xs">
-                  <ReportEmptyState title="No accounts found" description="Set up the chart of accounts, then add an entry or choose another date." />
+                  <ReportEmptyState title={reportText('r.no-accounts-found', 'No accounts found')} description={reportText('r.set-up-the-chart-of-accounts-then-add-an-entry-o', 'Set up the chart of accounts, then add an entry or choose another date.')} />
                 </td>
               </tr>
             )}
@@ -597,7 +599,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
               <td colSpan={2} className="px-5 py-3.5">
                 <div className="flex items-center gap-2">
                   <Activity aria-hidden="true" size={14} className="text-[var(--muted)] shrink-0" />
-                  <span className="text-sm font-bold text-[var(--text)] uppercase">Total Trial Balance</span>
+                  <span className="text-sm font-bold text-[var(--text)] uppercase">{reportText('r.total-trial-balance', 'Total Trial Balance')}</span>
                 </div>
               </td>
               <td className="px-5 py-3.5 text-right font-mono text-sm font-bold text-[var(--text)] tabular-nums">
@@ -611,9 +613,9 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                     // figure is sent, so the modal does not warn about a "mismatch" that is arithmetic.
                     label: `Total debit column at ${asOfDate} · every posted line. This column totals the period’s gross debits; the lines net to zero because each entry balances.`,
                   })}
-                  title="Open every posted line behind the total debit column"
+                  title={reportText('r.open-every-posted-line-behind-the-total-debit-co', 'Open every posted line behind the total debit column')}
                   className="min-h-11 underline decoration-dotted underline-offset-2 hover:text-indigo-600 focus-visible:text-indigo-600"
-                >{formatCurrency(trialBalance.totalDebits)}<span className="sr-only"> — see the posted lines behind the total debit column</span></button>
+                >{formatCurrency(trialBalance.totalDebits)}<span className="sr-only"> {reportText('r.see-the-posted-lines-behind-the-total-debit-colu', '— see the posted lines behind the total debit column')}</span></button>
                 {/* Codex #600 P2: the print stylesheet hides buttons, so the paper carries the total as text */}
                 <span data-testid="tb-total-debits-print" className="hidden print:inline">{formatCurrency(trialBalance.totalDebits)}</span>
               </td>
@@ -625,9 +627,9 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                     accountIds: trialBalance.lines.map(line => line.id),
                     label: `Total credit column at ${asOfDate} · every posted line. This column totals the period’s gross credits; the lines net to zero because each entry balances.`,
                   })}
-                  title="Open every posted line behind the total credit column"
+                  title={reportText('r.open-every-posted-line-behind-the-total-credit-c', 'Open every posted line behind the total credit column')}
                   className="min-h-11 underline decoration-dotted underline-offset-2 hover:text-indigo-600 focus-visible:text-indigo-600"
-                >{formatCurrency(trialBalance.totalCredits)}<span className="sr-only"> — see the posted lines behind the total credit column</span></button>
+                >{formatCurrency(trialBalance.totalCredits)}<span className="sr-only"> {reportText('r.see-the-posted-lines-behind-the-total-credit-col', '— see the posted lines behind the total credit column')}</span></button>
                 {/* Codex #600 P2: the print stylesheet hides buttons, so the paper carries the total as text */}
                 <span data-testid="tb-total-credits-print" className="hidden print:inline">{formatCurrency(trialBalance.totalCredits)}</span>
               </td>
