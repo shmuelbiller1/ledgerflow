@@ -5,8 +5,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "assetId": COMMAND_SCHEMA_PARTS.part97,
-    "date": COMMAND_SCHEMA_PARTS.part113,
-    "amountCents": COMMAND_SCHEMA_PARTS.part134,
+    "date": COMMAND_SCHEMA_PARTS.part115,
+    "amountCents": COMMAND_SCHEMA_PARTS.part136,
     "note": COMMAND_SCHEMA_PARTS.part56
   },
   "required": [

@@ -106,7 +106,10 @@ function balanceCommand(spec: ContactBalanceSpec): CommandDefinition<typeof cont
         { code: 'NOT_FOUND', when: 'The contact is not in the selected workspace.', next: 'Reload the contact list and choose a contact in this workspace.' },
         { code: 'ROLE_REQUIRED', when: 'The caller is not an owner, accountant, or bookkeeper.', next: 'Ask a workspace owner to grant an appropriate role.' },
       ],
-      next: [{ command: 'invoice.create', label: 'New invoice' }],
+      // A vendor balance is followed by a bill, never a customer invoice.
+      next: [spec.documents === 'bills'
+        ? { command: 'bill.create', label: 'Record a bill' }
+        : { command: 'invoice.create', label: 'New invoice' }],
     },
   };
 }

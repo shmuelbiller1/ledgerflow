@@ -7,10 +7,10 @@ export const COMMAND_INPUT_SCHEMA = {
     "workspaceId": COMMAND_SCHEMA_PARTS.part46,
     "contractId": COMMAND_SCHEMA_PARTS.part22,
     "periodId": COMMAND_SCHEMA_PARTS.part22,
-    "amountCents": COMMAND_SCHEMA_PARTS.part134,
+    "amountCents": COMMAND_SCHEMA_PARTS.part136,
     "deferredAccountId": COMMAND_SCHEMA_PARTS.part46,
     "revenueAccountId": COMMAND_SCHEMA_PARTS.part46,
-    "date": COMMAND_SCHEMA_PARTS.part113
+    "date": COMMAND_SCHEMA_PARTS.part115
   },
   "required": [
     "amountCents",

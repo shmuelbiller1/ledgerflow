@@ -12,10 +12,10 @@ truth: `computeQualityMetrics()` in `scripts/quality-metrics.ts`, ratchets in `q
 | Part | State | Numbers / what is left |
 |---|---|---|
 | 1. One list | **in progress** | `rawTables` **126** (from ~200; 184 when `RowTable` landed, #733 → `main` 4f9f5cba, #744). Target 0, or each kept table named in `raw-table-decisions.test.ts`. Codemod: `scripts/codemod-row-table.ts`. |
-| 2. One record page | **started** | `InvoiceRecordPage` takes its next step from the manifest ✅. Open: `CustomerRecordPage`, `BillRecordPage` and the rest on the same shell. |
-| 3. One way to act | **nearly done** | `directDbWrites` **3** (live; the ratchet in `quality-baseline.json` still says 93 and should be lowered to 3). The 3 are one open policy question in the checklist §3. `handTypedApiCalls` 5, each named. Undo on the result works for project delete; the next-step toast is open. PR #788 (`record.fields`) moves the record-details and inline edits onto a command. |
+| 2. One record page | **in progress** | Invoices, bills, customers and vendors use the `RecordPage` shell. Manifest-backed payment/next-document actions and bill approval are covered by `bill-record-page.test.tsx`. Other record kinds remain. |
+| 3. One way to act | **in progress** | `directDbWrites` **0**, `handTypedApiCalls` **5** (named in `docs/SCREEN_REBUILD_CHECKLIST.md` §3). Browser writes run through registered commands; the invoice next-step toast is shipped. |
 | 4. Forms from the schema | **done** | `CommandForm` is the one schema form; the unused `SchemaForm` was deleted. |
-| 5. One box that can do anything | **done, one cleanup** | `unreachableActions` 0; reachability proven in EN and HE (`palette-reachability-guard.test.tsx`). Left: retire the old guard once plain-word search is the only path. |
+| 5. One box that can do anything | **done** | The fake `unreachableActions` identifier-count ratchet was retired. `palette-reachability-guard.test.tsx` verifies English/Hebrew names and plain-word queries against the real index and rendered palette. |
 | 6. Short by default | **not measured** | No ratchet yet; `screensWithManyPrimaryButtons` is 0. |
 | 7. Assistant proposals | **waits** | Needs CMD-1's proposal lifecycle and SBX-1 (PR #787, step 1). |
 

@@ -28,7 +28,7 @@ export const COMMAND_INPUT_SCHEMA = {
     },
     "note": COMMAND_SCHEMA_PARTS.part65,
     "creditNoteId": COMMAND_SCHEMA_PARTS.part97,
-    "requestKey": COMMAND_SCHEMA_PARTS.part112
+    "requestKey": COMMAND_SCHEMA_PARTS.part114
   },
   "required": [
     "customerId",

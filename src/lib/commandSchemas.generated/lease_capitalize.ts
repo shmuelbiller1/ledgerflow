@@ -6,10 +6,10 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part46,
     "leaseName": COMMAND_SCHEMA_PARTS.part22,
-    "pvAmountCents": COMMAND_SCHEMA_PARTS.part134,
+    "pvAmountCents": COMMAND_SCHEMA_PARTS.part136,
     "rouAssetAccountId": COMMAND_SCHEMA_PARTS.part46,
     "leaseLiabilityAccountId": COMMAND_SCHEMA_PARTS.part46,
-    "date": COMMAND_SCHEMA_PARTS.part113
+    "date": COMMAND_SCHEMA_PARTS.part115
   },
   "required": [
     "pvAmountCents",

@@ -21,13 +21,13 @@ export interface QualityMetrics {
    *  - screen files that draw a table by hand instead of using the shared list;
    *  - hand-typed server addresses in the screens;
    *  - direct database writes from the browser;
-   *  - actions and reports nothing can reach from the search box;
    *  - screens with more than one filled button (EASE_OF_USE U-2).
+   * Search reachability is guarded by palette-reachability-guard.test.tsx in EN/HE instead:
+   * counting identifier strings in pageIndex.ts never measured whether a page could be found.
    */
   rawTables: number;
   handTypedApiCalls: number;
   directDbWrites: number;
-  unreachableActions: number;
   screensWithManyPrimaryButtons: number;
 }
 
@@ -174,24 +174,6 @@ function computeDirectDbWrites(rootDir: string): number {
   };
   dirs.forEach(scan);
   return count;
-}
-
-/**
- * Registered screens, reports and settings tabs that the search box cannot reach. Zero is the only
- * acceptable number: a screen nothing can open is a feature nobody has.
- */
-function computeUnreachableActions(rootDir: string): number {
-  const registryPath = path.join(rootDir, 'src/config/registry.tsx');
-  const index = fs.readFileSync(path.join(rootDir, 'src/config/pageIndex.ts'), 'utf8');
-  if (!fs.existsSync(registryPath)) return 0;
-  const registry = fs.readFileSync(registryPath, 'utf8');
-  // the index builds itself from the registry (screens, extras, reports, settings), so the honest check
-  // lives in src/tests/palette-reachability-guard.test.ts; here we count only a registry that stopped
-  // feeding it, which is the shape a regression takes.
-  const feedsIndex = ['APP_TABS', 'REPORT_TABS_REGISTRY', 'SCREEN_TABS_REGISTRY', 'SETTINGS_TABS_REGISTRY']
-    .filter(name => !index.includes(name));
-  void registry;
-  return feedsIndex.length;
 }
 
 /**
@@ -419,7 +401,6 @@ export function computeQualityMetrics(rootDir: string = process.cwd()): QualityM
     rawTables: computeRawTables(rootDir),
     handTypedApiCalls: computeHandTypedApiCalls(rootDir),
     directDbWrites: computeDirectDbWrites(rootDir),
-    unreachableActions: computeUnreachableActions(rootDir),
     screensWithManyPrimaryButtons: computeScreensWithManyPrimaryButtons(rootDir),
   };
 }

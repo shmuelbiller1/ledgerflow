@@ -20,7 +20,7 @@ export const BUDGET_COMMAND_MANIFEST = [
           "when": "The objective is not in the selected workspace.",
           "next": "Reload the plan and choose an objective in this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part193
+        COMMAND_SCHEMA_PARTS.part195
       ],
       "next": [
         {
@@ -58,7 +58,7 @@ export const BUDGET_COMMAND_MANIFEST = [
           "when": "The objective being changed is not in the selected workspace.",
           "next": "Reload the plan and choose an objective in this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part193
+        COMMAND_SCHEMA_PARTS.part195
       ],
       "next": [
         {

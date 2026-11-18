@@ -4,26 +4,25 @@ import { PageHeader } from '../ui/PageHeader';
 import { useDetailReturnFocus } from '../../hooks/useDetailReturnFocus';
 import React, { useCallback, useMemo, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { StageChip } from '../collaboration/StageChip';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import InlineEdit from '../ui/InlineEdit';
 import InlineAdd from '../ui/InlineAdd';
 import { suggestionsFrom } from '../../lib/inlineEdit';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
-import { ShoppingBag, Plus, Trash2, CheckCircle, AlertCircle, DollarSign, Ban, Pencil, Printer } from 'lucide-react';
+import { ShoppingBag, Plus, DollarSign } from 'lucide-react';
 import PdfPreviewModal from '../ui/PdfPreviewModal';
 import DocumentBulkBar from '../ui/DocumentBulkBar';
 import { useAuthStore } from '../../stores/useAuthStore';
 import type { Bill, Vendor } from '../../types';
 import { useRecordFocus, recordElementId } from '../../hooks/useRecordFocus';
-import { formatCurrency, getLocalDateISO, safeConfirm } from '../../lib/utils';
+import { formatCurrency, safeConfirm } from '../../lib/utils';
 import { undoSpreadRequest } from '../../services/spreadActions';
-import { spreadProgress } from '../../lib/prepaidSchedule';
 import SpreadBillDialog from './SpreadBillDialog';
 import PaymentRunDialog from './PaymentRunDialog';
 import ExpenseClaims, { type NewClaim } from './ExpenseClaims';
 import { claimBill, claimDecision, claimOf } from '../../lib/expenseClaims';
+import { calculateAmountDue } from '../../lib/documentMath';
 import BillModal from './BillModal';
 import VendorModal from './VendorModal';
 import TagFilter from '../common/TagFilter';
@@ -32,7 +31,10 @@ import { recurringBillSchedule } from '../../lib/recurringBills';
 import type { BillDraft } from './BillModal';
 import { allTags, hasTag, isArchivedParty } from '../../lib/contacts';
 import PartyRowActions, { ArchivedBadge, ShowArchivedToggle } from '../common/PartyRowActions';
-import VendorDetailView from './VendorDetailView';
+import VendorRecordPage from './VendorRecordPage';
+import BillRecordPage from './BillRecordPage';
+import { buildBillColumns } from './billColumns';
+import { billMayBeVoided } from './billVoidEligibility';
 import ReceivePaymentModal from '../sales/ReceivePaymentModal';
 import { toast } from 'sonner';
 import { attachFiles, attachSummary } from '../../services/attachmentActions';
@@ -71,6 +73,8 @@ export default function Purchases() {
   const { addEntity, updateEntity, deleteEntity } = useEntityOperations();
   const currentRole = useCurrentRole();
   const canEditContacts = currentRole !== 'viewer';
+  const openRecord = useUIStore(s => s.openRecord);
+  const clearFocusRecord = useUIStore(s => s.clearFocusRecord);
 
   const [activeSubTab, setActiveSubTab] = useState<'bills' | 'vendors'>('bills');
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
@@ -86,8 +90,9 @@ export default function Purchases() {
   const [pickedBills, setPickedBills] = useState<Set<string>>(() => new Set());
   const pdfWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const homeCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
-  // A record link (#purchases/bill/<id>, e.g. from Data Health) shows and highlights the bill
+  // A record link (#purchases/bill/<id>, e.g. from Data Health) opens this bill's record page.
   const focusedBillId = useRecordFocus('bill', { ready: bills.length > 0, onFocus: () => { setActiveSubTab('bills'); setSelectedVendorId(null); setSearchTerm(''); } });
+  const billOpenerId = useDetailReturnFocus(focusedBillId);
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
   useNewRecord('bill', canEditContacts, () => {
     setActiveSubTab('bills'); setSelectedVendorId(null); setEditingBill(undefined); setIsBillModalOpen(true);
@@ -153,9 +158,10 @@ export default function Purchases() {
     }
     if (data.id) {
       const { id, ...updates } = data;
-      await updateEntity('bills', id, updates, 'Bill updated');
+      if (!await updateEntity('bills', id, updates, 'Bill updated')) throw new Error('Bill update was not saved');
     } else {
       const created = await addEntity('bills', data, 'Bill successfully recorded');
+      if (!created) throw new Error('Bill was not saved');
       const uid = useAuthStore.getState().user?.uid;
       if (created && uid && attachmentFiles?.length) {
         const { ok, message } = attachSummary(await attachFiles(useAuthStore.getState().currentWorkspaceId || '', uid, { collection: 'bills', id: created.id, label: `Bill ${data.number || ''}`.trim() }, attachmentFiles));
@@ -219,206 +225,50 @@ export default function Purchases() {
   }, [undoSpread]);
 
   const handleVoidBill = useCallback(async (b: Bill) => {
-    const spread = b.prepaidSchedule ? ' Its spread over months is undone too.' : '';
-    if (safeConfirm(`Void ${describeBill(b)}? It stays on record as void and its entries are reversed.${spread}`)) {
-      if (b.prepaidSchedule && !(await undoSpread(b))) return;
-      await updateEntity('bills', b.id, { status: 'void' }, 'Bill voided');
+    // The row/page may be stale by the time the confirmation is answered. The server also
+    // checks settlements, but do not start a reversal from a now-paid or submitted bill.
+    const current = useLedgerStore.getState().bills.find(row => row.id === b.id);
+    if (!canEditContacts || !current || !billMayBeVoided(current)) {
+      toast.error('This bill has changed or has a payment. Refresh it before voiding.');
+      return;
     }
-  }, [undoSpread, updateEntity]);
+    const spread = current.prepaidSchedule ? ' Its spread over months is undone too.' : '';
+    if (safeConfirm(`Void ${describeBill(current)}? It stays on record as void and its entries are reversed.${spread}`)) {
+      if (current.prepaidSchedule && !(await undoSpread(current))) return;
+      const latest = useLedgerStore.getState().bills.find(row => row.id === b.id);
+      if (!latest || !billMayBeVoided(latest)) {
+        toast.error('This bill has changed or has a payment. Refresh it before voiding.');
+        return;
+      }
+      await updateEntity('bills', latest.id, { status: 'void' }, 'Bill voided');
+    }
+  }, [canEditContacts, undoSpread, updateEntity]);
 
-  const billColumns = useMemo<ColumnDef<Bill, unknown>[]>(() => [
-    {
-      accessorKey: 'vendorName',
-      header: purchasesText('col.vendor', 'Vendor'),
-      cell: ({ row }) => (
-        <span className="font-semibold text-slate-900 dark:text-white">
-          {row.original.vendorName || purchasesText('fallback.unknownVendor', 'Unknown Vendor')}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'number',
-      header: purchasesText('col.billNumber', 'Bill #'),
-      cell: ({ row }) => {
-        const b = row.original;
-        return (
-          <InlineEdit
-            value={b.number}
-            display={b.number || b.id.slice(0, 8).toUpperCase()}
-            label={purchasesText('label.billNumberFrom', 'Number of bill from {vendor}').replace('{vendor}', () => b.vendorName || purchasesText('fallback.vendor', 'vendor'))}
-            canEdit={canEditContacts && b.status !== 'void'}
-            onSave={x => updateEntity('bills', b.id, { number: String(x) }, 'Bill number saved')}
-            className="text-slate-600 dark:text-slate-400 font-mono text-xs"
-          />
-        );
-      },
-    },
-    {
-      accessorKey: 'date',
-      header: purchasesText('col.date', 'Date'),
-      cell: ({ row }) => {
-        const b = row.original;
-        return (
-          <InlineEdit
-            kind="date"
-            value={b.date?.slice(0, 10)}
-            label={`Date of bill ${b.number || ''}`.trim()}
-            canEdit={canEditContacts && b.status === 'draft'}
-            onSave={x => updateEntity('bills', b.id, { date: String(x) }, 'Date saved')}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: 'dueDate',
-      header: purchasesText('col.dueDate', 'Due Date'),
-      cell: ({ row }) => {
-        const b = row.original;
-        return (
-          <InlineEdit
-            kind="date"
-            value={b.dueDate?.slice(0, 10)}
-            label={`Due date of bill ${b.number || ''}`.trim()}
-            canEdit={canEditContacts && b.status !== 'paid' && b.status !== 'void'}
-            validate={x => (b.date && String(x) < b.date.slice(0, 10) ? 'The due date is before the bill date' : null)}
-            onSave={x => updateEntity('bills', b.id, { dueDate: String(x) }, 'Due date saved')}
-          />
-        );
-      },
-    },
-    {
-      accessorKey: 'status',
-      header: purchasesText('col.status', 'Status'),
-      cell: ({ row }) => {
-        const b = row.original;
-        const isOverdue = b.dueDate && new Date(b.dueDate) < new Date() && b.status !== 'paid' && b.status !== 'void';
-        return (
-          <div>
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-              b.status === 'paid'
-                ? 'bg-emerald-100 text-emerald-800'
-                : isOverdue
-                  ? 'bg-rose-100 text-rose-800'
-                  : 'bg-amber-100 text-amber-800'
-            }`}>
-              {b.status === 'paid' ? <CheckCircle size={10} aria-hidden="true" /> : <AlertCircle size={10} aria-hidden="true" />}
-              {b.status || purchasesText('status.unpaid', 'Unpaid')}
-            </span>
-            {b.prepaidSchedule && <div className="mt-1 text-[10px] text-[var(--muted)]">{spreadProgress(b.prepaidSchedule, getLocalDateISO())}</div>}
-            <StageChip kind="bill" id={b.id} label={`bill ${b.number || ''}`.trim()} />
-            {claimOf(b) && (
-              <div className="mt-1 text-[10px] text-[var(--muted)]">
-                {purchasesText('label.expenseClaim', 'Expense claim')}{claimOf(b)?.state === 'rejected' ? ` · ${purchasesText('label.rejected', 'rejected')}${claimOf(b)?.reason ? `: ${claimOf(b)?.reason}` : ''}` : ''}
-              </div>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: 'amountCents',
-      header: purchasesText('col.amount', 'Amount'),
-      cell: ({ row }) => (
-        <span className="block text-right font-mono font-bold text-slate-900 dark:text-white tabular-nums">
-          {formatCurrency(row.original.amountCents || 0)}
-        </span>
-      ),
-    },
-    {
-      id: 'actions',
-      enableSorting: false,
-      header: () => <span className="sr-only">{purchasesText('col.actions', 'Actions')}</span>,
-      cell: ({ row }) => {
-        const b = row.original;
-        return (
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={e => { e.stopPropagation(); setPreviewBill(b); }}
-              className="p-1 text-[var(--muted)] hover:text-slate-800 rounded-lg"
-              title={purchasesText('title.preview', 'Preview / download PDF')}
-              aria-label={purchasesText('aria.pdf', 'PDF of bill {n}').replace('{n}', b.number || '').trim()}
-            >
-              <Printer className="w-4 h-4" aria-hidden="true" />
-            </button>
-            {b.status !== 'void' && (
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); setEditingBill(b); setIsBillModalOpen(true); }}
-                className="p-1 text-[var(--muted)] hover:text-slate-800 rounded-lg"
-                title={purchasesText('title.edit', 'Edit bill')}
-                aria-label={purchasesText('aria.edit', 'Edit bill {n}').replace('{n}', b.number || '').trim()}
-              >
-                <Pencil className="w-4 h-4" aria-hidden="true" />
-              </button>
-            )}
-            {canEditContacts && b.status !== 'draft' && b.status !== 'void' && (b.prepaidSchedule ? (
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); void handleUndoSpread(b); }}
-                className="px-2 py-1 text-xs text-[var(--muted)] hover:text-slate-800 rounded-md"
-                aria-label={purchasesText('aria.undoSpread', 'Undo the spread of bill {n}').replace('{n}', b.number || '').trim()}
-              >
-                {purchasesText('action.undoSpread', 'Undo spread')}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); setSpreadingBill(b); }}
-                className="px-2 py-1 text-xs text-indigo-700 dark:text-indigo-300 hover:underline rounded-md"
-                title={purchasesText('title.spread', 'A prepaid expense: spread the cost over the months it covers')}
-                aria-label={purchasesText('aria.spread', 'Spread bill {n} over months').replace('{n}', b.number || '').replace('  ', ' ')}
-              >
-                {purchasesText('action.spread', 'Spread')}
-              </button>
-            ))}
-            {b.status !== 'paid' && b.status !== 'void' && (
-              <>
-                <button
-                  type="button"
-                  onClick={e => {
-                    e.stopPropagation();
-                    setPaymentDocumentId(b.id);
-                    setPaymentContactId(b.vendorId || '');
-                    setIsPaymentModalOpen(true);
-                  }}
-                  className="px-2 py-1 text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold rounded-md flex items-center gap-1 shadow-xs transition-colors"
-                >
-                  <DollarSign className="w-3.5 h-3.5" aria-hidden="true" />
-                  {purchasesText('action.pay', 'Pay')}
-                </button>
-                <button
-                  type="button"
-                  onClick={e => {
-                    e.stopPropagation();
-                    inBackground(handleVoidBill(b));
-                  }}
-                  className="px-2 py-1 text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold rounded-md flex items-center gap-1 shadow-xs transition-colors"
-                >
-                  <Ban className="w-3.5 h-3.5" aria-hidden="true" />
-                  {purchasesText('action.void', 'Void')}
-                </button>
-              </>
-            )}
-            {b.status === 'draft' && (
-              <button
-                type="button"
-                onClick={e => {
-                  e.stopPropagation();
-                  inBackground(handleDeleteBill(b));
-                }}
-                className="text-rose-500 hover:text-rose-700 p-1 rounded-lg"
-                title={purchasesText('title.deleteDraft', 'Delete draft')}
-                aria-label={purchasesText('aria.deleteDraft', 'Delete draft bill {n}').replace('{n}', b.number || '').trim()}
-              >
-                <Trash2 className="w-4 h-4" aria-hidden="true" />
-              </button>
-            )}
-          </div>
-        );
-      },
-    },
-  ], [purchasesText, canEditContacts, updateEntity, handleUndoSpread, handleVoidBill, handleDeleteBill]);
+  const openBillPayment = useCallback((bill: Bill) => {
+    if (!bill.vendorId || !['approved', 'unpaid', 'overdue', 'partially_paid'].includes(bill.status) ||
+        calculateAmountDue(bill) <= 0 || claimOf(bill)?.state === 'submitted') {
+      toast.error('Approve this bill and check what is still due before paying it.');
+      return;
+    }
+    setPaymentDocumentId(bill.id);
+    setPaymentContactId(bill.vendorId);
+    setIsPaymentModalOpen(true);
+  }, []);
+  const openBillEditor = useCallback((bill: Bill) => {
+    setEditingBill(bill);
+    setIsBillModalOpen(true);
+  }, []);
+
+  const billColumns = useMemo(() => buildBillColumns({
+    purchasesText, canEditContacts, updateEntity, billOpenerId, openRecord,
+    onPreviewPdf: setPreviewBill,
+    onEdit: openBillEditor,
+    onUndoSpread: handleUndoSpread,
+    onSpread: setSpreadingBill,
+    onPay: openBillPayment,
+    onVoid: handleVoidBill,
+    onDelete: handleDeleteBill,
+  }), [purchasesText, canEditContacts, updateEntity, billOpenerId, openRecord, openBillEditor, handleUndoSpread, openBillPayment, handleVoidBill, handleDeleteBill]);
 
   const vendorColumns = useMemo<ColumnDef<Vendor, unknown>[]>(() => {
     const base: ColumnDef<Vendor, unknown>[] = [
@@ -517,13 +367,69 @@ export default function Purchases() {
     return canEditContacts ? [...base, actionsCol] : base;
   }, [purchasesText, canEditContacts, detailOpenerId, vendorCategories, updateEntity]);
 
-  if (selectedVendorId) {
-    return (
-      <VendorDetailView
-        vendorId={selectedVendorId}
-        onBack={() => setSelectedVendorId(null)}
+  const modals = (
+    <>
+      {isBillModalOpen && (
+        <BillModal
+          key={editingBill?.id || 'new'}
+          isOpen={isBillModalOpen}
+          onClose={() => { setIsBillModalOpen(false); setEditingBill(undefined); }}
+          onSave={handleAddBill}
+          vendors={vendors}
+          accounts={accounts}
+          initialBill={editingBill}
+        />
+      )}
+
+      <VendorModal
+        isOpen={isVendorModalOpen}
+        onClose={() => setIsVendorModalOpen(false)}
+        onSave={handleAddVendor}
       />
-    );
+
+      {spreadingBill && <SpreadBillDialog bill={spreadingBill} onClose={() => setSpreadingBill(null)} />}
+      {paymentRunOpen && <PaymentRunDialog bills={bills} vendors={vendors} onClose={() => setPaymentRunOpen(false)} />}
+      {openingOpen && <OpeningDocumentsDialog side="vendor" onClose={() => setOpeningOpen(false)} />}
+      {isPaymentModalOpen && paymentDocumentId && paymentContactId && (
+        <ReceivePaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          defaultDirection="made"
+          defaultDocumentId={paymentDocumentId}
+          defaultContactId={paymentContactId}
+        />
+      )}
+      {previewBill && pdfWorkspaceId && (
+        <PdfPreviewModal isOpen onClose={() => setPreviewBill(null)} title={`${purchasesText('title.bill', 'Bill')} ${previewBill.number || previewBill.id}`}
+          documentType="bill" documentId={previewBill.id} workspaceId={pdfWorkspaceId} filename={`bill_${previewBill.number || previewBill.id}.pdf`} />
+      )}
+    </>
+  );
+
+  if (selectedVendorId) {
+    return <>
+      <VendorRecordPage vendorId={selectedVendorId} onBack={() => setSelectedVendorId(null)}
+        onNewBill={vendor => {
+          setSelectedVendorId(null);
+          setEditingBill({ vendorId: vendor.id, vendorName: vendor.name });
+          setIsBillModalOpen(true);
+        }} />
+      {modals}
+    </>;
+  }
+
+  if (focusedBillId) {
+    return <>
+      <BillRecordPage billId={focusedBillId} onBack={clearFocusRecord}
+        onEdit={openBillEditor}
+        onPay={openBillPayment}
+        onPreviewPdf={bill => setPreviewBill(bill)}
+        onVoid={bill => { void handleVoidBill(bill); }}
+        onOpenVendor={id => { clearFocusRecord(); setSelectedVendorId(id); }}
+        onApproveClaim={bill => { inBackground(decideClaim(bill, true)); }}
+      />
+      {modals}
+    </>;
   }
 
   return (
@@ -555,7 +461,7 @@ export default function Purchases() {
             {purchasesText('action.openingBills', 'Opening bills')}
           </button>
         )}
-        <button
+        {canEditContacts && <button
           type="button"
           onClick={() => {
             if (activeSubTab === 'bills') {
@@ -569,7 +475,7 @@ export default function Purchases() {
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
           {activeSubTab === 'bills' ? purchasesText('action.recordBill', 'Record Bill') : purchasesText('action.addVendor', 'Add Vendor')}
-        </button>
+        </button>}
       </PageHeader>
 
       <div className="border-b border-slate-200 dark:border-slate-800 flex items-center gap-6">
@@ -667,8 +573,8 @@ export default function Purchases() {
               <EmptyState
                 title={purchasesText('empty.noBills', 'No bills yet')}
                 description={purchasesText('empty.noBillsHint', 'Record your first bill to track what the business owes.')}
-                actionLabel={purchasesText('action.recordFirstBill', 'Record first bill')}
-                onAction={() => setIsBillModalOpen(true)}
+                actionLabel={canEditContacts ? purchasesText('action.recordFirstBill', 'Record first bill') : undefined}
+                onAction={canEditContacts ? () => setIsBillModalOpen(true) : undefined}
               />
             )}
             filteredEmptyState={(
@@ -743,8 +649,8 @@ export default function Purchases() {
                 <EmptyState
                   title={purchasesText('empty.noVendors', 'No vendors yet')}
                   description={purchasesText('empty.noVendorsHint', 'Add a vendor before recording their first bill.')}
-                  actionLabel={purchasesText('action.addFirstVendor', 'Add first vendor')}
-                  onAction={() => setIsVendorModalOpen(true)}
+                  actionLabel={canEditContacts ? purchasesText('action.addFirstVendor', 'Add first vendor') : undefined}
+                  onAction={canEditContacts ? () => setIsVendorModalOpen(true) : undefined}
                 />
               )}
               filteredEmptyState={(
@@ -760,40 +666,7 @@ export default function Purchases() {
         )}
       </div>
 
-      {isBillModalOpen && (
-        <BillModal
-          key={editingBill?.id || 'new'}
-          isOpen={isBillModalOpen}
-          onClose={() => { setIsBillModalOpen(false); setEditingBill(undefined); }}
-          onSave={handleAddBill}
-          vendors={vendors}
-          accounts={accounts}
-          initialBill={editingBill}
-        />
-      )}
-
-      <VendorModal
-        isOpen={isVendorModalOpen}
-        onClose={() => setIsVendorModalOpen(false)}
-        onSave={handleAddVendor}
-      />
-
-      {spreadingBill && <SpreadBillDialog bill={spreadingBill} onClose={() => setSpreadingBill(null)} />}
-      {paymentRunOpen && <PaymentRunDialog bills={bills} vendors={vendors} onClose={() => setPaymentRunOpen(false)} />}
-      {openingOpen && <OpeningDocumentsDialog side="vendor" onClose={() => setOpeningOpen(false)} />}
-      {isPaymentModalOpen && paymentDocumentId && paymentContactId && (
-        <ReceivePaymentModal
-          isOpen={isPaymentModalOpen}
-          onClose={() => setIsPaymentModalOpen(false)}
-          defaultDirection="made"
-          defaultDocumentId={paymentDocumentId}
-          defaultContactId={paymentContactId}
-        />
-      )}
-      {previewBill && pdfWorkspaceId && (
-        <PdfPreviewModal isOpen onClose={() => setPreviewBill(null)} title={`${purchasesText('title.bill', 'Bill')} ${previewBill.number || previewBill.id}`}
-          documentType="bill" documentId={previewBill.id} workspaceId={pdfWorkspaceId} filename={`bill_${previewBill.number || previewBill.id}.pdf`} />
-      )}
+      {modals}
     </div>
   );
 }

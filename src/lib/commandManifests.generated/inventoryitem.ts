@@ -21,7 +21,7 @@ export const INVENTORYITEM_COMMAND_MANIFEST = [
           "when": "The item still has stock on hand, which the books count as value.",
           "next": "Record the stock out with a count or an adjustment, then remove the card."
         },
-        COMMAND_SCHEMA_PARTS.part200,
+        COMMAND_SCHEMA_PARTS.part202,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is a viewer.",
@@ -57,7 +57,7 @@ export const INVENTORYITEM_COMMAND_MANIFEST = [
           "when": "The field is not one a list cell corrects, or the value does not fit it.",
           "next": "Send one of name, sku, category, unitPriceCents, unitCostCents, standardCostCents."
         },
-        COMMAND_SCHEMA_PARTS.part200,
+        COMMAND_SCHEMA_PARTS.part202,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is a viewer.",

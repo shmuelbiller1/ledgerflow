@@ -27,7 +27,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
           "when": "The input carries unexpected fields.",
           "next": "Send an empty input object."
         },
-        COMMAND_SCHEMA_PARTS.part182
+        COMMAND_SCHEMA_PARTS.part184
       ],
       "next": [
         {
@@ -48,7 +48,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
     "description": {
       "sentence": "Merge two chart accounts, moving everything the first one holds into the second and removing it; do not use it to correct one entry — that is a journal edit.",
       "example": COMMAND_SCHEMA_PARTS.part73,
-      "refusals": COMMAND_SCHEMA_PARTS.part253
+      "refusals": COMMAND_SCHEMA_PARTS.part255
     },
     "runPath": "/api/v1/commands/account.merge",
     "previewPath": "/api/v1/commands/account.merge/preview",
@@ -62,7 +62,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
     "description": {
       "sentence": "Say what merging two chart accounts would change, without changing anything; run account.merge to do it.",
       "example": COMMAND_SCHEMA_PARTS.part73,
-      "refusals": COMMAND_SCHEMA_PARTS.part253
+      "refusals": COMMAND_SCHEMA_PARTS.part255
     },
     "runPath": "/api/v1/commands/account.mergepreview",
     "previewPath": "/api/v1/commands/account.mergepreview/preview",
@@ -85,7 +85,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
           "when": "The mode is not off, immediate or daily.",
           "next": "Choose off, immediate or daily."
         },
-        COMMAND_SCHEMA_PARTS.part182
+        COMMAND_SCHEMA_PARTS.part184
       ]
     },
     "runPath": "/api/v1/commands/account.setnotificationemail",
