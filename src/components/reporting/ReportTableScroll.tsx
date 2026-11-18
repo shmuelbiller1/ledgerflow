@@ -60,7 +60,12 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
    setReorderable(indexed&&rectangular&&!!cells.length&&!table?.querySelector('[colspan]:not([colspan="1"]),[rowspan]:not([rowspan="1"])'));
    const name=(table?.querySelector('caption')?.textContent||'').trim()||names.join('|');
    setHeaders(prev=>(JSON.stringify(prev)===JSON.stringify(names)?prev:names));
-   if(JSON.stringify([identity,name])!==reportRef.current){reportRef.current=JSON.stringify([identity,name]);setReport(name);setHidden(name?readHidden(identity?JSON.stringify([identity,name]):name):[]);}
+   const schema = JSON.stringify([identity, name, names]);
+   if (schema !== reportRef.current) {
+     reportRef.current = schema;
+     setReport(name);
+     setHidden(name ? readHidden(identity ? JSON.stringify([identity, name]) : name, names) : []);
+   }
    const text=(table?.textContent||'').trim();
    const busy=Boolean(table?.closest('[aria-busy="true"]'))||/\b(loading|refreshing|calculating|failed|could not|error)\b/i.test(text);
    // A provisional, failed or explicit empty message outside the table already owns role=status/alert.
@@ -90,7 +95,7 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
   const first=setTimeout(read,0);
   return()=>{watch.disconnect();clearTimeout(first);};
  },[identity]);
- const change=(index:number)=>{const next=toggleColumn(effectiveHidden,index,headers.length);setHidden(next);if(report)saveHidden(reportKey,next);};
+ const change=(index:number)=>{const next=toggleColumn(effectiveHidden,index,headers.length);setHidden(next);if(report)saveHidden(reportKey,next,headers);};
  const exportDisplayed=()=>{
   const table=ref.current?.querySelector('table');
   if(!table||!reorderable)return;
@@ -120,7 +125,7 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
     const nextOrder=['0',...next.order.filter(id=>id!=='0')];
     const nextHidden=next.hidden.map(Number).filter(index=>index>0&&index<headers.length).slice(0,Math.max(0,headers.length-2));
     setChoice({key:orderKey,order:nextOrder});savePeriodLayout(orderKey,{order:nextOrder,hidden:[]});
-    setHidden(nextHidden);saveHidden(reportKey,nextHidden);
+    setHidden(nextHidden);saveHidden(reportKey,nextHidden,headers);
    }}/>}
    {open&&headers.length>2&&(
     <fieldset data-print-hide className="sticky start-0 mb-2 flex flex-wrap gap-3 text-sm">

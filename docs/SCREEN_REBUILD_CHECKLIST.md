@@ -112,7 +112,9 @@ a new raw screen cannot slip in when a different screen migrates in the same PR.
 - [x] Restored the shared report chooser on `RowTable`. Native rows and fragments already had source column
       indices; rows behind a React component did not. `RowTable` now applies the same order at the point it renders
       the cells. The user can move and hide a column, reopen the report and export the **displayed** values in that
-      order, including Hebrew text. The separate plain-numeric financial export is unchanged.
+      order, including Hebrew text. Column visibility is remembered per header layout: inserting a comparison
+      period cannot silently hide the invoice name instead of an amount. Existing hidden-column preferences are
+      adopted on the first visit. The separate plain-numeric financial export is unchanged.
 - [x] Codemod: one optional column may be guarded by the **same table-level identifier** in the header and body.
       An unconditional row heading may follow a code or an optional period. Different guards, a row-dependent
       guard, conditional or multiple row headings, or a row with attributes we would lose do not convert.

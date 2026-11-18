@@ -60,9 +60,20 @@ export async function checkComparisonReports(page: Page, width: number, theme: '
   await expect(paymentDays.locator('th')).toHaveText(invoiceLabel);
   await expect(paymentDays.locator('td')).toHaveText([he ? 'נוכחית' : 'Current', '$20.00', '5']);
   await inspect('payment-period');
+  // An amount hidden without a leading period must not hide the invoice name when that period returns.
   await remountJourney(page, [reports(false)[1]]);
   await expect(paymentDays.locator('th:first-child')).toHaveText(invoiceLabel);
   await expect(paymentDays.locator('td')).toHaveText(['$20.00', '5']);
+  await tabTo(page, page.getByRole('button', { name: he ? 'עמודות' : 'Columns', exact: true }));
+  await page.keyboard.press('Enter');
+  const amount = page.getByRole('checkbox', { name: he ? 'סכום החשבונית' : 'Invoice amount', exact: true });
+  await tabTo(page, amount); await page.keyboard.press('Space');
+  await expect(paymentDays.getByRole('cell')).toHaveText(['5']);
+  await remountJourney(page, [reports(true)[1]]);
+  await expect(paymentDays.getByRole('rowheader')).toHaveText(invoiceLabel);
+  await expect(paymentDays.getByRole('cell')).toHaveText([he ? 'נוכחית' : 'Current', '$20.00', '5']);
+  await remountJourney(page, [reports(false)[1]]);
+  await expect(paymentDays.getByRole('cell')).toHaveText(['5']);
   await remountJourney(page, [reports(true)[2]]);
   await expect(margin.locator('td').last()).toHaveText('$0.00 / $20.00');
   await inspect('gross-profit');

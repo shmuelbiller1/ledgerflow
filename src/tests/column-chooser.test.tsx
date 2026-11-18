@@ -21,6 +21,11 @@ test('what can be hidden, remembered per report, and the CSS for it', () => {
   assert.deepEqual(toggleColumn([1, 2], 3, 4), [1, 2], 'one other column stays');
   saveHidden('Sales', [2]);
   assert.deepEqual([readHidden('Sales'), readHidden('Other')], [[2], []]);
+  const normal = ['Code', 'Name', 'Amount'], compare = ['Period', ...normal];
+  assert.deepEqual(readHidden('Sales', normal), [2], 'existing preferences survive the new key');
+  assert.deepEqual(readHidden('Sales', compare), [], 'do not interpret Amount as Name');
+  saveHidden('Sales', [3], compare);
+  assert.deepEqual(readHidden('Sales', normal), [2]);
   assert.equal(hiddenColumnsCss('s1', [2]), '[data-columns="s1"] tr > :nth-child(3) { display: none; }');
 });
 
