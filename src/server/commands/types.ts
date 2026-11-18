@@ -79,6 +79,12 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
   peopleOnly?: boolean;
   /** Person-scoped workspace creation must not be performed (or replayed) by a workspace-scoped key. */
   denyWorkspaceApiKey?: boolean;
+  /**
+   * #821: a `person` command acts on the caller's whole account (two-step login, notice emails, groups of
+   * books), so an API key — issued for one workspace's integration — may not run it unless the command says
+   * it was built for keys (creating a workspace through the API).
+   */
+  apiKeyAllowed?: boolean;
   /** Dot path into the validated input; the runner checks this date against the workspace period lock. */
   dated?: string;
   /** Resolve an effective date when the command's input omits one (for example, today's workspace-local date). */
