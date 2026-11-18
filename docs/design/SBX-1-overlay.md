@@ -11,21 +11,21 @@ credential, public route, command-registry entry or screen can create or accept 
 
 - `sandbox.sandboxes` and `sandbox."sandboxSteps"` store metadata separately from the 69 document
   overlays. `sandbox_read` provides one read-only, invoker-security view per overlay, using the same
-  names as in `public`. Real workspace rows not shadowed by an overlay are read on the next statement;
-  a tombstone shadows a row even if that row would have matched the caller's filter. The ordinary
-  query compiler filters, sorts, pages and counts the resulting relation in PostgreSQL.
+  names as in `public`. For allowed book collections, real workspace rows not shadowed by an overlay
+  are read on the next statement; a tombstone shadows a row even if it would have matched the caller's
+  filter. The query compiler filters, sorts, pages and counts the resulting relation in PostgreSQL.
 - `getDb({ sandboxId })` is **internal**. Any future caller must first authenticate, verify that the
   sandbox belongs to that person, and check their current role against the **real** workspace. A draft
   membership edit must not authorize any action. The database scope is not a substitute for that
   ownership check. The `workspaces` collection is scoped by the document's id; other collections are
   scoped by `workspace_id`. Unscoped real rows (including person-level recovery codes) are not part of
-  a workspace sandbox. Read tools must still allowlist what they return; they must not expose the
-  whole server document catalog.
+  a workspace sandbox. Read tools must still allowlist fields: for example, an allowed invoice can
+  contain a payment link. A table-level policy is not permission to expose whole documents.
 - The adapter checks out one connection and sets `LOCAL ROLE lf_sandbox` and the sandbox id within
   each transaction, including a single read. Commit and rollback both clear the scope. The role is
-  `NOLOGIN`, is not a browser or service-key role, and has only `SELECT` on public document tables.
-  PostgreSQL refuses live DML, `SELECT FOR UPDATE`, and sequence changes. Copy-on-write uses an
-  ordinary MVCC read; only the overlay row is updated. No overlay FK points into `public`.
+  `NOLOGIN`, is not a browser or service-key role, and has only `SELECT` on the allowed live book
+  collections. PostgreSQL refuses live DML, `SELECT FOR UPDATE`, and sequence changes. Copy-on-write
+  uses an ordinary MVCC read; only the overlay row is updated. No overlay FK points into `public`.
 - A sandbox handle does not expose `.pool`, and its transactions cannot reserve the live audit chain.
   Raw SQL readers use `db.tableSource(name)` and `db.readRows` for trusted parameterized SELECTs outside
   an existing transaction; the adapter uses the sandbox role and a read-only transaction. The default
@@ -35,10 +35,22 @@ credential, public route, command-registry entry or screen can create or accept 
   and tombstones retain it. A new row stores a null base version. This checkpoint records the
   version for the review service below.
 - New document-table migrations register the table in `public.lf_rules`, then run
-  `call sandbox.install_overlay('tableName');` as the migration owner. Review any table-specific
-  trigger or cross-record constraints; do not copy indexes, FKs or triggers wholesale. The database
-  guard discovers public document tables by shape, so forgetting both registration and overlay
-  still fails the test.
+  `call sandbox.install_overlay('tableName');` as the migration owner. Registration alone creates an
+  overlay-only view, not a live-read grant. A new collection must be explicitly reviewed and added to
+  `sandbox.has_live_book_read` before it gets a live source (then configure it with
+  `sandbox.configure_overlay_reads`). Review table-specific triggers and cross-record constraints;
+  do not copy indexes, FKs or triggers wholesale. The database guard discovers public document tables
+  by shape, so forgetting both registration and overlay still fails the test.
+
+### Live-read hardening (#825)
+
+`20261118130000_sandbox_live_read_boundary.sql` leaves the 43 reviewed book collections scoped as
+before and removes live access to the other 26 collections. Examples include API keys, bank
+connections, invites, cached idempotency responses, recovery codes, personal notifications and
+support records. Their `sandbox_read` views read overlays only; they have no dependency on the live
+relation. The role's live `SELECT` grant is revoked, backed by a restrictive policy when the
+query actually runs as `lf_sandbox`. A live login that can switch to that role keeps its own access
+before switching. A new collection starts in overlay-only mode. No new draft commands are admitted.
 
 ## Public trigger inventory
 
@@ -51,12 +63,12 @@ means `SECURITY DEFINER`.
 | `lf_guard` (definer) | `lf_rules` and workspace period settings **only on browser writes** | Reused. On either trusted server path it only maintains `updated_at`; the sandbox connection has no browser JWT. |
 | `lf_guard_special` (definer) | Workspace role/membership for browser lock-date writes | Browser-only; not attached. Server authorization must check the real membership and use the same command gates. |
 | `lf_guard_invoice_approval` (definer) | Workspace role/membership, only for browsers | Browser-only; not attached. The shared server command is responsible for the approval decision. |
-| `lf_chart_account_client_guard` (definer) | No; own row | Reused. |
-| `lf_document_settlement_guard`, `lf_guard_document_settlement` (both definer) | No; own row | Reused. |
-| `lf_documents_kind_guard`, `lf_asset_accounting_guard` | No; own row | Reused. |
-| `lf_rma_guard`, `lf_warranty_guard`, `lf_inventory_cost_guard` (definer) | No; own row | Reused. |
+| `lf_chart_account_client_guard` (definer) | No; own row | Reused, browser-only; opening-balance commands are not admitted to the sandbox. |
+| `lf_document_settlement_guard`, `lf_guard_document_settlement` (both definer) | No; own row | Reused, browser-only. The reviewed payment handler must be able to update settlement in both server modes. |
+| `lf_documents_kind_guard`, `lf_asset_accounting_guard` | No; own row | Reused, browser-only. Draft documents use a reviewed command schema (such as `tasks.create`); asset commands are not admitted. |
+| `lf_rma_guard`, `lf_warranty_guard`, `lf_inventory_cost_guard` (definer) | No; own row | Reused, browser-only. The shared `customer.create` input rejects protected history; inventory cost commands are not admitted. |
 | `lf_enforce_balanced_ledger` (definer) | No; own row, may settle FX rounding into that row | Reused for visible entries, not tombstones. Real and overlay tests compare the same refusal and the same rounded home amounts. |
-| `lf_transactions_ledger_integrity` (definer) | Reads chart accounts | The same trigger reads the merged chart on overlay writes, and the live chart on real writes. No balance rule was changed. |
+| `lf_transactions_ledger_integrity` (definer) | Reads chart accounts | The same trigger reads the merged chart on overlay writes and the live chart on real writes. The corrupt-fixture switch applies only to the live table; a definer function cannot distinguish the caller by `current_user`. No balance rule was changed. |
 | `lf_period_balances_stale` (definer) | Updates public `periodBalances` | **Not attached.** The report/balance slice must avoid using live snapshots when they no longer describe the draft. |
 | `lf_repost_mark` (definer) | Reads `stockMoves`, writes public `repostQueue` | **Not attached.** Provisional repost state must be wired to the sandbox before enabling stock commands. |
 | `lf_stock_move_db_seq` (definer) | Consumes `public."stockMoves_db_seq"` | **Not attached.** The stock-command slice needs provisional ordering that does not allocate from any live sequence. |

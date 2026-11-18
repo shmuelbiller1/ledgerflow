@@ -67,7 +67,8 @@ not a workspace.
 ## Database changes (migrations): status
 
 **✅ 18 Nov:** `20261118120000_invites_owner_read.sql` (#842, merged in #847) is now applied on the live database: only
-owners can read pending invites and their tokens. Nothing is waiting to be run.
+owners can read pending invites and their tokens. The [SBX-1 hardening migration below](#sbx-1-live-read-hardening-825)
+is a separate, not-yet-applied change.
 
 **17 Nov: the last confirmed live list was 60 of 60, before SBX-1 PR #787.** Older notes below that ask you
 to run one of those migrations in the SQL editor are done; ignore them. You don't need to run SQL yourself.
@@ -910,3 +911,12 @@ the migration grants this to the migration login, which may differ. Never grant 
 service-key roles, and keep `sandbox` and `sandbox_read` out of Supabase's exposed schemas. The test
 database passed with this migration; live state was not independently checked in the report read pass.
 No assistant routes are enabled by the migration or by the report read pass.
+
+### SBX-1 live-read hardening (#825)
+
+`20261118130000_sandbox_live_read_boundary.sql` is for the release lead after the hardening PR
+has merged and deployed. Confirm the foundation migration is recorded, apply the follow-up in order,
+and verify the recorded versions. It revokes the sandbox role's live reads of private/operational
+tables and keeps the ledger test-fixture override out of the sandbox. It does not grant a new login
+or enable any assistant route. This was tested on disposable PostgreSQL; no live database change or
+application-login role verification was done here.
