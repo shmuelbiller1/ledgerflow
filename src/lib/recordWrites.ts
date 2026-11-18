@@ -19,6 +19,7 @@ import { FieldValue } from './db/firestore';
 import { localAdd, localDelete, localGet, localSet, localUpdate, localUpdateMany } from './db/localStore';
 import { guestSession } from './db/guestDatabase';
 import { sameRecordValue } from './editableRecords';
+import { PLAIN_RECORD_SERVER_KEYS } from './plainRecords';
 import { recordValueAt } from './editableValues';
 
 /** The sample company's own copy of a row: a patch when it exists, a full write when it does not. */
@@ -215,10 +216,12 @@ export async function savePlainRecord(
     else await localUpdate(collection, id, data);
     return id;
   }
-  // a delete sentinel (clearing a bin, for one) becomes a named removal, because a command says what it removes
+  // a delete sentinel (clearing a bin, for one) becomes a named removal, because a command says what it removes;
+  // the server's own keys are dropped rather than sent and ignored, so the payload says what it means
   const fields: Record<string, unknown> = {};
   const unset: string[] = [];
   for (const [field, value] of Object.entries(data)) {
+    if ((PLAIN_RECORD_SERVER_KEYS as readonly string[]).includes(field)) continue;
     if (value instanceof FieldValue) {
       if (value.kind !== 'delete') {
         throw new Error(`${field} needs an operation this command does not take; use the command that owns it.`);

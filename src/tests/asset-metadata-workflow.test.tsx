@@ -170,7 +170,7 @@ test('refused maintenance save keeps the draft; retry and removal write only met
   refuse = false;
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Note it' })); });
   assert.equal((screen.getByLabelText('What was done') as HTMLInputElement).value, '');
-  assert.deepEqual(Object.keys(writes.at(-1)!.p_set).sort(), ['maintenance', 'updatedAt']);
+  assert.deepEqual(Object.keys(writes.at(-1)!.p_set).sort(), ['maintenance'], 'the server stamps the timestamp');
   const saved = writes.at(-1)!.p_set.maintenance as NonNullable<FixedAsset['maintenance']>;
   assert.equal(saved[0].description, 'בדיקת ציוד'); assert.equal(saved[0].costCents, 12025);
   view.rerender(<MaintenanceLog asset={{ ...asset, maintenance: saved }} currency="USD" />);

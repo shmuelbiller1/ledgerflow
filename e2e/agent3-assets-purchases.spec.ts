@@ -155,6 +155,11 @@ test('phone item trends switch from vendor, keep currencies apart, export Hebrew
 test('long maintenance notes and maximum-length labels stay inside a 320px phone', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 844 });
   await page.route('**/rest/v1/**', route => route.fulfill({ json: route.request().method() === 'GET' ? [] : null }));
+  // the note is saved by naming `record.save`; the fixture answers for it so the draft can be cleared
+  await page.route('**/api/v1/commands/record.save', route => {
+    const { input } = route.request().postDataJSON() as { input: { collection: string; id: string } };
+    return route.fulfill({ status: 200, json: { ok: true, data: { collection: input.collection, id: input.id, created: false, updatedAt: new Date().toISOString() } } });
+  });
   await mount(page, 'maintenance');
   await page.locator('summary').click();
   await page.getByLabel('What was done').fill('A'.repeat(300));
