@@ -19,7 +19,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "value": {
       "anyOf": [
         COMMAND_SCHEMA_PARTS.part56,
-        COMMAND_SCHEMA_PARTS.part122
+        COMMAND_SCHEMA_PARTS.part124
       ]
     }
   },

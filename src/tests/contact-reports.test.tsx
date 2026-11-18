@@ -7,8 +7,8 @@ import { setComponentWorkspace, markComponentCollectionsLoaded } from './helpers
 import { makeCustomer, makeVendor, makeInvoice, makeBill, makePayment } from './fixtures';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { getSupabase } from '../lib/db/client';
-import CustomerDetailView from '../components/sales/CustomerDetailView';
-import VendorDetailView from '../components/purchases/VendorDetailView';
+import CustomerRecordPage from '../components/sales/CustomerRecordPage';
+import VendorRecordPage from '../components/purchases/VendorRecordPage';
 import ARAgingReportView from '../components/reporting/ARAgingReportView';
 import APAgingReportView from '../components/reporting/APAgingReportView';
 import StatementView from '../components/reporting/StatementView';
@@ -30,7 +30,7 @@ afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await ge
 for (const side of ['customer', 'vendor'] as const) {
   test(`${side} detail displays mixed-language identity and excludes draft/void amounts`, () => {
     let back = 0;
-    const view = render(side === 'customer' ? <CustomerDetailView customerId="cust-1" onBack={() => back++} /> : <VendorDetailView vendorId="vend-1" onBack={() => back++} />);
+    const view = render(side === 'customer' ? <CustomerRecordPage customerId="cust-1" onBack={() => back++} /> : <VendorRecordPage vendorId="vend-1" onBack={() => back++} />);
     assert.ok(view.getByRole('heading', { name: side === 'customer' ? 'לקוח Acme' : 'ספק Supply' }));
     assert.match(view.getByText(side === 'customer' ? 'Outstanding Balance' : 'Outstanding Payable').parentElement!.textContent!, /\$75\.00/);
     assert.match(view.getByText(side === 'customer' ? 'Lifetime Sales' : 'Lifetime Purchases').parentElement!.textContent!, /\$100\.00/);
@@ -40,9 +40,10 @@ for (const side of ['customer', 'vendor'] as const) {
   });
   test(`${side} detail provides recovery for a missing contact`, () => {
     let back = 0;
-    const view = render(side === 'customer' ? <CustomerDetailView customerId="missing" onBack={() => back++} /> : <VendorDetailView vendorId="missing" onBack={() => back++} />);
-    assert.ok(view.getByText(side === 'customer' ? 'Customer not found.' : 'Vendor not found.'));
-    fireEvent.click(view.getByRole('button', { name: 'Go Back' }));
+    const view = render(side === 'customer' ? <CustomerRecordPage customerId="missing" onBack={() => back++} /> : <VendorRecordPage vendorId="missing" onBack={() => back++} />);
+    assert.ok(view.getByRole('heading', { name: side === 'customer' ? 'Customer not found' : 'Vendor not found' }));
+    assert.ok(view.getByText('This record may have been deleted or belongs to another workspace.'));
+    fireEvent.click(view.getByRole('button', { name: side === 'customer' ? 'Back to Customers' : 'Back to Vendors' }));
     assert.equal(back, 1);
   });
   test(`${side} aging searches Hebrew names, opens unpaid documents and closes the ledger`, () => {

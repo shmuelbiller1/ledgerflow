@@ -6,8 +6,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part45,
     "orderId": COMMAND_SCHEMA_PARTS.part45,
-    "deliveryId": COMMAND_SCHEMA_PARTS.part105,
-    "date": COMMAND_SCHEMA_PARTS.part112
+    "deliveryId": COMMAND_SCHEMA_PARTS.part106,
+    "date": COMMAND_SCHEMA_PARTS.part114
   },
   "required": [
     "orderId",

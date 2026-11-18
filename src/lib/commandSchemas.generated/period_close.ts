@@ -11,7 +11,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "hard"
       ]
     },
-    "month": COMMAND_SCHEMA_PARTS.part117
+    "month": COMMAND_SCHEMA_PARTS.part119
   },
   "required": [
     "mode",

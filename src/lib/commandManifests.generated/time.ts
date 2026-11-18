@@ -179,7 +179,7 @@ export const TIME_COMMAND_MANIFEST = [
         "entryId": "time_123"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part201,
+        COMMAND_SCHEMA_PARTS.part203,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller cannot edit this entry or it is locked.",
@@ -211,7 +211,7 @@ export const TIME_COMMAND_MANIFEST = [
           "when": "One or more supplied time fields are invalid.",
           "next": "Correct the date, minutes, description, customer, or hourly rate."
         },
-        COMMAND_SCHEMA_PARTS.part201,
+        COMMAND_SCHEMA_PARTS.part203,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller does not own an open entry and is not an owner or accountant.",

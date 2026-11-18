@@ -21,7 +21,6 @@ function updateBaseline() {
     rawTables: Infinity,
     handTypedApiCalls: Infinity,
     directDbWrites: Infinity,
-    unreachableActions: Infinity,
     screensWithManyPrimaryButtons: Infinity,
   };
 

@@ -76,7 +76,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The logo is too large or not an image, the colour is not a hex colour, or a field is not one of the branding fields.",
           "next": "Fix the field the answer names."
         },
-        COMMAND_SCHEMA_PARTS.part173
+        COMMAND_SCHEMA_PARTS.part175
       ]
     },
     "runPath": "/api/v1/commands/workspace.branding",
@@ -97,7 +97,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The workspace is not scheduled for deletion.",
           "next": "Choose a workspace currently marked pending deletion."
         },
-        COMMAND_SCHEMA_PARTS.part174,
+        COMMAND_SCHEMA_PARTS.part176,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not the workspace owner.",
@@ -129,10 +129,10 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The currency is not three letters, or the input carries unexpected fields.",
           "next": "Send a name, a business type and a three-letter currency, or nothing at all."
         },
-        COMMAND_SCHEMA_PARTS.part180
+        COMMAND_SCHEMA_PARTS.part182
       ],
       "next": [
-        COMMAND_SCHEMA_PARTS.part149
+        COMMAND_SCHEMA_PARTS.part151
       ]
     },
     "runPath": "/api/v1/commands/workspace.create",
@@ -164,7 +164,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "A label id appears twice in the list.",
           "next": "Send one entry per label."
         },
-        COMMAND_SCHEMA_PARTS.part171,
+        COMMAND_SCHEMA_PARTS.part173,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner or accountant.",
@@ -207,10 +207,10 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The value is not in the selected workspace.",
           "next": "Reload the labels and choose a value in this workspace."
         },
-        COMMAND_SCHEMA_PARTS.part212
+        COMMAND_SCHEMA_PARTS.part214
       ],
       "next": [
-        COMMAND_SCHEMA_PARTS.part130
+        COMMAND_SCHEMA_PARTS.part132
       ]
     },
     "runPath": "/api/v1/commands/workspace.dimensionnode",
@@ -224,7 +224,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     "risk": "normal",
     "description": {
       "sentence": "Save a batch of label values the workspace groups by (at most 450 at once); do not use it to move a legacy tree off the workspace row, which workspace.dimensionnodesmigrate does.",
-      "example": COMMAND_SCHEMA_PARTS.part144,
+      "example": COMMAND_SCHEMA_PARTS.part146,
       "refusals": [
         {
           "code": "INVALID_INPUT",
@@ -255,14 +255,14 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     "risk": "normal",
     "description": {
       "sentence": "Move a legacy label tree off the workspace row and into the dimensionNodes collection, clearing the old field in the same transaction; do not use it to add a new value, which workspace.dimensionnode does.",
-      "example": COMMAND_SCHEMA_PARTS.part144,
+      "example": COMMAND_SCHEMA_PARTS.part146,
       "refusals": [
         {
           "code": "INVALID_INPUT",
           "when": "A label has no axis, or more than 450 arrive at once.",
           "next": "Send the tree in chunks of at most 450 labels, each with its axis."
         },
-        COMMAND_SCHEMA_PARTS.part171,
+        COMMAND_SCHEMA_PARTS.part173,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is a viewer.",
@@ -308,7 +308,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to save the mapping."
         },
-        COMMAND_SCHEMA_PARTS.part187
+        COMMAND_SCHEMA_PARTS.part189
       ]
     },
     "runPath": "/api/v1/commands/workspace.importmap",
@@ -364,7 +364,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The plan has no free seat left.",
           "next": "Upgrade the plan or remove a member first."
         },
-        COMMAND_SCHEMA_PARTS.part163,
+        COMMAND_SCHEMA_PARTS.part165,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner.",
@@ -400,7 +400,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to change module settings."
         },
-        COMMAND_SCHEMA_PARTS.part174
+        COMMAND_SCHEMA_PARTS.part176
       ]
     },
     "runPath": "/api/v1/commands/workspace.modules",
@@ -428,7 +428,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to reserve a document number."
         },
-        COMMAND_SCHEMA_PARTS.part174
+        COMMAND_SCHEMA_PARTS.part176
       ]
     },
     "runPath": "/api/v1/commands/workspace.nextnumber",
@@ -481,7 +481,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The workspace has no active Opening Balance Equity account, or an amount or account cannot be used for an opening balance.",
           "next": "Add an active Opening Balance Equity account and choose eligible balance-sheet accounts."
         },
-        COMMAND_SCHEMA_PARTS.part181
+        COMMAND_SCHEMA_PARTS.part183
       ]
     },
     "runPath": "/api/v1/commands/workspace.openingbalances",
@@ -509,7 +509,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner, accountant, or bookkeeper.",
           "next": "Ask a workspace bookkeeper or above to restore the layout snapshot."
         },
-        COMMAND_SCHEMA_PARTS.part187
+        COMMAND_SCHEMA_PARTS.part189
       ]
     },
     "runPath": "/api/v1/commands/workspace.restoremaps",
@@ -540,7 +540,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not the workspace owner.",
           "next": "Ask the workspace owner to change retention settings."
         },
-        COMMAND_SCHEMA_PARTS.part174
+        COMMAND_SCHEMA_PARTS.part176
       ]
     },
     "runPath": "/api/v1/commands/workspace.retention",
@@ -670,11 +670,11 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The home currency is being changed in a workspace that already holds transactions, invoices, bills or journal entries.",
           "next": "Choose the currency while the books are empty; changing it later is a migration of every stored amount."
         },
-        COMMAND_SCHEMA_PARTS.part165
+        COMMAND_SCHEMA_PARTS.part167
       ],
       "next": [
-        COMMAND_SCHEMA_PARTS.part149,
-        COMMAND_SCHEMA_PARTS.part130
+        COMMAND_SCHEMA_PARTS.part151,
+        COMMAND_SCHEMA_PARTS.part132
       ]
     },
     "runPath": "/api/v1/commands/workspace.settings",
@@ -695,7 +695,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The caller is not an owner or accountant.",
           "next": "Ask a workspace owner or accountant to finish setup."
         },
-        COMMAND_SCHEMA_PARTS.part174
+        COMMAND_SCHEMA_PARTS.part176
       ]
     },
     "runPath": "/api/v1/commands/workspace.setupcomplete",
@@ -751,7 +751,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
           "when": "The person is the creator or the last owner and the new role is not owner.",
           "next": "Make another owner first, then change this one."
         },
-        COMMAND_SCHEMA_PARTS.part163,
+        COMMAND_SCHEMA_PARTS.part165,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller is not an owner.",

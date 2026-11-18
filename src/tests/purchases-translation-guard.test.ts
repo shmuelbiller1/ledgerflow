@@ -8,15 +8,23 @@ import { fileURLToPath } from 'node:url';
 import { checkTranslatedScreen } from './helpers/translationGuard';
 import { translateScreenString } from '../lib/i18n/screenTranslations';
 
-const report = checkTranslatedScreen(fileURLToPath(new URL('../components/purchases/Purchases.tsx', import.meta.url)), 'purchases', 'purchasesText');
+// The bill columns were extracted to keep the screen below the file-size ratchet. Both files
+// are one visible screen and must keep the same translation coverage as before the split.
+const files = ['Purchases.tsx', 'billColumns.tsx'] as const;
+const reports = files.map(name => ({
+  name,
+  report: checkTranslatedScreen(fileURLToPath(new URL(`../components/purchases/${name}`, import.meta.url)), 'purchases', 'purchasesText'),
+}));
 
 test('Purchases: no visible English outside purchasesText (text, markup strings, visible props)', () => {
-  assert.deepEqual(report.untranslated, [], 'Wrap new visible Purchases text with purchasesText and add its EN/HE entry.');
+  for (const { name, report } of reports) {
+    assert.deepEqual(report.untranslated, [], `Wrap visible ${name} text with purchasesText and add its EN/HE entry.`);
+  }
 });
 
 test('Purchases: every purchasesText key has its English fallback and Hebrew in the table', () => {
-  assert.deepEqual(report.badKeys, []);
-  assert.equal(report.calls, 77);
+  for (const { name, report } of reports) assert.deepEqual(report.badKeys, [], name);
+  assert.equal(reports.reduce((sum, { report }) => sum + report.calls, 0), 78);
   assert.equal(translateScreenString('purchases', 'col.dueDate', 'he', 'Due Date'), 'תאריך פירעון');
   // a button's accessible name follows its visible label: the Hebrew name contains the Hebrew text
   assert.ok(translateScreenString('purchases', 'aria.spread', 'he', '').includes(translateScreenString('purchases', 'action.spread', 'he', '')));

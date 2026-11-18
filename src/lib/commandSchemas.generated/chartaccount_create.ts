@@ -18,7 +18,7 @@ export const COMMAND_INPUT_SCHEMA = {
     },
     "category": COMMAND_SCHEMA_PARTS.part55,
     "description": COMMAND_SCHEMA_PARTS.part65,
-    "parentId": COMMAND_SCHEMA_PARTS.part126,
+    "parentId": COMMAND_SCHEMA_PARTS.part128,
     "asOfDate": COMMAND_SCHEMA_PARTS.part49
   },
   "required": [

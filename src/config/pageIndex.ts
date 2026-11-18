@@ -3,6 +3,12 @@ import type { PinnedPage } from '../lib/pinnedPages';
 import { isModuleOn, MODULES, moduleOfTab, type Modules } from '../lib/modules';
 
 /** Words people type when looking for a setting (BB-09 settings search). */
+const SETTINGS_KEYWORDS_HE: Record<string, string> = {
+  branding: 'לוגו צבע מסמכים',
+  numbering: 'מספר חשבונית רצף חשבוניות',
+  modules: 'להפעיל שכר להדליק מודול תכונות',
+};
+
 const SETTINGS_KEYWORDS: Record<string, string> = {
   rules: 'automation auto categorize bank rules',
   dimensions: 'class location department labels tags',
@@ -41,6 +47,14 @@ export interface PageEntry {
  * Profit & Loss, and someone who does not yet know the accounting name says "who owes me". Kept next to
  * the index (not inside each report) so one list answers "can I find it by a plain word?".
  */
+const REPORT_KEYWORDS_HE: Record<string, string> = {
+  pnl: 'דוח הכנסות והוצאות',
+  'balance-sheet': 'מה יש לנו ומה חייבים נכסים והתחייבויות',
+  'ar-aging': 'מי חייב לי חשבוניות שלא שולמו',
+  'ap-aging': 'למי אני חייב חובות ספקים',
+  'cash-flow': 'כסף נכנס כסף יוצא תנועת מזומנים',
+};
+
 const REPORT_KEYWORDS: Record<string, string> = {
   pnl: 'profit and loss income statement earnings revenue expenses results',
   'balance-sheet': 'statement of financial position what we own what we owe net worth',
@@ -98,21 +112,26 @@ export function pageIndex(language = 'en', opts: { developerMode?: boolean; modu
   const reports = (REPORT_TABS_REGISTRY as Labelled[]).map(r => ({
     page: { tab: 'reports', sub: r.id },
     label: `Report: ${name(r, language)}`,
-    keywords: foldForSearch(`report ${r.id.replace(/-/g, ' ')} ${name(r, 'en')} ${REPORT_KEYWORDS[r.id] || ''}`),
+    keywords: foldForSearch(`report ${r.id.replace(/-/g, ' ')} ${name(r, 'en')} ${REPORT_KEYWORDS[r.id] || ''} ${language === 'he' ? REPORT_KEYWORDS_HE[r.id] || '' : ''}`),
   }));
   const settings = (SETTINGS_TABS_REGISTRY as Labelled[]).map(s => ({
     page: { tab: 'settings', sub: s.id },
     label: `Settings: ${name(s, language)}`,
-    keywords: foldForSearch(`settings ${s.id.replace(/-/g, ' ')} ${SETTINGS_KEYWORDS[s.id] || ''}`),
+    keywords: foldForSearch(`settings ${s.id.replace(/-/g, ' ')} ${SETTINGS_KEYWORDS[s.id] || ''} ${language === 'he' ? SETTINGS_KEYWORDS_HE[s.id] || '' : ''}`),
   }));
   const allScreens = [...main, ...extras];
   const disabledModules: PageEntry[] = opts.modules
-    ? MODULES.filter(m => !isModuleOn(opts.modules, m.id)).map(m => ({
-      page: { tab: 'settings', sub: 'modules' },
-      label: `${m.name} (off) — turn on in Settings → Modules`,
-      keywords: `${m.id} ${m.name} ${m.about} ${m.tabs.join(' ')} module turn on enable settings`,
-      disabledModuleId: m.id,
-    }))
+    ? MODULES.filter(m => !isModuleOn(opts.modules, m.id)).map(m => {
+      const localTabNames = (APP_TABS as Labelled[]).filter(t => m.tabs.includes(t.id)).map(t => name(t, language)).join(' ');
+      return {
+        page: { tab: 'settings', sub: 'modules' },
+        label: language === 'he'
+          ? `${localTabNames || m.name} (כבוי) — להפעלה בהגדרות → מודולים`
+          : `${m.name} (off) — turn on in Settings → Modules`,
+        keywords: `${m.id} ${m.name} ${m.about} ${m.tabs.join(' ')} module turn on enable settings ${localTabNames} ${language === 'he' ? 'להפעיל להדליק הפעלה' : ''}`,
+        disabledModuleId: m.id,
+      };
+    })
     : [];
   return [...allScreens, ...reports, ...settings, ...disabledModules];
 }

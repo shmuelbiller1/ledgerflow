@@ -21,7 +21,7 @@ export const COMMAND_INPUT_SCHEMA = {
               "createTransaction"
             ]
           },
-          "data": COMMAND_SCHEMA_PARTS.part145
+          "data": COMMAND_SCHEMA_PARTS.part147
         },
         "required": [
           "id",

@@ -21,7 +21,6 @@ the truth.
 | `directDbWrites` | 88 | **0** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
-| `unreachableActions` | 0 | 0 | 0 | ✅ |
 | `suppressionCount` | 0 | 0 | 0 | `eslint-disable` / `@ts-ignore` in source |
 
 `rawTables` is a count of **files**, so converting 107 tables in 95 files moved it 184 → 126: the first table in
@@ -367,8 +366,18 @@ hand-convert a table the codemod still refuses.
       Sending keeps the page's own words: it is an email, not a ledger command. `record-next-step.test.ts` holds
       every offered step in the manifest to the registry (a step that names an unregistered command is a button
       that goes nowhere) and holds the page to the manifest.
-- [ ] The rest of the record pages: the same step list, the same shell.
-- [ ] `CustomerRecordPage`, `BillRecordPage` on the same shell — column definitions, not new layout.
+- [x] `CustomerRecordPage` and `VendorRecordPage` reuse `PartyDetailView`'s `RecordPage` shell and
+      `PARTY_SIDES` column/wording config; a relationship has balance/overdue/lifetime/payment metrics, not a
+      document's terminal Paid step. The next invoice or bill comes from the customer/vendor command manifest,
+      checks the target command's role, and opens the existing party-prefilled form. The unused old detail
+      modules are gone, and `party-detail-views.test.tsx` and `bill-record-page.test.tsx` pin the workflow.
+- [x] `BillRecordPage` uses the same `RecordPage` shell as invoices (Entered → Approved → Paid), with the
+      manifest's `bill.update → payment.receive` label **only when payable**, the existing edit/claim approval
+      actions while awaiting approval, and no pay action for a draft, closed, settled or unauthorized bill.
+      It shows payments, vendor, lines, files, notes and history; Purchases opens it from a row or a bill link,
+      shares its existing dialogs, and restores focus on Back. Pinned by `bill-record-page.test.tsx`.
+- [ ] Other record kinds beyond invoices, bills and parties: move each to the same shell when its workflow is
+      known; do not invent a Paid step for a non-document.
 
 ## 5. One screen shape, one form
 
@@ -378,9 +387,12 @@ hand-convert a table the codemod still refuses.
       there was nothing to merge: `SchemaForm` is gone (213 lines), the dead alias import with it, and `CommandForm`
       is the form — generated from the command's own input schema, which is the one case the app actually has.
       Its bug-pattern site went with it, so the `swallowing-action` ratchet turned without a single screen changing.
-- [ ] Palette reachability is **already proven in EN and HE** by `palette-reachability-guard.test.tsx`. The
-      remaining item is not "make screens findable" — it is **retiring the old guard** once the plain-word search
-      is the only path, so there is one test instead of two mechanisms.
+- [x] **One real palette-reachability guard.** Retired the `unreachableActions` quality metric and its
+      baseline/test: it only searched for four identifier strings in `pageIndex.ts`, not for a page a person could
+      reach. `palette-reachability-guard.test.tsx` now asserts each registry entry is found at its own destination,
+      plain-word English **and Hebrew** report/setting queries, a disabled module in both languages, and actually
+      choosing an English/Hebrew report from the rendered palette. `pageIndex.ts` carries the Hebrew search words
+      in the same index the UI uses. The separate import-graph orphan check still guards source reachability.
 
 ## 6. What the sweep learned — cheaper to read than to rediscover
 

@@ -10,8 +10,8 @@ export const COMMAND_INPUT_SCHEMA = {
       "type": "string",
       "pattern": "^ret_[a-z0-9]{8,40}$"
     },
-    "date": COMMAND_SCHEMA_PARTS.part112,
-    "lines": COMMAND_SCHEMA_PARTS.part235,
+    "date": COMMAND_SCHEMA_PARTS.part114,
+    "lines": COMMAND_SCHEMA_PARTS.part237,
     "inventoryAccountId": COMMAND_SCHEMA_PARTS.part45,
     "cogsAccountId": COMMAND_SCHEMA_PARTS.part45,
     "note": COMMAND_SCHEMA_PARTS.part56

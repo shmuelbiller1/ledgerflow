@@ -5,7 +5,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "reason": COMMAND_SCHEMA_PARTS.part99,
-    "month": COMMAND_SCHEMA_PARTS.part117
+    "month": COMMAND_SCHEMA_PARTS.part119
   },
   "required": [
     "reason",

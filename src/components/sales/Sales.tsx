@@ -46,7 +46,7 @@ import InlineEdit from '../ui/InlineEdit';
 import InlineAdd from '../ui/InlineAdd';
 import DocumentBulkBar from '../ui/DocumentBulkBar';
 import { calculateNextOccurrence } from '../../lib/recurringEngine';
-import CustomerDetailView from './CustomerDetailView';
+import CustomerRecordPage from './CustomerRecordPage';
 import InvoiceRecordPage from './InvoiceRecordPage';
 import { showSavedToast } from '../common/NextStepToast';
 import { invoiceSavedSteps } from '../../lib/nextSteps';
@@ -422,7 +422,12 @@ export default function Sales() {
   if (selectedCustomerId) {
     return (
       <>
-        <CustomerDetailView customerId={selectedCustomerId} onBack={() => setSelectedCustomerId(null)} />
+        <CustomerRecordPage customerId={selectedCustomerId} onBack={() => setSelectedCustomerId(null)}
+          onNewInvoice={customer => {
+            setSelectedCustomerId(null);
+            setNewInvoiceFor({ customerId: customer.id, customerName: customer.name });
+            setIsInvoiceModalOpen(true);
+          }} />
         {modals}
       </>
     );

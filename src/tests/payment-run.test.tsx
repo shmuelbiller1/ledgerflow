@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import PaymentRunDialog from '../components/purchases/PaymentRunDialog';
-import VendorDetailView from '../components/purchases/VendorDetailView';
+import VendorRecordPage from '../components/purchases/VendorRecordPage';
 import { accountNumberProblem, bankFileCsv, billsDueBy, ibanValid, maskAccount, missingBankDetails } from '../lib/paymentRun';
 import { paymentPlan } from '../lib/bulkDocuments';
 import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
@@ -126,7 +126,7 @@ describe('Bank details on the vendor page', () => {
 
   test('an IBAN with a typo is refused; a good one is saved without spaces', async () => {
     setComponentWorkspace('owner');
-    render(<VendorDetailView vendorId="ink" onBack={() => {}} />);
+    render(<VendorRecordPage vendorId="ink" onBack={() => {}} />);
     const label = 'Account number or IBAN of Ink Ltd';
     fireEvent.click(screen.getByRole('button', { name: inlineEditName(`Edit ${label}`) }));
     fireEvent.change(screen.getByLabelText(label), { target: { value: 'GB82 WEST 1234 5698 7654 33' } });
@@ -143,7 +143,7 @@ describe('Bank details on the vendor page', () => {
 
   test('a viewer sees only the last four digits', () => {
     setComponentWorkspace('viewer');
-    render(<VendorDetailView vendorId="paper" onBack={() => {}} />);
+    render(<VendorRecordPage vendorId="paper" onBack={() => {}} />);
     assert.match(document.body.textContent || '', /•••• 5432/);
     assert.doesNotMatch(document.body.textContent || '', /GB82 WEST/);
   });

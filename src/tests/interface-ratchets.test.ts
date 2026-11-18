@@ -1,8 +1,8 @@
 /**
- * Prompt 2, "Ratchets, so it can only improve". Five counters were added to quality-baseline.json so a
- * new screen cannot quietly go back to the old way of being built. A ratchet that never fires is
- * worse than none, so each one is tested here against a throwaway tree: the counter must go up when
- * the old pattern reappears, and the guard must be the thing that notices.
+ * Prompt 2, "Ratchets, so it can only improve". Four counters in quality-baseline.json keep a
+ * new screen from quietly going back to the old way of being built. A ratchet that never fires is
+ * worse than none, so each is tested against a throwaway tree: the counter must go up when
+ * the old pattern reappears. Search reachability has its own EN/HE palette guard instead.
  *
  * These run on a temporary copy, never on the repository.
  */
@@ -37,16 +37,12 @@ function scratch(files: Record<string, string>): string {
     fs.mkdirSync(path.dirname(full), { recursive: true });
     fs.writeFileSync(full, text);
   }
-  // the metrics read a few repository files; give them the shape they expect
+  // The quality metrics need the shared-list directory to exist in the scratch tree.
   fs.mkdirSync(path.join(root, 'src/components/ui'), { recursive: true });
-  fs.mkdirSync(path.join(root, 'src/config'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'src/config/registry.tsx'), 'export const x = 1;\n');
-  fs.writeFileSync(path.join(root, 'src/config/pageIndex.ts'),
-    'APP_TABS REPORT_TABS_REGISTRY SCREEN_TABS_REGISTRY SETTINGS_TABS_REGISTRY\n');
   return root;
 }
 
-describe('the five interface ratchets', () => {
+describe('the four interface ratchets', () => {
   test('a table drawn by hand in a screen raises rawTables, and the shared list is not counted', () => {
     const root = scratch({
       'src/components/sales/Sales.tsx': 'export const A = () => <table><caption>c</caption></table>;\n',
@@ -313,17 +309,11 @@ describe('the five interface ratchets', () => {
     assert.equal(computeQualityMetrics(root).screensWithManyPrimaryButtons, 0);
   });
 
-  test('an index that stops reading a registry raises unreachableActions', () => {
-    const root = scratch({ 'src/components/a/A.tsx': '' });
-    fs.writeFileSync(path.join(root, 'src/config/pageIndex.ts'), 'APP_TABS\n');
-    assert.equal(computeQualityMetrics(root).unreachableActions, 3, 'three registries no longer feed the box');
-  });
-
-  test('the committed baseline has every new counter, so none of them can be skipped', () => {
+  test('the committed baseline has every interface counter, so none can be skipped', () => {
     const baseline = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'quality-baseline.json'), 'utf8'));
-    for (const key of ['rawTables', 'handTypedApiCalls', 'directDbWrites', 'unreachableActions', 'screensWithManyPrimaryButtons']) {
+    for (const key of ['rawTables', 'handTypedApiCalls', 'directDbWrites', 'screensWithManyPrimaryButtons']) {
       assert.equal(typeof baseline[key], 'number', `${key} has no baseline`);
     }
-    assert.equal(baseline.unreachableActions, 0, 'the search box reaches everything, and must keep doing so');
+    assert.equal('unreachableActions' in baseline, false, 'the duplicate string-search ratchet was retired');
   });
 });
