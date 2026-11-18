@@ -26,6 +26,7 @@ import {
 import type { ItemDetails } from '../../lib/stockMoves';
 import type { InventoryItem, Invoice, PurchaseOrder } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
+import { fill, useReportText } from './useReportText';
 
 const HISTORY_START = '1900-01-01';
 
@@ -37,6 +38,7 @@ async function readHistory(workspaceId: string, endDate: string): Promise<ItemDe
 }
 
 export default function StockValueByLocationLotReportView({ purchaseOrders: purchaseOrdersProp, history: historyProp }: { purchaseOrders?: PurchaseOrder[]; history?: ItemDetails[] } = {}) {
+  const reportText = useReportText();
   const inventory = useLedgerStore(s => s.inventory) as InventoryItem[];
   const invoices = useLedgerStore(s => s.invoices) as Invoice[];
   const dimensionNodes = useLedgerStore(s => s.dimensionNodes);
@@ -130,61 +132,59 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
   const money = (cents: number) => formatCurrency(cents, currency);
 
   return (
-    <section aria-label="Stock value by location and lot" className="p-4 space-y-6 min-w-0">
+    <section aria-label={reportText('r.stock-value-by-location-and-lot', 'Stock value by location and lot')} className="p-4 space-y-6 min-w-0">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2>Stock value by location and lot</h2>
+          <h2>{reportText('r.stock-value-by-location-and-lot', 'Stock value by location and lot')}</h2>
           <p className="text-sm text-[var(--muted)]">
-            What the stock is worth where it sits (from the stock-moves ledger), and what each received lot
-            cost when it arrived. Nothing is recorded here; the figures are read from the records you already keep.
+            {reportText('r.what-the-stock-is-worth-where-it-sits-from-the-s', 'What the stock is worth where it sits (from the stock-moves ledger), and what each received lot cost when it arrived. Nothing is recorded here; the figures are read from the records you already keep.')}
           </p>
         </div>
-        <label className="flex flex-col gap-1 text-sm" data-print-hide>As of
-          <input type="date" aria-label="As of" value={asOf} max={today} onChange={e => setAsOf(e.target.value)}
+        <label className="flex flex-col gap-1 text-sm" data-print-hide>{reportText('r.as-of-2', 'As of')}
+          <input type="date" aria-label={reportText('r.as-of-2', 'As of')} value={asOf} max={today} onChange={e => setAsOf(e.target.value)}
             className="px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]" />
         </label>
       </div>
 
-      {(loading || ordersLoading) && <p role="status" className="text-sm text-[var(--muted)]">Loading items, invoices and receipts…</p>}
+      {(loading || ordersLoading) && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-items-invoices-and-receipts', 'Loading items, invoices and receipts…')}</p>}
       {partial && (
         <p role="alert" className="text-sm text-amber-700">
-          Items, invoices or purchase orders are only partly loaded; stock outside the loaded lists is not shown.
+          {reportText('r.items-invoices-or-purchase-orders-are-only-partl', 'Items, invoices or purchase orders are only partly loaded; stock outside the loaded lists is not shown.')}
         </p>
       )}
       {asOf > today && (
-        <p role="status" className="text-sm text-amber-700 dark:text-amber-400">A future date is not a valuation date; showing {today}.</p>
+        <p role="status" className="text-sm text-amber-700 dark:text-amber-400">{reportText('r.a-future-date-is-not-a-valuation-date-showing', 'A future date is not a valuation date; showing')} {today}.</p>
       )}
 
-      <section aria-label="Value by location" className="space-y-3">
+      <section aria-label={reportText('r.value-by-location', 'Value by location')} className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-base font-semibold">By location</h3>
+          <h3 className="text-base font-semibold">{reportText('r.by-location', 'By location')}</h3>
           <button type="button" data-print-hide
             onClick={() => downloadCsv('stock-value-by-location', STOCK_VALUE_LOCATION_CSV_HEADERS, stockValueLocationCsvRows(byLocation?.items || []))}
             disabled={!byLocation?.items.length}
             className="min-h-11 px-3 py-1.5 rounded border text-sm disabled:opacity-50">
-            Download CSV
+            {reportText('r.download-csv', 'Download CSV')}
           </button>
         </div>
         {history?.error && <p role="alert" className="text-sm text-rose-600">{history.error}</p>}
         {history && history.key === `${workspaceId}|${valuationDate}` && !history.items && !history.error && (
-          <p role="status" className="text-sm text-[var(--muted)]">Reading the stock history…</p>
+          <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.reading-the-stock-history', 'Reading the stock history…')}</p>
         )}
         {byLocation && (
           <>
             <p className="text-sm text-[var(--muted)]">
-              Value is what the stock moves booked (the cost each change carried). An item its history does not
-              explain is shown with the reason and is not split across locations — the same rule as Inventory Valuation.
+              {reportText('r.value-is-what-the-stock-moves-booked-the-cost-ea', 'Value is what the stock moves booked (the cost each change carried). An item its history does not explain is shown with the reason and is not split across locations — the same rule as Inventory Valuation.')}
             </p>
             <ReportTableScroll>
               <table className="w-full text-sm">
-                <caption className="sr-only">Value by location</caption>
+                <caption className="sr-only">{reportText('r.value-by-location', 'Value by location')}</caption>
                 <thead>
                   <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
-                    <th scope="col" className="py-2 pr-3">Location</th>
-                    <th scope="col" className="py-2 pr-3">Item</th>
-                    <th scope="col" className="py-2 pr-3 text-right">Quantity</th>
-                    <th scope="col" className="py-2 pr-3 text-right">Value</th>
-                    <th scope="col" className="py-2 text-right">Average cost</th>
+                    <th scope="col" className="py-2 pr-3">{reportText('r.location', 'Location')}</th>
+                    <th scope="col" className="py-2 pr-3">{reportText('r.item', 'Item')}</th>
+                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.quantity', 'Quantity')}</th>
+                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.value', 'Value')}</th>
+                    <th scope="col" className="py-2 text-right">{reportText('r.average-cost', 'Average cost')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -203,7 +203,7 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
                       </tr>
                     ) : item.rows.map(row => (
                       <tr key={`${item.itemId}-${row.locationId}`} className="border-b border-[var(--line)]/50">
-                        <td className="py-1.5 pr-3">{row.locationId ? locationName.get(row.locationId) || row.locationId : 'No location'}</td>
+                        <td className="py-1.5 pr-3">{row.locationId ? locationName.get(row.locationId) || row.locationId : reportText('r.no-location', 'No location')}</td>
                         <th scope="row" className="py-1.5 pr-3 text-left font-normal">
                           {item.itemName}
                           {item.note && <span className="block text-xs text-[var(--muted)]">{item.note}</span>}
@@ -217,15 +217,15 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-[var(--line)] font-semibold">
-                    <th scope="row" colSpan={2} className="py-2 pr-3 text-left">Total value of the items the history explains</th>
+                    <th scope="row" colSpan={2} className="py-2 pr-3 text-left">{reportText('r.total-value-of-the-items-the-history-explains', 'Total value of the items the history explains')}</th>
                     <td className="py-2" />
                     <td className="py-2 pr-3 text-right font-mono">{money(byLocation.knownValueCents)}</td>
                     <td className="py-2" />
                   </tr>
                   {byLocation.byLocation.map(t => (
                     <tr key={t.locationId || 'none'} className="text-[var(--muted)]">
-                      <td className="py-1.5 pr-3">{t.locationId ? locationName.get(t.locationId) || t.locationId : 'No location'}</td>
-                      <td className="py-1.5 pr-3">{t.items} item lines</td>
+                      <td className="py-1.5 pr-3">{t.locationId ? locationName.get(t.locationId) || t.locationId : reportText('r.no-location', 'No location')}</td>
+                      <td className="py-1.5 pr-3">{t.items} {reportText('r.item-lines', 'item lines')}</td>
                       <td className="py-1.5 pr-3 text-right font-mono">{t.quantity}</td>
                       <td className="py-1.5 pr-3 text-right font-mono">{money(t.valueCents)}</td>
                       <td className="py-1.5" />
@@ -235,41 +235,41 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
               </table>
             </ReportTableScroll>
             <p className="text-xs text-[var(--muted)]">
-              {byLocation.unknownItems > 0 && `${byLocation.unknownItems} item${byLocation.unknownItems === 1 ? '' : 's'} could not be valued (the reason is on its row). `}
-              {byLocation.negativeStockItems > 0 && `${byLocation.negativeStockItems} item${byLocation.negativeStockItems === 1 ? ' has' : 's have'} negative stock (valued at zero). `}
-              Location rows for an item add up to the value its moves booked.
+              {byLocation.unknownItems > 0 && `${fill(reportText('r.0-item-1-could-not-be-valued-the-reason-is-on-it', '{0} item{1} could not be valued (the reason is on its row).'), { 0: byLocation.unknownItems, 1: byLocation.unknownItems === 1 ? '' : 's' })} `}
+              {byLocation.negativeStockItems > 0 && `${fill(reportText('r.0-item-1-negative-stock-valued-at-zero', '{0} item{1} negative stock (valued at zero).'), { 0: byLocation.negativeStockItems, 1: byLocation.negativeStockItems === 1 ? ' has' : 's have' })} `}
+              {reportText('r.location-rows-for-an-item-add-up-to-the-value-it', 'Location rows for an item add up to the value its moves booked.')}
             </p>
           </>
         )}
       </section>
 
-      <section aria-label="Value by lot" className="space-y-3">
+      <section aria-label={reportText('r.value-by-lot', 'Value by lot')} className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-base font-semibold">By lot</h3>
+          <h3 className="text-base font-semibold">{reportText('r.by-lot', 'By lot')}</h3>
           <button type="button" data-print-hide
             onClick={() => downloadCsv('stock-value-by-lot', STOCK_VALUE_LOT_CSV_HEADERS, stockValueLotCsvRows(lots.rows))}
             disabled={!lots.rows.length}
             className="min-h-11 px-3 py-1.5 rounded border text-sm disabled:opacity-50">
-            Download CSV
+            {reportText('r.download-csv', 'Download CSV')}
           </button>
         </div>
         <p role="note" className="text-sm text-amber-700 dark:text-amber-400">{lots.limit}</p>
         {lots.rows.length === 0 ? (
-          <p className="text-sm text-[var(--muted)]">No received lots yet: record a lot on a goods receipt (Purchase orders → Receive goods).</p>
+          <p className="text-sm text-[var(--muted)]">{reportText('r.no-received-lots-yet-record-a-lot-on-a-goods-rec', 'No received lots yet: record a lot on a goods receipt (Purchase orders → Receive goods).')}</p>
         ) : (
           <ReportTableScroll>
             <table className="w-full text-sm">
-              <caption className="sr-only">Value by lot</caption>
+              <caption className="sr-only">{reportText('r.value-by-lot', 'Value by lot')}</caption>
               <thead>
                 <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
-                  <th scope="col" className="py-2 pr-3">Item</th>
-                  <th scope="col" className="py-2 pr-3">Lot</th>
-                  <th scope="col" className="py-2 pr-3">Expiry</th>
-                  <th scope="col" className="py-2 pr-3 text-right">Received</th>
-                  <th scope="col" className="py-2 pr-3 text-right">Received value</th>
-                  <th scope="col" className="py-2 pr-3 text-right">Arrival cost</th>
-                  <th scope="col" className="py-2 pr-3">Receipts</th>
-                  <th scope="col" className="py-2 text-right">Sold (reference)</th>
+                  <th scope="col" className="py-2 pr-3">{reportText('r.item', 'Item')}</th>
+                  <th scope="col" className="py-2 pr-3">{reportText('r.lot', 'Lot')}</th>
+                  <th scope="col" className="py-2 pr-3">{reportText('r.expiry', 'Expiry')}</th>
+                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.received', 'Received')}</th>
+                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.received-value', 'Received value')}</th>
+                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.arrival-cost', 'Arrival cost')}</th>
+                  <th scope="col" className="py-2 pr-3">{reportText('r.receipts', 'Receipts')}</th>
+                  <th scope="col" className="py-2 text-right">{reportText('r.sold-reference', 'Sold (reference)')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -288,7 +288,7 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
               </tbody>
               <tfoot>
                 <tr className="border-t border-[var(--line)] font-semibold">
-                  <th scope="row" colSpan={4} className="py-2 pr-3 text-left">Total received value</th>
+                  <th scope="row" colSpan={4} className="py-2 pr-3 text-left">{reportText('r.total-received-value', 'Total received value')}</th>
                   <td className="py-2 pr-3 text-right font-mono">{money(lots.receivedValueCents)}</td>
                   <td className="py-2" colSpan={3} />
                 </tr>

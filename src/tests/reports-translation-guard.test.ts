@@ -39,6 +39,10 @@ const FILES = [
   ...['TopPartiesReportView', 'OpenAdvancesView', 'AccountantExportPackView', 'DataQualityReportView', 'CashForecast13WeekView',
     'GoodsNotBilledReportView', 'SubscriptionPlansReportView', 'CustomerCohortsReportView', 'VendorScorecardReportView',
     'ReorderSuggestionsReportView', 'DuplicateBillsReviewView', 'ThreeWayMatchReviewView'].map(name => `../components/reporting/${name}.tsx`),
+  // EU-G1 part 6: inventory, purchasing and quote reports
+  ...['CycleCountReportView', 'BlanketOrdersReportView', 'CustomerQuotesReportView', 'SerialLotLookupReportView', 'RetentionReviewReportView',
+    'EntityFilingsCalendarView', 'StockValueByLocationLotReportView', 'VendorQuotesCompareView', 'VendorPriceHistoryReportView',
+    'QuoteVersionsReportView', 'DeliveryNotesReportView', 'ShippingMethodsView'].map(name => `../components/reporting/${name}.tsx`),
 ];
 
 test('Reports: the default eight are the ones this guard covers', () => {

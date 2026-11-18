@@ -21,6 +21,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import type { Customer, Estimate, InventoryItem, Invoice, Transaction } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
 import { printElementById } from '../../lib/printRoot';
+import { fill, useReportText } from './useReportText';
 
 interface SourceEntry {
   key: string;
@@ -37,6 +38,7 @@ export default function DeliveryNotesReportView({ embedded = false }: { embedded
 }
 
 function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
+  const reportText = useReportText();
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const homeCurrency = (workspace?.currency || 'USD').toUpperCase();
@@ -82,7 +84,7 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
         lines: (est.lines || []).map(l => {
           const item = l.itemId ? itemsById.get(l.itemId) : undefined;
           return {
-            description: l.description || item?.name || 'Item',
+            description: l.description || item?.name || reportText('r.item', 'Item'),
             unitPriceCents: l.unitPriceCents,
             ...(item?.measurementUnit ? { measurementUnit: item.measurementUnit } : {}),
           };
@@ -94,7 +96,7 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
         if (del.lines.length > 0) {
           list.push({
             key: `order-delivery:${est.id}:${del.deliveryId}`,
-            label: `Sales Order ${orderNum} · Delivery ${del.date} · ${customerName}`,
+            label: fill(reportText('r.sales-order-0-delivery-1-2', 'Sales Order {0} · Delivery {1} · {2}'), { 0: orderNum, 1: del.date, 2: customerName }),
             currency,
             order: orderDoc,
             delivery: del,
@@ -105,7 +107,7 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
       if (orderDoc.lines.length > 0) {
         list.push({
           key: `order:${est.id}`,
-          label: `Sales Order ${orderNum} · ${customerName}`,
+          label: fill(reportText('r.sales-order-0-1', 'Sales Order {0} · {1}'), { 0: orderNum, 1: customerName }),
           currency,
           order: orderDoc,
           delivery: {
@@ -141,7 +143,7 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
           lines: invItems.map(l => {
             const item = l.itemId ? itemsById.get(l.itemId) : undefined;
             return {
-              description: l.description || item?.name || 'Item',
+              description: l.description || item?.name || reportText('r.item', 'Item'),
               unitPriceCents: l.rateCents,
               ...(item?.measurementUnit ? { measurementUnit: item.measurementUnit } : {}),
               // A-112: the invoice line's recorded serials and lot print on the note; order and delivery lines record none
@@ -152,7 +154,7 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
         };
         list.push({
           key: `invoice:${inv.id}`,
-          label: `Invoice ${invNum} · ${customerName}`,
+          label: fill(reportText('r.invoice-0-1', 'Invoice {0} · {1}'), { 0: invNum, 1: customerName }),
           currency,
           order: orderDoc,
           delivery: {
@@ -170,7 +172,7 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
     }
 
     return { sources: list, existingNumbers: numbers };
-  }, [estimates, invoices, transactions, itemsById, customersById, workspaceId, homeCurrency, today]);
+  }, [estimates, invoices, transactions, itemsById, customersById, workspaceId, homeCurrency, today, reportText]);
 
   const defaultNextNumber = useMemo(
     () => nextDeliveryNoteNumber(existingNumbers, currentYear),
@@ -237,14 +239,12 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
   };
 
   return (
-    <section aria-label="Delivery notes" className="p-4 space-y-4 min-w-0">
+    <section aria-label={reportText('r.delivery-notes', 'Delivery notes')} className="p-4 space-y-4 min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-2" data-print-hide>
         <div>
-          <h2>Delivery notes (EN / HE)</h2>
+          <h2>{reportText('r.delivery-notes-en-he', 'Delivery notes (EN / HE)')}</h2>
           <p className="text-sm text-[var(--muted)]">
-            Printable delivery notes from sales orders and invoices, numbered in their own series ({defaultNextNumber}),
-            in English or Hebrew, with prices hidden by default. Serials and lots print only when the source invoice
-            line recorded them; delivery entries record none, so those notes show none.
+            {reportText('r.printable-delivery-notes-from-sales-orders-and-i', 'Printable delivery notes from sales orders and invoices, numbered in their own series (')}{defaultNextNumber}{reportText('r.in-english-or-hebrew-with-prices-hidden-by-defau', '), in English or Hebrew, with prices hidden by default. Serials and lots print only when the source invoice line recorded them; delivery entries record none, so those notes show none.')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -254,7 +254,7 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
             disabled={!doc}
             className="min-h-11 px-3 py-1.5 rounded border text-sm disabled:opacity-50"
           >
-            Print delivery note
+            {reportText('r.print-delivery-note', 'Print delivery note')}
           </button>
           <button
             type="button"
@@ -262,39 +262,39 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
             disabled={!doc}
             className="min-h-11 px-3 py-1.5 rounded border text-sm disabled:opacity-50"
           >
-            Download CSV
+            {reportText('r.download-csv', 'Download CSV')}
           </button>
         </div>
       </div>
 
-      {loading && <p role="status" className="text-sm text-[var(--muted)]">Loading orders and invoices…</p>}
+      {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-orders-and-invoices', 'Loading orders and invoices…')}</p>}
       {partial && (
         <p role="alert" className="text-sm text-amber-700">
-          Orders, invoices, items or customers are only partly loaded; documents outside the loaded list are not shown.
+          {reportText('r.orders-invoices-items-or-customers-are-only-part', 'Orders, invoices, items or customers are only partly loaded; documents outside the loaded list are not shown.')}
         </p>
       )}
 
       <div className="flex flex-wrap items-end gap-3" data-print-hide>
-        <label className="flex flex-col gap-1 text-sm">Find source document
-          <input aria-label="Find source document" dir="auto" value={search} onChange={event => setSearch(event.target.value)}
+        <label className="flex flex-col gap-1 text-sm">{reportText('r.find-source-document', 'Find source document')}
+          <input aria-label={reportText('r.find-source-document', 'Find source document')} dir="auto" value={search} onChange={event => setSearch(event.target.value)}
             className="min-h-11 max-w-full border rounded px-3 bg-[var(--panel)] text-[var(--text)]" />
         </label>
-        <label className="flex flex-col gap-1 text-sm">Source type
-          <select aria-label="Source type" value={sourceType} onChange={event => setSourceType(event.target.value)}
+        <label className="flex flex-col gap-1 text-sm">{reportText('r.source-type', 'Source type')}
+          <select aria-label={reportText('r.source-type', 'Source type')} value={sourceType} onChange={event => setSourceType(event.target.value)}
             className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]">
-            <option value="all">All sources</option><option value="order">Sales orders and deliveries</option><option value="invoice">Invoices</option>
+            <option value="all">{reportText('r.all-sources', 'All sources')}</option><option value="order">{reportText('r.sales-orders-and-deliveries', 'Sales orders and deliveries')}</option><option value="invoice">{reportText('r.invoices-2', 'Invoices')}</option>
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          Source document
+          {reportText('r.source-document', 'Source document')}
           <select
-            aria-label="Source document"
+            aria-label={reportText('r.source-document', 'Source document')}
             disabled={!filteredSources.length}
             value={selected?.key || ''}
             onChange={e => setSelectedKey(e.target.value)}
             className="min-h-11 max-w-full border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
           >
-            {!filteredSources.length && <option value="">No matching sources</option>}
+            {!filteredSources.length && <option value="">{reportText('r.no-matching-sources', 'No matching sources')}</option>}
             {filteredSources.map(s => (
               <option key={s.key} value={s.key}>{s.label}</option>
             ))}
@@ -302,22 +302,22 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          Delivery note language
+          {reportText('r.delivery-note-language', 'Delivery note language')}
           <select
-            aria-label="Delivery note language"
+            aria-label={reportText('r.delivery-note-language', 'Delivery note language')}
             value={language}
             onChange={e => setLanguage(e.target.value as DeliveryNoteLanguage)}
             className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
           >
-            <option value="en">English (LTR)</option>
-            <option value="he">עברית / Hebrew (RTL)</option>
+            <option value="en">{reportText('r.english-ltr', 'English (LTR)')}</option>
+            <option value="he">{reportText('r.hebrew-rtl', 'עברית / Hebrew (RTL)')}</option>
           </select>
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          Delivery note number
+          {reportText('r.delivery-note-number', 'Delivery note number')}
           <input
-            aria-label="Delivery note number"
+            aria-label={reportText('r.delivery-note-number', 'Delivery note number')}
             type="text"
             value={customNumber}
             placeholder={defaultNextNumber}
@@ -327,9 +327,9 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          Delivery date
+          {reportText('r.delivery-date', 'Delivery date')}
           <input
-            aria-label="Delivery date"
+            aria-label={reportText('r.delivery-date', 'Delivery date')}
             type="date"
             value={effectiveDate}
             onChange={e => setCustomDate(e.target.value)}
@@ -339,18 +339,18 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
 
         <label className="flex items-center gap-2 min-h-11 text-sm text-[var(--text)]">
           <input
-            aria-label="Show prices on delivery note"
+            aria-label={reportText('r.show-prices-on-delivery-note', 'Show prices on delivery note')}
             type="checkbox"
             checked={showPrices}
             onChange={e => setShowPrices(e.target.checked)}
           />
-          Show prices on delivery note
+          {reportText('r.show-prices-on-delivery-note', 'Show prices on delivery note')}
         </label>
       </div>
 
       {!doc && !loading && (
         <p className="text-sm text-[var(--muted)]">
-          {sources.length ? 'No matching source documents. Clear the search or choose All sources.' : 'No sales orders or invoices with item lines are loaded in this workspace yet.'}
+          {sources.length ? reportText('r.no-matching-source-documents-clear-the-search-or', 'No matching source documents. Clear the search or choose All sources.') : reportText('r.no-sales-orders-or-invoices-with-item-lines-are', 'No sales orders or invoices with item lines are loaded in this workspace yet.')}
         </p>
       )}
 
@@ -358,7 +358,7 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
         <article
           id="delivery-note-sheet"
           data-print-root={embedded ? undefined : ''}
-          aria-label="Printable delivery note"
+          aria-label={reportText('r.printable-delivery-note', 'Printable delivery note')}
           dir={doc.direction}
           className="border border-[var(--line)] rounded p-5 space-y-4 bg-[var(--panel)]"
         >

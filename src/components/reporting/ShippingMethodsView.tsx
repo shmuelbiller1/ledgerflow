@@ -20,11 +20,13 @@ import {
   shippingMethodsCsvRows,
   shippingMethodsFromInventory,
 } from '../../lib/shippingMethods';
+import { fill, useReportText } from './useReportText';
 
 const field = 'w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white';
 const COMMON_CURRENCIES = ['USD', 'ILS', 'EUR', 'GBP', 'CAD', 'AUD'];
 
 export default function ShippingMethodsView() {
+  const reportText = useReportText();
   const inventory = useLedgerStore(s => s.inventory);
   const { loading } = useLedgerCollections('inventory');
   const workspaceCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
@@ -103,7 +105,7 @@ export default function ShippingMethodsView() {
   };
 
   if (loading) {
-    return <p className="p-6 text-sm text-slate-600 dark:text-slate-400">Loading shipping methods…</p>;
+    return <p className="p-6 text-sm text-slate-600 dark:text-slate-400">{reportText('r.loading-shipping-methods', 'Loading shipping methods…')}</p>;
   }
 
   return (
@@ -112,10 +114,10 @@ export default function ShippingMethodsView() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <Truck className="w-6 h-6 text-indigo-600" aria-hidden="true" />
-            Shipping Methods &amp; Rates
+            {reportText('r.shipping-methods-rates', 'Shipping Methods & Rates')}
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Each method is saved as a service item in your catalogue so it can be added directly as a line on invoices, estimates, and purchase orders with standard tax rules.
+            {reportText('r.each-method-is-saved-as-a-service-item-in-your-c', 'Each method is saved as a service item in your catalogue so it can be added directly as a line on invoices, estimates, and purchase orders with standard tax rules.')}
           </p>
         </div>
         <button
@@ -123,21 +125,21 @@ export default function ShippingMethodsView() {
           onClick={() => downloadCsv('shipping-methods.csv', SHIPPING_METHODS_CSV_HEADERS, shippingMethodsCsvRows(rows))}
           className="min-h-11 px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2"
         >
-          <Download className="w-4 h-4" aria-hidden="true" /> Export CSV
+          <Download className="w-4 h-4" aria-hidden="true" /> {reportText('r.export-csv', 'Export CSV')}
         </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
         <div>
           <label htmlFor="ship-calc-sub" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            Preview order subtotal (rate calculator)
+            {reportText('r.preview-order-subtotal-rate-calculator', 'Preview order subtotal (rate calculator)')}
           </label>
           <input id="ship-calc-sub" type="text" inputMode="decimal" value={calcSubtotalInput} onChange={e => setCalcSubtotalInput(e.target.value)} className={field} aria-invalid={calcSubtotalCents === null} aria-describedby={calcSubtotalCents === null ? 'ship-calc-sub-error' : undefined} />
-          {calcSubtotalCents === null && <p id="ship-calc-sub-error" role="alert" className="mt-1 text-xs text-red-700 dark:text-red-300">Enter the subtotal as an amount, for example 100.00</p>}
+          {calcSubtotalCents === null && <p id="ship-calc-sub-error" role="alert" className="mt-1 text-xs text-red-700 dark:text-red-300">{reportText('r.enter-the-subtotal-as-an-amount-for-example-100', 'Enter the subtotal as an amount, for example 100.00')}</p>}
         </div>
         <div>
           <label htmlFor="ship-calc-ccy" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            Order currency
+            {reportText('r.order-currency', 'Order currency')}
           </label>
           <select id="ship-calc-ccy" value={calcCurrency} onChange={e => setCalcCurrency(e.target.value)} className={field}>
             {[...new Set([workspaceCurrency, ...COMMON_CURRENCIES])].map(c => <option key={c} value={c}>{c}</option>)}
@@ -147,48 +149,48 @@ export default function ShippingMethodsView() {
 
       {canWrite && (
         <form onSubmit={handleAdd} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
-          <h2 className="text-sm font-bold text-slate-900 dark:text-white">Add shipping method</h2>
+          <h2 className="text-sm font-bold text-slate-900 dark:text-white">{reportText('r.add-shipping-method', 'Add shipping method')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
-              <label htmlFor="sm-name" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Method name</label>
-              <input id="sm-name" type="text" placeholder="Express 2-Day" value={name} onChange={e => setName(e.target.value)} className={field} />
+              <label htmlFor="sm-name" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.method-name', 'Method name')}</label>
+              <input id="sm-name" type="text" placeholder={reportText('r.express-2-day', 'Express 2-Day')} value={name} onChange={e => setName(e.target.value)} className={field} />
             </div>
             <div>
-              <label htmlFor="sm-carrier" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Carrier</label>
-              <input id="sm-carrier" type="text" placeholder="UPS / DHL / Israel Post" value={carrier} onChange={e => setCarrier(e.target.value)} className={field} />
+              <label htmlFor="sm-carrier" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.carrier', 'Carrier')}</label>
+              <input id="sm-carrier" type="text" placeholder={reportText('r.ups-dhl-israel-post', 'UPS / DHL / Israel Post')} value={carrier} onChange={e => setCarrier(e.target.value)} className={field} />
             </div>
             <div>
-              <label htmlFor="sm-zone" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Zone</label>
-              <input id="sm-zone" type="text" placeholder="Domestic / EU / US" value={zone} onChange={e => setZone(e.target.value)} className={field} />
+              <label htmlFor="sm-zone" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.zone', 'Zone')}</label>
+              <input id="sm-zone" type="text" placeholder={reportText('r.domestic-eu-us', 'Domestic / EU / US')} value={zone} onChange={e => setZone(e.target.value)} className={field} />
             </div>
             <div>
-              <label htmlFor="sm-ccy" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Currency</label>
+              <label htmlFor="sm-ccy" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.currency-2', 'Currency')}</label>
               <select id="sm-ccy" value={currency} onChange={e => setCurrency(e.target.value)} className={field}>
                 {[...new Set([workspaceCurrency, ...COMMON_CURRENCIES])].map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label htmlFor="sm-rate" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Standard rate</label>
+              <label htmlFor="sm-rate" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.standard-rate', 'Standard rate')}</label>
               <input id="sm-rate" type="text" inputMode="decimal" placeholder="14.95" value={rateInput} onChange={e => { setRateInput(e.target.value); setAmountError(null); }} className={field} aria-invalid={amountError?.field === 'rate'} aria-describedby={amountError?.field === 'rate' ? 'sm-rate-error' : undefined} />
               {amountError?.field === 'rate' && <p id="sm-rate-error" role="alert" className="mt-1 text-xs text-red-700 dark:text-red-300">{amountError.message}</p>}
             </div>
             <div>
-              <label htmlFor="sm-free" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Free above (optional)</label>
+              <label htmlFor="sm-free" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.free-above-optional', 'Free above (optional)')}</label>
               <input id="sm-free" type="text" inputMode="decimal" placeholder="150.00" value={freeAboveInput} onChange={e => { setFreeAboveInput(e.target.value); setAmountError(null); }} className={field} aria-invalid={amountError?.field === 'free'} aria-describedby={amountError?.field === 'free' ? 'sm-free-error' : undefined} />
               {amountError?.field === 'free' && <p id="sm-free-error" role="alert" className="mt-1 text-xs text-red-700 dark:text-red-300">{amountError.message}</p>}
             </div>
             <div>
-              <label htmlFor="sm-min" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Min days</label>
+              <label htmlFor="sm-min" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.min-days', 'Min days')}</label>
               <input id="sm-min" type="number" min="0" step="1" placeholder="2" value={minDays} onChange={e => setMinDays(e.target.value)} className={field} />
             </div>
             <div>
-              <label htmlFor="sm-max" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Max days</label>
+              <label htmlFor="sm-max" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.max-days', 'Max days')}</label>
               <input id="sm-max" type="number" min="0" step="1" placeholder="4" value={maxDays} onChange={e => setMaxDays(e.target.value)} className={field} />
             </div>
           </div>
           <div className="flex justify-end">
             <button type="submit" className="min-h-11 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white inline-flex items-center gap-1.5">
-              <Plus className="w-4 h-4" aria-hidden="true" /> Add method
+              <Plus className="w-4 h-4" aria-hidden="true" /> {reportText('r.add-method', 'Add method')}
             </button>
           </div>
         </form>
@@ -196,24 +198,24 @@ export default function ShippingMethodsView() {
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center">
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">No shipping methods configured</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{reportText('r.no-shipping-methods-configured', 'No shipping methods configured')}</p>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-            Add carrier rates above to make them selectable on invoices, estimates, and purchase orders.
+            {reportText('r.add-carrier-rates-above-to-make-them-selectable', 'Add carrier rates above to make them selectable on invoices, estimates, and purchase orders.')}
           </p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <table className="w-full text-sm text-start">
-            <caption className="sr-only">Shipping methods and calculated charges</caption>
+            <caption className="sr-only">{reportText('r.shipping-methods-and-calculated-charges', 'Shipping methods and calculated charges')}</caption>
             <thead className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
               <tr>
-                <th scope="col" className="px-4 py-3 text-start">Method</th>
-                <th scope="col" className="px-4 py-3 text-start">Carrier / Zone</th>
-                <th scope="col" className="px-4 py-3 text-start">Transit</th>
-                <th scope="col" className="px-4 py-3 text-end">Standard rate</th>
-                <th scope="col" className="px-4 py-3 text-end">Free from</th>
-                <th scope="col" className="px-4 py-3 text-end">Calculated fee ({calcCurrency})</th>
-                {canWrite && <th scope="col" className="px-4 py-3 text-end">Actions</th>}
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.method', 'Method')}</th>
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.carrier-zone', 'Carrier / Zone')}</th>
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.transit', 'Transit')}</th>
+                <th scope="col" className="px-4 py-3 text-end">{reportText('r.standard-rate', 'Standard rate')}</th>
+                <th scope="col" className="px-4 py-3 text-end">{reportText('r.free-from', 'Free from')}</th>
+                <th scope="col" className="px-4 py-3 text-end">{reportText('r.calculated-fee', 'Calculated fee (')}{calcCurrency})</th>
+                {canWrite && <th scope="col" className="px-4 py-3 text-end">{reportText('r.actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -228,9 +230,9 @@ export default function ShippingMethodsView() {
                     <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{r.carrier} · {r.zone}</td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                       {r.minDays !== undefined && r.maxDays !== undefined
-                        ? `${r.minDays}–${r.maxDays} days`
+                        ? fill(reportText('r.0-1-days', '{0}–{1} days'), { 0: r.minDays, 1: r.maxDays })
                         : r.minDays !== undefined
-                          ? `${r.minDays}d`
+                          ? fill(reportText('r.0-d', '{0}d'), { 0: r.minDays })
                           : '—'}
                     </td>
                     <td className="px-4 py-3 text-end tabular-nums font-semibold">{formatCurrency(r.rateCents, r.currency)}</td>
@@ -241,13 +243,13 @@ export default function ShippingMethodsView() {
                       {quote === null ? (
                         <span className="text-xs font-normal text-slate-500">—</span>
                       ) : quote.chargeCents === null ? (
-                        <span className="text-xs font-normal text-amber-700 dark:text-amber-300">{r.currency} only</span>
+                        <span className="text-xs font-normal text-amber-700 dark:text-amber-300">{r.currency} {reportText('r.only-2', 'only')}</span>
                       ) : (
                         <>
                           {formatCurrency(quote.chargeCents, r.currency)}
                           {quote.freeApplied && (
                             <span className="ml-1.5 inline-block px-1.5 py-0.5 text-[11px] rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-                              Free threshold met
+                              {reportText('r.free-threshold-met', 'Free threshold met')}
                             </span>
                           )}
                         </>
@@ -257,7 +259,7 @@ export default function ShippingMethodsView() {
                       <td className="px-4 py-3 text-end">
                         <button
                           type="button"
-                          aria-label={`Remove shipping method ${r.name}`}
+                          aria-label={fill(reportText('r.remove-shipping-method-0', 'Remove shipping method {0}'), { 0: r.name })}
                           onClick={() => deleteEntity('inventory', r.id)}
                           className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg"
                         >
