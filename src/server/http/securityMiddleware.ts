@@ -74,6 +74,7 @@ export const LARGE_JSON_ROUTE_PATTERNS: readonly RegExp[] = [
   /^\/api\/v1\/workspaces\/[^/]+\/restore\/?$/,
   /^\/api\/v1\/workspaces\/[^/]+\/import-records\/?$/,
   /^\/api\/v1\/workspaces\/[^/]+\/pay-runs\/imports(?:\/|$)/,
+  /^\/api\/v1\/commands\/payroll\.import(?:\/preview)?\/?$/,
   /^\/api\/v1\/open-items(?:\/|$)/,
   /^\/api\/v1\/transactions\/(?:bulk|batch|batch-create)\/?$/,
 ];

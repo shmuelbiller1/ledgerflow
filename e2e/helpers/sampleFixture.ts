@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { seedDemoWorkspace } from './demoWorkspaceSeeder';
 
 /** Deterministic two-entry books for tests about rows/keyboard/visuals, not the default sample year. */
-export async function installSmallSample(page: Page, empty = false) {
+export async function installSmallSample(page: Page, empty = false, additionalTables: Record<string, Record<string, unknown>> = {}) {
   const books = seedDemoWorkspace('guest');
   const tables: Record<string, Record<string, unknown>> = {
     workspaces: { guest: { id: 'guest', uid: 'owner-sample', name: 'Sample company', currency: 'USD' } },
@@ -10,6 +10,7 @@ export async function installSmallSample(page: Page, empty = false) {
     transactions: Object.fromEntries((empty ? [] : books.transactions).map(row => [row.id, row])),
     customers: Object.fromEntries(books.customers.map(row => [row.id, row])),
     vendors: Object.fromEntries(books.vendors.map(row => [row.id, row])),
+    ...additionalTables,
   };
   await page.addInitScript(data => {
     // Preserve real local writes over reload; each Playwright test starts with fresh tab storage.

@@ -288,7 +288,7 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
             <option value="all">{reportText('r.all-sources', 'All sources')}</option><option value="order">{reportText('r.sales-orders-and-deliveries', 'Sales orders and deliveries')}</option><option value="invoice">{reportText('r.invoices-2', 'Invoices')}</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">
           {reportText('r.source-document', 'Source document')}
           <select
             aria-label={reportText('r.source-document', 'Source document')}

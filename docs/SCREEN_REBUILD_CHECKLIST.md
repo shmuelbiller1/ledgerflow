@@ -1,33 +1,32 @@
-# Screen rebuild — #733 (merged), this PR continues the sweep
+# UI-2 screen rebuild — live checklist
 
-The task is unchanged: **every action and report the server offers can be reached, and a new person still sees
-only a few things.** Connect and simplify what exists. Do not add features.
+**Goal:** every action and report the server offers is reachable, without giving a new person a long menu.
+Use [`prompts/UI-2-screens.md`](prompts/UI-2-screens.md) for the requirements. Its 17 November percentage is
+historical, not an acceptance test. Earlier migration batches and their evidence are recorded below.
 
-#730 measured the remainder and split it into buckets. This PR is about **the fastest honest route through the
-list**: the work that repeats gets a tool, and the work that does not gets a reason. It also ends the first phase
-of that tool: the sweep it ships is now one a reviewer can trust cell for cell, which is what the second phase
-(the 199 tables it still refuses, §2) depends on. Every box below is a number
-from `computeQualityMetrics()` (`scripts/quality-metrics.ts`) or a named test, never a description.
+## Where we are — 18 November 2026
 
-State is measured, never described. `quality-baseline.json`, `raw-table-decisions.test.ts` and the guard tests are
-the truth.
+| Counter (`computeQualityMetrics()`) | Start of this batch | Now | Target |
+|---|---:|---:|---|
+| `rawTables` | 126 | **124** | Zero or an individual reason to keep each site |
+| `handTypedApiCalls` | 5 | **5** | Zero or individually justified (§3) |
+| `directDbWrites` | 0 | **0** | 0 |
+| `screensWithManyPrimaryButtons` | 0 | **0** | 0 |
 
-## Where we are
+**124 is files, not tables**: 122 paths on the migration queue, `PivotSheetView` (dynamic pivot) and
+`RowTable` (the embedded-table renderer itself). The full-list grid is excluded by the existing metric.
+`raw-table-decisions.test.ts` now compares the metric's actual paths against the queue and named exceptions;
+a new raw screen cannot slip in when a different screen migrates in the same PR. A queued file is **not** an exemption.
 
-| counter | before this PR | now | target | what it counts |
-|---|---|---|---|---|
-| `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
-| `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **0** | 0 | the browser writing the books instead of asking the server |
-| `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
-| `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
-| `suppressionCount` | 0 | 0 | 0 | `eslint-disable` / `@ts-ignore` in source |
+| Area | Already there — don't rebuild | Still open |
+|---|---|---|
+| Lists | Sales invoices/customers, Purchases bills/vendors and Inventory items use `TanStackDataGrid`; `scaffold:report` emits the grid. Embedded report lines use `RowTable`. | Finish migrating or justifying each remaining site. An embedded table is not a full list with search, saved views and phone cards. |
+| Records and actions | Invoice, bill and party record shells; shared schema `CommandForm`; role/refusal/next-step handling in `useCommand`. | Other record kinds; generic inverse/Undo in the hook (the project-delete action has its own Undo). A schema form in API Hub isn't reachability from the palette. |
+| Navigation | Seven daily areas, All tools, business-type defaults (`modulesForBusiness`), report/settings index and off-module “turn on” results. `business-menu.spec.ts` passed at 390 and 1280. | `CommandPalette` searches `SYSTEM_COMMANDS` and indexed pages, **not** every role-permitted entry in the 209-command generated manifest. Connect that manifest to a real form/page, and test finding and activating allowed commands in English/Hebrew and withholding forbidden ones. `palette-role-filter` is a helper test; `palette-reachability-guard` proves destinations, not that command contract. |
+| Proposals | The private sandbox, persisted steps, live-read restrictions and atomic acceptance exist (#787, #853, #855). | Verify CMD-1 part 3's edit/revalidation, partial acceptance, rejection, expiry and inverse contracts before the “Waiting for you” UI. Customer estimates are not assistant proposals. |
+| First hour | `first-hour-journey.spec.ts` at **390 and 1280**: Tab/Enter through the signed-in workspace shell to create a customer, issue and **email** an invoice, record its payment and open Reports. It checks the PDF reached the test mailbox once, the recipient’s send log, the paid invoice and **$900** net income from the server. The phone menu now closes over the chosen page and returns keyboard focus there. | The external mail provider and hosted sign-in are test boundaries, not certified by the journey. H-3 remains a separate keyboard test with stubbed writes. |
 
-`rawTables` is a count of **files**, so converting 107 tables in 95 files moved it 184 → 126: the first table in
-a file is the one the counter sees, and a second table in a file is free. 14 of those 50 files still draw a second
-table the codemod refuses, which is why 50 files moved the counter by 32. The plan below is ordered by that fact.
-
-## 1. One list — landed in this PR
+## 1. One list — earlier batches
 
 - [x] **A declarative table for the table that is part of a sentence.** `src/components/ui/RowTable.tsx`, with the
       column shapes and the CSV built from the same columns in `src/lib/rowTable.ts`. It renders the markup the
@@ -80,7 +79,7 @@ table the codemod refuses, which is why 50 files moved the counter by 32. The pl
 - [x] **45 tables in 41 files converted**, `rawTables` 184 → 158, 41 screen files −60 lines net (the explicit
       class props cost lines and buy exactness), `npx tsc --noEmit` clean, `eslint . --max-warnings 2` still at the
       two pre-existing warnings, **5315/5315 unit tests green**.
-- [x] **The ratchet lowered** — `quality-baseline.json` `rawTables: 126`, so a new hand-written table fails CI.
+- [x] **The earlier ratchet lowered** — `rawTables: 126`, so a new hand-written table fails CI.
 - [x] **Two lists told the truth again.** `StockClosingPanel` and `JournalSheetReportView` left
       `raw-table-decisions.test.ts` (they no longer draw a table, so their reasons were false) and
       `PickPackShipPanel` left the H-8 date backlog (its dates now go through the resolver).
@@ -108,27 +107,46 @@ table the codemod refuses, which is why 50 files moved the counter by 32. The pl
 - [x] A conditional row that is not about the list being empty (`{canAdd && <tr>…}`) is still refused: it is not
       an empty state, and moving it would delete it.
 
-Measured now by `npx tsx scripts/codemod-row-table.ts` → **149 tables in 126 files still refused**, by reason:
+### Comparison reports batch (18 November)
 
-| # | reason (the codemod's own refusal) | tables | route | est. files moved |
-|---|---|---|---|---|
-| 1 | a header row that is not one of the four shapes the table can take | 47 | ✋ mostly `{cond && <th>}` action columns and sortable headers (`onClick`) — the grid's work, or a hand column list | ~40 |
-| 2 | a map that does not return a row | 31 | ✋ the map returns a fragment (`<React.Fragment key>` with a details row) or a component; a fragment of *two rows* is not one row | ~30 |
-| 3 | a body that is not a map | 13 | ✋ one expression away: `const rows = cond ? a : b` above the table | ~14 |
-| 4 | a body that is not one expression: an empty-state row beside the rows, or a literal row | 16 | ✋ name the second expression: a literal row, a fragment, or a second map | ~14 |
-| 5 | a cell this script could not read as one column | 8 | ✋ look at each; some are two cells the scanner merged | 8 |
-| 6 | a row class that reads the row | 7 | ✋ `rowClassName` is fixed; keep the conditional inside the cell, or keep the table | 7 |
-| 7 | a class computed from the row | 7 | ✋ same: the class belongs inside the cell | 7 |
-| 8 | something outside the caption/header/body, or a row header after the first column | 8 | ✋ individually | 8 |
-| 9 | a table attribute (`aria-label`), a computed header list, a header class that reads its item, an empty state whose condition is not this list | 9 | ✋ the table name, or a header whose class is decided per column by hand | 9 |
-| 10 | no header row / no key / a nested map under a header that does not declare it | 3 | ✋ individually | 3 |
+- [x] Restored the shared report chooser on `RowTable`. Native rows and fragments already had source column
+      indices; rows behind a React component did not. `RowTable` now applies the same order at the point it renders
+      the cells. The user can move and hide a column, reopen the report and export the **displayed** values in that
+      order, including Hebrew text. Column visibility is remembered per header layout: inserting a comparison
+      period cannot silently hide the invoice name instead of an amount. Existing hidden-column preferences are
+      adopted on the first visit. The separate plain-numeric financial export is unchanged.
+- [x] Codemod: one optional column may be guarded by the **same table-level identifier** in the header and body.
+      An unconditional row heading may follow a code or an optional period. Different guards, a row-dependent
+      guard, conditional or multiple row headings, or a row with attributes we would lose do not convert.
+- [x] Converted **three tables in two files**: account balances as of a date, payment period by invoice date
+      (`EverydayReportViews`), and gross profit by customer (`CustomerGrossProfitView`). Comparison on/off,
+      amounts, names, keyboard moves, visible CSV and saved layout are checked on rendered tables, not inferred
+      from the presence of a button. The chooser and export templates use the reports dictionary.
+- [x] On this branch: 390/1280, light/dark, English/Hebrew and scoped axe on all three reports
+      (`visual-regression.spec.ts`, filter `visual comparison reports`). `column-chooser.test.tsx` also exercises
+      a previously migrated report (bank holidays) and checks that moving a bilingual cell keeps its DOM identity.
+      The [visual refresh](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44416325020) captured and
+      rechecked 12 Linux Chromium references. Reviewed: the focused export, right-to-left headings and visible figures.
 
-**Fast order.** The footer, empty-state and array-header buckets are done — the free 50. What is left is the hand work,
-and it is done by directory starting with `reporting` (the largest bucket), re-running the codemod after every
-batch: a file that stops being refused is free, and every batch so far has made the next one smaller. Do **not**
-hand-convert a table the codemod still refuses.
+**Next batch:** `npx tsx scripts/codemod-row-table.ts --files` now offers **15 tables in 14 files**; **131 table
+blocks refused** (including the shared renderers). At the start it offered two and refused 147. Start with the
+remaining comparison reports (e.g. `DocumentTrendsView`). Review actual output, both comparison states and
+permission-dependent cells before writing. The largest refusals are still maps that don't return one row (34),
+unsupported headings (31) and bodies that aren't a map (15). Don't hand-convert refused tables. Re-run the
+survey after each batch; lower `rawTables` only when the last raw table leaves a counted file.
 
 ## 3. One way to act
+
+The counter looks for an authenticated `fetch` in components, services and hooks, not just a literal URL in a
+screen. At this revision the five measured sites are:
+
+| Site | Why it remains / next action |
+|---|---|
+| `PayRunHistory.downloadPayslip` | PDF download, not a JSON command result. |
+| `BrandingSettings.previewBranding` | The unsaved draft is rendered to a PDF preview; no branding save. |
+| `OrderDeliveryDialog.openNote` | Opens a delivery-note PDF for printing; not the command to record a delivery. |
+| `documentDownloads.downloadDocumentsZip` | Binary archive containing several documents. |
+| `Banking.handleSyncNow` | Live Plaid sync with per-connection busy, failed and reconnect results. **Still work**: preserve these replies when moving it behind the shared client. |
 
 > **Coordinate before touching a command.** `src/server/` belongs to AI #1 (AGENTS.md), and every item below is
 > "a screen stops writing and asks a command" — which means a command that does not exist yet. The server half of
@@ -412,7 +430,7 @@ hand-convert a table the codemod still refuses.
 6. **The ratchet's zero is real.** `arrayIndexKeys` is 0 and a `<th key={index}>` inside the shared table
    failed it. The fix was not to raise the baseline — it was to key a header by its own name.
 
-## Verification for this PR
+## Historical verification for the first sweep (not the current counts)
 
 ```
 npx tsc --noEmit                       # 0 errors

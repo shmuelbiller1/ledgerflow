@@ -1,7 +1,7 @@
 import { fork } from 'node:child_process';
 import type { Page } from '@playwright/test';
 import { JOURNEY_USER, setLedgerField } from './journeyFixture';
-import type { StockTables } from './stockJourneyApp';
+import type { CapturedMail, StockTables } from './stockJourneyApp';
 
 /** Isolate the real TSX server/DB from Playwright's browser-module transformer. */
 export async function stockJourneyServer(workspaceId: string) {
@@ -24,7 +24,7 @@ export async function stockJourneyServer(workspaceId: string) {
       else if (message.error) { clearTimeout(timer); reject(new Error(message.error)); }
     });
   });
-  const request = (command: 'all' | 'ledger' | 'close', table?: keyof StockTables) => new Promise<unknown>((resolve, reject) => {
+  const request = (command: 'all' | 'ledger' | 'mail' | 'close', table?: keyof StockTables) => new Promise<unknown>((resolve, reject) => {
     const id = ++sequence;
     const timer = setTimeout(() => { waiting.delete(id); child.kill(); reject(new Error(`Stock server ${command} timed out: ${diagnostics}`)); }, 15000);
     waiting.set(id, { resolve: value => { clearTimeout(timer); resolve(value); }, reject: error => { clearTimeout(timer); reject(error); } });
@@ -32,7 +32,7 @@ export async function stockJourneyServer(workspaceId: string) {
   });
   const all = async <K extends keyof StockTables>(table: K) => await request('all', table) as StockTables[K][];
   const ledger = async () => await request('ledger') as { accounts: StockTables['chartAccounts'][]; inventory: StockTables['inventory'][]; vendors: StockTables['vendors'][]; customers: StockTables['customers'][]; transactions: StockTables['transactions'][]; bills: StockTables['bills'][]; invoices: StockTables['invoices'][] };
-  return { ...ready, all, ledger,
+  return { ...ready, all, ledger, mail: async () => await request('mail') as CapturedMail[],
     refresh: async (page: Page) => { for (const [field, rows] of Object.entries(await ledger())) await setLedgerField(page, field, rows); },
     close: async () => { try { await request('close'); } finally { if (child.connected) child.disconnect(); } },
   };

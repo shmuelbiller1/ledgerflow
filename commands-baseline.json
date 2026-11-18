@@ -1,5 +1,5 @@
 {
-  "writeRoutes": 46,
+  "writeRoutes": 45,
   "directBrowserWrites": 0,
   "routeSites": {
     "src/server/routes/aiRoutes.ts": 1,
@@ -20,7 +20,6 @@
     "src/server/routes/logsUploadRoutes.ts": 1,
     "src/server/routes/metricsAuditRoutes.ts": 1,
     "src/server/routes/openItemImportRoutes.ts": 1,
-    "src/server/routes/payrollImportRoutes.ts": 1,
     "src/server/routes/plaidRoutes.ts": 5,
     "src/server/routes/plaidWebhookRoutes.ts": 1,
     "src/server/routes/publicInvoiceRoutes.ts": 1,

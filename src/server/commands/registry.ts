@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import { COMMAND_ROLES, type AnyCommandDefinition, type CommandDefinition } from './types';
+import { COMMAND_ROLES, type AnyCommandDefinition, type CommandAuditResult, type CommandDefinition } from './types';
 import { byCodeUnit } from '../../lib/codeUnitOrder';
 
 const COMMAND_NAME = /^[a-z][a-z0-9]*\.[a-z][a-z0-9]*$/;
@@ -12,7 +12,7 @@ const COMMAND_NAME = /^[a-z][a-z0-9]*\.[a-z][a-z0-9]*$/;
 export class CommandRegistry {
   private readonly areas = new Map<string, Map<string, AnyCommandDefinition>>();
 
-  register<Schema extends z.ZodType, Result, Prepared>(definition: CommandDefinition<Schema, Result, Prepared>): () => void {
+  register<Schema extends z.ZodType, Result, Prepared>(definition: CommandDefinition<Schema, Result, Prepared, CommandAuditResult>): () => void {
     if (!COMMAND_NAME.test(definition.name)) throw new Error(`Invalid command name: ${definition.name}`);
     const [area] = definition.name.split('.');
     if (!definition.roles.length || new Set(definition.roles).size !== definition.roles.length || definition.roles.some(role => !COMMAND_ROLES.includes(role))) {

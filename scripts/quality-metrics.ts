@@ -64,12 +64,13 @@ function componentFiles(rootDir: string): string[] {
  * A table drawn by hand: `<table` in a screen file. The shared list (`TanStackDataGrid.tsx`) is the one
  * place a table is allowed to be built, so it is left out of the count.
  */
-function computeRawTables(rootDir: string): number {
+export function rawTableFiles(rootDir = process.cwd()): string[] {
   const sharedList = path.join(rootDir, 'src/components/ui/TanStackDataGrid.tsx');
   return componentFiles(rootDir)
     .filter(file => path.resolve(file) !== path.resolve(sharedList))
     .filter(file => /<table\b/.test(fs.readFileSync(file, 'utf8')))
-    .length;
+    .map(file => path.relative(rootDir, file).split(path.sep).join('/'))
+    .sort((a, b) => a.localeCompare(b, 'en'));
 }
 
 /**
@@ -398,7 +399,7 @@ export function computeQualityMetrics(rootDir: string = process.cwd()): QualityM
     suppressionCount,
     untestedViews,
     overlaysWithoutDialog,
-    rawTables: computeRawTables(rootDir),
+    rawTables: rawTableFiles(rootDir).length,
     handTypedApiCalls: computeHandTypedApiCalls(rootDir),
     directDbWrites: computeDirectDbWrites(rootDir),
     screensWithManyPrimaryButtons: computeScreensWithManyPrimaryButtons(rootDir),

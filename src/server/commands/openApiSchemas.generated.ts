@@ -103,6 +103,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "payment.void": "CommandInput_payment_void",
   "payroll.approval": "CommandInput_payroll_approval",
   "payroll.approve": "CommandInput_payroll_approve",
+  "payroll.import": "CommandInput_payroll_import",
   "payroll.reject": "CommandInput_payroll_reject",
   "payroll.run": "CommandInput_payroll_run",
   "payroll.undo": "CommandInput_payroll_undo",

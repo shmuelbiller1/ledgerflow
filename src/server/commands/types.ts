@@ -23,6 +23,8 @@ export interface CommandAuditSummary {
   details?: Record<string, unknown>;
 }
 
+export type CommandAuditResult = CommandAuditSummary | CommandAuditSummary[] | null;
+
 export interface CommandDescription {
   /** One sentence: purpose, appropriate use, and a case where it should not be used. */
   sentence: string;
@@ -56,7 +58,8 @@ export interface CommandContext {
   afterCommit(callback: () => Promise<Record<string, unknown> | void> | Record<string, unknown> | void): void;
 }
 
-export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result = unknown, Prepared = unknown> {
+export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result = unknown, Prepared = unknown,
+  Audit extends CommandAuditResult = CommandAuditSummary | null> {
   name: `${string}.${string}`;
   input: Schema;
   roles: readonly CommandRole[];
@@ -96,8 +99,8 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
   prepare?(ctx: Omit<CommandContext, 'prepared' | 'afterCommit'>, input: z.output<Schema>): Promise<Prepared>;
   handler(ctx: CommandContext, tx: Transaction, input: z.output<Schema>): Promise<Result>;
   preview(ctx: Omit<CommandContext, 'prepared' | 'afterCommit'>, input: z.output<Schema>): Promise<CommandPreview>;
-  /** Return null for an idempotent no-op that made no change, so retries do not create misleading audit entries. */
-  audit(input: z.output<Schema>, result: Result): CommandAuditSummary | null;
+  /** A batch can keep one audit entry per record. Return null for an idempotent no-op that made no change. */
+  audit(input: z.output<Schema>, result: Result): Audit;
   inverse?(input: z.output<Schema>, result: Result): { command: string; input: unknown } | null;
   risk: CommandRisk;
   describe: CommandDescription;
@@ -115,7 +118,7 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
   idempotencyHash?(ctx: Omit<CommandContext, 'prepared' | 'afterCommit'>, input: z.output<Schema>, prepared: Prepared | undefined, req: import('express').Request): string | undefined;
 }
 
-export type AnyCommandDefinition = CommandDefinition<z.ZodType, unknown, unknown>;
+export type AnyCommandDefinition = CommandDefinition<z.ZodType, unknown, unknown, CommandAuditResult>;
 
 export interface CommandInvocation {
   definition: AnyCommandDefinition;
@@ -130,6 +133,8 @@ export interface CommandInvocation {
    * account merge); the command router still requires a code-confirmed session.
    */
   legacyRoute?: boolean;
+  /** Only for a legacy address that never read operation IDs and already deduplicates by its posting keys. */
+  legacyOperationId?: 'ignore';
 }
 
 export type CommandExecutionOutcome =

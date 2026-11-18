@@ -92,11 +92,21 @@ test.describe('A-271: the reports print on the chosen paper, page only, nothing 
       await signInAsGuest(page);
       await page.setViewportSize({ width: 1280, height: 900 });
       await page.goto(`/?report=${report.id}#reports`);
-      // the report drew: the paper control is on screen and the report's own title is on the page
-      // (its print-only copy is the one the sheet carries)
       const root = page.locator('[data-print-root]').first();
       await expect(page.getByLabel('Paper size for printing')).toBeVisible({ timeout: 60_000 });
       await expect(root).toContainText(report.title);
+      // The header can render before the report chunk or the guest data. All three PDFs must
+      // contain the same populated report; aging also needs the on-demand open documents.
+      const view = root.locator(`[data-report-view="${report.id}"]`);
+      await expect(view).toBeVisible({ timeout: 30_000 });
+      const books = page.getByRole('contentinfo', { name: 'Status bar', includeHidden: true })
+        .getByText(/^[1-9]\d* Accounts · [1-9]\d* Transactions$/);
+      await expect(books).toHaveCount(1, { timeout: 30_000 });
+      if (report.id === 'ar-aging' || report.id === 'ap-aging') {
+        await expect(view.getByRole('row', { name: /^Open the (customer|vendor) aging detail for / }).first())
+          .toBeVisible({ timeout: 30_000 });
+      }
+      await page.evaluate(() => document.fonts.ready);
 
       // the browser's paper follows the page the reader chose (A4 is the default, Letter is offered)
       await expectPaperSwitch(page);

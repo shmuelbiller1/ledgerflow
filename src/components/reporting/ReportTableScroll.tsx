@@ -1,12 +1,12 @@
+import { fill, useReportText } from './useReportText';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import ExportTemplateControls from './ExportTemplateControls';
 import ReportEmptyState from './ReportEmptyState';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { readPeriodLayout, savePeriodLayout, movePeriod, validPeriodLayout } from '../../lib/reportPeriodLayout';
-import { orderReportCells } from './orderReportCells';
+import { orderReportCells, ReportColumnOrder } from '../ui/reportColumnOrder';
 import { downloadCsv } from '../../lib/csvExport';
 import { hiddenColumnsCss, readHidden, saveHidden, toggleColumn } from '../../lib/columnChoice';
-import { useReportText, fill } from './useReportText';
 
 /**
  * A named focusable region and native controls let keyboard users scroll wide tables. N-10:
@@ -15,7 +15,7 @@ import { useReportText, fill } from './useReportText';
  * no rows gets one shared next-action empty state; loading and failure states are never called empty.
  */
 export default function ReportTableScroll({children}:{children:ReactNode}) {
-  const reportText = useReportText();
+ const reportText = useReportText();
  const ref=useRef<HTMLDivElement>(null);
  const scope=useId().replace(/[^a-zA-Z0-9_-]/g,'');
  const [headers,setHeaders]=useState<string[]>([]);
@@ -60,7 +60,12 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
    setReorderable(indexed&&rectangular&&!!cells.length&&!table?.querySelector('[colspan]:not([colspan="1"]),[rowspan]:not([rowspan="1"])'));
    const name=(table?.querySelector('caption')?.textContent||'').trim()||names.join('|');
    setHeaders(prev=>(JSON.stringify(prev)===JSON.stringify(names)?prev:names));
-   if(JSON.stringify([identity,name])!==reportRef.current){reportRef.current=JSON.stringify([identity,name]);setReport(name);setHidden(name?readHidden(identity?JSON.stringify([identity,name]):name):[]);}
+   const schema = JSON.stringify([identity, name, names]);
+   if (schema !== reportRef.current) {
+     reportRef.current = schema;
+     setReport(name);
+     setHidden(name ? readHidden(identity ? JSON.stringify([identity, name]) : name, names) : []);
+   }
    const text=(table?.textContent||'').trim();
    const busy=Boolean(table?.closest('[aria-busy="true"]'))||/\b(loading|refreshing|calculating|failed|could not|error)\b/i.test(text);
    // A provisional, failed or explicit empty message outside the table already owns role=status/alert.
@@ -90,7 +95,7 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
   const first=setTimeout(read,0);
   return()=>{watch.disconnect();clearTimeout(first);};
  },[identity]);
- const change=(index:number)=>{const next=toggleColumn(effectiveHidden,index,headers.length);setHidden(next);if(report)saveHidden(reportKey,next);};
+ const change=(index:number)=>{const next=toggleColumn(effectiveHidden,index,headers.length);setHidden(next);if(report)saveHidden(reportKey,next,headers);};
  const exportDisplayed=()=>{
   const table=ref.current?.querySelector('table');
   if(!table||!reorderable)return;
@@ -102,37 +107,46 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
   });
   downloadCsv('Displayed_report_rows.csv',visible.map(index=>headers[index]),rows);
  };
+ const columnOrder = reorderable ? order.map(Number) : [];
  return <>
   {empty&&<div data-print-hide className="mb-2">
-   <ReportEmptyState title={reportText('r.nothing-to-show-in-this-table-yet', 'Nothing to show in this table yet')}
-    description={reportText('r.check-the-selected-period-search-and-filters-if', 'Check the selected period, search and filters. If the books are new, save the source invoice, bill, payment or journal first; the report reads saved records and does not invent rows.')} />
+   <ReportEmptyState title={reportText('r.empty-table', 'Nothing to show in this table yet')}
+    description={reportText('r.empty-table-help', 'Check the selected period, search and filters. If the books are new, save the source invoice, bill, payment or journal first; the report reads saved records and does not invent rows.')} />
   </div>}
-  <div ref={ref} data-columns={scope} className="overflow-x-auto" role="region" aria-label={reportText('r.scrollable-report-table', 'Scrollable report table')} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
+  <div ref={ref} data-columns={scope} className="overflow-x-auto" role="region" aria-label={reportText('r.scroll-region', 'Scrollable report table')} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
    <style>{hiddenColumnsCss(scope,effectiveHidden.map(index=>reorderable?order.indexOf(String(index)):index))}</style>
    <div data-print-hide className="sticky start-0 flex flex-wrap gap-2 mb-2">
-    <button type="button" onClick={()=>scroll(-240)} className="min-h-11 px-3 border rounded"><span aria-hidden="true">← </span>{reportText('r.scroll-table-left', 'Scroll table left')}</button>
-    <button type="button" onClick={()=>scroll(240)} className="min-h-11 px-3 border rounded">{reportText('r.scroll-table-right', 'Scroll table right')}<span aria-hidden="true"> →</span></button>
-    {headers.length>2&&<button type="button" aria-expanded={open} onClick={()=>setOpen(o=>!o)} className="min-h-11 px-3 border rounded">{reportText('r.columns', 'Columns')}{effectiveHidden.length?` ${fill(reportText('r.0-hidden', '({0} hidden)'), { 0: effectiveHidden.length })}`:''}</button>}
-    {open&&reorderable&&<button type="button" onClick={exportDisplayed} className="min-h-11 px-3 border rounded">{reportText('r.export-displayed-rows-csv', 'Export displayed rows CSV')}</button>}
+    <button type="button" onClick={()=>scroll(-240)} className="min-h-11 px-3 border rounded"><span aria-hidden="true">← </span>{reportText('r.scroll-left', 'Scroll table left')}</button>
+    <button type="button" onClick={()=>scroll(240)} className="min-h-11 px-3 border rounded">{reportText('r.scroll-right', 'Scroll table right')}<span aria-hidden="true"> →</span></button>
+    {headers.length>2&&<button type="button" aria-expanded={open} onClick={()=>setOpen(o=>!o)} className="min-h-11 px-3 border rounded">{effectiveHidden.length ? fill(reportText('r.columns-hidden', 'Columns ({count} hidden)'), { count: effectiveHidden.length }) : reportText('r.columns', 'Columns')}</button>}
+    {open&&reorderable&&<button type="button" onClick={exportDisplayed} className="min-h-11 px-3 border rounded">{reportText('r.export-displayed', 'Export displayed rows CSV')}</button>}
    </div>
    {open&&reorderable&&report&&<ExportTemplateControls report={report} columns={headers} layout={{order,hidden:effectiveHidden.map(String)}} onUse={next=>{
     const nextOrder=['0',...next.order.filter(id=>id!=='0')];
     const nextHidden=next.hidden.map(Number).filter(index=>index>0&&index<headers.length).slice(0,Math.max(0,headers.length-2));
     setChoice({key:orderKey,order:nextOrder});savePeriodLayout(orderKey,{order:nextOrder,hidden:[]});
-    setHidden(nextHidden);saveHidden(reportKey,nextHidden);
+    setHidden(nextHidden);saveHidden(reportKey,nextHidden,headers);
    }}/>}
    {open&&headers.length>2&&(
     <fieldset data-print-hide className="sticky start-0 mb-2 flex flex-wrap gap-3 text-sm">
      <legend className="sr-only">{reportText('r.columns-to-show', 'Columns to show')}</legend>
-     {reorderable&&<p className="w-full">{reportText('r.csv-includes-these-displayed-rows-and-columns-as', 'CSV includes these displayed rows and columns as shown, including localized text. Use the report’s financial export for plain numeric amounts.')}</p>}
-     {order.filter(id=>id!=='0').map(id=>({name:headers[Number(id)],column:Number(id)})).map(c=>(
-      <div key={c.column} className="flex flex-wrap items-center gap-1"><label className="min-h-11 flex items-center gap-1"><input type="checkbox" checked={!effectiveHidden.includes(c.column)} onChange={()=>change(c.column)}/>{c.name||fill(reportText('r.column-0', 'Column {0}'), { 0: c.column+1 })}</label>
-       {reorderable&&<><button type="button" className="min-h-11 px-3 border rounded" aria-label={fill(reportText('r.move-0-earlier', 'Move {0} earlier'), { 0: c.name||`Column ${c.column+1}` })} disabled={order.indexOf(String(c.column))<=1} onClick={()=>move(c.column,-1)}>←</button><button type="button" className="min-h-11 px-3 border rounded" aria-label={fill(reportText('r.move-0-later', 'Move {0} later'), { 0: c.name||`Column ${c.column+1}` })} disabled={order.indexOf(String(c.column))===order.length-1} onClick={()=>move(c.column,1)}>→</button></>}
-      </div>
-     ))}
+     {reorderable&&<p className="w-full">{reportText('r.displayed-csv-help', 'CSV includes these displayed rows and columns as shown, including localized text. Use the report’s financial export for plain numeric amounts.')}</p>}
+     {order.slice(1).map((id, position) => {
+       const column = Number(id);
+       const name = headers[column] || fill(reportText('r.column-number', 'Column {number}'), { number: column + 1 });
+       const earlier = fill(reportText('r.move-earlier', 'Move {name} earlier'), { name });
+       const later = fill(reportText('r.move-later', 'Move {name} later'), { name });
+       return <div key={id} className="flex flex-wrap items-center gap-1">
+         <label className="min-h-11 flex items-center gap-1"><input type="checkbox" checked={!effectiveHidden.includes(column)} onChange={() => change(column)} />{name}</label>
+         {reorderable && <>
+           <button type="button" className="min-h-11 px-3 border rounded" aria-label={earlier} title={earlier} disabled={position === 0} onClick={() => move(column, -1)}><span aria-hidden="true" className="inline-block rtl:rotate-180">←</span></button>
+           <button type="button" className="min-h-11 px-3 border rounded" aria-label={later} title={later} disabled={position === order.length - 2} onClick={() => move(column, 1)}><span aria-hidden="true" className="inline-block rtl:rotate-180">→</span></button>
+         </>}
+       </div>;
+     })}
     </fieldset>
    )}
-   {orderReportCells(children,reorderable?order.map(Number):[])}
+   <ReportColumnOrder.Provider value={columnOrder}>{orderReportCells(children, columnOrder)}</ReportColumnOrder.Provider>
   </div>
  </>;
 }

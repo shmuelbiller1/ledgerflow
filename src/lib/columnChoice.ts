@@ -3,21 +3,35 @@
  * hidden, remembered per report on this device (browser storage), and the CSS that hides them.
  * The first column (what each row is) always stays, and so does at least one other.
  */
-const KEY = (report: string) => `lf_columns:${report}`;
+const keyFor = (report: string, headers?: readonly string[]) => headers
+  ? `lf_columns_v2:${JSON.stringify([report, headers])}`
+  : `lf_columns:${report}`;
 
-export function readHidden(report: string): number[] {
+export function readHidden(report: string, headers?: readonly string[]): number[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem(KEY(report)) || '[]');
+    const key = keyFor(report, headers);
+    let raw = localStorage.getItem(key);
+    if (headers?.length && raw === null) {
+      // Old choices only recorded positions. Adopt them for the first observed schema, not
+      // every future layout: inserting a comparison period can make the old amount index a name.
+      const legacy = keyFor(report);
+      raw = localStorage.getItem(legacy);
+      if (raw !== null) {
+        try { localStorage.setItem(key, raw); localStorage.removeItem(legacy); }
+        catch { /* keep the old choice readable if storage is read-only */ }
+      }
+    }
+    const parsed = JSON.parse(raw || '[]');
     return Array.isArray(parsed) ? parsed.filter((n): n is number => Number.isInteger(n) && n > 0) : [];
   } catch {
     return [];
   }
 }
 
-export function saveHidden(report: string, hidden: number[]): void {
+export function saveHidden(report: string, hidden: number[], headers?: readonly string[]): void {
   try {
-    if (hidden.length) localStorage.setItem(KEY(report), JSON.stringify(hidden));
-    else localStorage.removeItem(KEY(report));
+    if (hidden.length) localStorage.setItem(keyFor(report, headers), JSON.stringify(hidden));
+    else localStorage.removeItem(keyFor(report, headers));
   } catch { /* browser storage off: the choice lasts while the screen is open */ }
 }
 

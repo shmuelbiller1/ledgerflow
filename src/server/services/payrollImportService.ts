@@ -1,10 +1,7 @@
 import crypto from 'crypto';
-import type { DocumentReference, Firestore } from '../db/firestore';
-import { FieldValue, validateWorkspaceAccounts } from '../db/firestore';
-import { ledgerWrite } from './ledgerDoor';
-import { writeServerAuditLog } from './auditLogService';
+import { validateWorkspaceAccounts, type DocumentReference, type Firestore, type Transaction } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
-import { lockMessage, postingLock } from '../../lib/periodLock';
+import { lockMessage, postingLock, type PeriodLockSettings } from '../../lib/periodLock';
 import { isCashAccount } from '../../lib/txFilters';
 import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import {
@@ -25,7 +22,7 @@ import type { ChartAccount } from '../../types';
  * figures can be imported again, and a corrected file (other totals) has another id anyway.
  */
 export class PayrollImportError extends Error {
-  constructor(readonly status: number, message: string, readonly problems: string[] = []) {
+  constructor(readonly status: number, message: string, readonly details: string[] = [], readonly code = 'PAYROLL_FILE_INVALID') {
     super(message);
     this.name = 'PayrollImportError';
   }
@@ -34,7 +31,6 @@ export class PayrollImportError extends Error {
 export interface PayrollImportInput {
   workspaceId: string;
   uid: string;
-  email?: string;
   provider: PayrollProvider;
   csv: string;
   fileName?: string;
@@ -44,6 +40,7 @@ export interface PayrollImportInput {
 }
 
 export interface PayrollImportResult {
+  currency: string;
   entries: Array<{ transactionId: string; payDate: string; totals: PayrollTotals }>;
 }
 
@@ -72,7 +69,7 @@ function checkAccountKinds(accounts: PayrollAccounts, byId: Map<string, { id: st
   return problems;
 }
 
-export async function importPayroll(db: Firestore, input: PayrollImportInput): Promise<PayrollImportResult> {
+export async function preparePayrollImport(db: Firestore, input: PayrollImportInput) {
   if (!PAYROLL_COLUMN_SETS[input.provider]) throw new PayrollImportError(400, 'Choose the payroll provider');
   const read = readPayrollCsv(input.csv, input.provider);
   if (read.problems.length) throw new PayrollImportError(400, 'The file cannot be imported', read.problems);
@@ -99,66 +96,68 @@ export async function importPayroll(db: Firestore, input: PayrollImportInput): P
   const kinds = checkAccountKinds(input.accounts, byId);
   if (kinds.length) throw new PayrollImportError(400, 'Choose accounts of the right kind', kinds);
 
-  const set = PAYROLL_COLUMN_SETS[input.provider];
-  return db.runTransaction(async t => {
-    const workspace = (await t.get(db.collection('workspaces').doc(input.workspaceId))).data();
-    if (!workspace) throw new PayrollImportError(404, 'Workspace not found');
-    const currency = String(workspace.currency || 'USD');
-    // every pay date's period open, every pay date new, before anything is written
-    const planned: Array<{ payDate: PayrollPayDate; key: string; ref: DocumentReference }> = [];
-    for (const payDate of built.payDates) {
-      const lock = postingLock(payDate.payDate, workspace as never, input.uid);
-      if (lock) throw new PayrollImportError(409, `${lockMessage(payDate.payDate, lock)} Nothing from this file was posted.`);
-      const key = payrollImportKey(input.workspaceId, input.provider, payDate);
-      let ref = db.collection('transactions').doc(`payroll-import-${key}`);
-      for (let n = 2; ; n++) {
-        const earlier = await t.get(ref);
-        if (!earlier.exists) break;
-        const e = earlier.data() || {};
-        if (e.workspaceId !== input.workspaceId) throw new PayrollImportError(409, 'The payroll could not be imported; nothing was posted');
-        const undone = Boolean(e.reversalEventId) || e.status === 'void';
-        if (!undone) throw new PayrollImportError(409, `The payroll of ${payDate.payDate} from this file (${formatCurrency(payDate.totals.grossCents, currency)} gross, ${payDate.totals.people} ${payDate.totals.people === 1 ? 'person' : 'people'}) is already in the books. Nothing from this file was posted. To correct it, reverse that entry first.`);
-        ref = db.collection('transactions').doc(`payroll-import-${key}-${n}`);
-      }
-      planned.push({ payDate, key, ref });
-    }
+  return { payDates: built.payDates, byId, labels };
+}
 
-    // every entry prepared (the validator reads) before anything is written
-    const prepared = [];
-    for (const { payDate, key, ref } of planned) {
-      const lines = payDate.lines.map((l, i) => ({
-        id: `line-${i + 1}`, accountId: l.accountId, accountName: byId.get(l.accountId)?.name || '', amountCents: l.amountCents, description: l.description,
-        ...(l.label && labels ? { dimensions: { [labels.dimensionId]: l.label } } : {}),
-      }));
-      const tx = await TransactionValidator.validateAndPrepare({
-        id: ref.id,
-        workspaceId: input.workspaceId,
-        uid: input.uid,
-        date: payDate.payDate,
-        description: `Payroll ${payDate.payDate} (${set.name})`,
-        totalAmountCents: lines.filter(l => l.amountCents > 0).reduce((s, l) => s + l.amountCents, 0),
-        currency,
-        type: 'journal',
-        status: 'approved',
-        createdAt: new Date().toISOString(),
-        metadata: {
-          type: 'payroll-import', provider: input.provider, payDate: payDate.payDate, payrollImportKey: key, fileName: input.fileName || '',
-          people: payDate.totals.people, grossCents: payDate.totals.grossCents, netCents: payDate.totals.netCents, costCents: payDate.totals.costCents,
-          ...(labels ? { labelDimensionId: labels.dimensionId } : {}),
-        },
-        lines,
-      }, { workspaceId: input.workspaceId, user: { uid: input.uid }, wsData: workspace as never }, undefined, t);
-      prepared.push({ payDate, ref, tx });
+export type PreparedPayrollImport = Awaited<ReturnType<typeof preparePayrollImport>>;
+
+/**
+ * Validate the same journals for a read-only preview and for posting. On commit, the period and
+ * duplicate checks see the runner's transaction snapshot, including any concurrent role change
+ * the runner has already checked. No writes occur until every journal has passed.
+ */
+export async function preparePayrollJournals(
+  db: Firestore, input: PayrollImportInput, plan: PreparedPayrollImport,
+  workspace: PeriodLockSettings & { currency?: unknown }, t?: Transaction,
+) {
+  const { payDates, byId, labels } = plan;
+  const set = PAYROLL_COLUMN_SETS[input.provider];
+  const currency = String(workspace.currency || 'USD');
+  // every pay date's period open, every pay date new, before anything is written
+  const planned: Array<{ payDate: PayrollPayDate; key: string; ref: DocumentReference }> = [];
+  for (const payDate of payDates) {
+    const lock = postingLock(payDate.payDate, workspace, input.uid);
+    if (lock) throw new PayrollImportError(409, `${lockMessage(payDate.payDate, lock)} Nothing from this file was posted.`, [], 'PERIOD_LOCKED');
+    const key = payrollImportKey(input.workspaceId, input.provider, payDate);
+    let ref = db.collection('transactions').doc(`payroll-import-${key}`);
+    for (let n = 2; ; n++) {
+      const earlier = await (t ? t.get(ref) : ref.get());
+      if (!earlier.exists) break;
+      const e = earlier.data() || {};
+      if (e.workspaceId !== input.workspaceId) throw new PayrollImportError(409, 'The payroll could not be imported; nothing was posted', [], 'CONFLICT');
+      const undone = Boolean(e.reversalEventId) || e.status === 'void';
+      if (!undone) throw new PayrollImportError(409, `The payroll of ${payDate.payDate} from this file (${formatCurrency(payDate.totals.grossCents, currency)} gross, ${payDate.totals.people} ${payDate.totals.people === 1 ? 'person' : 'people'}) is already in the books. Nothing from this file was posted. To correct it, reverse that entry first.`, [], 'CONFLICT');
+      ref = db.collection('transactions').doc(`payroll-import-${key}-${n}`);
     }
-    const entries: PayrollImportResult['entries'] = [];
-    for (const { payDate, ref, tx } of prepared) {
-      await ledgerWrite(t, ref, { ...tx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-      await writeServerAuditLog({
-        workspaceId: input.workspaceId, uid: input.uid, email: input.email, action: 'PAYROLL_IMPORTED', entityType: 'transactions', entityId: ref.id,
-        details: { description: `Imported the ${set.name} payroll of ${payDate.payDate}: ${payDate.totals.people} ${payDate.totals.people === 1 ? 'person' : 'people'}, gross ${formatCurrency(payDate.totals.grossCents, currency)}, net ${formatCurrency(payDate.totals.netCents, currency)}`, transactionId: ref.id },
-      }, { db, tx: t });
-      entries.push({ transactionId: ref.id, payDate: payDate.payDate, totals: payDate.totals });
-    }
-    return { entries };
-  });
+    planned.push({ payDate, key, ref });
+  }
+
+  // every entry prepared (the validator reads) before anything is written
+  const prepared = [];
+  for (const { payDate, key, ref } of planned) {
+    const lines = payDate.lines.map((l, i) => ({
+      id: `line-${i + 1}`, accountId: l.accountId, accountName: byId.get(l.accountId)?.name || '', amountCents: l.amountCents, description: l.description,
+      ...(l.label && labels ? { dimensions: { [labels.dimensionId]: l.label } } : {}),
+    }));
+    const tx = await TransactionValidator.validateAndPrepare({
+      id: ref.id,
+      workspaceId: input.workspaceId,
+      uid: input.uid,
+      date: payDate.payDate,
+      description: `Payroll ${payDate.payDate} (${set.name})`,
+      totalAmountCents: lines.filter(l => l.amountCents > 0).reduce((s, l) => s + l.amountCents, 0),
+      currency,
+      type: 'journal',
+      status: 'approved',
+      createdAt: new Date().toISOString(),
+      metadata: {
+        type: 'payroll-import', provider: input.provider, payDate: payDate.payDate, payrollImportKey: key, fileName: input.fileName || '',
+        people: payDate.totals.people, grossCents: payDate.totals.grossCents, netCents: payDate.totals.netCents, costCents: payDate.totals.costCents,
+        ...(labels ? { labelDimensionId: labels.dimensionId } : {}),
+      },
+      lines,
+    }, { db, workspaceId: input.workspaceId, user: { uid: input.uid }, wsData: workspace }, undefined, t);
+    prepared.push({ payDate, ref, tx });
+  }
+  return { currency, journals: prepared };
 }

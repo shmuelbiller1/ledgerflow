@@ -1,6 +1,6 @@
 import { fill, useReportText } from './useReportText';
 import { useDialog } from '../../hooks/useDialog';
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useServerOperationalReport, collectionStamp } from '../../hooks/useServerOperationalReport';
@@ -29,16 +29,14 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
   const bucketName = (key: string, label: string) => bucketNames[key] ?? label;
   const reportDates = useReportDates();
   const isCustomer = side === 'customer';
-  // A-270: the keyboard path. Opening a row's drill-down must leave focus on that row when it
-  // closes, whichever control opened it (the row itself, its arrow, or Enter on either).
   const rowId = (partyId: string) => `aging-row-${side}-${partyId}`;
-  const openerRef = useRef<HTMLElement | null>(null);
-  /** Closes the drill-down and puts focus back on whatever opened it (the row or its arrow). */
-  const closeDrillDown = () => {
-    setSelectedPartyId(null);
-    // the row never unmounts, so the control that opened the drawer is still there to return to
-    requestAnimationFrame(() => openerRef.current?.focus());
+  const openDrillDown = (partyId: string, opener: HTMLElement) => {
+    // Give useDialog the actual opener to restore, including when a browser doesn't focus on
+    // click. Its cleanup restores focus once; a second scheduled focus can steal the next Tab.
+    opener.focus();
+    setSelectedPartyId(partyId);
   };
+  const closeDrillDown = () => setSelectedPartyId(null);
   
   // Get data from store
   const rawCustomers = useLedgerStore(s => s.customers) || [];
@@ -238,8 +236,12 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                 <tr
                   key={row.partyId}
                   id={rowId(row.partyId)}
-                  onClick={e => { openerRef.current = (e.target as HTMLElement).closest('button'); setSelectedPartyId(row.partyId); }}
-                  onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openerRef.current = e.currentTarget; setSelectedPartyId(row.partyId); } }}
+                  onClick={e => openDrillDown(row.partyId, e.currentTarget)}
+                  onKeyDown={e => {
+                    if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+                    e.preventDefault();
+                    openDrillDown(row.partyId, e.currentTarget);
+                  }}
                   tabIndex={0}
                   aria-label={fill(isCustomer ? reportText('r.open-customer-aging', 'Open the customer aging detail for {name}') : reportText('r.open-vendor-aging', 'Open the vendor aging detail for {name}'), { name: row.partyName })}
                   className="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors group focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
@@ -257,7 +259,7 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
                     <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(row.total, currency)}</bdi>
                   </td>
                   <td className="p-4 text-right">
-                    <button type="button" aria-label={fill(reportText('r.open-name', 'Open {name}'), { name: row.partyName })} onClick={e => { e.stopPropagation(); openerRef.current = e.currentTarget; setSelectedPartyId(row.partyId); }} className="min-h-11 min-w-11 inline-flex items-center justify-center p-1 rounded-md">
+                    <button type="button" aria-label={fill(reportText('r.open-name', 'Open {name}'), { name: row.partyName })} onClick={e => { e.stopPropagation(); openDrillDown(row.partyId, e.currentTarget); }} className="min-h-11 min-w-11 inline-flex items-center justify-center p-1 rounded-md">
                       <ChevronRight aria-hidden="true" className="w-4 h-4 text-slate-500 group-hover:text-slate-700 dark:group-hover:text-white transition-colors" />
                     </button>
                   </td>

@@ -151,7 +151,15 @@ jobs:
         run: node --test scripts/eslint-warning-ratchet.test.mjs
 
       - name: Test source and CI utilities
-        run: node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs scripts/ci-cancellation.test.mjs scripts/ci-change-scope.test.mjs scripts/ci-doc-tests.test.mjs scripts/ci-build-inputs.test.mjs scripts/ci-timing.test.mjs scripts/watch-hung-tests.test.mjs scripts/archive-llama-probe.test.mjs scripts/archive-fixers.test.mjs
+        run: |
+          set +e
+          set -o pipefail
+          node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs scripts/ci-cancellation.test.mjs scripts/ci-change-scope.test.mjs scripts/ci-doc-tests.test.mjs scripts/ci-build-inputs.test.mjs scripts/ci-timing.test.mjs scripts/watch-hung-tests.test.mjs scripts/archive-llama-probe.test.mjs scripts/archive-fixers.test.mjs 2>&1 | tee test-shard.log
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            node scripts/ci-annotate-test-failures.mjs
+          fi
+          exit "$status"
 
       - name: Test the coverage merge of the unit shards
         run: node --test scripts/coverage-merge.test.mjs
@@ -589,12 +597,11 @@ jobs:
           name: playwright-combined-report
           path: playwright-report/
           retention-days: 7
-      # A shard that is cancelled at its 30-minute limit leaves no failing test behind, so the only
-      # question a reader has is "which file was it stuck in". The blob report survives the
-      # cancellation and names the suites the shard never finished.
-      - name: Say which suites a cancelled shard never reached
-        if: ${{ !cancelled() && needs.changes.outputs.browser_mode != 'skip' }}
-        run: node scripts/unfinished-suites.mjs playwright-reports/blob-report
+      # Report incomplete test results only when the selected browser run did not succeed.
+      # A timed-out shard may have uploaded nothing; the live reporter and job log are separate evidence.
+      - name: Describe incomplete tests from available browser reports
+        if: ${{ !cancelled() && ((needs.changes.outputs.browser_mode == 'full' && needs.e2e_shards.result != 'success') || (needs.changes.outputs.browser_mode == 'targeted' && needs.e2e_targeted.result != 'success')) }}
+        run: node scripts/unfinished-suites.mjs
       - name: Require every shard to succeed
         if: ${{ !cancelled() && needs.changes.outputs.browser_mode != 'skip' }}
         env:

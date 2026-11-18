@@ -15,6 +15,8 @@ import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { rawTableFiles } from '../../scripts/quality-metrics';
+import moving from './fixtures/raw-table-migration-queue.json';
 
 const ROOT = process.cwd();
 
@@ -27,40 +29,15 @@ const STAYS_WITH_A_REASON: Record<string, string> = {
     'A pivot sheet: the reader builds the rows and columns from the accounts they pick, so its shape is chosen at runtime and there is no fixed column list to sort, search or export.',
 };
 
-/** The directories a screen lives in. */
-const SCREEN_DIRS = ['src/components'];
-
-function screenFiles(dir: string, out: string[] = []): string[] {
-  for (const entry of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
-    const relative = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (entry.name !== 'tests') screenFiles(relative, out);
-    } else if (entry.name.endsWith('.tsx')) {
-      out.push(relative);
-    }
-  }
-  return out;
-}
+// Counted by the ratchet but not a screen on the migration queue: this is the shared renderer
+// for embedded report lines and document previews. Moving its callers here must not hide a new raw screen.
+const SHARED_RENDERER = 'src/components/ui/RowTable.tsx';
 
 describe('every table still drawn has been decided about', () => {
-  const drawings = screenFiles(SCREEN_DIRS[0]).filter(file => {
-    if (file.endsWith('TanStackDataGrid.tsx')) return false;
-    return /<table\b/.test(fs.readFileSync(path.join(ROOT, file), 'utf8'));
-  });
-
   test('no new screen starts drawing its own table without a decision', () => {
-    const decided = Object.keys(STAYS_WITH_A_REASON);
-    const undecided = drawings.filter(file => !decided.includes(file));
-    // not an error: these are the migration queue. The guard below pins each one to a reason, and this
-    // test only fails when a file appears that nobody has looked at — see `MOVING`.
-    assert.ok(undecided.length >= 0);
-    for (const file of undecided) {
-      assert.match(
-        fs.readFileSync(path.join(ROOT, file), 'utf8'),
-        /TanStackDataGrid|<table/,
-        `${file} is neither migrated nor explained`,
-      );
-    }
+    // Exact paths, not just a count: adding one raw screen in the same change as migrating
+    // another still fails. A removal must shrink the queue, not turn into a permanent exemption.
+    assert.deepEqual(rawTableFiles(ROOT), [...moving, SHARED_RENDERER, ...Object.keys(STAYS_WITH_A_REASON)].sort((a, b) => a.localeCompare(b, 'en')));
   });
 
   test('a reason is not stale: every screen named as staying still draws its own table', () => {

@@ -143,21 +143,25 @@ export function PartyReportLayout<T>({
         )}
 
         {onStartDateChange && onEndDateChange && (
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-neutral-500 text-[11px] font-semibold uppercase">{reportText('r.from-4', 'From:')}</span>
-            <input aria-label={reportText('r.from-date', 'From date')}
-              type="date"
-              value={startDate || ''}
-              onChange={(e) => onStartDateChange(e.target.value)}
-              className="px-2.5 py-1 text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-900 dark:text-white"
-            />
-            <span className="text-neutral-500 text-[11px] font-semibold uppercase">{reportText('r.to-4', 'To:')}</span>
-            <input aria-label={reportText('r.to-date', 'To date')}
-              type="date"
-              value={endDate || ''}
-              onChange={(e) => onEndDateChange(e.target.value)}
-              className="px-2.5 py-1 text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-900 dark:text-white"
-            />
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <label className="inline-flex items-center gap-2">
+              <span className="text-neutral-500 text-[11px] font-semibold uppercase">{reportText('r.from-4', 'From:')}</span>
+              <input aria-label={reportText('r.from-date', 'From date')}
+                type="date"
+                value={startDate || ''}
+                onChange={(e) => onStartDateChange(e.target.value)}
+                className="px-2.5 py-1 text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-900 dark:text-white"
+              />
+            </label>
+            <label className="inline-flex items-center gap-2">
+              <span className="text-neutral-500 text-[11px] font-semibold uppercase">{reportText('r.to-4', 'To:')}</span>
+              <input aria-label={reportText('r.to-date', 'To date')}
+                type="date"
+                value={endDate || ''}
+                onChange={(e) => onEndDateChange(e.target.value)}
+                className="px-2.5 py-1 text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-900 dark:text-white"
+              />
+            </label>
           </div>
         )}
       </div>

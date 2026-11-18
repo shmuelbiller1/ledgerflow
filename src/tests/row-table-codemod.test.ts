@@ -27,6 +27,36 @@ const convert = (source: string) => {
 const page = (table: string) => `export function Screen() {\n  return (\n    <section>\n${table}\n    </section>\n  );\n}\n`;
 
 describe('the codemod only takes the tables it can reproduce exactly', () => {
+  const optionalColumn = (header: string, cell: string, rowAttributes = '') => convert(page(`<table>
+    <caption>Settlement days</caption><thead><tr>${header}<th scope="col">Invoice</th></tr></thead>
+    <tbody>{rows.map(row => <tr key={row.id} ${rowAttributes}>${cell}<th scope="row">{row.number}</th></tr>)}</tbody>
+  </table>`));
+  const periodHead = '{compared && <th scope="col">Period</th>}';
+  const periodCell = '{compared && (<td dir="auto">{row.period}</td>)}';
+
+  test('one flag governs the comparison heading and its cells; the invoice still names the row', () => {
+    const { conversion } = optionalColumn(periodHead, periodCell);
+    assert.ok(conversion);
+    assert.match(conversion.after, /compared \? \{ header: "Period".*cellProps: \{ dir: "auto" \}.*=> row.period \} : false/);
+    assert.match(conversion.after, /header: "Invoice", rowHeader: true.*=> row.number/);
+  });
+
+  test('refuse conditional columns with different guards, scope, structure or attributes', () => {
+    for (const [header, cell, rowAttributes] of [
+      [periodHead, periodCell.replace('compared', 'canWrite')],
+      [periodHead, periodCell.replace('compared', 'row.compared')],
+      [periodHead, '<td>{row.period}</td>'],
+      [periodHead.replace('compared', 'row'), periodCell.replace('compared', 'row')],
+      [periodHead.replace('scope="col"', 'aria-sort="ascending"'), periodCell],
+      [periodHead, periodCell.replace('dir="auto"', '{...cellProps}')],
+      [periodHead, periodCell.replace('<td dir="auto">', '<th scope="row">').replace('</td>', '</th>')],
+      [periodHead, periodCell, 'id={row.id} aria-current={row.focused}'],
+      [periodHead, periodCell, 'hidden'],
+      [periodHead, periodCell, 'className={tableMode}'],
+      [periodHead.replace('scope="col"', 'scope="colgroup"'), periodCell],
+    ]) assert.equal(optionalColumn(header, cell, rowAttributes).conversion, undefined, `${header} / ${cell} / ${rowAttributes}`);
+  });
+
   test('a caption, literal headers and one mapped body convert into a column list', () => {
     const { conversion, reason } = convert(page(`      <table className="w-full text-sm">
         <caption>Every order and its value</caption>

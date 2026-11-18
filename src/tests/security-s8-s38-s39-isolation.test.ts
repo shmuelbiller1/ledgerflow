@@ -733,4 +733,24 @@ describe('S-8 / S-38 / S-39: tenant BOLA, role escalation, and PostgreSQL RLS is
       client.release();
     }
   });
+
+  it('S-26 (#826): an admin role grant to a user with no users row writes its audit row', async () => {
+    const adminUid = crypto.randomUUID();
+    const targetUid = crypto.randomUUID();
+    for (const [uid, meta] of [[adminUid, '{"admin": true}'], [targetUid, '{}']] as const) {
+      await db.pool.query(
+        `INSERT INTO auth.users (id, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data)
+         VALUES ($1::uuid, $2, now(), $3::jsonb, '{}'::jsonb) ON CONFLICT (id) DO NOTHING`,
+        [uid, `s26_${uid.slice(0, 8)}_${tag}@s38.test`, meta],
+      );
+    }
+    const adminToken = await mintJwt(adminUid, `s26_${adminUid.slice(0, 8)}_${tag}@s38.test`, { app_metadata: { admin: true } });
+    const res = await api('PUT', `/api/v1/admin/users/${targetUid}/role`, adminToken, { role: 'admin' });
+    assert.equal(res.status, 200, res.text);
+    const logged = await db.pool.query<{ c: number }>(
+      `SELECT count(*)::int AS c FROM public."auditLogs" WHERE data->>'action' = 'ADMIN_USER_UPDATED' AND data->'details'->>'description' = $1`,
+      [`Created user ${targetUid}`],
+    );
+    assert.equal(logged.rows[0].c, 1, 'the grant must leave exactly one audit row');
+  });
 });

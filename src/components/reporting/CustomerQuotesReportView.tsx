@@ -334,7 +334,7 @@ function CustomerQuotesContent() {
           <div className="border border-[var(--line)] rounded p-4 space-y-3 bg-[var(--panel)]">
             <h3 className="font-semibold text-base">{reportText('r.one-page-proposal-builder', 'One-page proposal builder (')}{selectedEstimate.number})</h3>
             <div className="flex flex-wrap gap-3">
-              <label className="flex flex-col gap-1 text-sm">
+              <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">
                 {reportText('r.estimate', 'Estimate')}
                 <select
                   aria-label={reportText('r.proposal-estimate', 'Proposal estimate')}
@@ -343,7 +343,7 @@ function CustomerQuotesContent() {
                     setSelectedEstId(e.target.value);
                     setOptionalPositions({});
                   }}
-                  className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
+                  className="min-h-11 min-w-0 max-w-full border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
                 >
                   {wsEstimates.map(e => (
                     <option key={e.id} value={e.id}>{e.number} · {e.customerName}</option>
