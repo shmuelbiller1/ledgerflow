@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto';
 import { errorMessage, HttpError, requestUser } from '../auth/requestUser';
 import { Request, Response } from 'express';
 import type { Firestore, Transaction as CommandTransaction } from '../db/firestore';
@@ -88,7 +89,7 @@ async function executeLegacyCommand<T>(
     } catch (error) {
       const status = (error as { status?: number }).status || 500;
       if (status >= 500) {
-        const correlationId = `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const correlationId = `err_${Date.now()}_${randomBytes(4).toString('hex')}`;
         console.error('[CommandExecutor:%s] %s failed:', correlationId, operationType, error);
         return res.status(status).json({
           status: 'error',
@@ -119,7 +120,7 @@ async function executeLegacyCommand<T>(
     }
     const status = (error as { status?: number }).status || 500;
     if (status >= 500) {
-      const correlationId = `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const correlationId = `err_${Date.now()}_${randomBytes(4).toString('hex')}`;
       console.error('[CommandExecutor:%s] Idempotent operation %s failed:', correlationId, logSafe(scopedKey), logSafeDetail(error));
       return res.status(status).json({
         status: 'error',
@@ -331,6 +332,20 @@ async function commandAccess(
   return { user, personScope, workspaceId, db, workspace, role };
 }
 
+const OPERATION_ID_SHAPE = /^[A-Za-z0-9_.:-]{1,128}$/;
+
+/**
+ * #824: an id the server derives from the input (a contract id and period, a lease name) is the caller's own
+ * text, so it can hold spaces, slashes or accents. One that already has the safe shape is used as it is (it
+ * then matches the record the old route wrote); any other is replaced by a stable hash of itself, so the
+ * repeated call still finds the same record instead of being refused or naming an unsafe record id.
+ */
+function safeDerivedOperationId(derived: string | undefined): string | undefined {
+  if (!derived) return undefined;
+  if (OPERATION_ID_SHAPE.test(derived)) return derived;
+  return `derived_${createHash('sha256').update(derived, 'utf8').digest('hex').slice(0, 48)}`;
+}
+
 /** The runner behind both the command router and the legacy wrappers (exported so a test can hold each to its gate). */
 export async function runRegisteredCommand(
   req: Request,
@@ -353,10 +368,15 @@ export async function runRegisteredCommand(
     return { ok: false, status: 400, command: command.name, message: 'Input workspaceId must match the command workspace', code: 'WORKSPACE_MISMATCH' };
   }
   const input = parsed.data;
-  const operationId = extractCanonicalOperationId(req);
-  if (operationId && !/^[A-Za-z0-9_.:-]{1,128}$/.test(operationId)) {
+  const explicitOperationId = extractCanonicalOperationId(req);
+  if (explicitOperationId && !OPERATION_ID_SHAPE.test(explicitOperationId)) {
     return { ok: false, status: 400, command: command.name, message: 'Invalid operation ID', code: 'INVALID_OPERATION_ID' };
   }
+  const operationId = explicitOperationId || safeDerivedOperationId(command.defaultOperationId?.(input));
+  // #824: a derived id stands for the thing posted (a contract's period, a lease), not for one person's request,
+  // so its record carries no actor, as the old route's did: a teammate repeating the same contract and period
+  // gets the replay rather than an "already used by another user" refusal.
+  const idempotencyActor = explicitOperationId ? user.uid : '';
 
   const operationType = command.operationType || command.name;
   const initialContext = {
@@ -389,7 +409,7 @@ export async function runRegisteredCommand(
       const previous = await db.collection('idempotencyKeys').doc(scopedKey).get();
       const record = previous.data();
       if (record?.status === 'success') {
-        assertSameRequest(record, user.uid, payloadHash);
+        assertSameRequest(record, idempotencyActor, payloadHash);
         return { ok: true, status: 200, command: command.name, data: record.result, replayed: true };
       }
     } catch (error) {
@@ -472,7 +492,7 @@ export async function runRegisteredCommand(
     if (operationId) {
       const scopedKey = deriveScopedOperationKey(workspaceId, operationType, operationId);
       result = await executeIdempotent(scopedKey, {
-        actor: user.uid,
+        actor: idempotencyActor,
         workspaceId,
         operationType,
         payloadHash,
