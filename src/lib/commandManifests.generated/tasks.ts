@@ -58,7 +58,7 @@ export const TASKS_COMMAND_MANIFEST = [
         "taskId": "task_123"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part199,
+        COMMAND_SCHEMA_PARTS.part198,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller did not create this task and is not the workspace owner.",
@@ -87,7 +87,7 @@ export const TASKS_COMMAND_MANIFEST = [
           "when": "The requested status is not open or done.",
           "next": "Use status open or done."
         },
-        COMMAND_SCHEMA_PARTS.part199,
+        COMMAND_SCHEMA_PARTS.part198,
         {
           "code": "ROLE_REQUIRED",
           "when": "The caller did not create or receive this task and is not a workspace owner.",

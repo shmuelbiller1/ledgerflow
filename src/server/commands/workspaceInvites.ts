@@ -31,6 +31,7 @@ async function readWorkspaceInvite(ctx: { db: import('../db/firestore').Firestor
 
 export const workspaceInviteRevokeCommand: CommandDefinition<typeof workspaceInviteRevokeInput, WorkspaceInviteRevokeResult> = {
   name: 'workspace.revokeinvite',
+  peopleOnly: true,
   input: workspaceInviteRevokeInput,
   roles: ['owner'],
   async handler(ctx, tx, input: WorkspaceInviteRevokeInput) {

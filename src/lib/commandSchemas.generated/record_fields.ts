@@ -19,8 +19,8 @@ export const COMMAND_INPUT_SCHEMA = {
       ]
     },
     "id": COMMAND_SCHEMA_PARTS.part98,
-    "fields": COMMAND_SCHEMA_PARTS.part245,
-    "expected": COMMAND_SCHEMA_PARTS.part245
+    "fields": COMMAND_SCHEMA_PARTS.part244,
+    "expected": COMMAND_SCHEMA_PARTS.part244
   },
   "required": [
     "collection",

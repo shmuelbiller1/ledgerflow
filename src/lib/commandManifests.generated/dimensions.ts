@@ -15,7 +15,7 @@ export const DIMENSIONS_COMMAND_MANIFEST = [
         "workspaceId": "ws_123"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part215,
+        COMMAND_SCHEMA_PARTS.part214,
         {
           "code": "PERIOD_LOCKED",
           "when": "An entry it would rewrite is dated in a closed period.",
