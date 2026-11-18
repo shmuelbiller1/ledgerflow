@@ -15,6 +15,7 @@ import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import WarehouseOperationsReportView from './WarehouseOperationsReportView';
 import InventoryWorkflowTabs from './InventoryWorkflowTabs';
+import { fill, useReportText } from './useReportText';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const CSV_HEADERS = ['Item', 'SKU', 'Expected', 'Counted', 'Difference', 'Unit cost', 'Value', 'Expected figure explained'];
@@ -30,6 +31,7 @@ const CSV_HEADERS = ['Item', 'SKU', 'Expected', 'Counted', 'Difference', 'Unit c
  * differences, values — is computed by `src/lib/cycleCounts.ts` and shown as it is.
  */
 export default function CycleCountReportView({ endDate = '', loadMoves = loadWorkspaceStockMoves, embedded = false }: { endDate?: string; loadMoves?: (workspaceId: string) => Promise<StockMove[]>; embedded?: boolean }) {
+  const reportText = useReportText();
   const items = useLedgerStore(state => state.inventory);
   const nodes = useLedgerStore(state => state.dimensionNodes || []);
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
@@ -115,65 +117,65 @@ export default function CycleCountReportView({ endDate = '', loadMoves = loadWor
   };
 
   return <>
-    <InventoryWorkflowTabs label="Inventory workflows" idPrefix="inventory" className="px-4"
+    <InventoryWorkflowTabs label={reportText('r.inventory-workflows', 'Inventory workflows')} idPrefix="inventory" className="px-4"
       value={activeWorkflow} onChange={setActiveWorkflow} tabs={[
-        { id: 'cycle-count', label: 'Cycle count', panelId: 'inventory-workflow-panel' },
-        { id: 'warehouse', label: 'Warehouse operations', panelId: 'inventory-workflow-panel' },
+        { id: 'cycle-count', label: reportText('r.cycle-count', 'Cycle count'), panelId: 'inventory-workflow-panel' },
+        { id: 'warehouse', label: reportText('r.warehouse-operations', 'Warehouse operations'), panelId: 'inventory-workflow-panel' },
       ]} />
     <div role="tabpanel" id="inventory-workflow-panel" aria-labelledby={activeWorkflow === 'cycle-count' ? 'inventory-tab-cycle-count' : 'inventory-tab-warehouse'}>
-    {activeWorkflow === 'warehouse' ? <WarehouseOperationsReportView embedded={embedded} /> : <section aria-label="Inventory cycle count" className="p-4 space-y-4 min-w-0">
-    <h2>Inventory cycle count</h2>
-    <p className="text-sm text-[var(--muted)]">A count sheet for one place: the ledger's expected quantity, what was counted, and the variance in units and at each item's own cost. {COUNT_POSTING_NOTE}</p>
-    <p className="text-sm text-[var(--muted)]">A row left blank is never read as zero — it is listed as not counted. A row whose stock history does not explain its quantity is marked, so a difference is not blamed on the count before the history is checked. Expected quantities come from the stock-moves ledger (per Location); an item with no history uses its own quantity on hand and says so.</p>
-    {readProblem && <p role="status" className="text-sm text-[var(--warning,#b45309)]">The stock-moves ledger could not be read ({readProblem}); expected quantities fall back to each item's own quantity on hand.</p>}
+    {activeWorkflow === 'warehouse' ? <WarehouseOperationsReportView embedded={embedded} /> : <section aria-label={reportText('r.inventory-cycle-count', 'Inventory cycle count')} className="p-4 space-y-4 min-w-0">
+    <h2>{reportText('r.inventory-cycle-count', 'Inventory cycle count')}</h2>
+    <p className="text-sm text-[var(--muted)]">{reportText('r.a-count-sheet-for-one-place-the-ledger-s-expecte', 'A count sheet for one place: the ledger\'s expected quantity, what was counted, and the variance in units and at each item\'s own cost.')} {COUNT_POSTING_NOTE}</p>
+    <p className="text-sm text-[var(--muted)]">{reportText('r.a-row-left-blank-is-never-read-as-zero-it-is-lis', 'A row left blank is never read as zero — it is listed as not counted. A row whose stock history does not explain its quantity is marked, so a difference is not blamed on the count before the history is checked. Expected quantities come from the stock-moves ledger (per Location); an item with no history uses its own quantity on hand and says so.')}</p>
+    {readProblem && <p role="status" className="text-sm text-[var(--warning,#b45309)]">{reportText('r.the-stock-moves-ledger-could-not-be-read', 'The stock-moves ledger could not be read (')}{readProblem}{reportText('r.expected-quantities-fall-back-to-each-item-s-own', '); expected quantities fall back to each item\'s own quantity on hand.')}</p>}
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
-      <label className="flex flex-col gap-1">Place
-        <select aria-label="Count place" className={field} value={locationId} onChange={event => setLocationId(event.target.value)}>
-          <option value={NO_LOCATION}>No location</option>
+      <label className="flex flex-col gap-1">{reportText('r.place', 'Place')}
+        <select aria-label={reportText('r.count-place', 'Count place')} className={field} value={locationId} onChange={event => setLocationId(event.target.value)}>
+          <option value={NO_LOCATION}>{reportText('r.no-location', 'No location')}</option>
           {locations.map(node => <option key={node.id} value={node.id}>{node.description || node.id}</option>)}
         </select>
       </label>
-      <label className="flex flex-col gap-1">Count date
-        <input aria-label="Count date" type="date" className={field} value={date} onChange={event => setDate(event.target.value)} />
+      <label className="flex flex-col gap-1">{reportText('r.count-date', 'Count date')}
+        <input aria-label={reportText('r.count-date', 'Count date')} type="date" className={field} value={date} onChange={event => setDate(event.target.value)} />
       </label>
       <label className="flex items-center gap-2 min-h-11 text-sm text-[var(--text)]">
-        <input aria-label="Include every item" type="checkbox" checked={includeZero} onChange={event => setIncludeZero(event.target.checked)} />
-        List every item (a full count)
+        <input aria-label={reportText('r.include-every-item', 'Include every item')} type="checkbox" checked={includeZero} onChange={event => setIncludeZero(event.target.checked)} />
+        {reportText('r.list-every-item-a-full-count', 'List every item (a full count)')}
       </label>
-      <label className="flex flex-col gap-1">Note
-        <input aria-label="Count note" className={field} value={note} onChange={event => setNote(event.target.value)} placeholder="Why this count" />
+      <label className="flex flex-col gap-1">{reportText('r.note', 'Note')}
+        <input aria-label={reportText('r.count-note', 'Count note')} className={field} value={note} onChange={event => setNote(event.target.value)} placeholder={reportText('r.why-this-count', 'Why this count')} />
       </label>
-      <button type="button" onClick={begin} disabled={!canCount} className="min-h-11 px-4 rounded bg-[var(--text)] text-[var(--surface)] disabled:opacity-50">Open the count sheet</button>
+      <button type="button" onClick={begin} disabled={!canCount} className="min-h-11 px-4 rounded bg-[var(--text)] text-[var(--surface)] disabled:opacity-50">{reportText('r.open-the-count-sheet', 'Open the count sheet')}</button>
     </div>
 
-    {!sheet && <p className="text-sm text-[var(--muted)]">{loading ? 'Loading items…' : moves === null && !readProblem ? 'Reading the stock-moves ledger…' : 'Open a count sheet to enter counted quantities.'}</p>}
+    {!sheet && <p className="text-sm text-[var(--muted)]">{loading ? reportText('r.loading-items', 'Loading items…') : moves === null && !readProblem ? reportText('r.reading-the-stock-moves-ledger', 'Reading the stock-moves ledger…') : reportText('r.open-a-count-sheet-to-enter-counted-quantities', 'Open a count sheet to enter counted quantities.')}</p>}
 
     {sheet && variance && <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <h3 className="text-base font-semibold">{locationName(sheet.locationId)} — {sheet.date}{sheet.note ? ` — ${sheet.note}` : ''}</h3>
-        <span className={`text-xs px-2 py-1 rounded ${marked ? 'bg-[var(--panel)] text-[var(--text)]' : 'bg-[var(--panel)] text-[var(--muted)]'}`}>{marked ? `Ready — marked by ${sheet.markedReadyBy || 'a person'}` : 'Open'}</span>
-        <button type="button" onClick={onMarkReady} disabled={marked || Boolean(problem)} className="min-h-11 px-4 rounded border border-[var(--line)] disabled:opacity-50">Mark ready (no posting)</button>
+        <span className={`text-xs px-2 py-1 rounded ${marked ? 'bg-[var(--panel)] text-[var(--text)]' : 'bg-[var(--panel)] text-[var(--muted)]'}`}>{marked ? fill(reportText('r.ready-marked-by-0', 'Ready — marked by {0}'), { 0: sheet.markedReadyBy || 'a person' }) : reportText('r.open', 'Open')}</span>
+        <button type="button" onClick={onMarkReady} disabled={marked || Boolean(problem)} className="min-h-11 px-4 rounded border border-[var(--line)] disabled:opacity-50">{reportText('r.mark-ready-no-posting', 'Mark ready (no posting)')}</button>
         <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]"
           onClick={() => downloadCsv(`cycle-count-${sheet.date}`, CSV_HEADERS, sheet.rows.map(row => [
             row.itemName, row.sku || '', row.expected, row.counted ?? '', row.counted === undefined ? '' : row.counted - row.expected,
             row.unitCostCents / 100, row.counted === undefined ? '' : ((row.counted - row.expected) * row.unitCostCents) / 100,
             row.unexplained ? 'No — check the history' : 'Yes',
-          ]))}>Export CSV</button>
+          ]))}>{reportText('r.export-csv', 'Export CSV')}</button>
       </div>
 
       <p className="text-sm text-[var(--text)]">
-        {variance.countedRows.length} of {sheet.rows.length} counted · {variance.differences.length} differ from the ledger · units short {variance.unitsShort} · units found {variance.unitsFound} · variance <strong>{formatCurrency(variance.valueCents, currency)}</strong>
+        {variance.countedRows.length} {reportText('r.of', 'of')} {sheet.rows.length} {reportText('r.counted', 'counted ·')} {variance.differences.length} {reportText('r.differ-from-the-ledger-units-short', 'differ from the ledger · units short')} {variance.unitsShort} {reportText('r.units-found', '· units found')} {variance.unitsFound} {reportText('r.variance-2', '· variance')} <strong>{formatCurrency(variance.valueCents, currency)}</strong>
       </p>
 
       <div className="flex flex-wrap items-end gap-2" data-print-hide>
         <label className="flex flex-col gap-1 text-sm">
-          Scan item barcode
+          {reportText('r.scan-item-barcode', 'Scan item barcode')}
           <input
-            aria-label="Scan item barcode"
+            aria-label={reportText('r.scan-item-barcode', 'Scan item barcode')}
             type="text"
             className={field}
-            placeholder="Scan or type SKU"
+            placeholder={reportText('r.scan-or-type-sku', 'Scan or type SKU')}
             value={scanInput}
             disabled={marked}
             onChange={event => {
@@ -194,23 +196,23 @@ export default function CycleCountReportView({ endDate = '', loadMoves = loadWor
           disabled={marked}
           className="min-h-11 px-4 rounded border border-[var(--line)] disabled:opacity-50"
         >
-          Count scanned item (+1)
+          {reportText('r.count-scanned-item-1', 'Count scanned item (+1)')}
         </button>
         {scanMessage && <span className="text-sm text-[var(--muted)]">{scanMessage}</span>}
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[46rem]">
-          <caption className="sr-only">Count sheet and variance</caption>
+          <caption className="sr-only">{reportText('r.count-sheet-and-variance', 'Count sheet and variance')}</caption>
           <thead>
             <tr className="text-left text-xs text-[var(--muted)] border-b border-[var(--line)]">
-              <th scope="col" className="py-2">Item</th>
-              <th scope="col">Expected</th>
-              <th scope="col">Counted</th>
-              <th scope="col">Difference</th>
-              <th scope="col">Unit cost</th>
-              <th scope="col">Value</th>
-              <th scope="col">Expected figure</th>
+              <th scope="col" className="py-2">{reportText('r.item', 'Item')}</th>
+              <th scope="col">{reportText('r.expected', 'Expected')}</th>
+              <th scope="col">{reportText('r.counted-2', 'Counted')}</th>
+              <th scope="col">{reportText('r.col-difference', 'Difference')}</th>
+              <th scope="col">{reportText('r.unit-cost', 'Unit cost')}</th>
+              <th scope="col">{reportText('r.value', 'Value')}</th>
+              <th scope="col">{reportText('r.expected-figure', 'Expected figure')}</th>
             </tr>
           </thead>
           <tbody>
@@ -220,7 +222,7 @@ export default function CycleCountReportView({ endDate = '', loadMoves = loadWor
                 <td className="py-2">{row.itemName}{row.sku ? <span className="text-[var(--muted)]"> ({row.sku})</span> : null}</td>
                 <td>{row.expected}</td>
                 <td>
-                  <input aria-label={`Counted quantity for ${row.itemName}`} inputMode="decimal" className={field} value={row.counted === undefined ? '' : String(row.counted)}
+                  <input aria-label={fill(reportText('r.counted-quantity-for-0', 'Counted quantity for {0}'), { 0: row.itemName })} inputMode="decimal" className={field} value={row.counted === undefined ? '' : String(row.counted)}
                     onChange={event => {
                       const problem = countInputProblem(event.target.value);
                       if (problem) { toast.error(problem); return; }
@@ -230,16 +232,16 @@ export default function CycleCountReportView({ endDate = '', loadMoves = loadWor
                 <td>{row.counted === undefined ? '—' : v?.difference ?? 0}</td>
                 <td>{formatCurrency(row.unitCostCents, currency)}</td>
                 <td>{row.counted === undefined ? '—' : formatCurrency(v?.valueCents ?? 0, currency)}</td>
-                <td className={row.unexplained ? 'text-[var(--warning,#b45309)]' : ''}>{row.unexplained ? row.unexplainedReason || 'No — check the history' : 'Yes'}</td>
+                <td className={row.unexplained ? 'text-[var(--warning,#b45309)]' : ''}>{row.unexplained ? row.unexplainedReason || reportText('r.no-check-the-history', 'No — check the history') : reportText('r.yes', 'Yes')}</td>
               </tr>;
             })}
           </tbody>
         </table>
       </div>
 
-      {problem && !marked && <p role="status" className="text-sm text-[var(--muted)]">Not ready to mark: {problem}.</p>}
-      {variance.notCounted.length > 0 && <p className="text-sm text-[var(--muted)]">Not counted yet ({variance.notCounted.length}): {variance.notCounted.map(r => r.itemName).join(', ')} — a blank row is not zero.</p>}
-      {variance.unexplained.length > 0 && <p className="text-sm text-[var(--warning,#b45309)]">The history does not explain the expected figure for {variance.unexplained.map(r => r.itemName).join(', ')}; the sheet cannot be marked ready until someone checks it or records the missing movement.</p>}
+      {problem && !marked && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.not-ready-to-mark', 'Not ready to mark:')} {problem}.</p>}
+      {variance.notCounted.length > 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.not-counted-yet', 'Not counted yet (')}{variance.notCounted.length}): {variance.notCounted.map(r => r.itemName).join(', ')} {reportText('r.a-blank-row-is-not-zero', '— a blank row is not zero.')}</p>}
+      {variance.unexplained.length > 0 && <p className="text-sm text-[var(--warning,#b45309)]">{reportText('r.the-history-does-not-explain-the-expected-figure', 'The history does not explain the expected figure for')} {variance.unexplained.map(r => r.itemName).join(', ')}{reportText('r.the-sheet-cannot-be-marked-ready-until-someone-c', '; the sheet cannot be marked ready until someone checks it or records the missing movement.')}</p>}
     </div>}
     </section>}
     </div>

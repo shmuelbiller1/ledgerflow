@@ -20,11 +20,13 @@ import {
   vendorQuotesFromItem,
   type VendorQuoteEntry,
 } from '../../lib/vendorQuotesCompare';
+import { fill, useReportText } from './useReportText';
 
 const field = 'w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white';
 const COMMON_CURRENCIES = ['USD', 'ILS', 'EUR', 'GBP', 'CAD', 'AUD'];
 
 export default function VendorQuotesCompareView() {
+  const reportText = useReportText();
   const inventory = useLedgerStore(s => s.inventory);
   const vendors = useLedgerStore(s => s.vendors);
   const bills = useLedgerStore(s => s.bills);
@@ -119,7 +121,7 @@ export default function VendorQuotesCompareView() {
   };
 
   if (loading) {
-    return <p className="p-6 text-sm text-slate-600 dark:text-slate-400">Loading vendor quotes…</p>;
+    return <p className="p-6 text-sm text-slate-600 dark:text-slate-400">{reportText('r.loading-vendor-quotes', 'Loading vendor quotes…')}</p>;
   }
 
   return (
@@ -128,10 +130,10 @@ export default function VendorQuotesCompareView() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <Scale className="w-6 h-6 text-indigo-600" aria-hidden="true" />
-            Vendor Quotes Compare
+            {reportText('r.vendor-quotes-compare', 'Vendor Quotes Compare')}
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Compare supplier unit prices, minimum order quantities, lead times, and quote expiry dates per item alongside each supplier&apos;s most recent billed unit cost. Lowest-price badges compare quotes strictly in the same currency.
+            {reportText('r.compare-supplier-unit-prices-minimum-order-quant', 'Compare supplier unit prices, minimum order quantities, lead times, and quote expiry dates per item alongside each supplier\'s most recent billed unit cost. Lowest-price badges compare quotes strictly in the same currency.')}
           </p>
         </div>
         <button
@@ -139,17 +141,17 @@ export default function VendorQuotesCompareView() {
           onClick={() => downloadCsv(`vendor-quotes-${asOfDate}.csv`, VENDOR_QUOTES_CSV_HEADERS, vendorQuotesCsvRows(visibleRows))}
           className="min-h-11 px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2"
         >
-          <Download className="w-4 h-4" aria-hidden="true" /> Export CSV
+          <Download className="w-4 h-4" aria-hidden="true" /> {reportText('r.export-csv', 'Export CSV')}
         </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
         <div>
           <label htmlFor="vq-filter-item" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            Filter by item
+            {reportText('r.filter-by-item', 'Filter by item')}
           </label>
           <select id="vq-filter-item" value={itemFilter} onChange={e => setItemFilter(e.target.value)} className={field}>
-            <option value="ALL">All items ({(inventory || []).length})</option>
+            <option value="ALL">{reportText('r.all-items', 'All items (')}{(inventory || []).length})</option>
             {(inventory || []).map(it => (
               <option key={it.id} value={it.id}>{it.name}{it.sku ? ` (${it.sku})` : ''}</option>
             ))}
@@ -157,7 +159,7 @@ export default function VendorQuotesCompareView() {
         </div>
         <div>
           <label htmlFor="vq-as-of" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            Quote validity as of date
+            {reportText('r.quote-validity-as-of-date', 'Quote validity as of date')}
           </label>
           <input id="vq-as-of" type="date" value={asOfDate} onChange={e => setAsOfDate(e.target.value)} className={field} />
         </div>
@@ -165,47 +167,47 @@ export default function VendorQuotesCompareView() {
 
       {canWrite && (
         <form onSubmit={handleAddQuote} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
-          <h2 className="text-sm font-bold text-slate-900 dark:text-white">Record or update supplier quote</h2>
+          <h2 className="text-sm font-bold text-slate-900 dark:text-white">{reportText('r.record-or-update-supplier-quote', 'Record or update supplier quote')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
-              <label htmlFor="vq-item" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Item</label>
+              <label htmlFor="vq-item" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.item', 'Item')}</label>
               <select id="vq-item" value={itemId} onChange={e => setItemId(e.target.value)} className={field}>
-                <option value="">Select item…</option>
+                <option value="">{reportText('r.select-item', 'Select item…')}</option>
                 {(inventory || []).map(it => <option key={it.id} value={it.id}>{it.name}</option>)}
               </select>
             </div>
             <div>
-              <label htmlFor="vq-vendor" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Vendor</label>
+              <label htmlFor="vq-vendor" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.vendor', 'Vendor')}</label>
               <select id="vq-vendor" value={vendorId} onChange={e => setVendorId(e.target.value)} className={field}>
-                <option value="">Select vendor…</option>
+                <option value="">{reportText('r.select-vendor', 'Select vendor…')}</option>
                 {(vendors || []).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
             </div>
             <div>
-              <label htmlFor="vq-currency" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Currency</label>
+              <label htmlFor="vq-currency" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.currency-2', 'Currency')}</label>
               <select id="vq-currency" value={currency} onChange={e => setCurrency(e.target.value)} className={field}>
                 {[...new Set([workspaceCurrency, ...COMMON_CURRENCIES])].map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label htmlFor="vq-price" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Unit price</label>
+              <label htmlFor="vq-price" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.unit-price', 'Unit price')}</label>
               <input id="vq-price" type="text" inputMode="decimal" placeholder="18.50" value={priceInput} onChange={e => setPriceInput(e.target.value)} className={field} />
             </div>
             <div>
-              <label htmlFor="vq-moq" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Min order qty (MOQ)</label>
+              <label htmlFor="vq-moq" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.min-order-qty-moq', 'Min order qty (MOQ)')}</label>
               <input id="vq-moq" type="number" min="1" step="1" value={minOrderQty} onChange={e => setMinOrderQty(e.target.value)} className={field} />
             </div>
             <div>
-              <label htmlFor="vq-lead" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Lead time (days)</label>
+              <label htmlFor="vq-lead" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.lead-time-days', 'Lead time (days)')}</label>
               <input id="vq-lead" type="number" min="0" step="1" placeholder="7" value={leadDays} onChange={e => setLeadDays(e.target.value)} className={field} />
             </div>
             <div>
-              <label htmlFor="vq-valid" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Valid until</label>
+              <label htmlFor="vq-valid" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.valid-until', 'Valid until')}</label>
               <input id="vq-valid" type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} className={field} />
             </div>
             <div>
-              <label htmlFor="vq-notes" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Terms / notes</label>
-              <input id="vq-notes" type="text" maxLength={240} placeholder="FOB origin" value={notes} onChange={e => setNotes(e.target.value)} className={field} />
+              <label htmlFor="vq-notes" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.terms-notes', 'Terms / notes')}</label>
+              <input id="vq-notes" type="text" maxLength={240} placeholder={reportText('r.fob-origin', 'FOB origin')} value={notes} onChange={e => setNotes(e.target.value)} className={field} />
             </div>
           </div>
           <div className="flex justify-end">
@@ -214,7 +216,7 @@ export default function VendorQuotesCompareView() {
               disabled={saving}
               className="min-h-11 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white inline-flex items-center gap-1.5 disabled:opacity-50"
             >
-              <Plus className="w-4 h-4" aria-hidden="true" /> Save quote
+              <Plus className="w-4 h-4" aria-hidden="true" /> {reportText('r.save-quote', 'Save quote')}
             </button>
           </div>
         </form>
@@ -222,26 +224,26 @@ export default function VendorQuotesCompareView() {
 
       {visibleRows.length === 0 ? (
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center">
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">No supplier quotes recorded yet</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{reportText('r.no-supplier-quotes-recorded-yet', 'No supplier quotes recorded yet')}</p>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-            Add two or more supplier quotes for an item above to compare unit prices, MOQ, lead times, and last billed cost side by side.
+            {reportText('r.add-two-or-more-supplier-quotes-for-an-item-abov', 'Add two or more supplier quotes for an item above to compare unit prices, MOQ, lead times, and last billed cost side by side.')}
           </p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <table className="w-full text-sm text-start">
-            <caption className="sr-only">Supplier quotes comparison table</caption>
+            <caption className="sr-only">{reportText('r.supplier-quotes-comparison-table', 'Supplier quotes comparison table')}</caption>
             <thead className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
               <tr>
-                <th scope="col" className="px-4 py-3 text-start">Item</th>
-                <th scope="col" className="px-4 py-3 text-start">Vendor</th>
-                <th scope="col" className="px-4 py-3 text-end">Quoted price</th>
-                <th scope="col" className="px-4 py-3 text-end">Spread vs lowest</th>
-                <th scope="col" className="px-4 py-3 text-end">MOQ</th>
-                <th scope="col" className="px-4 py-3 text-end">Lead days</th>
-                <th scope="col" className="px-4 py-3 text-start">Valid until</th>
-                <th scope="col" className="px-4 py-3 text-end">Last billed cost</th>
-                {canWrite && <th scope="col" className="px-4 py-3 text-end">Actions</th>}
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.item', 'Item')}</th>
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.vendor', 'Vendor')}</th>
+                <th scope="col" className="px-4 py-3 text-end">{reportText('r.quoted-price', 'Quoted price')}</th>
+                <th scope="col" className="px-4 py-3 text-end">{reportText('r.spread-vs-lowest', 'Spread vs lowest')}</th>
+                <th scope="col" className="px-4 py-3 text-end">{reportText('r.moq', 'MOQ')}</th>
+                <th scope="col" className="px-4 py-3 text-end">{reportText('r.lead-days', 'Lead days')}</th>
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.valid-until', 'Valid until')}</th>
+                <th scope="col" className="px-4 py-3 text-end">{reportText('r.last-billed-cost', 'Last billed cost')}</th>
+                {canWrite && <th scope="col" className="px-4 py-3 text-end">{reportText('r.actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -256,7 +258,7 @@ export default function VendorQuotesCompareView() {
                     {formatCurrency(row.unitPriceCents, row.currency)}
                     {row.lowestInCurrency && (
                       <span className="ml-2 inline-block px-2 py-0.5 text-[11px] font-bold rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-                        Lowest ({row.currency})
+                        {reportText('r.lowest', 'Lowest (')}{row.currency})
                       </span>
                     )}
                   </td>
@@ -264,16 +266,16 @@ export default function VendorQuotesCompareView() {
                     {row.deltaFromLowestCents === null
                       ? '—'
                       : row.deltaFromLowestCents === 0
-                        ? 'Best'
+                        ? reportText('r.best', 'Best')
                         : `+${formatCurrency(row.deltaFromLowestCents, row.currency)}`}
                   </td>
                   <td className="px-4 py-3 text-end tabular-nums">{row.minOrderQty}</td>
-                  <td className="px-4 py-3 text-end tabular-nums">{row.leadDays !== undefined ? `${row.leadDays}d` : '—'}</td>
+                  <td className="px-4 py-3 text-end tabular-nums">{row.leadDays !== undefined ? fill(reportText('r.0-d', '{0}d'), { 0: row.leadDays }) : '—'}</td>
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                    {row.validUntil || 'Open'}
+                    {row.validUntil || reportText('r.open', 'Open')}
                     {row.expired && (
                       <span className="ml-2 inline-block px-2 py-0.5 text-[11px] font-bold rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                        Expired
+                        {reportText('r.expired', 'Expired')}
                       </span>
                     )}
                   </td>
@@ -286,7 +288,7 @@ export default function VendorQuotesCompareView() {
                     <td className="px-4 py-3 text-end">
                       <button
                         type="button"
-                        aria-label={`Remove quote from ${row.vendorName} for ${row.itemName}`}
+                        aria-label={fill(reportText('r.remove-quote-from-0-for-1', 'Remove quote from {0} for {1}'), { 0: row.vendorName, 1: row.itemName })}
                         onClick={() => handleDeleteQuote(row.itemId, row.id)}
                         className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg"
                       >

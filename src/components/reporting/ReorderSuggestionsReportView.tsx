@@ -17,6 +17,7 @@ import { reorderSuggestions, reorderDraftOrders, type ReorderGroup } from '../..
 import { locationReorderSuggestions, type UnplacedItem } from '../../lib/locationLevels';
 import type { StockMove } from '../../lib/stockMoves';
 import type { InventoryItem, PurchaseOrder } from '../../types';
+import { useReportText, fill } from './useReportText';
 
 const CSV_HEADERS = ['Vendor', 'Item', 'SKU', 'On hand', 'Reorder point', 'Suggested quantity', 'Unit', 'Unit cost (minor units)', 'Value (minor units)', 'Unit cost source', 'Currency'];
 const LOCATION_CSV_HEADERS = ['Vendor', 'Item', 'SKU', 'Location', 'On hand', 'Minimum', 'Maximum', 'Suggested quantity', 'Unit', 'Unit cost (minor units)', 'Value (minor units)', 'Unit cost source', 'Currency'];
@@ -36,6 +37,7 @@ const PURCHASE_ORDER_CAP = 500;
  * listed with the reason and never suggested.
  */
 export default function ReorderSuggestionsReportView({ loadItemMoves }: { loadItemMoves?: (itemId: string) => Promise<StockMove[]> } = {}) {
+  const reportText = useReportText();
   const inventory = useLedgerStore(state => state.inventory);
   const vendors = useLedgerStore(state => state.vendors);
   const bills = useLedgerStore(state => state.bills);
@@ -156,54 +158,47 @@ export default function ReorderSuggestionsReportView({ loadItemMoves }: { loadIt
     : ['Item', 'SKU', 'On hand', 'Reorder point', 'To order', 'Unit cost', 'Value', 'Cost from'];
   const movesLoading = mode === 'location' && movesByItem === null && !movesError;
 
-  return <section aria-label="Reorder suggestions" className="p-4 space-y-4 min-w-0">
-    <h2>Reorder suggestions</h2>
+  return <section aria-label={reportText('r.reorder-suggestions', 'Reorder suggestions')} className="p-4 space-y-4 min-w-0">
+    <h2>{reportText('r.reorder-suggestions', 'Reorder suggestions')}</h2>
     <p className="text-sm text-[var(--muted)]">
-      Stock items whose quantity on hand dropped below their reorder point, grouped by the vendor each was
-      last bought from (bills and purchase orders, in the workspace currency {home}), with the suggested
-      quantity rounded up to whole packages. Creating purchase orders writes <b>drafts</b> only: they carry
-      the next order numbers and a note to check them, and nothing is approved, received or posted. Items in
-      the &quot;no preferred vendor yet&quot; group were never bought, so they cannot be drafted — order them once or
-      set a price on the item. Purchases recorded in another currency are not used as unit costs here.
-      By location, items with a minimum and maximum per location suggest a top-up to the maximum where a
-      location fell below its minimum — only when the stock history proves where the stock sits.
+      {reportText('r.stock-items-whose-quantity-on-hand-dropped-below', 'Stock items whose quantity on hand dropped below their reorder point, grouped by the vendor each was last bought from (bills and purchase orders, in the workspace currency')} {home}{reportText('r.with-the-suggested-quantity-rounded-up-to-whole', '), with the suggested quantity rounded up to whole packages. Creating purchase orders writes')} <b>{reportText('r.drafts', 'drafts')}</b> {reportText('r.only-they-carry-the-next-order-numbers-and-a-not', 'only: they carry the next order numbers and a note to check them, and nothing is approved, received or posted. Items in the "no preferred vendor yet" group were never bought, so they cannot be drafted — order them once or set a price on the item. Purchases recorded in another currency are not used as unit costs here. By location, items with a minimum and maximum per location suggest a top-up to the maximum where a location fell below its minimum — only when the stock history proves where the stock sits.')}
     </p>
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
-      <label className="flex flex-col gap-1 text-sm">Suggest by
-        <select aria-label="Suggest by" value={mode} onChange={e => setMode(e.target.value as typeof mode)}
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.suggest-by', 'Suggest by')}
+        <select aria-label={reportText('r.suggest-by', 'Suggest by')} value={mode} onChange={e => setMode(e.target.value as typeof mode)}
           className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]">
-          <option value="total">Total stock (reorder point)</option>
-          <option value="location">Location (minimum / maximum)</option>
+          <option value="total">{reportText('r.total-stock-reorder-point', 'Total stock (reorder point)')}</option>
+          <option value="location">{reportText('r.location-minimum-maximum', 'Location (minimum / maximum)')}</option>
         </select>
       </label>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!vendorGroups.length || busy || !canCreate || isGuest || loading || ordersLoading || movesLoading}
         onClick={createDrafts}>
-        {busy ? 'Creating drafts…' : `Create ${vendorGroups.length ? vendorGroups.length : ''} draft purchase order${vendorGroups.length === 1 ? '' : 's'}`}
+        {busy ? reportText('r.creating-drafts', 'Creating drafts…') : (vendorGroups.length === 1 ? reportText('r.create-one-draft-po', 'Create 1 draft purchase order') : fill(reportText('r.create-n-draft-pos', 'Create {n} draft purchase orders'), { n: vendorGroups.length || '' }))}
       </button>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!shown.length}
-        onClick={() => downloadCsv('reorder-suggestions', mode === 'location' ? LOCATION_CSV_HEADERS : CSV_HEADERS, csvRows(shown))}>Export CSV</button>
+        onClick={() => downloadCsv('reorder-suggestions', mode === 'location' ? LOCATION_CSV_HEADERS : CSV_HEADERS, csvRows(shown))}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
-    {!canCreate && <p className="text-sm text-[var(--muted)]">A viewer reads this report; creating drafts takes an owner, accountant or bookkeeper.</p>}
-    {isGuest && <p className="text-sm text-[var(--muted)]">A guest workspace has no signed-in user, so drafts cannot be saved here.</p>}
-    {created.length > 0 && <p role="status" className="text-sm">Created: {created.join(', ')} — drafts wait under Purchases.</p>}
+    {!canCreate && <p className="text-sm text-[var(--muted)]">{reportText('r.a-viewer-reads-this-report-creating-drafts-takes', 'A viewer reads this report; creating drafts takes an owner, accountant or bookkeeper.')}</p>}
+    {isGuest && <p className="text-sm text-[var(--muted)]">{reportText('r.a-guest-workspace-has-no-signed-in-user-so-draft', 'A guest workspace has no signed-in user, so drafts cannot be saved here.')}</p>}
+    {created.length > 0 && <p role="status" className="text-sm">{reportText('r.created', 'Created:')} {created.join(', ')} {reportText('r.drafts-wait-under-purchases', '— drafts wait under Purchases.')}</p>}
 
-    {(loading || ordersLoading) && <p role="status" className="text-sm text-[var(--muted)]">Loading items, vendors and purchases…</p>}
-    {movesLoading && <p role="status" className="text-sm text-[var(--muted)]">Reading where the stock sits…</p>}
-    {movesError && <p role="alert" className="text-sm text-amber-700">The stock history could not be read: {movesError}</p>}
-    {partial && <p role="alert" className="text-sm text-[var(--muted)]">Some loaded lists are capped or failed at the database. Suggestions may be incomplete.</p>}
-    {mode === 'total' && !loading && !shown.length && <p className="text-sm text-[var(--muted)]">Nothing is below its reorder point. Reorder points are set on the items in Inventory.</p>}
-    {mode === 'location' && !movesLoading && !leveledItems.length && <p className="text-sm text-[var(--muted)]">No item has stock levels per location yet. Set a minimum and maximum per location on the item in Inventory.</p>}
-    {mode === 'location' && !movesLoading && leveledItems.length > 0 && !shown.length && !located.unplaced.length && <p className="text-sm text-[var(--muted)]">Nothing is below its location minimum.</p>}
+    {(loading || ordersLoading) && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-items-vendors-and-purchases', 'Loading items, vendors and purchases…')}</p>}
+    {movesLoading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.reading-where-the-stock-sits', 'Reading where the stock sits…')}</p>}
+    {movesError && <p role="alert" className="text-sm text-amber-700">{reportText('r.the-stock-history-could-not-be-read', 'The stock history could not be read:')} {movesError}</p>}
+    {partial && <p role="alert" className="text-sm text-[var(--muted)]">{reportText('r.some-loaded-lists-are-capped-or-failed-at-the-da', 'Some loaded lists are capped or failed at the database. Suggestions may be incomplete.')}</p>}
+    {mode === 'total' && !loading && !shown.length && <p className="text-sm text-[var(--muted)]">{reportText('r.nothing-is-below-its-reorder-point-reorder-point', 'Nothing is below its reorder point. Reorder points are set on the items in Inventory.')}</p>}
+    {mode === 'location' && !movesLoading && !leveledItems.length && <p className="text-sm text-[var(--muted)]">{reportText('r.no-item-has-stock-levels-per-location-yet-set-a', 'No item has stock levels per location yet. Set a minimum and maximum per location on the item in Inventory.')}</p>}
+    {mode === 'location' && !movesLoading && leveledItems.length > 0 && !shown.length && !located.unplaced.length && <p className="text-sm text-[var(--muted)]">{reportText('r.nothing-is-below-its-location-minimum', 'Nothing is below its location minimum.')}</p>}
     <p className="text-sm">
       {mode === 'location'
-        ? `${totalLines} location(s) below their minimum across ${shown.length} group(s)`
-        : `${totalLines} item(s) below their reorder point across ${shown.length} group(s)`}
+        ? fill(reportText('r.locations-below-min', '{n} location(s) below their minimum across {groups} group(s)'), { n: totalLines, groups: shown.length })
+        : fill(reportText('r.items-below-reorder', '{n} item(s) below their reorder point across {groups} group(s)'), { n: totalLines, groups: shown.length })}
     </p>
     {mode === 'location' && located.unplaced.length > 0 && (
       <div className="space-y-1">
-        <h3 className="text-base font-semibold">Not placed by location ({located.unplaced.length})</h3>
-        <p className="text-sm text-[var(--muted)]">These items have levels, but the stock history does not prove where their stock sits — so nothing is suggested for them.</p>
+        <h3 className="text-base font-semibold">{reportText('r.not-placed-by-location', 'Not placed by location (')}{located.unplaced.length})</h3>
+        <p className="text-sm text-[var(--muted)]">{reportText('r.these-items-have-levels-but-the-stock-history-do', 'These items have levels, but the stock history does not prove where their stock sits — so nothing is suggested for them.')}</p>
         <ul className="text-sm list-disc list-inside">
           {located.unplaced.map(u => <li key={u.itemId}><bdi>{u.name}</bdi> — {u.reason}</li>)}
         </ul>
@@ -212,11 +207,11 @@ export default function ReorderSuggestionsReportView({ loadItemMoves }: { loadIt
 
     {shown.map(group => <div key={group.vendorId || 'none'} className="space-y-1">
       <h3 className="text-base font-semibold">
-        <bdi>{group.vendorName}</bdi> · {group.lines.length} item(s) · about {formatCurrency(group.totalCents, home)}
+        <bdi>{group.vendorName}</bdi> · {group.lines.length} {reportText('r.item-s-about', 'item(s) · about')} {formatCurrency(group.totalCents, home)}
       </h3>
       <ReportTableScroll>
         <table className="w-full text-sm">
-          <caption>What to reorder from {group.vendorName}</caption>
+          <caption>{reportText('r.what-to-reorder-from', 'What to reorder from')} {group.vendorName}</caption>
           <thead>
             <tr>{heads.map(head =>
               <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
@@ -232,7 +227,7 @@ export default function ReorderSuggestionsReportView({ loadItemMoves }: { loadIt
               <td className="py-1 px-2"><b>{line.suggestedQuantity}</b>{line.unit ? ` ${line.unit}` : ''}</td>
               <td className="py-1 px-2">{line.unitCostCents ? formatCurrency(line.unitCostCents, home) : '—'}</td>
               <td className="py-1 px-2">{line.unitCostCents ? formatCurrency(Math.round(line.unitCostCents * line.suggestedQuantity), home) : '—'}</td>
-              <td className="py-1 px-2">{line.costSource === 'vendor-history' ? 'last purchase' : 'item record'}</td>
+              <td className="py-1 px-2">{line.costSource === 'vendor-history' ? reportText('r.last-purchase', 'last purchase') : reportText('r.item-record', 'item record')}</td>
             </tr>)}
           </tbody>
         </table>

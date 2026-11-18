@@ -12,6 +12,10 @@ import ReportTableScroll from './ReportTableScroll';
 import type { AttachmentCollection } from '../../lib/attachments';
 import type { Bill, CreditNote, DimensionNode, Estimate, Invoice, PurchaseOrder, VendorCredit } from '../../types';
 import { RowTable } from '../ui/RowTable';
+import { useReportText } from './useReportText';
+
+/** Code names, paths and URL shapes shown as-is: they are not words to translate (EU-G1). */
+const CODE_NAMES = { setting: 'Workspace.retention', uk: 'UK' } as const;
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const RETENTION_COLLECTIONS: AttachmentCollection[] = ['invoices', 'bills', 'estimates', 'purchaseOrders'];
@@ -177,6 +181,7 @@ export function RetentionReviewPanel({ report, asOfDate, loading = false, partia
   attachmentIndexAvailable?: boolean;
   attachmentError?: boolean;
 }) {
+  const reportText = useReportText();
   const [filter, setFilter] = useState<'all' | 'due' | 'not-due' | 'unclassified'>('all');
   const [search, setSearch] = useState('');
   const validAsOf = validCustomReportPeriod({ startDate: asOfDate, endDate: asOfDate });
@@ -188,19 +193,19 @@ export function RetentionReviewPanel({ report, asOfDate, loading = false, partia
       .filter(Boolean).join(' ')).includes(query);
   });
 
-  return <section aria-label="Record retention review" className="p-4 space-y-4 min-w-0">
-    <h2>Record retention review</h2>
+  return <section aria-label={reportText('r.record-retention-review', 'Record retention review')} className="p-4 space-y-4 min-w-0">
+    <h2>{reportText('r.record-retention-review', 'Record retention review')}</h2>
     <p className="text-sm text-[var(--muted)]">
-      This review uses the owner-specified IL, US and UK timetable below to identify records whose document-date anniversary after the stated calendar years has passed. Country is resolved from the books or the Company Tax profile; missing dates, missing countries and countries without a period stay unclassified. The report is read-only: it does not delete records or authorize deletion, and its timetable is not legal advice.
+      {reportText('r.this-review-uses-the-owner-specified-il-us-and-u', 'This review uses the owner-specified IL, US and UK timetable below to identify records whose document-date anniversary after the stated calendar years has passed. Country is resolved from the books or the Company Tax profile; missing dates, missing countries and countries without a period stay unclassified. The report is read-only: it does not delete records or authorize deletion, and its timetable is not legal advice.')}
     </p>
     <p className="text-sm text-[var(--muted)]">
-      Scope: invoices, bills (including expense claims), customer/vendor credits, estimates, purchase orders, and attached files linked to supported invoices, bills, estimates or purchase orders. Attached files inherit their source record date and entity; orphaned or unloaded sources are unclassified. This is separate from <code>Workspace.retention</code>, which controls server log and workspace-recovery retention.
+      {reportText('r.scope-invoices-bills-including-expense-claims-cu', 'Scope: invoices, bills (including expense claims), customer/vendor credits, estimates, purchase orders, and attached files linked to supported invoices, bills, estimates or purchase orders. Attached files inherit their source record date and entity; orphaned or unloaded sources are unclassified. This is separate from')} <code>{CODE_NAMES.setting}</code>{reportText('r.which-controls-server-log-and-workspace-recovery', ', which controls server log and workspace-recovery retention.')}
     </p>
 
     <ReportTableScroll>
       <RowTable
         rowClassName="border-b border-[var(--line)]/50"
-        caption={(<>Owner-specified country review timetable — verify before acting</>)}
+        caption={(<>{reportText('r.owner-specified-country-review-timetable-verify', 'Owner-specified country review timetable — verify before acting')}</>)}
         rows={RECORD_RETENTION_REVIEW_PERIODS}
         rowKey={period => period.countryCode}
         captionClassName=""
@@ -208,46 +213,46 @@ export function RetentionReviewPanel({ report, asOfDate, loading = false, partia
         headRowClassName=""
         bodyClassName=""
         columns={[
-          { header: "Country", className: "text-left font-normal py-1 px-2", headClassName: "text-left", cell: (period) => (<>{period.countryName} ({period.countryCode === 'GB' ? 'UK' : period.countryCode})</>) },
-          { header: "Review period", className: "py-1 px-2", headClassName: "text-left", cell: (period) => (<>{period.years} years</>) },
-          { header: "Basis", className: "py-1 px-2", headClassName: "text-left", cell: (period) => period.source },
+          { header: reportText('r.country', 'Country'), className: "text-left font-normal py-1 px-2", headClassName: "text-left", cell: (period) => (<>{period.countryName} ({period.countryCode === 'GB' ? CODE_NAMES.uk : period.countryCode})</>) },
+          { header: reportText('r.review-period', 'Review period'), className: "py-1 px-2", headClassName: "text-left", cell: (period) => (<>{period.years} {reportText('r.years', 'years')}</>) },
+          { header: reportText('r.basis', 'Basis'), className: "py-1 px-2", headClassName: "text-left", cell: (period) => period.source },
         ]}
       />
     </ReportTableScroll>
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
-      <label className="flex flex-col gap-1 text-sm">Review status
-        <select aria-label="Retention review status" className={field} value={filter} onChange={event => setFilter(event.target.value as typeof filter)}>
-          <option value="all">All records</option>
-          <option value="due">Due for review</option>
-          <option value="not-due">Not yet due</option>
-          <option value="unclassified">Unclassified</option>
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.review-status', 'Review status')}
+        <select aria-label={reportText('r.retention-review-status', 'Retention review status')} className={field} value={filter} onChange={event => setFilter(event.target.value as typeof filter)}>
+          <option value="all">{reportText('r.all-records', 'All records')}</option>
+          <option value="due">{reportText('r.due-for-review', 'Due for review')}</option>
+          <option value="not-due">{reportText('r.not-yet-due', 'Not yet due')}</option>
+          <option value="unclassified">{reportText('r.unclassified', 'Unclassified')}</option>
         </select>
       </label>
-      <label className="flex flex-col gap-1 text-sm">Find a record
-        <input aria-label="Find a retained record" className={field} value={search} onChange={event => setSearch(event.target.value)} placeholder="Number, entity or country" />
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.find-a-record', 'Find a record')}
+        <input aria-label={reportText('r.find-a-retained-record', 'Find a retained record')} className={field} value={search} onChange={event => setSearch(event.target.value)} placeholder={reportText('r.number-entity-or-country', 'Number, entity or country')} />
       </label>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!rows.length || loading || partial || !report}
-        onClick={() => report && downloadCsv('record-retention-review', RETENTION_REVIEW_CSV_HEADERS, retentionReviewCsvRows(rows))}>Export CSV</button>
+        onClick={() => report && downloadCsv('record-retention-review', RETENTION_REVIEW_CSV_HEADERS, retentionReviewCsvRows(rows))}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
 
-    {!validAsOf && <p role="alert">Choose a valid as-of date.</p>}
-    {loading && <p role="status">Loading documents and attachment metadata…</p>}
-    {partial && <p role="alert">The review history is incomplete. Some source records or linked attachments may be missing, so CSV is unavailable until all required history is available.</p>}
-    {!attachmentIndexAvailable && !loading && <p role="note">Attached-file metadata is not available in demo/offline mode. Source records can still be listed, but linked files are not included.</p>}
-    {attachmentError && <p role="alert">Attached-file metadata could not be loaded. The source-document rows remain, but the attachment list is incomplete.</p>}
+    {!validAsOf && <p role="alert">{reportText('r.choose-a-valid-as-of-date', 'Choose a valid as-of date.')}</p>}
+    {loading && <p role="status">{reportText('r.loading-documents-and-attachment-metadata', 'Loading documents and attachment metadata…')}</p>}
+    {partial && <p role="alert">{reportText('r.the-review-history-is-incomplete-some-source-rec', 'The review history is incomplete. Some source records or linked attachments may be missing, so CSV is unavailable until all required history is available.')}</p>}
+    {!attachmentIndexAvailable && !loading && <p role="note">{reportText('r.attached-file-metadata-is-not-available-in-demo', 'Attached-file metadata is not available in demo/offline mode. Source records can still be listed, but linked files are not included.')}</p>}
+    {attachmentError && <p role="alert">{reportText('r.attached-file-metadata-could-not-be-loaded-the-s', 'Attached-file metadata could not be loaded. The source-document rows remain, but the attachment list is incomplete.')}</p>}
 
     {report && <>
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-sm" aria-label="Retention review summary">
-        <p><b>As of:</b> {report.asOfDate}</p>
-        <p><b>Due for review:</b> {report.dueCount}</p>
-        <p><b>Not yet due:</b> {report.notDueCount}</p>
-        <p><b>Unclassified:</b> {report.unclassifiedCount}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-sm" aria-label={reportText('r.retention-review-summary', 'Retention review summary')}>
+        <p><b>{reportText('r.as-of', 'As of:')}</b> {report.asOfDate}</p>
+        <p><b>{reportText('r.due-for-review-2', 'Due for review:')}</b> {report.dueCount}</p>
+        <p><b>{reportText('r.not-yet-due-2', 'Not yet due:')}</b> {report.notDueCount}</p>
+        <p><b>{reportText('r.unclassified-2', 'Unclassified:')}</b> {report.unclassifiedCount}</p>
       </div>
       <ReportTableScroll>
         <RowTable
           rowClassName="border-b border-[var(--line)]/50 align-top"
-          caption={(<>Document review status as of {report.asOfDate}; no deletion action is available here</>)}
+          caption={(<>{reportText('r.document-review-status-as-of', 'Document review status as of')} {report.asOfDate}{reportText('r.no-deletion-action-is-available-here', '; no deletion action is available here')}</>)}
           rows={rows}
           rowKey={row => row.key}
           captionClassName=""
@@ -255,20 +260,20 @@ export function RetentionReviewPanel({ report, asOfDate, loading = false, partia
           headRowClassName=""
           bodyClassName=""
           columns={[
-            { header: "Type", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.recordType },
-            { header: "Document / file", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<><bdi>{row.recordNumber}</bdi><div className="text-xs text-[var(--muted)]"><code>{row.recordId}</code></div></>) },
-            { header: "Date", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.recordDate || '—' },
-            { header: "Status", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.recordStatus || '—' },
-            { header: "Entity", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<><bdi>{row.entity}</bdi><div className="text-xs text-[var(--muted)]">{row.profileSource}</div></>) },
-            { header: "Country", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>{row.countryName}{row.countryCode && row.countryName !== row.countryCode ? ` (${row.countryCode === 'GB' ? 'UK' : row.countryCode})` : ''}</>) },
-            { header: "Period", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.periodYears === undefined ? '—' : `${row.periodYears} years` },
-            { header: "Review due", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.reviewDueOn || '—' },
-            { header: "Review status", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.reviewState === 'due' ? 'Due for review' : row.reviewState === 'not-due' ? 'Not yet due' : 'Unclassified' },
-            { header: "Reason", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.reason || '—' },
-            { header: "Source record", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.relatedRecord || '—'}</bdi> },
+            { header: reportText('r.type', 'Type'), className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.recordType },
+            { header: reportText('r.document-file', 'Document / file'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<><bdi>{row.recordNumber}</bdi><div className="text-xs text-[var(--muted)]"><code>{row.recordId}</code></div></>) },
+            { header: reportText('r.date-2', 'Date'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.recordDate || '—' },
+            { header: reportText('r.status', 'Status'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.recordStatus || '—' },
+            { header: reportText('r.entity-2', 'Entity'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<><bdi>{row.entity}</bdi><div className="text-xs text-[var(--muted)]">{row.profileSource}</div></>) },
+            { header: reportText('r.country', 'Country'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>{row.countryName}{row.countryCode && row.countryName !== row.countryCode ? ` (${row.countryCode === 'GB' ? 'UK' : row.countryCode})` : ''}</>) },
+            { header: reportText('r.col-period', 'Period'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.periodYears === undefined ? '—' : `${row.periodYears} years` },
+            { header: reportText('r.review-due', 'Review due'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.reviewDueOn || '—' },
+            { header: reportText('r.review-status', 'Review status'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.reviewState === 'due' ? 'Due for review' : row.reviewState === 'not-due' ? 'Not yet due' : 'Unclassified' },
+            { header: reportText('r.reason', 'Reason'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.reason || '—' },
+            { header: reportText('r.source-record', 'Source record'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.relatedRecord || '—'}</bdi> },
           ]}
         />
-        {!loading && !rows.length && <p className="text-sm text-[var(--muted)]">No record matches this review filter.</p>}
+        {!loading && !rows.length && <p className="text-sm text-[var(--muted)]">{reportText('r.no-record-matches-this-review-filter', 'No record matches this review filter.')}</p>}
       </ReportTableScroll>
     </>}
   </section>;

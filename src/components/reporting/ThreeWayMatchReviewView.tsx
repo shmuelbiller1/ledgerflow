@@ -10,6 +10,7 @@ import { formatCurrency } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import { RowTable } from '../ui/RowTable';
+import { useReportText, fill } from './useReportText';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const STATUS_LABEL: Record<ThreeWayStatus, string> = {
@@ -34,6 +35,7 @@ export default function ThreeWayMatchReviewView({ startDate = '', endDate = '' }
 
 /** The review for the orders it is given (the wrapper above reads them). */
 export function ThreeWayMatchReviewPanel({ from = '', to = '', orders, ordersLoading = false }: { from?: string; to?: string; orders: PurchaseOrder[]; ordersLoading?: boolean }) {
+  const reportText = useReportText();
   const bills = useLedgerStore(state => state.bills);
   const vendors = useLedgerStore(state => state.vendors);
   const truncated = useLedgerStore(state => state.truncatedCollections);
@@ -56,39 +58,37 @@ export function ThreeWayMatchReviewPanel({ from = '', to = '', orders, ordersLoa
   const loading = loadingLedger || ordersLoading;
   const home = workspace?.currency || 'USD';
 
-  return <section aria-label="Three-way match review" className="p-4 space-y-4 min-w-0">
-    <h2>Three-way match review</h2>
+  return <section aria-label={reportText('r.three-way-match-review', 'Three-way match review')} className="p-4 space-y-4 min-w-0">
+    <h2>{reportText('r.three-way-match-review', 'Three-way match review')}</h2>
     <p className="text-sm text-[var(--muted)]">
-      Every purchase order whose issue date is in the window, checked against its goods receipts and its supplier&apos;s bill{from || to ? ` (${from || 'start'} – ${to || 'today'})` : ''}.
-      The result and the sentences come from the same check the Purchase orders screen runs; the amounts are each order&apos;s own figures in the order&apos;s own currency and are never added across currencies.
-      Read-only: nothing is approved, posted or changed, and the tolerance stays what the check uses (whole minor units, 0 by default).
+      {reportText('r.every-purchase-order-whose-issue-date-is-in-the', 'Every purchase order whose issue date is in the window, checked against its goods receipts and its supplier\'s bill')}{from || to ? ` (${from || 'start'} – ${to || 'today'})` : ''}{reportText('r.the-result-and-the-sentences-come-from-the-same', '. The result and the sentences come from the same check the Purchase orders screen runs; the amounts are each order\'s own figures in the order\'s own currency and are never added across currencies. Read-only: nothing is approved, posted or changed, and the tolerance stays what the check uses (whole minor units, 0 by default).')}
     </p>
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
-      <label className="flex flex-col gap-1 text-sm">Result
-        <select aria-label="Match result" className={field} value={status} onChange={event => setStatus(event.target.value as ThreeWayStatus | 'all')}>
-          <option value="all">All results</option>
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.result', 'Result')}
+        <select aria-label={reportText('r.match-result', 'Match result')} className={field} value={status} onChange={event => setStatus(event.target.value as ThreeWayStatus | 'all')}>
+          <option value="all">{reportText('r.all-results', 'All results')}</option>
           {(Object.keys(STATUS_LABEL) as ThreeWayStatus[]).map(key => <option key={key} value={key}>{STATUS_LABEL[key]}</option>)}
         </select>
       </label>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!report.rows.length}
-        onClick={() => downloadCsv('three-way-match-review', THREE_WAY_REVIEW_CSV_HEADERS, threeWayReviewCsvRows(report))}>Export CSV</button>
+        onClick={() => downloadCsv('three-way-match-review', THREE_WAY_REVIEW_CSV_HEADERS, threeWayReviewCsvRows(report))}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
 
-    {loading && <p role="status" className="text-sm text-[var(--muted)]">Loading orders and bills…</p>}
-    {partial && <p role="alert" className="text-sm text-[var(--muted)]">The loaded orders, bills or vendors are capped or failed at the database (the newest 500 orders are read). This review may be incomplete.</p>}
+    {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-orders-and-bills', 'Loading orders and bills…')}</p>}
+    {partial && <p role="alert" className="text-sm text-[var(--muted)]">{reportText('r.the-loaded-orders-bills-or-vendors-are-capped-or', 'The loaded orders, bills or vendors are capped or failed at the database (the newest 500 orders are read). This review may be incomplete.')}</p>}
 
     <p className="text-sm text-[var(--text)]">
-      {report.summary.orders} order(s): {report.summary.matched} matched · {report.summary.quantityVariance} quantity variance · {report.summary.priceVariance} price variance · {report.summary.unreceived} not received · {report.summary.missingBill} awaiting a bill
+      {report.summary.orders} {reportText('r.order-s', 'order(s):')} {report.summary.matched} {reportText('r.matched', 'matched ·')} {report.summary.quantityVariance} {reportText('r.quantity-variance', 'quantity variance ·')} {report.summary.priceVariance} {reportText('r.price-variance', 'price variance ·')} {report.summary.unreceived} {reportText('r.not-received', 'not received ·')} {report.summary.missingBill} {reportText('r.awaiting-a-bill', 'awaiting a bill')}
     </p>
     {report.byCurrency.length > 0 && <p className="text-sm text-[var(--muted)]">
-      Bill against order, by currency: {report.byCurrency.map(total => `${total.currency} ${formatCurrency(total.varianceCents, total.currency)}`).join(' · ')} (no sign: both directions).
+      {reportText('r.bill-against-order-by-currency', 'Bill against order, by currency:')} {report.byCurrency.map(total => `${total.currency} ${formatCurrency(total.varianceCents, total.currency)}`).join(' · ')} {reportText('r.no-sign-both-directions', '(no sign: both directions).')}
     </p>}
 
     <ReportTableScroll>
       <RowTable
         rowClassName="border-b border-[var(--line)]/50"
-        caption={(<>Three-way match{from || to ? `: orders issued ${from || 'any date'} – ${to || 'today'}` : ': every loaded order'}</>)}
+        caption={(<>{reportText('r.three-way-match', 'Three-way match')}{from || to ? fill(reportText('r.orders-issued-range', ': orders issued {from} – {to}'), { from: from || reportText('r.any-date', 'any date'), to: to || reportText('r.today', 'Today').toLowerCase() }) : reportText('r.every-loaded-order', ': every loaded order')}</>)}
         rows={report.rows}
         rowKey={row => row.poId}
         captionClassName=""
@@ -96,21 +96,21 @@ export function ThreeWayMatchReviewPanel({ from = '', to = '', orders, ordersLoa
         headRowClassName=""
         bodyClassName=""
         columns={[
-          { header: "Order", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.poNumber}</bdi> },
-          { header: "Vendor", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.vendorName}</bdi> },
-          { header: "Issued", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.issueDate || '—' },
-          { header: "Currency", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.currency || home },
-          { header: "Result", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => STATUS_LABEL[row.status] },
-          { header: "Ordered", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.orderedCents, row.currency || home) },
-          { header: "Received", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.receivedCents, row.currency || home) },
-          { header: "Billed", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.billedCents ? formatCurrency(row.billedCents, row.currency || home) : '—' },
-          { header: "Variance", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.billId ? `${formatCurrency(row.varianceCents, row.currency || home)}${row.variancePercent === undefined ? '' : ` (${row.variancePercent > 0 ? '+' : ''}${row.variancePercent.toFixed(2)}%)`}` : '—' },
-          { header: "What the check found", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.findings.length ? <ul className="list-disc pl-4">{row.findings.map(finding => <li key={finding}>{finding}</li>)}</ul> : 'Order, receipt and bill agree.' },
+          { header: reportText('r.order', 'Order'), className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.poNumber}</bdi> },
+          { header: reportText('r.vendor', 'Vendor'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.vendorName}</bdi> },
+          { header: reportText('r.issued', 'Issued'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.issueDate || '—' },
+          { header: reportText('r.currency-2', 'Currency'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.currency || home },
+          { header: reportText('r.result', 'Result'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => STATUS_LABEL[row.status] },
+          { header: reportText('r.ordered', 'Ordered'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.orderedCents, row.currency || home) },
+          { header: reportText('r.received', 'Received'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.receivedCents, row.currency || home) },
+          { header: reportText('r.billed-2', 'Billed'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.billedCents ? formatCurrency(row.billedCents, row.currency || home) : '—' },
+          { header: reportText('r.variance', 'Variance'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.billId ? `${formatCurrency(row.varianceCents, row.currency || home)}${row.variancePercent === undefined ? '' : ` (${row.variancePercent > 0 ? '+' : ''}${row.variancePercent.toFixed(2)}%)`}` : '—' },
+          { header: reportText('r.what-the-check-found', 'What the check found'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.findings.length ? <ul className="list-disc pl-4">{row.findings.map(finding => <li key={finding}>{finding}</li>)}</ul> : 'Order, receipt and bill agree.' },
         ]}
       />
-      {!loading && !report.rows.length && <p className="text-sm text-[var(--muted)]">No purchase order in this window.</p>}
+      {!loading && !report.rows.length && <p className="text-sm text-[var(--muted)]">{reportText('r.no-purchase-order-in-this-window', 'No purchase order in this window.')}</p>}
     </ReportTableScroll>
 
-    <p className="text-xs text-[var(--muted)]">The sentences in the last column are the check&apos;s own wording, kept as it is: they put a dollar sign in front of the figures. The columns beside them show the same figures in the order&apos;s own currency.</p>
+    <p className="text-xs text-[var(--muted)]">{reportText('r.the-sentences-in-the-last-column-are-the-check-s', 'The sentences in the last column are the check\'s own wording, kept as it is: they put a dollar sign in front of the figures. The columns beside them show the same figures in the order\'s own currency.')}</p>
   </section>;
 }
