@@ -19,7 +19,7 @@ import {
   SCREEN_TABS_REGISTRY,
   SETTINGS_TABS_REGISTRY,
 } from '../config/registry';
-import { SCREEN_HELP_DOCS, findScreenHelpDoc } from '../lib/helpCenterArticles';
+import { HOW_TO_ARTICLES, SCREEN_HELP_DOCS, findScreenHelpDoc } from '../lib/helpCenterArticles';
 
 const registries: Array<[string, ReadonlyArray<{ id: string }>]> = [
   ['screen', SCREEN_TABS_REGISTRY],
@@ -123,4 +123,16 @@ test('N-2: the ten contextual manuals agree with their bilingual pages and ship 
     assert.ok(hebrew.includes(`](../../${image})`), `Missing illustration in ${doc.docPath}`);
     assert.equal(fs.readFileSync(image).toString('ascii', 8, 12), 'WEBP', image);
   }
+});
+
+test('every Open screen action on a how-to points to a registered screen and subview', () => {
+  const targets = new Set(SCREEN_TABS_REGISTRY.map(entry => entry.id));
+  const subviews: Record<string, Set<string>> = {
+    reports: new Set(REPORT_TABS_REGISTRY.map(entry => entry.id)),
+    settings: new Set(SETTINGS_TABS_REGISTRY.map(entry => entry.id)),
+  };
+  const invalid = HOW_TO_ARTICLES.filter(({ target: { tab, sub } }) =>
+    !targets.has(tab) || (sub !== undefined && !subviews[tab]?.has(sub)),
+  ).map(({ id, target }) => `${id}: ${target.tab}/${target.sub ?? ''}`);
+  assert.deepEqual(invalid, [], 'a how-to sends the reader to a nonexistent destination');
 });

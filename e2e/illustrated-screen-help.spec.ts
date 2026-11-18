@@ -97,3 +97,18 @@ test('#800: Reconcile help starts in the UI language and describes matching, not
   await expect(dialog.getByText(/choose Confirm match, then find it under Matched/)).toBeVisible();
   await expect(dialog).not.toContainText(/enter statement ending date and balance/i);
 });
+
+test('#828: the label and Israeli month how-tos open the promised report', async ({ page }) => {
+  const main = page.locator('#main-content');
+  for (const [title, name] of [
+    ['Tag lines with labels (property, project, location)', 'Profit by Label'],
+    ['Review an Israeli VAT month and PCN874 draft', 'Israel Month Journey'],
+  ]) {
+    await page.goto('/#help');
+    await main.getByRole('button', { name: /^How-to \(/ }).click();
+    const article = main.getByRole('article').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
+    await article.getByRole('button', { name: 'Open screen', exact: true }).click();
+    await expect(main.getByRole('button', { name: `Help for ${name}`, exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/#reports$/);
+  }
+});

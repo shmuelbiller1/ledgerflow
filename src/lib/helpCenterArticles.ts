@@ -621,7 +621,7 @@ export const HOW_TO_ARTICLES: readonly HowToArticle[] = [
   {
     id: 'howto-11-labels-dimensions',
     screenId: 'reports',
-    target: { tab: 'reports', sub: 'label-profit' },
+    target: { tab: 'reports', sub: 'by-label' },
     category: 'Reports',
     titleEn: 'Tag lines with labels (property, project, location)',
     titleHe: 'שימוש בתגיות (נכס, פרויקט, סניף) ודוח רווחיות לתגית',
@@ -645,7 +645,7 @@ export const HOW_TO_ARTICLES: readonly HowToArticle[] = [
   {
     id: 'howto-13-israel-month-vat',
     screenId: 'reports',
-    target: { tab: 'reports', sub: 'israel-month-journey' },
+    target: { tab: 'reports', sub: 'il-month-journey' },
     category: 'Tax Calculation',
     titleEn: 'Review an Israeli VAT month and PCN874 draft',
     titleHe: 'בדיקת חודש מע״מ בישראל וטיוטת PCN874',
