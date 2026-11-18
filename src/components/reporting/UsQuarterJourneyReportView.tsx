@@ -142,7 +142,7 @@ export function UsQuarterJourneyPanel({ journey, currency = 'USD', quarterText, 
     </div>
 
     <JourneyNotices problem={problem} loading={loading} partial={partial} problems={journey?.problems}
-      loadingText="Loading the quarter&rsquo;s documents and the returns recorded for it…" />
+      loadingText={reportText('r.loading-quarter-docs', 'Loading the quarter’s documents and the returns recorded for it…')} />
 
     {journey && <p className="text-sm">
       <b>{journey.quarter}</b> ({journey.startDate} {reportText('r.to-2', 'to')} {journey.endDate}) · {journey.done} {reportText('r.of', 'of')} {journey.steps.length} {reportText('r.steps-done', 'steps done')}
@@ -179,7 +179,7 @@ function StateReturnTable({ returns, currency }: { returns: UsQuarter['steps'][n
         { header: reportText('r.tax-collected', 'Tax collected'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.taxCollectedCents, currency) },
         { header: reportText('r.by-jurisdiction', 'By jurisdiction'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.byJurisdiction.map(part => `${part.name} ${formatCurrency(part.taxCents, currency)}`).join(', ') || '—' },
         { header: reportText('r.planning-due-date', 'Planning due date'), className: "py-1 px-2 whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => (<>{r.dueDate || reportText('r.not-in-the-planning-calendar', 'not in the planning calendar')}{r.dueNote ? <div className="text-xs text-[var(--muted)]">{r.dueNote}</div> : null}</>) },
-        { header: reportText('r.recorded-as-filed', 'Recorded as filed'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.filed ? 'Yes' : r.recordedForDates ? 'Period record only (not per state)' : 'Not recorded here' },
+        { header: reportText('r.recorded-as-filed', 'Recorded as filed'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.filed ? reportText('r.yes', 'Yes') : r.recordedForDates ? reportText('r.period-record-only', 'Period record only (not per state)') : reportText('r.not-recorded-here', 'Not recorded here') },
       ]}
     />
   </ReportTableScroll>;

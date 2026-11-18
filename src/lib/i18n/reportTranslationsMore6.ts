@@ -605,4 +605,13 @@ export const REPORT_STRINGS_6: ScreenStringEntry[] = [
   { key: 'r.gs-rate-closing', en: 'At {0} (assets, liabilities)', he: 'ב-{0} (נכסים, התחייבויות)' },
   { key: 'r.gs-rate-average', en: 'Average (income, costs)', he: 'ממוצע (הכנסות, עלויות)' },
   { key: 'r.gs-rate-historical', en: 'Historical (equity)', he: 'היסטורי (הון)' },
+  { key: 'r.over-limit', en: 'Over limit', he: 'מעל המסגרת' },
+  { key: 'r.within-limit', en: 'Within limit', he: 'בתוך המסגרת' },
+  { key: 'r.no-limit-recorded', en: 'No limit recorded', he: 'לא נרשמה מסגרת' },
+  { key: 'r.set-a-limit', en: 'Set a limit', he: 'הגדרת מסגרת' },
+  { key: 'r.limit-not-negative', en: 'The limit cannot be negative.', he: 'המסגרת לא יכולה להיות שלילית.' },
+  { key: 'r.period-record-only', en: 'Period record only (not per state)', he: 'רשומת תקופה בלבד (לא לפי מדינה)' },
+  { key: 'r.loading-quarter-docs', en: 'Loading the quarter’s documents and the returns recorded for it…', he: 'טוען את מסמכי הרבעון ואת הדוחות שנרשמו עבורו…' },
+  { key: 'r.came-from', en: 'Came from', he: 'הגיע מ-' },
+  { key: 'r.went-to', en: 'Went to', he: 'יצא ל-' },
 ];

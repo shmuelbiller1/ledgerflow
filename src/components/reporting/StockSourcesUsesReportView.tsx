@@ -108,9 +108,9 @@ function ItemFlow({ row, currency }: { row: ItemSourcesUses; currency: string })
         </thead>
         <tbody>
           <tr><th scope="row" className="text-left font-normal py-1">{reportText('r.opening-2', 'Opening')}</th><td className="text-right font-mono py-1">{qty(row.opening.quantity)}</td><td className="text-right font-mono py-1">{formatCurrency(row.opening.valueCents, currency)}</td></tr>
-          {row.sources.length > 0 && head('Came from')}
+          {row.sources.length > 0 && head(reportText('r.came-from', 'Came from'))}
           <FlowRows lines={row.sources} currency={currency} />
-          {row.uses.length > 0 && head('Went to')}
+          {row.uses.length > 0 && head(reportText('r.went-to', 'Went to'))}
           <FlowRows lines={row.uses} currency={currency} />
           {row.costChanges.moves > 0 && <tr><th scope="row" className="text-left font-normal py-1">{reportText('r.cost-changes-no-units', 'Cost changes (no units)')}</th><td className="text-right font-mono py-1">{CODE_NAMES.c0}</td><td className="text-right font-mono py-1">{formatCurrency(row.costChanges.valueCents, currency)}</td></tr>}
           {row.transfers.moves > 0 && <tr className="text-[var(--muted)]"><th scope="row" className="text-left font-normal py-1">{reportText('r.moved-between-locations', 'Moved between locations (')}{row.transfers.moves} {reportText('r.moves-not-counted-twice', 'moves, not counted twice)')}</th><td className="text-right font-mono py-1">{qty(row.transfers.net)}</td><td /></tr>}

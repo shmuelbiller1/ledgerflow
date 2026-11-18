@@ -15,11 +15,11 @@ import {
 } from '../../lib/customerCreditLimits';
 import { useReportText, fill } from './useReportText';
 
-const stateLabels: Record<CreditLimitRow['state'], string> = {
-  over: 'Over limit',
-  within: 'Within limit',
-  'not-limited': 'No limit recorded',
-};
+const stateLabelsFor = (reportText: ReturnType<typeof useReportText>): Record<CreditLimitRow['state'], string> => ({
+  over: reportText('r.over-limit', 'Over limit'),
+  within: reportText('r.within-limit', 'Within limit'),
+  'not-limited': reportText('r.no-limit-recorded', 'No limit recorded'),
+});
 
 /**
  * A-69: customer credit limits. Each customer's recorded limit beside what they owe now (the unpaid
@@ -92,12 +92,12 @@ export default function CustomerCreditLimitReportView() {
             const customer = customers.find(c => c.id === row.customerId);
             return <tr key={row.customerId} className="border-b border-[var(--line)]/50">
               <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.name}</bdi></th>
-              <td className="py-1 px-2">{stateLabels[row.state]}</td>
+              <td className="py-1 px-2">{stateLabelsFor(reportText)[row.state]}</td>
               <td className="py-1 px-2">
                 <InlineEdit kind="money" value={creditLimitOf({ id: row.customerId, name: row.name, metadata: customer?.metadata })}
-                  display={row.limitCents === undefined ? 'Set a limit' : formatCurrency(row.limitCents, home)}
+                  display={row.limitCents === undefined ? reportText('r.set-a-limit', 'Set a limit') : formatCurrency(row.limitCents, home)}
                   label={fill(reportText('r.credit-limit-of-0', 'Credit limit of {0}'), { 0: row.name })} canEdit={canEdit && Boolean(customer)}
-                  validate={next => typeof next === 'number' && next >= 0 ? null : 'The limit cannot be negative.'}
+                  validate={next => typeof next === 'number' && next >= 0 ? null : reportText('r.limit-not-negative', 'The limit cannot be negative.')}
                   onSave={async next => {
                     if (!customer) return;
                     const cents = typeof next === 'number' ? next : 0;
