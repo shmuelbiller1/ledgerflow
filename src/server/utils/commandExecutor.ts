@@ -373,6 +373,10 @@ export async function runRegisteredCommand(
     return { ok: false, status: 400, command: command.name, message: 'Invalid operation ID', code: 'INVALID_OPERATION_ID' };
   }
   const operationId = explicitOperationId || safeDerivedOperationId(command.defaultOperationId?.(input));
+  // #824: a derived id stands for the thing posted (a contract's period, a lease), not for one person's request,
+  // so its record carries no actor, as the old route's did: a teammate repeating the same contract and period
+  // gets the replay rather than an "already used by another user" refusal.
+  const idempotencyActor = explicitOperationId ? user.uid : '';
 
   const operationType = command.operationType || command.name;
   const initialContext = {
@@ -405,7 +409,7 @@ export async function runRegisteredCommand(
       const previous = await db.collection('idempotencyKeys').doc(scopedKey).get();
       const record = previous.data();
       if (record?.status === 'success') {
-        assertSameRequest(record, user.uid, payloadHash);
+        assertSameRequest(record, idempotencyActor, payloadHash);
         return { ok: true, status: 200, command: command.name, data: record.result, replayed: true };
       }
     } catch (error) {
@@ -488,7 +492,7 @@ export async function runRegisteredCommand(
     if (operationId) {
       const scopedKey = deriveScopedOperationKey(workspaceId, operationType, operationId);
       result = await executeIdempotent(scopedKey, {
-        actor: user.uid,
+        actor: idempotencyActor,
         workspaceId,
         operationType,
         payloadHash,

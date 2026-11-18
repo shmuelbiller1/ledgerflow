@@ -21,14 +21,15 @@ describe('#824 vertical journals without an Idempotency-Key', { skip: !url && 'L
   const suffix = crypto.randomBytes(4).toString('hex');
   const ws = `ws_824_${suffix}`;
   const owner = `owner_824_${suffix}`;
+  const teammate = `acct_824_${suffix}`;
   let client: pg.Client;
   let serverDb: Firestore | undefined;
   let server: Server | undefined;
   let base = '';
 
-  const run = async (name: string, input: Record<string, unknown>) => {
+  const run = async (name: string, input: Record<string, unknown>, uid = owner) => {
     const res = await fetch(`${base}/api/v1/commands/${name}`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId: ws, input }),
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': uid }, body: JSON.stringify({ workspaceId: ws, input }),
     });
     const body = await res.json() as { replayed?: boolean; message?: string; data?: { transactionId?: string } };
     assert.equal(res.status, 200, JSON.stringify(body));
@@ -40,7 +41,7 @@ describe('#824 vertical journals without an Idempotency-Key', { skip: !url && 'L
   before(async () => {
     client = new pg.Client({ connectionString: url });
     await client.connect();
-    await client.query('insert into public.workspaces (id, data) values ($1, $2)', [ws, { uid: owner, name: '824 Co', currency: 'USD', members: [owner] }]);
+    await client.query('insert into public.workspaces (id, data) values ($1, $2)', [ws, { uid: owner, name: '824 Co', currency: 'USD', members: [owner, teammate], roles: { [teammate]: 'accountant' } }]);
     for (const [id, name, type] of [['deferred', 'Deferred revenue', 'liability'], ['revenue', 'Revenue', 'income'],
       ['rou', 'Right-of-use asset', 'asset'], ['lease', 'Lease liability', 'liability']]) {
       await client.query('insert into public."chartAccounts" (id, data) values ($1, $2)', [`${ws}_${id}`, { workspaceId: ws, name, type }]);
@@ -50,7 +51,11 @@ describe('#824 vertical journals without an Idempotency-Key', { skip: !url && 'L
     serverDb = getDb() as unknown as Firestore;
     const app = express();
     app.use(express.json());
-    app.use((req, _res, next) => { Object.assign(req, { user: { uid: owner, email: `${owner}@example.test`, aal: 'aal2' } }); next(); });
+    app.use((req, _res, next) => {
+      const uid = req.header('x-test-uid') || owner;
+      Object.assign(req, { user: { uid, email: `${uid}@example.test`, aal: 'aal2' } });
+      next();
+    });
     app.use('/api/v1/commands', createCommandRouter(undefined, { getDb: () => serverDb! }));
     server = app.listen(0, '127.0.0.1');
     await new Promise<void>(resolve => server!.once('listening', resolve));
@@ -91,6 +96,16 @@ describe('#824 vertical journals without an Idempotency-Key', { skip: !url && 'L
     const before = await entries();
     const first = await run('revenue.recognize', input);
     const second = await run('revenue.recognize', input);
+    assert.equal(second.replayed, true);
+    assert.equal(second.data?.transactionId, first.data?.transactionId);
+    assert.equal(await entries(), before + 1);
+  });
+
+  test('a teammate repeating the same contract and period gets the replay, not a refusal', async () => {
+    const input = { contractId: 'C-300', periodId: '2026-08', amountCents: 9900, deferredAccountId: `${ws}_deferred`, revenueAccountId: `${ws}_revenue`, date: '2026-08-31' };
+    const before = await entries();
+    const first = await run('revenue.recognize', input, owner);
+    const second = await run('revenue.recognize', input, teammate);
     assert.equal(second.replayed, true);
     assert.equal(second.data?.transactionId, first.data?.transactionId);
     assert.equal(await entries(), before + 1);
