@@ -170,6 +170,17 @@ describe('Entry routes vs a document entry (database)', { skip: !url && 'LF_TEST
       await assert.rejects(batchWrites(db, actor, [{ id: handId, data: { status } }]), (error: Error & { status?: number }) => error.status === 400, status);
       assert.equal((await read(handId))?.status, 'completed', status);
     }
+    // nor restate its rate through the lines (Gitar on #849), with or without base amounts
+    for (const lines of [
+      [{ accountId: 'a', amountCents: 500, exchangeRate: 2 }, { accountId: 'b', amountCents: -500, exchangeRate: 2 }],
+      [{ accountId: 'a', amountCents: 500, baseAmountCents: 900 }, { accountId: 'b', amountCents: -500, baseAmountCents: -900 }],
+    ]) {
+      await db.collection('chartAccounts').doc('a').set({ id: 'a', workspaceId: ws, uid: 'owner-1', name: 'Cash', type: 'asset', category: 'Cash' });
+      await db.collection('chartAccounts').doc('b').set({ id: 'b', workspaceId: ws, uid: 'owner-1', name: 'Sales', type: 'income', category: 'Revenue' });
+      await assert.rejects(batchWrites(db, actor, [{ id: handId, data: { lines } }]), (error: Error & { status?: number }) => error.status === 400 && /exchange rate|home currency/.test(error.message), JSON.stringify(lines));
+    }
+    // the same lines at the same rate (a reallocation) still save
+    assert.deepEqual(await batchWrites(db, actor, [{ id: handId, data: { lines: [{ accountId: 'a', amountCents: 500 }, { accountId: 'b', amountCents: -500 }] } }]), { updated: 1 });
     // a draft may still be moved along, and the audit line carries what it was before
     const draftId = `${ws}_draft`;
     await db.collection('transactions').doc(draftId).set({ ...(await read(handId)), id: draftId, status: 'draft', notes: null });

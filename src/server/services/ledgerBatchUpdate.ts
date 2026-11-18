@@ -21,7 +21,17 @@ import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedge
 import { checkLedgerEntry } from './ledgerDoor';
 import { revaluationEntryLock } from './stockRevaluationService';
 import { writeServerAuditLog } from './auditLogService';
-import { auditSnapshot, postedStatusRefusal } from './ledgerEditGuards';
+import { auditSnapshot, isPostedEntry, postedStatusRefusal } from './ledgerEditGuards';
+
+/** The entry's home-currency debits, read the way the reports read them (a line's own base amount or rate first). */
+function homeDebits(tx: Transaction): number {
+  return (tx.lines || []).reduce((sum, line) => {
+    const l = line as unknown as Record<string, unknown>;
+    const home = Number.isInteger(l.baseAmountCents) ? Number(l.baseAmountCents)
+      : Math.round(Number(l.amountCents) * Number(l.exchangeRate ?? tx.exchangeRate ?? 1));
+    return home > 0 ? sum + home : sum;
+  }, 0);
+}
 
 /** The most entries one batch may change. */
 export const RULE_MAX = 2000;
@@ -149,10 +159,25 @@ export async function batchWrites(db: Firestore, actor: BatchActor, updates: rea
       if (updateData.lines !== undefined) {
         const lines = updateData.lines as Array<{ accountId?: string; amountCents?: number }>;
         if (!Array.isArray(lines) || lines.length < 2) throw Object.assign(new Error(`Entry ${id} needs at least two lines`), { status: 400 });
+        // #843: on a posted entry a batch moves amounts between accounts; it never restates the rate. Each
+        // line keeps a rate the entry already has, and the home-currency debits stay what they were.
+        if (!actor.admin && isPostedEntry(entry as Partial<Transaction>)) {
+          const entryRate = Number(entry?.exchangeRate ?? 1);
+          const oldLines = (Array.isArray(entry?.lines) ? entry.lines : []) as Array<Record<string, unknown>>;
+          const rates = new Set([entryRate, ...oldLines.map(line => Number(line.exchangeRate ?? entryRate))]);
+          if (lines.some(line => !rates.has(Number((line as Record<string, unknown>).exchangeRate ?? entryRate)))) {
+            throw Object.assign(new Error(`Entry ${id}: a posted entry's exchange rate is not changed in a batch. Post a reversing entry and a corrected one instead.`), { status: 400 });
+          }
+        }
         const settled = { ...entry, ...updateData, lines: lines.map(line => ({ ...line })) } as Transaction;
         settleHomeCurrency(settled, (workspace as { currency?: string } | undefined)?.currency);
         updateData.lines = settled.lines;
         checkLedgerEntry(settled as unknown as Record<string, unknown>);
+        if (!actor.admin && isPostedEntry(entry as Partial<Transaction>) && Array.isArray(entry?.lines)
+          // settling a reallocation at the same rate may move a rounding cent per line, never more
+          && Math.abs(homeDebits(entry as Transaction) - homeDebits(settled)) > lines.length) {
+          throw Object.assign(new Error(`Entry ${id}: a batch may not change what a posted entry is worth in the home currency; edit or reverse the entry instead`), { status: 400 });
+        }
         const unknown = lines.filter(line => !line.accountId || !ownAccounts.has(String(line.accountId)));
         if (unknown.length) throw Object.assign(new Error(`Entry ${id} uses an account that is not in this workspace`), { status: 400 });
         const total = lines.reduce((sum, line) => sum + Math.max(0, Math.round(Number(line.amountCents) || 0)), 0);
