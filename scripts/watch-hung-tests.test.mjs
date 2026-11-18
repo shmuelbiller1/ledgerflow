@@ -75,5 +75,53 @@ test('Playwright loads the reporter and exposes the current test before onEnd', 
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     assert.deepEqual(readLive(report).active, []);
     assert.equal(readLive(path.join(dir, 'final.json')).suites.length, 1);
+    const diagnostics = spawnSync(process.execPath, ['scripts/unfinished-suites.mjs', path.join(dir, 'blob')], {
+      cwd: root, encoding: 'utf8', timeout: 30_000,
+    });
+    assert.equal(diagnostics.status, 0, diagnostics.stderr);
+    assert.match(diagnostics.stdout, /No unfinished tests recorded in 1 reported spec file/);
+    assert.doesNotMatch(diagnostics.stdout, /::(?:error|warning)::/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('blob diagnostics distinguish a finished failure from a spec with no recorded completion', () => {
+  const dir = fixture(), blob = path.join(dir, 'blob');
+  try {
+    const config = path.join(dir, 'playwright.config.js');
+    fs.writeFileSync(config, `export default { testDir: ${JSON.stringify(dir)}, outputDir: ${JSON.stringify(path.join(dir, 'output'))}, workers: 1, maxFailures: 1 };`);
+    fs.writeFileSync(path.join(dir, 'a-finished.spec.js'), `import {test, expect} from '@playwright/test';
+      test('fails', () => expect(2).toBe(1));`);
+    fs.writeFileSync(path.join(dir, 'b-unstarted.spec.js'), `import {test} from '@playwright/test';
+      test('not reached', () => { throw new Error('should not run after maxFailures'); });`);
+    fs.writeFileSync(path.join(dir, 'c-expected-skip.spec.js'), `import {test} from '@playwright/test';
+      test.skip('intentionally skipped', () => {});`);
+    const result = spawnSync(process.execPath, ['node_modules/playwright/cli.js', 'test', '--config', config, '--reporter=blob'], {
+      cwd: root, env: { ...process.env, PLAYWRIGHT_BLOB_OUTPUT_DIR: blob }, encoding: 'utf8', timeout: 30_000,
+    });
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    const diagnostics = spawnSync(process.execPath, ['scripts/unfinished-suites.mjs', blob], {
+      cwd: root, encoding: 'utf8', timeout: 30_000,
+    });
+    assert.equal(diagnostics.status, 0, diagnostics.stderr);
+    assert.match(diagnostics.stdout, /completion not recorded::b-unstarted\.spec\.js/);
+    assert.doesNotMatch(diagnostics.stdout, /a-finished\.spec\.js|c-expected-skip\.spec\.js/);
+    assert.match(diagnostics.stdout, /tests in a shard with no report are unknown/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('missing or corrupt browser artifacts report unknown without failing the diagnostic job', () => {
+  const dir = fixture();
+  try {
+    const blob = path.join(dir, 'blob');
+    fs.mkdirSync(blob);
+    fs.writeFileSync(path.join(blob, 'report.zip'), 'This is not a Playwright blob, even if it mentions e2e/guess.spec.ts');
+    for (const location of [path.join(dir, 'missing'), blob]) {
+      const diagnostics = spawnSync(process.execPath, ['scripts/unfinished-suites.mjs', location], {
+        cwd: root, encoding: 'utf8', timeout: 30_000,
+      });
+      assert.equal(diagnostics.status, 0, diagnostics.stderr);
+      assert.match(diagnostics.stdout, /unfinished tests are unknown/);
+      assert.doesNotMatch(diagnostics.stdout, /guess\.spec\.ts|No unfinished tests recorded/);
+    }
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
