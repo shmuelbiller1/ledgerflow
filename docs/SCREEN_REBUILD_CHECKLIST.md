@@ -18,7 +18,7 @@ the truth.
 |---|---|---|---|---|
 | `rawTables` | 184 | **126** | 0 | screen files drawing a hand-written `<table>` |
 | `handTypedApiCalls` | 5 | 5 | 5, each named | `fetch('/api/…')` typed by hand |
-| `directDbWrites` | 88 | **5** | 0 | the browser writing the books instead of asking the server |
+| `directDbWrites` | 88 | **0** | 0 | the browser writing the books instead of asking the server |
 | `arrayIndexKeys` | 0 | **0** | 0 | a list keyed by its position (held while a table component landed) |
 | `screensWithManyPrimaryButtons` | 0 | 0 | 0 | ✅ |
 | `unreachableActions` | 0 | 0 | 0 | ✅ |
@@ -147,8 +147,8 @@ hand-convert a table the codemod still refuses.
       a screen that forgot its guest branch fails loudly instead of writing to a workspace that never asked.
       `useAutoRules` (6), `ruleActions` (3) and `InboxView` (1) call it; `commands-baseline.json` counts
       `localStoreWrites` (6) beside `directBrowserWrites`, and the direct count fell **106 → 96**.
-- [ ] `directDbWrites` **3** → 0. 1 file (`useEntityOperations`' three fallbacks) — the order below is the
-      order the sites were done in:
+- [x] `directDbWrites` **93 → 0**. The browser no longer writes a record: every site below names a command, and the
+      order is the order they were done in:
       - **bootstrap** — **done, 2 sites.** `useLedgerData` wrote the person's profile and their first workspace
         from an `onSnapshot` that fires whenever the collection is empty: a `setDoc` inside a listener, no audit
         line, and two tabs opened at once both see the empty collection and both write. `user.provision` and
@@ -326,12 +326,16 @@ hand-convert a table the codemod still refuses.
         be separated by another tab. `metadata.client` is a nested patch that keeps its siblings, and the field
         allowlist is asserted equal to the screens' lists by `record-fields-command.test.ts` (9 cases), so the two
         sides cannot drift.
-      - **the last three — `useEntityOperations`' generic create/update/delete.** Every collection with a ledger
-        meaning already branches to its own command before reaching these fallbacks, so what is left is the long tail
-        of ordinary records (`purchaseOrders`, `recurring`, `taxRates`, …). They still write `setDoc`/`updateDoc`/
-        `deleteDoc` on whatever `path` the caller passes, and the allow-list answer above is the one they need too —
-        one door for an ordinary record's whole document (not a field patch), with the same role check, server clock,
-        workspace check and audit line. — write routes that already have a command in most cases
+      - **the last three — done, `useEntityOperations`' generic create/update/delete.** Every collection with a ledger
+        meaning branches to its own command before these fallbacks, so what was left is the long tail of ordinary
+        records. They send `record.save` and `record.delete` now, over an allow-list in `src/lib/plainRecords.ts`:
+        `purchaseOrders`, `recurring`, `taxRates`, `projects`, `inventory`, `assets`, `estimates`, `loans`. A create
+        gets its id, `uid`, `workspaceId` and both timestamps from the session — a request body cannot hand a row to
+        another workspace or another person — a save is a patch over the row read in the same transaction, an id that
+        is already taken is a `CONFLICT` rather than a replace, a collection that is not on the list is refused by
+        name, and both commands write the audit line. The one collection the hook still creates outside the list is a
+        chart account, which goes through `chartaccount.create` — the command that keeps a code unique in the chart.
+        Pinned by `plain-record-commands.test.ts` (10 cases), and the counter in `quality-baseline.json` is **0**. — write routes that already have a command in most cases
         (`SupportView` 5, `useEntityOperations` 3, `useCollaborators` 3, `Ledger` 2, `Vault` 2 …): one commit per
         hook, not per call, because a hook that writes has one shape. Three are deliberately *not* converted yet:
         `useCollaborators`' presence rows (ephemeral, one row per open tab, nothing to audit), `shared.ts`'

@@ -25,7 +25,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "additionalProperties": false
       }
     },
-    "requestKey": COMMAND_SCHEMA_PARTS.part110
+    "requestKey": COMMAND_SCHEMA_PARTS.part111
   },
   "required": [
     "customerId",

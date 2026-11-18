@@ -49,6 +49,12 @@ describe('On the purchase orders screen', () => {
       const url = String(input);
       const rpc = url.match(/\/rpc\/(lf_\w+)/);
       if (rpc) { writes.push({ fn: rpc[1], body: JSON.parse(String(init?.body || '{}')) }); return new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } }); }
+      // an order is an ordinary record: its saves name `record.save`, and the fields ride in `input.data`
+      if (url.includes('/commands/record.')) {
+        const { input: sent } = JSON.parse(String(init?.body || '{}')) as { input: { collection: string; id: string; data?: Record<string, unknown> } };
+        writes.push({ fn: url.split('/commands/')[1], body: { p_table: sent.collection, p_id: sent.id, p_set: sent.data || {} } });
+        return new Response(JSON.stringify({ ok: true, data: { collection: sent.collection, id: sent.id, created: false, updatedAt: new Date().toISOString() } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
       if (url.includes('/purchaseOrders')) return new Response(JSON.stringify(orders.map(po => ({ id: po.id, data: po, updated_at: po.createdAt }))), { status: 200, headers: { 'Content-Type': 'application/json' } });
       return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch;

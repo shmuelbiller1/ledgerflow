@@ -47,10 +47,18 @@ test('phone maintenance retains a refused draft, retries, removes a note and lin
   test.setTimeout(60000);
   await page.setViewportSize({ width: 390, height: 844 });
   let refused = true;
-  const writes: Array<Record<string, unknown>> = [];
+  const writes: Array<{ p_table: string; p_id: string; p_set: Record<string, unknown> }> = [];
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/**', route => route.fulfill({ json: {} }));
+  // the maintenance note is a field of the asset: it is saved by naming `record.save`, and the server answers
+  await page.route('**/api/v1/commands/record.save', async route => {
+    const body = route.request().postDataJSON() as { input: { collection: string; id: string; data: Record<string, unknown> } };
+    writes.push({ p_table: body.input.collection, p_id: body.input.id, p_set: body.input.data });
+    expect(body.input.collection).toBe('assets');
+    if (refused) { refused = false; return await route.fulfill({ status: 403, json: { message: 'Asset note refused', code: '42501' } }); }
+    return await route.fulfill({ status: 200, json: { ok: true, data: { collection: body.input.collection, id: body.input.id, created: false, updatedAt: new Date().toISOString() } } });
+  });
   await page.route('**/rest/v1/**', async route => {
     const request = route.request();
     if (request.url().includes('/rpc/lf_update')) {
@@ -83,7 +91,8 @@ test('phone maintenance retains a refused draft, retries, removes a note and lin
   await expect(page.getByRole('link', { name: 'Download receipt.txt' })).toBeVisible();
   await page.getByRole('button', { name: 'Remove בדיקת ציוד on 2026-10-11' }).click();
   await expect(page.locator('summary')).toContainText('Maintenance log (0)');
-  for (const write of writes.filter(write => write.p_table === 'assets')) expect(Object.keys(write.p_set as object).sort()).toEqual(['maintenance', 'updatedAt']);
+  // the server stamps updatedAt now, so the tab sends only the field a person changed
+  for (const write of writes.filter(write => write.p_table === 'assets')) expect(Object.keys(write.p_set as object).sort()).toEqual(['maintenance']);
   const money = await page.evaluate(async () => { const path = '/src/stores/useLedgerStore.ts'; const { useLedgerStore } = await import(path); return [useLedgerStore.getState().assets[0].purchasePriceCents, useLedgerStore.getState().assets[0].accumulatedDepreciationCents]; });
   expect(money).toEqual([1200000, 20000]);
   const layout = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth, overflow: [...document.querySelectorAll('body *')].filter(element => element.getBoundingClientRect().right > innerWidth).map(element => ({ tag: element.tagName, class: element.getAttribute('class'), x: element.getBoundingClientRect().x, width: element.getBoundingClientRect().width })) }));
@@ -146,6 +155,11 @@ test('phone item trends switch from vendor, keep currencies apart, export Hebrew
 test('long maintenance notes and maximum-length labels stay inside a 320px phone', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 844 });
   await page.route('**/rest/v1/**', route => route.fulfill({ json: route.request().method() === 'GET' ? [] : null }));
+  // the note is saved by naming `record.save`; the fixture answers for it so the draft can be cleared
+  await page.route('**/api/v1/commands/record.save', route => {
+    const { input } = route.request().postDataJSON() as { input: { collection: string; id: string } };
+    return route.fulfill({ status: 200, json: { ok: true, data: { collection: input.collection, id: input.id, created: false, updatedAt: new Date().toISOString() } } });
+  });
   await mount(page, 'maintenance');
   await page.locator('summary').click();
   await page.getByLabel('What was done').fill('A'.repeat(300));

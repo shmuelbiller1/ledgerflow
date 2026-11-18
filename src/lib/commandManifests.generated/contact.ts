@@ -26,7 +26,7 @@ export const CONTACT_COMMAND_MANIFEST = [
           "when": "No such customer or vendor in this workspace.",
           "next": "Reload the list."
         },
-        COMMAND_SCHEMA_PARTS.part165
+        COMMAND_SCHEMA_PARTS.part167
       ]
     },
     "runPath": "/api/v1/commands/contact.delete",
@@ -56,7 +56,7 @@ export const CONTACT_COMMAND_MANIFEST = [
           "when": "The two are the same record, or one is referred to by something a merge cannot move.",
           "next": "Pick the record to keep and try again."
         },
-        COMMAND_SCHEMA_PARTS.part171
+        COMMAND_SCHEMA_PARTS.part173
       ]
     },
     "runPath": "/api/v1/commands/contact.merge",

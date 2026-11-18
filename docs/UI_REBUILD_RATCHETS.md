@@ -14,7 +14,7 @@ counter goes up when the old pattern comes back (on a throwaway tree, never on t
 | `screensWithManyPrimaryButtons` | **0** | EASE_OF_USE U-2: one filled button per screen. |
 | `handTypedApiCalls` | **84** | A screen calls the server through one place, not by typing `/api/…` into a `fetch`. |
 | `rawTables` | **184** | A screen uses the shared list instead of drawing its own `<table>`. |
-| `directDbWrites` | **93** | A screen, hook or store asks the server; it does not write the books straight from the browser. |
+| `directDbWrites` | **0** | A screen, hook or store asks the server; it does not write the books straight from the browser. |
 
 ## The sites that remain, and why each is still there
 
@@ -55,10 +55,13 @@ report row takes are now covered (a name cell, a share bar, a month, and grouped
 of the tail is the same edit. Each PR lowers this number, and `shared-list-ratchet.test.ts` locks every
 moved file so one screen cannot drift back while another moves forward.
 
-### `directDbWrites` — 93
+### `directDbWrites` — 0
 
 The first version of this counter read 15 because its pattern expected a leading dot, which the modular
 Firestore API never writes; it now matches the bare call and counts each one once (Gitar caught it).
-Each site is a write the app has no server route for yet. They are listed in the ledger-door work
-(`docs/BUG_PATTERNS.md`, the `unchecked-write` pattern), which is where the route gets built; moving
-them before the route exists would only move the problem.
+
+It reaches zero the way the ledger-doors work planned: each site moved once the route existed, never
+before. The last three (`useEntityOperations`' generic create/update/delete) became `record.save` and
+`record.delete` over an allow-list of ordinary records, and the inline edit and details drawer became
+`record.fields`; the sample company keeps its own copy through `localStore`, which the counter counts
+separately (`localStoreWrites`). A screen that writes a record by hand again fails the ratchet.

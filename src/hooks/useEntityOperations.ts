@@ -2,10 +2,11 @@ import { getIdToken } from '../firebase';
 import { runCommand as runServerCommand } from '../lib/runCommand';
 import { guestSession, assertGuestSession, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
 import { localSet, localUpdate } from '../lib/db/localStore';
+import { deletePlainRecord, savePlainRecord } from '../lib/recordWrites';
 import { withSamplePosting } from '../lib/guestPosting';
 import { workspaceActor } from '../lib/guestActor';
 import { savedInOtherWorkspace, workspaceChangedSince } from '../lib/saveWorkspace';
-import { collection, updateDoc, deleteDoc, doc, setDoc, query, where, getDocs, getDoc } from '../lib/db/firestore';
+import { collection, doc, query, where, getDocs, getDoc } from '../lib/db/firestore';
 import { learnedPatternId } from '../lib/learnedPatterns';
 import { db } from '../firebase';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -310,7 +311,7 @@ export function useEntityOperations() {
     const sampleSession = guestSession();
     try {
       assertCustomerHistoryServerManaged(path, data as Record<string, unknown>);
-      const docId = doc(collection(db, path)).id;
+      let docId = doc(collection(db, path)).id;
       const finalData = {
         ...data,
         id: docId,
@@ -375,8 +376,19 @@ export function useEntityOperations() {
         });
       } else if (path === 'reconciliations' || path === 'payments' || path === 'journalEntries') {
         throw new Error(`Direct browser creation on ${path} is disabled; use the server ledger API.`);
+      } else if (path === 'chartAccounts' && !sampleSession && currentWorkspaceId !== SAMPLE_WORKSPACE_ID) {
+        // an account is not an ordinary record: the chart's command keeps its code unique and its balance at zero
+        const account = finalData as Record<string, unknown>;
+        const created = await runDocumentCommand('chartaccount.create', currentWorkspaceId, {
+          code: String(account.code || ''), name: String(account.name || ''), type: String(account.type || ''),
+          ...(account.category ? { category: String(account.category) } : {}),
+          ...(account.description ? { description: String(account.description) } : {}),
+        });
+        // the chart chooses the id; a caller that needs to name the new account uses the one the server answered with
+        const createdId = (created as { id?: unknown } | undefined)?.id;
+        if (typeof createdId === 'string' && createdId) docId = createdId;
       } else {
-        await setDoc(doc(db, path, docId), finalData);
+        await savePlainRecord(currentWorkspaceId, path, docId, finalData, { create: true });
       }
 
       // LEARNING: If we added something with a description and a category, learn it.
@@ -535,7 +547,8 @@ export function useEntityOperations() {
         if ((path === 'customers' || path === 'vendors') && isRecord(metadataPatch) && currentWorkspaceId) {
           localData.metadata = await mergeLocalPartyMetadata(path, id, currentWorkspaceId, metadataPatch);
         }
-        await updateDoc(doc(db, path, id), localData);
+        if (!currentWorkspaceId) throw new Error('Sign in and choose a workspace before updating this record.');
+        await savePlainRecord(currentWorkspaceId, path, id, localData);
       }
 
       // PREV-5: a reply after another workspace was opened says where it was saved, never "saved" here
@@ -595,7 +608,8 @@ export function useEntityOperations() {
             : `Direct browser deletion on ${path} is disabled; use the server ledger API.`,
         );
       } else {
-        await deleteDoc(doc(db, path, id));
+        if (!currentWorkspaceId) throw new Error('Sign in and choose a workspace before deleting this record.');
+        await deletePlainRecord(currentWorkspaceId, path, id);
       }
 
       // PREV-5: a reply after another workspace was opened says where it was saved, never "saved" here

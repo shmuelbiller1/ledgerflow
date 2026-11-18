@@ -60,8 +60,12 @@ describe('Assets from bills', () => {
       (screen.getByLabelText('Bought on') as HTMLInputElement).value, (screen.getByLabelText('Asset account (optional)') as HTMLSelectElement).value,
     ], ['Laptop for Dana', '1800.00', '2026-09-20', 'equip']);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })); });
-    await waitFor(() => assert.ok(calls.some(c => c.body.p_table === 'assets')));
-    const saved = calls.find(c => c.body.p_table === 'assets')!.body.p_data!;
+    // a new asset is an ordinary record: it is created by naming `record.save`
+    const creates = () => calls.filter(c => c.url.includes('/commands/record.save'))
+      .map(c => (c.body as { input: { collection: string; data: Record<string, unknown> } }).input)
+      .filter(input => input.collection === 'assets');
+    await waitFor(() => assert.ok(creates().length > 0));
+    const saved = creates()[0].data;
     assert.deepEqual([saved.name, saved.purchasePriceCents, saved.sourceBillId, saved.sourceBillLine, saved.assetAccountId], ['Laptop for Dana', 180_000, 'b1', 0, 'equip']);
   });
 });

@@ -20,7 +20,7 @@ export const JOURNALTEMPLATE_COMMAND_MANIFEST = [
           "when": "The template is not in this workspace, or was already removed.",
           "next": "Reload the template list."
         },
-        COMMAND_SCHEMA_PARTS.part165
+        COMMAND_SCHEMA_PARTS.part167
       ]
     },
     "runPath": "/api/v1/commands/journaltemplate.remove",
@@ -55,7 +55,7 @@ export const JOURNALTEMPLATE_COMMAND_MANIFEST = [
           "when": "The lines do not balance, there are fewer than two, or an account is not in this workspace.",
           "next": "Balance the lines and use this workspace's accounts."
         },
-        COMMAND_SCHEMA_PARTS.part165
+        COMMAND_SCHEMA_PARTS.part167
       ]
     },
     "runPath": "/api/v1/commands/journaltemplate.save",

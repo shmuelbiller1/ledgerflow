@@ -8,8 +8,8 @@ export const COMMAND_INPUT_SCHEMA = {
     "assetId": COMMAND_SCHEMA_PARTS.part96,
     "date": COMMAND_SCHEMA_PARTS.part47,
     "assetAccountId": COMMAND_SCHEMA_PARTS.part96,
-    "usefulLifeYears": COMMAND_SCHEMA_PARTS.part108,
-    "salvageValueCents": COMMAND_SCHEMA_PARTS.part121
+    "usefulLifeYears": COMMAND_SCHEMA_PARTS.part109,
+    "salvageValueCents": COMMAND_SCHEMA_PARTS.part122
   },
   "required": [
     "assetId",

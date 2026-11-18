@@ -39,7 +39,9 @@ const fieldValue = z.union([
   z.null(),
   z.array(z.string().max(400)).max(200),
 ]);
-const fieldPath = z.string().trim().min(1).max(120);
+const PROTOTYPE_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
+const fieldPath = z.string().trim().min(1).max(120)
+  .refine(path => path.split('.').every(part => !PROTOTYPE_SEGMENTS.has(part)), 'A field path cannot name a prototype key');
 
 export const recordFieldsInput = z.object({
   collection: z.enum(EDITABLE_RECORD_COLLECTIONS as [string, ...string[]]),

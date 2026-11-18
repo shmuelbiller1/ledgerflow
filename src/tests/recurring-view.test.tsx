@@ -16,8 +16,10 @@ import type { RecurringTransaction } from '../types';
 
 const rent = { id: 'r1', workspaceId: 'component-workspace', description: 'Office rent', payee: 'Landlord', type: 'bill', frequency: 'monthly',
   nextOccurrence: '2026-11-01', lastOccurrence: '2026-10-01', anchorDay: 1, isActive: true, amountCents: 120000 } as unknown as RecurringTransaction;
+/** An ordinary record is saved by naming `record.save`; the patch rides in `input.data`. */
 const updates = (calls: Array<{ url: string; body?: unknown }>) =>
-  calls.filter(c => c.url.includes('/rpc/lf_update')).map(c => (c.body as { p_set: Record<string, unknown> }).p_set);
+  calls.filter(c => c.url.includes('/commands/record.save'))
+    .map(c => (c.body as { input: { data: Record<string, unknown> } }).input.data);
 const edit = async (label: string, value: string) => {
   fireEvent.click(screen.getByRole('button', { name: inlineEditName(`Edit ${label}`) }));
   fireEvent.change(screen.getByLabelText(label), { target: { value } });

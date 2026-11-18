@@ -25,6 +25,12 @@ const asset: FixedAsset = {
   accumulatedDepreciationCents: 20000, status: 'active', createdAt: '2026-01-01',
   maintenance: [{ id: 'old', date: '2026-03-01', description: 'New tyres', costCents: 40000, by: 'Tyre shop' }],
 };
+/** The maintenance note is a field of the asset, so the save names `record.save` now instead of a table write. */
+const isAssetWrite = (url: string) => url.includes('/lf_update') || url.includes('/commands/record.save');
+const assetFieldsOf = (body: unknown): Record<string, unknown> => {
+  const envelope = body as { input?: { data?: Record<string, unknown> }; p_set?: Record<string, unknown> };
+  return envelope.input?.data ?? envelope.p_set ?? {};
+};
 const response = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 function setup() {
   setComponentWorkspace('bookkeeper');
@@ -146,8 +152,9 @@ test('refused maintenance save keeps the draft; retry and removal write only met
   let refuse = true;
   const writes: Array<{ p_set: Record<string, unknown> }> = [];
   globalThis.fetch = (async (input, init) => {
-    if (String(input).includes('/lf_update')) {
-      writes.push(JSON.parse(String(init?.body)));
+    if (isAssetWrite(String(input))) {
+      const body = JSON.parse(String(init?.body));
+      writes.push({ p_set: assetFieldsOf(body) });
       if (refuse) return response({ code: '42501', message: 'Permission denied for asset note' }, 403);
     }
     return response([]);
@@ -163,7 +170,7 @@ test('refused maintenance save keeps the draft; retry and removal write only met
   refuse = false;
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Note it' })); });
   assert.equal((screen.getByLabelText('What was done') as HTMLInputElement).value, '');
-  assert.deepEqual(Object.keys(writes.at(-1)!.p_set).sort(), ['maintenance', 'updatedAt']);
+  assert.deepEqual(Object.keys(writes.at(-1)!.p_set).sort(), ['maintenance'], 'the server stamps the timestamp');
   const saved = writes.at(-1)!.p_set.maintenance as NonNullable<FixedAsset['maintenance']>;
   assert.equal(saved[0].description, 'בדיקת ציוד'); assert.equal(saved[0].costCents, 12025);
   view.rerender(<MaintenanceLog asset={{ ...asset, maintenance: saved }} currency="USD" />);
@@ -176,7 +183,7 @@ test('maintenance blocks double submits, rejects fractional-cent text and viewer
   let release: (value: Response) => void = () => {};
   let writes = 0;
   globalThis.fetch = (async input => {
-    if (String(input).includes('/lf_update')) { writes += 1; return new Promise<Response>(resolve => { release = resolve; }); }
+    if (isAssetWrite(String(input))) { writes += 1; return new Promise<Response>(resolve => { release = resolve; }); }
     return response([]);
   }) as typeof fetch;
   render(<MaintenanceLog asset={asset} currency="USD" />);
@@ -200,7 +207,7 @@ test('permission loss with a pending maintenance save keeps the draft and does n
   let release: (value: Response) => void = () => {};
   let writes = 0;
   globalThis.fetch = (async input => {
-    if (String(input).includes('/lf_update')) {
+    if (isAssetWrite(String(input))) {
       writes += 1;
       return new Promise<Response>(resolve => { release = resolve; });
     }
@@ -224,7 +231,7 @@ test('permission loss with a pending maintenance save keeps the draft and does n
 test('workspace switch clears maintenance draft and ignores a late successful save', async () => {
   setup();
   let release: (value: Response) => void = () => {};
-  globalThis.fetch = (async input => String(input).includes('/lf_update') ? new Promise<Response>(resolve => { release = resolve; }) : response([])) as typeof fetch;
+  globalThis.fetch = (async input => isAssetWrite(String(input)) ? new Promise<Response>(resolve => { release = resolve; }) : response([])) as typeof fetch;
   const view = render(<MaintenanceLog asset={asset} currency="USD" />);
   fireEvent.change(screen.getByLabelText('What was done'), { target: { value: 'Old workspace draft' } });
   fireEvent.click(screen.getByRole('button', { name: 'Note it' }));
