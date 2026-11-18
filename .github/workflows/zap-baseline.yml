@@ -84,7 +84,9 @@ jobs:
           INVITE_SECRET="$INVITE_VAL" \
           node build/server.cjs > /tmp/lf-zap-server-prod.log 2>&1 &
           SERVER_PID=$!
-          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          # every exit path (a failed scan included) stops the server, hands zap-out back to the runner and keeps the
+          # server log in the uploaded reports — the log matters most when the scan fails
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; sudo chown -R "$(id -u):$(id -g)" zap-out 2>/dev/null || true; cp /tmp/lf-zap-server-prod.log zap-out/server-prod.log 2>/dev/null || true' EXIT
 
           SERVER_READY=0
           for _ in $(seq 1 45); do
@@ -132,8 +134,6 @@ jobs:
           test -s zap-out/zap-report.json
           test -s zap-out/zap-report.html
           test -s zap-out/zap-report.md
-          sudo chown -R "$(id -u):$(id -g)" zap-out
-          cp /tmp/lf-zap-server-prod.log zap-out/server-prod.log
 
       - name: Upload ZAP HTML, JSON, and Markdown reports
         if: ${{ !cancelled() }}
