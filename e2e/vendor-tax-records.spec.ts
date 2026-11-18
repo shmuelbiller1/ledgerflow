@@ -13,7 +13,7 @@ test('vendor tax records keep the real detail page mounted, edit an address in a
   await page.evaluate(async()=>{
     const refresh=await import('/@react-refresh');refresh.default.injectIntoGlobalHook(window);
     Object.assign(window,{$RefreshReg$:()=>{},$RefreshSig$:()=>(type:unknown)=>type,__vite_plugin_react_preamble_installed__:true});
-    const paths=['/node_modules/.vite/deps/react.js','/node_modules/.vite/deps/react-dom_client.js','/src/components/purchases/VendorDetailView.tsx','/src/components/common/RecordDetailsLauncher.tsx','/src/stores/useAuthStore.ts','/src/stores/useLedgerStore.ts','/src/stores/useDataNeedsStore.ts','/src/lib/utils.ts','/src/lib/fiscalCalendar.ts'];
+    const paths=['/node_modules/.vite/deps/react.js','/node_modules/.vite/deps/react-dom_client.js','/src/components/purchases/VendorRecordPage.tsx','/src/components/common/RecordDetailsLauncher.tsx','/src/stores/useAuthStore.ts','/src/stores/useLedgerStore.ts','/src/stores/useDataNeedsStore.ts','/src/lib/utils.ts','/src/lib/fiscalCalendar.ts'];
     const [{default:React},{default:{createRoot}},{default:VendorDetail},{RecordDetailsLauncher},{useAuthStore},{useLedgerStore},{useDataNeedsStore},{getLocalDateISO},{addDaysYMD}]=await Promise.all(paths.map(path=>import(path)));
     useAuthStore.setState({user:{uid:'vendor-owner'},isGuest:false,currentWorkspaceId:'vendor-books',workspaces:[{id:'vendor-books',uid:'vendor-owner',name:'ספרים Books',currency:'USD',timezone:'America/New_York'}]});
     const today=getLocalDateISO();

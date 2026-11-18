@@ -105,6 +105,16 @@ export function postedStatusRefusal(
   return 'A posted entry is not un-posted in place. Post a reversing entry instead: the books keep both the original and the correction.';
 }
 
+/**
+ * Certifying an entry locks it against every change by anyone but a platform admin, the workspace owner
+ * included, and nothing in the product sets it: the entry editor, the batch and the importers never send it.
+ * So only a platform admin may move an entry to `certified`; anyone else asking for it is refused.
+ */
+export function certifyRefusal(previousStatus: unknown, nextStatus: unknown, admin = false): string | null {
+  if (admin || nextStatus !== 'certified' || previousStatus === 'certified') return null;
+  return 'An entry is not certified from here: certifying locks it against every later change.';
+}
+
 /** Deny soft deletion of a posted row: isPostable excludes deletedAt even if status remains completed. */
 export function postedDeletionRefusal(
   tx: Partial<Transaction> | null | undefined,

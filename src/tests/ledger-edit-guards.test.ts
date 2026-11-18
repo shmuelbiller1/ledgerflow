@@ -16,7 +16,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {
+import { certifyRefusal,
   auditSnapshot,
   documentEntryRefusal,
   isPostedEntry,
@@ -191,19 +191,30 @@ test('touchesFinancialField classifies the partial-update keys', () => {
   assert.equal(touchesFinancialField(['metadata.anything']), true, 'a metadata path can strip the document link');
 });
 
-test('both generic entry routes call the guards (wiring, not only the helper)', () => {
-  const read = (file: string) => fs.readFileSync(path.join(process.cwd(), 'src', 'server', 'routes', 'transactions', file), 'utf8');
-  const crud = read('crudRoutes.ts');
-  const reverse = read('reverseRoutes.ts');
-  // the partial update branch, the full update branch and the reverse route each refuse a document entry
-  assert.equal((crud.match(/documentEntryRefusal\(/g) || []).length, 3, 'PUT /:id must recheck full updates inside the database transaction');
-  assert.equal((crud.match(/postedStatusRefusal\(/g) || []).length, 2, 'PUT /:id must refuse un-posting in both branches');
-  assert.equal((crud.match(/postedDeletionRefusal\(/g) || []).length, 2, 'PUT /:id must refuse in-place deletion on both update paths');
-  // DELETE /:id twice (before and inside its transaction), and the partial PUT once (#843: currency and rate)
-  assert.equal((crud.match(/isPostedEntry\(/g) || []).length, 3, 'DELETE /:id must protect postable entries both before and inside its transaction; PUT keeps a posted rate');
-  assert.equal((reverse.match(/documentEntryRefusal\(/g) || []).length, 1, 'POST /:id/reverse must refuse a document entry');
-  // and the audit rows now carry before/after
-  assert.match(crud, /before: beforeEdit/);
-  assert.match(crud, /after: afterEdit/);
-  assert.match(crud, /afterEdit = auditSnapshot\(\{ \.\.\.txData, \.\.\.safePartial \}/, 'partial-update audit fields must match before snapshot');
+test('entry routes invoke registered commands whose handlers apply the guards', () => {
+  const read = (file: string) => fs.readFileSync(path.join(process.cwd(), 'src', 'server', file), 'utf8');
+  const crud = read('routes/transactions/crudRoutes.ts');
+  const reverse = read('routes/transactions/reverseRoutes.ts');
+  const editCommand = read('commands/journalEdit.ts');
+  const reverseCommand = read('commands/journalReverse.ts');
+  assert.match(crud, /definition: withLegacyInputIdempotencyHash\(journalEditCommand\)/);
+  assert.match(crud, /definition: withLegacyInputIdempotencyHash\(journalDeleteCommand\)/);
+  assert.match(reverse, /definition: withLegacyInputIdempotencyHash\(journalReverseCommand\)/);
+  assert.equal((editCommand.match(/documentEntryRefusal\(/g) || []).length, 3, 'both edit branches check document ownership, including at commit');
+  assert.equal((editCommand.match(/postedStatusRefusal\(/g) || []).length, 2);
+  assert.equal((editCommand.match(/postedDeletionRefusal\(/g) || []).length, 2);
+  assert.equal((editCommand.match(/isPostedEntry\(/g) || []).length, 2, 'delete protects posted entries and partial edits keep the posted rate');
+  assert.match(editCommand, /certifyRefusal\(/, 'partial edit must not certify');
+  assert.match(reverseCommand, /documentEntryRefusal\(/);
+  assert.match(editCommand, /before: result.before/);
+  assert.match(editCommand, /after: result.after/);
+  assert.match(editCommand, /auditSnapshot\(\{ \.\.\.current, \.\.\.safe \}/);
+});
+
+test('certifyRefusal: only a platform admin moves an entry to certified', () => {
+  assert.match(String(certifyRefusal('completed', 'certified')), /not certified/);
+  assert.match(String(certifyRefusal(undefined, 'certified')), /not certified/);
+  assert.equal(certifyRefusal('completed', 'certified', true), null);
+  assert.equal(certifyRefusal('certified', 'certified'), null);
+  assert.equal(certifyRefusal('completed', 'reviewed'), null);
 });

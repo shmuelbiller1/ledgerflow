@@ -512,12 +512,9 @@ describe('S-8 / S-38 / S-39: tenant BOLA, role escalation, and PostgreSQL RLS is
     ];
 
     for (const cmd of bankAndImportCommands) {
-      // #830 (A6S-08): reconciliations.bankline currently lists 'viewer' in roles (reported to AI #1 per S-39);
-      // all other bank/reconciliation/import commands enforce 403 for viewers today, and bankline still enforces 403 for non-members/wrong keys.
-      if (cmd !== 'reconciliations.bankline') {
-        const asViewer = await s39Api('POST', `/api/v1/commands/${cmd}`, tokenViewerA, { workspaceId: wsA, input: {} });
-        assert.equal(asViewer.status, 403, `Viewer must be refused on ${cmd}, got ${asViewer.status}`);
-      }
+      // #830 (A6S-08): a viewer is refused on every bank, reconciliation and import command, bankline included
+      const asViewer = await s39Api('POST', `/api/v1/commands/${cmd}`, tokenViewerA, { workspaceId: wsA, input: {} });
+      assert.equal(asViewer.status, 403, `Viewer must be refused on ${cmd}, got ${asViewer.status}`);
 
       const asNonMember = await s39Api('POST', `/api/v1/commands/${cmd}`, tokenOwnerA, { workspaceId: wsB, input: {} });
       assert.equal(asNonMember.status, 403, `Non-member must be refused on ${cmd}, got ${asNonMember.status}`);

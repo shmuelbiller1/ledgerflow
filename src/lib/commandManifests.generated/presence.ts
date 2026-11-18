@@ -21,7 +21,7 @@ export const PRESENCE_COMMAND_MANIFEST = [
           "when": "There is no display name.",
           "next": "Send the name the presence list should show."
         },
-        COMMAND_SCHEMA_PARTS.part194
+        COMMAND_SCHEMA_PARTS.part196
       ]
     },
     "runPath": "/api/v1/commands/presence.beat",
@@ -37,7 +37,7 @@ export const PRESENCE_COMMAND_MANIFEST = [
       "sentence": "Take this person out of the collaborator list; do not use it to remove anyone else — the row deleted is always the caller’s own.",
       "example": COMMAND_SCHEMA_PARTS.part1,
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part194
+        COMMAND_SCHEMA_PARTS.part196
       ],
       "next": [
         {

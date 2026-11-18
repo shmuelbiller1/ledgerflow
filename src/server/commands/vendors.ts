@@ -97,6 +97,7 @@ export const vendorCreateCommand: CommandDefinition<typeof vendorCreateInput, Ve
   risk: 'normal',
   describe: {
     sentence: 'Create a vendor contact for bills and payments; do not use this command to record a bill payment or change a vendor balance.',
+    next: [{ command: 'bill.create', label: 'Record a bill' }],
     example: { vendor: { name: 'Paper Co', category: 'Office Supplies', currency: 'USD' } },
     refusals: [
       { code: 'INVALID_INPUT', when: 'The vendor name or a supplied profile field is invalid.', next: 'Correct the vendor details and retry.' },
@@ -144,6 +145,7 @@ export const vendorUpdateCommand: CommandDefinition<typeof vendorUpdateInput, Ve
   risk: 'normal',
   describe: {
     sentence: 'Update a vendor profile without changing its server-managed balance or recording a bill payment.',
+    next: [{ command: 'bill.create', label: 'Record a bill' }],
     example: { id: 'vendor_123', data: { email: 'ap@example.test', category: 'Office Supplies' } },
     refusals: [
       { code: 'INVALID_INPUT', when: 'The vendor id or one of the supplied fields is invalid.', next: 'Correct the vendor details and retry.' },

@@ -5,7 +5,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part97,
-    "amountCents": COMMAND_SCHEMA_PARTS.part134,
+    "amountCents": COMMAND_SCHEMA_PARTS.part136,
     "months": COMMAND_SCHEMA_PARTS.part81,
     "startMonth": COMMAND_SCHEMA_PARTS.part87,
     "billId": COMMAND_SCHEMA_PARTS.part97,

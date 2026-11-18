@@ -194,7 +194,7 @@ export const updateBankLineCommandInput = z.object({
 export const updateBankLineCommand: CommandDefinition<typeof updateBankLineCommandInput, { id: string; data: Record<string, unknown> }, UpdateBankLinePrepared> = {
   name: 'reconciliations.bankline',
   input: updateBankLineCommandInput,
-  roles: ['owner', 'accountant', 'bookkeeper', 'viewer'],
+  roles: [...LEDGER_WRITERS],
   allowPlatformAdmin: true,
   async prepare(ctx, input) {
     return prepareUpdateBankLine(ctx.db, { workspaceId: ctx.workspaceId, id: input.id, uid: ctx.actor, admin: ctx.user.admin });
@@ -218,8 +218,9 @@ export const updateBankLineCommand: CommandDefinition<typeof updateBankLineComma
     sentence: 'Change a bank line the feed brought in — its note, its suggestion or its matched entry; do not use it to edit a posted entry — that is reconciliations.reconcile.',
     example: { id: 'bankline_123', data: { status: 'matched', matchedTransactionId: 'tx_123' } },
     refusals: [
-      { code: 'FORBIDDEN', when: 'The caller is not a member of the workspace.', next: 'Ask a member of the workspace.' },
-      { code: 'NOT_FOUND', when: 'The bank line is not in this workspace.', next: 'Sync the feed again or check the line id.' },
+      { code: 'FORBIDDEN', when: 'The caller is not an owner, accountant or bookkeeper of the workspace.', next: 'Ask an owner, accountant or bookkeeper.' },
+      { code: 'NOT_FOUND', when: 'The bank line, or the entry it is matched to, is not in this workspace.', next: 'Sync the feed again or check the ids.' },
+      { code: 'CONFLICT', when: 'The bank line is dated in a closed period.', next: 'Reopen the period or leave the line as it is.' },
       { code: 'INVALID_INPUT', when: 'A field is not one a bank line allows, or a value has the wrong shape.', next: 'Send only the fields listed in the schema.' },
     ],
   },

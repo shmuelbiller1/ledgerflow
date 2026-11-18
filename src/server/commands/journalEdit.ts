@@ -7,7 +7,7 @@ import type { DimensionDefinition, Transaction as Entry } from '../../types';
 import { HttpError } from '../auth/requestUser';
 import { FieldValue, isWorkspaceMemberData } from '../db/firestore';
 import { revaluationEntryLock } from '../services/stockRevaluationService';
-import { auditSnapshot, documentEntryRefusal, isPostedEntry, postedDeletionRefusal, postedStatusRefusal } from '../services/ledgerEditGuards';
+import { auditSnapshot, certifyRefusal, documentEntryRefusal, isPostedEntry, postedDeletionRefusal, postedStatusRefusal } from '../services/ledgerEditGuards';
 import { deletionSentence, deletionSnapshot } from '../services/deletionRecord';
 import type { CommandDefinition } from './types';
 
@@ -66,7 +66,7 @@ export const journalEditCommand: CommandDefinition<typeof editInput, EditResult,
       if (revaluation) fail(revaluation);
       const documentProblem = documentEntryRefusal(current, Boolean(ctx.user.admin), Object.keys(partial));
       if (documentProblem) fail(documentProblem, 409);
-      const unpost = postedStatusRefusal(current as Partial<Entry>, partial.status, Boolean(ctx.user.admin)) || postedDeletionRefusal(current as Partial<Entry>, partial as Partial<Entry>, Boolean(ctx.user.admin));
+      const unpost = certifyRefusal(current.status, partial.status, Boolean(ctx.user.admin)) || postedStatusRefusal(current as Partial<Entry>, partial.status, Boolean(ctx.user.admin)) || postedDeletionRefusal(current as Partial<Entry>, partial as Partial<Entry>, Boolean(ctx.user.admin));
       if (unpost) fail(unpost, 409);
       if (!ctx.user.admin && isPostedEntry(current as Partial<Entry>) && ['exchangeRate', 'currency', 'baseAmountCents', 'homeAmountCents'].some(key => key in partial && partial[key] !== current[key])) {
         fail("A posted entry's currency and exchange rate are not changed in place. Post a reversing entry and a corrected one instead.", 409);

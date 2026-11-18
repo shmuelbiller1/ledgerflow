@@ -15,7 +15,7 @@ export const COMMAND_INPUT_SCHEMA = {
               "const": "bill"
             },
             "billId": COMMAND_SCHEMA_PARTS.part46,
-            "line": COMMAND_SCHEMA_PARTS.part123
+            "line": COMMAND_SCHEMA_PARTS.part125
           },
           "required": [
             "kind",
@@ -31,9 +31,9 @@ export const COMMAND_INPUT_SCHEMA = {
               "type": "string",
               "const": "manual"
             },
-            "amountCents": COMMAND_SCHEMA_PARTS.part134,
+            "amountCents": COMMAND_SCHEMA_PARTS.part136,
             "accountId": COMMAND_SCHEMA_PARTS.part46,
-            "allocationId": COMMAND_SCHEMA_PARTS.part108,
+            "allocationId": COMMAND_SCHEMA_PARTS.part110,
             "description": COMMAND_SCHEMA_PARTS.part57
           },
           "required": [
@@ -65,7 +65,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "propertyNames": COMMAND_SCHEMA_PARTS.part22,
       "additionalProperties": COMMAND_SCHEMA_PARTS.part44
     },
-    "date": COMMAND_SCHEMA_PARTS.part113,
+    "date": COMMAND_SCHEMA_PARTS.part115,
     "inventoryAccountId": COMMAND_SCHEMA_PARTS.part46,
     "cogsAccountId": COMMAND_SCHEMA_PARTS.part46,
     "expectedPlanHash": {

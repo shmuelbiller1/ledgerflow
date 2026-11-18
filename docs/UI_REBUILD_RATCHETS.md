@@ -1,19 +1,24 @@
 # The screen-rebuild ratchets
 
-Prompt 2 asks for five counters that may only go down, so the interface cannot drift back to the way it
-was built. They live in `quality-baseline.json` and are computed by `scripts/quality-metrics.ts`; the
-guard is `src/tests/quality-ratchet.test.ts`, and `src/tests/interface-ratchets.test.ts` proves each
-counter goes up when the old pattern comes back (on a throwaway tree, never on the repository).
+Four counters may only go down, so the interface cannot drift back to the way it was built. They live
+in `quality-baseline.json` and are computed by `scripts/quality-metrics.ts`; the guard is
+`src/tests/quality-ratchet.test.ts`, and `src/tests/interface-ratchets.test.ts` proves each counter
+rises when the old pattern comes back (on a throwaway tree, never on the repository).
+
+**Search reachability is a separate behavioral gate**, not a numeric counter: the former
+`unreachableActions` only counted four identifier strings in `pageIndex.ts` and was always zero even
+when a report could not be found. `src/tests/palette-reachability-guard.test.tsx` tests actual registry
+entries, English and Hebrew names and plain words, disabled modules, command dispatch and rendered
+palette navigation. The import-graph reachability guard is separate and remains enabled.
 
 `npm run ratchet:update` lowers a number. Nothing here may be raised without an owner decision in
 `docs/FOR_YOU.md`.
 
 | Counter | Today | The rule |
 |---|---|---|
-| `unreachableActions` | **0** | Every registered screen, report and settings tab can be found by typing a word into the search box. Zero is the only acceptable value. Proven in `src/tests/palette-reachability-guard.test.ts`, which searches the real registry, in English and Hebrew. |
 | `screensWithManyPrimaryButtons` | **0** | EASE_OF_USE U-2: one filled button per screen. |
-| `handTypedApiCalls` | **84** | A screen calls the server through one place, not by typing `/api/…` into a `fetch`. |
-| `rawTables` | **184** | A screen uses the shared list instead of drawing its own `<table>`. |
+| `handTypedApiCalls` | **5** | A screen calls the server through one place, not by typing `/api/…` into a `fetch`. |
+| `rawTables` | **126** | A screen uses the shared list instead of drawing its own `<table>`. |
 | `directDbWrites` | **0** | A screen, hook or store asks the server; it does not write the books straight from the browser. |
 
 ## The sites that remain, and why each is still there
@@ -32,16 +37,15 @@ number it can; the rest are listed so the next person starts from the truth.
   demoting the wrong one moves the person's eye off the thing they came to do.
 - `auth/AcceptInviteView.tsx`, `common/ViewErrorBoundary.tsx`: two states of one screen (signed in / not).
 
-### `handTypedApiCalls` — 84
+### `handTypedApiCalls` — 5
 
-Most are in the settings and forensics screens that call a route the browser has always called
-directly (`/api/admin/…`, `/api/reports/…`). They move to `useCommand` in the step that builds it
-(prompt 2, part 3), which needs the generated client and command schemas from CMD-1.
+The remaining named exceptions are tracked in `docs/SCREEN_REBUILD_CHECKLIST.md` §3. Browser writes
+use registered server commands; the exceptions must not be hidden by loosening this ratchet.
 
-### `rawTables` — 184
+### `rawTables` — 126
 
-The codemod moves the most-used screens first: Sales, Purchases and Inventory are on the shared list
-(the first slice); Transactions, Bank review, Customers and Vendors are next.
+The codemod moved the common screens and many reports; the remaining refused shapes and their reasons
+are tracked in `docs/SCREEN_REBUILD_CHECKLIST.md` §2.
 
 The report screens were the long tail, and the reason was measured before writing the codemod: of the
 196 files drawing a table, 91 name each row with `<th scope="row">` and 18 sum their last line in a

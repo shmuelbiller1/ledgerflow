@@ -246,6 +246,14 @@ describe('SBX-1 durable review and atomic acceptance (PostgreSQL)', { skip: !url
     assert.ok(!ordinary.ok && ordinary.code === 'LIVE_DB_REQUIRED');
     await assert.rejects(f.add('workspace.delete', {}), { code: 'SANDBOX_COMMAND_UNAVAILABLE' });
     await assert.rejects(f.add('customer.create', { customer: { name: 'Wrong workspace', workspaceId: 'other' } }), { code: 'WORKSPACE_MISMATCH' });
+    // This is a server command, not a browser insert. The same input gate must protect
+    // histories even when the browser-only triggers are inactive on the overlay.
+    for (const history of ['returnAuthorizationsById', 'warrantiesById']) {
+      await assert.rejects(f.add('customer.create', { customer: {
+        name: 'Invalid history', metadata: { [history]: { synthetic: { status: 'approved' } } },
+      } }), { code: 'INVALID_INPUT' });
+    }
+    assert.equal(await f.count('customers', f.draft), 0);
     const party = f.id('stock-buyer');
     const item = f.id('widget');
     await live.doc(`customers/${party}`).create({ id: party, workspaceId: f.scope.workspaceId, name: 'Acme Design' });

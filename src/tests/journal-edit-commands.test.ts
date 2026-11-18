@@ -68,3 +68,10 @@ test('a stale version cannot expose an entry from a different workspace', async 
   assert.equal(refused.ok, false);
   if (!refused.ok) { assert.equal(refused.status, 403); assert.equal((refused.error as { currentTransaction?: unknown } | undefined)?.currentTransaction, undefined); }
 });
+
+
+test('a non-admin cannot certify an entry through a partial edit', async () => {
+  const db = setup(); const result = await run(db, journalEditCommand, { id: 'entry', partialUpdate: { status: 'certified' } });
+  assert.equal(result.ok, false); if (!result.ok) assert.equal(result.status, 409);
+  assert.equal(db.read('transactions/entry')?.status, 'completed');
+});

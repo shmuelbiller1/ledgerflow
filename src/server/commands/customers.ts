@@ -140,6 +140,7 @@ export const customerCreateCommand: CommandDefinition<typeof customerCreateInput
   risk: 'normal',
   describe: {
     sentence: 'Create a customer profile for sales documents; do not use this command to change a balance or record a payment.',
+    next: [{ command: 'invoice.create', label: 'New invoice' }],
     example: { customer: { name: 'Acme Design', email: 'billing@example.test', status: 'active' } },
     refusals: [
       { code: 'INVALID_INPUT', when: 'The customer profile contains invalid fields or a different workspace id.', next: 'Correct the customer details and retry.' },
@@ -185,6 +186,7 @@ export const customerUpdateCommand: CommandDefinition<typeof customerUpdateInput
   risk: 'normal',
   describe: {
     sentence: 'Update a customer profile without changing its server-managed identity or balance; metadata keys merge, and send null to remove one. Do not use this command to record a payment.',
+    next: [{ command: 'invoice.create', label: 'New invoice' }],
     example: { id: 'customer_123', data: { email: 'billing@example.test', linkedVendorId: 'vendor_123', metadata: { creditLimitCents: 500000 } } },
     refusals: [
       { code: 'INVALID_INPUT', when: 'The customer id or one of the supplied profile fields is invalid.', next: 'Correct the customer details and retry.' },
