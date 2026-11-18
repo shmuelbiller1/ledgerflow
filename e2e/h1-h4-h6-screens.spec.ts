@@ -107,7 +107,8 @@ test.describe('H-1 RTL Hebrew · H-4 screen-reader/axe · H-6 empty & failed-loa
       }]);
       await expect(page.getByTestId('il-vat-empty-period')).toBeVisible();
 
-      const vatAlign = await page.getByRole('rowheader', { name: 'Output VAT' }).evaluate(th => {
+      // the page is in Hebrew, and the VAT report is translated (EU-G1)
+      const vatAlign = await page.getByRole('rowheader', { name: 'מע״מ עסקאות' }).evaluate(th => {
         const amountCell = th.parentElement?.querySelector('td:last-child') as HTMLElement | null;
         const labelCs = getComputedStyle(th);
         return {
@@ -130,7 +131,7 @@ test.describe('H-1 RTL Hebrew · H-4 screen-reader/axe · H-6 empty & failed-loa
       });
       const notice = page.locator('[data-screen-data-notice]');
       await expect(notice).toBeVisible();
-      await expect(page.getByRole('button', { name: /Export CSV/i })).toBeDisabled();
+      await expect(page.getByRole('button', { name: /ייצוא CSV/ })).toBeDisabled();
       await notice.getByRole('button', { name: 'Try again' }).click();
       await expect(notice).toHaveCount(0);
 

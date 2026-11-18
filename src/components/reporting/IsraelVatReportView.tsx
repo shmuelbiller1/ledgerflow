@@ -18,6 +18,7 @@ import { ilVatRegistrations } from '../../lib/israelMonthJourney';
 import { ilVatReportCsvHeaders, ilVatReportCsvRows } from '../../lib/ilVatReportCsv';
 import ReportTableScroll from './ReportTableScroll';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { useReportText } from './useReportText';
 
 const IL_VAT_COLLECTIONS = ['invoices', 'bills', 'creditNotes', 'vendorCredits', 'accounts'] as const;
 
@@ -217,6 +218,7 @@ export function IsraelVatReportPanel({
   mixedBillsCount?: number;
   embedded?: boolean;
 }) {
+  const reportText = useReportText();
   const Heading = embedded ? 'h2' : 'h1';
   const dealerNumber = activeReg.split(':').pop() || activeReg;
   const csvHeaders = ilVatReportCsvHeaders(currency);
@@ -227,7 +229,7 @@ export function IsraelVatReportPanel({
   const validDates = DATE_REGEX.test(startDate) && DATE_REGEX.test(endDate) && startDate <= endDate;
 
   return (
-    <section aria-label="Israel VAT Report" className="p-4 space-y-4 min-w-0 max-w-5xl mx-auto">
+    <section aria-label={reportText('r.israel-vat-report', 'Israel VAT Report')} className="p-4 space-y-4 min-w-0 max-w-5xl mx-auto">
       {/* H-7: print the VAT return without the application shell. */}
       <div id="israel-vat-return" data-print-root={embedded ? undefined : ''} className="space-y-4">
       <div data-print-hide className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-[var(--line)] pb-4">
@@ -235,10 +237,10 @@ export function IsraelVatReportPanel({
           <Receipt className="w-6 h-6 text-[var(--brass)]" aria-hidden="true" />
           <div>
             <Heading className="text-xl font-bold">
-              Israel VAT Report · <span dir="rtl">דוח מע״מ תקופתי (טופס 836)</span>
+              {reportText('r.israel-vat-report-2', 'Israel VAT Report ·')} <span dir="rtl">{reportText('r.836', 'דוח מע״מ תקופתי (טופס 836)')}</span>
             </Heading>
             <p className="text-xs text-[var(--muted)]">
-              Periodic VAT return figures for Israeli dealers (sales, inputs, equipment inputs, to pay / reclaim). Read-only calculation for planning and review.
+              {reportText('r.periodic-vat-return-figures-for-israeli-dealers', 'Periodic VAT return figures for Israeli dealers (sales, inputs, equipment inputs, to pay / reclaim). Read-only calculation for planning and review.')}
             </p>
           </div>
         </div>
@@ -249,7 +251,7 @@ export function IsraelVatReportPanel({
             className="min-h-11 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--panel)] text-sm flex items-center gap-2"
           >
             <Printer size={16} aria-hidden="true" />
-            <span>Print</span>
+            <span>{reportText('r.print', 'Print')}</span>
           </button>
           <button
             type="button"
@@ -262,7 +264,7 @@ export function IsraelVatReportPanel({
             className="min-h-11 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--panel)] text-sm flex items-center gap-2 disabled:opacity-50"
           >
             <Download size={16} aria-hidden="true" />
-            <span>Export CSV</span>
+            <span>{reportText('r.export-csv', 'Export CSV')}</span>
           </button>
         </div>
       </div>
@@ -270,9 +272,9 @@ export function IsraelVatReportPanel({
       <div className="flex flex-wrap items-end gap-3 p-4 rounded-xl border border-[var(--line)] bg-[var(--surface)]" data-print-hide>
         {registrations.length > 1 && (
           <label className="flex flex-col gap-1 text-xs font-semibold">
-            <span>VAT Registration (עוסק מורשה)</span>
+            <span>{reportText('r.vat-registration', 'VAT Registration (עוסק מורשה)')}</span>
             <select
-              aria-label="VAT Registration"
+              aria-label={reportText('r.vat-registration-2', 'VAT Registration')}
               className={field}
               value={activeReg}
               onChange={e => onRegistrationChange(e.target.value)}
@@ -286,20 +288,20 @@ export function IsraelVatReportPanel({
           </label>
         )}
         <label className="flex flex-col gap-1 text-xs font-semibold">
-          <span>From (מתאריך)</span>
+          <span>{reportText('r.from-2', 'From (מתאריך)')}</span>
           <input
             type="date"
-            aria-label="Start date"
+            aria-label={reportText('r.start-date', 'Start date')}
             className={field}
             value={startDate}
             onChange={e => onStartDateChange(e.target.value)}
           />
         </label>
         <label className="flex flex-col gap-1 text-xs font-semibold">
-          <span>To (עד תאריך)</span>
+          <span>{reportText('r.to-3', 'To (עד תאריך)')}</span>
           <input
             type="date"
-            aria-label="End date"
+            aria-label={reportText('r.end-date', 'End date')}
             className={field}
             value={endDate}
             onChange={e => onEndDateChange(e.target.value)}
@@ -313,16 +315,16 @@ export function IsraelVatReportPanel({
             failedKeys={failedKeys}
             message={failureMessage}
             onRetry={onRetryFailed}
-            what="this VAT report"
+            what={reportText('r.this-vat-report', 'this VAT report')}
           />
         </div>
       )}
-      {loading && <p role="status" className="text-sm">Loading documents and VAT registrations…</p>}
-      {partial && <p role="alert" className="text-sm text-amber-700 dark:text-amber-400">A loaded list is capped or failed, so the figures below are provisional until all records are loaded.</p>}
+      {loading && <p role="status" className="text-sm">{reportText('r.loading-documents-and-vat-registrations', 'Loading documents and VAT registrations…')}</p>}
+      {partial && <p role="alert" className="text-sm text-amber-700 dark:text-amber-400">{reportText('r.a-loaded-list-is-capped-or-failed-so-the-figures', 'A loaded list is capped or failed, so the figures below are provisional until all records are loaded.')}</p>}
       {missingRegistration && (
         <div className="space-y-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4">
           <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">
-            No Israeli VAT registration is configured for this period. Add one in Settings → Tax profiles before preparing a VAT report; figures cannot be calculated without a registration.
+            {reportText('r.no-israeli-vat-registration-is-configured-for-th', 'No Israeli VAT registration is configured for this period. Add one in Settings → Tax profiles before preparing a VAT report; figures cannot be calculated without a registration.')}
           </p>
           {onOpenSettings && (
             <div data-print-hide>
@@ -331,7 +333,7 @@ export function IsraelVatReportPanel({
                 onClick={onOpenSettings}
                 className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] bg-[var(--panel)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[var(--elevated)]"
               >
-                Open Settings
+                {reportText('r.open-settings', 'Open Settings')}
               </button>
             </div>
           )}
@@ -339,24 +341,24 @@ export function IsraelVatReportPanel({
       )}
       {currency !== 'ILS' && (
         <p className="text-xs text-amber-700 dark:text-amber-400">
-          Figures are in the workspace's base currency ({currency}). An Israeli VAT return is filed in ILS; this screen does not convert currencies or file a return.
+          {reportText('r.figures-are-in-the-workspace-s-base-currency', 'Figures are in the workspace\'s base currency (')}{currency}{reportText('r.an-israeli-vat-return-is-filed-in-ils-this-scree', '). An Israeli VAT return is filed in ILS; this screen does not convert currencies or file a return.')}
         </p>
       )}
-      {!validDates && <p role="alert" className="text-sm text-rose-600">Please enter a valid date range (YYYY-MM-DD) with start date before or equal to end date.</p>}
+      {!validDates && <p role="alert" className="text-sm text-rose-600">{reportText('r.please-enter-a-valid-date-range-yyyy-mm-dd-with', 'Please enter a valid date range (YYYY-MM-DD) with start date before or equal to end date.')}</p>}
 
       {mixedBillsCount > 0 && (
         <p className="text-xs text-amber-700 dark:text-amber-400 p-2 rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20">
-          Note: {mixedBillsCount} bill(s) mix equipment and operating expense accounts. Per Israeli reporting guidelines, mixed bills are reported under other input VAT rather than being split by assumption.
+          {reportText('r.note-2', 'Note:')} {mixedBillsCount} {reportText('r.bill-s-mix-equipment-and-operating-expense-accou', 'bill(s) mix equipment and operating expense accounts. Per Israeli reporting guidelines, mixed bills are reported under other input VAT rather than being split by assumption.')}
         </p>
       )}
 
       {report && (
         <div className="space-y-4">
           <div className="text-sm text-[var(--muted)] flex flex-wrap gap-x-6 gap-y-1">
-            <span>Dealer number: <b><bdi>{dealerNumber}</bdi></b></span>
-            <span>Period: <b><bdi>{report.startDate}</bdi></b> to <b><bdi>{report.endDate}</bdi></b></span>
-            <span>Documents evaluated: <b>{report.documentCount}</b></span>
-            <span>Currency: <b><bdi>{currency}</bdi></b></span>
+            <span>{reportText('r.dealer-number', 'Dealer number:')} <b><bdi>{dealerNumber}</bdi></b></span>
+            <span>{reportText('r.period-2', 'Period:')} <b><bdi>{report.startDate}</bdi></b> {reportText('r.to-2', 'to')} <b><bdi>{report.endDate}</bdi></b></span>
+            <span>{reportText('r.documents-evaluated', 'Documents evaluated:')} <b>{report.documentCount}</b></span>
+            <span>{reportText('r.currency', 'Currency:')} <b><bdi>{currency}</bdi></b></span>
           </div>
 
           {!loading && !partial && failedKeys.length === 0 && report.documentCount === 0 && (
@@ -366,8 +368,8 @@ export function IsraelVatReportPanel({
               className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-xs"
             >
               <p className="text-[var(--muted)]">
-                <strong className="text-[var(--text)]">No counted VAT documents in this period.</strong>{' '}
-                Choose another date range, or issue an invoice or record a supplier bill under this registration to populate the return.
+                <strong className="text-[var(--text)]">{reportText('r.no-counted-vat-documents-in-this-period', 'No counted VAT documents in this period.')}</strong>{' '}
+                {reportText('r.choose-another-date-range-or-issue-an-invoice-or-2', 'Choose another date range, or issue an invoice or record a supplier bill under this registration to populate the return.')}
               </p>
               {onOpenInvoices && (
                 <button
@@ -375,7 +377,7 @@ export function IsraelVatReportPanel({
                   onClick={onOpenInvoices}
                   className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-[var(--line)] bg-[var(--panel)] px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[var(--elevated)]"
                 >
-                  Open Invoices
+                  {reportText('r.open-invoices', 'Open Invoices')}
                 </button>
               )}
             </div>
@@ -384,80 +386,80 @@ export function IsraelVatReportPanel({
           <ReportTableScroll>
             <table className="w-full text-sm">
               <caption className="text-start font-semibold text-[var(--text)] pb-2">
-                Periodic VAT Return Summary (ריכוז דוח תקופתי למע״מ - טופס 836)
+                {reportText('r.periodic-vat-return-summary-836', 'Periodic VAT Return Summary (ריכוז דוח תקופתי למע״מ - טופס 836)')}
               </caption>
               <thead>
                 <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                  <th scope="col" className="text-start py-2 px-3">Field (שדה)</th>
-                  <th scope="col" className="text-start py-2 px-3">Hebrew Description (תיאור)</th>
-                  <th scope="col" className="text-right py-2 px-3">Amount (סכום)</th>
+                  <th scope="col" className="text-start py-2 px-3">{reportText('r.field', 'Field (שדה)')}</th>
+                  <th scope="col" className="text-start py-2 px-3">{reportText('r.hebrew-description', 'Hebrew Description (תיאור)')}</th>
+                  <th scope="col" className="text-right py-2 px-3">{reportText('r.amount-2', 'Amount (סכום)')}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-b border-[var(--line)]/50">
                   <th scope="row" className="text-start font-normal py-2 px-3">
-                    Taxable sales (excluding VAT)
+                    {reportText('r.taxable-sales-excluding-vat', 'Taxable sales (excluding VAT)')}
                   </th>
-                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">עסקאות חייבות במס (ללא מע״מ)</td>
+                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">{reportText('r.x', 'עסקאות חייבות במס (ללא מע״מ)')}</td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums font-medium">
                     {renderMoney(report.taxableSalesCents)}
                   </td>
                 </tr>
                 <tr className="border-b border-[var(--line)]/50 bg-[var(--surface)]/40">
                   <th scope="row" className="text-start font-semibold py-2 px-3">
-                    Output VAT
+                    {reportText('r.output-vat', 'Output VAT')}
                   </th>
-                  <td className="py-2 px-3 text-[var(--muted)] font-semibold" dir="rtl">מע״מ עסקאות</td>
+                  <td className="py-2 px-3 text-[var(--muted)] font-semibold" dir="rtl">{reportText('r.x-2', 'מע״מ עסקאות')}</td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums font-bold">
                     {renderMoney(report.outputVatCents)}
                   </td>
                 </tr>
                 <tr className="border-b border-[var(--line)]/50">
                   <th scope="row" className="text-start font-normal py-2 px-3">
-                    Zero-rated sales
+                    {reportText('r.zero-rated-sales', 'Zero-rated sales')}
                   </th>
-                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">עסקאות בשיעור אפס (יצוא וכד׳)</td>
+                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">{reportText('r.x-3', 'עסקאות בשיעור אפס (יצוא וכד׳)')}</td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums">
                     {renderMoney(report.zeroRatedSalesCents)}
                   </td>
                 </tr>
                 <tr className="border-b border-[var(--line)]/50">
                   <th scope="row" className="text-start font-normal py-2 px-3">
-                    Exempt sales
+                    {reportText('r.exempt-sales', 'Exempt sales')}
                   </th>
-                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">עסקאות פטורות</td>
+                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">{reportText('r.x-4', 'עסקאות פטורות')}</td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums">
                     {renderMoney(report.exemptSalesCents)}
                   </td>
                 </tr>
                 <tr className="border-b border-[var(--line)]/50">
                   <th scope="row" className="text-start font-normal py-2 px-3">
-                    Input VAT on fixed assets (equipment)
+                    {reportText('r.input-vat-on-fixed-assets-equipment', 'Input VAT on fixed assets (equipment)')}
                   </th>
-                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">מס תשומות על ציוד (נכסים קבועים)</td>
+                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">{reportText('r.x-5', 'מס תשומות על ציוד (נכסים קבועים)')}</td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums">
                     {renderMoney(report.fixedAssetInputVatCents)}
                   </td>
                 </tr>
                 <tr className="border-b border-[var(--line)]/50">
                   <th scope="row" className="text-start font-normal py-2 px-3">
-                    Input VAT on other purchases
+                    {reportText('r.input-vat-on-other-purchases', 'Input VAT on other purchases')}
                   </th>
-                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">מס תשומות אחרות (הוצאות שוטפות)</td>
+                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">{reportText('r.x-6', 'מס תשומות אחרות (הוצאות שוטפות)')}</td>
                   <td className="py-2 px-3 text-right font-mono tabular-nums">
                     {renderMoney(report.otherInputVatCents)}
                   </td>
                 </tr>
                 <tr className="border-t-2 border-[var(--line)] bg-[var(--panel)]">
                   <th scope="row" className="text-start font-bold py-3 px-3">
-                    {report.toPayCents >= 0 ? 'Total VAT to pay' : 'Total VAT to reclaim'}
+                    {report.toPayCents >= 0 ? reportText('r.total-vat-to-pay', 'Total VAT to pay') : reportText('r.total-vat-to-reclaim', 'Total VAT to reclaim')}
                   </th>
                   <td className="py-3 px-3 text-[var(--muted)] font-bold" dir="rtl">
                     {report.toPayCents >= 0 ? 'סך הכל לתשלום' : 'סך הכל להחזר'}
                   </td>
                   <td className={`py-3 px-3 text-right font-mono tabular-nums font-extrabold text-base ${report.toPayCents >= 0 ? 'text-[var(--text)]' : 'text-[var(--pos)]'}`}>
                     {renderMoney(Math.abs(report.toPayCents))}
-                    {report.toPayCents < 0 && <span className="text-xs font-normal ms-1">(reclaim / להחזר)</span>}
+                    {report.toPayCents < 0 && <span className="text-xs font-normal ms-1">{reportText('r.reclaim-2', '(reclaim / להחזר)')}</span>}
                   </td>
                 </tr>
               </tbody>
@@ -466,11 +468,10 @@ export function IsraelVatReportPanel({
 
           <div className="p-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--muted)] space-y-1">
             <p>
-              <b>Important notice:</b> This report is for calculation, management review, and reconciliation purposes only.
-              It does not file a tax return, make a tax payment, or communicate with the Israel Tax Authority.
+              <b>{reportText('r.important-notice', 'Important notice:')}</b> {reportText('r.this-report-is-for-calculation-management-review', 'This report is for calculation, management review, and reconciliation purposes only. It does not file a tax return, make a tax payment, or communicate with the Israel Tax Authority.')}
             </p>
             <p>
-              Statutory filing requires submission via the Israel Tax Authority portal (שע״מ / Gov.il) or certified electronic reporting.
+              {reportText('r.statutory-filing-requires-submission-via-the-isr', 'Statutory filing requires submission via the Israel Tax Authority portal (שע״מ / Gov.il) or certified electronic reporting.')}
             </p>
           </div>
         </div>

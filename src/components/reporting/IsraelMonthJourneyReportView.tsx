@@ -16,6 +16,7 @@ import { runCommand } from '../../lib/runCommand';
 import { RowTable } from '../ui/RowTable';
 import { JourneyNotices, JourneySteps } from './JourneySteps';
 import { stepStatusLabel } from './journeyStatus';
+import { useReportText, fill } from './useReportText';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const MONTH_TEXT = /^\d{4}-\d{2}$/;
@@ -201,42 +202,38 @@ export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', mo
   loading?: boolean;
   partial?: boolean;
 }) {
+  const reportText = useReportText();
   const goToPage = useUIStore(state => state.goToPage);
   const problem = israelMonthProblem(monthText, getLocalDateISO());
 
-  return <section aria-label="Israel month journey" className="p-4 space-y-4 min-w-0">
-    <h2>Israel month journey</h2>
+  return <section aria-label={reportText('r.israel-month-journey', 'Israel month journey')} className="p-4 space-y-4 min-w-0">
+    <h2>{reportText('r.israel-month-journey', 'Israel month journey')}</h2>
     <p className="text-sm text-[var(--muted)]">
-      One path for an Israeli VAT month: the registration, the allocation numbers on business
-      invoices, the periodic VAT report (form 836 figures), the historical PCN874 draft and closing
-      the month. Each money figure is the one the screen it names shows, so nothing is recalculated
-      here. Read-only: nothing files, posts, pays or closes anything. The Tax Authority assigns the
-      frequency and the deadline, and the PCN874 draft uses a historical Appendix A layout that is
-      not verified for current filing.
+      {reportText('r.one-path-for-an-israeli-vat-month-the-registrati', 'One path for an Israeli VAT month: the registration, the allocation numbers on business invoices, the periodic VAT report (form 836 figures), the historical PCN874 draft and closing the month. Each money figure is the one the screen it names shows, so nothing is recalculated here. Read-only: nothing files, posts, pays or closes anything. The Tax Authority assigns the frequency and the deadline, and the PCN874 draft uses a historical Appendix A layout that is not verified for current filing.')}
     </p>
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
-      <label className="flex flex-col gap-1 text-sm">Month
-        <input aria-label="Month" className={field} value={monthText} onChange={event => onMonthChange(event.target.value)} placeholder="2026-09" />
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.month', 'Month')}
+        <input aria-label={reportText('r.month', 'Month')} className={field} value={monthText} onChange={event => onMonthChange(event.target.value)} placeholder="2026-09" />
       </label>
-      <label className="flex flex-col gap-1 text-sm">Dealer number (9 digits)
-        <input aria-label="Dealer number (9 digits)" inputMode="numeric" maxLength={9} className={field} value={dealerId}
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.dealer-number-9-digits', 'Dealer number (9 digits)')}
+        <input aria-label={reportText('r.dealer-number-9-digits', 'Dealer number (9 digits)')} inputMode="numeric" maxLength={9} className={field} value={dealerId}
           onChange={event => onDealerIdChange(event.target.value.replace(/\D/g, '').slice(0, 9))} placeholder="514000000" />
       </label>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!journey || loading}
-        onClick={() => journey && downloadCsv(`israel-month-journey-${journey.month}`, IL_MONTH_JOURNEY_CSV_HEADERS, ilMonthJourneyCsvRows(journey))}>Export CSV</button>
+        onClick={() => journey && downloadCsv(`israel-month-journey-${journey.month}`, IL_MONTH_JOURNEY_CSV_HEADERS, ilMonthJourneyCsvRows(journey))}>{reportText('r.export-csv', 'Export CSV')}</button>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!preview?.draft}
-        onClick={() => preview?.draft && downloadText(`pcn874-${preview.startMonth === preview.endMonth ? preview.startMonth : `${preview.startMonth}-to-${preview.endMonth}`}-draft.txt`, preview.draft.text)}>Download PCN874 draft</button>
+        onClick={() => preview?.draft && downloadText(`pcn874-${preview.startMonth === preview.endMonth ? preview.startMonth : `${preview.startMonth}-to-${preview.endMonth}`}-draft.txt`, preview.draft.text)}>{reportText('r.download-pcn874-draft', 'Download PCN874 draft')}</button>
     </div>
 
     <JourneyNotices problem={problem} loading={loading} partial={partial} problems={journey?.problems}
       loadingText="Loading the month&rsquo;s documents and the returns recorded for it…" />
 
     {journey && <p className="text-sm">
-      <b>{journey.month}</b> ({journey.startDate} to {journey.endDate}) · {journey.done} of {journey.steps.length} steps done
+      <b>{journey.month}</b> ({journey.startDate} {reportText('r.to-2', 'to')} {journey.endDate}) · {journey.done} {reportText('r.of', 'of')} {journey.steps.length} {reportText('r.steps-done', 'steps done')}
       {journey.readyToClose
-        ? ' · the month’s recorded work is complete here.'
-        : journey.nextStep ? ` · next: ${journey.steps.find(s => s.id === journey.nextStep)?.title}.` : ''}
+        ? reportText('r.the-month-s-recorded-work-is-complete-here', '· the month’s recorded work is complete here.')
+        : journey.nextStep ? ` ${fill(reportText('r.journey-next', '· next: {step}.'), { step: journey.steps.find(s => s.id === journey.nextStep)?.title ?? '' })}` : ''}
     </p>}
 
     {journey && <JourneySteps steps={journey.steps} currency={currency} formatCurrency={formatCurrency} statusLabel={STATUS_LABEL}
@@ -245,23 +242,20 @@ export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', mo
         {step.allocation.length > 0 && <AllocationTable cases={step.allocation} currency={currency} />}
       </>}
       openScreen={step => step.id === 'pcn874'
-        ? <p className="text-sm text-[var(--muted)]">The draft, every document that cannot be written and the comparison with the report are below.</p>
+        ? <p className="text-sm text-[var(--muted)]">{reportText('r.the-draft-every-document-that-cannot-be-written', 'The draft, every document that cannot be written and the comparison with the report are below.')}</p>
         : <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)] text-sm"
-          onClick={() => goToPage({ tab: step.tab, sub: step.screen })}>Open {step.screenLabel}</button>} />}
+          onClick={() => goToPage({ tab: step.tab, sub: step.screen })}>{reportText('r.open', 'Open')} {step.screenLabel}</button>} />}
 
     {preview && <section aria-labelledby="pcn874-preview" className="rounded border border-[var(--line)] p-3 space-y-2">
-      <h3 id="pcn874-preview" className="font-semibold text-sm">PCN874 historical draft</h3>
+      <h3 id="pcn874-preview" className="font-semibold text-sm">{reportText('r.pcn874-historical-draft', 'PCN874 historical draft')}</h3>
       <p className="text-sm text-[var(--muted)]">
-        The fixed-width Appendix A layout, built from the documents of {preview.startMonth === preview.endMonth ? preview.startMonth : `the bimonthly report ${preview.startMonth} to ${preview.endMonth} (the header carries its first month, not verified for the current layout)`} in shekels: {preview.rows.length} row(s).
-        It is <b>not filing-ready</b>: the layout dates to 2010, and current validation, document
-        classification, allocation-number rules and Tax Authority acceptance must be verified
-        independently. Nothing is submitted from this screen.
+        {reportText('r.the-fixed-width-appendix-a-layout-built-from-the', 'The fixed-width Appendix A layout, built from the documents of')} {preview.startMonth === preview.endMonth ? preview.startMonth : fill(reportText('r.bimonthly-report-range', 'the bimonthly report {from} to {to} (the header carries its first month, not verified for the current layout)'), { from: preview.startMonth, to: preview.endMonth })} {reportText('r.in-shekels', 'in shekels:')} {preview.rows.length} {reportText('r.row-s-it-is', 'row(s). It is')} <b>{reportText('r.not-filing-ready', 'not filing-ready')}</b>{reportText('r.the-layout-dates-to-2010-and-current-validation', ': the layout dates to 2010, and current validation, document classification, allocation-number rules and Tax Authority acceptance must be verified independently. Nothing is submitted from this screen.')}
       </p>
       {preview.problem && <p role="status" className="text-sm text-amber-700 dark:text-amber-400">{preview.problem}</p>}
       {preview.unmapped.length > 0 && <ReportTableScroll>
         <RowTable
           rowClassName="border-b border-[var(--line)]/50"
-          caption={(<>Documents that cannot be written in this historical layout</>)}
+          caption={(<>{reportText('r.documents-that-cannot-be-written-in-this-histori', 'Documents that cannot be written in this historical layout')}</>)}
           rows={preview.unmapped}
           rowKey={row => `${row.kind}:${row.documentId}`}
           captionClassName="text-left font-semibold text-[var(--text)] pb-1"
@@ -269,19 +263,19 @@ export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', mo
           headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
           bodyClassName=""
           columns={[
-            { header: "Document", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.documentId },
-            { header: "Kind", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.kind },
-            { header: "Number", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.number || '—' },
-            { header: "Why it cannot be written", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.reason },
+            { header: reportText('r.document', 'Document'), className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.documentId },
+            { header: reportText('r.kind', 'Kind'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.kind },
+            { header: reportText('r.number', 'Number'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.number || '—' },
+            { header: reportText('r.why-it-cannot-be-written', 'Why it cannot be written'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.reason },
           ]}
         />
       </ReportTableScroll>}
       {preview.comparison.some(row => row.differenceNis !== 0) && <>
-        <p className="text-sm">The draft’s whole-shekel totals differ from the VAT report; the difference is shown, never smoothed away. Per-document rounding to whole shekels can explain one shekel per row.</p>
+        <p className="text-sm">{reportText('r.the-draft-s-whole-shekel-totals-differ-from-the', 'The draft’s whole-shekel totals differ from the VAT report; the difference is shown, never smoothed away. Per-document rounding to whole shekels can explain one shekel per row.')}</p>
         <ReportTableScroll>
           <RowTable
             rowClassName="border-b border-[var(--line)]/50"
-            caption={(<>The draft beside the VAT report</>)}
+            caption={(<>{reportText('r.the-draft-beside-the-vat-report', 'The draft beside the VAT report')}</>)}
             rows={preview.comparison}
             rowKey={row => row.label}
             captionClassName="text-left font-semibold text-[var(--text)] pb-1"
@@ -289,22 +283,23 @@ export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', mo
             headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
             bodyClassName=""
             columns={[
-              { header: "Figure", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.label },
-              { header: "Draft (NIS)", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.draftNis.toLocaleString('en-US') },
-              { header: "VAT report (NIS)", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.returnNis.toLocaleString('en-US') },
-              { header: "Difference (NIS)", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.differenceNis.toLocaleString('en-US') },
+              { header: reportText('r.figure', 'Figure'), className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.label },
+              { header: reportText('r.draft-nis', 'Draft (NIS)'), className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.draftNis.toLocaleString('en-US') },
+              { header: reportText('r.vat-report-nis', 'VAT report (NIS)'), className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.returnNis.toLocaleString('en-US') },
+              { header: reportText('r.difference-nis', 'Difference (NIS)'), className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => row.differenceNis.toLocaleString('en-US') },
             ]}
           />
         </ReportTableScroll>
       </>}
       {preview.draft && <p className="text-sm">
-        Header {preview.draft.header.length} characters, {preview.draft.transactions.length} transaction row(s) of 60, closing {preview.draft.closing.length}. Downloading saves the text; it does not file it.
+        {reportText('r.header', 'Header')} {preview.draft.header.length} {reportText('r.characters', 'characters,')} {preview.draft.transactions.length} {reportText('r.transaction-row-s-of-60-closing', 'transaction row(s) of 60, closing')} {preview.draft.closing.length}{reportText('r.downloading-saves-the-text-it-does-not-file-it', '. Downloading saves the text; it does not file it.')}
       </p>}
     </section>}
   </section>;
 }
 
 function VatReturnTable({ returns, currency, onRecordFiled }: { returns: IsraelMonth['steps'][number]['returns']; currency: string; onRecordFiled?: (r: { registration: string; startDate: string; endDate: string }) => Promise<void> }) {
+  const reportText = useReportText();
   const [saving, setSaving] = useState('');
   const [problem, setProblem] = useState('');
   const record = async (r: IsraelMonth['steps'][number]['returns'][number]) => {
@@ -319,7 +314,7 @@ function VatReturnTable({ returns, currency, onRecordFiled }: { returns: IsraelM
     {problem && <p role="alert" className="text-sm text-[var(--danger)]">{problem}</p>}
     <RowTable
       rowClassName="border-b border-[var(--line)]/50"
-      caption={(<>The VAT report each registration files for this month (its own monthly or two-month period), as the return screen computes it</>)}
+      caption={(<>{reportText('r.the-vat-report-each-registration-files-for-this', 'The VAT report each registration files for this month (its own monthly or two-month period), as the return screen computes it')}</>)}
       rows={returns}
       rowKey={r => r.registration}
       captionClassName="text-left font-semibold text-[var(--text)] pb-1"
@@ -327,18 +322,18 @@ function VatReturnTable({ returns, currency, onRecordFiled }: { returns: IsraelM
       headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
       bodyClassName=""
       columns={[
-        { header: "Registration", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => (<><span className="block">{r.registration.split(':').pop()}</span><span className="block text-xs text-[var(--muted)]">{r.startMonth === r.endMonth ? r.startMonth : `${r.startMonth} to ${r.endMonth}`}</span></>) },
-        { header: "Documents", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (r) => r.documentCount },
-        { header: "Taxable sales", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.taxableSalesCents, currency) },
-        { header: "Output VAT", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.outputVatCents, currency) },
-        { header: "Zero-rated", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.zeroRatedSalesCents, currency) },
-        { header: "Input VAT, other", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.otherInputVatCents, currency) },
-        { header: "Input VAT, equipment", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.fixedAssetInputVatCents, currency) },
-        { header: "To pay / reclaim", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => (<>{formatCurrency(Math.abs(r.toPayCents), currency)}{r.toPayCents < 0 ? ' (reclaim)' : ''}</>) },
-        { header: "Due date", className: "py-1 px-2 whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => r.dueDate || (r.filing ? `${r.filing} report` : 'not stated') },
-        { header: "Recorded as filed", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.filed ? 'Yes' : onRecordFiled && !r.pending
+        { header: reportText('r.registration', 'Registration'), className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => (<><span className="block">{r.registration.split(':').pop()}</span><span className="block text-xs text-[var(--muted)]">{r.startMonth === r.endMonth ? r.startMonth : fill(reportText('r.month-range', '{from} to {to}'), { from: r.startMonth, to: r.endMonth })}</span></>) },
+        { header: reportText('r.documents-2', 'Documents'), className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (r) => r.documentCount },
+        { header: reportText('r.taxable-sales', 'Taxable sales'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.taxableSalesCents, currency) },
+        { header: reportText('r.output-vat', 'Output VAT'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.outputVatCents, currency) },
+        { header: reportText('r.zero-rated', 'Zero-rated'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.zeroRatedSalesCents, currency) },
+        { header: reportText('r.input-vat-other', 'Input VAT, other'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.otherInputVatCents, currency) },
+        { header: reportText('r.input-vat-equipment', 'Input VAT, equipment'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => formatCurrency(r.fixedAssetInputVatCents, currency) },
+        { header: reportText('r.to-pay-reclaim', 'To pay / reclaim'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => (<>{formatCurrency(Math.abs(r.toPayCents), currency)}{r.toPayCents < 0 ? reportText('r.reclaim', '(reclaim)') : ''}</>) },
+        { header: reportText('r.due-date-2', 'Due date'), className: "py-1 px-2 whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => r.dueDate || (r.filing ? `${r.filing} report` : 'not stated') },
+        { header: reportText('r.recorded-as-filed', 'Recorded as filed'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.filed ? 'Yes' : onRecordFiled && !r.pending
             ? <button type="button" className="min-h-11 px-3 rounded border border-[var(--line)]" disabled={saving === r.registration}
-              onClick={() => { void record(r); }}>{saving === r.registration ? 'Recording…' : `Record ${r.registration.split(':').pop()} as filed`}</button>
+              onClick={() => { void record(r); }}>{saving === r.registration ? reportText('r.recording', 'Recording…') : fill(reportText('r.record-reg-as-filed', 'Record {registration} as filed'), { registration: r.registration.split(':').pop() ?? '' })}</button>
             : 'Not recorded here' },
       ]}
     />
@@ -346,10 +341,11 @@ function VatReturnTable({ returns, currency, onRecordFiled }: { returns: IsraelM
 }
 
 function AllocationTable({ cases, currency }: { cases: IsraelMonth['steps'][number]['allocation']; currency: string }) {
+  const reportText = useReportText();
   return <ReportTableScroll>
     <RowTable
       rowClassName="border-b border-[var(--line)]/50"
-      caption={(<>Invoices that need an allocation number</>)}
+      caption={(<>{reportText('r.invoices-that-need-an-allocation-number', 'Invoices that need an allocation number')}</>)}
       rows={cases}
       rowKey={c => c.invoiceId}
       captionClassName="text-left font-semibold text-[var(--text)] pb-1"
@@ -357,13 +353,13 @@ function AllocationTable({ cases, currency }: { cases: IsraelMonth['steps'][numb
       headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
       bodyClassName=""
       columns={[
-        { header: "Invoice", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => c.number || c.invoiceId },
-        { header: "Customer", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => c.customerName || '—' },
-        { header: "Date", className: "py-1 px-2 whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (c) => c.date },
-        { header: "Before VAT", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (c) => formatCurrency(c.netCents, currency) },
-        { header: "Threshold", className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (c) => formatCurrency(c.thresholdCents, currency) },
-        { header: "Recorded number", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => c.recorded || 'none' },
-        { header: "What to do", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => c.problem || 'Recorded and 9 digits.' },
+        { header: reportText('r.invoice-2', 'Invoice'), className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => c.number || c.invoiceId },
+        { header: reportText('r.customer', 'Customer'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => c.customerName || '—' },
+        { header: reportText('r.date-2', 'Date'), className: "py-1 px-2 whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (c) => c.date },
+        { header: reportText('r.before-vat', 'Before VAT'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (c) => formatCurrency(c.netCents, currency) },
+        { header: reportText('r.threshold', 'Threshold'), className: "py-1 px-2 tabular-nums whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (c) => formatCurrency(c.thresholdCents, currency) },
+        { header: reportText('r.recorded-number', 'Recorded number'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => c.recorded || 'none' },
+        { header: reportText('r.what-to-do', 'What to do'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (c) => c.problem || 'Recorded and 9 digits.' },
       ]}
     />
   </ReportTableScroll>;
