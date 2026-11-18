@@ -1,3 +1,4 @@
+import { requireLiveDb } from '../db/firestore';
 import type { Firestore } from '../db/firestore';
 import { deleteFilesWithPrefix, StorageNotConfiguredError } from '../storage/supabaseStorage';
 import { WORKSPACE_PURGE_ORDER } from '../../constants/collections';
@@ -6,6 +7,7 @@ import { retentionFor } from '../../lib/retention';
 
 /** `only` limits the run to these workspaces (tests: so parallel runs don't purge each other's). */
 export async function purgePendingWorkspaces(db: Firestore, only?: string[]): Promise<{ purgedWorkspaces: string[]; errors: string[] }> {
+  requireLiveDb(db, 'Workspace purge');
   const nowISO = new Date().toISOString();
   const purgedWorkspaces: string[] = [];
   const errors: string[] = [];

@@ -1,3 +1,4 @@
+import { guardEffect } from './sandboxEffects';
 import { safeFetch } from '../utils/safeFetch';
 import { trimSpacesBeforeNewlines } from '../../lib/textShape';
 
@@ -60,6 +61,7 @@ export function htmlToText(html: string): string {
 const base64 = (content: string | Buffer) => (Buffer.isBuffer(content) ? content.toString('base64') : content);
 
 export async function sendMail(input: MailMessage): Promise<MailResult> {
+  guardEffect({ kind: 'email', action: 'send', target: input.to });
   const message = { ...input, from: input.from || process.env.EMAIL_FROM || 'no-reply@ledgerflow.app', text: input.text || htmlToText(input.html) };
   const attachments = message.attachments || [];
   if (testTransport) return testTransport(message);

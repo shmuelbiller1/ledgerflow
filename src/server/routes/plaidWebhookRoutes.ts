@@ -1,3 +1,4 @@
+import { guardEffect } from '../services/sandboxEffects';
 import express from "express";
 import crypto from "crypto";
 import { decodeProtectedHeader, importJWK, jwtVerify, type JWK } from "jose";
@@ -23,6 +24,7 @@ export class PlaidWebhookRejected extends Error {}
 
 /** Throws PlaidWebhookRejected unless the request is a fresh notice signed by Plaid for this exact body. */
 export async function verifyPlaidWebhook(rawBody: Buffer, token: string | undefined, now = Date.now()): Promise<void> {
+  guardEffect({ kind: 'bank', action: 'verify-webhook' });
   if (!token) throw new PlaidWebhookRejected('missing Plaid-Verification header');
   let header: ReturnType<typeof decodeProtectedHeader>;
   try { header = decodeProtectedHeader(token); } catch { throw new PlaidWebhookRejected('unreadable token'); }
