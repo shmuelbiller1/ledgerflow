@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { keyboardRoundTrip } from './support/keyboardRoundTrip';
+import { keyboardRoundTrip, tabThroughRowActions, tabTo } from './support/keyboardRoundTrip';
 import { mountJourney } from './support/journeyFixture';
 
 // A-264: customer/vendor/item paths; invoice/bill round trips remain in keyboard-busy-screens.spec.ts.
@@ -29,15 +29,16 @@ for (const side of ['customer', 'vendor'] as const) {
     await tab.focus();
     await tab.press('Enter');
     const opener = page.getByRole('button', { name: `View ${side} Acme אבג`, exact: true });
-    await opener.focus();
-    await expect(opener).toBeFocused();
-    await opener.press('Enter');
+    await tabThroughRowActions(page, opener);
+    await tabTo(page, opener);
+    await page.keyboard.press('Enter');
     const back = page.getByRole('button', { name: `Back to ${plural}`, exact: true });
     await expect(back).toBeFocused();
     await expect(page.getByRole('heading', { name: 'Acme אבג', exact: true })).toBeVisible();
     await keyboardRoundTrip(page, page.getByRole('button', { name: `Edit ${side}`, exact: true }), customer ? 'Edit Customer' : 'Edit Vendor', { tabs: 8 });
-    await back.focus();
-    await back.press('Enter');
+    await expect(back, 'the first Escape closed only the editor').toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(back, 'Escape from the record returns to the list').toHaveCount(0);
     await expect(opener).toBeFocused();
     expect(errors).toEqual([]);
   });

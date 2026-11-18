@@ -16,8 +16,7 @@ import InlineEdit from '../ui/InlineEdit';
 import AttachmentsPanel from '../common/AttachmentsPanel';
 import RecordNotesPanel from '../common/RecordNotesPanel';
 import { RecordPage, type RecordMetric, type RecordNextAction, type RecordStep } from '../common/RecordPage';
-import { EmptyState } from '../ui/EmptyState';
-import { LoadingState } from '../ui/LoadingState';
+import { LinkedRecordStatus } from '../common/LinkedRecordStatus';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 
 interface InvoiceRecordPageProps {
@@ -45,7 +44,7 @@ export default function InvoiceRecordPage({
   onVoid,
   onOpenCustomer,
 }: InvoiceRecordPageProps) {
-  const { loading } = useLedgerCollections('invoices', 'customers', 'payments', 'auditLogs', 'transactions');
+  useLedgerCollections('invoices', 'customers', 'payments', 'auditLogs', 'transactions');
   const invoices = useLedgerStore(s => s.invoices);
   const customers = useLedgerStore(s => s.customers);
   const payments = useLedgerStore(s => s.payments);
@@ -126,26 +125,7 @@ export default function InvoiceRecordPage({
     return merged.sort((a, b) => String(b.when).localeCompare(String(a.when)));
   }, [auditLogs, invoice]);
 
-  if (loading && !invoice) {
-    return (
-      <div className="p-4 sm:p-6">
-        <LoadingState what="invoice" />
-      </div>
-    );
-  }
-
-  if (!invoice) {
-    return (
-      <div className="p-6 max-w-4xl mx-auto">
-        <EmptyState
-          title="Invoice not found"
-          description="This invoice may have been deleted or belongs to another workspace."
-          actionLabel="Back to invoices"
-          onAction={onBack}
-        />
-      </div>
-    );
-  }
+  if (!invoice) return <LinkedRecordStatus kind="invoice" onBack={onBack} />;
 
   const invLabel = invoice.number ? `Invoice ${invoice.number}` : `Invoice ${invoice.id}`;
   const currency = invoice.currency || homeCurrency;

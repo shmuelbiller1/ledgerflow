@@ -1,5 +1,40 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
+/** Traverse the real tab order instead of focusing a potentially untabbable control by script. */
+export async function tabTo(page: Page, target: Locator) {
+  await expect(target).toBeVisible();
+  for (let attempt = 0; attempt < 80; attempt++) {
+    if (await target.evaluate(control => control === document.activeElement)) return;
+    await page.keyboard.press('Tab');
+  }
+  await expect(target, 'reachable using Tab').toBeFocused();
+}
+
+/** Once on the list, every enabled button in the exercised row is reachable without a mouse. */
+export async function tabThroughRowActions(page: Page, opener: Locator) {
+  const row = opener.locator('xpath=ancestor::*[self::tr or @role="row"][1]');
+  await expect(row).toHaveCount(1);
+  for (const action of await row.getByRole('button').all()) {
+    if (await action.isEnabled()) await tabTo(page, action);
+  }
+}
+
+export async function keyboardRecordPageRoundTrip(page: Page, opener: Locator, backLabel: string) {
+  await tabTo(page, opener);
+  await page.keyboard.press('Enter');
+  const back = page.getByRole('button', { name: backLabel, exact: true });
+  await expect(back, 'Enter opens the record and moves focus inside').toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(back, 'Escape returns to the list').toHaveCount(0);
+  await expect(opener, 'focus returns to the remounted row opener').toBeFocused();
+
+  await page.keyboard.press('Enter');
+  await expect(back).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(back, 'the ordinary Back button still works').toHaveCount(0);
+  await expect(opener).toBeFocused();
+}
+
 /** The product of the element's and every ancestor's opacity: 1 only when a sighted user sees it. */
 function effectiveOpacity(locator: Locator): Promise<number> {
   return locator.evaluate((el) => {

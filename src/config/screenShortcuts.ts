@@ -25,6 +25,9 @@ export const SCREEN_SHORTCUTS: ScreenShortcutGroup[] = [
     { keys: 'K / ↑', label: 'Move to the previous guess' },
     { keys: 'A / Enter', label: 'Accept the focused guess and move on' },
   ] },
+  { id: 'record-pages', title: 'Sales and purchases — record pages', shortcuts: [
+    { keys: 'Escape', label: 'Return to the record list when focus is outside an editor or dialog' },
+  ] },
   { id: 'transaction-dialog', title: 'Transaction editor', shortcuts: [
     { keys: 'mod+Enter', label: 'Save the transaction' },
     { keys: 'Escape', label: 'Close the editor' },

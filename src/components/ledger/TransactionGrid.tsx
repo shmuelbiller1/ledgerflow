@@ -1,5 +1,6 @@
 import { currentLabelColumns } from '../../lib/currentLabelColumns';
 import { TransactionGridView } from './TransactionGridView';
+import { LinkedRecordStatus } from '../common/LinkedRecordStatus';
 import { currentIdentity, useAuthStore } from '../../stores/useAuthStore';
 import { identityScope } from '../../lib/serverAction';
 
@@ -99,7 +100,9 @@ function useTransactionGridModel() {
   // A record link (#transactions/transaction/<id>, e.g. from Data Health) opens that entry once it has loaded
   const focusedTxId = useRecordFocus('transaction', { ready: false });
   const [openedFocusId, setOpenedFocusId] = useState<string | null>(null);
-  if (focusedTxId && openedFocusId !== focusedTxId) {
+  if (!focusedTxId && openedFocusId) setOpenedFocusId(null);
+  const waitingForLinkedTransaction = Boolean(focusedTxId && openedFocusId !== focusedTxId);
+  if (waitingForLinkedTransaction && focusedTxId) {
     const tx = safeTransactions.find(t => t.id === focusedTxId);
     if (tx) {
       // Open a loaded record link once, without an extra effect-driven render.
@@ -501,11 +504,17 @@ function useTransactionGridModel() {
     return data.transactions[index]?.id || `idx-${index}`;
   }, []);
 
-  return { columnLayout, naturalColumnOrder, columnOrder, setColumnWidth, moveColumn, resetColumnLayout, formId, filterCriteria, onFilterApplied, onAction, txActions, onUpdate, onNewEntry, isProMode, isCompactMode, setProMode, setCompactMode, searchTerm, setSearchTerm, viewMode, setViewMode, editingDetailsTx, setEditingDetailsTx, isReverseModeModal, setIsReverseModeModal, lockDate, selectedIds, setSelectedIds, toggleSelectAll, parsingQueue, setParsingQueue, splittingTxId, setSplittingTxId, accounts, projects, dragActive, sortConfig, handleSort, splittingTransaction, activeView, transactionsWithBalance, stats, totalBalancedSum, selectedMetricsResult, activeFilterColumn, setActiveFilterColumn, columnSearchTerms, setColumnSearchTerms, hiddenColumns, show, toggleColumnVisibility, columnFilterValues, toggleColumnFilter, pivotData, isMobileGrid, isTabletGrid, rowHeight, gridCols, selectedTransactions, signedCents, handleExportCSV, handleBulkUpdate, handleBulkSweep, handleDrag, handleDrop, itemData, itemKey, navigationFields, gridAnnouncement, onGridFocusChange, onGridEdit, focusedCell, editingCell };
+  return { columnLayout, naturalColumnOrder, columnOrder, setColumnWidth, moveColumn, resetColumnLayout, formId, filterCriteria, onFilterApplied, onAction, txActions, onUpdate, onNewEntry, isProMode, isCompactMode, setProMode, setCompactMode, searchTerm, setSearchTerm, viewMode, setViewMode, editingDetailsTx, setEditingDetailsTx, waitingForLinkedTransaction, isReverseModeModal, setIsReverseModeModal, lockDate, selectedIds, setSelectedIds, toggleSelectAll, parsingQueue, setParsingQueue, splittingTxId, setSplittingTxId, accounts, projects, dragActive, sortConfig, handleSort, splittingTransaction, activeView, transactionsWithBalance, stats, totalBalancedSum, selectedMetricsResult, activeFilterColumn, setActiveFilterColumn, columnSearchTerms, setColumnSearchTerms, hiddenColumns, show, toggleColumnVisibility, columnFilterValues, toggleColumnFilter, pivotData, isMobileGrid, isTabletGrid, rowHeight, gridCols, selectedTransactions, signedCents, handleExportCSV, handleBulkUpdate, handleBulkSweep, handleDrag, handleDrop, itemData, itemKey, navigationFields, gridAnnouncement, onGridFocusChange, onGridEdit, focusedCell, editingCell };
 }
 
 export type TransactionGridModel = ReturnType<typeof useTransactionGridModel>;
 
 export default function TransactionGrid() {
- return <TransactionGridView {...useTransactionGridModel()} />;
+  const model = useTransactionGridModel();
+  const clearFocusRecord = useUIStore(s => s.clearFocusRecord);
+  return <>
+    <TransactionGridView {...model} />
+    {model.waitingForLinkedTransaction && !model.editingDetailsTx &&
+      <LinkedRecordStatus kind="transaction" onBack={clearFocusRecord} />}
+  </>;
 }
