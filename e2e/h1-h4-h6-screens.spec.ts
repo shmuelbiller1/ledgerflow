@@ -45,7 +45,7 @@ test.describe('H-1 RTL Hebrew · H-4 screen-reader/axe · H-6 empty & failed-loa
           if (request.url.includes('/api/v1/reports/')) return { status: 500, json: {} };
           if (request.url.includes(`/api/v1/workspaces/${WORKSPACE}/tax-returns`)) {
             return failTaxReturns
-              ? { status: 503, json: { error: 'Service temporarily down.' } }
+              ? { status: 500, json: { error: 'Returns store unavailable.' } }
               : { status: 200, json: { returns: [] } };
           }
           return null;
@@ -108,13 +108,16 @@ test.describe('H-1 RTL Hebrew · H-4 screen-reader/axe · H-6 empty & failed-loa
 
       const vatAlign = await page.getByRole('rowheader', { name: 'Output VAT' }).evaluate(th => {
         const amountCell = th.parentElement?.querySelector('td:last-child') as HTMLElement | null;
+        const labelCs = getComputedStyle(th);
         return {
-          labelAlign: getComputedStyle(th).textAlign,
+          direction: labelCs.direction,
+          labelAlign: labelCs.textAlign,
           amountAlign: amountCell ? getComputedStyle(amountCell).textAlign : '',
           numeric: amountCell ? getComputedStyle(amountCell).fontVariantNumeric : '',
         };
       });
-      expect(vatAlign.labelAlign).toBe('right');
+      expect(vatAlign.direction).toBe('rtl');
+      expect(['start', 'right']).toContain(vatAlign.labelAlign);
       expect(vatAlign.amountAlign).toBe('right');
       expect(vatAlign.numeric).toContain('tabular-nums');
 
