@@ -2,6 +2,7 @@
 import type { ScreenStringEntry } from './screenTranslations';
 import { EVEN_MORE_REPORT_STRINGS } from './reportTranslationsMore2';
 import { LAST_REPORT_STRINGS } from './reportTranslationsMore3';
+import { FIFTH_REPORT_STRINGS } from './reportTranslationsMore4';
 
 export const MORE_REPORT_STRINGS: ScreenStringEntry[] = [
     { key: 'r.charged-on', en: ', charged on', he: ', מחושב על' },
@@ -584,4 +585,5 @@ export const MORE_REPORT_STRINGS: ScreenStringEntry[] = [
   { key: 'r.delivered', en: 'Delivered', he: 'סופק' },
   ...EVEN_MORE_REPORT_STRINGS,
   ...LAST_REPORT_STRINGS,
+  ...FIFTH_REPORT_STRINGS,
 ];

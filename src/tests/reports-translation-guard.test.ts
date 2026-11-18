@@ -47,6 +47,11 @@ const FILES = [
   ...['GsaPerDiemReportView', 'UsFilingCalendarReportView', 'Vendor1099ReadinessReportView', 'Us1099PreviewReportView',
     'SalesTaxHolidaysReportView', 'RegistrationThresholdWatchReportView', 'UseTaxReportView', 'ImportServicesReportView',
     'TaxCodeSuggestionsReportView', 'RulePackCoverageReportView', 'GoldenTaxFixturesReportView', 'CustomerTaxCertificatesView'].map(name => `../components/reporting/${name}.tsx`),
+  // EU-G1 part 8: operations, group and planning reports
+  ...['GroupSummaryReportView', 'PickPackShipPanel', 'ReturnAuthorizationsPanel', 'WarrantyRegisterPanel', 'AskBooksView',
+    'BillRetentionReportView', 'MilestoneBillingReportView', 'LandedCostPreviewReportView', 'WorkOrdersView', 'ExpiringLotsReportView',
+    'DunningLettersReportView', 'PurchasePriceVarianceReportView', 'ProfitabilityByView', 'ExpenseBillCategories',
+    'SampleYearBenchmarkReportView', 'LandedCostPostPanel'].map(name => `../components/reporting/${name}.tsx`),
 ];
 
 test('Reports: the default eight are the ones this guard covers', () => {
