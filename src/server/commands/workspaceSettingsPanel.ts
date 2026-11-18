@@ -30,16 +30,23 @@ import type { CommandContext, CommandDefinition } from './types';
 
 const text = (max: number) => z.string().trim().max(max);
 
+/** #841: ISO 4217 codes this runtime formats; "ZZZ" or "123" is refused instead of stored as the home currency. */
+const ISO_CURRENCIES: ReadonlySet<string> = new Set(
+  (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf?.('currency') ?? [],
+);
+
 /** The settings a person changes in Settings, and nothing else. */
 const settingsSchema = z.object({
   name: text(120).optional(),
   businessType: text(40).optional(),
   /** the home currency: accepted only while the workspace holds no document (the set-up wizard's step) */
-  currency: text(3).length(3).optional(),
+  currency: text(3).length(3).transform(code => code.toUpperCase())
+    .refine(code => ISO_CURRENCIES.size === 0 || ISO_CURRENCIES.has(code), 'Use a three-letter ISO 4217 currency code, such as USD or ILS.').optional(),
   timezone: text(80).optional(),
   fiscalYearStartMonth: z.number().int().min(1).max(12).optional(),
   fiscalYearStartDay: z.number().int().min(1).max(28).optional(),
-  taxRounding: text(20).optional(),
+  /** the same three modes the workspace model and the tax calculation know (#841) */
+  taxRounding: z.enum(['half_up', 'half_even', 'down']).optional(),
   moneyDisplay: z.record(z.string(), z.unknown()).optional(),
   paymentTermDays: z.number().int().min(0).max(365).optional(),
   customFields: z.array(z.unknown()).max(200).optional(),
@@ -63,15 +70,35 @@ const ROLES = ['owner', 'accountant'] as const;
 /** the settings whose value is a map keyed by something else (a report and period), so it is merged per key */
 const NESTED_MAPS = new Set(['reportNotes']);
 
-/** The collections that make a currency change a migration rather than a setting. */
-const BOOKS = ['transactions', 'invoices', 'bills', 'journalEntries'] as const;
+/**
+ * The collections that make a currency change a migration rather than a setting: every one of them stores
+ * amounts in the home currency's minor units (#841: credit notes, payments, assets, stock, pay runs, loans and
+ * bank lines were missing, so a USD book with only those could still become JPY and read $1,000.00 as ¥100,000).
+ */
+const BOOKS = [
+  'transactions', 'invoices', 'bills', 'journalEntries', 'creditNotes', 'vendorCredits', 'payments', 'estimates',
+  'purchaseOrders', 'assets', 'inventory', 'payRuns', 'loans', 'bankLines',
+] as const;
 
-async function booksAreEmpty(ctx: CommandContext): Promise<boolean> {
+const HAS_BOOKS = 'This workspace already has entries in its books, so its home currency cannot be changed here.';
+
+type Reader = Pick<CommandContext['db'], 'collection'>;
+
+async function booksAreEmpty(db: Reader, workspaceId: string, get: (query: ReturnType<ReturnType<Reader['collection']>['where']>) => Promise<{ docs: Array<{ data(): unknown }> }>): Promise<boolean> {
   for (const collection of BOOKS) {
-    const rows = await ctx.db.collection(collection).where('workspaceId', '==', ctx.workspaceId).limit(1).get();
+    const rows = await get(db.collection(collection).where('workspaceId', '==', workspaceId).limit(1));
     if (rows.docs.length > 0) return false;
   }
-  return true;
+  // a chart of accounts alone is fine (every new workspace has one); an opening balance is an amount
+  const accounts = await get(db.collection('chartAccounts').where('workspaceId', '==', workspaceId));
+  return !accounts.docs.some(doc => Number((doc.data() as { openingBalanceCents?: unknown })?.openingBalanceCents) || 0);
+}
+
+function currencyChange(input: SettingsInput, workspace: unknown): string | null {
+  const next = input.currency?.toUpperCase();
+  if (!next) return null;
+  const current = String((workspace as { currency?: string } | undefined)?.currency || '').toUpperCase();
+  return next === current ? null : next;
 }
 
 export const workspaceSettingsCommand: CommandDefinition<typeof workspaceSettingsInput, SettingsResult> = {
@@ -79,15 +106,13 @@ export const workspaceSettingsCommand: CommandDefinition<typeof workspaceSetting
   input: workspaceSettingsInput,
   roles: ROLES,
   async prepare(ctx: CommandContext, input: SettingsInput) {
-    const currency = input.currency?.toUpperCase();
-    if (!currency) return undefined;
-    const current = String((ctx.workspace as { currency?: string }).currency || '').toUpperCase();
-    if (currency === current) return undefined;
-    if (!(await booksAreEmpty(ctx))) {
-      throw Object.assign(new HttpError(
-        'This workspace already has entries in its books, so its home currency cannot be changed here.',
-        409,
-      ), { code: 'CONFLICT' });
+    // #841: invoice approval is the owner's control over what an accountant may send; an accountant may not loosen it
+    if (input.invoiceApproval !== undefined && ctx.role !== 'owner' && !ctx.user.admin) {
+      throw Object.assign(new HttpError('Only the workspace owner changes invoice approval.', 403), { code: 'FORBIDDEN' });
+    }
+    if (!currencyChange(input, ctx.workspace)) return undefined;
+    if (!(await booksAreEmpty(ctx.db, ctx.workspaceId, query => query.get()))) {
+      throw Object.assign(new HttpError(HAS_BOOKS, 409), { code: 'CONFLICT' });
     }
     return undefined;
   },
@@ -99,6 +124,10 @@ export const workspaceSettingsCommand: CommandDefinition<typeof workspaceSetting
     }
     const updatedAt = new Date().toISOString();
     const before = snapshot.data() as Record<string, unknown>;
+    // #841: checked again inside the write, so an entry saved since prepare still stops the change
+    if (currencyChange(input, before) && !(await booksAreEmpty(ctx.db, ctx.workspaceId, query => tx.get(query) as never))) {
+      throw Object.assign(new HttpError(HAS_BOOKS, 409), { code: 'CONFLICT' });
+    }
     const patch: Record<string, unknown> = {};
     const changed: string[] = [];
     for (const [key, value] of Object.entries(input)) {

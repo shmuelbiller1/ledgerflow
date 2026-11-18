@@ -83,7 +83,7 @@ test('a viewer or bookkeeper cannot change settings, and the row is untouched', 
     uid: 'someone-else',
     roles: { [owner.uid]: 'bookkeeper' },
   });
-  const input = workspaceSettingsInput.parse({ taxRounding: 'up' });
+  const input = workspaceSettingsInput.parse({ taxRounding: 'half_even' });
   const outcome = await run(input, db);
   assert.equal(outcome.ok, false);
   assert.equal((outcome as unknown as { code?: string }).code, 'ROLE_REQUIRED');
@@ -108,4 +108,43 @@ test('a workspace that is gone is refused instead of writing a row nobody owns',
   // the runner refuses first with its own code; the command's NOT_FOUND is what a reader of the definition sees
   assert.ok(['NOT_FOUND', 'WORKSPACE_NOT_FOUND'].includes((outcome as unknown as { code?: string }).code || ''));
   assert.equal(db.read(`workspaces/${workspaceId}`), undefined);
+});
+
+test('#841: the currency is a real ISO code and the tax rounding one of the three modes', () => {
+  for (const code of ['ZZZ', '123', 'abc']) assert.equal(workspaceSettingsInput.safeParse({ currency: code }).success, false, code);
+  assert.equal(workspaceSettingsInput.parse({ currency: 'ils' }).currency, 'ILS');
+  assert.equal(workspaceSettingsInput.safeParse({ currency: 'KWD' }).success, true);
+  for (const mode of ['half_up', 'half_even', 'down']) assert.equal(workspaceSettingsInput.safeParse({ taxRounding: mode }).success, true, mode);
+  assert.equal(workspaceSettingsInput.safeParse({ taxRounding: 'banker' }).success, false);
+});
+
+test('#841: a credit note, a payment, an asset, stock, a bank line or an opening balance keeps the home currency', async () => {
+  const cases: Array<[string, Record<string, unknown>]> = [
+    ['creditNotes/c1', { amountCents: 100 }], ['payments/p1', { amountCents: 100 }], ['assets/a1', { costCents: 100_000 }],
+    ['inventory/i1', { unitCostCents: 100 }], ['bankLines/b1', { amountCents: -100 }], ['loans/l1', { principalCents: 100 }],
+    ['chartAccounts/acc1', { name: 'Cash', openingBalanceCents: 100_000 }],
+  ];
+  for (const [path, fields] of cases) {
+    const db = new MemoryDb();
+    seedWorkspace(db, workspaceId, { currency: 'USD' });
+    db.seed(path, { id: path.split('/')[1], workspaceId, ...fields });
+    const refused = await run(workspaceSettingsInput.parse({ currency: 'JPY' }), db);
+    assert.equal((refused as unknown as { code?: string }).code, 'CONFLICT', path);
+    assert.equal(db.read(`workspaces/${workspaceId}`)?.currency, 'USD', path);
+  }
+  // a chart of accounts with no opening balance is a new workspace: the wizard may still choose the currency
+  const fresh = new MemoryDb();
+  seedWorkspace(fresh, workspaceId, { currency: 'USD' });
+  fresh.seed('chartAccounts/acc0', { id: 'acc0', workspaceId, name: 'Cash', openingBalanceCents: 0 });
+  assert.equal((await run(workspaceSettingsInput.parse({ currency: 'JPY' }), fresh)).ok, true);
+});
+
+test('#841: only the owner changes invoice approval; an accountant still changes the rest', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId, { uid: 'someone-else', roles: { [owner.uid]: 'accountant' }, invoiceApproval: { enabled: true, thresholdCents: 100_000 } });
+  const loosen = await run(workspaceSettingsInput.parse({ invoiceApproval: { enabled: false } }), db);
+  assert.equal(loosen.ok, false);
+  assert.equal((loosen as unknown as { code?: string }).code, 'FORBIDDEN');
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.invoiceApproval, { enabled: true, thresholdCents: 100_000 });
+  assert.equal((await run(workspaceSettingsInput.parse({ timezone: 'Asia/Jerusalem' }), db)).ok, true);
 });

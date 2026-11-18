@@ -18,7 +18,14 @@ export const COMMAND_INPUT_SCHEMA = {
       "minimum": 1,
       "maximum": 28
     },
-    "taxRounding": COMMAND_SCHEMA_PARTS.part49,
+    "taxRounding": {
+      "type": "string",
+      "enum": [
+        "half_up",
+        "half_even",
+        "down"
+      ]
+    },
     "moneyDisplay": COMMAND_SCHEMA_PARTS.part148,
     "paymentTermDays": {
       "type": "integer",
