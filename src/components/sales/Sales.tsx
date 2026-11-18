@@ -212,14 +212,27 @@ export default function Sales() {
     } else {
       res = await addEntity('invoices', data);
       if (!res) throw new Error('Invoice not saved');
-      // the save ends with what to do next, in the manifest's words: send a draft, take the payment, start another
       const savedInvoice = { ...data, id: res.id } as Invoice;
-      showSavedToast(`Invoice ${data.number || res.id} saved`, invoiceSavedSteps(savedInvoice), action => {
-        if (action === 'send') setEmailInvoice(savedInvoice);
-        else if (action === 'payment') openPaymentForInvoice(savedInvoice);
-        else setIsInvoiceModalOpen(true);
-      });
-      if (res && receiptPayment) await recordReceiptPayment(currentWorkspaceId || '', { ...data, id: res.id }, receiptPayment);
+      if (res && receiptPayment) {
+        // A sale receipt pays the invoice as part of the same save, and `recordReceiptPayment` announces that
+        // result itself ("saved and paid", or "saved as an open invoice … record it with Receive payment"). An
+        // offer here would repeat it — and, drawn before the payment landed, would offer to take a payment that is
+        // already being taken. So the receipt owns the voice, and the offer waits for a save that is only a save.
+        await recordReceiptPayment(currentWorkspaceId || '', savedInvoice, receiptPayment);
+      } else {
+        // the save ends with what to do next, in the manifest's words: send a draft, take the payment, start another
+        showSavedToast({
+          message: `Invoice ${data.number || res.id} saved`,
+          what: 'The invoice',
+          workspaceId: currentWorkspaceId,
+          steps: invoiceSavedSteps(savedInvoice),
+          run: action => {
+            if (action === 'send') setEmailInvoice(savedInvoice);
+            else if (action === 'payment') openPaymentForInvoice(savedInvoice);
+            else setIsInvoiceModalOpen(true);
+          },
+        });
+      }
       const uid = useAuthStore.getState().user?.uid;
       if (res && uid && Array.isArray(attachmentFiles) && attachmentFiles.length) {
         const { ok, message } = attachSummary(await attachFiles(currentWorkspaceId || '', uid, { collection: 'invoices', id: res.id, label: `Invoice ${data.number || ''}`.trim() }, attachmentFiles));

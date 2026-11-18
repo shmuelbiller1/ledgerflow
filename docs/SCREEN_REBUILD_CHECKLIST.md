@@ -352,8 +352,12 @@ hand-convert a table the codemod still refuses.
       toast with it. Sending is the screen's own word (it is an email, not a ledger command), `Send it` only on a
       draft, and `New invoice` only once the document exists; a settled invoice gets the sentence and no dead
       button. `NextStepToast.tsx` draws it with `toast.custom` because sonner's `action` holds one button: real
-      `<button>`s, dismiss-before-run. Pinned by `record-next-step.test.ts` (labels held to `offeredSteps`) and
-      `next-step-toast.test.tsx` (the buttons, the press, the closed offer).
+      `<button>`s, dismiss-before-run. Pinned by `record-next-step.test.ts` (labels held to `offeredSteps`).
+      Two saves are not offered at all, because the offer would be false: a sale receipt pays the invoice in the
+      same save and `recordReceiptPayment` is the voice that says so (an offer drawn first would name `Record a
+      payment` for a payment already being taken), and a reply that lands after the person opened another
+      workspace says where it went (PREV-5) instead of offering buttons into books they left. Pinned by
+      `next-step-toast.test.tsx` (the buttons, the press, the closed offer, the receipt, the moved workspace).
 
 ## 4. One record page
 
