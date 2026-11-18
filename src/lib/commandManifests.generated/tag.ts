@@ -20,7 +20,7 @@ export const TAG_COMMAND_MANIFEST = [
           "when": "The old name is blank, the new name is longer than 50 characters, or the body has an extra field.",
           "next": "Send just `from` and `to` (null removes the tag)."
         },
-        COMMAND_SCHEMA_PARTS.part170
+        COMMAND_SCHEMA_PARTS.part171
       ]
     },
     "runPath": "/api/v1/commands/tag.change",

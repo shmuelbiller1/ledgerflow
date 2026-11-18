@@ -8,7 +8,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "requestedWorkspaceId": COMMAND_SCHEMA_PARTS.part22,
     "reversalDate": COMMAND_SCHEMA_PARTS.part22,
     "reason": COMMAND_SCHEMA_PARTS.part22,
-    "replacement": COMMAND_SCHEMA_PARTS.part148
+    "replacement": COMMAND_SCHEMA_PARTS.part149
   },
   "required": COMMAND_SCHEMA_PARTS.part2,
   "additionalProperties": false

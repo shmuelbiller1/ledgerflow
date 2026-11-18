@@ -16,7 +16,7 @@ export const REPORTSCHEDULE_COMMAND_MANIFEST = [
         "frequency": "monthly"
       },
       "refusals": [
-        COMMAND_SCHEMA_PARTS.part176
+        COMMAND_SCHEMA_PARTS.part177
       ]
     },
     "runPath": "/api/v1/commands/reportschedule.preview",
@@ -39,7 +39,7 @@ export const REPORTSCHEDULE_COMMAND_MANIFEST = [
           "when": "No schedule with that id in this workspace.",
           "next": "Reload the schedules."
         },
-        COMMAND_SCHEMA_PARTS.part176
+        COMMAND_SCHEMA_PARTS.part177
       ]
     },
     "runPath": "/api/v1/commands/reportschedule.send",
