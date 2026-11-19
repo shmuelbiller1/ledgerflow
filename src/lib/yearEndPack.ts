@@ -104,10 +104,10 @@ function agingFigures(rows: PartyAgingRow[]): YearEndFigure[] {
   return [
     { key: 'aging-total', cents: total, strong: true },
     { key: 'aging-current', cents: totals.current },
-    { key: 'aging-1-30', cents: totals.d1_30 },
-    { key: 'aging-31-60', cents: totals.d31_60 },
-    { key: 'aging-61-90', cents: totals.d61_90 },
-    { key: 'aging-90-plus', cents: totals.d90plus },
+    { key: 'aging-recent', cents: totals.d1_30 },
+    { key: 'aging-late', cents: totals.d31_60 },
+    { key: 'aging-long', cents: totals.d61_90 },
+    { key: 'aging-oldest', cents: totals.d90plus },
     { key: 'aging-parties', count: parties },
   ];
 }
@@ -251,7 +251,7 @@ export const YEAR_END_FIGURE_KEYS: readonly string[] = [
   'pl-income', 'pl-cogs', 'pl-gross-profit', 'pl-expenses', 'pl-net-profit',
   'bs-assets', 'bs-liabilities', 'bs-equity', 'bs-retained', 'bs-claims',
   'tb-debits', 'tb-credits', 'tb-difference', 'tb-accounts',
-  'aging-total', 'aging-current', 'aging-1-30', 'aging-31-60', 'aging-61-90', 'aging-90-plus', 'aging-parties',
+  'aging-total', 'aging-current', 'aging-recent', 'aging-late', 'aging-long', 'aging-oldest', 'aging-parties',
   'assets-count', 'assets-cost', 'assets-accumulated', 'assets-net-book',
   'close-done', 'close-attention', 'close-blocker',
 ];

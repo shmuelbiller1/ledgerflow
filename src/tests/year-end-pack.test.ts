@@ -95,7 +95,7 @@ describe('the year-end pack on the sample business year', () => {
 
   test('the aging sections add their five buckets to their own total', () => {
     for (const sectionId of ['receivables', 'payables']) {
-      const bucketSum = ['aging-current', 'aging-1-30', 'aging-31-60', 'aging-61-90', 'aging-90-plus']
+      const bucketSum = ['aging-current', 'aging-recent', 'aging-late', 'aging-long', 'aging-oldest']
         .reduce((total, key) => total + (figure(sectionId, key).cents || 0), 0);
       assert.equal(bucketSum, figure(sectionId, 'aging-total').cents || 0, `${sectionId} buckets add to its total`);
     }
