@@ -44,7 +44,7 @@ export function requiredApiKeyScope(method: string, path: string): string {
     const match = /\/commands\/([^/]+)/.exec(cleanPath);
     let name = match?.[1] || '';
     try { name = decodeURIComponent(name); } catch { /* an invalid name will be refused by the command router */ }
-    if (name === 'audit.deep' || name === 'consolidation.verify') return 'write:transactions';
+    if (name === 'audit.deep' || name === 'consolidation.verify' || name === 'billing.recordcompute') return 'write:transactions';
     if (name === 'estimate.signlink' || name === 'document.remove') return 'write:workspaces';
     const area = name.split('.')[0];
     // #823: every command area is named here. One that is not listed — a new area, or settings, payroll

@@ -256,6 +256,9 @@ function previewErrorOutcome(error: unknown, command: string): Exclude<CommandPr
 const PENDING_DELETION_ALLOWED = new Set(['workspace.canceldeletion', 'workspace.retention']);
 
 export function assertWorkspaceActiveForCommand(workspace: Record<string, unknown>, commandName: string): void {
+  // Finishing usage accounting is not a write to the books. The legacy meter also accepts a
+  // completed sample after the workspace has been frozen or scheduled for deletion.
+  if (commandName === 'billing.recordcompute') return;
   if (workspace.concurrentUserLimit === 0) {
     throw new CommandRefusal('Forbidden: This workspace is administratively suspended/frozen by Systems Administration.', 403, 'WORKSPACE_FROZEN');
   }

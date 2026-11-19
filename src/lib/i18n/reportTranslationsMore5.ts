@@ -526,4 +526,10 @@ export const REPORT_STRINGS_5: ScreenStringEntry[] = [
   { key: 'r.project-capped', en: 'Only part of the journal is loaded. Project figures and rankings are provisional.', he: 'רק חלק מתנועות היומן נטען. נתוני הפרויקטים ודירוגם זמניים.' },
   { key: 'r.no-group-status', en: 'No group recorded', he: 'לא נרשמה קבוצה' },
   { key: 'r.transfer-no-loaded-match', en: 'No matching moves in the loaded history. Older moves may be missing.', he: 'לא נמצאו תנועות תואמות בהיסטוריה שנטענה. ייתכן שתנועות ישנות יותר חסרות.' },
+  { key: 'r.authority-order-csv-draft', en: 'Authority-order CSV (draft)', he: 'CSV לפי סדר הרשות (טיוטה)' },
+  { key: 'r.the-columns-follow-the-tax-authority-record-60', en: 'The columns follow the Tax Authority record-60 field order for the 2017–2025 interface: twenty fields, amounts in whole agorot zero-padded to each width. Fields the books do not record are written as zeros or blank. This is a CSV draft, not the 218-byte fixed-width file the authority transmits, and nothing is filed from here.', he: 'העמודות עוקבות אחר סדר שדות הרישום 60 של רשות המסים לממשק טופס 856 לשנים 2017–2025: עשרים שדות, סכומים באגורות שלמות מרופדים באפסים מובילים לרוחב כל שדה. שדות שהספרים אינם רושמים נכתבים כאפסים או בריק. זוהי טיוטת CSV, לא קובץ הקיבוע הרוחבי באורך 218 בתים שרשות המסים משדרת, ודבר אינו מוגש מכאן.' },
+  { key: 'r.withholding-file-number', en: 'Withholding file number (תיק ניכויים)', he: 'מספר תיק ניכויים' },
+  { key: 'r.nine-digits-as-assigned-by-the-income-tax-off', en: 'Nine digits, as assigned by the Income Tax office.', he: 'תשע ספרות, כפי שהוקצו על ידי פקיד השומה.' },
+  { key: 'r.download-authority-order-csv-draft', en: 'Download authority-order CSV (draft)', he: 'הורדת CSV לפי סדר הרשות (טיוטה)' },
+  { key: 'r.authority-csv-issues', en: 'Authority CSV issues', he: 'בעיות ב-CSV לפי סדר הרשות' },
 ];

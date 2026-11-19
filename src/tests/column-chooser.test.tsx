@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { hiddenColumnsCss, readHidden, saveHidden, toggleColumn } from '../lib/columnChoice';
+import ReportSchedule from '../components/reporting/ReportSchedule';
 import ReportTableScroll from '../components/reporting/ReportTableScroll';
 import BankHolidaysReportView from '../components/reporting/BankHolidaysReportView';
 
@@ -26,7 +27,7 @@ test('what can be hidden, remembered per report, and the CSS for it', () => {
   assert.deepEqual(readHidden('Sales', compare), [], 'do not interpret Amount as Name');
   saveHidden('Sales', [3], compare);
   assert.deepEqual(readHidden('Sales', normal), [2]);
-  assert.equal(hiddenColumnsCss('s1', [2]), '[data-columns="s1"] tr > :nth-child(3) { display: none; }');
+  assert.equal(hiddenColumnsCss('s1', [2]), '[data-columns="s1"] tr:not([data-span-row]) > :nth-child(3) { display: none; }');
 });
 
 const Report = () => (
@@ -98,4 +99,22 @@ test('a migrated bank-holidays report moves the actual bilingual cells without r
   fireEvent.click(view.getByRole('checkbox', { name: 'Day' }));
   assert.equal(getComputedStyle(day).display, 'none');
   assert.notEqual(getComputedStyle(name).display, 'none');
+});
+
+// A hidden Amount must not hide the third DOM child of the total: two source columns share its label.
+test('a spanned total follows source columns and a non-first row identity cannot be hidden', async () => {
+  const view = render(<ReportSchedule columnControls caption="Value by place" rows={[{ item: 'Valve', qty: 3 }]}
+    columns={[{ header: 'Location', cell: () => 'East' }, { header: 'Item', rowHeader: true, cell: r => r.item },
+      { header: 'Qty', cell: r => r.qty }, { header: 'Value', cell: () => '$22.50' }]}
+    footer={<tr><th scope="row" colSpan={3}>Total</th><td>$22.50</td></tr>} />);
+  fireEvent.click(await view.findByRole('button', { name: 'Columns' }));
+  assert.ok((view.getByRole('checkbox', { name: 'Item' }) as HTMLInputElement).disabled);
+  const foot = view.container.querySelector('tfoot tr') as HTMLTableRowElement;
+  fireEvent.click(view.getByRole('checkbox', { name: 'Qty' }));
+  assert.equal(foot.cells[0].colSpan, 2);
+  assert.notEqual(getComputedStyle(foot.cells[1]).display, 'none');
+  fireEvent.click(view.getByRole('checkbox', { name: 'Value' }));
+  assert.ok(foot.cells[1].hidden);
+  assert.equal(foot.cells[0].colSpan, 2);
+  assert.ok(view.getByRole('rowheader', { name: 'Valve' }));
 });

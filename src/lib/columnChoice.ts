@@ -45,5 +45,5 @@ export function toggleColumn(hidden: number[], index: number, columns: number): 
 
 /** The CSS hiding those columns in the tables under `[data-columns="scope"]`. */
 export function hiddenColumnsCss(scope: string, hidden: number[]): string {
-  return hidden.map(i => `[data-columns="${scope}"] tr > :nth-child(${i + 1}) { display: none; }`).join('\n');
+  return hidden.map(i => `[data-columns="${scope}"] tr:not([data-span-row]) > :nth-child(${i + 1}) { display: none; }`).join('\n');
 }

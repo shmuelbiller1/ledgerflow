@@ -44,7 +44,7 @@ test('vendor tax records keep the real detail page mounted, edit an address in a
   const csv=review.getByRole('button',{name:'Export masked CSV'});await expect(csv).toBeDisabled();
   await review.getByRole('button',{name:'Refresh complete vendors'}).click();await expect(csv).toBeEnabled();
   const rows=review.getByRole('table').getByRole('row');const soonRow=rows.filter({hasText:'ספק Soon'});await expect(soonRow).toContainText('Expiring within 30 days');await expect(soonRow).toContainText('••••6789');await expect(rows.filter({hasText:'ספק Expired'})).toContainText('Expired');await expect(review).not.toContainText('123456789');await expect(review).not.toContainText('US-987654321');
-  const details=soonRow.getByRole('button',{name:'Edit selected record details'});await details.focus();await details.press('Enter');
+  const details=soonRow.getByRole('button',{name:'Edit details'});await details.focus();await details.press('Enter');
   const drawer=page.getByRole('dialog',{name:'Edit record details'});await expect(drawer).toBeVisible();
   await drawer.getByRole('textbox',{name:'Address',exact:true}).fill('כתובת חדשה\nStreet 7');
   await drawer.getByRole('button',{name:'Save details',exact:true}).click();await expect(drawer.getByRole('alert')).toContainText('Address update refused');
@@ -55,7 +55,7 @@ test('vendor tax records keep the real detail page mounted, edit an address in a
   const downloadPromise=page.waitForEvent('download');await csv.click();const download=await downloadPromise;
   const csvText=await readFile((await download.path())!,'utf8');const parsed=parseCsv(csvText);expect(parsed[0]).toEqual(['Vendor','Recorded country','Masked Tax/VAT ID','ID status','Recorded withholding expiry','Certificate status','Follow-up','Assessment day','Retrieved at']);expect(parsed.slice(1).map(row=>[row[0],row[2]]).sort()).toEqual([['ספק Expired','••••4321'],['ספק Soon','••••6789']]);expect(csvText).not.toContain('123456789');expect(csvText).not.toContain('US-987654321');
   const scroller=review.getByRole('region',{name:'Scrollable vendor tax table'});await scroller.focus();await scroller.press('ArrowRight');await expect.poll(()=>scroller.evaluate(node=>node.scrollLeft)).toBeGreaterThan(0);
-  for(const control of [csv,review.getByRole('button',{name:'Refresh complete vendors'}),soonRow.getByRole('button',{name:'Edit selected record details'})])expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  for(const control of [csv,review.getByRole('button',{name:'Refresh complete vendors'}),soonRow.getByRole('button',{name:'Edit details'})])expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   const a11y=await new AxeBuilder({page}).include('[role="dialog"]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();expect(a11y.violations).toEqual([]);
   await review.press('Escape');await expect(review).toHaveCount(0);await expect(opener).toBeFocused();await expect(page.getByRole('heading',{name:'ספק Soon',exact:true})).toBeVisible();

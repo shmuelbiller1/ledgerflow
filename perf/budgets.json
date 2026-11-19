@@ -1,7 +1,14 @@
 {
-  "version": 1,
-  "comment": "F-38 nightly speed budgets (photocraft perf-nightly equivalent). Fail when a budget is broken.",
+  "version": 2,
+  "comment": "Nightly speed budgets (F-38) and the built-bundle budgets (D-27) checked by scripts/check-perf-budgets.mjs. Exceeding any bundle budget fails CI's production-build job; the latency budgets are measured by the load-test jobs.",
   "budgets": {
+    "bundle": {
+      "comment": "Gzip KB measured from dist/ after `npm run build`. Budgets carry headroom above the 2026-11-19 build on main: first load 327.0, every JS chunk 3007.8, every CSS file 34.8, largest single chunk 263.6 (the lazy Excel reader). firstLoad is the bytes dist/index.html itself references, not a stopwatch.",
+      "firstLoadGzipKb": 360,
+      "totalJsGzipKb": 3200,
+      "maxChunkGzipKb": 300,
+      "cssGzipKb": 60
+    },
     "posting": { "p50Ms": 800, "p95Ms": 2000, "route": "POST /api/v1/transactions/bulk" },
     "pl": { "p50Ms": 600, "p95Ms": 1500, "report": "profit-and-loss" },
     "balanceSheet": { "p50Ms": 600, "p95Ms": 1500, "report": "balance-sheet" },

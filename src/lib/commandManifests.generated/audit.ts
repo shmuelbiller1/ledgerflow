@@ -6,7 +6,7 @@ export const AUDIT_COMMAND_MANIFEST = [
   {
     "name": "audit.deep",
     "area": "audit",
-    "roles": COMMAND_SCHEMA_PARTS.part70,
+    "roles": COMMAND_SCHEMA_PARTS.part72,
     "allowPlatformAdmin": true,
     "risk": "normal",
     "description": {

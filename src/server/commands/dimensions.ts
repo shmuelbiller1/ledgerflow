@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { HttpError } from '../auth/requestUser';
 import { FieldValue } from '../db/firestore';
+import { CommandRefusal } from '../utils/commandExecutor';
 import type { CommandContext, CommandDefinition } from './types';
 
 /**
@@ -46,6 +47,7 @@ const axisSchema = z.object({
 export const dimensionNodeInput = z.object({
   /** write the whole value (`node`), or change the fields named here (`fields`) — not both */
   node: nodeSchema.optional(),
+  createOnly: z.boolean().optional().describe('Refuse an existing label instead of replacing it.'),
   dimensionId: idSchema.optional(),
   nodeId: idSchema.optional(),
   fields: z.object({
@@ -58,7 +60,8 @@ export const dimensionNodeInput = z.object({
   }).strict().optional(),
 }).strict()
   .refine(input => (input.node === undefined) !== (input.fields === undefined), 'Write a value or change one, not both.')
-  .refine(input => input.node !== undefined || (input.dimensionId !== undefined && input.nodeId !== undefined), 'A change names the value it changes.');
+  .refine(input => input.node !== undefined || (input.dimensionId !== undefined && input.nodeId !== undefined), 'A change names the value it changes.')
+  .refine(input => !input.createOnly || input.node !== undefined, 'Create-only requires a whole value.');
 
 export const dimensionAxesInput = z.object({
   dimensions: z.array(axisSchema).min(1).max(50),
@@ -75,6 +78,12 @@ type AxesResult = { dimensions: Array<{ id: string; name: string }> };
 /** The row id a value is stored under: workspace, axis and code, so the same code can exist on two axes. */
 const nodeRowId = (workspaceId: string, dimensionId: string, nodeId: string) => `${workspaceId}_${dimensionId}_${nodeId}`;
 
+function assertNodeMayBeSaved(current: Record<string, unknown> | undefined, workspaceId: string, createOnly?: boolean) {
+  if (current && (createOnly || current.workspaceId !== workspaceId)) {
+    throw new CommandRefusal('This label code is already taken.', 409, 'DUPLICATE_RECORD');
+  }
+}
+
 export const dimensionNodeCommand: CommandDefinition<typeof dimensionNodeInput, NodeResult> = {
   name: 'workspace.dimensionnode',
   input: dimensionNodeInput,
@@ -83,7 +92,10 @@ export const dimensionNodeCommand: CommandDefinition<typeof dimensionNodeInput, 
     if (input.node) {
       const node = input.node;
       const ref = ctx.db.collection('dimensionNodes').doc(nodeRowId(ctx.workspaceId, node.dimensionId, node.id));
+      assertNodeMayBeSaved((await tx.get(ref)).data(), ctx.workspaceId, input.createOnly);
       const { updatedAt: _sentAt, ...rest } = node;
+      // Read-then-write in the runner’s SERIALIZABLE transaction. A competing insert forces a
+      // retry, which sees the row and answers DUPLICATE_RECORD rather than overwriting it.
       tx.set(ref, { ...rest, workspaceId: ctx.workspaceId, updatedAt: new Date().toISOString() });
       return { id: node.id, dimensionId: node.dimensionId, status: node.status };
     }
@@ -102,7 +114,12 @@ export const dimensionNodeCommand: CommandDefinition<typeof dimensionNodeInput, 
     return { id: input.nodeId!, dimensionId: input.dimensionId!, status: patch.status as string | undefined };
   },
   async preview(ctx: CommandContext, input: NodeInput) {
-    if (input.node) return { title: `Save the label ${input.node.id}`, lines: [input.node.dimensionId, input.node.description] };
+    if (input.node) {
+      const { id, dimensionId, description } = input.node;
+      const existing = await ctx.db.collection('dimensionNodes').doc(nodeRowId(ctx.workspaceId, dimensionId, id)).get();
+      assertNodeMayBeSaved(existing.data(), ctx.workspaceId, input.createOnly);
+      return { title: `${input.createOnly ? 'Create' : 'Save'} the label ${id}`, lines: [dimensionId, description] };
+    }
     const snapshot = await ctx.db.collection('dimensionNodes').doc(nodeRowId(ctx.workspaceId, input.dimensionId!, input.nodeId!)).get();
     if (!snapshot.exists) throw new HttpError('This label is not in the selected workspace.', 404);
     return { title: `Change the label ${input.nodeId}`, lines: Object.keys(input.fields || {}) };
@@ -122,6 +139,7 @@ export const dimensionNodeCommand: CommandDefinition<typeof dimensionNodeInput, 
     example: { node: { id: 'P1', dimensionId: 'property', description: '123 Ocean Ave Maint' } },
     refusals: [
       { code: 'INVALID_INPUT', when: 'The value has no code or axis, or the change names fields the label does not have.', next: 'Send the whole value, or only the fields a label carries.' },
+      { code: 'DUPLICATE_RECORD', when: 'The chosen code is already in use on a create-only request.', next: 'Reload the values or choose another code.' },
       { code: 'NOT_FOUND', when: 'The value is not in the selected workspace.', next: 'Reload the labels and choose a value in this workspace.' },
       { code: 'ROLE_REQUIRED', when: 'The caller is not an owner, accountant, or bookkeeper.', next: 'Ask a workspace owner to grant an appropriate role.' },
     ],

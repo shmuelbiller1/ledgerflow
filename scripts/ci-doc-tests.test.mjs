@@ -48,9 +48,14 @@ test('the folder form the old shell search missed now counts', () => {
     [`${"import fs from 'node:fs';"}`, "fs.readFileSync(path.join('docs', 'TRACKER.md'), 'utf8')", true],
     ["fs.readFileSync('docs/CAPABILITIES.md')", null, true],
     ["fs.readFileSync('../audit/FINAL.md')", null, true],
+    ["fs.readdirSync('audit')", null, true],
+    ["join('audit', 'index.csv')", null, true],
     ['const page = `docs/help/${slug}.md`;', null, true],
     ["fs.readFileSync('CURRENT_WORK.md')", null, true],
-    // Not documents: a route, a dependency manifest, an ordinary comment, a source file.
+    // Not documents: command metadata, a route, a dependency manifest, a comment, a source file.
+    ["events.push('audit')", null, false],
+    ["for (const key of ['handler', 'preview', 'audit']) assert.ok(command[key]);", null, false],
+    ["const heading = ['Help', 'About'].join('docs');", null, false],
     ["const route = '/api/v1/audit/jobs/job_1';", null, false],
     ["const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));", null, false],
     ['// the plan is docs/PLAN.md, read by a human', null, false],

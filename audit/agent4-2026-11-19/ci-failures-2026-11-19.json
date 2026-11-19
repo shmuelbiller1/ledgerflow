@@ -1,0 +1,299 @@
+{
+ "generated": "2026-11-19",
+ "source": "GitHub Actions API, workflow ci.yml, 100 most recent completed runs",
+ "runs_total": 100,
+ "failed_runs": 16,
+ "failures": [
+  {
+   "run": "44447761240",
+   "branch": "arena/6e749e1a-ledgerflow",
+   "sha": "6e90beffb",
+   "created": "2026-11-19T02:55:18Z",
+   "later_green": "2026-11-19T17:18:42Z",
+   "failed_checks": [
+    "SonarCloud Code Analysis",
+    "Lint, Typecheck, and Database rules"
+   ],
+   "tests": []
+  },
+  {
+   "run": "44449007975",
+   "branch": "arena/c2f61ba0-ledgerflow",
+   "sha": "1d56a3ac1",
+   "created": "2026-11-19T03:05:55Z",
+   "later_green": "2026-11-19T03:49:48Z",
+   "failed_checks": [
+    "Playwright E2E Smoke Suite",
+    "Browser shard 1/5"
+   ],
+   "tests": []
+  },
+  {
+   "run": "44450180365",
+   "branch": "arena/b1245963-ledgerflow",
+   "sha": "44f6b3301",
+   "created": "2026-11-19T03:15:39Z",
+   "later_green": "2026-11-19T18:04:08Z",
+   "failed_checks": [
+    "Accounting & Security Test Suites (coverage gate)",
+    "Unit tests in America/Los_Angeles (1/3)",
+    "Unit tests in Pacific/Auckland (1/3)",
+    "Unit tests 4/4",
+    "Unit tests 3/4"
+   ],
+   "tests": [
+    "unit: Purchases%3A every purchasesText key has its English fallback and Hebrew in the table",
+    "unit: Quality Ratchet Suite",
+    "unit: should not regress against quality-baseline.json"
+   ]
+  },
+  {
+   "run": "44450315784",
+   "branch": "arena/5f427008-ledgerflow",
+   "sha": "e588f16b5",
+   "created": "2026-11-19T03:16:50Z",
+   "later_green": "2026-11-19T17:31:31Z",
+   "failed_checks": [
+    "Lint, Typecheck, and Database rules"
+   ],
+   "tests": [
+    "lint: Unexpected any (ESLint no-explicit-any)"
+   ]
+  },
+  {
+   "run": "44450626106",
+   "branch": "arena/0d3d392a-ledgerflow",
+   "sha": "30b86ef80",
+   "created": "2026-11-19T03:19:29Z",
+   "later_green": "2026-11-19T17:31:02Z",
+   "failed_checks": [
+    "Accounting & Security Test Suites (coverage gate)",
+    "Unit tests in Pacific/Auckland (2/3)",
+    "Unit tests 2/4",
+    "Unit tests 3/4",
+    "Unit tests in Pacific/Auckland (3/3)",
+    "Unit tests in Pacific/Auckland (1/3)",
+    "Unit tests 1/4",
+    "Unit tests in America/Los_Angeles (3/3)",
+    "Unit tests in America/Los_Angeles (1/3)",
+    "Unit tests in America/Los_Angeles (2/3)"
+   ],
+   "tests": [
+    "unit: H-8%3A the screens fixed here print no stored date, and the rest only shrink",
+    "unit: On-demand collections are asked for by the files that read them",
+    "unit: Quality Ratchet Suite",
+    "unit: Truncation key space%3A store keys vs database collection names",
+    "unit: every file that reads an on-demand collection asks for it",
+    "unit: no screen indexes the truncation map with a collection key",
+    "unit: should not regress against quality-baseline.json"
+   ]
+  },
+  {
+   "run": "44452258292",
+   "branch": "arena/c2f61ba0-ledgerflow",
+   "sha": "b03f48187",
+   "created": "2026-11-19T03:33:25Z",
+   "later_green": "2026-11-19T03:49:48Z",
+   "failed_checks": [
+    "Playwright E2E Smoke Suite",
+    "Browser shard 1/5"
+   ],
+   "tests": []
+  },
+  {
+   "run": "44469167961",
+   "branch": "main",
+   "sha": "8de8fe73d",
+   "created": "2026-11-19T06:01:30Z",
+   "later_green": "2026-11-19T15:28:38Z",
+   "failed_checks": [
+    "Playwright E2E Smoke Suite",
+    "Accounting & Security Test Suites (coverage gate)",
+    "Unit tests in Pacific/Auckland (2/3)",
+    "Unit tests in America/Los_Angeles (2/3)",
+    "Browser shard 5/5",
+    "Unit tests 1/4"
+   ],
+   "tests": [
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew balance-sheet 1280",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew balance-sheet 390",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew pnl 1280",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew pnl 390",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew trial-balance 1280",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew trial-balance 390",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew vat-report 1280",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew vat-report 390",
+    "unit: Expense by Category%3A refund bar is empty, >100% bar fills exactly one track",
+    "unit: Income by Source%3A credit bar is empty, >100% bar fills exactly one track",
+    "unit: share bars clamp to [0,100]"
+   ]
+  },
+  {
+   "run": "44551034909",
+   "branch": "arena/145e7090-ledgerflow",
+   "sha": "f428e7eff",
+   "created": "2026-11-19T15:06:23Z",
+   "later_green": "2026-11-19T16:39:15Z",
+   "failed_checks": [
+    "Playwright E2E Smoke Suite",
+    "Accounting & Security Test Suites (coverage gate)",
+    "Unit tests 4/4",
+    "Browser shard 5/5",
+    "Unit tests in America/Los_Angeles (2/3)",
+    "Unit tests in Pacific/Auckland (2/3)"
+   ],
+   "tests": [
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew balance-sheet 1280",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew balance-sheet 390",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew pnl 1280",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew pnl 390",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew trial-balance 1280",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew trial-balance 390",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew vat-report 1280",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew vat-report 390",
+    "unit: Expense by Category%3A refund bar is empty, >100% bar fills exactly one track",
+    "unit: Income by Source%3A credit bar is empty, >100% bar fills exactly one track",
+    "unit: share bars clamp to [0,100]",
+    "unit: src/tests/share-bar-clamp.test.tsx"
+   ]
+  },
+  {
+   "run": "44552008899",
+   "branch": "arena/fc785ac7-ledgerflow",
+   "sha": "e7ee64c28",
+   "created": "2026-11-19T15:11:37Z",
+   "later_green": null,
+   "failed_checks": [
+    "Playwright E2E Smoke Suite",
+    "Accounting & Security Test Suites (coverage gate)",
+    "Unit tests in America/Los_Angeles (2/3)",
+    "Unit tests 4/4",
+    "Unit tests in Pacific/Auckland (2/3)",
+    "Browser shard 5/5"
+   ],
+   "tests": [
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew balance-sheet 1280",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew balance-sheet 390",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew pnl 1280",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew pnl 390",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew trial-balance 1280",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew trial-balance 390",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew vat-report 1280",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew vat-report 390",
+    "unit: Expense by Category%3A refund bar is empty, >100% bar fills exactly one track",
+    "unit: Income by Source%3A credit bar is empty, >100% bar fills exactly one track",
+    "unit: share bars clamp to [0,100]"
+   ]
+  },
+  {
+   "run": "44555354605",
+   "branch": "arena/8eb33ff8-ledgerflow",
+   "sha": "3ba9327e3",
+   "created": "2026-11-19T15:29:27Z",
+   "later_green": "2026-11-19T15:56:17Z",
+   "failed_checks": [
+    "Playwright E2E Smoke Suite",
+    "Browser shard 1/5"
+   ],
+   "tests": []
+  },
+  {
+   "run": "44568084466",
+   "branch": "arena/6e749e1a-ledgerflow",
+   "sha": "bdce62e01",
+   "created": "2026-11-19T16:36:55Z",
+   "later_green": "2026-11-19T17:18:42Z",
+   "failed_checks": [
+    "Playwright E2E Smoke Suite",
+    "SonarCloud Code Analysis",
+    "Browser shard 4/5"
+   ],
+   "tests": [
+    "e2e: ui-language-sales.spec.ts \u203a Accessibility & language sets Hebrew and Sales uses RTL at 1280px",
+    "e2e: ui-language-sales.spec.ts \u203a Accessibility & language sets Hebrew and Sales uses RTL at 390px"
+   ]
+  },
+  {
+   "run": "44568501505",
+   "branch": "arena/b1245963-ledgerflow",
+   "sha": "df6e83175",
+   "created": "2026-11-19T16:39:10Z",
+   "later_green": "2026-11-19T18:04:08Z",
+   "failed_checks": [
+    "Accounting & Security Test Suites (coverage gate)",
+    "Unit tests in America/Los_Angeles (3/3)",
+    "Unit tests in Pacific/Auckland (3/3)",
+    "Unit tests 4/4",
+    "Unit tests 3/4"
+   ],
+   "tests": [
+    "unit: Purchases%3A every purchasesText key has its English fallback and Hebrew in the table",
+    "unit: Quality Ratchet Suite",
+    "unit: should not regress against quality-baseline.json"
+   ]
+  },
+  {
+   "run": "44568510917",
+   "branch": "arena/5f427008-ledgerflow",
+   "sha": "ef7a6702f",
+   "created": "2026-11-19T16:39:13Z",
+   "later_green": "2026-11-19T17:31:31Z",
+   "failed_checks": [
+    "Playwright E2E Smoke Suite",
+    "Browser shard 5/5",
+    "Lint, Typecheck, and Database rules"
+   ],
+   "tests": [
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew reconcile 1280",
+    "e2e: visual-regression.spec.ts \u203a H-1 Hebrew screen baselines \u203a visual h1-hebrew reconcile 390",
+    "lint: Unexpected any (ESLint no-explicit-any)"
+   ]
+  },
+  {
+   "run": "44573777141",
+   "branch": "claude/ledgerflow-codebase-audit-aotyvt",
+   "sha": "a2c936282",
+   "created": "2026-11-19T17:07:47Z",
+   "later_green": "2026-11-19T17:56:17Z",
+   "failed_checks": [
+    "Playwright E2E Smoke Suite",
+    "Browser shard 4/5"
+   ],
+   "tests": [
+    "e2e: ui-language-sales.spec.ts \u203a Accessibility & language sets Hebrew and Sales uses RTL at 390px"
+   ]
+  },
+  {
+   "run": "44580342687",
+   "branch": "arena/b1245963-ledgerflow",
+   "sha": "5a1aee697",
+   "created": "2026-11-19T17:44:06Z",
+   "later_green": "2026-11-19T18:04:08Z",
+   "failed_checks": [
+    "Playwright E2E Smoke Suite",
+    "Browser shard 4/5"
+   ],
+   "tests": [
+    "e2e: ui-language-sales.spec.ts \u203a Accessibility & language sets Hebrew and Sales uses RTL at 1280px",
+    "e2e: ui-language-sales.spec.ts \u203a Accessibility & language sets Hebrew and Sales uses RTL at 390px"
+   ]
+  },
+  {
+   "run": "44587205031",
+   "branch": "arena/b1245963-ledgerflow",
+   "sha": "23eb1a677",
+   "created": "2026-11-19T18:23:02Z",
+   "later_green": null,
+   "failed_checks": [
+    "Accounting & Security Test Suites (coverage gate)",
+    "Unit tests in America/Los_Angeles (1/3)",
+    "Unit tests in Pacific/Auckland (1/3)",
+    "Unit tests 4/4"
+   ],
+   "tests": [
+    "unit: src/components/forensics/Vault.tsx narrows the address before using it",
+    "unit: the screens that paint a stored file use the shared rule"
+   ]
+  }
+ ]
+}

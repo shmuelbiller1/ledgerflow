@@ -12,6 +12,7 @@ import { useTeamRequests } from '../../../hooks/useTeamRequests';
 import { copyWithFeedback } from '../../../lib/clipboard';
 import { planFor } from '../../../lib/plans';
 import { isEmailShape } from '../../../lib/textShape';
+import { percentWidthStyle } from '../../../lib/percentBar';
 
 export default function TeamSettings() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -182,7 +183,7 @@ function ScopedTeamSettings() {
           <div className="w-full h-2 bg-[var(--surface)] rounded-full overflow-hidden border border-[var(--line)]">
             <div
               className={`h-full transition-all ${isSeatLimitReached ? "bg-amber-500" : "bg-indigo-600"}`}
-              style={{ width: unlimitedSeats ? '100%' : `${Math.min(100, (activeSeatCount / maxSeats) * 100)}%` }}
+              style={percentWidthStyle(unlimitedSeats ? 100 : maxSeats > 0 ? (activeSeatCount / maxSeats) * 100 : 0)}
             />
           </div>
           <div className="text-[10px] text-[var(--muted)] font-medium text-right">

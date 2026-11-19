@@ -127,10 +127,11 @@ describe('A7C-01: slash conversion skips colliding short names', () => {
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const method = init?.method || 'GET';
-      if (url.includes('/rest/v1/dimensionNodes') && method === 'POST') {
-        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-        inserts.push(body);
-        return new Response(JSON.stringify([body]), { status: 201, headers: { 'Content-Type': 'application/json' } });
+      assert.ok(!(url.includes('/rest/v1/dimensionNodes') && method === 'POST'), 'no direct label write');
+      if (url.includes('/commands/workspace.dimensionnode') && method === 'POST') {
+        const body = JSON.parse(String(init?.body)) as { input: Record<string, unknown> };
+        if (body.input.createOnly) inserts.push(body.input);
+        return new Response(JSON.stringify({ status: 'success', data: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       return new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch;

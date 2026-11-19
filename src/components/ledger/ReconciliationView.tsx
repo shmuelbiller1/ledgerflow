@@ -18,6 +18,7 @@ import { useDialog } from '../../hooks/useDialog';
 import { useUIStore } from '../../stores/useUIStore';
 
 import type { useReconciliationModel } from './useReconciliationModel';
+import { percentWidthStyle } from '../../lib/percentBar';
 
 export function ReconciliationView(model: ReturnType<typeof useReconciliationModel>) {
  const { accounts, onMatch, onIgnore, onAddFromBank, selectedBankId, setSelectedBankId, selectedLedgerId, setSelectedLedgerId, showAutoConfirm, setShowAutoConfirm, isProcessing, isAutoReconciling, viewMode, setViewMode, searchQuery, setSearchQuery, bankLineAction, setBankLineAction, selectedAccountId, setSelectedAccountId, selectedBatchIds, setSelectedBatchIds, safeTransactions, cashAccounts, cashAccountIds, unmatchedBankLines, matchedBankLines, reconciledPercent, unclearedLedgerTransactions, optimizedMatches, executeSelectedBatchMatches, handleAutoReconcile, handleUndoAlignment, selectedBankLine, selectedLedgerTx, checkSimilarity, filteredBankFeed, filteredLedgerEntries } = model;
@@ -457,7 +458,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
 
                        {/* Interactive similarity progress tube */}
                        <div className="w-full bg-[var(--ink)] h-1.5 rounded-full mt-2 overflow-hidden max-w-[120px] border border-[var(--line)]">
-                         <div className="h-full bg-[var(--pos)] rounded-full transition-all" style={{ width: `${checkSimilarity.overall}%` }} />
+                         <div className="h-full bg-[var(--pos)] rounded-full transition-all" style={percentWidthStyle(checkSimilarity.overall)} />
                        </div>
                      </>
                   ) : (

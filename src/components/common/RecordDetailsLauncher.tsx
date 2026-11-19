@@ -1,3 +1,4 @@
+import { translateScreenString } from '../../lib/i18n/screenTranslations';
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Pencil } from 'lucide-react';
@@ -9,7 +10,8 @@ import { recordDetailContext } from '../../lib/recordDetailContext';
 import type { DetailTarget } from '../../lib/recordDetails';
 import { RecordDetailsDrawer } from './RecordDetailsDrawer';
 export function RelatedRecordEditButton({ target }: { target: DetailTarget }) {
-  return <button type="button" onClick={() => useRecordDetailsStore.getState().show(target)} className="min-h-11 px-3 underline" aria-label="Edit selected record details">Edit details</button>;
+  const language = useUIStore(state => state.language);
+  return <button type="button" onClick={() => useRecordDetailsStore.getState().show(target)} className="min-h-11 px-3 underline">{translateScreenString('reports', 'r.edit-details', language, 'Edit details')}</button>;
 }
 export function RecordDetailsLauncher() {
   const context = useRef<DetailTarget | undefined>(undefined);

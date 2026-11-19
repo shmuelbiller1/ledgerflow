@@ -1,10 +1,10 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { db } from '../../firebase';
 import { collection, getDocs, query, where } from '../../lib/db/firestore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useCollection } from '../../hooks/useCollection';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
@@ -12,7 +12,7 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import { resolveDimensionLabel } from '../../lib/dimensionUtils';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 import { reorderSuggestions, reorderDraftOrders, type ReorderGroup } from '../../lib/reorderSuggestions';
 import { locationReorderSuggestions, type UnplacedItem } from '../../lib/locationLevels';
 import type { StockMove } from '../../lib/stockMoves';
@@ -41,12 +41,10 @@ export default function ReorderSuggestionsReportView({ loadItemMoves }: { loadIt
   const inventory = useLedgerStore(state => state.inventory);
   const vendors = useLedgerStore(state => state.vendors);
   const bills = useLedgerStore(state => state.bills);
-  const truncated = useLedgerStore(state => state.truncatedCollections);
-  const failed = useDataNeedsStore(state => state.failed);
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const { loading } = useLedgerCollections('inventory', 'vendors', 'bills');
-  const { data: purchaseOrders, loading: ordersLoading, truncated: ordersTruncated } = useCollection<PurchaseOrder>('purchaseOrders', { orderByField: 'createdAt', orderDirection: 'desc', limit: PURCHASE_ORDER_CAP });
+  const { data: purchaseOrders, loading: ordersLoading, truncated: ordersTruncated, error: ordersError } = useCollection<PurchaseOrder>('purchaseOrders', { orderByField: 'createdAt', orderDirection: 'desc', limit: PURCHASE_ORDER_CAP });
   const { addEntity } = useEntityOperations();
   const role = useCurrentRole();
   const isGuest = useAuthStore(state => state.isGuest);
@@ -115,7 +113,8 @@ export default function ReorderSuggestionsReportView({ loadItemMoves }: { loadIt
   const shown = mode === 'location' ? located.groups : groups;
   const vendorGroups = shown.filter(g => g.vendorId && g.lines.length);
   const totalLines = shown.reduce((sum, g) => sum + g.lines.length, 0);
-  const partial = truncated.inventory || truncated.vendors || truncated.bills || failed.inventory || failed.vendors || failed.bills || ordersTruncated;
+  const inputsPartial = usePartialReportInputs(['inventory', 'vendors', 'bills']);
+  const partial = inputsPartial || ordersTruncated || !!ordersError;
 
   /**
    * Writes the drafts and reports exactly which order numbers landed: addEntity resolves to
@@ -153,9 +152,6 @@ export default function ReorderSuggestionsReportView({ loadItemMoves }: { loadIt
       ? [g.vendorName, line.name, line.sku, line.locationName || '', line.onHand, line.reorderPoint, line.maxLevel ?? '', line.suggestedQuantity, line.unit, line.unitCostCents, Math.round(line.unitCostCents * line.suggestedQuantity), line.costSource, home]
       : [g.vendorName, line.name, line.sku, line.onHand, line.reorderPoint, line.suggestedQuantity, line.unit, line.unitCostCents, Math.round(line.unitCostCents * line.suggestedQuantity), line.costSource, home])));
 
-  const heads = mode === 'location'
-    ? ['Item', 'SKU', 'Location', 'On hand', 'Minimum', 'Maximum', 'To order', 'Unit cost', 'Value', 'Cost from']
-    : ['Item', 'SKU', 'On hand', 'Reorder point', 'To order', 'Unit cost', 'Value', 'Cost from'];
   const movesLoading = mode === 'location' && movesByItem === null && !movesError;
 
   return <section aria-label={reportText('r.reorder-suggestions', 'Reorder suggestions')} className="p-4 space-y-4 min-w-0">
@@ -209,29 +205,25 @@ export default function ReorderSuggestionsReportView({ loadItemMoves }: { loadIt
       <h3 className="text-base font-semibold">
         <bdi>{group.vendorName}</bdi> · {group.lines.length} {reportText('r.item-s-about', 'item(s) · about')} {formatCurrency(group.totalCents, home)}
       </h3>
-      <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption>{reportText('r.what-to-reorder-from', 'What to reorder from')} {group.vendorName}</caption>
-          <thead>
-            <tr>{heads.map(head =>
-              <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-          </thead>
-          <tbody>
-            {group.lines.map(line => <tr key={line.locationId ? `${line.itemId}:${line.locationId}` : line.itemId} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{line.name}</bdi></th>
-              <td className="py-1 px-2"><bdi>{line.sku || '—'}</bdi></td>
-              {mode === 'location' && <td className="py-1 px-2"><bdi>{line.locationName || '—'}</bdi></td>}
-              <td className="py-1 px-2">{line.onHand}{line.unit ? ` ${line.unit}` : ''}</td>
-              <td className="py-1 px-2">{line.reorderPoint}{line.unit ? ` ${line.unit}` : ''}</td>
-              {mode === 'location' && <td className="py-1 px-2">{line.maxLevel ?? '—'}{line.maxLevel !== undefined && line.unit ? ` ${line.unit}` : ''}</td>}
-              <td className="py-1 px-2"><b>{line.suggestedQuantity}</b>{line.unit ? ` ${line.unit}` : ''}</td>
-              <td className="py-1 px-2">{line.unitCostCents ? formatCurrency(line.unitCostCents, home) : '—'}</td>
-              <td className="py-1 px-2">{line.unitCostCents ? formatCurrency(Math.round(line.unitCostCents * line.suggestedQuantity), home) : '—'}</td>
-              <td className="py-1 px-2">{line.costSource === 'vendor-history' ? reportText('r.last-purchase', 'last purchase') : reportText('r.item-record', 'item record')}</td>
-            </tr>)}
-          </tbody>
-        </table>
-      </ReportTableScroll>
+      <ReportSchedule
+        columnControls
+        allowDisplayedExport={!partial && !loading && !ordersLoading && !movesLoading && !movesError}
+        caption={<>{reportText('r.what-to-reorder-from', 'What to reorder from')} {group.vendorName}</>}
+        rowClassName="border-b border-[var(--line)]/50"
+        bodyClassName=""
+        rows={group.lines} rowKey={line => JSON.stringify([line.itemId, line.locationId ?? null])}
+        columns={[
+          { header: reportText('r.item', 'Item'), cell: line => <bdi>{line.name}</bdi> },
+          { header: reportText('r.schedule-sku', 'SKU'), cell: line => <bdi>{line.sku || '—'}</bdi> },
+          mode === 'location' ? { header: reportText('r.location', 'Location'), cell: line => <bdi>{line.locationName || '—'}</bdi> } : false,
+          { header: reportText('r.on-hand', 'On hand'), align: 'right', cell: line => <>{line.onHand}{line.unit ? ` ${line.unit}` : ''}</> },
+          { header: mode === 'location' ? reportText('r.schedule-minimum', 'Minimum') : reportText('r.schedule-reorder-point', 'Reorder point'), align: 'right', cell: line => <>{line.reorderPoint}{line.unit ? ` ${line.unit}` : ''}</> },
+          mode === 'location' ? { header: reportText('r.schedule-maximum', 'Maximum'), align: 'right', cell: line => <>{line.maxLevel ?? '—'}{line.maxLevel !== undefined && line.unit ? ` ${line.unit}` : ''}</> } : false,
+          { header: reportText('r.schedule-to-order', 'To order'), align: 'right', cell: line => <><b>{line.suggestedQuantity}</b>{line.unit ? ` ${line.unit}` : ''}</> },
+          { header: reportText('r.unit-cost', 'Unit cost'), align: 'right', cell: line => line.unitCostCents ? formatCurrency(line.unitCostCents, home) : '—' },
+          { header: reportText('r.value', 'Value'), align: 'right', cell: line => line.unitCostCents ? formatCurrency(Math.round(line.unitCostCents * line.suggestedQuantity), home) : '—' },
+          { header: reportText('r.schedule-cost-from', 'Cost from'), cell: line => line.costSource === 'vendor-history' ? reportText('r.last-purchase', 'last purchase') : reportText('r.item-record', 'item record') },
+        ]} />
     </div>)}
   </section>;
 }

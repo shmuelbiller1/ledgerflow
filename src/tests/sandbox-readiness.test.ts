@@ -67,6 +67,8 @@ describe('SBX-1: settlement and stock readiness (PostgreSQL)', { skip: !url && '
     try {
       assert.equal(await stockMovesReady(live), false);
       missing.mock.restore();
+      const sequence = async () => (await live.pool.query('select last_value, is_called from public."stockMoves_db_seq"')).rows[0];
+      const sequenceBefore = await sequence();
       await draft.runTransaction(async tx => {
         assert.equal(await allocationLedgerReady(draft, tx), true);
         assert.equal(await periodClosingsReady(draft, tx), true);
@@ -79,7 +81,8 @@ describe('SBX-1: settlement and stock readiness (PostgreSQL)', { skip: !url && '
       const kept = await draft.collection('stockMoves').where('workspaceId', '==', ws).get();
       assert.equal(kept.size, 1);
       assert.equal(kept.docs[0].data().valueCents, 750);
-      assert.equal(kept.docs[0].data().dbSeq, undefined, 'no live database sequence is assigned');
+      assert.ok(Number.isSafeInteger(kept.docs[0].data().dbSeq), 'the overlay numbers the draft move provisionally');
+      assert.deepEqual(await sequence(), sequenceBefore, 'no live database sequence is advanced');
       assert.equal((await live.collection('stockMoves').where('workspaceId', '==', ws).get()).size, 0);
       assert.equal(await stockMovesReady(live), false, 'the draft did not warm the live stock flag');
     } finally {

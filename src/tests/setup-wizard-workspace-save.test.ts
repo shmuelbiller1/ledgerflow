@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
+import { expectBrowserPatchDenied, pgWorkspaceCommands } from './helpers/pgWriteBoundary';
 
 /**
  * 27 Oct, live site: "Set up your books" could not save the business. The server had written fields of its own onto
@@ -12,30 +13,38 @@ test('the owner saves the business step on a workspace the server has written to
   const client = new pg.Client({ connectionString: process.env.LF_TEST_DATABASE_URL }); await client.connect();
   const id = `setup_save_${randomBytes(6).toString('hex')}`;
   const owner = `${id}_owner`;
-  async function asOwner(patch: Record<string, unknown>) {
-    await client.query('begin');
-    try {
-      await client.query('set local role authenticated');
-      await client.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: owner, role: 'authenticated', aal: 'aal1' })]);
-      await client.query('select public.lf_update($1, $2, $3)', ['workspaces', id, patch]);
-      await client.query('commit');
-    } catch (error) { await client.query('rollback'); throw error; }
-  }
+  const commands = pgWorkspaceCommands();
+  const asOwner = (patch: Record<string, unknown>) => commands.run(owner, id, 'workspace.settings', patch);
+  const read = async () => (await client.query('select data from public.workspaces where id = $1', [id])).rows[0].data;
   try {
     await client.query('insert into public.workspaces (id, data) values ($1, $2)', [id, {
       uid: owner, name: 'Personal Workspace', businessType: 'personal', currency: 'USD', createdAt: '2026-10-27',
       modules: { inventory: false }, setupCompletedAt: '2026-10-27T05:00:00Z', branding: { color: '#123456' }, requireTwoStep: false,
     }]);
-    await asOwner({ name: 'Biller Books', currency: 'ILS', timezone: 'Asia/Jerusalem', fiscalYearStartMonth: 1, fiscalYearStartDay: 1, updatedAt: '2026-10-27T05:01:00Z' });
-    const saved = (await client.query('select data from public.workspaces where id = $1', [id])).rows[0].data;
+    const fields = { name: 'Biller Books', currency: 'ILS', timezone: 'Asia/Jerusalem', fiscalYearStartMonth: 1, fiscalYearStartDay: 1 };
+    await expectBrowserPatchDenied(client, owner, 'workspaces', id, fields);
+    const business = await asOwner(fields);
+    assert.ok(business.ok, JSON.stringify(business));
+    const saved = await read();
     assert.equal(saved.name, 'Biller Books'); assert.equal(saved.currency, 'ILS'); assert.equal(saved.timezone, 'Asia/Jerusalem');
     // Y-35: the tax rounding policy is a setting the owner may change
-    await asOwner({ taxRounding: 'half_even' });
-    assert.equal((await client.query('select data from public.workspaces where id = $1', [id])).rows[0].data.taxRounding, 'half_even');
+    const rounding = await asOwner({ taxRounding: 'half_even' });
+    assert.ok(rounding.ok, JSON.stringify(rounding));
+    const after = await read();
+    assert.equal(after.taxRounding, 'half_even');
+    assert.deepEqual(after.modules, { inventory: false });
+    assert.equal(after.setupCompletedAt, '2026-10-27T05:00:00Z');
+    assert.deepEqual(after.branding, { color: '#123456' });
+    assert.equal(after.requireTwoStep, false);
     for (const patch of [{ modules: { inventory: true } }, { setupCompletedAt: null }, { requireTwoStep: true }]) {
-      await assert.rejects(asOwner(patch), /cannot be changed/, JSON.stringify(patch));
+      const refused = await asOwner(patch);
+      assert.ok(!refused.ok, JSON.stringify(patch));
+      assert.equal(refused.code, 'INVALID_INPUT');
+      assert.deepEqual(await read(), after);
     }
   } finally {
+    await commands.close();
+    await client.query('delete from public."auditLogs" where workspace_id = $1', [id]);
     await client.query('delete from public.workspaces where id = $1', [id]); await client.end();
   }
 });
