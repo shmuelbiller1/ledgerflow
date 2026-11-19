@@ -67,6 +67,9 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
   // server decide. A signed-in member is held to the approver roles, or a delegation made to them.
   const mayApproveBill = !uid || isGuest || ['owner', 'accountant'].includes(workspaceRole(workspace, uid))
     || Boolean(approvesInPlace(workspace, uid, getLocalDateISO()));
+  // a non-approver may open a held bill (to look at it or to fix its details) but must not be able to
+  // move it out of review by picking another status and saving
+  const statusLockedToPending = initialBill?.status === 'pending' && !mayApproveBill;
   // Ensure we have arrays even if props were passed as null
   // archived contacts aren't offered for new documents; one already on this document stays (I-22)
   const safeVendors = (Array.isArray(vendors) ? vendors : []).filter(c => !isArchivedParty(c) || c.id === initialBill?.vendorId);
@@ -223,11 +226,16 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
 
     const wsId = useAuthStore.getState().currentWorkspaceId || 'default';
     const userEmail = useAuthStore.getState().user?.email || 'user';
-    // G-19: a bill already held for approval (status 'pending') is being *decided* by the
-    // reviewer, not submitted again. Re-applying the submission threshold here loops the
-    // decision back to 'pending' forever, so the reviewer can never finish the approval.
-    // The threshold still gates new submissions (new/draft bills).
-    const isReviewingPending = initialBill?.status === 'pending';
+    // G-19: a bill already held for approval (status 'pending') is being *decided* by the reviewer,
+    // not submitted again — re-applying the submission threshold there loops the decision back to
+    // 'pending' forever, so the reviewer can never finish. But 'pending' is also how an ordinary new
+    // bill is first saved (Save & Close), so status alone does not prove a hold: only a bill whose
+    // amount has not grown since it was saved is being decided. Raising the amount re-applies the
+    // threshold (Gitar review on #911), so a bill cannot be pushed over the limit and approved in one go.
+    const savedTotalCents = initialBill
+      ? Number(initialBill.amountCents ?? (initialBill.splits || []).reduce((sum, line) => sum + (Number(line.amountCents) || 0), 0))
+      : 0;
+    const isReviewingPending = initialBill?.status === 'pending' && total > 0 && total <= savedTotalCents;
     const approval = evaluateApprovalRequirement(
       { ...bill, amountCents: total } as Bill,
       'bill',
@@ -235,7 +243,12 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
     );
 
     let finalStatus = actionStatus;
-    if (!isReviewingPending && approval.requiresApproval && actionStatus === 'approved') {
+    if (statusLockedToPending && !['pending', 'draft', 'void', 'rejected', 'cancelled'].includes(actionStatus)) {
+      finalStatus = 'pending';
+      toast.info('This bill is held for approval: an owner or accountant decides it.');
+    }
+    const heldForApproval = !isReviewingPending && approval.requiresApproval && actionStatus === 'approved';
+    if (heldForApproval) {
       finalStatus = 'pending';
       toast.info('Bill amount exceeds threshold ($5,000). Submitted for management approval.');
       addComment({
@@ -273,6 +286,10 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
         metadata: {
           ...(bill.metadata || {}),
           memo,
+          // keep the hold with the bill so a reviewer (and the audit trail) can see it was held, and
+          // clear it once the decision is taken
+          ...(heldForApproval ? { approvalHeld: true } : {}),
+          ...(!heldForApproval && isReviewingPending && initialBill?.metadata?.approvalHeld ? { approvalHeld: false } : {}),
         },
         // files picked for a new bill are kept with it once it has an id (Purchases.tsx)
         ...(attachments.length > 0 && !bill.id ? { attachmentFiles: attachments } : {}),
@@ -490,7 +507,9 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
                   id="bill-status"
                   aria-invalid={Boolean(fieldErrors['bill-status'])}
                   aria-describedby={fieldErrors['bill-status'] ? 'bill-status-error' : undefined}
-                  value={bill.status}
+                  value={statusLockedToPending ? 'pending' : bill.status}
+                  disabled={statusLockedToPending}
+                  title={statusLockedToPending ? 'Held for approval: an owner or accountant decides it' : undefined}
                   onChange={(e) => setBill({ ...bill, status: e.target.value as Bill['status'] })}
                   className="w-full min-h-11 px-5 py-3.5 bg-[var(--ink)] border border-[var(--line)] rounded-[32px] focus:ring-2 focus:ring-zinc-900 outline-none font-bold"
                 >
