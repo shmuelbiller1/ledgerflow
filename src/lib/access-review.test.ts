@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ACCESS_REVIEW_HEADERS, accessReviewCsvRows, accessReviewRows, lastRoleChange, lastSignIn, localDay,
-  twoStepLimitNote, twoStepRuleChangedAt, type AccessAuditEntry,
+  ACCESS_REVIEW_HEADERS, accessReviewCalendarIcs, accessReviewCsvRows, accessReviewReminderState,
+  accessReviewRows, lastRoleChange, lastSignIn, localDay, twoStepLimitNote, twoStepRuleChangedAt,
+  type AccessAuditEntry,
 } from './accessReview';
 
 const owner = 'u-owner';
@@ -101,4 +102,26 @@ test('a person with a stored role but no member row still reaches the review', (
   assert.deepEqual(rows.map(row => row.roleOnly), [false, false, true]);
   assert.equal(rows[2].role, 'bookkeeper');
   assert.match(accessReviewCsvRows(rows)[2][8], /Role on record; not in the workspace member list/);
+});
+
+test('S-21: monthly access-review reminder flags never, ok, and due states and generates RFC 5545 ICS', () => {
+  const now = new Date('2026-11-19T12:00:00.000Z');
+  const never = accessReviewReminderState(null, now);
+  assert.equal(never.status, 'never');
+  assert.equal(never.nextDueDate, localDay(now));
+
+  const recent = accessReviewReminderState('2026-11-10T12:00:00.000Z', now);
+  assert.equal(recent.status, 'ok');
+  assert.equal(recent.daysSinceReview, 9);
+
+  const overdue = accessReviewReminderState('2026-10-15T12:00:00.000Z', now);
+  assert.equal(overdue.status, 'due');
+  assert.equal(overdue.daysSinceReview, 35);
+
+  const ics = accessReviewCalendarIcs('Acme, Inc; Books', '2026-12-10');
+  assert.match(ics, /BEGIN:VCALENDAR\r\n/);
+  assert.match(ics, /RRULE:FREQ=MONTHLY\r\n/);
+  assert.match(ics, /DTSTART;VALUE=DATE:20261210\r\n/);
+  assert.match(ics, /SUMMARY:Monthly Access Review — Acme\\, Inc\\; Books\r\n/);
+  assert.match(ics, /END:VCALENDAR\r\n$/);
 });

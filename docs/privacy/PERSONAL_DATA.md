@@ -42,4 +42,5 @@ Entered by the workspace; the workspace is the controller, LedgerFlow the proces
 - **Erasure:** Settings → Security → "Delete account" (personal data and sign-in; workspaces only
   that person uses are deleted after 30 days; shared books stay with their other owners). A
   workspace's own data: "Delete workspace" (purged after 30 days).
-- **Kept after erasure:** the audit trail (who did what in the books) — see RETENTION.md.
+- **Kept after erasure:** the audit trail (who did what in the books) — see [RETENTION.md](RETENTION.md)
+  and [ERASE_AND_PSEUDONYMISE.md](ERASE_AND_PSEUDONYMISE.md) (S-15 pseudonymisation design).

@@ -232,3 +232,117 @@ export function twoStepLimitNote(requireTwoStep: boolean): string {
     ? 'This workspace requires two-step login for everyone, so the server refuses a password-only session. A sign-in recorded after the rule was turned on is shown as proof; no later sign-in shown does not prove the person lacks an authenticator.'
     : 'No workspace rule requires two-step login. Another person’s authenticator status belongs to their own account and cannot be read from here; only your own is shown.';
 }
+
+/** S-21: monthly (30-day) access-review cadence tracking and RFC 5545 calendar reminder export. */
+export const ACCESS_REVIEW_CADENCE_DAYS = 30;
+const ACCESS_REVIEW_STORAGE_PREFIX = 'lf_access_review:';
+
+export interface AccessReviewReminderState {
+  status: 'never' | 'due' | 'ok';
+  lastReviewedAt: string | null;
+  daysSinceReview: number | null;
+  nextDueDate: string;
+  summary: string;
+}
+
+export function accessReviewReminderState(
+  lastReviewedAt: string | Date | null | undefined,
+  now: Date = new Date(),
+  intervalDays: number = ACCESS_REVIEW_CADENCE_DAYS,
+): AccessReviewReminderState {
+  const cadence = Number.isFinite(intervalDays) && intervalDays > 0 ? Math.floor(intervalDays) : ACCESS_REVIEW_CADENCE_DAYS;
+  const parsed = lastReviewedAt instanceof Date
+    ? lastReviewedAt
+    : typeof lastReviewedAt === 'string' && lastReviewedAt.trim()
+      ? new Date(lastReviewedAt)
+      : null;
+  const validLast = parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
+
+  if (!validLast) {
+    return {
+      status: 'never',
+      lastReviewedAt: null,
+      daysSinceReview: null,
+      nextDueDate: localDay(now),
+      summary: 'No monthly access review has been recorded on this device yet. Review the list below and mark it complete.',
+    };
+  }
+
+  const diffDays = Math.max(0, Math.floor((now.getTime() - validLast.getTime()) / 86_400_000));
+  const nextDue = new Date(validLast.getTime() + cadence * 86_400_000);
+  const nextDueDate = localDay(nextDue);
+  const isoLast = validLast.toISOString();
+
+  if (diffDays >= cadence) {
+    return {
+      status: 'due',
+      lastReviewedAt: isoLast,
+      daysSinceReview: diffDays,
+      nextDueDate: localDay(now),
+      summary: `Monthly access review is due (last reviewed ${diffDays} days ago on ${localDay(validLast)}).`,
+    };
+  }
+
+  const daysRemaining = cadence - diffDays;
+  return {
+    status: 'ok',
+    lastReviewedAt: isoLast,
+    daysSinceReview: diffDays,
+    nextDueDate,
+    summary: `Last reviewed on ${localDay(validLast)} (${diffDays}d ago). Next monthly review due on ${nextDueDate} (in ${daysRemaining}d).`,
+  };
+}
+
+function escapeIcsText(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/\r?\n/g, '\\n')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,');
+}
+
+export function accessReviewCalendarIcs(workspaceName: string, nextDueDate: string): string {
+  const compactDate = /^\d{4}-\d{2}-\d{2}$/.test(nextDueDate)
+    ? nextDueDate.replace(/-/g, '')
+    : localDay(new Date()).replace(/-/g, '');
+  const label = escapeIcsText((workspaceName || 'LedgerFlow').trim() || 'LedgerFlow');
+  const dtStamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//LedgerFlow//Access Review Reminder//EN',
+    'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    `UID:ledgerflow-access-review-${compactDate}@ledgerflow.app`,
+    `DTSTAMP:${dtStamp}`,
+    `DTSTART;VALUE=DATE:${compactDate}`,
+    'RRULE:FREQ=MONTHLY',
+    `SUMMARY:Monthly Access Review — ${label}`,
+    `DESCRIPTION:${escapeIcsText(`Review workspace members, roles, last sign-in activity, and two-step login status in Settings -> Security -> Access review for ${workspaceName || 'this workspace'}.`)}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+    '',
+  ];
+  return lines.join('\r\n');
+}
+
+export function readLastAccessReviewAt(workspaceId: string): string | null {
+  if (!workspaceId || typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    return window.localStorage.getItem(`${ACCESS_REVIEW_STORAGE_PREFIX}${workspaceId}`);
+  } catch {
+    return null;
+  }
+}
+
+export function recordAccessReviewCompleted(workspaceId: string, now: Date = new Date()): string {
+  const iso = now.toISOString();
+  if (workspaceId && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.setItem(`${ACCESS_REVIEW_STORAGE_PREFIX}${workspaceId}`, iso);
+    } catch {
+      // Ignore private-mode storage errors while still returning the timestamp for state updates.
+    }
+  }
+  return iso;
+}
