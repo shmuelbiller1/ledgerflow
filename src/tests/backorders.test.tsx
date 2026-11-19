@@ -57,13 +57,13 @@ test('oldest first takes the stock; what is short; on order from vendors', () =>
 
 afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
 
-test('the report shows short items and order lines', () => {
-  setComponentWorkspace('owner');
+test('the report shows short items and order lines', async () => {
+  const workspace = setComponentWorkspace('owner');
   markComponentCollectionsLoaded('estimates', 'transactions', 'inventory');
-  useLedgerStore.setState({ estimates: orders, transactions: entries, inventory: [chair, desk] });
+  useLedgerStore.setState({ estimates: orders.map(o => ({ ...o, workspaceId: workspace.id })), transactions: entries.map(t => ({ ...t, workspaceId: workspace.id })), inventory: [chair, desk].map(i => ({ ...i, workspaceId: workspace.id })) });
   globalThis.fetch = (async () => new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
   render(<BackordersReportView />);
-  assert.ok(screen.getByText('Short items (1)'));
+  assert.ok(await screen.findByText('Short items (1)'));
   assert.ok(screen.getByRole('rowheader', { name: 'Desk' }));
   assert.ok(screen.getByText('Order lines to deliver (3)'));
   // A-121: the release list leads, with the one order that can go out in full said in words

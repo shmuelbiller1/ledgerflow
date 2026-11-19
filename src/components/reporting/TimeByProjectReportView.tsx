@@ -1,19 +1,18 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { isReportTimeEntry } from '../../lib/reportListRows';
+import { useCurrentRole } from '../../hooks/useCurrentRole';
+import { useReportList } from '../../hooks/useReportList';
+import { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
-import { formatDuration, type TimeEntry } from '../../lib/timeEntries';
+import { formatDuration } from '../../lib/timeEntries';
 import {
   timeByPersonProject, timeByProjectCsvRows, TIME_BY_PROJECT_CSV_HEADERS,
 } from '../../lib/timeByPersonProject';
-import ReportTableScroll from './ReportTableScroll';
-import { inBackground } from '../../lib/inBackground';
-import { runCommand, type CommandBody } from '../../lib/runCommand';
-import { useReportText } from './useReportText';
-
-const hoursText = (minutes: number) => `${formatDuration(minutes)} h`;
+import ReportSchedule from './ReportSchedule';
+import { fill, useReportText } from './useReportText';
 
 /**
  * A-179: who logged time on which project this month. Reads the same time entries the Time screen
@@ -22,37 +21,25 @@ const hoursText = (minutes: number) => `${formatDuration(minutes)} h`;
  */
 export default function TimeByProjectReportView() {
   const reportText = useReportText();
+  const hoursText = (minutes: number) => fill(reportText('r.duration-hours', '{time} h'), { time: formatDuration(minutes) });
   useLedgerCollections('projects');
   const projects = useLedgerStore(state => state.projects);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
+  const uid = useAuthStore(s => s.user?.uid);
+  const role = useCurrentRole();
+  const ownTimeOnly = role !== 'owner' && role !== 'accountant';
   const workspaceId = workspace?.id || '';
   const [month, setMonth] = useState(getLocalDateISO().slice(0, 7));
-  const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<{ workspaceId: string; entries?: TimeEntry[]; error?: string } | null>(null);
-
-  useEffect(() => {
-    if (!workspaceId) return;
-    let alive = true;
-    inBackground((async () => {
-      try {
-        const data = await runCommand<CommandBody>({
-          path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/time`,
-        }) ?? {};
-        if (alive) setState({ workspaceId, entries: (data.entries || []) as TimeEntry[] });
-      } catch (error) {
-        if (alive) setState({ workspaceId, error: error instanceof Error ? error.message : String(error) });
-      }
-    })());
-    return () => { alive = false; };
-  }, [workspaceId, attempt]);
-
-  const current = state && state.workspaceId === workspaceId ? state : null;
-  const loading = Boolean(workspaceId) && !current;
+  const { rows: entries, loading, failed, error, retry } = useReportList(
+    workspaceId ? `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/time` : null, 'entries', isReportTimeEntry);
+  const validMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(month);
+  // listTime returns at most the 5,000 newest entries visible to the reader.
+  const capped = !!entries && entries.length >= 5000;
   const report = useMemo(() => timeByPersonProject({
-    entries: current?.entries || [],
+    entries: entries?.filter(e => e.workspaceId === workspaceId && (!ownTimeOnly || (!!uid && e.person === uid))) || [],
     projects: projects.filter(p => !workspaceId || p.workspaceId === workspaceId),
     month,
-  }), [current, projects, workspaceId, month]);
+  }), [entries, projects, workspaceId, month, ownTimeOnly, uid]);
 
   return <section aria-label={reportText('r.time-by-person-and-project', 'Time by person and project')} className="p-4 space-y-4 min-w-0">
     <h2>{reportText('r.time-by-person-and-project', 'Time by person and project')}</h2>
@@ -65,14 +52,17 @@ export default function TimeByProjectReportView() {
         <input type="month" aria-label={reportText('r.month', 'Month')} className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
           value={month} onChange={e => setMonth(e.target.value)} />
       </label>
-      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!report.rows.length}
+      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={capped || !report.rows.length}
         onClick={() => downloadCsv('time-by-person-and-project', [...TIME_BY_PROJECT_CSV_HEADERS], timeByProjectCsvRows(report.rows))}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
 
+    {!validMonth && <p role="alert">{reportText('r.choose-a-real-calendar-month', 'Choose a real calendar month.')}</p>}
+    {ownTimeOnly && <p className="text-sm text-[var(--muted)]">{reportText('r.time-personal-scope', 'Only your own time entries are included.')}</p>}
+    {capped && <p role="alert">{reportText('r.time-capped', 'Only the newest 5,000 visible entries were returned. This month may be incomplete; CSV is unavailable.')}</p>}
     {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.reading-the-time-entries', 'Reading the time entries…')}</p>}
-    {current?.error && <div className="space-y-2">
-      <p role="alert" className="text-sm">{reportText('r.the-time-entries-could-not-be-read', 'The time entries could not be read:')} {current.error}</p>
-      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={() => setAttempt(n => n + 1)}>{reportText('r.retry', 'Retry')}</button>
+    {failed && <div className="space-y-2">
+      <p role="alert" className="text-sm">{reportText('r.the-time-entries-could-not-be-read', 'The time entries could not be read:')} {error || reportText('r.missing-report-rows', 'The response did not contain report rows.')}</p>
+      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={retry}>{reportText('r.retry', 'Retry')}</button>
     </div>}
 
     {report.people.length > 0 && <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm" aria-label={reportText('r.month-totals-by-person', 'Month totals by person')}>
@@ -82,30 +72,18 @@ export default function TimeByProjectReportView() {
       ))}
     </div>}
 
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>{reportText('r.time-logged-by-person-and-project', 'Time logged by person and project,')} {month}</caption>
-        <thead>
-          <tr>
-            {[reportText('r.person', 'Person'), reportText('r.project', 'Project'), reportText('r.time', 'Time'), reportText('r.billable-2', 'Billable'), reportText('r.waiting-for-approval', 'Waiting for approval'), reportText('r.entries', 'Entries')].map((head, i) =>
-              <th key={head} scope="col" className={`${i < 2 ? 'text-left' : 'text-right'} py-1 px-2`}>{head}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {report.rows.map(row => (
-            <tr key={`${row.person}-${row.projectId}`} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.person}</bdi></th>
-              <td className="py-1 px-2"><bdi>{row.projectName}</bdi></td>
-              <td className="py-1 px-2 text-right tabular-nums">{hoursText(row.minutes)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{hoursText(row.billableMinutes)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{row.waitingMinutes ? hoursText(row.waitingMinutes) : '—'}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{row.entries}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {current?.entries && !report.rows.length && <p className="text-sm text-[var(--muted)]">{reportText('r.no-time-is-logged-in', 'No time is logged in')} {month}.</p>}
-    </ReportTableScroll>
+    {report.rows.length > 0 && <ReportSchedule columnControls allowDisplayedExport={!capped} rows={report.rows}
+      rowKey={row => JSON.stringify([row.person, row.projectId])}
+      caption={<>{reportText('r.time-logged-by-person-and-project', 'Time logged by person and project,')} <bdi>{month}</bdi></>}
+      columns={[
+        { header: reportText('r.person', 'Person'), cell: row => <bdi>{row.person}</bdi> },
+        { header: reportText('r.project', 'Project'), cell: row => <bdi>{row.projectId ? row.projectName : reportText('r.unspecified-project', 'No project recorded')}</bdi> },
+        { header: reportText('r.time', 'Time'), align: 'right', cell: row => hoursText(row.minutes) },
+        { header: reportText('r.billable-2', 'Billable'), align: 'right', cell: row => hoursText(row.billableMinutes) },
+        { header: reportText('r.waiting-for-approval', 'Waiting for approval'), align: 'right', cell: row => row.waitingMinutes ? hoursText(row.waitingMinutes) : '—' },
+        { header: reportText('r.entries', 'Entries'), align: 'right', cell: row => row.entries },
+      ]} />}
+    {entries && validMonth && !capped && !report.rows.length && <p role="status">{reportText('r.no-time-is-logged-in', 'No time is logged in')} <bdi>{month}</bdi>.</p>}
 
     <p className="text-xs text-[var(--muted)]">
       {reportText('r.time-logged-for-a-customer-without-a-project-is', 'Time logged for a customer without a project is in No project recorded here; the Time screen keeps the customer on each entry. Minutes are exact in the CSV.')}

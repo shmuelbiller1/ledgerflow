@@ -51,6 +51,8 @@ export interface RowTableProps<T, C = never> {
   bodyClassName?: string;
   /** A totals row (or rows) under the body, rendered as the caller wrote it. */
   footer?: ReactNode;
+  /** Opening balance before the movement rows, including when the period had no movements. */
+  bodyStart?: ReactNode;
   /** A class for the `<tfoot>` the footer renders in — `sticky bottom-0` on a long list. */
   footerClassName?: string;
   /** A row to show *inside* the body when there are no rows: the sentence a report prints in place of its list.
@@ -83,6 +85,7 @@ export function RowTable<T, C = never>({
   bodyClassName = 'divide-y divide-[var(--line)]',
   footer,
   footerClassName,
+  bodyStart,
   emptyRow,
   empty,
 }: RowTableProps<T, C>) {
@@ -104,6 +107,7 @@ export function RowTable<T, C = never>({
         </tr>
       </thead>
       <tbody className={bodyClassName}>
+        {bodyStart}
         {rows.length === 0 && emptyRow !== undefined ? emptyRow : rows.map((row, position) => (
           <tr key={keyOf(row, position)} className={rowClassName}>
             {planned.map(column => {

@@ -29,8 +29,8 @@ const analysisTransactions=[makeTransaction({lines:[{accountId:'rev',accountName
 const unavailable: Array<[string,React.ReactElement]> = [
   ['Export Report',<Consolidation/>],
   ['Fiscal Export',<TaxManager/>],
-  ['Maximize2 action',<ProjectProfitabilityView transactions={analysisTransactions} formatCurrency={String}/>],
-  ['Export Node',<ProjectProfitabilityView transactions={analysisTransactions} formatCurrency={String}/>],
+  ['Expand chart',<ProjectProfitabilityView transactions={analysisTransactions} formatCurrency={String}/>],
+  ['Export project rows',<ProjectProfitabilityView transactions={analysisTransactions} formatCurrency={String}/>],
   ['Provision New Endpoint',<DeveloperSettings/>],
   ['Generate Brief',<ProjectsView {...projectProps}/>],
 ];

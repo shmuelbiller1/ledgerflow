@@ -81,7 +81,7 @@ function useProjectsModel() {
     return deleteProjectWithUndo(id);
   };
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeSubTab, setActiveSubTab] = useState<'pipeline' | 'list'>('pipeline');
+  const [activeSubTab, setActiveSubTab] = useState<'pipeline' | 'list' | 'profitability'>('pipeline');
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const { dialogProps: overlay1DialogProps, titleId: overlay1TitleId } = useDialog(() => setIsNewProjectModalOpen(false), isNewProjectModalOpen);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
