@@ -110,7 +110,10 @@ function ScopedEvidencePack({ workspaceId }: { workspaceId: string }) {
     try {
       if (invalidPeriod) throw new Error('Choose a valid period: the first date must not be after the last.');
       if (!workspace) throw new Error('Open a workspace first.');
-      const zip = buildStoredZip(files.map(file => ({ name: file.name, data: new TextEncoder().encode(file.text) })));
+      const zip = buildStoredZip(files.map(file => ({
+        name: file.name,
+        data: new TextEncoder().encode(file.name.endsWith('.csv') && !file.text.startsWith('\uFEFF') ? '\uFEFF' + file.text : file.text),
+      })));
       const name = evidencePackFileName(workspace, { from, to });
       // buildStoredZip returns an exactly-sized buffer starting at 0, so it can be handed over whole
       const blob = new Blob([zip.buffer as ArrayBuffer], { type: 'application/zip' });

@@ -548,8 +548,8 @@ export default function Purchases() {
             exportConfig={{
               filename: 'bills_export.csv',
               label: purchasesText('action.exportCsv', 'Export CSV'),
-              headers: ['Vendor Name', 'Bill Number', 'Date', 'Due Date', 'Status', 'Amount', 'Currency'],
-              mapRow: b => [b.vendorName || 'Unknown Vendor', b.number || b.id, b.date || '', b.dueDate || '', b.status || 'unpaid', csvMoney(b.amountCents || 0), b.currency || ''],
+              headers: ['Vendor Name', 'Bill Number', 'Date', 'Due Date', 'Status', 'Amount', 'Amount Due', 'Currency'],
+              mapRow: b => [b.vendorName || 'Unknown Vendor', b.number || b.id, b.date || '', b.dueDate || '', b.status || 'unpaid', csvMoney(b.amountCents || 0), csvMoney(calculateAmountDue(b)), b.currency || homeCurrency],
             }}
             mobileLayout="table"
             getRowProps={b => ({
@@ -619,6 +619,12 @@ export default function Purchases() {
               columnScope="purchase-vendors"
               columnLabel="Vendors"
               columnNames={['Vendor Name', 'Category', 'Email', 'Phone', 'Outstanding balance', ...(canEditContacts ? ['Actions'] : [])]}
+              exportConfig={{
+                filename: 'vendors.csv',
+                label: purchasesText('action.exportCsv', 'Export CSV'),
+                headers: ['Vendor', 'Category', 'Email', 'Phone', 'Outstanding Balance'],
+                mapRow: v => [v.name, v.category || 'Standard', v.email || '', v.phone || '', csvMoney(v.balanceCents || 0)],
+              }}
               mobileLayout="cards"
               renderCard={v => (
                 <div className="space-y-3">

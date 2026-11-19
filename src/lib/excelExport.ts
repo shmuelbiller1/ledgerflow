@@ -1,5 +1,4 @@
 import type { Workbook, Worksheet, CellValue } from 'exceljs';
-import { calendarDateISO } from './utils';
 import { useAuthStore } from '../stores/useAuthStore';
 
 export interface ExcelColumn {
@@ -135,6 +134,51 @@ export async function buildReportWorkbook(
   return workbook;
 }
 
+function excelDateISO(d: Date): string {
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+function extractRichText(value: unknown): string {
+  if (!value || typeof value !== 'object' || !('richText' in value) || !Array.isArray((value as { richText?: unknown }).richText)) {
+    return '';
+  }
+  return (value as { richText: Array<{ text?: unknown }> }).richText
+    .map(part => (typeof part?.text === 'string' ? part.text : ''))
+    .join('');
+}
+
+export function extractExcelCellValue(raw: unknown): CellValue {
+  let val = raw;
+  if (val && typeof val === 'object' && !(val instanceof Date)) {
+    if ('result' in val) {
+      val = (val as { result?: unknown }).result;
+    } else if ('formula' in val || 'sharedFormula' in val) {
+      return '';
+    }
+  }
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'boolean' || typeof val === 'number' || typeof val === 'string') return val;
+  if (val instanceof Date) return excelDateISO(val);
+  if (typeof val === 'object') {
+    if ('error' in val && typeof (val as { error?: unknown }).error === 'string') {
+      return (val as { error: string }).error;
+    }
+    if ('richText' in val) {
+      return extractRichText(val);
+    }
+    if ('hyperlink' in val) {
+      const link = val as { text?: unknown; hyperlink?: unknown };
+      if (typeof link.text === 'string') return link.text;
+      if (link.text && typeof link.text === 'object' && 'richText' in link.text) {
+        return extractRichText(link.text);
+      }
+      return typeof link.hyperlink === 'string' ? link.hyperlink : '';
+    }
+  }
+  return String(val);
+}
+
 /**
  * Reads 2D rows from an Excel file ArrayBuffer.
  */
@@ -149,12 +193,7 @@ export async function parseExcelToRows(data: ArrayBuffer): Promise<CellValue[][]
       if (Array.isArray(row.values)) {
         // row.values is 1-indexed in ExcelJS
         for (let i = 1; i < row.values.length; i++) {
-          let val = row.values[i];
-          if (val && typeof val === 'object') {
-            if ('result' in val) val = val.result;
-            else if (val instanceof Date) val = calendarDateISO(val);
-          }
-          rowData.push(val || '');
+          rowData.push(extractExcelCellValue(row.values[i]));
         }
       }
       rows.push(rowData);

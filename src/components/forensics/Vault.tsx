@@ -40,6 +40,22 @@ import { inBackground } from '../../lib/inBackground';
 import { runWrite } from '../../lib/runCommand';
 import { removeAttachment } from '../../services/attachmentActions';
 
+function safeDownloadUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || !value) return null;
+  if (/^data:[^,\s]+,/i.test(value)) return value;
+  try {
+    return new URL(value).protocol === 'https:' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatDocDate(value: unknown, pattern: string, fallback: string): string {
+  if (!value) return fallback;
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? fallback : format(parsed, pattern);
+}
+
 export default function Vault() {
   const uploadId = useId();
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -57,9 +73,13 @@ export default function Vault() {
   const [loadError, setLoadError] = useState('');
   const [loadVersion, setLoadVersion] = useState(0);
   const [selectedDoc, setSelectedDoc] = useState<CloudDocument | null>(null);
-  const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(() => setSelectedDoc(null), !!selectedDoc);
   const [isScanning, setIsScanning] = useState(false);
   const [extractedData, setExtractedData] = useState<(import("../../lib/receiptIngestion").ParsedReceiptData & { merchant?: string; description?: string; category?: string; confidence: number }) | null>(null);
+  const selectDoc = (doc: CloudDocument | null) => {
+    setSelectedDoc(doc);
+    setExtractedData(null);
+  };
+  const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(() => selectDoc(null), !!selectedDoc);
   const { setSafeTimeout } = useTimeout();
 
   useEffect(() => {
@@ -89,6 +109,7 @@ export default function Vault() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
     if (file.size > 700000) {
@@ -304,6 +325,9 @@ export default function Vault() {
   const counts = documentCounts(documents);
   const months = documentMonths(documents);
   const filtersActive = Boolean(searchTerm.trim()) || fileType !== 'all' || linkedTo !== 'all' || month !== 'all' || Boolean(filterTag);
+  const selectedSafeUrl = selectedDoc ? safeDownloadUrl(selectedDoc.fileUrl) : null;
+  const selectedKind = selectedDoc ? documentFileType(selectedDoc.mimeType) : 'other';
+  const selectedOwner = selectedDoc ? documentOwnerLabel(selectedDoc) : null;
 
   const allTags = Array.from(new Set(documents.flatMap(d => d.tags || [])));
   const FILE_TYPE_LABELS: Record<DocumentFileType, string> = { pdf: 'PDF', image: 'Image', spreadsheet: 'Spreadsheet', document: 'Document', other: 'Other' };
@@ -412,7 +436,7 @@ export default function Vault() {
             <motion.div
               layout
               key={docItem.id}
-              onClick={() => setSelectedDoc(docItem)}
+              onClick={() => selectDoc(docItem)}
               className="bg-[var(--surface)] p-4 md:p-8 rounded-[32px] flex flex-col gap-6 group cursor-pointer border border-[var(--line)] hover:border-slate-800/20 shadow-[0_10px_30px_rgba(0,0,0,0.02)] hover:shadow-2xl hover:-translate-y-2 transition-all relative overflow-hidden"
             >
               <div className="flex items-start justify-between">
@@ -435,7 +459,7 @@ export default function Vault() {
               <div className="space-y-2">
                 <h3 className="text-base font-black text-[var(--text)] line-clamp-1 leading-none tracking-tight">{docItem.name}</h3>
                 <div className="flex items-center gap-3 text-[10px] font-bold text-[var(--muted)] uppercase tracking-[0.1em] font-mono">
-                  <span>{docItem.createdAt ? format(new Date(docItem.createdAt), 'MMM dd, yyyy') : 'No date'}</span>
+                  <span>{formatDocDate(docItem.createdAt, 'MMM dd, yyyy', 'No date')}</span>
                   <span className="w-1 h-1 bg-slate-100 rounded-full" />
                   <span>{((docItem.sizeBytes || 0) / 1024).toFixed(1)} KB</span>
                   <span className="w-1 h-1 bg-slate-100 rounded-full" />
@@ -459,7 +483,7 @@ export default function Vault() {
                   type="button"
                   aria-label={`Open ${docItem.name}`}
                   title="Open this file"
-                  onClick={event => { event.stopPropagation(); setSelectedDoc(docItem); }}
+                  onClick={event => { event.stopPropagation(); selectDoc(docItem); }}
                   className="w-10 h-10 flex items-center justify-center bg-slate-900 text-white rounded-[32px] hover:bg-slate-700 transition-all shadow-sm"
                 >
                   <ExternalLink aria-hidden="true" size={16} />
@@ -514,7 +538,7 @@ export default function Vault() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setSelectedDoc(null)}
+              onClick={() => selectDoc(null)}
               className="absolute inset-0 bg-[#090A0C]/80 backdrop-blur-3xl"
             />
             <motion.div
@@ -532,22 +556,29 @@ export default function Vault() {
                   <div>
                     <h2 id={overlayTitleId} className="text-2xl font-black text-[var(--text)] tracking-tight line-clamp-1 leading-none mb-2">{selectedDoc.name}</h2>
                     <p className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest truncate opacity-40 font-mono">
-                      Timestamp: {format(new Date(selectedDoc.createdAt), 'yyyy-MM-dd HH:mm:ss')}
+                      Timestamp: {formatDocDate(selectedDoc.createdAt, 'yyyy-MM-dd HH:mm:ss', 'No date')}
                     </p>
                   </div>
                 </div>
-                <button onClick={() => setSelectedDoc(null)} aria-label="Close document details" className="w-12 h-12 flex items-center justify-center hover:bg-[var(--ink)] rounded-[32px] transition-all text-[var(--muted)]">
+                <button onClick={() => selectDoc(null)} aria-label="Close document details" className="w-12 h-12 flex items-center justify-center hover:bg-[var(--ink)] rounded-[32px] transition-all text-[var(--muted)]">
                   <X aria-hidden="true" size={28} />
                 </button>
               </div>
 
               <div className="flex-1 bg-[var(--ink)]/20 p-12 flex items-center justify-center overflow-auto">
-                {selectedDoc.mimeType.startsWith('image/') ? (
+                {selectedKind === 'image' && selectedSafeUrl ? (
                   <img 
-                    src={selectedDoc.fileUrl} 
+                    src={selectedSafeUrl} 
                     alt={selectedDoc.name}
                     className="max-w-full max-h-full rounded-[32px] shadow-[0_40px_100px_rgba(0,0,0,0.2)] border border-[var(--line)] object-contain"
                     referrerPolicy="no-referrer"
+                  />
+                ) : selectedKind === 'pdf' && selectedSafeUrl ? (
+                  <iframe
+                    src={selectedSafeUrl}
+                    title={`Preview ${selectedDoc.name}`}
+                    sandbox=""
+                    className="w-full h-[36rem] rounded-2xl border border-[var(--line)] bg-white shadow-sm"
                   />
                 ) : (
                   <div className="text-center space-y-6">
@@ -555,18 +586,21 @@ export default function Vault() {
                       <File aria-hidden="true" size={48} />
                     </div>
                     <div>
-                      <h3 className="text-xl font-black text-[var(--text)] tracking-tight">Preview Restricted</h3>
-                      <p className="text-sm font-medium text-[var(--muted)] mt-2">MIME: {selectedDoc.mimeType}</p>
+                      <h3 className="text-xl font-black text-[var(--text)] tracking-tight">{selectedSafeUrl ? 'Preview Restricted' : 'File link unavailable'}</h3>
+                      <p className="text-sm font-medium text-[var(--muted)] mt-2">MIME: {selectedDoc.mimeType || 'Unknown'}</p>
                     </div>
-                    <a 
-                      href={selectedDoc.fileUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="h-14 px-8 bg-slate-900 text-white rounded-[32px] inline-flex items-center gap-3 font-black text-xs uppercase tracking-widest hover:bg-black shadow-xl"
-                    >
-                      <Download aria-hidden="true" size={20} />
-                      Export to Reader
-                    </a>
+                    {selectedSafeUrl && (
+                      <a 
+                        href={selectedSafeUrl} 
+                        download={selectedDoc.name}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="h-14 px-8 bg-slate-900 text-white rounded-[32px] inline-flex items-center gap-3 font-black text-xs uppercase tracking-widest hover:bg-black shadow-xl"
+                      >
+                        <Download aria-hidden="true" size={20} />
+                        Export to Reader
+                      </a>
+                    )}
                   </div>
                 )}
               </div>
@@ -576,16 +610,19 @@ export default function Vault() {
                     <div className="p-6 bg-[var(--ink)]/30 rounded-[32px] border border-[var(--line)]">
                        <p className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest truncate opacity-40 mb-3">Protocol Status</p>
                        <div className="flex items-center gap-3 font-black text-xs tracking-widest">
-                          {selectedDoc.linkedTransactionId ? (
+                          {selectedOwner ? (
                             <>
-                              <div className="w-6 h-6 flex items-center justify-center bg-emerald-50 text-emerald-500 rounded-lg">
+                              <div className="w-6 h-6 flex items-center justify-center bg-emerald-50 text-emerald-500 rounded-lg shrink-0">
                                 <CheckCircle2 aria-hidden="true" size={16} />
                               </div>
-                              <span className="text-emerald-600">CERTIFIED LINK</span>
+                              <div className="min-w-0">
+                                <span className="text-emerald-600 block">CERTIFIED LINK</span>
+                                <span className="text-[11px] font-semibold tracking-normal text-[var(--muted)] block truncate">Belongs to {selectedOwner}</span>
+                              </div>
                             </>
                           ) : (
                             <>
-                              <div className="w-6 h-6 flex items-center justify-center bg-amber-50 text-amber-500 rounded-lg">
+                              <div className="w-6 h-6 flex items-center justify-center bg-amber-50 text-amber-500 rounded-lg shrink-0">
                                 <Clock aria-hidden="true" size={16} />
                               </div>
                               <span className="text-amber-600">ISOLATED DEPOSIT</span>
@@ -595,7 +632,7 @@ export default function Vault() {
                     </div>
                     <div className="p-6 bg-[var(--ink)]/30 rounded-[32px] border border-[var(--line)] font-mono">
                        <p className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest truncate opacity-40 mb-3">Data Magnitude</p>
-                       <p className="font-black text-sm text-[var(--text)] tracking-tight">{(selectedDoc.sizeBytes / 1024).toFixed(1)} KB</p>
+                       <p className="font-black text-sm text-[var(--text)] tracking-tight">{((selectedDoc.sizeBytes || 0) / 1024).toFixed(1)} KB</p>
                     </div>
                  </div>
 
@@ -667,14 +704,16 @@ export default function Vault() {
                         </>
                       )}
                     </button>
-                    <a 
-                      href={selectedDoc.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="h-14 px-8 bg-[var(--surface)] border border-[var(--line)] text-[var(--text)] rounded-[32px] flex-[0.7] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-[var(--ink)] transition-all flex items-center justify-center gap-3">
-                      <ExternalLink aria-hidden="true" size={18} />
-                      Raw
-                    </a>
+                    {selectedSafeUrl && (
+                      <a 
+                        href={selectedSafeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="h-14 px-8 bg-[var(--surface)] border border-[var(--line)] text-[var(--text)] rounded-[32px] flex-[0.7] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-[var(--ink)] transition-all flex items-center justify-center gap-3">
+                        <ExternalLink aria-hidden="true" size={18} />
+                        Raw
+                      </a>
+                    )}
                     <AsyncButton aria-label={`Delete document ${selectedDoc.name}`}
                       onClick={async () => handleDelete(selectedDoc.id)}
                       className="w-14 h-14 flex items-center justify-center bg-rose-50 text-rose-500 rounded-[32px] hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-rose-100"

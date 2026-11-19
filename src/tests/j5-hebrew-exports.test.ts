@@ -15,6 +15,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { toCsv } from '../lib/csvExport';
 import { parseCsv } from '../lib/csv';
+import { sha256Hex } from '../lib/auditHashChain';
+import { buildLenderReadyPackage } from '../lib/lenderReadyPackage';
 import { recordExportTable } from '../lib/workspaceExports';
 
 const HEBREW = [
@@ -38,6 +40,23 @@ describe('J-5 Hebrew in exports', () => {
     assert.match(archive, /'\uFEFF' \+ toCsv|'\\uFEFF' \+ toCsv/, 'workspaceArchive prefixes every collection CSV');
     const pack = fs.readFileSync('src/lib/accountantExportPack.ts', 'utf8');
     assert.match(pack, /'\uFEFF' \+ sectionCsv|'\\uFEFF' \+ sectionCsv/, 'the accountant pack prefixes every section CSV');
+    const evidencePanel = fs.readFileSync('src/components/platform/settings/AuditEvidencePackPanel.tsx', 'utf8');
+    assert.match(evidencePanel, /file\.name\.endsWith\(['"]\.csv['"]\)[\s\S]{0,80}\\uFEFF/, 'AuditEvidencePackPanel prefixes BOM on .csv ZIP entries');
+
+    const lender = buildLenderReadyPackage({
+      workspace: { id: 'ws-he', name: 'חברת דוגמה', currency: 'ILS' },
+      period: { from: '2026-01-01', to: '2026-01-31' },
+      generatedAt: '2026-02-01T00:00:00',
+      accounts: [{ id: 'cash', uid: 'u1', workspaceId: 'ws-he', code: '1000', name: 'קופה ראשית', type: 'asset', balanceCents: 0 }],
+      transactions: [],
+      invoices: [],
+      bills: [],
+      auditLogs: [],
+    });
+    const cert = lender.files.find(f => f.name === '00-INTEGRITY-CERTIFICATE.txt')!;
+    const tb = lender.files.find(f => f.name === '01-trial-balance.csv')!;
+    assert.equal(tb.text.charCodeAt(0), 0xfeff, 'lender package CSV schedules begin with UTF-8 BOM');
+    assert.match(cert.text, new RegExp(`${sha256Hex(tb.text)}\\s+01-trial-balance\\.csv`), 'integrity certificate hash covers the BOM-prefixed CSV bytes');
   });
 
   test('a Hebrew customer list survives export → read back unchanged', () => {

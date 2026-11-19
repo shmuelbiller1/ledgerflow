@@ -625,8 +625,8 @@ export default function Sales() {
             exportConfig={{
               filename: 'invoices.csv',
               label: salesText('action.exportCsv', 'Export CSV'),
-              headers: ['Number', 'Customer', 'Date', 'Due Date', 'Status', 'Amount', 'Still Due'],
-              mapRow: inv => [inv.number || '', inv.customerName || '', inv.date || '', inv.dueDate || '', inv.status, csvMoney(inv.amountCents), csvMoney(calculateAmountDue(inv))],
+              headers: ['Number', 'Customer', 'Date', 'Due Date', 'Status', 'Currency', 'Amount', 'Still Due'],
+              mapRow: inv => [inv.number || '', inv.customerName || '', inv.date || '', inv.dueDate || '', inv.status, inv.currency || homeCurrency, csvMoney(inv.amountCents), csvMoney(calculateAmountDue(inv))],
             }}
             mobileLayout="table"
             getRowProps={inv => ({
