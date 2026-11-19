@@ -77,7 +77,8 @@ describe('S-26: platform-admin audit completeness', { skip: !hasDb && 'needs LF_
     restoreEnv(prevEnv);
   });
 
-  it('S-26: admin user promotion writes strict audit row but leaves public.admins out of sync; CSP reset writes no audit row', async () => {
+  // #943: the secure outcome, todo until the fix lands (fixing the gap turns this green, not CI red)
+  it('S-26 #943: promotion keeps public.admins in step and a CSP reset writes an audit row', { todo: 'fixed by #943' }, async () => {
     const promote = await api('PUT', `/api/v1/admin/users/${targetUid}/role`, adminToken, { role: 'admin' });
     assert.equal(promote.status, 200);
 
@@ -86,29 +87,26 @@ describe('S-26: platform-admin audit completeness', { skip: !hasDb && 'needs LF_
       .filter(d => d.uid === adminUid && d.action === 'ADMIN_USER_UPDATED');
     assert.equal(systemAudits.length >= 1, true);
 
-    // Admins collection is NOT updated by adminRoutes (only grant-admin.ts writes it)
     const adminDoc = await db.collection('admins').doc(targetUid).get();
-    assert.equal(adminDoc.exists, false);
+    assert.equal(adminDoc.exists, true);
 
-    // DELETE /api/csp-report/summary has no audit row
     const beforeCount = (await db.collection('auditLogs').where('workspaceId', '==', 'system').get())
       .docs.filter(d => d.data().uid === adminUid).length;
     const resetCsp = await api('DELETE', '/api/csp-report/summary', adminToken);
     assert.equal(resetCsp.status, 200);
     const afterCount = (await db.collection('auditLogs').where('workspaceId', '==', 'system').get())
       .docs.filter(d => d.data().uid === adminUid).length;
-    assert.equal(afterCount, beforeCount);
+    assert.equal(afterCount > beforeCount, true);
   });
 
-  it('S-26 source audit: non-strict writeAuditLog still used on workspace, global-config, and give-access admin mutations', () => {
+  it('S-26 #943: admin and give-access mutations use the strict audit writer', { todo: 'fixed by #943' }, () => {
     const adminRoutes = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/adminRoutes.ts'), 'utf8');
     const giveAccessRoutes = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/giveAccessRoutes.ts'), 'utf8');
     const grantAdmin = fs.readFileSync(path.join(process.cwd(), 'scripts/grant-admin.ts'), 'utf8');
 
     assert.match(adminRoutes, /writeAuditLogStrict\(/);
-    // Remaining non-strict calls in adminRoutes + giveAccessRoutes
-    assert.match(adminRoutes, /await writeAuditLog\(/);
-    assert.equal(giveAccessRoutes.includes('writeAuditLogStrict'), false);
-    assert.equal(grantAdmin.includes('writeServerAuditLog'), false);
+    assert.doesNotMatch(adminRoutes, /await writeAuditLog\(/);
+    assert.equal(giveAccessRoutes.includes('writeAuditLogStrict'), true);
+    assert.equal(grantAdmin.includes('writeServerAuditLog'), true);
   });
 });

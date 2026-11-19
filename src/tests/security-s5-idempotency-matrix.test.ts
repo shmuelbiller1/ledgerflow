@@ -218,7 +218,8 @@ describe('S-5: money-posting idempotency matrix', { skip: !hasDb && 'needs LF_TE
     assert.equal((p2.json as { data?: { replayed?: boolean } }).data?.replayed, true);
   });
 
-  it('S-5 gap (LIVE): headerless retries on /transactions, /payments, and /transactions/intercompany/post double-post money', async () => {
+  // #942: the secure outcome, todo until the fix lands (fixing the gap turns this green, not CI red)
+  it('S-5 #942: a headerless retry on /transactions, /payments or /transactions/intercompany/post does not post twice', { todo: 'fixed by #942' }, async () => {
     const beforeTx = (await db.collection('transactions').where('workspaceId', '==', wsA).get()).docs.length;
 
     const bareTx = {
@@ -262,7 +263,7 @@ describe('S-5: money-posting idempotency matrix', { skip: !hasDb && 'needs LF_TE
     assert.equal((await api('POST', '/api/v1/transactions/intercompany/post', bareIc)).status, 200);
 
     const afterTx = (await db.collection('transactions').where('workspaceId', '==', wsA).get()).docs.length;
-    // 2 bare journals + 2 bare payments + 2 bare intercompany source entries = 6 entries instead of 3!
-    assert.equal(afterTx - beforeTx, 6);
+    // one journal, one payment and one intercompany source entry; while #942 is open this is 6
+    assert.equal(afterTx - beforeTx, 3);
   });
 });

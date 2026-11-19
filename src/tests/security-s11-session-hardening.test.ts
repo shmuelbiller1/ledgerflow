@@ -107,29 +107,25 @@ describe('S-11: session hardening & API-key auth-route boundary', { skip: !hasDb
     restoreEnv(prevEnv);
   });
 
-  it('S-11 finding 1 (LIVE): workspace write:transactions API key can read loginAudits, revoke sessions, and delete creator account via /api/v1/auth/*', async () => {
-    const audits = await api('GET', '/api/v1/auth/login-audits', apiKey);
-    assert.equal(audits.status, 200);
-    assert.equal((audits.json as { loginAudits?: unknown[] }).loginAudits?.length, 1);
-
-    const revoked = await api('POST', '/api/v1/auth/revoke-sessions', apiKey, {});
-    assert.equal(revoked.status, 200);
-
-    // Prove DELETE /api/v1/auth/delete-account accepts the transactions-only API key (currently returns 200 and erases the user!)
-    const deleted = await api('DELETE', '/api/v1/auth/delete-account', apiKey);
-    assert.equal(deleted.status, 200);
-    assert.equal((await db.pool.query(`select 1 from auth.users where id = $1::uuid`, [ownerUid])).rows.length, 0);
-
-    // Re-insert auth.users row for remaining tests
-    await db.pool.query(
-      `insert into auth.users (id, email, email_confirmed_at, raw_app_meta_data)
-       values ($1::uuid, $2, now(), '{}'::jsonb)`,
-      [ownerUid, ownerEmail],
-    );
-    await db.collection('workspaces').doc(wsId).update({ status: 'active', deletedAt: null, scheduledPurgeAt: null });
+  // #941: these state the secure outcome and are todo until the fix lands, so fixing the gap turns them green, not CI red
+  it('S-11 #941: a workspace write:transactions API key cannot read sign-in history, revoke sessions or delete the account', { todo: 'fixed by #941' }, async () => {
+    try {
+      assert.equal((await api('GET', '/api/v1/auth/login-audits', apiKey)).status, 403);
+      assert.equal((await api('POST', '/api/v1/auth/revoke-sessions', apiKey, {})).status, 403);
+      assert.equal((await api('DELETE', '/api/v1/auth/delete-account', apiKey)).status, 403);
+      assert.equal((await db.pool.query(`select 1 from auth.users where id = $1::uuid`, [ownerUid])).rows.length, 1);
+    } finally {
+      // while the gap is open the key really does delete the account: put it back for the remaining tests
+      await db.pool.query(
+        `insert into auth.users (id, email, email_confirmed_at, raw_app_meta_data)
+         values ($1::uuid, $2, now(), '{}'::jsonb) on conflict (id) do nothing`,
+        [ownerUid, ownerEmail],
+      );
+      await db.collection('workspaces').doc(wsId).update({ status: 'active', deletedAt: null, scheduledPurgeAt: null });
+    }
   });
 
-  it('S-11 finding 2 (LIVE): /api/v1/commands/workspace.restorebackup blocks aal1/API key (403 TWO_STEP_REQUIRED), while legacy /restore bypasses that check', async () => {
+  it('S-11: /api/v1/commands/workspace.restorebackup refuses a stale aal1 session (403 TWO_STEP_REQUIRED)', async () => {
     const cmdRes = await api('POST', '/api/v1/commands/workspace.restorebackup', tokenAal1Stale, {
       workspaceId: wsId,
       input: { backup: { schemaVersion: 1, workspaceId: wsId, collections: {} } },
@@ -137,20 +133,20 @@ describe('S-11: session hardening & API-key auth-route boundary', { skip: !hasDb
     assert.equal(cmdRes.status, 403);
     assert.equal((cmdRes.json as { code?: string }).code, 'TWO_STEP_REQUIRED');
 
-    // Legacy route runs commandExecutor with legacyRoute: true -> skips line 416 TWO_STEP_REQUIRED and reaches backup validation instead
-    const legacyRes = await api('POST', `/api/v1/workspaces/${wsId}/restore`, tokenAal1Stale, {
-      invalid: true,
-    });
-    assert.notEqual((legacyRes.json as { code?: string }).code, 'TWO_STEP_REQUIRED');
   });
 
-  it('S-11 finding 3 (LIVE): stale 2-hour-old aal1 token can provision new workspace API keys without fresh re-auth or aal2', async () => {
+  it('S-11 #941: the legacy /restore route refuses a stale aal1 session the same way', { todo: 'fixed by #941' }, async () => {
+    const legacyRes = await api('POST', `/api/v1/workspaces/${wsId}/restore`, tokenAal1Stale, { invalid: true });
+    assert.equal((legacyRes.json as { code?: string }).code, 'TWO_STEP_REQUIRED');
+  });
+
+  it('S-11 #941: a stale two-hour-old aal1 session cannot provision workspace API keys', { todo: 'fixed by #941' }, async () => {
     const provisioned = await api('POST', '/api/v1/keys/provision', tokenAal1Stale, {
       workspaceId: wsId,
       name: 'Stale Session Key',
       scopes: ['read:transactions', 'write:transactions'],
     });
-    assert.equal(provisioned.status, 201);
-    assert.match(String((provisioned.json as { apiKey?: string }).apiKey || ''), /^lf_id_/);
+    assert.notEqual(provisioned.status, 201);
+    assert.doesNotMatch(String((provisioned.json as { apiKey?: string }).apiKey || ''), /^lf_id_/);
   });
 });
