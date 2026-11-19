@@ -212,6 +212,11 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
 
     const wsId = useAuthStore.getState().currentWorkspaceId || 'default';
     const userEmail = useAuthStore.getState().user?.email || 'user';
+    // G-19: a bill already held for approval (status 'pending') is being *decided* by the
+    // reviewer, not submitted again. Re-applying the submission threshold here loops the
+    // decision back to 'pending' forever, so the reviewer can never finish the approval.
+    // The threshold still gates new submissions (new/draft bills).
+    const isReviewingPending = initialBill?.status === 'pending';
     const approval = evaluateApprovalRequirement(
       { ...bill, amountCents: total } as Bill,
       'bill',
@@ -219,7 +224,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
     );
 
     let finalStatus = actionStatus;
-    if (approval.requiresApproval && actionStatus === 'approved') {
+    if (!isReviewingPending && approval.requiresApproval && actionStatus === 'approved') {
       finalStatus = 'pending';
       toast.info('Bill amount exceeds threshold ($5,000). Submitted for management approval.');
       addComment({

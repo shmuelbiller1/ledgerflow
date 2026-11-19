@@ -118,6 +118,16 @@ describe('Bill dialog', () => {
     assert.equal(saved[0].status, 'approved');
   });
 
+  test('G-19: approving an already-pending bill over the threshold finishes the decision', async () => {
+    // A bill held for approval (status 'pending') is being decided by the reviewer, not
+    // submitted again. The submission threshold must not loop it back to 'pending'.
+    const saved = setup({ id: 'b1', number: 'B-701', vendorId: 'v1', vendorName: 'Paper Co', status: 'pending', date: '2026-09-01', dueDate: '2026-09-30', splits: [{ amountCents: 600000, accountId: 'exp', description: 'Paper' }] });
+    await click('Approve Bill');
+    await waitFor(() => assert.equal(saved.length, 1));
+    assert.equal(saved[0].status, 'approved');
+    assert.equal(saved[0].id, 'b1');
+  });
+
   test('an edited bill keeps its number (no new number is asked for); no vendor, no save', async () => {
     const saved = setup({ id: 'b1', number: 'A-100', vendorId: 'v1', vendorName: 'Paper Co', status: 'pending', date: '2026-09-01', dueDate: '2026-09-30', splits: [{ amountCents: 2500, accountId: 'exp', description: 'Ink' }] });
     await click('Save & Close');

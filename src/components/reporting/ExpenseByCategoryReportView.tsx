@@ -60,7 +60,7 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
     { id: 'share', accessorFn: row => row.percentage, header: reportText('r.share', 'Share'), cell: info => (
       <span className="flex items-center justify-end gap-2">
         <span className="w-24 bg-neutral-100 rounded-full h-1.5 overflow-hidden" aria-hidden="true">
-          <span className="block bg-rose-500 h-full rounded-full" style={{ width: `${Math.min(100, Number(info.getValue()))}%` }} />
+          <span className="block bg-rose-500 h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, Number(info.getValue())))}%` }} />
         </span>
         <span className="font-mono w-12 text-right">{Number(info.getValue()).toFixed(1)}%</span>
       </span>
