@@ -12,6 +12,7 @@ Agent 7 · F-2/F-5 · 18 Nov 2026 audit · [PR #882](https://github.com/shmuelbi
 - **Components** — [`account-range-report-states.test.tsx`](../../src/tests/account-range-report-states.test.tsx). Bad state → retry → fresh snapshot; actual current-workspace emptiness; pending/refused full read; current and obsolete replies after changing period, chart or workspace; uncapped, unrelated and unidentified caps; all-time / too-wide period; no standalone partial CSV. Existing [worked books](../../src/tests/helpers/reportLedger.ts) still give $5,500 net income and $2,400 net expenses, including refunds and reversals.
 - **Browser** — [`account-report-completeness.spec.ts`](../../e2e/account-report-completeness.spec.ts) uses the actual report and CSV downloader. The first full read gets 503, retry succeeds, and the parsed file must contain `Office lease … Rent … 2000.00`, then `Fuel stop … Fuel … 5.00`. Desktop and phone screenshots and base/candidate files are in the recovery archive. This spec stubs the HTTP response; it does not prove a production deployment.
 - **Database contract** — unchanged L-123 `step4a`, `step4de`, `step4f` and `step5a` tests run against a **disposable PostgreSQL 17** with the repository's migrations. They exercise the real routers, member/refusal and sandbox-read parity. The independent seven-entry book has $9/$7/$2 full ranked expenses and $15/$8 income, not just the newest four entries. Database identity is injected by the test harness. The RLS SQL suite passed separately.
+- **Built sample company** — from a fresh **Continue as Guest** session, all four real CSVs downloaded. Independent signed-line sums over 1,238 posted USD sample entries matched all twelve months and 25 ranked December amounts (income $16,285.20; expenses $43,751.50). [Downloads and reproduction scripts](https://drive.google.com/open?id=1Th41eeICv3sk5z7wg1tPRLgOZzES2TTH). The [function scorecard](https://drive.google.com/open?id=1d72zoe24OT9Goe3zIPOAInJKtMSgWORc) separates 31 individually inspected bodies from 72 indexed-only ones; it does not certify the rest of the app.
 - **Verification boundary** — Node 24 `lint:types`, touched-path ESLint, affected tests and Chromium run locally. For current CI, including the merged coverage gate, use the [PR's checks](https://github.com/shmuelbiller1/ledgerflow/pull/882/checks); a local green test is not CI approval. Detailed verification and patch receipts: [recovery checkpoints](https://drive.google.com/open?id=175Q9aRG6-_Q31WK4tmHbna6NA0_-xJ6f).
 
 Reproduce without live data:
@@ -21,7 +22,8 @@ Reproduce without live data:
 npm ci
 npm run db:test-setup && npm run test:rules
 NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic node --import tsx --test --test-force-exit \
-  src/tests/{account-range-report-states,l123-step4a-top-lines,l123-step4de-breakdowns,l123-step4f-monthly-averages,report-views}.test.tsx
+  src/tests/{account-range-report-states,l123-step4a-top-lines,l123-step4de-breakdowns,l123-step4f-monthly-averages,report-views}.test.tsx \
+  src/tests/ledger-collections-guard.test.ts
 npx playwright test e2e/account-report-completeness.spec.ts
 ```
 
