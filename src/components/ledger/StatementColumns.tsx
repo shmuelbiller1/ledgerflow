@@ -1,3 +1,5 @@
+import { StatementChangeReview } from './StatementChangeReview';
+import type { ReportLabelFilterValue } from '../../lib/reportLabelScope';
 import ExportTemplateControls from '../reporting/ExportTemplateControls';
 import { useReportDates } from '../reporting/useReportDates';
 import React, { useId, useMemo, useState } from "react";
@@ -45,6 +47,7 @@ interface StatementColumnsProps {
   compare: boolean;
   /** the heading of the comparison column (R-2: "Budget"); "Previous" when not given */
   compareLabel?: string;
+  labelFilter?: ReportLabelFilterValue;
   mode: ReportColumnMode;
   onModeChange: (mode: ReportColumnMode) => void;
   showPercent: boolean;
@@ -487,6 +490,11 @@ export function StatementColumns(props: StatementColumnsProps) {
               </tbody>
             </table>
           </div>
+          {mode === 'total' && compare && compareLabel !== 'Budget' && columns[0]?.previousData && columns[0].previousPeriod && (
+            <StatementChangeReview key={JSON.stringify([userId, workspaceId, periods, previousPeriods, props.labelFilter])}
+              column={columns[0]} chartSections={report.columns[0].data} rows={rows} accounts={accounts} transactions={transactions}
+              formatMoney={formatMoney} labelFilter={props.labelFilter} />
+          )}
         </>
       )}
     </section>

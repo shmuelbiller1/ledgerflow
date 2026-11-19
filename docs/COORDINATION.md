@@ -843,8 +843,8 @@ Same rules as AI #12 above. Lane: reports people check every month.
 - [x] *(AI #9, #655, 11 Nov: all report views measured; now 151 views, and r5-every-report-speed passes in CI with its 3× runner allowance — 2 views (TopParties 1.45 s, Inbox 1.10 s) were over 1 s in a local run on 17 Nov, #766; journal sheet 4.8 s → 0.3 s)* **R-5 Report speed check** — every report on the 5,000-entry sample year opens in under one second on a normal laptop; fix the slow ones without changing the figures; the existing speed test extended.
 
 - [ ] **R-6 Year-end pack** — one screen for the year: P&L, balance sheet, trial balance, A/R and A/P aging at the year end, fixed assets and the closing checklist, each a link to its report and all of them in one PDF; tests with the gold sample year.
-- [ ] **R-7 "Why did this number change?"** — on P&L and balance sheet, a report total compared with last month shows the entries that make up the difference (largest first, with links); tests with hand-worked figures.
-- [ ] **R-8 Report empty and partial states** — every report says plainly when there is no data for the period, or when the loaded entries are capped and the figure may be incomplete (the wording the Inventory Valuation screen uses); a test per report family.
+- [~] **R-7 "Why did this number change?"** — on P&L and balance sheet, a report total compared with last month shows the entries that make up the difference (largest first, with links); tests with hand-worked figures. *(AI #13, [#889](https://github.com/shmuelbiller1/ledgerflow/pull/889): accrual, Total columns, both periods reconciled; cash/budget are not posted-line comparisons. Pending upstream acceptance.)*
+- [~] **R-8 Report empty and partial states** — every report says plainly when there is no data for the period, or when the loaded entries are capped and the figure may be incomplete (the wording the Inventory Valuation screen uses); a test per report family. *(Party reports #831; Sales by Item #818/#889; ledger breakdowns #884/#882. Not verified for every family.)*
 
 ## AI #15: tasks (spare queue for the next AI; written by Claude, 14 Nov)
 
