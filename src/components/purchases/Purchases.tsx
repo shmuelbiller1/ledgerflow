@@ -45,7 +45,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LoadingState } from '../ui/LoadingState';
 import { EmptyState } from '../ui/EmptyState';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
-import { csvMoney } from '../../lib/csvExport';
+import { csvMoney, csvMoneyIn } from '../../lib/csvExport';
 import ExpectedBills from './ExpectedBills';
 import type { ExpectedBill } from '../../lib/expectedBills';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
@@ -549,7 +549,12 @@ export default function Purchases() {
               filename: 'bills_export.csv',
               label: purchasesText('action.exportCsv', 'Export CSV'),
               headers: ['Vendor Name', 'Bill Number', 'Date', 'Due Date', 'Status', 'Amount', 'Amount Due', 'Currency'],
-              mapRow: b => [b.vendorName || 'Unknown Vendor', b.number || b.id, b.date || '', b.dueDate || '', b.status || 'unpaid', csvMoney(b.amountCents || 0), csvMoney(calculateAmountDue(b)), b.currency || homeCurrency],
+              mapRow: b => {
+                // each row's money is written with its own currency's decimals, so JPY/KWD re-import exactly (Gitar on #925)
+                const cur = b.currency || homeCurrency;
+                const money = csvMoneyIn(cur);
+                return [b.vendorName || 'Unknown Vendor', b.number || b.id, b.date || '', b.dueDate || '', b.status || 'unpaid', money(b.amountCents || 0), money(calculateAmountDue(b)), cur];
+              },
             }}
             mobileLayout="table"
             getRowProps={b => ({

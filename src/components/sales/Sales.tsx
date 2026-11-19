@@ -9,7 +9,7 @@ import { Plus, AlertCircle, Activity, ShieldCheck, TrendingUp } from 'lucide-rea
 import { parseLocalDate, cn, formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { isOpenInvoice } from '../../lib/txFilters';
 import { calculateAmountDue } from '../../lib/documentMath';
-import { csvMoney } from '../../lib/csvExport';
+import { csvMoney, csvMoneyIn } from '../../lib/csvExport';
 import { motion } from 'motion/react';
 import InvoiceModal from './InvoiceModal';
 import { useRecordFocus, recordElementId } from '../../hooks/useRecordFocus';
@@ -626,7 +626,12 @@ export default function Sales() {
               filename: 'invoices.csv',
               label: salesText('action.exportCsv', 'Export CSV'),
               headers: ['Number', 'Customer', 'Date', 'Due Date', 'Status', 'Currency', 'Amount', 'Still Due'],
-              mapRow: inv => [inv.number || '', inv.customerName || '', inv.date || '', inv.dueDate || '', inv.status, inv.currency || homeCurrency, csvMoney(inv.amountCents), csvMoney(calculateAmountDue(inv))],
+              mapRow: inv => {
+                // each row's money is written with its own currency's decimals, so JPY/KWD re-import exactly (Gitar on #925)
+                const cur = inv.currency || homeCurrency;
+                const money = csvMoneyIn(cur);
+                return [inv.number || '', inv.customerName || '', inv.date || '', inv.dueDate || '', inv.status, cur, money(inv.amountCents), money(calculateAmountDue(inv))];
+              },
             }}
             mobileLayout="table"
             getRowProps={inv => ({

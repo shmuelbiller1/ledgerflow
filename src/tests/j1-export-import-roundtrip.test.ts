@@ -19,7 +19,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCsv, parseCsvChecked, sanitizeCsvCell, unguardCsvCell } from '../lib/csv';
-import { csvMoney, toCsv } from '../lib/csvExport';
+import { csvMoney, csvMoneyIn, toCsv } from '../lib/csvExport';
 import { applyMapping, guessMapping, prepareImport } from '../lib/recordImport';
 import { readOpenItemsCsv } from '../lib/openItemImport';
 import { mapBankCsvRows } from '../lib/bankCsvRows';
@@ -215,6 +215,21 @@ describe('J-1 every list with Export CSV exports columns accepted by its matchin
     assert.equal(billRead.rows[0].number, 'B-77');
     assert.equal(billRead.rows[0].amountCents, 31_000);
     assert.equal(billRead.rows[0].openCents, 21_000);
+  });
+
+  // Gitar on #925: a row's money is written in its own currency's decimals, so yen and dinars come back exact
+  test('JPY and KWD invoice rows round-trip at their own decimals', () => {
+    const contacts = [{ id: 'c1', name: 'Acme Ltd' }];
+    const header = ['Number', 'Customer', 'Date', 'Due Date', 'Status', 'Currency', 'Amount', 'Still Due'];
+    for (const [currency, amount, open, written] of [['JPY', 1_250, 1_250, '"1250","1250"'], ['KWD', 1_250, 250, '"1.250","0.250"']] as const) {
+      const money = csvMoneyIn(currency);
+      const csv = '\uFEFF' + toCsv(header, [[`INV-${currency}`, 'Acme Ltd', '2026-08-14', '2026-09-13', 'sent', currency, money(amount), money(open)]]);
+      assert.ok(csv.includes(written), `${currency} is written at its own decimals: ${csv}`);
+      // a book kept in that currency reads the file back exactly
+      const read = readOpenItemsCsv(csv, { cutOverDate: '2026-09-30', currency, contacts });
+      assert.equal(read.fileProblem, null);
+      assert.deepEqual(read.rows.map(r => [r.problem, r.amountCents, r.openCents]), [[null, amount, open]], currency);
+    }
   });
 
   test('transactions list CSV is accepted unchanged by StatementImporter column mapping (mapBankCsvRows)', () => {
