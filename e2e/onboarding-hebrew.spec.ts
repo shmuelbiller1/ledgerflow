@@ -33,6 +33,27 @@ async function latinWordsLeft(region: import('@playwright/test').Locator): Promi
   return (text.match(/\b[A-Za-z]{3,}\b/g) || []).filter(Boolean);
 }
 
+/**
+ * Mounts the setup wizard in Hebrew on the fixture: the wizard is rendered by the journey fixture,
+ * then the saved language and workspace are applied and it is rendered once more, because the first
+ * render happened before this test chose Hebrew.
+ */
+async function mountHebrewWizard(page: import('@playwright/test').Page): Promise<{ main: import('@playwright/test').Locator; errors: string[] }> {
+  const wizardJourney = await mountJourney(page, {
+    workspaceId: WORKSPACE,
+    ledger: {},
+    mounts: [{ module: '/src/components/onboarding/SetupWizard.tsx', props: { onStarted: '__fn:noop', onDone: '__fn:noop' } }],
+  });
+  await page.evaluate(async ws => {
+    const { useUIStore } = await import('/src/stores/useUIStore.ts');
+    const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
+    useUIStore.getState().setLanguage('he');
+    useAuthStore.setState({ workspaces: [ws] } as never);
+  }, workspace);
+  await mountWizardAgain(page);
+  return { main: page.getByRole('main').last(), errors: wizardJourney.errors };
+}
+
 /** Re-renders the fixture's wizard so it reads the language and workspace set after it first mounted. */
 async function mountWizardAgain(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(async mounts => { await (window as unknown as { __journeyRender: (m: unknown[]) => Promise<void> }).__journeyRender(mounts); }, [
@@ -75,19 +96,8 @@ for (const width of [390, 1280]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
 
     // 2. The setup wizard, first step and its month names.
-    const wizard = await mountJourney(page, {
-      workspaceId: WORKSPACE,
-      ledger: {},
-      mounts: [{ module: '/src/components/onboarding/SetupWizard.tsx', props: { onStarted: '__fn:noop', onDone: '__fn:noop' } }],
-    });
-    await page.evaluate(async ws => {
-      const { useUIStore } = await import('/src/stores/useUIStore.ts');
-      const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
-      useUIStore.getState().setLanguage('he');
-      useAuthStore.setState({ workspaces: [ws] } as never);
-    }, workspace);
-    await mountWizardAgain(page);
-    const wizardMain = page.getByRole('main').last();
+    const wizard = await mountHebrewWizard(page);
+    const wizardMain = wizard.main;
     await expect(wizardMain.getByRole('heading', { name: 'הגדרת הספרים שלכם' })).toBeVisible();
     await expect(wizardMain.getByRole('heading', { name: 'איזה סוג עסק?' })).toBeVisible();
     await expect(wizardMain.getByLabel('שם העסק')).toBeVisible();
@@ -160,19 +170,7 @@ for (const width of [390, 1280]) {
 // exact fields it writes, and this change does not touch them.
 test('N-10 Hebrew setup keeps the typed Hebrew name and the chosen month when the step moves', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });
-  await mountJourney(page, {
-    workspaceId: WORKSPACE,
-    ledger: {},
-    mounts: [{ module: '/src/components/onboarding/SetupWizard.tsx', props: { onStarted: '__fn:noop', onDone: '__fn:noop' } }],
-  });
-  await page.evaluate(async ws => {
-    const { useUIStore } = await import('/src/stores/useUIStore.ts');
-    const { useAuthStore } = await import('/src/stores/useAuthStore.ts');
-    useUIStore.getState().setLanguage('he');
-    useAuthStore.setState({ workspaces: [ws] } as never);
-  }, workspace);
-  await mountWizardAgain(page);
-  const main = page.getByRole('main').last();
+  const { main } = await mountHebrewWizard(page);
   await main.getByLabel('שם העסק').fill('חברת אלפא בע״מ');
   await main.getByLabel('שנת הכספים מתחילה בחודש').selectOption('4');
   await main.getByLabel('חנות').check();

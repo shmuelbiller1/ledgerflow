@@ -1,5 +1,5 @@
 import type { UiLanguage } from './uiLanguage';
-import { fillOnboarding } from './onboardingTranslations';
+import { fillOnboarding, indexTable, tableRows, tableText, type StringEntry } from './stringTable';
 
 /**
  * AI12-N10-01 (#838): the words of the first-hour guide and the first-week checklist, in English and
@@ -132,17 +132,13 @@ const SCREEN_STRINGS = {
 
 export type OverviewStringKey = keyof typeof SCREEN_STRINGS;
 
-export const OVERVIEW_TRANSLATIONS: readonly { key: string; en: string; he: string }[] = Object.entries(SCREEN_STRINGS)
-  .map(([key, value]) => ({ key, en: value.en, he: value.he }));
+export const OVERVIEW_TRANSLATIONS: readonly StringEntry[] = tableRows(SCREEN_STRINGS);
 
-const BY_KEY = new Map<string, { key: string; en: string; he: string }>(OVERVIEW_TRANSLATIONS.map(entry => [entry.key, entry]));
+const BY_KEY = indexTable(SCREEN_STRINGS);
 
 /** The sentence for a key in the selected language. */
 export function overviewText(key: OverviewStringKey, language: UiLanguage): string {
-  const entry = BY_KEY.get(key);
-  if (!entry) return String(key).split('.').pop() || '';
-  const candidate = language === 'he' ? entry.he : entry.en;
-  return candidate.trim() ? candidate : entry.en;
+  return tableText(BY_KEY, key, language);
 }
 
 /** `overviewText` with `{name}` placeholders filled: counts stay as given. */
