@@ -26,7 +26,7 @@ test('what can be hidden, remembered per report, and the CSS for it', () => {
   assert.deepEqual(readHidden('Sales', compare), [], 'do not interpret Amount as Name');
   saveHidden('Sales', [3], compare);
   assert.deepEqual(readHidden('Sales', normal), [2]);
-  assert.equal(hiddenColumnsCss('s1', [2]), '[data-columns="s1"] tr > :nth-child(3) { display: none; }');
+  assert.equal(hiddenColumnsCss('s1', [2]), '[data-columns="s1"] tr:not([data-span-row]) > :nth-child(3) { display: none; }');
 });
 
 const Report = () => (

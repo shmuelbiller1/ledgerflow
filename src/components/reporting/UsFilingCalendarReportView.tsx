@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { US_FILING_CALENDAR, filingDueDate, type FilingFrequency } from '../../lib/tax/usFilingCalendar';
 import { downloadCsv } from '../../lib/csvExport';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 import { useReportText, fill } from './useReportText';
 
 /** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
@@ -61,27 +61,24 @@ export default function UsFilingCalendarReportView() {
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={() => downloadCsv('us-filing-calendar', [...CSV_HEADERS], csvRows)}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
 
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption className="text-left font-semibold text-[var(--text)] pb-1">{reportText('r.state-filing-frequencies-and-due-days-weekend-mo', 'State filing frequencies and due days — weekend move to Monday, holidays not moved')}</caption>
-        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">{[reportText('r.state', 'State'), reportText('r.name', 'Name'), reportText('r.common-frequencies', 'Common frequencies'), reportText('r.due-2', 'Due'), reportText('r.weekend-adjusted-due-for-period-end', 'Weekend-adjusted due for period end'), reportText('r.note', 'Note'), reportText('r.source', 'Source')].map(h => <th key={h} scope="col" className="text-left py-1 px-2">{h}</th>)}</tr></thead>
-        <tbody>
-          {rows.map(row => {
-            const due = validPeriod ? filingDueDate(row.state, periodEnd) : undefined;
-            return <tr key={row.state} className="border-b border-[var(--line)]/50 align-top">
-              <th scope="row" className="text-left font-normal py-1 px-2 font-mono">{row.state}</th>
-              <td className="py-1 px-2"><bdi>{row.stateName}</bdi></td>
-              <td className="py-1 px-2">{row.frequencies.join(', ') || reportText('r.no-state-tax', '— no state tax —')}</td>
-              <td className="py-1 px-2 whitespace-nowrap">{row.dueDay === 'none' ? reportText('r.none-3', 'none') : row.dueDay === 'last-day' ? reportText('r.last-day', 'last day') : fill(reportText('r.the-0-th', 'the {0}th'), { 0: row.dueDay })}</td>
-              <td className="py-1 px-2 whitespace-nowrap">{due || '—'}</td>
-              <td className="py-1 px-2 text-xs max-w-[32ch]">{row.note || '—'}</td>
-              <td className="py-1 px-2"><a href={row.source} target="_blank" rel="noopener noreferrer" className="underline break-all">{row.state} {reportText('r.source-2', 'source')}</a><div className="text-xs text-[var(--muted)]">{reportText('r.checked', 'checked')} {row.checked}</div></td>
-            </tr>;
-          })}
-        </tbody>
-      </table>
-      {!rows.length && <p className="text-sm text-[var(--muted)]">{reportText('r.no-state-matches-that-filter-clear-the-state-or', 'No state matches that filter. Clear the state or frequency to see all 51 rows.')}</p>}
-    </ReportTableScroll>
+    <ReportSchedule
+      columnControls
+      allowDisplayedExport={validPeriod}
+      caption={reportText('r.state-filing-frequencies-and-due-days-weekend-mo', 'State filing frequencies and due days — weekend move to Monday, holidays not moved')}
+      captionClassName="text-start font-semibold text-[var(--text)] pb-1"
+      headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+      rowClassName="border-b border-[var(--line)]/50 align-top"
+      bodyClassName=""
+      rows={rows} rowKey={row => row.state}
+      columns={[
+        { header: reportText('r.state', 'State'), className: 'font-mono', cell: row => row.state },
+        { header: reportText('r.name', 'Name'), cell: row => <bdi>{row.stateName}</bdi> },
+        { header: reportText('r.common-frequencies', 'Common frequencies'), cell: row => row.frequencies.join(', ') || reportText('r.no-state-tax', '— no state tax —') },
+        { header: reportText('r.due-2', 'Due'), className: 'whitespace-nowrap', cell: row => row.dueDay === 'none' ? reportText('r.none-3', 'none') : row.dueDay === 'last-day' ? reportText('r.last-day', 'last day') : fill(reportText('r.the-0-th', 'the {0}th'), { 0: row.dueDay }) },
+        { header: reportText('r.weekend-adjusted-due-for-period-end', 'Weekend-adjusted due for period end'), className: 'whitespace-nowrap', cell: row => { const due = validPeriod ? filingDueDate(row.state, periodEnd) : undefined; return due || '—'; } },
+        { header: reportText('r.note', 'Note'), className: 'text-xs max-w-[32ch]', cell: row => row.note || '—' },
+        { header: reportText('r.source', 'Source'), cell: row => <><a href={row.source} target="_blank" rel="noopener noreferrer" className="underline break-all">{row.state} {reportText('r.source-2', 'source')}</a><div className="text-xs text-[var(--muted)]">{reportText('r.checked', 'checked')} {row.checked}</div></> },
+      ]} />
 
     <p className="text-xs text-[var(--muted)]">{reportText('r.capability', 'Capability:')} <b>{reportText('r.internal-test-or-demo-only', 'Internal, test or demo only')}</b> {reportText('r.planning-rows-only-filing-payment-and-holiday-mo', '— planning rows only; filing, payment and holiday moves are the state’s. Table problems: none (')}{US_FILING_CALENDAR.length} {reportText('r.rows-5-with-no-state-filing-each-with-https-sour', 'rows, 5 with no state filing, each with https source).')}</p>
   </section>;

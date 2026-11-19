@@ -1,3 +1,4 @@
+import { useReportDates } from './useReportDates';
 import React, { useMemo, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -6,7 +7,7 @@ import { suggestTaxCode, unusualTaxCode, type TaxHistoryRow } from '../../lib/ta
 import { historyFromDocuments } from './taxCodeSuggestionHistory';
 import { downloadCsv } from '../../lib/csvExport';
 import { getLocalDateISO } from '../../lib/utils';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 import { useReportText, fill } from './useReportText';
 
 /** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
@@ -25,6 +26,7 @@ function csvRows(history: TaxHistoryRow[]): Array<Array<string | number>> {
  * Never applied silently; the invoice/bill form remains the place where a code is chosen.
  */
 export default function TaxCodeSuggestionsReportView() {
+  const dates = useReportDates();
   const reportText = useReportText();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
@@ -120,10 +122,10 @@ export default function TaxCodeSuggestionsReportView() {
       <h3 className="font-semibold">{reportText('r.what-would-be-suggested', 'What would be suggested?')}</h3>
       {!query.contactId && !query.itemId && !query.entity && <p className="text-sm text-[var(--muted)]">{reportText('r.enter-at-least-one-of-contact-item-or-entity-to', 'Enter at least one of contact, item or entity to see a suggestion. The most specific match that has history wins: contact+item+entity → contact+item → contact → item → entity.')}</p>}
       {suggestionError && <p role="alert" className="text-sm text-amber-700">{reportText('r.could-not-compute-a-suggestion', 'Could not compute a suggestion:')} <bdi>{suggestionError}</bdi>{reportText('r.this-is', '. This is')} <b>{reportText('r.not', 'not')}</b> {reportText('r.a-statement-that-there-is-no-history-the-suggest', 'a statement that there is no history — the suggestion was not calculated.')}</p>}
-      {(query.contactId || query.itemId || query.entity) && !suggestion && !suggestionError && !loading && <p className="text-sm">{reportText('r.no-history-for', 'No history for')} <bdi>{JSON.stringify(query)}</bdi> {reportText('r.on-or-before', 'on or before')} {today}{reportText('r.try-a-contact-or-item-that-has-a-past-invoice-bi', '. Try a contact or item that has a past invoice/bill, or clear filters to the least specific.')}</p>}
+      {(query.contactId || query.itemId || query.entity) && !suggestion && !suggestionError && !loading && <p className="text-sm">{reportText('r.no-history-for', 'No history for')} <bdi>{JSON.stringify(query)}</bdi> {reportText('r.on-or-before', 'on or before')} {dates.dateText(today)}{reportText('r.try-a-contact-or-item-that-has-a-past-invoice-bi', '. Try a contact or item that has a past invoice/bill, or clear filters to the least specific.')}</p>}
       {suggestion && <div className="text-sm space-y-1">
         <p><b>{reportText('r.suggested-code', 'Suggested code:')}</b> <code className="px-1 py-0.5 rounded bg-[var(--surface)] border border-[var(--line)]"><bdi>{suggestion.taxCodeId}</bdi></code> · <b>{reportText('r.share-2', 'Share:')}</b> {(suggestion.share * 100).toFixed(0)}% · <b>{reportText('r.based-on', 'Based on:')}</b> {suggestion.basedOn} {reportText('r.document-s', 'document(s) ·')} <b>{reportText('r.match', 'Match:')}</b> {suggestion.match}</p>
-        <p className="text-xs text-[var(--muted)]">{reportText('r.share-is-the-weighted-share-0-5-after-one-half-l', 'Share is the weighted share (0.5 after one half-life) of documents with this code among the matched rows. Based on is the count of matched rows on or before')} {today}.</p>
+        <p className="text-xs text-[var(--muted)]">{reportText('r.share-is-the-weighted-share-0-5-after-one-half-l', 'Share is the weighted share (0.5 after one half-life) of documents with this code among the matched rows. Based on is the count of matched rows on or before')} {dates.dateText(today)}.</p>
       </div>}
     </div>
 
@@ -147,15 +149,23 @@ export default function TaxCodeSuggestionsReportView() {
     <details className="rounded border border-[var(--line)] p-2">
       <summary className="min-h-11 cursor-pointer content-center font-semibold">{reportText('r.how-history-is-built-for-review', 'How history is built (for review)')}</summary>
       <p className="text-sm text-[var(--muted)]">{reportText('r.each-saved-invoice-contributes-one-row-per-docum', 'Each saved invoice contributes one row per document (date = invoice date or dueDate, taxCodeId from the invoice, contactId = customerId, itemId = first line item, entity = none in this view). Bills do the same with vendorId. The store cap (10,000) keeps recent documents; a capped store makes this screen provisional.')}</p>
-      <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption className="sr-only">{reportText('r.history-rows-used-for-suggestions', 'History rows used for suggestions')}</caption>
-          <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">{TAX_CODE_CSV_HEADERS.map(h => <th key={h} scope="col" className="text-left py-1 px-2">{h}</th>)}</tr></thead>
-          <tbody>
-            {history.slice(0, 50).map(r => <tr key={`${r.date}|${r.contactId}|${r.taxCodeId}|${r.itemId || ''}|${r.entity || ''}`} className="border-b border-[var(--line)]/50"><td className="py-1 px-2">{r.date}</td><td className="py-1 px-2"><bdi>{r.contactId}</bdi></td><td className="py-1 px-2"><bdi>{r.itemId || '—'}</bdi></td><td className="py-1 px-2"><bdi>{r.entity || '—'}</bdi></td><td className="py-1 px-2"><code>{r.taxCodeId}</code></td><td className="py-1 px-2 text-xs">{reportText('r.invoice-bill', 'invoice/bill')}</td></tr>)}
-          </tbody>
-        </table>
-      </ReportTableScroll>
+      <ReportSchedule
+        columnControls
+        allowDisplayedExport={!partial && !loading}
+        caption={reportText('r.history-rows-used-for-suggestions', 'History rows used for suggestions')}
+        captionClassName="sr-only"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        rowClassName="border-b border-[var(--line)]/50"
+        bodyClassName=""
+        rows={history.slice(0, 50)} rowKey={r => r.sourceKey}
+        columns={[
+          { header: reportText('r.date-2', 'Date'), cell: r => <time dateTime={r.date}>{dates.dateText(r.date)}</time> },
+          { header: reportText('r.contact', 'Contact'), rowHeader: true, cell: r => <bdi>{r.contactId}</bdi> },
+          { header: reportText('r.item', 'Item'), cell: r => <bdi>{r.itemId || '—'}</bdi> },
+          { header: reportText('r.entity-2', 'Entity'), cell: r => <bdi>{r.entity || '—'}</bdi> },
+          { header: reportText('r.schedule-tax-code', 'Tax code'), cell: r => <code>{r.taxCodeId}</code> },
+          { header: reportText('r.source', 'Source'), className: 'text-xs', cell: () => reportText('r.invoice-bill', 'invoice/bill') },
+        ]} />
       {history.length > 50 && <p className="text-xs text-[var(--muted)]">{reportText('r.showing-50-of', 'Showing 50 of')} {history.length} {reportText('r.rows-export-for-the-full-list', 'rows; export for the full list.')}</p>}
       {!history.length && !loading && <p className="text-sm text-[var(--muted)]">{reportText('r.no-history-rows-yet', 'No history rows yet.')}</p>}
     </details>

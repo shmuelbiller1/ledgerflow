@@ -9,7 +9,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import { topParties, topPartiesCsvHeaders, topPartiesCsvRows } from '../../lib/topParties';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 import { useReportText, fill } from './useReportText';
 
 /** A tiny 12-month line. Decorative beside the numbers; the full series is in the label and the CSV. */
@@ -116,36 +116,22 @@ export default function TopPartiesReportView() {
     {health.ready && <>
     {periodValid && report.moreCount > 0 && <p className="text-sm">{reportText('r.showing-the-top', 'Showing the top')} {report.rows.length}; {report.moreCount} {reportText('r.more-with-activity-in-the-period-are-below-the-l', 'more with activity in the period are below the line.')}</p>}
 
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>{reportText('r.top', 'Top')} {kind === 'customer' ? reportText('r.customers-by-amount-invoiced', 'customers by amount invoiced') : reportText('r.vendors-by-amount-billed', 'vendors by amount billed')}, {from} {reportText('r.to-2', 'to')} {to} ({home})</caption>
-        <thead>
-          <tr>
-            <th scope="col" className="text-left py-1 px-2">#</th>
-            <th scope="col" className="text-left py-1 px-2">{who}</th>
-            <th scope="col" className="text-right py-1 px-2">{verb} {reportText('r.in-period', 'in period')}</th>
-            <th scope="col" className="text-right py-1 px-2">{reportText('r.paid-in-period', 'Paid in period')}</th>
-            <th scope="col" className="text-right py-1 px-2">{reportText('r.credited-in-period', 'Credited in period')}</th>
-            <th scope="col" className="text-right py-1 px-2">{reportText('r.balance-at-period-end', 'Balance at period end')}</th>
-            <th scope="col" className="text-left py-1 px-2">{reportText('r.trend-12-months', 'Trend, 12 months')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {report.rows.map((row, index) => (
-            <tr key={row.id} className="border-b border-[var(--line)]/50">
-              <td className="py-1 px-2 tabular-nums">{index + 1}</td>
-              <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.name}</bdi></th>
-              <td className="py-1 px-2 text-right tabular-nums">{cell(row.invoicedCents, home)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{cell(row.paidCents, home)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{cell(row.creditedCents, home)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{cell(row.closingCents, home)}</td>
-              <td className="py-1 px-2"><Sparkline values={row.monthlyCents} currency={home} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {!report.rows.length && periodValid && <p data-report-empty-state className="text-sm text-[var(--muted)]">{partial ? reportText('r.no-activity-in-the-loaded-records-review-the-ful', 'No activity in the loaded records. Review the full history before relying on this ranking.') : (kind === 'customer' ? reportText('r.nothing-invoiced-in-period', 'Nothing was invoiced in this period. Choose another period or review the issued documents.') : reportText('r.nothing-billed-in-period', 'Nothing was billed in this period. Choose another period or review the issued documents.'))}</p>}
-    </ReportTableScroll>
+    <ReportSchedule
+      columnControls
+      allowDisplayedExport={health.ready && !partial}
+      caption={<>{reportText('r.top', 'Top')} {kind === 'customer' ? reportText('r.customers-by-amount-invoiced', 'customers by amount invoiced') : reportText('r.vendors-by-amount-billed', 'vendors by amount billed')}, {from} {reportText('r.to-2', 'to')} {to} ({home})</>}
+      rowClassName="border-b border-[var(--line)]/50"
+      bodyClassName=""
+      rows={report.rows.map((row, i) => ({ ...row, rank: i + 1 }))} rowKey={row => row.id}
+      columns={[
+        { header: "#", className: 'tabular-nums', cell: row => row.rank },
+        { header: who, rowHeader: true, cell: row => <bdi>{row.name}</bdi> },
+        { header: <>{verb} {reportText('r.in-period', 'in period')}</>, align: 'right', className: 'tabular-nums', cell: row => cell(row.invoicedCents, home) },
+        { header: reportText('r.paid-in-period', 'Paid in period'), align: 'right', className: 'tabular-nums', cell: row => cell(row.paidCents, home) },
+        { header: reportText('r.credited-in-period', 'Credited in period'), align: 'right', className: 'tabular-nums', cell: row => cell(row.creditedCents, home) },
+        { header: reportText('r.balance-at-period-end', 'Balance at period end'), align: 'right', className: 'tabular-nums', cell: row => cell(row.closingCents, home) },
+        { header: reportText('r.trend-12-months', 'Trend, 12 months'), cell: row => <Sparkline values={row.monthlyCents} currency={home} /> },
+      ]} />
     </>}
 
     <p className="text-xs text-[var(--muted)]">

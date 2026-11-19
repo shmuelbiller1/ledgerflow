@@ -4,7 +4,7 @@ import ExportTemplateControls from './ExportTemplateControls';
 import ReportEmptyState from './ReportEmptyState';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { readPeriodLayout, savePeriodLayout, movePeriod, validPeriodLayout } from '../../lib/reportPeriodLayout';
-import { orderReportCells, ReportColumnOrder } from '../ui/reportColumnOrder';
+import { orderReportCells, ReportColumnOrder, ReportHiddenColumns } from '../ui/reportColumnOrder';
 import { downloadCsv } from '../../lib/csvExport';
 import { hiddenColumnsCss, readHidden, saveHidden, toggleColumn } from '../../lib/columnChoice';
 
@@ -14,7 +14,7 @@ import { hiddenColumnsCss, readHidden, saveHidden, toggleColumn } from '../../li
  * known by the table's caption); hidden columns don't print either. C-54/C-91: a report table with
  * no rows gets one shared next-action empty state; loading and failure states are never called empty.
  */
-export default function ReportTableScroll({children, allowDisplayedExport = true}:{children:ReactNode; allowDisplayedExport?:boolean}) {
+export default function ReportTableScroll({children, allowDisplayedExport = true, captionId}:{children:ReactNode; allowDisplayedExport?:boolean; captionId?:string}) {
  const reportText = useReportText();
  const ref=useRef<HTMLDivElement>(null);
  const scope=useId().replace(/[^a-zA-Z0-9_-]/g,'');
@@ -39,7 +39,8 @@ export default function ReportTableScroll({children, allowDisplayedExport = true
   if(next.order[0]!=='0')return;
   setChoice({key:orderKey,order:next.order});savePeriodLayout(orderKey,next);
  };
- const effectiveHidden=[...new Set(hidden.filter(index=>index>0&&index<headers.length))].slice(0,Math.max(0,headers.length-2));
+ const [rowHeader,setRowHeader]=useState(-1);
+ const effectiveHidden=[...new Set(hidden.filter(index=>index>0&&index!==rowHeader&&index<headers.length))].slice(0,Math.max(0,headers.length-2));
 
  const scroll=(left:number)=>ref.current?.scrollBy({left,behavior:'auto'});
  // the table's column headings and its name, read when it is on screen and whenever it changes
@@ -56,6 +57,8 @@ export default function ReportTableScroll({children, allowDisplayedExport = true
    const indexed=cells.every(cell=>cell.hasAttribute('data-source-column'));
    if(indexed)cells.sort((a,b)=>Number(a.getAttribute('data-source-column'))-Number(b.getAttribute('data-source-column')));
    const names=cells.map(c=>(c.textContent||'').trim());
+   const identifyingCell=table?.querySelector('tbody th[scope="row"][data-source-column]');
+   setRowHeader(identifyingCell ? Number(identifyingCell.getAttribute('data-source-column')) : -1);
    const rectangular=Array.from(table?.querySelectorAll('tr')||[]).every(tr=>tr.children.length===cells.length&&Array.from(tr.children).every(cell=>cell.hasAttribute('data-source-column')));
    setReorderable(indexed&&rectangular&&!!cells.length&&!table?.querySelector('[colspan]:not([colspan="1"]),[rowspan]:not([rowspan="1"])'));
    const name=(table?.querySelector('caption')?.textContent||'').trim()||names.join('|');
@@ -113,7 +116,8 @@ export default function ReportTableScroll({children, allowDisplayedExport = true
    <ReportEmptyState title={reportText('r.empty-table', 'Nothing to show in this table yet')}
     description={reportText('r.empty-table-help', 'Check the selected period, search and filters. If the books are new, save the source invoice, bill, payment or journal first; the report reads saved records and does not invent rows.')} />
   </div>}
-  <div ref={ref} data-columns={scope} className="overflow-x-auto" role="region" aria-label={reportText('r.scroll-region', 'Scrollable report table')} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
+  <div ref={ref} data-columns={scope} className="overflow-x-auto" role="region" aria-label={captionId ? undefined : reportText('r.scroll-region', 'Scrollable report table')} aria-labelledby={captionId ? `${scope}-scroll ${captionId}` : undefined} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
+   {captionId && <span className="sr-only" id={`${scope}-scroll`}>{reportText('r.scroll-region', 'Scrollable report table')}</span>}
    <style>{hiddenColumnsCss(scope,effectiveHidden.map(index=>reorderable?order.indexOf(String(index)):index))}</style>
    <div data-print-hide className="sticky start-0 flex flex-wrap gap-2 mb-2">
     <button type="button" onClick={()=>scroll(-240)} className="min-h-11 px-3 border rounded"><span aria-hidden="true">← </span>{reportText('r.scroll-left', 'Scroll table left')}</button>
@@ -123,7 +127,7 @@ export default function ReportTableScroll({children, allowDisplayedExport = true
    </div>
    {open&&reorderable&&allowDisplayedExport&&report&&<ExportTemplateControls report={report} columns={headers} layout={{order,hidden:effectiveHidden.map(String)}} onUse={next=>{
     const nextOrder=['0',...next.order.filter(id=>id!=='0')];
-    const nextHidden=next.hidden.map(Number).filter(index=>index>0&&index<headers.length).slice(0,Math.max(0,headers.length-2));
+    const nextHidden=next.hidden.map(Number).filter(index=>index>0&&index!==rowHeader&&index<headers.length).slice(0,Math.max(0,headers.length-2));
     setChoice({key:orderKey,order:nextOrder});savePeriodLayout(orderKey,{order:nextOrder,hidden:[]});
     setHidden(nextHidden);saveHidden(reportKey,nextHidden,headers);
    }}/>}
@@ -137,7 +141,7 @@ export default function ReportTableScroll({children, allowDisplayedExport = true
        const earlier = fill(reportText('r.move-earlier', 'Move {name} earlier'), { name });
        const later = fill(reportText('r.move-later', 'Move {name} later'), { name });
        return <div key={id} className="flex flex-wrap items-center gap-1">
-         <label className="min-h-11 flex items-center gap-1"><input type="checkbox" checked={!effectiveHidden.includes(column)} onChange={() => change(column)} />{name}</label>
+         <label className="min-h-11 flex items-center gap-1"><input type="checkbox" disabled={column===rowHeader} checked={!effectiveHidden.includes(column)} onChange={() => change(column)} />{name}</label>
          {reorderable && <>
            <button type="button" className="min-h-11 px-3 border rounded" aria-label={earlier} title={earlier} disabled={position === 0} onClick={() => move(column, -1)}><span aria-hidden="true" className="inline-block rtl:rotate-180">←</span></button>
            <button type="button" className="min-h-11 px-3 border rounded" aria-label={later} title={later} disabled={position === order.length - 2} onClick={() => move(column, 1)}><span aria-hidden="true" className="inline-block rtl:rotate-180">→</span></button>
@@ -146,7 +150,9 @@ export default function ReportTableScroll({children, allowDisplayedExport = true
      })}
     </fieldset>
    )}
-   <ReportColumnOrder.Provider value={columnOrder}>{orderReportCells(children, columnOrder)}</ReportColumnOrder.Provider>
+   <ReportHiddenColumns.Provider value={effectiveHidden}><ReportColumnOrder.Provider value={columnOrder}>
+     {orderReportCells(children, columnOrder, effectiveHidden)}
+   </ReportColumnOrder.Provider></ReportHiddenColumns.Provider>
   </div>
  </>;
 }

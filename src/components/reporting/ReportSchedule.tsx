@@ -14,7 +14,7 @@ export default function ReportSchedule<T, C = never>({ columnControls, allowDisp
   const table = <RowTable<T, C> tableClassName="report-schedule comparison-report-table w-full text-start text-sm"
     captionClassName="py-2 text-start font-semibold" rowHeaderClassName="font-medium" {...props}
     caption={<span id={id}>{caption}</span>} />;
-  if (columnControls) return <ReportTableScroll allowDisplayedExport={allowDisplayedExport}>{table}</ReportTableScroll>;
+  if (columnControls) return <ReportTableScroll captionId={id} allowDisplayedExport={allowDisplayedExport}>{table}</ReportTableScroll>;
   return <div className="max-w-full overflow-x-auto" role="region" aria-labelledby={id} tabIndex={0}>{/* NOSONAR: keyboard scrolling for the named table */}
     {table}
   </div>;

@@ -1,3 +1,4 @@
+import { useReportDates } from './useReportDates';
 /**
  * A-117: stock valuation by location and by lot. Reports → Stock Value by Location & Lot.
  *
@@ -8,11 +9,13 @@
  * goods), with the units recorded at sale as a reference only — on-hand per lot is not tracked and
  * is never computed here. Read-only; nothing posts.
  */
-import { runCommand } from '../../lib/runCommand';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useReportList } from '../../hooks/useReportList';
+import { isItemDetails } from '../../lib/reportListRows';
+import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
+import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useCollection } from '../../hooks/useCollection';
 import { downloadCsv } from '../../lib/csvExport';
@@ -25,49 +28,40 @@ import {
 } from '../../lib/stockValuation';
 import type { ItemDetails } from '../../lib/stockMoves';
 import type { InventoryItem, Invoice, PurchaseOrder } from '../../types';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 import { fill, useReportText } from './useReportText';
 
 const HISTORY_START = '1900-01-01';
 
-/** one reading of the stock-moves ledger from its start to `endDate` (the server's itemDetails) */
-async function readHistory(workspaceId: string, endDate: string): Promise<ItemDetails[]> {
-  const query = new URLSearchParams({ workspaceId, startDate: HISTORY_START, endDate }).toString();
-  const data = await runCommand<{ items?: ItemDetails[] }>({ path: `/api/v1/reports/inventory-details?${query}` });
-  return data.items || [];
+function isLocationHistory(value: unknown): value is ItemDetails {
+  return isItemDetails(value) && value.moves.every(m =>
+    (m.locationId == null || typeof m.locationId === 'string') && (m.writtenOn == null || typeof m.writtenOn === 'string'));
 }
 
 export default function StockValueByLocationLotReportView({ purchaseOrders: purchaseOrdersProp, history: historyProp }: { purchaseOrders?: PurchaseOrder[]; history?: ItemDetails[] } = {}) {
+  const dates = useReportDates();
   const reportText = useReportText();
   const inventory = useLedgerStore(s => s.inventory) as InventoryItem[];
   const invoices = useLedgerStore(s => s.invoices) as Invoice[];
   const dimensionNodes = useLedgerStore(s => s.dimensionNodes);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency || 'USD');
-  const truncated = useLedgerStore(s => s.truncatedCollections);
-  const failed = useDataNeedsStore(s => s.failed);
-  const { loading } = useLedgerCollections('inventory', 'invoices');
-  const { data: loadedOrders, loading: ordersLoading, truncated: ordersTruncated } = useCollection<PurchaseOrder>('purchaseOrders', { orderByField: 'createdAt', orderDirection: 'desc', limit: 500 });
+  const inventoryPartial = usePartialReportInputs(['inventory']);
+  const invoicesPartial = usePartialReportInputs(['invoices']);
+  const { loading: itemsLoading } = useLedgerCollections('inventory');
+  const { loading: invoicesLoading } = useLedgerCollections('invoices');
+  const { data: loadedOrders, loading: ordersLoading, truncated: ordersTruncated, error: ordersError, refetch: retryOrders } = useCollection<PurchaseOrder>('purchaseOrders', { orderByField: 'createdAt', orderDirection: 'desc', limit: 500 });
   const purchaseOrders = purchaseOrdersProp ?? loadedOrders;
 
   const today = getLocalDateISO();
   const [asOf, setAsOf] = useState(today);
-  const valuationDate = asOf && asOf <= today ? asOf : today;
-
-  const [fetched, setFetched] = useState<{ key: string; items?: ItemDetails[]; error?: string } | null>(null);
-  useEffect(() => {
-    if (historyProp || !workspaceId || !valuationDate) return;
-    const key = `${workspaceId}|${valuationDate}`;
-    let live = true;
-    readHistory(workspaceId, valuationDate)
-      .then(items => { if (live) setFetched({ key, items }); })
-      .catch(err => { if (live) setFetched({ key, error: err instanceof Error ? err.message : String(err) }); });
-    return () => { live = false; };
-  }, [historyProp, workspaceId, valuationDate]);
-  const history = useMemo(
-    () => (historyProp ? { key: `${workspaceId}|${valuationDate}`, items: historyProp } : fetched),
-    [historyProp, fetched, workspaceId, valuationDate],
-  );
+  const validDate = validCustomReportPeriod({ startDate: asOf, endDate: asOf });
+  const valuationDate = asOf > today ? today : asOf;
+  // Reconcile against *today's* on-hand first. The existing valuation function then cuts those
+  // movements at the selected day. Cutting the read itself compared past stock to today's stock.
+  const query = new URLSearchParams({ workspaceId: workspaceId || '', startDate: HISTORY_START, endDate: today });
+  const ledger = useReportList(!historyProp && workspaceId && validDate ? `/api/v1/reports/inventory-details?${query}` : null, 'items', isLocationHistory);
+  const history = historyProp ?? ledger.rows;
 
   const itemsForWorkspace = useMemo(
     () => (inventory || []).filter(i => !workspaceId || !i.workspaceId || i.workspaceId === workspaceId),
@@ -75,9 +69,16 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
   );
 
   const byLocation = useMemo(() => {
-    if (!history || history.key !== `${workspaceId}|${valuationDate}` || !history.items) return null;
-    return valuationByLocation({ asOf: valuationDate, items: itemsForWorkspace, toToday: history.items, itemsPartial: Boolean(truncated.inventory) });
-  }, [history, workspaceId, valuationDate, itemsForWorkspace, truncated.inventory]);
+    if (!history || !validDate || itemsLoading) return null;
+    return valuationByLocation({ asOf: valuationDate, items: itemsForWorkspace, toToday: history, itemsPartial: inventoryPartial });
+  }, [history, validDate, itemsLoading, valuationDate, itemsForWorkspace, inventoryPartial]);
+  const locationRows = useMemo(() => (byLocation?.items || []).flatMap(item => {
+    // null = no split can be established; '' = a real movement with no location recorded.
+    const locations = item.rows.length ? item.rows : [null];
+    return locations.map(location => ({ item, location, quantity: location?.quantity ?? item.quantity,
+      value: location?.valueCents ?? item.valueCents, cost: location?.unitCostCents ??
+        (item.valueCents !== null && item.quantity ? Math.round(item.valueCents / item.quantity) : null) }));
+  }), [byLocation]);
 
   const locationName = useMemo(() => {
     const names = new Map<string, string>();
@@ -89,6 +90,7 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
     const itemsById = new Map(itemsForWorkspace.map(i => [i.id, i]));
     const lines: LotReceiptLine[] = [];
     for (const po of purchaseOrders || []) {
+      if (workspaceId && po.workspaceId !== workspaceId) continue;
       const itemOf = new Map((po.items || []).map(i => [i.id, i.itemId] as const));
       for (const receipt of po.receipts || []) {
         for (const line of receipt.items || []) {
@@ -110,7 +112,7 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
       }
     }
     return lines;
-  }, [purchaseOrders, itemsForWorkspace]);
+  }, [purchaseOrders, itemsForWorkspace, workspaceId]);
 
   const sales = useMemo(() => {
     const refs: LotSaleRef[] = [];
@@ -128,7 +130,9 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
   }, [invoices, workspaceId]);
 
   const lots = useMemo(() => valuationByLots(lotLines, sales), [lotLines, sales]);
-  const partial = Boolean(truncated.inventory || truncated.invoices || ordersTruncated || failed.inventory || failed.invoices);
+  const waitingForOrders = !purchaseOrdersProp && ordersLoading;
+  const partial = inventoryPartial || invoicesPartial || Boolean(!purchaseOrdersProp && (ordersTruncated || ordersError));
+  const lotIncomplete = partial || itemsLoading || invoicesLoading || waitingForOrders;
   const money = (cents: number) => formatCurrency(cents, currency);
 
   return (
@@ -146,14 +150,14 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
         </label>
       </div>
 
-      {(loading || ordersLoading) && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-items-invoices-and-receipts', 'Loading items, invoices and receipts…')}</p>}
+      {(itemsLoading || invoicesLoading || waitingForOrders) && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-items-invoices-and-receipts', 'Loading items, invoices and receipts…')}</p>}
       {partial && (
-        <p role="alert" className="text-sm text-amber-700">
+        <p role="alert" className="text-sm text-amber-800 dark:text-amber-300">
           {reportText('r.items-invoices-or-purchase-orders-are-only-partl', 'Items, invoices or purchase orders are only partly loaded; stock outside the loaded lists is not shown.')}
         </p>
       )}
       {asOf > today && (
-        <p role="status" className="text-sm text-amber-700 dark:text-amber-400">{reportText('r.a-future-date-is-not-a-valuation-date-showing', 'A future date is not a valuation date; showing')} {today}.</p>
+        <p role="status" className="text-sm text-amber-700 dark:text-amber-400">{reportText('r.a-future-date-is-not-a-valuation-date-showing', 'A future date is not a valuation date; showing')} {dates.dateText(today)}.</p>
       )}
 
       <section aria-label={reportText('r.value-by-location', 'Value by location')} className="space-y-3">
@@ -161,79 +165,48 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
           <h3 className="text-base font-semibold">{reportText('r.by-location', 'By location')}</h3>
           <button type="button" data-print-hide
             onClick={() => downloadCsv('stock-value-by-location', STOCK_VALUE_LOCATION_CSV_HEADERS, stockValueLocationCsvRows(byLocation?.items || []))}
-            disabled={!byLocation?.items.length}
+            disabled={!byLocation?.items.length || inventoryPartial}
             className="min-h-11 px-3 py-1.5 rounded border text-sm disabled:opacity-50">
             {reportText('r.download-csv', 'Download CSV')}
           </button>
         </div>
-        {history?.error && <p role="alert" className="text-sm text-rose-600">{history.error}</p>}
-        {history && history.key === `${workspaceId}|${valuationDate}` && !history.items && !history.error && (
-          <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.reading-the-stock-history', 'Reading the stock history…')}</p>
-        )}
+        {!validDate && <p role="alert">{reportText('r.choose-a-valid-report-as-of-date', 'Choose a valid report as-of date.')}</p>}
+        {ledger.failed && <div role="alert">{ledger.error || reportText('r.missing-report-rows', 'The response did not contain report rows.')}
+          <button type="button" className="ms-2 min-h-11 px-3 rounded border" onClick={ledger.retry}>{reportText('r.retry', 'Retry')}</button></div>}
+        {ledger.loading && <p role="status">{reportText('r.reading-the-stock-history', 'Reading the stock history…')}</p>}
         {byLocation && (
           <>
             <p className="text-sm text-[var(--muted)]">
               {reportText('r.value-is-what-the-stock-moves-booked-the-cost-ea', 'Value is what the stock moves booked (the cost each change carried). An item its history does not explain is shown with the reason and is not split across locations — the same rule as Inventory Valuation.')}
             </p>
-            <ReportTableScroll>
-              <table className="w-full text-sm">
-                <caption className="sr-only">{reportText('r.value-by-location', 'Value by location')}</caption>
-                <thead>
-                  <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
-                    <th scope="col" className="py-2 pr-3">{reportText('r.location', 'Location')}</th>
-                    <th scope="col" className="py-2 pr-3">{reportText('r.item', 'Item')}</th>
-                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.quantity', 'Quantity')}</th>
-                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.value', 'Value')}</th>
-                    <th scope="col" className="py-2 text-right">{reportText('r.average-cost', 'Average cost')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {byLocation.items.map(item => (
-                    item.rows.length === 0 ? (
-                      <tr key={item.itemId} className="border-b border-[var(--line)]/50">
-                        <td className="py-1.5 pr-3">—</td>
-                        <th scope="row" className="py-1.5 pr-3 text-left font-normal">
-                          {item.itemName}
-                          {item.unknownReason && <span className="block text-xs text-amber-700 dark:text-amber-400">{item.unknownReason}</span>}
-                          {item.note && <span className="block text-xs text-[var(--muted)]">{item.note}</span>}
-                        </th>
-                        <td className="py-1.5 pr-3 text-right font-mono">{item.quantity ?? ''}</td>
-                        <td className="py-1.5 pr-3 text-right font-mono">{item.valueCents === null ? '' : money(item.valueCents)}</td>
-                        <td className="py-1.5 text-right font-mono">{item.valueCents !== null && item.quantity ? money(Math.round(item.valueCents / item.quantity)) : ''}</td>
-                      </tr>
-                    ) : item.rows.map(row => (
-                      <tr key={`${item.itemId}-${row.locationId}`} className="border-b border-[var(--line)]/50">
-                        <td className="py-1.5 pr-3">{row.locationId ? locationName.get(row.locationId) || row.locationId : reportText('r.no-location', 'No location')}</td>
-                        <th scope="row" className="py-1.5 pr-3 text-left font-normal">
-                          {item.itemName}
-                          {item.note && <span className="block text-xs text-[var(--muted)]">{item.note}</span>}
-                        </th>
-                        <td className="py-1.5 pr-3 text-right font-mono">{row.quantity}</td>
-                        <td className="py-1.5 pr-3 text-right font-mono">{money(row.valueCents)}</td>
-                        <td className="py-1.5 text-right font-mono">{money(row.unitCostCents)}</td>
-                      </tr>
-                    ))
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-[var(--line)] font-semibold">
-                    <th scope="row" colSpan={2} className="py-2 pr-3 text-left">{reportText('r.total-value-of-the-items-the-history-explains', 'Total value of the items the history explains')}</th>
+            <ReportSchedule columnControls allowDisplayedExport={!inventoryPartial} rows={locationRows}
+              rowKey={({ item, location }) => JSON.stringify([item.itemId, location?.locationId ?? null])}
+              caption={reportText('r.value-by-location', 'Value by location')} captionClassName="sr-only"
+              columns={[
+                { header: reportText('r.location', 'Location'), cell: ({ location }) => location === null ? '—' :
+                  <bdi>{location.locationId ? locationName.get(location.locationId) || location.locationId : reportText('r.no-location', 'No location')}</bdi> },
+                { header: reportText('r.item', 'Item'), rowHeader: true, cell: ({ item }) => <>
+                  <bdi>{item.itemName}</bdi>{item.unknownReason && <span className="block text-xs text-amber-800 dark:text-amber-300">{item.unknownReason}</span>}
+                  {item.note && <span className="block text-xs text-[var(--muted)]">{item.note}</span>}</> },
+                { header: reportText('r.quantity', 'Quantity'), align: 'right', cell: r => r.quantity ?? '' },
+                { header: reportText('r.value', 'Value'), align: 'right', cell: r => r.value === null ? '' : money(r.value) },
+                { header: reportText('r.average-cost', 'Average cost'), align: 'right', cell: r => r.cost === null ? '' : money(r.cost) },
+              ]}
+              footer={<><tr className="border-t border-[var(--line)] font-semibold">
+                    <th scope="row" colSpan={2} className="py-2 pe-3 text-start">{reportText('r.total-value-of-the-items-the-history-explains', 'Total value of the items the history explains')}</th>
                     <td className="py-2" />
-                    <td className="py-2 pr-3 text-right font-mono">{money(byLocation.knownValueCents)}</td>
+                    <td className="py-2 pe-3 text-right font-mono">{money(byLocation.knownValueCents)}</td>
                     <td className="py-2" />
                   </tr>
                   {byLocation.byLocation.map(t => (
-                    <tr key={t.locationId || 'none'} className="text-[var(--muted)]">
-                      <td className="py-1.5 pr-3">{t.locationId ? locationName.get(t.locationId) || t.locationId : reportText('r.no-location', 'No location')}</td>
-                      <td className="py-1.5 pr-3">{t.items} {reportText('r.item-lines', 'item lines')}</td>
-                      <td className="py-1.5 pr-3 text-right font-mono">{t.quantity}</td>
-                      <td className="py-1.5 pr-3 text-right font-mono">{money(t.valueCents)}</td>
+                    <tr key={t.locationId} className="text-[var(--muted)]">
+                      <th scope="row" className="py-1.5 pe-3 text-start font-normal">{t.locationId ? locationName.get(t.locationId) || t.locationId : reportText('r.no-location', 'No location')}</th>
+                      <td className="py-1.5 pe-3">{t.items} {reportText('r.item-lines', 'item lines')}</td>
+                      <td className="py-1.5 pe-3 text-right font-mono">{t.quantity}</td>
+                      <td className="py-1.5 pe-3 text-right font-mono">{money(t.valueCents)}</td>
                       <td className="py-1.5" />
                     </tr>
-                  ))}
-                </tfoot>
-              </table>
-            </ReportTableScroll>
+                  ))}</>} />
             <p className="text-xs text-[var(--muted)]">
               {byLocation.unknownItems > 0 && `${fill(reportText('r.0-item-1-could-not-be-valued-the-reason-is-on-it', '{0} item{1} could not be valued (the reason is on its row).'), { 0: byLocation.unknownItems, 1: byLocation.unknownItems === 1 ? '' : 's' })} `}
               {byLocation.negativeStockItems > 0 && `${fill(reportText('r.0-item-1-negative-stock-valued-at-zero', '{0} item{1} negative stock (valued at zero).'), { 0: byLocation.negativeStockItems, 1: byLocation.negativeStockItems === 1 ? ' has' : 's have' })} `}
@@ -248,53 +221,41 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
           <h3 className="text-base font-semibold">{reportText('r.by-lot', 'By lot')}</h3>
           <button type="button" data-print-hide
             onClick={() => downloadCsv('stock-value-by-lot', STOCK_VALUE_LOT_CSV_HEADERS, stockValueLotCsvRows(lots.rows))}
-            disabled={!lots.rows.length}
+            disabled={!lots.rows.length || lotIncomplete}
             className="min-h-11 px-3 py-1.5 rounded border text-sm disabled:opacity-50">
             {reportText('r.download-csv', 'Download CSV')}
           </button>
         </div>
-        <p role="note" className="text-sm text-amber-700 dark:text-amber-400">{lots.limit}</p>
-        {lots.rows.length === 0 ? (
+        <p role="note" className="text-sm text-amber-800 dark:text-amber-300">{reportText('r.lot-scope', 'Lot figures cover all loaded receipts and sales, not stock on the valuation date. On-hand per lot is not tracked.')}</p>
+        {ordersError && !purchaseOrdersProp && <div role="alert">{ordersError.message}
+          <button className="ms-2 min-h-11 px-3 rounded border" type="button" onClick={retryOrders}>{reportText('r.retry', 'Retry')}</button></div>}
+        {lots.rows.length === 0 ? !lotIncomplete && (
           <p className="text-sm text-[var(--muted)]">{reportText('r.no-received-lots-yet-record-a-lot-on-a-goods-rec', 'No received lots yet: record a lot on a goods receipt (Purchase orders → Receive goods).')}</p>
         ) : (
-          <ReportTableScroll>
-            <table className="w-full text-sm">
-              <caption className="sr-only">{reportText('r.value-by-lot', 'Value by lot')}</caption>
-              <thead>
-                <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
-                  <th scope="col" className="py-2 pr-3">{reportText('r.item', 'Item')}</th>
-                  <th scope="col" className="py-2 pr-3">{reportText('r.lot', 'Lot')}</th>
-                  <th scope="col" className="py-2 pr-3">{reportText('r.expiry', 'Expiry')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.received', 'Received')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.received-value', 'Received value')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.arrival-cost', 'Arrival cost')}</th>
-                  <th scope="col" className="py-2 pr-3">{reportText('r.receipts', 'Receipts')}</th>
-                  <th scope="col" className="py-2 text-right">{reportText('r.sold-reference', 'Sold (reference)')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lots.rows.map(r => (
-                  <tr key={`${r.itemId}-${r.lotNumber}`} className="border-b border-[var(--line)]/50">
-                    <td className="py-1.5 pr-3">{r.itemName}</td>
-                    <th scope="row" className="py-1.5 pr-3 text-left font-normal">{r.lotNumber}</th>
-                    <td className="py-1.5 pr-3">{r.expiryDates.join('; ') || '—'}</td>
-                    <td className="py-1.5 pr-3 text-right font-mono">{r.receivedQty}</td>
-                    <td className="py-1.5 pr-3 text-right font-mono">{money(r.receivedValueCents)}</td>
-                    <td className="py-1.5 pr-3 text-right font-mono">{money(r.unitCostCents)}</td>
-                    <td className="py-1.5 pr-3">{r.receiptNumbers.join('; ')}</td>
-                    <td className="py-1.5 text-right font-mono">{r.soldQty || ''}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-[var(--line)] font-semibold">
-                  <th scope="row" colSpan={4} className="py-2 pr-3 text-left">{reportText('r.total-received-value', 'Total received value')}</th>
-                  <td className="py-2 pr-3 text-right font-mono">{money(lots.receivedValueCents)}</td>
+          <ReportSchedule
+            columnControls
+            allowDisplayedExport={!lotIncomplete}
+            caption={reportText('r.value-by-lot', 'Value by lot')}
+            captionClassName="sr-only"
+            headRowClassName="border-b border-[var(--line)] text-start text-[var(--muted)]"
+            rowClassName="border-b border-[var(--line)]/50"
+            bodyClassName=""
+            rows={lots.rows} rowKey={r => JSON.stringify([r.itemId, r.lotNumber])}
+            footer={<tr className="border-t border-[var(--line)] font-semibold">
+                  <th scope="row" colSpan={4} className="py-2 pe-3 text-start">{reportText('r.total-received-value', 'Total received value')}</th>
+                  <td className="py-2 pe-3 text-right font-mono">{money(lots.receivedValueCents)}</td>
                   <td className="py-2" colSpan={3} />
-                </tr>
-              </tfoot>
-            </table>
-          </ReportTableScroll>
+                </tr>}
+            columns={[
+              { header: reportText('r.item', 'Item'), className: 'py-1.5', cell: r => r.itemName },
+              { header: reportText('r.lot', 'Lot'), rowHeader: true, className: 'py-1.5', cell: r => r.lotNumber },
+              { header: reportText('r.expiry', 'Expiry'), className: 'py-1.5', cell: r => r.expiryDates.map(dates.dateText).join('; ') || '—' },
+              { header: reportText('r.received', 'Received'), align: 'right', className: 'py-1.5 font-mono', cell: r => r.receivedQty },
+              { header: reportText('r.received-value', 'Received value'), align: 'right', className: 'py-1.5 font-mono', cell: r => money(r.receivedValueCents) },
+              { header: reportText('r.arrival-cost', 'Arrival cost'), align: 'right', className: 'py-1.5 font-mono', cell: r => money(r.unitCostCents) },
+              { header: reportText('r.receipts', 'Receipts'), className: 'py-1.5', cell: r => r.receiptNumbers.join('; ') },
+              { header: reportText('r.sold-reference', 'Sold (reference)'), align: 'right', className: 'py-1.5 font-mono', cell: r => r.soldQty || '' },
+            ]} />
         )}
       </section>
     </section>

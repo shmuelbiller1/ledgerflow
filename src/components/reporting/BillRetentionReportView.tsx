@@ -1,3 +1,5 @@
+import { useReportDates } from './useReportDates';
+import ReportSchedule from './ReportSchedule';
 /**
  * A-127: Projects — retention (holdback) tracking on milestone bills (report + tracking editor).
  */
@@ -25,6 +27,7 @@ const CODE_NAMES = { c0: 'Tower Phase 2' } as const;
 const field = 'w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white';
 
 export default function BillRetentionReportView() {
+  const dates = useReportDates();
   const reportText = useReportText();
   const bills = useLedgerStore(s => s.bills);
   const projects = useLedgerStore(s => s.projects);
@@ -135,9 +138,9 @@ export default function BillRetentionReportView() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {report.totalsByCurrency.map(tot => (
             <div key={tot.currency} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-1">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">{tot.currency} {reportText('r.holdbacks', 'holdbacks')}</div>
+              <div className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">{tot.currency} {reportText('r.holdbacks', 'holdbacks')}</div>
               <div className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">
-                {formatCurrency(tot.heldOpenCents, tot.currency)} <span className="text-xs font-normal text-slate-500">{reportText('r.open-held', 'open held')}</span>
+                {formatCurrency(tot.heldOpenCents, tot.currency)} <span className="text-xs font-normal text-[var(--muted)]">{reportText('r.open-held', 'open held')}</span>
               </div>
               <div className="text-xs tabular-nums text-amber-700 dark:text-amber-300">
                 {reportText('r.past-release-date', 'Past release date:')} {formatCurrency(tot.pastDueCents, tot.currency)} {reportText('r.released', '· Released:')} {formatCurrency(tot.releasedCents, tot.currency)}
@@ -206,68 +209,41 @@ export default function BillRetentionReportView() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <table className="w-full text-sm text-start">
-            <caption className="sr-only">{reportText('r.milestone-bill-retention-schedule', 'Milestone bill retention schedule')}</caption>
-            <thead className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
-              <tr>
-                <th scope="col" className="px-4 py-3 text-start">{reportText('r.bill-2', 'Bill')}</th>
-                <th scope="col" className="px-4 py-3 text-start">{reportText('r.vendor-project', 'Vendor / Project')}</th>
-                <th scope="col" className="px-4 py-3 text-end">{reportText('r.gross-bill', 'Gross bill')}</th>
-                <th scope="col" className="px-4 py-3 text-end">{reportText('r.held-back', 'Held back')}</th>
-                <th scope="col" className="px-4 py-3 text-end">{reportText('r.before-release', 'Before release')}</th>
-                <th scope="col" className="px-4 py-3 text-start">{reportText('r.release-due', 'Release due')}</th>
-                <th scope="col" className="px-4 py-3 text-start">{reportText('r.status', 'Status')}</th>
-                {canWrite && <th scope="col" className="px-4 py-3 text-end">{reportText('r.actions', 'Actions')}</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {report.rows.map(r => (
-                <tr key={r.billId}>
-                  <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
-                    {r.billNumber}
-                    <div className="text-xs text-slate-500">{r.billDate}</div>
-                  </td>
-                  <td className="px-4 py-3 text-slate-800 dark:text-slate-200">
-                    {r.vendorName}
-                    <div className="text-xs text-slate-500">{r.project}</div>
-                  </td>
-                  <td className="px-4 py-3 text-end tabular-nums">{formatCurrency(r.grossBillCents, r.currency)}</td>
-                  <td className="px-4 py-3 text-end tabular-nums font-semibold text-slate-900 dark:text-white">
-                    {formatCurrency(r.heldCents, r.currency)}
-                  </td>
-                  <td className="px-4 py-3 text-end tabular-nums text-slate-600 dark:text-slate-400">
-                    {formatCurrency(r.netPayableBeforeReleaseCents, r.currency)}
-                  </td>
-                  <td className="px-4 py-3 tabular-nums">{r.releaseDate || reportText('r.unscheduled', 'Unscheduled')}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded ${
+        <div className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <ReportSchedule
+            caption={reportText('r.milestone-bill-retention-schedule', 'Milestone bill retention schedule')}
+            captionClassName="sr-only"
+            headRowClassName="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400"
+            bodyClassName="divide-y divide-slate-200 dark:divide-slate-800"
+            rows={report.rows} rowKey={r => r.billId}
+            columns={[
+              { header: reportText('r.bill-2', 'Bill'), className: 'font-medium text-slate-900 dark:text-white', cell: r => <>{r.billNumber}
+                    <div className="text-xs text-[var(--muted)]">{dates.dateText(r.billDate)}</div></> },
+              { header: reportText('r.vendor-project', 'Vendor / Project'), className: 'text-slate-800 dark:text-slate-200', cell: r => <>{r.vendorName}
+                    <div className="text-xs text-[var(--muted)]">{r.project}</div></> },
+              { header: reportText('r.gross-bill', 'Gross bill'), align: 'right', className: 'tabular-nums', cell: r => formatCurrency(r.grossBillCents, r.currency) },
+              { header: reportText('r.held-back', 'Held back'), align: 'right', className: 'tabular-nums font-semibold text-slate-900 dark:text-white', cell: r => formatCurrency(r.heldCents, r.currency) },
+              { header: reportText('r.before-release', 'Before release'), align: 'right', className: 'tabular-nums text-slate-600 dark:text-slate-400', cell: r => formatCurrency(r.netPayableBeforeReleaseCents, r.currency) },
+              { header: reportText('r.release-due', 'Release due'), className: 'tabular-nums', cell: r => r.releaseDate ? dates.dateText(r.releaseDate) : reportText('r.unscheduled', 'Unscheduled') },
+              { header: reportText('r.status', 'Status'), cell: r => <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded ${
                       r.state === 'past-due'
                         ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
                         : r.state === 'released'
                           ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
                           : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200'
                     }`}>
-                      {r.state === 'past-due' ? reportText('r.due-for-release', 'Due for release') : r.state === 'released' ? fill(reportText('r.released-0', 'Released ({0})'), { 0: r.releasedAt }) : r.state}
-                    </span>
-                  </td>
-                  {canWrite && (
-                    <td className="px-4 py-3 text-end">
-                      {r.state !== 'released' && (
+                      {r.state === 'past-due' ? reportText('r.due-for-release', 'Due for release') : r.state === 'released' ? fill(reportText('r.released-0', 'Released ({0})'), { 0: dates.dateText(r.releasedAt) }) : r.state}
+                    </span> },
+              canWrite ? { header: reportText('r.actions', 'Actions'), align: 'right', cell: r => r.state !== 'released' && (
                         <button
                           type="button"
                           onClick={() => handleMarkReleased(r.billId)}
-                          className="min-h-9 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-300 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 inline-flex items-center gap-1"
+                          className="min-h-11 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-300 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 inline-flex items-center gap-1"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> {reportText('r.mark-released', 'Mark released')}
                         </button>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      ) } : false,
+            ]} />
         </div>
       )}
     </div>

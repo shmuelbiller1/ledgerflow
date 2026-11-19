@@ -1,3 +1,5 @@
+import { useReportDates } from './useReportDates';
+import ReportSchedule from './ReportSchedule';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -31,6 +33,7 @@ const CSV_HEADERS = ['Item', 'SKU', 'Expected', 'Counted', 'Difference', 'Unit c
  * differences, values — is computed by `src/lib/cycleCounts.ts` and shown as it is.
  */
 export default function CycleCountReportView({ endDate = '', loadMoves = loadWorkspaceStockMoves, embedded = false }: { endDate?: string; loadMoves?: (workspaceId: string) => Promise<StockMove[]>; embedded?: boolean }) {
+  const dates = useReportDates();
   const reportText = useReportText();
   const items = useLedgerStore(state => state.inventory);
   const nodes = useLedgerStore(state => state.dimensionNodes || []);
@@ -153,7 +156,7 @@ export default function CycleCountReportView({ endDate = '', loadMoves = loadWor
 
     {sheet && variance && <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
-        <h3 className="text-base font-semibold">{locationName(sheet.locationId)} — {sheet.date}{sheet.note ? ` — ${sheet.note}` : ''}</h3>
+        <h3 className="text-base font-semibold">{locationName(sheet.locationId)} — {dates.dateText(sheet.date)}{sheet.note ? ` — ${sheet.note}` : ''}</h3>
         <span className={`text-xs px-2 py-1 rounded ${marked ? 'bg-[var(--panel)] text-[var(--text)]' : 'bg-[var(--panel)] text-[var(--muted)]'}`}>{marked ? fill(reportText('r.ready-marked-by-0', 'Ready — marked by {0}'), { 0: sheet.markedReadyBy || 'a person' }) : reportText('r.open', 'Open')}</span>
         <button type="button" onClick={onMarkReady} disabled={marked || Boolean(problem)} className="min-h-11 px-4 rounded border border-[var(--line)] disabled:opacity-50">{reportText('r.mark-ready-no-posting', 'Mark ready (no posting)')}</button>
         <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]"
@@ -201,42 +204,29 @@ export default function CycleCountReportView({ endDate = '', loadMoves = loadWor
         {scanMessage && <span className="text-sm text-[var(--muted)]">{scanMessage}</span>}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[46rem]">
-          <caption className="sr-only">{reportText('r.count-sheet-and-variance', 'Count sheet and variance')}</caption>
-          <thead>
-            <tr className="text-left text-xs text-[var(--muted)] border-b border-[var(--line)]">
-              <th scope="col" className="py-2">{reportText('r.item', 'Item')}</th>
-              <th scope="col">{reportText('r.expected', 'Expected')}</th>
-              <th scope="col">{reportText('r.counted-2', 'Counted')}</th>
-              <th scope="col">{reportText('r.col-difference', 'Difference')}</th>
-              <th scope="col">{reportText('r.unit-cost', 'Unit cost')}</th>
-              <th scope="col">{reportText('r.value', 'Value')}</th>
-              <th scope="col">{reportText('r.expected-figure', 'Expected figure')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sheet.rows.map(row => {
-              const v = variance.countedRows.find(r => r.itemId === row.itemId);
-              return <tr key={row.itemId} className="border-b border-[var(--line)]/40">
-                <td className="py-2">{row.itemName}{row.sku ? <span className="text-[var(--muted)]"> ({row.sku})</span> : null}</td>
-                <td>{row.expected}</td>
-                <td>
-                  <input aria-label={fill(reportText('r.counted-quantity-for-0', 'Counted quantity for {0}'), { 0: row.itemName })} inputMode="decimal" className={field} value={row.counted === undefined ? '' : String(row.counted)}
+      <div className="min-w-0">
+        <ReportSchedule
+          caption={reportText('r.count-sheet-and-variance', 'Count sheet and variance')}
+          captionClassName="sr-only"
+          tableClassName="report-schedule comparison-report-table w-full text-sm min-w-[46rem]"
+          headRowClassName="text-start text-xs text-[var(--muted)] border-b border-[var(--line)]"
+          rowClassName="border-b border-[var(--line)]/40"
+          bodyClassName=""
+          rows={sheet.rows.map(row => ({ ...row, variance: variance.countedRows.find(r => r.itemId === row.itemId) }))} rowKey={row => row.itemId}
+          columns={[
+            { header: reportText('r.item', 'Item'), cell: row => <>{row.itemName}{row.sku ? <span className="text-[var(--muted)]"> ({row.sku})</span> : null}</> },
+            { header: reportText('r.expected', 'Expected'), align: 'right', cell: row => row.expected },
+            { header: reportText('r.counted-2', 'Counted'), cell: row => <input aria-label={fill(reportText('r.counted-quantity-for-0', 'Counted quantity for {0}'), { 0: row.itemName })} inputMode="decimal" className={field} value={row.counted === undefined ? '' : String(row.counted)}
                     onChange={event => {
                       const problem = countInputProblem(event.target.value);
                       if (problem) { toast.error(problem); return; }
                       setSheet(current => current ? enterCount(current, row.itemId, event.target.value) : current);
-                    }} />
-                </td>
-                <td>{row.counted === undefined ? '—' : v?.difference ?? 0}</td>
-                <td>{formatCurrency(row.unitCostCents, currency)}</td>
-                <td>{row.counted === undefined ? '—' : formatCurrency(v?.valueCents ?? 0, currency)}</td>
-                <td className={row.unexplained ? 'text-[var(--warning,#b45309)]' : ''}>{row.unexplained ? row.unexplainedReason || reportText('r.no-check-the-history', 'No — check the history') : reportText('r.yes', 'Yes')}</td>
-              </tr>;
-            })}
-          </tbody>
-        </table>
+                    }} /> },
+            { header: reportText('r.col-difference', 'Difference'), align: 'right', cell: row => row.counted === undefined ? '—' : row.variance?.difference ?? 0 },
+            { header: reportText('r.unit-cost', 'Unit cost'), align: 'right', cell: row => formatCurrency(row.unitCostCents, currency) },
+            { header: reportText('r.value', 'Value'), align: 'right', cell: row => row.counted === undefined ? '—' : formatCurrency(row.variance?.valueCents ?? 0, currency) },
+            { header: reportText('r.expected-figure', 'Expected figure'), cellProps: row => ({ className: row.unexplained ? 'text-[var(--warning,#b45309)]' : '' }), cell: row => row.unexplained ? row.unexplainedReason || reportText('r.no-check-the-history', 'No — check the history') : reportText('r.yes', 'Yes') },
+          ]} />
       </div>
 
       {problem && !marked && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.not-ready-to-mark', 'Not ready to mark:')} {problem}.</p>}

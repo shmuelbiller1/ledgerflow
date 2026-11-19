@@ -22,7 +22,7 @@
  * view. This is for the table that is part of a sentence.
  */
 import { useContext, type ReactNode } from 'react';
-import { ReportColumnOrder, orderReportCells } from './reportColumnOrder';
+import { ReportColumnOrder, ReportHiddenColumns, orderReportCells } from './reportColumnOrder';
 import { planColumns, type RowTableColumns } from '../../lib/rowTable';
 
 export type { RowTableColumn, RowTableColumns } from '../../lib/rowTable';
@@ -43,8 +43,8 @@ export interface RowTableProps<T, C = never> {
   /** An extra class for the row-header cells only. Empty by default: most screens' first column is not bold,
    *  and the sweep must not make it bold. */
   rowHeaderClassName?: string;
-  /** A class for every row — the screen's row separator. A class that depends on the row stays hand-written. */
-  rowClassName?: string;
+  /** Preserve row states (e.g. expired certificates, selected orders) without reimplementing a table. */
+  rowClassName?: string | ((row: T) => string);
   tableClassName?: string;
   /** A class for the `<thead>` — `sticky top-0 bg-…` on a long list, which is a class of the head, not of a row. */
   headRowClassName?: string;
@@ -90,6 +90,7 @@ export function RowTable<T, C = never>({
   empty,
 }: RowTableProps<T, C>) {
   const order = useContext(ReportColumnOrder);
+  const hidden = useContext(ReportHiddenColumns);
   if (rows.length === 0 && empty !== undefined) return <>{empty}</>;
   const keyOf = rowKey ?? ((_row: T, position: number) => position);
   const planned = planColumns(columns);
@@ -109,7 +110,7 @@ export function RowTable<T, C = never>({
       <tbody className={bodyClassName}>
         {bodyStart}
         {rows.length === 0 && emptyRow !== undefined ? emptyRow : rows.map((row, position) => (
-          <tr key={keyOf(row, position)} className={rowClassName}>
+          <tr key={keyOf(row, position)} className={typeof rowClassName === 'function' ? rowClassName(row) : rowClassName}>
             {planned.map(column => {
               const className = alignClass(column.align, column.className);
               const cellProps = typeof column.cellProps === 'function' ? column.cellProps(row) : column.cellProps;
@@ -124,5 +125,5 @@ export function RowTable<T, C = never>({
       {footer !== undefined ? <tfoot className={footerClassName}>{footer}</tfoot> : null}
     </table>
   );
-  return order === null ? table : orderReportCells(table, order);
+  return order === null ? table : orderReportCells(table, order, hidden);
 }

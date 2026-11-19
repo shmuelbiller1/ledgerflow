@@ -15,7 +15,7 @@ import { downloadCsv } from '../../lib/csvExport';
 import { kitBuildPlan, type KitBuildPlan } from '../../lib/kitAssembly';
 import { isBundle, type BundleHost } from '../../lib/itemBundles';
 import type { InventoryItem } from '../../types';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 import { useReportText } from './useReportText';
 
 const CSV_HEADERS = ['Part', 'SKU', 'Per kit', 'On hand', 'Needed for N', 'Left after'];
@@ -93,44 +93,29 @@ export default function KitAssemblyReportView() {
           </p>
           {plan.problem && <p role="alert" className="text-sm text-amber-700 dark:text-amber-400">{plan.problem}</p>}
 
-          <ReportTableScroll>
-            <table className="w-full text-sm">
-              <caption className="sr-only">{reportText('r.components-needed-for-this-assembly', 'Components needed for this assembly')}</caption>
-              <thead>
-                <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
-                  <th scope="col" className="py-2 pr-3">{reportText('r.part', 'Part')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.per-kit', 'Per kit')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.on-hand', 'On hand')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.kits-this-part-can-build', 'Kits this part can build')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.needed-for', 'Needed for')} {plan.requestedKits ?? 0}</th>
-                  <th scope="col" className="py-2 text-right">{reportText('r.left-after', 'Left after')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plan.parts.map(p => {
-                  const use = plan.consumption?.find(c => c.itemId === p.itemId);
-                  return (
-                    <tr key={p.itemId} className="border-b border-[var(--line)]/50">
-                      <th scope="row" className="py-1.5 pr-3 text-left font-normal">
-                        {p.name}
-                        {p.sku && <span className="ml-2 font-mono text-xs text-[var(--muted)]">{p.sku}</span>}
+          <ReportSchedule
+            columnControls
+            allowDisplayedExport={!partial && !loading && !!plan.consumption?.length}
+            caption={reportText('r.components-needed-for-this-assembly', 'Components needed for this assembly')}
+            captionClassName="sr-only"
+            headRowClassName="border-b border-[var(--line)] text-start text-[var(--muted)]"
+            rowClassName="border-b border-[var(--line)]/50"
+            bodyClassName=""
+            rows={plan.parts.map(p => ({ ...p, consumption: plan.consumption?.find(c => c.itemId === p.itemId) }))} rowKey={p => p.itemId}
+            columns={[
+              { header: reportText('r.part', 'Part'), className: 'py-1.5', cell: p => <>{p.name}
+                        {p.sku && <span className="ms-2 font-mono text-xs text-[var(--muted)]">{p.sku}</span>}
                         {p.shortfallPerKit > 0 && (
                           <span className="block text-xs text-amber-700 dark:text-amber-400">
                             {reportText('r.short', 'short')} {p.shortfallPerKit} {reportText('r.per-kit-2', 'per kit')}
                           </span>
-                        )}
-                      </th>
-                      <td className="py-1.5 pr-3 text-right font-mono">{p.perKit}</td>
-                      <td className="py-1.5 pr-3 text-right font-mono">{p.onHand}</td>
-                      <td className="py-1.5 pr-3 text-right font-mono">{p.buildable}</td>
-                      <td className="py-1.5 pr-3 text-right font-mono">{use?.needed ?? ''}</td>
-                      <td className="py-1.5 text-right font-mono">{use?.remaining ?? ''}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </ReportTableScroll>
+                        )}</> },
+              { header: reportText('r.per-kit', 'Per kit'), align: 'right', className: 'py-1.5 font-mono', cell: p => p.perKit },
+              { header: reportText('r.on-hand', 'On hand'), align: 'right', className: 'py-1.5 font-mono', cell: p => p.onHand },
+              { header: reportText('r.kits-this-part-can-build', 'Kits this part can build'), align: 'right', className: 'py-1.5 font-mono', cell: p => p.buildable },
+              { header: <>{reportText('r.needed-for', 'Needed for')} {plan.requestedKits ?? 0}</>, align: 'right', className: 'py-1.5 font-mono', cell: p => p.consumption?.needed ?? '' },
+              { header: reportText('r.left-after', 'Left after'), align: 'right', className: 'py-1.5 font-mono', cell: p => p.consumption?.remaining ?? '' },
+            ]} />
           <p className="text-xs text-[var(--muted)]">
             {reportText('r.building-here-is-a-plan-only-nothing-is-reserved', 'Building here is a plan only: nothing is reserved, issued or posted. When the kit is sold, the invoice takes its parts as lines (A-19) and the parts\' own stock and cost move as they always do.')}
           </p>

@@ -1,3 +1,4 @@
+import ReportSchedule from './ReportSchedule';
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -98,30 +99,23 @@ export default function MilestoneBillingReportView() {
       {orders.length} {reportText('r.order-s-with-a-schedule', 'order(s) with a schedule')}{dueCount ? ` ${fill(reportText('r.0-milestone-s-due-to-bill', '· {0} milestone(s) due to bill'), { 0: dueCount })}` : ` ${reportText('r.none-due', '· none due')}`} {reportText('r.left-to-bill', '· left to bill')} {formatCurrency(leftTotal, home)}
     </p>
 
-    {orders.length > 0 && <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>{reportText('r.sales-orders-with-a-milestone-schedule', 'Sales orders with a milestone schedule')}</caption>
-        <thead>
-          <tr>{[reportText('r.order', 'Order'), reportText('r.date-2', 'Date'), reportText('r.customer', 'Customer'), reportText('r.order-total', 'Order total'), reportText('r.invoiced-2', 'Invoiced'), reportText('r.left-to-bill-2', 'Left to bill'), reportText('r.next-milestone', 'Next milestone'), reportText('r.unscheduled', 'Unscheduled')].map(head =>
-            <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-        </thead>
-        <tbody>
-          {orders.map(o => {
-            const next = nextOf(o.billing);
-            return <tr key={o.est.id} className={selected?.est.id === o.est.id ? 'border-b border-[var(--line)]/50 bg-[var(--panel)]' : 'border-b border-[var(--line)]/50'}>
-              <th scope="row" className="text-left font-normal py-1 px-2">{o.est.number || o.est.id}</th>
-              <td className="py-1 px-2">{String(o.est.date || '').slice(0, 10)}</td>
-              <td className="py-1 px-2"><bdi>{o.est.customerName || '—'}</bdi></td>
-              <td className="py-1 px-2">{formatCurrency(o.billing.orderTotalCents, home)}</td>
-              <td className="py-1 px-2">{formatCurrency(o.billing.invoicedCents, home)}</td>
-              <td className="py-1 px-2">{formatCurrency(o.billing.leftCents, home)}</td>
-              <td className="py-1 px-2">{next ? <span>{next.label}{next.status === 'due' ? ` ${reportText('r.due-3', '(due)')}` : ''}{next.due ? ` · ${next.due}` : ''}</span> : '—'}</td>
-              <td className="py-1 px-2">{o.billing.unscheduledPercent ? `${o.billing.unscheduledPercent}%` : '—'}</td>
-            </tr>;
-          })}
-        </tbody>
-      </table>
-    </ReportTableScroll>}
+    {orders.length > 0 && <ReportSchedule
+      columnControls
+      allowDisplayedExport={!partial && !loading}
+      caption={reportText('r.sales-orders-with-a-milestone-schedule', 'Sales orders with a milestone schedule')}
+      rowClassName={o => selected?.est.id === o.est.id ? 'border-b border-[var(--line)]/50 bg-[var(--panel)]' : 'border-b border-[var(--line)]/50'}
+      bodyClassName=""
+      rows={orders} rowKey={o => o.est.id}
+      columns={[
+        { header: reportText('r.order', 'Order'), cell: o => o.est.number || o.est.id },
+        { header: reportText('r.date-2', 'Date'), cell: o => String(o.est.date || '').slice(0, 10) },
+        { header: reportText('r.customer', 'Customer'), cell: o => <bdi>{o.est.customerName || '—'}</bdi> },
+        { header: reportText('r.order-total', 'Order total'), align: 'right', cell: o => formatCurrency(o.billing.orderTotalCents, home) },
+        { header: reportText('r.invoiced-2', 'Invoiced'), align: 'right', cell: o => formatCurrency(o.billing.invoicedCents, home) },
+        { header: reportText('r.left-to-bill-2', 'Left to bill'), align: 'right', cell: o => formatCurrency(o.billing.leftCents, home) },
+        { header: reportText('r.next-milestone', 'Next milestone'), cell: o => { const next = nextOf(o.billing); return next ? <span>{next.label}{next.status === 'due' ? ` ${reportText('r.due-3', '(due)')}` : ''}{next.due ? ` · ${next.due}` : ''}</span> : '—'; } },
+        { header: reportText('r.unscheduled', 'Unscheduled'), align: 'right', cell: o => o.billing.unscheduledPercent ? `${o.billing.unscheduledPercent}%` : '—' },
+      ]} />}
 
     {selected && <div className="space-y-2">
       <h3 className="text-base font-semibold">
@@ -138,18 +132,18 @@ export default function MilestoneBillingReportView() {
           headRowClassName=""
           bodyClassName=""
           footer={<tr className="font-semibold">
-              <th scope="row" className="text-left py-1 px-2">{reportText('r.total', 'Total')}</th>
+              <th scope="row" className="text-start py-1 px-2">{reportText('r.total', 'Total')}</th>
               <td className="py-1 px-2">{selected.billing.unscheduledPercent ? fill(reportText('r.0-scheduled', '{0}% scheduled'), { 0: 100 - selected.billing.unscheduledPercent }) : '100%'}</td>
               <td className="py-1 px-2">{formatCurrency(selected.billing.orderTotalCents, home)}</td>
               <td className="py-1 px-2" colSpan={3}>{reportText('r.invoiced', 'invoiced')} {formatCurrency(selected.billing.invoicedCents, home)} {reportText('r.left-3', '· left')} {formatCurrency(selected.billing.leftCents, home)}</td>
             </tr>}
           columns={[
-            { header: reportText('r.milestone', 'Milestone'), className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.label}</bdi> },
-            { header: reportText('r.percent', 'Percent'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>{row.percent}%</>) },
-            { header: reportText('r.amount', 'Amount'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.amountCents, home) },
-            { header: reportText('r.due-2', 'Due'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.due || '—' },
-            { header: reportText('r.status', 'Status'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => statusLabels[row.status] },
-            { header: reportText('r.invoiced-on', 'Invoiced on'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.invoicedAt || '—' },
+            { header: reportText('r.milestone', 'Milestone'), className: "text-start font-normal py-1 px-2", headClassName: "text-start py-1 px-2", cell: (row) => <bdi>{row.label}</bdi> },
+            { header: reportText('r.percent', 'Percent'), className: "py-1 px-2", headClassName: "text-start py-1 px-2", cell: (row) => (<>{row.percent}%</>) },
+            { header: reportText('r.amount', 'Amount'), className: "py-1 px-2", headClassName: "text-start py-1 px-2", cell: (row) => formatCurrency(row.amountCents, home) },
+            { header: reportText('r.due-2', 'Due'), className: "py-1 px-2", headClassName: "text-start py-1 px-2", cell: (row) => row.due || '—' },
+            { header: reportText('r.status', 'Status'), className: "py-1 px-2", headClassName: "text-start py-1 px-2", cell: (row) => statusLabels[row.status] },
+            { header: reportText('r.invoiced-on', 'Invoiced on'), className: "py-1 px-2", headClassName: "text-start py-1 px-2", cell: (row) => row.invoicedAt || '—' },
           ]}
         />
       </ReportTableScroll>

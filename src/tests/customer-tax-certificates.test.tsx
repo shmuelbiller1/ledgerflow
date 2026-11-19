@@ -53,7 +53,7 @@ test('read refusal retains the preview, retry reads the workspace completely and
 });
 test('customer detail action opens the exact related record without leaving the certificate list',()=>{
   useLedgerStore.setState({customers:[customer('לקוח-1')]});render(<CustomerTaxCertificatesView/>);
-  const row=within(screen.getByRole('table')).getAllByRole('row')[1];fireEvent.click(within(row).getByRole('button',{name:'Edit selected record details'}));
+  const row=within(screen.getByRole('table')).getAllByRole('row')[1];fireEvent.click(within(row).getByRole('button',{name:'Edit details'}));
   assert.deepEqual(useRecordDetailsStore.getState().target,{kind:'customers',id:'לקוח-1'});
   assert.ok(screen.getByRole('region',{name:'Customer tax certificates'}));
 });
