@@ -8,7 +8,7 @@ import { isCashAccount } from '../../lib/txFilters';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
 import { bankClearance } from '../../lib/bankClearance';
-import { csvMoney } from '../../lib/csvExport';
+import { csvMoneyForBook } from '../../lib/csvExport';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useReportText } from './useReportText';
@@ -37,6 +37,8 @@ export default function BankClearanceReportView() {
   const [to, setTo] = useState(getLocalDateISO());
   const summary = accountId && from <= to ? bankClearance(accountId, transactions || [], bankLines || [], from, to) : null;
   const money = (cents: number) => formatCurrency(cents, currency);
+  // #910 family: clearance amounts are in the book currency, so the file's decimals come from it
+  const moneyCell = csvMoneyForBook(currency);
   const clearedText = (row: ClearanceRow) =>
     row.clearedOn === null || (row.clearedOn && row.clearedOn > to) ? 'Outstanding' : row.clearedOn ? formatDate(row.clearedOn) : 'Reconciled';
   /**
@@ -119,7 +121,7 @@ export default function BankClearanceReportView() {
               label: reportText('r.export-csv', 'Export CSV'),
               headers: ['Date', 'Entry', 'In', 'Out', 'Cleared'],
               // amounts leave the app as plain decimals (`1234.50`), never the display format
-              mapRow: row => [row.date, row.description || 'Entry', row.amountCents > 0 ? csvMoney(row.amountCents) : '', row.amountCents < 0 ? csvMoney(-row.amountCents) : '', clearedText(row)],
+              mapRow: row => [row.date, row.description || 'Entry', row.amountCents > 0 ? moneyCell(row.amountCents) : '', row.amountCents < 0 ? moneyCell(-row.amountCents) : '', clearedText(row)],
             }}
             emptyState={<EmptyState title={reportText('r.no-entries-on-this-account-in-the-period', 'No entries on this account in the period')} description={reportText('r.choose-another-account-or-a-wider-period', 'Choose another account or a wider period.')} />}
             filteredEmptyState={<EmptyState title={reportText('r.no-entry-matches-your-search', 'No entry matches your search')} description={reportText('r.try-another-description-or-date', 'Try another description or date.')} />}

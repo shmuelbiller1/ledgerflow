@@ -5,6 +5,7 @@ import { useServerDepreciationLedger } from '../../hooks/useServerAssetRegister'
 import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { RowTable } from '../ui/RowTable';
 import { useReportText } from './useReportText';
+import { LoadingState } from '../ui/LoadingState';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
@@ -33,7 +34,7 @@ export default function DepreciationLedgerReportView() {
       </div>
       {ledger && <RangeReportSourceNote source={ledger.source} testId="depreciation-ledger-source" what={reportText('r.these-figures', 'these figures')} />}
       {from > to && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{reportText('r.the-period-starts-after-it-ends', 'The period starts after it ends.')}</p>}
-      {loading && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {loading && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       {!loading && from <= to && rows.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-fixed-assets-in-this-period', 'No fixed assets in this period.')}</p>}
       {rows.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">

@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { AGE_BUCKETS, type StockAge } from '../../lib/stockMoves';
 import { useReportText, fill } from './useReportText';
+import { LoadingState } from '../ui/LoadingState';
 
 const field = 'min-h-11 px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 const qty = (n: number) => (n ? String(Math.round(n * 1e6) / 1e6) : '');
@@ -37,7 +38,7 @@ export default function StockAgingReportView() {
     <section aria-labelledby="stock-aging-title" className="space-y-4">
       <h2 id="stock-aging-title" className="text-lg font-bold text-[var(--text)]">{reportText('r.stock-aging', 'Stock aging')}</h2>
       <label className="flex flex-col gap-1 text-sm text-[var(--muted)] w-fit">{reportText('r.as-of-2', 'As of')}<input type="date" value={asOf} onChange={e => setAsOf(e.target.value)} className={field} /></label>
-      {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {loading && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       {failed && <div>
         <p role="alert">{reportText('r.the-stock-history-could-not-be-read', 'The stock history could not be read:')} {error || reportText('r.missing-report-rows', 'The response did not contain report rows.')}</p>
         <button type="button" className="min-h-11 rounded border px-3" onClick={retry}>{reportText('r.retry', 'Retry')}</button>
