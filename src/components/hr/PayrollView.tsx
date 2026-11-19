@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage, ServerCommandError } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { inlineRecordAdapter } from '../../lib/inlineRecordAdapter';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { EmployeeInlineDetails } from './EmployeeInlineDetails';
@@ -240,7 +241,7 @@ const PayrollViewContent: React.FC = () => {
         : `Pay run of ${formatDate(runPayDate)} posted: ${formatCurrency(data.costCents)} total cost, ${formatCurrency(data.netCents)} paid out.`);
       setSafeTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
-      setPostError(commandErrorMessage(err));
+      setPostError(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setPosting(false);
     }

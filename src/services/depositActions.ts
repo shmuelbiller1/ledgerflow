@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import { uiLanguageNow } from '../lib/i18n/uiLanguageNow';
 import { commandErrorMessage, runCommand, writeWasAccepted } from '../lib/runCommand';
 import { depositApplication } from '../lib/advancePayments';
 import { formatCurrency } from '../lib/utils';
@@ -27,7 +28,7 @@ export async function applyEstimateDeposits(
       // invoice short and the screen claiming nothing was applied
       if (!writeWasAccepted(error)) {
         // the server's own words, so a refusal says which rule it broke
-        toast.error(commandErrorMessage(error));
+        toast.error(commandErrorMessage(error, uiLanguageNow()));
         break;
       }
     }

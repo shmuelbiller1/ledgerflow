@@ -3,6 +3,7 @@ import { twMerge } from 'tailwind-merge';
 import { toast } from 'sonner';
 import '../stores/useAuthStore';
 import { describeError } from './errorRemedies';
+import { uiLanguageNow } from './i18n/uiLanguageNow';
 import {
   addToDateISO,
   calendarDateISO,
@@ -150,7 +151,7 @@ export function reportError(error: unknown, operationType: OperationType, path: 
 
   console.error(`[FORENSIC ERROR] ${(operationType || 'UNKNOWN').toUpperCase()}:`, JSON.stringify(errInfo, null, 2));
 
-  const described = describeError(error, String(operationType || ''));
+  const described = describeError(error, String(operationType || ''), uiLanguageNow());
   toast.error(described.title, { description: described.remedy });
 
   return errInfo;

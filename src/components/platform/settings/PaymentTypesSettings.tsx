@@ -1,4 +1,5 @@
 import React, { useId, useState } from 'react';
+import { uiLanguageNow } from '../../../lib/i18n/uiLanguageNow';
 import { toast } from 'sonner';
 import { X } from 'lucide-react';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -49,7 +50,7 @@ export function PaymentTypesSettings() {
       // A cut-off answer means the server took the change; only the echo of the new list was lost, and
       // the screen re-reads it. Reporting it as refused would leave the old list up and invite a retry.
       if (writeWasAccepted(error)) return {} as { paymentTypes?: unknown };
-      throw Object.assign(new Error(commandErrorMessage(error) || 'Payment types could not be saved (owners and accountants can change them).'), { shown: true });
+      throw Object.assign(new Error(commandErrorMessage(error, uiLanguageNow()) || 'Payment types could not be saved (owners and accountants can change them).'), { shown: true });
     }).then(async (data) => {
       const paymentTypes = normalizePaymentTypes(data.paymentTypes);
       const now = useAuthStore.getState();

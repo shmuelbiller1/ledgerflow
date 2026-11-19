@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage } from '../../../lib/runCommand';
+import { uiLanguageNow } from '../../../lib/i18n/uiLanguageNow';
 import React, { useRef, useState } from 'react';
 import { CalendarClock, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -58,7 +59,7 @@ export default function ScheduledReportsSettings() {
     } catch (err) {
       if (!isCurrent()) return;
       setPreview(null);
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setBusy('');
     }
@@ -100,7 +101,7 @@ export default function ScheduledReportsSettings() {
       if (data.failed?.length) toast.error(`Sent to ${data.sent}; not sent to ${data.failed.join(', ')}`);
       else toast.success(`Sent to ${data.sent} ${data.sent === 1 ? 'address' : 'addresses'} (${data.period?.label})`);
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setBusy('');
     }

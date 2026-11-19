@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import React, { useEffect, useState } from 'react';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { MAX_SIGNER_NAME, signatureProblem, type SignState } from '../../lib/estimateSignature';
@@ -46,7 +47,7 @@ export default function PublicEstimatePage() {
       const body = await runCommand<{ signedBy?: string; signedAt?: string }>({ path: `/api/v1/invoices/public/estimate/${encodeURIComponent(token)}/sign`, method: 'POST', token: null, body: { name: name.trim(), agree } });
       setView(v => v && { ...v, state: 'signed', signedBy: body.signedBy, signedAt: body.signedAt });
     } catch (err) {
-      setProblem(commandErrorMessage(err));
+      setProblem(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setBusy(false);
     }

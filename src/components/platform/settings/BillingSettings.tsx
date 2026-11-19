@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage } from '../../../lib/runCommand';
+import { uiLanguageNow } from '../../../lib/i18n/uiLanguageNow';
 import React, { useEffect, useState } from 'react';
 import { PLANS, planFor } from '../../../lib/plans';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -83,7 +84,7 @@ export default function BillingSettings() {
         throw new Error(data.message || 'Failed to create checkout session');
       }
     } catch (e) {
-      toast.error('Checkout Error', { description: commandErrorMessage(e) });
+      toast.error('Checkout Error', { description: commandErrorMessage(e, uiLanguageNow()) });
     }
   };
 
@@ -103,7 +104,7 @@ export default function BillingSettings() {
         throw new Error(data.message || 'Customer portal unavailable');
       }
     } catch (e) {
-      toast.error('Portal Error', { description: commandErrorMessage(e) });
+      toast.error('Portal Error', { description: commandErrorMessage(e, uiLanguageNow()) });
     }
   };
 

@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
@@ -82,7 +83,7 @@ export default function PayrollImportDialog({ workspaceId, accounts, dimensions,
       } catch (error) {
         if (mine !== requestSeq.current) return;
         const refusal = error instanceof ServerCommandError ? error.body as { message?: string; problems?: unknown[] } | null : null;
-        setServerProblems([String(refusal?.message || commandErrorMessage(error)), ...(Array.isArray(refusal?.problems) ? refusal.problems.map(String) : [])]);
+        setServerProblems([String(refusal?.message || commandErrorMessage(error, uiLanguageNow())), ...(Array.isArray(refusal?.problems) ? refusal.problems.map(String) : [])]);
         return;
       }
       if (mine !== requestSeq.current) return;

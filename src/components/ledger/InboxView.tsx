@@ -1,4 +1,5 @@
 import { reviewKeys } from '../../lib/reviewKeys';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import React, { useState, useMemo, useRef } from 'react';
 import { CheckCircle2, CheckSquare, Zap, AlertCircle, HelpCircle, Check, BrainCircuit, MessageSquare, Layers, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
@@ -154,7 +155,7 @@ export default function InboxView() {
       // A cut-off answer means the batch was applied; only a refusal leaves the entries unaccepted. Carrying
       // on below with the patch we sent is the honest reading of a 2xx whose body was cut in half.
       if (!writeWasAccepted(error)) {
-        toast.error(commandErrorMessage(error));
+        toast.error(commandErrorMessage(error, uiLanguageNow()));
         return false;
       }
     }

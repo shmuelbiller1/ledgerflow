@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
@@ -34,7 +35,7 @@ async function callOpenItems(mode: 'preview' | 'confirm', body: { workspaceId: s
     const refusal = (body && typeof body === 'object' ? body : {}) as { message?: string; rows?: OpenItemRow[] };
     return {
       status: 'error',
-      message: refusal.message || commandErrorMessage(error),
+      message: refusal.message || commandErrorMessage(error, uiLanguageNow()),
       rows: Array.isArray(refusal.rows) ? refusal.rows : [],
     };
   }
