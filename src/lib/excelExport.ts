@@ -136,7 +136,8 @@ export async function buildReportWorkbook(
 
 function excelDateISO(d: Date): string {
   if (Number.isNaN(d.getTime())) return '';
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  // an Excel date cell is midnight UTC of the day it shows, so its ISO day is the day typed
+  return d.toISOString().slice(0, 10);
 }
 
 function extractRichText(value: unknown): string {
