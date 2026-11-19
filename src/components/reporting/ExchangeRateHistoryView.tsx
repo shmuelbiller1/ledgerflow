@@ -8,6 +8,7 @@ import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import ReportTableScroll from './ReportTableScroll';
 import { byCodeUnit } from '../../lib/codeUnitOrder';
 import { RowTable } from '../ui/RowTable';
+import { useReportText, fill } from './useReportText';
 
 interface RatedDoc { currency?: string; exchangeRate?: number; date?: string }
 
@@ -17,6 +18,7 @@ interface RatedDoc { currency?: string; exchangeRate?: number; date?: string }
  * journal entries themselves.
  */
 export default function ExchangeRateHistoryView({ startDate = '', endDate = '' }: { startDate?: string; endDate?: string }) {
+  const reportText = useReportText();
   const invoices = useLedgerStore(s => s.invoices);
   const bills = useLedgerStore(s => s.bills);
   const payments = useLedgerStore(s => s.payments);
@@ -40,24 +42,24 @@ export default function ExchangeRateHistoryView({ startDate = '', endDate = '' }
   const rates = uses.map(u => u.rate);
 
   return (
-    <section aria-label="Exchange rates used" className="p-4 space-y-4 min-w-0">
-      <h2>Exchange rates used</h2>
-      <p>{startDate} – {endDate}. The rates the books were posted at for each foreign currency ({home} for 1 unit), by day, from the documents and journal entries themselves.</p>
+    <section aria-label={reportText('r.exchange-rates-used', 'Exchange rates used')} className="p-4 space-y-4 min-w-0">
+      <h2>{reportText('r.exchange-rates-used', 'Exchange rates used')}</h2>
+      <p>{startDate} – {endDate}{reportText('r.the-rates-the-books-were-posted-at-for-each-fore', '. The rates the books were posted at for each foreign currency (')}{home} {reportText('r.for-1-unit-by-day-from-the-documents-and-journal', 'for 1 unit), by day, from the documents and journal entries themselves.')}</p>
       {currencies.length > 1 && (
         <label className="inline-flex items-center gap-2 text-sm">
-          Currency
+          {reportText('r.currency-2', 'Currency')}
           <select value={currency} onChange={e => setChosen(e.target.value)} className="p-1 border border-[var(--line)] rounded bg-[var(--panel)]">
             {currencies.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </label>
       )}
-      {loading && <p role="status">Loading documents…</p>}
-      {!valid && <p role="alert">Choose a valid report period.</p>}
-      {(truncated.invoices || truncated.bills || truncated.payments || truncated.transactions || failed.transactions) && <p role="alert">Loaded history is incomplete. These rates are provisional.</p>}
+      {loading && <p role="status">{reportText('r.loading-documents', 'Loading documents…')}</p>}
+      {!valid && <p role="alert">{reportText('r.choose-a-valid-report-period', 'Choose a valid report period.')}</p>}
+      {(truncated.invoices || truncated.bills || truncated.payments || truncated.transactions || failed.transactions) && <p role="alert">{reportText('r.loaded-history-is-incomplete-these-rates-are-pro', 'Loaded history is incomplete. These rates are provisional.')}</p>}
       {valid && !loading && (
         <ReportTableScroll>
           <RowTable
-            caption={currency ? `${currency} rates used: ${startDate} – ${endDate}` : `Exchange rates used: ${startDate} – ${endDate}`}
+            caption={currency ? fill(reportText('r.0-rates-used-1-2', '{0} rates used: {1} – {2}'), { 0: currency, 1: startDate, 2: endDate }) : fill(reportText('r.exchange-rates-used-0-1', 'Exchange rates used: {0} – {1}'), { 0: startDate, 1: endDate })}
             rows={uses}
             rowKey={u => `${u.date}-${u.rate}`}
             captionClassName=""
@@ -65,14 +67,14 @@ export default function ExchangeRateHistoryView({ startDate = '', endDate = '' }
             headRowClassName=""
             bodyClassName=""
             columns={[
-              { header: "Date", className: "text-left", headClassName: "text-left", cell: (u) => u.date },
-              { header: (<>{home} for 1 {currency || '…'}</>), className: "text-right font-mono", headClassName: "", cell: (u) => u.rate },
-              { header: "Documents", className: "text-right", headClassName: "", cell: (u) => u.count },
+              { header: reportText('r.date-2', 'Date'), className: "text-left", headClassName: "text-left", cell: (u) => u.date },
+              { header: (<>{home} {reportText('r.for-1', 'for 1')} {currency || '…'}</>), className: "text-right font-mono", headClassName: "", cell: (u) => u.rate },
+              { header: reportText('r.documents-heading', 'Documents'), className: "text-right", headClassName: "", cell: (u) => u.count },
             ]}
           />
-          {currencies.length === 0 && <p>No document in another currency yet.</p>}
-          {currencies.length > 0 && uses.length === 0 && <p>No {currency} rate was used in this period.</p>}
-          {rates.length > 1 && <p className="text-xs text-[var(--muted)]">Lowest {Math.min(...rates)}, highest {Math.max(...rates)}, latest {uses[0].rate} ({uses[0].date}).</p>}
+          {currencies.length === 0 && <p>{reportText('r.no-document-in-another-currency-yet', 'No document in another currency yet.')}</p>}
+          {currencies.length > 0 && uses.length === 0 && <p>{fill(reportText('r.no-currency-rate-used', 'No {0} rate was used in this period.'), { 0: currency })}</p>}
+          {rates.length > 1 && <p className="text-xs text-[var(--muted)]">{reportText('r.lowest-2', 'Lowest')} {Math.min(...rates)}{reportText('r.highest-2', ', highest')} {Math.max(...rates)}{reportText('r.latest', ', latest')} {uses[0].rate} ({uses[0].date}).</p>}
         </ReportTableScroll>
       )}
     </section>

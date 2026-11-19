@@ -15,6 +15,7 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { NOTE_COLLECTIONS, noteCountsByType, notePreview, recordNotesFromMetadata, searchRecordNotes, type NoteableType, type NoteCollection, type RecordNote } from '../../lib/recordNotes';
 import RecordNotesPanel from '../common/RecordNotesPanel';
 import ReportTableScroll from './ReportTableScroll';
+import { useReportText, fill } from './useReportText';
 
 interface CatalogRow {
   entityType: NoteableType;
@@ -37,6 +38,7 @@ type LoadedRecord = {
 const recordName = (r: LoadedRecord) => String(r.name || r.number || r.description || r.id);
 
 export default function RecordNotesReportView() {
+  const reportText = useReportText();
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const canEdit = useCurrentRole() !== 'viewer';
   const truncated = useLedgerStore(s => s.truncatedCollections);
@@ -95,36 +97,34 @@ export default function RecordNotesReportView() {
   });
 
   return (
-    <section aria-label="Record notes" className="p-4 space-y-4 min-w-0">
-      <h2>Record notes</h2>
+    <section aria-label={reportText('r.record-notes', 'Record notes')} className="p-4 space-y-4 min-w-0">
+      <h2>{reportText('r.record-notes', 'Record notes')}</h2>
       <p className="text-sm text-[var(--muted)]">
-        Every note kept on a customer, vendor, item, invoice, bill, estimate, entry or project, with who wrote it and
-        when. Search finds a note by any word in it, its author or its record. Notes are kept on each record and never
-        change an amount; a change to a document in a locked period is refused by the period lock.
+        {reportText('r.every-note-kept-on-a-customer-vendor-item-invoic', 'Every note kept on a customer, vendor, item, invoice, bill, estimate, entry or project, with who wrote it and when. Search finds a note by any word in it, its author or its record. Notes are kept on each record and never change an amount; a change to a document in a locked period is refused by the period lock.')}
       </p>
 
-      {loading && <p role="status" className="text-sm text-[var(--muted)]">Loading records…</p>}
+      {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-records', 'Loading records…')}</p>}
       {partial && <p role="alert" className="text-sm text-[var(--muted)]">
-        Some lists are capped or failed at the database. Notes on records outside the loaded part are not shown here.
+        {reportText('r.some-lists-are-capped-or-failed-at-the-database', 'Some lists are capped or failed at the database. Notes on records outside the loaded part are not shown here.')}
       </p>}
 
       <div className="flex flex-wrap items-end gap-3" data-print-hide>
-        <label className="flex flex-col gap-1 text-sm">Search every note
-          <input type="search" aria-label="Search every note" value={query} onChange={e => setQuery(e.target.value)}
-            placeholder="A word, an author or a record" dir="auto"
+        <label className="flex flex-col gap-1 text-sm">{reportText('r.search-every-note', 'Search every note')}
+          <input type="search" aria-label={reportText('r.search-every-note', 'Search every note')} value={query} onChange={e => setQuery(e.target.value)}
+            placeholder={reportText('r.a-word-an-author-or-a-record', 'A word, an author or a record')} dir="auto"
             className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)] w-72" />
         </label>
         <p className="text-sm text-[var(--muted)]">
-          {allNotes.length} note(s) recorded{query.trim() ? ` · ${matches.length} match this search` : ''}
+          {allNotes.length} {reportText('r.note-s-recorded', 'note(s) recorded')}{query.trim() ? ` ${fill(reportText('r.0-match-this-search', '· {0} match this search'), { 0: matches.length })}` : ''}
         </p>
       </div>
 
       {query.trim() && (
         <ReportTableScroll>
           <table className="w-full text-sm">
-            <caption>Notes matching the search</caption>
+            <caption>{reportText('r.notes-matching-the-search', 'Notes matching the search')}</caption>
             <thead>
-              <tr>{['Note', 'Author', 'Record', 'Kind', 'When'].map(head =>
+              <tr>{[reportText('r.note', 'Note'), reportText('r.author', 'Author'), reportText('r.record', 'Record'), reportText('r.kind', 'Kind'), reportText('r.when', 'When')].map(head =>
                 <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
             </thead>
             <tbody>
@@ -136,7 +136,7 @@ export default function RecordNotesReportView() {
                     <td className="py-1 px-2"><bdi>{note.authorName || '—'}</bdi></td>
                     <td className="py-1 px-2">
                       <button type="button" className="text-left hover:underline" dir="auto"
-                        aria-label={`Open notes on ${nameOfNote(note)}`}
+                        aria-label={fill(reportText('r.open-notes-on-0', 'Open notes on {0}'), { 0: nameOfNote(note) })}
                         onClick={() => {
                           if (!row) return;
                           setType(row.entityType);
@@ -152,27 +152,27 @@ export default function RecordNotesReportView() {
               })}
             </tbody>
           </table>
-          {matches.length === 0 && <p className="text-sm text-[var(--muted)]">No note matches this search.</p>}
+          {matches.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-note-matches-this-search', 'No note matches this search.')}</p>}
         </ReportTableScroll>
       )}
 
       <div className="flex flex-wrap items-end gap-3" data-print-hide>
-        <label className="flex flex-col gap-1 text-sm">Record kind
-          <select aria-label="Record kind" className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
+        <label className="flex flex-col gap-1 text-sm">{reportText('r.record-kind', 'Record kind')}
+          <select aria-label={reportText('r.record-kind', 'Record kind')} className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
             value={type} onChange={e => { setType(e.target.value as NoteableType); setSelectedId(''); }}>
             {(Object.keys(TYPE_LABELS) as NoteableType[]).map(t =>
               <option key={t} value={t}>{TYPE_LABELS[t]} ({counts[t]})</option>)}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm">Record
-          <select aria-label="Record" className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)] max-w-md"
+        <label className="flex flex-col gap-1 text-sm">{reportText('r.record', 'Record')}
+          <select aria-label={reportText('r.record', 'Record')} className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)] max-w-md"
             value={selected?.entityId || ''} onChange={e => setSelectedId(e.target.value)}>
             {ofType.map(row => <option key={row.entityId} value={row.entityId}>{row.name}</option>)}
           </select>
         </label>
       </div>
 
-      {ofType.length === 0 && <p className="text-sm text-[var(--muted)]">No {TYPE_LABELS[type].toLocaleLowerCase()} are loaded for this workspace.</p>}
+      {ofType.length === 0 && <p className="text-sm text-[var(--muted)]">{fill(reportText('r.no-records-of-kind-loaded', 'No {0} are loaded for this workspace.'), { 0: TYPE_LABELS[type].toLocaleLowerCase() })}</p>}
       {selected && (
         <div className="border border-[var(--line)] rounded p-3 max-w-3xl">
           <RecordNotesPanel key={`${selected.entityType}:${selected.entityId}`}

@@ -8,6 +8,7 @@ import ReportEmptyState from './ReportEmptyState';
 import { BRAND_NAME } from '../../config/brand';
 import { runCommand } from '../../lib/runCommand';
 import { RowTable } from '../ui/RowTable';
+import { useReportText, fill } from './useReportText';
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
 /**
@@ -17,6 +18,7 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
  * Read only: LedgerFlow's figures come from the server's trial balance report; nothing is changed.
  */
 export default function ImportAcceptanceView() {
+  const reportText = useReportText();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const accounts = useLedgerStore(s => s.accounts);
   const [asOf, setAsOf] = useState(getLocalDateISO());
@@ -47,39 +49,39 @@ export default function ImportAcceptanceView() {
 
   return (
     <section aria-labelledby="import-acceptance-title" className="space-y-4">
-      <h2 id="import-acceptance-title" className="text-lg font-bold text-[var(--text)]">Import acceptance</h2>
-      <p className="text-sm text-[var(--muted)]">Upload the old system's trial balance for the date the books moved (QuickBooks: Reports → Trial Balance → Export to CSV). Each account and the main totals are set against {BRAND_NAME}'s on the same date.</p>
+      <h2 id="import-acceptance-title" className="text-lg font-bold text-[var(--text)]">{reportText('r.import-acceptance', 'Import acceptance')}</h2>
+      <p className="text-sm text-[var(--muted)]">{reportText('r.upload-the-old-system-s-trial-balance-for-the-da', 'Upload the old system\'s trial balance for the date the books moved (QuickBooks: Reports → Trial Balance → Export to CSV). Each account and the main totals are set against')} {BRAND_NAME}{reportText('r.s-on-the-same-date', '\'s on the same date.')}</p>
       <div className="flex flex-wrap items-end gap-3 text-sm">
-        <label className="flex flex-col gap-1 text-[var(--muted)]">Source trial balance (CSV)
+        <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.source-trial-balance-csv', 'Source trial balance (CSV)')}
           <input type="file" accept=".csv,text/csv" onChange={e => { void readFile(e.target.files?.[0]); }} className="text-[var(--text)]" />
         </label>
-        <label className="flex flex-col gap-1 text-[var(--muted)]">As of<input type="date" value={asOf} onChange={e => setAsOf(e.target.value)} className={field} /></label>
+        <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.as-of-2', 'As of')}<input type="date" value={asOf} onChange={e => setAsOf(e.target.value)} className={field} /></label>
       </div>
-      {source && source.data.lines.length === 0 && <p role="alert" className="text-sm text-rose-600">{source.data.problems[0] || 'The file has no account lines'}</p>}
-      {key && !shown && <p className="text-sm text-[var(--muted)]">Loading…</p>}
+      {source && source.data.lines.length === 0 && <p role="alert" className="text-sm text-rose-600">{source.data.problems[0] || reportText('r.the-file-has-no-account-lines', 'The file has no account lines')}</p>}
+      {key && !shown && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
       {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
-      {!source && !key && <ReportEmptyState title="No source trial balance yet"
-        description="Export a trial balance CSV from the old system for the move date, choose that date here, then upload the file. The comparison is read-only and does not change the books." />}
+      {!source && !key && <ReportEmptyState title={reportText('r.no-source-trial-balance-yet', 'No source trial balance yet')}
+        description={reportText('r.export-a-trial-balance-csv-from-the-old-system-f', 'Export a trial balance CSV from the old system for the move date, choose that date here, then upload the file. The comparison is read-only and does not change the books.')} />}
       {acceptance && source && source.data.lines.length > 0 && (
         <div className="space-y-3" data-testid="import-acceptance">
           <p role="status" className={`text-sm font-semibold ${acceptance.accepted ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
             {acceptance.accepted
-              ? `Accepted: every account in ${source.name} agrees with ${BRAND_NAME} on ${asOf}.`
-              : `Not accepted yet: ${acceptance.differences.length} account${acceptance.differences.length === 1 ? '' : 's'} differ${acceptance.differences.length === 1 ? 's' : ''}${acceptance.problems.length ? `, and the file has ${acceptance.problems.length} problem${acceptance.problems.length === 1 ? '' : 's'}` : ''}.`}
+              ? fill(reportText('r.accepted-every-account-in-0-agrees-with-1-on-2', 'Accepted: every account in {0} agrees with {1} on {2}.'), { 0: source.name, 1: BRAND_NAME, 2: asOf })
+              : `${acceptance.differences.length === 1 ? fill(reportText('r.not-accepted-one', 'Not accepted yet: {0} account differs'), { 0: acceptance.differences.length }) : fill(reportText('r.not-accepted-many', 'Not accepted yet: {0} accounts differ'), { 0: acceptance.differences.length })}${acceptance.problems.length ? (acceptance.problems.length === 1 ? fill(reportText('r.file-problem-one', ', and the file has {0} problem'), { 0: acceptance.problems.length }) : fill(reportText('r.file-problem-many', ', and the file has {0} problems'), { 0: acceptance.problems.length })) : ''}.`}
           </p>
           {acceptance.problems.map(p => <p key={p} className="text-xs text-amber-700 dark:text-amber-400">{p}</p>)}
           <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
             <table className="w-full text-sm">
-              <caption className="text-left font-semibold text-[var(--text)] pb-1">Totals on {asOf}</caption>
+              <caption className="text-left font-semibold text-[var(--text)] pb-1">{reportText('r.totals-on', 'Totals on')} {asOf}</caption>
               <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                <th scope="col" className="text-left font-semibold py-1">Total</th><th scope="col" className="text-right font-semibold py-1">Source</th>
-                <th scope="col" className="text-right font-semibold py-1">{BRAND_NAME}</th><th scope="col" className="text-right font-semibold py-1">Difference</th>
+                <th scope="col" className="text-left font-semibold py-1">{reportText('r.total', 'Total')}</th><th scope="col" className="text-right font-semibold py-1">{reportText('r.source', 'Source')}</th>
+                <th scope="col" className="text-right font-semibold py-1">{BRAND_NAME}</th><th scope="col" className="text-right font-semibold py-1">{reportText('r.col-difference', 'Difference')}</th>
               </tr></thead>
               <tbody>{acceptance.checks.map(c => (
                 <tr key={c.key} className="border-b border-[var(--line)]/50">
                   <th scope="row" className="text-left font-normal py-1">{c.label}</th>
                   <td className="text-right font-mono py-1">{money(c.sourceCents)}</td><td className="text-right font-mono py-1">{money(c.ledgerCents)}</td>
-                  <td className={`text-right font-mono py-1 ${c.differenceCents ? 'text-rose-600' : ''}`}>{c.differenceCents ? money(c.differenceCents) : 'agrees'}</td>
+                  <td className={`text-right font-mono py-1 ${c.differenceCents ? 'text-rose-600' : ''}`}>{c.differenceCents ? money(c.differenceCents) : reportText('r.agrees', 'agrees')}</td>
                 </tr>
               ))}</tbody>
             </table>
@@ -88,7 +90,7 @@ export default function ImportAcceptanceView() {
             <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
               <RowTable
                 rowClassName="border-b border-[var(--line)]/50"
-                caption={(<>Accounts that differ (balances as debits; credits are negative). {acceptance.agreeing} agree.</>)}
+                caption={(<>{reportText('r.accounts-that-differ-balances-as-debits-credits', 'Accounts that differ (balances as debits; credits are negative).')} {acceptance.agreeing} {reportText('r.agree', 'agree.')}</>)}
                 rows={acceptance.differences}
                 rowKey={d => d.label}
                 captionClassName="text-left font-semibold text-[var(--text)] pb-1"
@@ -96,11 +98,11 @@ export default function ImportAcceptanceView() {
                 headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
                 bodyClassName=""
                 columns={[
-                  { header: "Account", className: "text-left font-normal py-1", headClassName: "text-left font-semibold py-1", cell: (d) => <bdi>{d.label}</bdi> },
-                  { header: "Why", className: "py-1", headClassName: "text-left font-semibold py-1", cell: (d) => d.why },
-                  { header: "Source", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (d) => money(d.sourceCents) },
+                  { header: reportText('r.account', 'Account'), className: "text-left font-normal py-1", headClassName: "text-left font-semibold py-1", cell: (d) => <bdi>{d.label}</bdi> },
+                  { header: reportText('r.why', 'Why'), className: "py-1", headClassName: "text-left font-semibold py-1", cell: (d) => d.why },
+                  { header: reportText('r.source', 'Source'), align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (d) => money(d.sourceCents) },
                   { header: BRAND_NAME, align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (d) => money(d.ledgerCents) },
-                  { header: "Difference", align: 'right', className: "font-mono py-1 text-rose-600", headClassName: "font-semibold py-1", cell: (d) => money(d.differenceCents) },
+                  { header: reportText('r.col-difference', 'Difference'), align: 'right', className: "font-mono py-1 text-rose-600", headClassName: "font-semibold py-1", cell: (d) => money(d.differenceCents) },
                 ]}
               />
             </div>

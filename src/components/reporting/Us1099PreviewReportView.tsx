@@ -7,6 +7,10 @@ import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
 import { RowTable } from '../ui/RowTable';
+import { useReportText } from './useReportText';
+
+/** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
+const CODE_NAMES = { c0: 'filingReady false', c1: 'IRS 1099 filing guide', c2: 'i1099mec', c3: 'src/lib/tax/us1099Preview.ts', c4: '1099-NEC', c5: '1099-MISC', c6: '1a', c7: 'USD', c8: '1096' } as const;
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const CSV_HEADERS = ['Tax year', 'Form', 'Box', 'Vendor', 'Name', 'TIN (masked/missing)', 'Amount', 'Note'] as const;
@@ -18,6 +22,7 @@ type TotalsInput = { vendorId: string; vendorName: string; form: '1099-NEC' | '1
  * Thresholds from IRS instructions; filingReady false; TIN last-4 only.
  */
 export default function Us1099PreviewReportView() {
+  const reportText = useReportText();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const payments = useLedgerStore(s => s.payments);
   const vendors = useLedgerStore(s => s.vendors);
@@ -77,52 +82,52 @@ export default function Us1099PreviewReportView() {
     try { return threshold1099Cents(taxYear, form, box); } catch { return null; }
   }, [taxYear, form, box]);
 
-  return <section aria-label="US 1099 preview" className="p-4 space-y-4 min-w-0">
+  return <section aria-label={reportText('r.us-1099-preview', 'US 1099 preview')} className="p-4 space-y-4 min-w-0">
     <div className="space-y-1">
-      <h2>US 1099 Preview (review only)</h2>
+      <h2>{reportText('r.us-1099-preview-review-only', 'US 1099 Preview (review only)')}</h2>
       <p className="text-sm text-[var(--muted)]">
-        Conservative draft from <b>posted payments to vendors marked as 1099 vendors</b> — not an IRS paper form or IRIS upload. Payer/recipient TINs, state data, corrections and specialized boxes need the tax workflow. Thresholds: <b>{threshold !== null ? formatCurrency(threshold, workspace?.currency || 'USD') : '—'}</b> for {form} box {box} in {taxYear} (the IRS thresholds in force for that year). <b>filingReady false</b> — deliberately not for filing.
+        {reportText('r.conservative-draft-from', 'Conservative draft from')} <b>{reportText('r.posted-payments-to-vendors-marked-as-1099-vendor', 'posted payments to vendors marked as 1099 vendors')}</b> {reportText('r.not-an-irs-paper-form-or-iris-upload-payer-recip', '— not an IRS paper form or IRIS upload. Payer/recipient TINs, state data, corrections and specialized boxes need the tax workflow. Thresholds:')} <b>{threshold !== null ? formatCurrency(threshold, workspace?.currency || 'USD') : '—'}</b> {reportText('r.for', 'for')} {form} {reportText('r.box-2', 'box')} {box} {reportText('r.in', 'in')} {taxYear} {reportText('r.the-irs-thresholds-in-force-for-that-year', '(the IRS thresholds in force for that year).')} <b>{CODE_NAMES.c0}</b> {reportText('r.deliberately-not-for-filing', '— deliberately not for filing.')}
       </p>
-      <p className="text-xs text-[var(--muted)]">Sources: <a className="underline" href="https://www.irs.gov/businesses/small-businesses-self-employed/am-i-required-to-file-a-form-1099-or-other-information-return" target="_blank" rel="noopener noreferrer">IRS 1099 filing guide</a> and <a className="underline" href="https://www.irs.gov/instructions/i1099mec" target="_blank" rel="noopener noreferrer">i1099mec</a>. Box 2 royalties $10, box 10 attorney $600, otherwise {taxYear >= 2026 ? '$2,000' : '$600'} — see <code>src/lib/tax/us1099Preview.ts</code>.</p>
+      <p className="text-xs text-[var(--muted)]">{reportText('r.sources', 'Sources:')} <a className="underline" href="https://www.irs.gov/businesses/small-businesses-self-employed/am-i-required-to-file-a-form-1099-or-other-information-return" target="_blank" rel="noopener noreferrer">{CODE_NAMES.c1}</a> {reportText('r.and', 'and')} <a className="underline" href="https://www.irs.gov/instructions/i1099mec" target="_blank" rel="noopener noreferrer">{CODE_NAMES.c2}</a>{reportText('r.box-2-royalties-10-box-10-attorney-600-otherwise', '. Box 2 royalties $10, box 10 attorney $600, otherwise')} {taxYear >= 2026 ? '$2,000' : '$600'} {reportText('r.see', '— see')} <code>{CODE_NAMES.c3}</code>.</p>
     </div>
 
     <div className="flex flex-wrap gap-3 items-end p-3 rounded-lg border border-[var(--line)] bg-[var(--surface)]">
-      <label className="block text-sm">Tax year
+      <label className="block text-sm">{reportText('r.tax-year', 'Tax year')}
         <input type="number" className={field + ' mt-1'} value={taxYear} onChange={e => setTaxYear(Number(e.target.value) || new Date().getFullYear())} min={2020} max={2099} />
       </label>
-      <label className="block text-sm">Form
+      <label className="block text-sm">{reportText('r.form', 'Form')}
         <select className={field + ' mt-1'} value={form} onChange={e => { const v = e.target.value as typeof form; setForm(v); setBox(v === '1099-NEC' ? '1a' : '1'); setManualEdits(null); }}>
-          <option value="1099-NEC">1099-NEC</option>
-          <option value="1099-MISC">1099-MISC</option>
+          <option value="1099-NEC">{CODE_NAMES.c4}</option>
+          <option value="1099-MISC">{CODE_NAMES.c5}</option>
         </select>
       </label>
-      <label className="block text-sm">Box
+      <label className="block text-sm">{reportText('r.box', 'Box')}
         <select className={field + ' mt-1'} value={box} onChange={e => { setBox(e.target.value as typeof box); setManualEdits(null); }}>
-          {form === '1099-NEC' ? <option value="1a">1a</option> : ['1', '2', '3', '10'].map(b => <option key={b} value={b}>{b}</option>)}
+          {form === '1099-NEC' ? <option value="1a">{CODE_NAMES.c6}</option> : ['1', '2', '3', '10'].map(b => <option key={b} value={b}>{b}</option>)}
         </select>
       </label>
       <label className="flex items-center gap-2 text-sm min-h-11">
         <input type="checkbox" checked={usePosted} onChange={e => { setUsePosted(e.target.checked); setManualEdits(null); }} />
-        Only posted outgoing payments
+        {reportText('r.only-posted-outgoing-payments', 'Only posted outgoing payments')}
       </label>
-      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!preview || !preview.forms.length} onClick={() => preview && downloadCsv(`us-1099-preview-${taxYear}`, [...CSV_HEADERS], us1099ReviewCsvRows(preview))}>Export review CSV</button>
-      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={() => setManualEdits(null)}>Reset to workspace payments</button>
+      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!preview || !preview.forms.length} onClick={() => preview && downloadCsv(`us-1099-preview-${taxYear}`, [...CSV_HEADERS], us1099ReviewCsvRows(preview))}>{reportText('r.export-review-csv', 'Export review CSV')}</button>
+      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={() => setManualEdits(null)}>{reportText('r.reset-to-workspace-payments', 'Reset to workspace payments')}</button>
     </div>
 
-    {loading && <p role="status">Loading vendors and payments…</p>}
-    {!loading && !derivedTotals.length && !manualEdits && <p className="text-sm text-[var(--muted)]">No posted outgoing payments in {taxYear} in {workspace?.currency || 'USD'} to preview. Mark a vendor as a 1099 vendor, post a payment to them and set a TIN to see it here. The review below is empty until payments exist.</p>}
+    {loading && <p role="status">{reportText('r.loading-vendors-and-payments', 'Loading vendors and payments…')}</p>}
+    {!loading && !derivedTotals.length && !manualEdits && <p className="text-sm text-[var(--muted)]">{reportText('r.no-posted-outgoing-payments-in', 'No posted outgoing payments in')} {taxYear} {reportText('r.in', 'in')} {workspace?.currency || CODE_NAMES.c7} {reportText('r.to-preview-mark-a-vendor-as-a-1099-vendor-post-a', 'to preview. Mark a vendor as a 1099 vendor, post a payment to them and set a TIN to see it here. The review below is empty until payments exist.')}</p>}
 
     {preview && <>
       <div className="rounded border border-[var(--line)] p-3 bg-[var(--panel)] text-sm space-y-1">
-        <p><b>{preview.forms.length} form(s) at or above</b> {threshold !== null ? formatCurrency(threshold, workspace?.currency || 'USD') : 'threshold'} · <b>{preview.excluded} excluded</b> below threshold · <b>filingReady:</b> {String(preview.filingReady)} — NOT for filing</p>
-        <p className="text-xs text-[var(--muted)]">Each vendor+form+box has its total summed before the threshold is applied; vendor+box pairs below threshold are counted in excluded, not shown as forms. Totals are whole cents; unsafe totals throw.</p>
-        {preview.form1096.map(f => <p key={f.form} className="text-xs">1096 {f.form}: {f.forms} form(s), total {formatCurrency(f.totalCents, workspace?.currency || 'USD')} in {f.taxYear}</p>)}
+        <p><b>{preview.forms.length} {reportText('r.form-s-at-or-above', 'form(s) at or above')}</b> {threshold !== null ? formatCurrency(threshold, workspace?.currency || 'USD') : reportText('r.threshold-2', 'threshold')} · <b>{preview.excluded} {reportText('r.excluded', 'excluded')}</b> {reportText('r.below-threshold', 'below threshold ·')} <b>{reportText('r.filingready', 'filingReady:')}</b> {String(preview.filingReady)} {reportText('r.not-for-filing', '— NOT for filing')}</p>
+        <p className="text-xs text-[var(--muted)]">{reportText('r.each-vendor-form-box-has-its-total-summed-before', 'Each vendor+form+box has its total summed before the threshold is applied; vendor+box pairs below threshold are counted in excluded, not shown as forms. Totals are whole cents; unsafe totals throw.')}</p>
+        {preview.form1096.map(f => <p key={f.form} className="text-xs">{CODE_NAMES.c8} {f.form}: {f.forms} {reportText('r.form-s-total', 'form(s), total')} {formatCurrency(f.totalCents, workspace?.currency || 'USD')} {reportText('r.in', 'in')} {f.taxYear}</p>)}
       </div>
 
       <ReportTableScroll>
         <RowTable
           rowClassName="border-b border-[var(--line)]/50"
-          caption={(<>1099 drafts that meet the threshold — review only, NOT IRIS</>)}
+          caption={(<>{reportText('r.1099-drafts-that-meet-the-threshold-review-only', '1099 drafts that meet the threshold — review only, NOT IRIS')}</>)}
           rows={preview.forms}
           rowKey={row => `${row.vendorId}-${row.form}-${row.box}`}
           captionClassName="text-left font-semibold text-[var(--text)] pb-1"
@@ -130,40 +135,40 @@ export default function Us1099PreviewReportView() {
           headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
           bodyClassName=""
           columns={[
-            { header: "Vendor", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<><bdi>{row.vendorName}</bdi><div className="text-xs text-[var(--muted)]"><code>{row.vendorId}</code></div></>) },
-            { header: "Form/Box", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>{row.form} · {row.box}</>) },
-            { header: "Amount", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.amountCents, workspace?.currency || 'USD') },
-            { header: "Threshold", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.thresholdCents, workspace?.currency || 'USD') },
-            { header: "TIN (last 4)", className: "py-1 px-2 font-mono", headClassName: "text-left py-1 px-2", cell: (row) => row.tinLastFour ? `****${row.tinLastFour}` : 'MISSING' },
-            { header: "Needs details", className: "py-1 px-2 text-xs", headClassName: "text-left py-1 px-2", cell: (row) => row.needsTaxDetails ? 'Yes — needs payer/recipient details, state, corrections before filing' : 'No' },
+            { header: reportText('r.vendor', 'Vendor'), className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<><bdi>{row.vendorName}</bdi><div className="text-xs text-[var(--muted)]"><code>{row.vendorId}</code></div></>) },
+            { header: reportText('r.form-box', 'Form/Box'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => (<>{row.form} · {row.box}</>) },
+            { header: reportText('r.amount', 'Amount'), className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.amountCents, workspace?.currency || 'USD') },
+            { header: reportText('r.threshold', 'Threshold'), className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.thresholdCents, workspace?.currency || 'USD') },
+            { header: reportText('r.tin-last-4', 'TIN (last 4)'), className: "py-1 px-2 font-mono", headClassName: "text-left py-1 px-2", cell: (row) => row.tinLastFour ? `****${row.tinLastFour}` : 'MISSING' },
+            { header: reportText('r.needs-details', 'Needs details'), className: "py-1 px-2 text-xs", headClassName: "text-left py-1 px-2", cell: (row) => row.needsTaxDetails ? 'Yes — needs payer/recipient details, state, corrections before filing' : 'No' },
           ]}
         />
       </ReportTableScroll>
 
       {/* Manual totals editor for demo/review */}
       <details className="rounded border border-[var(--line)] p-2">
-        <summary className="min-h-11 cursor-pointer content-center font-semibold">Edit totals for this preview (review only, not saved)</summary>
-        <p className="text-xs text-[var(--muted)]">Totals here are the aggregated vendor payments for the chosen form/box/year. Editing does not change payments; it previews what the 1099 check sees. TIN shows last 4 only.</p>
+        <summary className="min-h-11 cursor-pointer content-center font-semibold">{reportText('r.edit-totals-for-this-preview-review-only-not-sav', 'Edit totals for this preview (review only, not saved)')}</summary>
+        <p className="text-xs text-[var(--muted)]">{reportText('r.totals-here-are-the-aggregated-vendor-payments-f', 'Totals here are the aggregated vendor payments for the chosen form/box/year. Editing does not change payments; it previews what the 1099 check sees. TIN shows last 4 only.')}</p>
         <div className="space-y-2 mt-2">
           {totals.map((t, idx) => <div key={t.vendorId || t.vendorName} className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end">
-            <label className="block text-sm">Vendor <input className={field + ' w-full mt-1'} value={t.vendorName} onChange={e => {
+            <label className="block text-sm">{reportText('r.vendor', 'Vendor')} <input className={field + ' w-full mt-1'} value={t.vendorName} onChange={e => {
               const next = [...totals]; next[idx] = { ...next[idx], vendorName: e.target.value, vendorId: next[idx].vendorId || `manual-${idx}` }; setManualEdits(next);
             }} /></label>
-            <label className="block text-sm">Paid cents <input inputMode="numeric" className={field + ' w-full mt-1'} value={String(t.paidCents)} onChange={e => {
+            <label className="block text-sm">{reportText('r.paid-cents', 'Paid cents')} <input inputMode="numeric" className={field + ' w-full mt-1'} value={String(t.paidCents)} onChange={e => {
               const n = Number(e.target.value); const next = [...totals]; next[idx] = { ...next[idx], paidCents: Number.isSafeInteger(Math.round(n)) && n >= 0 ? Math.round(n) : 0 }; setManualEdits(next);
             }} /></label>
-            <label className="block text-sm">TIN last 4 <input className={field + ' w-full mt-1'} value={t.tinLastFour || ''} onChange={e => {
+            <label className="block text-sm">{reportText('r.tin-last-4-2', 'TIN last 4')} <input className={field + ' w-full mt-1'} value={t.tinLastFour || ''} onChange={e => {
               const v = e.target.value.replaceAll(/\D/g, '').slice(-4); const next = [...totals]; next[idx] = { ...next[idx], tinLastFour: v || undefined }; setManualEdits(next);
             }} placeholder="####" maxLength={4} /></label>
-            <button type="button" className="min-h-11 px-3 rounded border border-[var(--line)]" onClick={() => { const next = totals.filter((_, i) => i !== idx); setManualEdits(next); }}>Remove</button>
+            <button type="button" className="min-h-11 px-3 rounded border border-[var(--line)]" onClick={() => { const next = totals.filter((_, i) => i !== idx); setManualEdits(next); }}>{reportText('r.remove', 'Remove')}</button>
           </div>)}
-          <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={() => setManualEdits([...totals, { vendorId: `manual-${totals.length}`, vendorName: 'New vendor', form, box, paidCents: 0 }])}>Add vendor total</button>
+          <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={() => setManualEdits([...totals, { vendorId: `manual-${totals.length}`, vendorName: 'New vendor', form, box, paidCents: 0 }])}>{reportText('r.add-vendor-total', 'Add vendor total')}</button>
         </div>
       </details>
     </>}
 
-    {!preview && <p role="alert" className="text-sm text-amber-700">Preview error: check tax year (2020–2099), form/box pairing and that each total is a whole-cent non-negative number with a vendor name. This screen never files.</p>}
+    {!preview && <p role="alert" className="text-sm text-amber-700">{reportText('r.preview-error-check-tax-year-2020-2099-form-box', 'Preview error: check tax year (2020–2099), form/box pairing and that each total is a whole-cent non-negative number with a vendor name. This screen never files.')}</p>}
 
-    <p className="text-xs text-[var(--muted)]">Capability: <b>Internal, test or demo only</b> — review drafts only; payer info, state withholding, corrections and the portal are separate. The CSV says “REVIEW ONLY — NOT IRIS” on every row.</p>
+    <p className="text-xs text-[var(--muted)]">{reportText('r.capability', 'Capability:')} <b>{reportText('r.internal-test-or-demo-only', 'Internal, test or demo only')}</b> {reportText('r.review-drafts-only-payer-info-state-withholding', '— review drafts only; payer info, state withholding, corrections and the portal are separate. The CSV says “REVIEW ONLY — NOT IRIS” on every row.')}</p>
   </section>;
 }

@@ -7,6 +7,8 @@ import SupportView from '../components/support/SupportView';
 import { useSupportStore } from '../stores/useSupportStore';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import { getSupabase } from '../lib/db/client';
+import { setCookieConsent } from '../lib/cookieConsent';
+import { reportClientError } from '../lib/errorTracker';
 
 after(async () => {
   cleanup();
@@ -48,6 +50,51 @@ test('the ticket id the screen mints is the id the command writes, and the descr
   } finally {
     cleanup();
     globalThis.fetch = realFetch;
+  }
+});
+
+test('S-35: a support ticket includes only the diagnostic explicitly selected for it', async (t) => {
+  for (const scenario of ['no attachment', 'explicit attachment', 'diagnostic replaced'] as const) {
+    await t.test(scenario, async (subtest) => {
+      setComponentWorkspace('owner');
+      setCookieConsent('essential');
+      useSupportStore.setState({ tickets: [], messages: [], selectedTicketId: null });
+      const sent: Array<Record<string, unknown>> = [];
+      const fetchMock = subtest.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        assert.ok(!url.includes('/telemetry/errors'), 'automatic delivery stays off');
+        if (url.includes('/commands/support.ticket')) {
+          const body = JSON.parse(String(init?.body));
+          sent.push(body.input);
+          return Response.json({ ok: true, data: { id: body.input.id, created: true } });
+        }
+        return Response.json([]);
+      });
+      try {
+        const errorId = await reportClientError('Synthetic support diagnostic');
+        render(<SupportView />);
+        fireEvent.click(screen.getByRole('button', { name: 'Create support ticket' }));
+        fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Question' } });
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Please help' } });
+        const checkbox = screen.getByRole('checkbox', { name: /attach error stack trace/i });
+        assert.ok(checkbox instanceof window.HTMLInputElement);
+        assert.equal(checkbox.checked, false);
+        if (scenario !== 'no attachment') fireEvent.click(checkbox);
+        if (scenario === 'diagnostic replaced') await reportClientError('Later synthetic error');
+        fireEvent.click(screen.getByRole('button', { name: 'Create Ticket' }));
+        await waitFor(() => assert.equal(sent.length, 1));
+        if (scenario === 'explicit attachment') {
+          assert.equal(sent[0].errorLogId, errorId);
+          assert.equal((sent[0].errorDiagnostics as { message: string }).message, 'Synthetic support diagnostic');
+        } else {
+          assert.ok(!('errorLogId' in sent[0]));
+          assert.ok(!('errorDiagnostics' in sent[0]));
+        }
+      } finally {
+        cleanup();
+        fetchMock.mock.restore();
+      }
+    });
   }
 });
 

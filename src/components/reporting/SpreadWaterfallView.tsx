@@ -10,6 +10,7 @@ import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { formatCurrency } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
+import { useReportText } from './useReportText';
 
 /**
  * Deferred-revenue waterfall (J-14): invoices spread over months (K-16) with what is earned in each
@@ -17,6 +18,7 @@ import ReportTableScroll from './ReportTableScroll';
  * expenses (bills, K-17). Read-only, from the monthly entries.
  */
 export default function SpreadWaterfallView({ startDate = '', endDate = '' }: { startDate?: string; endDate?: string }) {
+  const reportText = useReportText();
   const [side, setSide] = useState<SpreadSide>('invoice');
   const truncated = useLedgerStore(s => s.truncatedCollections);
   const failed = useDataNeedsStore(s => s.failed);
@@ -33,34 +35,34 @@ export default function SpreadWaterfallView({ startDate = '', endDate = '' }: { 
   const money = (cents: number) => formatCurrency(cents, currency);
 
   return (
-    <section aria-label="Deferred revenue waterfall" className="p-4 space-y-4 min-w-0">
+    <section aria-label={reportText('r.deferred-revenue-waterfall', 'Deferred revenue waterfall')} className="p-4 space-y-4 min-w-0">
       <h2>{title}</h2>
       <p>
         {startDate} – {endDate}. {side === 'invoice'
-          ? 'Invoices spread over the months their income is earned in (Sales → Spread): what is earned each month, by the end of the period, and what is still deferred after it.'
-          : 'Bills spread over the months they cover (Purchases → Spread): what is expensed each month, by the end of the period, and what is still prepaid after it.'}
+          ? reportText('r.invoices-spread-over-the-months-their-income-is', 'Invoices spread over the months their income is earned in (Sales → Spread): what is earned each month, by the end of the period, and what is still deferred after it.')
+          : reportText('r.bills-spread-over-the-months-they-cover-purchase', 'Bills spread over the months they cover (Purchases → Spread): what is expensed each month, by the end of the period, and what is still prepaid after it.')}
       </p>
       <label className="inline-flex items-center gap-2 text-sm">
-        Show
+        {reportText('r.show', 'Show')}
         <select value={side} onChange={e => setSide(e.target.value as SpreadSide)} className="p-1 border border-[var(--line)] rounded bg-[var(--panel)]">
-          <option value="invoice">Income (invoices)</option>
-          <option value="bill">Expenses (bills)</option>
+          <option value="invoice">{reportText('r.income-invoices', 'Income (invoices)')}</option>
+          <option value="bill">{reportText('r.expenses-bills', 'Expenses (bills)')}</option>
         </select>
       </label>
-      {waiting && <p role="status">Loading entries…</p>}
-      {!valid && <p role="alert">Choose a valid report period.</p>}
-      {source !== 'server' && (['transactions', 'invoices', 'bills'] as const).some(k => isCollectionCapped(truncated, k) || failed[k]) && <p role="alert">Loaded ledger history is incomplete or failed. These figures are provisional.</p>}
-      <RangeReportSourceNote source={source} testId="spread-waterfall-source" what="these figures" />
+      {waiting && <p role="status">{reportText('r.loading-entries', 'Loading entries…')}</p>}
+      {!valid && <p role="alert">{reportText('r.choose-a-valid-report-period', 'Choose a valid report period.')}</p>}
+      {source !== 'server' && (['transactions', 'invoices', 'bills'] as const).some(k => isCollectionCapped(truncated, k) || failed[k]) && <p role="alert">{reportText('r.loaded-ledger-history-is-incomplete-or-failed-th-3', 'Loaded ledger history is incomplete or failed. These figures are provisional.')}</p>}
+      <RangeReportSourceNote source={source} testId="spread-waterfall-source" what={reportText('r.these-figures', 'these figures')} />
       {result && (
         <ReportTableScroll>
           <table className="w-full text-sm">
             <caption>{title}: {startDate} – {endDate}</caption>
             <thead>
               <tr>
-                <th scope="col" className="text-left">{side === 'invoice' ? 'Invoice' : 'Bill'}</th>
+                <th scope="col" className="text-left">{side === 'invoice' ? reportText('r.invoice-2', 'Invoice') : reportText('r.bill-2', 'Bill')}</th>
                 {result.months.map(m => <th key={m} scope="col">{m}</th>)}
-                <th scope="col">{done} by {endDate}</th>
-                <th scope="col">{left} after {endDate}</th>
+                <th scope="col">{done} {reportText('r.by-2', 'by')} {endDate}</th>
+                <th scope="col">{left} {reportText('r.after', 'after')} {endDate}</th>
               </tr>
             </thead>
             <tbody>
@@ -76,7 +78,7 @@ export default function SpreadWaterfallView({ startDate = '', endDate = '' }: { 
             {result.rows.length > 0 && (
               <tfoot>
                 <tr>
-                  <th scope="row" className="text-left">Total</th>
+                  <th scope="row" className="text-left">{reportText('r.total', 'Total')}</th>
                   {result.months.map(m => <td key={m} className="text-right font-mono font-bold">{money(result.totals.byMonth[m] || 0)}</td>)}
                   <td className="text-right font-mono font-bold">{money(result.totals.earnedCents)}</td>
                   <td className="text-right font-mono font-bold">{money(result.totals.deferredCents)}</td>
@@ -84,7 +86,7 @@ export default function SpreadWaterfallView({ startDate = '', endDate = '' }: { 
               </tfoot>
             )}
           </table>
-          {result.rows.length === 0 && <p>{side === 'invoice' ? 'No invoice is spread over months yet.' : 'No bill is spread over months yet.'}</p>}
+          {result.rows.length === 0 && <p>{side === 'invoice' ? reportText('r.no-invoice-is-spread-over-months-yet', 'No invoice is spread over months yet.') : reportText('r.no-bill-is-spread-over-months-yet', 'No bill is spread over months yet.')}</p>}
         </ReportTableScroll>
       )}
     </section>

@@ -1,6 +1,7 @@
 /**
  * EU-D2: three phone jobs in two taps, at 390 px, in the sample company.
  * Each journey starts on Home and counts the taps it takes to reach the job.
+ * The receipt journey also checks that a chosen photo does not hide the controls on rotation.
  */
 import { test, expect, type Page } from '@playwright/test';
 
@@ -40,6 +41,28 @@ test('EU-D2: snap a receipt — New, Snap a receipt (2 taps)', async ({ page }) 
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(391);
   await noSidewaysScroll(page);
+
+  const portraitPhoto = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 120;
+    canvas.height = 360;
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = 'white';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  const photoInput = dialog.getByTestId('snap-receipt-photo');
+  await expect(photoInput).toHaveAttribute('capture', 'environment');
+  await photoInput.setInputFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: Buffer.from(portraitPhoto, 'base64') });
+  await expect(dialog.getByRole('img', { name: 'Snapped receipt' })).toBeVisible();
+  await page.setViewportSize({ width: 844, height: 390 });
+  for (const label of ['Save draft', 'Close']) {
+    const button = dialog.getByRole('button', { name: label, exact: true });
+    await button.scrollIntoViewIfNeeded();
+    await expect(button).toBeInViewport({ ratio: 1 });
+  }
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
 });
 
 test('EU-D2: see who owes money — Home, Owed to you (2 taps from any screen)', async ({ page }) => {

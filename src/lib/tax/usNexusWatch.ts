@@ -15,6 +15,7 @@
  * Pure: the same document figures (`taxReturnDocument`) and statuses (`COUNTED_SALES`) as the sales-tax return.
  */
 import { COUNTED_SALES } from '../taxCodes';
+import { convertMinorUnits } from '../currencyMinorUnits';
 import { taxReturnDocument, type TaxableDocument } from '../taxReturnDocs';
 import { nexusWatch, type NexusWatchResult } from './usNexus';
 import { placeState, registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
@@ -73,7 +74,8 @@ export interface UsNexusWatch {
   mixedEntityDocuments?: number;
 }
 
-const toBase = (cents: number, rate?: number) => Math.round(cents * (rate && rate > 0 ? rate : 1));
+// the rate is per major unit: yen (0 digits) and dinars (3 digits) scale by their own minor units (#844)
+const toBase = (cents: number, rate: number | undefined, from: string | undefined) => (rate && rate > 0 ? convertMinorUnits(cents, rate, from, 'USD') : Math.round(cents));
 
 export function usNexusWatch(input: {
   asOf: string;
@@ -151,7 +153,7 @@ export function usNexusWatch(input: {
         thisYear: { salesCents: 0, orders: 0 }, lastYear: { salesCents: 0, orders: 0 },
       };
       // credit notes lower the sales of the year they fall in; they are not sales, so the count is unchanged
-      row[window.key].salesCents += sign * toBase(taxReturnDocument(doc).netCents, doc.exchangeRate);
+      row[window.key].salesCents += sign * toBase(taxReturnDocument(doc).netCents, doc.exchangeRate, doc.currency);
       if (sign === 1) row[window.key].orders += 1;
       totals.set(key, row);
     }

@@ -127,6 +127,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
   const [reading, setReading] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [restoreError, setRestoreError] = useState('');
+  const [unmatchedAttachments, setUnmatchedAttachments] = useState(0);
   const [restoreFile, setRestoreFile] = useState<RestoreFile | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileReadPending = useRef(false);
@@ -207,6 +208,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
     fileReadPending.current = true;
     setReading(true);
     setRestoreError('');
+    setUnmatchedAttachments(0);
     try {
       const selection = await readRestoreFile(file, workspaceId);
       if (isCurrent()) setRestoreFile(selection);
@@ -240,6 +242,10 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
       });
       if (!isCurrent()) return;
       if (!isObject(result) || result.success !== true) throw new Error('No restore result received.');
+      const attachments = result.attachments;
+      if (isObject(attachments) && Array.isArray(attachments.missing)) {
+        setUnmatchedAttachments(attachments.missing.length);
+      }
       toast.success(typeof result.message === 'string' ? result.message : 'Workspace restored.');
     } catch (error) {
       if (isCurrent()) {
@@ -361,6 +367,10 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
           </AsyncButton>
           {!canRestore && <p className="mt-2 text-sm text-[var(--muted)]">Only a signed-in workspace owner can restore a backup.</p>}
           {restoreError && <p role="alert" className="mt-2 text-sm text-[var(--neg)]">{restoreError}</p>}
+          {unmatchedAttachments > 0 && <p role="status" className="mt-2 text-sm text-[var(--muted)]">
+            Records were restored. Attachments not matched: <strong>{unmatchedAttachments}</strong>.
+            They may be missing or their links may have changed. This backup does not contain the files.
+          </p>}
         </div>
       </div>
 

@@ -13,6 +13,7 @@ import { LandedCostRequestError, landedCostRequest, undoLandedCostRequest, type 
 import type { SpreadBasis } from '../../lib/landedCostPreview';
 import type { Bill, ChartAccount } from '../../types';
 import { RowTable } from '../ui/RowTable';
+import { useReportText, fill } from './useReportText';
 
 interface Props {
   workspaceId: string;
@@ -30,6 +31,7 @@ const newAllocationId = () => `lc-${Date.now().toString(36)}-${Math.random().toS
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 
 export default function LandedCostPostPanel({ workspaceId, currency, bills, accounts, receipts, defaultReceiptId }: Props) {
+  const reportText = useReportText();
   const charges = useMemo(() => bills.filter(b => !DEAD.includes(String(b.status))).flatMap(b => (b.splits || []).map((s, line) => ({ b, s, line })))
     .filter(({ s }) => !s.itemId && !s.landedCost && (Number(s.amountCents) || 0) > 0)
     .map(({ b, s, line }) => ({ value: `${b.id}#${line}`, billId: b.id, line, label: `${b.number || b.id} · ${s.description || 'Charge'} · ${formatCurrency(s.amountCents, currency)}` })), [bills, currency]);
@@ -100,41 +102,41 @@ export default function LandedCostPostPanel({ workspaceId, currency, bills, acco
   const change = (fn: () => void) => { fn(); request.current++; setBusy(false); setPlan(null); setNotice(null); setPostedId(null); };
 
   return (
-    <section aria-label="Post landed cost" className="space-y-3 border-t pt-4">
-      <h3>Post landed cost</h3>
+    <section aria-label={reportText('r.post-landed-cost', 'Post landed cost')} className="space-y-3 border-t pt-4">
+      <h3>{reportText('r.post-landed-cost', 'Post landed cost')}</h3>
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-sm">
-          Charge to land
-          <select aria-label="Charge to land" value={chargeKey} onChange={e => change(() => setChargeKey(e.target.value))} className={field}>
+          {reportText('r.charge-to-land', 'Charge to land')}
+          <select aria-label={reportText('r.charge-to-land', 'Charge to land')} value={chargeKey} onChange={e => change(() => setChargeKey(e.target.value))} className={field}>
             {charges.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-            <option value={MANUAL}>A manual amount</option>
+            <option value={MANUAL}>{reportText('r.a-manual-amount', 'A manual amount')}</option>
           </select>
         </label>
         {chargeKey === MANUAL && (
           <>
             <label className="flex flex-col gap-1 text-sm">
-              Amount ({currency})
-              <input aria-label="Amount to land" type="text" inputMode="decimal" value={amount} onChange={e => change(() => setAmount(e.target.value))} className={`${field} w-36`} />
+              {reportText('r.amount-3', 'Amount (')}{currency})
+              <input aria-label={reportText('r.amount-to-land', 'Amount to land')} type="text" inputMode="decimal" value={amount} onChange={e => change(() => setAmount(e.target.value))} className={`${field} w-36`} />
             </label>
             <label className="flex flex-col gap-1 text-sm">
-              Offset account
-              <select aria-label="Offset account" value={offsetId} onChange={e => change(() => setOffsetId(e.target.value))} className={field}>
-                <option value="">Choose…</option>
+              {reportText('r.offset-account', 'Offset account')}
+              <select aria-label={reportText('r.offset-account', 'Offset account')} value={offsetId} onChange={e => change(() => setOffsetId(e.target.value))} className={field}>
+                <option value="">{reportText('r.choose', 'Choose…')}</option>
                 {accounts.filter(a => !a.isArchived).map(a => <option key={a.id} value={a.id}>{a.code ? `${a.code} ` : ''}{a.name}</option>)}
               </select>
             </label>
           </>
         )}
         <label className="flex flex-col gap-1 text-sm">
-          Spread by
-          <select aria-label="Post spread basis" value={basis} onChange={e => change(() => setBasis(e.target.value as SpreadBasis))} className={field}>
-            <option value="value">Value</option>
-            <option value="quantity">Quantity</option>
+          {reportText('r.spread-by', 'Spread by')}
+          <select aria-label={reportText('r.post-spread-basis', 'Post spread basis')} value={basis} onChange={e => change(() => setBasis(e.target.value as SpreadBasis))} className={field}>
+            <option value="value">{reportText('r.value', 'Value')}</option>
+            <option value="quantity">{reportText('r.quantity', 'Quantity')}</option>
           </select>
         </label>
       </div>
       <fieldset className="text-sm">
-        <legend>Receipts the charge is for</legend>
+        <legend>{reportText('r.receipts-the-charge-is-for', 'Receipts the charge is for')}</legend>
         {receipts.map(r => (
           <label key={r.key} className="flex items-center gap-2 min-h-11">
             <input type="checkbox" checked={chosen.includes(r.key)} onChange={e => change(() => setChosen(e.target.checked ? [...chosen, r.key] : chosen.filter(k => k !== r.key)))} />
@@ -144,32 +146,32 @@ export default function LandedCostPostPanel({ workspaceId, currency, bills, acco
       </fieldset>
       {problem && <p className="text-sm text-[var(--muted)]">{problem}</p>}
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={Boolean(problem) || busy} onClick={() => send(true)} className="min-h-11 px-3 rounded border text-sm disabled:opacity-50">Review what will post</button>
-        <button type="button" disabled={!plan || plan.replayed || !plan.dryRun || busy} onClick={() => send(false)} className="min-h-11 px-3 rounded border text-sm disabled:opacity-50">Post landed cost</button>
-        {postedId && <button type="button" disabled={busy} onClick={undo} className="min-h-11 px-3 rounded border text-sm disabled:opacity-50">Undo landed cost</button>}
+        <button type="button" disabled={Boolean(problem) || busy} onClick={() => send(true)} className="min-h-11 px-3 rounded border text-sm disabled:opacity-50">{reportText('r.review-what-will-post', 'Review what will post')}</button>
+        <button type="button" disabled={!plan || plan.replayed || !plan.dryRun || busy} onClick={() => send(false)} className="min-h-11 px-3 rounded border text-sm disabled:opacity-50">{reportText('r.post-landed-cost', 'Post landed cost')}</button>
+        {postedId && <button type="button" disabled={busy} onClick={undo} className="min-h-11 px-3 rounded border text-sm disabled:opacity-50">{reportText('r.undo-landed-cost', 'Undo landed cost')}</button>}
       </div>
       {notice && <p role="status" className="text-sm">{notice}</p>}
       {plan && (
         <div className="space-y-2 overflow-x-auto">
-          <p className="text-sm">{plan.dryRun ? 'Will post' : 'Posted'} on {plan.date}{plan.movedToOpenDay ? ' (today: the day asked for is locked)' : ''}:</p>
+          <p className="text-sm">{plan.dryRun ? reportText('r.will-post', 'Will post') : reportText('r.posted', 'Posted')} {reportText('r.on-2', 'on')} {plan.date}{plan.movedToOpenDay ? ` ${reportText('r.today-the-day-asked-for-is-locked', '(today: the day asked for is locked)')}` : ''}:</p>
           <RowTable
             rowHeaderColumn={false}
             rowClassName="border-b"
-            caption={(<>Entry the landed cost posts</>)}
+            caption={(<>{reportText('r.entry-the-landed-cost-posts', 'Entry the landed cost posts')}</>)}
             rows={plan.entryLines}
             rowKey={l => `${l.accountId}|${l.description}|${l.amountCents}`}
             tableClassName="w-full text-sm border-collapse"
             headRowClassName="border-b text-left"
             bodyClassName=""
             columns={[
-              { header: "Account", className: "py-1 pr-3", headClassName: "py-1 pr-3", cell: (l) => l.accountName || l.accountId },
-              { header: "Line", className: "py-1 pr-3", headClassName: "py-1 pr-3", cell: (l) => l.description },
-              { header: "Amount", align: 'right', className: "py-1 tabular-nums", headClassName: "py-1", cell: (l) => formatCurrency(l.amountCents, currency) },
+              { header: reportText('r.account', 'Account'), className: "py-1 pr-3", headClassName: "py-1 pr-3", cell: (l) => l.accountName || l.accountId },
+              { header: reportText('r.line', 'Line'), className: "py-1 pr-3", headClassName: "py-1 pr-3", cell: (l) => l.description },
+              { header: reportText('r.amount', 'Amount'), align: 'right', className: "py-1 tabular-nums", headClassName: "py-1", cell: (l) => formatCurrency(l.amountCents, currency) },
             ]}
           />
           <ul className="text-sm">
             {plan.lines.map(l => (
-              <li key={l.key}>{l.itemName}: +{formatCurrency(l.allocatedCents, currency)}{l.cogsCents ? ` (${formatCurrency(l.cogsCents, currency)} to cost of goods sold for units already sold)` : ''}, unit cost {formatCurrency(l.unitCostBeforeCents, currency)} → {formatCurrency(l.unitCostAfterCents, currency)}</li>
+              <li key={l.key}>{l.itemName}: +{formatCurrency(l.allocatedCents, currency)}{l.cogsCents ? ` ${fill(reportText('r.0-to-cost-of-goods-sold-for-units-already-sold', '({0} to cost of goods sold for units already sold)'), { 0: formatCurrency(l.cogsCents, currency) })}` : ''}{reportText('r.unit-cost-2', ', unit cost')} {formatCurrency(l.unitCostBeforeCents, currency)} → {formatCurrency(l.unitCostAfterCents, currency)}</li>
             ))}
           </ul>
         </div>

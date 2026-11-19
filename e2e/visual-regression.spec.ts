@@ -39,7 +39,7 @@ for (const width of [1280, 390]) for (const theme of ['light', 'dark'] as const)
       await page.addInitScript(selectedTheme => {
         localStorage.setItem('isGuest', 'true');
         localStorage.setItem('has_seen_onboarding', 'true');
-        localStorage.setItem('ledgerflow-cookie-consent', 'accepted');
+        localStorage.setItem('ledgerflow-cookie-consent', 'essential');
         localStorage.setItem('lf_theme', selectedTheme);
       }, theme);
       await installSmallSample(page, false, screen === 'purchase-orders' ? { purchaseOrders: { [order.id]: order } } : {});

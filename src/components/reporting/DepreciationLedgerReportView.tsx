@@ -4,6 +4,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { useServerDepreciationLedger } from '../../hooks/useServerAssetRegister';
 import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { RowTable } from '../ui/RowTable';
+import { useReportText } from './useReportText';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
@@ -13,6 +14,7 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
  * (src/lib/depreciationLedger.ts).
  */
 export default function DepreciationLedgerReportView() {
+  const reportText = useReportText();
   const { loading } = useLedgerCollections('assets', 'transactions');
   const [from, setFrom] = useState(`${getLocalDateISO().slice(0, 4)}-01-01`);
   const [to, setTo] = useState(getLocalDateISO());
@@ -24,20 +26,20 @@ export default function DepreciationLedgerReportView() {
 
   return (
     <section aria-labelledby="depreciation-ledger-title" className="space-y-4">
-      <h2 id="depreciation-ledger-title" className="text-lg font-bold text-[var(--text)]">Asset depreciation ledger</h2>
+      <h2 id="depreciation-ledger-title" className="text-lg font-bold text-[var(--text)]">{reportText('r.asset-depreciation-ledger', 'Asset depreciation ledger')}</h2>
       <div className="flex flex-wrap items-end gap-3 text-sm">
-        <label className="flex flex-col gap-1 text-[var(--muted)]">From<input type="date" value={from} onChange={e => setFrom(e.target.value)} className={field} /></label>
-        <label className="flex flex-col gap-1 text-[var(--muted)]">To<input type="date" value={to} onChange={e => setTo(e.target.value)} className={field} /></label>
+        <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.from', 'From')}<input type="date" value={from} onChange={e => setFrom(e.target.value)} className={field} /></label>
+        <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.to', 'To')}<input type="date" value={to} onChange={e => setTo(e.target.value)} className={field} /></label>
       </div>
-      {ledger && <RangeReportSourceNote source={ledger.source} testId="depreciation-ledger-source" what="these figures" />}
-      {from > to && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">The period starts after it ends.</p>}
-      {loading && <p className="text-sm text-[var(--muted)]">Loading…</p>}
-      {!loading && from <= to && rows.length === 0 && <p className="text-sm text-[var(--muted)]">No fixed assets in this period.</p>}
+      {ledger && <RangeReportSourceNote source={ledger.source} testId="depreciation-ledger-source" what={reportText('r.these-figures', 'these figures')} />}
+      {from > to && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{reportText('r.the-period-starts-after-it-ends', 'The period starts after it ends.')}</p>}
+      {loading && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {!loading && from <= to && rows.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-fixed-assets-in-this-period', 'No fixed assets in this period.')}</p>}
       {rows.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
           <RowTable
             rowClassName="border-b border-[var(--line)]/50"
-            caption={(<>Depreciation posted by the monthly runs (in force), and what each asset came with before its first run.</>)}
+            caption={(<>{reportText('r.depreciation-posted-by-the-monthly-runs-in-force', 'Depreciation posted by the monthly runs (in force), and what each asset came with before its first run.')}</>)}
             rows={rows}
             rowKey={r => r.assetId}
             captionClassName="text-left text-xs text-[var(--muted)] pb-1"
@@ -45,7 +47,7 @@ export default function DepreciationLedgerReportView() {
             headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
             bodyClassName=""
             footer={<tr className="font-semibold">
-                <th scope="row" className="text-left py-1 px-2">Total</th>
+                <th scope="row" className="text-left py-1 px-2">{reportText('r.total', 'Total')}</th>
                 <td className="text-right font-mono py-1 px-2">{money(sum('costCents'))}</td>
                 <td className="text-right font-mono py-1 px-2">{money(sum('openingCents'))}</td>
                 <td className="text-right font-mono py-1 px-2">{money(sum('periodCents'))}</td>
@@ -53,17 +55,17 @@ export default function DepreciationLedgerReportView() {
                 <td className="text-right font-mono py-1 px-2">{money(sum('bookValueCents'))}</td>
               </tr>}
             columns={[
-              { header: "Asset", className: "text-left font-normal py-1 px-2", headClassName: "text-left font-semibold py-1 px-2", cell: (r) => (<><bdi>{r.name}</bdi>
+              { header: reportText('r.asset', 'Asset'), className: "text-left font-normal py-1 px-2", headClassName: "text-left font-semibold py-1 px-2", cell: (r) => (<><bdi>{r.name}</bdi>
                     {(r.disposedOn || r.partlyDisposed || r.months.length > 0) && (
                       <span className="block text-[10px] text-[var(--muted)]">
                         {[r.months.length ? `${r.months.length} month${r.months.length === 1 ? '' : 's'} run` : '', r.disposedOn ? `disposed ${r.disposedOn}` : '', r.partlyDisposed ? 'partly sold: the cost is what is left' : ''].filter(Boolean).join(' · ')}
                       </span>
                     )}</>) },
-              { header: "Cost", align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => money(r.costCents) },
-              { header: "Depreciation before", align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => money(r.openingCents) },
-              { header: "In the period", align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => money(r.periodCents) },
-              { header: "At the end", align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => money(r.closingCents) },
-              { header: "Book value", align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => money(r.bookValueCents) },
+              { header: reportText('r.cost', 'Cost'), align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => money(r.costCents) },
+              { header: reportText('r.depreciation-before', 'Depreciation before'), align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => money(r.openingCents) },
+              { header: reportText('r.in-the-period', 'In the period'), align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => money(r.periodCents) },
+              { header: reportText('r.at-the-end', 'At the end'), align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => money(r.closingCents) },
+              { header: reportText('r.book-value', 'Book value'), align: 'right', className: "font-mono py-1 px-2", headClassName: "font-semibold py-1 px-2", cell: (r) => money(r.bookValueCents) },
             ]}
           />
         </div>

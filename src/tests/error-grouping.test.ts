@@ -6,7 +6,8 @@
 import './helpers/dom';
 import test, { afterEach, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { clearErrorGroups, errorFingerprint, getErrorGroups, getRecentErrors, reportClientError } from '../lib/errorTracker';
+import { clearErrorGroups, errorFingerprint, getErrorGroups, getLatestErrorDiagnostic, getRecentErrors, reportClientError } from '../lib/errorTracker';
+import { COOKIE_CONSENT_KEY, setCookieConsent } from '../lib/cookieConsent';
 import { useAuthStore } from '../stores/useAuthStore';
 
 describe('F-21 client error grouping', () => {
@@ -15,6 +16,7 @@ describe('F-21 client error grouping', () => {
   beforeEach(() => {
     clearErrorGroups();
     sent.length = 0;
+    setCookieConsent('all');
     useAuthStore.setState({
       user: { uid: 'group-user', email: 'owner@example.test', getIdToken: async () => 'token' } as never,
       currentWorkspaceId: 'group-workspace',
@@ -24,7 +26,10 @@ describe('F-21 client error grouping', () => {
       return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
     }) as typeof fetch;
   });
-  afterEach(() => clearErrorGroups());
+  afterEach(() => {
+    clearErrorGroups();
+    localStorage.removeItem(COOKIE_CONSENT_KEY);
+  });
 
   test('the same message on the same screen counts once, however the request ids change', async () => {
     await reportClientError(new Error('render failed for err_1712345678901_ab12c'), { metadata: { view: 'Dashboard' } });
@@ -53,7 +58,7 @@ describe('F-21 client error grouping', () => {
     ]);
   });
 
-  test('the telemetry body carries the group identity but no personal data', async () => {
+  test('the telemetry body carries the group identity and redacts email and card numbers', async () => {
     const id = await reportClientError(
       new Error('receipt upload failed for dana@example.com card 4111111111111111'),
       { metadata: { view: 'Documents', attempt: 1 } },
@@ -69,6 +74,70 @@ describe('F-21 client error grouping', () => {
 
     const kept = getRecentErrors().find(record => record.id === id)!;
     assert.equal(kept.metadata?.fingerprint, metadata.fingerprint);
+  });
+
+  test('public link diagnostics redact the entire location consistently before grouping or sending', async () => {
+    const link = '/invite/demo-link-reference';
+    const privateQuery = '?state=demo-query-reference';
+    window.history.replaceState(null, '', `${link}${privateQuery}#demo-fragment`);
+    try {
+      const err = new Error(`Could not render ${link}${privateQuery}`);
+      err.stack = `Error: ${err.message}\n    at render (http://localhost${link}${privateQuery})`;
+      await reportClientError(err, {
+        componentStack: err.stack,
+        metadata: { view: link, filename: window.location.href, lineno: 3, unneeded: 'demo-metadata-value' },
+      });
+      const body = sent[0]?.body;
+      const metadata = body?.metadata as Record<string, unknown>;
+      assert.equal(body?.url, '/invite/[REDACTED]');
+      assert.equal(metadata?.screen, '/invite/[REDACTED]');
+      assert.equal(metadata.lineno, 3);
+      assert.equal(metadata.filename, '/invite/[REDACTED]');
+      assert.equal(getErrorGroups()[0]?.screen, '/invite/[REDACTED]');
+      assert.equal(getLatestErrorDiagnostic()?.diagnostics.url, '/invite/[REDACTED]');
+      const surfaces = JSON.stringify([body, getErrorGroups(), getLatestErrorDiagnostic()]);
+      assert.doesNotMatch(surfaces, /demo-(?:link-reference|query-reference|fragment|metadata-value)|owner@example\.test/);
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
+  test('support diagnostics do not follow a user to another workspace or account', async () => {
+    const { user, currentWorkspaceId } = useAuthStore.getState();
+    try {
+      await reportClientError('previous workspace diagnostic');
+      assert.ok(getLatestErrorDiagnostic());
+      useAuthStore.setState({ currentWorkspaceId: 'different-workspace' });
+      assert.equal(getLatestErrorDiagnostic(), null);
+      assert.deepEqual(getErrorGroups(), []);
+      useAuthStore.setState({ currentWorkspaceId });
+      assert.equal(getLatestErrorDiagnostic(), null);
+
+      await reportClientError('previous account diagnostic');
+      useAuthStore.setState({ user: null });
+      assert.equal(getLatestErrorDiagnostic(), null);
+      assert.deepEqual(getRecentErrors(), []);
+    } finally {
+      useAuthStore.setState({ user, currentWorkspaceId });
+    }
+  });
+
+  test('a pending diagnostic is not sent after switching away and back', async () => {
+    const { user, currentWorkspaceId } = useAuthStore.getState();
+    let tokenReady!: (token: string) => void;
+    const tokenLookup = new Promise<string>(resolve => { tokenReady = resolve; });
+    useAuthStore.setState({ user: { ...user!, getIdToken: () => tokenLookup } });
+    try {
+      const report = reportClientError('pending workspace diagnostic');
+      useAuthStore.setState({ currentWorkspaceId: 'different-workspace' });
+      useAuthStore.setState({ currentWorkspaceId });
+      tokenReady('fixture-token');
+      await report;
+      assert.equal(sent.length, 0);
+      assert.equal(getLatestErrorDiagnostic(), null);
+    } finally {
+      useAuthStore.setState({ user, currentWorkspaceId });
+    }
   });
 
   test('client references use secure randomness and stay grouped when included in errors', async () => {

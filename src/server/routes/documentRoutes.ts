@@ -169,7 +169,10 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
       style = { language: documentLanguage(workspace.branding, statement.contact), terms: contactTerms(statement.contact) };
     }
 
-    const copyMark = type === 'statement' ? undefined : await takeCopyMark(db, type, id, workspace as { taxProfiles?: TaxProfiles }, { readOnly: readOnlyCopy });
+    const preview = req.query.preview === '1' || req.query.preview === 'true';
+    const copyMark = type === 'statement' ? undefined : await takeCopyMark(db, type, id, workspace as { taxProfiles?: TaxProfiles }, { readOnly: readOnlyCopy, preview });
+    // the screen downloads afresh after a preview, so the file the customer gets is the one that takes the original
+    if (preview) res.setHeader('X-Preview-Only', '1');
     const pdfBuffer = await generateDocumentPdf(type, docData, workspace, { paymentUrl, ...(style || await contactStyle(db, workspace, docData, workspaceId)), ...(copyMark ? { copyMark } : {}) });
 
     if (req.query.format === 'json' || req.headers.accept?.includes('application/json')) {

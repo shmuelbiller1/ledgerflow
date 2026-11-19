@@ -16,6 +16,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isCardNumber, isRedacted, redactForLogs } from '../lib/logRedaction';
 import { getRecentErrors, reportClientError } from '../lib/errorTracker';
+import { COOKIE_CONSENT_KEY, setCookieConsent } from '../lib/cookieConsent';
 import { useAuthStore } from '../stores/useAuthStore';
 
 const liveCard = '4111 1111 1111 1111'; // Luhn-valid test number
@@ -92,6 +93,7 @@ describe('F-35 the crash report carries no personal data', () => {
     } as never);
 
     try {
+      setCookieConsent('all');
       const id = await reportClientError(
         new Error(`checkout failed for dana@example.com card ${liveCardCompact} password=hunter2`),
         { severity: 'error', metadata: { retry: 1 } },
@@ -109,6 +111,7 @@ describe('F-35 the crash report carries no personal data', () => {
       assert.ok(!kept.message.includes(liveCardCompact));
       assert.ok(kept.message.includes('[EMAIL]') && kept.message.includes('[CARD]'));
     } finally {
+      localStorage.removeItem(COOKIE_CONSENT_KEY);
       globalThis.fetch = realFetch;
     }
   });

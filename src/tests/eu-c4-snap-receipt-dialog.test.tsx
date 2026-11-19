@@ -12,6 +12,7 @@ import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { SAMPLE_UID, SAMPLE_WORKSPACE_ID } from '../lib/db/guestDatabase';
+import { documentSaveInput } from '../server/commands/attachments';
 import type { Vendor, Workspace } from '../types';
 
 type Call = [string, unknown[]];
@@ -71,6 +72,37 @@ describe('EU-C4: Snap a receipt', () => {
       metadata: { source: 'phone-receipt', receiptDocId: 'doc-1' },
     });
     assert.deepEqual(calls[2][1], ['doc-1', { linkedCollection: 'bills', linkedId: 'bill-1', linkedLabel: 'Corner Hardware receipt (draft)' }]);
+  });
+
+  test('the signed-in receipt flow links the original file through document.save', async (t) => {
+    const writes: Array<{ command: string; workspaceId: string; input: Record<string, unknown>; status: number }> = [];
+    const documentId = 'saved-receipt';
+    t.mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+      const command = String(url).split('/').at(-1) ?? '';
+      if (!['document.save', 'bill.create'].includes(command)) return Response.json({ status: 'success', data: {} });
+      const body = JSON.parse(String(init?.body)) as { workspaceId: string; input: Record<string, unknown> };
+      const status = command === 'document.save' && !documentSaveInput.safeParse(body.input).success ? 400 : 200;
+      writes.push({ command, ...body, status });
+      return status === 200
+        ? Response.json({ status: 'success', data: command === 'document.save' ? { id: documentId } : { transactions: [] } })
+        : Response.json({ status: 'error', message: 'Document save input refused' }, { status });
+    });
+    // No ReceiptWrites stub: exercise the same adapter and request serialization as a browser.
+    render(<SnapReceiptDialog onClose={() => { closed++; }} />);
+    await fillIn();
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => assert.equal(closed, 1));
+    assert.deepEqual(writes.map(w => [w.command, w.workspaceId]), [
+      ['document.save', 'component-workspace'], ['bill.create', 'component-workspace'], ['document.save', 'component-workspace'],
+    ]);
+    assert.equal(writes[0].input.id, undefined, 'a new file uses the server-assigned ID');
+    assert.equal(writes[0].input.uid, undefined, 'ownership stays with the signed-in session');
+    const bill = writes[1].input.bill as { id: string; status: string; amountCents: number; metadata: { receiptDocId: string } };
+    assert.deepEqual([bill.status, bill.amountCents, bill.metadata.receiptDocId], ['draft', 4_250, documentId]);
+    assert.deepEqual(writes[2].input, {
+      id: documentId, linkedCollection: 'bills', linkedId: bill.id, linkedLabel: 'Corner Hardware receipt (draft)',
+    });
+    assert.deepEqual(writes.map(w => w.status), [200, 200, 200]);
   });
 
   test('archived and inactive vendors are not offered', () => {

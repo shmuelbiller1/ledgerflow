@@ -14,11 +14,13 @@ import { NO_LOCATION, type StockMove } from '../../lib/stockMoves';
 import { resolveDimensionLabel } from '../../lib/dimensionUtils';
 import { stockTransfersCsvRows, STOCK_TRANSFERS_CSV_HEADERS, transferPairs } from '../../lib/stockTransfers';
 import ReportTableScroll from './ReportTableScroll';
+import { useReportText, fill } from './useReportText';
 
 /** The newest moves read; reaching it means older moves (and possibly pairs) are not shown. */
 const MOVES_CAP = 5000;
 
 export default function StockTransfersReportView({ loadMoves }: { loadMoves?: () => Promise<StockMove[]> } = {}) {
+  const reportText = useReportText();
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const nodes = useLedgerStore(s => s.dimensionNodes || []);
   const [loaded, setLoaded] = useState<{ workspaceId: string; moves: StockMove[]; capped: boolean } | null>(null);
@@ -67,14 +69,13 @@ export default function StockTransfersReportView({ loadMoves }: { loadMoves?: ()
   }, [pairs, search, incompleteOnly, locationName]);
 
   return (
-    <section aria-label="Stock transfers" className="p-4 space-y-4 min-w-0">
+    <section aria-label={reportText('r.stock-transfers', 'Stock transfers')} className="p-4 space-y-4 min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2>Stock transfers</h2>
+          <h2>{reportText('r.stock-transfers', 'Stock transfers')}</h2>
           <p className="text-sm text-[var(--muted)]">
-            {pairs.length} move(s) between locations, newest first
-            {incomplete ? `; ${incomplete} shown without their pair, which is not in the loaded history` : ''}.
-            Moving stock is done from an item&apos;s Stock history window.
+            {pairs.length} {reportText('r.move-s-between-locations-newest-first', 'move(s) between locations, newest first')}
+            {incomplete ? fill(reportText('r.0-shown-without-their-pair-which-is-not-in-the-l', '; {0} shown without their pair, which is not in the loaded history'), { 0: incomplete }) : ''}{reportText('r.moving-stock-is-done-from-an-item-s-stock-histor', '. Moving stock is done from an item\'s Stock history window.')}
           </p>
         </div>
         <button
@@ -84,43 +85,42 @@ export default function StockTransfersReportView({ loadMoves }: { loadMoves?: ()
           className="min-h-11 px-3 py-1.5 rounded border text-sm disabled:opacity-50"
           data-print-hide
         >
-          Download CSV
+          {reportText('r.download-csv', 'Download CSV')}
         </button>
       </div>
 
-      {moves === null && !error && <p role="status" className="text-sm text-[var(--muted)]">Loading the stock history…</p>}
-      {error && <p role="alert" className="text-sm text-amber-700">The stock history could not be read: {error}</p>}
+      {moves === null && !error && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-the-stock-history', 'Loading the stock history…')}</p>}
+      {error && <p role="alert" className="text-sm text-amber-700">{reportText('r.the-stock-history-could-not-be-read', 'The stock history could not be read:')} {error}</p>}
       {capped && (
         <p role="alert" className="text-sm text-amber-700">
-          Only the newest {MOVES_CAP} stock changes are read; older moves are not shown and a pair cut off by that
-          limit shows without its half.
+          {reportText('r.only-the-newest', 'Only the newest')} {MOVES_CAP} {reportText('r.stock-changes-are-read-older-moves-are-not-shown', 'stock changes are read; older moves are not shown and a pair cut off by that limit shows without its half.')}
         </p>
       )}
 
       <div className="flex flex-wrap items-end gap-3" data-print-hide>
-        <label className="flex flex-col gap-1 text-sm">Find item or location
-          <input aria-label="Find item or location" dir="auto" value={search} onChange={e => setSearch(e.target.value)}
+        <label className="flex flex-col gap-1 text-sm">{reportText('r.find-item-or-location', 'Find item or location')}
+          <input aria-label={reportText('r.find-item-or-location', 'Find item or location')} dir="auto" value={search} onChange={e => setSearch(e.target.value)}
             className="min-h-11 max-w-full border rounded px-3 bg-[var(--panel)] text-[var(--text)]" />
         </label>
         <label className="flex items-center gap-2 min-h-11 text-sm text-[var(--text)]">
-          <input type="checkbox" aria-label="Only moves missing their pair" checked={incompleteOnly}
+          <input type="checkbox" aria-label={reportText('r.only-moves-missing-their-pair', 'Only moves missing their pair')} checked={incompleteOnly}
             onChange={e => setIncompleteOnly(e.target.checked)} />
-          Only moves missing their pair
+          {reportText('r.only-moves-missing-their-pair', 'Only moves missing their pair')}
         </label>
       </div>
 
       {moves !== null && visible.length === 0 ? (
         <p className="text-sm text-[var(--muted)]" data-testid="transfers-empty">
           {pairs.length === 0
-            ? 'Nothing has been moved between locations yet. Move stock from an item’s Stock history window on Inventory.'
-            : 'No moves match these filters.'}
+            ? reportText('r.nothing-has-been-moved-between-locations-yet-mov', 'Nothing has been moved between locations yet. Move stock from an item’s Stock history window on Inventory.')
+            : reportText('r.no-moves-match-these-filters', 'No moves match these filters.')}
         </p>
       ) : moves === null ? null : (
         <ReportTableScroll>
           <table className="w-full text-sm">
-            <caption>Moves between locations, newest first</caption>
+            <caption>{reportText('r.moves-between-locations-newest-first', 'Moves between locations, newest first')}</caption>
             <thead>
-              <tr>{['Date', 'Item', 'Quantity', 'From', 'To', 'Complete', 'Note'].map(head =>
+              <tr>{[reportText('r.date-2', 'Date'), reportText('r.item', 'Item'), reportText('r.quantity', 'Quantity'), reportText('r.from', 'From'), reportText('r.to', 'To'), reportText('r.complete', 'Complete'), reportText('r.note', 'Note')].map(head =>
                 <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
             </thead>
             <tbody>
@@ -129,9 +129,9 @@ export default function StockTransfersReportView({ loadMoves }: { loadMoves?: ()
                   <td className="py-1 px-2">{pair.date || '—'}</td>
                   <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{pair.itemName}</bdi></th>
                   <td className="py-1 px-2 tabular-nums">{pair.quantity}</td>
-                  <td className="py-1 px-2"><bdi>{pair.from ? locationName(pair.from) : 'No location'}</bdi></td>
-                  <td className="py-1 px-2"><bdi>{pair.to ? locationName(pair.to) : 'No location'}</bdi></td>
-                  <td className="py-1 px-2">{pair.complete ? 'Yes' : 'No'}</td>
+                  <td className="py-1 px-2"><bdi>{pair.from ? locationName(pair.from) : reportText('r.no-location', 'No location')}</bdi></td>
+                  <td className="py-1 px-2"><bdi>{pair.to ? locationName(pair.to) : reportText('r.no-location', 'No location')}</bdi></td>
+                  <td className="py-1 px-2">{pair.complete ? reportText('r.yes', 'Yes') : reportText('r.no', 'No')}</td>
                   <td className="py-1 px-2">{pair.problem || '—'}</td>
                 </tr>
               ))}
