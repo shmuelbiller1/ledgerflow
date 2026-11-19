@@ -227,6 +227,27 @@ and client read the same function), so it is AI #1's call. The CSV column would 
 **Tests performed:** the probe above; the existing `report-views`, `l123-step4de-breakdowns` and
 `report-generators` suites pass, i.e. no test covers a negative net total.
 
+## PR #911 automated review — every comment checked individually
+
+Gitar posted **2 findings, “changes requested”, high risk** (answered in
+[PR comment](https://github.com/shmuelbiller1/ledgerflow/pull/911#issuecomment-6998369646)). Both were **genuine**
+and are fixed in `2521b05`; SonarCloud posted *Quality Gate passed, 0 new issues*; CodeQL, SBOM and Schemathesis
+are green.
+
+| Bot finding | Verdict | Outcome |
+| --- | --- | --- |
+| “Any saved 'pending' bill skips the $5,000 approval threshold” — `'pending'` is also the first save of an ordinary bill, so reopening a $100 bill at $50,000 and pressing *Approve Bill* skipped the hold | **Genuine — my first fix was too broad** | A decision now stands only when the amount has not grown since the bill was saved (`total <= savedTotalCents`); a raise re-applies the threshold and stamps `metadata.approvalHeld`. Test 7 (fails before, passes after) |
+| “Status select still lets non-approvers move a pending bill out of review” — picking *Unpaid* and *Save & Close* left review without any approver deciding | **Genuine** | Status select is disabled and pinned to `pending` for a non-approver on a held bill, and `handleAction` refuses approver-only statuses as a second line; `pending`/`draft`/`void`/`rejected`/`cancelled` still allowed. Test 8 (fails before, passes after) |
+
+Why not a marker-only gate (Gitar's suggested `metadata.approvalHeld`): bills already waiting from before this
+change carry no marker, so a marker-only gate would restore the G-19 infinite loop for every existing pending
+bill. The amount comparison works for old and new bills; the marker is written for auditability, not as the gate.
+
+Bot suggestion **not** adopted as stated: Gitar's snippet compares against `initialBill.lineSumCents ??
+initialBill.amountCents`. `lineSumCents` is the pre-tax subtotal and `total` is the tax-inclusive amount, so
+comparing them mis-classifies every tax-inclusive bill as “grown”. The implementation compares like with like
+(`amountCents`, falling back to the sum of the split amounts).
+
 ## Verified — not defects (checked and dismissed, recorded so they are not re-reported)
 
 - `src/components/planning/BudgetManager.tsx:274` `Math.min(b.percentUsed, 100)` looks like the A8-032 class,
