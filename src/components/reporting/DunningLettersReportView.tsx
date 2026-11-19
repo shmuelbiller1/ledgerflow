@@ -90,7 +90,7 @@ export default function DunningLettersReportView() {
 
   const shown = filter === 'all' ? rows : rows.filter(r => r.stepDue > 0);
   const selected = shown.find(r => r.invoice.id === selectedId) || shown.find(r => r.stepDue > 0) || shown[0];
-  const partial = truncated.invoices || truncated.customers || failed.invoices || failed.customers;
+  const partial = Boolean(truncated.invoices || truncated.customers || failed.invoices || failed.customers);
 
   const letter = selected && selected.stepDue
     ? dunningLetter({
