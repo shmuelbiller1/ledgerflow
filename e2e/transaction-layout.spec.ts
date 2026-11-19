@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 test('transaction widths and order align header/rows and persist across reload', async ({ page }) => {
+  // the first visit can wait on a dev-server build, so the test gets room for the 30 s first-load wait
+  test.setTimeout(90_000);
   await page.route('**/api/**', route => route.fulfill({ status: 200, json: {} }));
   await page.addInitScript(() => { localStorage.setItem('isGuest', 'true'); localStorage.setItem('has_seen_onboarding', 'true'); });
   await page.goto('/#transactions');
@@ -19,7 +21,7 @@ test('transaction widths and order align header/rows and persist across reload',
   await expect.poll(async () => (await firstRowCell.boundingBox())!.width).toBeCloseTo(320, 0);
   await expect.poll(async () => Math.abs((await headerCell.boundingBox())!.x - (await firstRowCell.boundingBox())!.x)).toBeLessThan(2);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Journal Entries' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Journal Entries' })).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Columns', exact: true }).click();
   await expect(page.getByRole('spinbutton', { name: 'Description width in pixels' })).toHaveValue('320');
   await expect(header.locator(':scope > [data-column]').nth(1)).toHaveAttribute('data-column', 'description');
