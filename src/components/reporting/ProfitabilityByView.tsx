@@ -6,8 +6,9 @@ import type { ProfitabilityBy, ProfitabilityLine } from '../../lib/profitability
 import { yearRange } from '../../server/reports/itemReports';
 import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { formatCurrency } from '../../lib/utils';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { csvMoneyForBook, downloadCsv } from '../../lib/csvExport';
 import { useReportText } from './useReportText';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 type By = ProfitabilityBy;
 type Line = ProfitabilityLine;
@@ -21,6 +22,8 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
  */
 export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selectedYear }) => {
   const reportText = useReportText();
+  // #910 family: revenue, cost and budget are in the base currency, so the file's decimals come from it
+  const moneyCell = csvMoneyForBook(useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD');
   const { loading } = useLedgerCollections('customers', 'invoices', 'inventory', 'transactions', 'accounts', 'projects');
   const [by, setBy] = useState<By>('customer');
   const initial = yearRange(selectedYear ?? new Date().getFullYear());
@@ -60,16 +63,16 @@ export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selec
       lines.map(l => by === 'project'
         ? [
             l.label,
-            csvMoney(l.revenueCents),
-            csvMoney(l.costCents),
-            l.budgetCents == null ? '' : csvMoney(l.budgetCents),
-            l.budgetRemainingCents == null ? '' : csvMoney(l.budgetRemainingCents),
+            moneyCell(l.revenueCents),
+            moneyCell(l.costCents),
+            l.budgetCents == null ? '' : moneyCell(l.budgetCents),
+            l.budgetRemainingCents == null ? '' : moneyCell(l.budgetRemainingCents),
             l.budgetUsedPct ?? '',
-            csvMoney(l.marginCents),
+            moneyCell(l.marginCents),
             l.marginPct ?? '',
             l.estimate ? 'yes' : 'no',
           ]
-        : [l.label, csvMoney(l.revenueCents), csvMoney(l.costCents), csvMoney(l.marginCents), l.marginPct ?? '', l.estimate ? 'yes' : 'no']));
+        : [l.label, moneyCell(l.revenueCents), moneyCell(l.costCents), moneyCell(l.marginCents), l.marginPct ?? '', l.estimate ? 'yes' : 'no']));
   };
 
   return (
