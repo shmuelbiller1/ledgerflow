@@ -7,7 +7,7 @@ export type EffectIntent = (
   | { kind: 'notification'; action: NotificationType }
   | { kind: 'email'; action: 'send' | 'invoice' | 'statement' | 'payment-receipt' | 'remittance' }
   | { kind: 'exchange-rate'; action: 'fetch' }
-  | { kind: 'bank'; action: 'sync' | 'verify-webhook' }
+  | { kind: 'bank'; action: 'sync' | 'verify-webhook' | 'register-webhook' }
   | { kind: 'storage'; action: 'delete-prefix' }
 ) & { target?: string };
 

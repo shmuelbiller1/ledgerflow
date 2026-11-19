@@ -10,11 +10,12 @@ import './helpers/dom';
 import test, { afterEach, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import YearEndPackView from '../components/reporting/YearEndPackView';
 import { buildSampleBusinessYear } from '../lib/sampleBusinessYear';
 import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { useUIStore } from '../stores/useUIStore';
 
 const fixture = buildSampleBusinessYear({ year: 2026 });
 
@@ -56,7 +57,12 @@ describe('the year-end pack screen', () => {
     assert.ok(netProfit && /\d/.test(netProfit.textContent || ''), 'the net profit figure is shown');
 
     // each section offers the report behind it
-    assert.equal(screen.getAllByRole('link', { name: /open/i }).length, 7);
+    // each section offers the report behind it; the closing checklist is its own screen, opened by a button
+    assert.equal(screen.getAllByRole('link', { name: /open/i }).length, 6);
+    const closing = container.querySelector('[data-year-end-section="closing"] button');
+    assert.ok(closing, 'the closing section opens the month-end close');
+    fireEvent.click(closing);
+    assert.equal(useUIStore.getState().activeTab, 'month-end-close');
   });
 
   test('a year with nothing in it says so instead of printing an empty page of zeroes', async () => {

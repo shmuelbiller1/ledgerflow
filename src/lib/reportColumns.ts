@@ -14,7 +14,7 @@ import {
   parseLocalDate,
 } from "./calendarDate";
 import { getFiscalQuarter } from "./fiscalCalendar";
-import { csvMoney } from "./csvExport";
+import { csvMoneyForCurrency } from "./csvExport";
 import { accountGroupLayout, groupSubtotals } from "./accountGroups";
 
 export type ReportColumnMode = "total" | "months" | "quarters";
@@ -301,7 +301,9 @@ export function statementColumnCsv(
   compare: boolean,
   accounts: ChartAccount[] = [],
   compareLabel = "Previous",
+  currency = "USD",
 ): { headers: string[]; rows: string[][] } {
+  const csvMoney = csvMoneyForCurrency(currency.trim().toUpperCase());
   const headers = ["Account", "Code"];
   for (const column of columns) {
     const label = `${column.period.label} (${column.period.startDate} to ${column.period.endDate})`;

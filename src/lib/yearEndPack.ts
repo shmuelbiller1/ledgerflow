@@ -114,7 +114,11 @@ function agingFigures(rows: PartyAgingRow[]): YearEndFigure[] {
 
 /** Active fixed assets at the year end: what they cost, what has been depreciated, what is left. */
 function fixedAssetFigures(assets: FixedAsset[], asOf: string): YearEndFigure[] {
-  const live = assets.filter(asset => asset.status !== 'disposed' && (!asset.disposedOn || asset.disposedOn > asOf));
+  // held at the year end: bought by then and not yet disposed of then (Gitar on #927). Cost and
+  // depreciation are the asset's recorded figures as they stand today; the section says so.
+  const live = assets.filter(asset => asset.status !== 'in_progress'
+    && (!asset.purchaseDate || asset.purchaseDate.slice(0, 10) <= asOf)
+    && (asset.disposedOn ? asset.disposedOn.slice(0, 10) > asOf : asset.status !== 'disposed'));
   const cost = live.reduce((sum, asset) => sum + (asset.purchasePriceCents || 0), 0);
   const depreciated = live.reduce((sum, asset) => sum + (asset.accumulatedDepreciationCents || 0), 0);
   return [
@@ -138,8 +142,10 @@ export function buildYearEndPack(input: YearEndPackInput): YearEndPack {
   const pl = computeProfitAndLoss(accounts, transactions, startDate, endDate);
   const sheet = computeBalanceSheet(accounts, transactions, endDate);
   const trial = computeTrialBalance(accounts, transactions, endDate);
-  const receivables = computePartyAging(input.customers || [], invoices, 'customer', endDate, input.currency);
-  const payables = computePartyAging(input.vendors || [], bills, 'vendor', endDate, input.currency);
+  // only documents dated by the year end; what is still owed on them is as recorded today (the sections say so)
+  const byYearEnd = <T extends { date?: string }>(docs: T[]) => docs.filter(doc => !doc.date || doc.date.slice(0, 10) <= endDate);
+  const receivables = computePartyAging(input.customers || [], byYearEnd(invoices), 'customer', endDate, input.currency);
+  const payables = computePartyAging(input.vendors || [], byYearEnd(bills), 'vendor', endDate, input.currency);
   const closeItems = buildCloseChecklist({
     month: closingMonth,
     baseCurrency: input.currency,

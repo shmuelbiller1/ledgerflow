@@ -703,9 +703,9 @@ export const REPORT_STRINGS_6: ScreenStringEntry[] = [
   { key: 'r.ye-section-profit-and-loss', en: 'Profit and loss for the year', he: 'רווח והפסד לשנה' },
   { key: 'r.ye-section-balance-sheet', en: 'Balance sheet at the year end', he: 'מאזן לסוף השנה' },
   { key: 'r.ye-section-trial-balance', en: 'Trial balance at the year end', he: 'מאזן בוחן לסוף השנה' },
-  { key: 'r.ye-section-receivables', en: 'Owed by customers at the year end', he: 'מה חייבים הלקוחות לסוף השנה' },
-  { key: 'r.ye-section-payables', en: 'Owed to vendors at the year end', he: 'מה חייבים לספקים לסוף השנה' },
-  { key: 'r.ye-section-fixed-assets', en: 'Fixed assets held at the year end', he: 'רכוש קבוע לסוף השנה' },
+  { key: 'r.ye-section-receivables', en: 'Owed by customers on invoices dated by the year end, as still owed today', he: 'חוב לקוחות על חשבוניות מתוארכות עד סוף השנה, כפי שעדיין חייבים היום' },
+  { key: 'r.ye-section-payables', en: 'Owed to vendors on bills dated by the year end, as still owed today', he: 'חוב לספקים על חשבונות ספק מתוארכים עד סוף השנה, כפי שעדיין חייבים היום' },
+  { key: 'r.ye-section-fixed-assets', en: 'Fixed assets held at the year end, at their recorded cost and depreciation today', he: 'רכוש קבוע שהוחזק בסוף השנה, לפי העלות והפחת הרשומים היום' },
   { key: 'r.ye-section-closing', en: 'Closing the last month of the year', he: 'סגירת החודש האחרון של השנה' },
   { key: 'r.ye-open-pnl', en: 'Open the profit and loss', he: 'פתחו את דוח הרווח והפסד' },
   { key: 'r.ye-open-balance-sheet', en: 'Open the balance sheet', he: 'פתחו את המאזן' },
@@ -715,4 +715,5 @@ export const REPORT_STRINGS_6: ScreenStringEntry[] = [
   { key: 'r.ye-open-asset-register', en: 'Open the asset register', he: 'פתחו את רשימת הרכוש הקבוע' },
   { key: 'r.ye-open-close', en: 'Open month-end close', he: 'פתחו סגירת חודש' },
   { key: 'r.ye-empty-nothing-loaded', en: 'This pack reads the entries in this browser: import or record an entry and it appears here.', he: 'החבילה קוראת את הרישומים שבדפדפן הזה: ייבוא או רישום יופיעו כאן.' },
+  { key: 'r.bs-change-sentence', en: '{section}: {now} on {asOf} and {before} on {prior}, a change of {change}.', he: '{section}: {now} ב-{asOf} ו-{before} ב-{prior}, שינוי של {change}.' },
 ];

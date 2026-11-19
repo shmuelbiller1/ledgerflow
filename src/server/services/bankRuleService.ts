@@ -121,21 +121,22 @@ export async function prepareRerunBankRules(db: Firestore, input: { workspaceId:
 }
 
 /** POST /api/v1/transactions/bank-lines/apply-rules: the rules again over the pending lines (owners and accountants). */
-export async function rerunBankRules(db: Firestore, input: { workspaceId: string; uid: string; after?: string; limit?: number }): Promise<RerunResult> {
+export async function rerunBankRules(db: Firestore, input: { workspaceId: string; uid: string; after?: string; limit?: number }, tx?: Tx): Promise<RerunResult> {
   await prepareRerunBankRules(db, { workspaceId: input.workspaceId, uid: input.uid });
 
-  const snap = await db.collection('bankLines').where('workspaceId', '==', input.workspaceId).where('status', '==', 'pending').get();
+  // #796: inside the command runner every chunk shares its transaction, so a retried attempt redoes the
+  // writes, the count and the audit together; called alone, each chunk commits on its own as before
+  const pendingQuery = db.collection('bankLines').where('workspaceId', '==', input.workspaceId).where('status', '==', 'pending');
+  const snap = tx ? await tx.get(pendingQuery) : await pendingQuery.get();
   // by id, from after the cursor: a workspace with more lines than one call takes goes on with nextCursor
   const limit = Math.max(1, Math.min(MAX_RERUN_LINES, Math.floor(input.limit ?? MAX_RERUN_LINES)));
   const pendingIds = snap.docs.filter(d => !d.data().matchedTransactionId).map(d => d.id).sort(byCodeUnit)
     .filter(id => input.after === undefined || id > input.after);
   const ids = pendingIds.slice(0, limit);
-  const { rules, context } = await loadBankRuleInputs(db, null, input.workspaceId);
+  const { rules, context } = await loadBankRuleInputs(db, tx ?? null, input.workspaceId);
   const truncated = pendingIds.length > ids.length;
   const result: RerunResult = { checked: 0, changed: 0, suggested: 0, truncated, ...(truncated ? { nextCursor: ids[ids.length - 1] } : {}) };
-  for (let i = 0; i < ids.length; i += RERUN_CHUNK) {
-    const chunk = ids.slice(i, i + RERUN_CHUNK);
-    const part = await db.runTransaction(async (t) => {
+  const work = async (t: Tx, chunk: string[]) => {
       const now = new Date().toISOString();
       const refs = chunk.map(id => db.collection('bankLines').doc(id));
       const snaps = await t.getAll(...refs);
@@ -157,7 +158,13 @@ export async function rerunBankRules(db: Firestore, input: { workspaceId: string
       writes.forEach(w => t.update(w.ref, w.fields));
       applyHits();
       return { checked, suggested, changed: writes.length };
-    });
+  };
+  // a shared transaction reads everything before it writes anything: one pass over all the lines (at most
+  // MAX_RERUN_LINES); on its own, a chunk per transaction as before (Gitar on #908)
+  const batches = tx ? [ids] : Array.from({ length: Math.ceil(ids.length / RERUN_CHUNK) }, (_, i) => ids.slice(i * RERUN_CHUNK, (i + 1) * RERUN_CHUNK));
+  for (const chunk of batches) {
+    if (chunk.length === 0) continue;
+    const part = tx ? await work(tx, chunk) : await db.runTransaction(t => work(t, chunk));
     result.checked += part.checked; result.suggested += part.suggested; result.changed += part.changed;
   }
   return result;

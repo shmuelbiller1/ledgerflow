@@ -14,12 +14,14 @@ import { AverageMonthlyReportView } from '../components/reporting/AverageMonthly
 import { TopExpensesIncomeReportView } from '../components/reporting/TopExpensesIncomeReportView';
 import { TagBreakdownReportView } from '../components/reporting/TagBreakdownReportView';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { setLoadedAccountReportWorkspace } from './helpers/componentFixtures';
 import { accounts, ledger } from './helpers/reportLedger';
 
 const rows = (caption: RegExp) => within(screen.getByRole('table', { name: caption })).getAllByRole('row').slice(1).map(r => r.textContent || '');
 
 describe('report screens', () => {
   beforeEach(() => {
+    setLoadedAccountReportWorkspace();
     stubFetch(404);
     useLedgerStore.setState({ accounts, transactions: ledger });
   });

@@ -60,7 +60,7 @@ test('E-22 category panel states when browser history is incomplete', () => {
 test('E-22 filter is reachable on the existing Expenses by Category report screen', () => {
   setComponentWorkspace();
   useLedgerStore.setState({ accounts, bills, transactions: [] });
-  useDataNeedsStore.setState({ loaded: { bills: true }, loadedWorkspaceId: 'component-workspace', failed: {} });
+  useDataNeedsStore.setState({ loaded: { accounts: true, bills: true }, loadedWorkspaceId: 'component-workspace', failed: {} });
   render(<ExpenseByCategoryReportView selectedYear={2026} />);
   assert.ok(screen.getByLabelText('Expense account categories and bills'));
   fireEvent.change(screen.getByLabelText('Filter bills by expense category'), { target: { value: 'a2' } });

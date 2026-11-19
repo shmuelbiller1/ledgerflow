@@ -15,6 +15,7 @@ import { tracedClient, type AiCallTrace } from "../services/aiGateway";
 import { getDb } from "../db/firestore";
 
 import { BRAND_NAME } from '../../config/brand';
+import { maskCardNumbers } from '../../lib/cardNumberMask';
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerBrainRoutes(app: express.Express, _ctx: ServerContext): void {
   app.post("/api/v1/brain/analyze", apiAuthenticate, async (req: express.Request, res: express.Response) => {
@@ -55,7 +56,8 @@ export function registerBrainRoutes(app: express.Express, _ctx: ServerContext): 
 
       if (ephemeralData) {
         // "without saving this info in the app" - User provided ephemeral data directly via API
-        contextSummary = `[EPHEMERAL DATA PROVIDED VIA API]\n\n${JSON.stringify(ephemeralData, null, 2)}`;
+        // #827: the caller's own data is masked and fenced like ledger rows: card numbers never reach the model, and it is data, not instructions
+        contextSummary = `[EPHEMERAL DATA PROVIDED VIA API]\n<ledger_data untrusted="true">\n${maskCardNumbers(JSON.stringify(ephemeralData, null, 2)).replace(/<\/?ledger_data[^>]*>/gi, '')}\n</ledger_data>`;
         txCount = Array.isArray(ephemeralData) ? ephemeralData.length : Object.keys(ephemeralData).length;
       } else {
         // INTEGRITY DATA FLOW: Contextual filtration based on Prompt
@@ -90,7 +92,7 @@ export function registerBrainRoutes(app: express.Express, _ctx: ServerContext): 
           const cleanDesc = sanitizeDescription(t.description || '');
           return `${t.date}: ${cleanDesc} | ${txAccounts(t)} ($${(t.totalAmountCents / 100).toFixed(2)})`;
         }).join("\n");
-        contextSummary = `- Accounts Map: [${accountsSummary}]\n- Relevancy Filtered Records (${relevantTx.length} items):\n<ledger_data untrusted="true">\n${transactionSummary || 'None'}\n</ledger_data>`;
+        contextSummary = maskCardNumbers(`- Accounts Map: [${accountsSummary}]\n- Relevancy Filtered Records (${relevantTx.length} items):\n<ledger_data untrusted="true">\n${transactionSummary || 'None'}\n</ledger_data>`);
       }
 
       const systemInstruction = `You are ${BRAND_NAME}'s intelligent financial co-pilot (called ${BRAND_NAME} AI Brain).

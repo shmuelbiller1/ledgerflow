@@ -4,10 +4,10 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "name": COMMAND_SCHEMA_PARTS.part56,
-    "businessType": COMMAND_SCHEMA_PARTS.part50,
-    "currency": COMMAND_SCHEMA_PARTS.part85,
-    "timezone": COMMAND_SCHEMA_PARTS.part53,
+    "name": COMMAND_SCHEMA_PARTS.part57,
+    "businessType": COMMAND_SCHEMA_PARTS.part51,
+    "currency": COMMAND_SCHEMA_PARTS.part87,
+    "timezone": COMMAND_SCHEMA_PARTS.part54,
     "fiscalYearStartMonth": {
       "type": "integer",
       "minimum": 1,
@@ -26,7 +26,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "down"
       ]
     },
-    "moneyDisplay": COMMAND_SCHEMA_PARTS.part149,
+    "moneyDisplay": COMMAND_SCHEMA_PARTS.part153,
     "paymentTermDays": {
       "type": "integer",
       "minimum": 0,
@@ -37,24 +37,24 @@ export const COMMAND_INPUT_SCHEMA = {
       "type": "array",
       "items": COMMAND_SCHEMA_PARTS.part1
     },
-    "defaultAccountMappings": COMMAND_SCHEMA_PARTS.part149,
+    "defaultAccountMappings": COMMAND_SCHEMA_PARTS.part153,
     "scheduledReports": {
       "maxItems": 50,
       "type": "array",
       "items": COMMAND_SCHEMA_PARTS.part1
     },
-    "matchingThreshold": COMMAND_SCHEMA_PARTS.part74,
-    "aiModel": COMMAND_SCHEMA_PARTS.part53,
-    "emailTemplates": COMMAND_SCHEMA_PARTS.part149,
-    "reminderSettings": COMMAND_SCHEMA_PARTS.part149,
-    "invoiceApproval": COMMAND_SCHEMA_PARTS.part149,
+    "matchingThreshold": COMMAND_SCHEMA_PARTS.part76,
+    "aiModel": COMMAND_SCHEMA_PARTS.part54,
+    "emailTemplates": COMMAND_SCHEMA_PARTS.part153,
+    "reminderSettings": COMMAND_SCHEMA_PARTS.part153,
+    "invoiceApproval": COMMAND_SCHEMA_PARTS.part153,
     "reportNotes": {
       "type": "object",
-      "propertyNames": COMMAND_SCHEMA_PARTS.part22,
+      "propertyNames": COMMAND_SCHEMA_PARTS.part23,
       "additionalProperties": {
         "anyOf": [
-          COMMAND_SCHEMA_PARTS.part66,
-          COMMAND_SCHEMA_PARTS.part18
+          COMMAND_SCHEMA_PARTS.part68,
+          COMMAND_SCHEMA_PARTS.part19
         ]
       }
     }

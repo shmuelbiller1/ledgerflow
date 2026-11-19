@@ -8,12 +8,12 @@ historical, not an acceptance test. Earlier migration batches and their evidence
 
 | Counter (`computeQualityMetrics()`) | Start of this batch | Now | Target |
 |---|---:|---:|---|
-| `rawTables` | 126 | **124** | Zero or an individual reason to keep each site |
+| `rawTables` | 122 | **120** | Zero or an individual reason to keep each site |
 | `handTypedApiCalls` | 5 | **5** | Zero or individually justified (§3) |
 | `directDbWrites` | 0 | **0** | 0 |
 | `screensWithManyPrimaryButtons` | 0 | **0** | 0 |
 
-**124 is files, not tables**: 122 paths on the migration queue, `PivotSheetView` (dynamic pivot) and
+**120 is files, not tables**: 118 paths on the migration queue, `PivotSheetView` (dynamic pivot) and
 `RowTable` (the embedded-table renderer itself). The full-list grid is excluded by the existing metric.
 `raw-table-decisions.test.ts` now compares the metric's actual paths against the queue and named exceptions;
 a new raw screen cannot slip in when a different screen migrates in the same PR. A queued file is **not** an exemption.
@@ -22,7 +22,7 @@ a new raw screen cannot slip in when a different screen migrates in the same PR.
 |---|---|---|
 | Lists | Sales invoices/customers, Purchases bills/vendors and Inventory items use `TanStackDataGrid`; `scaffold:report` emits the grid. Embedded report lines use `RowTable`. | Finish migrating or justifying each remaining site. An embedded table is not a full list with search, saved views and phone cards. |
 | Records and actions | Invoice, bill and party record shells; shared schema `CommandForm`; role/refusal/next-step handling in `useCommand`. | Other record kinds; generic inverse/Undo in the hook (the project-delete action has its own Undo). A schema form in API Hub isn't reachability from the palette. |
-| Navigation | Seven daily areas, All tools, business-type defaults (`modulesForBusiness`), report/settings index and off-module “turn on” results. `business-menu.spec.ts` passed at 390 and 1280. | `CommandPalette` searches `SYSTEM_COMMANDS` and indexed pages, **not** every role-permitted entry in the 209-command generated manifest. Connect that manifest to a real form/page, and test finding and activating allowed commands in English/Hebrew and withholding forbidden ones. `palette-role-filter` is a helper test; `palette-reachability-guard` proves destinations, not that command contract. |
+| Navigation | Seven daily areas, All tools, business-type defaults (`modulesForBusiness`), report/settings index and off-module “turn on” results. `business-menu.spec.ts` passed at 390 and 1280. | `CommandPalette` searches `SYSTEM_COMMANDS` and indexed pages, **not** every role-permitted entry in the 210-command generated manifest. Connect that manifest to a real form/page, and test finding and activating allowed commands in English/Hebrew and withholding forbidden ones. `palette-role-filter` is a helper test; `palette-reachability-guard` proves destinations, not that command contract. |
 | Proposals | The private sandbox, persisted steps, live-read restrictions and atomic acceptance exist (#787, #853, #855). | Verify CMD-1 part 3's edit/revalidation, partial acceptance, rejection, expiry and inverse contracts before the “Waiting for you” UI. Customer estimates are not assistant proposals. |
 | First hour | `first-hour-journey.spec.ts` at **390 and 1280**: Tab/Enter through the signed-in workspace shell to create a customer, issue and **email** an invoice, record its payment and open Reports. It checks the PDF reached the test mailbox once, the recipient’s send log, the paid invoice and **$900** net income from the server. The phone menu now closes over the chosen page and returns keyboard focus there. | The external mail provider and hosted sign-in are test boundaries, not certified by the journey. H-3 remains a separate keyboard test with stubbed writes. |
 
@@ -128,12 +128,61 @@ a new raw screen cannot slip in when a different screen migrates in the same PR.
       The [visual refresh](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44416325020) captured and
       rechecked 12 Linux Chromium references. Reviewed: the focused export, right-to-left headings and visible figures.
 
-**Next batch:** `npx tsx scripts/codemod-row-table.ts --files` now offers **15 tables in 14 files**; **131 table
-blocks refused** (including the shared renderers). At the start it offered two and refused 147. Start with the
-remaining comparison reports (e.g. `DocumentTrendsView`). Review actual output, both comparison states and
-permission-dependent cells before writing. The largest refusals are still maps that don't return one row (34),
-unsupported headings (31) and bodies that aren't a map (15). Don't hand-convert refused tables. Re-run the
-survey after each batch; lower `rawTables` only when the last raw table leaves a counted file.
+### Comparison reports — second batch
+
+- [x] **Sales trends by customer/item and purchase trends by vendor** now use `RowTable`. Overlapping windows
+      keep separate rows for the same month/name; the optional window label is translated. Hiding/reordering a
+      column for one grouping or comparison mode does not hide a different column in another. A window with
+      no matches keeps its headings and group selector, without layout/export tools; genuinely empty books get
+      a single next action. Valid previous rows and incomplete-history notes are not mistaken for empty books.
+- [x] **Supplier quote comparison** uses the shared report table. The per-currency rankings, last billed cost
+      and original minor-unit CSV still come from `compareVendorQuotes` and its export helper. A viewer can
+      compare/export but gets neither the edit form nor an Actions column. A bookkeeper can open the existing
+      form or remove the intended quote after reordering; an unconfirmed save retains the draft. The draft and
+      late replies stay with the user/workspace that opened it. A filtered-out item is not an empty catalogue.
+- [x] **Evidence:** `visual-regression.spec.ts`, filters `visual document trends` and `visual vendor quote comparison`:
+      keyboard-only at 390/1280, light/dark, English/Hebrew, scoped axe (including the open quote editor),
+      CSV contents, layout persistence, and a live role change. The original deep-link tests still assert the
+      2024 period and both Sales group headings. [Before views](verification/images/ui2-trends-quotes/);
+      the [final official refresh](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44433041496) captured and
+      rechecked all 12 `trends-sales-*`, `trends-purchases-*` and `quotes-*` references. Reviewed both viewport
+      sets. Language, theme and the UI font are in place before native selectors mount; no tolerance was raised.
+
+**Survey at the end of batch 2:** on `bce500c`, the dry run went from 15 tables in 14 files to
+13 in 12, with 131 refused blocks. `rawTables` went from 124 files to 122. #895 did **not**
+migrate the purchase item register.
+
+### Purchase items and receipts by method — third batch
+
+- [x] **Purchases → Trends → Item.** The row identifies the item, month, currency and window; the
+      bill-line calculation and its machine CSV did not change. In the worked example, January's
+      two USD lines are **0.75 units / $12.50**, including when January appears in both windows;
+      February's **2 units / €36.40** stay separate. Loading all bills and items adds February's
+      **1.5 units / $18.15**. Signed-in previews cannot export through either CSV control or an
+      export template. A failed refresh keeps the last successful rows on screen, not in the
+      shared ledger cache. Guest sample, an unmatched window and confirmed empty books are distinct.
+- [x] **Sales payment summary by method.** A $12.50 card receipt plus a €15 receipt at 2 give
+      **$42.50** in the workspace currency; previous $9.75, change **$32.75**. The second table is
+      the payment register: €15 in, $12.50 in, and a $23 check **out**, in their original currencies.
+      The receipts API returns totals, not that register. When payments are capped, a complete server
+      answer restores only the receipts export. A partial, malformed, refused or obsolete comparison
+      cannot authorize it. Unmatched periods retain their dates and headings; empty books offer Sales.
+- [x] **Verification.** [Eight before views](verification/images/ui2-item-receipts/); Playwright
+      filters `visual purchase item register` and `visual receipt methods` exercise real rendered
+      reports, keyboard column choices, downloaded CSV contents and scoped axe at 390/1280 in light
+      and dark, English and Hebrew. The sample-company deep link checks both localized receipt
+      periods (including leap day). `purchase-item-trends`, `payment-method-flows-view` and
+      `operational-reports-server` also cover paging past 1,000 bills, failure/retry, stale identity
+      and the actual Postgres-backed receipts route. The [hosted visual run](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44553903657)
+      captured and rechecked all eight `purchase-item-register-*` and `receipt-methods-*` references.
+      Both viewport sets were reviewed; no other references or tolerances changed.
+
+**Next batch:** on the supplied `8de8fe7` base the dry run offered **12 tables in 11 files**;
+now **10 in 9**, with **132** blocks still refused. `rawTables`: **122 → 120 files**, no new exemption.
+Start with `src/components/ledger/ProjectProfitabilityView.tsx` if still unreserved. It is the chart
+and transaction-line matrix, not the similarly named invoice-based report: preserve all/high-yield/loss
+filters, chart expansion and the existing export. Check open PRs and run `npx tsx scripts/codemod-row-table.ts --files`
+again on the next base. These two embedded report migrations do not finish the list, palette or proposal work.
 
 ## 3. One way to act
 

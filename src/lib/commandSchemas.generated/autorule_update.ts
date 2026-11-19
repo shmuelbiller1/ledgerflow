@@ -4,24 +4,24 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part97,
+    "id": COMMAND_SCHEMA_PARTS.part100,
     "data": {
       "type": "object",
       "properties": {
-        "name": COMMAND_SCHEMA_PARTS.part57,
-        "groupName": COMMAND_SCHEMA_PARTS.part94,
-        "groupIsActive": COMMAND_SCHEMA_PARTS.part25,
-        "condition": COMMAND_SCHEMA_PARTS.part265,
-        "action": COMMAND_SCHEMA_PARTS.part268,
-        "confidence": COMMAND_SCHEMA_PARTS.part74,
-        "isHardened": COMMAND_SCHEMA_PARTS.part25,
-        "priority": COMMAND_SCHEMA_PARTS.part146,
-        "isActive": COMMAND_SCHEMA_PARTS.part25,
-        "stopProcessingOnMatch": COMMAND_SCHEMA_PARTS.part25
+        "name": COMMAND_SCHEMA_PARTS.part58,
+        "groupName": COMMAND_SCHEMA_PARTS.part97,
+        "groupIsActive": COMMAND_SCHEMA_PARTS.part26,
+        "condition": COMMAND_SCHEMA_PARTS.part276,
+        "action": COMMAND_SCHEMA_PARTS.part279,
+        "confidence": COMMAND_SCHEMA_PARTS.part76,
+        "isHardened": COMMAND_SCHEMA_PARTS.part26,
+        "priority": COMMAND_SCHEMA_PARTS.part150,
+        "isActive": COMMAND_SCHEMA_PARTS.part26,
+        "stopProcessingOnMatch": COMMAND_SCHEMA_PARTS.part26
       },
       "additionalProperties": false
     }
   },
-  "required": COMMAND_SCHEMA_PARTS.part13,
+  "required": COMMAND_SCHEMA_PARTS.part14,
   "additionalProperties": false
 } as const;

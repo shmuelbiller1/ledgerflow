@@ -10,9 +10,6 @@
  */
 import {
   findDuplicateContactCandidates,
-  normalizedEmail,
-  normalizedPhone,
-  normalizedTaxId,
   type DuplicateMatchSignal,
   type ReviewContact,
   type ReviewContactKind,
@@ -216,7 +213,7 @@ export interface ContactImportDuplicateCheck {
   willSkip: { row: number; name: string; existingName: string }[];
   willSkipTotal: number;
   /** Same email/phone/tax ID but a different name: these still create a second record. */
-  possible: { row: number; name: string; existingName: string; signals: DuplicateMatchSignal[] }[];
+  possible: { row: number; name: string; existingId: string; existingName: string; signals: DuplicateMatchSignal[] }[];
   possibleTotal: number;
   /** The candidate matcher omitted pairs or large shared-value groups. */
   incomplete: boolean;
@@ -232,8 +229,9 @@ export function contactImportDuplicates(
   existing: readonly ReviewContact[],
 ): ContactImportDuplicateCheck {
   const reviewKind: ReviewContactKind = kind === 'customers' ? 'customer' : 'vendor';
+  const storedContacts = existing.filter(c => c.kind === reviewKind);
   const byName = new Map<string, ReviewContact>();
-  for (const c of existing) {
+  for (const c of storedContacts) {
     const key = identityName(c.name ?? '');
     if (key && !byName.has(key)) byName.set(key, c);
   }
@@ -246,33 +244,22 @@ export function contactImportDuplicates(
       if (willSkip.length < LIMIT) willSkip.push({ row: row.row, name: row.name, existingName: hit.name });
     }
   }
-  const keysOf = (c: { email?: string; phone?: string; taxId?: string }) => [
-    normalizedEmail(c.email || ''), normalizedPhone(c.phone || ''), normalizedTaxId(c.taxId || ''),
-  ].filter(Boolean);
   const incomingContacts = incoming
     .filter(r => !skippedRows.has(r.row))
-    .map(r => ({ id: `incoming:${r.row}`, kind: reviewKind, name: r.name, email: r.email, phone: r.phone, taxId: r.taxId }));
-  const incomingKeys = new Set(incomingContacts.flatMap(keysOf));
-  const relevant = existing.filter(c => keysOf(c).some(k => incomingKeys.has(k)));
-  const merged: ReviewContact[] = [...relevant, ...incomingContacts];
-  const review = findDuplicateContactCandidates(merged);
-  const possible: ContactImportDuplicateCheck['possible'] = [];
-  let possibleTotal = 0;
-  for (const pair of review.pairs) {
-    const incomingSide = pair.left.id.startsWith('incoming:') ? pair.left : pair.right.id.startsWith('incoming:') ? pair.right : null;
-    const existingSide = incomingSide === pair.left ? pair.right : pair.left;
-    if (!incomingSide || existingSide.id.startsWith('incoming:')) continue;
-    const signals = pair.signals.filter(s => s !== 'name');
-    if (signals.length === 0) continue;
-    possibleTotal += 1;
-    if (possible.length < LIMIT) {
-      possible.push({
-        row: Number(incomingSide.id.slice('incoming:'.length)),
-        name: incomingSide.name,
-        existingName: existingSide.name,
-        signals,
-      });
-    }
-  }
-  return { willSkip, willSkipTotal: skippedRows.size, possible, possibleTotal, incomplete: review.truncated || review.ambiguousBuckets > 0 };
+    .map(r => ({ ...r, id: `incoming:${r.row}`, kind: reviewKind }));
+  const incomingIds = new Set(incomingContacts.map(row => row.id));
+  // Keep the two ID namespaces separate even if a stored record ID looks like an import-row ID.
+  const stored = storedContacts.map(c => ({ ...c, id: `stored:${c.id}` }));
+  const review = findDuplicateContactCandidates([...stored, ...incomingContacts], { incomingIds });
+  const possible = review.pairs.slice(0, LIMIT).map(pair => {
+    const [row, contact] = incomingIds.has(pair.left.id) ? [pair.left, pair.right] : [pair.right, pair.left];
+    return {
+      row: Number(row.id.slice('incoming:'.length)),
+      name: row.name,
+      existingId: contact.id.slice('stored:'.length),
+      existingName: contact.name,
+      signals: pair.signals,
+    };
+  });
+  return { willSkip, willSkipTotal: skippedRows.size, possible, possibleTotal: review.pairs.length, incomplete: review.truncated || review.ambiguousBuckets > 0 };
 }

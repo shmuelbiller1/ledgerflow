@@ -22,6 +22,7 @@ import { buildYearEndPack, type YearEndSection } from '../../lib/yearEndPack';
 import { getLocalDateISO } from '../../lib/utils';
 import { formatCurrency } from '../../lib/moneyFormat';
 import CloseReportLink from '../ledger/CloseReportLink';
+import { useUIStore } from '../../stores/useUIStore';
 import { CappedCollectionsNote } from '../common/LoadedEntriesOnlyNote';
 import ReportEmptyState from './ReportEmptyState';
 import { fill, useReportText } from './useReportText';
@@ -64,9 +65,9 @@ export default function YearEndPackView({ selectedYear }: { selectedYear?: numbe
     'profit-and-loss': reportText('r.ye-section-profit-and-loss', 'Profit and loss for the year'),
     'balance-sheet': reportText('r.ye-section-balance-sheet', 'Balance sheet at the year end'),
     'trial-balance': reportText('r.ye-section-trial-balance', 'Trial balance at the year end'),
-    receivables: reportText('r.ye-section-receivables', 'Owed by customers at the year end'),
-    payables: reportText('r.ye-section-payables', 'Owed to vendors at the year end'),
-    'fixed-assets': reportText('r.ye-section-fixed-assets', 'Fixed assets held at the year end'),
+    receivables: reportText('r.ye-section-receivables', 'Owed by customers on invoices dated by the year end, as still owed today'),
+    payables: reportText('r.ye-section-payables', 'Owed to vendors on bills dated by the year end, as still owed today'),
+    'fixed-assets': reportText('r.ye-section-fixed-assets', 'Fixed assets held at the year end, at their recorded cost and depreciation today'),
     closing: reportText('r.ye-section-closing', 'Closing the last month of the year'),
   };
   const reportWords: Record<string, string> = {
@@ -93,7 +94,7 @@ export default function YearEndPackView({ selectedYear }: { selectedYear?: numbe
   const truncatedCollections = useLedgerStore(s => s.truncatedCollections);
 
   // the pack reads these lists, so ask for them explicitly instead of assuming the screen above loaded them
-  useLedgerCollections('transactions', 'accounts', 'invoices', 'bills', 'assets', 'customers', 'vendors', 'creditNotes', 'vendorCredits');
+  useLedgerCollections('transactions', 'accounts', 'invoices', 'bills', 'assets', 'customers', 'vendors', 'creditNotes', 'vendorCredits', 'bankLines');
 
   const thisYear = Number(getLocalDateISO().slice(0, 4)) || new Date().getFullYear();
   const [year, setYear] = useState<number>(() => Number(selectedYear) || thisYear);
@@ -114,7 +115,7 @@ export default function YearEndPackView({ selectedYear }: { selectedYear?: numbe
   }), [year, workspaceCurrency, accounts, transactions, customers, vendors, invoices, bills, creditNotes, vendorCredits, assets, bankLines]);
 
   // the lists this pack reads, filtered to those the browser capped (the note names only what is missing)
-  const readLists: readonly LedgerKey[] = ['transactions', 'accounts', 'invoices', 'bills', 'assets', 'customers', 'vendors', 'creditNotes', 'vendorCredits'];
+  const readLists: readonly LedgerKey[] = ['transactions', 'accounts', 'invoices', 'bills', 'assets', 'customers', 'vendors', 'creditNotes', 'vendorCredits', 'bankLines'];
   const cappedKeys = readLists.filter(key => Boolean(truncatedCollections?.[key]));
   // R-8: "nothing loaded" and "nothing posted this year" are different things to the reader, and
   // opening balances can give a year figures without a single entry in it, so the two are told apart.
@@ -130,7 +131,10 @@ export default function YearEndPackView({ selectedYear }: { selectedYear?: numbe
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="font-semibold">{title}</h3>
           {entry.reportId && reportWords[entry.reportId]
-            ? <span data-print-hide><CloseReportLink report={entry.reportId} label={reportWords[entry.reportId]} endDate={entry.id === 'profit-and-loss' ? undefined : pack.endDate} /></span>
+            ? <span data-print-hide>{entry.reportId === 'month-end-close'
+              // the month-end close is its own screen, not a report (Gitar on #927)
+              ? <button type="button" className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline" onClick={() => useUIStore.getState().setActiveTab('month-end-close')}>{reportWords[entry.reportId]}</button>
+              : <CloseReportLink report={entry.reportId} label={reportWords[entry.reportId]} endDate={entry.id === 'profit-and-loss' ? undefined : pack.endDate} />}</span>
             : null}
         </div>
         <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">

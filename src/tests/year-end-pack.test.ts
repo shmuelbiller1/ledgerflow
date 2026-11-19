@@ -139,3 +139,25 @@ function figureOf(packUnderTest: ReturnType<typeof buildYearEndPack>, sectionId:
   assert.ok(found);
   return found;
 }
+
+// Gitar on #927: "at the year end" leaves out what is dated after it
+describe('the year-end pack leaves out documents and assets dated after the year end', () => {
+  const base = { year: 2026, currency: fixture.workspace.currency || 'USD', accounts: fixture.accounts, transactions: fixture.transactions, customers: fixture.customers, vendors: fixture.vendors, invoices: fixture.invoices, bills: fixture.bills, creditNotes: fixture.creditNotes, vendorCredits: fixture.vendorCredits, assets: fixture.assets };
+  const sectionFigure = (p: ReturnType<typeof buildYearEndPack>, sectionId: string, key: string) =>
+    p.sections.find(entry => entry.id === sectionId)?.figures.find(entry => entry.key === key);
+
+  test('an open invoice dated next year adds nothing to what customers owed at the year end', () => {
+    const later = { ...fixture.invoices[0], id: 'later-invoice', date: '2027-01-15', dueDate: '2027-02-15', status: 'sent', totalCents: 99_900, amountPaidCents: 0 };
+    const withLater = buildYearEndPack({ ...base, invoices: [...fixture.invoices, later as never] });
+    assert.deepEqual(sectionFigure(withLater, 'receivables', 'aging-total'), sectionFigure(pack, 'receivables', 'aging-total'));
+  });
+
+  test('an asset bought next year is not held at the year end; one disposed of next year still is', () => {
+    const asset = fixture.assets[0];
+    assert.ok(asset, 'the sample year has a fixed asset');
+    const boughtLater = { ...asset, id: 'bought-later', purchaseDate: '2027-03-01' };
+    const soldLater = { ...asset, id: 'sold-later', status: 'disposed', disposedOn: '2027-03-01' };
+    const p = buildYearEndPack({ ...base, assets: [...fixture.assets, boughtLater as never, soldLater as never] });
+    assert.equal(sectionFigure(p, 'fixed-assets', 'assets-count')?.count, (sectionFigure(pack, 'fixed-assets', 'assets-count')?.count || 0) + 1);
+  });
+});

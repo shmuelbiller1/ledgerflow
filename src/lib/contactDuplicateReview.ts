@@ -68,8 +68,14 @@ function orderedContacts(a: ReviewContact, b: ReviewContact): [ReviewContact, Re
   return aKey.localeCompare(bKey) <= 0 ? [a, b] : [b, a];
 }
 
-/** Find exact identifier matches and normalized-name suggestions within the supplied workspace set. */
-export function findDuplicateContactCandidates(contacts: readonly ReviewContact[]): DuplicateContactReview {
+/** Find exact identifier matches and normalized-name suggestions within the supplied workspace set.
+ *  With `incomingIds`, find only identifier pairs crossing from an incoming row to a stored contact.
+ *  Neither side alone can consume the other's pair budget or trigger an omitted-group warning.
+ */
+export function findDuplicateContactCandidates(
+  contacts: readonly ReviewContact[],
+  { incomingIds }: { incomingIds?: ReadonlySet<string> } = {},
+): DuplicateContactReview {
   const unique = new Map<string, ReviewContact>();
   for (const contact of contacts) {
     if (!contact || !contact.id || !['customer', 'vendor'].includes(contact.kind)) continue;
@@ -91,12 +97,11 @@ export function findDuplicateContactCandidates(contacts: readonly ReviewContact[
     const taxId = normalizedTaxId(contact.taxId || '');
     const email = normalizedEmail(contact.email || '');
     const phone = normalizedPhone(contact.phone || '');
-    const name = normalizedName(contact.name);
     if (taxId.length >= 5) add(contact, 'tax-id', taxId, 5);
     if (email.includes('@') && email.length <= 320) add(contact, 'email', email, 3);
     if (phone.length >= 7) add(contact, 'phone', phone, 7);
     // Name matches are intentionally weak: they are suggestions to inspect, not a confidence score.
-    if (name.length >= 4) add(contact, 'name', name, 4);
+    if (!incomingIds) add(contact, 'name', normalizedName(contact.name), 4);
   }
 
   const pairs = new Map<string, { left: DuplicateContactSummary; right: DuplicateContactSummary; signals: Set<DuplicateMatchSignal> }>();
@@ -104,12 +109,14 @@ export function findDuplicateContactCandidates(contacts: readonly ReviewContact[
   let truncated = false;
   for (const { signal, contacts: bucket } of buckets.values()) {
     if (bucket.length < 2) continue;
+    if (incomingIds && (!bucket.some(c => incomingIds.has(c.id)) || bucket.every(c => incomingIds.has(c.id)))) continue;
     if (bucket.length > MAX_DUPLICATE_BUCKET_SIZE) {
       ambiguousBuckets++;
       continue;
     }
     for (let i = 0; i < bucket.length; i++) {
       for (let j = i + 1; j < bucket.length; j++) {
+        if (incomingIds && incomingIds.has(bucket[i].id) === incomingIds.has(bucket[j].id)) continue;
         const [left, right] = orderedContacts(bucket[i], bucket[j]);
         const key = `${contactKey(left)}\u0000${contactKey(right)}`;
         const existing = pairs.get(key);

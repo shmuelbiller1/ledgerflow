@@ -19,6 +19,7 @@ import ReportNote from '../reporting/ReportNote';
 import { useReportText } from '../reporting/useReportText';
 import { accountValues, buildStatementChange, movementWindow } from '../../lib/statementChange';
 import StatementChangePanel from '../reporting/StatementChangePanel';
+import { fill as fillText } from '../reporting/useReportText';
 
 /** R-7: the one sentence above the accounts, in the reader's language. */
 function fillChangeSentence(
@@ -26,7 +27,8 @@ function fillChangeSentence(
   sectionName: string,
   now: string, before: string, change: string, priorDate: string, asOfDate: string,
 ): string {
-  return `${sectionName}: ${now} on ${asOfDate} and ${before} on ${priorDate}, a change of ${change}. `
+  return fillText(reportText('r.bs-change-sentence', '{section}: {now} on {asOf} and {before} on {prior}, a change of {change}.'),
+    { section: sectionName, now, asOf: asOfDate, before, prior: priorDate, change }) + ' '
     + reportText('r.the-accounts-behind-it-biggest-share-first', 'The accounts behind it, biggest share first.');
 }
 

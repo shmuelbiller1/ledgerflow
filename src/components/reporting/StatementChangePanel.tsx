@@ -263,6 +263,13 @@ function ExplainedSide({ title, workspaceId, request, sign, formatCurrency }: {
   );
 }
 
+/** How a section prints its accounts: income, liabilities and equity show credits as positive. */
+function sectionSign(section: StatementChangeRow['section'] | undefined, fallback: 1 | -1): 1 | -1 {
+  if (section === 'income' || section === 'liabilities' || section === 'equity') return -1;
+  if (section === 'assets' || section === 'cogs' || section === 'expense') return 1;
+  return fallback;
+}
+
 /** The one account whose entries the reader opened, on each side of the change. */
 function ChangeEntries({ row, source, sign, formatCurrency, labelFilter }: {
   row: StatementChangeRow;
@@ -272,13 +279,16 @@ function ChangeEntries({ row, source, sign, formatCurrency, labelFilter }: {
   labelFilter?: { dimensionId: string; value: string };
 }) {
   const reportText = useReportText();
+  // each account's entries read the way its own section prints (Gitar on #927): income, liabilities and
+  // equity show credits as positive, the rest debits; the panel-wide sign is only the figure's own
+  const rowSign = sectionSign(row.section, sign);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const request = (startDate: string, endDate: string, expectedCents: number): ExplainRequest => ({
     accountIds: [row.accountId],
     startDate,
     endDate,
     expectedCents,
-    sign,
+    sign: rowSign,
     label: row.name,
     ...(labelFilter ? { labelFilter } : {}),
   });
@@ -292,7 +302,7 @@ function ChangeEntries({ row, source, sign, formatCurrency, labelFilter }: {
           title={reportText('r.posted-between-the-two-dates', 'Posted between the two dates')}
           workspaceId={workspaceId}
           request={request(source.start, source.end, row.changeCents)}
-          sign={sign}
+          sign={rowSign}
           formatCurrency={formatCurrency}
         />
       ) : (
@@ -301,14 +311,14 @@ function ChangeEntries({ row, source, sign, formatCurrency, labelFilter }: {
             title={reportText('r.this-period', 'This period')}
             workspaceId={workspaceId}
             request={request(source.current.start, source.current.end, row.currentCents)}
-            sign={sign}
+            sign={rowSign}
             formatCurrency={formatCurrency}
           />
           <ExplainedSide
             title={reportText('r.the-period-before', 'The period before')}
             workspaceId={workspaceId}
             request={request(source.prior.start, source.prior.end, row.priorCents)}
-            sign={sign}
+            sign={rowSign}
             formatCurrency={formatCurrency}
           />
         </>

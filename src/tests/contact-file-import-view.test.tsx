@@ -169,3 +169,171 @@ test('duplicate check warns if the candidate matcher omits a large shared-email 
   assert.match(document.body.textContent || '', /potential matches were omitted/i);
   assert.doesNotMatch(document.body.textContent || '', /No matches were found in the loaded customer list/);
 });
+
+test('an unreadable replacement removes the previous file rather than letting it import', async () => {
+  render(<ImportSettings />);
+  await upload('previous.csv', 'Name,Email\nPrevious Company,previous@example.com');
+  assert.ok(screen.getByRole('button', { name: 'Import 1 customers' }));
+
+  await upload('broken.csv', 'Name,Email\n"Unclosed');
+  assert.ok(!screen.queryByText(/previous\.csv/));
+  assert.ok(!screen.queryByRole('table', { name: 'First rows to import' }));
+  assert.ok(!screen.queryByRole('button', { name: 'Import 1 customers' }));
+  assert.match(screen.getByRole('alert').textContent || '', /broken\.csv.*could not be read/i);
+});
+
+test('the last selected file wins even when a previous read finishes later', async () => {
+  render(<ImportSettings />);
+  const older = Promise.withResolvers<string>();
+  fireEvent.change(screen.getByLabelText(/choose the file/i), {
+    target: { files: [{ name: 'first.csv', text: () => older.promise }] },
+  });
+  await upload('second.csv', 'Name,Email\nSecond Company,second@example.com');
+  assert.match(screen.getByRole('table', { name: 'First rows to import' }).textContent || '', /Second Company/);
+
+  await act(async () => older.resolve('Name,Email\nFirst Company,first@example.com'));
+  assert.match(screen.getByRole('table', { name: 'First rows to import' }).textContent || '', /Second Company/);
+  assert.ok(!screen.queryByText(/first\.csv/));
+});
+
+test('the dry run keeps the checked file and mapping unchanged until its answer arrives', { timeout: 5000 }, async () => {
+  const waiting = Promise.withResolvers<Response>();
+  const started = Promise.withResolvers<void>();
+  const checks: unknown[] = [];
+  globalThis.fetch = async (input, init) => {
+    if (!String(input).endsWith('/import-records')) return Response.json({});
+    checks.push(JSON.parse(String(init?.body)));
+    started.resolve();
+    return waiting.promise;
+  };
+  render(<ImportSettings />);
+  await upload('customers.csv', 'Name,Email\nNew Company,new@example.com');
+  try {
+    fireEvent.click(screen.getByRole('button', { name: 'Check against existing customers' }));
+    await started.promise;
+    const file = screen.getByLabelText(/choose the file/i) as HTMLInputElement;
+    const source = screen.getByRole('combobox', { name: 'CSV source' }) as HTMLSelectElement;
+    const mapping = screen.getByLabelText(/^name/i) as HTMLSelectElement;
+    const vendorButton = screen.getByRole('button', { name: /^Vendors/ });
+    for (const control of [file, source, mapping, vendorButton]) assert.ok(control.matches(':disabled'), control.outerHTML);
+    assert.deepEqual(checks, [{ kind: 'customers', rows: [{ name: 'New Company', email: 'new@example.com' }], dryRun: true }]);
+  } finally {
+    await act(async () => waiting.resolve(Response.json({ created: 1, skipped: [], openingStockCents: 0, dryRun: true, batchId: null })));
+  }
+  assert.match(document.body.textContent || '', /Check: 1 new customers will be added/);
+  assert.equal(screen.getByLabelText(/choose the file/i).matches(':disabled'), false);
+});
+
+test('switching books clears the draft and drops an old dry-run reply', { timeout: 5000 }, async () => {
+  const previousWorkspace = useAuthStore.getState().getCurrentWorkspace();
+  assert.ok(previousWorkspace);
+  const other = { ...previousWorkspace, id: 'other-import-book' };
+  const pending = Promise.withResolvers<Response>();
+  const started = Promise.withResolvers<void>();
+  globalThis.fetch = async input => {
+    if (!String(input).endsWith('/import-records')) return Response.json({});
+    assert.match(String(input), /component-workspace\/import-records$/);
+    started.resolve();
+    return pending.promise;
+  };
+  render(<ImportSettings />);
+  await upload('old-book.csv', 'Name,Email\nPrevious Company,previous@example.com');
+  fireEvent.click(screen.getByRole('button', { name: 'Check against existing customers' }));
+  await started.promise;
+  await act(async () => useAuthStore.setState({ currentWorkspaceId: other.id, workspaces: [previousWorkspace, other] }));
+  await act(async () => pending.resolve(Response.json({ created: 1, skipped: [], openingStockCents: 0, dryRun: true, batchId: null })));
+  assert.ok(!screen.queryByText(/old-book\.csv/));
+  assert.ok(!screen.queryByRole('table', { name: 'First rows to import' }));
+  assert.doesNotMatch(document.body.textContent || '', /Check: 1 new customers will be added/);
+});
+
+for (const { name, contents } of [
+  { name: 'book.vcf', contents: VCARD },
+  { name: 'google.csv', contents: 'Name,First Name,Last Name,E-mail 1 - Value\nNew Contact,,,owner@example.com' },
+  { name: 'customers.iif', contents: '!CUST\tNAME\nCUST\tNew Contact\n!VEND\tNAME\nVEND\tSupply Co' },
+]) {
+  test(`successful import consumes the ${name} preview and preserves the result`, async () => {
+    let submitted = 0;
+    globalThis.fetch = async (input, init) => {
+      if (!String(input).endsWith('/import-records')) return Response.json({});
+      const request = JSON.parse(String(init?.body));
+      assert.equal(request.dryRun, false);
+      submitted = request.rows.length;
+      return Response.json({ created: submitted, skipped: [], openingStockCents: 0, dryRun: false, batchId: 'imp_complete' });
+    };
+    render(<ImportSettings />);
+    await upload(name, contents);
+    fireEvent.click(screen.getByRole('button', { name: /^Import \d+ customers/ }));
+    assert.ok(await screen.findByRole('button', { name: 'Undo this import' }));
+    assert.ok(submitted > 0);
+    assert.ok(!screen.queryByRole('table', { name: 'First rows to import' }));
+    assert.ok(!screen.queryByRole('button', { name: /^Import \d+ customers/ }));
+    if (name.endsWith('.iif')) {
+      fireEvent.click(screen.getByRole('button', { name: /^Vendors/ }));
+      assert.match(screen.getByRole('table', { name: 'First rows to import' }).textContent || '', /Supply Co/);
+      assert.ok(screen.getByRole('button', { name: 'Import 1 vendors' }));
+    }
+  });
+}
+
+test('customer duplicate review only waits for the customer collection', async () => {
+  markComponentCollectionsLoaded('customers');
+  render(<ImportSettings />);
+  await upload('customers.csv', 'Name,Email\nAcme Holdings,hello@acme.example');
+  assert.match(screen.getByLabelText('Rows that look like existing contacts').textContent || '', /Acme Ltd/);
+  assert.doesNotMatch(document.body.textContent || '', /Still loading your existing customers/);
+});
+
+test('the review does not promise an existing customer will be imported', async () => {
+  globalThis.fetch = async input => String(input).endsWith('/import-records')
+    ? Response.json({ created: 1, skipped: [{ row: 2, message: 'Acme Ltd already exists' }], openingStockCents: 0, dryRun: true, batchId: null })
+    : Response.json({});
+  render(<ImportSettings />);
+  await upload('customers.csv', 'Name,Email\nAcme Ltd,hello@acme.example\nNew Company,new@example.com');
+  const table = screen.getByRole('table', { name: 'First rows to import' });
+  assert.doesNotMatch(within(table).getByRole('row', { name: /Acme Ltd/ }).textContent || '', /Will be imported/);
+  fireEvent.click(screen.getByRole('button', { name: 'Check against existing customers' }));
+  assert.ok(await within(table).findByText('Skipped in check: Acme Ltd already exists'));
+  assert.match(within(table).getByRole('row', { name: /New Company/ }).textContent || '', /Ready to import/);
+});
+
+test('a different bookkeeper in the same workspace does not inherit a pending file', async () => {
+  const { user, workspaces } = useAuthStore.getState();
+  assert.ok(user);
+  const workspace = workspaces[0];
+  const nextUser = { ...user, uid: 'replacement-bookkeeper' };
+  const read = Promise.withResolvers<string>();
+  render(<React.StrictMode><ImportSettings /></React.StrictMode>);
+  fireEvent.change(screen.getByLabelText(/choose the file/i), {
+    target: { files: [{ name: 'pending.csv', text: () => read.promise }] },
+  });
+  assert.match(screen.getByRole('status').textContent || '', /Reading pending.csv/);
+  await act(async () => useAuthStore.setState({ user: nextUser, workspaces: [{ ...workspace, roles: { [nextUser.uid]: 'bookkeeper' } }] }));
+  await act(async () => read.resolve('Name,Email\nPrior Company,prior@example.com'));
+  assert.ok(!screen.queryByText(/pending\.csv/));
+  assert.ok(!screen.queryByRole('table', { name: 'First rows to import' }));
+  assert.ok(screen.getByLabelText(/choose the file/i));
+});
+
+test('Excel text is preserved rather than treated as an escaped CSV export', async () => {
+  const { createWorkbook } = await import('../lib/excelExport');
+  const workbook = await createWorkbook();
+  const sheet = workbook.addWorksheet('Contacts');
+  sheet.addRows([['Name', 'Notes'], ['New Company', "'-call first"]]);
+  const binary = Uint8Array.from(Buffer.from(await workbook.xlsx.writeBuffer())).buffer;
+  let submitted: unknown;
+  globalThis.fetch = async (input, init) => {
+    if (!String(input).endsWith('/import-records')) return Response.json({});
+    submitted = JSON.parse(String(init?.body));
+    return Response.json({ created: 1, skipped: [], openingStockCents: 0, dryRun: false, batchId: 'imp_excel' });
+  };
+  render(<ImportSettings />);
+  fireEvent.change(screen.getByLabelText(/choose the file/i), {
+    target: { files: [{ name: 'contacts.xlsx', arrayBuffer: async () => binary }] },
+  });
+  const preview = await screen.findByRole('table', { name: 'First rows to import' });
+  assert.ok(within(preview).queryByText("'-call first"), 'the literal apostrophe remains in the preview');
+  fireEvent.click(screen.getByRole('button', { name: 'Import 1 customers' }));
+  await screen.findByRole('button', { name: 'Undo this import' });
+  assert.deepEqual(submitted, { kind: 'customers', rows: [{ name: 'New Company', notes: "'-call first" }], dryRun: false });
+});
