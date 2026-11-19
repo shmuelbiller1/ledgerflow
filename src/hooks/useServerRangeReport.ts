@@ -1,12 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
-import { workspaceScope } from '../lib/serverAction';
+import { identityScope } from '../lib/serverAction';
 import { openingCutoff } from '../lib/serverBalances';
 import { linesNeedServer, rangeRevision } from '../lib/serverTopLines';
-import { runCommand } from '../lib/runCommand';
+import { runCommand, ServerCommandError } from '../lib/runCommand';
 
 export type RangeReportSource = 'loaded' | 'server' | 'loaded-incomplete';
+
+export interface RangeReportRead {
+  source: RangeReportSource;
+  /** The full report for this exact request has not settled yet. */
+  pending: boolean;
+  /** Only a failed GET for a requestable period can be retried. */
+  retry?: () => void;
+}
 
 /**
  * L-123 step 4: a report over `from`…`to` that cannot be made from per-account sums (single lines, line categories).
@@ -26,11 +34,12 @@ export function useServerRangeReport<T>(opts: {
   alsoIncomplete?: boolean;
   parse: (body: Record<string, unknown>) => T | null;
   loaded: T;
-}): { report: T; source: RangeReportSource } {
+}): { report: T } & RangeReportRead {
   const { path, from, to, query, extraKey = '', alsoIncomplete = false, parse, loaded } = opts;
   const transactions = useLedgerStore(s => s.transactions);
   const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.transactions));
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
+  const uid = useAuthStore(s => s.user?.uid);
   const cutoff = useMemo(() => openingCutoff(transactions || []), [transactions]);
   const incomplete = alsoIncomplete || linesNeedServer(capped, cutoff, from);
   const needed = incomplete && !!workspaceId && !!from && !!to && from <= to;
@@ -38,29 +47,32 @@ export function useServerRangeReport<T>(opts: {
   const revision = useMemo(() => (needed ? rangeRevision(transactions || [], from!) : ''), [needed, transactions, from]);
   const queryText = new URLSearchParams({ workspaceId, from: from || '', to: to || '', ...query }).toString();
   const key = needed ? `${path}|${queryText}|${(transactions || []).length}|${revision}|${extraKey}` : '';
-  const [answer, setAnswer] = useState<{ key: string; workspaceId: string; report: T | null } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt(n => n + 1), []);
+  // Identity (not just URL): returning to A after B must wait for a new answer for A.
+  const request = useMemo(() => key ? { key, uid, attempt } : null, [key, uid, attempt]);
+  const [answer, setAnswer] = useState<{ request: NonNullable<typeof request>; report: T | null; canRetry: boolean } | null>(null);
 
   useEffect(() => {
-    if (!key) return;
-    const scope = workspaceScope(() => useAuthStore.getState().currentWorkspaceId);
-    let live = true;
-    (async () => {
-      const body = await runCommand<Record<string, unknown>>({ path: `/api/v1/balances/${path}?${queryText}` }) ?? {};
-      const report = parse(body);
-      if (!report) throw new Error(`${path}: the answer was not a report`);
-      return report;
-    })().then(report => {
-      if (live && scope.isCurrent()) setAnswer({ key, workspaceId, report });
-    }).catch(() => {
-      // best-effort: without the server's answer the screen keeps the loaded entries' report and says it may be short
-      if (live && scope.isCurrent()) setAnswer({ key, workspaceId, report: null });
-    });
-    return () => { live = false; };
-  }, [key, workspaceId, path, queryText, parse]);
+    if (!request) return;
+    const scope = identityScope(() => useAuthStore.getState().user?.uid, () => useAuthStore.getState().currentWorkspaceId);
+    const controller = new AbortController();
+    const publish = (report: T | null, canRetry = report === null) => {
+      if (!controller.signal.aborted && scope.isCurrent()) setAnswer({ request, report, canRetry });
+    };
+    void runCommand<Record<string, unknown>>({ path: `/api/v1/balances/${path}?${queryText}`, signal: controller.signal })
+      .then(body => publish(parse(body ?? {})))
+      .catch((err: unknown) => publish(null, !(err instanceof ServerCommandError && err.status === 400)));
+    return () => controller.abort();
+  }, [request, path, queryText, parse]);
 
-  const server = key && answer?.key === key && answer.workspaceId === workspaceId ? answer.report : null;
-  return useMemo(() => (server
-    ? { report: server, source: 'server' as const }
-    : { report: loaded, source: incomplete ? 'loaded-incomplete' as const : 'loaded' as const }),
-  [server, incomplete, loaded]);
+  const current = request && answer?.request === request ? answer : null;
+  const server = current?.report;
+  const pending = !!request && !current;
+  return useMemo(() => ({
+    report: server ?? loaded,
+    source: server != null ? 'server' : incomplete ? 'loaded-incomplete' : 'loaded',
+    pending,
+    retry: current?.canRetry ? retry : undefined,
+  }), [server, loaded, incomplete, pending, current, retry]);
 }

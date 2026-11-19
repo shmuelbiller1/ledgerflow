@@ -34,7 +34,7 @@ import { Y, from, to, chart, entries as ledger, loadedOf, balanceRouteHarness } 
 import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
-import { setComponentWorkspace } from './helpers/componentFixtures';
+import { setLoadedAccountReportWorkspace } from './helpers/componentFixtures';
 import ExpenseByCategoryReportView from '../components/reporting/ExpenseByCategoryReportView';
 import IncomeBySourceReportView from '../components/reporting/IncomeBySourceReportView';
 import TagBreakdownReportView from '../components/reporting/TagBreakdownReportView';
@@ -72,7 +72,7 @@ describe('L-123 step 4d: expense by category (no database)', () => {
   });
 
   test('tag breakdown on screen: the server\'s tags when capped, none from the loaded four', async () => {
-    setComponentWorkspace('owner');
+    setLoadedAccountReportWorkspace();
     useLedgerStore.setState({ accounts, transactions: loaded, truncatedCollections: { transactions: true } } as never);
     globalThis.fetch = (async () => Response.json({ status: 'success', tags: computeTagReport(accounts, all, from, to) })) as typeof fetch;
     render(<TagBreakdownReportView selectedYear={Y} />);
@@ -95,7 +95,7 @@ describe('L-123 step 4d: expense by category (no database)', () => {
   });
 
   test('income by source on screen: no request when not capped; every entry\'s sources when capped; a note when it fails', async () => {
-    setComponentWorkspace('owner');
+    setLoadedAccountReportWorkspace();
     useLedgerStore.setState({ accounts, transactions: loaded, truncatedCollections: {} } as never);
     const urls: string[] = [];
     globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -121,12 +121,12 @@ describe('L-123 step 4d: expense by category (no database)', () => {
 
     stubFetch(500);
     render(<IncomeBySourceReportView selectedYear={Y} />);
-    await waitFor(() => assert.match(screen.getByTestId('income-source-source').textContent || '', /server could not be asked: .* may be incomplete/));
+    await waitFor(() => assert.match(screen.getByTestId('income-source-source').textContent || '', /loaded entries only and may be incomplete/));
     assert.ok(!table().includes('Acme'));
   });
 
   test('screen: no request when not capped; the server\'s totals when capped; the loaded totals with a note when it fails', async () => {
-    setComponentWorkspace('owner');
+    setLoadedAccountReportWorkspace();
     useLedgerStore.setState({ accounts, transactions: loaded, bills: [], truncatedCollections: {} } as never);
     const urls: string[] = [];
     globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -173,7 +173,7 @@ describe('L-123 step 4d: expense by category (no database)', () => {
 
     stubFetch(500);
     render(<ExpenseByCategoryReportView selectedYear={Y} />);
-    await waitFor(() => assert.match(screen.getByTestId('expense-category-source').textContent || '', /server could not be asked: .* may be incomplete/));
+    await waitFor(() => assert.match(screen.getByTestId('expense-category-source').textContent || '', /loaded entries only and may be incomplete/));
     assert.ok(!table().includes('Office'));
     assert.ok(table().includes(formatCurrency(700)));
   });

@@ -1,6 +1,7 @@
 import express from 'express';
 import { getDb } from '../db/firestore';
 import { incomingEvents } from '../../lib/incomingEvents';
+import { redactForLogs } from '../../lib/logRedaction';
 
 /**
  * Incoming events (K-37): GET /api/v1/workspaces/:workspaceId/incoming-events, owners and
@@ -23,6 +24,7 @@ incomingEventRouter.get('/', async (req, res) => {
     const events = incomingEvents(stripe.docs.map(d => ({ id: d.id, ...d.data() })), email.docs.map(d => ({ id: d.id, ...d.data() })), LIMIT);
     res.json({ status: 'success', data: { events } });
   } catch (err) {
-    res.status(500).json({ status: 'error', message: 'The incoming events could not be read', details: err instanceof Error ? err.message : String(err) });
+    console.error('[The incoming events could not be read]', redactForLogs(err instanceof Error ? err.message : String(err)));
+    res.status(500).json({ status: 'error', message: 'The incoming events could not be read' });
   }
 });

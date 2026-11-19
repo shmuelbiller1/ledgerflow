@@ -27,5 +27,12 @@ export function setComponentWorkspace(role: WorkspaceRole = 'owner'): Workspace 
 export function markComponentCollectionsLoaded(...keys: LedgerKey[]): void {
   const loaded: Partial<Record<LedgerKey, boolean>> = {};
   for (const key of keys) loaded[key] = true;
-  useDataNeedsStore.setState({ loaded, failed: {} });
+  useDataNeedsStore.setState({ loadedWorkspaceId: useAuthStore.getState().currentWorkspaceId, loaded, failed: {} });
+}
+
+/** A signed-in report screen with an arrived chart and journal for this workspace. */
+export function setLoadedAccountReportWorkspace() {
+  const workspace = setComponentWorkspace();
+  markComponentCollectionsLoaded('accounts', 'transactions', 'bills');
+  return workspace;
 }
