@@ -1,3 +1,4 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 /**
  * A-116: kits assembled on demand. Reports → Kit Assembly.
  *
@@ -9,13 +10,12 @@
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { downloadCsv } from '../../lib/csvExport';
 import { kitBuildPlan, type KitBuildPlan } from '../../lib/kitAssembly';
 import { isBundle, type BundleHost } from '../../lib/itemBundles';
 import type { InventoryItem } from '../../types';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 import { useReportText } from './useReportText';
 
 const CSV_HEADERS = ['Part', 'SKU', 'Per kit', 'On hand', 'Needed for N', 'Left after'];
@@ -24,8 +24,6 @@ export default function KitAssemblyReportView() {
   const reportText = useReportText();
   const inventory = useLedgerStore(s => s.inventory) as InventoryItem[];
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
-  const truncated = useLedgerStore(s => s.truncatedCollections);
-  const failed = useDataNeedsStore(s => s.failed);
   const { loading } = useLedgerCollections('inventory');
 
   const kits = useMemo(
@@ -40,7 +38,7 @@ export default function KitAssemblyReportView() {
   const [count, setCount] = useState('1');
   const requested = count.trim() === '' ? undefined : Number(count);
   const plan: KitBuildPlan | null = kit ? kitBuildPlan(kit as BundleHost & { name: string }, inventory || [], requested) : null;
-  const partial = Boolean(truncated.inventory || failed.inventory);
+  const partial = usePartialReportInputs(['inventory']);
 
   return (
     <section aria-label={reportText('r.kit-assembly', 'Kit assembly')} className="p-4 space-y-4 min-w-0">
@@ -58,7 +56,7 @@ export default function KitAssemblyReportView() {
         </p>
       )}
 
-      {!loading && kits.length === 0 ? (
+      {!loading && !partial && kits.length === 0 ? (
         <p className="text-sm text-[var(--muted)]">
           {reportText('r.no-kits-yet-make-an-item-a-bundle-of-other-items', 'No kits yet: make an item a bundle of other items on Inventory (its parts editor), then mark it “Assemble on demand”.')}
         </p>
@@ -93,44 +91,29 @@ export default function KitAssemblyReportView() {
           </p>
           {plan.problem && <p role="alert" className="text-sm text-amber-700 dark:text-amber-400">{plan.problem}</p>}
 
-          <ReportTableScroll>
-            <table className="w-full text-sm">
-              <caption className="sr-only">{reportText('r.components-needed-for-this-assembly', 'Components needed for this assembly')}</caption>
-              <thead>
-                <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
-                  <th scope="col" className="py-2 pr-3">{reportText('r.part', 'Part')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.per-kit', 'Per kit')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.on-hand', 'On hand')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.kits-this-part-can-build', 'Kits this part can build')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.needed-for', 'Needed for')} {plan.requestedKits ?? 0}</th>
-                  <th scope="col" className="py-2 text-right">{reportText('r.left-after', 'Left after')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plan.parts.map(p => {
-                  const use = plan.consumption?.find(c => c.itemId === p.itemId);
-                  return (
-                    <tr key={p.itemId} className="border-b border-[var(--line)]/50">
-                      <th scope="row" className="py-1.5 pr-3 text-left font-normal">
-                        {p.name}
-                        {p.sku && <span className="ml-2 font-mono text-xs text-[var(--muted)]">{p.sku}</span>}
+          <ReportSchedule
+            columnControls
+            allowDisplayedExport={!partial && !loading && !!plan.consumption?.length}
+            caption={reportText('r.components-needed-for-this-assembly', 'Components needed for this assembly')}
+            captionClassName="sr-only"
+            headRowClassName="border-b border-[var(--line)] text-start text-[var(--muted)]"
+            rowClassName="border-b border-[var(--line)]/50"
+            bodyClassName=""
+            rows={plan.parts.map(p => ({ ...p, consumption: plan.consumption?.find(c => c.itemId === p.itemId) }))} rowKey={p => p.itemId}
+            columns={[
+              { header: reportText('r.part', 'Part'), className: 'py-1.5', cell: p => <>{p.name}
+                        {p.sku && <span className="ms-2 font-mono text-xs text-[var(--muted)]">{p.sku}</span>}
                         {p.shortfallPerKit > 0 && (
                           <span className="block text-xs text-amber-700 dark:text-amber-400">
                             {reportText('r.short', 'short')} {p.shortfallPerKit} {reportText('r.per-kit-2', 'per kit')}
                           </span>
-                        )}
-                      </th>
-                      <td className="py-1.5 pr-3 text-right font-mono">{p.perKit}</td>
-                      <td className="py-1.5 pr-3 text-right font-mono">{p.onHand}</td>
-                      <td className="py-1.5 pr-3 text-right font-mono">{p.buildable}</td>
-                      <td className="py-1.5 pr-3 text-right font-mono">{use?.needed ?? ''}</td>
-                      <td className="py-1.5 text-right font-mono">{use?.remaining ?? ''}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </ReportTableScroll>
+                        )}</> },
+              { header: reportText('r.per-kit', 'Per kit'), align: 'right', className: 'py-1.5 font-mono', cell: p => p.perKit },
+              { header: reportText('r.on-hand', 'On hand'), align: 'right', className: 'py-1.5 font-mono', cell: p => p.onHand },
+              { header: reportText('r.kits-this-part-can-build', 'Kits this part can build'), align: 'right', className: 'py-1.5 font-mono', cell: p => p.buildable },
+              { header: <>{reportText('r.needed-for', 'Needed for')} {plan.requestedKits ?? 0}</>, align: 'right', className: 'py-1.5 font-mono', cell: p => p.consumption?.needed ?? '' },
+              { header: reportText('r.left-after', 'Left after'), align: 'right', className: 'py-1.5 font-mono', cell: p => p.consumption?.remaining ?? '' },
+            ]} />
           <p className="text-xs text-[var(--muted)]">
             {reportText('r.building-here-is-a-plan-only-nothing-is-reserved', 'Building here is a plan only: nothing is reserved, issued or posted. When the kit is sold, the invoice takes its parts as lines (A-19) and the parts\' own stock and cost move as they always do.')}
           </p>

@@ -38,7 +38,7 @@ test('vendor withholding keeps payment currencies and historical references dist
   expect(rows[0]).toEqual(['Month','Vendor','Vendor ID','Currency','Gross settlement (minor units)','Vendor paid (minor units)','Withheld (minor units)','Payments','Saved certificate references','Withholding payments missing references','Retrieved at']);
   expect(rows.slice(1).map(row=>row.slice(0,8)).sort((a,b)=>a[3].localeCompare(b[3]))).toEqual([['2024-02','ספק Saved','ספק-א','EUR','8000','8000','0','1'],['2024-02','ספק Saved','ספק-א','USD','24000','22500','1500','2']]);
   expect(rows.find(row=>row[3]==='USD')![8].split('; ').sort()).toEqual(['W-אב','W-ישן'].sort());
-  const details=usd.getByRole('button',{name:'Edit selected record details'});await details.focus();await details.press('Enter');
+  const details=usd.getByRole('button',{name:'Edit details'});await details.focus();await details.press('Enter');
   const drawer=page.getByRole('dialog',{name:'Edit record details'});await expect(drawer).toBeVisible();await drawer.getByRole('textbox',{name:'Address',exact:true}).fill('כתובת חדשה');await drawer.getByRole('button',{name:'Save details',exact:true}).click();await expect(drawer.getByRole('status')).toHaveText('Details saved for future use.');
   await page.keyboard.press('Escape');await expect(drawer).toHaveCount(0);await expect(details).toBeFocused();await expect(report.getByLabel('Payment month')).toHaveValue('2024-02');await expect(csv).toBeEnabled();await expect(usd).toContainText('W-אב');
   const scroller=report.getByRole('region',{name:'Scrollable vendor withholding table'});await scroller.focus();await scroller.press('ArrowRight');await expect.poll(()=>scroller.evaluate(node=>node.scrollLeft)).toBeGreaterThan(0);

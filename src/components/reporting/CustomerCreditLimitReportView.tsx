@@ -1,14 +1,14 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import InlineEdit from '../ui/InlineEdit';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 import {
   customerCreditLimits, customerCreditLimitsCsvRows, creditLimitOf, CREDIT_LIMITS_CSV_HEADERS, CREDIT_LIMIT_METADATA_KEY,
   type CreditLimitRow,
@@ -31,8 +31,6 @@ export default function CustomerCreditLimitReportView() {
   const reportText = useReportText();
   const customers = useLedgerStore(state => state.customers);
   const invoices = useLedgerStore(state => state.invoices);
-  const truncated = useLedgerStore(state => state.truncatedCollections);
-  const failed = useDataNeedsStore(state => state.failed);
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const { loading } = useLedgerCollections('customers', 'invoices');
@@ -52,7 +50,7 @@ export default function CustomerCreditLimitReportView() {
   }, [customers, invoices, workspaceId, home, state]);
   const overLimit = report.filter(row => row.state === 'over');
 
-  const partial = truncated.customers || truncated.invoices || failed.customers || failed.invoices;
+  const partial = usePartialReportInputs(['customers', 'invoices']);
 
   return <section aria-label={reportText('r.customer-credit-limits', 'Customer credit limits')} className="p-4 space-y-4 min-w-0">
     <h2>{reportText('r.customer-credit-limits', 'Customer credit limits')}</h2>
@@ -80,21 +78,18 @@ export default function CustomerCreditLimitReportView() {
       {overLimit.length} {reportText('r.customer-s-over-their-recorded-limit', 'customer(s) over their recorded limit')}{state !== 'all' ? ` ${fill(reportText('r.0-shown-with-this-filter', '· {0} shown with this filter'), { 0: report.length })}` : ''}
     </p>
 
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>{reportText('r.customer-credit-limits-and-what-each-customer-ow', 'Customer credit limits and what each customer owes')}</caption>
-        <thead>
-          <tr>{[reportText('r.customer', 'Customer'), reportText('r.state', 'State'), reportText('r.limit', 'Limit'), reportText('r.open-balance', 'Open balance'), reportText('r.overdue-2', 'Overdue'), reportText('r.headroom', 'Headroom'), reportText('r.used-2', 'Used'), reportText('r.open-invoices-2', 'Open invoices'), reportText('r.oldest-due', 'Oldest due'), reportText('r.other-currencies', 'Other currencies')].map(head =>
-            <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-        </thead>
-        <tbody>
-          {report.map(row => {
-            const customer = customers.find(c => c.id === row.customerId);
-            return <tr key={row.customerId} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.name}</bdi></th>
-              <td className="py-1 px-2">{stateLabelsFor(reportText)[row.state]}</td>
-              <td className="py-1 px-2">
-                <InlineEdit kind="money" value={creditLimitOf({ id: row.customerId, name: row.name, metadata: customer?.metadata })}
+    <ReportSchedule
+      columnControls
+      allowDisplayedExport={!canEdit && !partial && !loading}
+      empty={!loading && !partial ? <p role="status" data-report-empty-state className="text-sm text-[var(--muted)]">{state === 'all' ? reportText('r.no-customer-has-a-recorded-limit-or-an-open-bala', 'No customer has a recorded limit or an open balance yet.') : reportText('r.no-customer-matches-this-filter', 'No customer matches this filter.')}</p> : null}
+      caption={reportText('r.customer-credit-limits-and-what-each-customer-ow', 'Customer credit limits and what each customer owes')}
+      rowClassName="border-b border-[var(--line)]/50"
+      bodyClassName=""
+      rows={report} rowKey={row => row.customerId}
+      columns={[
+        { header: reportText('r.customer', 'Customer'), cell: row => <bdi>{row.name}</bdi> },
+        { header: reportText('r.state', 'State'), cell: row => stateLabelsFor(reportText)[row.state] },
+        { header: reportText('r.limit', 'Limit'), align: 'right', cell: row => { const customer = customers.find(c => c.id === row.customerId); return <InlineEdit kind="money" value={creditLimitOf({ id: row.customerId, name: row.name, metadata: customer?.metadata })}
                   display={row.limitCents === undefined ? reportText('r.set-a-limit', 'Set a limit') : formatCurrency(row.limitCents, home)}
                   label={fill(reportText('r.credit-limit-of-0', 'Credit limit of {0}'), { 0: row.name })} canEdit={canEdit && Boolean(customer)}
                   validate={next => typeof next === 'number' && next >= 0 ? null : reportText('r.limit-not-negative', 'The limit cannot be negative.')}
@@ -104,23 +99,17 @@ export default function CustomerCreditLimitReportView() {
                     await updateEntity('customers', customer.id, {
                       metadata: { [CREDIT_LIMIT_METADATA_KEY]: cents },
                     }, `Credit limit of ${row.name} saved`);
-                  }} />
-              </td>
-              <td className="py-1 px-2">{formatCurrency(row.openCents, home)}</td>
-              <td className="py-1 px-2">{row.overdueCents ? formatCurrency(row.overdueCents, home) : '—'}</td>
-              <td className="py-1 px-2">{row.headroomCents === undefined ? '—' : formatCurrency(row.headroomCents, home)}</td>
-              <td className="py-1 px-2">{row.utilizationPct === undefined ? '—' : `${row.utilizationPct.toFixed(2)}%`}</td>
-              <td className="py-1 px-2">{row.openInvoices}{row.openInvoices !== row.invoices ? <span className="text-[var(--muted)]"> {reportText('r.of', 'of')} {row.invoices}</span> : null}</td>
-              <td className="py-1 px-2">{row.oldestDueDate || '—'}</td>
-              <td className="py-1 px-2">{row.otherCurrencies.length
-                ? row.otherCurrencies.map(currency => <span key={currency.currency} className="inline-block mr-2"><bdi>{currency.currency} {formatCurrency(currency.openCents, currency.currency)}</bdi></span>)
-                : '—'}</td>
-            </tr>;
-          })}
-        </tbody>
-      </table>
-      {!report.length && <p className="text-sm text-[var(--muted)]">{state === 'all' ? reportText('r.no-customer-has-a-recorded-limit-or-an-open-bala', 'No customer has a recorded limit or an open balance yet.') : reportText('r.no-customer-matches-this-filter', 'No customer matches this filter.')}</p>}
-    </ReportTableScroll>
+                  }} />; } },
+        { header: reportText('r.open-balance', 'Open balance'), align: 'right', cell: row => formatCurrency(row.openCents, home) },
+        { header: reportText('r.overdue-2', 'Overdue'), align: 'right', cell: row => row.overdueCents ? formatCurrency(row.overdueCents, home) : '—' },
+        { header: reportText('r.headroom', 'Headroom'), align: 'right', cell: row => row.headroomCents === undefined ? '—' : formatCurrency(row.headroomCents, home) },
+        { header: reportText('r.used-2', 'Used'), align: 'right', cell: row => row.utilizationPct === undefined ? '—' : `${row.utilizationPct.toFixed(2)}%` },
+        { header: reportText('r.open-invoices-2', 'Open invoices'), align: 'right', cell: row => <>{row.openInvoices}{row.openInvoices !== row.invoices ? <span className="text-[var(--muted)]"> {reportText('r.of', 'of')} {row.invoices}</span> : null}</> },
+        { header: reportText('r.oldest-due', 'Oldest due'), cell: row => row.oldestDueDate || '—' },
+        { header: reportText('r.other-currencies', 'Other currencies'), cell: row => row.otherCurrencies.length
+                ? row.otherCurrencies.map(currency => <span key={currency.currency} className="inline-block me-2"><bdi>{currency.currency} {formatCurrency(currency.openCents, currency.currency)}</bdi></span>)
+                : '—' },
+      ]} />
 
     <p className="text-xs text-[var(--muted)]">
       {reportText('r.the-limit-is-the-customer-s-own-recorded-figure', 'The limit is the customer\'s own recorded figure and is compared only with base-currency balances; whether a sale may go on credit is still a person\'s decision. The warning on the invoice form itself is the sales screen\'s job (asked of AI #1), and overdue is measured on today\'s date.')}
