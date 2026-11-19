@@ -110,7 +110,6 @@
   "src/components/reporting/TopPartiesReportView.tsx",
   "src/components/reporting/UsFilingCalendarReportView.tsx",
   "src/components/reporting/UsNexusWatchReportView.tsx",
-  "src/components/reporting/VendorQuotesCompareView.tsx",
   "src/components/reporting/VendorTaxRecordsView.tsx",
   "src/components/reporting/VendorWithholdingView.tsx",
   "src/components/reporting/WarehouseBinLocationsPanel.tsx",

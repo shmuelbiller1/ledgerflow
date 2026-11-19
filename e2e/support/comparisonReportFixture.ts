@@ -12,10 +12,17 @@ export const trends = (kind: 'sales' | 'purchases', compared = true, endDate = '
   exportName: kind === 'sales' ? 'SalesTrendsView' : 'PurchaseTrendsView',
   props: { endDate, compareEndDate: compared ? '2026-01-31' : '' },
 });
+export const quotes = { module: '/src/components/reporting/VendorQuotesCompareView.tsx' };
+const quote = (id: string, vendorName: string, currency: string, unitPriceCents: number) => ({
+  id, vendorId: id, vendorName, currency, unitPriceCents, minOrderQty: 2, leadDays: 3,
+});
 const ledger = {
   customers: [{ id: 'dana', workspaceId, name: customer }],
   vendors: [{ id: 'north', workspaceId, name: vendor }],
-  inventory: [{ id: 'valve', workspaceId, name: item, sku: 'V-7' }],
+  inventory: [{ id: 'valve', workspaceId, name: item, sku: 'V-7', metadata: { vendorQuotes: [
+    quote('north', vendor, 'USD', 1875), quote('west', 'West', 'USD', 2250),
+    quote('eu', 'Euro', 'EUR', 1300), { ...quote('old', 'Expired bid', 'USD', 1100), validUntil: '2026-01-01' },
+  ] } }, { id: 'washer', workspaceId, name: 'Washer', metadata: { vendorQuotes: [quote('south', 'South', 'USD', 125)] } }],
   invoices: [1875, 23456].map((amountCents, i) => ({
     id: `i${i}`, workspaceId, customerId: 'dana', number: `INV-${i}`, date: `2026-0${i + 1}-04`, status: 'paid', currency: 'USD', amountCents,
     items: [{ itemId: 'valve', description: item, quantity: 1, amountCents }],
