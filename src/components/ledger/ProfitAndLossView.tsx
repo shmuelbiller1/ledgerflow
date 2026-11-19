@@ -538,7 +538,7 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
       {vsBudget && columnMode !== 'total' && <p role="status" className="text-sm">{reportText('r.the-budget-comparison-is-shown-for-the-whole-per', 'The budget comparison is shown for the whole period: choose Columns → Total to see it beside the actual figures.')}</p>}
       {basis === 'accrual' && <StatementColumns kind="pl" title={labels.title} accounts={accounts} transactions={transactions}
         startDate={dateRange.start} endDate={dateRange.end} compare={isComparative && (!vsBudget || columnMode === 'total')} compareLabel={vsBudget ? 'Budget' : undefined}
-        compareStartDate={prevRange.start} compareEndDate={prevRange.end}
+        compareStartDate={prevRange.start} compareEndDate={prevRange.end} labelFilter={labelFilter ?? undefined}
         mode={columnMode} onModeChange={setColumnMode} showPercent={showPercent} onPercentChange={setShowPercent}
         totalData={data} previousTotalData={prevData} totalAuthoritative={useServer}
         formatMoney={formatCurrency} sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}
