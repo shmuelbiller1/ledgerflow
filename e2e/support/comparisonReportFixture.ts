@@ -2,7 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFile } from 'node:fs/promises';
 import { parseCsv } from '../../src/lib/csv';
-import { mountJourney, settleStyles, type JourneyMount } from './journeyFixture';
+import { mountJourney, remountJourney, settleStyles, type JourneyMount } from './journeyFixture';
 import { tabTo } from './tabTo';
 
 const workspaceId = 'monthly-books';
@@ -37,12 +37,17 @@ export async function openComparison(page: Page, mount: JourneyMount, width: num
   const he = (width === 390) === (theme === 'light');
   await page.setViewportSize({ width, height: 850 });
   await page.clock.setFixedTime(new Date('2026-02-28T12:00:00Z'));
-  const handle = await mountJourney(page, { workspaceId, role, ledger, mounts: [mount] });
+  const handle = await mountJourney(page, { workspaceId, role, ledger, mounts: [] });
   await page.evaluate(async ({ theme, he }) => {
     const { useUIStore } = await import('/src/stores/useUIStore.ts');
     useUIStore.setState({ language: he ? 'he' : 'en' });
     Object.assign(document.documentElement, { className: theme, lang: he ? 'he' : 'en', dir: he ? 'rtl' : 'ltr' });
+    // The native item selector retained a one-pixel text offset when first laid out in
+    // the light fixture with fallback metrics. Load the real UI face before mounting it.
+    await document.fonts.load(`400 14px ${getComputedStyle(document.body).fontFamily}`, 'All items (2) כל הפריטים');
+    await document.fonts.ready;
   }, { theme, he });
+  await remountJourney(page, [mount]);
   return { ...handle, he };
 }
 
