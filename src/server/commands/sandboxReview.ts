@@ -6,10 +6,13 @@ import { validateSandboxId } from '../db/pg/sandbox';
 import { sandboxBatch, type SandboxBatch } from '../db/pg/sandboxBatch';
 import { boundWorkspace, clearDraft, createBinding, draftBytes, isUnresolved, lockBinding, MAX_PENDING_STEPS, saveStep, stepsOf, updateBinding, type StoredStep } from '../db/pg/sandboxReviewStore';
 import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedgerWriter';
-import { assertWorkspaceActiveForCommand, CommandRefusal, runCommandAfterCommit, type CommandAfterCommit } from '../utils/commandExecutor';
+import { assertWorkspaceActiveForCommand, CommandRefusal, runCommandAfterCommit, runRegisteredCommand, type CommandAfterCommit } from '../utils/commandExecutor';
+import { commandRegistry } from './defaultRegistry';
+import type { CommandExecutionOutcome } from './types';
 import { requestPayloadHash } from '../utils/idempotency';
 import { assertDraftOrder, parentsOf, rebuildDraft, saveDraftStep, stepFailure, type ReviewActor } from './sandboxRebuild';
 import { overlayCollections, replayReviewedStep, stepCommand } from './sandboxStepCommands';
+import type { CommandRisk } from './types';
 
 export interface SandboxReview {
   id: string;
@@ -27,7 +30,31 @@ export type SandboxReviewIntent =
   | ({ kind: 'edit'; stepId: string; input: unknown } & Revision)
   | ({ kind: 'reorder'; stepIds: readonly string[] } & Revision)
   | ({ kind: 'reject'; stepIds?: readonly string[] } & Revision)
-  | ({ kind: 'accept'; stepIds?: readonly string[]; confirmRechecked?: readonly string[] } & Revision);
+  | ({ kind: 'accept'; stepIds?: readonly string[]; confirmRechecked?: readonly string[]; confirmHighRisk?: string } & Revision);
+
+/**
+ * SBX-1 requirement 5: a high-risk step is accepted on its own, in two steps.
+ *
+ * "Accept all" skips it; a selection naming it must name it alone, and must name it a second time as
+ * `confirmHighRisk` — the first call answers 409 SANDBOX_HIGH_RISK_CONFIRM with the step's preview, the
+ * screen shows the preview and asks again, and only the second call applies. The high-risk flag is the
+ * command's own (`risk: 'high'`, the same one the command router asks a second factor for), so admitting
+ * such a command as a step later does not need a second rule here. Pure, so it is tested on its own.
+ */
+export function highRiskGate(selected: readonly StoredStep[], intent: Extract<SandboxReviewIntent, { kind: 'accept' }>,
+  riskOf: (command: string) => CommandRisk): StoredStep[] {
+  const highRisk = selected.filter(step => riskOf(step.command) === 'high');
+  if (highRisk.length === 0) return [...selected];
+  if (!intent.stepIds) return selected.filter(step => riskOf(step.command) !== 'high');
+  const [step] = highRisk;
+  if (highRisk.length > 1 || selected.length > 1) {
+    throw new CommandRefusal('Accept a high-risk step on its own', 409, 'SANDBOX_HIGH_RISK_ALONE', { stepId: step.id });
+  }
+  if (intent.confirmHighRisk !== step.id) {
+    throw new CommandRefusal(`Confirm "${step.preview.title}" to apply it`, 409, 'SANDBOX_HIGH_RISK_CONFIRM', { stepId: step.id, preview: step.preview });
+  }
+  return [step];
+}
 
 type Scope = { workspaceId: string; sandboxId: string };
 
@@ -36,6 +63,21 @@ function person(req: Request): RequestUser {
   if (!user?.uid) throw new CommandRefusal('Sign in required', 401, 'UNAUTHENTICATED');
   if (user.usedApiKeyId || user.developerWorkspaceId) throw new CommandRefusal('Only a signed-in person can manage a sandbox', 403, 'PERSON_ONLY');
   return { ...user, admin: false };
+}
+
+/** The intents an assistant token may send: drafting only. Nothing here reaches the real books. */
+const ASSISTANT_INTENTS: ReadonlySet<SandboxReviewIntent['kind']> = new Set(['add', 'review', 'edit', 'reorder', 'reject']);
+
+/**
+ * An assistant principal (auth/assistantToken.ts) acts for the person inside the one sandbox its
+ * token names. It may draft; it may not accept, undo, reject the whole sandbox or open another one.
+ */
+function assertAssistantMayDo(user: RequestUser, sandboxId: string, intent: SandboxReviewIntent): void {
+  if (!user.assistantSandboxId) return;
+  if (user.assistantSandboxId !== sandboxId) throw new CommandRefusal('This assistant token belongs to another sandbox', 403, 'ASSISTANT_SANDBOX_MISMATCH');
+  if (!ASSISTANT_INTENTS.has(intent.kind) || (intent.kind === 'reject' && intent.stepIds === undefined)) {
+    throw new CommandRefusal('Only the person can accept, undo or close a sandbox', 403, 'ASSISTANT_CANNOT_COMMIT');
+  }
 }
 
 async function requireLiveAccess(batch: SandboxBatch, user: RequestUser, workspaceId: string): Promise<Record<string, unknown>> {
@@ -59,6 +101,7 @@ function response(id: string, steps: StoredStep[], outcome: SandboxReview['outco
 /** Internal person-only entry points. No public header, token or route can opt in. */
 export async function openSandbox(req: Request, workspaceId: string, db: Firestore = getDb()): Promise<SandboxReview> {
   const user = person(req);
+  if (user.assistantSandboxId) throw new CommandRefusal('Only the person can open a sandbox', 403, 'ASSISTANT_CANNOT_COMMIT');
   const binding = { id: randomUUID(), personId: user.uid, workspaceId };
   return db[sandboxBatch](async batch => {
     await requireLiveAccess(batch, user, workspaceId);
@@ -82,6 +125,7 @@ function acceptanceList(active: StoredStep[], intent: Extract<SandboxReviewInten
   const confirmed = new Set(intent.confirmRechecked ?? []);
   const permitted = (step: StoredStep) => step.state === 'pending' || (step.state === 'needs-recheck' && explicit && confirmed.has(step.id));
   const chosen = new Set<string>();
+  const riskOf = (name: string): CommandRisk => commandRegistry.get(name)?.risk ?? 'high';
   for (const step of active) {
     if (explicit ? !explicit.has(step.id) : !permitted(step)) continue;
     const closure = new Set([step.id]);
@@ -95,7 +139,10 @@ function acceptanceList(active: StoredStep[], intent: Extract<SandboxReviewInten
     }
     for (const id of closure) chosen.add(id);
   }
-  return active.filter(step => chosen.has(step.id));
+  // a high-risk step's dependants are gated with it: "all" skips them, a selection must name them later
+  const gated = highRiskGate(active.filter(step => chosen.has(step.id)), intent, riskOf);
+  const kept = new Set(gated.map(step => step.id));
+  return active.filter(step => kept.has(step.id) && parentsOf(step, active).every(parent => kept.has(parent)));
 }
 
 async function rebuild(batch: SandboxBatch, actor: ReviewActor, steps: StoredStep[], strict: boolean) {
@@ -168,6 +215,7 @@ export async function reviewSandbox(req: Request, scope: Scope, intent: SandboxR
   let id: string;
   try { id = validateSandboxId(scope.sandboxId); }
   catch { throw new CommandRefusal('Expected a sandbox id', 400, 'INVALID_SANDBOX_ID'); }
+  assertAssistantMayDo(user, id, intent);
   const binding = { id, workspaceId: scope.workspaceId, personId: user.uid };
   const addId = randomUUID();
   const ids = new Map<string, string>();
@@ -207,4 +255,37 @@ export async function reviewSandbox(req: Request, scope: Scope, intent: SandboxR
   });
   await runCommandAfterCommit(callbacks);
   return result;
+}
+
+/**
+ * Undo after accepting (CMD-1 part 3): the inverse each accepted step recorded runs as an ordinary
+ * command through the central runner, with every one of its checks, as the person. The step is then
+ * marked `undone`. Nothing here reads or writes the overlay; an assistant token is refused.
+ */
+export async function undoSandboxStep(req: Request, scope: Scope, stepId: string, db: Firestore = getDb()): Promise<{ step: StoredStep; outcome: CommandExecutionOutcome }> {
+  const user = person(req);
+  if (user.assistantSandboxId) throw new CommandRefusal('Only the person can undo an accepted step', 403, 'ASSISTANT_CANNOT_COMMIT');
+  let id: string;
+  try { id = validateSandboxId(scope.sandboxId); }
+  catch { throw new CommandRefusal('Expected a sandbox id', 400, 'INVALID_SANDBOX_ID'); }
+  const binding = { id, workspaceId: scope.workspaceId, personId: user.uid };
+  const step = await db[sandboxBatch](async batch => {
+    await requireLiveAccess(batch, user, binding.workspaceId);
+    if (!await lockBinding(batch.runner, binding)) throw new CommandRefusal('No open sandbox belongs to you in this workspace', 404, 'SANDBOX_NOT_FOUND');
+    const found = (await stepsOf(batch.runner, id)).find(row => row.id === stepId);
+    if (!found) throw new CommandRefusal('Choose an existing step', 404, 'SANDBOX_STEP_NOT_FOUND');
+    if (found.state !== 'accepted') throw new CommandRefusal('Only an accepted step can be undone', 409, 'SANDBOX_STEP_NOT_ACCEPTED', { state: found.state });
+    if (!found.inverse) throw new CommandRefusal('This step recorded no inverse; undo it by hand', 409, 'SANDBOX_NO_INVERSE');
+    return found;
+  });
+  const definition = commandRegistry.get(step.inverse!.command);
+  if (!definition) throw new CommandRefusal(`Unknown command: ${step.inverse!.command}`, 409, 'COMMAND_NOT_FOUND');
+  const outcome = await runRegisteredCommand(req, { definition, workspaceId: binding.workspaceId, input: step.inverse!.input }, { getDb: () => db });
+  if (!outcome.ok) return { step, outcome };
+  const undone: StoredStep = { ...step, state: 'undone', failureReason: null };
+  await db[sandboxBatch](async batch => {
+    if (!await lockBinding(batch.runner, binding)) throw new CommandRefusal('No open sandbox belongs to you in this workspace', 404, 'SANDBOX_NOT_FOUND');
+    await saveStep(batch.runner, id, undone);
+  });
+  return { step: undone, outcome };
 }

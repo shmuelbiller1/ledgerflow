@@ -19,6 +19,7 @@ const mainViews = [
   'audit',
   'time-machine',
   'ask',
+  'sandbox-review',
   'magic',
   'system-command-center',
 ] as const;

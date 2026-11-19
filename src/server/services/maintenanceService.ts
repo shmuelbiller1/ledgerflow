@@ -1,6 +1,7 @@
 import { getDb } from '../db/firestore';
 import { logger } from '../utils/logger';
 import { purgePendingWorkspaces } from './workspacePurgeService';
+import { cleanupSandboxes } from '../db/pg/sandboxHousekeeping';
 
 /**
  * Daily data maintenance: expired job logs, the strategicAdvice size cap and scheduled
@@ -47,5 +48,13 @@ export async function runDailyMaintenance(): Promise<void> {
   }
   if (purgeResult.errors.length > 0) {
     console.error(`[Data Lifecycle] Workspace purge encountered errors: ${purgeResult.errors.join('; ')}`);
+  }
+
+  // 5. SBX-1: expired assistant sandboxes lose their overlay rows; old closed ones are purged
+  try {
+    const sandboxes = await cleanupSandboxes(getDb());
+    if (sandboxes.expired || sandboxes.clearedOverlays || sandboxes.purged) logger.info("Sandbox housekeeping", { ...sandboxes });
+  } catch (err) {
+    console.error('[Data Lifecycle] Sandbox housekeeping failed:', err);
   }
 }
