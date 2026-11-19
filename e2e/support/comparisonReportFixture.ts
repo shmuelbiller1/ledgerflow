@@ -2,10 +2,10 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFile } from 'node:fs/promises';
 import { parseCsv } from '../../src/lib/csv';
-import { mountJourney, remountJourney, settleStyles, type JourneyMount } from './journeyFixture';
+import { mountJourney, remountJourney, settleStyles, type JourneyMount, type JourneyOptions } from './journeyFixture';
 import { tabTo } from './tabTo';
 
-const workspaceId = 'monthly-books';
+export const workspaceId = 'monthly-books';
 export const customer = 'Dana דנה', vendor = 'North צפון', item = 'Valve ברז';
 export const trends = (kind: 'sales' | 'purchases', compared = true, endDate = '2026-02-28'): JourneyMount => ({
   module: '/src/components/reporting/DocumentTrendsView.tsx',
@@ -33,11 +33,11 @@ const ledger = {
   })),
 };
 
-export async function openComparison(page: Page, mount: JourneyMount, width: number, theme: 'light' | 'dark', role: 'bookkeeper' | 'viewer' = 'viewer') {
+export async function openComparison(page: Page, mount: JourneyMount, width: number, theme: 'light' | 'dark', role: 'bookkeeper' | 'viewer' = 'viewer', fixture: Partial<Pick<JourneyOptions, 'ledger' | 'api'>> = {}) {
   const he = (width === 390) === (theme === 'light');
   await page.setViewportSize({ width, height: 850 });
   await page.clock.setFixedTime(new Date('2026-02-28T12:00:00Z'));
-  const handle = await mountJourney(page, { workspaceId, role, ledger, mounts: [] });
+  const handle = await mountJourney(page, { workspaceId, role, ledger, ...fixture, mounts: [] });
   await page.evaluate(async ({ theme, he }) => {
     const { useUIStore } = await import('/src/stores/useUIStore.ts');
     useUIStore.setState({ language: he ? 'he' : 'en' });

@@ -14,7 +14,7 @@ import { hiddenColumnsCss, readHidden, saveHidden, toggleColumn } from '../../li
  * known by the table's caption); hidden columns don't print either. C-54/C-91: a report table with
  * no rows gets one shared next-action empty state; loading and failure states are never called empty.
  */
-export default function ReportTableScroll({children}:{children:ReactNode}) {
+export default function ReportTableScroll({children, allowDisplayedExport = true}:{children:ReactNode; allowDisplayedExport?:boolean}) {
  const reportText = useReportText();
  const ref=useRef<HTMLDivElement>(null);
  const scope=useId().replace(/[^a-zA-Z0-9_-]/g,'');
@@ -98,7 +98,7 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
  const change=(index:number)=>{const next=toggleColumn(effectiveHidden,index,headers.length);setHidden(next);if(report)saveHidden(reportKey,next,headers);};
  const exportDisplayed=()=>{
   const table=ref.current?.querySelector('table');
-  if(!table||!reorderable)return;
+  if(!table||!reorderable||!allowDisplayedExport)return;
   const visible=order.map(Number).filter(index=>!effectiveHidden.includes(index));
   const rows=Array.from(table.querySelectorAll('tbody tr,tfoot tr')).filter(row=>getComputedStyle(row).display!=='none').map(row=>{
    const cells=Array.from(row.children);
@@ -119,9 +119,9 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
     <button type="button" onClick={()=>scroll(-240)} className="min-h-11 px-3 border rounded"><span aria-hidden="true">← </span>{reportText('r.scroll-left', 'Scroll table left')}</button>
     <button type="button" onClick={()=>scroll(240)} className="min-h-11 px-3 border rounded">{reportText('r.scroll-right', 'Scroll table right')}<span aria-hidden="true"> →</span></button>
     {headers.length>2&&<button type="button" aria-expanded={open} onClick={()=>setOpen(o=>!o)} className="min-h-11 px-3 border rounded">{effectiveHidden.length ? fill(reportText('r.columns-hidden', 'Columns ({count} hidden)'), { count: effectiveHidden.length }) : reportText('r.columns', 'Columns')}</button>}
-    {open&&reorderable&&<button type="button" onClick={exportDisplayed} className="min-h-11 px-3 border rounded">{reportText('r.export-displayed', 'Export displayed rows CSV')}</button>}
+    {open&&reorderable&&allowDisplayedExport&&<button type="button" onClick={exportDisplayed} className="min-h-11 px-3 border rounded">{reportText('r.export-displayed', 'Export displayed rows CSV')}</button>}
    </div>
-   {open&&reorderable&&report&&<ExportTemplateControls report={report} columns={headers} layout={{order,hidden:effectiveHidden.map(String)}} onUse={next=>{
+   {open&&reorderable&&allowDisplayedExport&&report&&<ExportTemplateControls report={report} columns={headers} layout={{order,hidden:effectiveHidden.map(String)}} onUse={next=>{
     const nextOrder=['0',...next.order.filter(id=>id!=='0')];
     const nextHidden=next.hidden.map(Number).filter(index=>index>0&&index<headers.length).slice(0,Math.max(0,headers.length-2));
     setChoice({key:orderKey,order:nextOrder});savePeriodLayout(orderKey,{order:nextOrder,hidden:[]});
@@ -130,7 +130,7 @@ export default function ReportTableScroll({children}:{children:ReactNode}) {
    {open&&headers.length>2&&(
     <fieldset data-print-hide className="sticky start-0 mb-2 flex flex-wrap gap-3 text-sm">
      <legend className="sr-only">{reportText('r.columns-to-show', 'Columns to show')}</legend>
-     {reorderable&&<p className="w-full">{reportText('r.displayed-csv-help', 'CSV includes these displayed rows and columns as shown, including localized text. Use the report’s financial export for plain numeric amounts.')}</p>}
+     {reorderable&&allowDisplayedExport&&<p className="w-full">{reportText('r.displayed-csv-help', 'CSV includes these displayed rows and columns as shown, including localized text. Use the report’s financial export for plain numeric amounts.')}</p>}
      {order.slice(1).map((id, position) => {
        const column = Number(id);
        const name = headers[column] || fill(reportText('r.column-number', 'Column {number}'), { number: column + 1 });
