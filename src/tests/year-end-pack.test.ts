@@ -152,6 +152,12 @@ describe('the year-end pack leaves out documents and assets dated after the year
     assert.deepEqual(sectionFigure(withLater, 'receivables', 'aging-total'), sectionFigure(pack, 'receivables', 'aging-total'));
   });
 
+  test('an open invoice known only by its issue date next year is left out too', () => {
+    const later = { ...fixture.invoices[0], id: 'issued-later', date: undefined, issueDate: '2027-01-15', dueDate: '2027-02-15', status: 'sent', totalCents: 77_700, amountPaidCents: 0 };
+    const withLater = buildYearEndPack({ ...base, invoices: [...fixture.invoices, later as never] });
+    assert.deepEqual(sectionFigure(withLater, 'receivables', 'aging-total'), sectionFigure(pack, 'receivables', 'aging-total'));
+  });
+
   test('an asset bought next year is not held at the year end; one disposed of next year still is', () => {
     const asset = fixture.assets[0];
     assert.ok(asset, 'the sample year has a fixed asset');

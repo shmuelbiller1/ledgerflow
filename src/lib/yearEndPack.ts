@@ -143,7 +143,10 @@ export function buildYearEndPack(input: YearEndPackInput): YearEndPack {
   const sheet = computeBalanceSheet(accounts, transactions, endDate);
   const trial = computeTrialBalance(accounts, transactions, endDate);
   // only documents dated by the year end; what is still owed on them is as recorded today (the sections say so)
-  const byYearEnd = <T extends { date?: string }>(docs: T[]) => docs.filter(doc => !doc.date || doc.date.slice(0, 10) <= endDate);
+  const byYearEnd = <T extends { date?: string; issueDate?: string }>(docs: T[]) => docs.filter(doc => {
+    const day = String(doc.date || doc.issueDate || '').slice(0, 10);
+    return !day || day <= endDate;
+  });
   const receivables = computePartyAging(input.customers || [], byYearEnd(invoices), 'customer', endDate, input.currency);
   const payables = computePartyAging(input.vendors || [], byYearEnd(bills), 'vendor', endDate, input.currency);
   const closeItems = buildCloseChecklist({
