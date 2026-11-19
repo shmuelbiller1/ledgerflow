@@ -48,7 +48,7 @@ function verify(entityData: Array<{ workspace: Workspace; transactions: Transact
 }
 
 type Verification = ReturnType<typeof verify> & { workspaceId: string; entityWorkspaceIds: string[] };
-export const consolidationVerifyCommand: CommandDefinition<typeof eliminateInput, Verification> = {
+export const consolidationVerifyCommand: CommandDefinition<typeof eliminateInput, Verification, Verification> = {
   name: 'consolidation.verify',
   input: eliminateInput,
   roles,
@@ -63,16 +63,24 @@ export const consolidationVerifyCommand: CommandDefinition<typeof eliminateInput
       assertEntityAccess(ctx.user, id, (await ctx.db.collection('workspaces').doc(id).get()).data());
     }
   },
-  async handler(ctx, tx, input) {
+  async prepare(ctx, input) {
     const entityWorkspaceIds = entityIdsOf(ctx.workspaceId, input);
     const entityData = [];
     for (const id of entityWorkspaceIds) {
-      const data = id === ctx.workspaceId ? ctx.workspace : (await tx.get(ctx.db.collection('workspaces').doc(id))).data();
+      const data = id === ctx.workspaceId ? ctx.workspace : (await ctx.db.collection('workspaces').doc(id).get()).data();
       assertEntityAccess(ctx.user, id, data);
-      const entries = await tx.get(ctx.db.collection('transactions').where('workspaceId', '==', id));
+      const entries = await ctx.db.collection('transactions').where('workspaceId', '==', id).get();
       entityData.push({ workspace: { ...(data as unknown as Workspace), id }, transactions: entries.docs.map(d => ({ ...(d.data() as Transaction), id: d.id })) });
     }
     return { workspaceId: ctx.workspaceId, entityWorkspaceIds, ...verify(entityData, input) };
+  },
+  async handler(ctx, tx, input) {
+    // The runner has refreshed the primary. Recheck access on point reads only, before writing the audit.
+    for (const id of entityIdsOf(ctx.workspaceId, input)) {
+      const data = id === ctx.workspaceId ? ctx.workspace : (await tx.get(ctx.db.collection('workspaces').doc(id))).data();
+      assertEntityAccess(ctx.user, id, data);
+    }
+    return ctx.prepared as Verification;
   },
   async preview(ctx, input) {
     const count = entityIdsOf(ctx.workspaceId, input).length;

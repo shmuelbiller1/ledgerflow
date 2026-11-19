@@ -1,13 +1,12 @@
 import { z } from 'zod';
-import { SecurityService } from '../../services/securityService';
-import { getPlaidClient, plaidErrorCode } from '../services/plaidClient';
+import { registerPlaidItemWebhook } from '../services/plaidClient';
 import { deferEffects } from '../services/sandboxEffects';
 import { CommandRefusal } from '../utils/commandExecutor';
 import type { CommandDefinition } from './types';
 
 const bankReconnectInput = z.object({
   workspaceId: z.string().min(1).optional(),
-  bankId: z.string().min(1).describe('The LedgerFlow bank-connection ID, not a token'),
+  bankId: z.string().min(1).describe('The local bank connection ID, not a provider token'),
 });
 
 type BankRow = { workspaceId?: unknown; institutionName?: string; access_token?: string };
@@ -27,20 +26,11 @@ export const bankReconnectCommand: CommandDefinition<typeof bankReconnectInput, 
     tx.update(ref, { status: 'active', updatedAt: new Date().toISOString() });
     // Plaid update mode ignores the webhook argument on the Link token. Re-register it *after*
     // the bank state and audit commit. A failed registration does not undo the reconnection.
-    const client = getPlaidClient();
-    const registerWebhook = client.itemWebhookUpdate?.bind(client);
     const webhook = process.env.PLAID_WEBHOOK_URL;
-    if (webhook && registerWebhook && bank.access_token) {
-      const encryptedToken = bank.access_token;
-      deferEffects(ctx.db, [{ kind: 'bank', action: 'register-webhook', target: bankId }], ctx.afterCommit, async () => {
-        try {
-          await registerWebhook({ access_token: SecurityService.decryptSensitiveField(encryptedToken), webhook });
-          return { webhookRegistered: true };
-        } catch (err) {
-          console.error('[Plaid] item webhook update:', plaidErrorCode(err) || 'provider request failed');
-          return { webhookRegistered: false };
-        }
-      });
+    const encryptedToken = bank.access_token;
+    if (webhook && encryptedToken) {
+      deferEffects(ctx.db, [{ kind: 'bank', action: 'register-webhook', target: bankId }], ctx.afterCommit,
+        () => registerPlaidItemWebhook(ctx.db, bankId, encryptedToken, webhook));
     }
     return { bankId, institutionName: bank.institutionName || bankId };
   },

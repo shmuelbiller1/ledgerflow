@@ -3,7 +3,8 @@ import crypto from 'node:crypto';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, describe, test } from 'node:test';
-import type { Firestore } from '../server/db/firestore';
+import type { DocumentData, Firestore, Query, Transaction } from '../server/db/firestore';
+import type { TransactionOptions } from '../server/db/pgFirestore';
 import type { RequestUser } from '../server/auth/requestUser';
 
 const url = process.env.LF_TEST_DATABASE_URL;
@@ -86,18 +87,67 @@ describe('Consolidation verification (database)', { skip: !url && 'LF_TEST_DATAB
     });
   });
 
-  test('a cached command answer cannot be read after losing a role in a secondary workspace', async () => {
-    const envelope = { workspaceId: primary, input: { entityWorkspaceIds: [allowed], asOfDate: '2026-10-31' } };
-    const invoke = () => fetch(`${base}/api/v1/commands/consolidation.verify`, {
-      method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': 'secondary-scope' }, body: JSON.stringify(envelope),
+  const invoke = async (key: string) => {
+    const res = await fetch(`${base}/api/v1/commands/consolidation.verify`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': key },
+      body: JSON.stringify({ workspaceId: primary, input: { entityWorkspaceIds: [allowed], asOfDate: '2026-10-31' } }),
     });
-    const first = await invoke();
-    assert.equal(first.status, 200, await first.text());
-    const retry = await invoke();
-    assert.equal((await retry.json()).replayed, true);
-    await db.collection('workspaces').doc(allowed).update({ roles: { owner: 'viewer' } });
-    const denied = await invoke();
-    assert.equal(denied.status, 403);
-    assert.equal((await denied.json()).code, 'ROLE_REQUIRED');
+    return { status: res.status, body: await res.json() as Record<string, unknown> };
+  };
+
+  test('ledger scans run outside the write transaction, and a replay checks access without rescanning', async (t) => {
+    const ledgerScans: boolean[] = [];
+    let writeOpen = false;
+    const run = db.runTransaction.bind(db);
+    t.mock.method(db, 'runTransaction', async <R>(work: (tx: Transaction) => Promise<R>, options?: TransactionOptions) => {
+      if (options?.readOnly) return run(work, options);
+      writeOpen = true;
+      try { return await run(work, options); } finally { writeOpen = false; }
+    });
+    const query = db.runQuery.bind(db);
+    t.mock.method(db, 'runQuery', <T = DocumentData>(target: Query<T>, tx: Parameters<typeof db.runQuery>[1]) => {
+      if (target.collectionId === 'transactions') ledgerScans.push(tx !== null || writeOpen);
+      return query(target, tx);
+    });
+    const first = await invoke('secondary-scope');
+    assert.equal(first.status, 200, JSON.stringify(first.body));
+    assert.deepEqual(ledgerScans, [false, false], 'both books were read through the pool before the audit transaction');
+    const retry = await invoke('secondary-scope');
+    assert.equal(retry.status, 200);
+    assert.equal(retry.body.replayed, true);
+    assert.deepEqual(retry.body.data, first.body.data);
+
+    const secondary = db.collection('workspaces').doc(allowed);
+    await secondary.update({ roles: { owner: 'viewer' } });
+    try {
+      const denied = await invoke('secondary-scope');
+      assert.equal(denied.status, 403);
+      assert.equal(denied.body.code, 'ROLE_REQUIRED');
+      assert.deepEqual(ledgerScans, [false, false], 'neither replay rescans the ledgers');
+    } finally { await secondary.update({ roles: { owner: 'bookkeeper' } }); }
+  });
+
+  test('a secondary role lost after preparation refuses at commit, without an audit or a retry record', async (t) => {
+    const audits = db.collection('auditLogs').where('workspaceId', '==', primary);
+    const count = (await audits.get()).size;
+    const secondary = db.collection('workspaces').doc(allowed);
+    const run = db.runTransaction.bind(db);
+    let revoke = true;
+    t.mock.method(db, 'runTransaction', async <R>(work: (tx: Transaction) => Promise<R>, options?: TransactionOptions) => {
+      if (revoke && !options?.readOnly) {
+        revoke = false;
+        await secondary.update({ roles: { owner: 'viewer' } });
+      }
+      return run(work, options);
+    });
+    const key = 'revoked-after-prepare';
+    try {
+      const denied = await invoke(key);
+      assert.equal(denied.status, 403, JSON.stringify(denied.body));
+      assert.equal(denied.body.code, 'ROLE_REQUIRED');
+      assert.equal(revoke, false, 'the request reached the audit transaction');
+      assert.equal((await audits.get()).size, count);
+      assert.equal((await db.collection('idempotencyKeys').doc(`${primary}:consolidation.verify:${key}`).get()).exists, false);
+    } finally { await secondary.update({ roles: { owner: 'bookkeeper' } }); }
   });
 });

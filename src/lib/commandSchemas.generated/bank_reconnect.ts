@@ -8,7 +8,7 @@ export const COMMAND_INPUT_SCHEMA = {
     "bankId": {
       "type": "string",
       "minLength": 1,
-      "description": "The LedgerFlow bank-connection ID, not a token"
+      "description": "The local bank connection ID, not a provider token"
     }
   },
   "required": [

@@ -9,7 +9,7 @@ import { formatTzDate } from '../http/serverKit';
 import { toBaseCents } from '../reports/partyReports';
 import { incrementShardedCounter } from './shardedCounterService';
 
-/** Run only after its job row has committed; the computation and its billing protocol are unchanged. */
+/** On-demand only: one simulated wait after the request's job row commits, not a scheduled job. */
 export async function processDeepAuditInBackground(db: Firestore, jobId: string, workspaceId: string, uid: string) {
   requireLiveDb(db, 'Deep audit worker');
   await new Promise((resolve) => setTimeout(resolve, 1500)); // simulation compute wait

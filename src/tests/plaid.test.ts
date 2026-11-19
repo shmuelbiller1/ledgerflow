@@ -25,6 +25,7 @@ describe('Plaid bank connections', { skip: !url && 'LF_TEST_DATABASE_URL not set
   let nextAccessToken = 'access-good';
   const removed: string[] = [];
   const registered: string[] = [];
+  const registrationState: Array<{ bankStatus: unknown; audits: number }> = [];
   let registrationRefused = false;
 
   const call = async (uid: string, method: 'GET' | 'POST', path: string, body?: Record<string, unknown>) => {
@@ -52,6 +53,9 @@ describe('Plaid bank connections', { skip: !url && 'LF_TEST_DATABASE_URL not set
       }) as never,
       itemWebhookUpdate: (async ({ access_token }: { access_token: string }) => {
         registered.push(access_token);
+        const bank = await db.collection('banks').doc(expiredBankId).get();
+        const audits = await db.collection('auditLogs').where('workspaceId', '==', ws).where('action', '==', 'BANK_RECONNECTED').get();
+        registrationState.push({ bankStatus: bank.data()?.status, audits: audits.size });
         if (registrationRefused) throw Object.assign(new Error('down'), { response: { data: { error_code: 'INSTITUTION_DOWN' } } });
         return { data: {} };
       }) as never,
@@ -177,6 +181,7 @@ describe('Plaid bank connections', { skip: !url && 'LF_TEST_DATABASE_URL not set
       const first = await run('book-1', ws);
       assert.equal(first.status, 200, JSON.stringify(first.body));
       assert.deepEqual(first.body.data, { bankId: expiredBankId, institutionName: 'Old Bank', webhookRegistered: true });
+      assert.deepEqual(registrationState.at(-1), { bankStatus: 'active', audits: 4 }, 'the provider sees both committed writes');
       assert.equal((await bank.get()).data()?.status, 'active');
       await bank.update({ status: 'login_required' }); // a later real change must survive the retry
       const retry = await run('book-1', ws);

@@ -23,8 +23,13 @@ test('tenant creation routes are create-only and ignore caller workspace identit
   assert.match(command, /tx\.create\(ref, workspace\)/);
   assert.match(command, /denyWorkspaceApiKey: true/);
   assert.doesNotMatch(creation, /doc\(newId\)\.set\(/);
-  assert.match(account, /tx\.create\(accRef, newAccount\)/);
+  assert.match(account, /await executeCommand\(req, res, \{\s*definition: chartAccountRegisterCommand,/);
   assert.doesNotMatch(account, /doc\(newId\)\.set\(/);
+  const chart = fs.readFileSync('src/server/commands/chartAccounts.ts', 'utf8');
+  const register = chart.slice(chart.indexOf('export const chartAccountRegisterCommand'));
+  assert.match(register, /tx\.create\(ref, account\)/);
+  assert.match(register, /workspaceId: ctx\.workspaceId/);
+  assert.doesNotMatch(register, /tx\.(?:set|update)\(ref\b/);
 });
 
 const databaseUrl = process.env.LF_TEST_DATABASE_URL;
