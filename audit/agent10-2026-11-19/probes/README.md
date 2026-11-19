@@ -33,6 +33,7 @@ npx tsx scripts/db-test.ts rls        # ALL RLS TESTS PASSED
 
 npx tsx audit/agent10-2026-11-19/probes/r1-documents-reverify.ts
 npx tsx audit/agent10-2026-11-19/probes/r3-rls-and-minor-units-reverify.ts
+npx tsx audit/agent10-2026-11-19/probes/r4-il-vat-foreign-currency.ts   # pure, no database
 npx tsx audit/agent10-2026-11-16/probes/probe-02-tx-fx-partial-update-and-report-brain-500s.ts
 ```
 
@@ -54,3 +55,18 @@ against PGlite with every migration applied. Read the `verdict` field, not the p
 The r3 `H1-prepaid-line` verdict was inverted when it was first committed (it called 449 cents — the
 old 100x undercount — `FIXED`, and the correct 44,890 `CHECK`); Gitar caught it on PR #919 and it is
 fixed here, so the JSON now agrees with the report.
+
+## r4 — the Israeli VAT return and foreign currency (issue #928)
+
+`r4` is pure (no database): it runs the product's `israelVatReturn` over one standard-rated sale in
+ILS books and compares the reported taxable sales with the correct home amount.
+
+| Document | Correct (ILS agorot) | Reported | Verdict |
+|---|---|---|---|
+| ¥10,000 @ 0.0067 | 6,700 | 67 | UNDERCONVERTED (99% low) |
+| KWD 12.345 @ 12.0 | 14,814 | 148,140 | OVERCONVERTED (10×) |
+| $1,000.00 @ 3.7 | 370,000 | 370,000 | OK |
+
+Cause: `israelVatReturn` builds the return without `baseCurrency`, and `computeTaxReturn`'s `toBase`
+only applies the ISO-4217 minor-unit shift when `baseCurrency` is present. Filed as issue #928;
+`r4-output.json` is the run quoted there. The same omission is in `accountantExportPack.ts`.
