@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -54,38 +55,62 @@ export default function SpreadWaterfallView({ startDate = '', endDate = '' }: { 
       {source !== 'server' && (['transactions', 'invoices', 'bills'] as const).some(k => isCollectionCapped(truncated, k) || failed[k]) && <p role="alert">{reportText('r.loaded-ledger-history-is-incomplete-or-failed-th-3', 'Loaded ledger history is incomplete or failed. These figures are provisional.')}</p>}
       <RangeReportSourceNote source={source} testId="spread-waterfall-source" what={reportText('r.these-figures', 'these figures')} />
       {result && (
-        <ReportTableScroll>
-          <table className="w-full text-sm">
-            <caption>{title}: {startDate} – {endDate}</caption>
-            <thead>
-              <tr>
-                <th scope="col" className="text-left">{side === 'invoice' ? reportText('r.invoice-2', 'Invoice') : reportText('r.bill-2', 'Bill')}</th>
-                {result.months.map(m => <th key={m} scope="col">{m}</th>)}
-                <th scope="col">{done} {reportText('r.by-2', 'by')} {endDate}</th>
-                <th scope="col">{left} {reportText('r.after', 'after')} {endDate}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.rows.map(r => (
-                <tr key={r.id}>
-                  <th scope="row" className="text-left"><bdi>{r.label}</bdi></th>
-                  {result.months.map(m => <td key={m} className="text-right font-mono">{r.byMonth[m] ? money(r.byMonth[m]) : '—'}</td>)}
-                  <td className="text-right font-mono">{money(r.earnedCents)}</td>
-                  <td className="text-right font-mono">{money(r.deferredCents)}</td>
-                </tr>
-              ))}
-            </tbody>
-            {result.rows.length > 0 && (
-              <tfoot>
+        <ReportTableScroll allowDisplayedExport={false}>
+          <RowTable
+            caption={
+              <>
+                {title}: {startDate} – {endDate}
+              </>
+            }
+            captionClassName=""
+            tableClassName="w-full text-sm"
+            headRowClassName=""
+            bodyClassName=""
+            rows={result.rows}
+            rowKey={(r) => r.id}
+            footer={
+              result.rows.length > 0 ? (
                 <tr>
-                  <th scope="row" className="text-left">{reportText('r.total', 'Total')}</th>
-                  {result.months.map(m => <td key={m} className="text-right font-mono font-bold">{money(result.totals.byMonth[m] || 0)}</td>)}
+                  <th scope="row" className="text-left">
+                    {reportText('r.total', 'Total')}
+                  </th>
+                  {result.months.map((m) => (
+                    <td key={m} className="text-right font-mono font-bold">
+                      {money(result.totals.byMonth[m] || 0)}
+                    </td>
+                  ))}
                   <td className="text-right font-mono font-bold">{money(result.totals.earnedCents)}</td>
                   <td className="text-right font-mono font-bold">{money(result.totals.deferredCents)}</td>
                 </tr>
-              </tfoot>
-            )}
-          </table>
+              ) : undefined
+            }
+            columns={[
+              {
+                header: side === 'invoice' ? reportText('r.invoice-2', 'Invoice') : reportText('r.bill-2', 'Bill'),
+                headClassName: 'text-left', className: 'text-left',
+                cell: (r) => <bdi>{r.label}</bdi>,
+              },
+              { over: result.months, head: (m) => m, headClassName: '', className: 'text-right font-mono', cell: (r, m) => (r.byMonth[m] ? money(r.byMonth[m]) : '—') },
+              {
+                header: (
+                  <>
+                    {done} {reportText('r.by-2', 'by')} {endDate}
+                  </>
+                ),
+                headClassName: '', className: 'text-right font-mono',
+                cell: (r) => money(r.earnedCents),
+              },
+              {
+                header: (
+                  <>
+                    {left} {reportText('r.after', 'after')} {endDate}
+                  </>
+                ),
+                headClassName: '', className: 'text-right font-mono',
+                cell: (r) => money(r.deferredCents),
+              },
+            ]}
+          />
           {result.rows.length === 0 && <p>{side === 'invoice' ? reportText('r.no-invoice-is-spread-over-months-yet', 'No invoice is spread over months yet.') : reportText('r.no-bill-is-spread-over-months-yet', 'No bill is spread over months yet.')}</p>}
         </ReportTableScroll>
       )}

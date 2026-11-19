@@ -1,12 +1,15 @@
+import type { ColumnDef } from '@tanstack/react-table';
 /**
  * A-124: Shipping methods and rates table — configure service catalogue items for shipping with
  * carrier, zone, transit days, flat charge, and optional free-shipping order threshold, plus a
  * live whole-cent rate calculator per currency.
  */
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import React, { useMemo, useState } from 'react';
 import { Download, Plus, Trash2, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
@@ -28,6 +31,8 @@ const COMMON_CURRENCIES = ['USD', 'ILS', 'EUR', 'GBP', 'CAD', 'AUD'];
 export default function ShippingMethodsView() {
   const reportText = useReportText();
   const inventory = useLedgerStore(s => s.inventory);
+  const capped = useLedgerStore(s => s.truncatedCollections.inventory);
+  const failed = useDataNeedsStore(s => s.failed.inventory);
   const { loading } = useLedgerCollections('inventory');
   const workspaceCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const canWrite = useCurrentRole() !== 'viewer';
@@ -122,6 +127,7 @@ export default function ShippingMethodsView() {
         </div>
         <button
           type="button"
+          disabled={Boolean(capped || failed || !rows.length)}
           onClick={() => downloadCsv('shipping-methods.csv', SHIPPING_METHODS_CSV_HEADERS, shippingMethodsCsvRows(rows))}
           className="min-h-11 px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2"
         >
@@ -129,6 +135,7 @@ export default function ShippingMethodsView() {
         </button>
       </div>
 
+      {(capped || failed) && <p role="alert" className="text-sm text-[var(--muted)]">{reportText('r.the-inventory-list-is-capped-or-failed-only-the', 'The inventory list is capped or failed. Only the loaded items are shown; an edit here changes only the selected item.')}</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
         <div>
           <label htmlFor="ship-calc-sub" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
@@ -205,73 +212,102 @@ export default function ShippingMethodsView() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <table className="w-full text-sm text-start">
-            <caption className="sr-only">{reportText('r.shipping-methods-and-calculated-charges', 'Shipping methods and calculated charges')}</caption>
-            <thead className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
-              <tr>
-                <th scope="col" className="px-4 py-3 text-start">{reportText('r.method', 'Method')}</th>
-                <th scope="col" className="px-4 py-3 text-start">{reportText('r.carrier-zone', 'Carrier / Zone')}</th>
-                <th scope="col" className="px-4 py-3 text-start">{reportText('r.transit', 'Transit')}</th>
-                <th scope="col" className="px-4 py-3 text-end">{reportText('r.standard-rate', 'Standard rate')}</th>
-                <th scope="col" className="px-4 py-3 text-end">{reportText('r.free-from', 'Free from')}</th>
-                <th scope="col" className="px-4 py-3 text-end">{reportText('r.calculated-fee', 'Calculated fee (')}{calcCurrency})</th>
-                {canWrite && <th scope="col" className="px-4 py-3 text-end">{reportText('r.actions', 'Actions')}</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {rows.map(r => {
-                const quote = calcSubtotalCents === null ? null : quoteShippingCharge(r, calcSubtotalCents, calcCurrency);
-                return (
-                  <tr key={r.id}>
-                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
-                      {r.name}
-                      {r.sku && <span className="ml-1.5 text-xs text-slate-500">({r.sku})</span>}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{r.carrier} · {r.zone}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
-                      {r.minDays !== undefined && r.maxDays !== undefined
-                        ? fill(reportText('r.0-1-days', '{0}–{1} days'), { 0: r.minDays, 1: r.maxDays })
-                        : r.minDays !== undefined
-                          ? fill(reportText('r.0-d', '{0}d'), { 0: r.minDays })
-                          : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-end tabular-nums font-semibold">{formatCurrency(r.rateCents, r.currency)}</td>
-                    <td className="px-4 py-3 text-end tabular-nums text-slate-600 dark:text-slate-400">
-                      {r.freeAboveCents !== null ? formatCurrency(r.freeAboveCents, r.currency) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-end tabular-nums font-semibold">
-                      {quote === null ? (
-                        <span className="text-xs font-normal text-slate-500">—</span>
-                      ) : quote.chargeCents === null ? (
-                        <span className="text-xs font-normal text-amber-700 dark:text-amber-300">{r.currency} {reportText('r.only-2', 'only')}</span>
-                      ) : (
-                        <>
-                          {formatCurrency(quote.chargeCents, r.currency)}
-                          {quote.freeApplied && (
-                            <span className="ml-1.5 inline-block px-1.5 py-0.5 text-[11px] rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-                              {reportText('r.free-threshold-met', 'Free threshold met')}
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </td>
-                    {canWrite && (
-                      <td className="px-4 py-3 text-end">
-                        <button
-                          type="button"
-                          aria-label={fill(reportText('r.remove-shipping-method-0', 'Remove shipping method {0}'), { 0: r.name })}
-                          onClick={() => deleteEntity('inventory', r.id)}
-                          className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg"
-                        >
-                          <Trash2 className="w-4 h-4" aria-hidden="true" />
-                        </button>
-                      </td>
+          <TanStackDataGrid
+            data={rows.map((r) => {
+              const quote = calcSubtotalCents === null ? null : quoteShippingCharge(r, calcSubtotalCents, calcCurrency);
+              return { r, quote };
+            })}
+            getRowId={({ r }) => r.id}
+            caption={reportText('r.shipping-methods-and-calculated-charges', 'Shipping methods and calculated charges')}
+            columnScope="shipping-methods"
+            columnLabel={reportText('r.shipping-methods-and-calculated-charges', 'Shipping methods and calculated charges')}
+            rowHeaderColumn="name"
+            hidePaginationOnSinglePage
+
+            columns={[
+              {
+                id: 'name', header: reportText('r.method', 'Method'), accessorFn: ({ r }) => r.name,
+                cell: ({ row: { original: { r } } }) => (
+                  <>
+                    {r.name}
+                    {r.sku && <span className="ml-1.5 text-xs text-[var(--muted)]">({r.sku})</span>}
+                  </>
+                ),
+              },
+              {
+                id: 'carrier', header: reportText('r.carrier-zone', 'Carrier / Zone'), accessorFn: ({ r }) => r.carrier + ' · ' + r.zone,
+                cell: ({ row: { original: { r } } }) => (
+                  <>
+                    {r.carrier} · {r.zone}
+                  </>
+                ),
+              },
+              {
+                id: 'transit', header: reportText('r.transit', 'Transit'), accessorFn: ({ r }) => r.minDays,
+                cell: ({ row: { original: { r } } }) =>
+                  r.minDays !== undefined && r.maxDays !== undefined
+                    ? fill(reportText('r.0-1-days', '{0}–{1} days'), { 0: r.minDays, 1: r.maxDays })
+                    : r.minDays !== undefined
+                      ? fill(reportText('r.0-d', '{0}d'), { 0: r.minDays })
+                      : '—',
+              },
+              {
+                id: 'rate', header: reportText('r.standard-rate', 'Standard rate'), accessorFn: ({ r }) => r.rateCents,
+                cell: ({ row: { original: { r } } }) => <div className="text-end tabular-nums font-semibold">{formatCurrency(r.rateCents, r.currency)}</div>,
+              },
+              {
+                id: 'threshold', header: reportText('r.free-from', 'Free from'), accessorFn: ({ r }) => r.freeAboveCents,
+                cell: ({ row: { original: { r } } }) => (
+                  <div className="text-end tabular-nums text-slate-600 dark:text-slate-400">
+                    {r.freeAboveCents !== null ? formatCurrency(r.freeAboveCents, r.currency) : '—'}
+                  </div>
+                ),
+              },
+              {
+                id: 'quote', header: `${reportText('r.calculated-fee', 'Calculated fee (')}${calcCurrency})`, accessorFn: ({ quote }) => quote?.chargeCents,
+                cell: ({ row: { original: { r, quote } } }) => (
+                  <div className="text-end tabular-nums font-semibold">
+                    {quote === null ? (
+                      <span className="text-xs font-normal text-slate-500">—</span>
+                    ) : quote.chargeCents === null ? (
+                      <span className="text-xs font-normal text-amber-700 dark:text-amber-300">
+                        {r.currency} {reportText('r.only-2', 'only')}
+                      </span>
+                    ) : (
+                      <>
+                        {formatCurrency(quote.chargeCents, r.currency)}
+                        {quote.freeApplied && (
+                          <span className="ml-1.5 inline-block px-1.5 py-0.5 text-[11px] rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                            {reportText('r.free-threshold-met', 'Free threshold met')}
+                          </span>
+                        )}
+                      </>
                     )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  </div>
+                ),
+              },
+              ...(canWrite
+                ? [
+                    {
+                      id: 'actions',
+                      header: reportText('r.actions', 'Actions'),
+                      cell: ({ row: { original: { r } } }) => (
+                        <div className="text-end">
+                          <button
+                            type="button"
+                            aria-label={fill(reportText('r.remove-shipping-method-0', 'Remove shipping method {0}'), { 0: r.name })}
+                            onClick={() => deleteEntity('inventory', r.id)}
+                            className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg"
+                          >
+                            <Trash2 className="w-4 h-4" aria-hidden="true" />
+                          </button>
+                        </div>
+                      ),
+                    },
+                  ] satisfies ColumnDef<{ r: (typeof rows)[number]; quote: ReturnType<typeof quoteShippingCharge> | null }>[]
+                : []),
+            ]}
+          />
         </div>
       )}
     </div>

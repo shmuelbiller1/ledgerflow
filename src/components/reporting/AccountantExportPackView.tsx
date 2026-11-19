@@ -7,6 +7,7 @@
  * only chooses a period, guards against an incomplete browser cache, and offers the files. It does
  * not post, file, or change a rate.
  */
+import { RowTable } from '../ui/RowTable';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, FileArchive, Printer, ShieldCheck } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -52,7 +53,7 @@ function SectionPreview({ section, currency }: { section: AccountantPackSection;
   const cut = section.key === 'general-ledger' && section.rows.length > LEDGER_PREVIEW_ROWS;
   const rows = (cut ? section.rows.slice(0, LEDGER_PREVIEW_ROWS) : section.rows).map((cells, rowNumber) => ({
     id: `${section.key}:${rowNumber}`,
-    cells: cells.map((cell, column) => ({ id: `${section.key}:${rowNumber}:${column}`, text: String(cell ?? '') })),
+    cells: cells.map(cell => String(cell ?? '')),
   }));
   return (
     <details open className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4" data-accountant-section={section.key}>
@@ -62,24 +63,28 @@ function SectionPreview({ section, currency }: { section: AccountantPackSection;
       <ul className="mt-2 list-disc ps-5 text-xs text-[var(--muted)]">
         {section.notes.map(note => <li key={note}>{note}</li>)}
       </ul>
-      <ReportTableScroll>
-        <table className="mt-3 w-full text-xs">
-          <caption className="sr-only">{section.title} ({currency})</caption>
-          <thead>
-            <tr>{section.headers.map(header => <th key={header} scope="col" className="whitespace-nowrap py-1 pe-3 text-start font-semibold">{header}</th>)}</tr>
-          </thead>
-          <tbody>
-            {rows.map(row => (
-              <tr key={row.id} className="border-t border-[var(--line)]/60">
-                {row.cells.map((cell, column) => (
-                  <td key={cell.id} className={column === 0 ? 'py-1 pe-3 text-start' : 'py-1 pe-3 text-end tabular-nums'}>
-                    {cell.text}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
+        <RowTable
+          caption={
+            <>
+              {section.title} ({currency})
+            </>
+          }
+          captionClassName="sr-only"
+          tableClassName="mt-3 w-full text-xs"
+          headRowClassName=""
+          bodyClassName=""
+          rowClassName="border-t border-[var(--line)]/60"
+          rows={rows}
+          rowKey={(row) => row.id}
+          columns={section.headers.map((header, column) => ({
+            header,
+            rowHeader: column === (section.key === 'trial-balance' || section.key === 'general-ledger' ? 1 : 0),
+            headClassName: 'whitespace-nowrap py-1 pe-3 text-start font-semibold',
+            className: column === 0 ? 'py-1 pe-3 text-start font-normal' : 'py-1 pe-3 text-end tabular-nums',
+            cell: (row: (typeof rows)[number]) => row.cells[column] ?? '',
+          }))}
+        />
       </ReportTableScroll>
       {cut && (
         <p className="mt-2 text-xs text-[var(--muted)]">
@@ -236,7 +241,7 @@ export default function AccountantExportPackView({ startDate: pageStartDate, end
         <>
           <div className="flex flex-wrap gap-3" data-print-hide>
             <button type="button" onClick={() => downloadBlob(accountantPackFileName(pack), accountantPackZip(pack))}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--brass)] px-4 py-2 text-sm font-bold text-black">
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--brass)] px-4 py-2 text-sm font-bold text-[var(--ink)]">
               <Download aria-hidden="true" className="h-4 w-4" /> {reportText('r.download-csv-pack-zip', 'Download CSV pack (ZIP)')}
             </button>
             <button type="button" onClick={() => window.print()}

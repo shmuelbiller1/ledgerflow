@@ -5,6 +5,7 @@
  * documents carry and never changes a cost, a quantity or a posting. Recording serials on a
  * receipt or invoice line happens in that document's own form (asked of AI #1).
  */
+
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
@@ -139,7 +140,7 @@ export default function SerialLotLookupReportView({ purchaseOrders: purchaseOrde
       </div>
 
       {query.trim() ? (
-        <ReportTableScroll>
+        <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
           <RowTable
             rowClassName="border-b border-[var(--line)]/50"
             caption={(<>{reportText('r.documents-carrying-a-matching-serial', 'Documents carrying a matching serial')}</>)}
@@ -188,7 +189,7 @@ export default function SerialLotLookupReportView({ purchaseOrders: purchaseOrde
           <h3 className="text-sm font-semibold text-[var(--text)]">
             {reportText('r.lots-of', 'Lots of')} <bdi>{selected.name || selected.sku || selected.id}</bdi>
           </h3>
-          <ReportTableScroll>
+          <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
             <RowTable
               rowClassName="border-b border-[var(--line)]/50"
               caption={(<>{reportText('r.lots-recorded-for-this-item', 'Lots recorded for this item')}</>)}
@@ -210,7 +211,7 @@ export default function SerialLotLookupReportView({ purchaseOrders: purchaseOrde
           </ReportTableScroll>
 
           <h3 className="text-sm font-semibold text-[var(--text)]">{reportText('r.serials-of-this-item', 'Serials of this item')}</h3>
-          <ReportTableScroll>
+          <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
             <RowTable
               rowClassName="border-b border-[var(--line)]/50"
               caption={(<>{reportText('r.serial-numbers-recorded-for-this-item', 'Serial numbers recorded for this item')}</>)}
@@ -238,22 +239,25 @@ export default function SerialLotLookupReportView({ purchaseOrders: purchaseOrde
       <p className="text-xs text-[var(--muted)]">
         {reportText('r.the-same-serial-number-recorded-for-one-item-on', 'The same serial number recorded for one item on two different documents — usually a typing mistake to look at. Nothing is changed here.')}
       </p>
-      <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption>{reportText('r.serials-recorded-twice-for-one-item', 'Serials recorded twice for one item')}</caption>
-          <thead>
-            <tr>{[reportText('r.serial', 'Serial'), reportText('r.documents-heading', 'Documents')].map(head =>
-              <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-          </thead>
-          <tbody>
-            {duplicates.map(row => (
-              <tr key={`${(row as { itemId?: string }).itemId || ''}:${row.serial}:${row.documents.join('|')}`} className="border-b border-[var(--line)]/50">
-                <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.serial}</bdi></th>
-                <td className="py-1 px-2">{row.documents.join(', ')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
+        <RowTable
+          caption={reportText('r.serials-recorded-twice-for-one-item', 'Serials recorded twice for one item')}
+          captionClassName=""
+          tableClassName="w-full text-sm"
+          headRowClassName=""
+          bodyClassName=""
+          rowClassName="border-b border-[var(--line)]/50"
+          rows={duplicates}
+          rowKey={(row) => `${row.itemId}:${row.serial}`}
+          columns={[
+            {
+              header: reportText('r.serial', 'Serial'),
+              headClassName: 'text-left py-1 px-2', className: 'text-left font-normal py-1 px-2',
+              cell: (row) => <bdi>{row.serial}</bdi>,
+            },
+            { header: reportText('r.documents-heading', 'Documents'), headClassName: 'text-left py-1 px-2', className: 'py-1 px-2', cell: (row) => row.documents.join(', ') },
+          ]}
+        />
         {duplicates.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-serial-is-recorded-twice-for-one-item', 'No serial is recorded twice for one item.')}</p>}
       </ReportTableScroll>
     </section>

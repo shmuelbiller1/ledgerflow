@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
@@ -144,25 +145,57 @@ export default function QuoteVersionsReportView() {
 
         <h4>{reportText('r.version-history', 'Version history')}</h4>
         {chosen.versions.length === 0 && <p>{reportText('r.no-version-has-been-recorded-for-this-estimate-y', 'No version has been recorded for this estimate yet. Its history starts when the first one is recorded.')}</p>}
-        {chosen.versions.length > 0 && <ReportTableScroll><table className="w-full text-sm">
-          <caption>{reportText('r.recorded-versions-of', 'Recorded versions of')} {chosen.estimate.number || chosen.estimate.id}</caption>
-          <thead><tr>
-            <th scope="col">{reportText('r.version', 'Version')}</th><th scope="col">{reportText('r.recorded-2', 'Recorded')}</th><th scope="col">{reportText('r.by', 'By')}</th>
-            <th scope="col" className="text-right">{reportText('r.amount', 'Amount')}</th><th scope="col">{reportText('r.valid-until', 'Valid until')}</th><th scope="col">{reportText('r.what-changed', 'What changed')}</th>
-          </tr></thead>
-          <tbody>{chosen.versions.map(version => {
-            const versionNumber = chosen.versions.indexOf(version) + 1;
+        {chosen.versions.length > 0 && <ReportTableScroll allowDisplayedExport={false}><RowTable
+          caption={
+            <>
+              {reportText('r.recorded-versions-of', 'Recorded versions of')} {chosen.estimate.number || chosen.estimate.id}
+            </>
+          }
+          captionClassName=""
+          tableClassName="w-full text-sm"
+          headRowClassName=""
+          bodyClassName=""
+          rowClassName="border-t border-[var(--line)] align-top"
+          rows={chosen.versions.map((version, index) => {
+            const versionNumber = index + 1;
             const prevSnapshot = versionNumber > 1 ? chosen.versions[versionNumber - 2].snapshot : null;
-            return <tr key={`v-${versionNumber}-${version.at}`} className="border-t border-[var(--line)] align-top">
-              <th scope="row" className="text-left">{versionNumber}</th>
-              <td className="tabular-nums whitespace-nowrap">{version.at.replace('T', ' ').slice(0, 16)}</td>
-              <td><bdi>{version.byName || version.by}</bdi>{version.note ? <div className="text-xs text-[var(--muted)]"><bdi>{version.note}</bdi></div> : null}</td>
-              <td className="text-right tabular-nums">{formatCurrency(version.snapshot.amountCents, (chosen.estimate as Estimate & { currency?: string }).currency || homeCurrency)}</td>
-              <td className="tabular-nums">{version.snapshot.expiryDate || '—'}</td>
-              <td className="text-xs">{changeText(quoteChangeList(prevSnapshot, version.snapshot))}</td>
-            </tr>;
-          })}</tbody>
-        </table></ReportTableScroll>}
+            return { version, versionNumber, prevSnapshot };
+          })}
+          rowKey={({ version, versionNumber }) => `v-${versionNumber}-${version.at}`}
+          columns={[
+            { header: reportText('r.version', 'Version'), headClassName: '', className: 'text-left', cell: ({ versionNumber }) => versionNumber },
+            {
+              header: reportText('r.recorded-2', 'Recorded'),
+              headClassName: '', className: 'tabular-nums whitespace-nowrap',
+              cell: ({ version }) => version.at.replace('T', ' ').slice(0, 16),
+            },
+            {
+              header: reportText('r.by', 'By'),
+              headClassName: '',
+              cell: ({ version }) => (
+                <>
+                  <bdi>{version.byName || version.by}</bdi>
+                  {version.note ? (
+                    <div className="text-xs text-[var(--muted)]">
+                      <bdi>{version.note}</bdi>
+                    </div>
+                  ) : null}
+                </>
+              ),
+            },
+            {
+              header: reportText('r.amount', 'Amount'),
+              headClassName: 'text-right', className: 'text-right tabular-nums',
+              cell: ({ version }) => formatCurrency(version.snapshot.amountCents, (chosen.estimate as Estimate & { currency?: string }).currency || homeCurrency),
+            },
+            { header: reportText('r.valid-until', 'Valid until'), headClassName: '', className: 'tabular-nums', cell: ({ version }) => version.snapshot.expiryDate || '—' },
+            {
+              header: reportText('r.what-changed', 'What changed'),
+              headClassName: '', className: 'text-xs',
+              cell: ({ version, prevSnapshot }) => changeText(quoteChangeList(prevSnapshot, version.snapshot)),
+            },
+          ]}
+        /></ReportTableScroll>}
 
         {chosen.versions.length > 0 && <>
           <h4>{reportText('r.compare', 'Compare')}</h4>

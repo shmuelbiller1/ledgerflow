@@ -1,3 +1,4 @@
+import ReportSchedule from '../ReportSchedule';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDialog } from '../../../hooks/useDialog';
@@ -114,9 +115,32 @@ export default function ReportPackDialog({ startDate, endDate, onClose }: { star
         <p>{section.kind === 'ar' || section.kind === 'ap' ? `Current aging · retrieved ${snapshot.made}` : section.kind === 'bs' || section.kind === 'tb' ? `As of ${reportDates.dateText(endDate)} · accrual` : section.kind === 'stock' ? `Units and value on hand at ${reportDates.dateText(endDate)}` : section.kind === 'budget' ? `Month of ${endDate.slice(0, 7)}` : `${reportDates.periodText(startDate, endDate)}${section.kind === 'pl' ? ' · accrual' : ''}`}</p>
         {(section.kind === 'ar' || section.kind === 'ap') && <p>Today’s position, not the reporting period end. Buckets follow the server’s current day; the heading date is the workspace retrieval date.</p>}
         {section.warnings.map(warning => <p key={warning}>{warning}</p>)}
-        <table className="w-full"><caption className="sr-only">{PACK_REPORTS[section.kind]}</caption><thead><tr><th scope="col" className="text-left">{section.kind === 'budget' ? 'Budget line / measure' : section.kind === 'stock' ? 'Item / measure' : 'Account / measure'}</th><th scope="col" className="text-right">Amount ({workspace?.currency || 'USD'})</th></tr></thead>
-          <tbody>{section.rows.map(row => <tr key={row.id} className={row.total ? 'font-bold border-t' : ''}><th scope="row" className="text-left py-1 font-[inherit]"><bdi dir="auto">{row.label}</bdi></th><td className="text-right whitespace-nowrap"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(row.cents, workspace?.currency || 'USD')}</bdi></td></tr>)}</tbody>
-        </table>
+        <ReportSchedule
+          caption={`${PACK_REPORTS[section.kind]} — details`}
+          captionClassName="sr-only"
+          tableClassName="w-full"
+          headRowClassName=""
+          bodyClassName=""
+          rowClassName={(row) => (row.total ? 'font-bold border-t' : '')}
+          rows={section.rows}
+          rowKey={(row) => row.id}
+          columns={[
+            {
+              header: section.kind === 'budget' ? 'Budget line / measure' : section.kind === 'stock' ? 'Item / measure' : 'Account / measure',
+              headClassName: 'text-left', className: 'text-left py-1 font-[inherit]',
+              cell: (row) => <bdi dir="auto">{row.label}</bdi>,
+            },
+            {
+              header: <>Amount ({workspace?.currency || 'USD'})</>,
+              headClassName: 'text-right', className: 'text-right whitespace-nowrap',
+              cell: (row) => (
+                <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>
+                  {formatCurrency(row.cents, workspace?.currency || 'USD')}
+                </bdi>
+              ),
+            },
+          ]}
+        />
       </section>)}
     </article>}
   </div>, document.body);

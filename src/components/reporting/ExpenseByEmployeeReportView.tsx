@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -77,58 +78,139 @@ export default function ExpenseByEmployeeReportView({ startDate = '', endDate = 
         onClick={() => downloadCsv('expense-by-employee', [...EXPENSE_BY_EMPLOYEE_CSV_HEADERS], expenseByEmployeeCsvRows(report.rows))}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
 
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>{reportText('r.expense-claims-by-employee', 'Expense claims by employee')}{startDate || endDate ? fill(reportText('r.0-to-1', ', {0} to {1}'), { 0: startDate || 'any date', 1: endDate || 'any date' }) : ` ${reportText('r.in-the-loaded-history', 'in the loaded history')}`}</caption>
-        <thead>
-          <tr>
-            {[reportText('r.employee', 'Employee'), reportText('r.claims', 'Claims'), reportText('r.claimed', 'Claimed'), reportText('r.waiting', 'Waiting'), reportText('r.approved', 'Approved'), reportText('r.rejected', 'Rejected'), reportText('r.receipts-recorded', 'Receipts recorded'), reportText('r.receipts-missing', 'Receipts missing'), reportText('r.not-checked-2', 'Not checked')].map((head, i) =>
-              <th key={head} scope="col" className={`${i < 2 ? 'text-left' : 'text-right'} py-1 px-2`}>{head}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {report.rows.map(row => (
-            <tr key={row.employee} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.employee}</bdi></th>
-              <td className="py-1 px-2 tabular-nums">{row.claims}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{row.totals.map(t =>
-                <span key={t.currency} className="inline-block ml-2"><bdi>{formatCurrency(t.cents, t.currency)}</bdi></span>)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{row.waiting}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{row.approved}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{row.rejected}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{row.receiptsRecorded}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{row.receiptsMissing}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{row.receiptsNotChecked}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
+      <RowTable
+        caption={
+          <>
+            {reportText('r.expense-claims-by-employee', 'Expense claims by employee')}
+            {startDate || endDate
+              ? fill(reportText('r.0-to-1', ', {0} to {1}'), { 0: startDate || 'any date', 1: endDate || 'any date' })
+              : ` ${reportText('r.in-the-loaded-history', 'in the loaded history')}`}
+          </>
+        }
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        rowClassName="border-b border-[var(--line)]/50"
+        rows={report.rows}
+        rowKey={(row) => row.employee}
+        columns={[
+          {
+            header: reportText('r.employee', 'Employee'),
+            headClassName: 'text-left py-1 px-2',
+            className: 'text-left font-normal py-1 px-2',
+            cell: (row) => <bdi>{row.employee}</bdi>,
+          },
+          {
+            header: reportText('r.claims', 'Claims'),
+            headClassName: 'text-left py-1 px-2',
+            className: 'py-1 px-2 tabular-nums',
+            cell: (row) => row.claims,
+          },
+          {
+            header: reportText('r.claimed', 'Claimed'),
+            headClassName: 'text-right py-1 px-2',
+            className: 'py-1 px-2 text-right tabular-nums',
+            cell: (row) =>
+              row.totals.map((t) => (
+                <span key={t.currency} className="inline-block ml-2">
+                  <bdi>{formatCurrency(t.cents, t.currency)}</bdi>
+                </span>
+              )),
+          },
+          {
+            header: reportText('r.waiting', 'Waiting'),
+            headClassName: 'text-right py-1 px-2',
+            className: 'py-1 px-2 text-right tabular-nums',
+            cell: (row) => row.waiting,
+          },
+          {
+            header: reportText('r.approved', 'Approved'),
+            headClassName: 'text-right py-1 px-2',
+            className: 'py-1 px-2 text-right tabular-nums',
+            cell: (row) => row.approved,
+          },
+          {
+            header: reportText('r.rejected', 'Rejected'),
+            headClassName: 'text-right py-1 px-2',
+            className: 'py-1 px-2 text-right tabular-nums',
+            cell: (row) => row.rejected,
+          },
+          {
+            header: reportText('r.receipts-recorded', 'Receipts recorded'),
+            headClassName: 'text-right py-1 px-2',
+            className: 'py-1 px-2 text-right tabular-nums',
+            cell: (row) => row.receiptsRecorded,
+          },
+          {
+            header: reportText('r.receipts-missing', 'Receipts missing'),
+            headClassName: 'text-right py-1 px-2',
+            className: 'py-1 px-2 text-right tabular-nums',
+            cell: (row) => row.receiptsMissing,
+          },
+          {
+            header: reportText('r.not-checked-2', 'Not checked'),
+            headClassName: 'text-right py-1 px-2',
+            className: 'py-1 px-2 text-right tabular-nums',
+            cell: (row) => row.receiptsNotChecked,
+          },
+        ]}
+      />
       {!report.rows.length && !loading && <p className="text-sm text-[var(--muted)]">{reportText('r.no-expense-claim-is-recorded-in-this-period', 'No expense claim is recorded in this period.')}</p>}
     </ReportTableScroll>
 
     {report.claims.length > 0 && <div className="space-y-2">
       <h3 className="font-semibold">{reportText('r.the-claims-behind-these-rows', 'The claims behind these rows')}</h3>
-      <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption>{reportText('r.every-expense-claim-in-the-period-with-its-recei', 'Every expense claim in the period with its receipt record')}</caption>
-          <thead>
-            <tr>{[reportText('r.employee', 'Employee'), reportText('r.date-2', 'Date'), reportText('r.claim', 'Claim'), reportText('r.state', 'State'), reportText('r.amount', 'Amount'), reportText('r.receipt-record', 'Receipt record')].map(head =>
-              <th key={head} scope="col" className={`${head === 'Amount' ? 'text-right' : 'text-left'} py-1 px-2`}>{head}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {report.claims.map(row => (
-              <tr key={row.billId} className="border-b border-[var(--line)]/50">
-                <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.employeeName}</bdi></th>
-                <td className="py-1 px-2">{row.date || '—'}</td>
-                <td className="py-1 px-2"><bdi>{row.billNumber}</bdi></td>
-                <td className="py-1 px-2">{stateText[row.state] || row.state}</td>
-                <td className="py-1 px-2 text-right tabular-nums">{formatCurrency(row.amountCents, row.currency)}</td>
-                <td className="py-1 px-2">{evidenceText(row)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
+        <RowTable
+          caption={reportText('r.every-expense-claim-in-the-period-with-its-recei', 'Every expense claim in the period with its receipt record')}
+          captionClassName=""
+          tableClassName="w-full text-sm"
+          headRowClassName=""
+          bodyClassName=""
+          rowClassName="border-b border-[var(--line)]/50"
+          rows={report.claims}
+          rowKey={(row) => row.billId}
+          columns={[
+            {
+              header: reportText('r.employee', 'Employee'),
+              headClassName: 'text-left py-1 px-2',
+              className: 'text-left font-normal py-1 px-2',
+              cell: (row) => <bdi>{row.employeeName}</bdi>,
+            },
+            {
+              header: reportText('r.date-2', 'Date'),
+              headClassName: 'text-left py-1 px-2',
+              className: 'py-1 px-2',
+              cell: (row) => row.date || '—',
+            },
+            {
+              header: reportText('r.claim', 'Claim'),
+              headClassName: 'text-left py-1 px-2',
+              className: 'py-1 px-2',
+              cell: (row) => <bdi>{row.billNumber}</bdi>,
+            },
+            {
+              header: reportText('r.state', 'State'),
+              headClassName: 'text-left py-1 px-2',
+              className: 'py-1 px-2',
+              cell: (row) => stateText[row.state] || row.state,
+            },
+            {
+              header: reportText('r.amount', 'Amount'),
+              headClassName: 'text-right py-1 px-2',
+              className: 'py-1 px-2 text-right tabular-nums',
+              cell: (row) => formatCurrency(row.amountCents, row.currency),
+            },
+            {
+              header: reportText('r.receipt-record', 'Receipt record'),
+              headClassName: 'text-left py-1 px-2',
+              className: 'py-1 px-2',
+              cell: (row) => evidenceText(row),
+            },
+          ]}
+        />
       </ReportTableScroll>
     </div>}
 

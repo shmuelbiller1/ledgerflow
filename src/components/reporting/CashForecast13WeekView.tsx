@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -147,28 +148,60 @@ export function CashForecast13WeekPanel({ report, currency = 'USD', asOf, onAsOf
         {', '}{report.unclassifiedRecurring} {reportText('r.recurring-rule-s-whose-accounts-do-not-say-wheth', 'recurring rule(s) whose accounts do not say whether money comes in or goes out, and')} {report.inactiveRecurring} {reportText('r.paused-or-finished-rule-s', 'paused or finished rule(s).')}
       </p>}
 
-      <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption className="text-left font-semibold text-[var(--text)] pb-1">{reportText('r.thirteen-weeks-from', 'Thirteen weeks from')} {asOf}{reportText('r.expected-money-in-expected-money-out-and-the-pro', ': expected money in, expected money out and the projected balance')}</caption>
-          <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-            {[reportText('r.week', 'Week'), reportText('r.start', 'Start'), reportText('r.end', 'End'), reportText('r.expected-in-2', 'Expected in'), reportText('r.expected-out-2', 'Expected out'), reportText('r.net', 'Net'), reportText('r.projected-balance', 'Projected balance')].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-          </tr></thead>
-          <tbody>
-            {report.weeks.map(week => <tr key={week.startDate} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2">{reportText('r.week', 'Week')} {week.index}</th>
-              <td className="py-1 px-2 tabular-nums">{week.startDate}</td>
-              <td className="py-1 px-2 tabular-nums">{week.endDate}</td>
-              <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(week.inflowCents, currency)}</td>
-              <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(week.outflowCents, currency)}</td>
-              <td className="py-1 px-2 tabular-nums whitespace-nowrap">{formatCurrency(week.netCents, currency)}</td>
-              <td className={`py-1 px-2 tabular-nums whitespace-nowrap ${week.closingCents < 0 ? 'text-rose-600 font-semibold' : ''}`}>{formatCurrency(week.closingCents, currency)}</td>
-            </tr>)}
-          </tbody>
-        </table>
+      <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
+        <RowTable
+          caption={
+            <>
+              {reportText('r.thirteen-weeks-from', 'Thirteen weeks from')} {asOf}
+              {reportText('r.expected-money-in-expected-money-out-and-the-pro', ': expected money in, expected money out and the projected balance')}
+            </>
+          }
+          captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+          tableClassName="w-full text-sm"
+          headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+          bodyClassName=""
+          rowClassName="border-b border-[var(--line)]/50"
+          rows={report.weeks}
+          rowKey={(week) => week.startDate}
+          columns={[
+            {
+              header: reportText('r.week', 'Week'),
+              headClassName: 'text-left py-1 px-2', className: 'text-left font-normal py-1 px-2',
+              cell: (week) => (
+                <>
+                  {reportText('r.week', 'Week')} {week.index}
+                </>
+              ),
+            },
+            { header: reportText('r.start', 'Start'), headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums', cell: (week) => week.startDate },
+            { header: reportText('r.end', 'End'), headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums', cell: (week) => week.endDate },
+            {
+              header: reportText('r.expected-in-2', 'Expected in'),
+              headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums whitespace-nowrap',
+              cell: (week) => formatCurrency(week.inflowCents, currency),
+            },
+            {
+              header: reportText('r.expected-out-2', 'Expected out'),
+              headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums whitespace-nowrap',
+              cell: (week) => formatCurrency(week.outflowCents, currency),
+            },
+            {
+              header: reportText('r.net', 'Net'),
+              headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums whitespace-nowrap',
+              cell: (week) => formatCurrency(week.netCents, currency),
+            },
+            {
+              header: reportText('r.projected-balance', 'Projected balance'),
+              headClassName: 'text-left py-1 px-2',
+              cellProps: (week) => ({ className: `py-1 px-2 tabular-nums whitespace-nowrap ${week.closingCents < 0 ? 'text-rose-600 font-semibold' : ''}` }),
+              cell: (week) => formatCurrency(week.closingCents, currency),
+            },
+          ]}
+        />
       </ReportTableScroll>
 
       <h3 className="font-semibold text-sm">{reportText('r.what-is-dated-in-the-next-13-weeks', 'What is dated in the next 13 weeks')}</h3>
-      <ReportTableScroll>
+      <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
         <RowTable
           rowClassName="border-b border-[var(--line)]/50"
           caption={(<>{reportText('r.each-dated-invoice-bill-and-recurring-occurrence', 'Each dated invoice, bill and recurring occurrence in the forecast')}</>)}

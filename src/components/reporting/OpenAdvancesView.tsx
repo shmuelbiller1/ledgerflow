@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -45,47 +46,68 @@ export default function OpenAdvancesView({ endDate = '' }: { startDate?: string;
       {(truncated.payments || failed.payments) && <p role="alert">{reportText('r.loaded-payment-history-is-incomplete-or-failed-t', 'Loaded payment history is incomplete or failed. These figures are provisional.')}</p>}
       {result && (
         <>
-          <ReportTableScroll>
-            <table className="w-full text-sm">
-              <caption>{title} {reportText('r.as-of-3', 'as of')} {asOf}</caption>
-              <thead>
-                <tr>
-                  <th scope="col" className="text-left">{direction === 'received' ? reportText('r.customer', 'Customer') : reportText('r.vendor', 'Vendor')}</th>
-                  <th scope="col" className="text-left">{reportText('r.payment', 'Payment')}</th>
-                  <th scope="col" className="text-left">{reportText('r.date-2', 'Date')}</th>
-                  <th scope="col" className="text-right">{reportText('r.paid', 'Paid')}</th>
-                  <th scope="col" className="text-right">{reportText('r.applied', 'Applied')}</th>
-                  <th scope="col" className="text-right">{reportText('r.still-open', 'Still open')}</th>
-                  <th scope="col" className="text-right">{reportText('r.days-waiting', 'Days waiting')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.rows.length === 0 && <tr><td colSpan={7}>{reportText('r.nothing-open-every-advance-is-applied', 'Nothing open: every advance is applied.')}</td></tr>}
-                {result.rows.map(r => (
-                  <tr key={r.paymentId}>
-                    <td><bdi>{r.partyName}</bdi></td>
-                    <td>{r.number}</td>
-                    <td>{r.date}</td>
-                    <td className="text-right tabular-nums">{money(r.amountCents, r.currency)}</td>
-                    <td className="text-right tabular-nums">{money(r.appliedCents, r.currency)}</td>
-                    <td className="text-right tabular-nums font-semibold">{money(r.openCents, r.currency)}</td>
-                    <td className={`text-right tabular-nums ${r.bucket === '90+' ? 'text-rose-600 font-semibold' : ''}`}>{r.ageDays}</td>
+          <ReportTableScroll allowDisplayedExport={!loading && !truncated.payments && !failed.payments}>
+            <RowTable
+              caption={
+                <>
+                  {title} {reportText('r.as-of-3', 'as of')} {asOf}
+                </>
+              }
+              captionClassName=""
+              tableClassName="w-full text-sm"
+              headRowClassName=""
+              bodyClassName=""
+              rows={result.rows}
+              rowKey={(r) => r.paymentId}
+              rowHeaderClassName="font-normal text-start"
+              emptyRow={
+                result.rows.length === 0 && (
+                  <tr>
+                    <td colSpan={7}>{reportText('r.nothing-open-every-advance-is-applied', 'Nothing open: every advance is applied.')}</td>
                   </tr>
-                ))}
-              </tbody>
-              {Object.keys(result.totals).length > 0 && (
-                <tfoot>
-                  {Object.entries(result.totals).map(([currency, cents]) => (
-                    <tr key={currency || 'home'}>
-                      <th scope="row" className="text-left">{reportText('r.total-still-open', 'Total still open')}{Object.keys(result.totals).length > 1 ? ` (${currency || home})` : ''}</th>
-                      <td /><td /><td /><td />
-                      <td className="text-right tabular-nums font-bold">{money(cents, currency)}</td>
-                      <td />
-                    </tr>
-                  ))}
-                </tfoot>
-              )}
-            </table>
+                )
+              }
+              footer={
+                Object.keys(result.totals).length > 0
+                  ? Object.entries(result.totals).map(([currency, cents]) => (
+                      <tr key={currency || 'home'}>
+                        <th scope="row" className="text-left">
+                          {reportText('r.total-still-open', 'Total still open')}
+                          {Object.keys(result.totals).length > 1 ? ` (${currency || home})` : ''}
+                        </th>
+                        <td />
+                        <td />
+                        <td />
+                        <td />
+                        <td className="text-right tabular-nums font-bold">{money(cents, currency)}</td>
+                        <td />
+                      </tr>
+                    ))
+                  : undefined
+              }
+              columns={[
+                {
+                  header: direction === 'received' ? reportText('r.customer', 'Customer') : reportText('r.vendor', 'Vendor'),
+                  headClassName: 'text-left',
+                  cell: (r) => <bdi>{r.partyName}</bdi>,
+                },
+                { header: reportText('r.payment', 'Payment'), headClassName: 'text-left', cell: (r) => r.number },
+                { header: reportText('r.date-2', 'Date'), headClassName: 'text-left', cell: (r) => r.date },
+                { header: reportText('r.paid', 'Paid'), headClassName: 'text-right', className: 'text-right tabular-nums', cell: (r) => money(r.amountCents, r.currency) },
+                { header: reportText('r.applied', 'Applied'), headClassName: 'text-right', className: 'text-right tabular-nums', cell: (r) => money(r.appliedCents, r.currency) },
+                {
+                  header: reportText('r.still-open', 'Still open'),
+                  headClassName: 'text-right', className: 'text-right tabular-nums font-semibold',
+                  cell: (r) => money(r.openCents, r.currency),
+                },
+                {
+                  header: reportText('r.days-waiting', 'Days waiting'),
+                  headClassName: 'text-right',
+                  cellProps: (r) => ({ className: `text-right tabular-nums ${r.bucket === '90+' ? 'text-rose-600 font-semibold' : ''}` }),
+                  cell: (r) => r.ageDays,
+                },
+              ]}
+            />
           </ReportTableScroll>
           {result.rows.length > 0 && (
             <p className="text-sm text-[var(--muted)]">

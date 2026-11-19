@@ -1,3 +1,5 @@
+import { useReportDates } from './useReportDates';
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -39,6 +41,7 @@ interface OverdueRow {
  * schedule typed here is for this viewing only and is not saved to the workspace.
  */
 export default function DunningLettersReportView() {
+  const dates = useReportDates();
   const reportText = useReportText();
   const invoices = useLedgerStore(state => state.invoices);
   const customers = useLedgerStore(state => state.customers);
@@ -146,30 +149,53 @@ export default function DunningLettersReportView() {
       {rows.length} {reportText('r.overdue-invoice-s', 'overdue invoice(s)')}{filter === 'due' ? ` ${fill(reportText('r.0-with-a-letter-due-today', '· {0} with a letter due today'), { 0: shown.length })}` : ''}
     </p>
 
-    {shown.length > 0 && <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>{reportText('r.overdue-invoices-and-the-reminder-due', 'Overdue invoices and the reminder due')}</caption>
-        <thead>
-          <tr>{[reportText('r.preview', 'Preview'), reportText('r.invoice-2', 'Invoice'), reportText('r.customer', 'Customer'), reportText('r.due-date-2', 'Due date'), reportText('r.days-overdue', 'Days overdue'), reportText('r.outstanding', 'Outstanding'), reportText('r.letter-due', 'Letter due')].map(head =>
-            <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-        </thead>
-        <tbody>
-          {shown.map(row => <tr key={row.invoice.id}
-            className={selected?.invoice.id === row.invoice.id ? 'border-b border-[var(--line)]/50 bg-[var(--panel)]' : 'border-b border-[var(--line)]/50'}>
-            <td className="py-1 px-2">
-              <input type="radio" name="dunning-preview" className="w-5 h-5 align-middle"
+    {shown.length > 0 && <ReportTableScroll allowDisplayedExport={false}>
+      <RowTable
+        caption={reportText('r.overdue-invoices-and-the-reminder-due', 'Overdue invoices and the reminder due')}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        rowClassName={(row) => (selected?.invoice.id === row.invoice.id ? 'border-b border-[var(--line)]/50 bg-[var(--panel)]' : 'border-b border-[var(--line)]/50')}
+        rows={shown}
+        rowKey={(row) => row.invoice.id}
+        columns={[
+          {
+            header: reportText('r.preview', 'Preview'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2',
+            cell: (row) => (
+              <input
+                type="radio"
+                name="dunning-preview"
+                className="w-5 h-5 align-middle"
                 aria-label={fill(reportText('r.preview-the-letter-for-0', 'Preview the letter for {0}'), { 0: row.invoice.number || row.invoice.id })}
-                checked={selected?.invoice.id === row.invoice.id} onChange={() => setSelectedId(row.invoice.id)} />
-            </td>
-            <th scope="row" className="text-left font-normal py-1 px-2">{row.invoice.number || row.invoice.id}</th>
-            <td className="py-1 px-2"><bdi>{row.customerName}</bdi></td>
-            <td className="py-1 px-2">{row.invoice.dueDate}</td>
-            <td className="py-1 px-2">{row.daysOverdue}</td>
-            <td className="py-1 px-2"><bdi>{formatCurrency(row.outstandingCents, row.currency)}</bdi></td>
-            <td className="py-1 px-2">{row.stepDue ? fill(reportText('r.step-0', 'Step {0}'), { 0: row.stepDue }) : '—'}</td>
-          </tr>)}
-        </tbody>
-      </table>
+                checked={selected?.invoice.id === row.invoice.id}
+                onChange={() => setSelectedId(row.invoice.id)}
+              />
+            ),
+          },
+          {
+            header: reportText('r.invoice-2', 'Invoice'),
+            headClassName: 'text-left py-1 px-2',
+            rowHeader: true,
+            className: 'text-left font-normal py-1 px-2',
+            cell: (row) => row.invoice.number || row.invoice.id,
+          },
+          { header: reportText('r.customer', 'Customer'), headClassName: 'text-left py-1 px-2', className: 'py-1 px-2', cell: (row) => <bdi>{row.customerName}</bdi> },
+          { header: reportText('r.due-date-2', 'Due date'), headClassName: 'text-left py-1 px-2', className: 'py-1 px-2', cell: (row) => dates.dateText(row.invoice.dueDate) },
+          { header: reportText('r.days-overdue', 'Days overdue'), headClassName: 'text-left py-1 px-2', className: 'py-1 px-2', cell: (row) => row.daysOverdue },
+          {
+            header: reportText('r.outstanding', 'Outstanding'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2',
+            cell: (row) => <bdi>{formatCurrency(row.outstandingCents, row.currency)}</bdi>,
+          },
+          {
+            header: reportText('r.letter-due', 'Letter due'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2',
+            cell: (row) => (row.stepDue ? fill(reportText('r.step-0', 'Step {0}'), { 0: row.stepDue }) : '—'),
+          },
+        ]}
+      />
     </ReportTableScroll>}
 
     {selected && letter && <div className="space-y-2 border rounded p-3 border-[var(--line)]">

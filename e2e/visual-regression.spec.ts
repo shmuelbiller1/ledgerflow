@@ -1,3 +1,5 @@
+import { checkOperationsScreen } from './support/operationsJourney';
+import { operationsScreens, type OperationsScreen } from './support/operationsScreens';
 import { nextScheduleIds } from './support/nextSchedules';
 import { checkNextSchedule } from './support/nextScheduleJourney';
 import { schedules } from './support/stockProjectFixture';
@@ -131,6 +133,9 @@ for (const width of [1280, 390]) for (const theme of ['light', 'dark'] as const)
 
 // Include the open chooser, translated table headings and a non-first row header in baseline review.
 for (const width of [390, 1280]) for (const theme of ['light', 'dark'] as const) {
+  for (const id of Object.keys(operationsScreens) as OperationsScreen[]) test(`visual operations ${id} ${width} ${theme}`, async ({ page }) => {
+    await checkOperationsScreen(page, id, width, theme);
+  });
   for (const id of nextScheduleIds) test(`visual next schedules ${id} ${width} ${theme}`, async ({ page }) => {
     await checkNextSchedule(page, id, width, theme);
   });
