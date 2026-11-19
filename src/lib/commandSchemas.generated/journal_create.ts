@@ -7,117 +7,32 @@ export const COMMAND_INPUT_SCHEMA = {
     "transaction": {
       "type": "object",
       "properties": {
-        "id": COMMAND_SCHEMA_PARTS.part22,
-        "uid": COMMAND_SCHEMA_PARTS.part22,
-        "workspaceId": COMMAND_SCHEMA_PARTS.part22,
-        "date": COMMAND_SCHEMA_PARTS.part116,
-        "description": {
-          "default": "",
-          "type": "string",
-          "maxLength": 2000
-        },
-        "totalAmountCents": COMMAND_SCHEMA_PARTS.part126,
+        "id": COMMAND_SCHEMA_PARTS.part23,
+        "uid": COMMAND_SCHEMA_PARTS.part23,
+        "workspaceId": COMMAND_SCHEMA_PARTS.part23,
+        "date": COMMAND_SCHEMA_PARTS.part119,
+        "description": COMMAND_SCHEMA_PARTS.part95,
+        "totalAmountCents": COMMAND_SCHEMA_PARTS.part130,
         "currency": {
           "type": "string",
           "pattern": "^[A-Z]{3}$"
         },
-        "originalCurrency": COMMAND_SCHEMA_PARTS.part22,
-        "exchangeRate": COMMAND_SCHEMA_PARTS.part106,
-        "payee": COMMAND_SCHEMA_PARTS.part22,
-        "status": {
-          "default": "pending",
-          "type": "string",
-          "enum": [
-            "draft",
-            "pending",
-            "certified",
-            "void",
-            "reconciled",
-            "completed",
-            "failed",
-            "flagged",
-            "reviewed",
-            "overdue",
-            "approved"
-          ]
-        },
-        "type": {
-          "default": "actual",
-          "type": "string",
-          "enum": [
-            "actual",
-            "forecast",
-            "adjustment",
-            "reversal",
-            "journal",
-            "expense",
-            "income",
-            "bank_import"
-          ]
-        },
-        "lines": {
-          "minItems": 2,
-          "maxItems": 100,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "accountId": COMMAND_SCHEMA_PARTS.part46,
-              "accountName": COMMAND_SCHEMA_PARTS.part22,
-              "amountCents": COMMAND_SCHEMA_PARTS.part146,
-              "baseAmountCents": COMMAND_SCHEMA_PARTS.part146,
-              "exchangeRate": COMMAND_SCHEMA_PARTS.part106,
-              "description": COMMAND_SCHEMA_PARTS.part61,
-              "class": COMMAND_SCHEMA_PARTS.part22,
-              "location": COMMAND_SCHEMA_PARTS.part22,
-              "project": COMMAND_SCHEMA_PARTS.part22,
-              "dimensions": COMMAND_SCHEMA_PARTS.part149,
-              "tags": COMMAND_SCHEMA_PARTS.part75,
-              "splitAllocations": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": COMMAND_SCHEMA_PARTS.part22,
-                    "accountId": COMMAND_SCHEMA_PARTS.part22,
-                    "projectId": COMMAND_SCHEMA_PARTS.part22,
-                    "weight": COMMAND_SCHEMA_PARTS.part74,
-                    "amountCents": COMMAND_SCHEMA_PARTS.part126,
-                    "notes": COMMAND_SCHEMA_PARTS.part61
-                  },
-                  "required": [
-                    "weight"
-                  ]
-                }
-              },
-              "taxRate": COMMAND_SCHEMA_PARTS.part79,
-              "taxAmountCents": COMMAND_SCHEMA_PARTS.part126,
-              "taxCodeId": COMMAND_SCHEMA_PARTS.part57,
-              "taxTreatment": COMMAND_SCHEMA_PARTS.part160,
-              "taxBreakdown": COMMAND_SCHEMA_PARTS.part247,
-              "quantity": COMMAND_SCHEMA_PARTS.part72,
-              "unitPriceCents": COMMAND_SCHEMA_PARTS.part126
-            },
-            "required": COMMAND_SCHEMA_PARTS.part40
-          }
-        },
-        "tags": {
-          "maxItems": 10,
-          "type": "array",
-          "items": COMMAND_SCHEMA_PARTS.part22
-        },
-        "reference": COMMAND_SCHEMA_PARTS.part55,
-        "projectId": COMMAND_SCHEMA_PARTS.part22,
-        "isCleared": {
-          "default": false,
-          "type": "boolean"
-        },
-        "createdAt": COMMAND_SCHEMA_PARTS.part22,
-        "updatedAt": COMMAND_SCHEMA_PARTS.part22,
-        "parentEventId": COMMAND_SCHEMA_PARTS.part22,
-        "eventId": COMMAND_SCHEMA_PARTS.part22,
-        "reversalEventId": COMMAND_SCHEMA_PARTS.part22,
-        "metadata": COMMAND_SCHEMA_PARTS.part149
+        "originalCurrency": COMMAND_SCHEMA_PARTS.part23,
+        "exchangeRate": COMMAND_SCHEMA_PARTS.part109,
+        "payee": COMMAND_SCHEMA_PARTS.part23,
+        "status": COMMAND_SCHEMA_PARTS.part226,
+        "type": COMMAND_SCHEMA_PARTS.part206,
+        "lines": COMMAND_SCHEMA_PARTS.part282,
+        "tags": COMMAND_SCHEMA_PARTS.part128,
+        "reference": COMMAND_SCHEMA_PARTS.part56,
+        "projectId": COMMAND_SCHEMA_PARTS.part23,
+        "isCleared": COMMAND_SCHEMA_PARTS.part66,
+        "createdAt": COMMAND_SCHEMA_PARTS.part23,
+        "updatedAt": COMMAND_SCHEMA_PARTS.part23,
+        "parentEventId": COMMAND_SCHEMA_PARTS.part23,
+        "eventId": COMMAND_SCHEMA_PARTS.part23,
+        "reversalEventId": COMMAND_SCHEMA_PARTS.part23,
+        "metadata": COMMAND_SCHEMA_PARTS.part153
       },
       "required": [
         "workspaceId",

@@ -11,8 +11,10 @@ import { isPostable } from '../../lib/txFilters';
 import type { EntityMutation, LedgerPostContext } from '../../services/ledgerPost/postingCore';
 import type { Bill, CreditNote, Invoice, Transaction, VendorCredit } from '../../types';
 import { agreedPostingDay, DOCUMENT_ENTRY_KEY, loadPostingContext, todayIn } from './postingContextLoader';
-import { assertPostingOpen } from '../../lib/periodLock';
-import { BulkRefusal, commitLedgerBulk, type BeforeWrite, type LedgerBulkPreflight } from './ledgerBulkCommit';
+import { assertPostingOpen, workspaceRole } from '../../lib/periodLock';
+import { claimOf, decisionProblem } from '../../lib/expenseClaims';
+import { BulkRefusal, commitLedgerBulk, readLegacyBulkReplay, type BeforeWrite, type LedgerBulkPreflight } from './ledgerBulkCommit';
+import { requestPayloadHash } from '../utils/idempotency';
 import { enforceCreditLimit } from './creditLimitGuard';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { budgetWarningsFor, type BudgetWarning } from './budgetGuard';
@@ -46,6 +48,7 @@ export interface DocumentPostInput {
 }
 
 export interface DocumentPostResult {
+  committed: boolean;
   body: Record<string, unknown>;
   /** the entries as written (empty for a replay or a document that posts nothing) */
   transactions: Transaction[];
@@ -109,6 +112,45 @@ function stripServerManagedFields(data: Record<string, unknown> | undefined): Re
 function asNonNegativeNumber(value: unknown): number {
   const num = Number(value);
   return Number.isFinite(num) && num > 0 ? num : 0;
+}
+
+/**
+ * #857: a submitted expense claim changes only by its decision. An update must be exactly the approve or
+ * reject the claim screens send, by someone decisionProblem allows (owner or accountant, never the
+ * submitting accountant); any other edit, and a delete by anyone but the submitter or an owner/accountant,
+ * is refused. Run on the read snapshot and again on the in-transaction one.
+ */
+function assertClaimDecision(
+  collection: PostedDocumentType,
+  action: DocumentPostInput['action'],
+  existing: Record<string, unknown> | undefined,
+  incoming: Record<string, unknown>,
+  workspace: unknown,
+  uid: string,
+): void {
+  if (collection !== 'bills' || !existing) return;
+  const claim = claimOf(existing as never);
+  if (!claim || claim.state !== 'submitted') return;
+  const role = workspaceRole(workspace as never, uid);
+  if (action === 'delete') {
+    if (claim.submittedBy === uid || role === 'owner' || role === 'accountant') return;
+    throw new BulkRefusal(403, { error: 'Only the person who submitted this expense claim, or an owner or accountant, can delete it.' });
+  }
+  const next = claimOf({ metadata: incoming.metadata } as never);
+  const decided = next && (next.state === 'approved' || next.state === 'rejected') ? next.state : undefined;
+  const allowedKeys = new Set(['status', 'metadata', 'updatedAt']);
+  if (!next || !decided || incoming.status !== decided || Object.keys(incoming).some(k => !allowedKeys.has(k))) {
+    throw new BulkRefusal(409, { error: 'This expense claim is waiting for approval. Approve or reject it; it cannot be edited until then.' });
+  }
+  const problem = decisionProblem(claim, role, uid);
+  if (problem) throw new BulkRefusal(403, { error: problem });
+  // the record of the decision is the server's: the stored metadata and claim, with only the outcome, who
+  // decided (the caller), when, and the reason; nothing else the caller sent replaces them (Gitar on #908)
+  const reason = typeof next.reason === 'string' ? next.reason.trim().slice(0, 500) : '';
+  const prior = (existing.metadata && typeof existing.metadata === 'object' ? existing.metadata : {}) as Record<string, unknown>;
+  const stored: Record<string, unknown> = { ...(claim as unknown as Record<string, unknown>) };
+  delete stored.decidedBy; delete stored.decidedAt; delete stored.reason;
+  incoming.metadata = { ...prior, expenseClaim: { ...stored, state: decided, decidedBy: uid, decidedAt: new Date().toISOString(), ...(reason ? { reason } : {}) } };
 }
 
 function assertDocumentMutationAllowed(
@@ -222,6 +264,7 @@ export async function prepareDocumentPost(db: Firestore, user: RequestUser, inpu
   // destructive edits or deletions of settled, written-off, refunded, or scheduled documents.
   const sanitizedData = action === 'delete' ? {} : stripServerManagedFields(input.data);
   assertDocumentMutationAllowed(collection, action, existing, sanitizedData);
+  assertClaimDecision(collection, action, existing, sanitizedData, workspace, user.uid);
 
   // as /transactions/bulk: the save merges into what is saved (an update of a document not saved yet makes it); a
   // second live posting of the same document is refused at commit (INT-2)
@@ -297,6 +340,7 @@ export async function prepareDocumentPost(db: Firestore, user: RequestUser, inpu
   // in-transaction workspace and entity snapshots so concurrent payments/closes cannot race.
   const beforeWrite: BeforeWrite = async (t, state) => {
     assertDocumentMutationAllowed(collection, action, state.existingEntity, sanitizedData);
+    assertClaimDecision(collection, action, state.existingEntity, sanitizedData, state.workspace, user.uid);
     try {
       for (const date of datesToCheck) assertPostingOpen(date, state.workspace as never, user.uid);
       if (action !== 'create' && state.existingEntity && !UNPOSTED_DOCUMENT_STATUSES.has(String(state.existingEntity.status || '')) && typeof state.existingEntity.date === 'string' && state.existingEntity.date) {
@@ -311,8 +355,7 @@ export async function prepareDocumentPost(db: Firestore, user: RequestUser, inpu
     return {};
   };
 
-  const hashOf = { collection, docId, workspaceId, action, data: input.data };
-  const hashed = input.creditLimitOverride ? { ...hashOf, creditLimitOverride: input.creditLimitOverride } : hashOf;
+  const hashed = documentRequestFingerprint(input);
   return {
     workspaceId,
     document,
@@ -345,45 +388,37 @@ export async function commitPreparedDocumentPost(
     ...(options.afterCommit ? { afterCommit: options.afterCommit } : {}),
   });
   return {
+    committed: result.committed,
     body: result.body,
-    transactions: result.committed && !result.body.replayed ? result.transactions : [],
+    transactions: result.transactions,
     ...(prepared.cogsPendingReason ? { cogsPendingReason: prepared.cogsPendingReason } : {}),
   };
 }
 
-/**
- * Existing document route wrapper. It retains the legacy idempotency record shape, while command
- * handlers may prepare and commit through the same underlying service using the runner's transaction.
- */
-export async function postDocument(
-  db: Firestore,
-  user: RequestUser,
-  input: DocumentPostInput,
-  options: DocumentPostExecutionOptions = {},
-): Promise<DocumentPostResult> {
-  const { collection, docId, workspaceId } = input;
+function documentRequestFingerprint(input: DocumentPostInput) {
+  const { collection, docId, workspaceId, action } = input;
+  const hashOf = { collection, docId, workspaceId, action, data: input.data };
+  return input.creditLimitOverride ? { ...hashOf, creditLimitOverride: input.creditLimitOverride } : hashOf;
+}
+
+export type PreparedDocumentRequest = { replay: DocumentPostResult } | { plan: PreparedDocumentPost };
+
+/** A legacy retry must be recognized before building, even if the document has since been edited or removed. */
+export async function prepareDocumentRequest(db: Firestore, user: RequestUser, input: DocumentPostInput): Promise<PreparedDocumentRequest> {
+  const { workspaceId, idempotencyKey } = input;
   assertWorkspaceScope(user, workspaceId);
   const workspace = (await db.collection('workspaces').doc(workspaceId).get()).data();
   if (!isWorkspaceMemberData(workspace, user, workspaceId)) throw new BulkRefusal(403, { error: 'Not a member' });
-
-  // Preserve the old endpoint's replay behavior and response while the route remains a compatibility wrapper.
-  if (input.idempotencyKey && (await db.collection('idempotencyKeys').doc(`${workspaceId}_${input.idempotencyKey}`).get()).exists) {
-    const { body } = await commitLedgerBulk(db, user, {
-      workspaceId,
-      entityMutation: mutationOf(collection, docId, input.action, input.data),
-    }, {
-      idempotencyKey: input.idempotencyKey,
-      hashOf: input.creditLimitOverride
-        ? { collection, docId, workspaceId, action: input.action, data: input.data, creditLimitOverride: input.creditLimitOverride }
-        : { collection, docId, workspaceId, action: input.action, data: input.data },
-      ...(options.transaction ? { transaction: options.transaction } : {}),
-      ...(options.afterCommit ? { afterCommit: options.afterCommit } : {}),
-    });
-    return { body, transactions: [] };
+  if (idempotencyKey) {
+    const replay = await readLegacyBulkReplay(db, user, `${workspaceId}_${idempotencyKey}`, requestPayloadHash(documentRequestFingerprint(input)), 0);
+    if (replay) return { replay };
   }
+  return { plan: await prepareDocumentPost(db, user, input) };
+}
 
-  const prepared = await prepareDocumentPost(db, user, input);
-  return commitPreparedDocumentPost(db, user, prepared, options);
+export async function postDocument(db: Firestore, user: RequestUser, input: DocumentPostInput): Promise<DocumentPostResult> {
+  const prepared = await prepareDocumentRequest(db, user, input);
+  return 'replay' in prepared ? prepared.replay : commitPreparedDocumentPost(db, user, prepared.plan);
 }
 
 export async function previewDocumentPost(db: Firestore, user: RequestUser, input: DocumentPostInput) {

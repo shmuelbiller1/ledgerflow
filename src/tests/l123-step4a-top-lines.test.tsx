@@ -26,7 +26,7 @@ import { Y, from, to, chart, entries, loadedOf, balanceRouteHarness } from './he
 import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
-import { setComponentWorkspace } from './helpers/componentFixtures';
+import { setLoadedAccountReportWorkspace } from './helpers/componentFixtures';
 import TopExpensesIncomeReportView from '../components/reporting/TopExpensesIncomeReportView';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { formatCurrency } from '../lib/utils';
@@ -61,7 +61,7 @@ describe('L-123 step 4a: top lines (no database)', () => {
   });
 
   test('screen: no request when not capped; the server\'s list when capped; the loaded list with a note when it fails', async () => {
-    setComponentWorkspace('owner');
+    setLoadedAccountReportWorkspace();
     useLedgerStore.setState({ accounts, transactions: loaded, truncatedCollections: {} } as never);
     const urls: string[] = [];
     globalThis.fetch = (async (input: RequestInfo | URL) => {

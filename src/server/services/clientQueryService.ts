@@ -10,6 +10,7 @@ import {
 import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import { writeServerAuditLog } from './auditLogService';
 import { notify } from './notificationService';
+import { maskCardNumbers } from '../../lib/cardNumberMask';
 
 /**
  * Client queries (BD-07): owners, accountants and bookkeepers ask about an entry; any member answers
@@ -37,7 +38,7 @@ const short = (text: string, n = 80) => (text.length > n ? `${text.slice(0, n - 
 export async function askQuery(db: Firestore, input: Actor & { transactionId: string; question: string }): Promise<ClientQuery> {
   const problem = questionProblem(input.question);
   if (problem) throw new QueryError(400, problem);
-  const question = input.question.trim();
+  const question = maskCardNumbers(input.question.trim());
   const query = await db.runTransaction(async t => {
     const { role } = await memberRole(db, t, input);
     if (!ASKER_ROLES.includes(role)) throw new QueryError(403, 'Viewers answer questions but do not ask them');
@@ -54,7 +55,7 @@ export async function askQuery(db: Firestore, input: Actor & { transactionId: st
       transactionId: input.transactionId,
       entry: {
         date: String(entry.date || '').slice(0, 10),
-        description: String(entry.description || entry.payee || '').slice(0, 200),
+        description: maskCardNumbers(String(entry.description || entry.payee || '')).slice(0, 200),
         amountCents: Math.abs(Number(entry.totalAmountCents) || 0),
         currency: String(entry.currency || 'USD'),
       },
@@ -89,7 +90,7 @@ export async function askQuery(db: Firestore, input: Actor & { transactionId: st
 export async function replyToQuery(db: Firestore, input: Actor & { queryId: string; text: string }): Promise<ClientQuery> {
   const problem = replyProblem(input.text);
   if (problem) throw new QueryError(400, problem);
-  const text = input.text.trim();
+  const text = maskCardNumbers(input.text.trim());
   const { query, byAsker } = await db.runTransaction(async t => {
     await memberRole(db, t, input);
     const ref = db.collection('clientQueries').doc(input.queryId);

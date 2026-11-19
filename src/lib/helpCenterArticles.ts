@@ -303,7 +303,7 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
   },
   {
     slug: 'system-and-data',
-    screenIds: ['copilot', 'ask', 'magic', 'architecture', 'vault', 'system-command-center', 'intelligence', 'charts', 'pricing', 'forensics_1', 'forensics_2'],
+    screenIds: ['copilot', 'ask', 'sandbox-review', 'magic', 'architecture', 'vault', 'system-command-center', 'intelligence', 'charts', 'pricing', 'forensics_1', 'forensics_2'],
     docPath: 'docs/help/system-and-data.md',
     titleEn: 'Copilot, Insights, Documents & System Screens',
     titleHe: 'עוזר AI, תובנות, מסמכים ומסכי מערכת',

@@ -7,6 +7,10 @@ removed from this list.
 
 Last updated: 2026-11-19.
 
+## CMD-1: posting, project/chart writes, attachment removal and verification (nothing to apply)
+
+The old addresses still work. Invoice/bill/credit and bulk posting use the same posting rules and legacy retry keys. Project/chart creation and bank reconnection commit their state and audit together; Plaid webhook registration and the deep-audit worker start only after their database changes commit. Attachment removal still allows viewers to remove their own uploads. The moved writes now share the same frozen and pending-deletion guard as the other commands. **No migration or configuration action is needed.** GitHub runs the release checks; this does not mark the assistant or its sandbox complete.
+
 ## API keys can no longer close a year or restate FX (#820, default used: stricter)
 
 An API key made for entering transactions could run four period commands: lock a whole year, rebuild the closed-year balances, and post or undo an FX revaluation. Every `period.*` command now needs the workspace scope, which no key is given, so only people signed in can run them. If you want an integration to run year-end or FX revaluation, say so and I'll add a dedicated scope for it.
@@ -923,6 +927,20 @@ the migration grants this to the migration login, which may differ. Never grant 
 service-key roles, and keep `sandbox` and `sandbox_read` out of Supabase's exposed schemas. The test
 database passed with this migration; live state was not independently checked in the report read pass.
 No assistant routes are enabled by the migration or by the report read pass.
+
+### SBX-1 assistant token, routes, review screen and Undo (this PR)
+
+`supabase/migrations/20261119090000_sandbox_step_undone.sql` is for the release lead **after this PR has merged
+and deployed**, in order after the two SBX-1 migrations above. It only widens the `sandboxSteps.state` check to
+allow `undone` (an accepted step whose recorded inverse was run through the ordinary command path). No grant, role
+or exposed-schema change; no new login. Tested on disposable PostgreSQL; the live database was not touched.
+
+What is now live once deployed: `POST /api/v1/workspaces/:id/sandboxes` (person, sign-in) opens a sandbox and
+answers a one-hour assistant token bound to that sandbox, person and role; `/api/v1/sandboxes/:id/...` (assistant
+token only) drafts steps and runs the seven read tools on the sandbox handle; accept / reject / undo stay behind
+the person's sign-in and refuse the assistant token (`src/tests/sandbox-assistant-token-routes.test.ts` proves every
+write route in the app does). The "Assistant drafts" screen is at `#sandbox-review`. The `SESSION_SECRET` env
+signs the assistant token, as it already signs sessions; nothing new to configure.
 
 ### SBX-1 live-read hardening (#825)
 

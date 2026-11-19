@@ -449,15 +449,11 @@ export async function runRegisteredCommand(
   } catch (error) {
     return errorOutcome(error, command.name);
   }
-  const hashContext = { ...initialContext, ...(date ? { effectiveDate: date } : {}) };
-  let payloadHash: string;
-  try {
-    payloadHash = command.idempotencyHash?.(hashContext, input, undefined, req) ?? requestPayloadHash(req.body);
-  } catch (error) {
-    return errorOutcome(error, command.name);
-  }
+  let payloadHash: string | undefined;
   if (operationId) {
     try {
+      const hashContext = { ...initialContext, ...(date ? { effectiveDate: date } : {}) };
+      payloadHash = command.idempotencyHash?.(hashContext, input, undefined, req) ?? requestPayloadHash(req.body);
       const scopedKey = deriveScopedOperationKey(workspaceId, operationType, operationId);
       const previous = await db.collection('idempotencyKeys').doc(scopedKey).get();
       const record = previous.data();

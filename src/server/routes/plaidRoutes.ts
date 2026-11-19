@@ -1,7 +1,9 @@
 import { guardEffect } from '../services/sandboxEffects';
 import express from "express";
 import { z } from "zod";
-import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
+import { getPlaidClient, plaidErrorCode, type PlaidClientLike } from '../services/plaidClient';
+import { bankReconnectCommand } from '../commands/bankFeeds';
+import { executeCommand } from '../utils/commandExecutor';
 import { getDb, validateWorkspaceMember, type DocumentData } from "../db/firestore.ts";
 import { SecurityService } from "../../services/securityService.ts";
 import { getDateInTimezoneISO } from "../../lib/calendarDate.ts";
@@ -21,33 +23,10 @@ import { BRAND_NAME } from '../../config/brand';
  */
 export const plaidRouter = express.Router();
 
-/** The Plaid calls this router makes (tests swap in a fake). */
-export type PlaidClientLike = Pick<PlaidApi, 'linkTokenCreate' | 'itemPublicTokenExchange' | 'transactionsGet'> & Partial<Pick<PlaidApi, 'itemRemove' | 'transactionsSync' | 'webhookVerificationKeyGet' | 'itemWebhookUpdate'>>;
-
-let plaidClient: PlaidClientLike = new PlaidApi(new Configuration({
-  basePath: PlaidEnvironments[process.env.PLAID_ENV || "sandbox"],
-  baseOptions: {
-    headers: {
-      "PLAID-CLIENT-ID": process.env.PLAID_CLIENT_ID,
-      "PLAID-SECRET": process.env.PLAID_SECRET,
-    },
-  },
-}));
-
-export function setPlaidClientForTests(client: PlaidClientLike) {
-  plaidClient = client;
-}
-
-/** The current Plaid client (the webhook route reuses it). */
-export function getPlaidClient(): PlaidClientLike {
-  return plaidClient;
-}
+// Kept for integration tests and callers of the original module.
+export { getPlaidClient, setPlaidClientForTests, type PlaidClientLike } from '../services/plaidClient';
 
 type AuthedRequest = express.Request & { user: { uid: string; email?: string; admin?: boolean; developerWorkspaceId?: string } };
-
-function plaidErrorCode(err: unknown): string | undefined {
-  return (err as { response?: { data?: { error_code?: string } } })?.response?.data?.error_code;
-}
 
 function sendError(res: express.Response, message: string, status = 500) {
   res.status(status).json({ status: "error", message });
@@ -68,7 +47,7 @@ plaidRouter.post("/create_link_token", ledgerWriters, async (req, res) => {
       if (!bank || bank.workspaceId !== workspaceId) return sendError(res, "Bank connection not found", 404);
       accessToken = SecurityService.decryptSensitiveField(bank.access_token);
     }
-    const response = await plaidClient.linkTokenCreate({
+    const response = await getPlaidClient().linkTokenCreate({
       user: { client_user_id: user.uid },
       client_name: `${BRAND_NAME}`,
       country_codes: ["US"] as never[],
@@ -97,7 +76,7 @@ plaidRouter.post("/exchange_public_token", ledgerWriters, async (req, res) => {
   try {
     const { workspaceId, public_token, accountId, institutionName } = exchangeSchema.parse(req.body);
     const user = (req as AuthedRequest).user;
-    const response = await plaidClient.itemPublicTokenExchange({ public_token });
+    const response = await getPlaidClient().itemPublicTokenExchange({ public_token });
     const { access_token, item_id } = response.data;
     const ref = getDb().collection("banks").doc();
     await ref.set({
@@ -149,38 +128,22 @@ plaidRouter.post("/exchange_public_token", ledgerWriters, async (req, res) => {
 
 /** After the user logged in again (update mode): the connection works again. */
 plaidRouter.post("/reconnected", ledgerWriters, async (req, res) => {
-  try {
-    const { workspaceId, bankId } = linkTokenSchema.required({ bankId: true }).parse(req.body);
-    const ref = getDb().collection("banks").doc(bankId);
-    const bank = (await ref.get()).data();
-    if (!bank || bank.workspaceId !== workspaceId) return sendError(res, "Bank connection not found", 404);
-    await ref.update({ status: 'active', updatedAt: new Date().toISOString() });
-    await writeServerAuditLog({
-      workspaceId,
-      uid: (req as AuthedRequest).user.uid,
-      email: (req as AuthedRequest).user.email,
-      action: 'BANK_RECONNECTED',
-      entityType: 'bank',
-      entityId: bankId,
-      details: { description: `Reconnected bank feed (${bank.institutionName || bankId})` },
-    }, { db: getDb() });
-    // AU-1 (Codex on #458): Link update mode ignores `webhook`, so register it on the item directly
-    // CodeRabbit on #458: a failed registration is said in the answer, not only logged
-    let webhookRegistered: boolean | undefined;
-    if (process.env.PLAID_WEBHOOK_URL && plaidClient.itemWebhookUpdate && bank.access_token) {
-      try {
-        await plaidClient.itemWebhookUpdate({ access_token: SecurityService.decryptSensitiveField(bank.access_token), webhook: process.env.PLAID_WEBHOOK_URL });
-        webhookRegistered = true;
-      } catch (err) {
-        webhookRegistered = false;
-        console.error("[Plaid] item webhook update:", plaidErrorCode(err) || err);
+  await executeCommand(req, res, {
+    definition: bankReconnectCommand,
+    workspaceId: req.body?.workspaceId,
+    input: req.body,
+    legacyRoute: true,
+    legacyOperationId: 'ignore',
+    formatResponse(outcome) {
+      if (outcome.ok) {
+        const { webhookRegistered } = outcome.data as { webhookRegistered?: boolean };
+        return { status: 200, body: { success: true, ...(webhookRegistered === undefined ? {} : { webhookRegistered }) } };
       }
-    }
-    res.json({ success: true, ...(webhookRegistered === undefined ? {} : { webhookRegistered }) });
-  } catch (error) {
-    if (error instanceof z.ZodError) return sendError(res, "workspaceId and bankId are required", 400);
-    sendError(res, "Could not update the bank connection");
-  }
+      const message = outcome.code === 'INVALID_INPUT' || outcome.code === 'WORKSPACE_REQUIRED' ? 'workspaceId and bankId are required'
+        : outcome.status >= 500 ? 'Could not update the bank connection' : outcome.message;
+      return { status: outcome.status, body: { status: 'error', message } };
+    },
+  });
 });
 
 /**
@@ -191,6 +154,7 @@ plaidRouter.post("/reconnected", ledgerWriters, async (req, res) => {
  * bank no longer knows is simply removed here.
  */
 plaidRouter.post("/disconnect", requireWorkspaceRole(['owner', 'accountant']), async (req, res) => {
+  const plaidClient = getPlaidClient();
   try {
     const { workspaceId, bankId } = linkTokenSchema.required({ bankId: true }).parse(req.body);
     const db = getDb();
@@ -277,6 +241,7 @@ export async function syncOneBank(
   doc: { id: string; ref: { id: string; update: (data: Record<string, unknown>) => Promise<unknown> }; data: () => DocumentData | undefined },
   ctx: { workspaceId: string; uid: string; workspaceCurrency: string; workspaceTimezone?: string },
 ): Promise<BankSyncResult> {
+  const plaidClient = getPlaidClient();
   guardEffect({ kind: 'bank', action: 'sync', target: doc.id }, db);
   const bank = doc.data() || {};
   const institutionName = String(bank.institutionName || '');

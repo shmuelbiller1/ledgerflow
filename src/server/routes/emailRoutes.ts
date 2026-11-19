@@ -5,6 +5,7 @@ import { getDb } from '../db/firestore';
 import { getTrustedAppUrl } from '../utils/urlHelper';
 import { notify } from '../services/notificationService';
 import { EmailSendError, emailInvoice, emailLog, emailStatements, logEmailEvent } from '../services/documentEmailService';
+import { redactForLogs } from '../../lib/logRedaction';
 
 /**
  * Emails to customers, mounted at /api/v1/workspaces/:workspaceId/emails (workspaceRoutes.ts,
@@ -30,7 +31,8 @@ emailRouter.post('/invoices/:invoiceId', async (req, res) => {
   } catch (err) {
     if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Invalid request', details: err.issues });
     if (err instanceof EmailSendError) return res.status(err.status).json({ status: 'error', message: err.message });
-    res.status(500).json({ status: 'error', message: 'The email could not be sent', details: err instanceof Error ? err.message : String(err) });
+    console.error('[The email could not be sent]', redactForLogs(err instanceof Error ? err.message : String(err)));
+    res.status(500).json({ status: 'error', message: 'The email could not be sent' });
   }
 });
 
@@ -48,7 +50,8 @@ emailRouter.post('/statements', async (req, res) => {
   } catch (err) {
     if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Invalid request', details: err.issues });
     if (err instanceof EmailSendError) return res.status(err.status).json({ status: 'error', message: err.message });
-    res.status(500).json({ status: 'error', message: 'The statements could not be sent', details: err instanceof Error ? err.message : String(err) });
+    console.error('[The statements could not be sent]', redactForLogs(err instanceof Error ? err.message : String(err)));
+    res.status(500).json({ status: 'error', message: 'The statements could not be sent' });
   }
 });
 
@@ -57,7 +60,8 @@ emailRouter.get('/log/:documentId', async (req, res) => {
   try {
     res.json({ status: 'success', events: await emailLog(getDb(), workspaceId, documentId) });
   } catch (err) {
-    res.status(500).json({ status: 'error', message: 'The send log could not be loaded', details: err instanceof Error ? err.message : String(err) });
+    console.error('[The send log could not be loaded]', redactForLogs(err instanceof Error ? err.message : String(err)));
+    res.status(500).json({ status: 'error', message: 'The send log could not be loaded' });
   }
 });
 

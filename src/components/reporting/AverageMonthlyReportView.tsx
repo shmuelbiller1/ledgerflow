@@ -1,3 +1,4 @@
+import { ReportInputBoundary } from './ReportInputBoundary';
 import React from 'react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
@@ -5,24 +6,21 @@ import { csvMoney } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { formatCurrency, workspaceYearMonth } from '../../lib/utils';
 import { useServerMonthlyAverages } from '../../hooks/useServerMonthlyAverages';
-import { RangeReportSourceNote } from './RangeReportSourceNote';
+import { AccountReportResult } from './AccountReportResult';
 import { Calendar, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
 import ReportEmptyState from './ReportEmptyState';
-import { ReportProvenanceNote } from './ReportProvenanceNote';
-import { STATEMENT_COLLECTIONS, useBrowserProvenance } from '../../hooks/useBrowserProvenance';
 import { useReportText } from './useReportText';
 
 interface Props {
   selectedYear?: number;
 }
 
-export const AverageMonthlyReportView: React.FC<Props> = ({
+const LoadedReport: React.FC<Props> = ({
   selectedYear = workspaceYearMonth().year
 }) => {
   const reportText = useReportText();
-  const provenance = useBrowserProvenance(STATEMENT_COLLECTIONS, false);
   // L-123 step 4f: with the loaded lists capped, the months come from the server (every entry of the year)
-  const { summary, source } = useServerMonthlyAverages(selectedYear);
+  const { summary, ...read } = useServerMonthlyAverages(selectedYear);
   const noActivity = summary.monthlyData.every(month => month.incomeCents === 0 && month.expenseCents === 0);
 
   /** One row per month: what came in, what went out, the difference, and whether it was out of line. */
@@ -43,7 +41,6 @@ export const AverageMonthlyReportView: React.FC<Props> = ({
         : <span className="text-neutral-400 text-[11px] font-medium">{reportText('r.normal', 'Normal')}</span>
     ) },
   ];
-  const historyComplete = source === 'server' || provenance.completeness === 'complete';
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto p-4 sm:p-6" id="monthly-averages-report">
@@ -58,67 +55,69 @@ export const AverageMonthlyReportView: React.FC<Props> = ({
           </p>
         </div>
       </div>
-      <RangeReportSourceNote source={source} testId="monthly-averages-source" what={reportText('r.these-figures', 'these figures')} />
-      {noActivity && !historyComplete && <ReportProvenanceNote provenance={provenance} />}
-      {noActivity && <ReportEmptyState title={reportText('r.no-income-or-expenses-in-the-loaded-records-for', 'No income or expenses in the loaded records for this year')}
-        description={historyComplete
-          ? reportText('r.choose-another-year-or-record-posted-sales-and-e', 'Choose another year, or record posted sales and expense entries first. The twelve months remain visible at zero so the selected period is clear.')
-          : reportText('r.loaded-ledger-history-is-incomplete-or-failed-lo', 'Loaded ledger history is incomplete or failed. Load full history before treating the whole year as inactive; older posted entries may not be in this browser cache.')} />}
+      <AccountReportResult read={read} testId="monthly-averages-source" hasRows={!noActivity}>
+        {noActivity && <ReportEmptyState title={reportText('r.no-income-or-expenses-in-the-loaded-records-for', 'No income or expenses in the loaded records for this year')}
+          description={reportText('r.choose-another-year-or-record-posted-sales-and-e', 'Choose another year, or record posted sales and expense entries first. The twelve months remain visible at zero so the selected period is clear.')} />}
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="p-4 bg-white rounded-lg border border-neutral-200 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-neutral-500 uppercase">{reportText('r.monthly-average-revenue', 'Monthly Average Revenue')}</span>
-            <TrendingUp className="w-4 h-4 text-emerald-600" />
+        {/* Summary KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="p-4 bg-white rounded-lg border border-neutral-200 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-neutral-500 uppercase">{reportText('r.monthly-average-revenue', 'Monthly Average Revenue')}</span>
+              <TrendingUp className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div className="text-xl font-mono font-bold text-emerald-600 mt-2">
+              {formatCurrency(summary.monthlyAverageIncomeCents)}
+              <span className="text-xs text-neutral-400 font-normal"> {reportText('r.mo', '/ mo')}</span>
+            </div>
           </div>
-          <div className="text-xl font-mono font-bold text-emerald-600 mt-2">
-            {formatCurrency(summary.monthlyAverageIncomeCents)}
-            <span className="text-xs text-neutral-400 font-normal"> {reportText('r.mo', '/ mo')}</span>
+
+          <div className="p-4 bg-white rounded-lg border border-neutral-200 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-neutral-500 uppercase">{reportText('r.monthly-average-burn-expense', 'Monthly Average Burn / Expense')}</span>
+              <TrendingDown className="w-4 h-4 text-rose-600" />
+            </div>
+            <div className="text-xl font-mono font-bold text-rose-600 mt-2">
+              {formatCurrency(summary.monthlyAverageExpenseCents)}
+              <span className="text-xs text-neutral-400 font-normal"> {reportText('r.mo', '/ mo')}</span>
+            </div>
           </div>
         </div>
 
-        <div className="p-4 bg-white rounded-lg border border-neutral-200 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-neutral-500 uppercase">{reportText('r.monthly-average-burn-expense', 'Monthly Average Burn / Expense')}</span>
-            <TrendingDown className="w-4 h-4 text-rose-600" />
-          </div>
-          <div className="text-xl font-mono font-bold text-rose-600 mt-2">
-            {formatCurrency(summary.monthlyAverageExpenseCents)}
-            <span className="text-xs text-neutral-400 font-normal"> {reportText('r.mo', '/ mo')}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Monthly Breakdown Table */}
-      <TanStackDataGrid
-        caption={reportText('r.monthly-averages', 'Monthly averages')}
-        data={summary.monthlyData}
-        columns={columns}
-        rowHeaderColumn="month"
-        pageSize={25}
-        searchPlaceholder={reportText('r.search-months', 'Search months...')}
-        searchLabel="Search months"
-        columnScope="report-average-monthly"
-        columnLabel="Monthly averages columns"
-        columnNames={['Month', 'Revenue', 'Expense / Burn', 'Net Cash Flow', 'Status / Anomaly']}
-        exportConfig={{
-          filename: 'monthly-averages.csv',
-          label: reportText('r.export-csv', 'Export CSV'),
-          headers: ['Month', 'Revenue', 'Expense / Burn', 'Net Cash Flow', 'Status / Anomaly'],
-          mapRow: row => [
-            `${row.monthName} ${selectedYear}`,
-            csvMoney(row.incomeCents),
-            csvMoney(row.expenseCents),
-            csvMoney(row.incomeCents - row.expenseCents),
-            row.isExpenseAnomaly || row.isIncomeAnomaly ? 'Variance spike' : 'Normal',
-          ],
-        }}
-        emptyState={<EmptyState title={reportText('r.no-months-in-this-year', 'No months in this year')} description={reportText('r.choose-another-year', 'Choose another year.')} />}
-        filteredEmptyState={<EmptyState title={reportText('r.no-month-matches-your-search', 'No month matches your search')} description={reportText('r.try-another-month-name', 'Try another month name.')} />}
-      />
+        {/* Monthly Breakdown Table */}
+        <TanStackDataGrid
+          caption={reportText('r.monthly-averages', 'Monthly averages')}
+          data={summary.monthlyData}
+          columns={columns}
+          rowHeaderColumn="month"
+          pageSize={25}
+          searchPlaceholder={reportText('r.search-months', 'Search months...')}
+          searchLabel="Search months"
+          columnScope="report-average-monthly"
+          columnLabel="Monthly averages columns"
+          columnNames={['Month', 'Revenue', 'Expense / Burn', 'Net Cash Flow', 'Status / Anomaly']}
+          exportConfig={read.source === 'loaded-incomplete' ? undefined : {
+            filename: 'monthly-averages.csv',
+            label: reportText('r.export-csv', 'Export CSV'),
+            headers: ['Month', 'Revenue', 'Expense / Burn', 'Net Cash Flow', 'Status / Anomaly'],
+            mapRow: row => [
+              `${row.monthName} ${selectedYear}`,
+              csvMoney(row.incomeCents),
+              csvMoney(row.expenseCents),
+              csvMoney(row.incomeCents - row.expenseCents),
+              row.isExpenseAnomaly || row.isIncomeAnomaly ? 'Variance spike' : 'Normal',
+            ],
+          }}
+          emptyState={<EmptyState title={reportText('r.no-months-in-this-year', 'No months in this year')} description={reportText('r.choose-another-year', 'Choose another year.')} />}
+          filteredEmptyState={<EmptyState title={reportText('r.no-month-matches-your-search', 'No month matches your search')} description={reportText('r.try-another-month-name', 'Try another month name.')} />}
+        />
+      </AccountReportResult>
     </div>
   );
 };
+
+export function AverageMonthlyReportView(props: Props) {
+  return <ReportInputBoundary><LoadedReport {...props} /></ReportInputBoundary>;
+}
 
 export default AverageMonthlyReportView;

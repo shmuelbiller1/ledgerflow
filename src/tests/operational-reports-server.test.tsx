@@ -3,7 +3,7 @@ import test, { afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import express from 'express';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { reportRouter } from '../server/routes/reportRoutes';
 import { getDb } from '../server/db/firestore';
 import PartyAgingReportView from '../components/reporting/PartyAgingReportView';
@@ -307,8 +307,10 @@ test('M-1: capped browser collections upgrade Aging, Contact Balance, Payment Me
     await act(async () => {
       render(<PaymentMethodSummaryView startDate="2026-01-01" endDate="2026-01-31" />);
     });
-    await waitFor(() => assert.ok(screen.getByText('ACH')));
-    assert.equal(screen.queryByRole('alert'), null);
+    await waitFor(() => assert.ok(screen.getByRole('rowheader', { name: 'ACH' })));
+    assert.ok(screen.getByText(/Receipt totals use full workspace history/));
+    const flows = screen.getByRole('region', { name: 'Payment in and out by method' });
+    assert.deepEqual(screen.getAllByRole('alert'), [within(flows).getByRole('alert')], 'only the independent, capped payment list is provisional');
     cleanup();
 
     await act(async () => {
