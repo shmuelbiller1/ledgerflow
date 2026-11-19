@@ -6,7 +6,7 @@ import { useBillingStore } from '../../modules/billing/BillingService';
 import AsyncButton from '../../components/ui/AsyncButton';
 import { toast } from 'sonner';
 import { MIN_PASSWORD_LENGTH, passwordProblemCode } from '../../lib/passwordPolicy';
-import { fillOnboarding, onboardingText, EXAMPLE_EMAIL } from '../../lib/i18n/onboardingTranslations';
+import { fillOnboarding, onboardingText, onboardingTextWith, EXAMPLE_EMAIL } from '../../lib/i18n/onboardingTranslations';
 import { directionOf, type UiLanguageTag } from '../../lib/i18n/useUiLanguage';
 import { createRetryableLazy } from '../../lib/lazyWithRetry';
 import { LazyOverlayBoundary } from '../../components/ui/LazyOverlayBoundary';
@@ -80,10 +80,10 @@ export function AuthScreen({ onLogin, onEmailLogin, onEmailSignup, onPasswordRes
     // Y-31: the same password rules as a reset
     const weak = isRegistering ? passwordProblemCode(password, email) : null;
     if (weak) {
-      // English keeps the exact sentence it always showed; Hebrew says the same thing in Hebrew.
-      // the table is the one place the sentence lives; the code says which refusal it was
+      // The table is the one place the sentence lives; the code says which refusal it was.
+      // Both languages fill {min}: English must keep the exact sentence it always showed.
       const code = `password.${weak}` as 'password.tooShort';
-      setPasswordError(language === 'he' ? fillOnboarding(onboardingText(code, language), { min: MIN_PASSWORD_LENGTH }) : onboardingText(code, language));
+      setPasswordError(onboardingTextWith(code, language, { min: MIN_PASSWORD_LENGTH }));
       return;
     }
     setPasswordError('');

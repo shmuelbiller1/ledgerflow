@@ -8,7 +8,7 @@ import { tabTo } from './support/tabTo';
 // or direct report mounts. Fixture refreshes represent subscription snapshots, not financial writes.
 // Email goes through the production route to the test transport, never a real recipient.
 test.use({ reducedMotion: 'reduce', timezoneId: 'UTC' });
-for (const width of [390, 1280]) test(`a first-time user at ${width}px, keyboard only: customer → email invoice → payment → profit and loss`, async ({ page }, testInfo) => {
+for (const width of [390, 1280]) test(`a first-time user at ${width}px, keyboard only: customer → invoice → preview → payment → profit and loss`, async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const databaseUrl = process.env.LF_TEST_DATABASE_URL;
   if (process.env.CI) expect(databaseUrl, 'CI must run this against the real test Postgres').toBeTruthy();
@@ -54,6 +54,9 @@ for (const width of [390, 1280]) test(`a first-time user at ${width}px, keyboard
     };
     const main = page.locator('#main-content'), dialog = page.getByRole('dialog');
     const daily = page.getByRole('navigation', { name: 'Daily tools' });
+    // N-8 starts on an empty Sales screen: no customers to pick and no invoice to open.
+    expect(await server.all('customers'), 'a new workspace starts with no customers').toEqual([]);
+    expect(await server.all('invoices'), 'a new workspace starts with no invoices').toEqual([]);
     if (width === 390) await press(button('Open navigation menu'));
     await press(button('Sales', daily));
     if (width === 390) await expect(daily, 'the chosen page must not be obscured by the phone navigation').toBeHidden();
@@ -84,6 +87,21 @@ for (const width of [390, 1280]) test(`a first-time user at ${width}px, keyboard
     const invoices = await server.all('invoices');
     expect(invoices).toMatchObject([{ number: 'INV-FIRST', customerId: customers[0].id, amountCents: 90000 }]);
     expect(await server.mail(), 'issuing an invoice is not the same as emailing it').toEqual([]);
+    await server.refresh(page);
+
+    // N-8: the new invoice can be looked at before it is sent. The preview is opened from the
+    // row's own action, names this invoice, and loads a real PDF (the email step below already
+    // proves this fixture can generate one) rather than showing the error state.
+    const invoiceRow = main.getByRole('row').filter({ hasText: 'INV-FIRST' }).first();
+    await expect(invoiceRow).toBeVisible();
+    await press(invoiceRow.getByRole('button', { name: 'Preview PDF', exact: true }));
+    const preview = page.getByRole('dialog', { name: /Invoice INV-FIRST/ });
+    await expect(preview).toBeVisible({ timeout: 30_000 });
+    await expect(preview.getByText('invoice_INV-FIRST.pdf')).toBeVisible();
+    await expect(preview.locator('iframe')).toBeVisible({ timeout: 30_000 });
+    await expect(preview.getByText('Unable to render PDF')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(preview).toHaveCount(0);
     await server.refresh(page);
 
     await press(button('Email the invoice', main));
