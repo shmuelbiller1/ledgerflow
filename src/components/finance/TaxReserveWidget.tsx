@@ -7,6 +7,7 @@ import { Landmark, Sparkles, Info, AlertTriangle, ShieldAlert, CheckCircle2, Arr
 import { addToDateISO, formatCurrency, getLocalDateISO, cn } from '../../lib/utils';
 import { isPostable, lineAmount } from '../../lib/txFilters';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { percentWidthStyle } from '../../lib/percentBar';
 
 export function TaxReserveWidget() {
   const transactions = useLedgerStore(s => s.transactions);
@@ -463,8 +464,8 @@ export function TaxReserveWidget() {
 
                 {/* Progress bar scale */}
                 <div className="h-2 rounded-full bg-[var(--surface)] overflow-hidden flex">
-                  <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${Math.max(0, Math.min(100, 100 - overdraftProbability))}%` }} />
-                  <div className="h-full bg-[var(--neg)] transition-all duration-500" style={{ width: `${Math.max(0, Math.min(100, overdraftProbability))}%` }} />
+                  <div className="h-full bg-emerald-500 transition-all duration-500" style={percentWidthStyle(100 - overdraftProbability)} />
+                  <div className="h-full bg-[var(--neg)] transition-all duration-500" style={percentWidthStyle(overdraftProbability)} />
                 </div>
               </div>
 

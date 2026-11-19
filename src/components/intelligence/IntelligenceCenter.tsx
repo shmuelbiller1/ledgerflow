@@ -5,7 +5,6 @@ import IntelligenceChannelGroup from './IntelligenceChannelGroup';
 import { ProjectProfitMatrix } from './ProjectProfitMatrix';
 
 import React, { useState, useMemo } from 'react';
-import { barWidthPercent } from '../../lib/barWidth';
 import { motion, AnimatePresence } from 'motion/react';
 import { ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip } from 'recharts';
 import { ShieldCheck, Target, Download, Maximize2, Minimize2, BrainCircuit, Info, ChevronRight, Sparkles, Menu, X, Search, Calendar, Flame, Loader2 } from 'lucide-react';
@@ -26,6 +25,7 @@ import { FINANCIAL_ALGORITHMS } from '../../lib/financial-algorithms';
 import { ANALYTICAL_LENSES_REGISTRY, LENS_COMPONENTS } from '../../config/registry';
 import { ViewErrorBoundary } from '../common/ViewErrorBoundary';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { percentWidthStyle } from '../../lib/percentBar';
 
 // -------------------------------------------------------------
 // Interactive D3 Ledger Volumetric Flow & Activity Visualizer
@@ -345,7 +345,7 @@ export default function AnalyticalCenter() {
                       <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
                         <div 
                           className="h-full bg-indigo-600 rounded-full transition-all duration-300"
-                          style={{ width: barWidthPercent(metrics?.kpis?.healthScore ?? 0) }}
+                          style={percentWidthStyle(metrics?.kpis?.healthScore || 0)}
                         />
                       </div>
                     </div>

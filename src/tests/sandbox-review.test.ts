@@ -259,11 +259,16 @@ describe('SBX-1 durable review and atomic acceptance (PostgreSQL)', { skip: !url
     await live.doc(`customers/${party}`).create({ id: party, workspaceId: f.scope.workspaceId, name: 'Acme Design' });
     await live.doc(`inventory/${item}`).create({ workspaceId: f.scope.workspaceId, unitCostCents: 400, quantityAtHand: 10, name: 'Widget' });
     const invoice = f.invoice(party, 2500).invoice;
-    await assert.rejects(f.add('invoice.create', { invoice: { ...invoice, items: [{ id: f.id('sale-line'), itemId: item, description: 'Widget', quantity: 2,
-      rateCents: 1250, amountCents: 2500, accountId: f.id('sales') }] } }), { code: 'SANDBOX_WRITE_NOT_REVIEWED' });
+    // a stock-moving step drafts (provisional move order, no live sequence) and is removed with its moves
+    const stocked = await f.add('invoice.create', { invoice: { ...invoice, items: [{ id: f.id('sale-line'), itemId: item, description: 'Widget', quantity: 2,
+      rateCents: 1250, amountCents: 2500, accountId: f.id('sales') }] } });
+    assert.equal((await f.draft.doc(`inventory/${item}`).get()).data()?.quantityAtHand, 8);
+    assert.equal(await f.count('stockMoves', f.draft), 1);
+    assert.equal(await f.count('stockMoves'), 0);
+    await f.change({ kind: 'reject', revision: stocked.revision, stepIds: [stocked.steps[0].id] });
     assert.equal((await f.draft.doc(`inventory/${item}`).get()).data()?.quantityAtHand, 10);
     assert.equal(await f.count('invoices', f.draft), 0);
-    assert.deepEqual((await f.change({ kind: 'review' })).steps, []);
+    assert.deepEqual((await f.change({ kind: 'review' })).steps.map(step => step.state), ['rejected']);
     const pending = await f.change(add);
     const workspace = live.doc(`workspaces/${f.scope.workspaceId}`);
     await workspace.update({ uid: f.editor.uid, members: [f.editor.uid, f.viewer.uid] });

@@ -1183,8 +1183,16 @@ begin
       ('22222222-2222-2222-2222-222222222222', 'sbx-forbidden', '{"workspaceId":"ws1"}', now())$$);
   insert into sandbox."stockMoves" (sandbox_id, id, data, created_at) values
     (draft, 'sbx-move', '{"workspaceId":"ws1","itemId":"sbx-item","date":"2026-03-01","kind":"adjustment"}', now());
-  if not exists (select from sandbox_read."stockMoves" where id = 'sbx-move' and not (data ? 'dbSeq')) then
-    raise exception 'FAIL overlay stock move missing or assigned a real sequence';
+  -- The overlay numbers the draft move provisionally (migration 20261120090000); the sequence check
+  -- below proves the number did not come from the live sequence.
+  if not exists (select from sandbox_read."stockMoves" where id = 'sbx-move' and jsonb_typeof(data->'dbSeq') = 'number') then
+    raise exception 'FAIL overlay stock move missing or without a provisional order';
+  end if;
+  insert into sandbox."stockMoves" (sandbox_id, id, data, created_at) values
+    (draft, 'sbx-move-2', '{"workspaceId":"ws1","itemId":"sbx-item","date":"2026-03-01","kind":"adjustment"}', now());
+  if (select (data->>'dbSeq')::bigint from sandbox_read."stockMoves" where id = 'sbx-move-2')
+     <= (select (data->>'dbSeq')::bigint from sandbox_read."stockMoves" where id = 'sbx-move') then
+    raise exception 'FAIL provisional stock move order is not increasing';
   end if;
   execute 'reset role';
   perform set_config('lf.sandbox_id', '', true);

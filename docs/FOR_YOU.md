@@ -942,7 +942,23 @@ the person's sign-in and refuse the assistant token (`src/tests/sandbox-assistan
 write route in the app does). The "Assistant drafts" screen is at `#sandbox-review`. The `SESSION_SECRET` env
 signs the assistant token, as it already signs sessions; nothing new to configure.
 
-### SBX-1 admitting the command registry as steps (this PR)
+### SBX-1 stock moves in the sandbox (this PR)
+
+`supabase/migrations/20261120090000_sandbox_stock_move_order.sql` is for the release lead **after this PR has merged
+and deployed**, in order after the three SBX-1 migrations above. It adds one trigger function in the `sandbox` schema
+that gives a drafted stock move a provisional order number (`dbSeq`) — after every live move of the workspace and
+every earlier draft move — so the sandbox computes cost of goods in the same order the real save will. No grant on
+`public`, no sequence privilege, no new login; the live sequence is untouched (the RLS suite and
+`sandbox-readiness.test.ts` prove it). Tested on disposable PostgreSQL; the live database was not touched.
+
+What changes once deployed: an invoice with inventory lines, a stock adjustment, delivery, return, count or
+revaluation can now be drafted by the assistant and shown in the sandbox books; before this they were refused with
+"needs a write that has not been reviewed". Acceptance replays the step live, where the real sequence numbers the
+move; if the cost would differ from the preview (someone moved the same item meanwhile) the accept is refused and
+the step marked for re-check, as for any other posting. The cost repost queue (`lf_repost_mark`) is not run in the
+draft on purpose: it is a later background correction, and the live insert at accept queues it exactly as before.
+
+### SBX-1 admitting the command registry as steps (#932)
 
 No migration, no grant, no env. The sandbox now drafts any command of the books (customers, vendors, invoices,
 bills, payments, journals, chart, assets, inventory, projects, time, tasks and so on — 100+ commands, listed by

@@ -6,13 +6,13 @@ import {
 import type { InventoryItem } from '../../types';
 import type { StrategicEngine } from '../../services/strategicEngine';
 import { cn, formatCurrency } from '../../lib/utils';
-import { barWidthPercent } from '../../lib/barWidth';
 import { ConfirmButton } from '../ui/ConfirmButton';
 import InlineEdit from '../ui/InlineEdit';
 import { formatVariancePct, standardCostReport, validStandardCost } from '../../lib/standardCost';
 import { isBundle, bundleSummary } from '../../lib/itemBundles';
 import { kitBuildableSummary } from '../../lib/kitAssembly';
 import { ItemImageThumb } from './ItemImagePanel';
+import { percentWidthStyle } from '../../lib/percentBar';
 
 export type EconomicInventoryItem = ReturnType<typeof StrategicEngine.analyzeUnitEconomics>[number];
 export type InventoryRowItem = InventoryItem & Partial<EconomicInventoryItem>;
@@ -247,7 +247,7 @@ export function buildInventoryColumns(deps: InventoryColumnDeps): ColumnDef<Inve
                 <div className="h-1 flex-1 bg-zinc-100 rounded-full overflow-hidden">
                   <div
                     className={cn('h-full transition-all duration-1000', integrity > 75 ? 'bg-emerald-500' : integrity > 40 ? 'bg-amber-500' : 'bg-zinc-300')}
-                    style={{ width: barWidthPercent(integrity) }}
+                    style={percentWidthStyle(integrity)}
                   />
                 </div>
                 <span className="text-[8px] font-black text-zinc-400 uppercase">{item.confidence}</span>
@@ -265,7 +265,7 @@ export function buildInventoryColumns(deps: InventoryColumnDeps): ColumnDef<Inve
                   <span className="text-[7px] font-bold text-zinc-400 uppercase">Maturity</span>
                   <div className="flex items-center gap-1">
                     <div className="w-12 h-1 bg-zinc-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-indigo-600 transition-all duration-1000" style={{ width: barWidthPercent(item.maturityIndex ?? 0) }} />
+                      <div className="h-full bg-indigo-600 transition-all duration-1000" style={percentWidthStyle(item.maturityIndex ?? 0)} />
                     </div>
                     <span className="text-[8px] font-black font-mono">{item.maturityIndex ?? 0}</span>
                   </div>

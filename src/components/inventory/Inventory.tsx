@@ -2,7 +2,6 @@ import { workspaceActor } from '../../lib/guestActor';
 import { defaultsMetadata, cleanDocumentDefaults } from '../../lib/documentDefaults';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, safeConfirm } from '../../lib/utils';
-import { barWidthPercent } from '../../lib/barWidth';
 import { ConfirmButton } from '../ui/ConfirmButton';
 import { toast } from 'sonner';
 import { StrategicEngine } from '../../services/strategicEngine';
@@ -48,6 +47,7 @@ import { deleteWithUndo, isDeletePending } from '../../lib/undoableDelete';
 import { BRAND_NAME } from '../../config/brand';
 import { buildInventoryColumns, type InventoryRowItem } from './inventoryColumns';
 import { removeInventoryItem, saveInventoryItem, saveInventoryItemField } from '../../lib/recordWrites';
+import { percentWidthStyle } from '../../lib/percentBar';
 
 /** A-19: the bundle parts the item dialog wrote into the form (a bad value means no parts, never a crash). */
 const parseBundleParts = (raw: FormDataEntryValue | null): BundlePart[] | undefined => {
@@ -376,7 +376,7 @@ export default function Inventory() {
               <div className="w-48 h-1.5 bg-[var(--surface)]/10 rounded-full mt-4 overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: barWidthPercent(avgIntegrity) }}
+                  animate={percentWidthStyle(avgIntegrity)}
                   className="h-full bg-indigo-500"
                   transition={{ duration: 1.5, ease: 'easeOut' }}
                 />
