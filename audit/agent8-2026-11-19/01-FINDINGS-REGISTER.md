@@ -18,6 +18,7 @@ evidence delivered, deliberately not patched (owned by another agent's lane, or 
 | A8-032 | Medium | Confirmed bug | **Fixed** (PR #911) | #909 negative share bars |
 | A8-033 | Low | Robustness | Reported | Project split-rule percentages |
 | A8-034 | Medium | Confirmed bug (UI authorization) | **Fixed** (PR #911) | Bill dialog offered approval to every role |
+| A8-035 | Low | Confirmed display defect | Reported — shared with `src/server/` (AI #1) | Every share reads 0.0 % when the net is negative |
 
 ---
 
@@ -196,6 +197,35 @@ role sees “An owner or accountant approves a bill” instead. This is UI parit
 
 **Test:** bookkeeper → no button and the explanatory text; accountant → button; delegated bookkeeper → button.
 Passes with the change; the file fails on the unfixed component.
+
+## A8-035 — Low — every share reads 0.0 % when the net is negative
+
+**Status:** Confirmed empirically, **reported not patched** — `src/lib/reportGenerators.ts` is imported by
+`src/server/services/balanceService.ts:63`, so changing its percentage semantics is shared money maths (AI #1
+lane; same reason PR #882/#889 are handling the report inputs/formatters).
+
+- `src/lib/reportGenerators.ts:105-107` (expense by category) and the matching block in
+  `computeIncomeBySource` compute `percentage: grandTotal > 0 ? (total / grandTotal) * 100 : 0`.
+- When refunds exceed charges in a period the net is negative, so **every** row is rendered with `0.0 %` while
+  its amount stays correct — the share column contradicts the amounts instead of showing the true overshoot.
+
+**Reproduction (run locally, output verbatim)**
+
+```text
+npx tsx /tmp/probe-pct.ts
+expense rows (negative net): [{"category":"Occupancy","totalAmountCents":10000,"transactionCount":1,"percentage":0},
+                              {"category":"Rebates","totalAmountCents":-200000,"transactionCount":1,"percentage":0}]
+```
+
+(One 100.00 charge and a 2,000.00 refund → net −1,900.00; the table shows 0.0 % for both rows.)
+
+**Recommended correction:** decide the semantics centrally — `total > 0 ? total/grand*100 : (abs(grand) > 0 ?
+total/abs(grand)*100 : 0)` gives −5.3 % / 105.3 % for the case above and keeps the sign; alternatively hide the
+share column when the net is ≤ 0 with an explanation. Either way it must change in `reportGenerators` (server
+and client read the same function), so it is AI #1's call. The CSV column would follow automatically.
+
+**Tests performed:** the probe above; the existing `report-views`, `l123-step4de-breakdowns` and
+`report-generators` suites pass, i.e. no test covers a negative net total.
 
 ## Verified — not defects (checked and dismissed, recorded so they are not re-reported)
 
