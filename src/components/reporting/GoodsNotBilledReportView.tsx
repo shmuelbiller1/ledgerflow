@@ -10,6 +10,7 @@ import { csvMoneyForBook, downloadCsv } from '../../lib/csvExport';
 import { getLocalDateISO } from '../../lib/utils';
 import { RowTable } from '../ui/RowTable';
 import { useReportText } from './useReportText';
+import { LoadingState } from '../ui/LoadingState';
 
 const qty = (n: number) => String(Math.round(n * 100) / 100);
 const th = 'font-semibold py-1 px-2';
@@ -46,7 +47,7 @@ export default function GoodsNotBilledReportView() {
         <h2 id="goods-not-billed-title" className="text-lg font-bold text-[var(--text)]">{reportText('r.goods-not-yet-billed', 'Goods not yet billed')}</h2>
         <p className="text-sm text-[var(--muted)]">{reportText('r.goods-that-left-or-came-in-before-their-invoice', 'Goods that left or came in before their invoice or bill, at each order\'s price.')}</p>
       </div>
-      {(loading || loadingOrders) && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {(loading || loadingOrders) && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
         <RowTable
           rowClassName="border-b border-[var(--line)]/50"

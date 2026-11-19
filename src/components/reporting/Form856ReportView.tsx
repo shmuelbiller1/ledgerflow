@@ -17,6 +17,7 @@ import { form856ReviewExport, type Form856ReviewPayment } from '../../lib/tax/fo
 import { byCodeUnit } from '../../lib/codeUnitOrder';
 import { RowTable } from '../ui/RowTable';
 import { useReportText } from './useReportText';
+import { LoadingState } from '../ui/LoadingState';
 
 const th = 'font-semibold py-1 px-2';
 
@@ -114,7 +115,7 @@ export default function Form856ReportView() {
         </button>
       </div>
 
-      {loading && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {loading && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
 
       {rows.length === 0 && !loading && (
         <p className="text-sm text-[var(--muted)]">{reportText('r.no-vendor-payment-in', 'No vendor payment in')} {year} {reportText('r.has-tax-withheld-at-source', 'has tax withheld at source.')}</p>

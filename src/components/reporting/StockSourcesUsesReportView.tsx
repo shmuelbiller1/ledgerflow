@@ -9,6 +9,7 @@ import type { ItemDetails } from '../../lib/stockMoves';
 import { stockSourcesUses, stockSourcesUsesCsv, type FlowLine, type ItemSourcesUses } from '../../lib/stockSourcesUses';
 import { runCommand } from '../../lib/runCommand';
 import { useReportText } from './useReportText';
+import { LoadingState } from '../ui/LoadingState';
 
 /** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
 const CODE_NAMES = { c0: '0' } as const;
@@ -75,7 +76,7 @@ export default function StockSourcesUsesReportView() {
         <button type="button" onClick={exportCsv} disabled={!rows || rows.length === 0} className="min-h-11 rounded-lg border border-[var(--line)] px-3 py-2 font-semibold text-[var(--text)] disabled:opacity-50">{reportText('r.export-csv', 'Export CSV')}</button>
       </div>
       {startDate > endDate && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{reportText('r.the-period-starts-after-it-ends', 'The period starts after it ends.')}</p>}
-      {key && !shown && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {key && !shown && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
       {rows && rows.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-stock-and-no-movements-in-this-period', 'No stock and no movements in this period.')}</p>}
       {rows?.map(r => <ItemFlow key={r.itemId} row={r} currency={currency} />)}

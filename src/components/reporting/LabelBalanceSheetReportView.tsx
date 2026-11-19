@@ -6,6 +6,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { LABEL_ROLES, labelRole } from '../../lib/labelRoles';
 import { runCommand } from '../../lib/runCommand';
 import { useReportText, fill } from './useReportText';
+import { LoadingState } from '../ui/LoadingState';
 
 type Kind = 'asset' | 'liability' | 'equity';
 interface Sheet { assets: Record<string, number>; liabilities: Record<string, number>; equity: Record<string, number>; totalAssets: number; totalLiabilities: number; totalEquity: number; netIncome: number; totalClaims: number; isBalanced: boolean }
@@ -76,7 +77,7 @@ export default function LabelBalanceSheetReportView() {
           <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.as-of-2', 'As of')}<input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={field} /></label>
         </div>
       )}
-      {key && !shown && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {key && !shown && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
       {report && (
         <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3" data-testid="label-balance-sheet">
