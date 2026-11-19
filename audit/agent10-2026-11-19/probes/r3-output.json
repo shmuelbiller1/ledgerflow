@@ -1,0 +1,97 @@
+{
+  "probe": "r3-rls-and-minor-units-reverify",
+  "results": [
+    {
+      "id": "A1",
+      "verdict": "FIXED",
+      "evidence": "REFUSED: Server-managed document records (stageSets) can only be created through the server",
+      "note": "A viewer must not create a staged record in public.documents."
+    },
+    {
+      "id": "A2",
+      "verdict": "LIVE",
+      "evidence": "ACCEPTED",
+      "note": "A viewer must not attach a file to an arbitrary invoice."
+    },
+    {
+      "id": "A3",
+      "verdict": "FIXED",
+      "evidence": "REFUSED: Server-managed document records (journalTemplate) can only be created through the server",
+      "note": "A viewer must not inject a journal template the owner then serves."
+    },
+    {
+      "id": "A4",
+      "verdict": "FIXED",
+      "evidence": "REFUSED: Server-managed document records (timeEntry) can only be created through the server",
+      "note": "A viewer must not create a time entry with approved hours and a rate."
+    },
+    {
+      "id": "A6",
+      "verdict": "LIVE",
+      "evidence": {
+        "attempt": "ACCEPTED (1 row)",
+        "storedStatus": "closed"
+      },
+      "note": "A viewer must not close the owner's support ticket."
+    },
+    {
+      "id": "A3-serve",
+      "verdict": "FIXED",
+      "evidence": {
+        "status": 200,
+        "served": false
+      },
+      "note": "The owner route must not serve a record the viewer injected."
+    },
+    {
+      "id": "H1-us",
+      "verdict": "FIXED",
+      "evidence": {
+        "grossSalesCents": 6700,
+        "expectedHomeCents": 6700,
+        "rawYenMinorUnits": 10000
+      },
+      "note": "\u00a510,000 at 0.0067 is $67.00 = 6,700 cents; 67 is a 100x undercount."
+    },
+    {
+      "id": "H1-il",
+      "verdict": "INFO",
+      "evidence": {
+        "taxableSalesCents": 0,
+        "outputVatCents": 0
+      },
+      "note": "Read-only: \u20aa10,000 book at 0.27 USD/\u20aa must be 270,000 cents, not 2,700."
+    },
+    {
+      "id": "H1-spread",
+      "verdict": "INFO",
+      "evidence": {
+        "firstTwoMonths": [
+          {
+            "date": "2026-10-31",
+            "amountCents": 5583,
+            "installment": 1
+          },
+          {
+            "date": "2026-11-30",
+            "amountCents": 5583,
+            "installment": 2
+          }
+        ]
+      },
+      "note": "Read-only: spread plan for a JPY amount."
+    },
+    {
+      "id": "H1-prepaid-line",
+      "verdict": "FIXED",
+      "evidence": {
+        "line": {
+          "accountId": "exp",
+          "baseCents": 44890
+        }
+      },
+      "note": "\u00a567,000 at 0.0067 = $448.90 = 44,890 cents (FIXED); the old code returned 449 cents (LIVE); anything else needs a human."
+    }
+  ],
+  "runAt": "2026-11-19"
+}

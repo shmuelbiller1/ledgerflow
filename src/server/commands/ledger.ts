@@ -36,6 +36,7 @@ async function prepareJournal(ctx: Omit<CommandContext, 'prepared' | 'afterCommi
   if (docKey) throw new HttpError(`${docKey} are saved and posted by the server; use the document command instead of journal.create.`, 400);
   const transactionToSave = { ...parsed.data, id: parsed.data.id || db.collection('transactions').doc().id } as Transaction;
   const validated = await TransactionValidator.validateAndPrepare(transactionToSave, {
+    db,
     workspaceId: transactionToSave.workspaceId,
     user: { uid: ctx.actor, admin: ctx.user.admin },
     wsData: ctx.workspace,

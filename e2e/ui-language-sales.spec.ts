@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 for (const width of [390, 1280]) test(`Accessibility & language sets Hebrew and Sales uses RTL at ${width}px`, async ({ page }) => {
+  // several first visits (home, Help, Sales) can each wait on a dev-server build, so the test gets room for them
+  test.setTimeout(90_000);
   await page.setViewportSize({ width, height: 900 });
   await page.addInitScript(() => {
     localStorage.setItem('ledgerflow-cookie-consent', 'accepted');
@@ -20,7 +22,8 @@ for (const width of [390, 1280]) test(`Accessibility & language sets Hebrew and 
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 
   await page.goto('/#sales');
-  await expect(page.getByRole('heading', { name: 'מכירות', exact: true })).toBeVisible();
+  // the dev server builds the Sales screen on its first visit, which can outlast the 5 s default on a busy runner
+  await expect(page.getByRole('heading', { name: 'מכירות', exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('button', { name: 'חשבוניות', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'לקוחות', exact: true })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'מספר', exact: true })).toBeAttached();

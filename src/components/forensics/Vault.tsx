@@ -17,6 +17,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { cn, safeConfirm, formatCurrency, getLocalDateISO } from '../../lib/utils';
+import { safeDownloadDocumentUrl, safeEmbeddedDocumentUrl } from '../../lib/documentUrl';
 import AsyncButton from '../ui/AsyncButton';
 import { collection, query, where, onSnapshot } from '../../lib/db/firestore';
 import { saveDocument } from '../../lib/recordWrites';
@@ -166,8 +167,14 @@ export default function Vault() {
     setExtractedData(null);
 
     try {
+      // #915: the row is writable by every member, so only a stored data: file or an https link is read.
+      const sourceUrl = safeEmbeddedDocumentUrl(selectedDoc.fileUrl);
+      if (!sourceUrl) {
+        toast.error('This file address is not a PDF, image or https link, so it cannot be scanned.');
+        return;
+      }
       // Create a temporary File object from the blob URL
-      const response = await fetch(selectedDoc.fileUrl);
+      const response = await fetch(sourceUrl);
       const blob = await response.blob();
       const file = new window.File([blob], selectedDoc.name, { type: selectedDoc.mimeType });
 
@@ -314,6 +321,10 @@ export default function Vault() {
     setMonth('all');
     setFilterTag(null);
   };
+
+  // #915: the row is writable by every member, so the address is narrowed before it is painted or fetched.
+  const embedUrl = selectedDoc ? safeEmbeddedDocumentUrl(selectedDoc.fileUrl) : null;
+  const downloadUrl = selectedDoc ? safeDownloadDocumentUrl(selectedDoc.fileUrl) : null;
 
   return (
     <div className="space-y-8 h-full min-w-0 flex flex-col">
@@ -542,9 +553,9 @@ export default function Vault() {
               </div>
 
               <div className="flex-1 bg-[var(--ink)]/20 p-12 flex items-center justify-center overflow-auto">
-                {selectedDoc.mimeType.startsWith('image/') ? (
+                {embedUrl && selectedDoc.mimeType.startsWith('image/') ? (
                   <img 
-                    src={selectedDoc.fileUrl} 
+                    src={embedUrl} 
                     alt={selectedDoc.name}
                     className="max-w-full max-h-full rounded-[32px] shadow-[0_40px_100px_rgba(0,0,0,0.2)] border border-[var(--line)] object-contain"
                     referrerPolicy="no-referrer"
@@ -558,15 +569,15 @@ export default function Vault() {
                       <h3 className="text-xl font-black text-[var(--text)] tracking-tight">Preview Restricted</h3>
                       <p className="text-sm font-medium text-[var(--muted)] mt-2">MIME: {selectedDoc.mimeType}</p>
                     </div>
-                    <a 
-                      href={selectedDoc.fileUrl} 
+                    {downloadUrl ? (<a 
+                      href={downloadUrl} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="h-14 px-8 bg-slate-900 text-white rounded-[32px] inline-flex items-center gap-3 font-black text-xs uppercase tracking-widest hover:bg-black shadow-xl"
                     >
                       <Download aria-hidden="true" size={20} />
                       Export to Reader
-                    </a>
+                    </a>) : <p className="text-xs font-medium text-[var(--muted)]">This file has no safe address to open (only stored files and https links are opened).</p>}
                   </div>
                 )}
               </div>
@@ -667,14 +678,14 @@ export default function Vault() {
                         </>
                       )}
                     </button>
-                    <a 
-                      href={selectedDoc.fileUrl}
+                    {downloadUrl ? (<a 
+                      href={downloadUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="h-14 px-8 bg-[var(--surface)] border border-[var(--line)] text-[var(--text)] rounded-[32px] flex-[0.7] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-[var(--ink)] transition-all flex items-center justify-center gap-3">
                       <ExternalLink aria-hidden="true" size={18} />
                       Raw
-                    </a>
+                    </a>) : null}
                     <AsyncButton aria-label={`Delete document ${selectedDoc.name}`}
                       onClick={async () => handleDelete(selectedDoc.id)}
                       className="w-14 h-14 flex items-center justify-center bg-rose-50 text-rose-500 rounded-[32px] hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-rose-100"

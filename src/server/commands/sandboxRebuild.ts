@@ -2,11 +2,11 @@ import type { RequestUser } from '../auth/requestUser';
 import { FirestoreError } from '../db/firestore';
 import { refKey } from '../db/pg/commandStage';
 import type { DraftPhase } from '../db/pg/sandboxBatch';
-import { clearDraft, saveStep, type StoredStep } from '../db/pg/sandboxReviewStore';
+import { clearDraft, draftWritableTables, overlayTables, saveStep, type StoredStep } from '../db/pg/sandboxReviewStore';
 import { isRetryable } from '../db/pg/sql';
 import { CommandRefusal, errorOutcome } from '../utils/commandExecutor';
 import { requestPayloadHash } from '../utils/idempotency';
-import { overlayCollections, prepareDraftStep, stepCommand } from './sandboxStepCommands';
+import { prepareDraftStep, stepCommand } from './sandboxStepCommands';
 
 export interface ReviewActor { user: RequestUser; workspaceId: string; sandboxId: string; workspace: Record<string, unknown> }
 export type StepIntent = Pick<StoredStep, 'id' | 'position' | 'command' | 'input'>;
@@ -43,7 +43,8 @@ export function stepFailure(err: unknown, step: StepIntent): CommandRefusal {
 }
 
 export async function saveDraftStep(phase: DraftPhase, actor: ReviewActor, intent: StepIntent, ids: Map<string, string>): Promise<StoredStep> {
-  const { command, writable } = stepCommand(intent.command);
+  const command = stepCommand(intent.command);
+  const writable = new Set(await draftWritableTables(phase.runner));
   const { value, dependencies, allocatedIds } = await phase.stage({ ids, writable }, (db, tx) => prepareDraftStep(actor, db, tx, command, intent.input));
   return { ...intent, input: value.input, preview: { ...value.preview, allocatedIds }, dependencies,
     recordIds: dependencies.filter(ref => ref.written && !ref.fromOverlay && ref.baseVersion === null).map(({ collectionId, id }) => ({ collectionId, id })),
@@ -78,7 +79,7 @@ async function retryDraftStep(phase: DraftPhase, actor: ReviewActor, step: Store
 
 /** Re-run commands, never copy overlay rows, even for a human edit or a version recheck. */
 export async function rebuildDraft(phase: DraftPhase, actor: ReviewActor, steps: readonly StoredStep[], strict: boolean, edited = new Set<string>()) {
-  await clearDraft(phase.runner, overlayCollections);
+  await clearDraft(phase.runner, await overlayTables(phase.runner));
   const changed = new Set<string>();
   const failed = new Set<string>();
   const rows: StoredStep[] = [];

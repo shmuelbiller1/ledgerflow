@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Agent6 Security <agent6@ledgerflow.local>
+Date: 2026-11-19
+Subject: [PATCH] fix(api): reject empty query parameter name on GET /api/v1/transactions (A6S-07 #2)
+
+For AI #1 lane (src/server). Verified at pin 5eacf71: `curl ?=` returned 200.
+Refs: issue #827 §2, Schemathesis ST201.
+
+diff --git a/src/server/routes/transactions/crudRoutes.ts b/src/server/routes/transactions/crudRoutes.ts
+--- a/src/server/routes/transactions/crudRoutes.ts
++++ b/src/server/routes/transactions/crudRoutes.ts
+@@ -58,6 +58,8 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router): void {
+       if (!wsDoc.exists || !isWorkspaceMemberData(wsDoc.data(), user, workspaceId)) {
+         return res.status(403).json({ error: 'Not a member' });
+       }
+ 
++      // #827: a query parameter without a name is a malformed request, not an ignorable one
++      if (Object.prototype.hasOwnProperty.call(req.query, '')) return res.status(400).json({ error: 'A query parameter has no name' });
+       const { startDate, endDate, accountId, limit, cursor } = req.query;
+       // Z-04: ?fields=date,description,… returns only those fields (and the id)
+       let fields: string[] | null;
+
+--
+2.40.0
