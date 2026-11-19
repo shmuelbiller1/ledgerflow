@@ -46,6 +46,7 @@ export const SalesByItemReportView: React.FC<Props> = ({ selectedYear, startDate
           <p className="text-xs text-[var(--muted)] mt-0.5">
             {reportText('r.items-sold-on-issued-invoices-in-your-base-curre', 'Items sold on issued invoices, in your base currency, with cost of goods sold and margin.')}
           </p>
+          {source === 'refreshing' && <p role="status" className="text-xs text-[var(--muted)] mt-1" data-testid="sales-by-item-source">{reportText('r.updating-item-sales', 'Updating this period. Figures shown are from the previous full report.')}</p>}
           {source === 'server' && <p className="text-xs text-[var(--muted)] mt-1" data-testid="sales-by-item-source">{reportText('r.every-invoice-in-this-period-read-from-the-serve', 'Every invoice in this period, read from the server.')}</p>}
           {source === 'loaded-incomplete' && <p role="status" className="text-xs text-amber-700 dark:text-amber-300 mt-1" data-testid="sales-by-item-source">{reportText('r.only-the-invoices-loaded-in-this-browser-some-sa', 'Only the invoices loaded in this browser: some sales or posted costs may be missing.')}</p>}
           {retry}

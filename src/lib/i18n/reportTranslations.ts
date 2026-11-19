@@ -277,6 +277,7 @@ export const REPORTS_TRANSLATION_BUNDLE: ScreenTranslationBundle = {
     { key: 'r.every-invoice-in-this-period-read-from-the-serve', en: 'Every invoice in this period, read from the server.', he: 'כל החשבוניות בתקופה זו, כפי שנקראו מהשרת.' },
     { key: 'r.only-the-invoices-loaded-in-this-browser-some-sa', en: 'Only the invoices loaded in this browser: some sales or posted costs may be missing.', he: 'רק החשבוניות שנטענו בדפדפן זה: ייתכן שחסרות מכירות או עלויות שנרשמו.' },
     { key: 'r.margin-2', en: 'Margin', he: 'שוליים' },
+    { key: 'r.updating-item-sales', en: 'Updating this period. Figures shown are from the previous full report.', he: 'הדוח לתקופה זו מתעדכן. הנתונים המוצגים הם מהדוח המלא הקודם.' },
     { key: 'r.no-matches-in-subset', en: 'No matching records were loaded. This report is incomplete; the full period may contain activity.', he: 'לא נטענו רשומות תואמות. הדוח חלקי; ייתכן שיש פעילות בתקופה המלאה.' },
     { key: 'r.retry-full-report', en: 'Retry full report', he: 'טעינת הדוח המלא מחדש' },
     { key: 'r.no-invoice-lines-found-for-the-selected-period', en: 'No invoice lines found for the selected period.', he: 'לא נמצאו שורות חשבונית בתקופה שנבחרה.' },

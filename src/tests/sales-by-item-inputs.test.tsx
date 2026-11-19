@@ -7,6 +7,7 @@ import SalesByItem from '../components/reporting/SalesByItemReportView';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useAuthStore } from '../stores/useAuthStore';
+import { chart, stock, invoices, entries, Y } from './helpers/l123SalesLedger';
 import { computeSalesByItem } from '../server/reports/itemReports';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 
@@ -97,6 +98,27 @@ describe('Sales by Item: unknown is not zero', () => {
     assert.ok(!screen.queryByText(empty));
     await act(async () => { responses[1](new Response(null, { status: 503 })); });
     assert.ok(screen.getByRole('button', { name: 'Retry full report' }));
+  });
+
+  it('keeps a labelled previous nonempty result during a live refresh, but never across a book switch', async () => {
+    const ws = 'component-workspace';
+    const items = stock(ws);
+    const full = computeSalesByItem({ invoices: invoices(ws), transactions: entries(ws), accounts: chart(ws), items });
+    useLedgerStore.setState({ truncatedCollections: { invoices: true } });
+    stubFetch(200, full);
+    render(<SalesByItem selectedYear={Number(Y)} />);
+    assert.ok(await screen.findByText('Gadget'));
+    let finish!: (result: Response) => void;
+    globalThis.fetch = () => new Promise<Response>(resolve => { finish = resolve; });
+    act(() => useLedgerStore.setState({ inventory: items }));
+    assert.ok(screen.getByText('Gadget'));
+    assert.match(screen.getByTestId('sales-by-item-source').textContent || '', /updating/i);
+    await waitFor(() => assert.ok(finish));
+    act(() => useAuthStore.setState({ currentWorkspaceId: 'book-b' }));
+    assert.ok(!screen.queryByText('Gadget'));
+    act(() => useAuthStore.setState({ currentWorkspaceId: ws }));
+    assert.ok(!screen.queryByText('Gadget'));
+    assert.ok(screen.getByText('Loading report records…'));
   });
 
   it('does not make guest sample books wait for database subscriptions', () => {
