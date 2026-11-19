@@ -57,8 +57,11 @@ async function executeStep(actor: StepActor, db: Firestore, tx: Transaction, com
   recordCommandReads(db, 'workspaces', [workspaceId]);
   const role = assertCommandCommitAccess(command, workspace, user, workspaceId);
   const input = parseCommandInput(command, proposed, workspaceId);
-  await checkExplicitLinks(command.name, input, db, tx, workspaceId);
   const base = { actor: user.uid, email: user.email, user, workspaceId, db, role, workspace };
+  // the router always runs the command's own input check (cross-workspace payloads, quotas); a drafted
+  // step and its replay at accept run it too, or a step could commit what a direct call refuses (Gitar on #932)
+  await command.authorizeInput?.(base, input);
+  await checkExplicitLinks(command.name, input, db, tx, workspaceId);
   const date = resolveCommandDate(command, base, input);
   if (date) assertCommandCommitAccess(command, workspace, user, workspaceId, date);
   const ctx = { ...base, effectiveDate: date };

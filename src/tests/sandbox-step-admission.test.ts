@@ -102,6 +102,15 @@ describe('SBX-1 step admission: the registry, high-risk acceptance and plan limi
       assert.equal(await f.count('auditLogs'), 0);
     });
 
+    // Gitar on #932: a drafted step runs the command's own input check, as the router does
+    test('a step whose input the command itself refuses is refused as a draft too', { timeout: 15_000 }, async t => {
+      const f = await setup(t);
+      const elsewhere = { ...f.journal.transaction, workspaceId: `${f.workspaceId}-other` };
+      await assert.rejects(f.add('journal.bulk', { transactions: [elsewhere] }), { code: 'WORKSPACE_MISMATCH' });
+      assert.equal(await f.count('transactions', f.draft), 0);
+      assert.equal(await f.count('transactions'), 0);
+    });
+
     test('a step that writes outside the books is refused at the door and keeps nothing', { timeout: 15_000 }, async t => {
       const f = await setup(t);
       await assert.rejects(f.add('autorule.learn', { description: 'Monthly hosting', accountId: f.id('fees'), accountName: 'Bank fees' }),
