@@ -30,9 +30,15 @@ const SETUP_STRINGS = {
     he: 'עוברים מ־QuickBooks, ‏Xero או ‏Wave? אפשר לייבא לקוחות, ספקים, פריטים, תרשים חשבונות ויתרות פתיחה; בסוף התהליך נבדוק שמאזן הביקורת תואם.',
   },
   'setup.comingFrom.button': { en: 'Bring in my books', he: 'ייבוא הספרים שלי' },
+  // Two shapes, because on the first step no business type is chosen yet: the chosen one is only named
+  // once the person picks a preset, and a non-profit's fund keeps its stored name with its role explained.
   'setup.suggestedLabels': {
-    en: 'Suggested labels: {labels}. Existing labels stay unchanged. Fund is self-balancing for a new non-profit label.',
-    he: 'תגיות מוצעות: {labels}. תגיות קיימות נשארות ללא שינוי. התגית Fund מאזנת את עצמה בתגית חדשה של עמותה.',
+    en: 'Suggested labels: {labels}. Existing labels stay unchanged.',
+    he: 'תגיות מוצעות: {labels}. תגיות קיימות נשארות ללא שינוי.',
+  },
+  'setup.suggestedLabels.selfBalancing': {
+    en: ' The {label} label is self-balancing: every line needs one, and each one balances in every entry.',
+    he: ' התגית {label} מאזנת את עצמה: כל שורה צריכה אותה, וכל תגית מאזנת בכל תנועה.',
   },
   'setup.labels.none': { en: 'None', he: 'ללא' },
   'setup.field.name': { en: 'Business name', he: 'שם העסק' },

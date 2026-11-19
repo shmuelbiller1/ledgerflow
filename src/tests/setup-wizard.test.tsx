@@ -63,6 +63,23 @@ describe('Setup wizard', () => {
     assert.ok(screen.getByText(/Your starter settings are ready/));
   });
 
+  test('the suggested-labels sentence names the chosen preset and explains a self-balancing label only there', () => {
+    render(<SetupWizard onStarted={() => {}} onDone={() => {}} />);
+    // Before a business type is chosen there are no suggested labels, and nothing is claimed about a fund.
+    assert.ok(screen.getByText(/Suggested labels: None\. Existing labels stay unchanged\.$/));
+    assert.equal(screen.queryByText(/self-balancing/), null);
+
+    // Non-profit: the fund keeps its stored English name (it is data, a person may rename it) and its role is explained.
+    fireEvent.click(screen.getByLabelText('Non-profit'));
+    assert.ok(screen.getByText(/Suggested labels: Fund and Program\./));
+    assert.ok(screen.getByText(/The Fund label is self-balancing/));
+
+    // A preset with no self-balancing label says nothing about one.
+    fireEvent.click(screen.getByLabelText('Shop'));
+    assert.ok(screen.getByText(/Suggested labels: Location\./));
+    assert.equal(screen.queryByText(/self-balancing/), null);
+  });
+
   test('viewers are told to ask an owner or accountant', () => {
     useAuthStore.setState({ user: { uid: 'v1' } as never, workspaces: [{ id: 'w1', uid: 'u1', name: 'Acme', roles: { v1: 'viewer' } } as unknown as Workspace] });
     render(<SetupWizard onStarted={() => {}} onDone={() => {}} />);
