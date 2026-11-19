@@ -21,7 +21,7 @@ const accounts = [
   makeChartAccount({ id: 'sales', code: '4000', name: 'Sales', type: 'income', category: 'Revenue' }),
 ];
 const posted = [
-  makeTransaction({ id: 'tx-1', workspaceId: 'component-workspace', date: '2026-03-04', description: 'March sale', status: 'posted', lines: [{ accountId: 'cash', amountCents: 50_000 }, { accountId: 'sales', amountCents: -50_000 }] }),
+  makeTransaction({ id: 'tx-1', workspaceId: 'component-workspace', date: '2026-03-04', description: 'March sale', status: 'approved', lines: [{ accountId: 'cash', amountCents: 50_000 }, { accountId: 'sales', amountCents: -50_000 }] }),
 ];
 
 beforeEach(() => {

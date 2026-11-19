@@ -17,6 +17,7 @@ const FILES = [
   '../components/ledger/BalanceSheetView.tsx',
   // R-7: "why did this change?" — the panel both statements show
   '../components/reporting/StatementChangePanel.tsx',
+  '../components/reporting/YearEndPackView.tsx',
   '../components/ledger/CashFlowView.tsx',
   '../components/reporting/PartyAgingReportView.tsx',
   '../components/reporting/ExpenseByCategoryReportView.tsx',

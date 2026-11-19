@@ -308,6 +308,8 @@ export const SCREEN_HELP: Record<string, Record<string, string>> = {
       "Review the existing sales-tax liability report. Select dates and inspect taxable amounts and tax totals. Review the report scope before using it for a tax filing.",
     "accountant-export-pack":
       "Choose one period and prepare a pack for your accountant: trial balance, general ledger, A/R, A/P and tax liability by month, with the cross-checks written in its README. Download it as one ZIP of CSV files (UTF-8, so Excel shows Hebrew and accents) or print it to PDF. The figures come from the same report code as the screens and nothing here posts or files anything. A/R and A/P are what is still open on the day you prepare the pack, and a list that reached its browser limit blocks the download instead of shipping an incomplete pack.",
+    "year-end-pack":
+      "One page for the year: profit and loss, balance sheet, trial balance, what customers and vendors owe at the year end, fixed assets held and the closing checklist of the year's last month, each with a link to its full report and all of it on one printed page or PDF. The figures are the reports' own figures, and the top line says whether the trial balance and the books balance in the data loaded here. Read-only: nothing here posts, closes or files anything, and when this browser's lists are capped the pack says so instead of looking complete.",
     "landed-cost-preview":
       "Preview how freight, duty and handling spread across a purchase order receipt's lines (or a scanned receipt draft) by line value or by quantity. The allocated extra cents sum to the exact extra cost. Preview only: nothing here posts to inventory or bills (posting stays on the receipt/bill path).",
     "delivery-notes":
