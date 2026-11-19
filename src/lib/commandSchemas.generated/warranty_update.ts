@@ -12,12 +12,12 @@ export const COMMAND_INPUT_SCHEMA = {
           "minLength": 1,
           "maxLength": 1000
         },
-        "workspaceId": COMMAND_SCHEMA_PARTS.part97,
-        "customerId": COMMAND_SCHEMA_PARTS.part97,
-        "invoiceId": COMMAND_SCHEMA_PARTS.part97,
-        "invoiceLineId": COMMAND_SCHEMA_PARTS.part97,
-        "itemId": COMMAND_SCHEMA_PARTS.part97,
-        "serial": COMMAND_SCHEMA_PARTS.part91
+        "workspaceId": COMMAND_SCHEMA_PARTS.part100,
+        "customerId": COMMAND_SCHEMA_PARTS.part100,
+        "invoiceId": COMMAND_SCHEMA_PARTS.part100,
+        "invoiceLineId": COMMAND_SCHEMA_PARTS.part100,
+        "itemId": COMMAND_SCHEMA_PARTS.part100,
+        "serial": COMMAND_SCHEMA_PARTS.part93
       },
       "required": [
         "id",
@@ -30,7 +30,7 @@ export const COMMAND_INPUT_SCHEMA = {
       ],
       "additionalProperties": false
     },
-    "endDate": COMMAND_SCHEMA_PARTS.part55
+    "endDate": COMMAND_SCHEMA_PARTS.part56
   },
   "required": [
     "candidate",

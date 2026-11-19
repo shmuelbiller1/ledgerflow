@@ -58,7 +58,12 @@ function containsCommandRunnerCall(node: ts.Node): boolean {
   // executeCommand. `handleCreatePayment` is the same shape in paymentRoutes.ts: the handler is exported
   // for the two suites that call it directly, and its body is the runner invocation. Naming an
   // unconverted helper here would not help it: the ratchet can only shrink, and the file's count fell.
-  const commandRunners = new Set(['executeCommand', 'previewCommand', 'runLegacyCommand', 'handleCreatePayment']);
+  // `openSandbox`, `reviewSandbox` and `undoSandboxStep` are the SBX-1 review service (commands/sandboxReview.ts):
+  // drafting writes only the sandbox overlay, never a real row; accepting replays each step through the shared
+  // runner's validation, prepare, handler and audit path (`replayReviewedStep`), and undo calls
+  // `runRegisteredCommand` on the step's recorded inverse. They are the proposal door of CMD-1 part 3, not a
+  // second way to write the books.
+  const commandRunners = new Set(['executeCommand', 'previewCommand', 'runLegacyCommand', 'handleCreatePayment', 'openSandbox', 'reviewSandbox', 'undoSandboxStep']);
   const visit = (child: ts.Node) => {
     if (ts.isCallExpression(child) && commandRunners.has(callName(child) || '')) found = true;
     if (!found) ts.forEachChild(child, visit);
@@ -76,14 +81,27 @@ function containsCommandRunnerCall(node: ts.Node): boolean {
  * `commands-baseline.test.ts` checks that it still matches a real route, so an exception cannot
  * outlive the code it describes.
  */
-export interface ReadOnlyRouteException {
+export interface PostRouteException {
   file: string;
   /** The route's own path string, as the router declares it. */
   route: string;
   why: string;
 }
 
-export const READ_ONLY_ROUTE_EXCEPTIONS: readonly ReadOnlyRouteException[] = [
+export const READ_ONLY_ROUTE_EXCEPTIONS: readonly PostRouteException[] = [
+  {
+    file: 'src/server/routes/sandboxRoutes.ts',
+    route: '/:sandboxId/tools/:tool',
+    why: 'The assistant\'s read tools (SBX-1): list, get and search records, run a report, explain a number, '
+      + 'read a question, calculate. They are posted because a filter list or an account list does not fit in '
+      + 'a link. Every one reads through the sandbox handle and answers; nothing is written or audited.',
+  },
+  {
+    file: 'src/server/routes/sandboxRoutes.ts',
+    route: '/:sandboxId/token',
+    why: 'Issues a fresh assistant token for a sandbox the signed-in person already owns, signed from the '
+      + 'session alone (auth/assistantToken.ts). It reads the binding and the live role; it writes nothing.',
+  },
   {
     file: 'src/server/routes/transactions/reconcileRoutes.ts',
     route: '/reconciliation/match',
@@ -133,6 +151,47 @@ export const READ_ONLY_ROUTE_EXCEPTIONS: readonly ReadOnlyRouteException[] = [
       + 'through the command (lease.capitalize), and revenue recognition through revenue.recognize.',
   })),
   {
+    file: 'src/server/routes/brandingRoutes.ts', route: '/preview',
+    why: 'Renders a synthetic sample invoice with the submitted branding. It saves no branding and cannot claim a stored document’s original.',
+  },
+  {
+    file: 'src/server/routes/developerApiRoutes.ts', route: '/api/v1/bank/map',
+    why: 'Reads chart accounts and suggests a mapping for the supplied rows. No bank lines, rules or ledger entries are written by the handler.',
+  },
+  {
+    file: 'src/server/routes/ledgerMatchRoutes.ts', route: '/api/v1/ledger/match',
+    why: 'Reads rules and recent entries to suggest a match in memory; the handler neither links a bank line nor posts an entry.',
+  },
+  {
+    file: 'src/server/routes/reportRoutes.ts', route: '/explain',
+    why: 'Explains report totals and counts existing evidence; accepts POST for large filters, not to change the books.',
+  },
+  {
+    file: 'src/server/routes/logsUploadRoutes.ts', route: '/api/upload-bank-csv',
+    why: 'Parses an uploaded bank CSV and deletes the temporary file. The response is a candidate list, not an import into the books.',
+  },
+  {
+    file: 'src/server/routes/openItemImportRoutes.ts', route: '/preview',
+    why: 'Validates the CSV against existing contacts, accounts and periods without saving documents. The separate /confirm still counts.',
+  },
+];
+
+/** Provider operations, not read-only: session starts with no books write, and the payout
+ * protocol whose local journal must follow the processor outcome, one vendor at a time. */
+export const PROVIDER_ROUTE_EXCEPTIONS: readonly PostRouteException[] = [
+  {
+    file: 'src/server/routes/billingRoutes.ts', route: '/checkout',
+    why: 'Opens a Stripe-hosted checkout session with a provider idempotency key. It does not upgrade a plan or grant credits; verification/webhook writes are separate.',
+  },
+  {
+    file: 'src/server/routes/billingRoutes.ts', route: '/portal',
+    why: 'Opens a short-lived Stripe billing portal session without updating any local subscription, workspace or book record.',
+  },
+  {
+    file: 'src/server/routes/plaidRoutes.ts', route: '/create_link_token',
+    why: 'Requests a short-lived Plaid Link token, optionally for update mode. It stores neither a bank connection nor statement lines.',
+  },
+  {
     file: 'src/server/routes/paymentRoutes.ts',
     route: '/payout-run',
     why: 'Sends real money: one processor transfer per vendor before any payment is recorded, and it '
@@ -156,25 +215,40 @@ function isRouteRegistration(node: ts.CallExpression): boolean {
   return WRITE_METHODS.has(callName(node) || '') && node.arguments.length >= 2;
 }
 
+function routeRegistrations(file: string): ts.CallExpression[] {
+  const source = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const registrations: ts.CallExpression[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && isRouteRegistration(node)) registrations.push(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return registrations;
+}
+
+const postExceptions = [...READ_ONLY_ROUTE_EXCEPTIONS, ...PROVIDER_ROUTE_EXCEPTIONS];
+
+function matchesPostException(node: ts.CallExpression, route: string) {
+  const pathArg = node.arguments[0];
+  return callName(node) === 'post' && ts.isStringLiteralLike(pathArg) && pathArg.text === route;
+}
+
+/** An exemption must correspond to a live, unconverted POST registration, not to a comment or a string elsewhere. */
+export function matchingUnconvertedPosts({ file, route }: PostRouteException): number {
+  return routeRegistrations(path.join(ROOT, file)).filter(node => matchesPostException(node, route) && !containsCommandRunnerCall(node)).length;
+}
+
 function countWriteRoutes(): { total: number; sites: Record<string, number> } {
   const sites: Record<string, number> = {};
   for (const file of walk(ROUTE_ROOT)) {
-    const source = fs.readFileSync(file, 'utf8');
-    const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-    let count = 0;
     const relativeFile = path.relative(ROOT, file).split(path.sep).join('/');
-    const visit = (node: ts.Node) => {
-      if (ts.isCallExpression(node) && isRouteRegistration(node)) {
-        const pathNames = stringValues(node.arguments[0]);
-        const excluded = pathNames.some(value => /(?:^|\/)\/?(?:admin|system)(?:\/|$)/.test(value.replace(/^\/+/, '')));
-        // a POST that only reads is not a write: see READ_ONLY_ROUTE_EXCEPTIONS
-        const readOnly = READ_ONLY_ROUTE_EXCEPTIONS.some(exception => exception.file === relativeFile && pathNames.includes(exception.route));
-        if (!excluded && !readOnly && !containsCommandRunnerCall(node)) count += 1;
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(ast);
-    if (count) sites[path.relative(ROOT, file).split(path.sep).join('/')] = count;
+    const exceptions = postExceptions.filter(e => e.file === relativeFile);
+    const count = routeRegistrations(file).filter(node => {
+      const excluded = stringValues(node.arguments[0]).some(value => /(?:^|\/)\/?(?:admin|system)(?:\/|$)/.test(value.replace(/^\/+/, '')));
+      const exceptedPost = exceptions.some(e => matchesPostException(node, e.route));
+      return !excluded && !exceptedPost && !containsCommandRunnerCall(node);
+    }).length;
+    if (count) sites[relativeFile] = count;
   }
   return { total: Object.values(sites).reduce((sum, n) => sum + n, 0), sites: Object.fromEntries(Object.entries(sites).sort(([a], [b]) => a.localeCompare(b))) };
 }

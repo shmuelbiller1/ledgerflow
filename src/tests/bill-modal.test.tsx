@@ -118,6 +118,68 @@ describe('Bill dialog', () => {
     assert.equal(saved[0].status, 'approved');
   });
 
+  test('G-19: approving an already-pending bill over the threshold finishes the decision', async () => {
+    // A bill held for approval (status 'pending') is being decided by the reviewer, not
+    // submitted again. The submission threshold must not loop it back to 'pending'.
+    const saved = setup({ id: 'b1', number: 'B-701', vendorId: 'v1', vendorName: 'Paper Co', status: 'pending', date: '2026-09-01', dueDate: '2026-09-30', splits: [{ amountCents: 600000, accountId: 'exp', description: 'Paper' }] });
+    await click('Approve Bill');
+    await waitFor(() => assert.equal(saved.length, 1));
+    assert.equal(saved[0].status, 'approved');
+    assert.equal(saved[0].id, 'b1');
+  });
+
+  test('G-19 (Gitar #911): a pending bill raised above its saved amount is held again, not approved', async () => {
+    // 'pending' is also how an ordinary new bill is first saved, so a reviewer's decision may only
+    // stand when the amount has not grown since. Otherwise anyone could save 100.00, reopen it at
+    // 50,000.00 and approve it in one click, skipping the threshold entirely.
+    const saved = setup({ id: 'b1', number: 'B-703', vendorId: 'v1', vendorName: 'Paper Co', status: 'pending', date: '2026-09-01', dueDate: '2026-09-30', amountCents: 10000, lineSumCents: 10000, splits: [{ amountCents: 10000, accountId: 'exp', description: 'Paper' }] });
+    type(screen.getAllByLabelText(/^Amount \(/)[0], '6000');
+    await click('Approve Bill');
+    await waitFor(() => assert.equal(saved.length, 1));
+    assert.equal(saved[0].status, 'pending', 'a raised amount must go back to the hold');
+    assert.equal(saved[0].metadata?.approvalHeld, true, 'the hold is recorded with the bill');
+  });
+
+  test('G-19 (Gitar #911): a non-approver cannot move a held bill out of review by changing its status', async () => {
+    const before = useAuthStore.getState();
+    const workspace = { id: 'w1', name: 'W', currency: 'USD', uid: 'owner', roles: { book: 'bookkeeper' } } as unknown as Workspace;
+    useAuthStore.setState({ currentWorkspaceId: 'w1', workspaces: [workspace], user: { uid: 'book', email: 'book@example.test' } as never });
+    const saved = setup({ id: 'b1', number: 'B-704', vendorId: 'v1', vendorName: 'Paper Co', status: 'pending', date: '2026-09-01', dueDate: '2026-09-30', amountCents: 600000, lineSumCents: 600000, splits: [{ amountCents: 600000, accountId: 'exp', description: 'Paper' }] });
+    const status = screen.getByLabelText('Status') as HTMLSelectElement;
+    assert.equal(status.disabled, true, 'the status is locked while the bill is held');
+    fireEvent.change(status, { target: { value: 'unpaid' } });
+    await click('Save & Close');
+    await waitFor(() => assert.equal(saved.length, 1));
+    assert.equal(saved[0].status, 'pending', 'the bill stays in review until an approver decides');
+    useAuthStore.setState({ user: before.user, workspaces: before.workspaces, currentWorkspaceId: before.currentWorkspaceId });
+  });
+
+  test('A8-034: a bookkeeper is not offered the approval decision; an accountant and a named delegate are', async () => {
+    const before = useAuthStore.getState();
+    const workspace = { id: 'w1', name: 'W', currency: 'USD', uid: 'owner', roles: { book: 'bookkeeper', acc: 'accountant', del: 'bookkeeper' } } as unknown as Workspace;
+    const as = (uid: string) => useAuthStore.setState({ currentWorkspaceId: 'w1', workspaces: [workspace], user: { uid, email: `${uid}@example.test` } as never });
+    const pending = { id: 'b1', number: 'B-702', vendorId: 'v1', vendorName: 'Paper Co', status: 'pending' as const, date: '2026-09-01', dueDate: '2026-09-30', splits: [{ amountCents: 2500, accountId: 'exp', description: 'Paper' }] };
+
+    as('book');
+    setup(pending);
+    assert.equal(screen.queryByText('Approve Bill'), null, 'a bookkeeper may not approve a bill');
+    assert.ok(screen.getByText('An owner or accountant approves a bill'), 'the dialog says who decides');
+    cleanup();
+
+    as('acc');
+    setup(pending);
+    assert.ok(screen.getByText('Approve Bill'), 'an accountant approves');
+    cleanup();
+
+    // BG-07: a bookkeeper named to approve in an accountant's place may decide until that day
+    as('del');
+    useAuthStore.setState({ workspaces: [{ ...workspace, approvalDelegates: [{ from: 'acc', to: 'del', until: '2999-12-31' }] } as never] });
+    setup(pending);
+    assert.ok(screen.getByText('Approve Bill'), 'a delegate approves in place');
+    // the auth store is shared by the whole file: put the signed-in identity back
+    useAuthStore.setState({ user: before.user, workspaces: before.workspaces, currentWorkspaceId: before.currentWorkspaceId });
+  });
+
   test('an edited bill keeps its number (no new number is asked for); no vendor, no save', async () => {
     const saved = setup({ id: 'b1', number: 'A-100', vendorId: 'v1', vendorName: 'Paper Co', status: 'pending', date: '2026-09-01', dueDate: '2026-09-30', splits: [{ amountCents: 2500, accountId: 'exp', description: 'Ink' }] });
     await click('Save & Close');

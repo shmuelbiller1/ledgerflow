@@ -1,6 +1,8 @@
+import { ReportInputBoundary } from './ReportInputBoundary';
 import React, { useState } from 'react';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useServerTopLines } from '../../hooks/useServerTopLines';
+import { AccountReportResult } from './AccountReportResult';
 import { BarChart3, TrendingDown, TrendingUp } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
@@ -14,7 +16,7 @@ interface Props {
   endDate?: string;
 }
 
-export const TopExpensesIncomeReportView: React.FC<Props> = ({
+const LoadedReport: React.FC<Props> = ({
   selectedYear,
   startDate,
   endDate
@@ -26,7 +28,7 @@ export const TopExpensesIncomeReportView: React.FC<Props> = ({
   const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
 
   // L-123 step 4a: with the loaded list capped, the list comes from the server (every entry of the range)
-  const { topExpenses, topIncome, source } = useServerTopLines(start, end, 25);
+  const { topExpenses, topIncome, ...read } = useServerTopLines(start, end, 25);
 
   const activeItems = activeTab === 'expenses' ? topExpenses : topIncome;
 
@@ -86,36 +88,34 @@ export const TopExpensesIncomeReportView: React.FC<Props> = ({
         </div>
       </div>
 
-      {source !== 'loaded' && (
-        <p role="note" className="text-xs text-neutral-600" data-testid="top-lines-source">
-          {source === 'server'
-            ? reportText('r.not-every-entry-is-loaded-in-this-browser-this-l', 'Not every entry is loaded in this browser: this list is read from every entry on the server.')
-            : reportText('r.not-every-entry-is-loaded-in-this-browser-and-th', 'Not every entry is loaded in this browser and the server could not be asked: this list covers the loaded entries only, so larger lines may be missing.')}
-        </p>
-      )}
-
-      <TanStackDataGrid
-        caption={reportText('r.top-expenses-and-income', 'Top expenses and income')}
-        data={activeItems}
-        columns={columns}
-        rowHeaderColumn="description"
-        pageSize={25}
-        searchPlaceholder={reportText('r.search-descriptions-payees-and-accounts', 'Search descriptions, payees and accounts...')}
-        searchLabel="Search descriptions, payees and accounts"
-        columnScope={`report-top-lines-${activeTab}`}
-        columnLabel={`Top ${activeTab} columns`}
-        columnNames={['Date', 'Description & Payee', 'Account / Category', 'Amount']}
-        exportConfig={{
-          filename: `top-${activeTab}.csv`,
-          label: reportText('r.export-csv', 'Export CSV'),
-          headers: ['Date', 'Description', 'Payee', 'Account / Category', 'Amount'],
-          mapRow: row => [row.date, row.description, row.payee || '', row.accountName, csvMoney(row.amountCents)],
-        }}
-        emptyState={<EmptyState title={activeTab === 'expenses' ? reportText('r.no-expenses-in-period', 'No expenses in this period') : reportText('r.no-income-in-period', 'No income in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
-        filteredEmptyState={<EmptyState title={reportText('r.no-record-matches-your-search', 'No record matches your search')} description={reportText('r.try-another-word-or-account', 'Try another word or account.')} />}
-      />
+      <AccountReportResult read={read} testId="top-lines-source" hasRows={activeItems.length > 0}>
+        <TanStackDataGrid
+          caption={reportText('r.top-expenses-and-income', 'Top expenses and income')}
+          data={activeItems}
+          columns={columns}
+          rowHeaderColumn="description"
+          pageSize={25}
+          searchPlaceholder={reportText('r.search-descriptions-payees-and-accounts', 'Search descriptions, payees and accounts...')}
+          searchLabel="Search descriptions, payees and accounts"
+          columnScope={`report-top-lines-${activeTab}`}
+          columnLabel={`Top ${activeTab} columns`}
+          columnNames={['Date', 'Description & Payee', 'Account / Category', 'Amount']}
+          exportConfig={read.source === 'loaded-incomplete' ? undefined : {
+            filename: `top-${activeTab}.csv`,
+            label: reportText('r.export-csv', 'Export CSV'),
+            headers: ['Date', 'Description', 'Payee', 'Account / Category', 'Amount'],
+            mapRow: row => [row.date, row.description, row.payee || '', row.accountName, csvMoney(row.amountCents)],
+          }}
+          emptyState={<EmptyState title={activeTab === 'expenses' ? reportText('r.no-expenses-in-period', 'No expenses in this period') : reportText('r.no-income-in-period', 'No income in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
+          filteredEmptyState={<EmptyState title={reportText('r.no-record-matches-your-search', 'No record matches your search')} description={reportText('r.try-another-word-or-account', 'Try another word or account.')} />}
+        />
+      </AccountReportResult>
     </div>
   );
 };
+
+export function TopExpensesIncomeReportView(props: Props) {
+  return <ReportInputBoundary><LoadedReport {...props} /></ReportInputBoundary>;
+}
 
 export default TopExpensesIncomeReportView;

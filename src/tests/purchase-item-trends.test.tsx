@@ -9,6 +9,7 @@ import PurchaseItemTrendsView from '../components/reporting/PurchaseItemTrendsVi
 import { PurchaseTrendsView } from '../components/reporting/DocumentTrendsView';
 import { setComponentWorkspace, markComponentCollectionsLoaded } from './helpers/componentFixtures';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { getSupabase } from '../lib/db/client';
 import type { Bill, InventoryItem } from '../types';
@@ -160,4 +161,44 @@ test('guest mode never requests authenticated history and invalid report dates d
   assert.match(screen.getByRole('status').textContent || '', /Guest sample/);
   assert.equal((screen.getByRole('button', { name: 'Export item trends CSV' }) as HTMLButtonElement).disabled, true);
   assert.match(screen.getByRole('alert').textContent || '', /valid report end date/);
+});
+
+test('a failed refresh keeps the last good item rows but closes both CSV routes until retry succeeds', async () => {
+  setup();
+  const answer = (input: RequestInfo | URL) => response(String(input).includes('/bills?')
+    ? [{ id: 'full', data: bill('full', '2026-03-05', { splits: [{ itemId: 'chair', quantity: 1, accountId: 'stock', amountCents: 3765 }] }) }]
+    : items.map(row => ({ id: row.id, data: row })));
+  globalThis.fetch = async input => answer(input);
+  render(<PurchaseItemTrendsView endDate="2026-03-31" />);
+  const load = () => fireEvent.click(screen.getByRole('button', { name: 'Load / refresh full history' }));
+  const csv = () => screen.getByRole<HTMLButtonElement>('button', { name: 'Export item trends CSV' });
+  const displayed = () => screen.queryByRole('button', { name: 'Export displayed rows CSV' });
+  fireEvent.click(await screen.findByRole('button', { name: 'Columns' }));
+  assert.equal(csv().disabled, true); assert.equal(displayed(), null);
+  await act(async () => { load(); });
+  assert.ok(screen.getByText('$37.65')); assert.equal(csv().disabled, false); assert.ok(displayed());
+  const requests: Array<(r: Response) => void> = [];
+  globalThis.fetch = async () => new Promise(resolve => requests.push(resolve));
+  load(); await waitFor(() => assert.equal(requests.length, 2));
+  assert.equal(csv().disabled, true); assert.equal(displayed(), null);
+  await act(async () => { requests[0](response([], 403)); requests[1](response([])); });
+  assert.match(screen.getByRole('alert').textContent || '', /last successful history remains displayed/);
+  assert.ok(screen.getByText('$37.65')); assert.equal(csv().disabled, true); assert.equal(displayed(), null);
+  globalThis.fetch = async input => answer(input);
+  await act(async () => { load(); });
+  assert.equal(screen.queryByRole('alert'), null); assert.equal(csv().disabled, false); assert.ok(displayed());
+});
+
+test('an unknown guest cap, failed inventory, and an unmatched period are not empty books', async () => {
+  setup(); useAuthStore.setState({ isGuest: true, user: null });
+  useLedgerStore.setState({ bills: [], isDataTruncated: true, truncatedCollections: {} });
+  render(<PurchaseItemTrendsView endDate="2026-03-31" />);
+  const empty = () => screen.queryByRole('button', { name: 'Open Purchases' });
+  assert.equal(empty(), null); assert.match(screen.getByRole('status').textContent || '', /missing/);
+  await act(async () => { useDataNeedsStore.setState({ failed: { inventory: 'Unavailable' } }); useLedgerStore.setState({ isDataTruncated: false }); });
+  assert.equal(empty(), null); assert.match(screen.getByRole('status').textContent || '', /missing/);
+  await act(async () => { useDataNeedsStore.setState({ failed: {} }); useLedgerStore.setState({ bills: [bill('old', '2020-04-01')] }); });
+  assert.ok(screen.getByText('No included item purchases in the current twelve-month window.')); assert.equal(empty(), null);
+  await act(async () => useLedgerStore.setState({ bills: [] }));
+  assert.ok(empty()); assert.equal(screen.getAllByRole('button').length, 1); assert.equal(screen.queryByRole('table'), null);
 });

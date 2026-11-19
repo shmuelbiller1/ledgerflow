@@ -10,7 +10,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
   {
     "name": "account.makerecoverycodes",
     "area": "account",
-    "roles": COMMAND_SCHEMA_PARTS.part82,
+    "roles": COMMAND_SCHEMA_PARTS.part84,
     "scope": "person",
     "risk": "normal",
     "description": {
@@ -27,7 +27,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
           "when": "The input carries unexpected fields.",
           "next": "Send an empty input object."
         },
-        COMMAND_SCHEMA_PARTS.part184
+        COMMAND_SCHEMA_PARTS.part190
       ],
       "next": [
         {
@@ -43,12 +43,12 @@ export const ACCOUNT_COMMAND_MANIFEST = [
   {
     "name": "account.merge",
     "area": "account",
-    "roles": COMMAND_SCHEMA_PARTS.part31,
+    "roles": COMMAND_SCHEMA_PARTS.part32,
     "risk": "high",
     "description": {
       "sentence": "Merge two chart accounts, moving everything the first one holds into the second and removing it; do not use it to correct one entry — that is a journal edit.",
-      "example": COMMAND_SCHEMA_PARTS.part73,
-      "refusals": COMMAND_SCHEMA_PARTS.part256
+      "example": COMMAND_SCHEMA_PARTS.part75,
+      "refusals": COMMAND_SCHEMA_PARTS.part267
     },
     "runPath": "/api/v1/commands/account.merge",
     "previewPath": "/api/v1/commands/account.merge/preview",
@@ -57,12 +57,12 @@ export const ACCOUNT_COMMAND_MANIFEST = [
   {
     "name": "account.mergepreview",
     "area": "account",
-    "roles": COMMAND_SCHEMA_PARTS.part31,
+    "roles": COMMAND_SCHEMA_PARTS.part32,
     "risk": "high",
     "description": {
       "sentence": "Say what merging two chart accounts would change, without changing anything; run account.merge to do it.",
-      "example": COMMAND_SCHEMA_PARTS.part73,
-      "refusals": COMMAND_SCHEMA_PARTS.part256
+      "example": COMMAND_SCHEMA_PARTS.part75,
+      "refusals": COMMAND_SCHEMA_PARTS.part267
     },
     "runPath": "/api/v1/commands/account.mergepreview",
     "previewPath": "/api/v1/commands/account.mergepreview/preview",
@@ -71,7 +71,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
   {
     "name": "account.setnotificationemail",
     "area": "account",
-    "roles": COMMAND_SCHEMA_PARTS.part82,
+    "roles": COMMAND_SCHEMA_PARTS.part84,
     "scope": "person",
     "risk": "normal",
     "description": {
@@ -85,7 +85,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
           "when": "The mode is not off, immediate or daily.",
           "next": "Choose off, immediate or daily."
         },
-        COMMAND_SCHEMA_PARTS.part184
+        COMMAND_SCHEMA_PARTS.part190
       ]
     },
     "runPath": "/api/v1/commands/account.setnotificationemail",
@@ -95,7 +95,7 @@ export const ACCOUNT_COMMAND_MANIFEST = [
   {
     "name": "account.userecoverycode",
     "area": "account",
-    "roles": COMMAND_SCHEMA_PARTS.part82,
+    "roles": COMMAND_SCHEMA_PARTS.part84,
     "scope": "person",
     "risk": "normal",
     "description": {

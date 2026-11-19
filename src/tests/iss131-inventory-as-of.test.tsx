@@ -9,6 +9,7 @@
  *   (Before: today's 20 × $15.00 = $300.00 against $100.00, a $200 "difference" that was not there.)
  */
 import './helpers/dom';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import test, { afterEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -87,12 +88,11 @@ describe('ISS-131 on the Inventory Valuation screen', () => {
   const setUp = async (historyMoves: StockMove[], stock: typeof items) => {
     const { useLedgerStore } = await import('../stores/useLedgerStore');
     const { useAuthStore } = await import('../stores/useAuthStore');
-    const { useDataNeedsStore } = await import('../stores/useDataNeedsStore');
     const accounts = [makeChartAccount({ id: 'inv', name: 'Inventory', type: 'asset', category: 'Inventory' }), makeChartAccount({ id: 'bank', name: 'Bank', type: 'asset', category: 'Cash' })];
     const tx = (id: string, date: string, cents: number) => makeTransaction({ id, date, lines: [{ accountId: 'inv', amountCents: cents }, { accountId: 'bank', amountCents: -cents }] });
     useAuthStore.setState({ currentWorkspaceId: 'w' } as never);
     useLedgerStore.setState({ inventory: stock, accounts, transactions: [tx('b1', '2026-09-01', 10_000), tx('b2', '2026-10-05', 20_000)], truncatedCollections: {} } as never);
-    useDataNeedsStore.setState({ loaded: { inventory: true }, loadedWorkspaceId: 'w', failed: {} } as never);
+    useDataNeedsStore.setState({ loaded: { inventory: true, accounts: true, transactions: true }, loadedWorkspaceId: 'w', failed: {} } as never);
     const urls: string[] = [];
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       urls.push(String(input));
@@ -195,6 +195,7 @@ describe('ISS-131 review on the screen', () => {
     const accounts = [makeChartAccount({ id: 'inv', name: 'Inventory', type: 'asset', category: 'Inventory' }), makeChartAccount({ id: 'bank', name: 'Bank', type: 'asset', category: 'Cash' })];
     const tx = makeTransaction({ id: 'b1', date: '2026-09-01', lines: [{ accountId: 'inv', amountCents: 10_000 }, { accountId: 'bank', amountCents: -10_000 }] });
     useAuthStore.setState({ currentWorkspaceId: 'w' } as never);
+    useDataNeedsStore.setState({ loaded: { inventory: true, accounts: true, transactions: true }, loadedWorkspaceId: 'w', failed: {} });
     useLedgerStore.setState({ inventory: [{ ...items[0], quantityAtHand: 10, unitCostCents: 1_000 }], accounts, transactions: [tx], truncatedCollections: truncated } as never);
     globalThis.fetch = fetchImpl || (async () => new Response(JSON.stringify({ items: itemDetails(moves.filter(m => m.itemId === 'bolts' && m.date < '2026-10-01'), START, TODAY) }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
     const { InventoryValuationReportView } = await import('../components/reporting/InventoryValuationReportView');

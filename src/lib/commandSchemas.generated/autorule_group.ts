@@ -4,9 +4,9 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "groupName": COMMAND_SCHEMA_PARTS.part94,
-    "newName": COMMAND_SCHEMA_PARTS.part94,
-    "groupIsActive": COMMAND_SCHEMA_PARTS.part25
+    "groupName": COMMAND_SCHEMA_PARTS.part97,
+    "newName": COMMAND_SCHEMA_PARTS.part97,
+    "groupIsActive": COMMAND_SCHEMA_PARTS.part26
   },
   "required": [
     "groupName"

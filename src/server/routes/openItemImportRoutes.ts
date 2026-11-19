@@ -6,8 +6,8 @@ import { importOpenItems, OpenItemImportError } from '../services/openItemImport
 
 /**
  * EG-14: opening open invoices and bills from a CSV, mounted at /api/v1/open-items (server.ts).
- * POST /preview reads the file against the books and writes nothing; POST /confirm reads it again and saves every row,
- * or nothing when a row has a problem (openItemImportService.ts). Owners and accountants.
+ * POST /preview reads the file against the books; POST /confirm validates all rows, then posts them
+ * one at a time. Later posting failures can leave earlier rows saved. Owners and accountants.
  */
 export const openItemImportRouter = express.Router();
 
@@ -17,8 +17,8 @@ const schema = z.object({
   csv: z.string().min(1).max(5_000_000),
 }).strict();
 
-for (const mode of ['preview', 'confirm'] as const) {
-  openItemImportRouter.post(`/${mode}`, async (req, res) => {
+function importHandler(mode: 'preview' | 'confirm'): express.RequestHandler {
+  return async (req, res) => {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ status: 'error', message: 'Send the workspace, customer or vendor, and the file', rows: [] });
     try {
@@ -28,5 +28,8 @@ for (const mode of ['preview', 'confirm'] as const) {
       if (err instanceof OpenItemImportError) return res.status(err.status).json({ status: 'error', message: err.message, rows: err.rows });
       res.status(500).json({ status: 'error', message: 'The open items could not be imported', details: err instanceof Error ? err.message : String(err) });
     }
-  });
+  };
 }
+
+openItemImportRouter.post('/preview', importHandler('preview'));
+openItemImportRouter.post('/confirm', importHandler('confirm'));

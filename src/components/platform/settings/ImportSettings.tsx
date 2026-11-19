@@ -1,5 +1,5 @@
 import { runCommand, ServerCommandError } from '../../../lib/runCommand';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertCircle, CheckCircle2, Download, FileUp, History, Loader2, Undo2, Upload } from 'lucide-react';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -88,9 +88,9 @@ const KIND_HELP: Record<ImportKind, string> = {
   accounts: 'Name, code, type (asset, bank, income…)',
 };
 
-async function post<T>(path: string, body: unknown): Promise<T> {
+async function post<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
   try {
-    return await runCommand<T>({ path, method: 'POST', body });
+    return await runCommand<T>({ path, method: 'POST', body, signal });
   } catch (err) {
     // an import that fails per row still lists the rows, so the refusal's details are kept
     const data = ((err as ServerCommandError).body || {}) as { message?: string; details?: unknown };
@@ -117,12 +117,43 @@ function downloadSample(kind: ImportKind) {
   downloadCsv(`${kind}-import-template.csv`, IMPORT_DEFINITIONS[kind].fields.map(f => f.label), []);
 }
 
+type ReadImportFile =
+  | { type: 'iif'; iif: IifReadResult }
+  | { type: 'spreadsheet'; cells: string[][]; contacts: ContactFileRead | null };
+
+async function readImportFile(file: File, kind: ImportKind): Promise<ReadImportFile> {
+  const lower = file.name.toLowerCase();
+  if (lower.endsWith('.iif') || lower.endsWith('.qbi')) {
+    return { type: 'iif', iif: readIif(await file.text()) };
+  }
+  const isContact = kind === 'customers' || kind === 'vendors';
+  if (lower.endsWith('.vcf')) {
+    if (!isContact) throw new Error('Choose Customers or Vendors before importing an address book.');
+    return { type: 'spreadsheet', cells: [], contacts: vCardToContactTable(await file.text()) };
+  }
+  const cells = lower.endsWith('.xlsx')
+    ? (await parseExcelToRows(await file.arrayBuffer())).map(r => r.map(c => (c === null || c === undefined ? '' : String(c).trim())))
+    : readCsvUpload(await file.text());
+  if (cells.length < 2) throw new Error('The file needs a header row and at least one row of data.');
+  const contacts = isContact && isGoogleContactsHeader(cells[0]) ? googleContactsToContactTable(cells) : null;
+  return { type: 'spreadsheet', cells, contacts };
+}
+
 export default function ImportSettings() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
+  const userId = useAuthStore(s => s.user?.uid);
   const role = useCurrentRole();
-  const canImport = role !== 'viewer';
-  const canImportAccounts = role === 'owner' || role === 'accountant';
+  if (role === 'viewer') {
+    return (
+      <div className="ledger-card p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl text-sm text-[var(--muted)]">
+        Importing data needs the bookkeeper, accountant or owner role.
+      </div>
+    );
+  }
+  return <WorkspaceImportSettings key={JSON.stringify([userId, workspaceId])} workspaceId={workspaceId} userId={userId} canImportAccounts={role === 'owner' || role === 'accountant'} />;
+}
 
+function WorkspaceImportSettings({ workspaceId, userId, canImportAccounts }: { workspaceId: string; userId?: string; canImportAccounts: boolean }) {
   const [kind, setKind] = useState<ImportKind>('customers');
   const [source, setSource] = useState<CsvSource>('generic');
   const [fileName, setFileName] = useState('');
@@ -140,17 +171,30 @@ export default function ImportSettings() {
   const [acceptPhoneSuggestions, setAcceptPhoneSuggestions] = useState(false);
   const [openingDate, setOpeningDate] = useState(() => getLocalDateISO());
   const [busy, setBusy] = useState(false);
+  const [readingFile, setReadingFile] = useState<string | null>(null);
+  const [fileError, setFileError] = useState('');
   const [check, setCheck] = useState<ImportResult | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [importCountSnapshot, setImportCountSnapshot] = useState<{ sourceRows: number; preparedRows: number } | null>(null);
   const [serverIssues, setServerIssues] = useState<ImportIssue[]>([]);
   const [recent, setRecent] = useState<RecentImport[]>([]);
   const [recentVersion, setRecentVersion] = useState(0);
+  const active = useRef(true);
+  const readVersion = useRef(0);
+  const pendingAction = useRef<AbortController | null>(null);
+  useLayoutEffect(() => {
+    active.current = true;
+    return () => { active.current = false; pendingAction.current?.abort(); };
+  }, []);
+  const isCurrent = () => {
+    const auth = useAuthStore.getState();
+    return active.current && (auth.currentWorkspaceId || '') === workspaceId && auth.user?.uid === userId;
+  };
 
   const definition = IMPORT_DEFINITIONS[kind];
   const columns = useMemo(() => (table[0] || []).map((name, position) => ({ name, position })), [table]);
-  // only a plain spreadsheet can be this app's own export, so only there is the CSV formula guard removed
-  const csvGuarded = !iif && !contactFile && source === 'generic';
+  // Only a generic CSV can be our quoted CSV export. Never remove literal Excel or address-book text.
+  const csvGuarded = !iif && !contactFile && source === 'generic' && !fileName.toLowerCase().endsWith('.xlsx');
   const mappedRows = useMemo(() => applyMapping(kind, table.slice(1), mapping, { csvGuarded }), [kind, table, mapping, csvGuarded]);
   const contactCleanup = useMemo(() => cleanupContactImportRows(kind, mappedRows, phoneCountry, {
     acceptEmailSuggestions,
@@ -171,10 +215,13 @@ export default function ImportSettings() {
     const shown = new Set(previewRows.map(row => row.row));
     return issues.filter(issue => !shown.has(issue.row));
   }, [issues, previewRows]);
-  const ready = table.length > 1 && prepared.errors.length === 0 && prepared.records.length > 0 && !tooMany;
+  const ready = table.length > 1 && prepared.errors.length === 0 && prepared.records.length > 0
+    && !tooMany && (kind !== 'accounts' || canImportAccounts);
 
   // A-182: pre-import duplicate check against the records already in this workspace.
-  const { loading: contactsLoading } = useLedgerCollections('customers', 'vendors');
+  const { loading: customersLoading } = useLedgerCollections('customers');
+  const { loading: vendorsLoading } = useLedgerCollections('vendors');
+  const contactsLoading = kind === 'customers' ? customersLoading : vendorsLoading;
   const failedContacts = useDataNeedsStore(s => s.failed);
   const truncatedContacts = useLedgerStore(s => s.truncatedCollections);
   const contactKey = kind === 'customers' || kind === 'vendors' ? kind : null;
@@ -223,6 +270,14 @@ export default function ImportSettings() {
     setAcceptPhoneSuggestions(false);
   };
 
+  const clearFile = () => {
+    setFileName('');
+    setRawTable([]);
+    setIif(null);
+    setContactFile(null);
+    setMapping({});
+  };
+
   const chooseKind = (next: ImportKind) => {
     // A-182: an address book only ever becomes customers or vendors — say so instead of going blank.
     if (contactFile && next !== 'customers' && next !== 'vendors') {
@@ -237,112 +292,92 @@ export default function ImportSettings() {
   };
 
   const onFile = async (file: File | undefined) => {
-    if (!file) return;
+    if (!file || pendingAction.current || !isCurrent()) return;
+    const version = ++readVersion.current;
+    const isCurrentRead = () => isCurrent() && readVersion.current === version;
+    clearFile();
     resetResults();
     resetContactCleanupAcceptance();
     setPhoneCountry('');
+    setFileError('');
+    setReadingFile(file.name);
     try {
-      const lower = file.name.toLowerCase();
-      if (lower.endsWith('.iif') || lower.endsWith('.qbi')) {
-        const read = readIif(await file.text());
-        setFileName(file.name);
-        setIif(read);
-        setContactFile(null);
-        setRawTable([]);
+      const upload = await readImportFile(file, kind);
+      if (!isCurrentRead()) return;
+      if (upload.type === 'iif') {
+        const rowsForKind = upload.iif.tables[kind];
+        setIif(upload.iif);
         setSource('iif');
-        const rowsForKind = read.tables[kind];
         setMapping(rowsForKind.length ? guessMapping(kind, rowsForKind[0]) : {});
-        if (!read.counts[kind]) toast.error(`This IIF has no ${definition.label.toLowerCase()} section. Choose the type that the file does contain.`);
-        return;
-      }
-      // A-182: a vCard address book (.vcf from a phone, Outlook or Apple Contacts).
-      if (lower.endsWith('.vcf')) {
-        if (kind !== 'customers' && kind !== 'vendors') {
-          toast.error('An address-book file imports as customers or vendors. Choose one of those types first.');
-          return;
-        }
-        const read = vCardToContactTable(await file.text());
-        setFileName(file.name);
-        setIif(null);
-        setContactFile(read);
-        setRawTable([]);
-        setMapping(guessMapping(kind, read.table[0]));
-        if (read.table.length < 2) toast.error(read.problems[0] ?? 'No contacts could be read from this file.');
-        return;
-      }
-      setIif(null);
-      const cells = lower.endsWith('.xlsx')
-        ? (await parseExcelToRows(await file.arrayBuffer())).map(r => r.map(c => (c === null || c === undefined ? '' : String(c).trim())))
-        : readCsvUpload(await file.text());
-      if (cells.length < 2) {
-        toast.error('The file needs a header row and at least one row of data.');
-        return;
+        if (!upload.iif.counts[kind]) toast.error(`This IIF has no ${definition.label.toLowerCase()} section. Choose the type that the file does contain.`);
+      } else {
+        const nextSource = source === 'iif' ? 'generic' : source;
+        const converted = upload.contacts?.table ?? normalizeSourceTable(nextSource, kind, upload.cells);
+        setSource(nextSource);
+        setRawTable(upload.cells);
+        setContactFile(upload.contacts);
+        setMapping(converted.length ? guessMapping(kind, converted[0]) : {});
+        if (upload.contacts && converted.length < 2) toast.error(upload.contacts.problems[0] ?? 'No contacts could be read from this file.');
       }
       setFileName(file.name);
-      setRawTable(cells);
-      // A-182: a Google Contacts CSV is recognised by its own column names and reshaped.
-      if ((kind === 'customers' || kind === 'vendors') && isGoogleContactsHeader(cells[0] ?? [])) {
-        const read = googleContactsToContactTable(cells);
-        setContactFile(read);
-        setMapping(guessMapping(kind, read.table[0]));
-        if (read.table.length < 2) toast.error(read.problems[0] ?? 'No contacts could be read from this file.');
-        return;
-      }
-      setContactFile(null);
-      const converted = normalizeSourceTable(source, kind, cells);
-      setMapping(guessMapping(kind, converted[0]));
     } catch (err) {
-      toast.error(`The file could not be read: ${err instanceof Error ? err.message : String(err)}`);
+      if (isCurrentRead()) setFileError(`${file.name} could not be read: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      if (isCurrentRead()) setReadingFile(null);
     }
   };
 
-  const send = async (dryRun: boolean) => {
+  const runPending = async (action: (signal: AbortSignal) => Promise<void>) => {
+    if (pendingAction.current || readingFile || !isCurrent()) return;
+    const controller = new AbortController();
+    pendingAction.current = controller;
     setBusy(true);
+    try {
+      await action(controller.signal);
+    } finally {
+      pendingAction.current = null;
+      if (isCurrent()) setBusy(false);
+    }
+  };
+
+  const send = (dryRun: boolean) => ready && runPending(async signal => {
+    setCheck(null);
     setServerIssues([]);
     try {
       const body = { kind, rows, dryRun, ...(stockCents > 0 ? { openingDate } : {}) };
-      const res = await post<ImportResult>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/import-records`, body);
+      const res = await post<ImportResult>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/import-records`, body, signal);
+      if (!isCurrent()) return;
       if (dryRun) {
         setCheck(res);
       } else {
         setResult(res);
         setImportCountSnapshot({ sourceRows: rows.length, preparedRows: prepared.records.length });
-        setCheck(null);
-        setRawTable([]);
-        setFileName('');
+        // In an IIF only the chosen section was submitted; the others are still available.
+        if (iif) setIif({ ...iif, tables: { ...iif.tables, [kind]: [] } });
+        else clearFile();
         toast.success(`Imported ${res.created} ${definition.label.toLowerCase()}${res.skipped.length ? ` (${res.skipped.length} already existed)` : ''}.`);
         loadRecent();
       }
     } catch (err) {
+      if (!isCurrent()) return;
       const issuesFromServer = (err as { issues?: ImportIssue[] }).issues;
       if (issuesFromServer) setServerIssues(issuesFromServer);
       toast.error(err instanceof Error ? err.message : 'The import failed');
-    } finally {
-      setBusy(false);
     }
-  };
+  });
 
-  const undo = async (batchId: string) => {
-    setBusy(true);
+  const undo = (batchId: string) => runPending(async signal => {
     try {
-      const res = await post<{ removed: number; kept: string[] }>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/import-records/${encodeURIComponent(batchId)}/undo`, {});
+      const res = await post<{ removed: number; kept: string[] }>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/import-records/${encodeURIComponent(batchId)}/undo`, {}, signal);
+      if (!isCurrent()) return;
       toast.success(`Removed ${res.removed} imported record${res.removed === 1 ? '' : 's'}${res.kept.length ? `; kept ${res.kept.length} already in use (${res.kept.slice(0, 3).join(', ')}${res.kept.length > 3 ? '…' : ''})` : ''}.`);
       if (result?.batchId === batchId) setResult(null);
       loadRecent();
     } catch (err) {
+      if (!isCurrent()) return;
       toast.error(err instanceof Error ? err.message : 'The import could not be undone');
-    } finally {
-      setBusy(false);
     }
-  };
-
-  if (!canImport) {
-    return (
-      <div className="ledger-card p-8 bg-[var(--surface)] border border-[var(--line)] rounded-2xl text-sm text-[var(--muted)]">
-        Importing data needs the bookkeeper, accountant or owner role.
-      </div>
-    );
-  }
+  });
 
   return (
     <div className="space-y-8">
@@ -359,7 +394,7 @@ export default function ImportSettings() {
 
         <div className="flex flex-wrap gap-3 items-end">
           <label className="text-xs font-bold flex flex-col gap-1">CSV source
-            <select aria-label="CSV source" value={source} onChange={e => {
+            <select aria-label="CSV source" value={source} disabled={busy || readingFile !== null} onChange={e => {
               const next: CsvSource = (['freshbooks', 'quickbooks', 'iif', 'xero', 'wave', 'zoho', 'sage', 'odoo'] as const).includes(e.target.value as never)
                 ? e.target.value as CsvSource : 'generic';
               if (next !== 'iif') setIif(null);
@@ -404,6 +439,9 @@ export default function ImportSettings() {
                 IIF read: <strong>{iif.counts.accounts}</strong> accounts · <strong>{iif.counts.customers}</strong> customers ·{' '}
                 <strong>{iif.counts.vendors}</strong> vendors · <strong>{iif.counts.items}</strong> items.
               </p>
+              {iif.counts[kind] > 0 && table.length === 0 && (
+                <p className="text-xs text-[var(--muted)]">This section was processed. Choose another section or file.</p>
+              )}
               {iif.transactionsRefused > 0 && (
                 <p className="text-xs text-amber-700" role="alert">
                   This file also holds <strong>{iif.transactionsRefused}</strong> transaction record{iif.transactionsRefused === 1 ? '' : 's'} (journals, invoices, bills or payments). They were <strong>not</strong> imported: this import moves lists only and never posts.
@@ -422,7 +460,7 @@ export default function ImportSettings() {
             </div>
           )}
         </div>
-        <fieldset className="space-y-3">
+        <fieldset className="space-y-3" disabled={busy || readingFile !== null}>
           <legend className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">1. What are you importing?</legend>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {IMPORT_KINDS.map(k => {
@@ -457,21 +495,24 @@ export default function ImportSettings() {
             <input
               id="import-file"
               type="file"
+              disabled={busy}
               accept=".csv,.txt,.xlsx,.iif,.qbi,.vcf,text/csv,text/vcard"
               onChange={e => { void onFile(e.target.files?.[0]); e.target.value = ''; }}
               className="text-sm text-[var(--text)] file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border file:border-[var(--line)] file:bg-[var(--panel)] file:text-[var(--text)]"
             />
             {fileName && (
               <span className="inline-flex items-center gap-1.5 text-xs text-[var(--muted)]">
-                <FileUp size={14} aria-hidden="true" /> {fileName} · {table.length - 1} row{table.length === 2 ? '' : 's'}
+                <FileUp size={14} aria-hidden="true" /> {fileName} · {Math.max(0, table.length - 1)} row{table.length === 2 ? '' : 's'}
               </span>
             )}
           </div>
+          {readingFile && <p role="status" className="text-xs text-[var(--muted)]">Reading {readingFile}…</p>}
+          {fileError && <p role="alert" className="text-xs text-[var(--neg)]">{fileError} Choose a file to try again.</p>}
           <p className="text-[11px] text-[var(--muted)]">The first row must be the column names. Up to {MAX_IMPORT_ROWS} rows per file. For customers and vendors you can also choose an address book: a vCard (.vcf) from your phone, Outlook or Apple Contacts, or the CSV Google Contacts exports — names, emails, phones and addresses are matched for you and every contact is still checked before anything is saved.</p>
         </div>
 
         {table.length > 1 && (
-          <fieldset className="space-y-3">
+          <fieldset className="space-y-3" disabled={busy}>
             <legend className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">3. Match the columns</legend>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {definition.fields.map(field => (
@@ -534,7 +575,7 @@ export default function ImportSettings() {
                         <p className="text-xs text-[var(--text)]"><strong>{duplicateCheck.possibleTotal}</strong> potential match{duplicateCheck.possibleTotal === 1 ? '' : 'es'} share an email address, phone number or tax ID with an existing {kind === 'customers' ? 'customer' : 'vendor'} but the name is different. The server normally creates a separate record for a different name. Check these first:</p>
                         <ul className="text-xs text-[var(--muted)] space-y-0.5" aria-label="Rows that look like existing contacts">
                           {duplicateCheck.possible.map(d => (
-                            <li key={`possible-${d.row}`}>Row {d.row}: &ldquo;{d.name}&rdquo; looks like &ldquo;{d.existingName}&rdquo; (same {d.signals.map(s => (s === 'tax-id' ? 'tax ID' : s === 'email' ? 'email address' : 'phone number')).join(' and ')})</li>
+                            <li key={`possible-${d.row}:${d.existingId}`}>Row {d.row}: &ldquo;{d.name}&rdquo; looks like &ldquo;{d.existingName}&rdquo; (same {d.signals.map(s => (s === 'tax-id' ? 'tax ID' : s === 'email' ? 'email address' : 'phone number')).join(' and ')})</li>
                           ))}
                         </ul>
                       </>
@@ -545,22 +586,24 @@ export default function ImportSettings() {
             )}
 
             {(kind === 'customers' || kind === 'vendors') && (
-              <ContactImportQualityReview
-                key={`${fileName}:${kind}`}
-                kind={kind}
-                sourceRows={mappedRows}
-                cleanup={contactCleanup}
-                phoneCountry={phoneCountry}
-                onPhoneCountryChange={country => {
-                  setPhoneCountry(country);
-                  setAcceptPhoneSuggestions(false);
-                  resetResults();
-                }}
-                acceptEmailSuggestions={acceptEmailSuggestions}
-                acceptPhoneSuggestions={acceptPhoneSuggestions}
-                onAcceptEmailSuggestionsChange={accepted => { setAcceptEmailSuggestions(accepted); resetResults(); }}
-                onAcceptPhoneSuggestionsChange={accepted => { setAcceptPhoneSuggestions(accepted); resetResults(); }}
-              />
+              <fieldset disabled={busy} className="min-w-0">
+                <ContactImportQualityReview
+                  key={`${fileName}:${kind}`}
+                  kind={kind}
+                  sourceRows={mappedRows}
+                  cleanup={contactCleanup}
+                  phoneCountry={phoneCountry}
+                  onPhoneCountryChange={country => {
+                    setPhoneCountry(country);
+                    setAcceptPhoneSuggestions(false);
+                    resetResults();
+                  }}
+                  acceptEmailSuggestions={acceptEmailSuggestions}
+                  acceptPhoneSuggestions={acceptPhoneSuggestions}
+                  onAcceptEmailSuggestionsChange={accepted => { setAcceptEmailSuggestions(accepted); resetResults(); }}
+                  onAcceptPhoneSuggestionsChange={accepted => { setAcceptPhoneSuggestions(accepted); resetResults(); }}
+                />
+              </fieldset>
             )}
 
             {issuesAfterPreview.length > 0 && (
@@ -590,14 +633,15 @@ export default function ImportSettings() {
               // J-2: only the columns the user matched, so the preview reads like the file they chose.
               const shownFields = definition.fields.filter(f => (mapping[f.key] ?? -1) >= 0);
               const refused = previewRows.filter(row => row.problems.length > 0).length;
+              const skippedByRow = new Map(check?.skipped.map(issue => [issue.row, issue.message]));
               return (
                 <div className="space-y-2">
                   <h4 className="text-xs font-bold text-[var(--text)]">
-                    First {previewRows.length} row{previewRows.length === 1 ? '' : 's'} as they will be saved
+                    First {previewRows.length} row{previewRows.length === 1 ? '' : 's'} to review
                   </h4>
                   <p className="text-[11px] text-[var(--muted)]">
                     Nothing is written yet. A row marked <strong>Will be refused</strong> is not imported until the file is fixed,
-                    and its reason is shown in the row.
+                    and its reason is shown in the row. The server checks again for existing records when you import.
                     {refused > 0 && <> <strong className="text-[var(--neg)]">{refused}</strong> of these {previewRows.length > 1 ? `${previewRows.length} shown` : 'shown'} will be refused.</>}
                   </p>
                   <div className="overflow-auto border border-[var(--line)] rounded-xl max-h-96">
@@ -620,9 +664,10 @@ export default function ImportSettings() {
                               return <td key={f.key} className="px-3 py-1.5 text-[var(--text)]">{shown}</td>;
                             })}
                             <td className="px-3 py-1.5">
-                              {row.problems.length === 0
-                                ? <span className="inline-flex items-center gap-1 text-[var(--pos)]"><CheckCircle2 size={12} aria-hidden="true" />Will be imported</span>
-                                : <span className="inline-flex items-start gap-1 text-[var(--neg)]"><AlertCircle size={12} className="mt-0.5 shrink-0" aria-hidden="true" />Will be refused: {row.problems.join('; ')}</span>}
+                              {row.problems.length > 0 && <span className="inline-flex items-start gap-1 text-[var(--neg)]"><AlertCircle size={12} className="mt-0.5 shrink-0" aria-hidden="true" />Will be refused: {row.problems.join('; ')}</span>}
+                              {row.problems.length === 0 && (skippedByRow.has(row.row)
+                                ? <span className="text-[var(--muted)]">Skipped in check: {skippedByRow.get(row.row)}</span>
+                                : <span className="inline-flex items-center gap-1 text-[var(--pos)]"><CheckCircle2 size={12} aria-hidden="true" />{check ? 'Ready to import' : 'Passed file checks'}</span>)}
                             </td>
                           </tr>
                         ))}
@@ -640,7 +685,7 @@ export default function ImportSettings() {
                   Inventory is increased and Opening Balance Equity is credited, on this date.
                 </p>
                 <label htmlFor="opening-date" className="text-xs font-semibold text-[var(--text)] mr-2">Opening stock date</label>
-                <input id="opening-date" type="date" value={openingDate} onChange={e => setOpeningDate(e.target.value)} className="px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-sm text-[var(--text)]" />
+                <input id="opening-date" type="date" value={openingDate} disabled={busy} onChange={e => { setOpeningDate(e.target.value); resetResults(); }} className="px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-sm text-[var(--text)]" />
               </div>
             )}
 
@@ -725,7 +770,7 @@ export default function ImportSettings() {
             {recent.map(r => (
               <li key={r.batchId} className="py-2 flex items-center justify-between gap-4 text-sm">
                 <span className="text-[var(--text)]">{r.description}<span className="block text-[11px] text-[var(--muted)]">{r.timestamp.slice(0, 16).replace('T', ' ')}</span></span>
-                <button type="button" disabled={busy} onClick={() => undo(r.batchId)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--brass)] hover:underline disabled:opacity-50">
+                <button type="button" disabled={busy || readingFile !== null} onClick={() => undo(r.batchId)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--brass)] hover:underline disabled:opacity-50">
                   <Undo2 size={14} aria-hidden="true" /> Undo
                 </button>
               </li>

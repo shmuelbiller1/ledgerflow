@@ -61,24 +61,29 @@ export function vendorQuotesFromItem(item: Pick<InventoryItem, 'metadata'>): Ven
     .filter(q => q.id && q.vendorId && q.vendorName && q.unitPriceCents > 0);
 }
 
+const quoteErrors = {
+  vendor: 'Choose a vendor.', price: 'Enter a quoted unit price above zero.', quantity: 'Minimum order quantity must be above zero.',
+  lead: 'Lead time in days cannot be negative.', date: 'Valid-until date must be YYYY-MM-DD.',
+};
+
 export function vendorQuoteProblem(input: {
   vendorId?: string;
   unitPriceCents?: number;
   minOrderQty?: number;
   leadDays?: number;
   validUntil?: string;
-}): string | null {
-  if (!input.vendorId?.trim()) return 'Choose a vendor.';
+}, messages = quoteErrors): string | null {
+  if (!input.vendorId?.trim()) return messages.vendor;
   const price = Math.round(Number(input.unitPriceCents) || 0);
-  if (price <= 0) return 'Enter a quoted unit price above zero.';
+  if (price <= 0) return messages.price;
   if (input.minOrderQty !== undefined && (!(Number(input.minOrderQty) > 0) || !Number.isFinite(Number(input.minOrderQty)))) {
-    return 'Minimum order quantity must be above zero.';
+    return messages.quantity;
   }
   if (input.leadDays !== undefined && (!Number.isFinite(Number(input.leadDays)) || Number(input.leadDays) < 0)) {
-    return 'Lead time in days cannot be negative.';
+    return messages.lead;
   }
   if (input.validUntil && !/^\d{4}-\d{2}-\d{2}$/.test(input.validUntil)) {
-    return 'Valid-until date must be YYYY-MM-DD.';
+    return messages.date;
   }
   return null;
 }
