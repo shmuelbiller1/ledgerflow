@@ -119,7 +119,7 @@ describe('L94-STEP2B: credit notes, vendor credits and deletes posted by the ser
 
   test('credit-note and vendor-credit CRUD commands preview, post edits, and reverse on delete', async () => {
     const cnId = `${ws}_cmd_cn`;
-    const creditNote = { id: cnId, workspaceId: ws, number: 'CN-CMD', customerId: 'c1', customerName: 'Acme', date: '2026-10-21', status: 'partially_applied', currency: 'EUR', exchangeRate: 1, amountCents: 5_500, remainingCents: 4_500, taxAmountCents: 500, taxVersion: 2 };
+    const creditNote = { id: cnId, workspaceId: ws, number: 'CN-CMD', customerId: 'c1', customerName: 'Acme', date: '2026-10-21', status: 'partially_applied', currency: 'EUR', exchangeRate: 1, amountCents: 5_500, remainingCents: 5_500, taxAmountCents: 500, taxVersion: 2 };
     const cnMutation: EntityMutation = { collection: 'creditNotes', docId: cnId, action: 'create', data: creditNote };
     const cnExpected = postingFingerprint(await browserBuild(c => postCreditNoteLedger(cnId, creditNote as unknown as Partial<CreditNote>, ws, OWNER, cnMutation, c)));
     const cnPreview = await command('creditnote.create', { creditNote }, true);
@@ -129,10 +129,10 @@ describe('L94-STEP2B: credit notes, vendor credits and deletes posted by the ser
     assert.equal(cnCreate.status, 200, JSON.stringify(cnCreate.body));
     assert.deepEqual(postingFingerprint(cnCreate.body.data.transactions), cnExpected);
 
-    const changedCreditNote = { ...creditNote, amountCents: 6_600, remainingCents: 5_500, taxAmountCents: 600 };
+    const changedCreditNote = { ...creditNote, amountCents: 6_600, remainingCents: 6_600, taxAmountCents: 600 };
     const cnUpdateMutation: EntityMutation = { collection: 'creditNotes', docId: cnId, action: 'update', data: changedCreditNote };
     const cnUpdateExpected = postingFingerprint(await browserBuild(c => postCreditNoteLedger(cnId, changedCreditNote as unknown as Partial<CreditNote>, ws, OWNER, cnUpdateMutation, c)));
-    const cnUpdate = await command('creditnote.update', { id: cnId, data: { amountCents: 6_600, remainingCents: 5_500, taxAmountCents: 600 } });
+    const cnUpdate = await command('creditnote.update', { id: cnId, data: { amountCents: 6_600, remainingCents: 6_600, taxAmountCents: 600 } });
     assert.equal(cnUpdate.status, 200, JSON.stringify(cnUpdate.body));
     assert.deepEqual(postingFingerprint(cnUpdate.body.data.transactions), cnUpdateExpected);
     const savedCreditNote = (await db.collection('creditNotes').doc(cnId).get()).data();
@@ -146,17 +146,17 @@ describe('L94-STEP2B: credit notes, vendor credits and deletes posted by the ser
     assert.equal((await db.collection('creditNotes').doc(cnId).get()).exists, false);
 
     const vcId = `${ws}_cmd_vc`;
-    const vendorCredit = { id: vcId, workspaceId: ws, number: 'VC-CMD', vendorId: 'v1', vendorName: 'Paper Co', date: '2026-10-21', status: 'partially_applied', currency: 'ILS', exchangeRate: 1, amountCents: 7_700, remainingCents: 6_700, taxAmountCents: 700, taxVersion: 2 };
+    const vendorCredit = { id: vcId, workspaceId: ws, number: 'VC-CMD', vendorId: 'v1', vendorName: 'Paper Co', date: '2026-10-21', status: 'partially_applied', currency: 'ILS', exchangeRate: 1, amountCents: 7_700, remainingCents: 7_700, taxAmountCents: 700, taxVersion: 2 };
     const vcMutation: EntityMutation = { collection: 'vendorCredits', docId: vcId, action: 'create', data: vendorCredit };
     const vcExpected = postingFingerprint(await browserBuild(c => postVendorCreditLedger(vcId, vendorCredit as unknown as Partial<VendorCredit>, ws, OWNER, vcMutation, c)));
     const vcCreate = await command('vendorcredit.create', { vendorCredit });
     assert.equal(vcCreate.status, 200, JSON.stringify(vcCreate.body));
     assert.deepEqual(postingFingerprint(vcCreate.body.data.transactions), vcExpected);
 
-    const changedVendorCredit = { ...vendorCredit, amountCents: 8_800, remainingCents: 7_800, taxAmountCents: 800 };
+    const changedVendorCredit = { ...vendorCredit, amountCents: 8_800, remainingCents: 8_800, taxAmountCents: 800 };
     const vcUpdateMutation: EntityMutation = { collection: 'vendorCredits', docId: vcId, action: 'update', data: changedVendorCredit };
     const vcUpdateExpected = postingFingerprint(await browserBuild(c => postVendorCreditLedger(vcId, changedVendorCredit as unknown as Partial<VendorCredit>, ws, OWNER, vcUpdateMutation, c)));
-    const vcUpdate = await command('vendorcredit.update', { id: vcId, data: { amountCents: 8_800, remainingCents: 7_800, taxAmountCents: 800 } });
+    const vcUpdate = await command('vendorcredit.update', { id: vcId, data: { amountCents: 8_800, remainingCents: 8_800, taxAmountCents: 800 } });
     assert.equal(vcUpdate.status, 200, JSON.stringify(vcUpdate.body));
     assert.deepEqual(postingFingerprint(vcUpdate.body.data.transactions), vcUpdateExpected);
     const savedVendorCredit = (await db.collection('vendorCredits').doc(vcId).get()).data();
@@ -167,6 +167,21 @@ describe('L94-STEP2B: credit notes, vendor credits and deletes posted by the ser
     assert.equal(vcDelete.status, 200, JSON.stringify(vcDelete.body));
     assert.deepEqual(postingFingerprint(vcDelete.body.data.transactions), vcDeleteExpected);
     assert.equal((await db.collection('vendorCredits').doc(vcId).get()).exists, false);
+  });
+
+  // #775: an applied credit (remaining below the total) keeps its applied part
+  test('an applied credit cannot be deleted or shrunk below what was applied', async () => {
+    const cnId = `${ws}_applied_cn`;
+    await db.collection('creditNotes').doc(cnId).set({ id: cnId, workspaceId: ws, number: 'CN-AP', customerId: 'c1', customerName: 'Acme', date: '2026-10-21', status: 'partially_applied', currency: 'USD', exchangeRate: 1, amountCents: 11_000, remainingCents: 5_000, taxAmountCents: 0, taxVersion: 2 });
+    const del = await command('creditnote.delete', { id: cnId });
+    assert.equal(del.status, 409, JSON.stringify(del.body));
+    const shrink = await command('creditnote.update', { id: cnId, data: { amountCents: 5_000 } });
+    assert.equal(shrink.status, 409, JSON.stringify(shrink.body));
+    assert.equal((await db.collection('creditNotes').doc(cnId).get()).data()?.amountCents, 11_000);
+    const vcId = `${ws}_applied_vc`;
+    await db.collection('vendorCredits').doc(vcId).set({ id: vcId, workspaceId: ws, number: 'VC-AP', vendorId: 'v1', vendorName: 'Paper Co', date: '2026-10-21', status: 'applied', currency: 'USD', exchangeRate: 1, amountCents: 11_800, remainingCents: 0, taxAmountCents: 0, taxVersion: 2 });
+    assert.equal((await command('vendorcredit.delete', { id: vcId })).status, 409);
+    assert.ok((await db.collection('vendorCredits').doc(vcId).get()).exists);
   });
 
   test('INV-1 deleted: its entry reversed on the server, A/R nets to −110.00 (CN-1 alone), the deletion in the audit trail', async () => {

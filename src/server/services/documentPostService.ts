@@ -171,12 +171,12 @@ function assertDocumentMutationAllowed(
         throw new BulkRefusal(409, { error: `Cannot delete ${NAMES[collection]} with an active revenue or prepaid recognition schedule.` });
       }
     } else {
-      // Known gap (#746 review, owner to decide): creditService records an application only by
-      // lowering remainingCents, never in appliedTo, so a partly applied, unrefunded credit passes this
-      // guard and can still be edited or deleted. main's l94-step2b tests rely on that today.
       const appliedCount = Array.isArray(existing.appliedTo) ? existing.appliedTo.length : 0;
       const refundTxCount = Array.isArray(existing.refundTransactionIds) ? existing.refundTransactionIds.length : 0;
-      if (appliedCount > 0 || asNonNegativeNumber(existing.refundedCents) > 0 || refundTxCount > 0) {
+      // #775: applying a credit only lowers remainingCents, so a remaining balance below the total is an application too
+      const amount = asNonNegativeNumber(existing.amountCents);
+      const partlyApplied = typeof existing.remainingCents === 'number' && existing.remainingCents < amount;
+      if (partlyApplied || appliedCount > 0 || asNonNegativeNumber(existing.refundedCents) > 0 || refundTxCount > 0) {
         throw new BulkRefusal(409, { error: `Cannot delete ${NAMES[collection]} that has already been applied or refunded.` });
       }
     }
@@ -212,6 +212,9 @@ function assertDocumentMutationAllowed(
             (incoming.exchangeRate !== undefined && incoming.exchangeRate !== existing.exchangeRate)) {
           throw new BulkRefusal(409, { error: `Cannot change currency or exchange rate on a ${NAMES[collection]} that has already been applied or refunded.` });
         }
+      } else if (incomingAmount !== undefined && incomingAmount < oldAmount - oldRemaining) {
+        // #775: the total cannot go below what has already been applied
+        throw new BulkRefusal(409, { error: `The total of this ${NAMES[collection]} cannot be lower than the ${oldAmount - oldRemaining} already applied.` });
       } else if (incomingRemaining !== undefined) {
         const newAmount = incomingAmount !== undefined ? incomingAmount : oldAmount;
         const maxRemaining = Math.min(newAmount, oldRemaining + Math.max(0, newAmount - oldAmount));
