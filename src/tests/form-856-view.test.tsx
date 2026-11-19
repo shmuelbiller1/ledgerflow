@@ -14,6 +14,7 @@ import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { getSupabase } from '../lib/db/client';
+import { parseCsv } from '../lib/csv';
 
 const payments = [
   { id: 'p1', date: '2026-03-10', direction: 'made', contactId: 'v1', contactName: 'Alpha Ltd', amountCents: 118_000, vatCents: 18_000, withheldCents: 30_000, withholdingCertificate: 'A-1' },
@@ -101,6 +102,63 @@ describe('Form 856 withholding report screen', () => {
     assert.equal((screen.getByRole('button', { name: 'Download review worksheet CSV' }) as HTMLButtonElement).disabled, true);
     assert.ok(screen.getByText(/different workspace/));
     assert.ok(screen.getByText(/Foreign\/unknown-currency/));
+  });
+
+  test('E-17: the authority-order CSV needs the file number, follows record 60 and names what is missing', async () => {
+    useAuthStore.setState({ isGuest: false, currentWorkspaceId: 'book-a' });
+    useDataNeedsStore.setState({ loaded: { payments: true } as never, loadedWorkspaceId: 'book-a', failed: {} });
+    useLedgerStore.setState({
+      payments: [
+        { ...payments[0], workspaceId: 'book-a', status: 'posted', contactTaxId: '511111111', withholdingRatePercent: 10 },
+        { ...payments[1], workspaceId: 'book-a', status: 'posted', contactTaxId: '511111111', withholdingRatePercent: 10 },
+        { ...payments[2], workspaceId: 'book-a', status: 'posted' },
+      ] as never,
+      baseCurrency: 'ILS',
+    });
+    render(<Form856ReportView />);
+    const button = screen.getByRole('button', { name: 'Download authority-order CSV (draft)' }) as HTMLButtonElement;
+    assert.equal(button.disabled, true, 'the file number and the acknowledgement are both required');
+    fireEvent.change(screen.getByLabelText('Withholding file number (תיק ניכויים)'), { target: { value: '912345678' } });
+    assert.equal(button.disabled, true, 'the acknowledgement is still required');
+    fireEvent.click(screen.getByRole('checkbox', { name: /I understand this is a review/ }));
+    assert.equal(button.disabled, false, 'nine digits + acknowledgement unlock the draft');
+    // Beta Works has neither a tax ID nor a recorded rate; the screen says so before any download
+    assert.ok(screen.getByText(/no tax ID \(field 6\)/));
+    assert.ok(screen.getByText(/no withholding rate is recorded/));
+
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    let blob: Blob | undefined;
+    let filename = '';
+    URL.createObjectURL = value => { blob = value as Blob; return 'blob:auth856'; };
+    URL.revokeObjectURL = () => {};
+    HTMLAnchorElement.prototype.click = function () { filename = this.download; };
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Download authority-order CSV (draft)' }));
+      assert.ok(blob, 'the action must produce a file');
+      assert.equal(filename, 'form-856-authority-2026.csv');
+      const rows = parseCsv(await blob.text());
+      assert.equal(rows.length, 3, 'header + two vendors');
+      assert.equal(rows[0].length, 20, 'one column per authority field');
+      assert.match(rows[0][0], /^1\. מספר תיק ניכויים/);
+      assert.match(rows[0][10], /^11\. .*Gross payments \(incl\. VAT\) \(97-107, 11\)$/);
+      const alpha = rows[1];
+      assert.deepEqual(alpha.slice(0, 3), ['912345678', '96', '2026']);
+      assert.equal(alpha[5], '511111111', 'field 6: the payee ID');
+      assert.equal(alpha[10], '00000177000', 'field 11: 1,770.00 ILS as 177,000 agorot');
+      assert.equal(alpha[11], '000040000', 'field 12: 400.00 ILS withheld');
+      assert.equal(alpha[14], '10', 'field 15: the recorded rate, no % sign');
+      assert.equal(alpha[19], '60', 'field 20: record type 60');
+      const beta = rows[2];
+      assert.equal(beta[7], 'Beta Works');
+      assert.equal(beta[5], '000000000', 'the missing ID stays zeros, never invented');
+      assert.equal(beta[14], '00', 'the missing rate stays 00, never guessed');
+    } finally {
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+      HTMLAnchorElement.prototype.click = originalClick;
+    }
   });
 
 });
