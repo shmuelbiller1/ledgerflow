@@ -22,9 +22,11 @@ declare
 begin
   if new.deleted or jsonb_typeof(new.data->'dbSeq') = 'number' then return new; end if;
   select max((s.data->>'dbSeq')::bigint) into last_live from public."stockMoves" s -- NOSONAR: plsql:QuotedIdentifiersCheck — mixed-case table name
-    where s.workspace_id = new.data->>'workspaceId' and jsonb_typeof(s.data->'dbSeq') = 'number'; -- generated columns are not yet computed in a BEFORE trigger
+    where s.workspace_id = new.data->>'workspaceId' and s.data->>'itemId' = new.data->>'itemId'
+      and jsonb_typeof(s.data->'dbSeq') = 'number'; -- generated columns are not yet computed in a BEFORE trigger
   select max((s.data->>'dbSeq')::bigint) into last_draft from sandbox."stockMoves" s -- NOSONAR: plsql:QuotedIdentifiersCheck — mixed-case table name
-    where s.sandbox_id = new.sandbox_id and jsonb_typeof(s.data->'dbSeq') = 'number';
+    where s.sandbox_id = new.sandbox_id and s.data->>'itemId' = new.data->>'itemId'
+      and jsonb_typeof(s.data->'dbSeq') = 'number';
   new.data := new.data || jsonb_build_object('dbSeq', greatest(coalesce(last_live, 0), coalesce(last_draft, 0)) + 1);
   return new;
 end;
