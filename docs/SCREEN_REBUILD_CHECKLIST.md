@@ -8,12 +8,12 @@ historical, not an acceptance test. Earlier migration batches and their evidence
 
 | Counter (`computeQualityMetrics()`) | Start of this batch | Now | Target |
 |---|---:|---:|---|
-| `rawTables` | 124 | **122** | Zero or an individual reason to keep each site |
+| `rawTables` | 122 | **120** | Zero or an individual reason to keep each site |
 | `handTypedApiCalls` | 5 | **5** | Zero or individually justified (§3) |
 | `directDbWrites` | 0 | **0** | 0 |
 | `screensWithManyPrimaryButtons` | 0 | **0** | 0 |
 
-**122 is files, not tables**: 120 paths on the migration queue, `PivotSheetView` (dynamic pivot) and
+**120 is files, not tables**: 118 paths on the migration queue, `PivotSheetView` (dynamic pivot) and
 `RowTable` (the embedded-table renderer itself). The full-list grid is excluded by the existing metric.
 `raw-table-decisions.test.ts` now compares the metric's actual paths against the queue and named exceptions;
 a new raw screen cannot slip in when a different screen migrates in the same PR. A queued file is **not** an exemption.
@@ -148,15 +148,41 @@ a new raw screen cannot slip in when a different screen migrates in the same PR.
       rechecked all 12 `trends-sales-*`, `trends-purchases-*` and `quotes-*` references. Reviewed both viewport
       sets. Language, theme and the UI font are in place before native selectors mount; no tolerance was raised.
 
-**Next batch:** On the `bce500c` base the dry run offered 15 tables in 14 files. Two eligible table blocks
-were migrated; the re-survey offers **13 tables in 12 files**, still **131 refused blocks** (including the
-shared renderers). `rawTables` counts files: 124 → **122**. No new exemption, no hand-converted refusal.
-Start with **`PurchaseItemTrendsView`** on current main: the Hebrew-report PRs (#872/#877) have merged. Its
-unit/currency breakdown and full-history load are **not** the vendor totals migrated here. Check per-currency
-figures, full history vs cached/guest, workspace changes and the item-trends CSV. If newly reserved, use
-`ProjectProfitabilityView` instead; preserve its chart filters and posted figures. Recheck open PRs and
-rerun `npx tsx scripts/codemod-row-table.ts --files` first. The most common refusals remain maps that don't
-return one row (34), unsupported headings (31), and bodies that aren't a map (15).
+**Survey at the end of batch 2:** on `bce500c`, the dry run went from 15 tables in 14 files to
+13 in 12, with 131 refused blocks. `rawTables` went from 124 files to 122. #895 did **not**
+migrate the purchase item register.
+
+### Purchase items and receipts by method — third batch
+
+- [x] **Purchases → Trends → Item.** The row identifies the item, month, currency and window; the
+      bill-line calculation and its machine CSV did not change. In the worked example, January's
+      two USD lines are **0.75 units / $12.50**, including when January appears in both windows;
+      February's **2 units / €36.40** stay separate. Loading all bills and items adds February's
+      **1.5 units / $18.15**. Signed-in previews cannot export through either CSV control or an
+      export template. A failed refresh keeps the last successful rows on screen, not in the
+      shared ledger cache. Guest sample, an unmatched window and confirmed empty books are distinct.
+- [x] **Sales payment summary by method.** A $12.50 card receipt plus a €15 receipt at 2 give
+      **$42.50** in the workspace currency; previous $9.75, change **$32.75**. The second table is
+      the payment register: €15 in, $12.50 in, and a $23 check **out**, in their original currencies.
+      The receipts API returns totals, not that register. When payments are capped, a complete server
+      answer restores only the receipts export. A partial, malformed, refused or obsolete comparison
+      cannot authorize it. Unmatched periods retain their dates and headings; empty books offer Sales.
+- [x] **Verification.** [Eight before views](verification/images/ui2-item-receipts/); Playwright
+      filters `visual purchase item register` and `visual receipt methods` exercise real rendered
+      reports, keyboard column choices, downloaded CSV contents and scoped axe at 390/1280 in light
+      and dark, English and Hebrew. The sample-company deep link checks both localized receipt
+      periods (including leap day). `purchase-item-trends`, `payment-method-flows-view` and
+      `operational-reports-server` also cover paging past 1,000 bills, failure/retry, stale identity
+      and the actual Postgres-backed receipts route. The [hosted visual run](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44553903657)
+      captured and rechecked all eight `purchase-item-register-*` and `receipt-methods-*` references.
+      Both viewport sets were reviewed; no other references or tolerances changed.
+
+**Next batch:** on the supplied `8de8fe7` base the dry run offered **12 tables in 11 files**;
+now **10 in 9**, with **132** blocks still refused. `rawTables`: **122 → 120 files**, no new exemption.
+Start with `src/components/ledger/ProjectProfitabilityView.tsx` if still unreserved. It is the chart
+and transaction-line matrix, not the similarly named invoice-based report: preserve all/high-yield/loss
+filters, chart expansion and the existing export. Check open PRs and run `npx tsx scripts/codemod-row-table.ts --files`
+again on the next base. These two embedded report migrations do not finish the list, palette or proposal work.
 
 ## 3. One way to act
 
