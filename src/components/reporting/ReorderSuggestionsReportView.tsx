@@ -1,10 +1,10 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { db } from '../../firebase';
 import { collection, getDocs, query, where } from '../../lib/db/firestore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useCollection } from '../../hooks/useCollection';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
@@ -41,12 +41,10 @@ export default function ReorderSuggestionsReportView({ loadItemMoves }: { loadIt
   const inventory = useLedgerStore(state => state.inventory);
   const vendors = useLedgerStore(state => state.vendors);
   const bills = useLedgerStore(state => state.bills);
-  const truncated = useLedgerStore(state => state.truncatedCollections);
-  const failed = useDataNeedsStore(state => state.failed);
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const { loading } = useLedgerCollections('inventory', 'vendors', 'bills');
-  const { data: purchaseOrders, loading: ordersLoading, truncated: ordersTruncated } = useCollection<PurchaseOrder>('purchaseOrders', { orderByField: 'createdAt', orderDirection: 'desc', limit: PURCHASE_ORDER_CAP });
+  const { data: purchaseOrders, loading: ordersLoading, truncated: ordersTruncated, error: ordersError } = useCollection<PurchaseOrder>('purchaseOrders', { orderByField: 'createdAt', orderDirection: 'desc', limit: PURCHASE_ORDER_CAP });
   const { addEntity } = useEntityOperations();
   const role = useCurrentRole();
   const isGuest = useAuthStore(state => state.isGuest);
@@ -115,7 +113,8 @@ export default function ReorderSuggestionsReportView({ loadItemMoves }: { loadIt
   const shown = mode === 'location' ? located.groups : groups;
   const vendorGroups = shown.filter(g => g.vendorId && g.lines.length);
   const totalLines = shown.reduce((sum, g) => sum + g.lines.length, 0);
-  const partial = truncated.inventory || truncated.vendors || truncated.bills || failed.inventory || failed.vendors || failed.bills || ordersTruncated;
+  const inputsPartial = usePartialReportInputs(['inventory', 'vendors', 'bills']);
+  const partial = inputsPartial || ordersTruncated || !!ordersError;
 
   /**
    * Writes the drafts and reports exactly which order numbers landed: addEntity resolves to

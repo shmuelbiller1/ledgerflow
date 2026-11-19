@@ -55,7 +55,9 @@ describe('L-123 step 4q: customer lifetime value (no database)', () => {
     globalThis.fetch = (async (u: RequestInfo | URL) => { asked.push(String(u)); return Response.json({ status: 'success', report: all(ws) }); }) as typeof fetch;
     render(<CustomerLifetimeValuePanel asOf={asOf} />);
     await waitFor(() => assert.match(screen.getByTestId('customer-lifetime-value-source').textContent || '', /read from every issued invoice, the cost of goods sold posted for it, every credit note and every customer on the server/), { timeout: 5000 });
-    assert.ok(document.body.textContent!.includes('2023-03-01'), document.body.textContent!);
+    const firstOrder = screen.getByRole('rowheader', { name: 'Alpha' }).closest('tr')!.querySelector('time');
+    assert.equal(firstOrder?.getAttribute('datetime'), '2023-03-01');
+    assert.equal(firstOrder?.textContent, 'Mar 1, 2023');
     assert.equal(screen.queryByText(/These figures are provisional/), null);
     assert.ok(asked.some(u => u.includes(`/api/v1/balances/customer-lifetime-value?workspaceId=${ws}&from=0001-01-01&to=${asOf}&lifespan=3`)), asked.join('\n'));
   });

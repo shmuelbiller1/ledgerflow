@@ -86,8 +86,8 @@ export default function RulePackCoverageReportView({ asOfDate = '' }: { asOfDate
     </p>)}
 
     <ReportSchedule
-      columnControls
-      allowDisplayedExport
+      columnControls={rows.length > 0}
+      allowDisplayedExport={rows.length > 0}
       caption={<>{reportText('r.rule-pack-coverage', 'Rule pack coverage')}{asOf ? fill(reportText('r.rules-in-force-on-0', ', rules in force on {0}'), { 0: formatDate(asOf) }) : ''}</>}
       rowClassName="border-b border-[var(--line)]/50"
       bodyClassName=""
@@ -101,6 +101,7 @@ export default function RulePackCoverageReportView({ asOfDate = '' }: { asOfDate
         { header: reportText('r.from', 'From'), cell: row => row.earliestValidFrom },
         { header: reportText('r.latest-start', 'Latest start'), cell: row => row.latestValidFrom },
       ]} />
+    {!rows.length && <p role="status" data-report-empty-state className="text-sm text-[var(--muted)]">{reportText('r.no-rule-in-the-packs-matches-these-filters', 'No rule in the packs matches these filters.')}</p>}
 
     <details className="text-sm" data-il-special-areas>
       <summary className="min-h-11 cursor-pointer">{reportText('r.israel-the-places-outside-the-ordinary-rate-a-99', 'Israel: the places outside the ordinary rate (A-99)')}</summary>

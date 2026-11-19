@@ -24,11 +24,12 @@ function setWorkspace(id = 'test-ws') {
 
 test('history builder groups invoice and bill tax codes by date', () => {
   const hist = historyFromDocuments(
-    [{ dueDate: '2026-01-05', date: '2026-01-05', taxCodeId: 'zero', customerId: 'c1', workspaceId: 'ws1' } as never,
-     { dueDate: '2026-02-01', date: '2026-02-01', taxCodeId: 'vat18', customerId: 'c1', items: [{ itemId: 'i1' }], workspaceId: 'ws1' } as never],
-    [{ dueDate: '2026-01-10', taxCodeId: 'vat17', vendorId: 'v1', splits: [{ itemId: 'i2' }], workspaceId: 'ws1' } as never],
+    [{ id: 'shared', dueDate: '2026-01-05', date: '2026-01-05', taxCodeId: 'zero', customerId: 'c1', workspaceId: 'ws1' } as never,
+     { id: 'second', dueDate: '2026-02-01', date: '2026-02-01', taxCodeId: 'vat18', customerId: 'c1', items: [{ itemId: 'i1' }], workspaceId: 'ws1' } as never],
+    [{ id: 'shared', dueDate: '2026-01-10', taxCodeId: 'vat17', vendorId: 'v1', splits: [{ itemId: 'i2' }], workspaceId: 'ws1' } as never],
     'ws1',
   );
+  assert.deepEqual(hist.map(r => r.sourceKey), ['invoice:shared', 'bill:shared', 'invoice:second']);
   assert.equal(hist.length, 3);
   assert.equal(hist[0].taxCodeId, 'zero');
   assert.equal(hist[2].taxCodeId, 'vat18');

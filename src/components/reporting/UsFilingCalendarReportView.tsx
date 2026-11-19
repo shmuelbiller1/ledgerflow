@@ -64,6 +64,7 @@ export default function UsFilingCalendarReportView() {
     <ReportSchedule
       columnControls
       allowDisplayedExport={validPeriod}
+      empty={<p role="status" data-report-empty-state className="text-sm text-[var(--muted)]">{reportText('r.no-state-matches-that-filter-clear-the-state-or', 'No state matches that filter. Clear the state or frequency to see all 51 rows.')}</p>}
       caption={reportText('r.state-filing-frequencies-and-due-days-weekend-mo', 'State filing frequencies and due days — weekend move to Monday, holidays not moved')}
       captionClassName="text-start font-semibold text-[var(--text)] pb-1"
       headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"

@@ -1,9 +1,10 @@
+import type { Bill, Invoice } from '../../types';
 import type { TaxHistoryRow } from '../../lib/tax/taxSuggestions';
 
 /** Build history rows from invoices and bills for suggestion learning. */
 export function historyFromDocuments(
-  invoices: Array<{ id: string; workspaceId?: string; date?: string; dueDate: string; taxCodeId?: string; customerId: string; items?: Array<{ itemId?: string }> ; metadata?: Record<string, unknown> }>,
-  bills: Array<{ id: string; workspaceId?: string; date?: string; dueDate: string; taxCodeId?: string; vendorId: string; splits?: Array<{ itemId?: string }> }>,
+  invoices: readonly Pick<Invoice, 'id' | 'workspaceId' | 'date' | 'dueDate' | 'taxCodeId' | 'customerId' | 'items'>[],
+  bills: readonly Pick<Bill, 'id' | 'workspaceId' | 'date' | 'dueDate' | 'taxCodeId' | 'vendorId' | 'splits'>[],
   workspaceId: string | null,
 ): Array<TaxHistoryRow & { sourceKey: string }> {
   const rows: Array<TaxHistoryRow & { sourceKey: string }> = [];

@@ -1,7 +1,7 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 import React, { useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { usNexusWatch, US_NEXUS_SUPPORTED_STATES, type NexusSaleDocument, type NexusYear, type UsNexusWatch } from '../../lib/tax/usNexusWatch';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
@@ -26,14 +26,12 @@ export default function UsNexusWatchReportView({ asOfDate: pageAsOfDate }: { asO
   const invoices = useLedgerStore(state => state.invoices);
   const creditNotes = useLedgerStore(state => state.creditNotes);
   const customers = useLedgerStore(state => state.customers);
-  const truncated = useLedgerStore(state => state.truncatedCollections);
-  const failed = useDataNeedsStore(state => state.failed);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const { loading } = useLedgerCollections('invoices', 'creditNotes', 'customers');
   // the Reports period's end date (a past year, a permalink), with the date field here to change it
   const [asOf, setAsOf] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
-  const partial = Boolean(truncated.invoices || truncated.creditNotes || truncated.customers || failed.invoices || failed.creditNotes || failed.customers);
+  const partial = usePartialReportInputs(['invoices', 'creditNotes', 'customers']);
 
   const watch = useMemo(() => DATE.test(asOf) ? usNexusWatch({
     asOf,

@@ -1,8 +1,8 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 import { useReportDates } from './useReportDates';
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
@@ -23,8 +23,6 @@ export default function AgedReceivablesByRepReportView() {
   const reportText = useReportText();
   const customers = useLedgerStore(state => state.customers);
   const invoices = useLedgerStore(state => state.invoices);
-  const truncated = useLedgerStore(state => state.truncatedCollections);
-  const failed = useDataNeedsStore(state => state.failed);
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const { loading } = useLedgerCollections('customers', 'invoices');
@@ -43,7 +41,7 @@ export default function AgedReceivablesByRepReportView() {
   const totals = rows.reduce((acc, r) => ({
     total: acc.total + r.totalCents, overdue: acc.overdue + r.overdueCents,
   }), { total: 0, overdue: 0 });
-  const partial = truncated.customers || truncated.invoices || failed.customers || failed.invoices;
+  const partial = usePartialReportInputs(['customers', 'invoices']);
 
   // A rep subtotal is not an extra customer. Keep it and its children together, in report order.
   const schedule = rows.flatMap(group => [
@@ -75,6 +73,7 @@ export default function AgedReceivablesByRepReportView() {
 
     <ReportSchedule columnControls allowDisplayedExport={!partial && !loading} rows={schedule} rowKey={r => r.key}
       rowClassName={r => r.summary ? 'border-b border-[var(--line)] font-semibold' : 'border-b border-[var(--line)]/50'}
+      empty={!loading && !partial ? <p role="status" data-report-empty-state className="text-sm text-[var(--muted)]">{reportText('r.no-customer-owes-anything-on-this-date', 'No customer owes anything on this date.')}</p> : null}
       caption={<>{reportText('r.aged-receivables-by-sales-rep-as-of', 'Aged receivables by sales rep as of')} {dates.dateText(asOf)} ({home})</>}
       columns={[
         { header: reportText('r.sales-rep-customer', 'Sales rep / Customer'), cell: r => r.summary ? <>

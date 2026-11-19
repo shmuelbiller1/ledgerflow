@@ -1,3 +1,4 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 import { useReportDates } from './useReportDates';
 import React, { useMemo, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -32,10 +33,9 @@ export default function TaxCodeSuggestionsReportView() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const invoices = useLedgerStore(s => s.invoices);
   const bills = useLedgerStore(s => s.bills);
-  const truncated = useLedgerStore(s => s.truncatedCollections);
   const { loading } = useLedgerCollections('invoices', 'bills');
 
-  const history = useMemo(() => historyFromDocuments(invoices as unknown as Parameters<typeof historyFromDocuments>[0], bills as unknown as Parameters<typeof historyFromDocuments>[1], workspaceId || null), [invoices, bills, workspaceId]);
+  const history = useMemo(() => historyFromDocuments(invoices, bills, workspaceId || null), [invoices, bills, workspaceId]);
 
   const [contactId, setContactId] = useState('');
   const [itemId, setItemId] = useState('');
@@ -80,7 +80,7 @@ export default function TaxCodeSuggestionsReportView() {
     }
   }, [history, checkDate, checkTaxCode, contactId, itemId, entity]);
 
-  const partial = Boolean(truncated.invoices || truncated.bills);
+  const partial = usePartialReportInputs(['invoices', 'bills']);
 
   return <section aria-label={reportText('r.tax-code-suggestions', 'Tax code suggestions')} className="p-4 space-y-4 min-w-0">
     <div className="space-y-1">
@@ -122,7 +122,7 @@ export default function TaxCodeSuggestionsReportView() {
       <h3 className="font-semibold">{reportText('r.what-would-be-suggested', 'What would be suggested?')}</h3>
       {!query.contactId && !query.itemId && !query.entity && <p className="text-sm text-[var(--muted)]">{reportText('r.enter-at-least-one-of-contact-item-or-entity-to', 'Enter at least one of contact, item or entity to see a suggestion. The most specific match that has history wins: contact+item+entity → contact+item → contact → item → entity.')}</p>}
       {suggestionError && <p role="alert" className="text-sm text-amber-700">{reportText('r.could-not-compute-a-suggestion', 'Could not compute a suggestion:')} <bdi>{suggestionError}</bdi>{reportText('r.this-is', '. This is')} <b>{reportText('r.not', 'not')}</b> {reportText('r.a-statement-that-there-is-no-history-the-suggest', 'a statement that there is no history — the suggestion was not calculated.')}</p>}
-      {(query.contactId || query.itemId || query.entity) && !suggestion && !suggestionError && !loading && <p className="text-sm">{reportText('r.no-history-for', 'No history for')} <bdi>{JSON.stringify(query)}</bdi> {reportText('r.on-or-before', 'on or before')} {dates.dateText(today)}{reportText('r.try-a-contact-or-item-that-has-a-past-invoice-bi', '. Try a contact or item that has a past invoice/bill, or clear filters to the least specific.')}</p>}
+      {(query.contactId || query.itemId || query.entity) && !suggestion && !suggestionError && !loading && !partial && <p className="text-sm">{reportText('r.no-history-for', 'No history for')} <bdi>{JSON.stringify(query)}</bdi> {reportText('r.on-or-before', 'on or before')} {dates.dateText(today)}{reportText('r.try-a-contact-or-item-that-has-a-past-invoice-bi', '. Try a contact or item that has a past invoice/bill, or clear filters to the least specific.')}</p>}
       {suggestion && <div className="text-sm space-y-1">
         <p><b>{reportText('r.suggested-code', 'Suggested code:')}</b> <code className="px-1 py-0.5 rounded bg-[var(--surface)] border border-[var(--line)]"><bdi>{suggestion.taxCodeId}</bdi></code> · <b>{reportText('r.share-2', 'Share:')}</b> {(suggestion.share * 100).toFixed(0)}% · <b>{reportText('r.based-on', 'Based on:')}</b> {suggestion.basedOn} {reportText('r.document-s', 'document(s) ·')} <b>{reportText('r.match', 'Match:')}</b> {suggestion.match}</p>
         <p className="text-xs text-[var(--muted)]">{reportText('r.share-is-the-weighted-share-0-5-after-one-half-l', 'Share is the weighted share (0.5 after one half-life) of documents with this code among the matched rows. Based on is the count of matched rows on or before')} {dates.dateText(today)}.</p>
@@ -167,7 +167,7 @@ export default function TaxCodeSuggestionsReportView() {
           { header: reportText('r.source', 'Source'), className: 'text-xs', cell: () => reportText('r.invoice-bill', 'invoice/bill') },
         ]} />
       {history.length > 50 && <p className="text-xs text-[var(--muted)]">{reportText('r.showing-50-of', 'Showing 50 of')} {history.length} {reportText('r.rows-export-for-the-full-list', 'rows; export for the full list.')}</p>}
-      {!history.length && !loading && <p className="text-sm text-[var(--muted)]">{reportText('r.no-history-rows-yet', 'No history rows yet.')}</p>}
+      {!history.length && !loading && !partial && <p className="text-sm text-[var(--muted)]">{reportText('r.no-history-rows-yet', 'No history rows yet.')}</p>}
     </details>
 
     <p className="text-xs text-[var(--muted)]">{reportText('r.capability', 'Capability:')} <b>{reportText('r.calculation-only', 'Calculation only')}</b> {reportText('r.help-text-only-no-tax-advice-see-docs-capabiliti', '— help text only, no tax advice. See docs/CAPABILITIES #143-era notes; this report does not post, file or verify a tax treatment.')}</p>

@@ -38,13 +38,24 @@ function isLocationHistory(value: unknown): value is ItemDetails {
     (m.locationId == null || typeof m.locationId === 'string') && (m.writtenOn == null || typeof m.writtenOn === 'string'));
 }
 
-export default function StockValueByLocationLotReportView({ purchaseOrders: purchaseOrdersProp, history: historyProp }: { purchaseOrders?: PurchaseOrder[]; history?: ItemDetails[] } = {}) {
+interface StockValueInputs { purchaseOrders?: PurchaseOrder[]; history?: ItemDetails[] }
+
+export default function StockValueByLocationLotReportView(props: StockValueInputs = {}) {
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const uid = useAuthStore(s => s.user?.uid);
+  const guest = useAuthStore(s => s.isGuest);
+  const reportText = useReportText();
+  if (!workspaceId || (!uid && !guest)) return <p role="status">{reportText('r.stock-value-select-book', 'Select a workspace to review its stock value.')}</p>;
+  // The subscription's last purchase orders are not a successful read for the next reader/book.
+  return <StockValue key={JSON.stringify([workspaceId, uid, guest])} {...props} workspaceId={workspaceId} />;
+}
+
+function StockValue({ purchaseOrders: purchaseOrdersProp, history: historyProp, workspaceId }: StockValueInputs & { workspaceId: string }) {
   const dates = useReportDates();
   const reportText = useReportText();
   const inventory = useLedgerStore(s => s.inventory) as InventoryItem[];
   const invoices = useLedgerStore(s => s.invoices) as Invoice[];
   const dimensionNodes = useLedgerStore(s => s.dimensionNodes);
-  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency || 'USD');
   const inventoryPartial = usePartialReportInputs(['inventory']);
   const invoicesPartial = usePartialReportInputs(['invoices']);
@@ -59,12 +70,12 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
   const valuationDate = asOf > today ? today : asOf;
   // Reconcile against *today's* on-hand first. The existing valuation function then cuts those
   // movements at the selected day. Cutting the read itself compared past stock to today's stock.
-  const query = new URLSearchParams({ workspaceId: workspaceId || '', startDate: HISTORY_START, endDate: today });
-  const ledger = useReportList(!historyProp && workspaceId && validDate ? `/api/v1/reports/inventory-details?${query}` : null, 'items', isLocationHistory);
+  const query = new URLSearchParams({ workspaceId, startDate: HISTORY_START, endDate: today });
+  const ledger = useReportList(!historyProp && validDate ? `/api/v1/reports/inventory-details?${query}` : null, 'items', isLocationHistory);
   const history = historyProp ?? ledger.rows;
 
   const itemsForWorkspace = useMemo(
-    () => (inventory || []).filter(i => !workspaceId || !i.workspaceId || i.workspaceId === workspaceId),
+    () => (inventory || []).filter(i => i.workspaceId === workspaceId),
     [inventory, workspaceId],
   );
 
@@ -90,7 +101,7 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
     const itemsById = new Map(itemsForWorkspace.map(i => [i.id, i]));
     const lines: LotReceiptLine[] = [];
     for (const po of purchaseOrders || []) {
-      if (workspaceId && po.workspaceId !== workspaceId) continue;
+      if (po.workspaceId !== workspaceId) continue;
       const itemOf = new Map((po.items || []).map(i => [i.id, i.itemId] as const));
       for (const receipt of po.receipts || []) {
         for (const line of receipt.items || []) {
@@ -117,7 +128,7 @@ export default function StockValueByLocationLotReportView({ purchaseOrders: purc
   const sales = useMemo(() => {
     const refs: LotSaleRef[] = [];
     for (const inv of invoices || []) {
-      if (workspaceId && inv.workspaceId && inv.workspaceId !== workspaceId) continue;
+      if (inv.workspaceId !== workspaceId) continue;
       if (inv.status === 'void' || inv.status === 'cancelled' || inv.status === 'rejected' || inv.status === 'draft') continue;
       const day = String(inv.date || '').slice(0, 10);
       for (const line of inv.items || []) {

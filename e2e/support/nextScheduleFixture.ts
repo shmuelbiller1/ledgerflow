@@ -4,14 +4,17 @@ import { book, dbRows, history, reps, stockPlaces } from './nextScheduleBook';
 import { nextSchedules, type NextSchedule } from './nextSchedules';
 import { setLedgerField } from './journeyFixture';
 import { tabTo } from './tabTo';
+import { installReportFonts, loadReportFonts } from './reportFonts';
 
 const dates = { startDate: '2026-02-01', endDate: '2026-02-28', asOfDate: '2026-02-28', compareStartDate: '2026-01-01', compareEndDate: '2026-01-31' };
 export async function openNextSchedule(page: Page, id: NextSchedule, width: number, theme: 'light' | 'dark') {
+  await installReportFonts(page);
   const result = await openComparison(page, { module: `/src/components/reporting/${nextSchedules[id]}.tsx`, props: dates }, width, theme, 'viewer', { ledger: book, api: ({ url, method }) => {
     const path = new URL(url);
     if (method === 'GET' && path.pathname === '/api/v1/reports/inventory-details' && path.searchParams.get('workspaceId') === workspaceId && path.searchParams.get('startDate') === '1900-01-01') return { json: { items: history } };
     return null;
   } }, async () => {
+    await loadReportFonts(page);
     await setLedgerField(page, 'dimensionNodes', stockPlaces);
     await page.evaluate(async reps => {
       const { useAuthStore } = await import('/src/stores/useAuthStore.ts');

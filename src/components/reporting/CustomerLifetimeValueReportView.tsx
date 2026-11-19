@@ -1,11 +1,10 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 import { useReportDates } from './useReportDates';
 import React, { useState } from 'react';
-import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useServerCustomerLifetimeValue } from '../../hooks/useServerCustomerLifetimeValue';
 import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
-import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { customerLifetimeValueCsvRows, CUSTOMER_LIFETIME_VALUE_CSV_HEADERS, DEFAULT_LIFESPAN_YEARS } from '../../lib/customerLifetimeValue';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
@@ -29,8 +28,6 @@ export default function CustomerLifetimeValueReportView({ startDate = '', asOfDa
 export function CustomerLifetimeValuePanel({ from = '', asOf }: { from?: string; asOf: string }) {
   const dates = useReportDates();
   const reportText = useReportText();
-  const truncated = useLedgerStore(state => state.truncatedCollections);
-  const failed = useDataNeedsStore(state => state.failed);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const { loading } = useLedgerCollections('customers', 'invoices', 'creditNotes', 'inventory', 'transactions', 'accounts');
   const [lifespan, setLifespan] = useState(String(DEFAULT_LIFESPAN_YEARS));
@@ -45,7 +42,8 @@ export function CustomerLifetimeValuePanel({ from = '', asOf }: { from?: string;
   const waiting = loading && !settled;
   const { report, source } = useServerCustomerLifetimeValue(asOf, from, usableLifespan ? lifespanYears : DEFAULT_LIFESPAN_YEARS, valid && usableLifespan && !waiting);
 
-  const partial = source !== 'server' && (['customers', 'invoices', 'creditNotes', 'inventory', 'transactions', 'accounts'] as const).some(key => isCollectionCapped(truncated, key) || failed[key]);
+  const inputsPartial = usePartialReportInputs(['customers', 'invoices', 'creditNotes', 'inventory', 'transactions', 'accounts']);
+  const partial = source !== 'server' && inputsPartial;
   const currency = workspace?.currency || 'USD';
 
   return <section aria-label={reportText('r.customer-lifetime-value', 'Customer lifetime value')} className="p-4 space-y-4 min-w-0">
@@ -73,6 +71,7 @@ export function CustomerLifetimeValuePanel({ from = '', asOf }: { from?: string;
     {report && <ReportSchedule
       columnControls
       allowDisplayedExport={!partial && !waiting}
+      empty={valid && !waiting && !partial ? <p role="status" data-report-empty-state className="text-sm text-[var(--muted)]">{reportText('r.no-issued-invoice-in-this-window', 'No issued invoice in this window.')}</p> : null}
       caption={<>{reportText('r.customer-lifetime-value-to', 'Customer lifetime value to')} {dates.dateText(asOf)}{from ? ` ${fill(reportText('r.from-0-2', '(from {0})'), { 0: dates.dateText(from) })}` : ''}</>}
       rowClassName="border-b border-[var(--line)]/50"
       bodyClassName=""
@@ -84,8 +83,8 @@ export function CustomerLifetimeValuePanel({ from = '', asOf }: { from?: string;
         { header: reportText('r.cost', 'Cost'), align: 'right', cell: row => <>{formatCurrency(row.costCents, currency)}{row.costIsEstimate ? <span className="text-[var(--muted)]"> {reportText('r.includes-an-estimate', '(includes an estimate)')}</span> : null}</> },
         { header: reportText('r.gross-profit', 'Gross profit'), align: 'right', cell: row => formatCurrency(row.grossProfitCents, currency) },
         { header: reportText('r.margin', 'Margin %'), align: 'right', cell: row => row.marginPct === null ? '—' : `${row.marginPct.toFixed(1)}%` },
-        { header: reportText('r.first-order', 'First order'), cell: row => row.firstOrder ? dates.dateText(row.firstOrder) : '—' },
-        { header: reportText('r.last-order', 'Last order'), cell: row => row.lastOrder ? dates.dateText(row.lastOrder) : '—' },
+        { header: reportText('r.first-order', 'First order'), cell: row => row.firstOrder ? <time dateTime={row.firstOrder}>{dates.dateText(row.firstOrder)}</time> : '—' },
+        { header: reportText('r.last-order', 'Last order'), cell: row => row.lastOrder ? <time dateTime={row.lastOrder}>{dates.dateText(row.lastOrder)}</time> : '—' },
         { header: reportText('r.active', 'Active'), align: 'right', cell: row => row.active ? reportText('r.yes', 'Yes') : reportText('r.no', 'No') },
         { header: reportText('r.average-order', 'Average order'), align: 'right', cell: row => formatCurrency(row.averageOrderCents, currency) },
         { header: reportText('r.orders-year', 'Orders / year'), align: 'right', cell: row => row.ordersPerYear.toFixed(2) },

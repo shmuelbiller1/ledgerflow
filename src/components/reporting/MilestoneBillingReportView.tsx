@@ -1,8 +1,8 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 import ReportSchedule from './ReportSchedule';
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
@@ -29,8 +29,6 @@ const ORDERS_CSV_HEADERS = ['Order', 'Date', 'Customer', 'Status', 'Order total 
 export default function MilestoneBillingReportView() {
   const reportText = useReportText();
   const estimates = useLedgerStore(state => state.estimates);
-  const truncated = useLedgerStore(state => state.truncatedCollections);
-  const failed = useDataNeedsStore(state => state.failed);
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const { loading } = useLedgerCollections('estimates');
@@ -53,7 +51,7 @@ export default function MilestoneBillingReportView() {
   const selected = orders.find(o => o.est.id === selectedId) || orders[0];
   const dueCount = orders.reduce((sum, o) => sum + o.billing.rows.filter(r => r.status === 'due').length, 0);
   const leftTotal = orders.reduce((sum, o) => sum + o.billing.leftCents, 0);
-  const partial = truncated.estimates || failed.estimates;
+  const partial = usePartialReportInputs(['estimates']);
 
   const nextOf = (billing: MilestoneBilling) => billing.rows.find(r => r.status === 'due') || billing.rows.find(r => r.status === 'upcoming');
 
@@ -94,7 +92,7 @@ export default function MilestoneBillingReportView() {
 
     {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-orders', 'Loading orders…')}</p>}
     {partial && <p role="alert" className="text-sm text-[var(--muted)]">{reportText('r.the-loaded-orders-are-capped-or-failed-at-the-da', 'The loaded orders are capped or failed at the database. These figures may be incomplete.')}</p>}
-    {!loading && !orders.length && <p className="text-sm text-[var(--muted)]">{reportText('r.no-sales-order-keeps-a-milestone-schedule-yet-th', 'No sales order keeps a milestone schedule yet. The schedule is set on the order in Sales.')}</p>}
+    {!loading && !partial && !orders.length && <p className="text-sm text-[var(--muted)]">{reportText('r.no-sales-order-keeps-a-milestone-schedule-yet-th', 'No sales order keeps a milestone schedule yet. The schedule is set on the order in Sales.')}</p>}
     <p className="text-sm">
       {orders.length} {reportText('r.order-s-with-a-schedule', 'order(s) with a schedule')}{dueCount ? ` ${fill(reportText('r.0-milestone-s-due-to-bill', '· {0} milestone(s) due to bill'), { 0: dueCount })}` : ` ${reportText('r.none-due', '· none due')}`} {reportText('r.left-to-bill', '· left to bill')} {formatCurrency(leftTotal, home)}
     </p>
@@ -121,7 +119,7 @@ export default function MilestoneBillingReportView() {
       <h3 className="text-base font-semibold">
         {selected.est.number || selected.est.id}: {selected.billing.rows.length} {reportText('r.milestone-s', 'milestone(s)')}
       </h3>
-      <ReportTableScroll>
+      <ReportTableScroll allowDisplayedExport={!partial && !loading}>
         <RowTable
           rowClassName="border-b border-[var(--line)]/50"
           caption={(<>{reportText('r.milestones-of', 'Milestones of')} {selected.est.number || selected.est.id}</>)}

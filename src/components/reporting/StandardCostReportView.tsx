@@ -1,3 +1,4 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 /**
  * A-268: Standard cost variance report screen. Reports → Inventory → "Standard cost variance".
  *
@@ -10,7 +11,6 @@ import React, { useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { downloadCsv } from '../../lib/csvExport';
 import { paymentMethodCsvAmount as csvAmount } from '../../lib/paymentMethodCsvAmount';
@@ -37,8 +37,6 @@ export default function StandardCostReportView() {
   const inventory = useLedgerStore(s => s.inventory) as InventoryItem[];
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const currency = useAuthStore(s => s.workspaces?.find(w => w.id === s.currentWorkspaceId)?.currency || 'USD');
-  const truncated = useLedgerStore(s => s.truncatedCollections);
-  const failed = useDataNeedsStore(s => s.failed);
   const setActiveTab = useUIStore(s => s.setActiveTab);
   const { loading } = useLedgerCollections('inventory');
 
@@ -48,7 +46,7 @@ export default function StandardCostReportView() {
   );
 
   const report = useMemo(() => standardCostReport(scopedItems), [scopedItems]);
-  const partial = Boolean(truncated.inventory || failed.inventory);
+  const partial = usePartialReportInputs(['inventory']);
 
   return (
     <section aria-label={reportText('r.standard-cost-variance', 'Standard cost variance')} className="p-4 space-y-4 min-w-0">

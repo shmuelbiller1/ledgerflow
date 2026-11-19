@@ -119,6 +119,7 @@ export default function TopPartiesReportView() {
     <ReportSchedule
       columnControls
       allowDisplayedExport={health.ready && !partial}
+      empty={periodValid ? <p role="status" data-report-empty-state className="text-sm text-[var(--muted)]">{partial ? reportText('r.no-activity-in-the-loaded-records-review-the-ful', 'No activity in the loaded records. Review the full history before relying on this ranking.') : (kind === 'customer' ? reportText('r.nothing-invoiced-in-period', 'Nothing was invoiced in this period. Choose another period or review the issued documents.') : reportText('r.nothing-billed-in-period', 'Nothing was billed in this period. Choose another period or review the issued documents.'))}</p> : null}
       caption={<>{reportText('r.top', 'Top')} {kind === 'customer' ? reportText('r.customers-by-amount-invoiced', 'customers by amount invoiced') : reportText('r.vendors-by-amount-billed', 'vendors by amount billed')}, {from} {reportText('r.to-2', 'to')} {to} ({home})</>}
       rowClassName="border-b border-[var(--line)]/50"
       bodyClassName=""

@@ -1,3 +1,4 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 /**
  * A-63 / A-170: Landed cost preview on receipts, plus A-79 / A-171 barcode scanning on receipts.
  * Spreads freight, duty and handling across a purchase receipt's lines (or a custom/scanned
@@ -10,7 +11,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import {
   landedCostPreview,
@@ -52,8 +52,6 @@ export default function LandedCostPreviewReportView() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const homeCurrency = (workspace?.currency || 'USD').toUpperCase();
-  const truncated = useLedgerStore(s => s.truncatedCollections);
-  const failed = useDataNeedsStore(s => s.failed);
   const { loading } = useLedgerCollections('bills', 'inventory', 'vendors');
 
   const bills = useLedgerStore(s => s.bills) as Bill[];
@@ -185,10 +183,7 @@ export default function LandedCostPreviewReportView() {
     setScanNotice(`Added 1 × ${item.name} (${scan.code})${burst ? ' via scanner' : ''} to the receipt preview.`);
   };
 
-  const partial = Boolean(
-    truncated.bills || truncated.inventory || truncated.vendors ||
-    failed.bills || failed.inventory || failed.vendors,
-  );
+  const partial = usePartialReportInputs(['bills', 'inventory', 'vendors']);
 
   const exportCsv = () => {
     if (!preview) return;

@@ -1,7 +1,7 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -31,8 +31,6 @@ export default function CustomerCreditLimitReportView() {
   const reportText = useReportText();
   const customers = useLedgerStore(state => state.customers);
   const invoices = useLedgerStore(state => state.invoices);
-  const truncated = useLedgerStore(state => state.truncatedCollections);
-  const failed = useDataNeedsStore(state => state.failed);
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const { loading } = useLedgerCollections('customers', 'invoices');
@@ -52,7 +50,7 @@ export default function CustomerCreditLimitReportView() {
   }, [customers, invoices, workspaceId, home, state]);
   const overLimit = report.filter(row => row.state === 'over');
 
-  const partial = truncated.customers || truncated.invoices || failed.customers || failed.invoices;
+  const partial = usePartialReportInputs(['customers', 'invoices']);
 
   return <section aria-label={reportText('r.customer-credit-limits', 'Customer credit limits')} className="p-4 space-y-4 min-w-0">
     <h2>{reportText('r.customer-credit-limits', 'Customer credit limits')}</h2>
@@ -83,6 +81,7 @@ export default function CustomerCreditLimitReportView() {
     <ReportSchedule
       columnControls
       allowDisplayedExport={!canEdit && !partial && !loading}
+      empty={!loading && !partial ? <p role="status" data-report-empty-state className="text-sm text-[var(--muted)]">{state === 'all' ? reportText('r.no-customer-has-a-recorded-limit-or-an-open-bala', 'No customer has a recorded limit or an open balance yet.') : reportText('r.no-customer-matches-this-filter', 'No customer matches this filter.')}</p> : null}
       caption={reportText('r.customer-credit-limits-and-what-each-customer-ow', 'Customer credit limits and what each customer owes')}
       rowClassName="border-b border-[var(--line)]/50"
       bodyClassName=""

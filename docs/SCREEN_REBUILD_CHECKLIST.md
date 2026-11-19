@@ -8,12 +8,12 @@ historical, not an acceptance test. Earlier migration batches and their evidence
 
 | Counter (`computeQualityMetrics()`) | Start of this batch | Now | Target |
 |---|---:|---:|---|
-| `rawTables` | 120 | **109** | Zero or an individual reason to keep each site |
+| `rawTables` | 109 | **84** | Zero or an individual reason to keep each site |
 | `handTypedApiCalls` | 5 | **5** | Zero or individually justified (§3) |
 | `directDbWrites` | 0 | **0** | 0 |
 | `screensWithManyPrimaryButtons` | 0 | **0** | 0 |
 
-**109 is files, not tables**: 107 paths on the migration queue, `PivotSheetView` (dynamic pivot) and
+**84 is files, not tables**: 82 paths on the migration queue, `PivotSheetView` (dynamic pivot) and
 `RowTable` (the embedded-table renderer itself). The full-list grid is excluded by the existing metric.
 `raw-table-decisions.test.ts` now compares the metric's actual paths against the queue and named exceptions;
 a new raw screen cannot slip in when a different screen migrates in the same PR. A queued file is **not** an exemption.
@@ -204,14 +204,19 @@ At the end of that batch the dry run offered **10 tables in 9 files** (12 in 11 
       captured and independently rechecked all 40 references. Reviewed the RTL chart axes, phone row
       headings, opening/closing balances and matrix footers. No unrelated reference or tolerance changed.
 
-**Next batch:** measured on `4a6cc44` and this change: `rawTables` **120 → 109**, migration queue
-**118 → 107**, dry codemod **10 tables / 9 files → 8 / 7**, **132 → 123** blocks left for hand work.
-Two convertible sites from this batch are gone; the rest needed semantic decisions, not `--write`.
-Recheck current reservations and run `npx tsx scripts/codemod-row-table.ts --files` on the next
-base. The remaining automatic candidates are `TimeView`, `PriceListImportView`, `PurchaseOrdersView`,
-`BillRetentionReportView`, `CustomerItemCodesView`, `PartyLinkedTrialBalanceView` and
-`StockValueByLocationLotReportView`. Start with the last report if free: preserve location/lot
-identity, empty location and valuation as-of date. This is not completion of the list, palette or proposals.
+- [x] **25 stock, customer and tax screen files** ([worked figures, before/after images and checks](verification/UI2_NEXT_25_SCHEDULES.md)).
+      This removes 26 raw tables: Stock Value by Location & Lot had two. Milestone Billing already had
+      a shared detail schedule — only its order table counts. No change to posting or the valuation formulas.
+      An unassigned location remains a real group; an item whose stock history cannot be explained is not
+      allocated to it. Received lot value and sold references are separate from stock on the selected day.
+      Reader dates and translated column labels do not alter the machine CSV contracts. A chosen column
+      cannot hide the row's name or shift the total into a different amount column.
+
+**Next batch:** measured from `1572821`: `rawTables` **109 → 84**, migration queue **107 → 82**,
+dry codemod **8 tables / 7 files → 4 / 3**, hand-work blocks **123 → 101**. Recheck the live queue
+and PR reservations first. The three remaining automatic candidates are `TimeView`,
+`PriceListImportView` and `PurchaseOrdersView`. The purchase-order file also contains hand work:
+migrating one convertible table is not migrating a screen. No other UI-2 part is certified by this batch.
 
 ## 3. One way to act
 

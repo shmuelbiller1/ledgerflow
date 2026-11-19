@@ -482,4 +482,5 @@ export const FIFTH_REPORT_STRINGS: ScreenStringEntry[] = [
   { key: 'r.review-cert-expiry', en: 'Review the recorded certificate expiry.', he: 'יש לבדוק את תאריך התפוגה הרשום באישור.' },
   { key: 'r.check-expiry', en: 'Check whether the certificate has an expiry.', he: 'יש לבדוק אם לאישור יש תאריך תפוגה.' },
   { key: 'r.check-il-certificate', en: 'No Israeli withholding certificate is recorded; check whether one is required.', he: 'לא נרשם אישור ישראלי לניכוי במקור; יש לבדוק אם נדרש אישור.' },
+  { key: 'r.stock-value-select-book', en: 'Select a workspace to review its stock value.', he: 'בחרו סביבת עבודה כדי לבדוק את שווי המלאי שלה.' },
 ];

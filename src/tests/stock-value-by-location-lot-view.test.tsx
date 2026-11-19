@@ -8,7 +8,7 @@ import { stubFetch } from './helpers/dom';
 import test, { afterEach, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import StockValueByLocationLotReportView from '../components/reporting/StockValueByLocationLotReportView';
 import { itemDetails, type StockMove } from '../lib/stockMoves';
 import { useLedgerStore } from '../stores/useLedgerStore';
@@ -76,5 +76,33 @@ describe('Stock value by location and lot screen', () => {
     assert.ok(rows.some(t => /L-A/.test(t) && /15/.test(t) && /\$80\.00/.test(t) && /\$5\.33/.test(t)), rows.join(' | '));
     assert.ok(rows.some(t => /Total received value/.test(t) && /\$80\.00/.test(t)), rows.join(' | '));
     assert.ok(screen.getAllByRole('button', { name: 'Download CSV' }).length === 2);
+  });
+
+  test('an unreadable server history is not an empty warehouse or an export; retry does not replace lot evidence', async () => {
+    const dates: string[] = [];
+    let complete = false;
+    const fallback = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      const url = new URL(String(input), 'http://localhost');
+      if (url.pathname !== '/api/v1/reports/inventory-details') return fallback(input, init);
+      dates.push(url.searchParams.get('endDate')!);
+      return Response.json({ items: complete ? history : [{ ...history[0], moves: [{ quantity: 1 }] }] });
+    };
+    render(<StockValueByLocationLotReportView purchaseOrders={purchaseOrders as never} />);
+    const locationCsv = screen.getAllByRole<HTMLButtonElement>('button', { name: 'Download CSV' })[0];
+    assert.ok(locationCsv.disabled);
+    await waitFor(() => assert.match(screen.getByRole('alert').textContent!, /did not contain report rows/));
+    assert.equal(screen.queryByRole('table', {name: 'Value by location'}), null);
+    assert.ok(screen.getByRole('table', {name: 'Value by lot'}));
+    complete = true;
+    fireEvent.click(screen.getByRole('button', {name: 'Retry'}));
+    await screen.findByRole('table', {name: 'Value by location'}); assert.ok(!locationCsv.disabled);
+    fireEvent.change(screen.getByLabelText('As of'), { target: { value: '2026-01-06' } });
+    const location = screen.getByRole('table', { name: 'Value by location' });
+    assert.match(location.querySelector('tfoot')!.textContent!, /\$50\.00/);
+    assert.equal(dates.length, 2, 'selecting a historical date still reconciles against the full read through today');
+    await act(async () => useAuthStore.setState({ currentWorkspaceId: null, isGuest: false, user: null }));
+    assert.equal(screen.queryByRole('table'), null, 'neither schedule survives closing the book');
+    globalThis.fetch = fallback;
   });
 });

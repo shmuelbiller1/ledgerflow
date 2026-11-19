@@ -1,3 +1,4 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 /**
  * A-116: kits assembled on demand. Reports → Kit Assembly.
  *
@@ -9,7 +10,6 @@
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { downloadCsv } from '../../lib/csvExport';
 import { kitBuildPlan, type KitBuildPlan } from '../../lib/kitAssembly';
@@ -24,8 +24,6 @@ export default function KitAssemblyReportView() {
   const reportText = useReportText();
   const inventory = useLedgerStore(s => s.inventory) as InventoryItem[];
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
-  const truncated = useLedgerStore(s => s.truncatedCollections);
-  const failed = useDataNeedsStore(s => s.failed);
   const { loading } = useLedgerCollections('inventory');
 
   const kits = useMemo(
@@ -40,7 +38,7 @@ export default function KitAssemblyReportView() {
   const [count, setCount] = useState('1');
   const requested = count.trim() === '' ? undefined : Number(count);
   const plan: KitBuildPlan | null = kit ? kitBuildPlan(kit as BundleHost & { name: string }, inventory || [], requested) : null;
-  const partial = Boolean(truncated.inventory || failed.inventory);
+  const partial = usePartialReportInputs(['inventory']);
 
   return (
     <section aria-label={reportText('r.kit-assembly', 'Kit assembly')} className="p-4 space-y-4 min-w-0">
@@ -58,7 +56,7 @@ export default function KitAssemblyReportView() {
         </p>
       )}
 
-      {!loading && kits.length === 0 ? (
+      {!loading && !partial && kits.length === 0 ? (
         <p className="text-sm text-[var(--muted)]">
           {reportText('r.no-kits-yet-make-an-item-a-bundle-of-other-items', 'No kits yet: make an item a bundle of other items on Inventory (its parts editor), then mark it “Assemble on demand”.')}
         </p>

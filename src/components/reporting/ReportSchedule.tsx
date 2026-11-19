@@ -11,6 +11,8 @@ type Props<T, C> = RowTableProps<T, C> & {
 
 export default function ReportSchedule<T, C = never>({ columnControls, allowDisplayedExport = false, caption, ...props }: Props<T, C>) {
   const id = useId();
+  // An explicit empty/partial state owns the view; there are no columns to scroll or export.
+  if (!props.rows.length && props.empty !== undefined) return <>{props.empty}</>;
   const table = <RowTable<T, C> tableClassName="report-schedule comparison-report-table w-full text-start text-sm"
     captionClassName="py-2 text-start font-semibold" rowHeaderClassName="font-medium" {...props}
     caption={<span id={id}>{caption}</span>} />;
