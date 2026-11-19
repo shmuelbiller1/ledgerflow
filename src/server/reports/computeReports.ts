@@ -170,12 +170,26 @@ export function computeTrialBalance(accounts: ChartAccount[], transactions: Tran
       trialBalance[acc.id].netSigned += isDebitNature ? debit - credit : credit - debit;
     }
   });
+  const orphanedLines: Array<{ accountId: string; transactionId?: string; date?: string; amountCents: number }> = [];
+  // the fast path's gross opening movement on accounts the chart does not have counts too
+  if (opening) {
+    for (const id of new Set([...Object.keys(opening.debits), ...Object.keys(opening.credits)])) {
+      if (trialBalance[id]) continue;
+      const net = (opening.debits[id] || 0) - (opening.credits[id] || 0);
+      if ((opening.debits[id] || 0) || (opening.credits[id] || 0)) orphanedLines.push({ accountId: id, amountCents: net });
+    }
+  }
   for (const tx of transactions) {
     if (!isPostable(tx)) continue;
     if (asOfDate && !isTransactionInDateRange(tx, undefined, asOfDate)) continue;
     tx.lines?.forEach((line: TransactionLine) => {
       const amount = lineAmount(line, tx);
-      if (trialBalance[line.accountId]) {
+      // #802: a line on an account the chart does not have is reported, never silently left out
+      if (!trialBalance[line.accountId]) {
+        if (amount !== 0) orphanedLines.push({ accountId: line.accountId, transactionId: tx.id, date: tx.date, amountCents: amount });
+        return;
+      }
+      {
         const isDebitNature = ['asset', 'expense', 'cost_of_goods'].includes(trialBalance[line.accountId].type);
         if (amount > 0) {
           trialBalance[line.accountId].debit += amount;
@@ -197,7 +211,8 @@ export function computeTrialBalance(accounts: ChartAccount[], transactions: Tran
     credit: acc.credit,
     netSigned: acc.netSigned
   }));
-  return { accounts: accountsArray, totalDebit, totalCredit, isBalanced: totalDebit === totalCredit };
+  // an incomplete trial balance is never presented as balanced, even when the missing lines pair up
+  return { accounts: accountsArray, totalDebit, totalCredit, isBalanced: totalDebit === totalCredit && orphanedLines.length === 0, orphanedLines };
 }
 
 /** Bank and cash accounts for the cash flow statement, including money received but not yet deposited. */
@@ -248,6 +263,20 @@ export function computeCashFlow(accounts: ChartAccount[], transactions: Transact
       return Boolean(acc && isCashFlowCashAccount(acc));
     };
     if (!lines.some(isCash)) return;
+
+    // #803: selling a fixed asset is one investing movement of cash; its gain or loss and catch-up
+    // depreciation are not cash received, so they are not spread over the operating section
+    const kind = String((tx.metadata as { type?: unknown } | undefined)?.type || '');
+    if (kind === 'asset-disposal' || kind === 'asset-partial-disposal') {
+      const cash = lines.filter(isCash).reduce((sum, line) => sum + lineAmount(line, tx), 0);
+      if (cash !== 0) {
+        cashFlow.investing.total += cash;
+        if (cash > 0) cashFlow.investing.inflow += cash;
+        else cashFlow.investing.outflow += -cash;
+        cashFlow.investing.items.push({ name: tx.description, amount: cash });
+      }
+      return;
+    }
 
     lines.forEach((line: TransactionLine) => {
       const acc = byId.get(line.accountId);
