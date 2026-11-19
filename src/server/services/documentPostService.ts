@@ -215,17 +215,17 @@ function assertDocumentMutationAllowed(
           throw new BulkRefusal(409, { error: `Cannot change currency or exchange rate on a ${NAMES[collection]} that has already been applied or refunded.` });
         }
       } else if (incomingAmount !== undefined || incomingRemaining !== undefined) {
-        // #775: the total and the remaining balance must still account for what has already been applied
-        // (a lower total does not move remainingCents on its own: Gitar on #929)
+        // #775: once part of a credit is applied its total is fixed, as for a settled one; while nothing is
+        // applied, a total-only edit moves the remaining balance with it (Gitar on #929)
         const applied = oldAmount - oldRemaining;
         const newAmount = incomingAmount !== undefined ? incomingAmount : oldAmount;
-        const newRemaining = incomingRemaining !== undefined ? incomingRemaining : oldRemaining;
-        if (newAmount < applied || newAmount - newRemaining < applied) {
-          throw new BulkRefusal(409, { error: `The total of this ${NAMES[collection]} cannot be lower than the ${applied} already applied.` });
+        if (applied > 0 && newAmount !== oldAmount) {
+          throw new BulkRefusal(409, { error: `Cannot change the total of this ${NAMES[collection]}: ${applied} of it is already applied.` });
         }
-        const maxRemaining = Math.min(newAmount, oldRemaining + Math.max(0, newAmount - oldAmount));
-        if (newRemaining > maxRemaining) {
-          throw new BulkRefusal(409, { error: 'Credit remaining balance cannot be increased above its unapplied amount.' });
+        const expectedRemaining = newAmount - applied;
+        if (incomingRemaining === undefined) incoming.remainingCents = expectedRemaining;
+        else if (incomingRemaining !== expectedRemaining) {
+          throw new BulkRefusal(409, { error: `The remaining balance of this ${NAMES[collection]} must be ${expectedRemaining}: ${applied} is already applied.` });
         }
       }
     }

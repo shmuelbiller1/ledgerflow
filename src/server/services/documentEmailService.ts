@@ -265,7 +265,8 @@ export async function emailStatements(db: Firestore, input: { workspaceId: strin
     if (!statement || statement.contactType !== 'customer') { result.skipped.push({ id, name: id, reason: 'not a customer here' }); continue; }
     const name = String(statement.contact.name || id);
     const to = String(statement.contact.email || '').trim().toLowerCase();
-    const currency = String(statement.contact.currency || workspace.currency || 'USD');
+    // the statement is worked out in the book's currency (#805), so its balance is shown in that currency
+    const currency = String(statement.statement.currency || workspace.currency || 'USD');
     if (statement.endingBalanceCents <= 0) { result.skipped.push({ id, name, reason: 'nothing is open' }); continue; }
     if (!isEmailShape(to)) { result.skipped.push({ id, name, reason: 'no email address' }); continue; }
     if (await isSuppressed(db, to)) { result.skipped.push({ id, name, reason: `${to} bounced or reported spam` }); continue; }

@@ -23,7 +23,6 @@ import { ExpenseByCategoryReportView } from '../components/reporting/ExpenseByCa
 import { IncomeBySourceReportView } from '../components/reporting/IncomeBySourceReportView';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { makeChartAccount, makeTransaction } from './fixtures';
-import { setLoadedAccountReportWorkspace } from './helpers/componentFixtures';
 import type { TransactionLine } from '../types';
 
 const line = (accountId: string, amountCents: number): TransactionLine =>
@@ -60,8 +59,7 @@ function barWidths(caption: RegExp): string[] {
 }
 
 describe('share bars clamp to [0,100] (#909)', () => {
-  // #882: the reports wait for their ledger reads, so the books are marked as loaded
-  beforeEach(() => { stubFetch(404); setLoadedAccountReportWorkspace(); });
+  beforeEach(() => { stubFetch(404); });
   afterEach(() => cleanup());
 
   test('Expense by Category: refund bar is empty, >100% bar fills exactly one track', () => {
