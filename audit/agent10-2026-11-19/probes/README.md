@@ -40,3 +40,17 @@ npx tsx audit/agent10-2026-11-16/probes/probe-02-tx-fx-partial-update-and-report
 (one session); `r3` is its PGlite-safe replacement, and it also fixes two probe defects of its own:
 it `COMMIT`s the RLS writes (a rolled-back write made every verdict vacuous) and it creates the
 revenue account `creditnote.create` requires.
+
+## Saved output
+
+`r1-output.json` and `r3-output.json` are the results quoted in the audit report, re-run on 2026-11-19
+against PGlite with every migration applied. Read the `verdict` field, not the prose:
+
+- `FIXED` — the 2026-11-16 defect no longer reproduces.
+- `LIVE` — it still does; A2 is issue #915 and A6 is issue #916.
+- `INFO` — read-only figure, no pass/fail.
+- `CHECK` — the figure matched neither the fixed nor the known-bug value and needs a human.
+
+The r3 `H1-prepaid-line` verdict was inverted when it was first committed (it called 449 cents — the
+old 100x undercount — `FIXED`, and the correct 44,890 `CHECK`); Gitar caught it on PR #919 and it is
+fixed here, so the JSON now agrees with the report.
