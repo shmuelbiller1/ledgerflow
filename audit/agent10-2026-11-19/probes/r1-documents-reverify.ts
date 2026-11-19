@@ -83,7 +83,7 @@ async function main() {
     const b1Doc = (await db.collection('invoices').doc(b1Inv).get()).data();
     const b1Txs = (await db.collection('transactions').where('workspaceId', '==', wsId).where('metadata.invoiceId', '==', b1Inv).get()).docs.map(d => d.data());
     record('B1', b1Update.status === 200 && Number(b1Doc?.settledByRecordsCents || 0) === 10000,
-      { create: b1Create.status, update: b1Update.status, storedSettledCents: b1Doc?.settledByRecordsCents, storedStatus: b1Doc?.status, cashEntries: b1Txs.filter(t => String(t.metadata?.type || '').includes('payment')).length, txs: b1Txs.map(t => ({ type: t.metadata?.type, desc: t.description, lines: (t.lines||[]).map((l:any)=>[l.accountId, l.amountCents]) })), body: b1Update.body },
+      { create: b1Create.status, update: b1Update.status, storedSettledCents: b1Doc?.settledByRecordsCents, storedStatus: b1Doc?.status, cashEntries: b1Txs.filter(t => String(t.metadata?.type || '').includes('payment')).length, txs: b1Txs.map(t => ({ type: t.metadata?.type, desc: t.description, lines: (t.lines||[]).map((l: { accountId?: string; amountCents?: number })=>[l.accountId, l.amountCents]) })), body: b1Update.body },
       'A client-forged settledByRecordsCents/amountPaidCents/status must be refused with 409 and must not land on the document.');
 
     // B2 — voiding an invoice settled by a real payment.
