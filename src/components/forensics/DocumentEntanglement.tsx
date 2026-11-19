@@ -3,6 +3,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { FileText, CheckCircle2, ArrowRight, Tag, DollarSign, Calendar, Building2, ShieldCheck } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
+import { safeEmbeddedDocumentUrl } from '../../lib/documentUrl';
 
 interface DocumentEntanglementProps {
   isOpen: boolean;
@@ -28,6 +29,8 @@ export default function DocumentEntanglement({ isOpen, onClose, receiptUrl, pars
   const { dialogProps: overlayDialogProps, titleId: overlayTitleId } = useDialog(onClose, isOpen);
   if (!isOpen) return null;
   if (!parsedData) return null;
+
+  const safeReceiptUrl = safeEmbeddedDocumentUrl(receiptUrl);
 
   const lineOccurrences = new Map<string, number>();
   const keyedLineItems = parsedData.lineItems.map(item => {
@@ -56,9 +59,9 @@ export default function DocumentEntanglement({ isOpen, onClose, receiptUrl, pars
       >
         {/* Left Side: Receipt Image */}
         <div className="flex-1 bg-zinc-100 relative overflow-hidden flex items-center justify-center p-4 md:p-8">
-          {receiptUrl ? (
+          {safeReceiptUrl ? (
             <img 
-              src={receiptUrl} 
+              src={safeReceiptUrl} 
               alt="Receipt" 
               className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
               referrerPolicy="no-referrer"

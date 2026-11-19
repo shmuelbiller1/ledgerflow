@@ -139,6 +139,41 @@ describe('#891 — a suggestion is a cash movement, not a document total', () =>
     render(<Reconciliation />);
     assert.ok(screen.getByText(/Review 1 suggested match/), 'the 1010 leg is the candidate');
   });
+
+  test('manual comparison never reports Amounts match for a non-cash bill accrual and warns clearly', async () => {
+    stubFetchWithBodies(200, {});
+    useLedgerStore.setState({ accounts: billAccounts, transactions: [billAccrual], bankLines: [withdrawal] });
+    render(<Reconciliation />);
+    await click(screen.getByText('AWS-914'));
+    await click(screen.getByText('BILL-914 AWS September'));
+    assert.equal(screen.queryByText('Amounts match'), null);
+    assert.equal(screen.queryByText('Strong match'), null);
+    assert.equal(screen.queryByText('Good match'), null);
+    assert.ok(screen.getByText('No matching cash leg'));
+    assert.ok(screen.getByText('Entry has no matching cash leg in this account'));
+    assert.ok(screen.getByText('Check manually'));
+  });
+
+  test('manual comparison compares the bank account cash leg rather than journal header total', async () => {
+    stubFetchWithBodies(200, {});
+    // Header total is $1,441.00 because it includes a $25.00 fee paid from another clearing account,
+    // while bank1010 moved by -$1,416.00 (matching AWS-914).
+    const multiLegPayment = makeTransaction({
+      id: 'pay-multi', date: '2026-09-28', description: 'AWS-914 wire plus clearing fee', totalAmountCents: 144100, status: 'completed',
+      lines: [
+        { id: 'm1', accountId: 'ap', amountCents: 141600 },
+        { id: 'm2', accountId: 'expense', amountCents: 2500 },
+        { id: 'm3', accountId: 'bank1010', amountCents: -141600 },
+        { id: 'm4', accountId: 'bank1020', amountCents: -2500 },
+      ],
+    });
+    useLedgerStore.setState({ accounts: billAccounts, transactions: [multiLegPayment], bankLines: [withdrawal] });
+    render(<Reconciliation />);
+    await click(screen.getByText('AWS-914'));
+    await click(screen.getByText('AWS-914 wire plus clearing fee'));
+    assert.ok(screen.getByText('Amounts match'));
+    assert.ok(screen.getByText('Strong match'));
+  });
 });
 
 describe('Bank reconciliation screen', () => {
