@@ -20,7 +20,8 @@ for (const width of [390, 1280]) test(`Accessibility & language sets Hebrew and 
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 
   await page.goto('/#sales');
-  await expect(page.getByRole('heading', { name: 'מכירות', exact: true })).toBeVisible();
+  // the dev server builds the Sales screen on its first visit, which can outlast the 5 s default on a busy runner
+  await expect(page.getByRole('heading', { name: 'מכירות', exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('button', { name: 'חשבוניות', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'לקוחות', exact: true })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'מספר', exact: true })).toBeAttached();
