@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import { barWidthPercent } from '../../lib/barWidth';
 import { useReportText } from '../reporting/useReportText';
 import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
@@ -303,7 +304,7 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
                             <span className="text-[10px] font-bold font-mono text-[var(--text)]">{rule.percentage}%</span>
                           </div>
                           <div className="h-1 w-full bg-[var(--line)] rounded-full overflow-hidden">
-                            <div className="h-full bg-[var(--brass)]" style={{ width: `${rule.percentage}%` }} />
+                            <div className="h-full bg-[var(--brass)]" style={{ width: barWidthPercent(rule.percentage) }} />
                           </div>
                         </div>
                       ))}

@@ -2,6 +2,7 @@ import { workspaceActor } from '../../lib/guestActor';
 import { defaultsMetadata, cleanDocumentDefaults } from '../../lib/documentDefaults';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, safeConfirm } from '../../lib/utils';
+import { barWidthPercent } from '../../lib/barWidth';
 import { ConfirmButton } from '../ui/ConfirmButton';
 import { toast } from 'sonner';
 import { StrategicEngine } from '../../services/strategicEngine';
@@ -375,7 +376,7 @@ export default function Inventory() {
               <div className="w-48 h-1.5 bg-[var(--surface)]/10 rounded-full mt-4 overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${avgIntegrity}%` }}
+                  animate={{ width: barWidthPercent(avgIntegrity) }}
                   className="h-full bg-indigo-500"
                   transition={{ duration: 1.5, ease: 'easeOut' }}
                 />

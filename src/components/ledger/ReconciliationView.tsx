@@ -6,6 +6,7 @@ import { CreateFromBankLine } from './CreateFromBankLine';
 import { ArrowLeftRight, Sparkles, Search, AlertCircle, ArrowRight, ShieldCheck, Zap, RefreshCw, Link as LinkIcon, X, Check, Loader2, Lock, History, Info, Layers, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency, resolveAccountName, formatDate } from '../../lib/utils';
+import { barWidthPercent } from '../../lib/barWidth';
 import { civilMonthDay } from '../../lib/calendarDate';
 
 
@@ -452,7 +453,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
 
                        {/* Interactive similarity progress tube */}
                        <div className="w-full bg-[var(--ink)] h-1.5 rounded-full mt-2 overflow-hidden max-w-[120px] border border-[var(--line)]">
-                         <div className="h-full bg-[var(--pos)] rounded-full transition-all" style={{ width: `${checkSimilarity.overall}%` }} />
+                         <div className="h-full bg-[var(--pos)] rounded-full transition-all" style={{ width: barWidthPercent(checkSimilarity.overall) }} />
                        </div>
                      </>
                   ) : (

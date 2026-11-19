@@ -4,6 +4,7 @@ import { Activity, Database, AlertOctagon, Loader2, RefreshCw, Sliders, Calculat
 import { motion, AnimatePresence } from 'motion/react';
 
 import { cn } from '../../lib/utils';
+import { barWidthPercent } from '../../lib/barWidth';
 
 import { Labelled } from '../ui/Labelled';
 
@@ -106,7 +107,7 @@ export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterMode
                     <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
                       <div
                         className="bg-indigo-500 h-1.5 rounded-full transition-all duration-300"
-                        style={{ width: `${(bulkSyncProgress / bulkSyncTotal) * 100}%` }}
+                        style={{ width: barWidthPercent((bulkSyncProgress / bulkSyncTotal) * 100) }}
                       />
                     </div>
                   </motion.div>
