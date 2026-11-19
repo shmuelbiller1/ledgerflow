@@ -12,7 +12,7 @@ How long each kind of data is kept, as the code does it today. Decisions still o
 | Audit trail (`auditLogs`) | Permanently, also after the workspace is purged | — (legal record of the books; FOR_YOU item 16) |
 | Filed tax returns (`taxReturns`) | With the workspace; a backup restore never removes them | Purged with the workspace |
 | Notifications | Read ones 60 days, all 180 days (`pruneNotifications`) | Deleted daily |
-| Personal data of a deleted account (profile, templates, notifications, sign-in log) | Until the account is deleted | Deleted at once (`accountDeletionService.ts`) |
+| Personal data of a deleted account (profile, templates, notifications, sign-in log) | Until the account is deleted | Deleted at once (`accountDeletionService.ts`; audit pseudonymisation design in [ERASE_AND_PSEUDONYMISE.md](ERASE_AND_PSEUDONYMISE.md)) |
 | Browser error reports (`errorLogs`) | 90 days, *setting* 30–365 (reports from before sign-in: 90 days) | Deleted daily |
 | Email send log (`emailEvents`: sent, failed, delivered) | 2 years, *setting* 90 days–10 years or forever | Deleted daily |
 | Bounce and spam reports (`emailEvents`: bounced, complaint) | Permanently (they keep those addresses from being emailed again) | Purged with the workspace |

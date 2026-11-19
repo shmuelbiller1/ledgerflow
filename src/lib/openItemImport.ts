@@ -62,7 +62,7 @@ const COLUMNS = {
   dueDate: ['due date', 'duedate', 'due'],
   currency: ['currency', 'currency code', 'currencycode'],
   amount: ['amount', 'total', 'invoice total', 'bill total', 'original amount'],
-  open: ['amount still open', 'open amount', 'amount open', 'open', 'amount due', 'amountdue', 'balance', 'outstanding', 'amount still owed'],
+  open: ['amount still open', 'open amount', 'amount open', 'open', 'amount due', 'amountdue', 'balance', 'outstanding', 'amount still owed', 'still due'],
 } as const;
 
 const keyOf = (number: string, contact: string) => `${contact.trim().toLowerCase()}|${number.trim().toLowerCase()}`;

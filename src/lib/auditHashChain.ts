@@ -403,3 +403,80 @@ export function computeLedgerCloseAnchor(
     totalCreditsCents,
   };
 }
+
+/**
+ * S-15: Deterministic keyed pseudonymisation for erased accounts while preserving the
+ * SHA-256 audit hash chain (`canonicalAuditPayload` hashes opaque `uid` and `details`, never
+ * top-level `email`/`userEmail`/`actorEmail`).
+ */
+export function pseudonymisePersonTag(uid: string, salt: string): string {
+  const normalizedUid = String(uid || '').trim();
+  const normalizedSalt = String(salt || '').trim();
+  if (!normalizedUid) return 'erased-unknown';
+  if (!normalizedSalt) throw new Error('Pseudonymisation salt is required.');
+  const digest = sha256Hex(`erased-person-v1:${normalizedSalt}:${normalizedUid}`);
+  return `erased-${digest.slice(0, 12)}`;
+}
+
+export function pseudonymiseEmailAddress(uid: string, salt: string): string {
+  return `${pseudonymisePersonTag(uid, salt)}@redacted.invalid`;
+}
+
+export function maskErasedPersonInAuditEntry<
+  T extends HashChainableAuditEntry & { email?: string; userEmail?: string; actorEmail?: string },
+>(
+  entry: T,
+  erased: { uid: string; originalEmail?: string; salt: string },
+): T {
+  const matchesUid = entry.uid === erased.uid;
+  const normalizedEmail = (erased.originalEmail || '').trim().toLowerCase();
+  const tag = pseudonymisePersonTag(erased.uid, erased.salt);
+  const pseudoEmail = `${tag}@redacted.invalid`;
+
+  const redactString = (value: string): string => {
+    if (!normalizedEmail) return value;
+    const lower = value.toLowerCase();
+    if (!lower.includes(normalizedEmail)) return value;
+    // Case-insensitive exact email replacement without regex injection.
+    let out = '';
+    let cursor = 0;
+    while (cursor < value.length) {
+      const idx = value.toLowerCase().indexOf(normalizedEmail, cursor);
+      if (idx === -1) {
+        out += value.slice(cursor);
+        break;
+      }
+      out += value.slice(cursor, idx) + pseudoEmail;
+      cursor = idx + normalizedEmail.length;
+    }
+    return out;
+  };
+
+  const redactValue = (val: unknown): unknown => {
+    if (typeof val === 'string') return redactString(val);
+    if (Array.isArray(val)) return val.map(redactValue);
+    if (val && typeof val === 'object') {
+      const next: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+        next[k] = redactValue(v);
+      }
+      return next;
+    }
+    return val;
+  };
+
+  const next: T = { ...entry };
+  if (matchesUid || (normalizedEmail && String(next.email || '').toLowerCase() === normalizedEmail)) {
+    next.email = pseudoEmail;
+  }
+  if (matchesUid || (normalizedEmail && String(next.userEmail || '').toLowerCase() === normalizedEmail)) {
+    next.userEmail = pseudoEmail;
+  }
+  if (matchesUid || (normalizedEmail && String(next.actorEmail || '').toLowerCase() === normalizedEmail)) {
+    next.actorEmail = pseudoEmail;
+  }
+  if (next.details && typeof next.details === 'object') {
+    next.details = redactValue(next.details) as Record<string, unknown>;
+  }
+  return next;
+}

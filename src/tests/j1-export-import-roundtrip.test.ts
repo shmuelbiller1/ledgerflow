@@ -18,9 +18,11 @@
  */
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCsv, sanitizeCsvCell, unguardCsvCell } from '../lib/csv';
-import { toCsv } from '../lib/csvExport';
+import { parseCsv, parseCsvChecked, sanitizeCsvCell, unguardCsvCell } from '../lib/csv';
+import { csvMoney, csvMoneyIn, toCsv } from '../lib/csvExport';
 import { applyMapping, guessMapping, prepareImport } from '../lib/recordImport';
+import { readOpenItemsCsv } from '../lib/openItemImport';
+import { mapBankCsvRows } from '../lib/bankCsvRows';
 import { recordExportTable } from '../lib/workspaceExports';
 
 const customers = [
@@ -108,4 +110,152 @@ test('a source that never had the CSV guard keeps an apostrophe before @ + - = a
   const prepared = prepareImport('customers', applyMapping('customers', rows, mapping));
   assert.deepEqual(prepared.errors, []);
   assert.deepEqual(prepared.records.map(record => record.data.name), ["'@Home", '@Home'], 'two different names stay two');
+});
+
+describe('J-1 every list with Export CSV exports columns accepted by its matching import', () => {
+  test('customers, vendors, items, and chart of accounts list CSVs round-trip into an empty workspace', () => {
+    // 1. Customers (Sales.tsx exportConfig)
+    const customerCsv = toCsv(
+      ['Customer', 'Email', 'Phone', 'Net Receivable'],
+      [
+        ['Acme, Inc.', 'ap@acme.example', '+1 555 0100', csvMoney(125_000)],
+        ['חברת דוגמה בע"מ', 'info@example.co.il', '+972 3 555 0101', csvMoney(0)],
+      ],
+    );
+    const custCells = parseCsv(customerCsv, ',');
+    const custPrepared = prepareImport('customers', applyMapping('customers', custCells.slice(1), guessMapping('customers', custCells[0]), { csvGuarded: true }));
+    assert.deepEqual(custPrepared.errors, []);
+    assert.equal(custPrepared.records[0].data.name, 'Acme, Inc.');
+    assert.equal(custPrepared.records[0].data.phone, '+1 555 0100');
+    assert.equal(custPrepared.records[1].data.name, 'חברת דוגמה בע"מ');
+
+    // 2. Vendors (Purchases.tsx exportConfig)
+    const vendorCsv = toCsv(
+      ['Vendor', 'Category', 'Email', 'Phone', 'Outstanding Balance'],
+      [
+        ['Paper Supply Co', 'Office', 'orders@paper.example', '+1 555 0199', csvMoney(45_000)],
+        ['-Urgent Courier', 'Logistics', 'dispatch@courier.example', '555-0144', csvMoney(0)],
+      ],
+    );
+    const vendCells = parseCsv(vendorCsv, ',');
+    const vendPrepared = prepareImport('vendors', applyMapping('vendors', vendCells.slice(1), guessMapping('vendors', vendCells[0]), { csvGuarded: true }));
+    assert.deepEqual(vendPrepared.errors, []);
+    assert.equal(vendPrepared.records[0].data.name, 'Paper Supply Co');
+    assert.equal(vendPrepared.records[0].data.category, 'Office');
+    assert.equal(vendPrepared.records[0].data.phone, '+1 555 0199');
+    assert.equal(vendPrepared.records[1].data.name, '-Urgent Courier');
+
+    // 3. Items (Inventory.tsx exportConfig) — money columns export in major units and parse back to exact cents
+    const itemCsv = toCsv(
+      ['Name', 'SKU', 'Category', 'Quantity on hand', 'Cost', 'Sale price', 'Unit', 'Reorder point', 'Description'],
+      [
+        ['Oak Chair', 'CHR-01', 'Furniture', '12', csvMoney(4_550), csvMoney(12_999), 'each', '3', 'Solid oak\nFinish: matte'],
+        ['Zero-Price Sample', 'SMP-0', 'Samples', '0', csvMoney(0), csvMoney(0), 'unit', '0', ''],
+      ],
+    );
+    const itemCells = parseCsv(itemCsv, ',');
+    const itemPrepared = prepareImport('items', applyMapping('items', itemCells.slice(1), guessMapping('items', itemCells[0]), { csvGuarded: true }));
+    assert.deepEqual(itemPrepared.errors, []);
+    assert.equal(itemPrepared.records[0].data.name, 'Oak Chair');
+    assert.equal(itemPrepared.records[0].data.sku, 'CHR-01');
+    assert.equal(itemPrepared.records[0].data.quantityAtHand, 12);
+    assert.equal(itemPrepared.records[0].data.unitCostCents, 4_550);
+    assert.equal(itemPrepared.records[0].data.unitPriceCents, 12_999);
+    assert.equal(itemPrepared.records[0].data.measurementUnit, 'each');
+    assert.equal(itemPrepared.records[0].data.reorderPoint, 3);
+    assert.equal(itemPrepared.records[1].data.quantityAtHand, 0);
+    assert.equal(itemPrepared.records[1].data.unitPriceCents, 0);
+
+    // 4. Chart of Accounts (ChartOfAccountsView.tsx Export CSV) — including cost_of_goods type
+    const coaCsv = toCsv(
+      ['Code', 'Name', 'Type', 'Category', 'Description', 'Currency', 'Balance'],
+      [
+        ['1000', 'Operating Cash', 'asset', 'Cash', 'Main bank', 'USD', csvMoney(500_000)],
+        ['5000', 'Direct Materials', 'cost_of_goods', 'COGS', 'Inventory cost', 'USD', csvMoney(120_000)],
+        ['4000', 'הכנסות ממכירות', 'revenue', 'Sales', 'Revenue', 'ILS', csvMoney(300_000)],
+      ],
+    );
+    const coaCells = parseCsv(coaCsv, ',');
+    const coaPrepared = prepareImport('accounts', applyMapping('accounts', coaCells.slice(1), guessMapping('accounts', coaCells[0]), { csvGuarded: true }));
+    assert.deepEqual(coaPrepared.errors, []);
+    assert.deepEqual(
+      coaPrepared.records.map(r => [r.data.code, r.data.name, r.data.type, r.data.currency]),
+      [
+        ['1000', 'Operating Cash', 'asset', 'USD'],
+        ['5000', 'Direct Materials', 'cost_of_goods', 'USD'],
+        ['4000', 'הכנסות ממכירות', 'revenue', 'ILS'],
+      ],
+    );
+  });
+
+  test('invoices and bills list CSVs are accepted unchanged by readOpenItemsCsv', () => {
+    const contacts = [{ id: 'c1', name: 'Acme Ltd' }, { id: 'v1', name: 'Paper Co' }];
+    // 5. Invoices (Sales.tsx exportConfig)
+    const invCsv = '\uFEFF' + toCsv(
+      ['Number', 'Customer', 'Date', 'Due Date', 'Status', 'Currency', 'Amount', 'Still Due'],
+      [['INV-101', 'Acme Ltd', '2026-08-14', '2026-09-13', 'sent', 'USD', csvMoney(125_000), csvMoney(45_000)]],
+    );
+    const invRead = readOpenItemsCsv(invCsv, { cutOverDate: '2026-09-30', currency: 'USD', contacts: [contacts[0]] });
+    assert.equal(invRead.fileProblem, null);
+    assert.equal(invRead.rows.length, 1);
+    assert.equal(invRead.rows[0].problem, null);
+    assert.equal(invRead.rows[0].number, 'INV-101');
+    assert.equal(invRead.rows[0].amountCents, 125_000);
+    assert.equal(invRead.rows[0].openCents, 45_000);
+
+    // 6. Bills (Purchases.tsx exportConfig)
+    const billCsv = '\uFEFF' + toCsv(
+      ['Vendor Name', 'Bill Number', 'Date', 'Due Date', 'Status', 'Amount', 'Amount Due', 'Currency'],
+      [['Paper Co', 'B-77', '2026-08-20', '2026-09-19', 'unpaid', csvMoney(31_000), csvMoney(21_000), 'USD']],
+    );
+    const billRead = readOpenItemsCsv(billCsv, { cutOverDate: '2026-09-30', currency: 'USD', contacts: [contacts[1]] });
+    assert.equal(billRead.fileProblem, null);
+    assert.equal(billRead.rows.length, 1);
+    assert.equal(billRead.rows[0].problem, null);
+    assert.equal(billRead.rows[0].number, 'B-77');
+    assert.equal(billRead.rows[0].amountCents, 31_000);
+    assert.equal(billRead.rows[0].openCents, 21_000);
+  });
+
+  // Gitar on #925: a row's money is written in its own currency's decimals, so yen and dinars come back exact
+  test('JPY and KWD invoice rows round-trip at their own decimals', () => {
+    const contacts = [{ id: 'c1', name: 'Acme Ltd' }];
+    const header = ['Number', 'Customer', 'Date', 'Due Date', 'Status', 'Currency', 'Amount', 'Still Due'];
+    for (const [currency, amount, open, written] of [['JPY', 1_250, 1_250, '"1250","1250"'], ['KWD', 1_250, 250, '"1.250","0.250"']] as const) {
+      const money = csvMoneyIn(currency);
+      const csv = '\uFEFF' + toCsv(header, [[`INV-${currency}`, 'Acme Ltd', '2026-08-14', '2026-09-13', 'sent', currency, money(amount), money(open)]]);
+      assert.ok(csv.includes(written), `${currency} is written at its own decimals: ${csv}`);
+      // a book kept in that currency reads the file back exactly
+      const read = readOpenItemsCsv(csv, { cutOverDate: '2026-09-30', currency, contacts });
+      assert.equal(read.fileProblem, null);
+      assert.deepEqual(read.rows.map(r => [r.problem, r.amountCents, r.openCents]), [[null, amount, open]], currency);
+    }
+  });
+
+  test('transactions list CSV is accepted unchanged by StatementImporter column mapping (mapBankCsvRows)', () => {
+    // 7. Transactions (TransactionGridToolbar.tsx exportCsv)
+    const txCsv = '\uFEFF' + toCsv(
+      ['Date', 'Description', 'Amount', 'Currency', 'Account', 'Project', 'Notes'],
+      [
+        ['2026-10-05', 'Client retainer', csvMoney(250_000), 'USD', 'Operating Cash', 'Advisory', ''],
+        ['2026-10-08', 'Cloud hosting', csvMoney(-12_550), 'USD', 'Cloud', '', 'Monthly'],
+      ],
+    );
+    const parsed = parseCsvChecked(txCsv);
+    const header = parsed[0].map(h => h.toLowerCase());
+    const mapping = {
+      date: header.findIndex(h => h.includes('date')),
+      description: header.findIndex(h => h.includes('desc')),
+      amount: header.findIndex(h => h.includes('amount')),
+      debit: -1,
+      credit: -1,
+      memo: header.findIndex(h => h.includes('note')),
+      skipRows: 1,
+    };
+    const mapped = mapBankCsvRows(parsed, mapping);
+    assert.deepEqual(mapped.map(r => [r.date, r.description, r.amountCents]), [
+      ['2026-10-05', 'Client retainer', 250_000],
+      ['2026-10-08', 'Cloud hosting - Monthly', -12_550],
+    ]);
+  });
 });

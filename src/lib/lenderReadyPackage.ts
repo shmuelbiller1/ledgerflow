@@ -71,7 +71,7 @@ function csvFile(name: string, headers: readonly string[], rows: readonly string
     name,
     headers: [...headers],
     rows: rows.map(r => [...r]),
-    text: toCsv([...headers], rows.map(r => [...r])),
+    text: '\uFEFF' + toCsv([...headers], rows.map(r => [...r])),
   };
 }
 

@@ -2,8 +2,9 @@
 import { Field as _Field } from '../common/Field';
 import React, { useState } from 'react';
 import { ChartAccount } from '../../types';
-import { Archive, ArchiveRestore, GitMerge, MoreVertical, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Download, GitMerge, MoreVertical, Trash2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
@@ -219,11 +220,30 @@ export default function ChartOfAccountsView({ accounts, searchTerm, formatCurren
 
   return (
     <div className="bg-[var(--surface)] rounded-xl border border-[var(--line)]/85 shadow-3xs overflow-hidden">
-      {archivedCount > 0 && (
-        <button type="button" aria-pressed={showArchived} onClick={() => setShowArchived(v => !v)}
-          className="option-state m-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--line)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)]">
-          <Archive aria-hidden="true" size={13} /> {showArchived ? 'Hide archived accounts' : `Show archived accounts (${archivedCount})`}
-        </button>
+      {(archivedCount > 0 || listed.length > 0) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 m-3">
+          <div>
+            {archivedCount > 0 && (
+              <button type="button" aria-pressed={showArchived} onClick={() => setShowArchived(v => !v)}
+                className="option-state inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--line)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)]">
+                <Archive aria-hidden="true" size={13} /> {showArchived ? 'Hide archived accounts' : `Show archived accounts (${archivedCount})`}
+              </button>
+            )}
+          </div>
+          {listed.length > 0 && (
+            <button
+              type="button"
+              onClick={() => downloadCsv(
+                'chart-of-accounts.csv',
+                ['Code', 'Name', 'Type', 'Category', 'Description', 'Currency', 'Balance'],
+                listed.map(a => [a.code, a.name, a.type, a.category || '', a.description || '', a.currency || '', csvMoney(a.balanceCents || 0)]),
+              )}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--text)] hover:border-[var(--brass-line)]"
+            >
+              <Download aria-hidden="true" size={13} /> Export CSV
+            </button>
+          )}
+        </div>
       )}
       <div className="overflow-x-auto" role="region" aria-label="Chart of accounts table" tabIndex={0}>{/* NOSONAR: S6845 — focusable scroll region lets keyboard users pan the wide table on narrow screens */}
         <table className="w-full border-collapse text-start text-xs min-w-[750px]">

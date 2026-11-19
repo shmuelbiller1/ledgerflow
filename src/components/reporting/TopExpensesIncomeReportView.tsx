@@ -6,9 +6,10 @@ import { AccountReportResult } from './AccountReportResult';
 import { BarChart3, TrendingDown, TrendingUp } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
-import { csvMoney } from '../../lib/csvExport';
+import { csvMoneyForCurrency } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useReportText } from './useReportText';
+import { useBookCurrency } from '../../hooks/useBookCurrency';
 
 interface Props {
   selectedYear?: number;
@@ -22,6 +23,7 @@ const LoadedReport: React.FC<Props> = ({
   endDate
 }) => {
   const reportText = useReportText();
+  const bookCurrency = useBookCurrency();
   const [activeTab, setActiveTab] = useState<'expenses' | 'income'>('expenses');
 
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
@@ -31,6 +33,7 @@ const LoadedReport: React.FC<Props> = ({
   const { topExpenses, topIncome, ...read } = useServerTopLines(start, end, 25);
 
   const activeItems = activeTab === 'expenses' ? topExpenses : topIncome;
+  const writeCsvMoney = csvMoneyForCurrency(bookCurrency);
 
   /**
    * The biggest lines of the period, one row each. The description names the row (a payee underneath,
@@ -46,7 +49,7 @@ const LoadedReport: React.FC<Props> = ({
       <span className="bg-[var(--elevated)] px-2 py-0.5 rounded-sm border border-[var(--line)] text-[11px]"><bdi>{String(info.getValue())}</bdi></span>
     ) },
     { id: 'amount', accessorFn: row => row.amountCents, header: reportText('r.amount', 'Amount'), cell: info => (
-      <span className={`font-mono font-bold ${activeTab === 'expenses' ? 'text-rose-600' : 'text-emerald-600'}`}>{formatCurrency(Number(info.getValue()))}</span>
+      <span className={`font-mono font-bold ${activeTab === 'expenses' ? 'text-rose-600' : 'text-emerald-600'}`}>{formatCurrency(Number(info.getValue()), bookCurrency)}</span>
     ) },
   ];
 
@@ -104,7 +107,7 @@ const LoadedReport: React.FC<Props> = ({
             filename: `top-${activeTab}.csv`,
             label: reportText('r.export-csv', 'Export CSV'),
             headers: ['Date', 'Description', 'Payee', 'Account / Category', 'Amount'],
-            mapRow: row => [row.date, row.description, row.payee || '', row.accountName, csvMoney(row.amountCents)],
+            mapRow: row => [row.date, row.description, row.payee || '', row.accountName, writeCsvMoney(row.amountCents)],
           }}
           emptyState={<EmptyState title={activeTab === 'expenses' ? reportText('r.no-expenses-in-period', 'No expenses in this period') : reportText('r.no-income-in-period', 'No income in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
           filteredEmptyState={<EmptyState title={reportText('r.no-record-matches-your-search', 'No record matches your search')} description={reportText('r.try-another-word-or-account', 'Try another word or account.')} />}

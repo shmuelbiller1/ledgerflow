@@ -10,6 +10,7 @@ non-coder can follow it: every step says what to open and what a healthy answer 
 | Invoice emails, reminders or invites do not arrive | [emails-stop.md](emails-stop.md) |
 | A deployment fails while a database migration is applied | [migration-fails.md](migration-fails.md) |
 | A bank feed stops importing, or asks to reconnect | [bank-connection-breaks.md](bank-connection-breaks.md) |
+| Daily database backup / PITR check fails | [backup-verification.md](backup-verification.md) |
 | A key leaks, someone sees the wrong books, an account is taken over, or AI/billing spikes | [incident.md](incident.md) |
 
 **One place to look first, always:** the public status page **`/status`** (its data is
