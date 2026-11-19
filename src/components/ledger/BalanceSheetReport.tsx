@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AlertCircle, Layers, HandCoins, ShieldCheck, Activity, FileSpreadsheet, ArrowUp, ArrowDown, ExternalLink } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { ChartAccount } from '../../types';
@@ -16,6 +16,19 @@ import { ReportProvenanceNote } from '../reporting/ReportProvenanceNote';
 import ReportPeriodHeading from '../reporting/ReportPeriodHeading';
 import ReportEmptyState from '../reporting/ReportEmptyState';
 import ReportNote from '../reporting/ReportNote';
+import { useReportText } from '../reporting/useReportText';
+import { accountValues, buildStatementChange, movementWindow } from '../../lib/statementChange';
+import StatementChangePanel from '../reporting/StatementChangePanel';
+
+/** R-7: the one sentence above the accounts, in the reader's language. */
+function fillChangeSentence(
+  reportText: (key: string, fallback: string) => string,
+  sectionName: string,
+  now: string, before: string, change: string, priorDate: string, asOfDate: string,
+): string {
+  return `${sectionName}: ${now} on ${asOfDate} and ${before} on ${priorDate}, a change of ${change}. `
+    + reportText('r.the-accounts-behind-it-biggest-share-first', 'The accounts behind it, biggest share first.');
+}
 
 export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, showPercent, setShowPercent, columnStartDate, columnCompareStartDate, accounts, formatCurrency, formId, transactions, asOfDate, setAsOfDate, isComparative, setIsComparative, priorDate, setPriorDate, sortBy, sortDir, drillDownTarget, setDrillDownTarget, basis, chooseBasis, cashReady, provenance, loadingStates, isServerAuthoritative, loadServerReport, toggleSort, labels, currentData, prevData, exportBalanceSheet }: BalanceSheetModel) {
 
@@ -52,6 +65,25 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
   const assetGroups = groupedSection('asset', currentData.assets);
   const liabilityGroups = groupedSection('liability', currentData.liabilities);
   const equityGroups = groupedSection('equity', currentData.equity);
+
+  // R-7: "what moved" between the two dates, from the sheet's own balances. The days between the two
+  // dates are the movement, so the entries behind an account are exactly its change. Equity is left
+  // out on purpose: the subtotal printed beside it also carries retained earnings, which is not an
+  // account, so an account-by-account list could not add up to it.
+  const reportText = useReportText();
+  const [changeSection, setChangeSection] = useState<'assets' | 'liabilities' | null>(null);
+  const movementDays = isComparative ? movementWindow(priorDate, asOfDate) : null;
+  const assetsChange = useMemo(() => buildStatementChange(
+    { assets: accountValues(accounts, currentData.assets, 'asset') },
+    { assets: accountValues(accounts, prevData.assets, 'asset') },
+    { signs: { assets: 1 } },
+  ), [accounts, currentData.assets, prevData.assets]);
+  const liabilitiesChange = useMemo(() => buildStatementChange(
+    { liabilities: accountValues(accounts, currentData.liabilities, 'liability') },
+    { liabilities: accountValues(accounts, prevData.liabilities, 'liability') },
+    { signs: { liabilities: 1 } },
+  ), [accounts, currentData.liabilities, prevData.liabilities]);
+  const sectionChange = changeSection === 'assets' ? assetsChange : liabilitiesChange;
 
   return (
     <div className="space-y-6">
@@ -173,6 +205,27 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
           </motion.div>
         </div>
       </div>
+
+      {/* R-7: the accounts behind the movement, offered beside the comparison it belongs to */}
+      {movementDays && !cashBasis && (
+        <div data-bs-what-moved className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
+            {reportText('r.since-the-compared-date', 'Since the compared date')} {priorDate}
+          </span>
+          <button
+            type="button"
+            onClick={() => setChangeSection(section => section === 'assets' ? null : 'assets')}
+            aria-expanded={changeSection === 'assets'}
+            className={cn(entriesLink, 'rounded-lg border border-[var(--line)] px-3 no-underline')}
+          >{reportText('r.what-moved-in-total-assets', 'What moved in total assets')}</button>
+          <button
+            type="button"
+            onClick={() => setChangeSection(section => section === 'liabilities' ? null : 'liabilities')}
+            aria-expanded={changeSection === 'liabilities'}
+            className={cn(entriesLink, 'rounded-lg border border-[var(--line)] px-3 no-underline')}
+          >{reportText('r.what-moved-in-total-liabilities', 'What moved in total liabilities')}</button>
+        </div>
+      )}
 
       {currentData.orphanedLines && currentData.orphanedLines.length > 0 && (
         <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3 text-amber-800 dark:text-amber-200">
@@ -411,6 +464,20 @@ export function BalanceSheetReport({ serverAsOf, columnMode, setColumnMode, show
         </motion.div>
       </div>
 
+      )}
+
+      {changeSection && movementDays && (
+        <StatementChangePanel
+          title={changeSection === 'assets'
+            ? reportText('r.what-moved-in-total-assets', 'What moved in total assets')
+            : reportText('r.what-moved-in-total-liabilities', 'What moved in total liabilities')}
+          summary={fillChangeSentence(reportText, changeSection === 'assets' ? labels.assetsLabel : labels.liabilitiesLabel, formatCurrency(sectionChange.currentTotalCents), formatCurrency(sectionChange.priorTotalCents), formatCurrency(sectionChange.changeCents), priorDate, asOfDate)}
+          change={sectionChange}
+          source={{ kind: 'movement', start: movementDays.start, end: movementDays.end }}
+          sign={1}
+          formatCurrency={formatCurrency}
+          onClose={() => setChangeSection(null)}
+        />
       )}
 
       {/* Drill-Down Modal */}

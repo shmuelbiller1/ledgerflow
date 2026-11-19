@@ -15,6 +15,8 @@ const REPORT_PROPS = new Set(['aria-label', 'title', 'description', 'label', 'pl
 const FILES = [
   '../components/ledger/ProfitAndLossView.tsx',
   '../components/ledger/BalanceSheetView.tsx',
+  // R-7: "why did this change?" — the panel both statements show
+  '../components/reporting/StatementChangePanel.tsx',
   '../components/ledger/CashFlowView.tsx',
   '../components/reporting/PartyAgingReportView.tsx',
   '../components/reporting/ExpenseByCategoryReportView.tsx',

@@ -20,6 +20,7 @@ import {
   scopeStatementDocuments,
 } from '../../lib/statementByEntity';
 import { useReportText, fill } from './useReportText';
+import { CappedCollectionsNote } from '../common/LoadedEntriesOnlyNote';
 
 interface StatementViewProps {
   startDate?: string;
@@ -282,6 +283,14 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
           })}
         </p>
       )}
+
+      {/* R-8: the statement is built from the document lists loaded in this browser; when one of
+          them is capped the figures cover what is loaded, and the statement says so. */}
+      <CappedCollectionsNote
+        testId="statement-capped"
+        keys={['invoices', 'bills', 'payments', 'creditNotes', 'vendorCredits']}
+        what={reportText('r.this-statement', 'this statement')}
+      />
 
       {/* Printable Statement Canvas */}
       {'error' in resolved ? null : !statementData || !selectedContact ? (

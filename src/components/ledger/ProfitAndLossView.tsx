@@ -33,6 +33,8 @@ import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { BudgetComparisonNotice } from './BudgetComparisonNotice';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
+import { buildStatementChange } from '../../lib/statementChange';
+import StatementChangePanel from '../reporting/StatementChangePanel';
 
 /** A P&L line as the report holds it; `parentId` is only for account groups (K-14). */
 interface PLAccount { name: string; code?: string; balance: number; parentId?: string }
@@ -93,6 +95,8 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
   const [drillDownTarget, setDrillDownTarget] = useState<{ accountName: string; transactions: Transaction[]; explain?: ExplainRequest } | null>(null);
   // N-08: accrual (as posted) or cash (invoices and bills when paid, from the server only)
   const [basis, setBasis] = useState<'accrual' | 'cash'>('accrual');
+  // R-7: "why did net profit change?" — the accounts behind the difference, and their entries
+  const [showChange, setShowChange] = useState(false);
 
   const { fetchPL, loadingStates } = useFinancialReporting();
   const [serverData, setServerData] = useState<PLData | null>(null);
@@ -293,6 +297,13 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
   const vsBudget = isComparative && compareTo === 'budget' && basis === 'accrual';
   const budgetData = useMemo(() => budgetPL(budgets as SavedBudget[], accounts, dateRange.start, dateRange.end), [budgets, accounts, dateRange.start, dateRange.end]);
   const prevData = vsBudget ? budgetData : basis === 'cash' ? (cashReady && serverPrevData?.basis === 'cash' ? serverPrevData : emptyPl) : useServer && serverPrevData ? serverPrevData : localCalculation.prevData;
+  // R-7: what moved net profit, from the report's own account figures — nothing is recalculated here.
+  // Cash basis keeps only one total from the server, so the change is not offered there.
+  const netProfitChange = useMemo(() => buildStatementChange(
+    { income: data.income?.accounts, cogs: data.cogs?.accounts, expense: data.expense?.accounts },
+    { income: prevData.income?.accounts, cogs: prevData.cogs?.accounts, expense: prevData.expense?.accounts },
+    { signs: { income: 1, cogs: -1, expense: -1 } },
+  ), [data, prevData]);
   const chooseBasis = (next: 'accrual' | 'cash') => {
     setBasis(next);
     setServerData(null);
@@ -406,6 +417,16 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
               <select aria-label={reportText('r.compare-to', 'Compare to')} value={compareTo} onChange={e => setCompareTo(e.target.value === 'budget' ? 'budget' : 'previous')} className="bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line)] text-xs font-semibold px-2 py-1 rounded-md focus-visible:ring-2 focus-visible:ring-[var(--brass)] outline-none text-[var(--text)] normal-case tracking-normal">
                 <option value="previous">{reportText('r.previous-period', 'Previous period')}</option><option value="budget">{reportText('r.budget', 'Budget')}</option>
               </select>
+            )}
+            {isComparative && basis === 'accrual' && compareTo === 'previous' && (
+              <button
+                type="button"
+                onClick={() => setShowChange(v => !v)}
+                aria-expanded={showChange}
+                className="min-h-11 rounded-lg border border-[var(--line)] px-3 text-[10px] font-bold text-[var(--text)] underline decoration-dotted underline-offset-2 hover:text-indigo-500"
+              >
+                {reportText('r.why-did-net-profit-change', 'Why did net profit change?')}
+              </button>
             )}
           </div>
         </div>
@@ -525,6 +546,26 @@ const ProfitAndLossView: React.FC<ProfitAndLossViewProps> = ({ startDate, endDat
           </div>
         </motion.div>
       </div>
+
+      {showChange && isComparative && basis === 'accrual' && compareTo === 'previous' && (
+        <StatementChangePanel
+          title={reportText('r.what-changed-in-net-profit', 'What changed in net profit')}
+          summary={fill(
+            reportText('r.net-profit-summary-with-change', 'Net profit is {now} for this period and {before} for the period before ({change}): the accounts that made the difference, biggest share first.'),
+            {
+              now: formatCurrency(netProfitChange.currentTotalCents),
+              before: formatCurrency(netProfitChange.priorTotalCents),
+              change: formatCurrency(netProfitChange.changeCents),
+            },
+          )}
+          change={netProfitChange}
+          source={{ kind: 'flow', current: { start: dateRange.start, end: dateRange.end }, prior: { start: prevRange.start, end: prevRange.end } }}
+          sign={-1}
+          formatCurrency={formatCurrency}
+          onClose={() => setShowChange(false)}
+          {...(labelFilter ? { labelFilter } : {})}
+        />
+      )}
 
       {basis === 'cash' && (
         <p role="status" className="text-xs text-[var(--muted)]">
