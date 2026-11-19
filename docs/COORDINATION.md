@@ -931,6 +931,8 @@ The document's ten "do first" items are marked **★**.
 - [x] **EU-I2 "Sent with …" on the customer portal** (§I-2): a small line using `BRAND.name`, with a setting to turn it off. (Tying the setting to paid plans is the owner's decision.) — ✅ 17 Nov code check (Claude): "Sent with" in Branding/Email settings
 - [ ] **EU-X1 Drag reorder in a real browser** — the button-order drag (#707, `useDragReorder`) has unit tests with made-up geometry only. Add a Chromium test under `e2e/` that really drags a sidebar tool to a new place, cancels a drag with Esc while still holding (the release must not open the tool), checks the order survives a reload and is separate per workspace, and on a phone-sized touch screen a quick swipe scrolls while a long press drags. (Claude, 14 Nov, from the Codex review of #707.)
 
+- **19 Nov 2026, AI #14:** starting EU-X1 on fixed branch `arena/835cd6de-ledgerflow` (base `5fcf197`). Added genuine Chromium pointer-drag/reload persistence and Escape-cancel/no-activation regression coverage against All tools. Browser execution is blocked locally because the Playwright Chromium binary is absent; server also logs missing PostgreSQL config. Full TypeScript check hit the Node heap limit; changed-file ESLint passed. Phone swipe/long-press and separate-workspace coverage remain outstanding; this is a partial task, not complete. Related PR #707 comments reviewed; existing Codex finding was already known and no edits were made to that PR.
+
 ### Already someone else's — do not start
 - §H-1 (reports need every entry in the browser) is **L-123**, AI #9's, in progress.
 - The document's first "do first" row (let the public open the site; fix sign-up email) is the owner's: `docs/FOR_YOU.md` items 4, 5, 7.
