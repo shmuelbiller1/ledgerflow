@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import type { ChartAccount, Transaction } from '../types';
-import { useServerRangeReport, type RangeReportSource, type RangeReportRead } from './useServerRangeReport';
+import { useServerRangeReport, type RangeReportRead } from './useServerRangeReport';
 
 /**
  * L-123 step 4: a report over `from`…`to` that groups lines by their accounts' type, category or name in a way
@@ -18,11 +18,13 @@ export function useServerAccountReport<T>(
 ): { report: T } & RangeReportRead {
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
-  const accountsCapped = useLedgerStore(s => Boolean(s.truncatedCollections?.chartAccounts));
+  // Older snapshots can say a list was capped without identifying which one.
+  const chartMayBeShort = useLedgerStore(s => Boolean(s.truncatedCollections?.chartAccounts)
+    || (s.isDataTruncated && !Object.values(s.truncatedCollections ?? {}).some(Boolean)));
   const loaded = useMemo(() => compute(accounts, transactions), [compute, accounts, transactions]);
   const accountsKey = useMemo(() => JSON.stringify((accounts || []).map(a => [a.id, a.type, a.category, a.name])
     .sort((x, y) => String(x[0]).localeCompare(String(y[0])))), [accounts]);
-  return useServerRangeReport({ path, from, to, query, extraKey: accountsKey, alsoIncomplete: accountsCapped, parse, loaded });
+  return useServerRangeReport({ path, from, to, query, extraKey: accountsKey, alsoIncomplete: chartMayBeShort, parse, loaded });
 }
 
 /**
@@ -32,9 +34,9 @@ export function useServerAccountReport<T>(
 export function useServerBreakdown<Row>(
   path: string, field: string, from: string | undefined, to: string | undefined,
   compute: (accounts: ChartAccount[], transactions: Transaction[], from?: string, to?: string) => Row[],
-): { rows: Row[]; source: RangeReportSource } {
+): { rows: Row[] } & RangeReportRead {
   const computeRange = useCallback((accounts: ChartAccount[], transactions: Transaction[]) => compute(accounts, transactions, from, to), [compute, from, to]);
   const parse = useMemo(() => (body: Record<string, unknown>) => (Array.isArray(body[field]) ? body[field] as Row[] : null), [field]);
-  const { report, source } = useServerAccountReport(path, from, to, computeRange, parse);
-  return { rows: report, source };
+  const { report, ...read } = useServerAccountReport(path, from, to, computeRange, parse);
+  return { rows: report, ...read };
 }

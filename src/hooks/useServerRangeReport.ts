@@ -4,7 +4,7 @@ import { useLedgerStore } from '../stores/useLedgerStore';
 import { identityScope } from '../lib/serverAction';
 import { openingCutoff } from '../lib/serverBalances';
 import { linesNeedServer, rangeRevision } from '../lib/serverTopLines';
-import { runCommand } from '../lib/runCommand';
+import { runCommand, ServerCommandError } from '../lib/runCommand';
 
 export type RangeReportSource = 'loaded' | 'server' | 'loaded-incomplete';
 
@@ -51,18 +51,18 @@ export function useServerRangeReport<T>(opts: {
   const retry = useCallback(() => setAttempt(n => n + 1), []);
   // Identity (not just URL): returning to A after B must wait for a new answer for A.
   const request = useMemo(() => key ? { key, uid, attempt } : null, [key, uid, attempt]);
-  const [answer, setAnswer] = useState<{ request: NonNullable<typeof request>; report: T | null } | null>(null);
+  const [answer, setAnswer] = useState<{ request: NonNullable<typeof request>; report: T | null; canRetry: boolean } | null>(null);
 
   useEffect(() => {
     if (!request) return;
     const scope = identityScope(() => useAuthStore.getState().user?.uid, () => useAuthStore.getState().currentWorkspaceId);
     const controller = new AbortController();
-    const publish = (report: T | null) => {
-      if (!controller.signal.aborted && scope.isCurrent()) setAnswer({ request, report });
+    const publish = (report: T | null, canRetry = report === null) => {
+      if (!controller.signal.aborted && scope.isCurrent()) setAnswer({ request, report, canRetry });
     };
     void runCommand<Record<string, unknown>>({ path: `/api/v1/balances/${path}?${queryText}`, signal: controller.signal })
       .then(body => publish(parse(body ?? {})))
-      .catch(() => publish(null)); // keep the labelled local preview; no automatic retry
+      .catch((err: unknown) => publish(null, !(err instanceof ServerCommandError && err.status === 400)));
     return () => controller.abort();
   }, [request, path, queryText, parse]);
 
@@ -73,6 +73,6 @@ export function useServerRangeReport<T>(opts: {
     report: server ?? loaded,
     source: server != null ? 'server' : incomplete ? 'loaded-incomplete' : 'loaded',
     pending,
-    retry: current?.report === null ? retry : undefined,
+    retry: current?.canRetry ? retry : undefined,
   }), [server, loaded, incomplete, pending, current, retry]);
 }

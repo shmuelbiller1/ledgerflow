@@ -1,20 +1,18 @@
+import { ReportInputBoundary } from './ReportInputBoundary';
 import { useReportText } from './useReportText';
 import React, { useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency } from '../../lib/utils';
 import { PieChart } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
-import { LoadingState } from '../ui/LoadingState';
 import { EmptyState } from '../ui/EmptyState';
 import { csvMoney } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
-import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LEDGER_COLLECTIONS } from '../../lib/ledgerCollections';
 import ExpenseBillCategories from './ExpenseBillCategories';
 import { useServerExpenseByCategory } from '../../hooks/useServerExpenseByCategory';
-import { RangeReportSourceNote } from './RangeReportSourceNote';
+import { AccountReportResult } from './AccountReportResult';
 
 interface Props {
   selectedYear?: number;
@@ -23,27 +21,17 @@ interface Props {
   onDrillDown?: (accountId: string) => void;
 }
 
-export const ExpenseByCategoryReportView: React.FC<Props> = ({
+const LoadedReport: React.FC<Props> = ({
   selectedYear,
   startDate,
   endDate
 }) => {
   const reportText = useReportText();
-  const accounts = useLedgerStore(s => s.accounts);
-  const bills = useLedgerStore(s => s.bills);
-  const { loading } = useLedgerCollections('bills');
-  const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
-  const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
-  const cacheWorkspace = useDataNeedsStore(s => s.loadedWorkspaceId);
-  const billsFailed = useDataNeedsStore(s => Boolean(s.failed.bills));
-  const listIncomplete = billsFailed || cacheWorkspace !== workspaceId ||
-    bills.length >= LEDGER_COLLECTIONS.bills.cap || accounts.length >= LEDGER_COLLECTIONS.accounts.cap;
-
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
   const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
 
   // L-123 step 4d: with the loaded list capped, the breakdown comes from the server (every entry of the range)
-  const { categories: breakdowns, source } = useServerExpenseByCategory(start, end);
+  const { categories: breakdowns, ...read } = useServerExpenseByCategory(start, end);
 
   /**
    * One row per chart-of-accounts category: how many entries, what share of the period they are, and
@@ -84,44 +72,62 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
             {reportText('r.distribution-of-all-operating-and-non-operating-', 'Distribution of all operating and non-operating expenditures across chart of account categories.')}
           </p>
         </div>
-        <div className="text-right">
+        {read.source !== 'loaded-incomplete' && <div className="text-right">
           <div className="text-xs text-neutral-500 uppercase font-semibold">{reportText('r.total-expenses', 'Total Expenses')}</div>
           <div className="text-lg font-mono font-bold text-rose-600">
             {formatCurrency(totalExpenseCents)}
           </div>
-        </div>
+        </div>}
       </div>
 
-      <RangeReportSourceNote source={source} testId="expense-category-source" />
-
-      <ExpenseBillCategories key={workspaceId} workspaceId={workspaceId}
-        accounts={accounts} bills={bills} startDate={start} endDate={end}
-        loading={loading} incomplete={listIncomplete} currency={currency} />
-
-      {loading && <LoadingState what={reportText('r.expenses-by-category', 'expenses by category')} rows={4} />}
-
-      <TanStackDataGrid
-        caption={reportText('r.expenses-by-category-caption', 'Expenses by category')}
-        data={breakdowns}
-        columns={columns}
-        rowHeaderColumn="category"
-        pageSize={25}
-        searchPlaceholder={reportText('r.search-categories', 'Search categories...')}
-        searchLabel="Search categories"
-        columnScope="report-expense-by-category"
-        columnLabel="Expenses by category columns"
-        columnNames={['Category', 'Transactions', 'Share', 'Total Outflow']}
-        exportConfig={{
-          filename: 'expenses-by-category.csv',
-          label: reportText('r.export-csv', 'Export CSV'),
-          headers: ['Category', 'Transactions', 'Share %', 'Total Outflow'],
-          mapRow: row => [row.category, row.transactionCount, row.percentage.toFixed(1), csvMoney(row.totalAmountCents)],
-        }}
-        emptyState={<EmptyState title={reportText('r.no-posted-expenses-in-this-period', 'No posted expenses in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
-        filteredEmptyState={<EmptyState title={reportText('r.no-category-matches-your-search', 'No category matches your search')} description={reportText('r.try-another-category-name', 'Try another category name.')} />}
-      />
+      <AccountReportResult read={read} testId="expense-category-source" hasRows={breakdowns.length > 0}>
+        <TanStackDataGrid
+          caption={reportText('r.expenses-by-category-caption', 'Expenses by category')}
+          data={breakdowns}
+          columns={columns}
+          rowHeaderColumn="category"
+          pageSize={25}
+          searchPlaceholder={reportText('r.search-categories', 'Search categories...')}
+          searchLabel="Search categories"
+          columnScope="report-expense-by-category"
+          columnLabel="Expenses by category columns"
+          columnNames={['Category', 'Transactions', 'Share', 'Total Outflow']}
+          exportConfig={read.source === 'loaded-incomplete' ? undefined : {
+            filename: 'expenses-by-category.csv',
+            label: reportText('r.export-csv', 'Export CSV'),
+            headers: ['Category', 'Transactions', 'Share %', 'Total Outflow'],
+            mapRow: row => [row.category, row.transactionCount, row.percentage.toFixed(1), csvMoney(row.totalAmountCents)],
+          }}
+          emptyState={<EmptyState title={reportText('r.no-posted-expenses-in-this-period', 'No posted expenses in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
+          filteredEmptyState={<EmptyState title={reportText('r.no-category-matches-your-search', 'No category matches your search')} description={reportText('r.try-another-category-name', 'Try another category name.')} />}
+        />
+      </AccountReportResult>
     </div>
   );
 };
+
+function BillPanel({ selectedYear, startDate, endDate }: Props) {
+  const accounts = useLedgerStore(s => s.accounts);
+  const bills = useLedgerStore(s => s.bills);
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
+  const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  const capped = useLedgerStore(s => s.truncatedCollections);
+  const listIncomplete = Boolean(capped?.bills || capped?.chartAccounts) ||
+    bills.length >= LEDGER_COLLECTIONS.bills.cap || accounts.length >= LEDGER_COLLECTIONS.accounts.cap;
+
+  const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
+  const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
+
+  return <ExpenseBillCategories key={workspaceId} workspaceId={workspaceId}
+    accounts={accounts} bills={bills} startDate={start} endDate={end}
+    loading={false} incomplete={listIncomplete} currency={currency} />;
+}
+
+export function ExpenseByCategoryReportView(props: Props) {
+  return <ReportInputBoundary collections={['accounts']}>
+    <ReportInputBoundary collections={['transactions']}><LoadedReport {...props} /></ReportInputBoundary>
+    <ReportInputBoundary collections={['bills']}><BillPanel {...props} /></ReportInputBoundary>
+  </ReportInputBoundary>;
+}
 
 export default ExpenseByCategoryReportView;

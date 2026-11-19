@@ -1,7 +1,8 @@
+import { ReportInputBoundary } from './ReportInputBoundary';
 import React, { useMemo } from 'react';
 import { formatCurrency } from '../../lib/utils';
 import { useServerIncomeBySource } from '../../hooks/useServerIncomeBySource';
-import { RangeReportSourceNote } from './RangeReportSourceNote';
+import { AccountReportResult } from './AccountReportResult';
 import { TrendingUp } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
@@ -15,7 +16,7 @@ interface Props {
   endDate?: string;
 }
 
-export const IncomeBySourceReportView: React.FC<Props> = ({
+const LoadedReport: React.FC<Props> = ({
   selectedYear,
   startDate,
   endDate
@@ -25,7 +26,7 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
   const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
 
   // L-123 step 4e: with the loaded lists capped, the breakdown comes from the server (every entry of the range)
-  const { sources: breakdowns, source } = useServerIncomeBySource(start, end);
+  const { sources: breakdowns, ...read } = useServerIncomeBySource(start, end);
 
   /** One row per customer or source: how much came in, and what share of the period it is. */
   const columns: ColumnDef<(typeof breakdowns)[number], unknown>[] = [
@@ -63,38 +64,42 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
             {reportText('r.concentration-and-revenue-generation-breakdown-a', 'Concentration and revenue generation breakdown across clients, revenue channels, and payees.')}
           </p>
         </div>
-        <div className="text-right">
+        {read.source !== 'loaded-incomplete' && <div className="text-right">
           <div className="text-xs text-neutral-500 uppercase font-semibold">{reportText('r.total-revenue', 'Total Revenue')}</div>
           <div className="text-lg font-mono font-bold text-emerald-600">
             {formatCurrency(totalIncomeCents)}
           </div>
-        </div>
+        </div>}
       </div>
 
-      <RangeReportSourceNote source={source} testId="income-source-source" />
-
-      <TanStackDataGrid
-        caption={reportText('r.income-by-source-caption', 'Income by source')}
-        data={breakdowns}
-        columns={columns}
-        rowHeaderColumn="source"
-        pageSize={25}
-        searchPlaceholder={reportText('r.search-customers-and-sources', 'Search customers and sources...')}
-        searchLabel="Search customers and sources"
-        columnScope="report-income-by-source"
-        columnLabel="Income by source columns"
-        columnNames={['Customer / Revenue Source', 'Invoices / Entries', 'Revenue Contribution', 'Total Inflow']}
-        exportConfig={{
-          filename: 'income-by-source.csv',
-          label: reportText('r.export-csv', 'Export CSV'),
-          headers: ['Customer / Revenue Source', 'Invoices / Entries', 'Share of inflow %', 'Total Inflow'],
-          mapRow: row => [row.source, row.transactionCount, row.percentage.toFixed(1), csvMoney(row.totalAmountCents)],
-        }}
-        emptyState={<EmptyState title={reportText('r.no-income-in-this-period', 'No income in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
-        filteredEmptyState={<EmptyState title={reportText('r.no-source-matches-your-search', 'No source matches your search')} description={reportText('r.try-another-customer-name', 'Try another customer name.')} />}
-      />
+      <AccountReportResult read={read} testId="income-source-source" hasRows={breakdowns.length > 0}>
+        <TanStackDataGrid
+          caption={reportText('r.income-by-source-caption', 'Income by source')}
+          data={breakdowns}
+          columns={columns}
+          rowHeaderColumn="source"
+          pageSize={25}
+          searchPlaceholder={reportText('r.search-customers-and-sources', 'Search customers and sources...')}
+          searchLabel="Search customers and sources"
+          columnScope="report-income-by-source"
+          columnLabel="Income by source columns"
+          columnNames={['Customer / Revenue Source', 'Invoices / Entries', 'Revenue Contribution', 'Total Inflow']}
+          exportConfig={read.source === 'loaded-incomplete' ? undefined : {
+            filename: 'income-by-source.csv',
+            label: reportText('r.export-csv', 'Export CSV'),
+            headers: ['Customer / Revenue Source', 'Invoices / Entries', 'Share of inflow %', 'Total Inflow'],
+            mapRow: row => [row.source, row.transactionCount, row.percentage.toFixed(1), csvMoney(row.totalAmountCents)],
+          }}
+          emptyState={<EmptyState title={reportText('r.no-income-in-this-period', 'No income in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
+          filteredEmptyState={<EmptyState title={reportText('r.no-source-matches-your-search', 'No source matches your search')} description={reportText('r.try-another-customer-name', 'Try another customer name.')} />}
+        />
+      </AccountReportResult>
     </div>
   );
 };
+
+export function IncomeBySourceReportView(props: Props) {
+  return <ReportInputBoundary><LoadedReport {...props} /></ReportInputBoundary>;
+}
 
 export default IncomeBySourceReportView;

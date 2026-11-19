@@ -15,7 +15,7 @@ export function AccountReportResult({ read, testId, hasRows, children }: {
     <div role="status" data-testid={testId} className="flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
       <span>{partial ? (read.retry
         ? reportText('r.full-range-failed', 'The full report could not be loaded. The preview uses loaded entries only and may be incomplete. CSV export is unavailable.')
-        : reportText('r.full-range-unavailable', 'Only part of the history is loaded. Open the report for a specific period to read the full history for that period. CSV export is unavailable.'))
+        : reportText('r.full-range-unavailable', 'Only part of the history is loaded. Choose a shorter period to load the full report. CSV export is unavailable.'))
         : reportText('r.full-range-source', 'These figures are read from every entry on the server for this period.')}</span>
       {read.retry && <button type="button" className="min-h-11 rounded border border-[var(--line)] px-3 font-semibold text-[var(--text)]" onClick={read.retry}>
         {reportText('r.load-full-range', 'Load the full report')}
