@@ -271,4 +271,22 @@ describe('EG-9 bank rules on the server', { skip: !url && 'LF_TEST_DATABASE_URL 
     const res = await send(OWNER, { workspaceId: ws });
     assert.deepEqual(res.body, { checked: 3, changed: 0, suggested: 2, truncated: false });
   });
+
+  // Gitar on #908: the runner's transaction reads everything before it writes, so more lines than one chunk (200) work
+  test('more pending lines than one chunk re-run in the command transaction', async () => {
+    const c = await line('C');
+    const extra = Array.from({ length: 250 }, (_, i) => id(`X${String(i).padStart(3, '0')}`));
+    for (const lineId of extra) await db.collection('bankLines').doc(lineId).set({ ...c, id: lineId, suggestion: null, ruleIdsApplied: [] });
+    await db.collection('autoRules').doc(id('R8')).set({ ...rule(id('R8'), 0, { descriptionContains: 'coffee' }, { targetAccountId: id('a7000') }), workspaceId: ws } as never);
+    try {
+      const res = await send(OWNER, { workspaceId: ws });
+      assert.equal(res.status, 200, JSON.stringify(res.body));
+      assert.equal(res.body.checked, 253);
+      assert.ok(res.body.changed >= 251, `changed ${res.body.changed}`);
+      assert.equal((await db.collection('bankLines').doc(extra[249]).get()).data()?.suggestion?.ruleIds?.[0], id('R8'));
+    } finally {
+      for (const lineId of extra) await db.collection('bankLines').doc(lineId).delete();
+      await db.collection('autoRules').doc(id('R8')).delete();
+    }
+  });
 });
