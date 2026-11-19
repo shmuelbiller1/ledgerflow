@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Project } from '../../types';
 import { cn, formatCurrency } from '../../lib/utils';
 import { GripVertical, CheckCircle, Target, Users, PlayCircle, Clock, Archive } from 'lucide-react';
+import { percentWidthStyle } from '../../lib/percentBar';
 
 interface ProjectPipelineProps {
   projects: Project[];
@@ -207,7 +208,7 @@ export default function ProjectPipeline({ projects, onUpdateProject }: ProjectPi
                             "h-full rounded-full transition-all",
                             progress > 100 ? "bg-rose-500" : progress > 75 ? "bg-amber-500" : "bg-emerald-500"
                           )}
-                          style={{ width: `${Math.min(progress, 100)}%` }}
+                          style={percentWidthStyle(progress)}
                         />
                       </div>
                       <div className="flex justify-between items-center text-[9px] font-medium uppercase tracking-wider text-[var(--muted)]">

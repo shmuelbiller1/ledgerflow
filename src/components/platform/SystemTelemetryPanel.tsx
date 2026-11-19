@@ -8,6 +8,7 @@ import { cn } from '../../lib/utils';
 import { Labelled } from '../ui/Labelled';
 
 import type { SystemCommandCenterModel } from './SystemCommandCenter';
+import { percentWidthStyle } from '../../lib/percentBar';
 export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterModel & { telemetry: NonNullable<SystemCommandCenterModel['telemetry']> } }) {
  const { formatPlatformUsdQuota, formId, telemetry, simulatedQueries, setSimulatedQueries, customKeyRatio, setCustomKeyRatio, bulkSyncing, bulkSyncProgress, bulkSyncTotal, bulkSyncStatusText, startEditing, handleBulkApplyBaseline, globalConfig, setGlobalConfig, updatingGlobal, handleSaveGlobalConfig, totalErrors } = model;
  return (<div className="xl:col-span-2 space-y-8">
@@ -100,13 +101,13 @@ export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterMode
                         {bulkSyncStatusText}
                       </span>
                       <span className="text-indigo-400 font-bold text-[10px]">
-                        {bulkSyncProgress} / {bulkSyncTotal} ({Math.round((bulkSyncProgress / bulkSyncTotal) * 100)}%)
+                        {bulkSyncProgress} / {bulkSyncTotal} ({bulkSyncTotal > 0 ? Math.round((bulkSyncProgress / bulkSyncTotal) * 100) : 0}%)
                       </span>
                     </div>
                     <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
                       <div
                         className="bg-indigo-500 h-1.5 rounded-full transition-all duration-300"
-                        style={{ width: `${(bulkSyncProgress / bulkSyncTotal) * 100}%` }}
+                        style={percentWidthStyle(bulkSyncTotal > 0 ? (bulkSyncProgress / bulkSyncTotal) * 100 : 0)}
                       />
                     </div>
                   </motion.div>
