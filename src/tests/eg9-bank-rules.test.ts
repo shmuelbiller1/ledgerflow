@@ -199,9 +199,10 @@ describe('EG-9 bank rules on the server', { skip: !url && 'LF_TEST_DATABASE_URL 
     await db.collection('autoRules').doc(id('R7')).set({ ...rule(id('R7'), 0, { descriptionContains: 'coffee' }, { targetAccountId: id('a7000') }), workspaceId: ws } as never);
     const original = db.runTransaction.bind(db);
     let injected = false;
-    db.runTransaction = (async (work: (t: never) => Promise<unknown>) => {
+    type Tx = Parameters<Parameters<typeof original>[0]>[0];
+    db.runTransaction = (async (work: (t: Tx) => Promise<unknown>) => {
       db.runTransaction = original; // only the next (outer) call is wrapped; calls made inside it pass through
-      return original(async (t: never) => {
+      return original(async (t: Tx) => {
         const result = await work(t);
         if (!injected) {
           injected = true;
