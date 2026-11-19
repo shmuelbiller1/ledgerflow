@@ -6,7 +6,7 @@
  * headers: Content-Security-Policy, Strict-Transport-Security, X-Frame-Options,
  * X-Content-Type-Options, Referrer-Policy, Cross-Origin-Opener-Policy,
  * Cross-Origin-Resource-Policy, absence of X-Powered-By, and Permissions-Policy
- * (advisory until server issue #827 lands, or strict via `--require-permissions-policy`).
+ * (now enforced via vercel.json + securityMiddleware; strict via `--require-permissions-policy`).
  *
  * Non-loopback targets MUST use `https://`. Loopback smoke checks (`127.0.0.1`
  * or `localhost`) require `--allow-http`.
@@ -187,13 +187,13 @@ export function evaluateResponseHeaders(
     corp ? `Set to ${corp}.` : 'Missing Cross-Origin-Resource-Policy.',
   );
 
-  // 7. Permissions-Policy (tracked in server issue #827)
+  // 7. Permissions-Policy (fixed in #827 / 2026-11-19)
   const permissionsPolicy = get('permissions-policy');
   if (!permissionsPolicy) {
     push(
       'Permissions-Policy',
       options.requirePermissionsPolicy ? 'fail' : 'warn',
-      'Missing Permissions-Policy header (tracked for server fix in issue #827).',
+      'Missing Permissions-Policy header.',
     );
   } else {
     push('Permissions-Policy', 'pass', `Set (${permissionsPolicy}).`);

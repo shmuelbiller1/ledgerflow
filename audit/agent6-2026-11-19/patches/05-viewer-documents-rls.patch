@@ -1,0 +1,50 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Agent6 Security <agent6@ledgerflow.local>
+Date: 2026-11-19
+Subject: [PATCH] fix(db): viewer must not insert documents via PostgREST (RLS)
+
+For AI #1 lane (supabase/migrations). At pin 5eacf71 security-baseline.json
+records viewer: "ri" on documents (read+insert). Viewer should not write.
+
+This patch is a migration proposal: add lf_rules guard and tighten RLS.
+Apply as new migration 20261119XXXXXX_viewer_documents.sql, not as direct edit.
+
+-- Migration: 20261119XXXXXX_viewer_documents.sql
+-- Tighten `documents` browser writes to require lf_can_write(ws) not just membership.
+
+-- 1) lf_rules: ensure documents row has allow_viewer_write = false
+--    (adjust existing row if present; idempotent)
+insert into lf_rules(table_name, rule)
+values ('documents', jsonb_build_object('allow_viewer_write', false))
+on conflict (table_name) do update
+  set rule = lf_rules.rule || jsonb_build_object('allow_viewer_write', false);
+
+-- 2) Replace viewer-insert policy: require writer role
+--    Drop old permissive policy if it exists (name varies by migration)
+do $$
+begin
+  if exists (select 1 from pg_policies where schemaname='public' and tablename='documents' and policyname='documents_viewer_insert') then
+    execute 'drop policy "documents_viewer_insert" on public.documents';
+  end if;
+end$$;
+
+-- Recreate with writer check (uses same lf_ws_role helper as other tables)
+create policy "documents_writer_insert"
+  on public.documents
+  for insert
+  with check (lf_can_write((data->>'workspaceId')::text));
+
+-- 3) Also ensure viewer cannot update/delete documents they inserted
+create policy "documents_writer_update"
+  on public.documents
+  for update
+  using (lf_can_write((data->>'workspaceId')::text))
+  with check (lf_can_write((data->>'workspaceId')::text));
+
+-- Add RLS test in supabase/tests/rls.test.sql:
+--   as viewer, attempt insert into documents → expect refusal (0 rows, or PGRST 403)
+--   as bookkeeper, same insert → allowed (or per product decision)
+-- Update security-baseline.json: tables.documents.viewer should become "r" after this migration
+
+--
+2.40.0

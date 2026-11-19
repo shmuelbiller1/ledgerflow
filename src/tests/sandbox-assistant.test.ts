@@ -173,6 +173,13 @@ describe('SBX-1 assistant token, read tools and routes (PostgreSQL)', { skip: !u
     const calc = await f.tool('calculate', { expression: '(125.00 + 30) * 0.17' });
     assert.deepEqual(calc.json, { expression: '(125.00 + 30) * 0.17', cents: 2635, amount: 26.35 });
     assert.equal((await f.tool('calculate', { expression: 'process.exit()' })).status, 400);
+    const catalogue = await f.assistant('GET', '/commands');
+    assert.equal(catalogue.status, 200);
+    const catalogued = (catalogue.json.commands as Array<{ name: string; risk: string; metered?: boolean; sentence: string }>);
+    assert.ok(catalogued.length >= 100 && catalogued.every(c => typeof c.sentence === 'string'));
+    assert.equal(catalogued.find(c => c.name === 'chartaccount.delete')?.risk, 'high');
+    assert.equal(catalogued.find(c => c.name === 'journal.create')?.metered, true);
+    assert.ok(!catalogued.some(c => c.name.startsWith('workspace.')));
     assert.equal((await f.tool('nope', {})).status, 404);
 
     // Requirement 2: nothing reached the real books, the mail transport, or another sandbox.

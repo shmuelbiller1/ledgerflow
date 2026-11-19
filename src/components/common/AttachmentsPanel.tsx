@@ -7,15 +7,8 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { type Attachment, type AttachmentTarget, MAX_ATTACHMENT_BYTES, attachmentPreviewKind, formatBytes, mayRemoveAttachment } from '../../lib/attachments';
 import { attachFiles, attachSummary, loadAttachments, removeAttachment } from '../../services/attachmentActions';
 import { safeConfirm } from '../../lib/utils';
+import { safeDownloadDocumentUrl, safeEmbeddedDocumentUrl } from '../../lib/documentUrl';
 
-function safeDownloadUrl(value: string): string | null {
-  if (/^data:[^,\s]+,/i.test(value)) return value;
-  try {
-    return new URL(value).protocol === 'https:' ? value : null;
-  } catch {
-    return null;
-  }
-}
 
 interface AttachmentsPanelProps {
   target: AttachmentTarget;
@@ -137,6 +130,9 @@ function AttachmentsPanelContent({ target, className = '', workspaceId, uid, rol
   };
 
   const { dialogProps, titleId } = useDialog(() => setPreview(null), Boolean(preview));
+  // #915: `previewKind` already refuses anything but a stored PDF/image address; the source is
+  // narrowed again here so the dialog can never be handed an unchecked address.
+  const previewSrc = preview ? safeEmbeddedDocumentUrl(preview.fileUrl) : null;
   const previewKind = preview ? attachmentPreviewKind(preview) : null;
 
   return (
@@ -183,7 +179,7 @@ function AttachmentsPanelContent({ target, className = '', workspaceId, uid, rol
         ) : (
           <ul className="divide-y divide-[var(--line)] text-xs">
             {files.map(file => {
-              const downloadable = safeDownloadUrl(file.fileUrl);
+              const downloadable = safeDownloadDocumentUrl(file.fileUrl);
               const canPreview = Boolean(attachmentPreviewKind(file));
               const isRemoving = removingIds.has(file.id);
               return (
@@ -208,7 +204,7 @@ function AttachmentsPanelContent({ target, className = '', workspaceId, uid, rol
         )}
       </section>
 
-      {preview && previewKind && (
+      {preview && previewKind && previewSrc && (
         <div {...dialogProps} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3 sm:p-6">
           <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-2xl">
             <header className="flex min-h-14 items-center justify-between gap-3 border-b border-[var(--line)] px-4 py-2">
@@ -219,8 +215,8 @@ function AttachmentsPanelContent({ target, className = '', workspaceId, uid, rol
             </header>
             <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3">
               {previewKind === 'image'
-                ? <img src={preview.fileUrl} alt={preview.name} className="max-h-[78vh] max-w-full object-contain" />
-                : <iframe src={preview.fileUrl} title={`Preview ${preview.name}`} sandbox="" className="h-[78vh] w-full border-0 bg-white" />}
+                ? <img src={previewSrc} alt={preview.name} className="max-h-[78vh] max-w-full object-contain" />
+                : <iframe src={previewSrc} title={`Preview ${preview.name}`} sandbox="" className="h-[78vh] w-full border-0 bg-white" />}
             </div>
             <div className="border-t border-[var(--line)] px-4 py-2 text-xs text-[var(--muted)]">
               Preview only; the original file remains attached to this record.

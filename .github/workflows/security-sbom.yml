@@ -11,6 +11,8 @@ on:
 
 permissions:
   contents: read
+  # gitleaks-action lists a pull request's commits, which needs pull-requests: read
+  pull-requests: read
 
 concurrency:
   group: sbom-${{ github.event.pull_request.number || github.ref }}
@@ -23,8 +25,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout
+      - name: Checkout (full history for secret scan)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Node 24
         uses: actions/setup-node@v4
         with:
@@ -69,6 +73,13 @@ jobs:
             process.exit(1);
           }
           NODE
+      - name: Gitleaks scan (full history + config, S-24)
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: 'false'
+          # the action takes no inputs; its config is read from this variable
+          GITLEAKS_CONFIG: .gitleaks.toml
       - name: Audit production dependencies against High/Critical threshold (S-25)
         run: node scripts/check-dependency-audit.ts --allowlist=security-audit-allowlist.json
       - name: Generate CycloneDX software bill of materials

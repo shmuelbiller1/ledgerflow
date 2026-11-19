@@ -57,7 +57,7 @@ export async function loadStatement(db: Firestore, workspaceId: string, contactI
   // the statement only reads this contact's payments: no need to load the whole workspace's
   const payments = await rows<Payment>('payments', 'contactId');
   const credits = contactType === 'customer' ? await rows<CreditNote>('creditNotes', 'customerId') : await rows<VendorCredit>('vendorCredits', 'vendorId');
-  const stmt = computeStatement(contact, invoices, bills, payments, scope.startDate, scope.endDate, contactType, credits);
+  const stmt = computeStatement(contact, invoices, bills, payments, scope.startDate, scope.endDate, contactType, credits, typeof workspace.currency === 'string' ? workspace.currency : 'USD');
   return {
     contactType,
     contact,

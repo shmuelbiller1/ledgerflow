@@ -1,0 +1,72 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Agent6 Security <agent6@ledgerflow.local>
+Date: 2026-11-19
+Subject: [PATCH] fix(server): do not echo raw err.message in 500 details (A6S-07 #4)
+
+For AI #1 lane (src/server). Verified at pin 5eacf71: emailRoutes and
+incomingEventRoutes returned `details: err.message` on 500.
+Refs: issue #827 §4. Log server-side via redactForLogs, return generic message only.
+
+diff --git a/src/server/routes/emailRoutes.ts b/src/server/routes/emailRoutes.ts
+index 9656880..3f6ec31 100644
+--- a/src/server/routes/emailRoutes.ts
++++ b/src/server/routes/emailRoutes.ts
+@@ -5,6 +5,7 @@ import { getDb } from '../db/firestore';
+ import { getTrustedAppUrl } from '../utils/urlHelper';
+ import { notify } from '../services/notificationService';
+ import { EmailSendError, emailInvoice, emailLog, emailStatements, logEmailEvent } from '../services/documentEmailService';
++import { redactForLogs } from '../../lib/logRedaction';
+ 
+ /**
+  * Emails to customers, mounted at /api/v1/workspaces/:workspaceId/emails (workspaceRoutes.ts,
+@@ -30,7 +31,8 @@ emailRouter.post('/invoices/:invoiceId', async (req, res) => {
+   } catch (err) {
+     if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Invalid request', details: err.issues });
+     if (err instanceof EmailSendError) return res.status(err.status).json({ status: 'error', message: err.message });
+-    res.status(500).json({ status: 'error', message: 'The email could not be sent', details: err instanceof Error ? err.message : String(err) });
++    console.error('[The email could not be sent]', redactForLogs(err instanceof Error ? err.message : String(err)));
++    res.status(500).json({ status: 'error', message: 'The email could not be sent' });
+   }
+ });
+ 
+@@ -48,7 +50,8 @@ emailRouter.post('/statements', async (req, res) => {
+   } catch (err) {
+     if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: 'Invalid request', details: err.issues });
+     if (err instanceof EmailSendError) return res.status(err.status).json({ status: 'error', message: err.message });
+-    res.status(500).json({ status: 'error', message: 'The statements could not be sent', details: err instanceof Error ? err.message : String(err) });
++    console.error('[The statements could not be sent]', redactForLogs(err instanceof Error ? err.message : String(err)));
++    res.status(500).json({ status: 'error', message: 'The statements could not be sent' });
+   }
+ });
+ 
+@@ -57,7 +60,8 @@ emailRouter.get('/log/:documentId', async (req, res) => {
+   try {
+     res.json({ status: 'success', events: await emailLog(getDb(), workspaceId, documentId) });
+   } catch (err) {
+-    res.status(500).json({ status: 'error', message: 'The send log could not be loaded', details: err instanceof Error ? err.message : String(err) });
++    console.error('[The send log could not be loaded]', redactForLogs(err instanceof Error ? err.message : String(err)));
++    res.status(500).json({ status: 'error', message: 'The send log could not be loaded' });
+   }
+ });
+ 
+diff --git a/src/server/routes/incomingEventRoutes.ts b/src/server/routes/incomingEventRoutes.ts
+index 0ddd6eb..b960743 100644
+--- a/src/server/routes/incomingEventRoutes.ts
++++ b/src/server/routes/incomingEventRoutes.ts
+@@ -1,6 +1,7 @@
+ import express from 'express';
+ import { getDb } from '../db/firestore';
+ import { incomingEvents } from '../../lib/incomingEvents';
++import { redactForLogs } from '../../lib/logRedaction';
+ 
+ /**
+  * Incoming events (K-37): GET /api/v1/workspaces/:workspaceId/incoming-events, owners and
+@@ -23,6 +24,7 @@ incomingEventRouter.get('/', async (req, res) => {
+     const events = incomingEvents(stripe.docs.map(d => ({ id: d.id, ...d.data() })), email.docs.map(d => ({ id: d.id, ...d.data() })), LIMIT);
+     res.json({ status: 'success', data: { events } });
+   } catch (err) {
+-    res.status(500).json({ status: 'error', message: 'The incoming events could not be read', details: err instanceof Error ? err.message : String(err) });
++    console.error('[The incoming events could not be read]', redactForLogs(err instanceof Error ? err.message : String(err)));
++    res.status(500).json({ status: 'error', message: 'The incoming events could not be read' });
+   }
+ });

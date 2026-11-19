@@ -17,6 +17,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { cn, safeConfirm, formatCurrency, getLocalDateISO } from '../../lib/utils';
+import { safeDownloadDocumentUrl, safeEmbeddedDocumentUrl } from '../../lib/documentUrl';
 import AsyncButton from '../ui/AsyncButton';
 import { collection, query, where, onSnapshot } from '../../lib/db/firestore';
 import { saveDocument } from '../../lib/recordWrites';
@@ -32,23 +33,11 @@ import {
 } from '../../lib/documentLibrary';
 import { buildBalancedReceiptTransaction, validateReceiptPayload } from '../../lib/receiptIngestion';
 
-
-
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { inBackground } from '../../lib/inBackground';
 import { runWrite } from '../../lib/runCommand';
 import { removeAttachment } from '../../services/attachmentActions';
-
-function safeDownloadUrl(value: unknown): string | null {
-  if (typeof value !== 'string' || !value) return null;
-  if (/^data:[^,\s]+,/i.test(value)) return value;
-  try {
-    return new URL(value).protocol === 'https:' ? value : null;
-  } catch {
-    return null;
-  }
-}
 
 function formatDocDate(value: unknown, pattern: string, fallback: string): string {
   if (!value) return fallback;
@@ -187,8 +176,14 @@ export default function Vault() {
     setExtractedData(null);
 
     try {
+      // #915: the row is writable by every member, so only a stored data: file or an https link is read.
+      const sourceUrl = safeEmbeddedDocumentUrl(selectedDoc.fileUrl);
+      if (!sourceUrl) {
+        toast.error('This file address is not a PDF, image or https link, so it cannot be scanned.');
+        return;
+      }
       // Create a temporary File object from the blob URL
-      const response = await fetch(selectedDoc.fileUrl);
+      const response = await fetch(sourceUrl);
       const blob = await response.blob();
       const file = new window.File([blob], selectedDoc.name, { type: selectedDoc.mimeType });
 
@@ -325,7 +320,6 @@ export default function Vault() {
   const counts = documentCounts(documents);
   const months = documentMonths(documents);
   const filtersActive = Boolean(searchTerm.trim()) || fileType !== 'all' || linkedTo !== 'all' || month !== 'all' || Boolean(filterTag);
-  const selectedSafeUrl = selectedDoc ? safeDownloadUrl(selectedDoc.fileUrl) : null;
   const selectedKind = selectedDoc ? documentFileType(selectedDoc.mimeType) : 'other';
   const selectedOwner = selectedDoc ? documentOwnerLabel(selectedDoc) : null;
 
@@ -338,6 +332,10 @@ export default function Vault() {
     setMonth('all');
     setFilterTag(null);
   };
+
+  // #915: the row is writable by every member, so the address is narrowed before it is painted or fetched.
+  const embedUrl = selectedDoc ? safeEmbeddedDocumentUrl(selectedDoc.fileUrl) : null;
+  const downloadUrl = selectedDoc ? safeDownloadDocumentUrl(selectedDoc.fileUrl) : null;
 
   return (
     <div className="space-y-8 h-full min-w-0 flex flex-col">
@@ -566,31 +564,33 @@ export default function Vault() {
               </div>
 
               <div className="flex-1 bg-[var(--ink)]/20 p-12 flex items-center justify-center overflow-auto">
-                {selectedKind === 'image' && selectedSafeUrl ? (
+                {selectedKind === 'image' && embedUrl ? (
                   <img 
-                    src={selectedSafeUrl} 
+                    src={embedUrl} 
                     alt={selectedDoc.name}
                     className="max-w-full max-h-full rounded-[32px] shadow-[0_40px_100px_rgba(0,0,0,0.2)] border border-[var(--line)] object-contain"
                     referrerPolicy="no-referrer"
                   />
-                ) : selectedKind === 'pdf' && selectedSafeUrl ? (
+                ) : selectedKind === 'pdf' && embedUrl ? (
                   <div className="w-full flex flex-col items-center gap-4">
                     <iframe
-                      src={selectedSafeUrl}
+                      src={embedUrl}
                       title={`Preview ${selectedDoc.name}`}
                       sandbox=""
                       className="w-full h-[34rem] rounded-2xl border border-[var(--line)] bg-white shadow-sm"
                     />
-                    <a
-                      href={selectedSafeUrl}
-                      download={selectedDoc.name}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="h-11 px-6 bg-slate-900 text-white rounded-[32px] inline-flex items-center gap-2 font-black text-xs uppercase tracking-widest hover:bg-black shadow-md"
-                    >
-                      <Download aria-hidden="true" size={16} />
-                      Export to Reader
-                    </a>
+                    {downloadUrl && (
+                      <a
+                        href={downloadUrl}
+                        download={selectedDoc.name}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="h-11 px-6 bg-slate-900 text-white rounded-[32px] inline-flex items-center gap-2 font-black text-xs uppercase tracking-widest hover:bg-black shadow-md"
+                      >
+                        <Download aria-hidden="true" size={16} />
+                        Export to Reader
+                      </a>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center space-y-6">
@@ -598,12 +598,12 @@ export default function Vault() {
                       <File aria-hidden="true" size={48} />
                     </div>
                     <div>
-                      <h3 className="text-xl font-black text-[var(--text)] tracking-tight">{selectedSafeUrl ? 'Preview Restricted' : 'File link unavailable'}</h3>
+                      <h3 className="text-xl font-black text-[var(--text)] tracking-tight">{downloadUrl ? 'Preview Restricted' : 'File link unavailable'}</h3>
                       <p className="text-sm font-medium text-[var(--muted)] mt-2">MIME: {selectedDoc.mimeType || 'Unknown'}</p>
                     </div>
-                    {selectedSafeUrl && (
+                    {downloadUrl ? (
                       <a 
-                        href={selectedSafeUrl} 
+                        href={downloadUrl}
                         download={selectedDoc.name}
                         target="_blank" 
                         rel="noopener noreferrer"
@@ -612,6 +612,8 @@ export default function Vault() {
                         <Download aria-hidden="true" size={20} />
                         Export to Reader
                       </a>
+                    ) : (
+                      <p className="text-xs font-medium text-[var(--muted)]">This file has no safe address to open (only stored files and https links are opened).</p>
                     )}
                   </div>
                 )}
@@ -716,16 +718,17 @@ export default function Vault() {
                         </>
                       )}
                     </button>
-                    {selectedSafeUrl && (
+                    {downloadUrl ? (
                       <a 
-                        href={selectedSafeUrl}
+                        href={downloadUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="h-14 px-8 bg-[var(--surface)] border border-[var(--line)] text-[var(--text)] rounded-[32px] flex-[0.7] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-[var(--ink)] transition-all flex items-center justify-center gap-3">
+                        className="h-14 px-8 bg-[var(--surface)] border border-[var(--line)] text-[var(--text)] rounded-[32px] flex-[0.7] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-[var(--ink)] transition-all flex items-center justify-center gap-3"
+                      >
                         <ExternalLink aria-hidden="true" size={18} />
                         Raw
                       </a>
-                    )}
+                    ) : null}
                     <AsyncButton aria-label={`Delete document ${selectedDoc.name}`}
                       onClick={async () => handleDelete(selectedDoc.id)}
                       className="w-14 h-14 flex items-center justify-center bg-rose-50 text-rose-500 rounded-[32px] hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-rose-100"
