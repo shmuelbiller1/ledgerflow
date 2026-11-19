@@ -306,6 +306,23 @@ describe('SBX-1 assistant token, read tools and routes (PostgreSQL)', { skip: !u
     assert.deepEqual((await live.collection('documents').where('workspaceId', '==', f.workspaceId).where('kind', '==', 'watch').get()).docs.map(doc => doc.data().record), [record]);
     assert.equal(await f.count('auditLogs'), 3);
     assert.equal((await f.person('POST', `/steps/${deleteStep.id}/undo`, {})).json.code, 'SANDBOX_STEP_NOT_ACCEPTED');
+
+    // Someone removed the original contact after the proposal was drafted. Only the person's
+    // review rebuilds it; both of the assistant's read tools must explain the saved refusal.
+    await customer.delete();
+    const repaired = await f.person('GET', '');
+    assert.equal(repaired.status, 200, JSON.stringify(repaired.json));
+    const failed = (repaired.json.steps as StoredStep[]).find(step => step.id === editStep.id)!;
+    assert.equal(failed.state, 'failed');
+    assert.ok(failed.failureReason);
+    const lastReview = await stored();
+    const afterList = (await gemini('list_proposals')).json.proposals as Array<{ steps: StoredStep[] }>;
+    const afterPreview = (await gemini('preview_proposal', { proposalId: f.sandbox.id })).json.proposal as { steps: StoredStep[] };
+    const listedFailure = afterList[0].steps.find(step => step.id === editStep.id);
+    assert.equal(listedFailure?.failureReason, failed.failureReason);
+    assert.equal(listedFailure?.preview, undefined, 'the list carries the refusal without the preview');
+    assert.equal(afterPreview.steps.find(step => step.id === editStep.id)?.failureReason, failed.failureReason);
+    assert.deepEqual(await stored(), lastReview);
   });
 
   test('proposal discovery and drafting honor live membership, issued role and workspace state', async t => {

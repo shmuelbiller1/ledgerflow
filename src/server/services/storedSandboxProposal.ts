@@ -20,12 +20,11 @@ export async function storedSandboxProposal(runner: Runner, binding: SandboxBind
     id: binding.id, workspaceId: binding.workspaceId, expiresAt: new Date(rows[0].expiresAt).toISOString(),
     steps: rows.flatMap(row => {
       if (!row.stepId) return [];
-      const base = { id: row.stepId, command: row.command, position: row.position, state: row.state };
+      const base = { id: row.stepId, command: row.command, position: row.position, state: row.state, failureReason: row.failureReason };
       if (!row.preview) return [base];
       // No inverse, raw input, internal IDs map, or dependency versions are needed to explain the preview.
       const { title, lines, accounts, effectiveDate, entityId, provisionalNumber, effects } = row.preview;
-      return [{ ...base, failureReason: row.failureReason,
-        preview: redact({ title, lines, accounts, effectiveDate, entityId, provisionalNumber, effects }) }];
+      return [{ ...base, preview: redact({ title, lines, accounts, effectiveDate, entityId, provisionalNumber, effects }) }];
     }),
   };
 }

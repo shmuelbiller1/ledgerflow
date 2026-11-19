@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, describe, test, type TestContext } from 'node:test';
 import express from 'express';
+import { rateLimit } from 'express-rate-limit';
 import { SignJWT } from 'jose';
 import { generateInviteToken } from '../lib/inviteManager';
 import type { Firestore } from '../server/db/firestore';
@@ -49,8 +50,10 @@ describe('Invitation and protocol contracts on PostgreSQL', { skip: !url && 'LF_
     registerBrainRoutes(app, context);
     registerDeveloperApiRoutes(app, context);
     app.use('/api/v1/invites', invitePublicRouter);
-    app.use('/api/v1/billing', apiAuthenticate, billingRouter);
-    app.use('/api/v1/commands', apiAuthenticate, commandRouter);
+    // Match the app's request ceiling even on these authenticated test mounts.
+    const apiLimiter = rateLimit({ windowMs: 60_000, limit: 100 });
+    app.use('/api/v1/billing', apiLimiter, apiAuthenticate, billingRouter);
+    app.use('/api/v1/commands', apiLimiter, apiAuthenticate, commandRouter);
     app.use('/api/v1/ai', aiRouter);
     server = app.listen(0, '127.0.0.1');
     await new Promise<void>(resolve => server.once('listening', resolve));
