@@ -42,12 +42,12 @@ test('E-17 the field table is the authority record-60 layout: 20 fields, columns
   let expectedFrom = 1;
   let widthSum = 0;
   for (const field of FORM_856_RECORD_60_FIELDS) {
-    assert.equal(field.from, expectedFrom, `field ${field.no} must start where the previous ended`);
-    assert.equal(field.width, field.to - field.from + 1, `field ${field.no} width`);
-    expectedFrom = field.to + 1;
+    assert.equal(field.startCol, expectedFrom, `field ${field.no} must start where the previous ended`);
+    assert.equal(field.width, field.endCol - field.startCol + 1, `field ${field.no} width`);
+    expectedFrom = field.endCol + 1;
     widthSum += field.width;
   }
-  assert.equal(FORM_856_RECORD_60_FIELDS.at(-1)?.to, 216, 'content ends at column 216; CR/LF are 217–218');
+  assert.equal(FORM_856_RECORD_60_FIELDS.at(-1)?.endCol, 216, 'content ends at column 216; CR/LF are 217–218');
   assert.equal(widthSum, 216, 'the content of every record type is 216 bytes + CR/LF = 218');
   assert.deepEqual(
     FORM_856_RECORD_60_FIELDS.map(field => field.no),
@@ -55,11 +55,11 @@ test('E-17 the field table is the authority record-60 layout: 20 fields, columns
   );
   const recordType = FORM_856_RECORD_60_FIELDS.at(-1);
   assert.equal(recordType?.key, 'recordType');
-  assert.equal(recordType?.from, 215, 'the authority places the record-type code at 215–216');
+  assert.equal(recordType?.startCol, 215, 'the authority places the record-type code at 215–216');
   const reportCode = FORM_856_RECORD_60_FIELDS[1];
-  assert.deepEqual([reportCode.from, reportCode.width], [10, 2], 'report code at 10–11');
+  assert.deepEqual([reportCode.startCol, reportCode.width], [10, 2], 'report code at 10–11');
   const payments = FORM_856_RECORD_60_FIELDS.find(field => field.key === 'payments');
-  assert.deepEqual([payments?.from, payments?.width], [97, 11], 'gross payments at 97–107');
+  assert.deepEqual([payments?.startCol, payments?.width], [97, 11], 'gross payments at 97–107');
 });
 
 test('E-17 a typed fixture becomes the record-60 row in the authority field order', () => {

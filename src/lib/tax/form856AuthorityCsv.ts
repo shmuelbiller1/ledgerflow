@@ -26,9 +26,9 @@ export interface Form856AuthorityField {
   /** the authority's field number (1–20 for record 60) */
   no: number;
   /** first content column (1-based, inclusive) */
-  from: number;
+  startCol: number;
   /** last content column (inclusive) */
-  to: number;
+  endCol: number;
   width: number;
   /** stable camelCase key used to fill a cell */
   key: string;
@@ -39,26 +39,26 @@ export interface Form856AuthorityField {
 
 /** Record 60 fields in the authority's order; widths sum to 216, +CR/LF = the 218-byte record. */
 export const FORM_856_RECORD_60_FIELDS: readonly Form856AuthorityField[] = [
-  { no: 1, from: 1, to: 9, width: 9, key: 'withholdingFileNo', he: 'מספר תיק ניכויים', en: 'Withholding file no.', kind: 'num' },
-  { no: 2, from: 10, to: 11, width: 2, key: 'reportCode', he: 'קוד הדיווח', en: 'Report code', kind: 'num' },
-  { no: 3, from: 12, to: 15, width: 4, key: 'taxYear', he: 'שנת מס', en: 'Tax year', kind: 'num' },
-  { no: 4, from: 16, to: 16, width: 1, key: 'workerFlag', he: 'זיהוי עובד', en: 'Worker identification', kind: 'num' },
-  { no: 5, from: 17, to: 17, width: 1, key: 'payeeFileType', he: 'סוג התיק במס הכנסה של המקבל', en: 'Payee Income-Tax file type', kind: 'num' },
-  { no: 6, from: 18, to: 26, width: 9, key: 'payeeItFileNo', he: 'מספר תיק במס הכנסה / מספר תעודת זהות', en: 'Payee Income-Tax file no. / ID', kind: 'num' },
-  { no: 7, from: 27, to: 40, width: 14, key: 'supplierAccountNo', he: 'מספר ספק / חשבון', en: 'Supplier / account no.', kind: 'num' },
-  { no: 8, from: 41, to: 62, width: 22, key: 'name', he: 'שם משפחה ושם פרטי / שם החברה', en: 'Payee name', kind: 'text' },
-  { no: 9, from: 63, to: 83, width: 21, key: 'street', he: 'רחוב / שכונה ומספר בית', en: 'Street', kind: 'text' },
-  { no: 10, from: 84, to: 96, width: 13, key: 'city', he: 'עיר', en: 'City', kind: 'text' },
-  { no: 11, from: 97, to: 107, width: 11, key: 'payments', he: 'סה״כ תשלומים ששולמו ברוטו (כולל מע״מ)', en: 'Gross payments (incl. VAT)', kind: 'num' },
-  { no: 12, from: 108, to: 116, width: 9, key: 'taxWithheld', he: 'סה״כ מס הכנסה שנוכה', en: 'Income tax withheld', kind: 'num' },
-  { no: 13, from: 117, to: 124, width: 8, key: 'vatTransferred', he: 'סה״כ מע״מ ששולם למס הכנסה', en: 'VAT paid to the Income Tax', kind: 'num' },
-  { no: 14, from: 125, to: 132, width: 8, key: 'yearEndBalance', he: 'יתרות לזכות המקבל לסוף שנת המס', en: 'Year-end balance to the payee', kind: 'num' },
-  { no: 15, from: 133, to: 134, width: 2, key: 'rate', he: 'שיעור הניכוי', en: 'Withholding rate %', kind: 'num' },
-  { no: 16, from: 135, to: 146, width: 12, key: 'approvingOffice', he: 'משרד השומה נותן האישור וסמל פקיד השומה', en: 'Approving office and code', kind: 'text' },
-  { no: 17, from: 147, to: 160, width: 14, key: 'occupation', he: 'עיסוק המקבל', en: 'Payee occupation', kind: 'text' },
-  { no: 18, from: 161, to: 212, width: 52, key: 'filler', he: 'ריק', en: 'Filler', kind: 'text' },
-  { no: 19, from: 213, to: 214, width: 2, key: 'typeCode', he: 'סוג הניכוי', en: 'Withholding type code', kind: 'num' },
-  { no: 20, from: 215, to: 216, width: 2, key: 'recordType', he: 'סוג רשומה 60', en: 'Record type (60)', kind: 'num' },
+  { no: 1, startCol: 1, endCol: 9, width: 9, key: 'withholdingFileNo', he: 'מספר תיק ניכויים', en: 'Withholding file no.', kind: 'num' },
+  { no: 2, startCol: 10, endCol: 11, width: 2, key: 'reportCode', he: 'קוד הדיווח', en: 'Report code', kind: 'num' },
+  { no: 3, startCol: 12, endCol: 15, width: 4, key: 'taxYear', he: 'שנת מס', en: 'Tax year', kind: 'num' },
+  { no: 4, startCol: 16, endCol: 16, width: 1, key: 'workerFlag', he: 'זיהוי עובד', en: 'Worker identification', kind: 'num' },
+  { no: 5, startCol: 17, endCol: 17, width: 1, key: 'payeeFileType', he: 'סוג התיק במס הכנסה של המקבל', en: 'Payee Income-Tax file type', kind: 'num' },
+  { no: 6, startCol: 18, endCol: 26, width: 9, key: 'payeeItFileNo', he: 'מספר תיק במס הכנסה / מספר תעודת זהות', en: 'Payee Income-Tax file no. / ID', kind: 'num' },
+  { no: 7, startCol: 27, endCol: 40, width: 14, key: 'supplierAccountNo', he: 'מספר ספק / חשבון', en: 'Supplier / account no.', kind: 'num' },
+  { no: 8, startCol: 41, endCol: 62, width: 22, key: 'name', he: 'שם משפחה ושם פרטי / שם החברה', en: 'Payee name', kind: 'text' },
+  { no: 9, startCol: 63, endCol: 83, width: 21, key: 'street', he: 'רחוב / שכונה ומספר בית', en: 'Street', kind: 'text' },
+  { no: 10, startCol: 84, endCol: 96, width: 13, key: 'city', he: 'עיר', en: 'City', kind: 'text' },
+  { no: 11, startCol: 97, endCol: 107, width: 11, key: 'payments', he: 'סה״כ תשלומים ששולמו ברוטו (כולל מע״מ)', en: 'Gross payments (incl. VAT)', kind: 'num' },
+  { no: 12, startCol: 108, endCol: 116, width: 9, key: 'taxWithheld', he: 'סה״כ מס הכנסה שנוכה', en: 'Income tax withheld', kind: 'num' },
+  { no: 13, startCol: 117, endCol: 124, width: 8, key: 'vatTransferred', he: 'סה״כ מע״מ ששולם למס הכנסה', en: 'VAT paid to the Income Tax', kind: 'num' },
+  { no: 14, startCol: 125, endCol: 132, width: 8, key: 'yearEndBalance', he: 'יתרות לזכות המקבל לסוף שנת המס', en: 'Year-end balance to the payee', kind: 'num' },
+  { no: 15, startCol: 133, endCol: 134, width: 2, key: 'rate', he: 'שיעור הניכוי', en: 'Withholding rate %', kind: 'num' },
+  { no: 16, startCol: 135, endCol: 146, width: 12, key: 'approvingOffice', he: 'משרד השומה נותן האישור וסמל פקיד השומה', en: 'Approving office and code', kind: 'text' },
+  { no: 17, startCol: 147, endCol: 160, width: 14, key: 'occupation', he: 'עיסוק המקבל', en: 'Payee occupation', kind: 'text' },
+  { no: 18, startCol: 161, endCol: 212, width: 52, key: 'filler', he: 'ריק', en: 'Filler', kind: 'text' },
+  { no: 19, startCol: 213, endCol: 214, width: 2, key: 'typeCode', he: 'סוג הניכוי', en: 'Withholding type code', kind: 'num' },
+  { no: 20, startCol: 215, endCol: 216, width: 2, key: 'recordType', he: 'סוג רשומה 60', en: 'Record type (60)', kind: 'num' },
 ];
 
 /** The payer's own record (part of every record-60 row). */
@@ -263,7 +263,7 @@ export function form856AuthorityCsv(
     blockers: [...new Set(ctx.blockers)],
     problems: [...new Set(ctx.problems)],
     notices,
-    headers: FORM_856_RECORD_60_FIELDS.map(field => `${field.no}. ${field.he} / ${field.en} (${field.from}-${field.to}, ${field.width})`),
+    headers: FORM_856_RECORD_60_FIELDS.map(field => `${field.no}. ${field.he} / ${field.en} (${field.startCol}-${field.endCol}, ${field.width})`),
     rows: canDownload ? rows : [],
   };
 }
