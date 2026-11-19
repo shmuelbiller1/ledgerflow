@@ -208,9 +208,27 @@ export async function revaluateForeignBalances(db: Firestore, input: Revaluation
     const mapping = { ar: String(workspace.defaultAccountMappings?.ar || '') || undefined, ap: String(workspace.defaultAccountMappings?.ap || '') || undefined };
     const openDocs = async (collection: string) => (await t.get(db.collection(collection).where('workspaceId', '==', input.workspaceId)))
       .docs.map(d => ({ ...d.data(), id: d.id }) as DocumentData);
+    // #806: a past date takes the documents that existed then, and refuses when one of them was settled
+    // after it: today's open amount is not that day's, and it cannot be rebuilt here
+    const existedBy = (rows: DocumentData[]) => historical ? rows.filter(d => String(d.date || d.issueDate || '').slice(0, 10) <= date) : rows;
+    const invoiceRows = existedBy(await openDocs('invoices'));
+    const billRows = existedBy(await openDocs('bills'));
+    if (historical) {
+      const known = new Set([...invoiceRows, ...billRows].map(d => d.id));
+      const settledLater = new Set<string>();
+      for (const payment of (await t.get(db.collection('payments').where('workspaceId', '==', input.workspaceId))).docs.map(d => d.data())) {
+        if (payment.status === 'void' || String(payment.date || '').slice(0, 10) <= date) continue;
+        for (const a of Array.isArray(payment.allocations) ? payment.allocations : []) {
+          if (known.has(a?.documentId) && Number(a?.amountCents) > 0) settledLater.add(a.documentId);
+        }
+      }
+      if (settledLater.size > 0) {
+        throw new FxRevaluationError(409, `${settledLater.size} ${settledLater.size === 1 ? 'document was' : 'documents were'} paid after ${date}, so the open amounts on that date cannot be rebuilt. Revalue as of a date after the last of those payments, or today. Nothing was posted.`);
+      }
+    }
     const docs = [
-      ...toRevaluable(await openDocs('invoices'), 'customer', base, accounts, mapping),
-      ...toRevaluable(await openDocs('bills'), 'vendor', base, accounts, mapping),
+      ...toRevaluable(invoiceRows, 'customer', base, accounts, mapping),
+      ...toRevaluable(billRows, 'vendor', base, accounts, mapping),
     ];
 
     // Only what is still open is anybody's business here: a paid bill with no A/P account is not a
