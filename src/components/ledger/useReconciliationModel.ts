@@ -11,7 +11,7 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { jaroWinklerSimilarity, findGlobalOptimalMatch } from '../../lib/algorithms';
 import { toast } from 'sonner';
 import { isPostable, lineAmount } from '../../lib/txFilters';
-import { cashLegFromLegs, cashLegsOf, type CashLegs } from '../../lib/reconciliationSuggestions';
+import { cashLegForBankLine, cashLegFromLegs, cashLegsOf, type CashLegs } from '../../lib/reconciliationSuggestions';
 
 import type { BankLineActionTarget } from './BankLineActionDialog';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -53,6 +53,7 @@ export function useReconciliationModel() {
   const safeAccounts = useMemo(() => Array.isArray(accounts) ? accounts : [], [accounts]);
 
   const cashAccounts = useMemo(() => safeAccounts.filter(a => resolveAccountRole(a) === 'cash'), [safeAccounts]);
+  const cashAccountIds = useMemo(() => new Set(cashAccounts.map(a => a.id)), [cashAccounts]);
 
   // Active pending statement lines
   const unmatchedBankLines = useMemo(() => {
@@ -93,7 +94,6 @@ export function useReconciliationModel() {
   const aiSuggestionsMap = useMemo(() => {
     if (unmatchedBankLines.length === 0 || unclearedLedgerTransactions.length === 0) return [];
 
-    const cashAccountIds = new Set(cashAccounts.map(a => a.id));
     interface PreparedLedgerEntry {
       ltx: (typeof unclearedLedgerTransactions)[number];
       legs: CashLegs;
@@ -184,7 +184,7 @@ export function useReconciliationModel() {
     });
 
     return sourceItems;
-  }, [unmatchedBankLines, unclearedLedgerTransactions, user?.uid, matchToleranceCents, cashAccounts]);
+  }, [unmatchedBankLines, unclearedLedgerTransactions, user?.uid, matchToleranceCents, cashAccountIds]);
 
   const optimizedMatches = useMemo(() => {
      if (!aiSuggestionsMap || !Array.isArray(aiSuggestionsMap)) return new Map();
@@ -294,7 +294,16 @@ export function useReconciliationModel() {
 
   // DUAL-VERIFIER ALIGNMENT MATRIX METRICS
   const checkSimilarity = useMemo(() => {
-    if (!selectedBankLine || !selectedLedgerTx) return { textScore: 0, dateDiff: 0, amountDiff: 0, overall: 0 };
+    if (!selectedBankLine || !selectedLedgerTx) {
+      return {
+        textScore: 0,
+        dateDiff: 0,
+        amountDiff: 0,
+        hasMatchingCashLeg: false,
+        ledgerCashCents: null as number | null,
+        overall: 0,
+      };
+    }
 
     // Description similarity
     const textScore = Math.round(jaroWinklerSimilarity(selectedBankLine.description, selectedLedgerTx.description, user?.uid) * 100);
@@ -307,8 +316,27 @@ export function useReconciliationModel() {
       dateDiff = Math.abs(bDate - lDate) / (1000 * 60 * 60 * 24);
     }
 
-    // Amount difference
-    const amountDiff = Math.abs(selectedBankLine.amountCents) - Math.abs(selectedLedgerTx.totalAmountCents);
+    // #891: compare the statement line against the entry's cash movement in this bank account
+    // (or net cash in all-accounts view), never the journal header total.
+    const ledgerCashCents = cashLegForBankLine(
+      selectedLedgerTx,
+      cashAccountIds,
+      selectedBankLine,
+      l => lineAmount(l as Parameters<typeof lineAmount>[0], selectedLedgerTx),
+    );
+    if (ledgerCashCents === null) {
+      const cappedOverall = Math.min(40, Math.round(Math.max(0, 30 - (dateDiff * 8)) + (textScore * 0.1)));
+      return {
+        textScore,
+        dateDiff,
+        amountDiff: Math.abs(selectedBankLine.amountCents),
+        hasMatchingCashLeg: false,
+        ledgerCashCents: null,
+        overall: cappedOverall,
+      };
+    }
+
+    const amountDiff = Math.abs(selectedBankLine.amountCents) - Math.abs(ledgerCashCents);
 
     // Compute heuristic overall probability
     let overall = 0;
@@ -322,9 +350,11 @@ export function useReconciliationModel() {
       textScore,
       dateDiff,
       amountDiff,
+      hasMatchingCashLeg: true,
+      ledgerCashCents,
       overall: Math.min(100, Math.round(overall))
     };
-  }, [selectedBankLine, selectedLedgerTx, user?.uid]);
+  }, [selectedBankLine, selectedLedgerTx, user?.uid, cashAccountIds]);
 
   // Filter pending feeds
   const filteredBankFeed = useMemo(() => {
@@ -344,5 +374,5 @@ export function useReconciliationModel() {
     );
   }, [unclearedLedgerTransactions, searchQuery]);
 
-  return { bankLines, accounts, onMatch, onIgnore, onAddFromBank, selectedBankId, setSelectedBankId, selectedLedgerId, setSelectedLedgerId, showAutoConfirm, setShowAutoConfirm, isProcessing, isAutoReconciling, viewMode, setViewMode, searchQuery, setSearchQuery, bankLineAction, setBankLineAction, selectedAccountId, setSelectedAccountId, selectedBatchIds, setSelectedBatchIds, safeTransactions, cashAccounts, unmatchedBankLines, matchedBankLines, reconciledPercent, unclearedLedgerTransactions, optimizedMatches, executeSelectedBatchMatches, handleAutoReconcile, handleUndoAlignment, selectedBankLine, selectedLedgerTx, checkSimilarity, filteredBankFeed, filteredLedgerEntries };
+  return { bankLines, accounts, onMatch, onIgnore, onAddFromBank, selectedBankId, setSelectedBankId, selectedLedgerId, setSelectedLedgerId, showAutoConfirm, setShowAutoConfirm, isProcessing, isAutoReconciling, viewMode, setViewMode, searchQuery, setSearchQuery, bankLineAction, setBankLineAction, selectedAccountId, setSelectedAccountId, selectedBatchIds, setSelectedBatchIds, safeTransactions, cashAccounts, cashAccountIds, unmatchedBankLines, matchedBankLines, reconciledPercent, unclearedLedgerTransactions, optimizedMatches, executeSelectedBatchMatches, handleAutoReconcile, handleUndoAlignment, selectedBankLine, selectedLedgerTx, checkSimilarity, filteredBankFeed, filteredLedgerEntries };
 }

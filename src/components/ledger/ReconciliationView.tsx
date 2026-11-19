@@ -7,6 +7,8 @@ import { ArrowLeftRight, Sparkles, Search, AlertCircle, ArrowRight, ShieldCheck,
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency, resolveAccountName, formatDate } from '../../lib/utils';
 import { civilMonthDay } from '../../lib/calendarDate';
+import { cashLegForBankLine } from '../../lib/reconciliationSuggestions';
+import { lineAmount } from '../../lib/txFilters';
 
 
 import AsyncButton from '../ui/AsyncButton';
@@ -18,7 +20,7 @@ import { useUIStore } from '../../stores/useUIStore';
 import type { useReconciliationModel } from './useReconciliationModel';
 
 export function ReconciliationView(model: ReturnType<typeof useReconciliationModel>) {
- const { accounts, onMatch, onIgnore, onAddFromBank, selectedBankId, setSelectedBankId, selectedLedgerId, setSelectedLedgerId, showAutoConfirm, setShowAutoConfirm, isProcessing, isAutoReconciling, viewMode, setViewMode, searchQuery, setSearchQuery, bankLineAction, setBankLineAction, selectedAccountId, setSelectedAccountId, selectedBatchIds, setSelectedBatchIds, safeTransactions, cashAccounts, unmatchedBankLines, matchedBankLines, reconciledPercent, unclearedLedgerTransactions, optimizedMatches, executeSelectedBatchMatches, handleAutoReconcile, handleUndoAlignment, selectedBankLine, selectedLedgerTx, checkSimilarity, filteredBankFeed, filteredLedgerEntries } = model;
+ const { accounts, onMatch, onIgnore, onAddFromBank, selectedBankId, setSelectedBankId, selectedLedgerId, setSelectedLedgerId, showAutoConfirm, setShowAutoConfirm, isProcessing, isAutoReconciling, viewMode, setViewMode, searchQuery, setSearchQuery, bankLineAction, setBankLineAction, selectedAccountId, setSelectedAccountId, selectedBatchIds, setSelectedBatchIds, safeTransactions, cashAccounts, cashAccountIds, unmatchedBankLines, matchedBankLines, reconciledPercent, unclearedLedgerTransactions, optimizedMatches, executeSelectedBatchMatches, handleAutoReconcile, handleUndoAlignment, selectedBankLine, selectedLedgerTx, checkSimilarity, filteredBankFeed, filteredLedgerEntries } = model;
  // Dialog contract (src/components/AGENTS.md): named title, initial focus, trapped Tab,
  // Escape to close, focus restored to the trigger.
  const batchDialog = useDialog<HTMLDivElement>(() => setShowAutoConfirm(false), showAutoConfirm);
@@ -347,6 +349,9 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                  <div className="border border-slate-150 rounded-xl overflow-hidden divide-y divide-slate-100">
                     {filteredBankFeed.map(line => {
                       const linkedTx = safeTransactions.find(t => t.id === line.matchedTransactionId);
+                      const linkedCashCents = linkedTx
+                        ? cashLegForBankLine(linkedTx, cashAccountIds, line, l => lineAmount(l as Parameters<typeof lineAmount>[0], linkedTx))
+                        : null;
                       const isSelected = selectedBankId === line.id;
 
                       return (
@@ -383,7 +388,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                              <div className="flex-1 min-w-0">
                                <span className="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-300 font-mono tracking-wider">Matched ledger entry</span>
                                <h4 className="font-bold text-sm text-[var(--text)] break-words">{linkedTx?.description || 'Linked entry no longer found'}</h4>
-                               <p className="text-[10px] text-[var(--muted)] font-mono mt-0.5 mt-0.5 tabular-nums">Ledger amount: {linkedTx ? formatCurrency(linkedTx.totalAmountCents) : 'N/A'}</p>
+                               <p className="text-[10px] text-[var(--muted)] font-mono mt-0.5 mt-0.5 tabular-nums">Ledger amount: {linkedTx ? formatCurrency(linkedCashCents ?? linkedTx.totalAmountCents) : 'N/A'}</p>
                              </div>
 
                              {/* Revert controls directly */}
@@ -473,7 +478,9 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                   <div className="flex items-center justify-between mt-3 flex-wrap gap-1">
                     <span className="text-[10px] font-mono text-[var(--muted)]">{selectedLedgerTx?.date || 'N/A'}</span>
                     <span className="text-sm font-bold font-mono text-[var(--text)] tabular-nums">
-                      {selectedLedgerTx ? formatCurrency(selectedLedgerTx.totalAmountCents) : 'N/A'}
+                      {selectedLedgerTx
+                        ? formatCurrency(checkSimilarity.ledgerCashCents !== null ? checkSimilarity.ledgerCashCents : selectedLedgerTx.totalAmountCents)
+                        : 'N/A'}
                     </span>
                   </div>
                 </div>
@@ -506,18 +513,26 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
                         <span className="text-[10px] text-[var(--muted)] font-bold uppercase tracking-tight">
-                          Amount difference: <strong className={cn(checkSimilarity.amountDiff !== 0 ? "text-amber-400" : "text-emerald-400", "tabular-nums")}>
-                            {checkSimilarity.amountDiff === 0 ? "Amounts match" : `${formatCurrency(Math.abs(checkSimilarity.amountDiff))} difference`}
+                          Amount difference: <strong className={cn((!checkSimilarity.hasMatchingCashLeg || checkSimilarity.amountDiff !== 0) ? "text-amber-400" : "text-emerald-400", "tabular-nums")}>
+                            {!checkSimilarity.hasMatchingCashLeg
+                              ? "No matching cash leg"
+                              : checkSimilarity.amountDiff === 0
+                                ? "Amounts match"
+                                : `${formatCurrency(Math.abs(checkSimilarity.amountDiff))} difference`}
                           </strong>
                         </span>
                       </div>
                    </div>
 
                    {/* Alerts / Warnings inside discrepancy state */}
-                   {checkSimilarity.amountDiff !== 0 && (
+                   {(!checkSimilarity.hasMatchingCashLeg || checkSimilarity.amountDiff !== 0) && (
                      <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20 leading-none">
                        <AlertCircle aria-hidden="true" size={10} />
-                       <span>Difference may be a bank fee or currency conversion</span>
+                       <span>
+                         {!checkSimilarity.hasMatchingCashLeg
+                           ? 'Entry has no matching cash leg in this account'
+                           : 'Difference may be a bank fee or currency conversion'}
+                       </span>
                      </div>
                    )}
                 </div>
