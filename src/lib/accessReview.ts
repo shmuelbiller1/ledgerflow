@@ -14,6 +14,7 @@
  *   reading of their account.
  */
 import { auditTime } from './auditFormat';
+import { BRAND } from '../config/brand';
 
 export type AccessRole = 'owner' | 'accountant' | 'bookkeeper' | 'viewer';
 
@@ -305,12 +306,12 @@ export function accessReviewCalendarIcs(workspaceName: string, nextDueDate: stri
   const compactDate = /^\d{4}-\d{2}-\d{2}$/.test(nextDueDate)
     ? nextDueDate.replace(/-/g, '')
     : localDay(new Date()).replace(/-/g, '');
-  const label = escapeIcsText((workspaceName || 'LedgerFlow').trim() || 'LedgerFlow');
+  const label = escapeIcsText((workspaceName || BRAND.name).trim() || BRAND.name);
   const dtStamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//LedgerFlow//Access Review Reminder//EN',
+    `PRODID:-//${BRAND.name}//Access Review Reminder//EN`,
     'CALSCALE:GREGORIAN',
     'BEGIN:VEVENT',
     `UID:ledgerflow-access-review-${compactDate}@ledgerflow.app`,

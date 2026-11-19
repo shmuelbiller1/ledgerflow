@@ -15,8 +15,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { SignJWT } from 'jose';
+import { callApi, closeServer, listenOnRandomPort, restoreEnv, signTestJwt, useLiveApiEnv } from './helpers/liveApiServer';
 
 const hasDb = Boolean(process.env.LF_TEST_DATABASE_URL);
 
@@ -33,56 +32,10 @@ describe('S-11: session hardening & API-key auth-route boundary', { skip: !hasDb
   let prevEnv: Record<string, string | undefined> = {};
   let db: Awaited<ReturnType<(typeof import('../server/db/firestore'))['getDb']>>;
 
-  async function mintJwt(uid: string, email: string, opts: { aal?: 'aal1' | 'aal2'; authTimeOffsetSec?: number } = {}): Promise<string> {
-    const secret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
-    const nowSec = Math.floor(Date.now() / 1000);
-    return new SignJWT({
-      email,
-      email_verified: true,
-      aal: opts.aal || 'aal1',
-      auth_time: nowSec + (opts.authTimeOffsetSec ?? 0),
-      role: 'authenticated',
-      user_metadata: { email_verified: true },
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setSubject(uid)
-      .setAudience('authenticated')
-      .setIssuer(`${process.env.SUPABASE_URL}/auth/v1`)
-      .setIssuedAt()
-      .setExpirationTime('1h')
-      .sign(secret);
-  }
-
-  async function api(method: string, routePath: string, auth?: string, body?: unknown) {
-    const headers: Record<string, string> = { 'X-LedgerFlow-Request': '1' };
-    if (auth) headers.Authorization = `Bearer ${auth}`;
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
-    const res = await fetch(`${base}${routePath}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    const text = await res.text();
-    let json: unknown = text;
-    try { json = JSON.parse(text); } catch { /* raw */ }
-    return { status: res.status, json };
-  }
+  const api = (method: string, routePath: string, auth?: string, body?: unknown) => callApi(base, method, routePath, { token: auth, body });
 
   before(async () => {
-    prevEnv = {
-      DATABASE_URL: process.env.DATABASE_URL,
-      SUPABASE_JWT_SECRET: process.env.SUPABASE_JWT_SECRET,
-      SUPABASE_URL: process.env.SUPABASE_URL,
-      SESSION_SECRET: process.env.SESSION_SECRET,
-      SYSTEM_SALT: process.env.SYSTEM_SALT,
-      INVITE_SECRET: process.env.INVITE_SECRET,
-    };
-    process.env.DATABASE_URL = process.env.LF_TEST_DATABASE_URL;
-    process.env.SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'test-s11-jwt-secret-at-least-32-chars-long!!';
-    process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://s11-hardening.supabase.test';
-    process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-s11-session-secret-000000000000001';
-    process.env.SYSTEM_SALT = process.env.SYSTEM_SALT || 'test-s11-system-salt-000000000000000001';
-    process.env.INVITE_SECRET = process.env.INVITE_SECRET || 'test-s11-invite-secret-0000000000000001';
+    prevEnv = useLiveApiEnv('s11-hardening');
 
     const [{ getDb }, { createApp }] = await Promise.all([
       import('../server/db/firestore'),
@@ -134,19 +87,14 @@ describe('S-11: session hardening & API-key auth-route boundary', { skip: !hasDb
       timestamp: now,
     });
 
-    tokenAal1Stale = await mintJwt(ownerUid, ownerEmail, { aal: 'aal1', authTimeOffsetSec: -7200 });
+    tokenAal1Stale = await signTestJwt({ uid: ownerUid, email: ownerEmail, aal: 'aal1', authTimeOffsetSec: -7200, userMetadata: { email_verified: true } });
 
     const app = await createApp();
-    const listening = await new Promise<Server>(resolve => {
-      const s = app.listen(0, '127.0.0.1', () => resolve(s));
-    });
-    server = listening;
-    base = `http://127.0.0.1:${(listening.address() as AddressInfo).port}`;
+    ({ server, base } = await listenOnRandomPort(app));
   });
 
   after(async () => {
-    const runningServer = server;
-    if (runningServer) await new Promise<void>(resolve => runningServer.close(() => resolve()));
+    await closeServer(server);
     if (db) {
       await db.pool.query(`delete from public."rateLimitEntries"`);
       await db.pool.query(`delete from public."loginAudits" where id = $1`, [`la_${tag}`]);
@@ -156,10 +104,7 @@ describe('S-11: session hardening & API-key auth-route boundary', { skip: !hasDb
       await db.pool.query(`delete from public.users where id = $1`, [ownerUid]);
       await db.pool.query(`delete from auth.users where id = $1::uuid`, [ownerUid]);
     }
-    for (const [k, v] of Object.entries(prevEnv)) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
+    restoreEnv(prevEnv);
   });
 
   it('S-11 finding 1 (LIVE): workspace write:transactions API key can read loginAudits, revoke sessions, and delete creator account via /api/v1/auth/*', async () => {

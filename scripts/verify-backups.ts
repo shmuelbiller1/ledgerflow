@@ -302,7 +302,7 @@ export async function runBackupVerificationCli(argv: readonly string[] = process
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  runBackupVerificationCli().then(code => {
+  void runBackupVerificationCli().then(code => {
     process.exitCode = code;
   });
 }

@@ -15,8 +15,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { SignJWT } from 'jose';
+import { callApi, closeServer, listenOnRandomPort, restoreEnv, signTestJwt, useLiveApiEnv } from './helpers/liveApiServer';
 
 const hasDb = Boolean(process.env.LF_TEST_DATABASE_URL);
 
@@ -44,40 +43,11 @@ describe('S-5: money-posting idempotency matrix', { skip: !hasDb && 'needs LF_TE
   let prevEnv: Record<string, string | undefined> = {};
   let db: Awaited<ReturnType<(typeof import('../server/db/firestore'))['getDb']>>;
 
-  async function api(method: string, routePath: string, body?: unknown, headersExtra: Record<string, string> = {}) {
-    const res = await fetch(`${base}${routePath}`, {
-      method,
-      headers: {
-        'X-LedgerFlow-Request': '1',
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...headersExtra,
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    const text = await res.text();
-    let json: unknown = text;
-    try { json = JSON.parse(text); } catch { /* raw */ }
-    return { status: res.status, json };
-  }
+  const api = (method: string, routePath: string, body?: unknown, headersExtra: Record<string, string> = {}) =>
+    callApi(base, method, routePath, { token, body, headers: headersExtra, alwaysJson: true });
 
   before(async () => {
-    prevEnv = {
-      DATABASE_URL: process.env.DATABASE_URL,
-      SUPABASE_JWT_SECRET: process.env.SUPABASE_JWT_SECRET,
-      SUPABASE_URL: process.env.SUPABASE_URL,
-      SESSION_SECRET: process.env.SESSION_SECRET,
-      SYSTEM_SALT: process.env.SYSTEM_SALT,
-      INVITE_SECRET: process.env.INVITE_SECRET,
-      RATE_LIMIT_HIGH: process.env.RATE_LIMIT_HIGH,
-    };
-    process.env.DATABASE_URL = process.env.LF_TEST_DATABASE_URL;
-    process.env.SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'test-s5-jwt-secret-at-least-32-chars-long!!';
-    process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://s5-idempotency.supabase.test';
-    process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-s5-session-secret-000000000000001';
-    process.env.SYSTEM_SALT = process.env.SYSTEM_SALT || 'test-s5-system-salt-000000000000000001';
-    process.env.INVITE_SECRET = process.env.INVITE_SECRET || 'test-s5-invite-secret-0000000000000001';
-    process.env.RATE_LIMIT_HIGH = '1';
+    prevEnv = useLiveApiEnv('s5-idempotency', { RATE_LIMIT_HIGH: '1' });
 
     const [{ getDb }, { createApp }] = await Promise.all([
       import('../server/db/firestore'),
@@ -153,33 +123,14 @@ describe('S-5: money-posting idempotency matrix', { skip: !hasDb && 'needs LF_TE
       createdAt: now,
     });
 
-    const secret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
-    token = await new SignJWT({
-      email: ownerEmail,
-      email_verified: true,
-      aal: 'aal2',
-      role: 'authenticated',
-      user_metadata: { email_verified: true },
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setSubject(ownerUid)
-      .setAudience('authenticated')
-      .setIssuer(`${process.env.SUPABASE_URL}/auth/v1`)
-      .setIssuedAt()
-      .setExpirationTime('1h')
-      .sign(secret);
+    token = await signTestJwt({ uid: ownerUid, email: ownerEmail, aal: 'aal2', userMetadata: { email_verified: true } });
 
     const app = await createApp();
-    const listening = await new Promise<Server>(resolve => {
-      const s = app.listen(0, '127.0.0.1', () => resolve(s));
-    });
-    server = listening;
-    base = `http://127.0.0.1:${(listening.address() as AddressInfo).port}`;
+    ({ server, base } = await listenOnRandomPort(app));
   });
 
   after(async () => {
-    const runningServer = server;
-    if (runningServer) await new Promise<void>(resolve => runningServer.close(() => resolve()));
+    await closeServer(server);
     if (db) {
       for (const table of ['payments', 'paymentAllocations', 'transactions', 'auditLogs', 'idempotencyKeys', 'invoices', 'customers', 'chartAccounts']) {
         await db.pool.query(`delete from public.${table.includes('A') || table.includes('K') || table.includes('L') ? `"${table}"` : table} where workspace_id in ($1, $2)`, [wsA, wsB]);
@@ -187,10 +138,7 @@ describe('S-5: money-posting idempotency matrix', { skip: !hasDb && 'needs LF_TE
       await db.pool.query(`delete from public.workspaces where id in ($1, $2)`, [wsA, wsB]);
       await db.pool.query(`delete from auth.users where id = $1::uuid`, [ownerUid]);
     }
-    for (const [k, v] of Object.entries(prevEnv)) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
+    restoreEnv(prevEnv);
   });
 
   it('S-5 (#848): lease.capitalize and revenue.recognize replay cleanly WITHOUT an Idempotency-Key', async () => {

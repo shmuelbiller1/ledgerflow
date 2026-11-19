@@ -14,8 +14,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { SignJWT } from 'jose';
+import { callApi, closeServer, listenOnRandomPort, restoreEnv, signTestJwt, useLiveApiEnv } from './helpers/liveApiServer';
 
 const hasDb = Boolean(process.env.LF_TEST_DATABASE_URL);
 
@@ -32,37 +31,10 @@ describe('S-26: platform-admin audit completeness', { skip: !hasDb && 'needs LF_
   let prevEnv: Record<string, string | undefined> = {};
   let db: Awaited<ReturnType<(typeof import('../server/db/firestore'))['getDb']>>;
 
-  async function api(method: string, routePath: string, token: string, body?: unknown) {
-    const res = await fetch(`${base}${routePath}`, {
-      method,
-      headers: {
-        'X-LedgerFlow-Request': '1',
-        Authorization: `Bearer ${token}`,
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    const text = await res.text();
-    let json: unknown = text;
-    try { json = JSON.parse(text); } catch { /* raw */ }
-    return { status: res.status, json };
-  }
+  const api = (method: string, routePath: string, token: string, body?: unknown) => callApi(base, method, routePath, { token, body });
 
   before(async () => {
-    prevEnv = {
-      DATABASE_URL: process.env.DATABASE_URL,
-      SUPABASE_JWT_SECRET: process.env.SUPABASE_JWT_SECRET,
-      SUPABASE_URL: process.env.SUPABASE_URL,
-      SESSION_SECRET: process.env.SESSION_SECRET,
-      SYSTEM_SALT: process.env.SYSTEM_SALT,
-      INVITE_SECRET: process.env.INVITE_SECRET,
-    };
-    process.env.DATABASE_URL = process.env.LF_TEST_DATABASE_URL;
-    process.env.SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || 'test-s26-jwt-secret-at-least-32-chars-long!!';
-    process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://s26-admin.supabase.test';
-    process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'test-s26-session-secret-000000000000001';
-    process.env.SYSTEM_SALT = process.env.SYSTEM_SALT || 'test-s26-system-salt-000000000000000001';
-    process.env.INVITE_SECRET = process.env.INVITE_SECRET || 'test-s26-invite-secret-0000000000000001';
+    prevEnv = useLiveApiEnv('s26-admin');
 
     const [{ getDb }, { createApp }] = await Promise.all([
       import('../server/db/firestore'),
@@ -87,33 +59,14 @@ describe('S-26: platform-admin audit completeness', { skip: !hasDb && 'needs LF_
       createdAt: new Date().toISOString(),
     });
 
-    const secret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
-    adminToken = await new SignJWT({
-      email: adminEmail,
-      email_verified: true,
-      aal: 'aal2',
-      role: 'authenticated',
-      app_metadata: { admin: true, role: 'admin' },
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setSubject(adminUid)
-      .setAudience('authenticated')
-      .setIssuer(`${process.env.SUPABASE_URL}/auth/v1`)
-      .setIssuedAt()
-      .setExpirationTime('1h')
-      .sign(secret);
+    adminToken = await signTestJwt({ uid: adminUid, email: adminEmail, aal: 'aal2', appMetadata: { admin: true, role: 'admin' } });
 
     const app = await createApp();
-    const listening = await new Promise<Server>(resolve => {
-      const s = app.listen(0, '127.0.0.1', () => resolve(s));
-    });
-    server = listening;
-    base = `http://127.0.0.1:${(listening.address() as AddressInfo).port}`;
+    ({ server, base } = await listenOnRandomPort(app));
   });
 
   after(async () => {
-    const runningServer = server;
-    if (runningServer) await new Promise<void>(resolve => runningServer.close(() => resolve()));
+    await closeServer(server);
     if (db) {
       await db.pool.query(`delete from public."auditLogs" where workspace_id in ($1, 'system') and data->>'uid' = $2`, [wsId, adminUid]);
       await db.pool.query(`delete from public.admins where id in ($1, $2)`, [adminUid, targetUid]);
@@ -121,10 +74,7 @@ describe('S-26: platform-admin audit completeness', { skip: !hasDb && 'needs LF_
       await db.pool.query(`delete from public.workspaces where id = $1`, [wsId]);
       await db.pool.query(`delete from auth.users where id in ($1::uuid, $2::uuid)`, [adminUid, targetUid]);
     }
-    for (const [k, v] of Object.entries(prevEnv)) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
+    restoreEnv(prevEnv);
   });
 
   it('S-26: admin user promotion writes strict audit row but leaves public.admins out of sync; CSP reset writes no audit row', async () => {
