@@ -263,6 +263,7 @@ export const REPORTS_TRANSLATION_BUNDLE: ScreenTranslationBundle = {
     { key: 'r.not-known-on', en: 'Not known on', he: 'לא ידוע ב-' },
     { key: 'r.negative', en: '(negative)', he: '(שלילי)' },
     { key: 'r.reorder', en: '(reorder)', he: '(להזמנה חוזרת)' },
+    { key: 'r.report-csv-unavailable', en: 'CSV could not be created. Check the book currency and report amounts.', he: 'לא ניתן ליצור קובץ CSV. יש לבדוק את מטבע הספרים ואת הסכומים בדוח.' },
     { key: 'r.stock-loaded-empty', en: 'No stock was found among the loaded items. Other items may be missing.', he: 'לא נמצא מלאי בפריטים שנטענו. ייתכן שחסרים פריטים נוספים.' },
     { key: 'r.stock-export-incomplete', en: 'CSV is unavailable because the full item list is not loaded.', he: 'לא ניתן לייצא ל־CSV כי רשימת הפריטים המלאה לא נטענה.' },
     { key: 'r.stock-books-loading', en: 'Stock is shown without a comparison while the books load.', he: 'בזמן טעינת הספרים המלאי מוצג ללא השוואה.' },

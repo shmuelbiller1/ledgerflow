@@ -12,7 +12,7 @@ import ReportSkeleton from './ReportSkeleton';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { csvMoneyForCurrency, downloadCsv } from '../../lib/csvExport';
 import { computeInventoryValuation, InventoryValuationRow } from '../../server/reports/itemReports';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { inventoryAsOf, type InventoryAsOf } from '../../lib/inventoryAsOf';
@@ -125,11 +125,17 @@ function ValuationFigures({ asOfDate: pageAsOfDate }: { asOfDate?: string }) {
     if (future) { toast.error(`${asOfDate} is after today: there is no stock valuation for it yet.`); return; }
     if (past && !asOf) { toast.error(historyError ? `The stock on ${asOfDate} is not available: ${historyError}` : `The stock history for ${asOfDate} is still being read.`); return; }
     // what the file holds: the stock on the date from the history (unknowns say so, never 0), or today's stock
-    downloadCsv(past ? `inventory_valuation_as_of_${asOfDate}.csv` : `inventory_valuation_${today}.csv`,
-      ['Item', 'SKU', 'Category', past ? `On hand ${asOfDate}` : 'On hand', 'Unit cost', 'Value', 'Share %'],
-      shown.map(r => r.unknownReason
-        ? [r.name, r.sku, r.category, 'unknown', 'unknown', 'unknown', `unknown: ${r.unknownReason}`]
-        : [r.name, r.sku, r.category, r.quantity, csvMoney(r.unitCostCents), csvMoney(r.valueCents), r.sharePct]));
+    try {
+      const csvMoney = csvMoneyForCurrency(currency.trim().toUpperCase());
+      downloadCsv(past ? `inventory_valuation_as_of_${asOfDate}.csv` : `inventory_valuation_${today}.csv`,
+        ['Item', 'SKU', 'Category', past ? `On hand ${asOfDate}` : 'On hand', 'Unit cost', 'Value', 'Share %'],
+        shown.map(r => r.unknownReason
+          ? [r.name, r.sku, r.category, 'unknown', 'unknown', 'unknown', `unknown: ${r.unknownReason}`]
+          : [r.name, r.sku, r.category, r.quantity, csvMoney(r.unitCostCents), csvMoney(r.valueCents), r.sharePct]));
+    } catch {
+      toast.error(reportText('r.report-csv-unavailable', 'CSV could not be created. Check the book currency and report amounts.'));
+      return;
+    }
     toast.success('Inventory Valuation exported to CSV');
   };
 
