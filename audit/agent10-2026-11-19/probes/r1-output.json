@@ -1,0 +1,298 @@
+{
+  "probe": "r1-documents-reverify",
+  "results": [
+    {
+      "id": "B1",
+      "verdict": "FIXED",
+      "evidence": {
+        "create": 200,
+        "update": 200,
+        "storedStatus": "paid",
+        "cashEntries": 1,
+        "txs": [
+          {
+            "type": "invoice-payment",
+            "desc": "Payment Received for Invoice INV-B1 - Acme",
+            "lines": [
+              [
+                "ws_r1_58e2b593_bank",
+                10000
+              ],
+              [
+                "ws_r1_58e2b593_ar",
+                -10000
+              ]
+            ]
+          },
+          {
+            "type": "invoice-accrual",
+            "desc": "Invoice INV-B1 - Acme",
+            "lines": [
+              [
+                "ws_r1_58e2b593_ar",
+                10000
+              ],
+              [
+                "ws_r1_58e2b593_sales",
+                -10000
+              ]
+            ]
+          },
+          {
+            "type": "invoice-accrual",
+            "desc": "Invoice INV-B1 - Acme",
+            "lines": [
+              [
+                "ws_r1_58e2b593_ar",
+                10000
+              ],
+              [
+                "ws_r1_58e2b593_sales",
+                -10000
+              ]
+            ]
+          },
+          {
+            "type": "invoice-reversal",
+            "desc": "Reversal of prior invoice posting (Invoice INV-B1)",
+            "lines": [
+              [
+                "ws_r1_58e2b593_ar",
+                -10000
+              ],
+              [
+                "ws_r1_58e2b593_sales",
+                10000
+              ]
+            ]
+          }
+        ],
+        "body": {
+          "status": "success",
+          "command": "invoice.update",
+          "data": {
+            "collection": "invoices",
+            "action": "update",
+            "documentId": "ws_r1_58e2b593_inv_b1",
+            "documentNumber": "INV-B1",
+            "body": {
+              "status": "ok",
+              "count": 3
+            },
+            "transactions": [
+              {
+                "id": "ef22afe7-2f47-4e43-917f-c66f8d32a0cc",
+                "uid": "owner_58e2b593",
+                "workspaceId": "ws_r1_58e2b593",
+                "date": "2026-10-10",
+                "description": "Reversal of prior invoice posting (Invoice INV-B1)",
+                "totalAmountCents": 10000,
+                "currency": "USD",
+                "exchangeRate": 1,
+                "status": "completed",
+                "type": "actual",
+                "lines": [
+                  {
+                    "accountId": "ws_r1_58e2b593_ar",
+                    "accountName": "Accounts Receivable",
+                    "amountCents": -10000,
+                    "exchangeRate": 1,
+                    "description": "Reversal: Accounts Receivable posting for Invoice INV-B1"
+                  },
+                  {
+                    "accountId": "ws_r1_58e2b593_sales",
+                    "accountName": "Sales",
+                    "amountCents": 10000,
+                    "exchangeRate": 1,
+                    "description": "Reversal: Sales Revenue for Invoice INV-B1 (Acme)"
+                  }
+                ],
+                "isCleared": false,
+                "createdAt": "2026-11-19T03:09:21.089Z",
+                "metadata": {
+                  "invoiceId": "ws_r1_58e2b593_inv_b1",
+                  "type": "invoice-reversal",
+                  "reversesTxId": "5e76c4ae-fef9-4142-add7-ea4a7bad6266",
+                  "isReversal": true
+                },
+                "verification": {
+                  "status": "verified",
+                  "verifiedAt": "2026-11-19T03:09:21.092Z",
+                  "verifiedBy": "server-vault",
+                  "timestamp": "2026-11-19T03:09:21.092Z",
+                  "hash": "1ae3ea77848a5a317cc1085316901669af810243d7a1f34e929069a2e1f0cfc5"
+                }
+              },
+              {
+                "id": "d3e8ec61-8c1a-4dc2-ad94-467e9cfa74c4",
+                "uid": "owner_58e2b593",
+                "workspaceId": "ws_r1_58e2b593",
+                "date": "2026-10-10",
+                "description": "Invoice INV-B1 - Acme",
+                "totalAmountCents": 10000,
+                "currency": "USD",
+                "exchangeRate": 1,
+                "status": "completed",
+                "type": "actual",
+                "lines": [
+                  {
+                    "accountId": "ws_r1_58e2b593_ar",
+                    "accountName": "Accounts Receivable",
+                    "amountCents": 10000,
+                    "exchangeRate": 1,
+                    "description": "Accounts Receivable posting for Invoice INV-B1"
+                  },
+                  {
+                    "accountId": "ws_r1_58e2b593_sales",
+                    "accountName": "Sales",
+                    "amountCents": -10000,
+                    "exchangeRate": 1,
+                    "description": "Sales Revenue for Invoice INV-B1 (Acme)"
+                  }
+                ],
+                "isCleared": false,
+                "createdAt": "2026-11-19T03:09:21.090Z",
+                "metadata": {
+                  "invoiceId": "ws_r1_58e2b593_inv_b1",
+                  "customerId": "ws_r1_58e2b593_c1",
+                  "type": "invoice-accrual",
+                  "documentCurrency": "USD",
+                  "documentExchangeRate": 1
+                },
+                "verification": {
+                  "status": "verified",
+                  "verifiedAt": "2026-11-19T03:09:21.093Z",
+                  "verifiedBy": "server-vault",
+                  "timestamp": "2026-11-19T03:09:21.093Z",
+                  "hash": "8a74dea51e9e469e439590a7d62d3dee059625189bfaf55a3e81c3475e1ee8eb"
+                }
+              },
+              {
+                "id": "1e8858b6-ef58-4c02-b676-b25b72d4f1dd",
+                "uid": "owner_58e2b593",
+                "workspaceId": "ws_r1_58e2b593",
+                "date": "2026-11-19",
+                "description": "Payment Received for Invoice INV-B1 - Acme",
+                "totalAmountCents": 10000,
+                "currency": "USD",
+                "exchangeRate": 1,
+                "status": "completed",
+                "type": "actual",
+                "lines": [
+                  {
+                    "accountId": "ws_r1_58e2b593_bank",
+                    "accountName": "Bank",
+                    "amountCents": 10000,
+                    "exchangeRate": 1,
+                    "description": "Cash collection for Invoice INV-B1"
+                  },
+                  {
+                    "accountId": "ws_r1_58e2b593_ar",
+                    "accountName": "Accounts Receivable",
+                    "amountCents": -10000,
+                    "exchangeRate": 1,
+                    "description": "A/R clearance for Invoice INV-B1"
+                  }
+                ],
+                "isCleared": false,
+                "createdAt": "2026-11-19T03:09:21.090Z",
+                "metadata": {
+                  "invoiceId": "ws_r1_58e2b593_inv_b1",
+                  "customerId": "ws_r1_58e2b593_c1",
+                  "type": "invoice-payment",
+                  "documentCurrency": "USD",
+                  "documentExchangeRate": 1
+                },
+                "verification": {
+                  "status": "verified",
+                  "verifiedAt": "2026-11-19T03:09:21.095Z",
+                  "verifiedBy": "server-vault",
+                  "timestamp": "2026-11-19T03:09:21.095Z",
+                  "hash": "70d9b3aa6457d52bdad4c00f99447b75dfb78167efb26b5472f54e2625bb527e"
+                }
+              }
+            ]
+          },
+          "replayed": false
+        }
+      },
+      "note": "A client-forged settledByRecordsCents/amountPaidCents/status must be refused with 409 and must not land on the document."
+    },
+    {
+      "id": "B2",
+      "verdict": "FIXED",
+      "evidence": {
+        "payment": 200,
+        "voidStatus": 409,
+        "liveAllocations": 1,
+        "body": {
+          "status": "error",
+          "command": "invoice.update",
+          "message": "Cannot change a settled or written-off invoice to void.",
+          "code": "CONFLICT",
+          "details": {
+            "error": "Cannot change a settled or written-off invoice to void."
+          }
+        }
+      },
+      "note": "Voiding an invoice that a live payment allocation settles must be refused."
+    },
+    {
+      "id": "B3",
+      "verdict": "FIXED",
+      "evidence": {
+        "creditCreate": 200,
+        "forgeStatus": 409,
+        "secondApplyError": "Credit note is applied; nothing left to apply",
+        "totalAppliedCents": 10000,
+        "body": {
+          "status": "error",
+          "command": "creditnote.update",
+          "message": "Credit remaining balance cannot be increased above its unapplied amount.",
+          "code": "CONFLICT",
+          "details": {
+            "error": "Credit remaining balance cannot be increased above its unapplied amount."
+          }
+        }
+      },
+      "note": "A credit already applied cannot have remainingCents rewritten by the client; a 20,000 application on a 10,000 credit is the defect."
+    },
+    {
+      "id": "B4",
+      "verdict": "FIXED",
+      "evidence": {
+        "updateStatus": 409,
+        "storedDate": "2026-09-15",
+        "body": {
+          "status": "error",
+          "command": "invoice.update",
+          "message": "Period Locked: 2026-09-15 is in a closed period (closed through 2026-09-30).",
+          "code": "CONFLICT",
+          "details": {
+            "error": "Period Locked: 2026-09-15 is in a closed period (closed through 2026-09-30)."
+          }
+        }
+      },
+      "note": "Moving a document out of a hard-closed month must be refused (both the old and the new date are checked)."
+    },
+    {
+      "id": "B5",
+      "verdict": "FIXED",
+      "evidence": {
+        "deleteStatus": 409,
+        "documentStillExists": true,
+        "body": {
+          "status": "error",
+          "command": "invoice.delete",
+          "message": "Cannot delete invoice with an active revenue or prepaid recognition schedule.",
+          "code": "CONFLICT",
+          "details": {
+            "error": "Cannot delete invoice with an active revenue or prepaid recognition schedule."
+          }
+        }
+      },
+      "note": "A document with an active revenue/prepaid spread must not be deletable."
+    }
+  ],
+  "runAt": "2026-11-19"
+}

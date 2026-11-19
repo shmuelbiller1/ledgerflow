@@ -47,6 +47,100 @@ const bankLines = [
 const operations = (body: unknown) => (body as { operations: unknown[] }).operations;
 const click = (el: Element) => act(async () => { fireEvent.click(el); });
 
+describe('#891 — a suggestion is a cash movement, not a document total', () => {
+  const billAccounts = [
+    makeChartAccount({ id: 'bank1010', name: 'Bank 1010', type: 'asset', category: 'Cash' }),
+    makeChartAccount({ id: 'bank1020', name: 'Bank 1020', type: 'asset', category: 'Cash' }),
+    makeChartAccount({ id: 'vat', name: 'Input VAT', type: 'asset', category: 'Current Assets' }),
+    makeChartAccount({ id: 'expense', name: 'Cloud services', type: 'expense' }),
+    makeChartAccount({ id: 'ap', name: 'Accounts Payable', type: 'liability', category: 'Payables' }),
+  ];
+  // BILL-914: expense 1,200 + input VAT 216, credited A/P 1,416. No bank line at all.
+  const billAccrual = makeTransaction({
+    id: 'bill914', date: '2026-09-17', description: 'BILL-914 AWS September', totalAmountCents: 141600, status: 'completed',
+    lines: [
+      { id: 'a1', accountId: 'expense', amountCents: 120000 },
+      { id: 'a2', accountId: 'vat', amountCents: 21600 },
+      { id: 'a3', accountId: 'ap', amountCents: -141600 },
+    ],
+  });
+  // The payment that really left bank 1010 for that bill.
+  const bankPayment = makeTransaction({
+    id: 'pay914', date: '2026-09-28', description: 'AWS-914 paid from bank 1010', totalAmountCents: 141600, status: 'completed',
+    lines: [
+      { id: 'p1', accountId: 'ap', amountCents: 141600 },
+      { id: 'p2', accountId: 'bank1010', amountCents: -141600 },
+    ],
+  });
+  const withdrawal = line({ id: 'w914', accountId: 'bank1010', date: '2026-09-28', description: 'AWS-914', amountCents: -141600 });
+
+  beforeEach(() => {
+    setComponentWorkspace('owner');
+    markComponentCollectionsLoaded('bankLines', 'transactions', 'accounts');
+    useUIStore.setState({ activeTab: 'reconciliation' });
+  });
+  afterEach(() => cleanup());
+
+  test('a bill accrual is never suggested against the withdrawal it does not represent', () => {
+    stubFetchWithBodies(200, {});
+    useLedgerStore.setState({ accounts: billAccounts, transactions: [billAccrual], bankLines: [withdrawal] });
+    render(<Reconciliation />);
+    assert.equal(screen.queryByText(/Review \d+ suggested matches/), null, 'no suggestion may come from a non-cash entry');
+    assert.equal(screen.queryByText('Match found'), null);
+  });
+
+  test('the withdrawal pairs with the payment that moved the same bank account', async () => {
+    const calls = stubFetchWithBodies(200, { status: 'ok' });
+    useLedgerStore.setState({ accounts: billAccounts, transactions: [billAccrual, bankPayment], bankLines: [withdrawal] });
+    render(<Reconciliation />);
+    const review = screen.getByText(/Review \d+ suggested matches/);
+    assert.match(review.textContent || '', /Review 1 suggested match/, 'exactly the cash payment is offered');
+    await click(review);
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 5)); });
+    await click(screen.getByRole('button', { name: /Apply selected matches/ }));
+    await waitFor(() => assert.equal(calls.length, 1));
+    const ops = operations(calls[0].body) as Array<{ type: string; id: string; data: { matchedTransactionId?: string } }>;
+    assert.deepEqual(ops[0], { type: 'updateBankLine', id: 'w914', data: { status: 'matched', matchedTransactionId: 'pay914' } },
+      'the payment, never the accrual');
+  });
+
+  test('a cash entry in a different bank account is not a candidate for a named account', () => {
+    stubFetchWithBodies(200, {});
+    const otherBankMovement = makeTransaction({
+      id: 'pay914other', date: '2026-09-28', description: 'AWS-914 paid from bank 1020', totalAmountCents: 141600, status: 'completed',
+      lines: [
+        { id: 'o1', accountId: 'ap', amountCents: 141600 },
+        { id: 'o2', accountId: 'bank1020', amountCents: -141600 },
+      ],
+    });
+    useLedgerStore.setState({ accounts: billAccounts, transactions: [otherBankMovement], bankLines: [withdrawal] });
+    render(<Reconciliation />);
+    assert.equal(screen.queryByText(/Review \d+ suggested matches/), null, 'the leg is in another account');
+  });
+
+  test('a deposit is not paired with a cash outflow of the same size', () => {
+    stubFetchWithBodies(200, {});
+    const deposit = line({ id: 'dep1', accountId: 'bank1010', date: '2026-09-28', description: 'AWS-914 receipt', amountCents: 141600 });
+    useLedgerStore.setState({ accounts: billAccounts, transactions: [bankPayment], bankLines: [deposit] });
+    render(<Reconciliation />);
+    assert.equal(screen.queryByText(/Review \d+ suggested matches/), null, 'direction must match');
+  });
+
+  test('a transfer is offered by the leg in the selected bank account, not the net of both legs', async () => {
+    stubFetchWithBodies(200, { status: 'ok' });
+    const transfer = makeTransaction({
+      id: 'tr1', date: '2026-09-28', description: 'Move to savings', totalAmountCents: 141600, status: 'completed',
+      lines: [
+        { id: 't1', accountId: 'bank1020', amountCents: 141600 },
+        { id: 't2', accountId: 'bank1010', amountCents: -141600 },
+      ],
+    });
+    useLedgerStore.setState({ accounts: billAccounts, transactions: [transfer], bankLines: [withdrawal] });
+    render(<Reconciliation />);
+    assert.ok(screen.getByText(/Review 1 suggested match/), 'the 1010 leg is the candidate');
+  });
+});
+
 describe('Bank reconciliation screen', () => {
   beforeEach(() => {
     setComponentWorkspace('owner');

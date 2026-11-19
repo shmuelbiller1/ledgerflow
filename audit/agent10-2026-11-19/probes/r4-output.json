@@ -1,0 +1,36 @@
+{
+  "probe": "r4-il-vat-foreign-currency",
+  "results": [
+    {
+      "currency": "JPY",
+      "documentMinorUnits": 10000,
+      "storedRate": 0.0067,
+      "expectedHomeCents": 6700,
+      "reportedTaxableSalesCents": 67,
+      "reportedWithScaledRate": 6700,
+      "ratio": 0.01,
+      "verdict": "UNDERCONVERTED"
+    },
+    {
+      "currency": "KWD",
+      "documentMinorUnits": 12345,
+      "storedRate": 12,
+      "expectedHomeCents": 14814,
+      "reportedTaxableSalesCents": 148140,
+      "reportedWithScaledRate": 14814,
+      "ratio": 10,
+      "verdict": "OVERCONVERTED"
+    },
+    {
+      "currency": "USD",
+      "documentMinorUnits": 100000,
+      "storedRate": 3.7,
+      "expectedHomeCents": 370000,
+      "reportedTaxableSalesCents": 370000,
+      "reportedWithScaledRate": 370000,
+      "ratio": 1,
+      "verdict": "OK"
+    }
+  ],
+  "runAt": "2026-11-19"
+}

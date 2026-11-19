@@ -1,0 +1,392 @@
+diff --git a/src/server/routes/developerApiRoutes.ts b/src/server/routes/developerApiRoutes.ts
+index 69ffb39..f7f1431 100644
+--- a/src/server/routes/developerApiRoutes.ts
++++ b/src/server/routes/developerApiRoutes.ts
+@@ -1,6 +1,7 @@
+ import { trainClassifierWithWorkspaceData } from '../services/classifierTraining';
+ import type { ChartAccount, Transaction as LedgerTransaction } from "../../types";
+ import { errorMessage, requestUser } from "../auth/requestUser";
++import { isForbiddenError } from '../utils/errorStatus';
+ import { sendError, handleApiError, authorizeWorkspace, loadQueriedWorkspaceLedger } from "../http/serverKit";
+ import { chargeUsageAndTrace } from "../services/usageBilling";
+ import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
+@@ -142,7 +143,7 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
+         accounts
+       });
+     } catch (err) {
+-      if (errorMessage(err) === "FORBIDDEN") return sendError(res, "Forbidden workspace access", 403);
++      if (isForbiddenError(err)) return sendError(res, "Forbidden workspace access", 403);
+       if (errorMessage(err) === "NOT_FOUND" || errorMessage(err).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
+       sendError(res, errorMessage(err), 500);
+     }
+diff --git a/src/server/routes/documentRoutes.ts b/src/server/routes/documentRoutes.ts
+index 427f9cf..264abc6 100644
+--- a/src/server/routes/documentRoutes.ts
++++ b/src/server/routes/documentRoutes.ts
+@@ -1,6 +1,7 @@
+ import { takeCopyMark } from '../services/copyMarkService';
+ import type { TaxProfiles } from '../../lib/tax/profile';
+ import { errorMessage, requestUser } from '../auth/requestUser';
++import { isForbiddenError } from '../utils/errorStatus';
+ import express from 'express';
+ import { assertWorkspaceAccess, getDb } from '../db/firestore';
+ import type { Firestore } from '../db/firestore';
+@@ -115,7 +116,7 @@ export async function handleZipRequest(req: express.Request, res: express.Respon
+     return res.send(zipStore(files));
+   } catch (err) {
+     if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: err.issues[0]?.message || 'Invalid request' });
+-    if (errorMessage(err) === 'FORBIDDEN' || /not a member/i.test(errorMessage(err))) return res.status(403).json({ status: 'error', message: 'Forbidden' });
++    if (isForbiddenError(err) || /not a member/i.test(errorMessage(err))) return res.status(403).json({ status: 'error', message: 'Forbidden' });
+     return res.status(500).json({ status: 'error', message: errorMessage(err) || 'Failed to build the zip' });
+   }
+ }
+@@ -189,7 +190,7 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
+     res.setHeader('Content-Disposition', `inline; filename="${type}_${id}.pdf"`);
+     return res.send(pdfBuffer);
+   } catch (err) {
+-    if (errorMessage(err) === 'FORBIDDEN' || /not a member/i.test(errorMessage(err))) return res.status(403).json({ status: 'error', message: 'Forbidden' });
++    if (isForbiddenError(err) || /not a member/i.test(errorMessage(err))) return res.status(403).json({ status: 'error', message: 'Forbidden' });
+     console.error('PDF Generation Error:', err);
+     return res.status(500).json({ status: 'error', message: errorMessage(err) || 'Failed to generate PDF' });
+   }
+diff --git a/src/server/routes/labelingRoutes.ts b/src/server/routes/labelingRoutes.ts
+index 4c88934..c5a9aa4 100644
+--- a/src/server/routes/labelingRoutes.ts
++++ b/src/server/routes/labelingRoutes.ts
+@@ -1,4 +1,5 @@
+ import { errorMessage, requestUser } from "../auth/requestUser";
++import { isForbiddenError } from '../utils/errorStatus';
+ import { formatTzDate, sendError, authorizeWorkspace, authenticate } from "../http/serverKit";
+ import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
+ import { apiAuthenticate } from "../auth/apiAuthenticate";
+@@ -66,7 +67,7 @@ export function registerLabelingRoutes(app: express.Express, _ctx: ServerContext
+       const logs = snap.docs.map((doc) => doc.data());
+       res.json(logs);
+     } catch (error) {
+-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
++      if (isForbiddenError(error)) return sendError(res, "Forbidden", 403);
+       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
+       sendError(res, "Failed to fetch activity feed", 500, errorMessage(error));
+     }
+diff --git a/src/server/routes/logsUploadRoutes.ts b/src/server/routes/logsUploadRoutes.ts
+index fd1bb13..963c602 100644
+--- a/src/server/routes/logsUploadRoutes.ts
++++ b/src/server/routes/logsUploadRoutes.ts
+@@ -1,4 +1,5 @@
+ import { errorMessage, requestUser } from "../auth/requestUser";
++import { isForbiddenError } from '../utils/errorStatus';
+ import { apiLogsForWorkspace } from "../http/apiRequestLog";
+ import { formatTzDate, sendError, authorizeWorkspace, authenticate, upload, uploadedFilePath } from "../http/serverKit";
+ import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
+@@ -28,7 +29,7 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
+       res.json(filtered);
+     } catch (err) {
+       if (errorMessage(err) === "NOT_FOUND" || errorMessage(err).includes("NOT_FOUND")) return res.json([]);
+-      if (errorMessage(err) === "FORBIDDEN") return sendError(res, "Forbidden workspace access", 403);
++      if (isForbiddenError(err)) return sendError(res, "Forbidden workspace access", 403);
+       sendError(res, errorMessage(err), 500);
+     }
+   });
+diff --git a/src/server/routes/metricsAuditRoutes.ts b/src/server/routes/metricsAuditRoutes.ts
+index 3259a63..3022ec9 100644
+--- a/src/server/routes/metricsAuditRoutes.ts
++++ b/src/server/routes/metricsAuditRoutes.ts
+@@ -1,5 +1,6 @@
+ import type { ChartAccount, InventoryItem, Invoice, Transaction as LedgerTransaction } from "../../types";
+ import { errorMessage, requestUser } from "../auth/requestUser";
++import { isForbiddenError } from '../utils/errorStatus';
+ import { formatTzDate, sendError, authorizeWorkspace, loadQueriedWorkspaceLedger } from "../http/serverKit";
+ import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
+ import { apiAuthenticate } from "../auth/apiAuthenticate";
+@@ -173,7 +174,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
+       });
+ 
+     } catch (err) {
+-      if (errorMessage(err) === "FORBIDDEN") return sendError(res, "Forbidden workspace access", 403);
++      if (isForbiddenError(err)) return sendError(res, "Forbidden workspace access", 403);
+       sendError(res, errorMessage(err), 500);
+     }
+   });
+@@ -233,7 +234,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
+       });
+ 
+     } catch (err) {
+-      if (errorMessage(err) === "FORBIDDEN") return sendError(res, "Forbidden workspace access", 403);
++      if (isForbiddenError(err)) return sendError(res, "Forbidden workspace access", 403);
+       sendError(res, errorMessage(err), 500);
+     }
+   });
+diff --git a/src/server/routes/operationalReportRoutes.ts b/src/server/routes/operationalReportRoutes.ts
+index 1ca8779..a1dbdda 100644
+--- a/src/server/routes/operationalReportRoutes.ts
++++ b/src/server/routes/operationalReportRoutes.ts
+@@ -2,6 +2,7 @@ import { budgetLabel } from '../../lib/budgetByLabel';
+ import express from 'express';
+ import { z } from 'zod';
+ import { errorMessage, requestUser } from '../auth/requestUser';
++import { isForbiddenError } from '../utils/errorStatus';
+ import type { DocumentData, Firestore } from '../db/firestore';
+ import type { ReportReadScope } from '../reports/readScope';
+ import { WorkspaceIdSchema } from '../../schemas';
+@@ -36,7 +37,7 @@ function sendReportError(res: express.Response, message: string, status = 500, d
+ 
+ function handleCommonError(res: express.Response, error: unknown, fallback: string) {
+   const msg = errorMessage(error);
+-  if (msg === 'FORBIDDEN') return sendReportError(res, 'Forbidden', 403);
++  if (isForbiddenError(error)) return sendReportError(res, 'Forbidden', 403);
+   if (msg === 'NOT_FOUND' || msg.includes('NOT_FOUND')) return sendReportError(res, 'Workspace not found', 404);
+   return sendReportError(res, fallback, 500, msg);
+ }
+diff --git a/src/server/routes/reportRoutes.ts b/src/server/routes/reportRoutes.ts
+index 86a03fc..8dd19ff 100644
+--- a/src/server/routes/reportRoutes.ts
++++ b/src/server/routes/reportRoutes.ts
+@@ -1,4 +1,5 @@
+ import { errorMessage, requestUser } from '../auth/requestUser';
++import { isForbiddenError } from '../utils/errorStatus';
+ import express from "express";
+ import type { DecodedIdToken } from "../auth/supabaseAuth";
+ import type { DocumentData, Query } from "../db/firestore";
+@@ -201,7 +202,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
+       remember(cacheKey, bs);
+       res.json(withProvenance(bs));
+     } catch (error) {
+-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
++      if (isForbiddenError(error)) return sendError(res, "Forbidden", 403);
+       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
+       sendError(res, "Internal Reporting Error", 500, errorMessage(error));
+     }
+@@ -247,7 +248,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
+ 
+       res.json(aging);
+     } catch (error) {
+-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
++      if (isForbiddenError(error)) return sendError(res, "Forbidden", 403);
+       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
+       sendError(res, "Failed to generate aging report", 500, errorMessage(error));
+     }
+@@ -431,7 +432,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
+       const tb = computeTrialBalance(accounts, transactions, asOfDate);
+       res.json(withProvenance(tb));
+     } catch (error) {
+-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
++      if (isForbiddenError(error)) return sendError(res, "Forbidden", 403);
+       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
+       sendError(res, "Trial Balance Failure", 500, errorMessage(error));
+     }
+@@ -452,7 +453,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
+       const openingCashCents = accounts.filter(isCashFlowCashAccount).reduce((sum, acc) => sum + openingDebitCents(acc) + (before[acc.id] || 0), 0);
+       res.json(withProvenance({ ...cf, openingCashCents, closingCashCents: openingCashCents + cf.netChange }));
+     } catch (error) {
+-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
++      if (isForbiddenError(error)) return sendError(res, "Forbidden", 403);
+       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
+       sendError(res, "Failed to generate cash flow statement", 500, errorMessage(error));
+     }
+@@ -546,7 +547,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
+ 
+       res.json(report);
+     } catch (error) {
+-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
++      if (isForbiddenError(error)) return sendError(res, "Forbidden", 403);
+       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
+       sendError(res, "Failed to generate budget vs actual report", 500, errorMessage(error));
+     }
+@@ -569,7 +570,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
+       const gl = computeGeneralLedger(accounts, transactions, startDate, endDate, accountId);
+       res.json(withProvenance(gl));
+     } catch (error) {
+-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
++      if (isForbiddenError(error)) return sendError(res, "Forbidden", 403);
+       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
+       sendError(res, "Failed to generate General Ledger report", 500, errorMessage(error));
+     }
+@@ -595,7 +596,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
+       res.json(loaded.statement);
+     } catch (error) {
+       if (error instanceof StatementScopeError) return sendError(res, error.message, 400);
+-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
++      if (isForbiddenError(error)) return sendError(res, "Forbidden", 403);
+       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
+       sendError(res, "Failed to generate Statement", 500, errorMessage(error));
+     }
+diff --git a/src/server/routes/transactions/crudRoutes.ts b/src/server/routes/transactions/crudRoutes.ts
+index 300e60d..e0e253e 100644
+--- a/src/server/routes/transactions/crudRoutes.ts
++++ b/src/server/routes/transactions/crudRoutes.ts
+@@ -18,6 +18,7 @@ import { requireOpenPeriod } from '../../middleware/periodLock';
+ import { writeServerAuditLog } from '../../services/auditLogService';
+ import { lockMessage, postingLock } from '../../../lib/periodLock';
+ import { errorMessage, HttpError, requestUser } from '../../auth/requestUser';
++import { isForbiddenError } from '../../utils/errorStatus';
+ import { enforceDoubleEntrySafety, ifMatchVersion } from './helpers';
+ import { FieldsError, parseFields, pickFields } from '../../http/sparseFields';
+ import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels';
+@@ -118,7 +119,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
+         transactions: pickFields(transactions as Array<Record<string, unknown>>, fields)
+       });
+     } catch (err) {
+-      if (errorMessage(err) === "FORBIDDEN") return res.status(403).json({ error: "Forbidden workspace access" });
++      if (isForbiddenError(err)) return res.status(403).json({ error: "Forbidden workspace access" });
+       console.error('[TRANSACTION ROUTE ERROR]', err);
+       res.status(500).json({ error: "An unexpected internal server error occurred." });
+     }
+diff --git a/src/server/routes/workspaceRoutes.ts b/src/server/routes/workspaceRoutes.ts
+index ec65659..e772d1a 100644
+--- a/src/server/routes/workspaceRoutes.ts
++++ b/src/server/routes/workspaceRoutes.ts
+@@ -1,4 +1,5 @@
+ import { errorMessage } from '../auth/requestUser';
++import { isForbiddenError } from '../utils/errorStatus';
+ import express from 'express';
+ import type { DecodedIdToken } from '../auth/supabaseAuth';
+ import { z } from 'zod';
+@@ -98,7 +99,7 @@ export function requireWorkspaceRole(allowedRoles: string[]) {
+       (authReq as AuthenticatedRequest & { userRole?: string }).userRole = userRole;
+       next();
+     } catch (err) {
+-      if (errorMessage(err) === 'FORBIDDEN' || /Unauthorized|not a member/i.test(errorMessage(err) || '')) return sendError(res, 'Forbidden', 403);
++      if (isForbiddenError(err) || /Unauthorized|not a member/i.test(errorMessage(err) || '')) return sendError(res, 'Forbidden', 403);
+       if (errorMessage(err) === 'NOT_FOUND' || /Workspace not found/i.test(errorMessage(err) || '')) return sendError(res, 'Workspace not found', 404);
+       sendError(res, 'Role Authorization Error', 500, errorMessage(err));
+     }
+@@ -351,7 +352,7 @@ workspaceRouter.get('/:workspaceId/roles', async (req, res) => {
+       roles: data.roles || {}
+     });
+   } catch (err) {
+-    if (errorMessage(err) === 'FORBIDDEN') return sendError(res, 'Forbidden', 403);
++    if (isForbiddenError(err)) return sendError(res, 'Forbidden', 403);
+     sendError(res, 'Failed to fetch roles', 500, errorMessage(err));
+   }
+ });
+diff --git a/src/server/utils/errorStatus.ts b/src/server/utils/errorStatus.ts
+new file mode 100644
+index 0000000..1b277ef
+--- /dev/null
++++ b/src/server/utils/errorStatus.ts
+@@ -0,0 +1,49 @@
++import { errorMessage } from '../auth/requestUser';
++
++/**
++ * Route-level error mapping (issue #914).
++ *
++ * The command layer refuses with an error whose message is `CODE: human sentence` — see
++ * `CommandRefusal` in `utils/commandExecutor.ts` and `src/server/http/serverKit.ts`, which throw
++ * `FORBIDDEN: This workspace is administratively suspended…` and `PAYMENT_REQUIRED: …`. Routes that
++ * compare the whole message with `=== 'FORBIDDEN'` therefore never match, so an authorization
++ * refusal reaches the client as `500 An internal server error occurred.` (and pollutes the 5xx
++ * alerts) instead of 403.
++ *
++ * Compare the *code*, i.e. the leading token up to the first `:` or space, not the sentence.
++ */
++export function hasErrorCode(message: string | undefined | null, code: string): boolean {
++  if (!message) return false;
++  const text = message.trim();
++  if (text === code) return true;
++  if (!text.startsWith(code)) return false;
++  const next = text.charAt(code.length);
++  return next === ':' || next === ' ' || next === '-' || next === '(';
++}
++
++export function isForbiddenError(err: unknown): boolean {
++  return hasErrorCode(errorMessage(err), 'FORBIDDEN');
++}
++
++export function isNotFoundError(err: unknown): boolean {
++  return hasErrorCode(errorMessage(err), 'NOT_FOUND');
++}
++
++export function isPaymentRequiredError(err: unknown): boolean {
++  return hasErrorCode(errorMessage(err), 'PAYMENT_REQUIRED');
++}
++
++/**
++ * The HTTP status an error carries, if the command layer attached one (`CommandRefusal.status`),
++ * otherwise the status implied by its code, otherwise `undefined` so the caller keeps its own default.
++ */
++export function statusForError(err: unknown): number | undefined {
++  const explicit = Number((err as { status?: unknown } | null)?.status);
++  if (Number.isFinite(explicit) && explicit >= 400 && explicit <= 599) return explicit;
++  const message = errorMessage(err);
++  if (hasErrorCode(message, 'FORBIDDEN')) return 403;
++  if (hasErrorCode(message, 'NOT_FOUND')) return 404;
++  if (hasErrorCode(message, 'PAYMENT_REQUIRED')) return 402;
++  if (hasErrorCode(message, 'CONFLICT')) return 409;
++  return undefined;
++}
+diff --git a/src/tests/agent10-error-status.test.ts b/src/tests/agent10-error-status.test.ts
+new file mode 100644
+index 0000000..ca9cc6a
+--- /dev/null
++++ b/src/tests/agent10-error-status.test.ts
+@@ -0,0 +1,70 @@
++/**
++ * #914 — routes returned 500 instead of 403/402 because they compared the whole error message with
++ * a code sentinel. The command layer refuses with `FORBIDDEN: human sentence`
++ * (`CommandRefusal`, `serverKit`), so `errorMessage(err) === 'FORBIDDEN'` never matched.
++ */
++import { describe, it } from 'node:test';
++import assert from 'node:assert/strict';
++import { readFileSync, readdirSync, statSync } from 'node:fs';
++import path from 'node:path';
++import { hasErrorCode, isForbiddenError, isNotFoundError, isPaymentRequiredError, statusForError } from '../server/utils/errorStatus';
++
++describe('hasErrorCode', () => {
++  it('accepts the bare code and the "CODE: sentence" form the command layer throws', () => {
++    assert.equal(hasErrorCode('FORBIDDEN', 'FORBIDDEN'), true);
++    assert.equal(hasErrorCode('FORBIDDEN: your role in this workspace is read-only.', 'FORBIDDEN'), true);
++    assert.equal(hasErrorCode('  FORBIDDEN: requires the owner role.  ', 'FORBIDDEN'), true);
++    assert.equal(hasErrorCode('PAYMENT_REQUIRED: exhausted compute credit', 'PAYMENT_REQUIRED'), true);
++  });
++
++  it('does not match a longer word that merely starts with the code, or a sentence that contains it', () => {
++    assert.equal(hasErrorCode('FORBIDDENLY yours', 'FORBIDDEN'), false);
++    assert.equal(hasErrorCode('Could not read FORBIDDEN column', 'FORBIDDEN'), false);
++    assert.equal(hasErrorCode('', 'FORBIDDEN'), false);
++    assert.equal(hasErrorCode(undefined, 'FORBIDDEN'), false);
++  });
++
++  it('classifies the three codes routes care about', () => {
++    assert.equal(isForbiddenError(new Error('FORBIDDEN: not a member of this workspace')), true);
++    assert.equal(isForbiddenError(new Error('NOT_FOUND: workspace')), false);
++    assert.equal(isNotFoundError(new Error('NOT_FOUND: workspace')), true);
++    assert.equal(isPaymentRequiredError(new Error('PAYMENT_REQUIRED: no seat left')), true);
++  });
++
++  it('maps a code to the HTTP status the route should send, and leaves unknown errors alone', () => {
++    assert.equal(statusForError(new Error('FORBIDDEN: read-only')), 403);
++    assert.equal(statusForError(new Error('NOT_FOUND: workspace')), 404);
++    assert.equal(statusForError(new Error('PAYMENT_REQUIRED: credit')), 402);
++    assert.equal(statusForError(new Error('QUOTA_EXCEEDED: rows')), undefined);
++    assert.equal(statusForError({ status: 409, message: 'conflict' }), 409, 'an explicit status wins');
++    assert.equal(statusForError({ status: 200 }), undefined, 'a nonsense status is ignored');
++  });
++});
++
++/** Walk src/server/routes and assert no route still compares a whole message with a code sentinel. */
++function routeFiles(dir: string, out: string[] = []): string[] {
++  for (const entry of readdirSync(dir)) {
++    const full = path.join(dir, entry);
++    if (statSync(full).isDirectory()) routeFiles(full, out);
++    else if (full.endsWith('.ts') && !full.endsWith('.test.ts')) out.push(full);
++  }
++  return out;
++}
++
++describe('#914 regression guard', () => {
++  it('no route compares an error message with a code sentinel by equality', () => {
++    const bad: string[] = [];
++    // Equality alone is the defect: a line that also tests the code with includes/startsWith/regex
++    // (as the NOT_FOUND sites do) still works, so only pure equality is flagged.
++    const equality = /===\s*["'](FORBIDDEN|PAYMENT_REQUIRED|NOT_FOUND|CONFLICT|UNAUTHORIZED)["']/;
++    const fallback = /\.includes\(|\.startsWith\(|\.test\(/;
++    for (const file of routeFiles(path.join(process.cwd(), 'src/server/routes'))) {
++      readFileSync(file, 'utf8').split('\n').forEach((line, index) => {
++        if (equality.test(line) && !fallback.test(line)) {
++          bad.push(`${path.relative(process.cwd(), file)}:${index + 1} ${line.trim()}`);
++        }
++      });
++    }
++    assert.deepEqual(bad, [], 'use hasErrorCode/isForbiddenError (src/server/utils/errorStatus) instead');
++  });
++});
