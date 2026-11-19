@@ -1,7 +1,8 @@
 import { useUiLanguage } from './useUiLanguage';
 import { fillOnboarding } from './stringTable';
 
-/** Shared list chrome and operational column names; values and machine exports are never translated. */
+/** The reader’s UI preference (English by default), not the script of a name in their books.
+ * Only chrome and column headings are translated; record values, IDs and machine exports are not. */
 const hebrew = {
   Day: 'יום',
   Who: 'מי',
