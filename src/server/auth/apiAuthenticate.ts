@@ -46,7 +46,8 @@ export function requiredApiKeyScope(method: string, path: string): string {
     // Period-management commands keep the legacy /workspaces/:id/periods restriction; in
     // particular, transaction integrations must not gain permission to unlock or reopen books.
     if (/^period\.(close|closesteps|depreciation|relock|reopen|signoff|unlock)$/.test(name)) return 'write:workspaces';
-    if (name === 'estimate.signlink') return 'write:workspaces';
+    if (name === 'audit.deep' || name === 'consolidation.verify') return 'write:transactions';
+    if (name === 'estimate.signlink' || name === 'document.remove') return 'write:workspaces';
     const area = name.split('.')[0];
     // #823: every command area is named here. One that is not listed — a new area, or settings, payroll
     // governance, portal links, audit entries and the record/contact commands that reach any collection —

@@ -24,6 +24,8 @@ describe('Plaid bank connections', { skip: !url && 'LF_TEST_DATABASE_URL not set
   const linkCalls: Record<string, unknown>[] = [];
   let nextAccessToken = 'access-good';
   const removed: string[] = [];
+  const registered: string[] = [];
+  let registrationRefused = false;
 
   const call = async (uid: string, method: 'GET' | 'POST', path: string, body?: Record<string, unknown>) => {
     const res = await fetch(`${base}/api/v1/plaid/${path}`, {
@@ -48,6 +50,11 @@ describe('Plaid bank connections', { skip: !url && 'LF_TEST_DATABASE_URL not set
         if (access_token === 'access-gone') throw Object.assign(new Error('gone'), { response: { data: { error_code: 'ITEM_NOT_FOUND' } } });
         return { data: {} };
       }) as never,
+      itemWebhookUpdate: (async ({ access_token }: { access_token: string }) => {
+        registered.push(access_token);
+        if (registrationRefused) throw Object.assign(new Error('down'), { response: { data: { error_code: 'INSTITUTION_DOWN' } } });
+        return { data: {} };
+      }) as never,
       transactionsGet: (async ({ access_token }: { access_token: string }) => {
         if (access_token === 'access-expired') throw Object.assign(new Error('login'), { response: { data: { error_code: 'ITEM_LOGIN_REQUIRED' } } });
         if (access_token === 'access-broken') throw Object.assign(new Error('down'), { response: { data: { error_code: 'INSTITUTION_DOWN' } } });
@@ -61,13 +68,14 @@ describe('Plaid bank connections', { skip: !url && 'LF_TEST_DATABASE_URL not set
     app.use(express.json());
     app.use((req, _res, next) => { (req as unknown as { user: { uid: string } }).user = { uid: String(req.header('x-test-uid')) }; next(); });
     app.use('/api/v1/plaid', plaidRouter);
+    app.use('/api/v1/commands', (await import('../server/routes/commandRoutes')).commandRouter);
     server = app.listen(0);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   });
 
   after(async () => {
     server?.close();
-    for (const table of ['banks', 'bankLines', 'auditLogs', 'workspaces']) {
+    for (const table of ['banks', 'bankLines', 'auditLogs', 'idempotencyKeys', 'workspaces']) {
       await db.pool.query(`delete from public."${table}" where workspace_id in ($1, $2) or id in ($1, $2)`, [ws, other]);
     }
     await db.terminate();
@@ -81,6 +89,7 @@ describe('Plaid bank connections', { skip: !url && 'LF_TEST_DATABASE_URL not set
     assert.equal((await call('owner-2', 'POST', 'create_link_token', { workspaceId: ws })).status, 403);
     assert.equal((await call('owner-1', 'POST', 'create_link_token', { workspaceId: ws })).status, 200);
     assert.deepEqual(linkCalls.at(-1)?.products, ['transactions']);
+    assert.equal((await db.collection('banks').where('workspaceId', '==', ws).get()).size, 0, 'the Link token does not store a connection');
   });
 
   test('a connection is saved for the workspace with an encrypted token', async () => {
@@ -120,6 +129,68 @@ describe('Plaid bank connections', { skip: !url && 'LF_TEST_DATABASE_URL not set
     assert.equal((await call('owner-1', 'POST', 'create_link_token', { workspaceId: other, bankId: expiredBankId })).status, 403);
     assert.equal((await call('owner-1', 'POST', 'reconnected', { workspaceId: ws, bankId: expiredBankId })).status, 200);
     assert.equal((await db.collection('banks').doc(expiredBankId).get()).data()?.status, 'active');
+  });
+
+  test('reconnect retries webhook registration, with exactly the established status and audit', async () => {
+    const previous = process.env.PLAID_WEBHOOK_URL;
+    process.env.PLAID_WEBHOOK_URL = 'https://example.test/plaid';
+    try {
+      const input = { workspaceId: ws, bankId: expiredBankId };
+      assert.equal((await call('view-1', 'POST', 'reconnected', input)).status, 403);
+      assert.deepEqual(await call('owner-2', 'POST', 'reconnected', { ...input, workspaceId: other }), { status: 404, body: { status: 'error', message: 'Bank connection not found' } });
+      registrationRefused = true;
+      assert.deepEqual(await call('book-1', 'POST', 'reconnected', input), { status: 200, body: { success: true, webhookRegistered: false } });
+      registrationRefused = false;
+      assert.deepEqual(await call('book-1', 'POST', 'reconnected', input), { status: 200, body: { success: true, webhookRegistered: true } });
+      assert.deepEqual(registered, ['access-expired', 'access-expired']);
+      const audits = (await db.collection('auditLogs').where('workspaceId', '==', ws).where('action', '==', 'BANK_RECONNECTED').get()).docs;
+      assert.equal(audits.length, 3); // the first reconnect above, plus both attempts here
+      assert.equal(audits.filter(d => d.data().uid === 'book-1').length, 2);
+      assert.ok(audits.every(d => d.data().entityId === expiredBankId));
+    } finally {
+      registrationRefused = false;
+      if (previous === undefined) delete process.env.PLAID_WEBHOOK_URL;
+      else process.env.PLAID_WEBHOOK_URL = previous;
+    }
+  });
+
+  test('named reconnect previews without setting state and retries without registering another webhook', async () => {
+    const previous = process.env.PLAID_WEBHOOK_URL;
+    process.env.PLAID_WEBHOOK_URL = 'https://example.test/plaid';
+    const path = '/api/v1/commands/bank.reconnect';
+    const run = async (uid: string, workspaceId: string, preview = false) => {
+      const reply = await fetch(`${base}${path}${preview ? '/preview' : ''}`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': uid, 'idempotency-key': 'named-reconnect' },
+        body: JSON.stringify({ workspaceId, input: { bankId: expiredBankId } }),
+      });
+      return { status: reply.status, body: await reply.json() };
+    };
+    const bank = db.collection('banks').doc(expiredBankId);
+    const count = registered.length;
+    await bank.update({ status: 'login_required' });
+    try {
+      assert.equal((await run('view-1', ws, true)).status, 403);
+      assert.equal((await run('owner-2', other)).status, 404);
+      assert.equal((await run('book-1', ws, true)).status, 200);
+      assert.equal((await bank.get()).data()?.status, 'login_required');
+      assert.equal(registered.length, count);
+      const first = await run('book-1', ws);
+      assert.equal(first.status, 200, JSON.stringify(first.body));
+      assert.deepEqual(first.body.data, { bankId: expiredBankId, institutionName: 'Old Bank', webhookRegistered: true });
+      assert.equal((await bank.get()).data()?.status, 'active');
+      await bank.update({ status: 'login_required' }); // a later real change must survive the retry
+      const retry = await run('book-1', ws);
+      assert.equal(retry.status, 200);
+      assert.equal(retry.body.replayed, true);
+      assert.equal(retry.body.data.bankId, expiredBankId);
+      assert.deepEqual(registered.slice(count), ['access-expired']);
+      assert.equal((await bank.get()).data()?.status, 'login_required');
+      const audits = await db.collection('auditLogs').where('workspaceId', '==', ws).where('action', '==', 'BANK_RECONNECTED').get();
+      assert.equal(audits.size, 4); // three legacy requests and one named command
+    } finally {
+      if (previous === undefined) delete process.env.PLAID_WEBHOOK_URL;
+      else process.env.PLAID_WEBHOOK_URL = previous;
+    }
   });
 
   test('the connection list never includes tokens', async () => {

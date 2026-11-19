@@ -7,6 +7,10 @@ removed from this list.
 
 Last updated: 2026-11-19.
 
+## CMD-1: posting, project/chart writes, attachment removal and verification (nothing to apply)
+
+The old addresses still work. Invoice/bill/credit and bulk posting use the same posting rules and legacy retry keys. Project/chart creation and bank reconnection commit their state and audit together; Plaid webhook registration and the deep-audit worker start only after their database changes commit. Attachment removal still allows viewers to remove their own uploads. The moved writes now share the same frozen and pending-deletion guard as the other commands. **No migration or configuration action is needed.** GitHub runs the release checks; this does not mark the assistant or its sandbox complete.
+
 ## PAY-1: payroll import into frozen books or books scheduled for deletion
 
 **Default taken:** keep the command runner's existing workspace protections on both import addresses. The old payroll import address checked the caller's role but did not check these workspace states. It now refuses an import into frozen books (403) or books scheduled for deletion (409); restore or unfreeze the workspace before importing. The old address, file format and posting rules for active books are unchanged. No migration is needed.

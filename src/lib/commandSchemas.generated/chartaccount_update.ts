@@ -4,17 +4,17 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part97,
-    "name": COMMAND_SCHEMA_PARTS.part97,
-    "code": COMMAND_SCHEMA_PARTS.part50,
-    "description": COMMAND_SCHEMA_PARTS.part66,
-    "category": COMMAND_SCHEMA_PARTS.part56,
-    "parentId": COMMAND_SCHEMA_PARTS.part130,
-    "archived": COMMAND_SCHEMA_PARTS.part25,
+    "id": COMMAND_SCHEMA_PARTS.part100,
+    "name": COMMAND_SCHEMA_PARTS.part100,
+    "code": COMMAND_SCHEMA_PARTS.part51,
+    "description": COMMAND_SCHEMA_PARTS.part68,
+    "category": COMMAND_SCHEMA_PARTS.part57,
+    "parentId": COMMAND_SCHEMA_PARTS.part134,
+    "archived": COMMAND_SCHEMA_PARTS.part26,
     "workpapers": {
       "type": "object",
-      "propertyNames": COMMAND_SCHEMA_PARTS.part87,
-      "additionalProperties": COMMAND_SCHEMA_PARTS.part149
+      "propertyNames": COMMAND_SCHEMA_PARTS.part89,
+      "additionalProperties": COMMAND_SCHEMA_PARTS.part153
     }
   },
   "required": COMMAND_SCHEMA_PARTS.part2,

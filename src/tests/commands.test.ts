@@ -211,6 +211,13 @@ test('API-key scopes validate exact, unique permissions and command paths use th
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/chartaccount.create'), 'write:ledger');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/inventory.adjust'), 'write:transactions');
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/project.restore'), 'write:projects');
+  for (const [name, scope] of Object.entries({
+    'project.create': 'write:projects', 'chartaccount.register': 'write:ledger', 'journal.bulk': 'write:transactions',
+    'document.post': 'write:transactions', 'consolidation.verify': 'write:transactions', 'audit.deep': 'write:transactions',
+    'bank.reconnect': 'write:workspaces', 'document.remove': 'write:workspaces',
+  })) {
+    for (const suffix of ['', '/preview']) assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}${suffix}`), scope, name);
+  }
   assert.equal(requiredApiKeyScope('POST', '/api/v1/transactions'), 'write:transactions');
 });
 

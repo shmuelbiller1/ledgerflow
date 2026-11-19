@@ -4,21 +4,21 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part97,
-    "name": COMMAND_SCHEMA_PARTS.part97,
-    "sku": COMMAND_SCHEMA_PARTS.part56,
-    "description": COMMAND_SCHEMA_PARTS.part66,
-    "unitPriceCents": COMMAND_SCHEMA_PARTS.part126,
-    "unitCostCents": COMMAND_SCHEMA_PARTS.part126,
-    "standardCostCents": COMMAND_SCHEMA_PARTS.part126,
-    "reorderPoint": COMMAND_SCHEMA_PARTS.part102,
-    "measurementUnit": COMMAND_SCHEMA_PARTS.part50,
+    "id": COMMAND_SCHEMA_PARTS.part100,
+    "name": COMMAND_SCHEMA_PARTS.part100,
+    "sku": COMMAND_SCHEMA_PARTS.part57,
+    "description": COMMAND_SCHEMA_PARTS.part68,
+    "unitPriceCents": COMMAND_SCHEMA_PARTS.part130,
+    "unitCostCents": COMMAND_SCHEMA_PARTS.part130,
+    "standardCostCents": COMMAND_SCHEMA_PARTS.part130,
+    "reorderPoint": COMMAND_SCHEMA_PARTS.part105,
+    "measurementUnit": COMMAND_SCHEMA_PARTS.part51,
     "unitsPerPackage": {
       "type": "integer",
       "minimum": 1,
       "maximum": 100000
     },
-    "category": COMMAND_SCHEMA_PARTS.part56,
+    "category": COMMAND_SCHEMA_PARTS.part57,
     "itemType": {
       "type": "string",
       "enum": [
@@ -28,19 +28,19 @@ export const COMMAND_INPUT_SCHEMA = {
     },
     "defaultTaxCodeId": {
       "anyOf": [
-        COMMAND_SCHEMA_PARTS.part56,
-        COMMAND_SCHEMA_PARTS.part18
+        COMMAND_SCHEMA_PARTS.part57,
+        COMMAND_SCHEMA_PARTS.part19
       ]
     },
-    "productTaxCategory": COMMAND_SCHEMA_PARTS.part52,
-    "consignment": COMMAND_SCHEMA_PARTS.part52,
+    "productTaxCategory": COMMAND_SCHEMA_PARTS.part53,
+    "consignment": COMMAND_SCHEMA_PARTS.part53,
     "bundleParts": {
       "maxItems": 200,
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "itemId": COMMAND_SCHEMA_PARTS.part97,
+          "itemId": COMMAND_SCHEMA_PARTS.part100,
           "quantity": {
             "type": "number",
             "minimum": 0,
@@ -54,15 +54,15 @@ export const COMMAND_INPUT_SCHEMA = {
         "additionalProperties": false
       }
     },
-    "assembleOnDemand": COMMAND_SCHEMA_PARTS.part25,
+    "assembleOnDemand": COMMAND_SCHEMA_PARTS.part26,
     "locationLevels": {
       "type": "object",
-      "propertyNames": COMMAND_SCHEMA_PARTS.part94,
+      "propertyNames": COMMAND_SCHEMA_PARTS.part97,
       "additionalProperties": {
         "type": "object",
         "properties": {
-          "min": COMMAND_SCHEMA_PARTS.part102,
-          "max": COMMAND_SCHEMA_PARTS.part102
+          "min": COMMAND_SCHEMA_PARTS.part105,
+          "max": COMMAND_SCHEMA_PARTS.part105
         },
         "required": [
           "min",
@@ -73,14 +73,14 @@ export const COMMAND_INPUT_SCHEMA = {
     },
     "documentDefaults": {
       "anyOf": [
-        COMMAND_SCHEMA_PARTS.part149,
-        COMMAND_SCHEMA_PARTS.part18
+        COMMAND_SCHEMA_PARTS.part153,
+        COMMAND_SCHEMA_PARTS.part19
       ]
     },
     "tags": {
       "maxItems": 40,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part50
+      "items": COMMAND_SCHEMA_PARTS.part51
     },
     "status": {
       "type": "string",

@@ -18,18 +18,18 @@ export const COMMAND_INPUT_SCHEMA = {
       "maxLength": 5000000,
       "description": "The original provider export as CSV text, including the header row."
     },
-    "fileName": COMMAND_SCHEMA_PARTS.part58,
+    "fileName": COMMAND_SCHEMA_PARTS.part59,
     "accounts": {
       "type": "object",
       "properties": {
-        "wages": COMMAND_SCHEMA_PARTS.part97,
-        "employerTaxExpense": COMMAND_SCHEMA_PARTS.part97,
-        "employerBenefitExpense": COMMAND_SCHEMA_PARTS.part97,
-        "withholdings": COMMAND_SCHEMA_PARTS.part97,
-        "deductions": COMMAND_SCHEMA_PARTS.part97,
-        "employerTaxLiability": COMMAND_SCHEMA_PARTS.part97,
-        "employerBenefitLiability": COMMAND_SCHEMA_PARTS.part97,
-        "clearing": COMMAND_SCHEMA_PARTS.part97
+        "wages": COMMAND_SCHEMA_PARTS.part100,
+        "employerTaxExpense": COMMAND_SCHEMA_PARTS.part100,
+        "employerBenefitExpense": COMMAND_SCHEMA_PARTS.part100,
+        "withholdings": COMMAND_SCHEMA_PARTS.part100,
+        "deductions": COMMAND_SCHEMA_PARTS.part100,
+        "employerTaxLiability": COMMAND_SCHEMA_PARTS.part100,
+        "employerBenefitLiability": COMMAND_SCHEMA_PARTS.part100,
+        "clearing": COMMAND_SCHEMA_PARTS.part100
       },
       "additionalProperties": false
     },
