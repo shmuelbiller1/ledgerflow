@@ -15,6 +15,7 @@ import { checkTranslatedScreen } from './helpers/translationGuard';
 import { onboardingTranslationGaps, ONBOARDING_STRINGS } from '../lib/i18n/onboardingTranslations';
 import { SETUP_TRANSLATIONS } from '../lib/i18n/setupTranslations';
 import { OVERVIEW_TRANSLATIONS } from '../lib/i18n/overviewTranslations';
+import { tableText } from '../lib/i18n/stringTable';
 
 /** One entry per screen: the file, the table its keys live in, and the helper it reads them through. */
 const SCREENS = [
@@ -80,3 +81,23 @@ function onboardingKeysUsedBy(file: string): string[] {
   }
   return [...keys];
 }
+
+test('the shared table reader behaves the same for every table', () => {
+  // One reader for all three tables: same fallback for a missing key, same English fallback for a
+  // blank Hebrew column, same answer for both languages. This is the module every table now uses.
+  const table = new Map([
+    ['known', { key: 'known', en: 'Known', he: 'ידוע' }],
+    ['blank.he', { key: 'blank.he', en: 'English only', he: '  ' }],
+  ]);
+  assert.equal(tableText(table, 'known', 'en'), 'Known');
+  assert.equal(tableText(table, 'known', 'he'), 'ידוע');
+  assert.equal(tableText(table, 'known', 'he') === 'Known', false, 'Hebrew really comes from the Hebrew column');
+  assert.equal(tableText(table, 'blank.he', 'he'), 'English only', 'a blank translation shows English, not nothing');
+  assert.equal(tableText(table, 'missing.key', 'he'), 'key', 'an unknown key shows its own last segment');
+  assert.equal(tableText(mapOf(OVERVIEW_TRANSLATIONS), 'firstWeek.heading', 'he'), 'השבוע הראשון שלכם');
+});
+
+function mapOf(entries: readonly { key: string; en: string; he: string }[]): Map<string, { key: string; en: string; he: string }> {
+  return new Map(entries.map(entry => [entry.key, entry]));
+}
+

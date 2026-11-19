@@ -1,4 +1,5 @@
 import type { UiLanguage } from './uiLanguage';
+import { EXAMPLE_EMAIL, fillOnboarding, indexTable, tableRows, tableText, translationGaps, type StringEntry, type TranslationGap } from './stringTable';
 
 /**
  * AI12-N10-01 (#838): the words on the four screens a person meets before they have any books —
@@ -15,14 +16,8 @@ import type { UiLanguage } from './uiLanguage';
  * English sentence rather than a key. `onboardingTranslationGaps()` lists any gap for the guard test.
  */
 
-export interface OnboardingStringEntry {
-  key: string;
-  en: string;
-  he: string;
-}
-
-/** Shown in both languages: an example address, not copy. */
-export const EXAMPLE_EMAIL = 'you@company.com';
+export type OnboardingStringEntry = StringEntry;
+export { EXAMPLE_EMAIL, fillOnboarding, translationGaps };
 
 const STRINGS = {
   // ---- Sign-in / registration -----------------------------------------------------------------
@@ -117,10 +112,9 @@ const STRINGS = {
 
 export type OnboardingStringKey = keyof typeof STRINGS;
 
-export const ONBOARDING_STRINGS: readonly OnboardingStringEntry[] = Object.entries(STRINGS)
-  .map(([key, value]) => ({ key, en: value.en, he: value.he }));
+export const ONBOARDING_STRINGS: readonly OnboardingStringEntry[] = tableRows(STRINGS);
 
-const BY_KEY = new Map<string, OnboardingStringEntry>(ONBOARDING_STRINGS.map(entry => [entry.key, entry]));
+const BY_KEY = indexTable(STRINGS);
 
 /**
  * The sentence for a key in the selected language.
@@ -131,19 +125,7 @@ const BY_KEY = new Map<string, OnboardingStringEntry>(ONBOARDING_STRINGS.map(ent
  * vanishing, and the guard tests fail first.
  */
 export function onboardingText(key: OnboardingStringKey, language: UiLanguage): string {
-  const entry = BY_KEY.get(key);
-  if (!entry) return String(key).split('.').pop() || '';
-  const candidate = language === 'he' ? entry.he : entry.en;
-  return candidate.trim() ? candidate : entry.en;
-}
-
-/** Fills `{name}` placeholders. Values are not translated: amounts, counts and names stay as given. */
-export function fillOnboarding(
-  template: string,
-  values: Readonly<Record<string, string | number>>,
-): string {
-  return template.replace(/\{(\w+)\}/g, (whole, name: string) =>
-    Object.hasOwn(values, name) ? String(values[name]) : whole);
+  return tableText(BY_KEY, key, language);
 }
 
 /** `onboardingText` with placeholders filled in one step. */
@@ -155,26 +137,7 @@ export function onboardingTextWith(
   return fillOnboarding(onboardingText(key, language), values);
 }
 
-export interface OnboardingTranslationGap {
-  key: string;
-  problem: 'missing Hebrew' | 'blank English' | 'Hebrew identical to English';
-}
-
-/**
- * Every entry that would leave a Hebrew reader with English (or nothing). Read by the guard tests for
- * every onboarding table, so a new sentence cannot ship without its Hebrew.
- */
-export function translationGaps(
-  entries: readonly { key: string; en: string; he: string }[],
-): OnboardingTranslationGap[] {
-  const gaps: OnboardingTranslationGap[] = [];
-  for (const entry of entries) {
-    if (!entry.en.trim()) gaps.push({ key: entry.key, problem: 'blank English' });
-    else if (!entry.he.trim()) gaps.push({ key: entry.key, problem: 'missing Hebrew' });
-    else if (!/\p{Script=Hebrew}/u.test(entry.he)) gaps.push({ key: entry.key, problem: 'Hebrew identical to English' });
-  }
-  return gaps;
-}
+export type OnboardingTranslationGap = TranslationGap;
 
 /** The shared table's own gaps (each screen-specific table is checked with `translationGaps`). */
 export function onboardingTranslationGaps(

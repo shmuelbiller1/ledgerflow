@@ -1,5 +1,5 @@
 import type { UiLanguage } from './uiLanguage';
-import { fillOnboarding } from './onboardingTranslations';
+import { fillOnboarding, indexTable, tableRows, tableText, type StringEntry } from './stringTable';
 
 /**
  * AI12-N10-01 (#838): the words of the setup wizard, in English and Hebrew.
@@ -74,17 +74,13 @@ const SETUP_STRINGS = {
 
 export type SetupStringKey = keyof typeof SETUP_STRINGS;
 
-export const SETUP_TRANSLATIONS: readonly { key: string; en: string; he: string }[] = Object.entries(SETUP_STRINGS)
-  .map(([key, value]) => ({ key, en: value.en, he: value.he }));
+export const SETUP_TRANSLATIONS: readonly StringEntry[] = tableRows(SETUP_STRINGS);
 
-const BY_KEY = new Map<string, { key: string; en: string; he: string }>(SETUP_TRANSLATIONS.map(entry => [entry.key, entry]));
+const BY_KEY = indexTable(SETUP_STRINGS);
 
 /** The wizard's sentence for a key; the table is the one place both languages live. */
 export function setupText(key: SetupStringKey, language: UiLanguage): string {
-  const entry = BY_KEY.get(key);
-  if (!entry) return String(key).split('.').pop() || '';
-  const candidate = language === 'he' ? entry.he : entry.en;
-  return candidate.trim() ? candidate : entry.en;
+  return tableText(BY_KEY, key, language);
 }
 
 /** `setupText` with `{name}` placeholders filled: amounts, counts and names are not translated. */
