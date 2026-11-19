@@ -8,7 +8,7 @@ import { roleInWorkspace } from "../middleware/requireLedgerWriter.ts";
 import { getShardedCounterValue } from "../services/shardedCounterService.ts";
 import { writeServerAuditLog } from "../services/auditLogService.ts";
 
-import { billingRecordComputeCommand } from '../commands/billingCompute';
+import { legacyBillingRecordComputeCommand } from '../commands/billingCompute';
 import { executeCommand } from '../utils/commandExecutor';
 import { BRAND_NAME } from '../../config/brand';
 export const billingRouter = express.Router();
@@ -228,7 +228,7 @@ billingRouter.post("/record-compute", async (req: express.Request, res: express.
     return res.status(404).json({ status: "error", message: "NOT_FOUND: Invalid workspace identifier provided." });
   }
   return executeCommand(req, res, {
-    definition: billingRecordComputeCommand, workspaceId, input: { algorithmName, complexityFormat, weightScore, executionTimeMs },
+    definition: legacyBillingRecordComputeCommand, workspaceId, input: { algorithmName, complexityFormat, weightScore, executionTimeMs },
     legacyRoute: true, legacyOperationId: 'ignore',
     formatResponse: outcome => {
       if (outcome.ok) return { status: 200, body: { status: "success", ...(outcome.data as Record<string, unknown>) } };

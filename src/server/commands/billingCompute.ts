@@ -12,16 +12,28 @@ const input = z.object({
   executionTimeMs: z.union([z.number(), z.string()]).nullish(),
 }).strict();
 
+// Only the old HTTP address accepts arbitrary JSON here: it checked the name for presence,
+// stored the two labels as supplied, and coerced weight/time with Number(). Keep the generated
+// command schema strict and share the transaction, audit and calculation between both doors.
+const legacyInput = z.object({
+  algorithmName: z.unknown().refine(Boolean),
+  complexityFormat: z.unknown().optional(),
+  weightScore: z.unknown().optional(),
+  executionTimeMs: z.unknown().optional(),
+}).strict();
+
 const normalized = (value: unknown, fallback: number, max: number) =>
   Math.max(1, Math.min(max, Math.floor(Math.abs(Number(value) || fallback))));
 const weight = (value: unknown) => normalized(value, 10, 1000);
 const quota = (value: number) => Math.round(value * 0.1);
 
-export const billingRecordComputeCommand: CommandDefinition<typeof input, {
+type ComputeResult = {
   traceRecord: Record<string, unknown> & { id: string };
   updatedMetrics: Record<string, number>;
-}> = {
-  name: 'billing.recordcompute', input, roles: COMMAND_ROLES, allowPlatformAdmin: true,
+};
+
+const compute: Omit<CommandDefinition<typeof legacyInput, ComputeResult>, 'input'> = {
+  name: 'billing.recordcompute', roles: COMMAND_ROLES, allowPlatformAdmin: true,
   async handler({ db, workspace, workspaceId, actor, email }, tx, fields) {
     const weightScore = weight(fields.weightScore);
     const executionTimeMs = normalized(fields.executionTimeMs, 50, 60_000);
@@ -69,3 +81,6 @@ export const billingRecordComputeCommand: CommandDefinition<typeof input, {
     ],
   },
 };
+
+export const billingRecordComputeCommand = { ...compute, input } satisfies CommandDefinition<typeof input, ComputeResult>;
+export const legacyBillingRecordComputeCommand = { ...compute, input: legacyInput };

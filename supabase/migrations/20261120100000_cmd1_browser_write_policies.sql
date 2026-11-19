@@ -11,39 +11,40 @@ begin
     'inventory', 'loans', 'partners', 'projects', 'purchaseOrders', 'recurring', 'rulePatterns',
     'scenarios', 'taxRates', 'vendors'
   ] loop
-    execute format('drop policy writer_insert on public.%I', t);
-    execute format('drop policy writer_update on public.%I', t);
-    execute format('drop policy writer_delete on public.%I', t);
+    execute format('drop policy if exists writer_insert on public.%I', t);
+    execute format('drop policy if exists writer_update on public.%I', t);
+    execute format('drop policy if exists writer_delete on public.%I', t);
     execute format('revoke insert, update, delete on public.%I from anon, authenticated', t);
   end loop;
 end $$;
 
-drop policy admin_insert on public."chartAccounts";
-drop policy admin_update on public."chartAccounts";
-drop policy admin_delete on public."chartAccounts";
-drop policy owner_insert on public.workspaces;
-drop policy admin_update on public.workspaces;
+drop policy if exists admin_insert on public."chartAccounts";
+drop policy if exists admin_update on public."chartAccounts";
+drop policy if exists admin_delete on public."chartAccounts";
+drop policy if exists owner_insert on public.workspaces;
+drop policy if exists admin_update on public.workspaces;
 
 -- This policy used to cover all four operations. Keep its exact private-read predicate.
-drop policy own_all on public."customTemplates";
+drop policy if exists own_all on public."customTemplates";
+drop policy if exists own_read on public."customTemplates";
 create policy own_read on public."customTemplates" for select to authenticated
   using (data->>'uid' = public.lf_uid());
 
-drop policy member_insert on public."auditLogs";
-drop policy own_insert on public.documents;
-drop policy own_update on public.documents;
-drop policy error_insert on public."errorLogs";
-drop policy own_insert on public."learnedDeltas";
-drop policy own_update on public."learnedDeltas";
-drop policy own_update on public.notifications;
-drop policy own_delete on public.notifications;
-drop policy presence_insert on public.presence;
-drop policy presence_update on public.presence;
-drop policy message_insert on public."supportMessages";
-drop policy ticket_insert on public."supportTickets";
-drop policy ticket_update on public."supportTickets";
-drop policy self_insert on public.users;
-drop policy self_update on public.users;
+drop policy if exists member_insert on public."auditLogs";
+drop policy if exists own_insert on public.documents;
+drop policy if exists own_update on public.documents;
+drop policy if exists error_insert on public."errorLogs";
+drop policy if exists own_insert on public."learnedDeltas";
+drop policy if exists own_update on public."learnedDeltas";
+drop policy if exists own_update on public.notifications;
+drop policy if exists own_delete on public.notifications;
+drop policy if exists presence_insert on public.presence;
+drop policy if exists presence_update on public.presence;
+drop policy if exists message_insert on public."supportMessages";
+drop policy if exists ticket_insert on public."supportTickets";
+drop policy if exists ticket_update on public."supportTickets";
+drop policy if exists self_insert on public.users;
+drop policy if exists self_update on public.users;
 
 revoke insert, update, delete on public."chartAccounts", public.workspaces, public."customTemplates",
   public."auditLogs", public.documents, public."errorLogs", public."learnedDeltas", public.notifications,

@@ -59,6 +59,9 @@ test('record-compute accepts a viewer, clamps inputs, records each legacy reques
     algorithmName: 'MODEL_TEST', complexityFormat: 'O(n)', weightScore: 13, executionTimeMs: 60_000,
     timestamp: first.json.traceRecord.timestamp, hash: first.json.traceRecord.hash,
   });
+  // The old route overwrote its temporary `trace-...` value with the database auto ID.
+  assert.match(first.json.traceRecord.id, /^[A-Za-z0-9]{20}$/);
+  assert.equal((await db.collection('billingLedgerTraces').doc(first.json.traceRecord.id).get()).data()?.id, first.json.traceRecord.id);
   assert.match(first.json.traceRecord.hash, /^[0-9a-f]{64}$/);
   const again = await post({ workspaceId, ...input });
   assert.equal(again.status, 200);
@@ -84,4 +87,16 @@ test('record-compute accepts a viewer, clamps inputs, records each legacy reques
   assert.equal((await post({ workspaceId, input }, 'outsider', named)).json.code, 'NOT_A_MEMBER');
   assert.equal((await traces()).size, 3);
 
+  // Old clients had only a presence check on the name and JavaScript numeric coercion.
+  // The named endpoint advertises and enforces its stricter schema.
+  const legacyFields = { algorithmName: 17, complexityFormat: null, weightScore: true, executionTimeMs: [42] };
+  const namedRefusal = await post({ workspaceId, input: legacyFields }, 'viewer', named);
+  assert.equal(namedRefusal.status, 400);
+  assert.equal(namedRefusal.json.code, 'INVALID_INPUT');
+  const legacy = await post({ workspaceId, ...legacyFields });
+  assert.equal(legacy.status, 200, JSON.stringify(legacy.json));
+  assert.equal(legacy.json.traceRecord.algorithmName, 17);
+  assert.equal(legacy.json.traceRecord.complexityFormat, null);
+  assert.equal(legacy.json.traceRecord.weightScore, 1);
+  assert.equal(legacy.json.traceRecord.executionTimeMs, 42);
 });

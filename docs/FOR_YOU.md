@@ -19,8 +19,10 @@ rules suite after a fresh migration setup; it has **not** been applied to the li
    from Settings and inside a bill, creates/edits a customer or draft estimate, and saves settings
    with a writer session. Check a viewer still reads but cannot perform those writes. Also smoke-test
    attachment upload/removal, presence and notifications; they use separate server paths.
-2. The merger applies the migration through the Supabase migration tool (in order, not manual SQL),
-   once those deployed checks pass. Confirm it appears in the migration ledger. Refresh a browser
+2. Once those deployed checks pass, the merger applies the migration through the Supabase migration
+   tool (not manual SQL), in order after the earlier sandbox migrations, including
+   `20261120090000_sandbox_stock_move_order.sql` from [#935](https://github.com/shmuelbiller1/ledgerflow/pull/935).
+   Confirm it appears in the migration ledger. Refresh a browser
    using the new build; repeat those write/read checks and verify a direct browser write is refused
    on a disposable workspace. Do not probe historical production records or remove read policies.
 
