@@ -195,8 +195,9 @@ test('API-key scopes validate exact, unique permissions and command paths use th
     assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:workspaces');
   }
   assert.equal(requiredApiKeyScope('POST', '/api/v1/commands/period.unlock/preview'), 'write:workspaces');
+  // #820: locking a year, rebuilding snapshots and restating FX are not transaction entry
   for (const name of ['period.balancesrebuild', 'period.fxrevaluation', 'period.fxrevaluationundo', 'period.yearclose']) {
-    assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:transactions');
+    assert.equal(requiredApiKeyScope('POST', `/api/v1/commands/${name}`), 'write:workspaces');
   }
   assert.equal(requiredApiKeyScope('GET', '/api/v1/commands'), 'read:transactions');
   // #823: an area not named in the map is closed to keys (write:workspaces is never issued) — account and group
