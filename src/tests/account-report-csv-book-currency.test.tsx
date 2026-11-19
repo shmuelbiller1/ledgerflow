@@ -3,7 +3,7 @@
  * yen book understated its own file by 100x and a dinar book overstated it by 10x, while the screen
  * above the button showed the right amount.
  *
- *   Top Line Items · Income by Source · Expense by Category · Monthly Averages
+ *   Top Line Items · Income by Source · Expense by Category · Monthly Averages · Tag Breakdown
  *
  * The book's currency decides the scale (JPY 0 decimals, KWD 3, USD 2). This reads the file an
  * accountant actually receives: it clicks the screen's own Export CSV, catches the Blob and parses it —
@@ -33,6 +33,7 @@ import TopExpensesIncomeReportView from '../components/reporting/TopExpensesInco
 import IncomeBySourceReportView from '../components/reporting/IncomeBySourceReportView';
 import ExpenseByCategoryReportView from '../components/reporting/ExpenseByCategoryReportView';
 import AverageMonthlyReportView from '../components/reporting/AverageMonthlyReportView';
+import TagBreakdownReportView from '../components/reporting/TagBreakdownReportView';
 
 const line = (accountId: string, amountCents: number): TransactionLine =>
   ({ accountId, accountName: accountId, amountCents }) as TransactionLine;
@@ -46,9 +47,9 @@ const accounts = [
   makeChartAccount({ id: 'sales', name: 'Sales', type: 'income', category: 'Revenue' }),
 ];
 const ledger = [
-  tx('rent', '2026-01-05', [line('rent', 12345), line('bank', -12345)]),
+  tx('rent', '2026-01-05', [line('rent', 12345), line('bank', -12345)], { tags: ['Q1'] }),
   tx('rebate', '2026-02-05', [line('bank', 2000), line('rebate', -2000)]),
-  tx('acme', '2026-01-15', [line('bank', 27680), line('sales', -27680)], { payee: 'Acme' }),
+  tx('acme', '2026-01-15', [line('bank', 27680), line('sales', -27680)], { payee: 'Acme', tags: ['Q1'] }),
   tx('bob', '2026-02-15', [line('sales', 2345), line('bank', -2345)], { payee: 'Bob' }),
 ];
 const burnOnly = [tx('burn', '2026-01-10', [line('rent', 9345), line('bank', -9345)])];
@@ -102,9 +103,9 @@ describe('#910: account-report CSV money follows the book currency', () => {
   });
 
   const cases = [
-    { currency: 'JPY', rent: '12345', rebate: '-2000', acme: '27680', bob: '-2345', janIncome: '0', janExpense: '9345', janNet: '-9345' },
-    { currency: 'KWD', rent: '12.345', rebate: '-2.000', acme: '27.680', bob: '-2.345', janIncome: '0.000', janExpense: '9.345', janNet: '-9.345' },
-    { currency: 'USD', rent: '123.45', rebate: '-20.00', acme: '276.80', bob: '-23.45', janIncome: '0.00', janExpense: '93.45', janNet: '-93.45' },
+    { currency: 'JPY', rent: '12345', rebate: '-2000', acme: '27680', bob: '-2345', janIncome: '0', janExpense: '9345', janNet: '-9345', tagIncome: '27680', tagExpense: '12345', tagNet: '15335' },
+    { currency: 'KWD', rent: '12.345', rebate: '-2.000', acme: '27.680', bob: '-2.345', janIncome: '0.000', janExpense: '9.345', janNet: '-9.345', tagIncome: '27.680', tagExpense: '12.345', tagNet: '15.335' },
+    { currency: 'USD', rent: '123.45', rebate: '-20.00', acme: '276.80', bob: '-23.45', janIncome: '0.00', janExpense: '93.45', janNet: '-93.45', tagIncome: '276.80', tagExpense: '123.45', tagNet: '153.35' },
   ] as const;
 
   for (const expected of cases) {
@@ -135,6 +136,15 @@ describe('#910: account-report CSV money follows the book currency', () => {
       const rentRow = moneyCells(rows, '2026-01-05');
       assert.equal(rentRow.at(-1), expected.rent);
       assert.equal(rentRow[3], 'rent', 'the account column still names where the line went');
+    });
+
+    test(`Tag Breakdown writes ${expected.currency} amounts on all three money columns`, async () => {
+      book(expected.currency);
+      render(<TagBreakdownReportView selectedYear={2026} />);
+      await screen.findByRole('button', { name: 'Export CSV' });
+      const rows = await csvFromButton('Export CSV');
+      // Tag, Tagged Items, Revenue Inflow, Expense Outflow, Net Financial Impact
+      assert.deepEqual(moneyCells(rows, 'Q1').slice(2), [expected.tagIncome, expected.tagExpense, expected.tagNet]);
     });
 
     test(`Monthly Averages writes ${expected.currency} amounts for the month's net`, async () => {
