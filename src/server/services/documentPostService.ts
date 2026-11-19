@@ -11,7 +11,8 @@ import { isPostable } from '../../lib/txFilters';
 import type { EntityMutation, LedgerPostContext } from '../../services/ledgerPost/postingCore';
 import type { Bill, CreditNote, Invoice, Transaction, VendorCredit } from '../../types';
 import { agreedPostingDay, DOCUMENT_ENTRY_KEY, loadPostingContext, todayIn } from './postingContextLoader';
-import { assertPostingOpen } from '../../lib/periodLock';
+import { assertPostingOpen, workspaceRole } from '../../lib/periodLock';
+import { claimOf, decisionProblem } from '../../lib/expenseClaims';
 import { BulkRefusal, commitLedgerBulk, type BeforeWrite, type LedgerBulkPreflight } from './ledgerBulkCommit';
 import { enforceCreditLimit } from './creditLimitGuard';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
@@ -109,6 +110,38 @@ function stripServerManagedFields(data: Record<string, unknown> | undefined): Re
 function asNonNegativeNumber(value: unknown): number {
   const num = Number(value);
   return Number.isFinite(num) && num > 0 ? num : 0;
+}
+
+/**
+ * #857: a submitted expense claim changes only by its decision. An update must be exactly the approve or
+ * reject the claim screens send, by someone decisionProblem allows (owner or accountant, never the
+ * submitting accountant); any other edit, and a delete by anyone but the submitter or an owner/accountant,
+ * is refused. Run on the read snapshot and again on the in-transaction one.
+ */
+function assertClaimDecision(
+  collection: PostedDocumentType,
+  action: DocumentPostInput['action'],
+  existing: Record<string, unknown> | undefined,
+  incoming: Record<string, unknown>,
+  workspace: unknown,
+  uid: string,
+): void {
+  if (collection !== 'bills' || !existing) return;
+  const claim = claimOf(existing as never);
+  if (!claim || claim.state !== 'submitted') return;
+  const role = workspaceRole(workspace as never, uid);
+  if (action === 'delete') {
+    if (claim.submittedBy === uid || role === 'owner' || role === 'accountant') return;
+    throw new BulkRefusal(403, { error: 'Only the person who submitted this expense claim, or an owner or accountant, can delete it.' });
+  }
+  const next = claimOf({ metadata: incoming.metadata } as never);
+  const decided = next && (next.state === 'approved' || next.state === 'rejected') ? next.state : undefined;
+  const allowedKeys = new Set(['status', 'metadata', 'updatedAt']);
+  if (!decided || incoming.status !== decided || Object.keys(incoming).some(k => !allowedKeys.has(k))) {
+    throw new BulkRefusal(409, { error: 'This expense claim is waiting for approval. Approve or reject it; it cannot be edited until then.' });
+  }
+  const problem = decisionProblem(claim, role, uid);
+  if (problem) throw new BulkRefusal(403, { error: problem });
 }
 
 function assertDocumentMutationAllowed(
@@ -222,6 +255,7 @@ export async function prepareDocumentPost(db: Firestore, user: RequestUser, inpu
   // destructive edits or deletions of settled, written-off, refunded, or scheduled documents.
   const sanitizedData = action === 'delete' ? {} : stripServerManagedFields(input.data);
   assertDocumentMutationAllowed(collection, action, existing, sanitizedData);
+  assertClaimDecision(collection, action, existing, sanitizedData, workspace, user.uid);
 
   // as /transactions/bulk: the save merges into what is saved (an update of a document not saved yet makes it); a
   // second live posting of the same document is refused at commit (INT-2)
@@ -297,6 +331,7 @@ export async function prepareDocumentPost(db: Firestore, user: RequestUser, inpu
   // in-transaction workspace and entity snapshots so concurrent payments/closes cannot race.
   const beforeWrite: BeforeWrite = async (t, state) => {
     assertDocumentMutationAllowed(collection, action, state.existingEntity, sanitizedData);
+    assertClaimDecision(collection, action, state.existingEntity, sanitizedData, state.workspace, user.uid);
     try {
       for (const date of datesToCheck) assertPostingOpen(date, state.workspace as never, user.uid);
       if (action !== 'create' && state.existingEntity && !UNPOSTED_DOCUMENT_STATUSES.has(String(state.existingEntity.status || '')) && typeof state.existingEntity.date === 'string' && state.existingEntity.date) {
