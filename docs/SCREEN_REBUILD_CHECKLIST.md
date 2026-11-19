@@ -173,7 +173,9 @@ migrate the purchase item register.
       and dark, English and Hebrew. The sample-company deep link checks both localized receipt
       periods (including leap day). `purchase-item-trends`, `payment-method-flows-view` and
       `operational-reports-server` also cover paging past 1,000 bills, failure/retry, stale identity
-      and the actual Postgres-backed receipts route.
+      and the actual Postgres-backed receipts route. The [hosted visual run](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44553903657)
+      captured and rechecked all eight `purchase-item-register-*` and `receipt-methods-*` references.
+      Both viewport sets were reviewed; no other references or tolerances changed.
 
 **Next batch:** on the supplied `8de8fe7` base the dry run offered **12 tables in 11 files**;
 now **10 in 9**, with **132** blocks still refused. `rawTables`: **122 → 120 files**, no new exemption.
