@@ -54,8 +54,9 @@ for (const width of [390, 1280]) test(`a first-time user at ${width}px, keyboard
     };
     const main = page.locator('#main-content'), dialog = page.getByRole('dialog');
     const daily = page.getByRole('navigation', { name: 'Daily tools' });
-    // N-8 starts on an empty Sales screen: no customers to pick and no invoice to open.
-    expect(await server.all('customers'), 'a new workspace starts with no customers').toEqual([]);
+    // N-8 starts on a fresh Sales screen: the journey fixture seeds a sample "Acme" customer,
+    // but the customer this journey creates is not there and there are no invoices to open.
+    expect((await server.all('customers')).some(c => c.name === customerName), `${customerName} is not there yet`).toBe(false);
     expect(await server.all('invoices'), 'a new workspace starts with no invoices').toEqual([]);
     if (width === 390) await press(button('Open navigation menu'));
     await press(button('Sales', daily));
