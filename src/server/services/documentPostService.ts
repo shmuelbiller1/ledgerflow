@@ -216,16 +216,17 @@ function assertDocumentMutationAllowed(
         }
       } else if (incomingAmount !== undefined || incomingRemaining !== undefined) {
         // #775: once part of a credit is applied its total is fixed, as for a settled one; while nothing is
-        // applied, a total-only edit moves the remaining balance with it (Gitar on #929)
+        // applied, a total-only edit moves the remaining balance with it (Gitar on #929). The remaining
+        // balance may still come down (the credit being applied), never above what is unapplied.
         const applied = oldAmount - oldRemaining;
         const newAmount = incomingAmount !== undefined ? incomingAmount : oldAmount;
         if (applied > 0 && newAmount !== oldAmount) {
           throw new BulkRefusal(409, { error: `Cannot change the total of this ${NAMES[collection]}: ${applied} of it is already applied.` });
         }
-        const expectedRemaining = newAmount - applied;
-        if (incomingRemaining === undefined) incoming.remainingCents = expectedRemaining;
-        else if (incomingRemaining !== expectedRemaining) {
-          throw new BulkRefusal(409, { error: `The remaining balance of this ${NAMES[collection]} must be ${expectedRemaining}: ${applied} is already applied.` });
+        if (incomingRemaining === undefined) {
+          if (newAmount !== oldAmount) incoming.remainingCents = newAmount - applied;
+        } else if (incomingRemaining < 0 || incomingRemaining > newAmount - applied) {
+          throw new BulkRefusal(409, { error: 'Credit remaining balance cannot be increased above its unapplied amount.' });
         }
       }
     }

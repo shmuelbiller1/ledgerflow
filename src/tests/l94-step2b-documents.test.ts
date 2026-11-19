@@ -187,24 +187,6 @@ describe('L94-STEP2B: credit notes, vendor credits and deletes posted by the ser
     assert.ok((await db.collection('vendorCredits').doc(vcId).get()).exists);
   });
 
-  // Gitar on #929: a total-only edit of an unapplied credit moves its remaining balance with it
-  test('an unapplied credit edited by total alone keeps nothing applied', async () => {
-    const cnId = `${ws}_free_cn`;
-    await db.collection('creditNotes').doc(cnId).set({ id: cnId, workspaceId: ws, number: 'CN-FREE', customerId: 'c1', customerName: 'Acme', date: '2026-10-21', status: 'open', currency: 'USD', exchangeRate: 1, amountCents: 10_000, remainingCents: 10_000, taxAmountCents: 0, taxVersion: 2 });
-    const up = await command('creditnote.update', { id: cnId, data: { amountCents: 12_000 } });
-    assert.equal(up.status, 200, JSON.stringify(up.body));
-    let stored = (await db.collection('creditNotes').doc(cnId).get()).data();
-    assert.equal(stored?.amountCents, 12_000);
-    assert.equal(stored?.remainingCents, 12_000);
-    const down = await command('creditnote.update', { id: cnId, data: { amountCents: 8_000 } });
-    assert.equal(down.status, 200, JSON.stringify(down.body));
-    stored = (await db.collection('creditNotes').doc(cnId).get()).data();
-    assert.equal(stored?.remainingCents, 8_000);
-    const mismatch = await command('creditnote.update', { id: cnId, data: { amountCents: 9_000, remainingCents: 5_000 } });
-    assert.equal(mismatch.status, 409, JSON.stringify(mismatch.body));
-    assert.ok((await command('creditnote.delete', { id: cnId })).status < 300);
-  });
-
   test('INV-1 deleted: its entry reversed on the server, A/R nets to −110.00 (CN-1 alone), the deletion in the audit trail', async () => {
     const expected = postingFingerprint(await browserBuild(c => deletePostings(inv1, 'invoiceId', ws, { collection: 'invoices', docId: inv1, action: 'delete' }, c)));
     const res = await post('invoices', inv1, 'delete');

@@ -61,6 +61,23 @@ describe('audit F1/F2: credit postings', { skip: !url }, () => {
     });
   });
 
+  // #775 and Gitar on #929: the applied part of a credit stays the same across an edit
+  test('a total-only edit moves the remaining balance; once applied, the total is fixed', async () => {
+    await isolated(async (db, ws) => {
+      const id = `${ws}_cn`;
+      const update = (data: Record<string, unknown>) => postDocument(db, { uid: 'owner' } as never,
+        { collection: 'creditNotes', docId: id, workspaceId: ws, action: 'update', data: { workspaceId: ws, ...data } } as never);
+      const stored = async () => (await db.collection('creditNotes').doc(id).get()).data();
+      await postDocument(db, { uid: 'owner' } as never, credit(ws, id, 'open'));
+      await update({ amountCents: 12000 });
+      assert.equal((await stored())?.remainingCents, 12000, 'nothing applied, so the remaining balance follows the total');
+      await assert.rejects(update({ remainingCents: 15000 }), /above its unapplied amount/);
+      await update({ remainingCents: 4000 });
+      await assert.rejects(update({ amountCents: 9000 }), /already applied/);
+      assert.equal((await stored())?.amountCents, 12000);
+    });
+  });
+
   test('F1: an applied credit cannot go back to draft', async () => {
     await isolated(async (db, ws) => {
       const id = `${ws}_cn`;
