@@ -14,6 +14,7 @@
  * the true signed percentage.
  */
 import { stubFetch } from './helpers/dom';
+import { setLoadedAccountReportWorkspace } from './helpers/componentFixtures';
 import test, { afterEach, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -62,6 +63,7 @@ describe('share bars clamp to [0,100] (#909)', () => {
   afterEach(() => cleanup());
 
   test('Expense by Category: refund bar is empty, >100% bar fills exactly one track', () => {
+    setLoadedAccountReportWorkspace();
     useLedgerStore.setState({ accounts: expenseAccounts, transactions: expenseLedger });
     render(<ExpenseByCategoryReportView selectedYear={2026} />);
     const [rent, rebate] = barWidths(/Expenses by category/);
@@ -74,6 +76,7 @@ describe('share bars clamp to [0,100] (#909)', () => {
   });
 
   test('Income by Source: credit bar is empty, >100% bar fills exactly one track', () => {
+    setLoadedAccountReportWorkspace();
     useLedgerStore.setState({ accounts: incomeAccounts, transactions: incomeLedger });
     render(<IncomeBySourceReportView selectedYear={2026} />);
     const [acme, bob] = barWidths(/Income by source/);

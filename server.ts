@@ -20,7 +20,7 @@ import { fxRouter } from "./src/server/routes/fxRoutes";
 import { aiRouter } from "./src/server/routes/aiRoutes";
 import { reportRouter, balanceRouter } from "./src/server/routes/reportRoutes";
 import { accountRouter } from "./src/server/routes/accountRoutes";
-import { workspaceRouter } from "./src/server/routes/workspaceRoutes";
+import { workspaceRouter } from "./src/server/routes/workspaceRoutes"; import { registerSandboxRoutes } from "./src/server/routes/sandboxRoutes";
 import { invitePublicRouter } from "./src/server/routes/invitePublicRoutes";
 import { emailWebhookRouter } from "./src/server/routes/emailRoutes";
 import { publicInvoiceRouter } from "./src/server/routes/publicInvoiceRoutes";
@@ -130,9 +130,9 @@ async function buildApp(): Promise<{ app: express.Express; port: number }> {
 
   registerLabelingRoutes(app, routeContext);
   registerAuthRoutes(app, routeContext);
-
   // Mount kernel routes
   app.use("/api/v1/reports", apiAuthenticate, reportRouter);
+  registerSandboxRoutes(app, apiAuthenticate); // SBX-1: before /api/v1/workspaces, which would otherwise answer 404 for the sandbox addresses
   app.use("/api/v1/workspaces", apiAuthenticate, workspaceRouter);
   app.use("/api/v1/account", apiAuthenticate, accountRouter);
   app.use("/api/v1/commands", apiAuthenticate, commandRouter).use("/api/v1/transactions", apiAuthenticate, transactionRouter);

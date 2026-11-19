@@ -10,7 +10,7 @@ import multer from "multer";
 import type { ChartAccount, Transaction as LedgerTransaction } from "../../types";
 import { errorMessage, requestUser } from "../auth/requestUser";
 import { LEDGER_WRITER_ROLES, roleInWorkspace } from "../middleware/requireLedgerWriter";
-import { getShardedCounterValue } from "../services/shardedCounterService";
+import { assertDeveloperUsageQuota } from "../services/developerUsageQuota";
 import { writeServerAuditLog } from "../services/auditLogService";
 import { SecurityService } from "../../services/securityService";
 import { assertWorkspaceAccess, getDb } from "../db/firestore";
@@ -207,22 +207,7 @@ export async function authorizeWorkspace(req: AuthenticatedRequest, workspaceId:
       }
       const isCreditSensitive = isMutation || url.includes("/brain/");
 
-      // ACC-1 (Codex on #460): free access given by LedgerFlow lifts the credit and spending gates too
-      if (isCreditSensitive && data?.bypassBilling !== true) {
-        // 2. Compute credit balance checking
-        const baseline = data?.computeCreditBalance !== undefined ? Number(data.computeCreditBalance) : 100000;
-        const creditBalance = await getShardedCounterValue(db, workspaceId, 'computeCreditBalance', baseline);
-        if (creditBalance <= 0) {
-          throw new Error("PAYMENT_REQUIRED: This workspace has exhausted its compute credit balance (0 left). Please upgrade your plan or top up in settings.");
-        }
-
-        // 3. API Quota dollar limit enforcement
-        const quotaLimitCents = data?.apiQuotaMonthlyLimitCents !== undefined ? Number(data.apiQuotaMonthlyLimitCents) : 0;
-        const quotaUsedCents = data?.apiQuotaTotalCentsUsed !== undefined ? Number(data.apiQuotaTotalCentsUsed) : 0;
-        if (quotaLimitCents > 0 && quotaUsedCents >= quotaLimitCents) {
-          throw new Error("QUOTA_EXCEEDED: Workspace monthly spending quota limit exceeded. Please configure custom plan limits with your administrator.");
-        }
-      }
+      if (isCreditSensitive) await assertDeveloperUsageQuota(db, workspaceId, data);
     }
     
     return data;

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { mayRemoveAttachment } from '../../lib/attachments';
+import { CommandRefusal } from '../utils/commandExecutor';
 import { HttpError } from '../auth/requestUser';
 import type { CommandContext, CommandDefinition } from './types';
 
@@ -104,5 +106,57 @@ export const documentSaveCommand: CommandDefinition<typeof documentSaveInput, Do
       { code: 'ROLE_REQUIRED', when: 'The caller is a viewer.', next: 'Ask an owner, accountant or bookkeeper to keep the file.' },
     ],
     next: [{ command: 'bill.create', label: 'Record the bill it supports' }],
+  },
+};
+
+const documentRemoveInput = z.object({ id: z.string().min(1).describe('Id of the attachment row, not the linked record') }).strict();
+type AttachmentRow = { uid?: string; workspaceId?: string; name?: string; linkedCollection?: string; linkedId?: string; linkedLabel?: string };
+type RemovedAttachment = { id: string; file: Omit<AttachmentRow, 'uid' | 'workspaceId'> };
+
+function checkRemoval(ctx: Pick<CommandContext, 'workspaceId' | 'role' | 'actor'>, file: AttachmentRow | undefined) {
+  if (!file || file.workspaceId !== ctx.workspaceId) {
+    throw new CommandRefusal('That file is not in this workspace (already removed?)', 404, 'NOT_FOUND');
+  }
+  if (!mayRemoveAttachment(ctx.role, ctx.actor, { uid: String(file.uid || '') })) {
+    throw new CommandRefusal('Only the person who added it, or an owner, accountant or bookkeeper, can remove it', 403, 'NOT_UPLOADER');
+  }
+  return file;
+}
+
+export const documentRemoveCommand: CommandDefinition<typeof documentRemoveInput, RemovedAttachment> = {
+  name: 'document.remove',
+  input: documentRemoveInput,
+  peopleOnly: true,
+  roles: [...ROLES, 'viewer'],
+  async handler(ctx, tx, { id }) {
+    const ref = ctx.db.collection('documents').doc(id);
+    const { name, linkedCollection, linkedId, linkedLabel } = checkRemoval(ctx, (await tx.get(ref)).data() as AttachmentRow | undefined);
+    tx.delete(ref);
+    return { id, file: { name, linkedCollection, linkedId, linkedLabel } };
+  },
+  async preview(ctx, { id }) {
+    const file = checkRemoval(ctx, (await ctx.db.collection('documents').doc(id).get()).data() as AttachmentRow | undefined);
+    return {
+      title: `Remove the file “${file.name || id}”`,
+      lines: [file.linkedLabel ? `From ${file.linkedLabel}` : 'From the workspace files', 'The related record and its ledger entries are not removed.'],
+    };
+  },
+  audit(_input, { id, file }) {
+    return {
+      action: 'attachment.removed',
+      entityType: file.linkedCollection || 'documents',
+      entityId: file.linkedId || id,
+      description: `Removed the file "${file.name || id}"${file.linkedLabel ? ` from ${file.linkedLabel}` : ''}`,
+      details: { attachmentId: id, name: file.name || null },
+    };
+  },
+  risk: 'normal',
+  describe: {
+    sentence: 'Remove a file from the workspace or its linked record; this does not delete the invoice, bill or other record itself.',
+    example: { id: 'attachment_1' },
+    refusals: [
+      { code: 'NOT_FOUND', when: 'The file is not in the current workspace, or was already removed.', next: 'Reload the workspace’s files.' },
+      { code: 'NOT_UPLOADER', when: 'A viewer tries to remove someone else’s file.', next: 'Ask the uploader or a workspace writer to remove it.' },
+    ],
   },
 };

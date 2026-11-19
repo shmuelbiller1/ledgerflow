@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { runCommand } from '../lib/runCommand';
 
 /**
@@ -32,7 +32,10 @@ export function useServerOperationalReport<T>(
   requestKey: string,
   extract: (body: Record<string, unknown>) => T | undefined,
 ): T | null {
-  const [state, setState] = useState<{ key: string; value: T } | null>(null);
+  // Returning to the same dates, or hitting the cap again, starts a new read. A success
+  // from its previous activation must not authorize an export while this read is pending or refused.
+  const request = useMemo(() => enabled && url ? { url, requestKey } : null, [enabled, url, requestKey]);
+  const [state, setState] = useState<{ request: NonNullable<typeof request>; value: T } | null>(null);
   const extractRef = useRef(extract);
 
   useEffect(() => {
@@ -41,15 +44,15 @@ export function useServerOperationalReport<T>(
 
   useEffect(() => {
     let cancelled = false;
-    if (!enabled || !url || typeof fetch !== 'function') return;
+    if (!request || typeof fetch !== 'function') return;
     void (async () => {
       try {
         // the token is `runCommand`'s business; a refusal or a cut connection both mean "keep the provisional rows"
-        const body = await runCommand<Record<string, unknown>>({ path: url, signal: undefined });
+        const body = await runCommand<Record<string, unknown>>({ path: request.url });
         if (cancelled) return;
         const next = body && typeof body === 'object' ? extractRef.current(body) : undefined;
         if (!cancelled && next !== undefined) {
-          setState({ key: requestKey, value: next });
+          setState({ request, value: next });
         }
       } catch {
         // best-effort: retain provisional browser rows when server report cannot be loaded
@@ -58,7 +61,7 @@ export function useServerOperationalReport<T>(
     return () => {
       cancelled = true;
     };
-  }, [enabled, url, requestKey]);
+  }, [request]);
 
-  return enabled && state?.key === requestKey ? state.value : null;
+  return state?.request === request ? state.value : null;
 }
