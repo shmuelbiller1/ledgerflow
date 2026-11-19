@@ -9,6 +9,7 @@ import { formatCurrency } from '../../lib/utils';
 import { PieChart } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
+import { CappedCollectionsNote } from '../common/LoadedEntriesOnlyNote';
 import { csvMoney } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -66,6 +67,8 @@ const LoadedReport: React.FC<Props> = ({
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto p-4 sm:p-6" id="expense-by-category-report">
+      {/* R-8: read from the bills loaded in this browser: say so when that list is capped */}
+      <CappedCollectionsNote testId="expense-by-category-capped" keys={['bills', 'accounts']} what={reportText('r.this-report-lower', 'this report')} />
       <div className="flex items-center justify-between border-b border-neutral-200 pb-4">
         <div>
           <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
