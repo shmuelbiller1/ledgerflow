@@ -574,12 +574,24 @@ export default function Vault() {
                     referrerPolicy="no-referrer"
                   />
                 ) : selectedKind === 'pdf' && selectedSafeUrl ? (
-                  <iframe
-                    src={selectedSafeUrl}
-                    title={`Preview ${selectedDoc.name}`}
-                    sandbox=""
-                    className="w-full h-[36rem] rounded-2xl border border-[var(--line)] bg-white shadow-sm"
-                  />
+                  <div className="w-full flex flex-col items-center gap-4">
+                    <iframe
+                      src={selectedSafeUrl}
+                      title={`Preview ${selectedDoc.name}`}
+                      sandbox=""
+                      className="w-full h-[34rem] rounded-2xl border border-[var(--line)] bg-white shadow-sm"
+                    />
+                    <a
+                      href={selectedSafeUrl}
+                      download={selectedDoc.name}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="h-11 px-6 bg-slate-900 text-white rounded-[32px] inline-flex items-center gap-2 font-black text-xs uppercase tracking-widest hover:bg-black shadow-md"
+                    >
+                      <Download aria-hidden="true" size={16} />
+                      Export to Reader
+                    </a>
+                  </div>
                 ) : (
                   <div className="text-center space-y-6">
                     <div className="w-24 h-24 bg-[var(--surface)] rounded-[32px] flex items-center justify-center text-slate-200 mx-auto shadow-sm">

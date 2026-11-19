@@ -147,6 +147,8 @@ describe('J-7 Documents screen UI', () => {
     const frame = screen.getByTitle('Preview signed-contract.pdf') as HTMLIFrameElement;
     assert.equal(frame.tagName, 'IFRAME');
     assert.equal(frame.getAttribute('sandbox'), '');
+    const pdfDownload = screen.getByRole('link', { name: /Export to Reader/i });
+    assert.equal(pdfDownload.getAttribute('href'), 'data:application/pdf;base64,JVBERi0xLjQK');
     assert.ok(screen.getByText('CERTIFIED LINK'));
     assert.ok(screen.getAllByText('Belongs to Invoice INV-104').length >= 1);
     fireEvent.click(screen.getByRole('button', { name: 'Close document details' }));
