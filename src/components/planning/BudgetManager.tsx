@@ -37,6 +37,7 @@ import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { percentWidthStyle } from '../../lib/percentBar';
 
 
 
@@ -271,7 +272,7 @@ export default function BudgetManager() {
                 <div className="relative h-4 bg-[var(--ink)] rounded-full overflow-hidden border border-[var(--line)]">
                   <motion.div 
                     initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(b.percentUsed, 100)}%` }}
+                    animate={percentWidthStyle(b.percentUsed)}
                     transition={{ duration: 1, ease: "easeOut" }}
                     className={cn(
                       "absolute inset-y-0 left-0 transition-colors",
