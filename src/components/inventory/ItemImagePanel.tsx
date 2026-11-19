@@ -7,6 +7,7 @@ import { type Attachment, MAX_ATTACHMENT_BYTES, formatBytes, mayRemoveAttachment
 import { ITEM_IMAGE_MIME_TYPES, itemImageProblem, itemImages, latestItemImage } from '../../lib/itemImages';
 import { attachFiles, attachSummary, loadAttachments, removeAttachment } from '../../services/attachmentActions';
 import { safeConfirm } from '../../lib/utils';
+import { safeEmbeddedDocumentUrl } from '../../lib/documentUrl';
 
 /** One optional, non-financial reference image for a saved inventory item. */
 export default function ItemImagePanel({
@@ -111,7 +112,9 @@ export default function ItemImagePanel({
       {!isGuest && !isCurrentWorkspace && <p role="alert" className="text-sm text-rose-700">This item belongs to a different workspace. Reopen it from the current workspace to manage its image.</p>}
       {loading ? <p className="text-sm text-[var(--muted)]">Loading item image…</p> : image ? (
         <div className="flex flex-wrap items-center gap-3">
-          <img src={image.fileUrl} alt={itemName} className="h-24 w-24 rounded-lg border border-[var(--line)] bg-[var(--panel)] object-contain" />
+          {safeEmbeddedDocumentUrl(image.fileUrl)
+            ? <img src={safeEmbeddedDocumentUrl(image.fileUrl) as string} alt={itemName} className="h-24 w-24 rounded-lg border border-[var(--line)] bg-[var(--panel)] object-contain" />
+            : <p role="alert" className="text-xs text-rose-700">This image has an address that is not a stored image or an https link, so it is not shown. Remove it and attach it again.</p>}
           <div className="flex flex-col gap-2">
             <span className="max-w-60 truncate text-xs text-[var(--muted)]" title={image.name}><bdi>{image.name}</bdi></span>
             {canWrite && isCurrentWorkspace && (
@@ -182,7 +185,9 @@ export function ItemImageThumb({ itemId, itemName, workspaceId, refreshKey = 0 }
 
   return (
     <span ref={ref} className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[var(--line)] bg-[var(--panel)] align-middle">
-      {image ? <img src={image.fileUrl} alt={itemName} loading="lazy" className="h-full w-full object-cover" /> : <ImagePlus aria-hidden="true" size={16} className="text-[var(--muted)]" />}
+      {image && safeEmbeddedDocumentUrl(image.fileUrl)
+        ? <img src={safeEmbeddedDocumentUrl(image.fileUrl) as string} alt={itemName} loading="lazy" className="h-full w-full object-cover" />
+        : <ImagePlus aria-hidden="true" size={16} className="text-[var(--muted)]" />}
     </span>
   );
 }
