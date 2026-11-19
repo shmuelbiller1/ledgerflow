@@ -1,3 +1,4 @@
+import { checkDocumentTrends } from './support/documentTrendsJourney';
 import { checkComparisonReports } from './support/reportRowTableJourney';
 import { installSmallSample } from './helpers/sampleFixture';
 import { test, expect } from '@playwright/test';
@@ -125,5 +126,8 @@ for (const width of [1280, 390]) for (const theme of ['light', 'dark'] as const)
 for (const width of [390, 1280]) for (const theme of ['light', 'dark'] as const) {
   test(`visual comparison reports ${width} ${theme}`, async ({ page }) => {
     await checkComparisonReports(page, width, theme);
+  });
+  test(`visual document trends ${width} ${theme}`, async ({ page }) => {
+    await checkDocumentTrends(page, width, theme);
   });
 }

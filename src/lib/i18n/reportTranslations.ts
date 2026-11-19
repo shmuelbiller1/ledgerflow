@@ -130,6 +130,8 @@ export const REPORTS_TRANSLATION_BUNDLE: ScreenTranslationBundle = {
     { key: 'r.these-trends', en: 'these trends', he: 'המגמות האלה' },
     { key: 'r.the-previous-period-trends', en: 'the previous-period trends', he: 'מגמות התקופה הקודמת' },
     { key: 'r.12-months-through', en: ': 12 months through', he: ': 12 חודשים עד' },
+    { key: 'r.open-sales', en: 'Open Sales', he: 'פתיחת מכירות' },
+    { key: 'r.open-purchases', en: 'Open Purchases', he: 'פתיחת רכישות' },
     { key: 'r.window', en: 'Window', he: 'חלון' },
     { key: 'r.month', en: 'Month', he: 'חודש' },
     { key: 'r.amount', en: 'Amount', he: 'סכום' },
