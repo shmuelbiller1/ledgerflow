@@ -128,6 +128,32 @@ describe('Bill dialog', () => {
     assert.equal(saved[0].id, 'b1');
   });
 
+  test('A8-034: a bookkeeper is not offered the approval decision; an accountant and a named delegate are', async () => {
+    const before = useAuthStore.getState();
+    const workspace = { id: 'w1', name: 'W', currency: 'USD', uid: 'owner', roles: { book: 'bookkeeper', acc: 'accountant', del: 'bookkeeper' } } as unknown as Workspace;
+    const as = (uid: string) => useAuthStore.setState({ currentWorkspaceId: 'w1', workspaces: [workspace], user: { uid, email: `${uid}@example.test` } as never });
+    const pending = { id: 'b1', number: 'B-702', vendorId: 'v1', vendorName: 'Paper Co', status: 'pending' as const, date: '2026-09-01', dueDate: '2026-09-30', splits: [{ amountCents: 2500, accountId: 'exp', description: 'Paper' }] };
+
+    as('book');
+    setup(pending);
+    assert.equal(screen.queryByText('Approve Bill'), null, 'a bookkeeper may not approve a bill');
+    assert.ok(screen.getByText('An owner or accountant approves a bill'), 'the dialog says who decides');
+    cleanup();
+
+    as('acc');
+    setup(pending);
+    assert.ok(screen.getByText('Approve Bill'), 'an accountant approves');
+    cleanup();
+
+    // BG-07: a bookkeeper named to approve in an accountant's place may decide until that day
+    as('del');
+    useAuthStore.setState({ workspaces: [{ ...workspace, approvalDelegates: [{ from: 'acc', to: 'del', until: '2999-12-31' }] } as never] });
+    setup(pending);
+    assert.ok(screen.getByText('Approve Bill'), 'a delegate approves in place');
+    // the auth store is shared by the whole file: put the signed-in identity back
+    useAuthStore.setState({ user: before.user, workspaces: before.workspaces, currentWorkspaceId: before.currentWorkspaceId });
+  });
+
   test('an edited bill keeps its number (no new number is asked for); no vendor, no save', async () => {
     const saved = setup({ id: 'b1', number: 'A-100', vendorId: 'v1', vendorName: 'Paper Co', status: 'pending', date: '2026-09-01', dueDate: '2026-09-30', splits: [{ amountCents: 2500, accountId: 'exp', description: 'Ink' }] });
     await click('Save & Close');

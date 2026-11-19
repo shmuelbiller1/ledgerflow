@@ -21,6 +21,8 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { nextDocumentNumber } from '../../services/documentNumbers';
 import AsyncButton from '../ui/AsyncButton';
 import { evaluateApprovalRequirement } from '../../lib/approvalWorkflow';
+import { workspaceRole } from '../../lib/periodLock';
+import { approvesInPlace } from '../../lib/approvalDelegation';
 import { addComment } from '../../lib/commentService';
 import { documentTotals, taxCodeFromRate, TAX_TREATMENTS } from '../../lib/taxCodes';
 import { formatCurrency, getLocalDateISO, safeConfirm } from '../../lib/utils';
@@ -56,6 +58,15 @@ const copyLine = (s: NonNullable<Bill['splits']>[number], keepOrder = true) => (
 /** Modal form for creating or editing a vendor bill and its line-level accounts, stock items, and dimension labels. */
 export default function BillModal({ isOpen, onClose, onSave, vendors = [], accounts = [], initialBill }: BillModalProps) {
   const isGuest = useAuthStore(s => s.isGuest && !s.user);
+  // Payables parity with invoices (BE-04/A8-034): only an owner or an accountant signs a bill off, plus
+  // whoever an approver named to act in their place until a date (BG-07). The server does not enforce this
+  // for bills yet (A8-029), so the dialog must not offer the decision to a role that may not make it.
+  const workspace = useAuthStore(s => s.getCurrentWorkspace());
+  const uid = useAuthStore(s => s.user?.uid);
+  // Nobody signed in (demo, guest, fixture) has no role to judge: keep the button as it was and let the
+  // server decide. A signed-in member is held to the approver roles, or a delegation made to them.
+  const mayApproveBill = !uid || isGuest || ['owner', 'accountant'].includes(workspaceRole(workspace, uid))
+    || Boolean(approvesInPlace(workspace, uid, getLocalDateISO()));
   // Ensure we have arrays even if props were passed as null
   // archived contacts aren't offered for new documents; one already on this document stays (I-22)
   const safeVendors = (Array.isArray(vendors) ? vendors : []).filter(c => !isArchivedParty(c) || c.id === initialBill?.vendorId);
@@ -606,15 +617,19 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
               <Save size={16} />
               Save & Close
             </AsyncButton>
-            <AsyncButton
-              type="button"
-              disabled={isSubmitting}
-              onClick={(e) => handleAction(e, 'approved')}
-              loadingText="Approving..."
-              className="min-h-11 px-4 sm:px-6 py-3 bg-transparent border border-emerald-600 text-emerald-700 dark:text-emerald-400 rounded-[32px] font-medium uppercase tracking-wider text-[10px] hover:bg-emerald-600/10 transition-all flex items-center justify-center gap-2"
-            >
-              Approve Bill
-            </AsyncButton>
+            {mayApproveBill ? (
+              <AsyncButton
+                type="button"
+                disabled={isSubmitting}
+                onClick={(e) => handleAction(e, 'approved')}
+                loadingText="Approving..."
+                className="min-h-11 px-4 sm:px-6 py-3 bg-transparent border border-emerald-600 text-emerald-700 dark:text-emerald-400 rounded-[32px] font-medium uppercase tracking-wider text-[10px] hover:bg-emerald-600/10 transition-all flex items-center justify-center gap-2"
+              >
+                Approve Bill
+              </AsyncButton>
+            ) : (
+              <p className="self-center text-[10px] font-medium text-[var(--muted)]">An owner or accountant approves a bill</p>
+            )}
           </div>
         </div>
       </motion.div>

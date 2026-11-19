@@ -17,6 +17,7 @@ evidence delivered, deliberately not patched (owned by another agent's lane, or 
 | A8-031 | High | Confirmed bug | **Fixed** (PR #911) | G-19 / #893 pending-bill approval loop |
 | A8-032 | Medium | Confirmed bug | **Fixed** (PR #911) | #909 negative share bars |
 | A8-033 | Low | Robustness | Reported | Project split-rule percentages |
+| A8-034 | Medium | Confirmed bug (UI authorization) | **Fixed** (PR #911) | Bill dialog offered approval to every role |
 
 ---
 
@@ -176,6 +177,25 @@ Acme 27,680 + Bob −2,345 (net 25,335 → 109.3 % / −9.3 %). Asserts the trac
 payout), and clamp the bar. Revisit before any partner-distribution feature ships.
 
 ---
+
+## A8-034 — Medium — the bill dialog offered the approval decision to every role — **FIXED**
+
+**Location:** `src/components/purchases/BillModal.tsx:58-66` (gate) and the action row (the *Approve Bill*
+button), test `src/tests/bill-modal.test.tsx` → “A8-034: a bookkeeper is not offered the approval decision; an
+accountant and a named delegate are”.
+
+**Defect:** invoices refuse to show the decision to someone who may not make it
+(`InvoiceApprovalFlag` → `canDecide` / `approvesInPlace` / `mayApprove`), but the bill dialog rendered
+**Approve Bill** to everyone — a viewer opening a bill saw an approval button, and a bookkeeper could sign off a
+bill they entered. Combined with A8-029 (no server guard for bills) nothing else stopped them.
+
+**Fix:** the dialog now offers *Approve Bill* only to an owner or an accountant, or to someone named to approve
+in their place until a date (`approvesInPlace`, BG-07). Guests/demo workspaces keep the button; every other
+role sees “An owner or accountant approves a bill” instead. This is UI parity with the invoice surface — it is
+**not** authorization, which must land server-side (A8-029).
+
+**Test:** bookkeeper → no button and the explanatory text; accountant → button; delegated bookkeeper → button.
+Passes with the change; the file fails on the unfixed component.
 
 ## Verified — not defects (checked and dismissed, recorded so they are not re-reported)
 
