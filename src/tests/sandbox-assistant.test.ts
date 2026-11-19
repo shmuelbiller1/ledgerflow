@@ -196,6 +196,9 @@ describe('SBX-1 assistant token, read tools and routes (PostgreSQL)', { skip: !u
     assert.equal(personPl.json.netIncome, 12_500);
     const personRecords = await f.person('GET', '/records/customers?orderBy=name');
     assert.equal((personRecords.json.records as unknown[]).length, 1);
+    const malformedWhere = await f.person('GET', '/records/customers?where=%7Bbroken');
+    assert.equal(malformedWhere.status, 400, JSON.stringify(malformedWhere.json));
+    assert.equal(malformedWhere.json.code, 'INVALID_INPUT');
     const personRecord = await f.person('GET', `/records/customers/${customerId}`);
     assert.equal((personRecord.json.record as { name: string }).name, 'Acme Design');
 
@@ -247,12 +250,16 @@ describe('SBX-1 assistant token, read tools and routes (PostgreSQL)', { skip: !u
     assert.equal(await f.count('auditLogs'), 1);
 
     assert.equal((await f.person('POST', `/steps/${b}/undo`)).status, 409, 'a rejected step has nothing to undo');
-    const undone = await f.person('POST', `/steps/${a}/undo`);
-    assert.equal(undone.status, 200, JSON.stringify(undone.json));
-    assert.equal((undone.json.step as { state: string }).state, 'undone');
+    const undoRequests = await Promise.all([
+      f.person('POST', `/steps/${a}/undo`),
+      f.person('POST', `/steps/${a}/undo`),
+    ]);
+    assert.deepEqual(undoRequests.map(result => result.status).sort(), [200, 409], 'only one concurrent request claims the inverse');
+    const undone = undoRequests.find(result => result.status === 200)!;
+    assert.equal(undone.json.step && (undone.json.step as { state: string }).state, 'undone');
     assert.equal((await live.doc(`documents/${step.inverse!.input.taskId}`).get()).exists, false);
-    assert.equal(await f.count('auditLogs'), 2, 'undo is an ordinary audited command');
-    assert.equal((await f.person('POST', `/steps/${a}/undo`)).status, 409, 'undo runs once');
+    assert.equal(await f.count('auditLogs'), 2, 'undo is an ordinary audited command and runs once');
+    assert.equal((await f.person('POST', `/steps/${a}/undo`)).status, 409, 'an undone step cannot run again');
     const after = await f.person('GET', '');
     assert.deepEqual((after.json.steps as Array<{ id: string; state: string }>).map(s => [s.id, s.state]), [[b, 'rejected'], [a, 'undone']]);
   });

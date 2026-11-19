@@ -258,9 +258,9 @@ export async function reviewSandbox(req: Request, scope: Scope, intent: SandboxR
 }
 
 /**
- * Undo after accepting (CMD-1 part 3): the inverse each accepted step recorded runs as an ordinary
- * command through the central runner, with every one of its checks, as the person. The step is then
- * marked `undone`. Nothing here reads or writes the overlay; an assistant token is refused.
+ * Undo after accepting (CMD-1 part 3): claim the step under the sandbox lock, then run its recorded
+ * inverse as the person through the central command runner. Restore `accepted` if the inverse fails.
+ * Nothing here reads or writes the overlay; an assistant token is refused.
  */
 export async function undoSandboxStep(req: Request, scope: Scope, stepId: string, db: Firestore = getDb()): Promise<{ step: StoredStep; outcome: CommandExecutionOutcome }> {
   const user = person(req);
@@ -269,23 +269,35 @@ export async function undoSandboxStep(req: Request, scope: Scope, stepId: string
   try { id = validateSandboxId(scope.sandboxId); }
   catch { throw new CommandRefusal('Expected a sandbox id', 400, 'INVALID_SANDBOX_ID'); }
   const binding = { id, workspaceId: scope.workspaceId, personId: user.uid };
-  const step = await db[sandboxBatch](async batch => {
+  const { step, inverse, definition } = await db[sandboxBatch](async batch => {
     await requireLiveAccess(batch, user, binding.workspaceId);
     if (!await lockBinding(batch.runner, binding)) throw new CommandRefusal('No open sandbox belongs to you in this workspace', 404, 'SANDBOX_NOT_FOUND');
     const found = (await stepsOf(batch.runner, id)).find(row => row.id === stepId);
     if (!found) throw new CommandRefusal('Choose an existing step', 404, 'SANDBOX_STEP_NOT_FOUND');
     if (found.state !== 'accepted') throw new CommandRefusal('Only an accepted step can be undone', 409, 'SANDBOX_STEP_NOT_ACCEPTED', { state: found.state });
     if (!found.inverse) throw new CommandRefusal('This step recorded no inverse; undo it by hand', 409, 'SANDBOX_NO_INVERSE');
-    return found;
+    const inverse = found.inverse;
+    const definition = commandRegistry.get(inverse.command);
+    if (!definition) throw new CommandRefusal(`Unknown command: ${inverse.command}`, 409, 'COMMAND_NOT_FOUND');
+    await saveStep(batch.runner, id, { ...found, state: 'undone', failureReason: null });
+    return { step: found, inverse, definition };
   });
-  const definition = commandRegistry.get(step.inverse!.command);
-  if (!definition) throw new CommandRefusal(`Unknown command: ${step.inverse!.command}`, 409, 'COMMAND_NOT_FOUND');
-  const outcome = await runRegisteredCommand(req, { definition, workspaceId: binding.workspaceId, input: step.inverse!.input }, { getDb: () => db });
-  if (!outcome.ok) return { step, outcome };
-  const undone: StoredStep = { ...step, state: 'undone', failureReason: null };
-  await db[sandboxBatch](async batch => {
+  const restoreAccepted = async () => db[sandboxBatch](async batch => {
     if (!await lockBinding(batch.runner, binding)) throw new CommandRefusal('No open sandbox belongs to you in this workspace', 404, 'SANDBOX_NOT_FOUND');
-    await saveStep(batch.runner, id, undone);
+    const current = (await stepsOf(batch.runner, id)).find(row => row.id === stepId);
+    if (current?.state === 'undone') await saveStep(batch.runner, id, { ...step, state: 'accepted', failureReason: null });
   });
+  let outcome: CommandExecutionOutcome;
+  try {
+    outcome = await runRegisteredCommand(req, { definition, workspaceId: binding.workspaceId, input: inverse.input }, { getDb: () => db });
+  } catch (err) {
+    await restoreAccepted();
+    throw err;
+  }
+  if (!outcome.ok) {
+    await restoreAccepted();
+    return { step, outcome };
+  }
+  const undone: StoredStep = { ...step, state: 'undone', failureReason: null };
   return { step: undone, outcome };
 }

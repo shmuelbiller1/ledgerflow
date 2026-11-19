@@ -116,7 +116,11 @@ function toolRoutes(router: express.Router, live: Firestore) {
   router.get('/:sandboxId/records/:collection', guarded(async (req, res) => {
     const { books, workspaceId } = await readableSandbox(live, req);
     const q = req.query as Record<string, unknown>;
-    const where = typeof q.where === 'string' ? JSON.parse(q.where) : undefined;
+    let where: unknown;
+    if (typeof q.where === 'string') {
+      try { where = JSON.parse(q.where); }
+      catch { throw new CommandRefusal('`where` must be JSON', 400, 'INVALID_INPUT'); }
+    }
     const orderBy = typeof q.orderBy === 'string' ? { field: q.orderBy, direction: q.direction === 'desc' ? 'desc' : 'asc' } : undefined;
     res.json(await listRecords(books, workspaceId, {
       collection: param(req, 'collection'), ...(where ? { where } : {}), ...(orderBy ? { orderBy } : {}),
