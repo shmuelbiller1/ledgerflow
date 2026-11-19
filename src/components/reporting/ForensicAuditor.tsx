@@ -11,9 +11,16 @@ import { toast } from 'sonner';
 import { useTimeout } from '../../hooks/useTimeout';
 
 import { BRAND_NAME } from '../../config/brand';
+import { useReportText, fill } from './useReportText';
+
+/** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
+const CODE_NAMES = { c0: '0.05' } as const;
+
+
 const BENFORD_DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: boolean }) {
+  const reportText = useReportText();
   const transactions = useLedgerStore(s => s.transactions);
   const capped = useLedgerStore(s => Boolean(s.truncatedCollections?.transactions));
   const [isRunning, setIsRunning] = useState(false);
@@ -89,11 +96,11 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
         document.body.removeChild(link);
         
         toast.success("Audit Log Downloaded!", {
-          description: "Your full transactional integrity audit trail has been generated and exported."
+          description: reportText('r.your-full-transactional-integrity-audit-trail-ha', 'Your full transactional integrity audit trail has been generated and exported.')
         });
       } catch (err) {
         toast.error("Could not generate audit report.", { 
-          description: `Please try again. (${(err as Error)?.message || 'Unknown network error'})`
+          description: fill(reportText('r.please-try-again-0', 'Please try again. ({0})'), { 0: (err as Error)?.message || 'Unknown network error' })
         });
       } finally {
         setIsRunning(false);
@@ -106,7 +113,7 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
       "bg-[var(--surface)] relative overflow-hidden group",
       isEmbedded ? "p-0" : "p-12 border border-[var(--line)] rounded-[32px]"
     )}>
-      <LoadedEntriesOnlyNote testId="forensic-auditor-loaded-only" what="these scans" />
+      <LoadedEntriesOnlyNote testId="forensic-auditor-loaded-only" what={reportText('r.these-scans', 'these scans')} />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_100%_100%,rgba(249,115,22,0.03),transparent_70%)] pointer-events-none" />
       
       <div className="relative z-10">
@@ -116,8 +123,8 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
               <ShieldAlert size={24} />
             </div>
             <div>
-              <h2 className="text-lg font-bold tracking-tight text-[var(--text)] leading-none">Forensic Protocol</h2>
-              <span className="text-[10px] font-mono text-[var(--muted)] uppercase tracking-widest mt-1.5 block">Logarithmic Digits Divergence Filter (Benford v2.1)</span>
+              <h2 className="text-lg font-bold tracking-tight text-[var(--text)] leading-none">{reportText('r.forensic-protocol', 'Forensic Protocol')}</h2>
+              <span className="text-[10px] font-mono text-[var(--muted)] uppercase tracking-widest mt-1.5 block">{reportText('r.logarithmic-digits-divergence-filter-benford-v2', 'Logarithmic Digits Divergence Filter (Benford v2.1)')}</span>
             </div>
           </div>
           
@@ -128,7 +135,7 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
             "bg-emerald-50 border-emerald-100 text-emerald-600"
           )}>
             {riskLevel === 'CRITICAL' ? <AlertTriangle size={12} /> : <CheckCircle2 size={12} />}
-            {riskLevel} DISTANCE: {(forensicData.score * 100).toFixed(1)}%
+            {riskLevel} {reportText('r.distance', 'DISTANCE:')} {(forensicData.score * 100).toFixed(1)}%
           </div>
         </div>
 
@@ -138,7 +145,7 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
                <div className="absolute top-4 right-4 p-4 opacity-[0.03] pointer-events-none">
                   <Fingerprint size={48} />
                </div>
-               <h3 className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mb-6">Digit Distribution Curve (1-9)</h3>
+               <h3 className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mb-6">{reportText('r.digit-distribution-curve-1-9', 'Digit Distribution Curve (1-9)')}</h3>
                
                <div className="flex items-end justify-between gap-1.5 h-36">
                   {BENFORD_DIGITS.slice(0, forensicData.distribution.length).map(digit => {
@@ -156,13 +163,13 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
                                 diff > 5 ? "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.4)]" : "bg-slate-800"
                               )}
                               style={{ height: `${Math.max(4, actualPercent * 4)}%` }}
-                              title={`Actual: ${actualPercent.toFixed(1)}%`}
+                              title={fill(reportText('r.actual-0', 'Actual: {0}%'), { 0: actualPercent.toFixed(1) })}
                             />
                             {/* Expected Outline */}
                             <div 
                               className="absolute w-2 border-t border-indigo-500 border-dashed opacity-40 z-20 group-hover/bar:opacity-100 transition-opacity"
                               style={{ bottom: `${expectedPercent * 4}%` }}
-                              title={`Expected: ${expectedPercent.toFixed(1)}%`}
+                              title={fill(reportText('r.expected-0', 'Expected: {0}%'), { 0: expectedPercent.toFixed(1) })}
                             />
                          </div>
                          <span className="text-[9px] font-bold font-mono text-[var(--muted)]">{digit}</span>
@@ -173,11 +180,11 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
                <div className="mt-5 pt-4 border-t border-[var(--line)] flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                      <div className="w-2 h-2 bg-slate-800 rounded-full" />
-                     <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">Ledger</span>
+                     <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">{reportText('r.ledger', 'Ledger')}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                      <div className="w-2 h-2 border-t border-indigo-550 border-dashed rounded-full" />
-                     <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">Logarithmic Expected</span>
+                     <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">{reportText('r.logarithmic-expected', 'Logarithmic Expected')}</span>
                   </div>
                </div>
             </div>
@@ -185,7 +192,7 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
             <div className="flex items-start gap-3 p-4 bg-slate-900 border border-slate-850 rounded-xl">
                <Fingerprint className="text-indigo-400 shrink-0 mt-0.5" size={16} />
                <p className="text-xs text-[var(--muted)] leading-relaxed font-medium">
-                  The statistical distribution aligns <span className="text-white font-bold">{riskLevel === 'NOMINAL' ? 'nominally' : 'irregularly'}</span> with logarithmic scales. {riskLevel !== 'NOMINAL' && 'A deviation in digit frequency marks potential administrative processing issues.'}
+                  {reportText('r.the-statistical-distribution-aligns', 'The statistical distribution aligns')} <span className="text-white font-bold">{riskLevel === 'NOMINAL' ? reportText('r.nominally', 'nominally') : reportText('r.irregularly', 'irregularly')}</span> {reportText('r.with-logarithmic-scales', 'with logarithmic scales.')} {riskLevel !== 'NOMINAL' && reportText('r.a-deviation-in-digit-frequency-marks-potential-a', 'A deviation in digit frequency marks potential administrative processing issues.')}
                </p>
             </div>
           </div>
@@ -193,16 +200,16 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-3xs hover:-translate-y-0.5 transition-all">
-                   <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-widest block mb-1">Divergence Index</span>
+                   <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-widest block mb-1">{reportText('r.divergence-index', 'Divergence Index')}</span>
                    <div className="flex items-baseline gap-1.5">
                       <span className="text-2xl font-bold font-mono text-[var(--text)] leading-none">{forensicData.score.toFixed(2)}</span>
                    </div>
                 </div>
                 <div className="p-4 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-3xs hover:-translate-y-0.5 transition-all">
-                   <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-widest block mb-1">Confidence Score</span>
+                   <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-widest block mb-1">{reportText('r.confidence-score', 'Confidence Score')}</span>
                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-2xl font-bold font-mono text-[var(--text)] leading-none">0.05</span>
-                      <span className="text-[9px] font-mono text-[var(--muted)]">p-Val</span>
+                      <span className="text-2xl font-bold font-mono text-[var(--text)] leading-none">{CODE_NAMES.c0}</span>
+                      <span className="text-[9px] font-mono text-[var(--muted)]">{reportText('r.p-val', 'p-Val')}</span>
                    </div>
                 </div>
             </div>
@@ -210,7 +217,7 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
             <div className="p-5 bg-[var(--ink)] border border-[var(--line)] rounded-xl space-y-4">
                <h3 className="text-[10px] font-bold text-[var(--text)] uppercase tracking-widest flex items-center gap-2">
                   <Zap size={12} className="text-indigo-600" />
-                  Target Audit Recommendations
+                  {reportText('r.target-audit-recommendations', 'Target Audit Recommendations')}
                </h3>
                <div className="space-y-3">
                   {(forensicData.score > 0.3 ? [
@@ -237,7 +244,7 @@ export default function ForensicAuditor({ isEmbedded = false }: { isEmbedded?: b
                  className="w-full h-11 bg-[var(--brass)] hover:opacity-90 text-black rounded-lg text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
                >
                  {isRunning ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
-                 {isRunning ? 'Analyzing Ledger...' : 'Execute Full Forensic Scan'}
+                 {isRunning ? reportText('r.analyzing-ledger', 'Analyzing Ledger...') : reportText('r.execute-full-forensic-scan', 'Execute Full Forensic Scan')}
                </button>
             </div>
           </div>

@@ -11,6 +11,7 @@ import {
 import ReportTableScroll from './ReportTableScroll';
 import { inBackground } from '../../lib/inBackground';
 import { runCommand, type CommandBody } from '../../lib/runCommand';
+import { useReportText } from './useReportText';
 
 const hoursText = (minutes: number) => `${formatDuration(minutes)} h`;
 
@@ -20,6 +21,7 @@ const hoursText = (minutes: number) => `${formatDuration(minutes)} h`;
  * the minutes — this shows where time went, approval and billing stay on the Time screen.
  */
 export default function TimeByProjectReportView() {
+  const reportText = useReportText();
   useLedgerCollections('projects');
   const projects = useLedgerStore(state => state.projects);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
@@ -52,43 +54,40 @@ export default function TimeByProjectReportView() {
     month,
   }), [current, projects, workspaceId, month]);
 
-  return <section aria-label="Time by person and project" className="p-4 space-y-4 min-w-0">
-    <h2>Time by person and project</h2>
+  return <section aria-label={reportText('r.time-by-person-and-project', 'Time by person and project')} className="p-4 space-y-4 min-w-0">
+    <h2>{reportText('r.time-by-person-and-project', 'Time by person and project')}</h2>
     <p className="text-sm text-[var(--muted)]">
-      Who logged time on which project in the chosen month, from the Time screen&apos;s entries. Every entry
-      counts toward the minutes whatever its state — not submitted, waiting, approved or already invoiced —
-      with the billable part and the part still waiting for approval shown inside it, never added twice.
-      An entry with no project is No project recorded. Approving and billing time stay on the Time screen.
+      {reportText('r.who-logged-time-on-which-project-in-the-chosen-m', 'Who logged time on which project in the chosen month, from the Time screen\'s entries. Every entry counts toward the minutes whatever its state — not submitted, waiting, approved or already invoiced — with the billable part and the part still waiting for approval shown inside it, never added twice. An entry with no project is No project recorded. Approving and billing time stay on the Time screen.')}
     </p>
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
-      <label className="flex flex-col gap-1 text-sm">Month
-        <input type="month" aria-label="Month" className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.month', 'Month')}
+        <input type="month" aria-label={reportText('r.month', 'Month')} className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
           value={month} onChange={e => setMonth(e.target.value)} />
       </label>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!report.rows.length}
-        onClick={() => downloadCsv('time-by-person-and-project', [...TIME_BY_PROJECT_CSV_HEADERS], timeByProjectCsvRows(report.rows))}>Export CSV</button>
+        onClick={() => downloadCsv('time-by-person-and-project', [...TIME_BY_PROJECT_CSV_HEADERS], timeByProjectCsvRows(report.rows))}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
 
-    {loading && <p role="status" className="text-sm text-[var(--muted)]">Reading the time entries…</p>}
+    {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.reading-the-time-entries', 'Reading the time entries…')}</p>}
     {current?.error && <div className="space-y-2">
-      <p role="alert" className="text-sm">The time entries could not be read: {current.error}</p>
-      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={() => setAttempt(n => n + 1)}>Retry</button>
+      <p role="alert" className="text-sm">{reportText('r.the-time-entries-could-not-be-read', 'The time entries could not be read:')} {current.error}</p>
+      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={() => setAttempt(n => n + 1)}>{reportText('r.retry', 'Retry')}</button>
     </div>}
 
-    {report.people.length > 0 && <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm" aria-label="Month totals by person">
+    {report.people.length > 0 && <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm" aria-label={reportText('r.month-totals-by-person', 'Month totals by person')}>
       {report.people.map(person => (
         <p key={person.person}><b><bdi>{person.person}</bdi>:</b> {hoursText(person.minutes)}
-          <span className="text-[var(--muted)]"> · {hoursText(person.billableMinutes)} billable · {person.entries} entries</span></p>
+          <span className="text-[var(--muted)]"> · {hoursText(person.billableMinutes)} {reportText('r.billable', 'billable ·')} {person.entries} {reportText('r.entries-3', 'entries')}</span></p>
       ))}
     </div>}
 
     <ReportTableScroll>
       <table className="w-full text-sm">
-        <caption>Time logged by person and project, {month}</caption>
+        <caption>{reportText('r.time-logged-by-person-and-project', 'Time logged by person and project,')} {month}</caption>
         <thead>
           <tr>
-            {['Person', 'Project', 'Time', 'Billable', 'Waiting for approval', 'Entries'].map((head, i) =>
+            {[reportText('r.person', 'Person'), reportText('r.project', 'Project'), reportText('r.time', 'Time'), reportText('r.billable-2', 'Billable'), reportText('r.waiting-for-approval', 'Waiting for approval'), reportText('r.entries', 'Entries')].map((head, i) =>
               <th key={head} scope="col" className={`${i < 2 ? 'text-left' : 'text-right'} py-1 px-2`}>{head}</th>)}
           </tr>
         </thead>
@@ -105,12 +104,11 @@ export default function TimeByProjectReportView() {
           ))}
         </tbody>
       </table>
-      {current?.entries && !report.rows.length && <p className="text-sm text-[var(--muted)]">No time is logged in {month}.</p>}
+      {current?.entries && !report.rows.length && <p className="text-sm text-[var(--muted)]">{reportText('r.no-time-is-logged-in', 'No time is logged in')} {month}.</p>}
     </ReportTableScroll>
 
     <p className="text-xs text-[var(--muted)]">
-      Time logged for a customer without a project is in No project recorded here; the Time screen keeps
-      the customer on each entry. Minutes are exact in the CSV.
+      {reportText('r.time-logged-for-a-customer-without-a-project-is', 'Time logged for a customer without a project is in No project recorded here; the Time screen keeps the customer on each entry. Minutes are exact in the CSV.')}
     </p>
   </section>;
 }

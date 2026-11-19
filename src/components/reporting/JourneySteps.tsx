@@ -6,6 +6,7 @@
  */
 import React from 'react';
 import { STEP_STATUS_TONE, type JourneyStepShape, type JourneyStepStatus } from './journeyStatus';
+import { useReportText } from './useReportText';
 
 /**
  * Why a journey is not simply what the data says: a load failed, a list was capped, a step found a
@@ -18,10 +19,11 @@ export function JourneyNotices({ problem, loading, loadingText, partial, problem
   partial?: boolean;
   problems?: string[];
 }) {
+  const reportText = useReportText();
   return <>
     {problem && <p role="alert">{problem}</p>}
     {loading && <p role="status">{loadingText}</p>}
-    {partial && <p role="alert">A loaded list is capped or failed, so the totals below are provisional until it is complete.</p>}
+    {partial && <p role="alert">{reportText('r.a-loaded-list-is-capped-or-failed-so-the-totals', 'A loaded list is capped or failed, so the totals below are provisional until it is complete.')}</p>}
     {(problems || []).map(item => <p key={item} role="alert">{item}</p>)}
   </>;
 }

@@ -5,12 +5,14 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { saveWorkspaceSettings } from '../../lib/workspaceSettingsSave';
 import { workspaceScope } from '../../lib/serverAction';
 import { REPORT_NOTE_MAX, reportNoteKey, withReportNote } from '../../lib/reportNotes';
+import { useReportText } from './useReportText';
 
 /**
  * R-4: the note for this report and period, above the report and in its print / PDF. Owners and accountants write it
  * (it is a workspace setting); everyone who can see the report reads it.
  */
 export default function ReportNote({ report, startDate, endDate }: { report: string; startDate: string; endDate: string }) {
+  const reportText = useReportText();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const role = useCurrentRole();
   // workspace settings are written by owners and accountants (the database's admin_update policy)
@@ -52,25 +54,25 @@ export default function ReportNote({ report, startDate, endDate }: { report: str
 
   if (!saved && !canWrite) return null;
   return (
-    <section aria-label="Report note" data-testid="report-note" className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3 text-sm">
+    <section aria-label={reportText('r.report-note', 'Report note')} data-testid="report-note" className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3 text-sm">
       {editing ? (
         <div className="space-y-2" data-print-hide>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--muted)]">Note for this report and period</span>
-            <textarea value={text} maxLength={REPORT_NOTE_MAX} onChange={e => setText(e.target.value)} rows={2} className="w-full rounded border border-[var(--line)] bg-[var(--panel)] p-2 text-[var(--text)]" placeholder="e.g. Rent was paid late this month" />
+            <span className="text-xs text-[var(--muted)]">{reportText('r.note-for-this-report-and-period', 'Note for this report and period')}</span>
+            <textarea value={text} maxLength={REPORT_NOTE_MAX} onChange={e => setText(e.target.value)} rows={2} className="w-full rounded border border-[var(--line)] bg-[var(--panel)] p-2 text-[var(--text)]" placeholder={reportText('r.e-g-rent-was-paid-late-this-month', 'e.g. Rent was paid late this month')} />
           </label>
           <div className="flex gap-2">
-            <button type="button" disabled={busy} onClick={() => void save()} className="min-h-11 px-3 rounded bg-indigo-600 text-white font-semibold disabled:opacity-50">Save note</button>
-            <button type="button" disabled={busy} onClick={() => { setText(saved); setEditing(false); }} className="min-h-11 px-3 rounded border border-[var(--line)]">Cancel</button>
+            <button type="button" disabled={busy} onClick={() => void save()} className="min-h-11 px-3 rounded bg-indigo-600 text-white font-semibold disabled:opacity-50">{reportText('r.save-note', 'Save note')}</button>
+            <button type="button" disabled={busy} onClick={() => { setText(saved); setEditing(false); }} className="min-h-11 px-3 rounded border border-[var(--line)]">{reportText('r.cancel', 'Cancel')}</button>
           </div>
         </div>
       ) : saved ? (
         <div className="flex flex-wrap items-start gap-2">
-          <p className="flex-1 whitespace-pre-wrap"><span className="font-semibold">Note: </span><bdi>{saved}</bdi></p>
-          {canWrite && <button type="button" data-print-hide onClick={() => { setText(saved); setEditing(true); }} className="min-h-11 px-2 text-xs underline">Edit note</button>}
+          <p className="flex-1 whitespace-pre-wrap"><span className="font-semibold">{reportText('r.note-2', 'Note:')} </span><bdi>{saved}</bdi></p>
+          {canWrite && <button type="button" data-print-hide onClick={() => { setText(saved); setEditing(true); }} className="min-h-11 px-2 text-xs underline">{reportText('r.edit-note', 'Edit note')}</button>}
         </div>
       ) : (
-        <button type="button" data-print-hide onClick={() => { setText(''); setEditing(true); }} className="min-h-11 text-xs underline text-[var(--muted)]">Add a note for this period</button>
+        <button type="button" data-print-hide onClick={() => { setText(''); setEditing(true); }} className="min-h-11 text-xs underline text-[var(--muted)]">{reportText('r.add-a-note-for-this-period', 'Add a note for this period')}</button>
       )}
     </section>
   );

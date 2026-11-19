@@ -43,6 +43,36 @@ const FILES = [
   ...['CycleCountReportView', 'BlanketOrdersReportView', 'CustomerQuotesReportView', 'SerialLotLookupReportView', 'RetentionReviewReportView',
     'EntityFilingsCalendarView', 'StockValueByLocationLotReportView', 'VendorQuotesCompareView', 'VendorPriceHistoryReportView',
     'QuoteVersionsReportView', 'DeliveryNotesReportView', 'ShippingMethodsView'].map(name => `../components/reporting/${name}.tsx`),
+  // EU-G1 part 7: US and cross-border tax reports
+  ...['GsaPerDiemReportView', 'UsFilingCalendarReportView', 'Vendor1099ReadinessReportView', 'Us1099PreviewReportView',
+    'SalesTaxHolidaysReportView', 'RegistrationThresholdWatchReportView', 'UseTaxReportView', 'ImportServicesReportView',
+    'TaxCodeSuggestionsReportView', 'RulePackCoverageReportView', 'GoldenTaxFixturesReportView', 'CustomerTaxCertificatesView'].map(name => `../components/reporting/${name}.tsx`),
+  // EU-G1 part 8: operations, group and planning reports
+  ...['GroupSummaryReportView', 'PickPackShipPanel', 'ReturnAuthorizationsPanel', 'WarrantyRegisterPanel', 'AskBooksView',
+    'BillRetentionReportView', 'MilestoneBillingReportView', 'LandedCostPreviewReportView', 'WorkOrdersView', 'ExpiringLotsReportView',
+    'DunningLettersReportView', 'PurchasePriceVarianceReportView', 'ProfitabilityByView', 'ExpenseBillCategories',
+    'SampleYearBenchmarkReportView', 'LandedCostPostPanel'].map(name => `../components/reporting/${name}.tsx`),
+  // EU-G1 part 9: twenty smaller reports
+  ...['Form856ReportView', 'BankingValidationReportView', 'ItemRegisterReportView', 'DocumentNumberGapsReportView', 'CustomerItemCodesView',
+    'VendorWithholdingView', 'StandardCostReportView', 'PurchaseItemTrendsView', 'LabelBalanceSheetReportView', 'KitAssemblyReportView',
+    'GoldenYearFixturesSection', 'ExpensePolicyReportView', 'DuplicateContactReviewReportView', 'BackordersReportView', 'AssetRegisterReportView',
+    'AgedInventoryByLotReportView', 'UsNexusWatchReportView', 'ExpenseReceiptChecklistReportView', 'BankHolidaysReportView',
+    'WarehouseBinLocationsPanel'].map(name => `../components/reporting/${name}.tsx`),
+  // EU-G1 part 10: the last report views
+  ...[
+    'AgedReceivablesByRepReportView', 'BankClearanceReportView', 'CertificateReminderDrafts',
+    'CommissionReportView', 'CompareReportView', 'CustomerCreditLimitReportView', 'CustomerLifetimeValueReportView', 'DepreciationLedgerReportView',
+    'DiscountMismatchView', 'EmailMeMondays', 'ExchangeRateHistoryView', 'ExpenseByEmployeeReportView', 'ExportTemplateControls',
+    'ForensicAuditor', 'GrossMarginByItemGroupReportView', 'ImportAcceptanceView', 'InactiveItemsReportView', 'InventoryDetailsReportView',
+    'JournalSheetReportView', 'JourneySteps', 'LabelValuePageView', 'MileageRatesReportView',
+    'OneSidedTransfersReportView', 'PartyLinkedTrialBalanceView', 'PartyPeriodSummaryView', 'PartyReportLayout', 'PaymentFlowsByMethodPanel',
+    'PaymentMethodSummaryView', 'PrintLayoutControl', 'RangeReportSourceNote', 'RecordNotesReportView',
+    'ReportLabelFilter', 'ReportNote', 'ReportPeriodHeading', 'ReportPicker', 'ReportProvenanceNote',
+    'ReportTableScroll', 'ReportTotalExplainer', 'ReportViewsControls', 'Reports',
+    'SalesByTerritoryReportView', 'SlowMovingStockView', 'SpreadWaterfallView', 'StockAgingReportView', 'StockClosingPanel',
+    'StockSourcesUsesReportView', 'StockTransfersReportView', 'TagBreakdownReportView', 'TimeByProjectReportView', 'TransactionsByCustomerView',
+    'TransactionsByReferenceView', 'TransactionsByVendorView', 'UsQuarterJourneyReportView', 'VendorTaxRecordsView', 'WarehouseOperationsReportView',
+    'partyTransactionsShared'].map(name => `../components/reporting/${name}.tsx`),
 ];
 
 test('Reports: the default eight are the ones this guard covers', () => {

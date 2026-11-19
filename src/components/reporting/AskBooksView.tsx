@@ -8,6 +8,7 @@ import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { answerCents, readQuestion, type AskFilter, type AskReading } from '../../lib/askBooks';
 import ReportEmptyState from './ReportEmptyState';
 import { RowTable } from '../ui/RowTable';
+import { useReportText, fill } from './useReportText';
 
 interface Line { key: string; date: string; description: string; payee?: string; accountName: string; amountCents: number; document: { type: 'invoice' | 'bill' | 'transaction'; id: string } | null; bankMatched: boolean; attachments: number }
 interface Explanation { lines: Line[]; totalCents: number; entries: number }
@@ -23,6 +24,7 @@ const EXAMPLES = ['How much did we spend on rent last year?', 'Sales in March 20
  * plain matching (src/lib/askBooks.ts); nothing here makes up a figure.
  */
 export default function AskBooksView() {
+  const reportText = useReportText();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const accounts = useLedgerStore(s => s.accounts);
   const nodes = useLedgerStore(s => s.dimensionNodes);
@@ -76,33 +78,33 @@ export default function AskBooksView() {
   return (
     <section aria-labelledby="ask-books-title" className="space-y-4">
       <div>
-        <h2 id="ask-books-title" className="text-lg font-bold text-[var(--text)] flex items-center gap-2"><MessageSquareText className="w-5 h-5" aria-hidden="true" /> Ask the books</h2>
-        <p className="text-sm text-[var(--muted)]">Ask about an account, a label and a period. You see how the question was read and can change it; the figure is calculated from all your posted entries, and the entries behind it are listed.</p>
+        <h2 id="ask-books-title" className="text-lg font-bold text-[var(--text)] flex items-center gap-2"><MessageSquareText className="w-5 h-5" aria-hidden="true" /> {reportText('r.ask-the-books', 'Ask the books')}</h2>
+        <p className="text-sm text-[var(--muted)]">{reportText('r.ask-about-an-account-a-label-and-a-period-you-se', 'Ask about an account, a label and a period. You see how the question was read and can change it; the figure is calculated from all your posted entries, and the entries behind it are listed.')}</p>
       </div>
       <form className="flex flex-wrap gap-2" onSubmit={e => { e.preventDefault(); if (question.trim()) ask(question); }}>
-        <label className="sr-only" htmlFor="ask-books-question">Your question</label>
+        <label className="sr-only" htmlFor="ask-books-question">{reportText('r.your-question', 'Your question')}</label>
         <input id="ask-books-question" value={question} onChange={e => setQuestion(e.target.value)} placeholder={EXAMPLES[0]} className={`${field} flex-1 min-w-[16rem]`} />
-        <button type="submit" disabled={!question.trim()} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">Ask</button>
+        <button type="submit" disabled={!question.trim()} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50">{reportText('r.ask', 'Ask')}</button>
       </form>
       {!reading && (
-        <p className="text-xs text-[var(--muted)]">For example: {EXAMPLES.map((ex, i) => (
+        <p className="text-xs text-[var(--muted)]">{reportText('r.for-example', 'For example:')} {EXAMPLES.map((ex, i) => (
           <React.Fragment key={ex}>{i > 0 && ' · '}<button type="button" className="text-indigo-600 dark:text-indigo-400 hover:underline" onClick={() => ask(ex)}>{ex}</button></React.Fragment>
         ))}</p>
       )}
       {reading && (
         <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 space-y-3 text-sm">
-          <h3 className="font-semibold text-[var(--text)]">Read as</h3>
+          <h3 className="font-semibold text-[var(--text)]">{reportText('r.read-as', 'Read as')}</h3>
           {reading.problem && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{reading.problem}.</p>}
           <dl className="grid gap-2 sm:grid-cols-[8rem_1fr]">
-            <dt className="text-[var(--muted)]">Accounts</dt>
+            <dt className="text-[var(--muted)]">{reportText('r.accounts', 'Accounts')}</dt>
             <dd>
               <details>
                 <summary className="cursor-pointer text-[var(--text)]">
-                  {!filter || filter.accountIds.length === 0 ? 'None yet: choose them'
+                  {!filter || filter.accountIds.length === 0 ? reportText('r.none-yet-choose-them', 'None yet: choose them')
                     : asRead ? reading.understood.accounts.join(', ') : filter.accountIds.map(id => named.get(id) || id).join(', ')}
-                  {filter && filter.accountIds.length > 1 && <span className="text-[var(--muted)]"> ({filter.accountIds.length} accounts)</span>}
+                  {filter && filter.accountIds.length > 1 && <span className="text-[var(--muted)]"> ({filter.accountIds.length} {reportText('r.accounts-2', 'accounts)')}</span>}
                 </summary>
-                <div role="group" aria-label="Accounts asked about" className="mt-2 grid max-h-48 gap-1 overflow-y-auto sm:grid-cols-2">
+                <div role="group" aria-label={reportText('r.accounts-asked-about', 'Accounts asked about')} className="mt-2 grid max-h-48 gap-1 overflow-y-auto sm:grid-cols-2">
                   {live.map(a => (
                     <label key={a.id} className="flex items-center gap-2 text-xs text-[var(--text)]">
                       <input type="checkbox" checked={Boolean(filter?.accountIds.includes(a.id))}
@@ -113,9 +115,9 @@ export default function AskBooksView() {
                 </div>
               </details>
             </dd>
-            <dt className="text-[var(--muted)]">Label</dt>
+            <dt className="text-[var(--muted)]">{reportText('r.label', 'Label')}</dt>
             <dd>
-              <label className="sr-only" htmlFor="ask-books-label">Label</label>
+              <label className="sr-only" htmlFor="ask-books-label">{reportText('r.label', 'Label')}</label>
               <select id="ask-books-label" className={field} disabled={!filter}
                 value={filter?.label ? `${filter.label.dimensionId}\u0000${filter.label.value}` : ''}
                 onChange={e => setFilter(f => {
@@ -124,7 +126,7 @@ export default function AskBooksView() {
                   const { label: _old, ...rest } = f;
                   return e.target.value ? { ...rest, label: { dimensionId, value } } : rest;
                 })}>
-                <option value="">Any (no label)</option>
+                <option value="">{reportText('r.any-no-label', 'Any (no label)')}</option>
                 {dimensions.map(d => (
                   <optgroup key={d.id} label={d.name}>
                     {(nodes || []).filter(n => n.dimensionId === d.id && n.status !== 'archived').map(n => (
@@ -134,49 +136,49 @@ export default function AskBooksView() {
                 ))}
               </select>
             </dd>
-            <dt className="text-[var(--muted)]">Period</dt>
+            <dt className="text-[var(--muted)]">{reportText('r.col-period', 'Period')}</dt>
             <dd className="flex flex-wrap items-center gap-2">
-              <label className="sr-only" htmlFor="ask-books-from">From</label>
+              <label className="sr-only" htmlFor="ask-books-from">{reportText('r.from', 'From')}</label>
               <input id="ask-books-from" type="date" className={field} disabled={!filter} value={filter?.startDate || ''} onChange={e => setFilter(f => f && ({ ...f, startDate: e.target.value }))} />
               <span aria-hidden="true">–</span>
-              <label className="sr-only" htmlFor="ask-books-to">To</label>
+              <label className="sr-only" htmlFor="ask-books-to">{reportText('r.to', 'To')}</label>
               <input id="ask-books-to" type="date" className={field} disabled={!filter} value={filter?.endDate || ''} onChange={e => setFilter(f => f && ({ ...f, endDate: e.target.value }))} />
               {filter && reading.filter && filter.startDate === reading.filter.startDate && filter.endDate === reading.filter.endDate && <span className="text-xs text-[var(--muted)]">{reading.understood.period}</span>}
             </dd>
           </dl>
-          <p className="text-xs text-[var(--muted)]">Posted entries only · in {currency} · from the full history, under your own access.</p>
+          <p className="text-xs text-[var(--muted)]">{reportText('r.posted-entries-only-in', 'Posted entries only · in')} {currency} {reportText('r.from-the-full-history-under-your-own-access', '· from the full history, under your own access.')}</p>
         </div>
       )}
-      {filter && filter.startDate > filter.endDate && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">The period starts after it ends.</p>}
-      {key && !shown && <p className="text-sm text-[var(--muted)]">Calculating…</p>}
+      {filter && filter.startDate > filter.endDate && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{reportText('r.the-period-starts-after-it-ends', 'The period starts after it ends.')}</p>}
+      {key && !shown && <p className="text-sm text-[var(--muted)]">{reportText('r.calculating', 'Calculating…')}</p>}
       {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
-      {shown?.data && shown.data.lines.length === 0 && <ReportEmptyState title="No posted entries match this question"
-        description="Clear a filter, widen the period, or choose an account with posted activity. A draft or an unposted document is not included in this answer." />}
+      {shown?.data && shown.data.lines.length === 0 && <ReportEmptyState title={reportText('r.no-posted-entries-match-this-question', 'No posted entries match this question')}
+        description={reportText('r.clear-a-filter-widen-the-period-or-choose-an-acc', 'Clear a filter, widen the period, or choose an account with posted activity. A draft or an unposted document is not included in this answer.')} />}
       {shown?.data && (
         <div className="space-y-2">
           <p className="text-2xl font-bold text-[var(--text)]" aria-live="polite">
             {formatCurrency(answerCents(shown.data.totalCents, sense), currency)}
-            <span className="ml-2 text-sm font-normal text-[var(--muted)]">{sense === 'spent' ? 'spent' : sense === 'earned' ? 'earned' : 'net (debits less credits)'} · {shown.data.entries} entr{shown.data.entries === 1 ? 'y' : 'ies'}</span>
+            <span className="ml-2 text-sm font-normal text-[var(--muted)]">{sense === 'spent' ? reportText('r.spent', 'spent') : sense === 'earned' ? reportText('r.earned', 'earned') : reportText('r.net-debits-less-credits', 'net (debits less credits)')} · {shown.data.entries === 1 ? reportText('r.one-entry', '1 entry') : fill(reportText('r.n-entries', '{n} entries'), { n: shown.data.entries })}</span>
           </p>
           {shown.data.lines.length > 0 && (
             <RowTable
               rowHeaderColumn={false}
               rowClassName="border-b border-[var(--line)]/50"
-              caption={(<>The entries behind the answer</>)}
+              caption={(<>{reportText('r.the-entries-behind-the-answer', 'The entries behind the answer')}</>)}
               rows={shown.data.lines}
               rowKey={l => l.key}
               tableClassName="w-full text-sm"
               headRowClassName="text-xs text-[var(--muted)] border-b border-[var(--line)]"
               bodyClassName=""
               columns={[
-                { header: "Date", className: "py-1 font-mono text-xs", headClassName: "text-left font-semibold py-1", cell: (l) => l.date ? formatDate(l.date) : '' },
-                { header: "Entry", className: "py-1", headClassName: "text-left font-semibold py-1", cell: (l) => (<>{l.document ? (
+                { header: reportText('r.date-2', 'Date'), className: "py-1 font-mono text-xs", headClassName: "text-left font-semibold py-1", cell: (l) => l.date ? formatDate(l.date) : '' },
+                { header: reportText('r.entry', 'Entry'), className: "py-1", headClassName: "text-left font-semibold py-1", cell: (l) => (<>{l.document ? (
                         <button type="button" className="text-left text-indigo-600 dark:text-indigo-400 hover:underline" onClick={() => openRecord({ type: l.document!.type, id: l.document!.id })}>
-                          <bdi>{l.description || l.payee || 'Entry'}</bdi><span className="sr-only"> (open the {l.document.type === 'transaction' ? 'entry' : l.document.type})</span>
+                          <bdi>{l.description || l.payee || reportText('r.entry', 'Entry')}</bdi><span className="sr-only"> {reportText('r.open-the', '(open the')} {l.document.type === 'transaction' ? reportText('r.entry-2', 'entry') : l.document.type})</span>
                         </button>
                       ) : <bdi>{l.description}</bdi>}
-                      <span className="block text-[10px] text-[var(--muted)]"><bdi>{l.accountName}</bdi>{l.bankMatched ? ' · matched to the bank' : ''}{l.attachments > 0 ? ` · ${l.attachments} file${l.attachments === 1 ? '' : 's'}` : ''}</span></>) },
-                { header: "Amount", align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (l) => formatCurrency(answerCents(l.amountCents, sense), currency) },
+                      <span className="block text-[10px] text-[var(--muted)]"><bdi>{l.accountName}</bdi>{l.bankMatched ? ` ${reportText('r.matched-to-the-bank', '· matched to the bank')}` : ''}{l.attachments > 0 ? ` · ${l.attachments === 1 ? reportText('r.one-file', '1 file') : fill(reportText('r.n-files', '{n} files'), { n: l.attachments })}` : ''}</span></>) },
+                { header: reportText('r.amount', 'Amount'), align: 'right', className: "py-1 font-mono", headClassName: "font-semibold py-1", cell: (l) => formatCurrency(answerCents(l.amountCents, sense), currency) },
               ]}
             />
           )}

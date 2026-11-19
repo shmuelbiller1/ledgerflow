@@ -3,10 +3,11 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
-import { formatCurrency, getLocalDateISO } from '../../lib/utils';
+import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { exportGroupSummaryCsv } from '../../lib/groupSummaryExport';
 import { ratesKey, type WorkspaceGroup } from '../../lib/workspaceGroups';
 import { averageFromTimeframe, parseRates, rateFromQuote, type TranslationRates } from '../../lib/translationRates';
+import { useReportText, fill as fillText } from './useReportText';
 
 interface Figures { income: number; cogs: number; grossProfit: number; expense: number; netIncome: number; totalAssets: number; totalLiabilities: number; totalEquity: number }
 interface Member extends Figures { workspaceId: string; name: string; currency: string; isBalanced: boolean; share?: number; associate?: boolean; translated?: Figures & { cta: number } }
@@ -14,28 +15,32 @@ interface Issue { workspaceId: string; transactionId: string; date: string; desc
 interface Eliminated { assets: number; liabilities: number; difference: number; income?: number; cogs?: number; expense?: number; profitDifference?: number; investment?: number; goodwill?: number; belowBookValue?: number }
 interface OtherOwners { equity: number; netIncome: number }
 interface AccountLine { key: string; section: 'income' | 'cogs' | 'expense' | 'asset' | 'liability' | 'equity'; name: string; code?: string; alsoNamed?: string[]; combined?: string[]; byMember: Record<string, number>; total: number }
-const SECTION_NAMES: Record<AccountLine['section'], string> = { income: 'Income', cogs: 'Cost of goods sold', expense: 'Expenses', asset: 'Assets', liability: 'Liabilities', equity: 'Equity' };
+const SECTION_ORDER: AccountLine['section'][] = ['income', 'cogs', 'expense', 'asset', 'liability', 'equity'];
+const sectionName = (sec: AccountLine['section'], reportText: ReturnType<typeof useReportText>) => ({
+  income: reportText('r.gs-income', 'Income'), cogs: reportText('r.gs-cogs', 'Cost of goods sold'), expense: reportText('r.gs-expenses', 'Expenses'),
+  asset: reportText('r.gs-assets', 'Assets'), liability: reportText('r.gs-liabilities', 'Liabilities'), equity: reportText('r.gs-equity', 'Equity'),
+}[sec]);
 interface Summary { group: { id: string; name: string }; members: Member[]; total: (Figures & { currency: string; cta?: number; eliminated?: Eliminated; otherOwners?: OtherOwners; associates?: { profit: number; equity: number } }) | null; parent?: { workspaceId: string; name: string } | null; accountLines?: AccountLine[]; lineMerges?: { canCombine: boolean; merges: Record<string, string> }; notIncluded: number; intercompany?: { matched: number; unmatched: Issue[] } }
 
 /** Why an intercompany entry has no match (Z-19), in words. */
-const whyUnmatched = (i: Issue) => ({
-  missing: `Its match in ${i.withName} is missing`,
-  undone: `Its match in ${i.withName} was undone`,
-  amount: `${formatCurrency(i.otherAmountCents || 0, i.currency)} in ${i.withName}`,
-  'outside-group': 'The other company is not in this group',
-  'not-open': 'The other company is not one you can open',
+const whyUnmatched = (i: Issue, reportText: ReturnType<typeof useReportText>) => ({
+  missing: fillText(reportText('r.gs-match-missing', 'Its match in {0} is missing'), { 0: i.withName ?? '' }),
+  undone: fillText(reportText('r.gs-match-undone', 'Its match in {0} was undone'), { 0: i.withName ?? '' }),
+  amount: fillText(reportText('r.gs-match-amount', '{0} in {1}'), { 0: formatCurrency(i.otherAmountCents || 0, i.currency), 1: i.withName ?? '' }),
+  'outside-group': reportText('r.gs-outside-group', 'The other company is not in this group'),
+  'not-open': reportText('r.gs-not-open', 'The other company is not one you can open'),
 }[i.reason]);
 type Entered = Record<string, Partial<Record<keyof TranslationRates, string>>>;
 
-const ROWS: Array<{ key: keyof Figures; label: string; report: 'pnl' | 'balance-sheet'; strong?: boolean }> = [
-  { key: 'income', label: 'Income', report: 'pnl' },
-  { key: 'cogs', label: 'Cost of goods sold', report: 'pnl' },
-  { key: 'grossProfit', label: 'Gross profit', report: 'pnl', strong: true },
-  { key: 'expense', label: 'Expenses', report: 'pnl' },
-  { key: 'netIncome', label: 'Net income', report: 'pnl', strong: true },
-  { key: 'totalAssets', label: 'Total assets', report: 'balance-sheet' },
-  { key: 'totalLiabilities', label: 'Total liabilities', report: 'balance-sheet' },
-  { key: 'totalEquity', label: 'Equity (with this year’s profit)', report: 'balance-sheet' },
+const rowsFor = (reportText: (key: string, fallback: string) => string): Array<{ key: keyof Figures; label: string; report: 'pnl' | 'balance-sheet'; strong?: boolean }> => [
+  { key: 'income', label: reportText('r.section-income', 'Income'), report: 'pnl' },
+  { key: 'cogs', label: reportText('r.section-cogs', 'Cost of goods sold'), report: 'pnl' },
+  { key: 'grossProfit', label: reportText('r.gross-profit', 'Gross profit'), report: 'pnl', strong: true },
+  { key: 'expense', label: reportText('r.section-expense', 'Expenses'), report: 'pnl' },
+  { key: 'netIncome', label: reportText('r.net-income', 'Net income'), report: 'pnl', strong: true },
+  { key: 'totalAssets', label: reportText('r.total-assets', 'Total assets'), report: 'balance-sheet' },
+  { key: 'totalLiabilities', label: reportText('r.total-liabilities', 'Total liabilities'), report: 'balance-sheet' },
+  { key: 'totalEquity', label: reportText('r.equity-with-this-year-s-profit', 'Equity (with this year’s profit)'), report: 'balance-sheet' },
 ];
 
 async function get<T>(url: string): Promise<T> {
@@ -66,6 +71,7 @@ async function keepRates(groupId: string, body: Record<string, unknown>): Promis
  * group for that currency and period, and fill in when the same period is opened again.
  */
 export default function GroupSummaryReportView() {
+  const reportText = useReportText();
   const setCurrentWorkspaceId = useAuthStore(s => s.setCurrentWorkspaceId);
   // N-07: this workspace on its own, e.g. to show its figures in another currency
   const current = useAuthStore(s => s.getCurrentWorkspace());
@@ -172,41 +178,41 @@ export default function GroupSummaryReportView() {
   return (
     <section aria-labelledby="group-summary-title" className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="group-summary-title" className="text-lg font-bold text-[var(--text)]">Group summary</h2>
+        <h2 id="group-summary-title" className="text-lg font-bold text-[var(--text)]">{reportText('r.group-summary', 'Group summary')}</h2>
         {summary && (
           <button
             type="button"
             onClick={() => exportGroupSummaryCsv(summary, startDate, endDate)}
             className="btn-secondary min-h-11 px-4 rounded-xl text-sm font-semibold"
           >
-            Export CSV
+            {reportText('r.export-csv', 'Export CSV')}
           </button>
         )}
       </div>
       {groups !== null && groups.length === 0 && !error && (
-        <p className="text-sm text-[var(--muted)]">You have no groups of books yet (Settings → Groups of books). This workspace can be shown on its own, in another currency too.</p>
+        <p className="text-sm text-[var(--muted)]">{reportText('r.you-have-no-groups-of-books-yet-settings-groups', 'You have no groups of books yet (Settings → Groups of books). This workspace can be shown on its own, in another currency too.')}</p>
       )}
       {groups !== null && (
         <div className="flex flex-wrap items-end gap-3 text-sm">
-          <label className="flex flex-col gap-1 text-[var(--muted)]">Group
+          <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.group', 'Group')}
             <select value={groupId} onChange={e => setGroupId(e.target.value)} className="px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]">
               {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-              {current && <option value={selfId}>This workspace only ({current.name})</option>}
+              {current && <option value={selfId}>{reportText('r.this-workspace-only', 'This workspace only (')}{current.name})</option>}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[var(--muted)]">From
+          <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.from', 'From')}
             <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]" />
           </label>
-          <label className="flex flex-col gap-1 text-[var(--muted)]">To
+          <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.to', 'To')}
             <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]" />
           </label>
           <label className="flex items-center gap-2 text-[var(--muted)] pb-1.5">
-            <input type="checkbox" checked={byAccount} onChange={e => setByAccount(e.target.checked)} /> Account by account
+            <input type="checkbox" checked={byAccount} onChange={e => setByAccount(e.target.checked)} /> {reportText('r.account-by-account', 'Account by account')}
           </label>
           {memberCurrencies.length > 0 && (
-            <label className="flex flex-col gap-1 text-[var(--muted)]">In one currency
+            <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.in-one-currency', 'In one currency')}
               <select value={reportCurrency} onChange={e => setReportCurrency(e.target.value)} className="px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]">
-                <option value="">Each in its own</option>
+                <option value="">{reportText('r.each-in-its-own', 'Each in its own')}</option>
                 {memberCurrencies.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
@@ -215,53 +221,53 @@ export default function GroupSummaryReportView() {
       )}
       {foreign.map(currency => (
         <fieldset key={currency} className="flex flex-wrap items-end gap-2 rounded-lg border border-[var(--line)] p-3 text-xs">
-          <legend className="px-1 font-semibold text-[var(--text)]">1 {currency} in {reportCurrency}</legend>
-          {rateInput(currency, 'closing', `At ${endDate} (assets, liabilities)`)}
-          {rateInput(currency, 'average', 'Average (income, costs)')}
-          {rateInput(currency, 'historical', 'Historical (equity)')}
+          <legend className="px-1 font-semibold text-[var(--text)]">{reportText('r.1', '1')} {currency} {reportText('r.in', 'in')} {reportCurrency}</legend>
+          {rateInput(currency, 'closing', fillText(reportText('r.gs-rate-closing', 'At {0} (assets, liabilities)'), { 0: formatDate(endDate) }))}
+          {rateInput(currency, 'average', reportText('r.gs-rate-average', 'Average (income, costs)'))}
+          {rateInput(currency, 'historical', reportText('r.gs-rate-historical', 'Historical (equity)'))}
           <button type="button" onClick={() => void fill(currency)} disabled={filling !== ''} className="rounded-lg border border-[var(--line)] px-2.5 py-1 font-semibold text-[var(--text)] disabled:opacity-50">
-            Fill from the rate service<span className="sr-only"> for {currency}</span>
+            {reportText('r.fill-from-the-rate-service', 'Fill from the rate service')}<span className="sr-only"> {reportText('r.for', 'for')} {currency}</span>
           </button>
         </fieldset>
       ))}
-      {'problem' in parsed && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{parsed.problem} to see the group in {reportCurrency}.</p>}
+      {'problem' in parsed && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{parsed.problem} {reportText('r.to-see-the-group-in', 'to see the group in')} {reportCurrency}.</p>}
       {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
       {summary && (
         <>
           {summary.parent && (
             <p className="text-xs text-[var(--muted)]">
-              Parent: <bdi>{summary.parent.name}</bdi>. Each company it owns is added in full; the part that belongs to its other owners is shown under the total.
+              {reportText('r.parent', 'Parent:')} <bdi>{summary.parent.name}</bdi>{reportText('r.each-company-it-owns-is-added-in-full-the-part-t', '. Each company it owns is added in full; the part that belongs to its other owners is shown under the total.')}
             </p>
           )}
-          {summary.notIncluded > 0 && <p className="text-xs text-amber-700 dark:text-amber-400">{summary.notIncluded} workspace{summary.notIncluded === 1 ? '' : 's'} in this group {summary.notIncluded === 1 ? 'is' : 'are'} no longer open to you and {summary.notIncluded === 1 ? 'is' : 'are'} not included.</p>}
+          {summary.notIncluded > 0 && <p className="text-xs text-amber-700 dark:text-amber-400">{summary.notIncluded === 1 ? reportText('r.one-workspace-not-included', '1 workspace in this group is no longer open to you and is not included.') : fillText(reportText('r.n-workspaces-not-included', '{n} workspaces in this group are no longer open to you and are not included.'), { n: summary.notIncluded })}</p>}
           {!summary.total && summary.members.length > 1 && currencies.size > 1 && (
-            <p className="text-xs text-[var(--muted)]">No group total: these books are in {[...currencies].join(', ')}. Choose one currency to add them up.</p>
+            <p className="text-xs text-[var(--muted)]">{reportText('r.no-group-total-these-books-are-in', 'No group total: these books are in')} {[...currencies].join(', ')}{reportText('r.choose-one-currency-to-add-them-up', '. Choose one currency to add them up.')}</p>
           )}
           {summary.members.filter(m => !m.isBalanced).map(m => (
-            <p key={m.workspaceId} role="alert" className="text-xs text-amber-700 dark:text-amber-400">The balance sheet of {m.name} does not balance: check it in its own books.</p>
+            <p key={m.workspaceId} role="alert" className="text-xs text-amber-700 dark:text-amber-400">{reportText('r.the-balance-sheet-of', 'The balance sheet of')} {m.name} {reportText('r.does-not-balance-check-it-in-its-own-books', 'does not balance: check it in its own books.')}</p>
           ))}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <caption className="sr-only">{summary.group.name}: each company side by side</caption>
+              <caption className="sr-only">{summary.group.name}{reportText('r.each-company-side-by-side', ': each company side by side')}</caption>
               <thead>
                 <tr className="border-b border-[var(--line)] text-[var(--muted)]">
-                  <th scope="col" className="text-left font-semibold py-2"><span className="sr-only">Figure</span></th>
+                  <th scope="col" className="text-left font-semibold py-2"><span className="sr-only">{reportText('r.figure', 'Figure')}</span></th>
                   {summary.members.map(m => (
                     <th key={m.workspaceId} scope="col" className="text-right font-semibold py-2 px-2">
-                      <bdi>{m.name}</bdi>{summary.parent && m.workspaceId !== summary.parent.workspaceId && <span className="block text-xs font-normal">{m.share ?? 100}% owned{m.associate ? ': equity method, not added' : ''}</span>}
+                      <bdi>{m.name}</bdi>{summary.parent && m.workspaceId !== summary.parent.workspaceId && <span className="block text-xs font-normal">{m.share ?? 100}{reportText('r.owned', '% owned')}{m.associate ? reportText('r.equity-method-not-added', ': equity method, not added') : ''}</span>}
                     </th>
                   ))}
-                  {summary.total && <th scope="col" className="text-right font-semibold py-2 px-2">Group total</th>}
+                  {summary.total && <th scope="col" className="text-right font-semibold py-2 px-2">{reportText('r.group-total', 'Group total')}</th>}
                 </tr>
               </thead>
               <tbody>
-                {ROWS.map(row => (
+                {rowsFor(reportText).map(row => (
                   <tr key={row.key} className={`border-b border-[var(--line)]/50 ${row.strong ? 'font-semibold' : ''}`}>
                     <th scope="row" className="text-left font-normal py-1.5">{row.label}</th>
                     {summary.members.map(m => (
                       <td key={m.workspaceId} className="text-right font-mono py-1.5 px-2">
-                        <button type="button" onClick={() => open(m, row.report)} className="hover:underline" title={`Open the ${row.report === 'pnl' ? 'profit and loss' : 'balance sheet'} of ${m.name}`}>
-                          {m.translated && summary.total ? formatCurrency(m.translated[row.key], summary.total.currency) : formatCurrency(m[row.key], m.currency)}<span className="sr-only"> {row.label} of {m.name}: open its report</span>
+                        <button type="button" onClick={() => open(m, row.report)} className="hover:underline" title={fillText(reportText('r.open-the-0-of-1', 'Open the {0} of {1}'), { 0: row.report === 'pnl' ? reportText('r.profit-and-loss-lc', 'profit and loss') : reportText('r.balance-sheet-lc', 'balance sheet'), 1: m.name })}>
+                          {m.translated && summary.total ? formatCurrency(m.translated[row.key], summary.total.currency) : formatCurrency(m[row.key], m.currency)}<span className="sr-only"> {row.label} {reportText('r.of', 'of')} {m.name}{reportText('r.open-its-report', ': open its report')}</span>
                         </button>
                       </td>
                     ))}
@@ -270,7 +276,7 @@ export default function GroupSummaryReportView() {
                 ))}
                 {summary.members.some(m => m.translated) && summary.total && (
                   <tr className="border-b border-[var(--line)]/50 text-[var(--muted)]">
-                    <th scope="row" className="text-left font-normal py-1.5">of which translation difference</th>
+                    <th scope="row" className="text-left font-normal py-1.5">{reportText('r.of-which-translation-difference', 'of which translation difference')}</th>
                     {summary.members.map(m => <td key={m.workspaceId} className="text-right font-mono py-1.5 px-2">{formatCurrency(m.translated?.cta || 0, summary.total!.currency)}</td>)}
                     <td className="text-right font-mono py-1.5 px-2">{formatCurrency(summary.total.cta || 0, summary.total.currency)}</td>
                   </tr>
@@ -298,33 +304,33 @@ export default function GroupSummaryReportView() {
           {byAccount && summary.accountLines && summary.total && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <caption className="text-left text-xs text-[var(--muted)] pb-1">Each account across the companies (matched by code, else by name), as each company's books have it; what is taken out between the companies comes off the totals above, not these lines.</caption>
+                <caption className="text-left text-xs text-[var(--muted)] pb-1">{reportText('r.each-account-across-the-companies-matched-by-cod', 'Each account across the companies (matched by code, else by name), as each company\'s books have it; what is taken out between the companies comes off the totals above, not these lines.')}</caption>
                 <thead>
                   <tr className="border-b border-[var(--line)] text-[var(--muted)]">
-                    <th scope="col" className="text-left font-semibold py-2">Account</th>
+                    <th scope="col" className="text-left font-semibold py-2">{reportText('r.account', 'Account')}</th>
                     {summary.members.map(m => <th key={m.workspaceId} scope="col" className="text-right font-semibold py-2 px-2"><bdi>{m.name}</bdi></th>)}
-                    <th scope="col" className="text-right font-semibold py-2 px-2">Together</th>
+                    <th scope="col" className="text-right font-semibold py-2 px-2">{reportText('r.together', 'Together')}</th>
                   </tr>
                 </thead>
-                {(Object.keys(SECTION_NAMES) as AccountLine['section'][]).filter(sec => summary.accountLines!.some(l => l.section === sec)).map(sec => (
+                {SECTION_ORDER.filter(sec => summary.accountLines!.some(l => l.section === sec)).map(sec => (
                   <tbody key={sec}>
-                    <tr><th scope="rowgroup" colSpan={summary.members.length + 2} className="text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)] pt-3">{SECTION_NAMES[sec]}</th></tr>
+                    <tr><th scope="rowgroup" colSpan={summary.members.length + 2} className="text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)] pt-3">{sectionName(sec, reportText)}</th></tr>
                     {summary.accountLines!.filter(l => l.section === sec).map(l => (
                       <tr key={l.key} className="border-b border-[var(--line)]/50">
                         <th scope="row" className="text-left font-normal py-1">
                           {l.code ? <span className="font-mono text-xs text-[var(--muted)]">{l.code} </span> : null}<bdi>{l.name}</bdi>
-                          {l.alsoNamed && <span className="block text-[10px] text-[var(--muted)]">also called {l.alsoNamed.join(', ')}</span>}
+                          {l.alsoNamed && <span className="block text-[10px] text-[var(--muted)]">{reportText('r.also-called', 'also called')} {l.alsoNamed.join(', ')}</span>}
                           {summary.lineMerges?.canCombine && (
                             <span className="flex flex-wrap gap-2 text-[10px]">
-                              <select aria-label={`Combine ${l.name} with`} value="" className="max-w-[12rem] border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]"
+                              <select aria-label={fillText(reportText('r.combine-0-with', 'Combine {0} with'), { 0: l.name })} value="" className="max-w-[12rem] border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]"
                                 onChange={e => { if (e.target.value) void combine({ ...summary.lineMerges!.merges, [l.key]: e.target.value }); }}>
-                                <option value="">Combine with…</option>
+                                <option value="">{reportText('r.combine-with', 'Combine with…')}</option>
                                 {summary.accountLines!.filter(o => o.section === l.section && o.key !== l.key).map(o => <option key={o.key} value={o.key}>{o.code ? `${o.code} ` : ''}{o.name}</option>)}
                               </select>
                               {(l.combined || []).map(from => (
                                 <button key={from} type="button" className="text-indigo-600 dark:text-indigo-400 hover:underline"
                                   onClick={() => { const next = { ...summary.lineMerges!.merges }; delete next[from]; void combine(next); }}>
-                                  Undo {from.split('|')[1]?.replace(/^(code|name):/, '')}
+                                  {reportText('r.undo', 'Undo')} {from.split('|')[1]?.replace(/^(code|name):/, '')}
                                 </button>
                               ))}
                             </span>
@@ -339,50 +345,50 @@ export default function GroupSummaryReportView() {
               </table>
             </div>
           )}
-          {byAccount && !summary.total && <p className="text-xs text-[var(--muted)]">Account by account needs one currency: choose it above.</p>}
+          {byAccount && !summary.total && <p className="text-xs text-[var(--muted)]">{reportText('r.account-by-account-needs-one-currency-choose-it', 'Account by account needs one currency: choose it above.')}</p>}
           {summary.total?.eliminated && (summary.total.eliminated.assets !== 0 || summary.total.eliminated.liabilities !== 0) && (
             <p className="text-xs text-[var(--muted)]">
-              Taken out of the group total: {formatCurrency(summary.total.eliminated.assets, summary.total.currency)} owed to the companies by each other, and {formatCurrency(summary.total.eliminated.liabilities, summary.total.currency)} they owe each other.
+              {reportText('r.taken-out-of-the-group-total', 'Taken out of the group total:')} {formatCurrency(summary.total.eliminated.assets, summary.total.currency)} {reportText('r.owed-to-the-companies-by-each-other-and', 'owed to the companies by each other, and')} {formatCurrency(summary.total.eliminated.liabilities, summary.total.currency)} {reportText('r.they-owe-each-other', 'they owe each other.')}
             </p>
           )}
           {summary.total?.eliminated && Boolean(summary.total.eliminated.income || summary.total.eliminated.cogs || summary.total.eliminated.expense) && (
             <p className="text-xs text-[var(--muted)]">
-              Sales between the companies taken out: {formatCurrency(summary.total.eliminated.income || 0, summary.total.currency)} of income, and {formatCurrency((summary.total.eliminated.cogs || 0) + (summary.total.eliminated.expense || 0), summary.total.currency)} of costs on the other side.
+              {reportText('r.sales-between-the-companies-taken-out', 'Sales between the companies taken out:')} {formatCurrency(summary.total.eliminated.income || 0, summary.total.currency)} {reportText('r.of-income-and', 'of income, and')} {formatCurrency((summary.total.eliminated.cogs || 0) + (summary.total.eliminated.expense || 0), summary.total.currency)} {reportText('r.of-costs-on-the-other-side', 'of costs on the other side.')}
             </p>
           )}
           {summary.total?.eliminated && Boolean(summary.total.eliminated.profitDifference) && (
             <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
-              The two sides of the sales between the companies differ by {formatCurrency(summary.total.eliminated.profitDifference || 0, summary.total.currency)} (kept in net income, so it stays each company's own): see the dealings below.
+              {reportText('r.the-two-sides-of-the-sales-between-the-companies', 'The two sides of the sales between the companies differ by')} {formatCurrency(summary.total.eliminated.profitDifference || 0, summary.total.currency)} {reportText('r.kept-in-net-income-so-it-stays-each-company-s-ow', '(kept in net income, so it stays each company\'s own): see the dealings below.')}
             </p>
           )}
           {summary.total?.eliminated?.investment ? (
             <p className="text-xs text-[var(--muted)]">
-              The parent's investment in its companies, {formatCurrency(summary.total.eliminated.investment, summary.total.currency)}, is taken out of the total assets and equity
+              {reportText('r.the-parent-s-investment-in-its-companies', 'The parent\'s investment in its companies,')} {formatCurrency(summary.total.eliminated.investment, summary.total.currency)}{reportText('r.is-taken-out-of-the-total-assets-and-equity', ', is taken out of the total assets and equity')}
               {summary.total.eliminated.goodwill !== undefined
-                ? <>, except goodwill: {formatCurrency(summary.total.eliminated.goodwill, summary.total.currency)} paid above its share of the companies' book value on the day bought, kept in the total.{summary.total.eliminated.belowBookValue ? <> It paid {formatCurrency(summary.total.eliminated.belowBookValue, summary.total.currency)} below that share for some of them (left in equity).</> : null}</>
-                : <> (give the day each company was bought in Settings → Groups of books to see the goodwill).</>}
+                ? <>{reportText('r.except-goodwill', ', except goodwill:')} {formatCurrency(summary.total.eliminated.goodwill, summary.total.currency)} {reportText('r.paid-above-its-share-of-the-companies-book-value', 'paid above its share of the companies\' book value on the day bought, kept in the total.')}{summary.total.eliminated.belowBookValue ? <> {reportText('r.it-paid', 'It paid')} {formatCurrency(summary.total.eliminated.belowBookValue, summary.total.currency)} {reportText('r.below-that-share-for-some-of-them-left-in-equity', 'below that share for some of them (left in equity).')}</> : null}</>
+                : <> {reportText('r.give-the-day-each-company-was-bought-in-settings', '(give the day each company was bought in Settings → Groups of books to see the goodwill).')}</>}
             </p>
           ) : null}
           {summary.total?.eliminated && summary.total.eliminated.difference !== 0 && (
             <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
-              What the companies say they owe each other differs by {formatCurrency(summary.total.eliminated.difference, summary.total.currency)} (kept in equity so the total balances): see the dealings below.
+              {reportText('r.what-the-companies-say-they-owe-each-other-diffe', 'What the companies say they owe each other differs by')} {formatCurrency(summary.total.eliminated.difference, summary.total.currency)} {reportText('r.kept-in-equity-so-the-total-balances-see-the-dea', '(kept in equity so the total balances): see the dealings below.')}
             </p>
           )}
           {summary.intercompany && (summary.intercompany.matched > 0 || summary.intercompany.unmatched.length > 0) && (
             <section aria-labelledby="group-dealings-title" className="space-y-2">
-              <h3 id="group-dealings-title" className="text-sm font-semibold text-[var(--text)]">Dealings between the companies</h3>
+              <h3 id="group-dealings-title" className="text-sm font-semibold text-[var(--text)]">{reportText('r.dealings-between-the-companies', 'Dealings between the companies')}</h3>
               <p className="text-xs text-[var(--muted)]">
-                {summary.intercompany.matched} matched on both sides{summary.intercompany.unmatched.length ? `; ${summary.intercompany.unmatched.length} without a match:` : '.'}
+                {summary.intercompany.matched} {reportText('r.matched-on-both-sides', 'matched on both sides')}{summary.intercompany.unmatched.length ? fillText(reportText('r.0-without-a-match', '; {0} without a match:'), { 0: summary.intercompany.unmatched.length }) : '.'}
               </p>
               {summary.intercompany.unmatched.length > 0 && (
                 <table className="w-full text-xs">
-                  <caption className="sr-only">Dealings between the companies without a match</caption>
+                  <caption className="sr-only">{reportText('r.dealings-between-the-companies-without-a-match', 'Dealings between the companies without a match')}</caption>
                   <thead>
                     <tr className="border-b border-[var(--line)] text-[var(--muted)]">
-                      <th scope="col" className="text-left font-semibold py-1">Company</th>
-                      <th scope="col" className="text-left font-semibold py-1">Entry</th>
-                      <th scope="col" className="text-right font-semibold py-1">Amount</th>
-                      <th scope="col" className="text-left font-semibold py-1 pl-2">What is wrong</th>
+                      <th scope="col" className="text-left font-semibold py-1">{reportText('r.company', 'Company')}</th>
+                      <th scope="col" className="text-left font-semibold py-1">{reportText('r.entry', 'Entry')}</th>
+                      <th scope="col" className="text-right font-semibold py-1">{reportText('r.amount', 'Amount')}</th>
+                      <th scope="col" className="text-left font-semibold py-1 pl-2">{reportText('r.what-is-wrong', 'What is wrong')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -394,11 +400,11 @@ export default function GroupSummaryReportView() {
                           <td className="py-1">
                             <button type="button" className="text-indigo-600 dark:text-indigo-400 hover:underline"
                               onClick={() => { setCurrentWorkspaceId(i.workspaceId); openRecord({ type: 'transaction', id: i.transactionId }); }}>
-                              {i.date}: <bdi>{i.description || 'entry'}</bdi>
+                              {i.date}: <bdi>{i.description || reportText('r.entry-2', 'entry')}</bdi>
                             </button>
                           </td>
                           <td className="py-1 text-right font-mono">{formatCurrency(i.amountCents, i.currency)}</td>
-                          <td className="py-1 pl-2">{whyUnmatched(i)}</td>
+                          <td className="py-1 pl-2">{whyUnmatched(i, reportText)}</td>
                         </tr>
                       );
                     })}
@@ -407,7 +413,7 @@ export default function GroupSummaryReportView() {
               )}
             </section>
           )}
-          <p className="text-xs text-[var(--muted)]">Each company is read from its own books, as you can see them. Balances and sales between the companies are taken out of the total, and the parent's investment when its account is chosen in Settings → Groups of books.</p>
+          <p className="text-xs text-[var(--muted)]">{reportText('r.each-company-is-read-from-its-own-books-as-you-c', 'Each company is read from its own books, as you can see them. Balances and sales between the companies are taken out of the total, and the parent\'s investment when its account is chosen in Settings → Groups of books.')}</p>
         </>
       )}
     </section>

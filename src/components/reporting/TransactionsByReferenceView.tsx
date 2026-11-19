@@ -11,12 +11,14 @@ import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import type { ReferenceRow } from '../../server/reports/referenceReport';
 import { useServerTransactionsByReference } from '../../hooks/useServerTransactionsByReference';
 import { RangeReportSourceNote } from './RangeReportSourceNote';
+import { useReportText, fill } from './useReportText';
 
 /**
  * Transactions by Reference (J-06): posted entries listed under their reference: a cheque or bank
  * reference, or the invoice or bill number (src/server/reports/referenceReport.ts).
  */
 export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate?: string }> = ({ startDate: pageStartDate, endDate: pageEndDate }) => {
+  const reportText = useReportText();
   const openRecord = useUIStore(s => s.openRecord);
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const periodKey = JSON.stringify([pageStartDate, pageEndDate]);
@@ -44,48 +46,48 @@ export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate
   };
 
   const columns: ColumnDef<ReferenceRow>[] = [
-    { key: 'reference', header: 'Reference', render: (r) => <span className="font-mono font-semibold">{r.reference}</span> },
-    { key: 'date', header: 'Date', render: (r) => r.date.slice(0, 10) },
+    { key: 'reference', header: reportText('r.reference', 'Reference'), render: (r) => <span className="font-mono font-semibold">{r.reference}</span> },
+    { key: 'date', header: reportText('r.date-2', 'Date'), render: (r) => r.date.slice(0, 10) },
     {
       key: 'description',
-      header: 'Description',
+      header: reportText('r.description', 'Description'),
       render: (r) => (
         <button type="button" onClick={() => openRecord({ type: 'transaction', id: r.transactionId })} className="text-left hover:underline">
-          {r.description || '(no description)'}
+          {r.description || reportText('r.no-description', '(no description)')}
         </button>
       ),
     },
-    { key: 'source', header: 'From', render: (r) => <span className="text-[var(--muted)]">{r.source}</span> },
-    { key: 'amountCents', header: 'Amount', align: 'right', render: (r) => formatCurrency(r.amountCents, currency) },
+    { key: 'source', header: reportText('r.from', 'From'), render: (r) => <span className="text-[var(--muted)]">{r.source}</span> },
+    { key: 'amountCents', header: reportText('r.amount', 'Amount'), align: 'right', render: (r) => formatCurrency(r.amountCents, currency) },
   ];
 
   return (
     <div className="space-y-3">
       <PartyReportLayout
-        title="Transactions by Reference"
-        description="Posted entries listed under their cheque, bank, invoice or bill reference."
+        title={reportText('r.transactions-by-reference', 'Transactions by Reference')}
+        description={reportText('r.posted-entries-listed-under-their-cheque-bank-in', 'Posted entries listed under their cheque, bank, invoice or bill reference.')}
         icon={Hash}
-        totalLabel="Total of the entries listed"
+        totalLabel={reportText('r.total-of-the-entries-listed', 'Total of the entries listed')}
         totalAmountCents={shown.reduce((sum, r) => sum + r.amountCents, 0)}
         currency={currency}
         exportFilename="transactions_by_reference.csv"
         onExportCSV={exportCsv}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        searchPlaceholder="Search reference or description..."
+        searchPlaceholder={reportText('r.search-reference-or-description', 'Search reference or description...')}
         startDate={startDate}
         endDate={endDate}
         onStartDateChange={setStartDate}
         onEndDateChange={setEndDate}
         columns={columns}
         data={shown}
-        emptyMessage="No entries with a reference in this period."
+        emptyMessage={reportText('r.no-entries-with-a-reference-in-this-period', 'No entries with a reference in this period.')}
         sumKeys={['amountCents']}
         getRowId={(r) => r.transactionId}
       />
-      <RangeReportSourceNote source={source} testId="transactions-by-reference-source" what="these references" reads="every entry and every invoice and bill number" />
+      <RangeReportSourceNote source={source} testId="transactions-by-reference-source" what={reportText('r.these-references', 'these references')} reads="every entry and every invoice and bill number" />
       <p className="text-xs text-[var(--muted)]" role="status">
-        {report.referenceCount} reference(s).{report.withoutReference > 0 ? ` ${report.withoutReference} posted entr${report.withoutReference === 1 ? 'y has' : 'ies have'} no reference and are not listed.` : ''}
+        {report.referenceCount} {reportText('r.reference-s', 'reference(s).')}{report.withoutReference > 0 ? ` ${fill(report.withoutReference === 1 ? reportText('r.no-ref-one', '{0} posted entry has no reference and is not listed.') : reportText('r.no-ref-many', '{0} posted entries have no reference and are not listed.'), { 0: report.withoutReference })}` : ''}
       </p>
     </div>
   );
