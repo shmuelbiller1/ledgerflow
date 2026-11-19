@@ -189,7 +189,7 @@ export default function WarrantyRegisterPanel() {
           },
           {
             id: 'status', header: reportText('r.status', 'Status'), accessorFn: ({ endDate }) => warrantyStatus(endDate, today),
-            cell: ({ row: { original: { warranty, endDate } } }) =>
+            cell: ({ row: { original: { endDate } } }) =>
               warrantyStatus(endDate, today) === 'under warranty'
                 ? reportText('r.under-warranty', 'Under warranty')
                 : warrantyStatus(endDate, today) === 'expired'

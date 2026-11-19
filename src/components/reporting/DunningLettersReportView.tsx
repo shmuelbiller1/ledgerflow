@@ -135,7 +135,7 @@ export default function DunningLettersReportView() {
           <option value="he">{reportText('r.x-12', 'עברית')}</option>
         </select>
       </label>
-      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!shown.length}
+      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!shown.length || loading || partial}
         onClick={() => downloadCsv('dunning-letters', CSV_HEADERS, shown.map(r =>
           [r.invoice.number || r.invoice.id, r.customerName, r.invoice.dueDate, r.daysOverdue, r.outstandingCents, r.currency, r.stepDue || '']))}>
         {reportText('r.export-csv', 'Export CSV')}</button>

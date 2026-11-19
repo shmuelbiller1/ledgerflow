@@ -74,7 +74,7 @@ export default function ExpenseByEmployeeReportView({ startDate = '', endDate = 
     {partial && <p role="alert">{reportText('r.claim-or-attachment-history-is-capped-or-failed-2', 'Claim or attachment history is capped or failed to load. Results may be incomplete; a receipt is marked missing only when the linked-file metadata is complete.')}</p>}
 
     <div data-print-hide>
-      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!report.rows.length}
+      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!report.rows.length || loading || partial}
         onClick={() => downloadCsv('expense-by-employee', [...EXPENSE_BY_EMPLOYEE_CSV_HEADERS], expenseByEmployeeCsvRows(report.rows))}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
 

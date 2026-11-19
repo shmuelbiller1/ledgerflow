@@ -365,7 +365,7 @@ export const PurchaseOrdersView: React.FC = () => {
                 id: 'actions',
                 header: listText('Actions'),
                 cell: ({ row: { original: po } }) => (
-                  <div className="text-right whitespace-nowrap space-x-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     <>
                       {awaitingApproval(po) &&
                         (() => {
@@ -373,7 +373,7 @@ export const PurchaseOrdersView: React.FC = () => {
                           if (problem) return <span className="text-[var(--muted)]">{problem === 'Not waiting for approval' ? '' : problem}</span>;
                           if (declining === po.id)
                             return (
-                              <span className="inline-flex items-center gap-2">
+                              <span className="inline-flex flex-wrap items-center gap-2">
                                 <label htmlFor={`decline-${po.id}`} className="sr-only">
                                   Why is it declined?
                                 </label>

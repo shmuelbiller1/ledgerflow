@@ -237,7 +237,7 @@ export default function AccountantExportPackView({ startDate: pageStartDate, end
         </p>
       )}
 
-      {pack && (
+      {pack && blockers.length === 0 && (
         <>
           <div className="flex flex-wrap gap-3" data-print-hide>
             <button type="button" onClick={() => downloadBlob(accountantPackFileName(pack), accountantPackZip(pack))}

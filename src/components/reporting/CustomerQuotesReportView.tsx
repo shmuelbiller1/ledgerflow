@@ -271,6 +271,7 @@ function CustomerQuotesContent() {
         <p className="text-sm text-[var(--muted)]">{reportText('r.no-open-or-signed-customer-quotes-match-the-sele', 'No open or signed customer quotes match the selected filter.')}</p>
       ) : (
           <TanStackDataGrid
+            loading={loading}
             data={quoteRows.map((r) => {
               const cur = (r.currency || homeCurrency).toUpperCase();
               return { r, cur };

@@ -11,6 +11,19 @@ for (const width of [390, 1280])
   test(`an expanded order stays with its ID through filtering; receipts keep their own lines at ${width}`, async ({ page }) => {
     const h = await openOperationsScreen(page, 'PurchaseOrdersView', width, width === 390 ? 'dark' : 'light');
     const list = page.getByRole('region', { name: 'Purchase orders', exact: true });
+    if (width === 390) {
+      const search = page.getByPlaceholder('Search records...');
+      const chooser = page.locator('summary').filter({ hasText: 'Columns' }).first();
+      const box = await search.boundingBox(), toggle = await chooser.boundingBox();
+      expect(box && toggle && box.y + box.height <= toggle.y).toBe(true);
+      const card = list.getByRole('listitem').first();
+      expect(await card.evaluate(el => {
+        const edge = el.getBoundingClientRect();
+        return Array.from(el.querySelectorAll('button')).every(button => {
+          const r = button.getBoundingClientRect(); return r.left >= edge.left && r.right <= edge.right;
+        });
+      })).toBe(true);
+    }
     await tabTo(page, list);
     await page.keyboard.press('End');
     await expect(list.locator('[data-grid-active-row=true]')).toContainText('PO-24');
@@ -170,5 +183,49 @@ test('delivery note CSV follows the document price choice, not a hidden DOM colu
   await prices.check();
   file = await downloadAt(page, csv);
   expect(file.rows[1]).toEqual([item, '8', '25.00', '200.00']);
+  expect(h.requests).toEqual([]);
+});
+
+test('accountant pack CSV keeps entries beyond the 500-row preview; health changes block a prepared download', async ({
+  page,
+}) => {
+  const h = await openOperationsScreen(page, 'AccountantExportPackView', 1280, 'light');
+  await expect(page.getByRole('button', { name: /general-ledger\.csv/ })).toBeVisible();
+  // 260 balanced journals: 260 debits + 260 credits + opening/total for each account.
+  await page.evaluate(async () => {
+    const { useLedgerStore } = await import('/src/stores/useLedgerStore.ts');
+    const seed = useLedgerStore.getState().transactions[0];
+    useLedgerStore.setState({
+      transactions: Array.from({ length: 260 }, (_, n) => ({
+        ...seed,
+        id: `journal-${String(n).padStart(3, '0')}`,
+        description: `Entry ${n}`,
+      })),
+    });
+  });
+  await page
+    .getByRole('button', { name: /Prepare/ })
+    .first()
+    .press('Enter');
+  const ledger = page.locator('[data-accountant-section="general-ledger"]');
+  await expect(ledger.locator('tbody > tr')).toHaveCount(500);
+  const file = await downloadAt(page, page.getByRole('button', { name: /general-ledger\.csv/ }));
+  expect(file.rows).toHaveLength(525);
+  expect(file.rows.at(-1)).toEqual([
+    '4000',
+    'Sales',
+    '',
+    'Account total 2026-02-01 to 2026-02-28',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '26000.00',
+  ]);
+  expect(file.rows.filter((r) => r[4] === 'journal-259')).toHaveLength(2);
+  await setLedgerField(page, 'truncatedCollections', { transactions: true });
+  await expect(page.getByRole('button', { name: /general-ledger\.csv/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Prepare/ }).first()).toBeDisabled();
   expect(h.requests).toEqual([]);
 });

@@ -430,7 +430,7 @@ export function TanStackDataGrid<TData extends object>({
     <div className="space-y-4">
       {hasToolbar && (
         <div data-print-hide className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-0">
+          <div className={cn('flex flex-wrap items-center gap-3 min-w-0', showCards && enableGlobalFilter ? 'basis-full' : 'flex-1')}>
             {enableGlobalFilter && (
               <div className="relative flex-1 min-w-[200px] max-w-xs">
                 <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" size={15} />
@@ -453,6 +453,7 @@ export function TanStackDataGrid<TData extends object>({
               <ListColumnChooser
                 scope={columnScope}
                 label={columnLabel}
+                preferenceId={namedColumns ? undefined : JSON.stringify([columnScope, selectable, ...columns.map(c => c.id)])}
                 columns={columnNames}
                 lockedColumns={rowHeaderLocked}
               />
@@ -509,7 +510,7 @@ export function TanStackDataGrid<TData extends object>({
               </div>
             )
           ) : (
-            <div ref={gridRef} role="region" aria-label={caption} tabIndex={0} className="space-y-3 outline-none rounded-2xl">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
+            <div ref={gridRef} role="region" aria-label={caption} tabIndex={0} className="space-y-3 outline-none rounded-2xl focus-visible:ring-2 focus-visible:ring-indigo-500">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
             <div role="list" className="space-y-3">
               {visibleRows.map(row => {
                 const extra = getRowProps ? getRowProps(row.original) : {};
@@ -524,6 +525,7 @@ export function TanStackDataGrid<TData extends object>({
                     role="listitem"
                     className={cn(
                       'p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-2xs space-y-2',
+                      activeRowVisible && activeRowId === rowId && 'ring-2 ring-inset ring-[var(--muted)]',
                       extra.className,
                     )}
                   >

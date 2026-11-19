@@ -2,16 +2,17 @@ import { useId, useState } from 'react';
 import { X } from 'lucide-react';
 import type { PurchaseOrder } from '../../types';
 import { addOrderItem, changeOrderItem, removeOrderItem } from '../../lib/purchaseOrders';
+import { inBackground } from '../../lib/inBackground';
 import { formatCurrency } from '../../lib/utils';
 import InlineEdit from '../ui/InlineEdit';
-import { RowTable } from '../ui/RowTable';
+import ReportSchedule from '../reporting/ReportSchedule';
 
 /** An order's lines, editable in place while nothing was received or billed (I-22). */
 export default function PurchaseOrderLines({ po, canEdit, suggestions, onSave }: {
   po: PurchaseOrder;
   canEdit: boolean;
   suggestions: string[];
-  onSave: (po: PurchaseOrder, changes: Partial<PurchaseOrder>, message: string) => Promise<unknown>;
+  onSave: (po: PurchaseOrder, changes: Partial<PurchaseOrder>, message: string) => Promise<boolean>;
 }) {
   const ids = useId();
   const [desc, setDesc] = useState('');
@@ -22,12 +23,12 @@ export default function PurchaseOrderLines({ po, canEdit, suggestions, onSave }:
     const quantity = Number(qty);
     const unitPriceCents = Math.round(Number(price) * 100);
     if (!desc.trim() || !(quantity > 0) || !(unitPriceCents > 0)) return;
-    await onSave(po, addOrderItem(po, { id: crypto.randomUUID(), description: desc.trim(), quantity, unitPriceCents, receivedQuantity: 0 }), 'Line added');
-    setDesc(''); setQty('1'); setPrice('');
+    const saved = await onSave(po, addOrderItem(po, { id: crypto.randomUUID(), description: desc.trim(), quantity, unitPriceCents, receivedQuantity: 0 }), 'Line added');
+    if (saved) { setDesc(''); setQty('1'); setPrice(''); }
   };
   const cell = 'py-1.5 px-2';
   return (
-    <RowTable
+    <ReportSchedule
       caption={<>Lines of {po.poNumber}</>}
       captionClassName="sr-only"
       tableClassName="w-full text-left text-xs mt-2"
@@ -42,7 +43,7 @@ export default function PurchaseOrderLines({ po, canEdit, suggestions, onSave }:
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                void add();
+                inBackground(add());
               }
             }}
           >

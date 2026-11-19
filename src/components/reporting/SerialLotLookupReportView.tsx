@@ -129,7 +129,7 @@ export default function SerialLotLookupReportView({ purchaseOrders: purchaseOrde
             placeholder={reportText('r.type-part-of-the-serial', 'Type part of the serial')} dir="auto"
             className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)] w-72" />
         </label>
-        <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!matches.length}
+        <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!matches.length || loading || ordersLoading || partial}
           onClick={() => downloadCsv('serial-lookup', SERIAL_LOOKUP_CSV_HEADERS, serialLookupCsvRows(
             matches.map(({ serial, documentId, documentType, date, line, description, lotNumber }) => ({
               serial, documentId, documentType, date, line, description, lotNumber,

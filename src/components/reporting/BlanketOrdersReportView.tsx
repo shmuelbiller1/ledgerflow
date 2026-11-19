@@ -11,6 +11,7 @@ import {
   BLANKET_CSV_HEADERS, blanketAgreementProblem, blanketCsvRows, blanketOrderReview, blanketStateLabel,
 } from '../../lib/blanketOrders';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
+import { inBackground } from '../../lib/inBackground';
 import { downloadCsv } from '../../lib/csvExport';
 import InlineEdit from '../ui/InlineEdit';
 import ReportTableScroll from './ReportTableScroll';
@@ -79,7 +80,7 @@ export function BlanketOrdersPanel({
   const money = (cents: number, currency: string) => formatCurrency(cents, (currency && currency !== '—') ? currency : homeCurrency);
 
   const saveBlanket = async (order: PurchaseOrder, blanket: { validUntil: string; capCents?: number } | null, message: string) => {
-    await updateEntity('purchaseOrders', order.id, {
+    return updateEntity('purchaseOrders', order.id, {
       blanket,
       updatedAt: new Date().toISOString(),
     } as Record<string, unknown>, message);
@@ -90,11 +91,11 @@ export function BlanketOrdersPanel({
     const problem = blanketAgreementProblem({ validUntil, capCents, issueDate: String(order.issueDate || '').slice(0, 10) });
     setProblemFor(problem ? { id: order.id, problem } : null);
     if (problem) return;
-    await saveBlanket(order, {
+    const saved = await saveBlanket(order, {
       validUntil: validUntil.slice(0, 10),
       ...(cap === '' ? {} : { capCents }),
     }, `${order.poNumber} marked as a blanket order`);
-    setDrafts(current => { const next = { ...current }; delete next[order.id]; return next; });
+    if (saved) setDrafts(current => { const next = { ...current }; delete next[order.id]; return next; });
   };
 
   return <section aria-label={reportText('r.blanket-purchase-orders', 'Blanket purchase orders')} className="p-4 space-y-4 min-w-0">
@@ -319,7 +320,7 @@ export function BlanketOrdersPanel({
                 type="button"
                 className="btn-secondary min-h-11 px-3"
                 disabled={!canEdit}
-                onClick={() => mark(order, drafts[order.id]?.validUntil || '', drafts[order.id]?.cap || '')}
+                onClick={() => inBackground(mark(order, drafts[order.id]?.validUntil || '', drafts[order.id]?.cap || ''))}
               >
                 {reportText('r.mark-as-blanket', 'Mark as blanket')}
                 <span className="sr-only">

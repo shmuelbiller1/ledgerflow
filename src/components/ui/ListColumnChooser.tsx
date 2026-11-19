@@ -13,6 +13,8 @@ interface Props {
   /** Stable DOM scope, matching `data-list-columns` on the list's scroll wrapper. */
   scope: string;
   label: string;
+  /** Stable grid/schema identity, independent of a translated label or reporting day. */
+  preferenceId?: string;
   /** One name per rendered column, including Selection and Actions. */
   columns: string[];
   /**
@@ -31,7 +33,7 @@ interface Props {
 export default function ListColumnChooser(props: Props) {
   const user = useAuthStore(store => store.user?.uid || 'guest');
   const workspace = useAuthStore(store => store.currentWorkspaceId || 'none');
-  const key = listColumnKey(user, workspace, props.label);
+  const key = listColumnKey(user, workspace, props.preferenceId ?? props.label);
   return <ScopedChooser key={`${key}:${props.columns.length}`} {...props} storageKey={key} />;
 }
 
@@ -73,7 +75,7 @@ function ScopedChooser({ scope, label, columns, storageKey, lockedColumns }: Pro
                 <input type="checkbox" checked={!hidden.includes(index)} disabled={locked}
                   onChange={() => change(index)} aria-label={listText('Column {number} visibility', { number: index + 1 })}
                   aria-describedby={descriptionId} />
-                <span id={descriptionId}><bdi dir="auto">{name} column</bdi></span>
+                <span id={descriptionId}><bdi dir="auto">{listText('{name} column', { name })}</bdi></span>
               </div>
             );
           })}
