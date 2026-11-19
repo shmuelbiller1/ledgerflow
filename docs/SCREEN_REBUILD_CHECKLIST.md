@@ -151,10 +151,10 @@ a new raw screen cannot slip in when a different screen migrates in the same PR.
 **Next batch:** On the `bce500c` base the dry run offered 15 tables in 14 files. Two eligible table blocks
 were migrated; the re-survey offers **13 tables in 12 files**, still **131 refused blocks** (including the
 shared renderers). `rawTables` counts files: 124 → **122**. No new exemption, no hand-converted refusal.
-Start with **`PurchaseItemTrendsView`** when the Hebrew-report PRs (#872/#877) are settled: its unit/currency
-breakdown and full-history load are **not** the vendor totals migrated here. Check per-currency figures, full
-history vs cached/guest, workspace changes and the item-trends CSV. If still reserved, `ProjectProfitabilityView`
-is an eligible unreserved single-table file; preserve its chart filters and posted figures. Recheck PRs and
+Start with **`PurchaseItemTrendsView`** on current main: the Hebrew-report PRs (#872/#877) have merged. Its
+unit/currency breakdown and full-history load are **not** the vendor totals migrated here. Check per-currency
+figures, full history vs cached/guest, workspace changes and the item-trends CSV. If newly reserved, use
+`ProjectProfitabilityView` instead; preserve its chart filters and posted figures. Recheck open PRs and
 rerun `npx tsx scripts/codemod-row-table.ts --files` first. The most common refusals remain maps that don't
 return one row (34), unsupported headings (31), and bodies that aren't a map (15).
 
