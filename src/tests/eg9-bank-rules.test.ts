@@ -30,6 +30,7 @@ import type { Server } from 'node:http';
 import { suggestFromRules, sameSuggestion, reconcileCreateDefaults } from '../lib/bankRules';
 import type { AutoRule, ChartAccount } from '../types';
 import { commitAsServer } from './helpers/serverCommit';
+import pg from 'pg';
 
 const rule = (id: string, priority: number, condition: AutoRule['condition'], action: AutoRule['action'], extra: Partial<AutoRule> = {}): AutoRule =>
   ({ id, uid: 'someone-else', priority, condition, action, confidence: 1, isHardened: true, isActive: true, createdAt: '2026-10-01', ...extra });
@@ -133,7 +134,7 @@ describe('EG-9 bank rules on the server', { skip: !url && 'LF_TEST_DATABASE_URL 
 
   after(async () => {
     server?.close();
-    for (const table of ['transactions', 'bankLines', 'autoRules', 'chartAccounts', 'vendors', 'idempotencyKeys', 'workspaces']) {
+    for (const table of ['transactions', 'bankLines', 'autoRules', 'chartAccounts', 'vendors', 'idempotencyKeys', 'auditLogs', 'workspaces']) {
       await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]);
     }
     const { getSupabase } = await import('../lib/db/client');
@@ -188,6 +189,38 @@ describe('EG-9 bank rules on the server', { skip: !url && 'LF_TEST_DATABASE_URL 
     assert.deepEqual(await hits(), { R1: 1, R2: 1, R3: 1, R4: 0, R5: 0, R6: 1 });
     assert.deepEqual((await line('A')).ruleIdsApplied, [id('R1'), id('R2')]);
     assert.equal(await entries(), 0);
+  });
+
+  // #796: the runner's transaction retries once (40001) after the work is done: the retried attempt still
+  // reports the change and writes the audit line, and the rule still counts one hit
+  test('a serializable retry keeps the change count and the audit line', async () => {
+    const audits = async () => (await db.pool.query<{ c: number }>(`select count(*)::int as c from public."auditLogs" where workspace_id = $1 and data->>'action' = 'BANK_RULES_RERUN'`, [ws])).rows[0].c;
+    const before = await audits();
+    await db.collection('autoRules').doc(id('R7')).set({ ...rule(id('R7'), 0, { descriptionContains: 'coffee' }, { targetAccountId: id('a7000') }), workspaceId: ws } as never);
+    const original = db.runTransaction.bind(db);
+    let injected = false;
+    db.runTransaction = (async (work: (t: never) => Promise<unknown>) => {
+      db.runTransaction = original; // only the next (outer) call is wrapped; calls made inside it pass through
+      return original(async (t: never) => {
+        const result = await work(t);
+        if (!injected) {
+          injected = true;
+          throw Object.assign(new pg.DatabaseError('test-only retry', 0, 'error'), { code: '40001' });
+        }
+        return result;
+      });
+    }) as typeof db.runTransaction;
+    try {
+      const res = await send(ACC, { workspaceId: ws });
+      assert.equal(injected, true, 'the retry was injected');
+      assert.deepEqual(res.body, { checked: 3, changed: 1, suggested: 3, truncated: false });
+    } finally {
+      db.runTransaction = original;
+    }
+    assert.equal((await line('C')).suggestion?.ruleIds?.[0], id('R7'));
+    assert.equal((await hits()).R7, 1);
+    assert.equal(await audits(), before + 1);
+    await db.collection('autoRules').doc(id('R7')).delete();
   });
 
   // review 4368675668: the statement's fingerprint is kept, one line per fingerprint
