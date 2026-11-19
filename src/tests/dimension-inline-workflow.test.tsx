@@ -232,10 +232,7 @@ describe('Inline label creation, renaming, and new dimensions across transaction
         rpcCalls.push({ url, body });
         return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
-      if (method === 'POST' && /\/rest\/v1\/dimensionNodes\b/.test(url)) {
-        rpcCalls.push({ url, body });
-        return new Response(JSON.stringify([body]), { status: 201, headers: { 'Content-Type': 'application/json' } });
-      }
+      assert.ok(!(method === 'POST' && /\/rest\/v1\/dimensionNodes\b/.test(url)), 'no direct label write');
       if (url.includes('/dimensionNodes?') && url.includes('P5')) {
         const current = useLedgerStore.getState().dimensionNodes.find(n => n.id === 'P5');
         return new Response(
@@ -298,10 +295,11 @@ describe('Inline label creation, renaming, and new dimensions across transaction
       assert.equal(useLedgerStore.getState().dimensionNodes.some(n => n.id === 'P6' && n.description === 'Maui House'), true);
     });
     assert.equal((screen.getByLabelText('Property for line 1') as HTMLInputElement).value, 'P6');
-    const inlineInsert = rpcCalls.find(c => /\/rest\/v1\/dimensionNodes\b/.test(c.url));
-    assert.ok(inlineInsert, 'expected create-only insert on dimensionNodes');
-    assert.equal((inlineInsert.body.data as { id?: string; description?: string })?.id, 'P6');
-    assert.equal((inlineInsert.body.data as { description?: string })?.description, 'Maui House');
+    const inlineInsert = rpcCalls.find(c => c.url.endsWith('/commands/workspace.dimensionnode') && (c.body.input as { createOnly?: boolean })?.createOnly);
+    assert.ok(inlineInsert, 'the inline editor uses the create-only command');
+    const node = (inlineInsert.body.input as { node: { id: string; description: string } }).node;
+    assert.equal(node.id, 'P6');
+    assert.equal(node.description, 'Maui House');
 
     // Rename P5 ("5 Ocean Ave" -> "5 Ocean Blvd") using Enter; parent dialog stays open and unsaved
     fireEvent.change(propInput, { target: { value: 'P5' } });
@@ -570,15 +568,12 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     await act(async () => {
       fireEvent.keyDown(descInput, { key: 'Enter' });
     });
-    // a new label still reserves its row directly: "create only, tell me if the id is taken" is what the
-    // retry-on-conflict loop needs, and the command that would replace it has no conflict answer yet
-    await waitFor(() => {
-      assert.ok(rpcCalls.some(c => /\/rest\/v1\/dimensionNodes\b/.test(c.url)));
-    });
-    const createdNodeWrite = rpcCalls.find(c => /\/rest\/v1\/dimensionNodes\b/.test(c.url))!;
-    assert.equal((createdNodeWrite.body.data as { id?: string; description?: string; status?: string }).id, 'P6');
-    assert.equal((createdNodeWrite.body.data as { description?: string }).description, 'Harbor Suite');
-    assert.equal((createdNodeWrite.body.data as { status?: string }).status, 'active');
+    const createdNodeWrite = rpcCalls.find(c => c.url.endsWith('/commands/workspace.dimensionnode') && (c.body.input as { createOnly?: boolean })?.createOnly);
+    assert.ok(createdNodeWrite, 'the settings editor uses the create-only command');
+    const node = (createdNodeWrite.body.input as { node: { id: string; description: string; status: string } }).node;
+    assert.equal(node.id, 'P6');
+    assert.equal(node.description, 'Harbor Suite');
+    assert.equal(node.status, 'active');
     assert.equal(useLedgerStore.getState().dimensionNodes.some(n => n.id === 'P6' && n.description === 'Harbor Suite'), true);
 
     // Entering an already-existing label WITH new aliases merges those aliases (deduplicating NFD/Hebrew variants)
@@ -744,7 +739,7 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     const prevFetch = globalThis.fetch;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if ((init?.method || 'GET').toUpperCase() === 'POST' && /\/rest\/v1\/dimensionNodes\b/.test(url)) {
+      if ((init?.method || 'GET').toUpperCase() === 'POST' && url.endsWith('/commands/workspace.dimensionnode')) {
         await insertGate;
       }
       return prevFetch(input, init);
@@ -800,7 +795,7 @@ describe('Inline label creation, renaming, and new dimensions across transaction
     });
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if ((init?.method || 'GET').toUpperCase() === 'POST' && /\/rest\/v1\/dimensionNodes\b/.test(url)) {
+      if ((init?.method || 'GET').toUpperCase() === 'POST' && url.endsWith('/commands/workspace.dimensionnode')) {
         await deleteGate;
       }
       return prevFetch(input, init);

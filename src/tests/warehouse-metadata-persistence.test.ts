@@ -11,8 +11,9 @@ import {
 } from '../lib/warehouseRecords';
 import type { Customer, Estimate, InventoryItem, Invoice } from '../types';
 import { createCommandRouter } from '../server/routes/commandRoutes';
+import { expectBrowserPatchDenied } from './helpers/pgWriteBoundary';
 
-/** Real migrated Postgres/RLS: metadata annotations use the field-path RPC; protected histories use server workflows. */
+/** Real migrated PostgreSQL: annotations use named commands, and histories use dedicated workflows. */
 describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF_TEST_DATABASE_URL && 'LF_TEST_DATABASE_URL not set' }, () => {
   const workspaceId = `warehouse_${randomBytes(6).toString('hex')}`;
   const uid = `${workspaceId}_owner`;
@@ -41,20 +42,22 @@ describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF
   let serverDb: import('../server/db/pgFirestore').Firestore | undefined;
   let commandApi: import('node:http').Server | undefined;
   let commandApiBase = '';
-  async function asUser(userId: string, operation: () => Promise<void>) {
-    await client.query('begin');
-    try {
-      await client.query('set local role authenticated');
-      await client.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: userId, role: 'authenticated', aal: 'aal1' })]);
-      await operation();
-      await client.query('commit');
-    } catch (error) { await client.query('rollback'); throw error; }
-  }
   async function read<T>(table: 'inventory' | 'estimates' | 'customers' | 'invoices', id: string): Promise<T> {
     return (await client.query<{ data: T }>(`select data from public."${table}" where id = $1`, [id])).rows[0].data;
   }
-  const patch = async (table: string, id: string, fields: Record<string, unknown>, userId = book) => {
-    await asUser(userId, async () => { await client.query('select public.lf_update($1, $2, $3)', [table, id, fields]); });
+  const browserRefused = (table: string, id: string, fields: Record<string, unknown>, userId = book) =>
+    expectBrowserPatchDenied(client, userId, table, id, fields);
+  async function command(name: string, input: Record<string, unknown>, userId = book) {
+    const response = await fetch(`${commandApiBase}/api/v1/commands/${name}`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': userId },
+      body: JSON.stringify({ workspaceId, input }),
+    });
+    return { status: response.status, body: await response.json() as { status?: string; code?: string; message?: string; data?: unknown } };
+  }
+  const saveAnnotation = async (collection: 'inventory' | 'estimates', id: string, data: Record<string, unknown>) => {
+    await browserRefused(collection, id, data);
+    const result = await command('record.save', { collection, id, data });
+    assert.equal(result.status, 200, JSON.stringify(result.body));
   };
   const saveWarrantyDate = async (candidate: ReturnType<typeof warrantyCandidates>[number], endDate: string) => {
     const selected = {
@@ -62,13 +65,8 @@ describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF
       invoiceId: candidate.invoiceId, invoiceLineId: candidate.invoiceLineId, itemId: candidate.itemId,
       serial: candidate.serial,
     };
-    const response = await fetch(`${commandApiBase}/api/v1/commands/warranty.update`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ workspaceId, input: { candidate: selected, endDate } }),
-    });
-    const body = await response.json() as { status?: string; message?: string; data?: { id?: string; changed?: boolean } };
-    assert.equal(response.status, 200, JSON.stringify(body));
+    const { status, body } = await command('warranty.update', { candidate: selected, endDate });
+    assert.equal(status, 200, JSON.stringify(body));
     assert.equal(body.status, 'success', body.message);
     assert.deepEqual(body.data, { id: candidate.id, changed: true });
   };
@@ -88,7 +86,8 @@ describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      Object.assign(req, { user: { uid: book, email: `${book}@example.test`, displayName: actor.name } });
+      const person = req.header('x-test-uid') || book;
+      Object.assign(req, { user: { uid: person, email: `${person}@example.test`, displayName: actor.name } });
       next();
     });
     app.use('/api/v1/commands', createCommandRouter(undefined, { getDb: () => serverDb! }));
@@ -109,7 +108,7 @@ describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF
 
   test('bin and shipment annotations survive a fresh database read without changing order or stock amounts', async () => {
     const bin = { locationId: 'מקום.ראשי', bin: 'A-03', updatedAt: at, updatedByUid: book, updatedByName: actor.name };
-    await patch('inventory', item.id, { [binLocationFieldPath(bin.locationId)]: bin });
+    await saveAnnotation('inventory', item.id, { [binLocationFieldPath(bin.locationId)]: bin });
     const savedItem = await read<InventoryItem>('inventory', item.id);
     assert.deepEqual(Object.values(savedItem.binLocations || {}), [bin]);
     for (const [key, value] of Object.entries(item)) assert.deepEqual(savedItem[key as keyof InventoryItem], value);
@@ -119,7 +118,7 @@ describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF
     const shipment = createShipmentRecord({ id: 'ship_test', workspaceId, orderId: order.id, source, carrier: 'שליח Parcel', trackingNumber: 'TRACK-01', shippedDate: '2026-10-15', recordedAt: at, actor });
     const path = shipmentFieldPath(source.sourceType, source.sourceId);
     assert.ok(path);
-    await patch('estimates', order.id, { [path!]: shipment });
+    await saveAnnotation('estimates', order.id, { [path!]: shipment });
     const savedOrder = await read<Estimate>('estimates', order.id);
     assert.equal(savedOrder.metadata?.existingNote, 'Keep order note');
     assert.deepEqual(Object.values(savedOrder.metadata?.warehouseShipmentsBySource || {}), [shipment]);
@@ -135,7 +134,7 @@ describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF
       invoiceId: invoice.id, invoiceNumber: invoice.number!, reason: 'מידה שגויה Wrong size', actor, at,
       lines: [{ invoiceLineId: 'line-01', itemId: item.id, description: item.name, quantity: 1, soldQuantity: 5 }],
     });
-    await assert.rejects(patch('customers', customer.id, { [rmaFieldPath(draft.id)]: draft }), /through the server/);
+    await browserRefused('customers', customer.id, { [rmaFieldPath(draft.id)]: draft });
     const { requestReturnAuthorization, moveReturnAuthorization } = await import('../server/services/returnAuthorizationService');
     const db = serverDb!;
     const requestKey = `persist-${randomBytes(6).toString('hex')}`;
@@ -162,7 +161,7 @@ describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF
     const candidate = warrantyCandidates([invoice], [customer], [item], workspaceId)[0];
     assert.ok(candidate);
     const forged = createWarrantyRecord({ candidate, endDate: '2027-10-15', actor, at });
-    await assert.rejects(patch('customers', customer.id, { [warrantyFieldPath(candidate)]: forged }), /through the server/);
+    await browserRefused('customers', customer.id, { [warrantyFieldPath(candidate)]: forged });
 
     await saveWarrantyDate(candidate, '2027-10-15');
     const saved = await read<Customer>('customers', customer.id);
@@ -178,11 +177,16 @@ describe('Warehouse metadata persistence (A-64–A-67)', { skip: !process.env.LF
   test('viewers and non-members are refused, workspace reassignment fails, and no financial or stock event was created', async () => {
     for (const [table, record] of [['inventory', item], ['estimates', order], ['customers', customer]] as const) {
       const before = await read<typeof record>(table, record.id);
-      for (const forbiddenUser of [viewer, `${workspaceId}_outsider`]) {
-        await assert.rejects(patch(table, record.id, { 'metadata.forbidden': 'Should not save' }, forbiddenUser));
+      for (const [forbiddenUser, code] of [[viewer, 'ROLE_REQUIRED'], [`${workspaceId}_outsider`, 'NOT_A_MEMBER']]) {
+        await browserRefused(table, record.id, { 'metadata.forbidden': 'Should not save' }, forbiddenUser);
+        const result = table === 'customers'
+          ? await command('customer.update', { id: record.id, data: { metadata: { forbidden: 'Should not save' } } }, forbiddenUser)
+          : await command('record.save', { collection: table, id: record.id, data: { 'metadata.forbidden': 'Should not save' } }, forbiddenUser);
+        assert.equal(result.status, 403, JSON.stringify(result.body));
+        assert.equal(result.body.code, code);
         assert.deepEqual(await read(table, record.id), before);
       }
-      await assert.rejects(patch(table, record.id, { workspaceId: `${workspaceId}_other` }));
+      await browserRefused(table, record.id, { workspaceId: `${workspaceId}_other` });
       assert.deepEqual(await read(table, record.id), before);
     }
     for (const table of ['transactions', 'stockMoves', 'creditNotes']) {

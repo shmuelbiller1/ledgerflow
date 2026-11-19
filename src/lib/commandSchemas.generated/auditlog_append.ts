@@ -8,17 +8,17 @@ export const COMMAND_INPUT_SCHEMA = {
       "type": "string",
       "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
     },
-    "entityType": COMMAND_SCHEMA_PARTS.part93,
-    "entityId": COMMAND_SCHEMA_PARTS.part61,
-    "description": COMMAND_SCHEMA_PARTS.part62,
+    "entityType": COMMAND_SCHEMA_PARTS.part97,
+    "entityId": COMMAND_SCHEMA_PARTS.part63,
+    "description": COMMAND_SCHEMA_PARTS.part64,
     "details": {
       "type": "object",
-      "propertyNames": COMMAND_SCHEMA_PARTS.part23,
+      "propertyNames": COMMAND_SCHEMA_PARTS.part24,
       "additionalProperties": {
         "anyOf": [
-          COMMAND_SCHEMA_PARTS.part62,
-          COMMAND_SCHEMA_PARTS.part22,
-          COMMAND_SCHEMA_PARTS.part26,
+          COMMAND_SCHEMA_PARTS.part64,
+          COMMAND_SCHEMA_PARTS.part23,
+          COMMAND_SCHEMA_PARTS.part27,
           COMMAND_SCHEMA_PARTS.part19
         ]
       }

@@ -13,19 +13,6 @@ begin
   execute 'set local role authenticated';
 end $$;
 
--- expect_ok / expect_denied run one statement as a user inside a savepoint-like block
-create function pg_temp.expect_ok(label text, uid text, stmt text) returns void language plpgsql as $$
-begin
-  perform pg_temp.as_user(uid);
-  begin
-    execute stmt;
-  exception when others then
-    execute 'reset role';
-    raise exception 'FAIL %: expected ok, got: %', label, sqlerrm;
-  end;
-  execute 'reset role';
-end $$;
-
 create function pg_temp.expect_denied(label text, uid text, stmt text) returns void language plpgsql as $$
 declare denied boolean := false;
 begin
@@ -39,6 +26,15 @@ begin
   if not denied then
     raise exception 'FAIL %: expected to be refused, but it succeeded', label;
   end if;
+end $$;
+
+-- Former positive client-write cases now test the stronger boundary. Run the same statements
+-- as the server for fixtures and for the RPC merge/increment semantics asserted below.
+create function pg_temp.expect_server_only_write(label text, uid text, stmt text) returns void language plpgsql as $$
+begin
+  perform pg_temp.expect_denied(label || ' must use the server', uid, stmt);
+  perform set_config('request.jwt.claims', '', true);
+  execute stmt;
 end $$;
 
 create function pg_temp.expect_count(label text, uid text, q text, expected bigint) returns void language plpgsql as $$
@@ -62,7 +58,7 @@ begin
 end $$;
 
 -- workspace ws1: owner u-owner; accountant u-acct; bookkeeper u-book; viewer u-view. u-out is an outsider.
-select pg_temp.expect_ok('owner creates workspace', 'u-owner',
+select pg_temp.expect_server_only_write('owner creates workspace', 'u-owner',
   $$insert into workspaces(id,data) values ('ws1', '{"uid":"u-owner","name":"Acme","roles":{"u-acct":"accountant","u-book":"bookkeeper","u-view":"viewer"}}')$$);
 select pg_temp.expect_denied('create a workspace owned by someone else', 'u-out',
   $$insert into workspaces(id,data) values ('ws-x', '{"uid":"u-owner","name":"X"}')$$);
@@ -174,9 +170,9 @@ select pg_temp.expect_denied('owner changes plan', 'u-owner',
   $$select lf_update('workspaces','ws1','{"plan":"enterprise"}'::jsonb)$$);
 
 -- workspace settings owners/accountants save (time zone, fiscal year, CSV maps) vs server-only fields
-select pg_temp.expect_ok('owner saves time zone and fiscal year', 'u-owner',
+select pg_temp.expect_server_only_write('owner saves time zone and fiscal year', 'u-owner',
   $$select lf_update('workspaces','ws1','{"timezone":"America/New_York","fiscalYearStartMonth":4,"fiscalYearStartDay":1}'::jsonb)$$);
-select pg_temp.expect_ok('accountant saves CSV column maps', 'u-acct',
+select pg_temp.expect_server_only_write('accountant saves CSV column maps', 'u-acct',
   $$select lf_update('workspaces','ws1','{"importColumnMaps":{"bank-1":{"date":"Posted"}}}'::jsonb)$$);
 select pg_temp.expect_denied('bookkeeper changes workspace settings', 'u-book',
   $$select lf_update('workspaces','ws1','{"timezone":"UTC"}'::jsonb)$$);
@@ -189,7 +185,7 @@ do $$ begin
   perform set_config('request.jwt.claims', '', true);
   update workspaces set data = data || '{"scheduledPurgeAt":"2026-12-31"}'::jsonb where id = 'ws1';
 end $$;
-select pg_temp.expect_ok('owner saves settings on a workspace with server-only fields', 'u-owner',
+select pg_temp.expect_server_only_write('owner saves settings on a workspace with server-only fields', 'u-owner',
   $$select lf_update('workspaces','ws1','{"timezone":"Europe/London"}'::jsonb)$$);
 select pg_temp.expect_denied('owner clears a server-only field', 'u-owner',
   $$select lf_update('workspaces','ws1','{}'::jsonb,'{scheduledPurgeAt}')$$);
@@ -197,25 +193,25 @@ select pg_temp.expect_denied('owner clears a server-only field', 'u-owner',
 -- allowed fields
 select pg_temp.expect_denied('customer with an unknown field', 'u-book',
   $$insert into customers(id,data) values ('c1', '{"workspaceId":"ws1","name":"A","hack":1}')$$);
-select pg_temp.expect_ok('customer', 'u-book',
+select pg_temp.expect_server_only_write('customer', 'u-book',
   $$insert into customers(id,data) values ('c2', '{"workspaceId":"ws1","name":"A"}')$$);
-select pg_temp.expect_ok('customer form (with status)', 'u-book',
+select pg_temp.expect_server_only_write('customer form (with status)', 'u-book',
   $$insert into customers(id,data) values ('c3', '{"workspaceId":"ws1","name":"B","email":"b@x.test","phone":"1","status":"active","balanceCents":0,"uid":"u-book","createdAt":"2026-05-01"}')$$);
-select pg_temp.expect_ok('customer with people, tags, currency, address and notes (Y-21 Y-22 Y-24 Y-25)', 'u-book',
+select pg_temp.expect_server_only_write('customer with people, tags, currency, address and notes (Y-21 Y-22 Y-24 Y-25)', 'u-book',
   $$insert into customers(id,data) values ('c4', '{"workspaceId":"ws1","name":"C","currency":"EUR","tags":["vip"],"address":"1 Main St","contacts":[{"name":"Dana","email":"d@x.test"}],"noteLog":[{"id":"n1","text":"Called","at":"2026-10-03T09:00:00Z"}]}')$$);
-select pg_temp.expect_ok('template account with a role (FX rounding)', 'u-acct',
+select pg_temp.expect_server_only_write('template account with a role (FX rounding)', 'u-acct',
   $$insert into "chartAccounts"(id,data) values ('a-fx', '{"workspaceId":"ws1","name":"FX Rounding","type":"expense","category":"Rounding Differences","subtype":"rounding","role":"fx_rounding","code":"8999"}')$$);
 
 -- stock quantities change only through the server (L-173)
-select pg_temp.expect_ok('item with a name and cost', 'u-book',
+select pg_temp.expect_server_only_write('item with a name and cost', 'u-book',
   $$insert into inventory(id,data) values ('i1', '{"workspaceId":"ws1","name":"Widget","sku":"W1","unitCostCents":400,"quantityAtHand":0}')$$);
-select pg_temp.expect_ok('edit an item''s price', 'u-book',
+select pg_temp.expect_server_only_write('edit an item''s price', 'u-book',
   $$select lf_update('inventory','i1','{"unitPriceCents":900}'::jsonb)$$);
 select pg_temp.expect_denied('change an item''s quantity in the browser', 'u-book',
   $$select lf_update('inventory','i1','{"quantityAtHand":50}'::jsonb)$$);
 
 -- the cost of stock on hand changes only through the server's revaluation (ISS-130)
-select pg_temp.expect_ok('set the cost of an item with nothing on hand (a template)', 'u-book',
+select pg_temp.expect_server_only_write('set the cost of an item with nothing on hand (a template)', 'u-book',
   $$select lf_update('inventory','i1','{"unitCostCents":450}'::jsonb)$$);
 -- the server (not a browser role) puts stock on hand, as Adjust stock does
 do $$ begin
@@ -226,14 +222,14 @@ select pg_temp.expect_denied('change the cost of stock on hand in the browser', 
   $$select lf_update('inventory','i1','{"unitCostCents":1200}'::jsonb)$$);
 select pg_temp.expect_denied('owner cannot either: only the revaluation changes it', 'u-owner',
   $$select lf_update('inventory','i1','{"unitCostCents":1200}'::jsonb)$$);
-select pg_temp.expect_ok('rename the stocked item in the browser (the cost is untouched)', 'u-book',
+select pg_temp.expect_server_only_write('rename the stocked item (the cost is untouched)', 'u-book',
   $$select lf_update('inventory','i1','{"name":"Widget L"}'::jsonb)$$);
 -- #259 review: stock below zero has no value on the books, so its cost stays editable
 do $$ begin
   perform set_config('request.jwt.claims', '', true);
   update inventory set data = data || '{"quantityAtHand":-2}'::jsonb where id = 'i1';
 end $$;
-select pg_temp.expect_ok('set the cost of an item sold below zero (no value on the books)', 'u-book',
+select pg_temp.expect_server_only_write('set the cost of an item sold below zero (no value on the books)', 'u-book',
   $$select lf_update('inventory','i1','{"unitCostCents":1250}'::jsonb)$$);
 
 -- Invoice creation, edits and approval decisions all use the server command pipeline (BE-04, L-191).
@@ -255,7 +251,7 @@ do $$ begin
   perform set_config('request.jwt.claims', '', true);
   insert into customers(id,data) values ('c-imp', '{"workspaceId":"ws1","name":"Imported","importBatchId":"imp_0123456789abcdef"}');
 end $$;
-select pg_temp.expect_ok('edit an imported customer', 'u-book',
+select pg_temp.expect_server_only_write('edit an imported customer', 'u-book',
   $$select lf_update('customers','c-imp','{"phone":"555"}'::jsonb)$$);
 select pg_temp.expect_denied('change an import batch id', 'u-book',
   $$select lf_update('customers','c-imp','{"importBatchId":"imp_ffffffffffffffff"}'::jsonb)$$);
@@ -263,7 +259,7 @@ select pg_temp.expect_denied('change an import batch id', 'u-book',
 -- chart of accounts
 select pg_temp.expect_denied('bookkeeper adds an account', 'u-book',
   $$insert into "chartAccounts"(id,data) values ('a1', '{"workspaceId":"ws1","name":"Cash","type":"asset"}')$$);
-select pg_temp.expect_ok('accountant adds a system account', 'u-acct',
+select pg_temp.expect_server_only_write('accountant adds a system account', 'u-acct',
   $$insert into "chartAccounts"(id,data) values ('a2', '{"workspaceId":"ws1","name":"Cash","type":"asset","code":"1000","isSystem":true}')$$);
 select pg_temp.expect_denied('change a system account code', 'u-acct',
   $$select lf_update('chartAccounts','a2','{"code":"9999"}'::jsonb)$$);
@@ -279,9 +275,9 @@ select pg_temp.expect_denied('browser reads idempotency keys', 'u-owner',
 -- audit logs: append-only, identity must match
 select pg_temp.expect_denied('audit log with a spoofed uid', 'u-book',
   $$insert into "auditLogs"(id,data) values ('l1', '{"workspaceId":"ws1","uid":"u-owner","action":"X"}')$$);
-select pg_temp.expect_ok('audit log as yourself', 'u-book',
+select pg_temp.expect_server_only_write('audit log as yourself', 'u-book',
   $$insert into "auditLogs"(id,data) values ('l2', '{"workspaceId":"ws1","uid":"u-book","email":"u-book@test.local","action":"X","timestamp":"2026-01-01T00:00:00Z"}')$$);
-select pg_temp.expect_ok('viewer logs a sign-in', 'u-view',
+select pg_temp.expect_server_only_write('viewer logs a sign-in', 'u-view',
   $$insert into "auditLogs"(id,data) values ('l3', '{"workspaceId":"ws1","uid":"u-view","action":"USER_LOGIN"}')$$);
 select pg_temp.expect_denied('viewer logs another action', 'u-view',
   $$insert into "auditLogs"(id,data) values ('l4', '{"workspaceId":"ws1","uid":"u-view","action":"DELETE_ALL"}')$$);
@@ -291,34 +287,34 @@ select pg_temp.expect_denied('delete an audit log', 'u-owner', $$select lf_delet
 -- user profiles
 select pg_temp.expect_denied('make yourself a platform admin', 'u-out',
   $$insert into users(id,data) values ('u-out', '{"uid":"u-out","email":"u-out@test.local","role":"admin"}')$$);
-select pg_temp.expect_ok('create your own profile', 'u-out',
+select pg_temp.expect_server_only_write('create your own profile', 'u-out',
   $$insert into users(id,data) values ('u-out', '{"uid":"u-out","email":"u-out@test.local","role":"client"}')$$);
 select pg_temp.expect_count('read another user profile', 'u-book', $$select count(*) from users where id='u-out'$$, 0);
 
 -- write helpers keep Firestore semantics
-select pg_temp.expect_ok('update with a dotted path', 'u-book',
+select pg_temp.expect_server_only_write('update with a dotted path', 'u-book',
   $$select lf_update('customers','c2','{"address.city":"Paris","name":"B"}'::jsonb)$$);
 select pg_temp.expect_value('dotted path result', $$select data::text from customers where id='c2'$$,
   '{"name": "B", "address": {"city": "Paris"}, "workspaceId": "ws1"}');
 select pg_temp.expect_denied('update a missing document', 'u-book',
   $$select lf_update('customers','nope','{"name":"x"}'::jsonb)$$);
-select pg_temp.expect_ok('set with merge', 'u-book',
+select pg_temp.expect_server_only_write('set with merge', 'u-book',
   $$select lf_set('customers','c2','{"address":{"zip":"75001"}}'::jsonb, true)$$);
 select pg_temp.expect_value('merge result', $$select data::text from customers where id='c2'$$,
   '{"name": "B", "address": {"zip": "75001", "city": "Paris"}, "workspaceId": "ws1"}');
-select pg_temp.expect_ok('unset a field', 'u-book', $$select lf_update('customers','c2','{}'::jsonb, '{address.city}')$$);
+select pg_temp.expect_server_only_write('unset a field', 'u-book', $$select lf_update('customers','c2','{}'::jsonb, '{address.city}')$$);
 select pg_temp.expect_value('unset result', $$select data::text from customers where id='c2'$$,
   '{"name": "B", "address": {"zip": "75001"}, "workspaceId": "ws1"}');
 select pg_temp.expect_denied('browser increments invoice settlement field (C-1)', 'u-owner',
   $$select lf_update('invoices','inv1','{}'::jsonb,'{}','{"amountPaidCents":250}'::jsonb)$$);
 select pg_temp.expect_denied('browser inserts paid invoice without ledger entry (C-1)', 'u-owner',
   $$insert into invoices(id,data) values ('inv-paid-spoof', '{"workspaceId":"ws1","status":"paid","date":"2026-03-01","amountCents":1000}')$$);
-select pg_temp.expect_ok('increment twice on operational budget field', 'u-owner',
+select pg_temp.expect_server_only_write('increment twice on operational budget field', 'u-owner',
   $$insert into projects(id,data) values ('proj-inc', '{"workspaceId":"ws1","name":"Bridge","budgetCents":0}');
     select lf_update('projects','proj-inc','{}'::jsonb,'{}','{"budgetCents":250}'::jsonb);
     select lf_update('projects','proj-inc','{}'::jsonb,'{}','{"budgetCents":250}'::jsonb)$$);
 select pg_temp.expect_value('increment result', $$select data->>'budgetCents' from projects where id='proj-inc'$$, '500');
-select pg_temp.expect_ok('array union then remove', 'u-owner',
+select pg_temp.expect_server_only_write('array union then remove', 'u-owner',
   $$select lf_update('workspaces','ws1','{}'::jsonb,'{}','{}'::jsonb,'{"members":["u-a","u-b"]}'::jsonb);
     select lf_update('workspaces','ws1','{}'::jsonb,'{}','{}'::jsonb,'{"members":["u-b","u-c"]}'::jsonb,'{"members":["u-a"]}'::jsonb)$$);
 select pg_temp.expect_value('array result', $$select (data->'members')::text from workspaces where id='ws1'$$, '["u-b", "u-c"]');
@@ -352,7 +348,7 @@ begin
   return n;
 end $$;
 
--- Every standard browser-writable workspace table: writers add, viewers only read, outsiders see and change nothing.
+-- Standard workspace records: the server adds them, members still read them, outsiders see nothing.
 do $$
 declare
   t text;
@@ -364,9 +360,8 @@ begin
     'employees','partners'
   ] loop
     doc := '{"workspaceId":"ws1"}';
-    if not pg_temp.try_as('u-book', format('insert into public.%I (id, data) values (%L, %L::jsonb)', t, 'iso-' || t, doc)) then
-      raise exception 'FAIL %: bookkeeper could not add a document', t;
-    end if;
+    perform pg_temp.expect_server_only_write(t || ': add a workspace record', 'u-book',
+      format('insert into public.%I (id, data) values (%L, %L::jsonb)', t, 'iso-' || t, doc));
     if pg_temp.try_as('u-view', format('insert into public.%I (id, data) values (%L, %L::jsonb)', t, 'iso-v-' || t, doc)) then
       raise exception 'FAIL %: viewer added a document', t;
     end if;
@@ -559,9 +554,10 @@ select pg_temp.expect_denied('create an account with a nonzero balance from brow
   $$insert into "chartAccounts"(id,data) values ('a-nonzero', '{"workspaceId":"ws1","name":"Bad","type":"asset","balanceCents":500}')$$);
 select pg_temp.expect_denied('create an account with a nonzero opening balance from browser (C-1)', 'u-acct',
   $$insert into "chartAccounts"(id,data) values ('a-nonzero-ob', '{"workspaceId":"ws1","name":"Bad","type":"asset","openingBalanceCents":500}')$$);
+select set_config('request.jwt.claims', '', true);
+insert into workspaces(id,data) values ('ws-open', '{"uid":"u-out","name":"Open"}');
 select pg_temp.expect_denied('browser cannot bypass the document command when no period is locked', 'u-out',
-  $$insert into workspaces(id,data) values ('ws-open', '{"uid":"u-out","name":"Open"}');
-    insert into invoices(id,data) values ('inv-open', '{"workspaceId":"ws-open","date":"2020-01-01","status":"draft","amountCents":100}')$$);
+  $$insert into invoices(id,data) values ('inv-open', '{"workspaceId":"ws-open","date":"2020-01-01","status":"draft","amountCents":100}')$$);
 
 -- M-5: database-level double-entry & chartAccounts FK integrity on transactions (even for server writes)
 do $$
@@ -583,16 +579,16 @@ begin
 end $$;
 
 -- Support tickets and messages
-select pg_temp.expect_ok('member opens a ticket', 'u-view',
+select pg_temp.expect_server_only_write('member opens a ticket', 'u-view',
   $$insert into "supportTickets"(id,data) values ('t1', '{"workspaceId":"ws1","uid":"u-view","subject":"Help","status":"open","createdAt":"2026-02-01"}')$$);
 select pg_temp.expect_denied('open a ticket for someone else', 'u-view',
   $$insert into "supportTickets"(id,data) values ('t2', '{"workspaceId":"ws1","uid":"u-book","subject":"Help","status":"open"}')$$);
 select pg_temp.expect_denied('outsider opens a ticket in ws1', 'u-out',
   $$insert into "supportTickets"(id,data) values ('t3', '{"workspaceId":"ws1","uid":"u-out","subject":"Help","status":"open"}')$$);
 select pg_temp.expect_count('outsider reads ws1 tickets', 'u-out', $$select count(*) from "supportTickets" where workspace_id = 'ws1'$$, 0);
-select pg_temp.expect_ok('user closes their ticket', 'u-view', $$select lf_update('supportTickets','t1','{"status":"closed"}'::jsonb)$$);
+select pg_temp.expect_server_only_write('user closes their ticket', 'u-view', $$select lf_update('supportTickets','t1','{"status":"closed"}'::jsonb)$$);
 select pg_temp.expect_denied('user reopens a ticket', 'u-view', $$select lf_update('supportTickets','t1','{"status":"open"}'::jsonb)$$);
-select pg_temp.expect_ok('member posts a message', 'u-view',
+select pg_temp.expect_server_only_write('member posts a message', 'u-view',
   $$insert into "supportMessages"(id,data) values ('m1', '{"ticketId":"t1","workspaceId":"ws1","authorUid":"u-view","authorRole":"user","body":"Hi"}')$$);
 select pg_temp.expect_denied('member poses as support staff', 'u-view',
   $$insert into "supportMessages"(id,data) values ('m2', '{"ticketId":"t1","workspaceId":"ws1","authorUid":"u-view","authorRole":"admin","body":"Hi"}')$$);
@@ -652,8 +648,8 @@ select pg_temp.expect_denied('owner resets a rate-limit counter', 'u-owner', $$s
 select pg_temp.expect_denied('owner writes a rate-limit counter', 'u-owner', $$select lf_set('rateLimitEntries','rl_t2','{"keyHash":"t2","count":0,"windowStart":0,"workspaceId":"ws1"}'::jsonb)$$);
 select pg_temp.expect_denied('owner deletes a rate-limit counter', 'u-owner', $$delete from "rateLimitEntries" where id = 'rl_t1'$$);
 
--- purchase orders: members read; owners, accountants and bookkeepers write
-select pg_temp.expect_ok('bookkeeper saves a purchase order', 'u-book',
+-- purchase orders: members read; writer roles save through the server
+select pg_temp.expect_server_only_write('bookkeeper saves a purchase order', 'u-book',
   $stmt$insert into "purchaseOrders"(id,data) values ('po1', '{"workspaceId":"ws1","poNumber":"PO-2026-001","vendorId":"v1","vendorName":"V","status":"approved","items":[],"totalAmountCents":1000,"receipts":[]}')$stmt$);
 select pg_temp.expect_denied('bookkeeper cannot move a purchase order to another workspace',
   'u-book', $stmt$select lf_update('purchaseOrders','po1','{"workspaceId":"ws2"}'::jsonb)$stmt$);
@@ -664,10 +660,10 @@ select pg_temp.expect_denied('viewer changes a purchase order', 'u-view', $$sele
 select pg_temp.expect_count('outsider reads purchase orders', 'u-out', $$select count(*) from "purchaseOrders"$$, 0);
 select pg_temp.expect_denied('purchase order with an unknown field', 'u-book',
   $$insert into "purchaseOrders"(id,data) values ('po2', '{"workspaceId":"ws1","poNumber":"PO-2","hacked":true}')$$);
-select pg_temp.expect_ok('accountant records goods received and the bill', 'u-acct',
+select pg_temp.expect_server_only_write('accountant records goods received and the bill', 'u-acct',
   $$select lf_update('purchaseOrders','po1','{"status":"billed","billId":"b1","receipts":[{"id":"r1"}]}'::jsonb)$$);
 
--- notifications: the server writes one row per person; each person sees and marks only their own
+-- notifications: the server writes one row per person; each person sees only their own
 select set_config('request.jwt.claims', '', true);
 insert into notifications (id, data) values
   ('n-view', '{"workspaceId":"ws1","uid":"u-view","kind":"payment.received","title":"Paid","message":"m","read":false}'),
@@ -676,7 +672,7 @@ insert into notifications (id, data) values
 select pg_temp.expect_count('a person sees only their own notifications', 'u-view', 'select count(*) from notifications', 1);
 select pg_temp.expect_count('the owner does not see others'' notifications', 'u-owner', 'select count(*) from notifications', 0);
 select pg_temp.expect_count('someone no longer in the workspace sees nothing', 'u-out', 'select count(*) from notifications', 0);
-select pg_temp.expect_ok('mark own notification read', 'u-view',
+select pg_temp.expect_server_only_write('mark own notification read', 'u-view',
   $$select lf_update('notifications','n-view','{"read":true,"readAt":"2026-09-28T10:00:00Z"}'::jsonb)$$);
 select pg_temp.expect_denied('change the text of a notification', 'u-view',
   $$select lf_update('notifications','n-view','{"title":"Changed"}'::jsonb)$$);
@@ -684,14 +680,14 @@ select pg_temp.expect_denied('mark someone else''s notification read', 'u-view',
   $$select lf_update('notifications','n-book','{"read":true}'::jsonb)$$);
 select pg_temp.expect_denied('create a notification from the browser', 'u-owner',
   $$insert into notifications(id,data) values ('n-fake', '{"workspaceId":"ws1","uid":"u-view","kind":"payment.received","title":"Fake","message":"m","read":false}')$$);
-select pg_temp.expect_ok('delete own notification', 'u-view', $$select lf_delete('notifications','n-view')$$);
+select pg_temp.expect_server_only_write('delete own notification', 'u-view', $$select lf_delete('notifications','n-view')$$);
 select pg_temp.expect_value('someone else''s notification is untouched',
   $$select (data->>'read') from notifications where id = 'n-book'$$, 'false');
-select pg_temp.expect_ok('save own notification choices', 'u-view',
+select pg_temp.expect_server_only_write('save own notification choices', 'u-view',
   $$insert into users(id,data) values ('u-view', '{"uid":"u-view","email":"u-view@test.local","role":"client"}'); select lf_update('users','u-view','{"notificationPrefs":{"payment.received":false}}'::jsonb)$$);
 
--- document ids: browser writes keep firestore.rules isValidId; server writes may be long
-select pg_temp.expect_ok('browser id of 127 characters', 'u-book',
+-- Valid ids also need a server command; neither shape nor ownership grants a write
+select pg_temp.expect_server_only_write('valid id of 127 characters', 'u-book',
   format($f$select lf_set('vendors', %L, '{"workspaceId":"ws1","name":"V"}'::jsonb)$f$, repeat('v', 127)));
 select pg_temp.expect_denied('browser id of 128 characters', 'u-book',
   format($f$select lf_set('vendors', %L, '{"workspaceId":"ws1","name":"V"}'::jsonb)$f$, repeat('v', 128)));
@@ -762,7 +758,7 @@ select pg_temp.expect_denied('someone adds a group from the browser', 'u-out',
   $$insert into "workspaceGroups"(id,data) values ('grp_out1', '{"ownerUid":"u-out","name":"Theirs","workspaceIds":["ws1"]}')$$);
 
 -- return authorizations (RMAs) are written only by the server (ISS-143)
-select pg_temp.expect_ok('a bookkeeper still edits a customer', 'u-book',
+select pg_temp.expect_server_only_write('a bookkeeper still edits a customer', 'u-book',
   $$select lf_update('customers','c2','{"phone":"555-0101"}'::jsonb)$$);
 select pg_temp.expect_denied('a bookkeeper writes an RMA into a customer from the browser', 'u-book',
   $$select lf_update('customers','c2','{"metadata.returnAuthorizationsById.rma_x":{"id":"rma_x","status":"approved"}}'::jsonb)$$);
@@ -775,7 +771,7 @@ do $$ begin
   update customers set data = jsonb_set(data, '{metadata}', '{"returnAuthorizationsById":{"rma_s":{"id":"rma_s","status":"requested"}}}'::jsonb) where id = 'c2';
 end $$;
 select pg_temp.expect_value('the server writes it', $$select data->'metadata'->'returnAuthorizationsById'->'rma_s'->>'status' from customers where id='c2'$$, 'requested');
-select pg_temp.expect_ok('a browser edit elsewhere on that customer keeps the server''s RMA', 'u-book',
+select pg_temp.expect_server_only_write('a name edit on that customer keeps the server''s RMA', 'u-book',
   $$select lf_update('customers','c2','{"phone":"555-0102"}'::jsonb)$$);
 select pg_temp.expect_denied('and cannot change its status', 'u-acct',
   $$select lf_update('customers','c2','{"metadata.returnAuthorizationsById.rma_s.status":"approved"}'::jsonb)$$);
@@ -792,7 +788,7 @@ do $$ begin
   update customers set data = jsonb_set(data, '{metadata,warrantiesById}', '{"w_server":{"id":"w_server","endDate":"2028-01-01"}}'::jsonb, true) where id = 'c2';
 end $$;
 select pg_temp.expect_value('the server writes warranty history', $$select data->'metadata'->'warrantiesById'->'w_server'->>'endDate' from customers where id='c2'$$, '2028-01-01');
-select pg_temp.expect_ok('a browser edit elsewhere preserves the server warranty history', 'u-book',
+select pg_temp.expect_server_only_write('unrelated edits preserve the server warranty history', 'u-book',
   $$select lf_update('customers','c2','{"phone":"555-0103"}'::jsonb)$$);
 select pg_temp.expect_denied('and cannot change its warranty date', 'u-acct',
   $$select lf_update('customers','c2','{"metadata.warrantiesById.w_server.endDate":"2029-01-01"}'::jsonb)$$);
@@ -866,9 +862,9 @@ select pg_temp.expect_denied('bookkeeper writes an allocation operation from the
 select pg_temp.expect_value('the refused writes left it as it was', $q$select data->>'amountCents' from "paymentAllocations" where id = 'payment-p1-p1-inv1'$q$, '100');
 -- report preferences (D-47): nested records in the existing private profile. Dotted updates for
 -- two books are atomic and independent; another member cannot read or change the profile.
-select pg_temp.expect_ok('a viewer saves report preferences for the first book', 'u-view',
+select pg_temp.expect_server_only_write('a viewer saves report preferences for the first book', 'u-view',
   $$select lf_update('users','u-view','{"reportPreferences.scope-a":{"uid":"u-view","workspaceId":"ws1","recentReportIds":["pnl"],"pinnedPages":[{"tab":"reports","sub":"pnl"}],"updatedAt":"2026-10-24T10:00:00Z"},"notificationPrefs":{"payment.received":false}}'::jsonb)$$);
-select pg_temp.expect_ok('a second book update does not replace the first', 'u-view',
+select pg_temp.expect_server_only_write('a second book update does not replace the first', 'u-view',
   $$select lf_update('users','u-view','{"reportPreferences.scope-b":{"uid":"u-view","workspaceId":"ws-2fa","recentReportIds":["cash-flow"],"pinnedPages":[],"updatedAt":"2026-10-24T10:01:00Z"}}'::jsonb)$$);
 select pg_temp.expect_value('the first book is still present',
   $$select data #>> '{reportPreferences,scope-a,recentReportIds,0}' from users where id = 'u-view'$$, 'pnl');
@@ -1019,7 +1015,7 @@ begin
   end if;
 
   -- A8-009: browser viewer/owner cannot forge server-managed kind records in public.documents,
-  -- while ordinary file attachments still succeed
+  -- and ordinary attachment rows are created by the upload service, not raw DML
   perform set_config('request.jwt.claims', '', true);
   insert into public.documents (id, data)
   values ('a8-srv-time', '{"workspaceId":"ws1","uid":"u-view","kind":"timeEntry","status":"open","minutes":60,"person":"u-view"}'::jsonb);
@@ -1033,21 +1029,18 @@ begin
   if pg_temp.try_as('u-view', $$update public.documents set data = data || '{"status":"approved"}'::jsonb where id = 'a8-srv-time'$$) then
     raise exception 'FAIL A8-009: viewer updated server-managed timeEntry row in public.documents';
   end if;
-  if not pg_temp.try_as('u-view', $$insert into public.documents (id, data) values ('a8-plain-file', '{"workspaceId":"ws1","uid":"u-view","name":"receipt.pdf","fileUrl":"https://example.test/r.pdf"}'::jsonb)$$) then
-    raise exception 'FAIL A8-009: plain file upload in public.documents was wrongly blocked';
-  end if;
+  perform pg_temp.expect_server_only_write('ordinary attachment metadata', 'u-view',
+    $$insert into public.documents (id, data) values ('a8-plain-file', '{"workspaceId":"ws1","uid":"u-view","name":"receipt.pdf","fileUrl":"https://example.test/r.pdf"}'::jsonb)$$);
 
   -- A7N-06 / A8-012: browser cannot forge or mutate server-managed accounting fields on public.assets
   perform set_config('request.jwt.claims', '', true);
   insert into public.assets (id, data)
   values ('a8-srv-asset', '{"workspaceId":"ws1","name":"Server Laptop","purchasePriceCents":100000,"accumulatedDepreciationCents":20000,"depreciatedThrough":"2026-03","status":"active"}'::jsonb);
 
-  if not pg_temp.try_as('u-book', $$insert into public.assets (id, data) values ('a8-cli-asset', '{"workspaceId":"ws1","name":"Desk","purchasePriceCents":50000,"accumulatedDepreciationCents":0,"status":"active"}'::jsonb)$$) then
-    raise exception 'FAIL A7N-06: legitimate new asset insert was wrongly blocked';
-  end if;
-  if not pg_temp.try_as('u-book', $$update public.assets set data = data || '{"assetTag":"AST-001"}'::jsonb where id = 'a8-srv-asset'$$) then
-    raise exception 'FAIL A7N-06: legitimate asset metadata update (assetTag) was wrongly blocked';
-  end if;
+  perform pg_temp.expect_server_only_write('legitimate new asset', 'u-book',
+    $$insert into public.assets (id, data) values ('a8-cli-asset', '{"workspaceId":"ws1","name":"Desk","purchasePriceCents":50000,"accumulatedDepreciationCents":0,"status":"active"}'::jsonb)$$);
+  perform pg_temp.expect_server_only_write('legitimate asset metadata update', 'u-book',
+    $$update public.assets set data = data || '{"assetTag":"AST-001"}'::jsonb where id = 'a8-srv-asset'$$);
   if pg_temp.try_as('u-book', $$update public.assets set data = data || '{"status":"disposed","disposalTransactionId":"victim-tx-id"}'::jsonb where id = 'a8-srv-asset'$$) then
     raise exception 'FAIL A8-012: browser bookkeeper forged disposalTransactionId on public.assets';
   end if;
@@ -1321,5 +1314,83 @@ begin
   perform set_config('lf.allow_corrupt_fixture', '', true);
 end $sandbox_ledger_fixture$;
 
+-- CMD-1 browser cutoff: an entitled browser identity can still SELECT each migrated table, but
+-- neither raw PostgREST DML nor the Firestore-shaped RPCs (including a batch) can write it.
+-- Use an otherwise valid row and require SQLSTATE 42501 for raw DML, not a validation failure.
+create function pg_temp.expect_browser_privilege_denied(label text, uid text, stmt text) returns void language plpgsql as $$
+begin
+  perform pg_temp.as_user(uid);
+  begin
+    execute stmt;
+    raise exception 'FAIL %: browser DML succeeded', label;
+  exception when insufficient_privilege then
+    execute 'reset role';
+  end;
+end $$;
+
+do $cmd1$
+declare
+  t text;
+  role_name text;
+  privilege text;
+  actor constant text := 'u-cmd1';
+  book constant text := 'ws-cmd1';
+  id text;
+  doc jsonb;
+  read_sql text;
+begin
+  perform set_config('request.jwt.claims', '', true);
+  insert into public.workspaces (id, data) values (book, jsonb_build_object('uid', actor, 'name', 'CMD-1', 'roles', jsonb_build_object('u-cmd1-view', 'viewer')));
+  foreach t in array array[
+    'assets','auditLogs','budgets','chartAccounts','customers','customTemplates','dimensionNodes','documents',
+    'employees','errorLogs','estimates','fixedAssets','inventory','learnedDeltas','loans','notifications','partners',
+    'presence','projects','purchaseOrders','recurring','rulePatterns','scenarios','supportMessages','supportTickets',
+    'taxRates','users','vendors','workspaces'
+  ] loop
+    foreach role_name in array array['anon', 'authenticated'] loop
+      foreach privilege in array array['INSERT', 'UPDATE', 'DELETE'] loop
+        if has_table_privilege(role_name, format('public.%I', t), privilege)
+          or (privilege <> 'DELETE' and has_any_column_privilege(role_name, format('public.%I', t), privilege)) then
+          raise exception 'FAIL %: % retains %', t, role_name, privilege;
+        end if;
+      end loop;
+    end loop;
+    perform set_config('request.jwt.claims', '', true);
+    id := case when t = 'workspaces' then book when t in ('users', 'presence') then actor else 'cmd1-' || t end;
+    doc := jsonb_build_object('workspaceId', book, 'uid', actor, 'name', 'Before');
+    doc := doc || case t
+      when 'users' then jsonb_build_object('email', 'cmd1@test.local')
+      when 'chartAccounts' then '{"type":"asset"}'::jsonb
+      when 'supportMessages' then jsonb_build_object('authorUid', actor, 'authorRole', 'user', 'ticketId', 'cmd1-supportTickets', 'body', 'Before')
+      when 'supportTickets' then '{"subject":"Before","status":"open"}'::jsonb
+      when 'presence' then jsonb_build_object('currentWorkspaceId', book)
+      when 'errorLogs' then jsonb_build_object('userId', actor, 'message', 'Before')
+      else '{}'::jsonb end;
+    if t <> 'workspaces' then execute format('insert into public.%I(id,data) values (%L,%L::jsonb)', t, id, doc); end if;
+    read_sql := format('select count(*) from public.%I where id = %L', t, id);
+    perform pg_temp.expect_count(t || ': retained read', actor, read_sql, 1);
+    perform pg_temp.expect_count(t || ': foreign read still scoped', 'u-out', read_sql, 0);
+    perform pg_temp.expect_browser_privilege_denied(t || ': raw insert', actor,
+      format('insert into public.%I(id,data) values (%L,%L::jsonb)', t, id || '-browser', doc));
+    perform pg_temp.expect_browser_privilege_denied(t || ': raw update', actor,
+      format('update public.%I set data = data where id = %L', t, id));
+    perform pg_temp.expect_browser_privilege_denied(t || ': raw delete', actor,
+      format('delete from public.%I where id = %L', t, id));
+    perform pg_temp.expect_denied(t || ': set RPC', actor, format('select lf_set(%L,%L,%L::jsonb)', t, id || '-rpc', doc));
+    perform pg_temp.expect_denied(t || ': update RPC', actor, format('select lf_update(%L,%L,%L::jsonb)', t, id, '{"name":"Changed"}'));
+    perform pg_temp.expect_denied(t || ': delete RPC', actor, format('select lf_delete(%L,%L)', t, id));
+    perform pg_temp.expect_denied(t || ': batch RPC', actor, format('select lf_batch(%L::jsonb)', jsonb_build_array(jsonb_build_object('op', 'delete', 'table', t, 'id', id))));
+    perform pg_temp.expect_count(t || ': row remains readable', actor, read_sql, 1);
+  end loop;
+  -- No new application table may quietly reopen the browser door outside the migrated set.
+  if exists (
+    select 1 from pg_policies where schemaname = 'public' and permissive = 'PERMISSIVE'
+      and cmd <> 'SELECT' and roles::text[] && array['public', 'authenticated', 'anon']
+  ) then
+    raise exception 'FAIL a public application table still has a browser write policy';
+  end if;
+end $cmd1$;
+
 select 'ALL RLS TESTS PASSED' as result;
+
 rollback;
