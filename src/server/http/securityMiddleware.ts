@@ -5,6 +5,8 @@ import helmet from "helmet";
 import { supabaseUrl } from "../auth/supabaseAuth";
 import { isAiStudioProxy } from "./origins";
 import { requestContext } from "./requestContext";
+
+export const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), usb=(), payment=(self)';
 import {
   APP_INLINE_SCRIPT_HASHES, CSP_REPORT_PATH, configuredSupabaseConnectSources, connectSources,
   cspRollout, helmetDirectives, tightenedCspDirectives, tightenedCspHeaderValue,
@@ -65,6 +67,11 @@ export function applySecurityMiddleware(app: express.Express, isAllowedOrigin: (
       next();
     });
   }
+  // S-25 / #827: browser features the app never uses are switched off for every page and frame
+  app.use((_req, res, next) => {
+    res.setHeader('Permissions-Policy', PERMISSIONS_POLICY);
+    next();
+  });
   // D-21: request id + one JSON access line per /api request (replaces the morgan text line).
   app.use(requestContext());
 }
