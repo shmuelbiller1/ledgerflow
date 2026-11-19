@@ -144,10 +144,9 @@ a new raw screen cannot slip in when a different screen migrates in the same PR.
       keyboard-only at 390/1280, light/dark, English/Hebrew, scoped axe (including the open quote editor),
       CSV contents, layout persistence, and a live role change. The original deep-link tests still assert the
       2024 period and both Sales group headings. [Before views](verification/images/ui2-trends-quotes/);
-      the [official refresh](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44427641084) captured and rechecked
-      the 12 `trends-sales-*`, `trends-purchases-*` and `quotes-*` references. A [second dark quote capture](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44431971762)
-      isolated a one-pixel vertical shift in the item selector text. The fixture now applies the language/theme
-      and loads the UI font before mounting the native controls; the screenshot tolerance is unchanged.
+      the [final official refresh](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44433041496) captured and
+      rechecked all 12 `trends-sales-*`, `trends-purchases-*` and `quotes-*` references. Reviewed both viewport
+      sets. Language, theme and the UI font are in place before native selectors mount; no tolerance was raised.
 
 **Next batch:** On the `bce500c` base the dry run offered 15 tables in 14 files. Two eligible table blocks
 were migrated; the re-survey offers **13 tables in 12 files**, still **131 refused blocks** (including the
