@@ -52,7 +52,13 @@ jobs:
       - name: Check the captured reference set
         env:
           SCREENS: ${{ inputs.screens }}
-        run: node_modules/.bin/playwright test e2e/visual-regression.spec.ts --grep "$SCREENS" --retries=0
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/visual-verification.json
+          PLAYWRIGHT_HTML_OPEN: never
+        run: |
+          status=0
+          node_modules/.bin/playwright test e2e/visual-regression.spec.ts --grep "$SCREENS" --retries=0 --reporter=list,html,json || status=$?
+          node scripts/playwright-failures.mjs "$PLAYWRIGHT_JSON_OUTPUT_NAME" --summary "$GITHUB_STEP_SUMMARY"
+          exit "$status"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
