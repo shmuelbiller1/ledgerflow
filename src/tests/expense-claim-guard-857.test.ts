@@ -71,6 +71,23 @@ describe('#857 submitted expense claims', { skip: !url && 'LF_TEST_DATABASE_URL 
     assert.equal((saved.metadata as { expenseClaim: { state: string } }).expenseClaim.state, 'approved');
   });
 
+  test('the server writes the decision record: who decided is the caller, and nothing else in the claim changes', async () => {
+    await db.collection('bills').doc(id('b3')).set(claimBillDoc(acc));
+    const bill = (await db.collection('bills').doc(id('b3')).get()).data() as never;
+    const forged = claimDecision(bill, false, owner, new Date().toISOString(), 'no receipt');
+    const meta = forged.metadata as { expenseClaim: Record<string, unknown>; memo?: string };
+    meta.expenseClaim.submittedBy = owner;
+    meta.memo = 'rewritten';
+    const prepared = await update(acc2, id('b3'), forged);
+    await commitPreparedDocumentPost(db, user(acc2), prepared);
+    const saved = (await db.collection('bills').doc(id('b3')).get()).data()!;
+    const claim = (saved.metadata as { expenseClaim: Record<string, unknown>; memo?: string });
+    assert.equal(claim.expenseClaim.decidedBy, acc2, 'the caller decided, whatever the body said');
+    assert.equal(claim.expenseClaim.submittedBy, acc, 'the submitter is the stored one');
+    assert.equal(claim.expenseClaim.reason, 'no receipt');
+    assert.equal(claim.memo, undefined, 'other metadata is not rewritten by a decision');
+  });
+
   test('the submitter may withdraw (delete) their own claim', async () => {
     await db.collection('bills').doc(id('b2')).set(claimBillDoc(book));
     await prepareDocumentPost(db, user(book), { collection: 'bills', docId: id('b2'), workspaceId: ws, action: 'delete', data: {} });

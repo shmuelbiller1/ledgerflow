@@ -137,11 +137,17 @@ function assertClaimDecision(
   const next = claimOf({ metadata: incoming.metadata } as never);
   const decided = next && (next.state === 'approved' || next.state === 'rejected') ? next.state : undefined;
   const allowedKeys = new Set(['status', 'metadata', 'updatedAt']);
-  if (!decided || incoming.status !== decided || Object.keys(incoming).some(k => !allowedKeys.has(k))) {
+  if (!next || !decided || incoming.status !== decided || Object.keys(incoming).some(k => !allowedKeys.has(k))) {
     throw new BulkRefusal(409, { error: 'This expense claim is waiting for approval. Approve or reject it; it cannot be edited until then.' });
   }
   const problem = decisionProblem(claim, role, uid);
   if (problem) throw new BulkRefusal(403, { error: problem });
+  // the record of the decision is the server's: the stored metadata and claim, with only the outcome, who
+  // decided (the caller), when, and the reason; nothing else the caller sent replaces them (Gitar on #908)
+  const reason = typeof next.reason === 'string' ? next.reason.trim().slice(0, 500) : '';
+  const prior = (existing.metadata && typeof existing.metadata === 'object' ? existing.metadata : {}) as Record<string, unknown>;
+  const { decidedBy: _b, decidedAt: _a, reason: _r, ...stored } = claim as unknown as Record<string, unknown>;
+  incoming.metadata = { ...prior, expenseClaim: { ...stored, state: decided, decidedBy: uid, decidedAt: typeof next.decidedAt === 'string' && next.decidedBy === uid ? next.decidedAt : new Date().toISOString(), ...(reason ? { reason } : {}) } };
 }
 
 function assertDocumentMutationAllowed(
