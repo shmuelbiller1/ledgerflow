@@ -177,6 +177,9 @@ describe('L94-STEP2B: credit notes, vendor credits and deletes posted by the ser
     assert.equal(del.status, 409, JSON.stringify(del.body));
     const shrink = await command('creditnote.update', { id: cnId, data: { amountCents: 5_000 } });
     assert.equal(shrink.status, 409, JSON.stringify(shrink.body));
+    // Gitar on #929: 8,000 is above the 6,000 applied, but with 5,000 still remaining only 3,000 would look applied
+    const quiet = await command('creditnote.update', { id: cnId, data: { amountCents: 8_000 } });
+    assert.equal(quiet.status, 409, JSON.stringify(quiet.body));
     assert.equal((await db.collection('creditNotes').doc(cnId).get()).data()?.amountCents, 11_000);
     const vcId = `${ws}_applied_vc`;
     await db.collection('vendorCredits').doc(vcId).set({ id: vcId, workspaceId: ws, number: 'VC-AP', vendorId: 'v1', vendorName: 'Paper Co', date: '2026-10-21', status: 'applied', currency: 'USD', exchangeRate: 1, amountCents: 11_800, remainingCents: 0, taxAmountCents: 0, taxVersion: 2 });

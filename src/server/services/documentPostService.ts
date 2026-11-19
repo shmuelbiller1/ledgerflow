@@ -212,13 +212,17 @@ function assertDocumentMutationAllowed(
             (incoming.exchangeRate !== undefined && incoming.exchangeRate !== existing.exchangeRate)) {
           throw new BulkRefusal(409, { error: `Cannot change currency or exchange rate on a ${NAMES[collection]} that has already been applied or refunded.` });
         }
-      } else if (incomingAmount !== undefined && incomingAmount < oldAmount - oldRemaining) {
-        // #775: the total cannot go below what has already been applied
-        throw new BulkRefusal(409, { error: `The total of this ${NAMES[collection]} cannot be lower than the ${oldAmount - oldRemaining} already applied.` });
-      } else if (incomingRemaining !== undefined) {
+      } else if (incomingAmount !== undefined || incomingRemaining !== undefined) {
+        // #775: the total and the remaining balance must still account for what has already been applied
+        // (a lower total does not move remainingCents on its own: Gitar on #929)
+        const applied = oldAmount - oldRemaining;
         const newAmount = incomingAmount !== undefined ? incomingAmount : oldAmount;
+        const newRemaining = incomingRemaining !== undefined ? incomingRemaining : oldRemaining;
+        if (newAmount < applied || newAmount - newRemaining < applied) {
+          throw new BulkRefusal(409, { error: `The total of this ${NAMES[collection]} cannot be lower than the ${applied} already applied.` });
+        }
         const maxRemaining = Math.min(newAmount, oldRemaining + Math.max(0, newAmount - oldAmount));
-        if (incomingRemaining > maxRemaining) {
+        if (newRemaining > maxRemaining) {
           throw new BulkRefusal(409, { error: 'Credit remaining balance cannot be increased above its unapplied amount.' });
         }
       }
