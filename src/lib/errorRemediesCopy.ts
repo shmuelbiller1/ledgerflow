@@ -45,6 +45,22 @@ export const ENGLISH: Record<ErrorRemedyRule, DescribedError> = {
     title: "The entry doesn't balance",
     remedy: 'Make the debits equal the credits, then save again.',
   },
+  overDocumentBalance: {
+    title: 'The allocated amount is more than the document balance',
+    remedy: 'Reduce the amount applied to the invoice or bill after checking its current balance.',
+  },
+  overPaymentAmount: {
+    title: 'The amounts applied add up to more than the payment',
+    remedy: 'Reduce the amounts applied so their total is no more than the payment amount.',
+  },
+  unpayableDocument: {
+    title: 'This invoice or bill is a draft or has been voided',
+    remedy: 'Choose an open invoice or bill that still has a balance.',
+  },
+  mixedPaymentCurrencies: {
+    title: 'These documents have different currencies or exchange rates',
+    remedy: 'Record separate payments for documents with different currencies or exchange rates.',
+  },
   invalid: {
     // the refusal's own words are the useful part, so they are kept and quoted
     title: 'Some details aren’t valid',
@@ -88,6 +104,22 @@ export const HEBREW: Record<ErrorRemedyRule, DescribedError> = {
   unbalanced: {
     title: 'הפקודה אינה מאוזנת',
     remedy: 'אפשר לתקן כך שהחיובים יהיו שווים לזיכויים ולשמור שוב.',
+  },
+  overDocumentBalance: {
+    title: 'הסכום שהוקצה גבוה מיתרת המסמך',
+    remedy: 'יש לבדוק את היתרה העדכנית בחשבונית או בחשבון הספק ולהקטין את הסכום שהוקצה למסמך.',
+  },
+  overPaymentAmount: {
+    title: 'סך הסכומים שהוקצו גבוה מסכום התשלום',
+    remedy: 'יש להקטין את הסכומים שהוקצו כך שהסכום הכולל שלהם לא יעלה על סכום התשלום.',
+  },
+  unpayableDocument: {
+    title: 'החשבונית או חשבון הספק עדיין בטיוטה או בוטלו',
+    remedy: 'יש לבחור חשבונית פתוחה או חשבון ספק פתוח שנותרה בהם יתרה לתשלום.',
+  },
+  mixedPaymentCurrencies: {
+    title: 'למסמכים האלה יש מטבעות או שערי חליפין שונים',
+    remedy: 'יש לרשום תשלומים נפרדים למסמכים במטבעות או בשערי חליפין שונים.',
   },
   invalid: {
     title: 'חלק מהפרטים אינם תקינים',
