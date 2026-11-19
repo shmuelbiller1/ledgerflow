@@ -34,14 +34,15 @@ const BOOK_CURRENCY_FILES = [
   'ProfitabilityByView.tsx',
   'StockSourcesUsesReportView.tsx',
   'partyTransactionsShared.tsx',
+  'DiscountMismatchView.tsx',
 ];
 
 /**
- * Deliberate exceptions: the row prints its own `Currency` column, so a single book-currency writer
- * would be wrong for it. Their own defect (a foreign-currency row still uses two decimals) is filed
- * separately and must be fixed with a per-row writer, not with this one.
+ * The one screen that is not book-currency: each row keeps its own document currency, printed in a
+ * `Currency` column beside the amount (#940). It uses the same writer, chosen per row, so this test
+ * also pins that its currency column has not been dropped — the reason the per-row choice is right.
  */
-const PER_ROW_CURRENCY = ['DiscountMismatchView.tsx', 'GoodsNotBilledReportView.tsx'];
+const PER_ROW_CURRENCY = ['GoodsNotBilledReportView.tsx'];
 
 test('every book-currency report writes CSV money with the book currency (#910)', () => {
   for (const file of BOOK_CURRENCY_FILES) {
@@ -51,7 +52,7 @@ test('every book-currency report writes CSV money with the book currency (#910)'
   }
 });
 
-test('only the documented per-row-currency screens still use the two-decimal writer', () => {
+test('no report screen imports the two-decimal writer; the per-row screen chooses by row', () => {
   // The two-decimal writer is the one imported under the bare name; a screen that makes its own
   // `const csvMoney = csvMoneyForCurrency(…)` (Inventory Valuation) is already currency-aware.
   const importsFixedWriter = (source: string) => /import \{[^}]*\bcsvMoney\b[^}]*\} from '[^']*csvExport'/.test(source);
@@ -62,8 +63,13 @@ test('only the documented per-row-currency screens still use the two-decimal wri
   assert.deepEqual(offenders, [], 'a new screen using csvMoney() is either the #910 defect or needs its reason here');
 });
 
-test('the deliberate exceptions still say which currency each row is in', () => {
-  // If one of these stops exporting a currency column, the reason above no longer holds.
-  assert.match(read('DiscountMismatchView.tsx'), /'Currency'/);
-  assert.match(read('GoodsNotBilledReportView.tsx'), /r\.currency \|\| home/);
+test('the per-row-currency screen still names each row\'s currency and picks its writer per row', () => {
+  const source = read('GoodsNotBilledReportView.tsx');
+  assert.match(source, /r\.currency \|\| home/, 'the currency column is still exported');
+  assert.match(source, /moneyForRow\(r\.currency\)/, 'the writer is chosen from the row');
+});
+
+test('the current-price review compares only book-currency lines, so it uses the book writer', () => {
+  // If `discountMismatch` ever keeps a foreign-currency line, this screen needs a per-row writer too.
+  assert.match(readFileSync(join(process.cwd(), 'src/lib/discountMismatch.ts'), 'utf8'), /currency !== input\.currency/);
 });

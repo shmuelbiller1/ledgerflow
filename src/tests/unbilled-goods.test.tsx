@@ -12,6 +12,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { stubFetch } from './helpers/dom';
 import { makeChartAccount, makeVendor } from './fixtures';
 import type { Workspace } from '../types';
+import { parseCsv } from '../lib/csv';
 import { ageInDays, billedNotReceived, deliveredNotInvoiced, orderedNotReceived, receivedNotBilled, totalsByCurrency } from '../lib/unbilledGoods';
 import { billLinesFromOrder } from '../lib/purchaseOrders';
 import GoodsNotBilledReportView from '../components/reporting/GoodsNotBilledReportView';
@@ -74,6 +75,41 @@ describe('Goods not yet billed', () => {
     await act(async () => { fireEvent.click(screen.getByText('Save & Close')); });
     await waitFor(() => assert.equal(saved.length, 1));
     assert.deepEqual(saved[0].splits?.map(s => [s.orderLine, s.orderQuantity]), [[0, 10]]);
+  });
+
+
+  // #940: each row keeps its own document currency in the file, so the amount beside it must use that
+  // currency's decimals. JPY has none and KWD three; a two-decimal writer turned ¥5,000 into 50.00.
+  test('each exported row is written in its own currency, not two decimals for every row', async () => {
+    setComponentWorkspace('owner');
+    const jpy = po('j', { currency: 'JPY', poNumber: 'PO-JPY' }, 4);   // 4 x 1,250 yen = 5,000 yen
+    const kwd = po('k', { currency: 'KWD', poNumber: 'PO-KWD' }, 4);   // 4 x 1,250 fils = 5,000 fils
+    const usd = po('u', { currency: 'USD', poNumber: 'PO-USD' }, 4);   // the control: unchanged
+    useLedgerStore.setState({ estimates: [], invoices: [], transactions: [] });
+    globalThis.fetch = (async (input: RequestInfo | URL) => new Response(
+      JSON.stringify(String(input).includes('purchaseOrders') ? [jpy, kwd, usd].map(o => ({ id: o.id, data: o, updated_at: '2026-09-01' })) : []),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )) as typeof fetch;
+    render(<GoodsNotBilledReportView />);
+    // three lists each have their own Export CSV; the delivered list is empty here, so the first
+    // enabled one is "Received, not billed" — the list these purchase orders belong to
+    const buttons = await screen.findAllByRole('button', { name: 'Export CSV' });
+    const button = buttons.find(b => !(b as HTMLButtonElement).disabled);
+    assert.ok(button, 'the received list can be exported');
+    const anchor = window.HTMLAnchorElement.prototype;
+    const originalClick = anchor.click, originalUrl = URL.createObjectURL;
+    let bytes: Blob | undefined;
+    try {
+      anchor.click = () => {};
+      URL.createObjectURL = (file: Blob) => { bytes = file; return 'blob:unbilled'; };
+      await act(async () => { fireEvent.click(button); });
+    } finally { anchor.click = originalClick; URL.createObjectURL = originalUrl; }
+    assert.ok(bytes, 'the action must produce a file');
+    const rows = parseCsv(await bytes.text());
+    const value = (number: string) => rows.find(r => r[0] === number);
+    assert.deepEqual(value('PO-JPY')?.slice(5, 7), ['5000', 'JPY'], '5,000 yen, and the currency named beside it');
+    assert.deepEqual(value('PO-KWD')?.slice(5, 7), ['5.000', 'KWD'], '5,000 fils is 5.000 dinar');
+    assert.deepEqual(value('PO-USD')?.slice(5, 7), ['50.00', 'USD'], 'the USD control is unchanged');
   });
 
   test('on screen: both lists with their totals', async () => {
