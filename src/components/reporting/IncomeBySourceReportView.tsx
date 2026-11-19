@@ -6,9 +6,10 @@ import { AccountReportResult } from './AccountReportResult';
 import { TrendingUp } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
-import { csvMoney } from '../../lib/csvExport';
+import { csvMoneyForCurrency } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useReportText } from './useReportText';
+import { useBookCurrency } from '../../hooks/useBookCurrency';
 
 interface Props {
   selectedYear?: number;
@@ -22,6 +23,7 @@ const LoadedReport: React.FC<Props> = ({
   endDate
 }) => {
   const reportText = useReportText();
+  const bookCurrency = useBookCurrency();
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
   const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
 
@@ -45,8 +47,9 @@ const LoadedReport: React.FC<Props> = ({
         <span className="font-mono w-12 text-right">{Number(info.getValue()).toFixed(1)}%</span>
       </span>
     ) },
-    { id: 'total', accessorFn: row => row.totalAmountCents, header: reportText('r.total-inflow', 'Total Inflow'), cell: info => <span className="font-mono font-semibold text-emerald-600">{formatCurrency(Number(info.getValue()))}</span> },
+    { id: 'total', accessorFn: row => row.totalAmountCents, header: reportText('r.total-inflow', 'Total Inflow'), cell: info => <span className="font-mono font-semibold text-emerald-600">{formatCurrency(Number(info.getValue()), bookCurrency)}</span> },
   ];
+  const writeCsvMoney = csvMoneyForCurrency(bookCurrency);
 
   const totalIncomeCents = useMemo(() => {
     return breakdowns.reduce((sum, b) => sum + b.totalAmountCents, 0);
@@ -67,7 +70,7 @@ const LoadedReport: React.FC<Props> = ({
         {read.source !== 'loaded-incomplete' && <div className="text-right">
           <div className="text-xs text-neutral-500 uppercase font-semibold">{reportText('r.total-revenue', 'Total Revenue')}</div>
           <div className="text-lg font-mono font-bold text-emerald-600">
-            {formatCurrency(totalIncomeCents)}
+            {formatCurrency(totalIncomeCents, bookCurrency)}
           </div>
         </div>}
       </div>
@@ -88,7 +91,7 @@ const LoadedReport: React.FC<Props> = ({
             filename: 'income-by-source.csv',
             label: reportText('r.export-csv', 'Export CSV'),
             headers: ['Customer / Revenue Source', 'Invoices / Entries', 'Share of inflow %', 'Total Inflow'],
-            mapRow: row => [row.source, row.transactionCount, row.percentage.toFixed(1), csvMoney(row.totalAmountCents)],
+            mapRow: row => [row.source, row.transactionCount, row.percentage.toFixed(1), writeCsvMoney(row.totalAmountCents)],
           }}
           emptyState={<EmptyState title={reportText('r.no-income-in-this-period', 'No income in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
           filteredEmptyState={<EmptyState title={reportText('r.no-source-matches-your-search', 'No source matches your search')} description={reportText('r.try-another-customer-name', 'Try another customer name.')} />}
