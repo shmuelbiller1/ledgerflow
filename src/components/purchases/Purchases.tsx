@@ -45,7 +45,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LoadingState } from '../ui/LoadingState';
 import { EmptyState } from '../ui/EmptyState';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
-import { csvMoney } from '../../lib/csvExport';
+import { csvMoney, csvMoneyIn } from '../../lib/csvExport';
 import ExpectedBills from './ExpectedBills';
 import type { ExpectedBill } from '../../lib/expectedBills';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
@@ -548,8 +548,13 @@ export default function Purchases() {
             exportConfig={{
               filename: 'bills_export.csv',
               label: purchasesText('action.exportCsv', 'Export CSV'),
-              headers: ['Vendor Name', 'Bill Number', 'Date', 'Due Date', 'Status', 'Amount', 'Currency'],
-              mapRow: b => [b.vendorName || 'Unknown Vendor', b.number || b.id, b.date || '', b.dueDate || '', b.status || 'unpaid', csvMoney(b.amountCents || 0), b.currency || ''],
+              headers: ['Vendor Name', 'Bill Number', 'Date', 'Due Date', 'Status', 'Amount', 'Amount Due', 'Currency'],
+              mapRow: b => {
+                // each row's money is written with its own currency's decimals, so JPY/KWD re-import exactly (Gitar on #925)
+                const cur = b.currency || homeCurrency;
+                const money = csvMoneyIn(cur);
+                return [b.vendorName || 'Unknown Vendor', b.number || b.id, b.date || '', b.dueDate || '', b.status || 'unpaid', money(b.amountCents || 0), money(calculateAmountDue(b)), cur];
+              },
             }}
             mobileLayout="table"
             getRowProps={b => ({
@@ -619,6 +624,12 @@ export default function Purchases() {
               columnScope="purchase-vendors"
               columnLabel="Vendors"
               columnNames={['Vendor Name', 'Category', 'Email', 'Phone', 'Outstanding balance', ...(canEditContacts ? ['Actions'] : [])]}
+              exportConfig={{
+                filename: 'vendors.csv',
+                label: purchasesText('action.exportCsv', 'Export CSV'),
+                headers: ['Vendor', 'Category', 'Email', 'Phone', 'Outstanding Balance'],
+                mapRow: v => [v.name, v.category || 'Standard', v.email || '', v.phone || '', csvMoney(v.balanceCents || 0)],
+              }}
               mobileLayout="cards"
               renderCard={v => (
                 <div className="space-y-3">

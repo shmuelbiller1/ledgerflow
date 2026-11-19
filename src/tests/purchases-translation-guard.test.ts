@@ -24,7 +24,7 @@ test('Purchases: no visible English outside purchasesText (text, markup strings,
 
 test('Purchases: every purchasesText key has its English fallback and Hebrew in the table', () => {
   for (const { name, report } of reports) assert.deepEqual(report.badKeys, [], name);
-  assert.equal(reports.reduce((sum, { report }) => sum + report.calls, 0), 78);
+  assert.equal(reports.reduce((sum, { report }) => sum + report.calls, 0), 79);
   assert.equal(translateScreenString('purchases', 'col.dueDate', 'he', 'Due Date'), 'תאריך פירעון');
   // a button's accessible name follows its visible label: the Hebrew name contains the Hebrew text
   assert.ok(translateScreenString('purchases', 'aria.spread', 'he', '').includes(translateScreenString('purchases', 'action.spread', 'he', '')));

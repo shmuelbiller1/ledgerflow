@@ -2,6 +2,7 @@ import { workspaceActor } from '../../lib/guestActor';
 import { defaultsMetadata, cleanDocumentDefaults } from '../../lib/documentDefaults';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, safeConfirm } from '../../lib/utils';
+import { csvMoney } from '../../lib/csvExport';
 import { ConfirmButton } from '../ui/ConfirmButton';
 import { toast } from 'sonner';
 import { StrategicEngine } from '../../services/strategicEngine';
@@ -483,6 +484,22 @@ export default function Inventory() {
           columnScope="inventory-items"
           columnLabel="Inventory"
           columnNames={['Item / SKU', 'Category', 'Stock Level', 'Unit Cost', 'Unit Price', 'Actions']}
+          exportConfig={{
+            filename: 'items.csv',
+            label: 'Export CSV',
+            headers: ['Name', 'SKU', 'Category', 'Quantity on hand', 'Cost', 'Sale price', 'Unit', 'Reorder point', 'Description'],
+            mapRow: item => [
+              item.name,
+              item.sku || '',
+              item.category || '',
+              String(item.quantityAtHand ?? 0),
+              csvMoney(item.unitCostCents || 0),
+              csvMoney(item.unitPriceCents || 0),
+              item.measurementUnit || '',
+              String(item.reorderPoint ?? 0),
+              item.description || '',
+            ],
+          }}
           mobileLayout="cards"
           renderCard={item => (
             <div className="space-y-3">

@@ -114,7 +114,7 @@ export default function StatementImporter({
   const [fileError, setFileError] = useState('');
   const [mappingError, setMappingError] = useState('');
   const csvHeaders = withOccurrenceKeys(csvData[0] || [], column => column);
-  const csvPreview = withOccurrenceKeys(csvData.slice(1, 6), row => JSON.stringify(row));
+  const csvPreview = withOccurrenceKeys(csvData.slice(1, 21), row => JSON.stringify(row));
   const [mapping, setMapping] = useState({ date: -1, description: -1, amount: -1, debit: -1, credit: -1, payee: -1, memo: -1, skipRows: 1 });
 
   // #101: the shared RFC 4180 reader — only double quotes quote, so "O'Brien" stays one cell, and
@@ -531,7 +531,7 @@ export default function StatementImporter({
 
                 <div className="border border-[var(--line)] rounded-2xl overflow-hidden">
                   <div className="p-4 bg-[var(--surface)] border-b border-[var(--line)]">
-                    <p className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">Data Preview (First 5 Rows)</p>
+                    <p className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">Data Preview (First 20 Rows)</p>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs min-w-[600px]">

@@ -96,7 +96,8 @@ describe('the screens that paint a stored file use the shared rule', () => {
   const screens = {
     'src/components/forensics/Vault.tsx': [
       // the image preview, both open links and the OCR fetch
-      /\{embedUrl && selectedDoc\.mimeType\.startsWith/,
+      /selectedKind === 'image' && embedUrl/,
+      /selectedKind === 'pdf' && embedUrl/,
           /src=\{embedUrl\}/,
       /href=\{downloadUrl\}/,
       /const response = await fetch\(sourceUrl\);/,
