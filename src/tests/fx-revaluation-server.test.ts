@@ -86,7 +86,7 @@ describe('Month-end currency revaluation', { skip: !url && 'LF_TEST_DATABASE_URL
   });
 
   after(async () => {
-    for (const table of ['transactions', 'invoices', 'bills', 'payments', 'chartAccounts', 'customers', 'vendors', 'workspaces']) {
+    for (const table of ['transactions', 'invoices', 'bills', 'payments', 'paymentAllocations', 'chartAccounts', 'customers', 'vendors', 'workspaces']) {
       await db.pool.query(`delete from public."${table}" where workspace_id = any($1) or id = any($1) or data->>'workspaceId' = any($1)`, [[ws, nofx, id('c1'), id('v1'), ...Object.values(accounts)]]);
     }
     await db.terminate();
@@ -234,10 +234,19 @@ describe('Month-end currency revaluation', { skip: !url && 'LF_TEST_DATABASE_URL
     for (const dryRun of [true, false]) {
       const refused = await failure(() => revaluate(db, { workspaceId: ws, user: owner, date, rates, dryRun }));
       assert.equal(refused?.status, 409);
-      assert.match(String(refused?.message), /paid after/);
+      assert.match(String(refused?.message), /paid, credited or written off after/);
     }
     // a void payment is not a settlement
     await db.collection('payments').doc(id('p-after')).set({ status: 'void' }, { merge: true });
     assert.equal(await failure(() => revaluate(db, { workspaceId: ws, user: owner, date, rates, dryRun: true })), null);
+
+    // a credit applied after the date settles too (allocation ledger), unless it was reversed; so does a later write-off
+    await db.collection('paymentAllocations').doc(id('alloc')).set({ workspaceId: ws, kind: 'credit', documentId: id('full'), amountCents: 500, date: addDaysYMD(date, 2) });
+    assert.match(String((await failure(() => revaluate(db, { workspaceId: ws, user: owner, date, rates, dryRun: true })))?.message), /credited or written off/);
+    await db.collection('paymentAllocations').doc(id('alloc')).set({ reversedBy: 'r1' }, { merge: true });
+    assert.equal(await failure(() => revaluate(db, { workspaceId: ws, user: owner, date, rates, dryRun: true })), null);
+    await db.collection('invoices').doc(id('full')).set({ writtenOffAt: addDaysYMD(date, 3) }, { merge: true });
+    assert.equal((await failure(() => revaluate(db, { workspaceId: ws, user: owner, date, rates, dryRun: true })))?.status, 409);
+    await db.collection('invoices').doc(id('full')).set({ writtenOffAt: null }, { merge: true });
   });
 });

@@ -14,6 +14,7 @@ import { FxService } from './FxService';
 import { workspaceRole } from '../../lib/periodLock';
 import type { ChartAccount } from '../../types';
 import { byCodeUnit } from '../../lib/codeUnitOrder';
+import { ALLOCATIONS } from './allocationLedger';
 
 /**
  * Month-end currency revaluation (R-07): the open foreign-currency invoices and bills are worth a
@@ -222,8 +223,16 @@ export async function revaluateForeignBalances(db: Firestore, input: Revaluation
           if (known.has(a?.documentId) && Number(a?.amountCents) > 0) settledLater.add(a.documentId);
         }
       }
+      // credits and write-offs settle a document too: every live row of the allocation ledger counts, and a write-off's own date (Gitar on #901)
+      for (const a of (await t.get(db.collection(ALLOCATIONS).where('workspaceId', '==', input.workspaceId))).docs.map(d => d.data())) {
+        if (a.kind === 'reversal' || a.reversedBy || String(a.date || '').slice(0, 10) <= date) continue;
+        if (known.has(a.documentId) && Number(a.amountCents) > 0) settledLater.add(a.documentId);
+      }
+      for (const d of [...invoiceRows, ...billRows]) {
+        if (d.writtenOffAt && String(d.writtenOffAt).slice(0, 10) > date) settledLater.add(d.id);
+      }
       if (settledLater.size > 0) {
-        throw new FxRevaluationError(409, `${settledLater.size} ${settledLater.size === 1 ? 'document was' : 'documents were'} paid after ${date}, so the open amounts on that date cannot be rebuilt. Revalue as of a date after the last of those payments, or today. Nothing was posted.`);
+        throw new FxRevaluationError(409, `${settledLater.size} ${settledLater.size === 1 ? 'document was' : 'documents were'} paid, credited or written off after ${date}, so the open amounts on that date cannot be rebuilt. Revalue as of a date after the last of those, or today. Nothing was posted.`);
       }
     }
     const docs = [
