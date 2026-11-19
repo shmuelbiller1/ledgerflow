@@ -58,7 +58,12 @@ function containsCommandRunnerCall(node: ts.Node): boolean {
   // executeCommand. `handleCreatePayment` is the same shape in paymentRoutes.ts: the handler is exported
   // for the two suites that call it directly, and its body is the runner invocation. Naming an
   // unconverted helper here would not help it: the ratchet can only shrink, and the file's count fell.
-  const commandRunners = new Set(['executeCommand', 'previewCommand', 'runLegacyCommand', 'handleCreatePayment']);
+  // `openSandbox`, `reviewSandbox` and `undoSandboxStep` are the SBX-1 review service (commands/sandboxReview.ts):
+  // drafting writes only the sandbox overlay, never a real row; accepting replays each step through the shared
+  // runner's validation, prepare, handler and audit path (`replayReviewedStep`), and undo calls
+  // `runRegisteredCommand` on the step's recorded inverse. They are the proposal door of CMD-1 part 3, not a
+  // second way to write the books.
+  const commandRunners = new Set(['executeCommand', 'previewCommand', 'runLegacyCommand', 'handleCreatePayment', 'openSandbox', 'reviewSandbox', 'undoSandboxStep']);
   const visit = (child: ts.Node) => {
     if (ts.isCallExpression(child) && commandRunners.has(callName(child) || '')) found = true;
     if (!found) ts.forEachChild(child, visit);
@@ -84,6 +89,19 @@ export interface ReadOnlyRouteException {
 }
 
 export const READ_ONLY_ROUTE_EXCEPTIONS: readonly ReadOnlyRouteException[] = [
+  {
+    file: 'src/server/routes/sandboxRoutes.ts',
+    route: '/:sandboxId/tools/:tool',
+    why: 'The assistant\'s read tools (SBX-1): list, get and search records, run a report, explain a number, '
+      + 'read a question, calculate. They are posted because a filter list or an account list does not fit in '
+      + 'a link. Every one reads through the sandbox handle and answers; nothing is written or audited.',
+  },
+  {
+    file: 'src/server/routes/sandboxRoutes.ts',
+    route: '/:sandboxId/token',
+    why: 'Issues a fresh assistant token for a sandbox the signed-in person already owns, signed from the '
+      + 'session alone (auth/assistantToken.ts). It reads the binding and the live role; it writes nothing.',
+  },
   {
     file: 'src/server/routes/transactions/reconcileRoutes.ts',
     route: '/reconciliation/match',

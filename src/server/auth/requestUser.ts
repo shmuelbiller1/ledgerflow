@@ -14,6 +14,8 @@ export interface RequestUser extends Partial<Omit<DecodedIdToken, 'uid'>> {
   developerWorkspaceId?: string;
   apiKeyName?: string;
   usedApiKeyId?: string;
+  /** Assistant-token callers (auth/assistantToken.ts): the one sandbox the token may act in. */
+  assistantSandboxId?: string;
 }
 
 export type UserRequest = express.Request & { user: RequestUser };

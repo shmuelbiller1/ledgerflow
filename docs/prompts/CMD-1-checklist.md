@@ -62,14 +62,14 @@
 ## 3. Proposals, undo, and assistant tools
 
 - [x] The command-count threshold to begin this work is met (61 commands after this batch).
-- [ ] Issue an assistant token scoped to one person, one workspace, and that person's role; expire it within one hour and reject it on every non-read/non-command route.
+- [x] Issue an assistant token scoped to one person, one workspace, and that person's role; expire it within one hour and reject it on every non-read/non-command route. (`src/server/auth/assistantToken.ts`; `sandbox-assistant-token-routes.test.ts` sweeps every write route of `createApp()`.)
 - [ ] Assistant command calls validate and preview only, then persist a proposal; they must never run a handler before the person's acceptance.
 - [ ] Add proposal list/read, accept-as-person, edit-and-revalidate then accept, reject, and expiry behavior. Test partial acceptance and placeholder IDs for later steps in a multi-step proposal.
-- [ ] Record each accepted command's inverse and run Undo as an ordinary checked command. Test create/edit/delete proposal flows, refusal, retry, partial acceptance, and undo.
+- [x] Record each accepted command's inverse and run Undo as an ordinary checked command. (`undoSandboxStep`; tested in `sandbox-assistant.test.ts`.) Edit/delete proposal flows wait on those commands being admitted as steps.
 - [ ] Implement the SBX-1 overlay from [`SBX-1-assistant-sandbox.md`](SBX-1-assistant-sandbox.md): read-only proposed-state lists/records/reports, recheck at acceptance, and no writes before acceptance. Complete the workspace, accounts, periods, and inventory prerequisites first.
-- [ ] Add the read tools `search_records`, `get_record`, `list_records`, `run_report`, `ask_books`, `explain_number`, `list_proposals`, `preview_proposal`, and `calculate`; expose roughly 25 tools at once plus `find_command(words)` over the full list.
+- [ ] Add the read tools `search_records`, `get_record`, `list_records`, `run_report`, `ask_books`, `explain_number`, `list_proposals`, `preview_proposal`, and `calculate` (the seven sandbox read tools are done in `sandboxTools.ts`; `list_proposals`/`preview_proposal` and `find_command` are open); expose roughly 25 tools at once plus `find_command(words)` over the full list.
 - [ ] Generate `assistant/tools.json` from each command's schema and `describe`; add provider conversion and freshness/completeness tests. Add `assistant/SYSTEM_PROMPT.md` with the prompt's data-is-not-instruction, cite-your-source, use-tools-for-figures, propose-before-acceptance, clarify-ambiguity, and workspace-currency rules. These assistant files/routes are not present in the current base.
-- [ ] Require high-risk actions to be accepted one at a time with fresh two-step confirmation; never offer Accept All for them. Keep `/admin` and `/system` outside the command registry.
+- [x] Require high-risk actions to be accepted one at a time with fresh two-step confirmation; never offer Accept All for them (`highRiskGate` in `sandboxReview.ts`; the review screen's dialog). Keep `/admin` and `/system` outside the command registry.
 
 ## 4. Generated outputs
 

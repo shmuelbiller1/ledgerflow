@@ -175,16 +175,41 @@ nor the public report mounts accept a sandbox id.
   Draft previews do not run arbitrary `afterCommit` callbacks. Only the committed live attempt runs
   them (best effort, as with direct commands; not a durable mail outbox). Typed preview intents are
   not provider payloads and do not promise delivery. Existing inverse hooks are recorded where
-  available; Undo itself is not exposed.
+  available; Undo is `undoSandboxStep`: the person runs the recorded inverse through
+  `runRegisteredCommand` (the ordinary checked command path, with its own audit entry) and the step
+  is marked `undone` (migration `20261119090000_sandbox_step_undone.sql`).
 - **Limits:** At most three active sandboxes per person, 200 unresolved steps per sandbox and 50 MB
   of accounted active draft data per workspace. A whole-draft rejection clears the overlay and closes
-  the binding. Expired drafts cannot be used; a scheduled cleanup of expired/closed history is still
-  needed. No new migration is needed for this slice.
+  the binding. Expired drafts cannot be used; `cleanupSandboxes` (maintenance job step 5) marks
+  expired bindings, deletes their overlay rows and purges closed/expired history older than 30 days.
+- **High-risk:** `highRiskGate` (pure, in `sandboxReview.ts`) applies the command's own `risk: 'high'`
+  at acceptance: Accept All skips such a step, a selection must name it alone, and the first call answers
+  `409 SANDBOX_HIGH_RISK_CONFIRM` with the preview; only a second call naming it as `confirmHighRisk`
+  applies it. No high-risk command is admitted as a step yet; the rule is in place for when one is.
 
 The remaining document SQL ratchet moves **20 → 0**. Module record counts now read the scoped
 relation. Auth lookups, usage metering, cross-workspace rollups and scheduled jobs stay live-only.
 The outside-effects source guard catches direct transport use in command definitions; it is a review
 alarm, not proof about every service a future command might call.
+
+## Assistant token, routes, read tools and the review screen
+
+`src/server/auth/assistantToken.ts` issues an HMAC token (`SESSION_SECRET`) bound to one sandbox, one
+person, one workspace and that person's role at issue time, valid for one hour. `requestUser` carries it
+as `assistantSandboxId`; `apiAuthenticate` never accepts it, so every existing route answers 401. The
+only mount that reads it is `/api/v1/sandboxes/:sandboxId` (`sandboxRoutes.ts`): `steps` (add, edit,
+reorder, remove) and `tools/:tool` for `search_records`, `get_record`, `list_records`, `run_report`,
+`ask_books`, `explain_number` and `calculate`. `run_report` and `explain_number` dispatch to the real
+report and balance routers on the sandbox handle (`getDb({ sandboxId })`), so a figure is the same code
+as the Reports tab with the draft applied. Records are redacted of credential-like fields before they
+leave. The person's mount, `/api/v1/workspaces/:workspaceId/sandboxes`, is behind the ordinary sign-in
+and additionally refuses the assistant token: open, list, token refresh, review, accept, reject, undo.
+
+`src/components/ledger/SandboxReviewView.tsx` (`#sandbox-review`, "Assistant drafts") shows the step
+list with each step's state and reason, the conflict view (needs-recheck and failed steps), and "the
+books with this applied" — the trial balance through the sandbox's `run_report`. Accept all, accept
+selected (with `confirmRechecked` for rechecked steps), remove, reject the draft, Undo, and the
+high-risk dialog are each the server's own answer; the screen computes nothing.
 
 ### Verification and remaining scope
 
@@ -201,7 +226,8 @@ Run just the local workflow with `LF_TEST_DATABASE_URL` set to a migrated local 
 | --- | --- |
 | Overlay schema, role, scoped reads | Foundation #787; reads and settlement #790, #792, #793. Live migration/login capability has not been independently verified here. |
 | Draft, review, and real replay | Internal lifecycle above for four reviewed commands. The whole command registry, stock moves, caller-owned counters beyond the reviewed path, and high-risk or plan-metered commands are not admitted. |
-| Read tools, assistant credential and review screen | Not implemented. They must enforce private scope and cannot expose a route to accept as an assistant. |
-| Undo and housekeeping | Some accepted steps have an inverse; no Undo handler. Active limits and expiry checks work; scheduled deletion is open. |
+| Read tools, assistant credential and review screen | Done above. `sandbox-assistant.test.ts` (token, drafting through HTTP, every read tool, undo, housekeeping, requirement 9 over the whole registry, requirement 10), `sandbox-assistant-token-routes.test.ts` (every write route in `createApp()` refuses the assistant token), `sandbox-review-screen.test.tsx` (the screen). |
+| Undo and housekeeping | `undoSandboxStep` and `cleanupSandboxes` (maintenance step 5). Overlay size is accounted per sandbox (`overlay_bytes`); a rebuild-time metric is not recorded yet. |
+| High-risk and plan limits | `highRiskGate` (two-step, alone) is tested as a pure rule; plan-metered (`capacity`) and high-risk commands are still not admitted as steps. The task-capacity recheck at acceptance is in `sandbox-review.test.ts`. |
 
 SBX-2 product speed work is separate.
