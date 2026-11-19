@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 for (const width of [390, 1280]) test(`Accessibility & language sets Hebrew and Sales uses RTL at ${width}px`, async ({ page }) => {
+  // several first visits (home, Help, Sales) can each wait on a dev-server build, so the test gets room for them
+  test.setTimeout(90_000);
   await page.setViewportSize({ width, height: 900 });
   await page.addInitScript(() => {
     localStorage.setItem('ledgerflow-cookie-consent', 'accepted');
