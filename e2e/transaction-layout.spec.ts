@@ -4,7 +4,8 @@ test('transaction widths and order align header/rows and persist across reload',
   await page.route('**/api/**', route => route.fulfill({ status: 200, json: {} }));
   await page.addInitScript(() => { localStorage.setItem('isGuest', 'true'); localStorage.setItem('has_seen_onboarding', 'true'); });
   await page.goto('/#transactions');
-  await expect(page.getByRole('heading', { name: 'Journal Entries' })).toBeVisible();
+  // the dev server builds the screen on its first visit, which can outlast the 5 s default on a busy runner
+  await expect(page.getByRole('heading', { name: 'Journal Entries' })).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Columns', exact: true }).click();
   const width = page.getByRole('spinbutton', { name: 'Description width in pixels' });
   await width.fill('320');
