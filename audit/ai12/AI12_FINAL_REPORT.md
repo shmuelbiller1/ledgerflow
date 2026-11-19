@@ -101,3 +101,19 @@ AI12-N10-06).
 head commit, with two conditions before launch: a native Hebrew copy review of the new strings, and
 a decision by the owner on the CPD exclusion (the mechanism is the repo's own precedent, but it is
 the owner's call whether these tables qualify). Neither is a code defect.
+
+## 7. Addendum — final head
+
+After this report was first written, three documentation-only commits were added
+(`514948f`, `5460c2e`, and one formatting commit). The authoritative head is therefore
+**`5460c2e585290f541127ae34ee44e9db9d6882e3`**, and the hosted result recorded against *that*
+commit — read directly from the API, not from an earlier run — is:
+
+- 28 check runs, **26 success**, 2 skipped by the repo's own scope rules (`Docs checks`,
+  `Browser tests (changed specs)`), nothing failing, nothing cancelled, nothing pending;
+- `mergeable: MERGEABLE`, `mergeStateStatus: CLEAN`;
+- the code commits (`6dcb990`…`632f162`) are unchanged, so the per-check table in section 2 still
+  describes the code that is being merged; the three later commits add only `audit/ai12/**` docs.
+
+Section 2's figures were taken from the run on `632f162` and are accurate for it. Where they differ
+from the final head, the final-head numbers above take precedence.
