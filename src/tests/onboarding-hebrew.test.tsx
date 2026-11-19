@@ -13,17 +13,16 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import {
-  businessPresetName,
-  businessTemplateDescription,
-  businessTemplateName,
   fillOnboarding,
-  monthNames,
   onboardingText,
   onboardingTextWith,
   onboardingTranslationGaps,
   ONBOARDING_STRINGS,
-  templateCopyIds,
+  translationGaps,
 } from '../lib/i18n/onboardingTranslations';
+import { businessPresetName, monthNames, SETUP_TRANSLATIONS, setupText } from '../lib/i18n/setupTranslations';
+import { OVERVIEW_TRANSLATIONS, overviewTextWith } from '../lib/i18n/overviewTranslations';
+import { templateCopyIds, templateDescriptionHe, templateNameHe } from '../lib/i18n/onboardingTemplateCopy';
 import { MIN_PASSWORD_LENGTH, passwordProblemCode } from '../lib/passwordPolicy';
 import { AuthScreen } from '../core/auth/AuthScreen';
 import NewPasswordScreen from '../core/auth/NewPasswordScreen';
@@ -72,7 +71,7 @@ afterEach(async () => {
 
 describe('the onboarding table', () => {
   test('every entry has Hebrew that differs from its English', () => {
-    assert.ok(ONBOARDING_STRINGS.length >= 100, 'the four screens need their sentences in the table');
+    assert.ok(ONBOARDING_STRINGS.length >= 60, 'the sign-in path needs its sentences in the shared table');
     assert.deepEqual(onboardingTranslationGaps(), []);
   });
 
@@ -91,10 +90,10 @@ describe('the onboarding table', () => {
   });
 
   test('an English reader gets the sentence the screen passes, and a gap falls back to it', () => {
-    assert.equal(onboardingText('auth.guest', 'en', 'Continue as Guest'), 'Continue as Guest');
-    assert.equal(onboardingText('auth.guest', 'he', 'Continue as Guest'), 'המשך כאורח');
-    // a key that is not in the table can never become a visible key
-    assert.equal(onboardingText('not.a.key' as never, 'he', 'Fallback sentence'), 'Fallback sentence');
+    assert.equal(onboardingText('auth.guest', 'en'), 'Continue as Guest');
+    assert.equal(onboardingText('auth.guest', 'he'), 'המשך כאורח');
+    // a key that is not in the table shows its own last segment, never a key path or "undefined"
+    assert.equal(onboardingText('not.a.key' as never, 'he'), 'key');
   });
 
   test('placeholders are filled with the value as given, and an unknown placeholder is left alone', () => {
@@ -102,7 +101,12 @@ describe('the onboarding table', () => {
     assert.equal(fillOnboarding('At least {min} characters', { min: MIN_PASSWORD_LENGTH }), 'At least 10 characters');
     assert.equal(fillOnboarding('{kept} and {unknown}', { kept: 'x' }), 'x and {unknown}');
     // the Hebrew progress sentence reads with its own numbers, in Hebrew
-    assert.equal(onboardingTextWith('firstWeek.progress', 'he', '{done} of {total} steps complete', { done: 0, total: 5 }), '0 מתוך 5 שלבים הושלמו');
+    assert.equal(overviewTextWith('firstWeek.progress', 'he', { done: 0, total: 5 }), '0 מתוך 5 שלבים הושלמו');
+  });
+
+  test('the Overview screens have their own table, with no gap', () => {
+    assert.ok(OVERVIEW_TRANSLATIONS.length >= 40);
+    assert.deepEqual(translationGaps(OVERVIEW_TRANSLATIONS), []);
   });
 
   test('the month names and the chart templates have Hebrew for every value the setup screen shows', () => {
@@ -114,16 +118,20 @@ describe('the onboarding table', () => {
       .map(template => template.id);
     assert.deepEqual(missing, [], 'every chart template the setup screen lists needs its Hebrew name and description');
     for (const template of Object.values(BUSINESS_TEMPLATES)) {
-      assert.match(businessTemplateName(template.id, template.name, 'he'), HEBREW, template.id);
-      assert.match(businessTemplateDescription(template.id, template.description, 'he'), HEBREW, template.id);
+      assert.match(String(templateNameHe(template.id)), HEBREW, template.id);
+      assert.match(String(templateDescriptionHe(template.id)), HEBREW, template.id);
     }
     for (const preset of BUSINESS_PRESETS) {
       assert.match(businessPresetName(preset.id, preset.name, 'he'), HEBREW, preset.id);
     }
-    // English is untouched: the stored template words come back as they are
+    // the wizard's own table has no gap either, and its English is what the screen passes
+    assert.deepEqual(onboardingTranslationGaps(SETUP_TRANSLATIONS), []);
+    assert.equal(setupText('setup.title', 'en'), 'Set up your books');
+    assert.equal(setupText('setup.title', 'he'), 'הגדרת הספרים שלכם');
+    // English is untouched: the stored template words are the ones the screen shows
     const retail = BUSINESS_TEMPLATES.retail;
-    assert.equal(businessTemplateName('retail', retail.name, 'en'), retail.name);
-    assert.equal(businessTemplateDescription('retail', retail.description, 'en'), retail.description);
+    assert.equal(retail.name, BUSINESS_TEMPLATES.retail.name);
+    assert.equal(retail.description, BUSINESS_TEMPLATES.retail.description);
   });
 });
 
@@ -171,9 +179,9 @@ describe('the sign-in screen', () => {
     const cases: Array<[string, string]> = [['short1!', 'tooShort'], ['Password123', 'tooLong'.replace('tooLong', 'common')], ['aaaaaaaaaaaa', 'repeated']];
     for (const [password, code] of cases) {
       assert.equal(passwordProblemCode(password, ''), code);
-      assert.match(onboardingTextWith(`password.${code}` as 'password.tooShort', 'he', 'x', { min: MIN_PASSWORD_LENGTH }), HEBREW);
+      assert.match(onboardingTextWith(`password.${code}` as 'password.tooShort', 'he', { min: MIN_PASSWORD_LENGTH }), HEBREW);
     }
-    assert.equal(onboardingTextWith('password.tooShort', 'en', 'Use at least {min} characters', { min: MIN_PASSWORD_LENGTH }), 'Use at least 10 characters');
+    assert.equal(onboardingTextWith('password.tooShort', 'en', { min: MIN_PASSWORD_LENGTH }), 'Use at least 10 characters');
   });
 });
 
@@ -219,7 +227,7 @@ describe('the setup wizard', () => {
     // nothing changed, so the step moves without a write; the heading is asserted once it is on screen
     await screen.findByRole('heading', { name: 'תרשים החשבונות' });
     for (const template of Object.values(BUSINESS_TEMPLATES)) {
-      assert.ok(screen.getByLabelText(businessTemplateName(template.id, template.name, 'he')), template.id);
+      assert.ok(screen.getByLabelText(String(templateNameHe(template.id))), template.id);
     }
     assert.ok(screen.getByLabelText('להשאיר את החשבונות שלי'));
     assert.ok(screen.getByRole('button', { name: 'חזרה' }));

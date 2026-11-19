@@ -13,14 +13,16 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { checkTranslatedScreen } from './helpers/translationGuard';
 import { onboardingTranslationGaps, ONBOARDING_STRINGS } from '../lib/i18n/onboardingTranslations';
+import { SETUP_TRANSLATIONS } from '../lib/i18n/setupTranslations';
+import { OVERVIEW_TRANSLATIONS } from '../lib/i18n/overviewTranslations';
 
 /** One entry per screen: the file, the table its keys live in, and the helper it reads them through. */
 const SCREENS = [
   { file: '../core/auth/AuthScreen.tsx', table: 'auth' },
   { file: '../core/auth/NewPasswordScreen.tsx', table: 'password' },
-  { file: '../components/onboarding/SetupWizard.tsx', table: 'setup' },
-  { file: '../components/onboarding/FirstHourGuide.tsx', table: 'firstHour' },
-  { file: '../components/dashboard/FirstWeekChecklist.tsx', table: 'firstWeek' },
+  { file: '../components/onboarding/SetupWizard.tsx', table: 'setup', entries: SETUP_TRANSLATIONS },
+  { file: '../components/onboarding/FirstHourGuide.tsx', table: 'firstHour', entries: OVERVIEW_TRANSLATIONS },
+  { file: '../components/dashboard/FirstWeekChecklist.tsx', table: 'firstWeek', entries: OVERVIEW_TRANSLATIONS },
 ] as const;
 
 /**
@@ -43,9 +45,10 @@ for (const screen of SCREENS) {
     );
     // `t` in these screens is `(key, fallback) => onboardingText(key, language, fallback)`: it takes the
     // English sentence as an argument, so the helper's own argument is the text a person reads.
-    assert.deepEqual(report.untranslated, [], `Wrap visible text with onboardingText and add its EN/HE entry (${screen.file}).`);
+    assert.deepEqual(report.untranslated, [], `Wrap visible text with the screen's text helper and add its EN/HE entry (${screen.file}).`);
+    const table = 'entries' in screen ? screen.entries : ONBOARDING_STRINGS;
     for (const key of onboardingKeysUsedBy(screen.file)) {
-      const entry = ONBOARDING_STRINGS.find(item => item.key === key);
+      const entry = table.find(item => item.key === key);
       assert.ok(entry, `${screen.file}: ${key} has no entry in the onboarding table`);
       assert.match(entry!.he, /\p{Script=Hebrew}/u, `${screen.file}: ${key} has no Hebrew`);
       // the sign-in screens also show the password rules, so they read the shared `password.` keys
@@ -55,15 +58,17 @@ for (const screen of SCREENS) {
   });
 }
 
-test('the onboarding table itself has no gap', () => {
+test('every onboarding table has no gap', () => {
   assert.deepEqual(onboardingTranslationGaps(), []);
+  assert.deepEqual(onboardingTranslationGaps(SETUP_TRANSLATIONS), []);
+  assert.deepEqual(onboardingTranslationGaps(OVERVIEW_TRANSLATIONS), []);
 });
 
 /** The `onboardingText`/`t` keys a component file uses (first string argument of the helper). */
 function onboardingKeysUsedBy(file: string): string[] {
   const source = readFileSync(fileURLToPath(new URL(file, import.meta.url)), 'utf8');
   const keys = new Set<string>();
-  for (const match of source.matchAll(/(?:onboardingText|onboardingTextWith)\(\s*['"]([^'"]+)['"]/g)) keys.add(match[1]);
+  for (const match of source.matchAll(/(?:onboardingText|onboardingTextWith|setupText|setupTextWith|overviewText|overviewTextWith)\(\s*['"]([^'"]+)['"]/g)) keys.add(match[1]);
   for (const match of source.matchAll(/\bt\(\s*['"]([a-zA-Z.]+)['"]/g)) keys.add(match[1]);
   // the refusal keys are chosen by a code at runtime (`password.${code}`)
   if (/`password\.\$\{/.test(source)) {

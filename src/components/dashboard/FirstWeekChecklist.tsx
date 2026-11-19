@@ -13,7 +13,8 @@ import {
   saveFirstWeekDismissed,
   saveProfitAndLossVisited,
 } from '../../lib/firstWeekChecklist';
-import { fillOnboarding, firstWeekStepText, onboardingText } from '../../lib/i18n/onboardingTranslations';
+import { fillOnboarding } from '../../lib/i18n/onboardingTranslations';
+import { firstWeekStepText, overviewText } from '../../lib/i18n/overviewTranslations';
 import { directionOf, useUiLanguage } from '../../lib/i18n/useUiLanguage';
 
 /**
@@ -26,7 +27,7 @@ import { directionOf, useUiLanguage } from '../../lib/i18n/useUiLanguage';
  */
 export default function FirstWeekChecklist() {
   const language = useUiLanguage();
-  const t = (key: Parameters<typeof onboardingText>[0], fallback: string) => onboardingText(key, language, fallback);
+  const t = (key: Parameters<typeof overviewText>[0]) => overviewText(key, language);
   const userId = useAuthStore(state => state.user?.uid);
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const isGuest = useAuthStore(state => state.isGuest && !state.user);
@@ -53,14 +54,14 @@ export default function FirstWeekChecklist() {
   if (failedCollections.length) {
     return (
       <section lang={language} dir={directionOf(language)} aria-labelledby="first-week-heading" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5">
-        <h2 id="first-week-heading" className="text-sm font-bold text-[var(--text)]">{t('firstWeek.heading', 'Your first week')}</h2>
-        <p role="alert" className="mt-2 text-sm text-[var(--muted)]">{t('firstWeek.failed', 'Could not load the records for this checklist, so progress is not shown.')}</p>
-        <button type="button" onClick={() => failedCollections.forEach(key => retry(key))} className="mt-3 min-h-11 rounded-lg border border-[var(--line)] px-3 text-sm font-semibold text-[var(--text)]">{t('firstWeek.retry', 'Retry checklist')}</button>
+        <h2 id="first-week-heading" className="text-sm font-bold text-[var(--text)]">{t('firstWeek.heading')}</h2>
+        <p role="alert" className="mt-2 text-sm text-[var(--muted)]">{t('firstWeek.failed')}</p>
+        <button type="button" onClick={() => failedCollections.forEach(key => retry(key))} className="mt-3 min-h-11 rounded-lg border border-[var(--line)] px-3 text-sm font-semibold text-[var(--text)]">{t('firstWeek.retry')}</button>
       </section>
     );
   }
   if (loading) {
-    return <section lang={language} dir={directionOf(language)} aria-labelledby="first-week-heading" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5"><h2 id="first-week-heading" className="text-sm font-bold text-[var(--text)]">{t('firstWeek.heading', 'Your first week')}</h2><p role="status" className="mt-2 text-sm text-[var(--muted)]">{t('firstWeek.loading', 'Loading your checklist…')}</p></section>;
+    return <section lang={language} dir={directionOf(language)} aria-labelledby="first-week-heading" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5"><h2 id="first-week-heading" className="text-sm font-bold text-[var(--text)]">{t('firstWeek.heading')}</h2><p role="status" className="mt-2 text-sm text-[var(--muted)]">{t('firstWeek.loading')}</p></section>;
   }
 
   const completed = steps.filter(step => step.done).length;
@@ -80,21 +81,20 @@ export default function FirstWeekChecklist() {
         <div>
           {/* The count is filled into the translated sentence, so it keeps the sentence's own reading order. */}
           <p className="text-xs font-semibold text-[var(--muted)]">{fillOnboarding(
-            t('firstWeek.progress', '{done} of {total} steps complete'),
-            { done: completed, total: steps.length })}</p>
-          <h2 id="first-week-heading" className="mt-1 text-sm font-bold text-[var(--text)]">{t('firstWeek.heading', 'Your first week')}</h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">{t('firstWeek.intro', 'Build a few real records, then review your first report. Steps update from this workspace’s saved records.')}</p>
+            t('firstWeek.progress'), { done: completed, total: steps.length })}</p>
+          <h2 id="first-week-heading" className="mt-1 text-sm font-bold text-[var(--text)]">{t('firstWeek.heading')}</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">{t('firstWeek.intro')}</p>
         </div>
-        <button type="button" onClick={() => { saveFirstWeekDismissed(userId, workspaceId); setDismissed(true); }} aria-label={t('firstWeek.hide', 'Hide first-week checklist')} title={t('firstWeek.hideTitle', 'Hide checklist')} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--panel)] focus-visible:outline-2 focus-visible:outline-[var(--brass)]">
+        <button type="button" onClick={() => { saveFirstWeekDismissed(userId, workspaceId); setDismissed(true); }} aria-label={t('firstWeek.hide')} title={t('firstWeek.hideTitle')} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--panel)] focus-visible:outline-2 focus-visible:outline-[var(--brass)]">
           <X size={16} aria-hidden="true" />
         </button>
       </div>
-      {anyCollectionCapped(truncated, ['accounts', 'customers', 'invoices', 'payments']) && <p role="note" className="mt-3 text-xs text-[var(--muted)]">{t('firstWeek.capped', 'Some older records are outside the loaded list. Unfinished steps may already be complete.')}</p>}
+      {anyCollectionCapped(truncated, ['accounts', 'customers', 'invoices', 'payments']) && <p role="note" className="mt-3 text-xs text-[var(--muted)]">{t('firstWeek.capped')}</p>}
       <ol className="mt-3 divide-y divide-[var(--line)]">
         {shown.map(step => (
           <li key={step.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
             <div className="flex min-w-0 items-start gap-3">
-              {step.done ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[var(--pos)]" aria-label={t('firstWeek.complete', 'Complete')} /> : <Circle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--muted)]" aria-hidden="true" />}
+              {step.done ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[var(--pos)]" aria-label={t('firstWeek.complete')} /> : <Circle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--muted)]" aria-hidden="true" />}
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold text-[var(--text)]">{step.title}</h3>
                 <p className="mt-0.5 text-xs text-[var(--muted)]">{step.description}</p>
