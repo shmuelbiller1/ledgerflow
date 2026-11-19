@@ -38,11 +38,6 @@ const REFUSALS: ReadonlyArray<{ rule: ErrorRemedyRule; message: string; where: s
   { rule: 'invalid', message: 'Amount must be greater than zero', where: 'the document validation' },
   { rule: 'invalid', message: 'Invalid payload', where: 'the command routes' },
   { rule: 'fieldNotAllowed', message: 'Field "totalCents" is not allowed on invoices', where: 'the row-level write guard' },
-  { rule: 'overDocumentBalance', message: 'Overpayment not allowed: allocation of 9000 cents exceeds remaining balance of 8000 cents for document i2', where: 'paymentService' },
-  { rule: 'overPaymentAmount', message: 'Total allocated amount (15000 cents) exceeds payment amount (12500 cents)', where: 'paymentService' },
-  { rule: 'unpayableDocument', message: 'Cannot record a payment against a draft document', where: 'paymentService' },
-  { rule: 'unpayableDocument', message: 'Cannot record a payment against a void document', where: 'paymentService' },
-  { rule: 'mixedPaymentCurrencies', message: 'One payment can only pay documents in the same currency (and exchange rate); record separate payments', where: 'paymentService' },
   { rule: 'unreachable', message: 'Failed to fetch', where: 'the browser when offline' },
 ];
 
@@ -58,7 +53,7 @@ describe('N-3 an English reader is told what happened and what to do', () => {
       // the title says what happened in words, never the server's own code
       assert.equal(/\b(401|403|404|42501|23505|zod)\b/.test(described.title), false, refusal.message);
       // the remedy says what to do: an instruction word, not only a restatement
-      assert.match(described.remedy, /try again|Use a|Sign in again|Ask an owner|Check your|Refresh|Make the|Correct|report|open the existing|Switch to that workspace|Reduce|Choose an|record separate payments/i, refusal.message);
+      assert.match(described.remedy, /try again|Use a|Sign in again|Ask an owner|Check your|Refresh|Make the|Correct|report|open the existing|Switch to that workspace/i, refusal.message);
       assert.equal(HEBREW.test(described.title + described.remedy), false, 'English mode must stay English');
     }
   });

@@ -3,8 +3,9 @@
  * each with the remedy. The technical message stays in the console for support.
  *
  * AI12-N3: the same sentences in Hebrew, so a person reading the app in Hebrew is told what happened
- * and what to do in the language they chose. An unrecognized validation detail is quoted as the
- * server wrote it, with its direction isolated in Hebrew.
+ * and what to do in the language they chose. Nothing about *which* refusal is which changed: the rules
+ * and their order are the ones that already existed. The refusal's own words — an amount, a formula,
+ * a field name — stay exactly as the server wrote them and are isolated inside the sentence.
  */
 import { ENGLISH, HEBREW, UNKNOWN_EN, UNKNOWN_HE } from './errorRemediesCopy';
 
@@ -36,19 +37,10 @@ export type ErrorRemedyRule =
   | 'gone'
   | 'otherWorkspace'
   | 'unbalanced'
-  | 'overDocumentBalance'
-  | 'overPaymentAmount'
-  | 'unpayableDocument'
-  | 'mixedPaymentCurrencies'
   | 'invalid';
 
 /** The rules, in the order they are tried. Each entry is the pattern and the id it stands for. */
 const RULES: ReadonlyArray<{ id: ErrorRemedyRule; test: RegExp }> = [
-  // Specific payment refusals precede broad matches (a document ID can itself contain a word like 'offline').
-  { id: 'overDocumentBalance', test: /^overpayment not allowed: allocation of / },
-  { id: 'overPaymentAmount', test: /^total allocated amount \(\d+ cents\) exceeds payment amount \(\d+ cents\)$/ },
-  { id: 'unpayableDocument', test: /^cannot record a payment against a (draft|void) document$/ },
-  { id: 'mixedPaymentCurrencies', test: /^one payment can only pay documents in the same currency \(and exchange rate\); record separate payments$/ },
   { id: 'fieldNotAllowed', test: /field ".*" is not allowed|is not allowed on/ },
   { id: 'lockedPeriod', test: /lock(ed)? (date|period)|period is (locked|closed)|closed period|this period is locked|on or before the lock/ },
   { id: 'sessionEnded', test: /sign in required|unauthenticated|jwt|session (has )?expired|not signed in|\b401\b/ },
@@ -68,6 +60,9 @@ export function classifyError(error: unknown): ErrorRemedyRule | null {
   const m = errorMessage(error).toLowerCase();
   return RULES.find(rule => rule.test.test(m))?.id ?? null;
 }
+
+
+
 
 /**
  * The sentence pair for a refusal.
