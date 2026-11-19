@@ -247,7 +247,7 @@ export async function deletePlainRecord(workspaceId: string, collection: string,
 }
 
 /** The server-owned half of a document row: a tab that built the whole record does not send these back. */
-const SERVER_OWNED_DOCUMENT_KEYS = ['uid', 'workspaceId', 'createdAt', 'updatedAt', 'id'];
+const SERVER_OWNED_DOCUMENT_KEYS = ['uid', 'workspaceId', 'createdAt', 'updatedAt'];
 
 /**
  * A file kept with the books: a new row when `id` is absent, a link or a change when it is present.
@@ -256,14 +256,17 @@ const SERVER_OWNED_DOCUMENT_KEYS = ['uid', 'workspaceId', 'createdAt', 'updatedA
  * could otherwise file something into a workspace it could not write, and date it from its own clock.
  */
 export async function saveDocument(workspaceId: string, row: Record<string, unknown>): Promise<{ id: string }> {
-  const fields = { ...row };
+  const { id, ...fields } = row;
   for (const key of SERVER_OWNED_DOCUMENT_KEYS) delete fields[key];
   if (guestSession()) {
-    const id = typeof row.id === 'string' && row.id ? row.id : await localAdd('documents', { ...fields, workspaceId, createdAt: new Date().toISOString() });
-    if (typeof row.id === 'string' && row.id) await localUpdate('documents', row.id, { ...fields, updatedAt: new Date().toISOString() });
-    return { id };
+    if (typeof id === 'string' && id) {
+      await localUpdate('documents', id, { ...fields, updatedAt: new Date().toISOString() });
+      return { id };
+    }
+    return { id: await localAdd('documents', { ...fields, workspaceId, createdAt: new Date().toISOString() }) };
   }
-  return runNamedCommand<{ id: string }>('document.save', fields, { workspaceId });
+  // An ID selects an existing row; without it the command only accepts a new file.
+  return runNamedCommand<{ id: string }>('document.save', id === undefined ? fields : { ...fields, id }, { workspaceId });
 }
 
 /** Many label values at once (the settings screen's save and its backfill), up to the command's own 450. */

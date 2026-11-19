@@ -173,7 +173,7 @@ export default function SnapReceiptDialog({ onClose, writes }: { onClose: () => 
 
   return createPortal(
     <div {...dialogProps} className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-[var(--surface)] text-[var(--text)] border border-[var(--line)] shadow-xl p-4 space-y-3">
+      <div className="max-h-full w-full max-w-sm overflow-y-auto overscroll-contain rounded-2xl bg-[var(--surface)] text-[var(--text)] border border-[var(--line)] shadow-xl p-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h2 id={titleId} className="font-semibold">Snap a receipt</h2>
           <button type="button" aria-label="Close" disabled={busy === 'saving'} className="min-h-11 min-w-11 flex items-center justify-center disabled:opacity-50" onClick={requestClose}>
