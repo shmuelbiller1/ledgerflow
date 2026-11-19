@@ -2,6 +2,7 @@ import { calculateNetIncome, isPostable, isRevenueAccount, isExpenseAccount, lin
 import { isUndepositedFundsAccount, openingDebitCents, resolveAccountRole } from "../../lib/accountUtils";
 import type { Invoice, Bill, Payment, Customer, Vendor, Transaction, ChartAccount, TransactionLine, CreditNote, VendorCredit } from "../../types";
 import { INVOICE_IS_ISSUED, BILL_IS_ISSUED } from "./partyReports";
+import { convertMinorUnits } from "../../lib/currencyMinorUnits";
 
 export { INVOICE_IS_ISSUED, BILL_IS_ISSUED };
 
@@ -397,9 +398,19 @@ export function computeStatement(
   endDate: string,
   type: 'customer' | 'vendor',
   /** credit notes (customer) or vendor credits (vendor); each counts less what was refunded (L-160) */
-  credits: Array<CreditNote | VendorCredit> = []
+  credits: Array<CreditNote | VendorCredit> = [],
+  /** #805: the book's currency; every document and payment is converted into it at its own rate */
+  homeCurrency?: string,
 ) {
   const start = startDate || "1970-01-01";
+  const home = homeCurrency ? homeCurrency.toUpperCase() : undefined;
+  // a document in another currency counts at its own rate, by each currency's minor units (¥ has none, KWD three)
+  const inHome = (doc: { currency?: string; exchangeRate?: number }, cents: number | undefined) => {
+    const amount = cents || 0;
+    const from = doc.currency ? String(doc.currency).toUpperCase() : undefined;
+    if (!home || !from || from === home) return amount;
+    return convertMinorUnits(amount, typeof doc.exchangeRate === 'number' && doc.exchangeRate > 0 ? doc.exchangeRate : 1, from, home);
+  };
   const end = endDate || "2099-12-31";
 
   const contactId = contact?.id || '';
@@ -410,22 +421,22 @@ export function computeStatement(
 
   if (isCustomer) {
     invoices.filter((inv) => inv.customerId === contactId && (inv.date || '') < start && INVOICE_IS_ISSUED.has(inv.status)).forEach((inv) => {
-      openingBalanceCents += (inv.amountCents || 0);
+      openingBalanceCents += inHome(inv, inv.amountCents);
     });
     payments.filter((p) => p.contactId === contactId && (p.date || '') < start && p.direction === 'received' && p.status === 'posted').forEach((p) => {
-      openingBalanceCents -= (p.amountCents || 0);
+      openingBalanceCents -= inHome(p, p.amountCents);
     });
   } else {
     bills.filter((b) => b.vendorId === contactId && (b.date || b.issueDate || '') < start && BILL_IS_ISSUED.has(b.status)).forEach((b) => {
-      openingBalanceCents += (b.amountCents || 0);
+      openingBalanceCents += inHome(b, b.amountCents);
     });
     payments.filter((p) => p.contactId === contactId && (p.date || '') < start && p.direction === 'made' && p.status === 'posted').forEach((p) => {
-      openingBalanceCents -= (p.amountCents || 0);
+      openingBalanceCents -= inHome(p, p.amountCents);
     });
   }
 
   const contactCredits = credits.filter(c => (isCustomer ? (c as CreditNote).customerId : (c as VendorCredit).vendorId) === contactId && c.status !== 'void' && c.status !== 'draft');
-  const creditNet = (c: CreditNote | VendorCredit) => (c.amountCents || 0) - (c.refundedCents || 0);
+  const creditNet = (c: CreditNote | VendorCredit) => inHome(c, c.amountCents) - inHome(c, c.refundedCents);
   contactCredits.filter(c => (c.date || '') < start).forEach(c => { openingBalanceCents -= creditNet(c); });
 
   // Activity stream in range
@@ -446,8 +457,8 @@ export function computeStatement(
       date: p.date || '',
       type: 'Payment',
       reference: p.reference || p.id,
-      amountCents: -(p.amountCents || 0),
-      creditCents: (p.amountCents || 0),
+      amountCents: -inHome(p, p.amountCents),
+      creditCents: inHome(p, p.amountCents),
       debitCents: 0
     });
   };
@@ -459,9 +470,9 @@ export function computeStatement(
         date: inv.date || '',
         type: 'Invoice',
         reference: inv.number || inv.id,
-        amountCents: (inv.amountCents || 0),
+        amountCents: inHome(inv, inv.amountCents),
         creditCents: 0,
-        debitCents: (inv.amountCents || 0)
+        debitCents: inHome(inv, inv.amountCents)
       });
     });
     payments.filter((p) => p.contactId === contactId && (p.date || '') >= start && (p.date || '') <= end && p.direction === 'received' && p.status === 'posted').forEach(pushPaymentActivity);
@@ -472,9 +483,9 @@ export function computeStatement(
         date: b.date || b.issueDate || '',
         type: 'Bill',
         reference: b.number || b.id,
-        amountCents: (b.amountCents || 0),
+        amountCents: inHome(b, b.amountCents),
         creditCents: 0,
-        debitCents: (b.amountCents || 0)
+        debitCents: inHome(b, b.amountCents)
       });
     });
     payments.filter((p) => p.contactId === contactId && (p.date || '') >= start && (p.date || '') <= end && p.direction === 'made' && p.status === 'posted').forEach(pushPaymentActivity);
@@ -512,6 +523,7 @@ export function computeStatement(
     contactId,
     contactName: contact?.name || 'Contact',
     type,
+    ...(home ? { currency: home } : {}),
     startDate: start,
     endDate: end,
     openingBalanceCents,

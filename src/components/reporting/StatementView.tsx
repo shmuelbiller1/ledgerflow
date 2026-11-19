@@ -109,6 +109,7 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
     [contactDocuments, activeEntity, entityDimensionId],
   );
 
+  const homeCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const statementData = useMemo(() => {
     if (!selectedContact || !scopeStart || !scopeEnd) return null;
     return computeStatement(
@@ -119,9 +120,10 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
       scopeStart,
       scopeEnd,
       type,
-      scoped.credits
+      scoped.credits,
+      homeCurrency
     );
-  }, [selectedContact, scoped, scopeStart, scopeEnd, type]);
+  }, [selectedContact, scoped, scopeStart, scopeEnd, type, homeCurrency]);
 
   // H-7/AI #10: print the statement sheet, not the application shell around it. Until this change
   // the statement had no print root, so `window.print()` produced the sidebar, the header, the
