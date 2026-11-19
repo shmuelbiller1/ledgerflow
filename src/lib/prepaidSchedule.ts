@@ -6,6 +6,7 @@
  * (src/server/services/prepaidService.ts) and the screen.
  */
 import { resolveAccountRole } from './accountUtils';
+import { convertMinorUnits } from './currencyMinorUnits';
 import type { ChartAccount } from '../types';
 
 export const MAX_SPREAD_MONTHS = 60;
@@ -66,6 +67,7 @@ export function prepaidAccount(accounts: ChartAccount[], mappings?: Record<strin
 
 interface BillLines {
   amountCents?: number;
+  currency?: string;
   exchangeRate?: number;
   items?: Array<{ accountId?: string; amountCents?: number }>;
   splits?: Array<{ accountId?: string; amountCents?: number }>;
@@ -76,7 +78,7 @@ interface BillLines {
  * the home currency (what is usually spread), or undefined. `fallbackAccountId` takes lines without
  * an account of their own (they post to the default one).
  */
-export function documentLine(doc: BillLines, accounts: ChartAccount[], role: 'expense' | 'revenue', fallbackAccountId?: string): { accountId: string; baseCents: number } | undefined {
+export function documentLine(doc: BillLines, accounts: ChartAccount[], role: 'expense' | 'revenue', fallbackAccountId?: string, homeCurrency?: string): { accountId: string; baseCents: number } | undefined {
   const rate = typeof doc.exchangeRate === 'number' && doc.exchangeRate > 0 ? doc.exchangeRate : 1;
   const fits = new Set(accounts.filter(a => resolveAccountRole(a) === role).map(a => a.id));
   const byAccount = new Map<string, number>();
@@ -84,8 +86,10 @@ export function documentLine(doc: BillLines, accounts: ChartAccount[], role: 'ex
     const accountId = line.accountId || fallbackAccountId;
     if (accountId && fits.has(accountId)) byAccount.set(accountId, (byAccount.get(accountId) || 0) + (Number(line.amountCents) || 0));
   }
+  // the rate is per major unit, so yen and dinars scale by their own minor units (#844)
+  const toHome = (cents: number) => convertMinorUnits(cents, rate, doc.currency || homeCurrency, homeCurrency);
   const [best] = [...byAccount.entries()].sort((a, b) => b[1] - a[1]);
-  return best ? { accountId: best[0], baseCents: Math.min(Math.round(best[1] * rate), Math.round((Number(doc.amountCents) || 0) * rate)) } : undefined;
+  return best ? { accountId: best[0], baseCents: Math.min(toHome(best[1]), toHome(Number(doc.amountCents) || 0)) } : undefined;
 }
 
 /** The bill's biggest expense line (K-17). */
