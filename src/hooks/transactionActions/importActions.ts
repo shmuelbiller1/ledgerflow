@@ -10,6 +10,7 @@ import { aiService } from '../../services/aiService';
 import { DoubleEntryAuditor } from '../../services/auditor';
 import { getLocalDateISO } from '../../lib/utils';
 import { describeError } from '../../lib/errorRemedies';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { savedInOtherWorkspace, workspaceChangedSince } from '../../lib/saveWorkspace';
 import type { ActionContext, ImportedTransaction, ImportedBankLine } from './shared';
 import type { PostingHelpers } from './postingHelpers';
@@ -180,7 +181,7 @@ export function createImportActions(ctx: ActionContext, posting: PostingHelpers,
       // PREV-5: handleFirestoreError rethrows, so this message never showed and the import rejected
       // instead of returning false; the reason now goes into the one message shown
       console.error('[FORENSIC ERROR] WRITE: transactions-batch-import', error);
-      const described = describeError(error, 'write');
+      const described = describeError(error, 'write', uiLanguageNow());
       toast.error(`Import failed: ${described.title.charAt(0).toLowerCase()}${described.title.slice(1)}. Nothing was imported; your selection is kept so you can try again.`, { id: loader, description: described.remedy });
       return false;
     } finally {

@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
@@ -32,7 +33,7 @@ export default function PracticeView() {
       const body = await runCommand<{ rows?: PracticeRow[] }>({ path: '/api/v1/account/practice' });
       if (!Array.isArray(body.rows)) throw new Error('The practice view could not be loaded');
       return body.rows;
-    })().then(r => { if (live) { setRows(r); setError(''); } }).catch(err => { if (live) { setRows([]); setError(commandErrorMessage(err)); } });
+    })().then(r => { if (live) { setRows(r); setError(''); } }).catch(err => { if (live) { setRows([]); setError(commandErrorMessage(err, uiLanguageNow())); } });
     return () => { live = false; };
   }, []);
   const groups = useMemo(() => [...new Set((rows || []).flatMap(r => r.groups))].sort(byCodeUnit), [rows]);
