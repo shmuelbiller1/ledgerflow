@@ -1,7 +1,7 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { DEFAULT_WORKSPACE_DIMENSIONS } from '../../lib/dimensionUtils';
 import { salesByTerritory, salesByTerritoryCsvRows, SALES_BY_TERRITORY_CSV_HEADERS, type SalesByTerritoryReport } from '../../lib/salesByTerritory';
@@ -9,7 +9,7 @@ import { normalizeSearchText } from '../../lib/textNormalization';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { formatCurrency } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 import type { DimensionDefinition } from '../../types';
 import { useReportText, fill } from './useReportText';
 
@@ -25,8 +25,6 @@ function locationDefinition(dimensions: DimensionDefinition[] | undefined): Dime
 export default function SalesByTerritoryReportView({ startDate = '', endDate = '' }: { startDate?: string; endDate?: string }) {
   const invoices = useLedgerStore(state => state.invoices);
   const dimensionNodes = useLedgerStore(state => state.dimensionNodes);
-  const truncated = useLedgerStore(state => state.truncatedCollections);
-  const failed = useDataNeedsStore(state => state.failed);
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const { loading } = useLedgerCollections('invoices');
@@ -45,7 +43,7 @@ export default function SalesByTerritoryReportView({ startDate = '', endDate = '
     });
   }, [invoices, dimensionNodes, workspaceId, workspace?.currency, dimension.id, startDate, endDate, validPeriod]);
 
-  const partial = Boolean(truncated.invoices || failed.invoices);
+  const partial = usePartialReportInputs(['invoices']);
   return <SalesByTerritoryPanel report={report} from={startDate} to={endDate} locationLabel={dimension.name || dimension.label || 'Location'}
     currency={workspace?.currency || 'USD'} loading={loading} partial={partial} validPeriod={validPeriod} />;
 }
@@ -88,23 +86,20 @@ export function SalesByTerritoryPanel({ report, from = '', to = '', locationLabe
       <p><b>{reportText('r.issued-invoices-in-the-full-report', 'Issued invoices in the full report:')}</b> {report?.invoiceCount || 0}</p>
     </div>
 
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>{reportText('r.issued-invoice-line-sales-by', 'Issued invoice line sales by')} {locationLabel}{from || to ? ` ${fill(reportText('r.from-0-to-1', 'from {0} to {1}'), { 0: from || 'any date', 1: to || 'any date' })}` : ''}{reportText('r.amounts-in', '; amounts in $')}{currency} {reportText('r.base-minor-units', 'base minor units')}</caption>
-        <thead><tr>
-          {[reportText('r.territory', 'Territory'), reportText('r.stored-label-value', 'Stored label value'), reportText('r.invoices-2', 'Invoices'), reportText('r.invoice-lines', 'Invoice lines'), fill(reportText('r.sales-0', 'Sales ({0})'), { 0: currency })].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-        </tr></thead>
-        <tbody>
-          {rows.map(row => <tr key={row.key} className="border-b border-[var(--line)]/50">
-            <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.locationName}</bdi></th>
-            <td className="py-1 px-2"><bdi>{row.locationValue || '—'}</bdi></td>
-            <td className="py-1 px-2">{row.invoiceCount}</td>
-            <td className="py-1 px-2">{row.lineCount}</td>
-            <td className="py-1 px-2 text-right tabular-nums">{formatCurrency(row.salesCents, currency)}</td>
-          </tr>)}
-        </tbody>
-      </table>
-      {validPeriod && !loading && !rows.length && <p className="text-sm text-[var(--muted)]">{reportText('r.no-issued-invoice-item-line-is-recorded-in-this', 'No issued invoice item line is recorded in this period.')}</p>}
-    </ReportTableScroll>
+    <ReportSchedule
+      columnControls
+      allowDisplayedExport={!partial && !loading && validPeriod}
+      empty={validPeriod && !loading && !partial ? <p role="status" data-report-empty-state className="text-sm text-[var(--muted)]">{reportText('r.no-issued-invoice-item-line-is-recorded-in-this', 'No issued invoice item line is recorded in this period.')}</p> : null}
+      caption={<>{reportText('r.issued-invoice-line-sales-by', 'Issued invoice line sales by')} {locationLabel}{from || to ? ` ${fill(reportText('r.from-0-to-1', 'from {0} to {1}'), { 0: from || 'any date', 1: to || 'any date' })}` : ''}{reportText('r.amounts-in', '; amounts in $')}{currency} {reportText('r.base-minor-units', 'base minor units')}</>}
+      rowClassName="border-b border-[var(--line)]/50"
+      bodyClassName=""
+      rows={rows} rowKey={row => row.key}
+      columns={[
+        { header: reportText('r.territory', 'Territory'), cell: row => <bdi>{row.locationName}</bdi> },
+        { header: reportText('r.stored-label-value', 'Stored label value'), cell: row => <bdi>{row.locationValue || '—'}</bdi> },
+        { header: reportText('r.invoices-2', 'Invoices'), align: 'right', cell: row => row.invoiceCount },
+        { header: reportText('r.invoice-lines', 'Invoice lines'), align: 'right', cell: row => row.lineCount },
+        { header: fill(reportText('r.sales-0', 'Sales ({0})'), { 0: currency }), align: 'right', className: 'tabular-nums', cell: row => formatCurrency(row.salesCents, currency) },
+      ]} />
   </section>;
 }

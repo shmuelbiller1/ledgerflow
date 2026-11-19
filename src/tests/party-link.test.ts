@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import pg from 'pg';
 import { linkableVendorIds, linkedPair, partyNetPosition } from '../lib/partyLink';
 import type { Bill, Invoice } from '../types';
+import { expectBrowserPatchDenied, pgWorkspaceCommands } from './helpers/pgWriteBoundary';
 
 /** CA-29: a customer and a vendor that are the same business; net position shown on both pages. */
 const customers = [
@@ -44,26 +45,29 @@ describe('Party link (CA-29)', () => {
   });
 });
 
-test('the owner can save linkedVendorId on a customer (migrated Postgres/RLS)', { skip: !process.env.LF_TEST_DATABASE_URL && 'LF_TEST_DATABASE_URL not set' }, async () => {
+test('only the server command can save linkedVendorId and the database enforces its uniqueness', { skip: !process.env.LF_TEST_DATABASE_URL && 'LF_TEST_DATABASE_URL not set' }, async () => {
   assert.match(fs.readFileSync('supabase/migrations/20261102000000_customer_linked_vendor.sql', 'utf8'), /'linkedVendorId'/);
   const client = new pg.Client({ connectionString: process.env.LF_TEST_DATABASE_URL }); await client.connect();
+  const commands = pgWorkspaceCommands();
   const ws = `party_link_${randomBytes(6).toString('hex')}`; const owner = `${ws}_owner`; const cust = `${ws}_c`;
+  const vendor = `${ws}_v_acme`;
   try {
     await client.query('insert into public.workspaces (id, data) values ($1, $2)', [ws, { uid: owner, name: 'Party link', currency: 'USD', createdAt: '2026-11-02' }]);
     await client.query('insert into public.customers (id, data) values ($1, $2)', [cust, { workspaceId: ws, name: 'Acme', createdAt: '2026-11-02' }]);
-    await client.query('begin');
-    await client.query('set local role authenticated');
-    await client.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: owner, role: 'authenticated', aal: 'aal1' })]);
-    await client.query('select public.lf_update($1, $2, $3)', ['customers', cust, { linkedVendorId: 'v_acme' }]);
-    await client.query('commit');
-    assert.equal((await client.query('select data from public.customers where id = $1', [cust])).rows[0].data.linkedVendorId, 'v_acme');
+    await client.query('insert into public.vendors (id, data) values ($1, $2)', [vendor, { workspaceId: ws, name: 'Acme vendor' }]);
+    await expectBrowserPatchDenied(client, owner, 'customers', cust, { linkedVendorId: vendor });
+    const saved = await commands.run(owner, ws, 'customer.update', { id: cust, data: { linkedVendorId: vendor } });
+    assert.ok(saved.ok, JSON.stringify(saved));
+    assert.equal((await client.query('select data from public.customers where id = $1', [cust])).rows[0].data.linkedVendorId, vendor);
     // one customer per vendor: a second customer linking the same vendor is refused by the database
     await client.query('insert into public.customers (id, data) values ($1, $2)', [`${cust}2`, { workspaceId: ws, name: 'Acme again', createdAt: '2026-11-02' }]);
-    await assert.rejects(client.query('update public.customers set data = data || $2 where id = $1', [`${cust}2`, { linkedVendorId: 'v_acme' }]), /customers_linked_vendor_uniq|duplicate key/);
+    await assert.rejects(client.query('update public.customers set data = data || $2 where id = $1', [`${cust}2`, { linkedVendorId: vendor }]), /customers_linked_vendor_uniq|duplicate key/);
     // empty means not linked and never collides
     await client.query('update public.customers set data = data || $2 where id = any($1)', [[cust, `${cust}2`], { linkedVendorId: '' }]);
   } finally {
-    await client.query('rollback').catch(() => undefined);
+    await commands.close();
+    await client.query('delete from public."auditLogs" where workspace_id = $1', [ws]);
+    await client.query('delete from public.vendors where id = $1', [vendor]);
     await client.query('delete from public.customers where id = any($1)', [[cust, `${cust}2`]]);
     await client.query('delete from public.workspaces where id = $1', [ws]);
     await client.end();

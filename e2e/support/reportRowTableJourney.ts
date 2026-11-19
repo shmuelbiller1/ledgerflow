@@ -77,6 +77,8 @@ export async function checkComparisonReports(page: Page, width: number, theme: '
   const balances = page.getByRole('region', { name: he ? 'יתרות חשבונות לתאריך' : 'Account balances as of a date', exact: true });
   const chooser = balances.getByRole('button', { name: he ? 'עמודות' : 'Columns', exact: true });
   await reach(chooser); await page.keyboard.press('Enter');
+  // Account (not the leading code) names each row; it can move, but cannot be hidden.
+  await expect(balances.getByRole('checkbox', { name: he ? 'חשבון' : 'Account', exact: true })).toBeDisabled();
   const earlier = balances.getByRole('button', { name: he ? 'הקדמת העמודה יתרה' : 'Move Balance earlier', exact: true });
   await reach(earlier); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
   const type = balances.getByRole('checkbox', { name: he ? 'סוג' : 'Type', exact: true });

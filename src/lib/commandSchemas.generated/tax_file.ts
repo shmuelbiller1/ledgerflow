@@ -4,10 +4,10 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part100,
-    "startDate": COMMAND_SCHEMA_PARTS.part119,
-    "endDate": COMMAND_SCHEMA_PARTS.part119,
-    "reference": COMMAND_SCHEMA_PARTS.part56,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part104,
+    "startDate": COMMAND_SCHEMA_PARTS.part123,
+    "endDate": COMMAND_SCHEMA_PARTS.part123,
+    "reference": COMMAND_SCHEMA_PARTS.part58,
     "registration": {
       "type": "string",
       "maxLength": 120,

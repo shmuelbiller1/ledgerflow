@@ -4,10 +4,10 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part100,
-    "customerId": COMMAND_SCHEMA_PARTS.part100,
-    "invoiceId": COMMAND_SCHEMA_PARTS.part100,
-    "reason": COMMAND_SCHEMA_PARTS.part67,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part104,
+    "customerId": COMMAND_SCHEMA_PARTS.part104,
+    "invoiceId": COMMAND_SCHEMA_PARTS.part104,
+    "reason": COMMAND_SCHEMA_PARTS.part69,
     "lines": {
       "minItems": 1,
       "maxItems": 200,
@@ -15,8 +15,8 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "invoiceLineId": COMMAND_SCHEMA_PARTS.part100,
-          "quantity": COMMAND_SCHEMA_PARTS.part74
+          "invoiceLineId": COMMAND_SCHEMA_PARTS.part104,
+          "quantity": COMMAND_SCHEMA_PARTS.part77
         },
         "required": [
           "invoiceLineId",
@@ -25,7 +25,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "additionalProperties": false
       }
     },
-    "requestKey": COMMAND_SCHEMA_PARTS.part118
+    "requestKey": COMMAND_SCHEMA_PARTS.part122
   },
   "required": [
     "customerId",

@@ -88,14 +88,14 @@ describe('EG-9 create an entry from a bank line, pre-filled from the bank rules'
       fireEvent.change(screen.getByLabelText('Account'), { target: { value: 'rent' } });
       fireEvent.change(screen.getByLabelText('Labels'), { target: { value: 'kept, here' } });
     });
-    await click(screen.getByRole('button', { name: 'Edit selected record details' }));
+    await click(screen.getByRole('button', { name: 'Edit details' }));
     const details = useRecordDetailsStore.getState() as unknown as { open: boolean; target?: unknown };
     assert.equal(details.open, true);
     assert.deepEqual(details.target, { kind: 'vendors', id: 'v1' });
     assert.equal((screen.getByLabelText('Account') as HTMLSelectElement).value, 'rent');
     assert.equal((screen.getByLabelText('Contact') as HTMLSelectElement).value, 'vendor:v1');
     assert.equal((screen.getByLabelText('Labels') as HTMLInputElement).value, 'kept, here');
-    for (const el of [screen.getByLabelText('Account'), screen.getByLabelText('Contact'), screen.getByLabelText('Labels'), screen.getByRole('button', { name: 'Create entry' }), screen.getByRole('button', { name: 'Edit selected record details' })]) {
+    for (const el of [screen.getByLabelText('Account'), screen.getByLabelText('Contact'), screen.getByLabelText('Labels'), screen.getByRole('button', { name: 'Create entry' }), screen.getByRole('button', { name: 'Edit details' })]) {
       assert.match(el.className, /\bmin-h-11\b/, el.outerHTML.slice(0, 60));
     }
     await click(screen.getByRole('button', { name: 'Create entry' }));
@@ -111,7 +111,7 @@ describe('EG-9 create an entry from a bank line, pre-filled from the bank rules'
     const calls = stubFetchWithBodies(200, { status: 'ok' });
     render(<Reconciliation />);
     await click(screen.getByText('UNKNOWN 99'));
-    assert.equal(screen.queryByRole('button', { name: 'Edit selected record details' }), null, 'no contact, no details button');
+    assert.equal(screen.queryByRole('button', { name: 'Edit details' }), null, 'no contact, no details button');
     assert.equal(screen.queryByText(/Suggested by your bank rules/), null);
     assert.equal((screen.getByLabelText('Account') as HTMLSelectElement).value, 'rent');
     await click(screen.getByRole('button', { name: 'Create entry' }));

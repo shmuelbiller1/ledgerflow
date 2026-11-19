@@ -14,6 +14,7 @@ import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { form856Notes, form856Rows, form856Summary, form856Year } from '../../lib/tax/form856';
 import { form856ReviewExport, type Form856ReviewPayment } from '../../lib/tax/form856ReviewExport';
+import { form856AuthorityCsv, form856AuthorityPayees, ilWithholdingFileNo } from '../../lib/tax/form856AuthorityCsv';
 import { byCodeUnit } from '../../lib/codeUnitOrder';
 import { RowTable } from '../ui/RowTable';
 import { useReportText } from './useReportText';
@@ -52,6 +53,20 @@ export default function Form856ReportView() {
 
   const rows = useMemo(() => form856Rows(scopedPayments, year), [scopedPayments, year]);
   const worksheet = useMemo(() => form856ReviewExport(scopedPayments, year, baseCurrency), [scopedPayments, year, baseCurrency]);
+  // E-17: the authority-order CSV needs the payer's תיק ניכויים. Prefill it from the books-level
+  // tax profile when one records an Israeli employer number, and keep any correction per
+  // workspace — a typed number is never carried across a workspace switch, and no effect resets
+  // state (react-hooks/set-state-in-effect).
+  const workspace = useAuthStore(state => state.getCurrentWorkspace());
+  const suggestedFileNo = useMemo(() => ilWithholdingFileNo(workspace?.taxProfiles), [workspace]);
+  const [fileNoByWorkspace, setFileNoByWorkspace] = useState<Record<string, string>>({});
+  const fileNoKey = currentWorkspaceId ?? 'none';
+  const fileNoInput = fileNoByWorkspace[fileNoKey] ?? suggestedFileNo;
+  const authority = useMemo(() => {
+    const mapping = form856AuthorityPayees(scopedPayments, year);
+    const csv = form856AuthorityCsv({ withholdingFileNo: fileNoInput, taxYear: year }, mapping.payees);
+    return { ...csv, problems: [...mapping.problems, ...csv.problems] };
+  }, [scopedPayments, year, fileNoInput]);
   const scopeKey = `${currentWorkspaceId ?? 'none'}:${year}`;
   const sourceBlockers = [
     ...(isGuest ? ['Demo data cannot be exported as a verified yearly record.'] : []),
@@ -63,6 +78,8 @@ export default function Form856ReportView() {
     ...worksheet.blockers,
   ];
   const canDownloadWorksheet = worksheet.canDownloadForReview && sourceBlockers.length === 0 && acknowledgedScope === scopeKey;
+  const canDownloadAuthority = canDownloadWorksheet && authority.canDownload;
+  const authorityIssues = [...new Set([...authority.blockers, ...authority.problems])];
   const summary = useMemo(() => form856Summary(rows), [rows]);
   const notes = useMemo(() => form856Notes(rows), [rows]);
   const money = (cents: number) => formatCurrency(cents, baseCurrency);
@@ -113,6 +130,37 @@ export default function Form856ReportView() {
           className="min-h-11 rounded-xl border border-[var(--line)] px-4 py-2 text-sm font-semibold disabled:opacity-40">
           {reportText('r.download-review-worksheet-csv', 'Download review worksheet CSV')}
         </button>
+
+        <div className="space-y-2 border-t border-[var(--line)] pt-3">
+          <p className="font-semibold">{reportText('r.authority-order-csv-draft', 'Authority-order CSV (draft)')}</p>
+          <p className="text-[var(--muted)]">{reportText('r.the-columns-follow-the-tax-authority-record-60', 'The columns follow the Tax Authority record-60 field order for the 2017–2025 interface: twenty fields, amounts in whole agorot zero-padded to each width. Fields the books do not record are written as zeros or blank. This is a CSV draft, not the 218-byte fixed-width file the authority transmits, and nothing is filed from here.')}</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <label htmlFor="form-856-file-no" className="block text-xs font-semibold text-[var(--muted)]">{reportText('r.withholding-file-number', 'Withholding file number (תיק ניכויים)')}</label>
+              <input id="form-856-file-no" inputMode="numeric" maxLength={9} value={fileNoInput}
+                onChange={event => setFileNoByWorkspace(previous => ({
+                  ...previous,
+                  [fileNoKey]: event.target.value.replace(/\D/g, '').slice(0, 9),
+                }))}
+                aria-describedby="form-856-file-no-hint"
+                className="px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-sm font-mono" />
+              <p id="form-856-file-no-hint" className="text-xs text-[var(--muted)]">{reportText('r.nine-digits-as-assigned-by-the-income-tax-off', 'Nine digits, as assigned by the Income Tax office.')}</p>
+            </div>
+            <button type="button" disabled={!canDownloadAuthority}
+              onClick={() => {
+                if (!canDownloadAuthority) return;
+                downloadCsv(`form-856-authority-${year}.csv`, authority.headers, authority.rows);
+              }}
+              className="min-h-11 rounded-xl border border-[var(--line)] px-4 py-2 text-sm font-semibold disabled:opacity-40">
+              {reportText('r.download-authority-order-csv-draft', 'Download authority-order CSV (draft)')}
+            </button>
+          </div>
+          {sourceBlockers.length === 0 && authorityIssues.length > 0 && (
+            <ul className="list-disc ps-5 text-[var(--muted)]" aria-label={reportText('r.authority-csv-issues', 'Authority CSV issues')}>
+              {authorityIssues.map(message => <li key={message}>{message}</li>)}
+            </ul>
+          )}
+        </div>
       </div>
 
       {loading && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}

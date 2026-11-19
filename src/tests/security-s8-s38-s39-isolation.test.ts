@@ -662,6 +662,8 @@ describe('S-8 / S-38 / S-39: tenant BOLA, role escalation, and PostgreSQL RLS is
     try {
       // 1. Browser `authenticated` role with Tenant A JWT claims
       await client.query('BEGIN');
+      const custAId = `cust_a_rls_${tag}`;
+      await client.query('INSERT INTO public.customers (id, data) VALUES ($1, $2)', [custAId, { workspaceId: wsA, name: 'Alpha client' }]);
       await client.query('SET LOCAL ROLE authenticated');
       await client.query(
         `SELECT set_config('request.jwt.claim.sub', $1, true),
@@ -686,9 +688,14 @@ describe('S-8 / S-38 / S-39: tenant BOLA, role escalation, and PostgreSQL RLS is
         (err: { code?: string }) => err.code === '42501',
       );
       await client.query('ROLLBACK TO SAVEPOINT rls_insert');
-      // Update/delete against hidden Tenant B row affects 0 rows
-      const del = await client.query('DELETE FROM public.customers WHERE id = $1', [custBId]);
-      assert.equal(del.rowCount, 0);
+      // The browser can read its own row but no longer has a DELETE grant, even in its own books.
+      const customer = await client.query('SELECT id FROM public.customers WHERE id = $1', [custAId]);
+      assert.equal(customer.rowCount, 1);
+      for (const id of [custAId, custBId]) {
+        await client.query('SAVEPOINT rls_delete');
+        await assert.rejects(client.query('DELETE FROM public.customers WHERE id = $1', [id]), { code: '42501' });
+        await client.query('ROLLBACK TO SAVEPOINT rls_delete');
+      }
       await client.query('ROLLBACK');
 
       // 2. Sandbox `lf_sandbox` role scoped to Tenant A
@@ -728,9 +735,10 @@ describe('S-8 / S-38 / S-39: tenant BOLA, role escalation, and PostgreSQL RLS is
         0,
         'Expired sandbox must return 0 rows',
       );
-      await client.query('ROLLBACK');
     } finally {
-      client.release();
+      // A failed assertion must not leak an aborted transaction into the next pool borrower.
+      try { await client.query('ROLLBACK'); }
+      finally { client.release(); }
     }
   });
 

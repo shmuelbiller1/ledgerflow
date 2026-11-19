@@ -1,3 +1,5 @@
+import { certificateFieldText } from './certificateFieldText';
+import { RowTable } from '../ui/RowTable';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {useAuthStore} from '../../stores/useAuthStore';
 import {useLedgerStore} from '../../stores/useLedgerStore';
@@ -38,7 +40,23 @@ function ScopedVendors(){
     {!snapshot&&<p role="status">{reportText('r.loaded-vendors-are-a-preview-refresh-the-complet', 'Loaded vendors are a preview. Refresh the complete vendor list before exporting.')}</p>}{loading&&!snapshot&&<p role="status">{reportText('r.loading-vendor-preview', 'Loading vendor preview…')}</p>}{(!uid||guest)&&<p>{reportText('r.sign-in-to-refresh-and-export-the-complete-works', 'Sign in to refresh and export the complete workspace list.')}</p>}
     {snapshot&&<p>{reportText('r.complete-vendor-read-retrieved', 'Complete vendor read retrieved')} {snapshot.retrieved}{reportText('r.expiry-assessed-on', '; expiry assessed on')} {snapshot.assessed} {reportText('r.using-the-current-date-settings', 'using the current date settings.')}</p>}{snapshot&&!confirmed&&<p role="status">{reportText('r.vendor-details-changed-since-the-last-complete-r', 'Vendor details changed since the last complete read. The table retains that dated read; refresh before exporting.')}</p>}{error&&<p role="alert">{error}</p>}
     <div className="flex flex-wrap gap-2"><button type="button" disabled={busy||!uid||guest} onClick={()=>void refresh()} className="min-h-11 border rounded px-3">{busy?reportText('r.refreshing', 'Refreshing…'):reportText('r.refresh-complete-vendors', 'Refresh complete vendors')}</button><button type="button" disabled={!confirmed||busy||Boolean(error)} onClick={exportCsv} className="min-h-11 border rounded px-3">{reportText('r.export-masked-csv', 'Export masked CSV')}</button></div>
-    <div role="region" aria-label={reportText('r.scrollable-vendor-tax-table', 'Scrollable vendor tax table')} tabIndex={0} className="overflow-x-auto">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<table className="w-full min-w-[760px] text-sm"><caption>{reportText('r.current-vendor-tax-declarations-recorded-expiry', 'Current vendor tax declarations — recorded expiry assessed on')} {today}</caption><thead><tr>{[reportText('r.vendor', 'Vendor'),reportText('r.recorded-country', 'Recorded country'),reportText('r.masked-tax-vat-id', 'Masked Tax/VAT ID'),reportText('r.id-status', 'ID status'),reportText('r.recorded-withholding-expiry', 'Recorded withholding expiry'),reportText('r.certificate-status', 'Certificate status'),reportText('r.follow-up', 'Follow-up'),reportText('r.details', 'Details')].map(label=><th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>{rows.map(row=><tr key={row.id} className={row.certificateState==='Expired'?'bg-red-500/10':''}><th scope="row"><bdi>{row.vendor}</bdi></th><td>{row.country}</td><td><bdi>{row.maskedId||reportText('r.not-recorded', 'Not recorded')}</bdi></td><td>{row.identityStatus}</td><td>{row.expires||reportText('r.not-recorded', 'Not recorded')}</td><td>{row.certificateState}</td><td>{row.reminders.join(' ')||reportText('r.no-follow-up-flagged-in-these-recorded-fields', 'No follow-up flagged in these recorded fields.')}</td><td><RelatedRecordEditButton target={{kind:'vendors',id:row.id}}/></td></tr>)}</tbody></table></div>
+    <div role="region" aria-label={reportText('r.scrollable-vendor-tax-table', 'Scrollable vendor tax table')} tabIndex={0} className="overflow-x-auto">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<RowTable
+      caption={<>{reportText('r.current-vendor-tax-declarations-recorded-expiry', 'Current vendor tax declarations — recorded expiry assessed on')} {today}</>}
+      captionClassName="py-2 text-start font-semibold"
+      tableClassName="report-schedule comparison-report-table w-full min-w-[760px] text-sm"
+      rowClassName={row => row.certificateState==='Expired'?'bg-red-500/10':''}
+      bodyClassName=""
+      rows={rows} rowKey={row => row.id}
+      columns={[
+        { header: reportText('r.vendor', 'Vendor'), cell: row => <bdi>{row.vendor}</bdi> },
+        { header: reportText('r.recorded-country', 'Recorded country'), cell: row => certificateFieldText(reportText,row.country) },
+        { header: reportText('r.masked-tax-vat-id', 'Masked Tax/VAT ID'), cell: row => <bdi>{row.maskedId||reportText('r.not-recorded', 'Not recorded')}</bdi> },
+        { header: reportText('r.id-status', 'ID status'), cell: row => certificateFieldText(reportText,row.identityStatus) },
+        { header: reportText('r.recorded-withholding-expiry', 'Recorded withholding expiry'), cell: row => row.expires||reportText('r.not-recorded', 'Not recorded') },
+        { header: reportText('r.certificate-status', 'Certificate status'), cell: row => certificateFieldText(reportText,row.certificateState) },
+        { header: reportText('r.follow-up', 'Follow-up'), cell: row => row.reminders.map(note=>certificateFieldText(reportText,note)).join(' ')||reportText('r.no-follow-up-flagged-in-these-recorded-fields', 'No follow-up flagged in these recorded fields.') },
+        { header: reportText('r.details', 'Details'), cell: row => <RelatedRecordEditButton target={{kind:'vendors',id:row.id}}/> },
+      ]} /></div>
     {!loading&&rows.length===0&&<p>{confirmed?reportText('r.no-vendors-are-recorded-add-a-vendor-then-record', 'No vendors are recorded. Add a vendor, then record its tax/VAT identifier and any withholding certificate in the vendor editor.'):reportText('r.no-vendors-appear-in-the-loaded-view-refresh-the', 'No vendors appear in the loaded view. Refresh the complete vendor list before concluding that none are recorded.')}</p>}
   </section>;
 }

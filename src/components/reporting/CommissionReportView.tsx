@@ -1,3 +1,5 @@
+import { useReportDates } from './useReportDates';
+import ReportSchedule from './ReportSchedule';
 import React, { useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -8,7 +10,6 @@ import { useReportText } from './useReportText';
 import { LoadingState } from '../ui/LoadingState';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
-const th = 'font-semibold py-1 px-2';
 
 /**
  * Sales commission (P-13, A-123): for a period, each payment from a sales rep's customers applied to
@@ -17,6 +18,7 @@ const th = 'font-semibold py-1 px-2';
  * Amounts in the workspace's currency; nothing is posted.
  */
 export default function CommissionReportView() {
+  const dates = useReportDates();
   const reportText = useReportText();
   const { loading } = useLedgerCollections('invoices', 'payments', 'inventory');
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
@@ -51,45 +53,29 @@ export default function CommissionReportView() {
           ? ` (${Object.entries(rep.groupRates).map(([g, r]) => `${g}: ${r}%`).join(', ')})`
           : '';
         return (
-          <div key={rep.id} className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
-            <table className="w-full text-sm">
-              <caption className="text-left font-semibold text-[var(--text)] pb-1">
-                <bdi>{rep.name}</bdi> ({rep.commissionPercent}%{groupSummary}): {money(sum('commissionCents'))}
-              </caption>
-              <thead>
-                <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                  <th scope="col" className={`text-left ${th}`}>{reportText('r.paid-on', 'Paid on')}</th>
-                  <th scope="col" className={`text-left ${th}`}>{reportText('r.invoice-2', 'Invoice')}</th>
-                  <th scope="col" className={`text-left ${th}`}>{reportText('r.customer', 'Customer')}</th>
-                  <th scope="col" className={`text-right ${th}`}>{reportText('r.paid', 'Paid')}</th>
-                  <th scope="col" className={`text-right ${th}`}>{reportText('r.before-tax', 'Before tax')}</th>
-                  <th scope="col" className={`text-right ${th}`}>{reportText('r.commission', 'Commission')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mine.length === 0 && <tr><td colSpan={6} className="py-2 px-2 text-[var(--muted)]">{reportText('r.nothing-paid-by-their-customers-in-this-period', 'Nothing paid by their customers in this period.')}</td></tr>}
-                {mine.map(l => (
-                  <tr key={`${l.paymentId}-${l.invoiceId}`} className="border-b border-[var(--line)]/50">
-                    <td className="py-1 px-2 font-mono">{l.date}</td>
-                    <th scope="row" className="text-left font-mono font-normal py-1 px-2">{l.invoiceNumber}</th>
-                    <td className="py-1 px-2"><bdi>{l.customerName}</bdi></td>
-                    <td className="text-right font-mono py-1 px-2">{money(l.paidCents)}</td>
-                    <td className="text-right font-mono py-1 px-2">{money(l.netCents)}</td>
-                    <td className="text-right font-mono py-1 px-2">{money(l.commissionCents)}</td>
-                  </tr>
-                ))}
-              </tbody>
-              {mine.length > 0 && (
-                <tfoot>
-                  <tr className="font-semibold">
-                    <th scope="row" colSpan={3} className="text-left py-1 px-2">{reportText('r.total', 'Total')}</th>
+          <div key={rep.id} className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
+            <ReportSchedule
+              caption={<><bdi>{rep.name}</bdi> ({rep.commissionPercent}%{groupSummary}): {money(sum('commissionCents'))}</>}
+              captionClassName="text-start font-semibold text-[var(--text)] pb-1"
+              headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+              rowClassName="border-b border-[var(--line)]/50"
+              bodyClassName=""
+              rows={mine} rowKey={l => JSON.stringify([l.paymentId, l.invoiceId])}
+              emptyRow={<tr><td colSpan={6} className="py-2 px-2 text-[var(--muted)]">{reportText('r.nothing-paid-by-their-customers-in-this-period', 'Nothing paid by their customers in this period.')}</td></tr>}
+              footer={mine.length ? <tr className="font-semibold">
+                    <th scope="row" colSpan={3} className="text-start py-1 px-2">{reportText('r.total', 'Total')}</th>
                     <td className="text-right font-mono py-1 px-2">{money(sum('paidCents'))}</td>
                     <td className="text-right font-mono py-1 px-2">{money(sum('netCents'))}</td>
                     <td className="text-right font-mono py-1 px-2">{money(sum('commissionCents'))}</td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
+                  </tr> : undefined}
+              columns={[
+                { header: reportText('r.paid-on', 'Paid on'), className: 'font-mono', cell: l => <time dateTime={l.date}>{dates.dateText(l.date)}</time> },
+                { header: reportText('r.invoice-2', 'Invoice'), rowHeader: true, className: 'font-mono', cell: l => l.invoiceNumber },
+                { header: reportText('r.customer', 'Customer'), cell: l => <bdi>{l.customerName}</bdi> },
+                { header: reportText('r.paid', 'Paid'), align: 'right', className: 'font-mono', cell: l => money(l.paidCents) },
+                { header: reportText('r.before-tax', 'Before tax'), align: 'right', className: 'font-mono', cell: l => money(l.netCents) },
+                { header: reportText('r.commission', 'Commission'), align: 'right', className: 'font-mono', cell: l => money(l.commissionCents) },
+              ]} />
           </div>
         );
       })}

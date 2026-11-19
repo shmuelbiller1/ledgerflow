@@ -4,33 +4,33 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part23,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part24,
     "transactions": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part23,
-          "workspaceId": COMMAND_SCHEMA_PARTS.part23,
-          "date": COMMAND_SCHEMA_PARTS.part119,
-          "description": COMMAND_SCHEMA_PARTS.part95,
-          "currency": COMMAND_SCHEMA_PARTS.part55,
-          "originalCurrency": COMMAND_SCHEMA_PARTS.part23,
-          "exchangeRate": COMMAND_SCHEMA_PARTS.part109,
-          "payee": COMMAND_SCHEMA_PARTS.part23,
-          "status": COMMAND_SCHEMA_PARTS.part226,
-          "type": COMMAND_SCHEMA_PARTS.part206,
-          "lines": COMMAND_SCHEMA_PARTS.part282,
-          "tags": COMMAND_SCHEMA_PARTS.part128,
-          "reference": COMMAND_SCHEMA_PARTS.part56,
-          "projectId": COMMAND_SCHEMA_PARTS.part23,
-          "isCleared": COMMAND_SCHEMA_PARTS.part66,
-          "createdAt": COMMAND_SCHEMA_PARTS.part23,
-          "updatedAt": COMMAND_SCHEMA_PARTS.part23,
-          "parentEventId": COMMAND_SCHEMA_PARTS.part23,
-          "eventId": COMMAND_SCHEMA_PARTS.part23,
-          "reversalEventId": COMMAND_SCHEMA_PARTS.part23,
-          "metadata": COMMAND_SCHEMA_PARTS.part153
+          "id": COMMAND_SCHEMA_PARTS.part24,
+          "workspaceId": COMMAND_SCHEMA_PARTS.part24,
+          "date": COMMAND_SCHEMA_PARTS.part123,
+          "description": COMMAND_SCHEMA_PARTS.part99,
+          "currency": COMMAND_SCHEMA_PARTS.part57,
+          "originalCurrency": COMMAND_SCHEMA_PARTS.part24,
+          "exchangeRate": COMMAND_SCHEMA_PARTS.part113,
+          "payee": COMMAND_SCHEMA_PARTS.part24,
+          "status": COMMAND_SCHEMA_PARTS.part232,
+          "type": COMMAND_SCHEMA_PARTS.part212,
+          "lines": COMMAND_SCHEMA_PARTS.part288,
+          "tags": COMMAND_SCHEMA_PARTS.part132,
+          "reference": COMMAND_SCHEMA_PARTS.part58,
+          "projectId": COMMAND_SCHEMA_PARTS.part24,
+          "isCleared": COMMAND_SCHEMA_PARTS.part68,
+          "createdAt": COMMAND_SCHEMA_PARTS.part24,
+          "updatedAt": COMMAND_SCHEMA_PARTS.part24,
+          "parentEventId": COMMAND_SCHEMA_PARTS.part24,
+          "eventId": COMMAND_SCHEMA_PARTS.part24,
+          "reversalEventId": COMMAND_SCHEMA_PARTS.part24,
+          "metadata": COMMAND_SCHEMA_PARTS.part158
         },
         "required": [
           "date",
@@ -59,7 +59,7 @@ export const COMMAND_INPUT_SCHEMA = {
                 "type": "string",
                 "maxLength": 1000
               },
-              "amountCents": COMMAND_SCHEMA_PARTS.part150,
+              "amountCents": COMMAND_SCHEMA_PARTS.part155,
               "status": {
                 "default": "pending",
                 "type": "string",
@@ -74,7 +74,7 @@ export const COMMAND_INPUT_SCHEMA = {
                   "null"
                 ]
               },
-              "accountId": COMMAND_SCHEMA_PARTS.part58,
+              "accountId": COMMAND_SCHEMA_PARTS.part60,
               "importIdentity": {
                 "description": "Source fingerprint used to skip previously imported statement lines",
                 "type": "string",
@@ -98,8 +98,8 @@ export const COMMAND_INPUT_SCHEMA = {
         {
           "type": "object",
           "properties": {
-            "collection": COMMAND_SCHEMA_PARTS.part23,
-            "docId": COMMAND_SCHEMA_PARTS.part23,
+            "collection": COMMAND_SCHEMA_PARTS.part24,
+            "docId": COMMAND_SCHEMA_PARTS.part24,
             "action": {
               "type": "string",
               "enum": [
@@ -108,7 +108,7 @@ export const COMMAND_INPUT_SCHEMA = {
                 "update"
               ]
             },
-            "data": COMMAND_SCHEMA_PARTS.part153
+            "data": COMMAND_SCHEMA_PARTS.part158
           },
           "required": [
             "collection",

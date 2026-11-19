@@ -4,8 +4,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part100,
-    "on": COMMAND_SCHEMA_PARTS.part26
+    "workspaceId": COMMAND_SCHEMA_PARTS.part104,
+    "on": COMMAND_SCHEMA_PARTS.part27
   },
   "required": [
     "on"
