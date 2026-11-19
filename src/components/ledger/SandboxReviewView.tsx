@@ -167,7 +167,7 @@ export default function SandboxReviewView() {
     <section aria-labelledby="sandbox-review-title" className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 id="sandbox-review-title" className="text-lg font-bold text-[var(--text)] flex items-center gap-2"><FlaskConical className="w-5 h-5" aria-hidden="true" /> Assistant drafts</h2>
+          <h1 id="sandbox-review-title" className="text-2xl font-bold tracking-tight text-[var(--text)] flex items-center gap-2"><FlaskConical className="w-6 h-6" aria-hidden="true" /> Assistant drafts</h1>
           <p className="text-sm text-[var(--muted)]">What the assistant proposed is kept apart from your books until you accept it. Each step is listed as it would be recorded; the books below are shown with the draft applied.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -183,6 +183,7 @@ export default function SandboxReviewView() {
           <button type="button" className={button} onClick={() => void openNew()} disabled={busy || (open?.length ?? 0) >= 3}>Open a sandbox</button>
         </div>
       </div>
+      {!workspaceId && <p className="text-sm text-[var(--muted)]">Sign in to a workspace to see the assistant's drafts.</p>}
       {error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-400">{error}</p>}
       {open && open.length === 0 && !error && <p className="text-sm text-[var(--muted)]">No open draft. The assistant opens one when it proposes work, or open one yourself.</p>}
       {current && <p className="text-xs text-[var(--muted)]">This draft expires {new Date(current.expiresAt).toLocaleString()}. Unaccepted steps are deleted then.</p>}
