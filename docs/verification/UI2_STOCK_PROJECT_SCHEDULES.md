@@ -47,6 +47,11 @@ the same team figures. The API, not the screenshot fixture, enforces the reader'
 
 ## Reproduce
 
+Local verification on this branch: 312/312 scoped tests with Postgres and no skips, RLS passed,
+TypeScript passed, ESLint unchanged at two warnings, production build and 16/16 bundle checks passed.
+The 37 date / boundary / worked-figure tests also passed independently in `America/Los_Angeles` and
+`Pacific/Auckland`. The complete PR matrix is separate from these scoped counts.
+
 - `npx playwright test e2e/visual-regression.spec.ts --grep 'visual stock and project'` — 40 populated
   states, scoped axe, keyboard controls and assertions on actual values / downloaded files. Snapshot
   tolerances are unchanged. `npx playwright test e2e/stock-project-links.spec.ts` — real shell navigation.
