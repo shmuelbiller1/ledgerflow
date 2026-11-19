@@ -1,0 +1,483 @@
+From 932c6f5b43beedf10d7928a0ef1b449778e93ee8 Mon Sep 17 00:00:00 2001
+From: Chaim-Richard <252094589+Chaim-Richard@users.noreply.github.com>
+Date: Thu, 19 Nov 2026 02:50:29 +0000
+Subject: [PATCH 1/2] fix(bills,reports): finish pending-bill approval (G-19
+ #893); clamp share bars to [0,100] (#909)
+
+G-19: BillModal re-applied the 5,000 submission threshold when a reviewer
+approved an already-pending bill, forcing status back to 'pending' forever, so
+an approval could never complete. The threshold now only gates new/draft
+submissions; reviewing a pending bill finishes the decision. Adds a regression
+test under the existing G-19 scenario.
+
+#909: the decorative share bars in Income-by-source and Expense-by-category only
+upper-bounded width, so a negative share produced an invalid negative CSS width
+that browsers reject (the block fell back to auto and filled the track). Negative
+shares now render an empty track; >100% still fills one track. Text, share and
+CSV stay signed. New test src/tests/share-bar-clamp.test.tsx with hand-worked
+books (net 10,445 / 25,335 cents) covering both components.
+
+Co-authored-by: arena-agent <297053741+arena-agent@users.noreply.github.com>
+---
+ src/components/purchases/BillModal.tsx        |  7 +-
+ .../reporting/ExpenseByCategoryReportView.tsx |  2 +-
+ .../reporting/IncomeBySourceReportView.tsx    |  2 +-
+ src/tests/bill-modal.test.tsx                 | 10 +++
+ src/tests/share-bar-clamp.test.tsx            | 87 +++++++++++++++++++
+ 5 files changed, 105 insertions(+), 3 deletions(-)
+ create mode 100644 src/tests/share-bar-clamp.test.tsx
+
+diff --git a/src/components/purchases/BillModal.tsx b/src/components/purchases/BillModal.tsx
+index 3c78ceb..8917d15 100644
+--- a/src/components/purchases/BillModal.tsx
++++ b/src/components/purchases/BillModal.tsx
+@@ -212,6 +212,11 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
+ 
+     const wsId = useAuthStore.getState().currentWorkspaceId || 'default';
+     const userEmail = useAuthStore.getState().user?.email || 'user';
++    // G-19: a bill already held for approval (status 'pending') is being *decided* by the
++    // reviewer, not submitted again. Re-applying the submission threshold here loops the
++    // decision back to 'pending' forever, so the reviewer can never finish the approval.
++    // The threshold still gates new submissions (new/draft bills).
++    const isReviewingPending = initialBill?.status === 'pending';
+     const approval = evaluateApprovalRequirement(
+       { ...bill, amountCents: total } as Bill,
+       'bill',
+@@ -219,7 +224,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
+     );
+ 
+     let finalStatus = actionStatus;
+-    if (approval.requiresApproval && actionStatus === 'approved') {
++    if (!isReviewingPending && approval.requiresApproval && actionStatus === 'approved') {
+       finalStatus = 'pending';
+       toast.info('Bill amount exceeds threshold ($5,000). Submitted for management approval.');
+       addComment({
+diff --git a/src/components/reporting/ExpenseByCategoryReportView.tsx b/src/components/reporting/ExpenseByCategoryReportView.tsx
+index 3724dc2..4cb0598 100644
+--- a/src/components/reporting/ExpenseByCategoryReportView.tsx
++++ b/src/components/reporting/ExpenseByCategoryReportView.tsx
+@@ -60,7 +60,7 @@ export const ExpenseByCategoryReportView: React.FC<Props> = ({
+     { id: 'share', accessorFn: row => row.percentage, header: reportText('r.share', 'Share'), cell: info => (
+       <span className="flex items-center justify-end gap-2">
+         <span className="w-24 bg-neutral-100 rounded-full h-1.5 overflow-hidden" aria-hidden="true">
+-          <span className="block bg-rose-500 h-full rounded-full" style={{ width: `${Math.min(100, Number(info.getValue()))}%` }} />
++          <span className="block bg-rose-500 h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, Number(info.getValue())))}%` }} />
+         </span>
+         <span className="font-mono w-12 text-right">{Number(info.getValue()).toFixed(1)}%</span>
+       </span>
+diff --git a/src/components/reporting/IncomeBySourceReportView.tsx b/src/components/reporting/IncomeBySourceReportView.tsx
+index 56eb5a3..57c93a6 100644
+--- a/src/components/reporting/IncomeBySourceReportView.tsx
++++ b/src/components/reporting/IncomeBySourceReportView.tsx
+@@ -39,7 +39,7 @@ export const IncomeBySourceReportView: React.FC<Props> = ({
+     { id: 'share', accessorFn: row => row.percentage, header: reportText('r.revenue-contribution', 'Revenue Contribution'), cell: info => (
+       <span className="flex items-center justify-end gap-2">
+         <span className="w-24 bg-neutral-100 rounded-full h-1.5 overflow-hidden" aria-hidden="true">
+-          <span className="block bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(100, Number(info.getValue()))}%` }} />
++          <span className="block bg-emerald-500 h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, Number(info.getValue())))}%` }} />
+         </span>
+         <span className="font-mono w-12 text-right">{Number(info.getValue()).toFixed(1)}%</span>
+       </span>
+diff --git a/src/tests/bill-modal.test.tsx b/src/tests/bill-modal.test.tsx
+index 4b8b16d..5330e19 100644
+--- a/src/tests/bill-modal.test.tsx
++++ b/src/tests/bill-modal.test.tsx
+@@ -118,6 +118,16 @@ describe('Bill dialog', () => {
+     assert.equal(saved[0].status, 'approved');
+   });
+ 
++  test('G-19: approving an already-pending bill over the threshold finishes the decision', async () => {
++    // A bill held for approval (status 'pending') is being decided by the reviewer, not
++    // submitted again. The submission threshold must not loop it back to 'pending'.
++    const saved = setup({ id: 'b1', number: 'B-701', vendorId: 'v1', vendorName: 'Paper Co', status: 'pending', date: '2026-09-01', dueDate: '2026-09-30', splits: [{ amountCents: 600000, accountId: 'exp', description: 'Paper' }] });
++    await click('Approve Bill');
++    await waitFor(() => assert.equal(saved.length, 1));
++    assert.equal(saved[0].status, 'approved');
++    assert.equal(saved[0].id, 'b1');
++  });
++
+   test('an edited bill keeps its number (no new number is asked for); no vendor, no save', async () => {
+     const saved = setup({ id: 'b1', number: 'A-100', vendorId: 'v1', vendorName: 'Paper Co', status: 'pending', date: '2026-09-01', dueDate: '2026-09-30', splits: [{ amountCents: 2500, accountId: 'exp', description: 'Ink' }] });
+     await click('Save & Close');
+diff --git a/src/tests/share-bar-clamp.test.tsx b/src/tests/share-bar-clamp.test.tsx
+new file mode 100644
+index 0000000..352d73e
+--- /dev/null
++++ b/src/tests/share-bar-clamp.test.tsx
+@@ -0,0 +1,87 @@
++/**
++ * #909 (A7-UI-04): negative income/expense shares must not render as full positive bars.
++ *
++ * The decorative bar in IncomeBySourceReportView and ExpenseByCategoryReportView only
++ * upper-bounded its width (Math.min(100, pct)). A negative percentage produced an invalid
++ * negative CSS width, which the browser rejects — the block falls back to `auto` and fills
++ * the track, so a refund looks like a 100% contribution. The fix clamps the decorative
++ * track to [0, 100]; the signed text, share and CSV are unchanged.
++ *
++ * Hand-worked books (cents, 2026):
++ *   Expenses: Rent 12,445 · Rebate −2,000 · net 10,445 → Rent 119.1%, Rebate −19.1%.
++ *   Income:   Acme 27,680 · Bob −2,345 (credit only) · net 25,335 → Acme 109.3%, Bob −9.3%.
++ * Expected bars: negative → 0% (empty track), >100% → 100% (exactly one track), text keeps
++ * the true signed percentage.
++ */
++import { stubFetch } from './helpers/dom';
++import test, { afterEach, beforeEach, describe } from 'node:test';
++import assert from 'node:assert/strict';
++import React from 'react';
++import { cleanup, render, screen, within } from '@testing-library/react';
++import { ExpenseByCategoryReportView } from '../components/reporting/ExpenseByCategoryReportView';
++import { IncomeBySourceReportView } from '../components/reporting/IncomeBySourceReportView';
++import { useLedgerStore } from '../stores/useLedgerStore';
++import { makeChartAccount, makeTransaction } from './fixtures';
++import type { TransactionLine } from '../types';
++
++const line = (accountId: string, amountCents: number): TransactionLine =>
++  ({ accountId, accountName: accountId, amountCents }) as TransactionLine;
++const tx = (id: string, date: string, lines: TransactionLine[], extra = {}) =>
++  makeTransaction({ id, date, lines, totalAmountCents: Math.abs(lines[0].amountCents), ...extra });
++
++const expenseAccounts = [
++  makeChartAccount({ id: 'bank', name: 'Checking', type: 'asset', category: 'Cash' }),
++  makeChartAccount({ id: 'rent', name: 'Rent', type: 'expense', category: 'Occupancy' }),
++  makeChartAccount({ id: 'rebate', name: 'Rebate', type: 'expense', category: 'Rebate' }),
++];
++const expenseLedger = [
++  tx('rent', '2026-01-05', [line('rent', 12445), line('bank', -12445)]),
++  tx('rebate', '2026-02-05', [line('bank', 2000), line('rebate', -2000)]),
++];
++
++const incomeAccounts = [
++  makeChartAccount({ id: 'bank', name: 'Checking', type: 'asset', category: 'Cash' }),
++  makeChartAccount({ id: 'sales', name: 'Sales', type: 'income', category: 'Revenue' }),
++];
++const incomeLedger = [
++  tx('sale-acme', '2026-01-15', [line('bank', 27680), line('sales', -27680)], { payee: 'Acme' }),
++  tx('credit-bob', '2026-02-15', [line('sales', 2345), line('bank', -2345)], { payee: 'Bob' }),
++];
++
++function barWidths(caption: RegExp): string[] {
++  const table = screen.getByRole('table', { name: caption });
++  return within(table).getAllByRole('row').slice(1).map(row => {
++    const bar = row.querySelector('span.block');
++    assert.ok(bar, `bar exists in row: ${row.textContent}`);
++    return (bar as HTMLElement).style.width;
++  });
++}
++
++describe('share bars clamp to [0,100] (#909)', () => {
++  beforeEach(() => { stubFetch(404); });
++  afterEach(() => cleanup());
++
++  test('Expense by Category: refund bar is empty, >100% bar fills exactly one track', () => {
++    useLedgerStore.setState({ accounts: expenseAccounts, transactions: expenseLedger });
++    render(<ExpenseByCategoryReportView selectedYear={2026} />);
++    const [rent, rebate] = barWidths(/Expenses by category/);
++    // rows sort by amount desc: Rent 12,445 first, Rebate −2,000 second
++    assert.equal(rent, '100%', 'Rent 119.1% fills exactly one track');
++    assert.equal(rebate, '0%', 'Rebate −19.1% leaves the positive track empty');
++    const table = screen.getByRole('table', { name: /Expenses by category/ });
++    assert.match(table.textContent || '', /-19\.1%/);
++    assert.match(table.textContent || '', /119\.1%/);
++  });
++
++  test('Income by Source: credit bar is empty, >100% bar fills exactly one track', () => {
++    useLedgerStore.setState({ accounts: incomeAccounts, transactions: incomeLedger });
++    render(<IncomeBySourceReportView selectedYear={2026} />);
++    const [acme, bob] = barWidths(/Income by source/);
++    // rows sort by amount desc: Acme 27,680 first, Bob −2,345 second
++    assert.equal(acme, '100%', 'Acme 109.3% fills exactly one track');
++    assert.equal(bob, '0%', 'Bob −9.3% leaves the positive track empty');
++    const table = screen.getByRole('table', { name: /Income by source/ });
++    assert.match(table.textContent || '', /-9\.3%/);
++    assert.match(table.textContent || '', /109\.3%/);
++  });
++});
+-- 
+2.39.5
+
+
+From 3ad070f2a6a5bfe0e3a595db733d8eebc853ddb8 Mon Sep 17 00:00:00 2001
+From: Chaim-Richard <252094589+Chaim-Richard@users.noreply.github.com>
+Date: Thu, 19 Nov 2026 02:54:01 +0000
+Subject: [PATCH 2/2] docs(audit): Agent #8 findings register A8-029..A8-033
+ and checkpoint 01 (2026-11-19)
+
+Co-authored-by: arena-agent <297053741+arena-agent@users.noreply.github.com>
+---
+ .../agent8-2026-11-19/01-FINDINGS-REGISTER.md | 188 ++++++++++++++++++
+ audit/agent8-2026-11-19/02-CHECKPOINT-01.md   |  68 +++++++
+ 2 files changed, 256 insertions(+)
+ create mode 100644 audit/agent8-2026-11-19/01-FINDINGS-REGISTER.md
+ create mode 100644 audit/agent8-2026-11-19/02-CHECKPOINT-01.md
+
+diff --git a/audit/agent8-2026-11-19/01-FINDINGS-REGISTER.md b/audit/agent8-2026-11-19/01-FINDINGS-REGISTER.md
+new file mode 100644
+index 0000000..d2cf0cc
+--- /dev/null
++++ b/audit/agent8-2026-11-19/01-FINDINGS-REGISTER.md
+@@ -0,0 +1,188 @@
++# Agent #8 — findings register (2026-11-19)
++
++Branch `arena/74a5c64e-ledgerflow`, base `5eacf71f633f00a5db7ae44d3fdba75b4d3700cf` (upstream `main`),
++PR **[#911](https://github.com/shmuelbiller1/ledgerflow/pull/911)**.
++
++ID range continues the existing Agent #8 series (`A8-001`…`A8-028` in
++`audit/agent8-2026-11-16/`), so this register starts at **A8-029**.
++
++Legend — **Confirmed**: reproduced or proven by code path + test. **Suspected**: evidence suggests a defect but
++the harmful path is not reachable / not proven. **Fixed**: change is on this branch and verified. **Reported**:
++evidence delivered, deliberately not patched (owned by another agent's lane, or needs an owner decision).
++
++| ID | Severity | Kind | Status | Area |
++| --- | --- | --- | --- | --- |
++| A8-029 | High | Control gap (segregation of duties) | Reported — `src/server/` lane (AI #1) | Bill approval on the server |
++| A8-030 | Medium | Missing functionality / dead code | Reported — owner decision | Approval rules & records |
++| A8-031 | High | Confirmed bug | **Fixed** (PR #911) | G-19 / #893 pending-bill approval loop |
++| A8-032 | Medium | Confirmed bug | **Fixed** (PR #911) | #909 negative share bars |
++| A8-033 | Low | Robustness | Reported | Project split-rule percentages |
++
++---
++
++## A8-029 — High — bills have no server-side approval enforcement or approval record (invoice parity gap)
++
++**Status:** Confirmed, **not fixed here**: the fix belongs in `src/server/**`, which AGENTS.md reserves to AI #1.
++Cross-reference: issue **#857** ("bill.update approval bypass"). PR #908 addresses a *different* part of #857
++(submitted expense claims, `src/tests/expense-claim-guard-857.test.ts`), not the bill approval path.
++
++**Exact locations**
++
++- `src/server/services/ledgerBulkCommit.ts:386-395` — the approval guard runs **only** for invoices:
++  `if (entityMutation.collection === 'invoices') { Object.assign(validatedData, serverApproval(...)) }`.
++  For `bills` the branch is skipped and line 397 writes whatever the request carried:
++  `t.set(entityRef, { ...validatedData, uid: user.uid, updatedAt: ... }, { merge: true })`.
++- `src/server/services/invoiceApprovalGuard.ts:1-52` — the invoice guard: approver role check
++  (`isApproverRole`), two-person rule (`mayApprove`), delegation (`approvesInPlace`), and a server-stamped
++  `decidedBy`/`decidedAt`. Nothing equivalent is invoked for `bills`.
++- `src/server/commands/documents.ts:125` — `const ROLES = ['owner', 'accountant', 'bookkeeper']` is the only
++  gate on `bill.update` (`:426`). A **bookkeeper** may therefore write `status: 'approved'`.
++- `src/schemas.ts:294-311` — `BillSchema` has a `status` enum that includes `approved`, but **no `approval`
++  field** (compare `InvoiceSchema:281-282`, which does).
++- `src/server/commands/documents.ts:245-258` — `auditFor()` records only
++  `BILL_UPDATED` / "Update bill BILL-123" plus transaction ids. No approver, no before/after status, no note.
++- `src/components/purchases/BillModal.tsx:212-227` — the threshold and the approver roles are a hard-coded
++  client literal (`thresholdCents: 500000`, `approverRoles: ['owner','accountant']`); nothing is persisted, so
++  the server never sees the rule.
++- `src/hooks/useEntityOperations.ts:509` — the client save path is exactly `runDocumentCommand('bill.update', …)`.
++
++**Evidence that the gap is real and reachable**
++
++1. `bill.update` accepts a partial bill, `status` included (`documents.ts:67`, `:81`), and performs no approval
++   check anywhere in `documents.ts` (`grep -n approval src/server/commands/documents.ts` → no matches).
++2. Only invoices get `serverApproval`; the `invoices` branch is a literal collection check, so bills, credit
++   notes and vendor credits fall through.
++3. `src/lib/twoPersonRule.ts` and `src/lib/approvalDelegation.ts` are consumed **only** by the invoice guard
++   (`grep -rn "twoPersonOn\|approvesInPlace\|mayApprove" src` → `invoiceApprovalGuard.ts` and tests).
++4. `src/lib/approvalWorkflow.ts`'s `ApprovalRequest` / `approveRequest` / `rejectRequest` have **no callers**
++   anywhere in `src/` (see A8-030), so nothing else records a decision.
++
++**Consequences**
++
++- A bookkeeper can approve a bill they entered, above any threshold, by saving `status: 'approved'` —
++  segregation of duties and the approval control do not exist server-side for payables.
++- Any authenticated caller with a bookkeeper seat bypasses the $5,000 rule entirely; the rule lives only in a
++  React component, so an API/automation caller, a stale client, or the record page's own save path is unguarded.
++- The two-person rule (P-05) and approval delegation (BG-07) apply to receivables but not payables.
++- An already-approved bill's amount/date can be rewritten while it stays `approved`, with no re-approval.
++- There is no record of **who** approved a bill or **when**; the only trace is a generic "Update bill" entry,
++  which is insufficient for an audit trail.
++
++**Recommended correction (AI #1 lane)**
++
++Generalize `serverApproval` to bills: add an `approval` record to `BillSchema` (mirroring `InvoiceSchema`),
++call a bill guard in `ledgerBulkCommit`'s `entityMutation` branch when `collection === 'bills'`, restrict
++approve/send-back to owner/accountant (+ delegation), apply the two-person rule, and stamp `decidedBy`/
++`decidedAt` from the server. Reuse `src/lib/approvalWorkflow.ts` or delete it (A8-030).
++
++**Reproduction (unit level, no database)**
++
++`serverApproval` is a pure function; the bill path calls nothing. A test that mirrors
++`src/tests/invoice-approval-server.test.ts` for bills has no function to call — the guard's absence is the
++defect. End-to-end: as a bookkeeper POST `bill.update` with `{ id, data: { status: 'approved' } }` for a
++$6,000 pending bill; the document is stored approved and no `approval` field exists.
++
++**Tests performed:** static trace of every write path for `bills`; `grep` for approval consumers;
++`src/tests/invoice-approval-server.test.ts` + `invoice-approval.test.ts` + `invoice-approval-ui.test.tsx` +
++`bill-record-page.test.tsx` + `approval-delegation.test.tsx` + `approval-notifications.test.ts` all pass
++(63/63) — i.e. the suite documents invoice enforcement and never asserts anything for bills.
++
++**Remaining risk:** unsupported until the server guard lands; the client fix in A8-031 only stops the *browser*
++from destroying a legitimate decision — it does not add authorization.
++
++---
++
++## A8-030 — Medium — approval rules are never persisted; `approvalWorkflow` is dead code
++
++**Status:** Confirmed, **not fixed** (needs an owner decision on configuration UI/API).
++
++- `src/lib/approvalWorkflow.ts:1-58` — `ApprovalRule`, `ApprovalRequest`, `approveRequest`, `rejectRequest`
++  are exported and referenced nowhere: `grep -rn "approveRequest\|rejectRequest\|ApprovalRequest" src` returns
++  only the file itself.
++- The rule used in practice is a literal in `BillModal.tsx:214` (`thresholdCents: 500000`,
++  `approverRoles: ['owner','accountant'], autoApproveBelowThreshold: true`), duplicated intent with
++  `workspace.invoiceApproval` (invoices) and `normalizePoApproval` (purchase orders, `po-approval-thresholds`).
++- No collection/table stores an approval request: `grep -rln "approval_request\|approval_rule" supabase/`
++  → nothing.
++
++**Consequence:** the "$5,000 bill approval limit" is a hard-coded constant in the browser. A workspace cannot
++configure its own payable threshold (unlike invoices, `workspace.invoiceApproval`, and unlike POs), and no
++approval decision is durable. Combined with A8-029, payables approval is currently a display convention, not a
++control.
++
++**Recommended correction:** decide the source of truth — extend `workspace` with `billApproval` (mirroring
++`invoiceApproval`) and read it in the guard; then either wire `approvalWorkflow.ts` into the flow or delete it
++so it stops implying a feature that does not exist.
++
++---
++
++## A8-031 — High — (G-19 / #893) a bill held for approval could never be approved — **FIXED**
++
++**Location:** `src/components/purchases/BillModal.tsx:212-227` (fix), `src/tests/bill-modal.test.tsx` (test).
++
++**Defect:** `BillRecordPage`'s next step for a `pending` bill is *Review and approve* → `onEdit(bill)` →
++`BillModal` with `initialBill.status === 'pending'`. On **Approve Bill**, `handleAction('approved')` re-ran
++`evaluateApprovalRequirement` against the hard-coded $5,000 rule and forced `finalStatus = 'pending'` for any
++bill ≥ $5,000. The reviewer's decision was discarded, the record page still offered *Review and approve*, and
++the bill could never leave `pending` — an infinite review loop with no other exit
++(`approveRequest`/`rejectRequest` have no callers, A8-030).
++
++**Fix:** the threshold now gates new/draft submissions only. `isReviewingPending = initialBill?.status ===
++'pending'` suppresses the re-application when the bill being saved is already pending, so the reviewer's
++decision stands. No other behaviour changed; unapproved drafts still go to `pending` above the limit.
++
++**Test:** `G-19: approving an already-pending bill over the threshold finishes the decision`
++(`src/tests/bill-modal.test.tsx`) — 600,000-cent pending bill, *Approve Bill* must save `approved`. Fails on
++`5eacf71` (saves `pending`), passes with the fix.
++
++**Residual risk:** authorization is still A8-029; this fix makes the *intended* flow work, it does not decide
++who may press the button.
++
++---
++
++## A8-032 — Medium — (#909) a negative share rendered as a full positive bar — **FIXED**
++
++**Locations:** `src/components/reporting/IncomeBySourceReportView.tsx:42`,
++`src/components/reporting/ExpenseByCategoryReportView.tsx:63`; test `src/tests/share-bar-clamp.test.tsx`.
++
++**Defect:** the decorative share track used only `Math.min(100, pct)`. A net-negative group (a refund larger
++than its category's charges, a customer with credits only) produced `width: -19.1%`; browsers reject a negative
++CSS width, so the block fell back to `auto` and filled the track — a refund looked like a 100 % contribution
++while the signed text next to it said −19.1 %.
++
++**Fix:** clamp the decorative width to `[0, 100]`. Signed labels, share text, grid data and CSV untouched.
++
++**Test:** hand-worked books — expenses Rent 12,445 + Rebate −2,000 (net 10,445 → 119.1 % / −19.1 %), income
++Acme 27,680 + Bob −2,345 (net 25,335 → 109.3 % / −9.3 %). Asserts the track is exactly `100%` for >100 % and
++`0%` for the negative row, and that the signed labels still render. Both cases fail on `5eacf71`.
++
++**Cross-check:** the independently drafted `Agent7-909` proposal on Drive reaches the same clamp
++(−50 % → 0/96 px, 30 % unchanged, 120 % label preserved). Same conclusion reached independently.
++
++---
++
++## A8-033 — Low — project split-rule percentages are unvalidated and render unclamped
++
++**Status:** Reported (no harmful path reachable through the app today — kept as a robustness item).
++
++- `src/schemas.ts:363` — `splitRules: z.array(z.record(z.string(), z.any())).optional()`: no shape, no range,
++  no requirement that the shares total 100.
++- `src/components/projects/ProjectsView.tsx:279` — `style={{ width: `${rule.percentage}%` }}` with no clamp, so
++  a negative or >100 value from an API write or an import renders a broken/full bar (same class as A8-032).
++- No UI creates `splitRules` (`grep -rn splitRules src` → the model type, the two display sites and the schema),
++  and no calculation consumes them, so profit is **not** mis-distributed today.
++
++**Recommended correction:** validate on write (0 < pct ≤ 100, and a sum check when rules are used for a
++payout), and clamp the bar. Revisit before any partner-distribution feature ships.
++
++---
++
++## Verified — not defects (checked and dismissed, recorded so they are not re-reported)
++
++- `src/components/planning/BudgetManager.tsx:274` `Math.min(b.percentUsed, 100)` looks like the A8-032 class,
++  but `actualCents` sums `Math.max(0, lineAmount(...))` (`:137-140`), so `percentUsed ≥ 0` always.
++- `src/components/transactions/PivotView.tsx:38` already uses `Math.abs(item.value)`.
++- `src/components/finance/TaxReserveWidget.tsx:466-467` already clamps both directions.
++- #906 (inventory CSV decimals) is **already fixed in open PR #889** (`csvMoneyForCurrency`); #910's four
++  account reports have a caller-only patch on Drive (`Agent7-910-after-889.patch`) that imports the #889
++  helper. Neither is duplicated here: applying them now would collide with #889 or leave the branch unbuildable.
+diff --git a/audit/agent8-2026-11-19/02-CHECKPOINT-01.md b/audit/agent8-2026-11-19/02-CHECKPOINT-01.md
+new file mode 100644
+index 0000000..128881f
+--- /dev/null
++++ b/audit/agent8-2026-11-19/02-CHECKPOINT-01.md
+@@ -0,0 +1,68 @@
++# Agent #8 — checkpoint 01 (2026-11-19)
++
++**Branch:** `arena/74a5c64e-ledgerflow` · **Base:** `5eacf71f633f00a5db7ae44d3fdba75b4d3700cf` (`main`)
++**Work commit:** `932c6f5` · **PR:** [#911](https://github.com/shmuelbiller1/ledgerflow/pull/911)
++**Scope:** the two fixes are frontend-only (`src/components/**`, `src/tests/**`). Nothing under `src/server/**`,
++`supabase/**` or money/tax maths was modified.
++
++## Instruction sources examined this session
++
++- `AGENTS.md` (full) — architecture, fork/PR rules, money & collection invariants, bot-review rule,
++  `src/server/**` reserved to AI #1.
++- `CURRENT_WORK.md` (full) — do-next list, per-AI queues, session-start rules.
++- `CLAUDE.md` (full) — git workflow, keep-working rule, Supabase migration rule.
++- `docs/INDEPENDENT_AUDIT_AGENT.md`, `docs/FIRST_TESTERS_GATE.md` (G-01…G-19), `docs/RELEASE_GATE.md`
++  (14-workflow gate), `audit/FINAL_ACCURATE_LIST_2026-11-18.md`, `audit/agent8-2026-11-16/*`.
++- `docs/COORDINATION.md` — read, but **truncated** (284 KB file, ~25 KB elided by the tool). Queue messages in
++  the elided middle are **not** verified; re-read in chunks before acting on any queue item there.
++- GitHub: 9 open PRs (files + checks inspected, #882/#889/#908 diffs read), 32 open issues, issues
++  #887/#894/#893/#910/#909/#906/#905/#904/#903/#902/#900 read.
++- Drive: `MASTER_RECOVERY_INDEX.md` (`1pTGxQhLdqBvH4sLoR-0MZ0XuvKtTP86F`), the project archive tree, prior
++  Agent #8 artifacts, and both proposed #909/#910 patches (`Agent7-…`).
++
++## Completed this session
++
++1. **A8-031 / G-19 (#893) fixed** — `BillModal` no longer re-applies the $5,000 submission threshold when the
++   bill being saved is already `pending`, so *Review and approve* actually completes. Regression test added.
++2. **A8-032 / #909 fixed** — negative shares in Income-by-source and Expense-by-category now render an empty
++   track instead of a full bar. New test file with hand-worked books.
++3. Findings register written: `audit/agent8-2026-11-19/01-FINDINGS-REGISTER.md` (A8-029…A8-033 plus a
++   verified-not-defects list).
++4. Two new findings **reported, not patched** (reserved lane / owner decision): A8-029 (bills have no
++   server-side approval enforcement or record, unlike invoices) and A8-030 (approval rules are never persisted;
++   `src/lib/approvalWorkflow.ts` is dead code).
++5. Duplicate work avoided: #906 is fixed in open PR #889; #910 has a dependent caller-only patch from Agent #7
++   (`Agent7-910-after-889.patch`) that cannot apply before #889 — neither was re-implemented here.
++
++## Verification actually run (local, this branch)
++
++| Command | Result |
++| --- | --- |
++| `npm run lint:types` (`tsc --noEmit`, `NODE_OPTIONS=--max-old-space-size=4096`) | pass (the default heap OOMs in the sandbox at ~1.9 GB — environment limit, not a code issue) |
++| `npx eslint` on the 5 touched files, `--max-warnings 2` | pass |
++| `tsx --test` `bill-modal` + `share-bar-clamp` + `report-views` | 20/20 pass |
++| Same tests with the component fixes stashed | 3 fail → the new tests are load-bearing |
++| `tsx --test` invoice-approval (server, UI, lib), bill-record-page, approval-delegation, approval-notifications | 63/63 pass |
++| Hosted CI on PR #911 | see “CI status” below |
++
++## CI status at checkpoint time
++
++`Production build`, `CodeQL` (both), `Gitar`, `CycloneDX inventory`, `Schemathesis` and `What changed` **pass**;
++unit shards (UTC/LA/Auckland), browser shards, `Lint, Typecheck, and Database rules` and Sonar were still
++**pending** when this checkpoint was written. No failing check observed. The final run state must be read from
++the PR, not from this file.
++
++## Unfinished / next
++
++1. Confirm PR #911 reaches all-green and re-check for new review/bot comments after the run finishes.
++2. Re-read `docs/COORDINATION.md` in chunks to pick up queue items addressed to Agent #8.
++3. Continue the independent sweep for new defects outside `src/server/**`: purchase-order approval parity,
++   attachment/permission surfaces, error handling on client write paths, reconciliations UI.
++4. Append this session's entry to `MASTER_RECOVERY_INDEX.md` (preserving all prior agent sections) and verify
++   every upload opens.
++5. Report A8-029/A8-030 to Shmuel as an explicit AI #1 hand-off (they are authorization gaps, not cosmetics).
++
++## Recovery instructions
++
++`git checkout arena/74a5c64e-ledgerflow && git log --oneline -1` → `932c6f5`; the branch is pushed to
++`origin`. The findings register in this folder plus PR #911's description contain everything needed to resume.
+-- 
+2.39.5
+
