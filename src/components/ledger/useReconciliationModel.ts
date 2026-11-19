@@ -11,6 +11,7 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { jaroWinklerSimilarity, findGlobalOptimalMatch } from '../../lib/algorithms';
 import { toast } from 'sonner';
 import { isPostable, lineAmount } from '../../lib/txFilters';
+import { cashLegForBankLine } from '../../lib/reconciliationSuggestions';
 
 import type { BankLineActionTarget } from './BankLineActionDialog';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -83,79 +84,53 @@ export function useReconciliationModel() {
     });
   }, [safeTransactions, selectedAccountId]);
 
-  // AI/Heuristic dynamic suggestion index maps
+  // AI/Heuristic dynamic suggestion index maps.
+  // #891 (A10-H1-01): a suggested pair is a *cash* movement. The candidate amount is the entry's own
+  // leg in the bank line's account (or, in the all-accounts view, its net movement across cash
+  // accounts) — never the journal header total. An entry with no cash leg (a bill accrual, a journal
+  // that only moves A/P and expense) cannot have produced a bank movement, so it is not a candidate,
+  // and the direction must match the statement line (a deposit is not a withdrawal).
   const aiSuggestionsMap = useMemo(() => {
     if (unmatchedBankLines.length === 0 || unclearedLedgerTransactions.length === 0) return [];
 
     const cashAccountIds = new Set(cashAccounts.map(a => a.id));
     interface PreparedLedgerEntry {
       ltx: (typeof unclearedLedgerTransactions)[number];
-      absAmount: number;
-      cashSign: number;
-      cashSignByAccount: Map<string, number>;
       dateMs: number;
     }
-    const preparedByAbsAmount = new Map<number, PreparedLedgerEntry[]>();
     const preparedList: PreparedLedgerEntry[] = [];
 
     for (const ltx of unclearedLedgerTransactions) {
-      let cashDelta = 0;
-      const cashDeltaByAccount = new Map<string, number>();
-      if (ltx.lines) {
-        for (const l of ltx.lines) {
-          if (cashAccountIds.has(l.accountId)) {
-            const delta = lineAmount(l, ltx);
-            cashDelta += delta;
-            cashDeltaByAccount.set(l.accountId, (cashDeltaByAccount.get(l.accountId) || 0) + delta);
-          }
-        }
-      }
-      const cashSignByAccount = new Map<string, number>();
-      cashDeltaByAccount.forEach((delta, accId) => cashSignByAccount.set(accId, Math.sign(delta)));
-      const absAmount = Math.abs(ltx.totalAmountCents);
-      const entry: PreparedLedgerEntry = {
-        ltx,
-        absAmount,
-        cashSign: Math.sign(cashDelta),
-        cashSignByAccount,
-        dateMs: parseLocalDate(ltx.date).getTime(),
-      };
-      preparedList.push(entry);
-      const bucket = preparedByAbsAmount.get(absAmount);
-      if (bucket) bucket.push(entry);
-      else preparedByAbsAmount.set(absAmount, [entry]);
+      // An entry that touches no recognised cash account cannot have produced a bank movement.
+      if (!(ltx.lines || []).some(l => cashAccountIds.has(l.accountId))) continue;
+      preparedList.push({ ltx, dateMs: parseLocalDate(ltx.date).getTime() });
     }
 
     const sourceItems = unmatchedBankLines.map(btx => {
       const scoreMap = new Map<string, number>();
       const bAbsAmount = Math.abs(btx.amountCents);
-      const bSign = Math.sign(btx.amountCents);
       const bDateMs = parseLocalDate(btx.date).getTime();
+      for (const entry of preparedList) {
+        // #891: a candidate is a cash movement in this bank line's direction — its own account's leg,
+        // or the entry's net cash in the all-accounts view. An entry with no cash leg is not offered.
+        const legCents = cashLegForBankLine(
+          { id: entry.ltx.id, totalAmountCents: entry.ltx.totalAmountCents, lines: entry.ltx.lines },
+          cashAccountIds,
+          btx,
+          line => lineAmount(line as Parameters<typeof lineAmount>[0], entry.ltx),
+        );
+        if (legCents === null) continue;
+        const absAmount = Math.abs(legCents);
+        if (Math.abs(absAmount - bAbsAmount) > matchToleranceCents) continue;
 
-      // Only candidates within matchToleranceCents can ever reach score > 115
-      // (max non-amount score is 65 + 30 = 95 <= 115).
-      const candidates = matchToleranceCents === 0
-        ? (preparedByAbsAmount.get(bAbsAmount) || [])
-        : preparedList.filter(p => Math.abs(p.absAmount - bAbsAmount) <= matchToleranceCents);
-
-      for (const { ltx, absAmount, cashSign, cashSignByAccount, dateMs: lDateMs } of candidates) {
-        // Disallow matching positive bank deposits with negative cash outflows and vice versa
-        const accountSign = btx.accountId ? cashSignByAccount.get(btx.accountId) : undefined;
-        if (accountSign === 0 && bSign !== 0) {
-          continue;
-        }
-        const effectiveSign = accountSign !== undefined ? accountSign : cashSign;
-        if (effectiveSign !== 0 && effectiveSign !== bSign) {
-          continue;
-        }
-
+        const { ltx, dateMs: lDateMs } = entry;
         let score = 0;
 
         // Exact Amount Match (High Weight)
         if (absAmount === bAbsAmount) {
           score += 100;
-        } else if (Math.abs(absAmount - bAbsAmount) <= matchToleranceCents) {
-          score += 30; // Near match / tiny difference
+        } else {
+          score += 30; // Near match / tiny difference, inside matchToleranceCents
         }
 
         // Description Similarity (Jaro-Winkler)
