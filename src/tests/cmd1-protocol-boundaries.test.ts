@@ -134,6 +134,27 @@ describe('Invitation and protocol contracts on PostgreSQL', { skip: !url && 'LF_
     assert.equal((await ws.rows('notifications')).size, 1);
   });
 
+  test('a full roster accepts an invite only for someone already listed, without duplicating the entry', async t => {
+    const owner = await person(t);
+    const listed = await person(t);
+    const admin = await person(t, { admin: true });
+    // Older workspaces can omit the owner from members. They still count the owner once.
+    const ws = await workspace(t, owner.uid, { maxSeats: 2, members: [listed.uid], roles: { [listed.uid]: 'viewer', [admin.uid]: 'bookkeeper' } });
+    for (const invited of [owner, admin, listed]) {
+      const invite = generateInviteToken(ws.id, invited.email, 'accountant');
+      const ref = db.collection('invites').doc(invite.id);
+      await ref.create({ ...invite });
+      const accepted = await post(`/api/v1/invites/${invite.token}/accept`, invited.token, {});
+      const isListed = invited.uid === listed.uid;
+      assert.equal(accepted.status, isListed ? 200 : 402, JSON.stringify(accepted));
+      assert.equal((await ref.get()).data()?.status, isListed ? 'accepted' : 'pending');
+      assert.deepEqual((await ws.ref.get()).data()?.members, [listed.uid]);
+    }
+    assert.deepEqual((await ws.ref.get()).data()?.roles, { [listed.uid]: 'accountant', [admin.uid]: 'bookkeeper' });
+    assert.equal((await ws.rows('auditLogs')).size, 1);
+    assert.equal((await ws.rows('notifications')).size, 1);
+  });
+
   test('the named join previews without joining, requires two step, and replays without consuming a second seat', async t => {
     const owner = await person(t);
     const invited = await person(t);

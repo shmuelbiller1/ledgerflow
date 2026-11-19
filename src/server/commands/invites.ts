@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { verifyInviteTokenSignature } from '../../lib/inviteManager';
 import { planFor } from '../../lib/plans';
-import type { Transaction } from '../db/firestore';
+import { isWorkspaceMemberData, type Transaction } from '../db/firestore';
 import { writeServerAuditLog } from '../services/auditLogService';
 import { notify } from '../services/notificationService';
 import { CommandRefusal } from '../utils/commandExecutor';
@@ -38,19 +38,22 @@ async function target({ db, user }: Context, { token }: z.output<typeof input>, 
   if (!ws.exists) throw new CommandRefusal('Workspace not found', 404, 'WORKSPACE_NOT_FOUND');
   const data = ws.data() || {};
   const members: string[] = Array.isArray(data.members) ? [...data.members] : [];
+  // The signed invitation authorizes joining. Only an existing roster entry exempts a caller from
+  // the legacy seat check; ownership, role-only/admin access and platform admin do not.
+  const alreadyListed = isWorkspaceMemberData({ members }, { uid: user.uid });
   const maxSeats = data.maxSeats || Math.max(5, planFor(String(data.plan || 'free')).limits.seats);
-  if (data.bypassBilling !== true && !members.includes(user.uid) && new Set([...members, data.uid || 'owner']).size >= maxSeats) {
+  if (data.bypassBilling !== true && !alreadyListed && new Set([...members, data.uid || 'owner']).size >= maxSeats) {
     throw new CommandRefusal('Payment Required: Workspace seat limit reached. The workspace owner must upgrade the plan.', 402, 'SEAT_LIMIT_EXCEEDED');
   }
-  return { inviteRef: inviteDoc.ref, invite, wsRef, data, members };
+  return { inviteRef: inviteDoc.ref, invite, wsRef, data, members, alreadyListed };
 }
 
 export const inviteAcceptCommand: CommandDefinition<typeof input, { workspaceId: string; role?: string }> = {
   name: 'invite.accept', input, scope: 'person', roles: COMMAND_ROLES, peopleOnly: true, risk: 'high',
   async authorizeInput({ user }) { requireVerifiedEmail(user); },
   async handler(ctx, tx, fields) {
-    const { inviteRef, invite, wsRef, data, members } = await target(ctx, fields, tx);
-    if (!members.includes(ctx.actor)) members.push(ctx.actor);
+    const { inviteRef, invite, wsRef, data, members, alreadyListed } = await target(ctx, fields, tx);
+    if (!alreadyListed) members.push(ctx.actor);
     const now = new Date().toISOString();
     tx.update(wsRef, { members, roles: { ...(data.roles || {}), [ctx.actor]: invite.role }, updatedAt: now });
     tx.update(inviteRef, { status: 'accepted', acceptedAt: now, acceptedByUid: ctx.actor, updatedAt: now });
