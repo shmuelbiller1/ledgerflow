@@ -15,7 +15,12 @@ added. Retention rules are in [RETENTION.md](RETENTION.md); outside services in
 | Sign-in history (time, device) | `loginAudits` | Security |
 | Actions (who changed which record, when) | `auditLogs` | Legal audit trail of the books |
 | Notifications | `notifications` | Telling people about invoices, payments, invites |
-| Errors seen in the browser (page, browser, message without secrets) | `errorLogs` | Fixing bugs |
+| Opted-in browser crash reports (screen, browser, scrubbed error and optional stack; account/workspace may be associated on the server) | `errorLogs` | Fixing bugs |
+
+Automatic crash reports are off unless enabled from the current notice or **Settings → Security →
+Crash reports**. This browser setting can be withdrawn at any time. With automatic reports off,
+this tab still keeps a short local diagnostic buffer for optional support attachments; the buffer
+is cleared on account or workspace change. Turning reports off does not erase earlier reports.
 
 ## People in a workspace's books (customers, vendors, employees)
 

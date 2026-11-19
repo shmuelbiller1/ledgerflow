@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ViewErrorBoundary } from '../components/common/ViewErrorBoundary';
+import { COOKIE_CONSENT_KEY, setCookieConsent } from '../lib/cookieConsent';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 
 let explode = true;
@@ -25,6 +26,7 @@ describe('ViewErrorBoundary', () => {
     explode = true;
     calls.length = 0;
     setComponentWorkspace('owner');
+    setCookieConsent('all');
     // React prints the caught error to console.error; keep the test output readable.
     console.error = () => {};
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -35,6 +37,7 @@ describe('ViewErrorBoundary', () => {
 
   afterEach(() => {
     cleanup();
+    localStorage.removeItem(COOKIE_CONSENT_KEY);
     console.error = originalError;
   });
 

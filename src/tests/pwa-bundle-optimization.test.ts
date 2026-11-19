@@ -332,7 +332,7 @@ describe('Stage 3: Browser Bundle & PWA Safety Invariants', () => {
     window.history.replaceState(null, '', '/c/secret-portal-tok_123?view=summary');
     try {
       await reportClientError(new Error('Portal render test'));
-      assert.equal(getRecentErrors()[0]?.url, '/c/[REDACTED]?view=summary');
+      assert.equal(getRecentErrors()[0]?.url, '/c/[REDACTED]');
     } finally {
       globalThis.fetch = prevFetch;
       window.history.replaceState(null, '', '/');
