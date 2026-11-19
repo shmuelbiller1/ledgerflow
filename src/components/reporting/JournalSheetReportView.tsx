@@ -7,6 +7,8 @@ import { formatCurrency, cn } from '../../lib/utils';
 import { computeJournalSheet, yearRange } from '../../server/reports/itemReports';
 import { RowTable } from '../ui/RowTable';
 import { useReportText, fill } from './useReportText';
+import ReportEmptyState from './ReportEmptyState';
+import { CappedCollectionsNote } from '../common/LoadedEntriesOnlyNote';
 
 interface Props {
   selectedYear?: number;
@@ -58,10 +60,22 @@ export const JournalSheetReportView: React.FC<Props> = ({ selectedYear, startDat
         </div>
       </div>
 
+      {/* R-8: the sheet is worked out from the entries loaded in this browser; when that list is
+          capped the sheet covers the loaded entries and says so rather than looking complete. */}
+      <CappedCollectionsNote testId="journal-sheet-capped" keys={['transactions']} what={reportText('r.this-journal-sheet', 'this journal sheet')} />
+
       {sheet.entries.length === 0 ? (
-        <div className="text-center py-12 bg-[var(--panel)] rounded-lg border border-[var(--line)] text-[var(--muted)] text-xs">
-          {reportText('r.no-posted-transactions-in-the-selected-period', 'No posted transactions in the selected period.')}
-        </div>
+        (transactions || []).length === 0 ? (
+          <ReportEmptyState
+            title={reportText('r.no-entries-loaded-yet', 'No entries loaded yet')}
+            description={reportText('r.this-sheet-reads-the-entries-in-this-browser-recor', 'This sheet reads the entries in this browser: record or import an entry and it appears here.')}
+          />
+        ) : (
+          <ReportEmptyState
+            title={reportText('r.no-posted-entries-between-these-dates', 'No posted entries between these dates')}
+            description={reportText('r.choose-another-period-or-post-an-entry-drafts-an', 'Choose another period, or post an entry. Draft and voided entries are left out of a journal sheet.')}
+          />
+        )
       ) : (
         <div className="space-y-4">
           {visible.map(entry => (

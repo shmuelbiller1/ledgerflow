@@ -10,7 +10,7 @@ import { quoteIdent } from '../server/db/pg/sql';
 
 const url = process.env.LF_TEST_DATABASE_URL;
 const request = (user: RequestUser): UserRequest => ({ user } as UserRequest);
-const tables = ['chartAccounts', 'customers', 'transactions', 'journalEntries', 'rulePatterns', 'learnedDeltas', 'auditLogs'];
+const tables = ['chartAccounts', 'customers', 'transactions', 'journalEntries', 'rulePatterns', 'learnedDeltas', 'auditLogs', 'invoices', 'inventory', 'stockMoves', 'repostQueue'];
 
 /** SBX-1: the whole command registry drafts in the sandbox, within the admission boundary. */
 describe('SBX-1 step admission: the registry, high-risk acceptance and plan limits', () => {
@@ -48,7 +48,8 @@ describe('SBX-1 step admission: the registry, high-risk acceptance and plan limi
         await live.doc(`workspaces/${workspaceId}`).delete();
       });
       await live.doc(`workspaces/${workspaceId}`).create({ uid: owner.uid, name: 'Admission test', members: [owner.uid], currency: 'USD', timezone: 'UTC', ...workspace });
-      for (const [key, name, type, category] of [['bank', 'Bank', 'asset', 'Cash'], ['fees', 'Bank fees', 'expense', 'Operating'], ['spare', 'Spare', 'expense', 'Operating']]) {
+      for (const [key, name, type, category] of [['bank', 'Bank', 'asset', 'Cash'], ['fees', 'Bank fees', 'expense', 'Operating'], ['spare', 'Spare', 'expense', 'Operating'],
+        ['ar', 'Receivables', 'asset', 'Receivables'], ['sales', 'Sales', 'revenue', 'Revenue'], ['inventory', 'Inventory', 'asset', 'Inventory'], ['cogs', 'Cost of Goods Sold', 'expense', 'COGS']]) {
         await live.doc(`chartAccounts/${id(key)}`).create({ id: id(key), workspaceId, name, type, category, code: key });
       }
       const sandbox = await openSandbox(request(owner), workspaceId, live);
@@ -109,6 +110,45 @@ describe('SBX-1 step admission: the registry, high-risk acceptance and plan limi
       await assert.rejects(f.add('journal.bulk', { transactions: [elsewhere] }), { code: 'WORKSPACE_MISMATCH' });
       assert.equal(await f.count('transactions', f.draft), 0);
       assert.equal(await f.count('transactions'), 0);
+    });
+
+    test('stock-moving steps draft in provisional order without a live sequence; accept replays the same cost', { timeout: 20_000 }, async t => {
+      const f = await setup(t);
+      const party = f.id('buyer');
+      const item = f.id('widget');
+      await live.doc(`customers/${party}`).create({ id: party, workspaceId: f.workspaceId, name: 'Acme Design' });
+      await live.doc(`inventory/${item}`).create({ workspaceId: f.workspaceId, unitCostCents: 400, quantityAtHand: 10, name: 'Widget' });
+      // a live move already numbered by the real sequence, so the draft must sort after it
+      await live.doc(`stockMoves/${f.id('receipt')}`).create({ workspaceId: f.workspaceId, itemId: item, date: '2026-10-01', kind: 'purchase',
+        quantity: 10, quantityBefore: 0, quantityAfter: 10, unitCostCents: 400, seq: '2026-10-01T00:00:00.000Z#00000', createdAt: '2026-10-01T00:00:00.000Z' });
+      const liveSeq = Number((await live.doc(`stockMoves/${f.id('receipt')}`).get()).data()?.dbSeq);
+      assert.ok(Number.isSafeInteger(liveSeq) && liveSeq > 0);
+      const { rows: [seqBefore] } = await live.pool.query('select last_value, is_called from public."stockMoves_db_seq"');
+      const sale = (quantity: number, number: string) => ({ invoice: { customerId: party, customerName: 'Acme Design', date: '2026-10-01', dueDate: '2026-11-01',
+        status: 'sent', currency: 'USD', exchangeRate: 1, number, amountCents: quantity * 1250,
+        items: [{ id: f.id(`line-${number}`), itemId: item, description: 'Widget', quantity, rateCents: 1250, amountCents: quantity * 1250, accountId: f.id('sales') }] } });
+      await f.add('invoice.create', sale(2, 'S-1'));
+      const drafted = await f.add('invoice.create', sale(3, 'S-2'));
+      assert.equal((await f.draft.doc(`inventory/${item}`).get()).data()?.quantityAtHand, 5);
+      const draftMoves = (await f.draft.collection('stockMoves').where('workspaceId', '==', f.workspaceId).get()).docs
+        .map(d => d.data()).filter(m => m.kind !== 'purchase').sort((a, b) => Number(a.dbSeq) - Number(b.dbSeq));
+      assert.deepEqual(draftMoves.map(m => [m.quantity, Number(m.dbSeq) > liveSeq]), [[-2, true], [-3, true]]);
+      assert.ok(Number(draftMoves[0].dbSeq) < Number(draftMoves[1].dbSeq), 'draft moves keep their order');
+      assert.deepEqual((await live.pool.query('select last_value, is_called from public."stockMoves_db_seq"')).rows[0], seqBefore, 'no live sequence advanced');
+      assert.equal(await f.count('stockMoves'), 1);
+      assert.equal(await f.count('repostQueue'), 0);
+      const cogsOf = async (db: Firestore) => (await db.collection('transactions').where('workspaceId', '==', f.workspaceId).get()).docs
+        .flatMap(d => (d.data().lines as Array<{ accountId: string; amountCents: number }>)).filter(l => l.accountId === f.id('cogs')).map(l => l.amountCents).sort((a, b) => a - b);
+      const draftCogs = await cogsOf(f.draft);
+      assert.deepEqual(draftCogs, [800, 1200]);
+      const accepted = await f.change({ kind: 'accept', revision: drafted.revision });
+      assert.equal(accepted.outcome, 'accepted');
+      assert.deepEqual(await cogsOf(live), draftCogs, 'the live replay posts the cost the draft showed');
+      assert.equal((await live.doc(`inventory/${item}`).get()).data()?.quantityAtHand, 5);
+      const liveMoves = (await live.collection('stockMoves').where('workspaceId', '==', f.workspaceId).get()).docs.map(d => d.data())
+        .filter(m => m.kind !== 'purchase').sort((a, b) => Number(a.dbSeq) - Number(b.dbSeq));
+      assert.deepEqual(liveMoves.map(m => m.quantity), [-2, -3], 'the real sequence keeps the draft order');
+      assert.ok(liveMoves.every(m => Number(m.dbSeq) > liveSeq));
     });
 
     test('a step that writes outside the books is refused at the door and keeps nothing', { timeout: 15_000 }, async t => {
