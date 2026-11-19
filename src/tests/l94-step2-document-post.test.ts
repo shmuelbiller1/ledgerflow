@@ -168,6 +168,37 @@ describe('L-94 step 2: invoices and bills posted by the server', { skip: !url &&
     assert.equal((await db.collection('invoices').doc(invoiceId).get()).exists, false);
   });
 
+  test('document.post previews the same postings without changing the books and replays after close', async () => {
+    const docId = `${ws}_document_post`;
+    const data = invoice(2, docId);
+    const collection = 'invoices';
+    const input = { collection, docId, action: 'create', data };
+    const key = 'named-document-post';
+    const ref = db.collection(collection).doc(docId);
+    const preview = await command(OWNER, 'document.post', input, true, key);
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    assert.deepEqual(preview.body.preview.accounts.map((line: { amountCents: number }) => line.amountCents).sort((a: number, b: number) => a - b), [-30_000, -3_000, 33_000]);
+    assert.equal((await ref.get()).exists, false);
+    assert.deepEqual(await entriesOf('invoiceId', docId), []);
+    assert.equal((await db.collection('idempotencyKeys').doc(`${ws}:document.post:${key}`).get()).exists, false);
+    assert.equal((await command(VIEWER, 'document.post', input)).status, 403);
+    const result = await command(OWNER, 'document.post', input, false, key);
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+    const written = await entriesOf('invoiceId', docId);
+    assert.equal(written.length, 1);
+    assert.deepEqual(postingFingerprint(written), postingFingerprint(result.body.data.transactions));
+    await db.collection('workspaces').doc(ws).update({ lockDate: '2026-10-31' });
+    try {
+      const replay = await command(OWNER, 'document.post', { ...input, postingDay: '2026-10-22' }, false, key);
+      assert.equal(replay.status, 200, JSON.stringify(replay.body));
+      assert.equal(replay.body.replayed, true);
+      assert.deepEqual(replay.body.data, result.body.data);
+      assert.equal((await entriesOf('invoiceId', docId)).length, 1);
+      const audits = await db.collection('auditLogs').where('workspaceId', '==', ws).where('entityId', '==', docId).get();
+      assert.deepEqual(audits.docs.map(d => d.data().action), ['DOCUMENT_CREATED']);
+    } finally { await db.collection('workspaces').doc(ws).update({ lockDate: null }); }
+  });
+
   test('INV-1 330.00: the server writes A/R +330.00, Sales −300.00, VAT −30.00 — the browser builder\'s very entry', async () => {
     const data = invoice(2, inv1);
     const expected = postingFingerprint(await browserBuild('invoices', data, 'create'));

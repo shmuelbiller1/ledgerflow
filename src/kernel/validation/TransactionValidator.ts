@@ -1,10 +1,10 @@
 import { Transaction } from '../../types';
-import { DoubleEntryValidator } from './DoubleEntryValidator';
+import { DoubleEntryValidator, PostingInputError } from './DoubleEntryValidator';
 import { getDb, type Firestore } from '../../server/db/firestore';
 import { TransactionSchema } from '../../schemas';
 import { getAbsoluteTotal } from '../../lib/txFilters';
 import { SecurityService } from '../../services/securityService';
-import { assertPostingOpen, lockMessage, postingLock } from '../../lib/periodLock';
+import { lockMessage, postingLock } from '../../lib/periodLock';
 import { settleHomeCurrency } from '../../lib/txFilters';
 import { certifyRefusal } from '../../server/services/ledgerEditGuards';
 
@@ -54,20 +54,20 @@ export class TransactionValidator {
 
     // N9: Prevent ghost simulation IDs from persisting as regular ledger transactions
     if (transaction.id && typeof transaction.id === 'string' && transaction.id.startsWith('ghost-') && transaction.type !== 'forecast') {
-      throw new Error("Invalid transaction ID: 'ghost-' prefix is reserved for ephemeral client simulations.");
+      throw new PostingInputError("Invalid transaction ID: 'ghost-' prefix is reserved for ephemeral client simulations.");
     }
 
     // #88 & N15 - Semantic contract: totalAmountCents is ALWAYS absolute positive safe integer, using FX-aware line amounts
     if (Array.isArray(transaction.lines) && transaction.lines.length > 0) {
       const calculatedTotal = getAbsoluteTotal(transaction as Transaction);
       if (!Number.isSafeInteger(calculatedTotal)) {
-        throw new Error(`Validation Failed: totalAmountCents exceeds safe integer bounds.`);
+        throw new PostingInputError(`Validation Failed: totalAmountCents exceeds safe integer bounds.`);
       }
       transaction.totalAmountCents = calculatedTotal;
     } else if (transaction.totalAmountCents !== undefined && transaction.totalAmountCents !== null) {
       const absVal = Math.abs(Math.round(transaction.totalAmountCents));
       if (!Number.isSafeInteger(absVal)) {
-        throw new Error(`Validation Failed: totalAmountCents exceeds safe integer bounds.`);
+        throw new PostingInputError(`Validation Failed: totalAmountCents exceeds safe integer bounds.`);
       }
       transaction.totalAmountCents = absVal;
     }
@@ -76,7 +76,7 @@ export class TransactionValidator {
     const parsed = TransactionSchema.safeParse(transaction);
     if (!parsed.success) {
       const errMsgs = parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ');
-      throw new Error(`Schema validation failed: ${errMsgs}`);
+      throw new PostingInputError(`Schema validation failed: ${errMsgs}`);
     }
 
     const validatedTx = {
@@ -86,19 +86,20 @@ export class TransactionValidator {
     } as Transaction;
 
     // 1. Period Lock
-    if (validatedTx.date) assertPostingOpen(validatedTx.date, context.wsData, context.user.uid);
+    const lock = validatedTx.date && postingLock(validatedTx.date, context.wsData, context.user.uid);
+    if (lock) throw new PostingInputError(lockMessage(validatedTx.date, lock), 'PERIOD_LOCKED');
 
     // 2. Status Locks
     if (existingTx && (existingTx.status === 'certified' || existingTx.status === 'void') && !context.user.admin) {
-      throw new Error(`Forbidden: Transaction ${existingTx.id} status is locked.`);
+      throw new PostingInputError(`Forbidden: Transaction ${existingTx.id} status is locked.`);
     }
 
     const certify = certifyRefusal(existingTx?.status, validatedTx.status, Boolean(context.user.admin));
-    if (certify) throw new Error(`Forbidden: ${certify}`);
+    if (certify) throw new PostingInputError(`Forbidden: ${certify}`);
 
     // 3. Ownership / Immutability
     if (existingTx && existingTx.workspaceId !== context.workspaceId) {
-      throw new Error(`Forbidden: Transaction does not belong to authorized workspace.`);
+      throw new PostingInputError(`Forbidden: Transaction does not belong to authorized workspace.`);
     }
 
     // 4. Account Verification
@@ -117,7 +118,7 @@ export class TransactionValidator {
         for (const id of accountIds) {
           const accData = accMap.get(id);
           if (!accData || accData.workspaceId !== context.workspaceId) {
-            throw new Error(`Account ${id} does not exist or does not belong to authorized workspace.`);
+            throw new PostingInputError(`Account ${id} does not exist or does not belong to authorized workspace.`);
           }
         }
         for (const line of validatedTx.lines) {

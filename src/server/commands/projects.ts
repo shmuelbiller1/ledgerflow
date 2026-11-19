@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { HttpError } from '../auth/requestUser';
+import { assertDeveloperUsageQuota } from '../services/developerUsageQuota';
 import type { CommandContext, CommandDefinition } from './types';
 
 /**
@@ -151,5 +153,58 @@ export const projectRestoreCommand: CommandDefinition<typeof projectRestoreInput
       { code: 'INVALID_INPUT', when: 'The row has no id, or carries an id with a slash.', next: 'Send the project row that project.delete answered with.' },
     ],
     next: [{ command: 'project.delete', label: 'Delete it again' }],
+  },
+};
+
+const projectCreateInput = z.object({
+  name: z.string().min(1).describe('Name of the new project'),
+  code: z.string().optional(),
+  description: z.string().optional(),
+  budgetLimitCents: z.union([z.number(), z.string()]).optional().describe('Budget in whole cents; the legacy API also accepts a numeric string'),
+  managerEmail: z.string().optional(),
+}).strict();
+
+function projectFields(input: z.output<typeof projectCreateInput>) {
+  return {
+    name: input.name, code: input.code || '', description: input.description || '',
+    budgetLimitCents: Number(input.budgetLimitCents) || 0, managerEmail: input.managerEmail || '', status: 'active',
+  };
+}
+
+type CreatedProject = ReturnType<typeof projectFields> & { id: string; workspaceId: string; createdAt: string };
+
+export const projectCreateCommand: CommandDefinition<typeof projectCreateInput, { project: CreatedProject }> = {
+  name: 'project.create',
+  input: projectCreateInput,
+  roles: ROLES,
+  allowPlatformAdmin: true,
+  async authorizeInput(ctx) {
+    if (!ctx.user.admin) await assertDeveloperUsageQuota(ctx.db, ctx.workspaceId, ctx.workspace);
+  },
+  async handler(ctx, tx, input) {
+    const id = `proj_${randomUUID().replace(/-/g, '')}`;
+    const project = { id, workspaceId: ctx.workspaceId, ...projectFields(input), createdAt: new Date().toISOString() };
+    tx.create(ctx.db.collection('projects').doc(id), project);
+    return { project };
+  },
+  async preview(_ctx, input) {
+    return { title: `Create the project “${input.name}”`, lines: [`Budget limit: ${projectFields(input).budgetLimitCents} cents`, 'No ledger entries are posted.'] };
+  },
+  audit(_input, { project }) {
+    return {
+      action: 'PROJECT_CREATED', entityType: 'project', entityId: project.id,
+      description: `Created project "${project.name}"`, details: { code: project.code, budgetLimitCents: project.budgetLimitCents },
+    };
+  },
+  inverse(_input, { project }) { return { command: 'project.delete', input: { id: project.id } }; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Create a new active project, with an optional code, manager and budget limit; this does not create or move any ledger entries.',
+    example: { name: 'Fit-out', code: 'FIT', budgetLimitCents: 12300 },
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'The project has no name or the fields are not valid.', next: 'Supply a name and check the fields.' },
+      { code: 'PAYMENT_REQUIRED', when: 'The developer API credit balance is exhausted.', next: 'Check the workspace billing settings.' },
+      { code: 'QUOTA_EXCEEDED', when: 'The developer API spending limit was reached.', next: 'Ask an administrator to check the workspace quota.' },
+    ],
   },
 };

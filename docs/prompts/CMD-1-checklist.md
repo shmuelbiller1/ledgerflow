@@ -4,11 +4,28 @@
 
 ## Current branch checkpoint
 
-- This batch moves the PAY-1 provider CSV import to `payroll.import`. The legacy pay-runs address keeps its wire shape and refuses duplicates even if an operation header was sent. The named address supports the runner's keyed replay and a read-only journal preview. Both check every pay date and post all journals and per-date audits together. No payroll calculation, browser write policy or database migration is changed. The AST ratchet falls from **46 to 45 server route sites**; browser and local-store counts are unchanged. Full GitHub CI is required before treating this batch as accepted.
-- The bulk posting route remains outside the runner. Its legacy `${workspaceId}_${idempotencyKey}` records, duplicate bank-line filtering, posting-day fingerprint, budget preflight and after-commit effects require parity tests before migrating it. The remaining counted sites are an inventory, not all confirmed eligible writes; the JSON ratchet is authoritative.
-- The zero browser scanner count is not a substitute for end-to-end RLS probes and deployed-screen verification. Proposals, assistant tools, sandbox and the final acceptance gates below are not claimed complete.
+- This batch moves **eight** legacy write registrations to named commands: `document.remove`, `project.create`, `chartaccount.register`, `consolidation.verify`, `document.post`, `journal.bulk`, `bank.reconnect` and `audit.deep`. The existing addresses keep their handlers' wire contracts for valid requests and expected refusals. The runner's frozen and pending-deletion protections apply to the moved writes.
+- Bulk and document posting retain the shared legacy `${workspaceId}_${idempotencyKey}` records, posting-day exclusion from the hash, duplicate bank-line filtering and pre-transaction budget reads. A replay returns no newly written entries. The named endpoints instead use the runner’s usual scoped idempotency. First-run command results describe the commit; a named replay returns the cached result with `replayed: true`. The legacy bulk URL retains its large-body limit; the new named endpoint uses the normal command body limit. Existing posting, report and provider calculations are unchanged. Reconnect commits the state and audit before registering a Plaid webhook; deep audit starts its existing in-process worker after the job and audit commit (not a durable queue).
+- The live ratchet is **45 → 29 server registrations** across **27 → 18 files**: eight conversions, five already-counted read/parse-only requests, and three provider-session/token starts whose handlers do not change LedgerFlow records. The open-items preview is now listed separately from confirm and does not lower the count on its own. The existing payout exception is classified as a provider operation, not a read. Exceptions are pinned to exact unconverted POST registrations. Browser **0** and sample-store **6** are unchanged. The registry is **218 commands / 57 areas**. See [`commands-baseline.json`](../../commands-baseline.json) for the measured list; the counts are not a measure of assistant or release completion.
+- Consolidation prepares the report before opening the audit transaction; only point reads recheck roles at commit, and replay checks secondary access without rescanning. The deep-audit worker has one simulated wait after the queued job commits, not a cron or repeating job. Plaid reconnect defers a best-effort registration through the provider service after commit.
+- Full GitHub CI remains the acceptance gate. No schema migration or RLS change is needed for this batch; a zero browser-write scanner count still does not replace deployed-workflow and RLS verification.
+
+### Still counted after this batch
+
+| Boundary | Sites | Why they are not included in this batch |
+| --- | ---: | --- |
+| Document PDF/ZIP, open-items confirmation, repost | 4 | Printing may claim an Israeli original (in-flight PDF behavior work in [#878](https://github.com/shmuelbiller1/ledgerflow/pull/878)); imports and repost have per-document/key retry and partial-result semantics. They are not read-only or atomic batch commands. |
+| Plaid exchange, disconnect, sync and webhook | 4 | Provider tokens, item-removal order, cursor/lease handling and signed retries need their own integration tests. |
+| Stripe verification, billing compute, public invoice payment and Stripe webhook | 4 | Plan/credit and payment reconciliation need provider-event, charge and replay parity. |
+| Invoice/statement email and delivery webhook | 3 | Delivery is outside the database transaction, with per-recipient and suppression semantics. |
+| Public estimate signature and invite acceptance | 2 | Recipient credential/join authorization is not workspace membership; retain those checks in a separate batch. |
+| AI/OCR and metered classifier/analyze endpoints | 4 | Responses may also update usage traces and counters; not read-only exclusions. |
+| Auth session/account/security logging, CSP and telemetry | 6 | Identity-provider, platform-only or anonymous operational boundaries; kept counted pending a separate classification/implementation review. |
+| Support reply and status | 2 | Legacy opener/former-member and platform-admin permissions differ from the workspace support commands. |
 
 ## Verified checkpoint
+
+- [x] PAY-1 provider CSV import is command-backed in [#876](https://github.com/shmuelbiller1/ledgerflow/pull/876), merged. The old pay-runs address keeps duplicate-date refusal, and `payroll.import` adds keyed replay and a read-only ledger preview. Before the current batch the live inventory was **45 server / 0 browser / 6 local**.
 
 - [x] The workspace API batch moves all **four** remaining writes in `workspaceApiRoutes.ts` to `workspace.apicreate`, `workspace.addmember`, `workspace.removemember`, and `workspace.restorebackup`. The live ratchet falls from **57 to 53 server sites** (34 to 33 files); direct browser writes stay **0**. The registry has **204 commands / 54 areas**. Backup restore now uses the runner's transaction, retains its detailed in-transaction audit and all closed-period, ownership, file and checksum guards; the high-risk command requires two-step confirmation, while its legacy owner-only route retains its previous gate. Membership changes recheck the last owner inside the transaction; adding a member keeps the seat-cap gate. Workspace creation still ignores caller-supplied identity and privileged fields and refuses workspace-scoped API keys before both execution and replay. Generated artifacts and normal/refusal/retry tests accompany the change. No accounting math or browser policy is changed.
 
@@ -43,17 +60,17 @@
 
 ## 1. Server routes → registered commands
 
-- [x] Keep the current runner, registry, and per-file AST ratchet; lower the baseline only when a write route is actually converted.
+- [x] Keep the current runner, registry, and per-file AST ratchet; lower the baseline only for a real conversion or an exact, reasoned exception.
 - [x] Preserve the existing command-backed areas on current `main`, including the period work from #731. `taskRoutes.ts` has no residual write site in the current ratchet.
 - [x] Convert document-number settings (`PUT /api/v1/workspaces/:workspaceId/numbering/:type`) through `numbering.update`; retain its `{ status, series }` wire shape and test preview, role/validation refusals, audit, inverse, and retry behavior.
-- [ ] Migrate the remaining **57** scanner-counted route sites, one cohesive area per PR. `paymentRoutes.ts`, `savedListRoutes.ts`, `apiKeysRoutes.ts` and `workspaceRoutes.ts` are converted; the largest remaining candidates are `plaidRoutes.ts` (5), `billingRoutes.ts` (4), `developerApiRoutes.ts` (4), `workspaceApiRoutes.ts` (4), `authRoutes.ts` (3), `emailRoutes.ts` (3) and `leaseRoutes.ts` (3); `accountMergeRoutes.ts` (2), `contactMergeRoutes.ts` (2), `journalTemplateRoutes.ts` (2), `twoStepPolicyRoutes.ts` (2), `reportScheduleRoutes.ts` (2), `brandingRoutes.ts` (1), `customerPortalRoutes.ts` (2), `estimateSignRoutes.ts` (1), `leaseRoutes.ts` (2 of 3 converted, the two calculations excepted) and `revenueRoutes.ts` (1) are converted; `payRunRoutes.ts` (5), `tagRoutes.ts` (1), `taxRoutes.ts` (1) and `transactions/bulkRoutes.ts` (4) are converted, and `mathRoutes.ts` (7) is a tested read-only exception; `prepaidRoutes.ts` (4) and `clientQueryRoutes.ts` (3) are converted. `accountRoutes.ts` (10), `inventoryRoutes.ts` (12 across its three routers), and `transactions/reconcileRoutes.ts` (11) are converted. The baseline JSON is authoritative for the complete inventory.
+- [ ] Resolve the remaining registrations in the live ratchet (see the current branch checkpoint for the measured inventory and boundary groups).
 - [ ] Before every route move, cover the old request/response for a normal result, a refusal, and a retry; then retain those parity assertions on the command wrapper. Do not change posting, tax, or report math.
-- [x] Review and classify every remaining POST/PUT/PATCH/DELETE site. `mathRoutes.ts`'s seven `TruthEngine` calculation endpoints are a test-backed, reasoned scanner exception (`READ_ONLY_ROUTE_EXCEPTIONS`): the file opens no database, so a command would wrap arithmetic in a transaction it does not need. Review the remaining period-route hits similarly (the reset path writes; FX preview is read-only despite POST).
+- [ ] Keep reviewing each unresolved site and test the boundary before calling it an exception. `READ_ONLY_ROUTE_EXCEPTIONS` and `PROVIDER_ROUTE_EXCEPTIONS` list the exact routes already reviewed; neither list excuses a new workspace mutation.
 - [ ] Finish the runner's required refusal-order/dummy-command acceptance proof and audit every command's schema, roles, transaction handler, read-only preview, audit summary, applicable inverse, risk, example, and refusals.
 
 ## 2. Browser writes and RLS
 
-- [ ] Inventory and move the remaining direct browser-write call sites (**84 across 47 files** on 17 Nov; the live count is `npx tsx scripts/commands-baseline.ts`). The scanner's largest current source files include `useEntityOperations.ts` and `useAutoRules.ts` (6 each), `Inventory.tsx`, `EstimatesView.tsx`, and `SupportView.tsx` (5 each). Classify each call by table and real-workspace vs guest/sample behavior before changing it.
+- [x] The current scanner reports no direct browser-to-workspace writes; the six local sample-store writes are counted separately. Do not treat this AST result alone as proof of deployed database policy.
 - [ ] Migrate table by table: registered command and server parity tests → browser caller switch → migration removes browser insert/update/delete access → `supabase/tests/rls.test.sql` proves the direct operation is refused while reads remain available.
 - [x] Keep the already-merged #719 document/rule migration in scope only as completed groundwork: four issued-document tables, automation rules, and warranty-history protection. It does **not** finish estimates or the remaining browser-write inventory.
 - [ ] List each new migration in `docs/FOR_YOU.md`; apply it to the live database only after its PR is merged and the deployed UI is verified. Never remove a browser policy ahead of the code that replaces the write.
@@ -61,6 +78,8 @@
 
 ## 3. Proposals, undo, and assistant tools
 
+- [x] The command-count threshold to begin this work was met by the numbering batch (61 commands at that point).
+- [ ] Issue an assistant token scoped to one person, one workspace, and that person's role; expire it within one hour and reject it on every non-read/non-command route.
 - [x] The command-count threshold to begin this work is met (61 commands after this batch).
 - [x] Issue an assistant token scoped to one person, one workspace, and that person's role; expire it within one hour and reject it on every non-read/non-command route. (`src/server/auth/assistantToken.ts`; `sandbox-assistant-token-routes.test.ts` sweeps every write route of `createApp()`.)
 - [ ] Assistant command calls validate and preview only, then persist a proposal; they must never run a handler before the person's acceptance.
@@ -74,7 +93,7 @@
 ## 4. Generated outputs
 
 - [x] `scripts/generate-commands.ts` produces the command manifest, browser-safe schemas/roles, generated SDK command inputs/names, and OpenAPI schema-name map. `src/server/openapi.ts` derives its command paths and schemas from those generated artifacts; `sdk/ledgerflowClient.ts` uses the generated input types. `commands-generated.test.ts` checks registry/schema/OpenAPI/client metadata consistency.
-- [x] Regenerate the artifacts for `numbering.update` in this PR; the generated-output test covers the new schema and command.
+- [x] Regenerate the OpenAPI, SDK, and browser artifacts for the eight new definitions in this PR; keep the registry fixture in sync.
 - [ ] Keep the generator/freshness tests in every command PR, and ensure the final API/schema and typed-client coverage includes every registered command. Generate assistant tool outputs from the same source; do not hand-maintain duplicate descriptions.
 
 ## 5. Final acceptance

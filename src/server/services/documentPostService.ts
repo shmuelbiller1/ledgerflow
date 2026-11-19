@@ -13,7 +13,8 @@ import type { Bill, CreditNote, Invoice, Transaction, VendorCredit } from '../..
 import { agreedPostingDay, DOCUMENT_ENTRY_KEY, loadPostingContext, todayIn } from './postingContextLoader';
 import { assertPostingOpen, workspaceRole } from '../../lib/periodLock';
 import { claimOf, decisionProblem } from '../../lib/expenseClaims';
-import { BulkRefusal, commitLedgerBulk, type BeforeWrite, type LedgerBulkPreflight } from './ledgerBulkCommit';
+import { BulkRefusal, commitLedgerBulk, readLegacyBulkReplay, type BeforeWrite, type LedgerBulkPreflight } from './ledgerBulkCommit';
+import { requestPayloadHash } from '../utils/idempotency';
 import { enforceCreditLimit } from './creditLimitGuard';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { budgetWarningsFor, type BudgetWarning } from './budgetGuard';
@@ -47,6 +48,7 @@ export interface DocumentPostInput {
 }
 
 export interface DocumentPostResult {
+  committed: boolean;
   body: Record<string, unknown>;
   /** the entries as written (empty for a replay or a document that posts nothing) */
   transactions: Transaction[];
@@ -353,8 +355,7 @@ export async function prepareDocumentPost(db: Firestore, user: RequestUser, inpu
     return {};
   };
 
-  const hashOf = { collection, docId, workspaceId, action, data: input.data };
-  const hashed = input.creditLimitOverride ? { ...hashOf, creditLimitOverride: input.creditLimitOverride } : hashOf;
+  const hashed = documentRequestFingerprint(input);
   return {
     workspaceId,
     document,
@@ -387,45 +388,37 @@ export async function commitPreparedDocumentPost(
     ...(options.afterCommit ? { afterCommit: options.afterCommit } : {}),
   });
   return {
+    committed: result.committed,
     body: result.body,
-    transactions: result.committed && !result.body.replayed ? result.transactions : [],
+    transactions: result.transactions,
     ...(prepared.cogsPendingReason ? { cogsPendingReason: prepared.cogsPendingReason } : {}),
   };
 }
 
-/**
- * Existing document route wrapper. It retains the legacy idempotency record shape, while command
- * handlers may prepare and commit through the same underlying service using the runner's transaction.
- */
-export async function postDocument(
-  db: Firestore,
-  user: RequestUser,
-  input: DocumentPostInput,
-  options: DocumentPostExecutionOptions = {},
-): Promise<DocumentPostResult> {
-  const { collection, docId, workspaceId } = input;
+function documentRequestFingerprint(input: DocumentPostInput) {
+  const { collection, docId, workspaceId, action } = input;
+  const hashOf = { collection, docId, workspaceId, action, data: input.data };
+  return input.creditLimitOverride ? { ...hashOf, creditLimitOverride: input.creditLimitOverride } : hashOf;
+}
+
+export type PreparedDocumentRequest = { replay: DocumentPostResult } | { plan: PreparedDocumentPost };
+
+/** A legacy retry must be recognized before building, even if the document has since been edited or removed. */
+export async function prepareDocumentRequest(db: Firestore, user: RequestUser, input: DocumentPostInput): Promise<PreparedDocumentRequest> {
+  const { workspaceId, idempotencyKey } = input;
   assertWorkspaceScope(user, workspaceId);
   const workspace = (await db.collection('workspaces').doc(workspaceId).get()).data();
   if (!isWorkspaceMemberData(workspace, user, workspaceId)) throw new BulkRefusal(403, { error: 'Not a member' });
-
-  // Preserve the old endpoint's replay behavior and response while the route remains a compatibility wrapper.
-  if (input.idempotencyKey && (await db.collection('idempotencyKeys').doc(`${workspaceId}_${input.idempotencyKey}`).get()).exists) {
-    const { body } = await commitLedgerBulk(db, user, {
-      workspaceId,
-      entityMutation: mutationOf(collection, docId, input.action, input.data),
-    }, {
-      idempotencyKey: input.idempotencyKey,
-      hashOf: input.creditLimitOverride
-        ? { collection, docId, workspaceId, action: input.action, data: input.data, creditLimitOverride: input.creditLimitOverride }
-        : { collection, docId, workspaceId, action: input.action, data: input.data },
-      ...(options.transaction ? { transaction: options.transaction } : {}),
-      ...(options.afterCommit ? { afterCommit: options.afterCommit } : {}),
-    });
-    return { body, transactions: [] };
+  if (idempotencyKey) {
+    const replay = await readLegacyBulkReplay(db, user, `${workspaceId}_${idempotencyKey}`, requestPayloadHash(documentRequestFingerprint(input)), 0);
+    if (replay) return { replay };
   }
+  return { plan: await prepareDocumentPost(db, user, input) };
+}
 
-  const prepared = await prepareDocumentPost(db, user, input);
-  return commitPreparedDocumentPost(db, user, prepared, options);
+export async function postDocument(db: Firestore, user: RequestUser, input: DocumentPostInput): Promise<DocumentPostResult> {
+  const prepared = await prepareDocumentRequest(db, user, input);
+  return 'replay' in prepared ? prepared.replay : commitPreparedDocumentPost(db, user, prepared.plan);
 }
 
 export async function previewDocumentPost(db: Firestore, user: RequestUser, input: DocumentPostInput) {

@@ -6,12 +6,14 @@ import { chargeUsageAndTrace } from "../services/usageBilling";
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
 import { apiAuthenticate } from "../auth/apiAuthenticate";
 import express from "express";
-import crypto from "crypto";
-import { ChartAccountSchema, BankMappingRequestSchema } from "../../schemas";
+import { BankMappingRequestSchema } from "../../schemas";
 import { BayesianClassifier } from "../../lib/algorithms";
 import { isPostable, lineAmount } from "../../lib/txFilters";
 import { getDb } from "../db/firestore";
-import { writeServerAuditLog } from "../services/auditLogService";
+import { executeCommand } from '../utils/commandExecutor';
+import { projectCreateCommand } from '../commands/projects';
+import { chartAccountRegisterCommand } from '../commands/chartAccounts';
+import type { ZodError } from 'zod';
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerContext): void {
@@ -84,39 +86,16 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
       const { name, code, description, budgetLimitCents, managerEmail } = req.body;
       if (!name) return sendError(res, "Missing required fields: 'name'", 400);
 
-      const db = getDb();
-      const newId = `proj_${crypto.randomUUID().replace(/-/g, '')}`;
-      const newProject = {
-        id: newId,
+      await executeCommand(req, res, {
+        definition: projectCreateCommand,
         workspaceId,
-        name,
-        code: code || "",
-        description: description || "",
-        budgetLimitCents: Number(budgetLimitCents) || 0,
-        managerEmail: managerEmail || "",
-        status: "active",
-        createdAt: new Date().toISOString()
-      };
-
-      await db.collection("projects").doc(newId).set(newProject);
-      await writeServerAuditLog({
-        workspaceId,
-        uid: authReq.user?.uid || 'api_user',
-        email: authReq.user?.email,
-        action: 'PROJECT_CREATED',
-        entityType: 'project',
-        entityId: newId,
-        details: {
-          description: `Created project "${name}"`,
-          code: newProject.code,
-          budgetLimitCents: newProject.budgetLimitCents,
+        input: { name, code: code || undefined, description: description || undefined, budgetLimitCents: Number(budgetLimitCents) || 0, managerEmail: managerEmail || undefined },
+        legacyRoute: true,
+        legacyOperationId: 'ignore',
+        formatResponse(outcome) {
+          if (!outcome.ok) return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+          return { status: 201, body: { status: 'success', message: 'Project resource created successfully.', ...(outcome.data as object) } };
         },
-      }, { db });
-
-      res.status(201).json({
-        status: "success",
-        message: "Project resource created successfully.",
-        project: newProject
       });
     } catch (err) {
       handleApiError(res, err);
@@ -156,56 +135,26 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
       const authReq = req as AuthenticatedRequest;
       await authorizeWorkspace(authReq, workspaceId);
 
-      const validation = ChartAccountSchema.safeParse({
-        ...req.body,
+      const { workspaceId: _workspace, uid: _uid, ...input } = req.body;
+      await executeCommand(req, res, {
+        definition: chartAccountRegisterCommand,
         workspaceId,
-        uid: authReq.user?.uid
-      });
-
-      if (!validation.success) {
-        return sendError(res, "Validation Error: " + validation.error.issues.map((e) => `${e.path.join('.')}: ${errorMessage(e)}`).join(', '), 400);
-      }
-
-      const { name, type, code, parentId, isActive, tags } = validation.data;
-
-      const db = getDb();
-      const newId = validation.data.id || `acc_${crypto.randomUUID().replace(/-/g, '')}`;
-      const newAccount = {
-        id: newId,
-        workspaceId,
-        name,
-        type,
-        code: code || "",
-        parentId: parentId || null,
-        isActive: isActive !== undefined ? isActive : true,
-        tags: tags || [],
-        createdAt: new Date().toISOString()
-      };
-
-      // A create API must not overwrite an account already owned by this or another tenant.
-      await db.runTransaction(async (tx) => {
-        const accRef = db.collection("chartAccounts").doc(newId);
-        if ((await tx.get(accRef)).exists) throw new Error("CONFLICT: Chart account ID already exists");
-        tx.create(accRef, newAccount);
-      });
-      await writeServerAuditLog({
-        workspaceId,
-        uid: authReq.user?.uid || 'api_user',
-        email: authReq.user?.email,
-        action: 'ACCOUNT_CREATED',
-        entityType: 'chart_account',
-        entityId: newId,
-        details: {
-          description: `Created chart account "${name}" (${type})`,
-          code: newAccount.code,
-          type,
+        input,
+        legacyRoute: true,
+        legacyOperationId: 'ignore',
+        formatResponse(outcome) {
+          if (outcome.ok) return { status: 201, body: { status: 'success', message: 'Chart of Accounts entry created.', ...(outcome.data as object) } };
+          if (outcome.code === 'INVALID_INPUT') {
+            const issues = (outcome.error as ZodError).issues;
+            return { status: 400, body: { status: 'error', message: 'Validation Error: ' + issues.map(e => `${e.path.join('.')}: ${errorMessage(e)}`).join(', ') } };
+          }
+          if (errorMessage(outcome.error).includes('ALREADY_EXISTS')) {
+            return { status: 409, body: { status: 'error', message: 'Chart account ID already exists' } };
+          }
+          const message = outcome.code === 'ROLE_REQUIRED' || outcome.code === 'NOT_A_MEMBER' || outcome.code === 'WORKSPACE_SCOPE' || outcome.code === 'WORKSPACE_FROZEN'
+            ? 'Forbidden workspace access' : outcome.message;
+          return { status: outcome.status, body: { status: 'error', message } };
         },
-      }, { db });
-
-      res.status(201).json({
-        status: "success",
-        message: "Chart of Accounts entry created.",
-        account: newAccount
       });
     } catch (err) {
       const message = errorMessage(err);

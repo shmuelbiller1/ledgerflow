@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
-import { READ_ONLY_ROUTE_EXCEPTIONS, scanCommandWrites, type CommandWriteCounts } from '../../scripts/commands-baseline';
+import { matchingUnconvertedPosts, PROVIDER_ROUTE_EXCEPTIONS, READ_ONLY_ROUTE_EXCEPTIONS, scanCommandWrites, type CommandWriteCounts } from '../../scripts/commands-baseline';
 
 type CommandBaseline = Pick<CommandWriteCounts, 'writeRoutes' | 'directBrowserWrites' | 'routeSites' | 'browserSites' | 'localStoreWrites' | 'localStoreSites'>;
 const baseline = JSON.parse(fs.readFileSync('commands-baseline.json', 'utf8')) as CommandBaseline;
@@ -41,17 +41,14 @@ test('command baseline totals agree with their per-file counts', () => {
   assert.equal(baseline.localStoreWrites, Object.values(baseline.localStoreSites).reduce((sum, count) => sum + count, 0));
 });
 
-test('every read-only route exception still names a real POST route that writes nothing', () => {
-  // An exception is a claim about the code, so it is checked against the code: the route must still be
-  // declared, and each one is listed once.
-  for (const exception of READ_ONLY_ROUTE_EXCEPTIONS) {
-    assert.equal(fs.existsSync(exception.file), true, `${exception.file} still exists`);
-    const source = fs.readFileSync(exception.file, 'utf8');
-    // a router may write its path with any quote; the check is that the address is still declared there
-    const quoted = ['\'', '"', '`'].map(quote => `${quote}${exception.route}${quote}`);
-    assert.ok(quoted.some(literal => source.includes(literal)), `${exception.file} still declares ${exception.route}`);
-    assert.ok(exception.why.length > 40, `${exception.route} says why it is read-only`);
+test('each scoped POST exception still names exactly one unconverted registration and has a reason', () => {
+  const exceptions = [...READ_ONLY_ROUTE_EXCEPTIONS, ...PROVIDER_ROUTE_EXCEPTIONS];
+  const keys = new Set<string>();
+  for (const exception of exceptions) {
+    const key = `${exception.file}:${exception.route}`;
+    assert.equal(keys.has(key), false, `duplicate exception: ${key}`);
+    keys.add(key);
+    assert.equal(matchingUnconvertedPosts(exception), 1, `${key} must be a real, unconverted POST`);
+    assert.ok(exception.why.length > 40, `${key} explains why this route does not run a command`);
   }
-  assert.equal(new Set(READ_ONLY_ROUTE_EXCEPTIONS.map(e => `${e.file}:${e.route}`)).size, READ_ONLY_ROUTE_EXCEPTIONS.length,
-    'each read-only exception is listed once');
 });
