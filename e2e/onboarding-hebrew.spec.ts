@@ -22,7 +22,14 @@ const workspace = {
 const NAMES = /LedgerFlow|Google|Microsoft|QuickBooks|Xero|Wave|SaaS/g;
 
 async function latinWordsLeft(region: import('@playwright/test').Locator): Promise<string[]> {
-  const text = (await region.innerText()).replace(NAMES, ' ');
+  // <option> text is data, not copy: a currency code and an IANA zone name read the same in every
+  // language, so counting them would fail on the correct screen. The fiscal select's month names
+  // are copy and are asserted by name where the wizard is checked ("אפריל" for April).
+  const text = (await region.evaluate(el => {
+    const copy = el.cloneNode(true) as HTMLElement;
+    copy.querySelectorAll('option').forEach(option => option.remove());
+    return copy.textContent ?? '';
+  })).replace(NAMES, ' ');
   return (text.match(/\b[A-Za-z]{3,}\b/g) || []).filter(Boolean);
 }
 
@@ -171,6 +178,9 @@ test('N-10 Hebrew setup keeps the typed Hebrew name and the chosen month when th
   await main.getByLabel('חנות').check();
   await expect(main.getByLabel('שם העסק')).toHaveValue('חברת אלפא בע״מ');
   // the step that writes to the server is not pressed by this test: no setup save, no provider call
-  expect(await page.evaluate(() => document.documentElement.lang)).toBe('he');
+  // The wizard carries its own lang/dir (the fixture mounts this screen alone, without the app shell
+  // that also mirrors the choice onto <html>), so the screen's own attributes are the ones to check.
+  expect(await main.getAttribute('lang')).toBe('he');
+  expect(await main.evaluate(el => getComputedStyle(el).direction)).toBe('rtl');
   expect(HEBREW.test(await main.innerText())).toBe(true);
 });
