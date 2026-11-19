@@ -59,6 +59,7 @@ test.describe('S-34 HTTP security headers', () => {
       expect(headers['x-content-type-options']).toBe('nosniff');
       expect(headers['cross-origin-opener-policy']).toBe('same-origin');
       expect(headers['cross-origin-resource-policy']).toBe('same-origin');
+      expect(headers['permissions-policy']).toBe('camera=(), microphone=(), geolocation=(), usb=(), payment=(self)');
       expect(headers['x-powered-by']).toBeUndefined();
       expect(headers['content-security-policy']).toContain("default-src 'self'");
       expect(headers['content-security-policy']).toContain("frame-ancestors 'self'");
@@ -80,6 +81,7 @@ test.describe('S-34 HTTP security headers', () => {
     expect(globalHeaders.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
     expect(globalHeaders.get('x-content-type-options')).toBe('nosniff');
     expect(globalHeaders.get('content-security-policy')).toContain("frame-ancestors 'self'");
+    expect(globalHeaders.get('permissions-policy')).toBe('camera=(), microphone=(), geolocation=(), usb=(), payment=(self)');
     if (globalHeaders.has('strict-transport-security')) {
       expect(globalHeaders.get('strict-transport-security')).toMatch(/max-age=31536000/i);
     }
