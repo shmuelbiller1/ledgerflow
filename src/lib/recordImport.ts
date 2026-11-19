@@ -175,7 +175,7 @@ const ACCOUNT_TYPE_RULES: Array<[RegExp, AccountTypeResult]> = [
   [/credit card/, { type: 'liability', subtype: 'credit_card' }],
   [/liabilit|loan/, { type: 'liability' }],
   [/equity|capital/, { type: 'equity' }],
-  [/cost of (goods|sales)|cogs|direct cost/, { type: 'cost_of_goods' }],
+  [/cost[_\s]+of[_\s]+(goods|sales)|cogs|direct cost/, { type: 'cost_of_goods' }],
   [/other income/, { type: 'revenue', category: 'Other Income' }],
   [/income|revenue|sales/, { type: 'revenue' }],
   [/other expense/, { type: 'expense', category: 'Other Expense' }],

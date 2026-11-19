@@ -9,14 +9,15 @@ import { formatCurrency } from '../../lib/utils';
 import { PieChart } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
+import { csvMoneyForCurrency } from '../../lib/csvExport';
 import { CappedCollectionsNote } from '../common/LoadedEntriesOnlyNote';
-import { csvMoneyForBook } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { LEDGER_COLLECTIONS } from '../../lib/ledgerCollections';
 import ExpenseBillCategories from './ExpenseBillCategories';
 import { useServerExpenseByCategory } from '../../hooks/useServerExpenseByCategory';
 import { AccountReportResult } from './AccountReportResult';
+import { useBookCurrency } from '../../hooks/useBookCurrency';
 import { percentWidthStyle } from '../../lib/percentBar';
 
 interface Props {
@@ -32,9 +33,7 @@ const LoadedReport: React.FC<Props> = ({
   endDate
 }) => {
   const reportText = useReportText();
-  // #910: the file is in the book's currency, so its decimals come from that currency (JPY yen, KWD fils)
-  const bookCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
-  const moneyCell = useMemo(() => csvMoneyForBook(bookCurrency), [bookCurrency]);
+  const bookCurrency = useBookCurrency();
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
   const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
 
@@ -61,8 +60,9 @@ const LoadedReport: React.FC<Props> = ({
         <span className="font-mono w-12 text-right">{Number(info.getValue()).toFixed(1)}%</span>
       </span>
     ) },
-    { id: 'total', accessorFn: row => row.totalAmountCents, header: reportText('r.total-outflow', 'Total Outflow'), cell: info => <span className="font-mono font-semibold text-rose-600">{formatCurrency(Number(info.getValue()))}</span> },
+    { id: 'total', accessorFn: row => row.totalAmountCents, header: reportText('r.total-outflow', 'Total Outflow'), cell: info => <span className="font-mono font-semibold text-rose-600">{formatCurrency(Number(info.getValue()), bookCurrency)}</span> },
   ];
+  const writeCsvMoney = csvMoneyForCurrency(bookCurrency);
 
   const totalExpenseCents = useMemo(() => {
     return breakdowns.reduce((sum, b) => sum + b.totalAmountCents, 0);
@@ -85,7 +85,7 @@ const LoadedReport: React.FC<Props> = ({
         {read.source !== 'loaded-incomplete' && <div className="text-right">
           <div className="text-xs text-neutral-500 uppercase font-semibold">{reportText('r.total-expenses', 'Total Expenses')}</div>
           <div className="text-lg font-mono font-bold text-rose-600">
-            {formatCurrency(totalExpenseCents)}
+            {formatCurrency(totalExpenseCents, bookCurrency)}
           </div>
         </div>}
       </div>
@@ -106,7 +106,7 @@ const LoadedReport: React.FC<Props> = ({
             filename: 'expenses-by-category.csv',
             label: reportText('r.export-csv', 'Export CSV'),
             headers: ['Category', 'Transactions', 'Share %', 'Total Outflow'],
-            mapRow: row => [row.category, row.transactionCount, row.percentage.toFixed(1), moneyCell(row.totalAmountCents)],
+            mapRow: row => [row.category, row.transactionCount, row.percentage.toFixed(1), writeCsvMoney(row.totalAmountCents)],
           }}
           emptyState={<EmptyState title={reportText('r.no-posted-expenses-in-this-period', 'No posted expenses in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
           filteredEmptyState={<EmptyState title={reportText('r.no-category-matches-your-search', 'No category matches your search')} description={reportText('r.try-another-category-name', 'Try another category name.')} />}

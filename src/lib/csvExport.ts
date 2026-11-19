@@ -18,6 +18,12 @@ export function csvMoney(cents: number | null | undefined): string {
 
 /** Make a numeric-cell writer for this currency. Determine the scale once for the whole
  * file; splitting an integer avoids rounding a large balance through floating point. */
+/** A row's money in its own currency's decimals; a missing or malformed code falls back to two decimals. */
+export function csvMoneyIn(currency: string | undefined): (minor: number) => string {
+  const code = String(currency || '').trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(code) ? csvMoneyForCurrency(code) : csvMoney;
+}
+
 export function csvMoneyForCurrency(currency: string): (minor: number) => string {
   if (!/^[A-Z]{3}$/.test(currency)) throw new RangeError('Invalid currency for CSV export.');
   const digits = currencyDigits(currency);

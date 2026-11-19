@@ -1,8 +1,8 @@
 import { ReportInputBoundary } from './ReportInputBoundary';
-import React, { useMemo } from 'react';
+import React from 'react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
-import { csvMoneyForBook } from '../../lib/csvExport';
+import { csvMoneyForCurrency } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { formatCurrency, workspaceYearMonth } from '../../lib/utils';
 import { useServerMonthlyAverages } from '../../hooks/useServerMonthlyAverages';
@@ -10,7 +10,7 @@ import { AccountReportResult } from './AccountReportResult';
 import { Calendar, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
 import ReportEmptyState from './ReportEmptyState';
 import { useReportText } from './useReportText';
-import { useAuthStore } from '../../stores/useAuthStore';
+import { useBookCurrency } from '../../hooks/useBookCurrency';
 
 interface Props {
   selectedYear?: number;
@@ -20,12 +20,12 @@ const LoadedReport: React.FC<Props> = ({
   selectedYear = workspaceYearMonth().year
 }) => {
   const reportText = useReportText();
-  // #910: the file is in the book's currency, so its decimals come from that currency (JPY yen, KWD fils)
-  const bookCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
-  const moneyCell = useMemo(() => csvMoneyForBook(bookCurrency), [bookCurrency]);
+  const bookCurrency = useBookCurrency();
   // L-123 step 4f: with the loaded lists capped, the months come from the server (every entry of the year)
   const { summary, ...read } = useServerMonthlyAverages(selectedYear);
   const noActivity = summary.monthlyData.every(month => month.incomeCents === 0 && month.expenseCents === 0);
+
+  const writeCsvMoney = csvMoneyForCurrency(bookCurrency);
 
   /** One row per month: what came in, what went out, the difference, and whether it was out of line. */
   const columns: ColumnDef<(typeof summary.monthlyData)[number], unknown>[] = [
@@ -34,10 +34,10 @@ const LoadedReport: React.FC<Props> = ({
      * because sorting the printed name put April, August and December before January.
      */
     { id: 'month', accessorFn: row => `${row.monthName} ${selectedYear}`, sortingFn: (a, b) => a.original.month - b.original.month, header: reportText('r.month', 'Month'), cell: info => <span className="font-semibold">{String(info.getValue())}</span> },
-    { id: 'income', accessorFn: row => row.incomeCents, header: reportText('r.revenue', 'Revenue'), cell: info => <span className="font-mono text-emerald-600">{formatCurrency(Number(info.getValue()))}</span> },
-    { id: 'expense', accessorFn: row => row.expenseCents, header: reportText('r.expense-burn', 'Expense / Burn'), cell: info => <span className="font-mono text-rose-600">{formatCurrency(Number(info.getValue()))}</span> },
+    { id: 'income', accessorFn: row => row.incomeCents, header: reportText('r.revenue', 'Revenue'), cell: info => <span className="font-mono text-emerald-600">{formatCurrency(Number(info.getValue()), bookCurrency)}</span> },
+    { id: 'expense', accessorFn: row => row.expenseCents, header: reportText('r.expense-burn', 'Expense / Burn'), cell: info => <span className="font-mono text-rose-600">{formatCurrency(Number(info.getValue()), bookCurrency)}</span> },
     { id: 'net', accessorFn: row => row.incomeCents - row.expenseCents, header: reportText('r.net-cash-flow', 'Net Cash Flow'), cell: info => (
-      <span className={`font-mono font-bold ${Number(info.getValue()) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatCurrency(Number(info.getValue()))}</span>
+      <span className={`font-mono font-bold ${Number(info.getValue()) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatCurrency(Number(info.getValue()), bookCurrency)}</span>
     ) },
     { id: 'status', accessorFn: row => (row.isExpenseAnomaly || row.isIncomeAnomaly ? reportText('r.variance-spike', 'Variance spike') : reportText('r.normal', 'Normal')), header: reportText('r.status-anomaly', 'Status / Anomaly'), cell: info => (
       info.row.original.isExpenseAnomaly || info.row.original.isIncomeAnomaly
@@ -71,7 +71,7 @@ const LoadedReport: React.FC<Props> = ({
               <TrendingUp className="w-4 h-4 text-emerald-600" />
             </div>
             <div className="text-xl font-mono font-bold text-emerald-600 mt-2">
-              {formatCurrency(summary.monthlyAverageIncomeCents)}
+              {formatCurrency(summary.monthlyAverageIncomeCents, bookCurrency)}
               <span className="text-xs text-neutral-400 font-normal"> {reportText('r.mo', '/ mo')}</span>
             </div>
           </div>
@@ -82,7 +82,7 @@ const LoadedReport: React.FC<Props> = ({
               <TrendingDown className="w-4 h-4 text-rose-600" />
             </div>
             <div className="text-xl font-mono font-bold text-rose-600 mt-2">
-              {formatCurrency(summary.monthlyAverageExpenseCents)}
+              {formatCurrency(summary.monthlyAverageExpenseCents, bookCurrency)}
               <span className="text-xs text-neutral-400 font-normal"> {reportText('r.mo', '/ mo')}</span>
             </div>
           </div>
@@ -106,9 +106,9 @@ const LoadedReport: React.FC<Props> = ({
             headers: ['Month', 'Revenue', 'Expense / Burn', 'Net Cash Flow', 'Status / Anomaly'],
             mapRow: row => [
               `${row.monthName} ${selectedYear}`,
-              moneyCell(row.incomeCents),
-              moneyCell(row.expenseCents),
-              moneyCell(row.incomeCents - row.expenseCents),
+              writeCsvMoney(row.incomeCents),
+              writeCsvMoney(row.expenseCents),
+              writeCsvMoney(row.incomeCents - row.expenseCents),
               row.isExpenseAnomaly || row.isIncomeAnomaly ? 'Variance spike' : 'Normal',
             ],
           }}

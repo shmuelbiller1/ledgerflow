@@ -1,9 +1,13 @@
-import React from 'react';
-import { Users, Download, Printer, RefreshCw } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Users, Download, Printer, RefreshCw, CalendarClock, CheckCircle2 } from 'lucide-react';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { useAccessReview } from '../../../hooks/useAccessReview';
-import { ACCESS_REVIEW_HEADERS, ACCESS_ROLE_LABELS, TWO_STEP_LABELS, accessReviewCsvRows, twoStepLimitNote, type AccessReviewRow } from '../../../lib/accessReview';
+import {
+  ACCESS_REVIEW_HEADERS, ACCESS_ROLE_LABELS, TWO_STEP_LABELS, accessReviewCalendarIcs, accessReviewCsvRows,
+  accessReviewReminderState, readLastAccessReviewAt, recordAccessReviewCompleted, twoStepLimitNote,
+  type AccessReviewRow,
+} from '../../../lib/accessReview';
 import { TanStackDataGrid } from '../../ui/TanStackDataGrid';
 import type { ColumnDef } from '@tanstack/react-table';
 import { downloadCsv } from '../../../lib/csvExport';
@@ -42,7 +46,23 @@ export default function AccessReviewPanel() {
 
 function ScopedAccessReview({ workspaceId }: { workspaceId: string }) {
   const review = useAccessReview(workspaceId);
+  const workspaceName = useAuthStore(s => s.getCurrentWorkspace()?.name || 'Workspace');
+  const [lastReviewedAt, setLastReviewedAt] = useState<string | null>(() => readLastAccessReviewAt(workspaceId));
+  const reminder = useMemo(() => accessReviewReminderState(lastReviewedAt), [lastReviewedAt]);
   const exportCsv = () => downloadCsv(`access-review-${getLocalDateISO()}.csv`, [...ACCESS_REVIEW_HEADERS], accessReviewCsvRows(review.rows));
+  const markReviewed = () => setLastReviewedAt(recordAccessReviewCompleted(workspaceId));
+  const downloadReminderIcs = () => {
+    const ics = accessReviewCalendarIcs(workspaceName, reminder.nextDueDate);
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `access-review-monthly-${reminder.nextDueDate}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   /**
    * One row per person: who they are, their role, when they last signed in, whether two-step login is
@@ -114,6 +134,35 @@ function ScopedAccessReview({ workspaceId }: { workspaceId: string }) {
           </button>
         </div>
       </div>
+
+      {review.status === 'ready' && (
+        <div
+          data-print-hide
+          className={`p-4 rounded-xl border flex flex-wrap items-center justify-between gap-3 ${
+            reminder.status === 'ok'
+              ? 'border-emerald-500/25 bg-emerald-500/5'
+              : 'border-amber-500/35 bg-amber-500/10'
+          }`}
+        >
+          <div className="flex items-start gap-2.5 min-w-0">
+            {reminder.status === 'ok'
+              ? <CheckCircle2 aria-hidden="true" size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+              : <CalendarClock aria-hidden="true" size={16} className="text-amber-500 mt-0.5 shrink-0" />}
+            <div className="space-y-0.5 text-xs">
+              <div className="font-bold text-[var(--text)]">Monthly access review cadence</div>
+              <p className="text-[var(--muted)]">{reminder.summary}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={markReviewed} className="min-h-11 px-3 border border-[var(--line)] bg-[var(--surface)] rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <CheckCircle2 aria-hidden="true" size={14} /> Mark monthly review done
+            </button>
+            <button type="button" onClick={downloadReminderIcs} className="min-h-11 px-3 border border-[var(--line)] bg-[var(--surface)] rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <CalendarClock aria-hidden="true" size={14} /> Monthly reminder (.ics)
+            </button>
+          </div>
+        </div>
+      )}
 
       {review.status === 'loading' && <LoadingState what="the workspace people" />}
 
