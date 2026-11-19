@@ -669,7 +669,7 @@ export const REPORT_STRINGS_6: ScreenStringEntry[] = [
   { key: 'r.ye-this-pack', en: 'this year-end pack', he: 'חבילת סוף השנה הזו' },
   { key: 'r.ye-empty-title', en: 'Nothing posted in this year yet', he: 'עוד לא נרשם דבר בשנה הזו' },
   { key: 'r.ye-empty-detail', en: 'Choose another year, or post an entry: the pack fills in as the year is booked.', he: 'בחרו שנה אחרת או רשמו פקודה: החבילה מתמלאת ככל שהשנה נרשמת.' },
-  { key: 'r.ye-provenance', en: 'Worked out in this browser from the entries, documents and assets loaded here, as of {date}. It posts, closes and files nothing.', he: 'מחושב בדפדפן הזה מהרישומים, המסמכים והנכסים שנטענו כאן, נכון ל-{date}. אינו רושם, סוגר או מגיש דבר.' },
+  { key: 'r.ye-provenance', en: 'Worked out in this browser from the entries, documents and assets loaded here, as of {yearEnd}. It posts, closes and files nothing.', he: 'מחושב בדפדפן הזה מהרישומים, המסמכים והנכסים שנטענו כאן, נכון ל-{yearEnd}. אינו רושם, סוגר או מגיש דבר.' },
   { key: 'r.ye-unknown-figure', en: 'Figure', he: 'נתון' },
   { key: 'r.ye-income', en: 'Income', he: 'הכנסות' },
   { key: 'r.ye-cost-of-goods', en: 'Cost of goods', he: 'עלות המכר' },

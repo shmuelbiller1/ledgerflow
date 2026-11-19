@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
-import { collectionList, type LedgerKey } from '../../lib/ledgerCollections';
+import { collectionList, type LedgerKey, isCollectionCapped } from '../../lib/ledgerCollections';
 
 /**
  * L-123 step 6: on screens that review only the entries loaded in this browser (suggestions, questions, scans), says
@@ -36,7 +36,7 @@ export function CappedCollectionsNote({ testId, keys, what, className = 'text-xs
   // the whole record is selected (one stable reference), and filtered here: a selector that built a
   // new array every render would make the store read as changed forever
   const truncated = useLedgerStore(s => s.truncatedCollections);
-  const capped = keys.filter(key => Boolean(truncated?.[key]));
+  const capped = keys.filter(key => isCollectionCapped(truncated, key));
   if (!capped.length) return null;
   return (
     <p role="note" data-testid={testId} className={className}>

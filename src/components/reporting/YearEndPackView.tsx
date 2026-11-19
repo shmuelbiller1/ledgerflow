@@ -19,13 +19,14 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import type { LedgerKey } from '../../lib/ledgerCollections';
 import { buildYearEndPack, type YearEndSection } from '../../lib/yearEndPack';
-import { getLocalDateISO } from '../../lib/utils';
+import { formatDate, getLocalDateISO } from '../../lib/utils';
 import { formatCurrency } from '../../lib/moneyFormat';
 import CloseReportLink from '../ledger/CloseReportLink';
 import { useUIStore } from '../../stores/useUIStore';
 import { CappedCollectionsNote } from '../common/LoadedEntriesOnlyNote';
 import ReportEmptyState from './ReportEmptyState';
 import { fill, useReportText } from './useReportText';
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 
 export default function YearEndPackView({ selectedYear }: { selectedYear?: number }) {
   const reportText = useReportText();
@@ -116,7 +117,7 @@ export default function YearEndPackView({ selectedYear }: { selectedYear?: numbe
 
   // the lists this pack reads, filtered to those the browser capped (the note names only what is missing)
   const readLists: readonly LedgerKey[] = ['transactions', 'accounts', 'invoices', 'bills', 'assets', 'customers', 'vendors', 'creditNotes', 'vendorCredits', 'bankLines'];
-  const cappedKeys = readLists.filter(key => Boolean(truncatedCollections?.[key]));
+  const cappedKeys = readLists.filter(key => isCollectionCapped(truncatedCollections, key));
   // R-8: "nothing loaded" and "nothing posted this year" are different things to the reader, and
   // opening balances can give a year figures without a single entry in it, so the two are told apart.
   const nothingLoaded = (transactions || []).length === 0;
@@ -219,7 +220,7 @@ export default function YearEndPackView({ selectedYear }: { selectedYear?: numbe
       </div>
 
       <p className="text-xs text-[var(--muted)]">
-        {fill(reportText('r.ye-provenance', 'Worked out in this browser from the entries, documents and assets loaded here, as of {date}. It posts, closes and files nothing.'), { date: pack.endDate })}
+        {fill(reportText('r.ye-provenance', 'Worked out in this browser from the entries, documents and assets loaded here, as of {yearEnd}. It posts, closes and files nothing.'), { yearEnd: formatDate(pack.endDate) })}
       </p>
     </div>
   );
