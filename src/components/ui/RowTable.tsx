@@ -95,35 +95,40 @@ export function RowTable<T, C = never>({
   const keyOf = rowKey ?? ((_row: T, position: number) => position);
   const planned = planColumns(columns);
   const header = rowHeaderColumn ? planned.find(column => column.rowHeader) ?? planned[0] : undefined;
-  const table = (
+  // Emit the final order and source index when creating a declarative cell. Cloning every
+  // cell a second time is costly for a full year of receipts. Only caller-supplied rows
+  // (e.g. a spanning total) need the native-markup adapter.
+  const natural = planned.map((column, index) => ({ column, source: order === null ? undefined : index }));
+  const layout = order?.length === natural.length ? order.map(i => natural[i]) : natural;
+  const nativeRows = (rows: ReactNode) => order === null ? rows : orderReportCells(rows, order, hidden);
+  return (
     <table className={tableClassName}>
       <caption className={captionClassName}>{caption}</caption>
       <thead className={headRowClassName}>
         <tr>
-          {planned.map(column => (
-            <th key={column.key} scope="col" className={alignClass(column.align, column.headClassName ?? 'py-2 font-semibold')}>
+          {layout.map(({ column, source }) => (
+            <th key={column.key} data-source-column={source} scope="col" className={alignClass(column.align, column.headClassName ?? 'py-2 font-semibold')}>
               {column.header}
             </th>
           ))}
         </tr>
       </thead>
       <tbody className={bodyClassName}>
-        {bodyStart}
-        {rows.length === 0 && emptyRow !== undefined ? emptyRow : rows.map((row, position) => (
+        {nativeRows(bodyStart)}
+        {rows.length === 0 && emptyRow !== undefined ? nativeRows(emptyRow) : rows.map((row, position) => (
           <tr key={keyOf(row, position)} className={typeof rowClassName === 'function' ? rowClassName(row) : rowClassName}>
-            {planned.map(column => {
+            {layout.map(({ column, source }) => {
               const className = alignClass(column.align, column.className);
               const cellProps = typeof column.cellProps === 'function' ? column.cellProps(row) : column.cellProps;
               if (column === header) {
-                return <th key={column.key} scope="row" className={`${className} ${rowHeaderClassName}`.trim()} {...cellProps}>{column.cell(row)}</th>;
+                return <th key={column.key} data-source-column={source} scope="row" className={`${className} ${rowHeaderClassName}`.trim()} {...cellProps}>{column.cell(row)}</th>;
               }
-              return <td key={column.key} className={className} {...cellProps}>{column.cell(row)}</td>;
+              return <td key={column.key} data-source-column={source} className={className} {...cellProps}>{column.cell(row)}</td>;
             })}
           </tr>
         ))}
       </tbody>
-      {footer !== undefined ? <tfoot className={footerClassName}>{footer}</tfoot> : null}
+      {footer !== undefined ? <tfoot className={footerClassName}>{nativeRows(footer)}</tfoot> : null}
     </table>
   );
-  return order === null ? table : orderReportCells(table, order, hidden);
 }

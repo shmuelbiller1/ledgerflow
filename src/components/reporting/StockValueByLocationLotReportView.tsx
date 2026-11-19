@@ -9,11 +9,14 @@ import { useReportDates } from './useReportDates';
  * goods), with the units recorded at sale as a reference only — on-hand per lot is not tracked and
  * is never computed here. Read-only; nothing posts.
  */
+import { ShowMoreRows } from '../common/ShowMoreRows';
+import { usePagedRows } from '../../hooks/usePagedRows';
 import { useReportList } from '../../hooks/useReportList';
 import { isItemDetails } from '../../lib/reportListRows';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 import React, { useMemo, useState } from 'react';
+import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -43,9 +46,13 @@ interface StockValueInputs { purchaseOrders?: PurchaseOrder[]; history?: ItemDet
 export default function StockValueByLocationLotReportView(props: StockValueInputs = {}) {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const uid = useAuthStore(s => s.user?.uid);
-  const guest = useAuthStore(s => s.isGuest);
+  const guest = useAuthStore(s => s.isGuest && !s.user);
+  const loadedBook = useDataNeedsStore(s => s.loadedWorkspaceId);
   const reportText = useReportText();
   if (!workspaceId || (!uid && !guest)) return <p role="status">{reportText('r.stock-value-select-book', 'Select a workspace to review its stock value.')}</p>;
+  // Older payloads do not repeat the SQL workspace_id. They belong to the subscription
+  // that delivered them, not whichever book the reader just switched to.
+  if (loadedBook !== workspaceId && !(guest && !loadedBook)) return <p role="status">{reportText('r.loading-items-invoices-and-receipts', 'Loading items, invoices and receipts…')}</p>;
   // The subscription's last purchase orders are not a successful read for the next reader/book.
   return <StockValue key={JSON.stringify([workspaceId, uid, guest])} {...props} workspaceId={workspaceId} />;
 }
@@ -75,8 +82,8 @@ function StockValue({ purchaseOrders: purchaseOrdersProp, history: historyProp, 
   const history = historyProp ?? ledger.rows;
 
   const itemsForWorkspace = useMemo(
-    () => (inventory || []).filter(i => i.workspaceId === workspaceId),
-    [inventory, workspaceId],
+    () => (inventory || []).filter(i => i.workspaceId === workspaceId || (!i.workspaceId && !itemsLoading)),
+    [inventory, workspaceId, itemsLoading],
   );
 
   const byLocation = useMemo(() => {
@@ -101,7 +108,7 @@ function StockValue({ purchaseOrders: purchaseOrdersProp, history: historyProp, 
     const itemsById = new Map(itemsForWorkspace.map(i => [i.id, i]));
     const lines: LotReceiptLine[] = [];
     for (const po of purchaseOrders || []) {
-      if (po.workspaceId !== workspaceId) continue;
+      if (po.workspaceId && po.workspaceId !== workspaceId) continue;
       const itemOf = new Map((po.items || []).map(i => [i.id, i.itemId] as const));
       for (const receipt of po.receipts || []) {
         for (const line of receipt.items || []) {
@@ -128,7 +135,7 @@ function StockValue({ purchaseOrders: purchaseOrdersProp, history: historyProp, 
   const sales = useMemo(() => {
     const refs: LotSaleRef[] = [];
     for (const inv of invoices || []) {
-      if (inv.workspaceId !== workspaceId) continue;
+      if (inv.workspaceId ? inv.workspaceId !== workspaceId : invoicesLoading) continue;
       if (inv.status === 'void' || inv.status === 'cancelled' || inv.status === 'rejected' || inv.status === 'draft') continue;
       const day = String(inv.date || '').slice(0, 10);
       for (const line of inv.items || []) {
@@ -138,9 +145,12 @@ function StockValue({ purchaseOrders: purchaseOrdersProp, history: historyProp, 
       }
     }
     return refs;
-  }, [invoices, workspaceId]);
+  }, [invoices, workspaceId, invoicesLoading]);
 
   const lots = useMemo(() => valuationByLots(lotLines, sales), [lotLines, sales]);
+  // Page only the drawing: the total, CSV and printout cover the complete received-lot list.
+  // Moving the location valuation date must not reset or refilter these all-history receipts.
+  const lotPage = usePagedRows(lots.rows, workspaceId);
   const waitingForOrders = !purchaseOrdersProp && ordersLoading;
   const partial = inventoryPartial || invoicesPartial || Boolean(!purchaseOrdersProp && (ordersTruncated || ordersError));
   const lotIncomplete = partial || itemsLoading || invoicesLoading || waitingForOrders;
@@ -245,13 +255,13 @@ function StockValue({ purchaseOrders: purchaseOrdersProp, history: historyProp, 
         ) : (
           <ReportSchedule
             columnControls
-            allowDisplayedExport={!lotIncomplete}
+            allowDisplayedExport={!lotIncomplete && lotPage.visible.length === lotPage.total}
             caption={reportText('r.value-by-lot', 'Value by lot')}
             captionClassName="sr-only"
             headRowClassName="border-b border-[var(--line)] text-start text-[var(--muted)]"
             rowClassName="border-b border-[var(--line)]/50"
             bodyClassName=""
-            rows={lots.rows} rowKey={r => JSON.stringify([r.itemId, r.lotNumber])}
+            rows={lotPage.visible} rowKey={r => JSON.stringify([r.itemId, r.lotNumber])}
             footer={<tr className="border-t border-[var(--line)] font-semibold">
                   <th scope="row" colSpan={4} className="py-2 pe-3 text-start">{reportText('r.total-received-value', 'Total received value')}</th>
                   <td className="py-2 pe-3 text-right font-mono">{money(lots.receivedValueCents)}</td>
@@ -268,6 +278,9 @@ function StockValue({ purchaseOrders: purchaseOrdersProp, history: historyProp, 
               { header: reportText('r.sold-reference', 'Sold (reference)'), align: 'right', className: 'py-1.5 font-mono', cell: r => r.soldQty || '' },
             ]} />
         )}
+        <ShowMoreRows shown={lotPage.visible.length} total={lotPage.total} noun="lots" onMore={lotPage.more} onAll={lotPage.all}
+          labels={{ more: fill(reportText('r.show-more-received-lots', 'Show more lots ({shown} of {total})'), { shown: lotPage.visible.length, total: lotPage.total }),
+            all: fill(reportText('r.show-all-received-lots', 'Show all {total} lots'), { total: lotPage.total }) }} />
       </section>
     </section>
   );

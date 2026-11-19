@@ -8,6 +8,10 @@ import { orderReportCells, ReportColumnOrder, ReportHiddenColumns } from '../ui/
 import { downloadCsv } from '../../lib/csvExport';
 import { hiddenColumnsCss, readHidden, saveHidden, toggleColumn } from '../../lib/columnChoice';
 
+// A natural layout must not signal a new context to thousands of cells when the chooser
+// opens or its headings are first read. An empty order still indexes cells for the chooser.
+const NATURAL: number[] = [];
+
 /**
  * A named focusable region and native controls let keyboard users scroll wide tables. N-10:
  * "Columns" shows or hides the table's columns, remembered per report on this device (the report is
@@ -59,8 +63,10 @@ export default function ReportTableScroll({children, allowDisplayedExport = true
    const names=cells.map(c=>(c.textContent||'').trim());
    const identifyingCell=table?.querySelector('tbody th[scope="row"][data-source-column]');
    setRowHeader(identifyingCell ? Number(identifyingCell.getAttribute('data-source-column')) : -1);
-   const rectangular=Array.from(table?.querySelectorAll('tr')||[]).every(tr=>tr.children.length===cells.length&&Array.from(tr.children).every(cell=>cell.hasAttribute('data-source-column')));
-   setReorderable(indexed&&rectangular&&!!cells.length&&!table?.querySelector('[colspan]:not([colspan="1"]),[rowspan]:not([rowspan="1"])'));
+   const spans = table?.querySelector('[colspan]:not([colspan="1"]),[rowspan]:not([rowspan="1"])');
+   const rectangular = indexed && !!cells.length && !spans && Array.from(table?.querySelectorAll('tr') || []).every(tr =>
+     tr.children.length === cells.length && Array.from(tr.children).every(cell => cell.hasAttribute('data-source-column')));
+   setReorderable(rectangular);
    const name=(table?.querySelector('caption')?.textContent||'').trim()||names.join('|');
    setHeaders(prev=>(JSON.stringify(prev)===JSON.stringify(names)?prev:names));
    const schema = JSON.stringify([identity, name, names]);
@@ -69,15 +75,6 @@ export default function ReportTableScroll({children, allowDisplayedExport = true
      setReport(name);
      setHidden(name ? readHidden(identity ? JSON.stringify([identity, name]) : name, names) : []);
    }
-   const text=(table?.textContent||'').trim();
-   const busy=Boolean(table?.closest('[aria-busy="true"]'))||/\b(loading|refreshing|calculating|failed|could not|error)\b/i.test(text);
-   // A provisional, failed or explicit empty message outside the table already owns role=status/alert.
-   // Do not add a second live region (and do not count our own fallback as such a message).
-   const outsideMessage=containers.some(container=>Array.from(container.children).some(child=>
-    child!==el&&!child.contains(el)&&!child.querySelector('[data-report-empty-state]')&&
-    (child.matches('[role="status"],[role="alert"]')||Boolean(child.querySelector('[role="status"],[role="alert"]')))&&
-    Boolean((child.textContent||'').trim())
-   ));
    // C-54/C-91: structural markers, not the words in a data row, identify placeholders. A row named
    // "No item" or "No Fee Loan" is still a real row; colspan/rowspan and explicit markers are not.
    const headerCount=cells.length;
@@ -89,7 +86,17 @@ export default function ReportTableScroll({children, allowDisplayedExport = true
     if(headerCount>1&&bodyCells.length<headerCount)return false;
     return true;
    });
-   setEmpty(Boolean(table)&&!busy&&!outsideMessage&&!hasRows&&!table?.querySelector('[data-report-empty-state]'));
+   if (!table || hasRows) { setEmpty(false); return; }
+   const text=(table.textContent||'').trim();
+   const busy=Boolean(table.closest('[aria-busy="true"]'))||/\b(loading|refreshing|calculating|failed|could not|error)\b/i.test(text);
+   // A provisional, failed or explicit empty message outside the table already owns role=status/alert.
+   // Do not add a second live region (and do not count our own fallback as such a message).
+   const outsideMessage=containers.some(container=>Array.from(container.children).some(child=>
+    child!==el&&!child.contains(el)&&!child.querySelector('[data-report-empty-state]')&&
+    (child.matches('[role="status"],[role="alert"]')||Boolean(child.querySelector('[role="status"],[role="alert"]')))&&
+    Boolean((child.textContent||'').trim())
+   ));
+   setEmpty(!busy&&!outsideMessage&&!table.querySelector('[data-report-empty-state]'));
   };
   const watch=new MutationObserver(read);
   const watchOptions: MutationObserverInit={childList:true,subtree:true,characterData:true,attributes:true};
@@ -110,7 +117,7 @@ export default function ReportTableScroll({children, allowDisplayedExport = true
   });
   downloadCsv('Displayed_report_rows.csv',visible.map(index=>headers[index]),rows);
  };
- const columnOrder = reorderable ? order.map(Number) : [];
+ const columnOrder = reorderable && order.some((id, i) => Number(id) !== i) ? order.map(Number) : NATURAL;
  return <>
   {empty&&<div data-print-hide className="mb-2">
    <ReportEmptyState title={reportText('r.empty-table', 'Nothing to show in this table yet')}
@@ -150,7 +157,7 @@ export default function ReportTableScroll({children, allowDisplayedExport = true
      })}
     </fieldset>
    )}
-   <ReportHiddenColumns.Provider value={effectiveHidden}><ReportColumnOrder.Provider value={columnOrder}>
+   <ReportHiddenColumns.Provider value={effectiveHidden.length ? effectiveHidden : NATURAL}><ReportColumnOrder.Provider value={columnOrder}>
      {orderReportCells(children, columnOrder, effectiveHidden)}
    </ReportColumnOrder.Provider></ReportHiddenColumns.Provider>
   </div>

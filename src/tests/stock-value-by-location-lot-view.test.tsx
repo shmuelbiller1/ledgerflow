@@ -4,6 +4,8 @@
  * gadget's unknown reason (never split), the lot table's received value with "on hand: not
  * tracked", and the CSV buttons. Nothing is written.
  */
+import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
+import { parseCsv } from '../lib/csv';
 import { stubFetch } from './helpers/dom';
 import test, { afterEach, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -53,7 +55,7 @@ describe('Stock value by location and lot screen', () => {
     useAuthStore.setState({
       isGuest: true, user: null, currentWorkspaceId: 'w1', workspaces: [{ id: 'w1', name: 'W', currency: 'USD' }] as never,
     });
-    useDataNeedsStore.setState({ failed: {} as never });
+    useDataNeedsStore.setState({ loadedWorkspaceId: 'w1', failed: {} as never });
     useLedgerStore.setState({ inventory: items as never, invoices: [] as never, truncatedCollections: {} as never });
   });
   afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
@@ -76,6 +78,47 @@ describe('Stock value by location and lot screen', () => {
     assert.ok(rows.some(t => /L-A/.test(t) && /15/.test(t) && /\$80\.00/.test(t) && /\$5\.33/.test(t)), rows.join(' | '));
     assert.ok(rows.some(t => /Total received value/.test(t) && /\$80\.00/.test(t)), rows.join(' | '));
     assert.ok(screen.getAllByRole('button', { name: 'Download CSV' }).length === 2);
+  });
+
+  test('untagged payloads belong to the confirmed book, not a foreign tag or the next book', async () => {
+    setComponentWorkspace('viewer'); markComponentCollectionsLoaded('inventory', 'invoices');
+    const sale = { id: 'sale', status: 'paid', date: '2026-01-15', items: [{ itemId: 'widget', lotNumber: 'L-A', quantity: 2 }] };
+    useLedgerStore.setState({ inventory: [...items.map(i => ({ ...i, workspaceId: undefined })),
+      { ...items[0], id: 'other', name: 'Foreign item', workspaceId: 'other-book' }] as never,
+      invoices: [sale, { ...sale, workspaceId: 'other-book', items: [{ ...sale.items[0], quantity: 1000 }] }] as never });
+    const orders = [{ ...purchaseOrders[0], workspaceId: undefined }, { ...purchaseOrders[0], workspaceId: 'other-book' }];
+    render(<StockValueByLocationLotReportView purchaseOrders={orders as never} history={history} />);
+    const location = await screen.findByRole('table', { name: 'Value by location' });
+    assert.match(location.textContent!, /Widget/); assert.match(location.querySelector('tfoot')!.textContent!, /\$35\.00/);
+    assert.doesNotMatch(location.textContent!, /Foreign item/);
+    const lot = screen.getByRole('table', { name: 'Value by lot' });
+    assert.deepEqual(Array.from(lot.querySelectorAll('tbody tr > *'), c => c.textContent).slice(3), ['15', '$80.00', '$5.33', 'GR-1', '2']);
+    act(() => useAuthStore.setState({ currentWorkspaceId: 'new-book' }));
+    assert.equal(screen.queryByRole('table'), null, 'old untagged records cannot be claimed by the next workspace');
+    assert.match(screen.getByRole('status').textContent!, /Loading/);
+  });
+
+  test('a long lot schedule pages the drawing, never its receipt total, printout or financial CSV', async () => {
+    const receipt = purchaseOrders[0].receipts[0];
+    const many = [{ ...purchaseOrders[0], receipts: [{ ...receipt, items: Array.from({ length: 205 }, (_, i) => ({
+      ...receipt.items[0], lotNumber: `LOT-${String(i + 1).padStart(3, '0')}`, quantityReceived: 1, unitPriceCents: 100,
+    })) }] }];
+    render(<StockValueByLocationLotReportView purchaseOrders={many as never} history={history} />);
+    const table = await screen.findByRole('table', { name: 'Value by lot' });
+    const rowCount = () => table.querySelectorAll('tbody tr').length;
+    assert.equal(rowCount(), 200); assert.match(table.querySelector('tfoot')!.textContent!, /\$205\.00/);
+    const downloads: Blob[] = [];
+    const anchor = window.HTMLAnchorElement.prototype, click = anchor.click, create = URL.createObjectURL;
+    try {
+      anchor.click = () => {}; URL.createObjectURL = blob => { assert.ok(blob instanceof Blob); downloads.push(blob); return 'blob:received-lots'; };
+      fireEvent.click(screen.getAllByRole('button', { name: 'Download CSV' })[1]);
+      const csv = parseCsv(await downloads[0].text());
+      assert.equal(csv.length, 206); assert.deepEqual(csv[205].slice(1, 5), ['LOT-205', '2027-06-30', '1', '1.00']);
+    } finally { anchor.click = click; URL.createObjectURL = create; }
+    act(() => { window.dispatchEvent(new window.Event('beforeprint')); }); assert.equal(rowCount(), 205);
+    act(() => { window.dispatchEvent(new window.Event('afterprint')); }); assert.equal(rowCount(), 200);
+    fireEvent.click(screen.getByRole('button', { name: 'Show more lots (200 of 205)' }));
+    assert.equal(rowCount(), 205); assert.match(table.querySelector('tbody tr:last-child')!.textContent!, /LOT-205/);
   });
 
   test('an unreadable server history is not an empty warehouse or an export; retry does not replace lot evidence', async () => {

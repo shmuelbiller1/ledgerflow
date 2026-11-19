@@ -96,4 +96,21 @@ The valuation check exercises an earlier day ($22.50 instead of $37.50), an inva
 
 The [first hosted capture](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44616799639) published nothing: three of its independent image checks differed. The replacement fixture serves pinned copies of the application’s Inter, Space Grotesk and JetBrains Mono faces before mounting native controls. It does not mask figures, change production styles or loosen pixel tolerances. Local and hosted PNGs are not interchangeable: one phone image wraps to a different height.
 
+### Large books and the existing column chooser
+
+A scale-four book has **768 received lots**. Only the drawing is paged, using the shared report pager;
+changing the stock valuation day still does not change the lot list. A 205-lot regression checks
+**200** initially drawn, the complete **$205** total and **205** CSV records before expansion, all
+205 rows for print, the original page restored after printing and the last lot after “Show more”.
+Shared declarative cells now carry their column order at creation instead of cloning every row again.
+SQL-scoped legacy payloads need not repeat the workspace ID: a separate test keeps their stock,
+$80 of received lot value and 2 sold references, rejects explicitly foreign rows, and shows no
+old records while the next workspace’s subscriptions are starting.
+
+The existing account-balance chooser also has a non-first row identifier. Its Account checkbox is
+now correctly checked and disabled while Type can be hidden and Balance can move. The [neighbor
+refresh and independent recheck](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44625818760)
+covered the four viewport/theme cases; only the four chooser images changed. Review of the pixel
+differences localized them to the checkbox, not the table, totals or CSV.
+
 [PR checks and database-backed verification](https://github.com/shmuelbiller1/ledgerflow/pull/949/checks). The complete UI-2 list, palette and proposal work are not claimed here.
