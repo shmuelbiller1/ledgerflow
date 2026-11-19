@@ -25,6 +25,8 @@ in the real app and reaches the **transaction-line** matrix using the Projects t
 
 ## Before and after
 
+[Hosted capture and no-update recheck](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44583505427) (`de837e7` references): 40 cases in each pass. The separate local Chromium capture also passed all 40 on its own no-update run. Fonts and native month inputs differ between the local browser and CI; the hosted images below are the merge references. The 27 real-shell / existing chart / action / report browser tests passed separately.
+
 Each link is one full populated screen. **390 light** and **1280 dark** use Hebrew/RTL; the other two use
 English/LTR. Before WebPs are from the original components; after PNGs are Playwright references. The
 Time before fixture had a viewer with a mocked team response; the after fixture uses an accountant for

@@ -200,6 +200,9 @@ At the end of that batch the dry run offered **10 tables in 9 files** (12 in 11 
       Browser tests exercise the real components and the ten shell destinations separately. Report
       fixtures cover English / Hebrew and LTR / RTL, 390 / 1280, light / dark, keyboard, scoped axe
       and actual CSV downloads. The database-backed route tests are separate from the browser mocks.
+      The [hosted Chromium run](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44583505427)
+      captured and independently rechecked all 40 references. Reviewed the RTL chart axes, phone row
+      headings, opening/closing balances and matrix footers. No unrelated reference or tolerance changed.
 
 **Next batch:** measured on `4a6cc44` and this change: `rawTables` **120 → 109**, migration queue
 **118 → 107**, dry codemod **10 tables / 9 files → 8 / 7**, **132 → 123** blocks left for hand work.
