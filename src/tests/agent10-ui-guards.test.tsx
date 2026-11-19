@@ -63,7 +63,7 @@ test('#915 UI sink: TransactionEditModal refuses SVG/script fileUrls while rende
     ],
   });
 
-  render(<TransactionEditModal isOpen transaction={tx} accounts={accounts} onClose={() => {}} />);
+  render(<TransactionEditModal isOpen transaction={tx} accounts={accounts} onClose={() => {}} onUpdate={async () => {}} />);
   const imgs = Array.from(document.querySelectorAll('img'));
   assert.equal(imgs.length, 1);
   assert.equal(imgs[0].getAttribute('src'), PNG);
