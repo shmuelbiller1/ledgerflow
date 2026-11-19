@@ -23,8 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout
+      - name: Checkout (full history for secret scan)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Node 24
         uses: actions/setup-node@v4
         with:
@@ -69,6 +71,13 @@ jobs:
             process.exit(1);
           }
           NODE
+      - name: Gitleaks scan (full history + config, S-24)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: 'false'
+        with:
+          config-path: .gitleaks.toml
       - name: Audit production dependencies against High/Critical threshold (S-25)
         run: node scripts/check-dependency-audit.ts --allowlist=security-audit-allowlist.json
       - name: Generate CycloneDX software bill of materials

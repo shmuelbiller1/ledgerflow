@@ -54,7 +54,24 @@ export function applySecurityMiddleware(app: express.Express, isAllowedOrigin: (
     frameguard: aiStudioProxy ? false : { action: 'sameorigin' },
     hsts: process.env.NODE_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    permissionsPolicy: {
+      features: {
+        camera: ["'none'"],
+        microphone: ["'none'"],
+        geolocation: ["'none'"],
+        usb: ["'none'"],
+        payment: ["'self'"],
+      },
+    },
   }));
+
+  // Permissions-Policy is not covered by vercel.json for the standalone Node server (API) — emit it here too
+  app.use((_req, res, next) => {
+    if (!res.headersSent && !res.getHeader('Permissions-Policy')) {
+      res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=(), payment=(self)');
+    }
+    next();
+  });
 
   // S-23 stage two: the tightened policy alongside the enforced one, so the browser reports what it
   // would have blocked (cspReportRoutes.ts) without a single page breaking while it is still allowed.
