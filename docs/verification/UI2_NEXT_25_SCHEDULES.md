@@ -84,6 +84,16 @@ Each link is a full report. The **before** images were captured from the origina
 
 ## Results
 
-Original capture: **100** populated views. Local Chromium: **100** new views captured and **100** passed without updating references. Across the 100 before/after pairs, all **1,980** table cells had matching shapes and the same financial figures/order. The text differences were reader dates and translated labels/statuses. All 25 IDs opened in Reports; the seven shell/boundary cases and four existing neighbor cases passed. The valuation test exercises an earlier day ($22.50 instead of $37.50), an invalid day, and an unspecified collection cap; the separate receipt still reports $45.
+| Verification | Result |
+|---|---|
+| Original/current populated views | All 100 table shapes matched; **1,980 cells** compared. Differences in text were reader dates or translated headers/statuses, not changed amounts or order. |
+| Local Chromium | **100/100** captured and **100/100** passed on an independent, no-update run, also with the pinned typefaces. |
+| [Hosted Chromium](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44619721067/job/135897816392) | **100/100** captured, then **100/100** passed with no update and no retries. All 100 published candidates at `90c131f4` were reviewed, not replaced with local images. |
+| Shell and boundary tests | **13/13**: all 25 destination IDs, valuation-day and credit-edit boundaries, real date-range deep links for party trial balance and ratios, and four neighboring drawer/export/nexus cases. |
+| Civil-date regressions | **25/25** in America/Los_Angeles and **25/25** in Pacific/Auckland. |
 
-The [first hosted run](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44616799639) generated all 100 images but its independent recheck differed on three. No images from that run were published. The new fixture serves pinned copies of the application’s actual Inter, Space Grotesk and JetBrains Mono fonts; fonts finish loading before native controls mount. It does not hide controls, mask figures or change production styles. CI and final candidate review are tracked on the PR. The complete UI-2 list, palette and proposal work are not claimed here.
+The valuation check exercises an earlier day ($22.50 instead of $37.50), an invalid day and an unspecified collection cap; the separate receipt still reports $45. A malformed movement read must leave the location CSV disabled, keep lot evidence separate and allow a successful retry. Closing the book removes both tables.
+
+The [first hosted capture](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44616799639) published nothing: three of its independent image checks differed. The replacement fixture serves pinned copies of the application’s Inter, Space Grotesk and JetBrains Mono faces before mounting native controls. It does not mask figures, change production styles or loosen pixel tolerances. Local and hosted PNGs are not interchangeable: one phone image wraps to a different height.
+
+[PR checks and database-backed verification](https://github.com/shmuelbiller1/ledgerflow/pull/949/checks). The complete UI-2 list, palette and proposal work are not claimed here.

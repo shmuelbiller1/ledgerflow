@@ -204,6 +204,8 @@ At the end of that batch the dry run offered **10 tables in 9 files** (12 in 11 
       captured and independently rechecked all 40 references. Reviewed the RTL chart axes, phone row
       headings, opening/closing balances and matrix footers. No unrelated reference or tolerance changed.
 
+### Stock, customer and tax schedules — fifth batch
+
 - [x] **25 stock, customer and tax screen files** ([worked figures, before/after images and checks](verification/UI2_NEXT_25_SCHEDULES.md)).
       This removes 26 raw tables: Stock Value by Location & Lot had two. Milestone Billing already had
       a shared detail schedule — only its order table counts. No change to posting or the valuation formulas.
