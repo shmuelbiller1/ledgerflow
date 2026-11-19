@@ -81,9 +81,19 @@ Arena fixes this session to `arena/c2f61ba0-ledgerflow`, so the only way to work
 
 ---
 
-## 7. Google Drive preservation
+## 7. Google Drive preservation (uploaded and read back)
 
-See the dated addendum uploaded with this checkpoint (`2026-11-19_Agent12_N3-N8-N10_MASTER_RECOVERY_INDEX_ADDENDUM.md`) and the exact recovery patch (`2026-11-19_Agent12_PR897-min-fix.patch`). **File IDs are recorded in the addendum after upload and verification.**
+| Artifact | Drive folder | File ID |
+|---|---|---|
+| This checkpoint / findings register | 03 Progress Checkpoints | `1iTdQXgbsGEDQtKwNLoCet0qe4r_ItUNV` |
+| Exact patch of commit `29e961be` | 05 Code Changes and Recovery Patches | `1MMTX39JcU0Nz42WRKJO3c-itH56gLkjr` |
+| Focused test output (41/41) | 06 Testing and CI | `160vPNZs16j4LBw_G8-9_6mKRozD8o8EQ` |
+| PR / bot-comment / CI evidence | 07 Pull Requests and Reviews | `1Uip8tZy5hgRK85qS4zkZ9dGj64lp_VcM` |
+| Master recovery index addendum | 01 Master Audit | `1m-cnhyPti2RxVV2TaB4pHNT0ZmsT_69N` |
+
+Each file was opened after upload and its extracted text checked. A pointer comment (`doco.YiPN5GJSfy6ehvZEo_M7qA`) was added to the shared `MASTER_RECOVERY_INDEX.md` (`1pTGxQhLdqBvH4sLoR-0MZ0XuvKtTP86F`); the 91 KB cross-agent index itself was not rewritten, so no other agent's entry was overwritten.
+
+**Review threads:** Gitar approved stacked PR #920 with "No issues found". On #897 it first confirmed the `{min}` finding was still live at `3c3138b`, then closed it after seeing #920; the concurrent session agreed in-thread that the finding stays open until #920 lands here. PR #897's head later moved to `efec862` (a `.sonarcloud.properties` CPD exclusion for the intentional bilingual tables) — that does not touch this fix, and I did not weaken the quality gate.
 
 ---
 
