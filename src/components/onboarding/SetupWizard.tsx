@@ -16,6 +16,7 @@ import { templateDescriptionHe, templateNameHe } from '../../lib/i18n/onboarding
 import { directionOf, useUiLanguage } from '../../lib/i18n/useUiLanguage';
 
 import { BUSINESS_PRESETS, presetForBusiness, presetDimensions } from '../../lib/businessPresets';
+import { labelRole } from '../../lib/labelRoles';
 /** Business type selects optional starter accounts and labels; opening figures live on Overview. */
 const STEP_KEYS = ['setup.step.business', 'setup.step.chart', 'setup.step.done'] as const;
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'ILS', 'CAD', 'AUD', 'CHF', 'JPY', 'INR'];
@@ -58,6 +59,9 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
   const [fiscalStart, setFiscalStart] = useState(workspace?.fiscalYearStartMonth || 1);
   const [businessType, setBusinessType] = useState(() => presetForBusiness(workspace?.businessType)?.id || '');
   const [templateId, setTemplateId] = useState(() => accounts.length ? '' : (presetForBusiness(workspace?.businessType)?.id || ''));
+  // The labels the chosen template contributes; the self-balancing one is named only when the preset has it.
+  const chosenLabels = presetForBusiness(businessType)?.labels ?? [];
+  const selfBalancingLabel = chosenLabels.find(d => labelRole(d) === 'self-balancing');
   if (!workspace) return null;
   if (role !== 'owner' && role !== 'accountant') {
     return (
@@ -160,9 +164,13 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
               <button type="button" onClick={() => { useUIStore.getState().goToPage({ tab: 'settings', sub: 'import' }); onDone(); }} disabled={busy}
                 className="min-h-11 px-3 rounded-lg border border-[var(--line)] font-semibold">{t('setup.comingFrom.button')}</button>
             </div>
-            {/* What the template writes into the person's own chart stays as stored; only the sentence is translated. */}
-            <p className="text-sm text-[var(--muted)]">{setupTextWith('setup.suggestedLabels', language,
-              { labels: BUSINESS_PRESETS.find(p => p.id === businessType)?.labels.map(d => d.name).join(language === 'he' ? ' ו' : ' and ') || t('setup.labels.none') })}</p>
+            {/* What the template writes into the person's own chart stays as stored; only the sentence is translated.
+                The label's name is data (a person may have renamed it), so it is passed in, not translated —
+                and the self-balancing sentence appears only for the preset that has such a label. */}
+            <p className="text-sm text-[var(--muted)]">
+              {setupTextWith('setup.suggestedLabels', language, { labels: chosenLabels.map(d => d.name).join(language === 'he' ? ' ו' : ' and ') || t('setup.labels.none') })}
+              {selfBalancingLabel ? setupTextWith('setup.suggestedLabels.selfBalancing', language, { label: selfBalancingLabel.name }) : null}
+            </p>
             <div className="space-y-1">
               <label htmlFor="setup-name" className="micro-label">{t('setup.field.name')}</label>
               <input id="setup-name" className={field} value={name} onChange={e => setName(e.target.value)} />
