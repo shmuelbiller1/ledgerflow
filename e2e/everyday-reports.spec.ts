@@ -11,6 +11,8 @@ for(const [id,title,component] of reports){
   if(id==='sales-payment-summary'){
    await expect(report).toContainText('Feb 29, 2024 – Mar 31, 2024');
    await expect(report).toContainText('Previous: Jan 28, 2024 – Feb 28, 2024');
+  }else if(id==='inactive-items'){
+   await expect(report.locator('h2 time')).toHaveAttribute('datetime','2024-03-31');await expect(report.locator('h2 time')).toHaveText('Mar 31, 2024');
   }else await expect(report).toContainText('2024-03-31');
   if(id.endsWith('period-summary')){
    await expect(report.getByRole('columnheader',{name:'Previous closing / change'})).toBeVisible();

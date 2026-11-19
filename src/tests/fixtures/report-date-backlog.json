@@ -48,8 +48,6 @@
   "src/components/reporting/IlSelfEmploymentNiReportView.tsx",
   "src/components/reporting/ImportAcceptanceView.tsx",
   "src/components/reporting/ImportServicesReportView.tsx",
-  "src/components/reporting/InactiveItemsReportView.tsx",
-  "src/components/reporting/InventoryDetailsReportView.tsx",
   "src/components/reporting/InventoryValuationReportView.tsx",
   "src/components/reporting/IsraelAdvanceTaxReportView.tsx",
   "src/components/reporting/IsraelMonthJourneyReportView.tsx",

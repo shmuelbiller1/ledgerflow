@@ -33,7 +33,7 @@ const ledger = {
   })),
 };
 
-export async function openComparison(page: Page, mount: JourneyMount, width: number, theme: 'light' | 'dark', role: 'bookkeeper' | 'viewer' = 'viewer', fixture: Partial<Pick<JourneyOptions, 'ledger' | 'api'>> = {}) {
+export async function openComparison(page: Page, mount: JourneyMount, width: number, theme: 'light' | 'dark', role: 'accountant' | 'bookkeeper' | 'viewer' = 'viewer', fixture: Partial<Pick<JourneyOptions, 'ledger' | 'api'>> = {}, beforeMount?: () => Promise<void>) {
   const he = (width === 390) === (theme === 'light');
   await page.setViewportSize({ width, height: 850 });
   await page.clock.setFixedTime(new Date('2026-02-28T12:00:00Z'));
@@ -47,6 +47,7 @@ export async function openComparison(page: Page, mount: JourneyMount, width: num
     await document.fonts.load(`400 14px ${getComputedStyle(document.body).fontFamily}`, 'All items (2) כל הפריטים');
     await document.fonts.ready;
   }, { theme, he });
+  await beforeMount?.();
   await remountJourney(page, [mount]);
   return { ...handle, he };
 }

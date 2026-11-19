@@ -13,6 +13,8 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export interface BackorderLine {
   orderId: string;
+  /** Original order line, even when two lines have the same item and quantity. */
+  position: number;
   number: string;
   customerName: string;
   orderedAt: string;
@@ -50,7 +52,7 @@ export function backorders(orders: Estimate[], entries: Transaction[], items: In
       const covered = round2(Math.min(available, line.left));
       stock.set(line.itemId, round2(available - covered));
       rows.push({
-        orderId: order.id, number: String(order.number || order.id), customerName: String(order.customerName || ''), orderedAt: String(order.orderedAt || '').slice(0, 10),
+        orderId: order.id, position: line.position, number: String(order.number || order.id), customerName: String(order.customerName || ''), orderedAt: String(order.orderedAt || '').slice(0, 10),
         itemId: line.itemId, item: names.get(line.itemId) || line.description, left: line.left, covered, short: round2(line.left - covered), onOrder: incoming.get(line.itemId) || 0,
       });
     }
