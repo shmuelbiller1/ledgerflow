@@ -5,31 +5,47 @@ import type { RequestUser } from '../auth/requestUser';
 import type { StepPreview } from '../db/pg/sandboxReviewStore';
 import type { EffectIntent } from '../services/sandboxEffects';
 import { captureEffects, refuseSandboxEffect } from '../services/sandboxEffects';
-import { assertCommandCommitAccess, CommandRefusal, handlePreparedCommand, parseCommandInput, resolveCommandDate, type CommandAfterCommit } from '../utils/commandExecutor';
-import { customerCreateCommand } from './customers';
-import { invoiceCreateCommand } from './documents';
-import { paymentReceiveCommand } from './payments';
+import type { Request } from 'express';
+import { assertCommandCommitAccess, CommandRefusal, enforcePlanCapacity, handlePreparedCommand, parseCommandInput, resolveCommandDate, type CommandAfterCommit } from '../utils/commandExecutor';
+import { commandRegistry } from './defaultRegistry';
 import { requestPayloadHash } from '../utils/idempotency';
-import { taskCreateCommand } from './tasks';
 import type { AnyCommandDefinition, CommandAuditSummary } from './types';
 
-// This is an authorization boundary, not the public command registry. Stock moves, raw SQL,
-// live jobs, metered resources and two-step/high-risk writes need their own review before admission.
-const reviewed: ReadonlyArray<readonly [AnyCommandDefinition, readonly string[]]> = [
-  [customerCreateCommand, ['customers']],
-  [invoiceCreateCommand, ['invoices', 'transactions']],
-  [paymentReceiveCommand, ['bills', 'invoices', 'payments', 'transactions', 'paymentAllocations', 'numberingSeries']],
-  [taskCreateCommand, ['documents']],
-];
-const commands = new Map(reviewed.map(([command, collections]) => [String(command.name), { command, writable: new Set(collections) }]));
-export const overlayCollections = [...new Set(reviewed.flatMap(([, collections]) => collections))].sort(byCodeUnit);
+/**
+ * The admission boundary for sandbox steps. It is not the public command registry: a command is a
+ * step only when its area is one the assistant drafts in (the books, not the workspace's membership,
+ * keys, periods, payroll, bank connections or support), it is workspace-scoped and not a legacy two-phase operation. A high-risk command is a step that the
+ * acceptance gate takes alone, after confirmation; a plan-metered one is metered again at accept. Everything else answers
+ * SANDBOX_COMMAND_UNAVAILABLE at the door.
+ *
+ * What a step may write is not a hand-kept list per command any more. The draft runs under the
+ * `lf_sandbox` role, which can write only the overlay (every document table has one), so the draft
+ * stage accepts any overlay table; the records it actually wrote are recorded on the step. At accept,
+ * the live stage is allowed exactly those tables (plus the audit log), and `expectedLive` refuses a
+ * replay whose write set differs from the reviewed draft at all. A command that needs a database
+ * sequence (stock moves), a live job or a provider call cannot draft: the role has no sequence
+ * privilege and the effect guards refuse, so the step is refused and nothing is kept.
+ */
+const STEP_AREAS: ReadonlySet<string> = new Set([
+  'asset', 'autorule', 'bill', 'budget', 'chartaccount', 'contact', 'creditnote', 'customer', 'document', 'employee', 'entrylink',
+  'estimate', 'inventory', 'inventoryitem', 'invoice', 'journal', 'journaltemplate', 'loan', 'payment', 'project', 'record',
+  'rma', 'tag', 'tasks', 'time', 'vendor', 'vendorcredit', 'warranty', 'watches',
+]);
+/** Commands in an admitted area that still must not be drafted: they touch other people or outside systems directly. */
+const STEP_DENIED: ReadonlySet<string> = new Set(['estimate.signlink', 'document.remove', 'record.delete']);
 
 export function stepCommand(name: string) {
-  const entry = commands.get(name);
-  if (!entry || entry.command.scope === 'person' || entry.command.risk !== 'normal' || entry.command.capacity || entry.command.defaultOperationId) {
+  const command = commandRegistry.get(name);
+  const area = name.split('.')[0] ?? '';
+  if (!command || !STEP_AREAS.has(area) || STEP_DENIED.has(name) || command.scope === 'person' || command.defaultOperationId) {
     throw new CommandRefusal('This command is not available as a sandbox step', 409, 'SANDBOX_COMMAND_UNAVAILABLE');
   }
-  return entry;
+  return command;
+}
+
+/** The commands the assistant may draft, for the tool list and the admission test. */
+export function stepCommandNames(): string[] {
+  return commandRegistry.list().map(command => String(command.name)).filter(name => { try { stepCommand(name); return true; } catch { return false; } }).sort(byCodeUnit);
 }
 
 interface StepActor { user: RequestUser; workspaceId: string; workspace: Record<string, unknown> }
@@ -115,6 +131,15 @@ export async function prepareDraftStep(actor: StepActor, db: Firestore, tx: Tran
 
 export async function replayReviewedStep(actor: StepActor, db: Firestore, tx: Transaction, command: AnyCommandDefinition,
   input: unknown, callbacks: CommandAfterCommit[]) {
+  if (command.risk === 'high' && (actor.user.developerWorkspaceId || actor.user.aal !== 'aal2')) {
+    // the same rule the command router applies; the acceptance gate has already taken this step alone
+    throw new CommandRefusal('High-risk commands require a person signed in with two-step verification; API keys cannot confirm this step.', 403, 'TWO_STEP_REQUIRED');
+  }
+  if (command.capacity) {
+    // the draft did not use the plan up; the live replay is metered like any other call of this command
+    const request = { params: {}, body: {}, query: {}, user: actor.user } as unknown as Request;
+    await enforcePlanCapacity(request, actor.workspaceId, command.capacity, db, input);
+  }
   const { value, intents } = await captureEffects(db, () => executeStep(actor, db, tx, command, input, callback => { callbacks.push(callback); }));
   return { preview: describeStep(command.name, value.result, value.summary, intents, value.date, false), inverse: value.inverse };
 }

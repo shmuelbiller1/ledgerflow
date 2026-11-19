@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { assistantAuthenticate, assistantClaims, issueAssistantToken } from '../auth/assistantToken';
 import { requestUser } from '../auth/requestUser';
 import { openSandbox, reviewSandbox, undoSandboxStep } from '../commands/sandboxReview';
+import { stepCommand, stepCommandNames } from '../commands/sandboxStepCommands';
 import { getDb, isWorkspaceMemberData, type Firestore } from '../db/firestore';
 import { validateSandboxId } from '../db/pg/sandbox';
 import { listOpenSandboxes, ownsOpenSandbox } from '../db/pg/sandboxReviewStore';
@@ -179,6 +180,14 @@ function toolRoutes(router: express.Router, live: Firestore) {
 /** Drafting routes, shared by both principals: the person may also draft by hand. */
 function draftRoutes(router: express.Router, live: Firestore) {
   router.get('/:sandboxId', guarded(async (req, res) => res.json(await reviewSandbox(req, sandboxScope(req), { kind: 'review' }, live))));
+  // What may be drafted here, in the command's own words; the input schema is at /api/v1/commands.
+  router.get('/:sandboxId/commands', guarded(async (req, res) => {
+    await readableSandbox(live, req);
+    res.json({ commands: stepCommandNames().map(name => {
+      const command = stepCommand(name);
+      return { name, risk: command.risk, ...(command.capacity ? { metered: true } : {}), sentence: command.describe.sentence, example: command.describe.example };
+    }) });
+  }));
   router.post('/:sandboxId/steps', guarded(async (req, res) => {
     const { command, input } = parse(addBody, req.body);
     res.status(201).json(await reviewSandbox(req, sandboxScope(req), { kind: 'add', command, input }, live));

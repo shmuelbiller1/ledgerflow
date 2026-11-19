@@ -63,10 +63,10 @@ means `SECURITY DEFINER`.
 | `lf_guard` (definer) | `lf_rules` and workspace period settings **only on browser writes** | Reused. On either trusted server path it only maintains `updated_at`; the sandbox connection has no browser JWT. |
 | `lf_guard_special` (definer) | Workspace role/membership for browser lock-date writes | Browser-only; not attached. Server authorization must check the real membership and use the same command gates. |
 | `lf_guard_invoice_approval` (definer) | Workspace role/membership, only for browsers | Browser-only; not attached. The shared server command is responsible for the approval decision. |
-| `lf_chart_account_client_guard` (definer) | No; own row | Reused, browser-only; opening-balance commands are not admitted to the sandbox. |
+| `lf_chart_account_client_guard` (definer) | No; own row | Reused, browser-only; `workspace.openingbalances` is outside the admitted areas. |
 | `lf_document_settlement_guard`, `lf_guard_document_settlement` (both definer) | No; own row | Reused, browser-only. The reviewed payment handler must be able to update settlement in both server modes. |
-| `lf_documents_kind_guard`, `lf_asset_accounting_guard` | No; own row | Reused, browser-only. Draft documents use a reviewed command schema (such as `tasks.create`); asset commands are not admitted. |
-| `lf_rma_guard`, `lf_warranty_guard`, `lf_inventory_cost_guard` (definer) | No; own row | Reused, browser-only. The shared `customer.create` input rejects protected history; inventory cost commands are not admitted. |
+| `lf_documents_kind_guard`, `lf_asset_accounting_guard` | No; own row | Reused, browser-only. Draft documents use the command schemas; asset commands run through the same server validation in both modes. |
+| `lf_rma_guard`, `lf_warranty_guard`, `lf_inventory_cost_guard` (definer) | No; own row | Reused, browser-only. The shared `customer.create` input rejects protected history; a step that would write `stockMoves` is refused (see admission below). |
 | `lf_enforce_balanced_ledger` (definer) | No; own row, may settle FX rounding into that row | Reused for visible entries, not tombstones. The corrupt-fixture switch applies only to live tables. Tests verify that even with that switch set, overlays reject an unbalanced posted journal entry and still settle FX rounding. |
 | `lf_transactions_ledger_integrity` (definer) | Reads chart accounts | The same trigger reads the merged chart on overlay writes and the live chart on real writes. Both ledger triggers limit the fixture exception by target schema: `current_user` in a definer function is the owner, not the writer. No balance or account rule was changed. |
 | `lf_period_balances_stale` (definer) | Updates public `periodBalances` | **Not attached.** The report/balance slice must avoid using live snapshots when they no longer describe the draft. |
@@ -152,9 +152,20 @@ admin who is not a writer in these books cannot act as the person. Neither the r
 nor the public report mounts accept a sandbox id.
 
 - **Draft:** `add` stores successful, schema-parsed inputs with their stable record IDs, row content
-  versions and typed effect intentions. The reviewed list is `customer.create`, `invoice.create`
-  (no stock-moving writes), `payment.receive` and `tasks.create`. An unreviewed command or table write
-  is refused. The draft role cannot reserve an audit head or consume a live sequence. The step can
+  versions and typed effect intentions. Admission (`stepCommand` in `sandboxStepCommands.ts`) is by
+  command definition: an admitted area (the books: customers, vendors, contacts, invoices, bills,
+  credits, payments, journals, chart, budgets, assets, inventory, projects, time, tasks, estimates,
+  RMAs, warranties, tags, watches, rules, templates, links, records), workspace scope, no legacy
+  two-phase operation; `estimate.signlink`, `document.remove` and `record.delete` are denied by name.
+  Workspace membership, keys, periods, payroll, bank, support, security and account commands are out.
+  A draft may write any overlay table whose live base the sandbox role can read (the book tables of
+  `sandbox.has_live_book_read`) except `stockMoves`, whose `dbSeq` comes from a live sequence; a step
+  that writes anything else is refused with `SANDBOX_WRITE_NOT_REVIEWED` and keeps nothing. At accept
+  the live stage is allowed exactly the tables the reviewed draft wrote, and `expectedLive` refuses a
+  replay whose record set differs. A high-risk command (`risk: 'high'`) drafts freely, is taken alone
+  by the acceptance gate, and its live replay requires the person's two-step sign-in (`aal2`) like the
+  command router does. A plan-metered command (`capacity`) is not metered in the draft; the live
+  replay runs `enforcePlanCapacity` against the live books first. The draft role cannot reserve an audit head or consume a live sequence. The step can
   only use its scoped transaction: accidental global reads, separate writes and provider-result calls
   fail the stage, even if caught. Other workspaces' rows remain invisible.
 - **Review:** `review` rebuilds provisional rows through the same handlers on a current snapshot. Each
@@ -225,9 +236,9 @@ Run just the local workflow with `LF_TEST_DATABASE_URL` set to a migrated local 
 | Step | Status |
 | --- | --- |
 | Overlay schema, role, scoped reads | Foundation #787; reads and settlement #790, #792, #793. Live migration/login capability has not been independently verified here. |
-| Draft, review, and real replay | Internal lifecycle above for four reviewed commands. The whole command registry, stock moves, caller-owned counters beyond the reviewed path, and high-risk or plan-metered commands are not admitted. |
+| Draft, review, and real replay | Internal lifecycle above over the command registry (`sandbox-step-admission.test.ts`: admission by definition, 100+ commands). Stock moves stay refused until provisional `dbSeq` ordering and `lf_repost_mark` are designed for the overlay; the unique indexes on asset tags and customer-to-vendor links are enforced only by the live replay, which refuses and saves nothing. |
 | Read tools, assistant credential and review screen | Done above. `sandbox-assistant.test.ts` (token, drafting through HTTP, every read tool, undo, housekeeping, requirement 9 over the whole registry, requirement 10), `sandbox-assistant-token-routes.test.ts` (every write route in `createApp()` refuses the assistant token), `sandbox-review-screen.test.tsx` (the screen). |
-| Undo and housekeeping | `undoSandboxStep` and `cleanupSandboxes` (maintenance step 5). Overlay size is accounted per sandbox (`overlay_bytes`); a rebuild-time metric is not recorded yet. |
-| High-risk and plan limits | `highRiskGate` (two-step, alone) is tested as a pure rule; plan-metered (`capacity`) and high-risk commands are still not admitted as steps. The task-capacity recheck at acceptance is in `sandbox-review.test.ts`. |
+| Undo and housekeeping | `undoSandboxStep` and `cleanupSandboxes` (maintenance step 5). Overlay size (`overlay_bytes`) and the last rebuild time (`last_rebuild_ms`) are recorded per sandbox binding on every review. |
+| High-risk and plan limits | `highRiskGate` (alone, confirmed) plus the `aal2` requirement at live replay (`chartaccount.delete` in `sandbox-step-admission.test.ts`); plan-metered steps are rechecked at accept (`journal.create` against an API quota, 402 and nothing saved). The task-capacity recheck is in `sandbox-review.test.ts`. |
 
 SBX-2 product speed work is separate.

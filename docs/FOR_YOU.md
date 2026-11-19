@@ -942,6 +942,24 @@ the person's sign-in and refuse the assistant token (`src/tests/sandbox-assistan
 write route in the app does). The "Assistant drafts" screen is at `#sandbox-review`. The `SESSION_SECRET` env
 signs the assistant token, as it already signs sessions; nothing new to configure.
 
+### SBX-1 admitting the command registry as steps (this PR)
+
+No migration, no grant, no env. The sandbox now drafts any command of the books (customers, vendors, invoices,
+bills, payments, journals, chart, assets, inventory, projects, time, tasks and so on — 100+ commands, listed by
+`stepCommandNames()`), not just four. Membership, keys, periods, payroll, bank, support, security and account
+commands are still refused at the door. Three things to know:
+
+- A step that would move stock (`stockMoves`) is refused in the draft: the live table numbers moves from a database
+  sequence the sandbox role cannot use, so the draft could not promise the same cost of goods as the real save.
+- A high-risk step (`chartaccount.delete`, `contact.merge`) can be drafted, but accepting it needs the person's
+  two-step sign-in, exactly as the ordinary command route does; without it the answer is 403 and nothing is saved.
+- A plan-metered step (`journal.create` under an API quota) is not counted in the draft; it is counted when accepted,
+  and a workspace at its quota gets the same 402 as a direct call.
+
+Found while doing it: `journal.create` validated accounts through the global database handle rather than its own
+transaction (the sandbox stage guard caught it; now it passes its handle), and "Account … not found in chart of
+accounts" was a 500 — it is a 400 `ACCOUNT_NOT_FOUND` now, message unchanged.
+
 ### SBX-1 live-read hardening (#825)
 
 `20261118130000_sandbox_live_read_boundary.sql` is for the release lead after the hardening PR
