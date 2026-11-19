@@ -64,6 +64,27 @@ describe('Stock transfers screen', () => {
     await waitFor(() => assert.ok(screen.getByText('No moves match these filters.')));
   });
 
+  test('a capped read is never a full-history empty claim or an export', async () => {
+    const purchase = { ...moves[0], kind: 'purchase' };
+    render(<StockTransfersReportView loadMoves={async () => Array.from({ length: 5000 }, () => purchase) as never} />);
+    assert.match((await screen.findByRole('alert')).textContent!, /5000/);
+    assert.ok(screen.getByText(/Older moves may be missing/)); assert.equal(screen.queryByText(/Nothing has been moved/), null);
+    assert.ok(screen.getByRole<HTMLButtonElement>('button', { name: 'Download CSV' }).disabled);
+  });
+
+  test('retry after refusal shows only the current book and identifies a missing move-out', async () => {
+    let calls = 0;
+    render(<StockTransfersReportView loadMoves={async () => {
+      if (++calls === 1) throw new Error('Read refused');
+      return [{ ...moves[0], workspaceId: 'elsewhere' }, moves[1]] as never;
+    }} />);
+    assert.match((await screen.findByRole('alert')).textContent!, /Read refused/);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByRole('rowheader', { name: 'Widget' });
+    assert.ok(within(table()).getByText('Its move-out half is not in the loaded history.'));
+    assert.equal(within(table()).getAllByRole('rowheader').length, 1);
+  });
+
   test('with no moves the screen says where stock is moved', async () => {
     render(<StockTransfersReportView loadMoves={async () => []} />);
     await waitFor(() => assert.ok(screen.getByText(/Nothing has been moved between locations yet/)));

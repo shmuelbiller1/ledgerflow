@@ -1,3 +1,4 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 /**
  * A-268: Standard cost variance report screen. Reports → Inventory → "Standard cost variance".
  *
@@ -10,14 +11,13 @@ import React, { useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { downloadCsv } from '../../lib/csvExport';
 import { paymentMethodCsvAmount as csvAmount } from '../../lib/paymentMethodCsvAmount';
 import { formatCurrency } from '../../lib/utils';
 import { formatVariancePct, standardCostReport } from '../../lib/standardCost';
 import type { InventoryItem } from '../../types';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 import ReportEmptyState from './ReportEmptyState';
 import { useReportText, fill } from './useReportText';
 
@@ -37,8 +37,6 @@ export default function StandardCostReportView() {
   const inventory = useLedgerStore(s => s.inventory) as InventoryItem[];
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const currency = useAuthStore(s => s.workspaces?.find(w => w.id === s.currentWorkspaceId)?.currency || 'USD');
-  const truncated = useLedgerStore(s => s.truncatedCollections);
-  const failed = useDataNeedsStore(s => s.failed);
   const setActiveTab = useUIStore(s => s.setActiveTab);
   const { loading } = useLedgerCollections('inventory');
 
@@ -48,7 +46,7 @@ export default function StandardCostReportView() {
   );
 
   const report = useMemo(() => standardCostReport(scopedItems), [scopedItems]);
-  const partial = Boolean(truncated.inventory || failed.inventory);
+  const partial = usePartialReportInputs(['inventory']);
 
   return (
     <section aria-label={reportText('r.standard-cost-variance', 'Standard cost variance')} className="p-4 space-y-4 min-w-0">
@@ -130,54 +128,17 @@ export default function StandardCostReportView() {
       ) : (
         report.rows.length > 0 && (
           <>
-            <ReportTableScroll>
-              <table className="w-full text-sm">
-                <caption className="sr-only">{reportText('r.standard-cost-variances-by-stock-item', 'Standard cost variances by stock item')}</caption>
-                <thead>
-                  <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
-                    <th scope="col" className="py-2 pr-3">{reportText('r.item', 'Item')}</th>
-                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.on-hand', 'On hand')}</th>
-                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.standard-cost', 'Standard cost')}</th>
-                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.actual-cost', 'Actual cost')}</th>
-                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.variance-unit', 'Variance / unit')}</th>
-                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.variance-3', 'Variance %')}</th>
-                    <th scope="col" className="py-2 text-right">{reportText('r.variance-on-hand', 'Variance on hand')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.rows.map(r => {
-                    const item = scopedItems.find(i => i.id === r.itemId);
-                    return (
-                      <tr key={r.itemId} className="border-b border-[var(--line)]/50 hover:bg-[var(--panel)]/40">
-                        <th scope="row" className="py-2 pr-3 text-left font-normal">
-                          <span>{r.itemName}</span>
-                          {item?.sku && <span className="ml-2 font-mono text-xs text-[var(--muted)]">{item.sku}</span>}
-                        </th>
-                        <td className="py-2 pr-3 text-right font-mono">{r.quantity}</td>
-                        <td className="py-2 pr-3 text-right font-mono">{formatCurrency(r.standardCostCents, currency)}</td>
-                        <td className="py-2 pr-3 text-right font-mono">{formatCurrency(r.actualUnitCostCents, currency)}</td>
-                        <td className="py-2 pr-3 text-right font-mono">
-                          <span className={r.varianceUnitCents > 0 ? 'text-[var(--neg,#ef4444)]' : r.varianceUnitCents < 0 ? 'text-[var(--pos,#22c55e)]' : ''}>
-                            {formatCurrency(r.varianceUnitCents, currency)}
-                          </span>
-                        </td>
-                        <td className="py-2 pr-3 text-right font-mono">
-                          <span className={r.variancePct !== null && r.variancePct > 0 ? 'text-[var(--neg,#ef4444)]' : r.variancePct !== null && r.variancePct < 0 ? 'text-[var(--pos,#22c55e)]' : ''}>
-                            {formatVariancePct(r.variancePct)}
-                          </span>
-                        </td>
-                        <td className="py-2 text-right font-mono font-medium">
-                          <span className={r.varianceValueCents > 0 ? 'text-[var(--neg,#ef4444)]' : r.varianceValueCents < 0 ? 'text-[var(--pos,#22c55e)]' : ''}>
-                            {formatCurrency(r.varianceValueCents, currency)}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-[var(--line)] font-semibold">
-                    <th scope="row" colSpan={6} className="py-2.5 pr-3 text-left">
+            <ReportSchedule
+              columnControls
+              allowDisplayedExport={!partial && !loading}
+              caption={reportText('r.standard-cost-variances-by-stock-item', 'Standard cost variances by stock item')}
+              captionClassName="sr-only"
+              headRowClassName="border-b border-[var(--line)] text-start text-[var(--muted)]"
+              rowClassName="border-b border-[var(--line)]/50 hover:bg-[var(--panel)]/40"
+              bodyClassName=""
+              rows={report.rows} rowKey={r => r.itemId}
+              footer={<tr className="border-t-2 border-[var(--line)] font-semibold">
+                    <th scope="row" colSpan={6} className="py-2.5 pe-3 text-start">
                       {reportText('r.total-variance-on-hand', 'Total variance on hand')}
                     </th>
                     <td className="py-2.5 text-right font-mono">
@@ -185,10 +146,23 @@ export default function StandardCostReportView() {
                         {formatCurrency(report.totalVarianceCents, currency)}
                       </span>
                     </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </ReportTableScroll>
+                  </tr>}
+              columns={[
+                { header: reportText('r.item', 'Item'), cell: r => { const item = scopedItems.find(i => i.id === r.itemId); return <><span>{r.itemName}</span>
+                          {item?.sku && <span className="ms-2 font-mono text-xs text-[var(--muted)]">{item.sku}</span>}</>; } },
+                { header: reportText('r.on-hand', 'On hand'), align: 'right', className: 'font-mono', cell: r => r.quantity },
+                { header: reportText('r.standard-cost', 'Standard cost'), align: 'right', className: 'font-mono', cell: r => formatCurrency(r.standardCostCents, currency) },
+                { header: reportText('r.actual-cost', 'Actual cost'), align: 'right', className: 'font-mono', cell: r => formatCurrency(r.actualUnitCostCents, currency) },
+                { header: reportText('r.variance-unit', 'Variance / unit'), align: 'right', className: 'font-mono', cell: r => <span className={r.varianceUnitCents > 0 ? 'text-[var(--neg,#ef4444)]' : r.varianceUnitCents < 0 ? 'text-[var(--pos,#22c55e)]' : ''}>
+                            {formatCurrency(r.varianceUnitCents, currency)}
+                          </span> },
+                { header: reportText('r.variance-3', 'Variance %'), align: 'right', className: 'font-mono', cell: r => <span className={r.variancePct !== null && r.variancePct > 0 ? 'text-[var(--neg,#ef4444)]' : r.variancePct !== null && r.variancePct < 0 ? 'text-[var(--pos,#22c55e)]' : ''}>
+                            {formatVariancePct(r.variancePct)}
+                          </span> },
+                { header: reportText('r.variance-on-hand', 'Variance on hand'), align: 'right', className: 'font-mono font-medium', cell: r => <span className={r.varianceValueCents > 0 ? 'text-[var(--neg,#ef4444)]' : r.varianceValueCents < 0 ? 'text-[var(--pos,#22c55e)]' : ''}>
+                            {formatCurrency(r.varianceValueCents, currency)}
+                          </span> },
+              ]} />
             <p className="text-xs text-[var(--muted)]">
               {reportText('r.variance-on-hand-is-based-on-stock-on-hand-multi', 'Variance on hand is based on stock on hand multiplied by unit variance (actual − standard). Negative stock counts as 0 on hand. Standard costing does not post any entries or change inventory valuation.')}
             </p>

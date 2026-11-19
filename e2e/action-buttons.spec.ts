@@ -20,7 +20,7 @@ test('audited controls either navigate, describe selection or explain why they a
     d.default.createRoot(host).render(React.createElement(React.Fragment,null,...views.map(([name,component,props])=>React.createElement('section',{'aria-label':name,key:name},React.createElement(component,props)))));
   });
   const probe=page.locator('#action-probe');
-  for(const name of ['Export Report','Fiscal Export','Maximize2 action','Export Node','Provision New Endpoint','Generate Brief']){
+  for(const name of ['Export Report','Fiscal Export','Expand chart','Export project rows','Provision New Endpoint','Generate Brief']){
     const button=probe.getByRole('button',{name,exact:true});await expect(button).toBeDisabled();
     const description=await button.getAttribute('aria-describedby');
     await expect(probe.locator(`#${description}`)).toContainText(/not available|unavailable/);

@@ -6,7 +6,7 @@ export const BANK_COMMAND_MANIFEST = [
   {
     "name": "bank.reconnect",
     "area": "bank",
-    "roles": COMMAND_SCHEMA_PARTS.part70,
+    "roles": COMMAND_SCHEMA_PARTS.part72,
     "risk": "normal",
     "description": {
       "sentence": "Mark an existing connection active after signing in again through Plaid; this does not connect a new bank, store another token or sync any transactions.",

@@ -13,8 +13,14 @@ const REPORT_PROPS = new Set(['aria-label', 'title', 'description', 'label', 'pl
 // the default top eight (pnl, balance-sheet, cash-flow, ar-aging, ap-aging, expense-by-category,
 // gross-profit-by-customer, budget-actual) and the files that draw them; A/R and A/P share one view
 const FILES = [
+  '../components/ledger/ProjectProfitabilityView.tsx',
+  '../components/reporting/stockMovementText.ts',
+  '../components/reporting/certificateFieldText.ts',
   '../components/ledger/ProfitAndLossView.tsx',
   '../components/ledger/BalanceSheetView.tsx',
+  // R-7: "why did this change?" — the panel both statements show
+  '../components/reporting/StatementChangePanel.tsx',
+  '../components/reporting/YearEndPackView.tsx',
   '../components/ledger/CashFlowView.tsx',
   '../components/reporting/PartyAgingReportView.tsx',
   '../components/reporting/ExpenseByCategoryReportView.tsx',

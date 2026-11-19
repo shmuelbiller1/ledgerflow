@@ -59,7 +59,8 @@ describe('Stock aging', () => {
     render(<StockAgingReportView />);
     await waitFor(() => assert.ok(screen.getByRole('rowheader', { name: 'Chair' })));
     assert.ok(calls[0].url.startsWith('/api/v1/reports/stock-aging?workspaceId=component-workspace&asOf='));
-    assert.match(screen.getByRole('rowheader', { name: 'Chair' }).parentElement!.textContent || '', /11\$119\.0056.*2026-03-01 \(60 days ago\)/);
+    assert.match(screen.getByRole('rowheader', { name: 'Chair' }).parentElement!.textContent || '', /11\$119\.0056.*Mar 1, 2026 \(60 days ago\)/);
+    assert.equal(screen.getByRole('rowheader', { name: 'Chair' }).parentElement!.querySelector('time')?.dateTime, '2026-03-01');
     assert.ok(screen.getByRole('columnheader', { name: 'Before the history' }));
   });
 });

@@ -238,25 +238,51 @@ export function matchingUnconvertedPosts({ file, route }: PostRouteException): n
   return routeRegistrations(path.join(ROOT, file)).filter(node => matchesPostException(node, route) && !containsCommandRunnerCall(node)).length;
 }
 
-function countWriteRoutes(): { total: number; sites: Record<string, number> } {
-  const sites: Record<string, number> = {};
-  for (const file of walk(ROUTE_ROOT)) {
+export interface NonCommandRegistration {
+  file: string;
+  method: string;
+  route: string;
+  expression?: true;
+}
+
+/** Keep raw sites visible even when a protocol has a reviewed reason to stay outside CMD-1. */
+export function scanNonCommandRegistrations(): NonCommandRegistration[] {
+  return walk(ROUTE_ROOT).flatMap(file => {
     const relativeFile = path.relative(ROOT, file).split(path.sep).join('/');
     const exceptions = postExceptions.filter(e => e.file === relativeFile);
-    const count = routeRegistrations(file).filter(node => {
-      const excluded = stringValues(node.arguments[0]).some(value => /(?:^|\/)\/?(?:admin|system)(?:\/|$)/.test(value.replace(/^\/+/, '')));
-      const exceptedPost = exceptions.some(e => matchesPostException(node, e.route));
-      return !excluded && !exceptedPost && !containsCommandRunnerCall(node);
-    }).length;
-    if (count) sites[relativeFile] = count;
-  }
-  return { total: Object.values(sites).reduce((sum, n) => sum + n, 0), sites: Object.fromEntries(Object.entries(sites).sort(([a], [b]) => a.localeCompare(b))) };
+    return routeRegistrations(file).flatMap(node => {
+      const pathArg = node.arguments[0];
+      const excluded = stringValues(pathArg).some(value => /(?:^|\/)\/?(?:admin|system)(?:\/|$)/.test(value.replace(/^\/+/, '')));
+      if (excluded || exceptions.some(e => matchesPostException(node, e.route)) || containsCommandRunnerCall(node)) return [];
+      const base = { file: relativeFile, method: callName(node)! };
+      return ts.isStringLiteralLike(pathArg) ? [{ ...base, route: pathArg.text }]
+        : [{ ...base, route: ts.isTemplateExpression(pathArg) ? pathArg.getText().slice(1, -1) : pathArg.getText(), expression: true as const }];
+    });
+  });
+}
+
+function countWriteRoutes(): { total: number; sites: Record<string, number> } {
+  const registrations = scanNonCommandRegistrations();
+  const sites: Record<string, number> = {};
+  for (const { file } of registrations) sites[file] = (sites[file] || 0) + 1;
+  return { total: registrations.length, sites: Object.fromEntries(Object.entries(sites).sort(([a], [b]) => a.localeCompare(b))) };
 }
 
 function isIgnoredBrowserFile(file: string): boolean {
   const relative = path.relative(SOURCE_ROOT, file).split(path.sep).join('/');
   if (/\.(?:test|spec)\.[jt]sx?$/.test(relative)) return true;
   return [...IGNORED_BROWSER_SEGMENTS].some(segment => relative === segment || relative.startsWith(`${segment}/`) || relative.includes(`/${segment}/`));
+}
+
+/** Count the direct PostgREST spelling too, not just the Firestore-shaped browser helpers. */
+export function isDirectBrowserWrite(node: ts.CallExpression): boolean {
+  const method = callName(node) ?? '';
+  if (BROWSER_WRITE_CALLS.has(method)) return true;
+  if (method === 'rpc' && stringValues(node.arguments[0]).some(fn => /^lf_(set|update|delete|batch)$/.test(fn))) return true;
+  if (!['insert', 'update', 'upsert', 'delete'].includes(method)) return false;
+  const methodAccess = node.expression;
+  if (!ts.isPropertyAccessExpression(methodAccess) && !ts.isElementAccessExpression(methodAccess)) return false;
+  return ts.isCallExpression(methodAccess.expression) && callName(methodAccess.expression) === 'from';
 }
 
 function countDirectBrowserWrites(): { total: number; sites: Record<string, number>; localTotal: number; localSites: Record<string, number> } {
@@ -268,7 +294,7 @@ function countDirectBrowserWrites(): { total: number; sites: Record<string, numb
     const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
     let count = 0;
     const visit = (node: ts.Node) => {
-      if (ts.isCallExpression(node) && BROWSER_WRITE_CALLS.has(callName(node) || '')) count += 1;
+      if (ts.isCallExpression(node) && isDirectBrowserWrite(node)) count += 1;
       ts.forEachChild(node, visit);
     };
     visit(ast);

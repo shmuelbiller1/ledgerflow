@@ -4,7 +4,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part100,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part104,
     "action": {
       "type": "string",
       "enum": [
@@ -13,9 +13,9 @@ export const COMMAND_INPUT_SCHEMA = {
         "delete"
       ]
     },
-    "data": COMMAND_SCHEMA_PARTS.part153,
-    "postingDay": COMMAND_SCHEMA_PARTS.part49,
-    "creditLimitOverride": COMMAND_SCHEMA_PARTS.part213,
+    "data": COMMAND_SCHEMA_PARTS.part158,
+    "postingDay": COMMAND_SCHEMA_PARTS.part51,
+    "creditLimitOverride": COMMAND_SCHEMA_PARTS.part219,
     "collection": {
       "type": "string",
       "enum": [

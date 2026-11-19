@@ -9,6 +9,21 @@ description = "LedgerFlow workspace or environment API key"
 regex = '''\b(?:lf_id_[A-Za-z0-9_-]{8,}\.[A-Fa-f0-9]{64}|lf_(?:live|test)_[A-Za-z0-9_-]{20,})\b'''
 tags = ["key", "ledgerflow", "api"]
 
+[[rules]]
+id = "generic-api-key"
+  [[rules.allowlists]]
+  description = "The four public translation IDs for stock-aging day ranges (UI-2)"
+  condition = "AND"
+  paths = ['''^src/lib/i18n/reportTranslationsMore5\.ts$''']
+  regexTarget = "secret"
+  regexes = ['''^r\.stock-age-d(30|90|180|365)$''']
+  [[rules.allowlists]]
+  description = "The public translation IDs of the year-end pack (R-6): r.ye-* keys are dictionary identifiers, never credentials. Digits are allowed because the scan also reads the branch's history, where four bucket keys were spelled r.ye-aging-1-30 etc. before they were renamed to words."
+  condition = "AND"
+  paths = ['''^src/lib/i18n/reportTranslationsMore6\.ts$''']
+  regexTarget = "secret"
+  regexes = ['''^r\.ye-[a-z0-9-]+$''']
+
 [allowlist]
 description = "Public Supabase anon config and deterministic test fixtures"
 paths = [

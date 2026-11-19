@@ -1,0 +1,30 @@
+/** Production report destinations in this UI-2 batch. */
+export const nextSchedules = {
+  'stock-value-by-location-lot': 'StockValueByLocationLotReportView',
+  'cycle-count': 'CycleCountReportView',
+  'kit-assembly': 'KitAssemblyReportView',
+  'reorder-suggestions': 'ReorderSuggestionsReportView',
+  'standard-cost-variance': 'StandardCostReportView',
+  'landed-cost-preview': 'LandedCostPreviewReportView',
+  'customer-item-codes': 'CustomerItemCodesView',
+  'bill-retention': 'BillRetentionReportView',
+  'aged-receivables-by-rep': 'AgedReceivablesByRepReportView',
+  'commissions': 'CommissionReportView',
+  'customer-credit-limits': 'CustomerCreditLimitReportView',
+  'customer-lifetime-value': 'CustomerLifetimeValueReportView',
+  'sales-by-territory': 'SalesByTerritoryReportView',
+  'party-linked-trial-balance': 'PartyLinkedTrialBalanceView',
+  'customer-tax-certificates': 'CustomerTaxCertificatesView',
+  'vendor-tax-records': 'VendorTaxRecordsView',
+  'vendor-withholding': 'VendorWithholdingView',
+  'financial-ratios': 'FinancialRatiosReportView',
+  'us-filing-calendar': 'UsFilingCalendarReportView',
+  'us-nexus-watch': 'UsNexusWatchReportView',
+  'sales-tax-holidays': 'SalesTaxHolidaysReportView',
+  'top-customers-vendors': 'TopPartiesReportView',
+  'milestone-billing': 'MilestoneBillingReportView',
+  'rule-pack-coverage': 'RulePackCoverageReportView',
+  'tax-code-suggestions': 'TaxCodeSuggestionsReportView',
+} as const;
+export type NextSchedule = keyof typeof nextSchedules;
+export const nextScheduleIds = Object.keys(nextSchedules) as NextSchedule[];

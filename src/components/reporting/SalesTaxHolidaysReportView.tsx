@@ -5,7 +5,7 @@ import {
   HOLIDAY_CSV_HEADERS, bandCapWords, holidayCsvRows, holidayItemAnswer, holidayRowsInForce, holidayStates,
   US_SALES_TAX_HOLIDAYS, type HolidayBand,
 } from '../../lib/tax/usSalesTaxHolidays';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 import {
   HOLIDAY_CALENDAR_CSV_HEADERS, HOLIDAY_CALENDAR_NOT_STATED, US_SALES_TAX_HOLIDAY_CALENDAR,
   holidayCalendarCsvRows, holidayCalendarMonthsForYear, holidayCalendarStatesForYear, holidayCalendarYears, nextHolidayWindow,
@@ -122,24 +122,23 @@ export default function SalesTaxHolidaysReportView({ today = '' }: { today?: str
     {!answer && <p role="alert">{reportText('r.give-a-price-of-0-or-more-to-check-a-band-s-cap', 'Give a price of 0 or more to check a band\'s cap.')}</p>}
 
     <h3>{reportText('r.the-calendar-this-table-states', 'The calendar this table states')}</h3>
-    <ReportTableScroll><table className="w-full text-sm">
-      <caption>{reportText('r.sales-tax-holiday-windows-with-their-item-bands', 'Sales tax holiday windows with their item bands and per-item price caps')}</caption>
-      <thead><tr>
-        <th scope="col">{reportText('r.state', 'State')}</th><th scope="col">{reportText('r.holiday', 'Holiday')}</th><th scope="col">{reportText('r.window', 'Window')}</th>
-        <th scope="col">{reportText('r.what-is-covered-the-source-s-list-governs', 'What is covered (the source\'s list governs)')}</th>
-        <th scope="col" className="text-right">{reportText('r.per-item-cap', 'Per-item cap')}</th><th scope="col">{reportText('r.source', 'Source')}</th>
-      </tr></thead>
-      <tbody>{rows.map(row => <tr key={row.id} className="border-t border-[var(--line)] align-top">
-        <th scope="row" className="text-left">{row.stateName} ({row.state})</th>
-        <td><bdi>{row.name}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.note}</bdi></div></td>
-        <td className="tabular-nums whitespace-nowrap">{row.from} → {row.to}</td>
-        <td><ul className="list-disc ps-4">{row.bands.map(band => <li key={band.id}>
+    <ReportSchedule
+      columnControls
+      allowDisplayedExport
+      caption={reportText('r.sales-tax-holiday-windows-with-their-item-bands', 'Sales tax holiday windows with their item bands and per-item price caps')}
+      rowClassName="border-t border-[var(--line)] align-top"
+      bodyClassName=""
+      rows={rows} rowKey={row => row.id}
+      columns={[
+        { header: reportText('r.state', 'State'), cell: row => <>{row.stateName} ({row.state})</> },
+        { header: reportText('r.holiday', 'Holiday'), cell: row => <><bdi>{row.name}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.note}</bdi></div></> },
+        { header: reportText('r.window', 'Window'), className: 'tabular-nums whitespace-nowrap', cell: row => <>{row.from} → {row.to}</> },
+        { header: reportText('r.what-is-covered-the-source-s-list-governs', 'What is covered (the source\'s list governs)'), cell: row => <ul className="list-disc ps-4">{row.bands.map(band => <li key={band.id}>
           {band.label} — <b>{capWords(band)}</b>{band.note ? <span className="text-xs text-[var(--muted)]"> ({band.note})</span> : null}
-        </li>)}</ul></td>
-        <td className="text-right tabular-nums">{row.bands.map(band => <div key={band.id}>{(band.capCents / 100).toFixed(2)}</div>)}</td>
-        <td className="text-xs"><a href={row.source.url} target="_blank" rel="noopener noreferrer" className="underline">{row.source.authority}</a><div className="text-[var(--muted)]">{reportText('r.checked', 'checked')} {row.checked}</div></td>
-      </tr>)}</tbody>
-    </table></ReportTableScroll>
+        </li>)}</ul> },
+        { header: reportText('r.per-item-cap', 'Per-item cap'), align: 'right', className: 'tabular-nums', cell: row => row.bands.map(band => <div key={band.id}>{(band.capCents / 100).toFixed(2)}</div>) },
+        { header: reportText('r.source', 'Source'), className: 'text-xs', cell: row => <><a href={row.source.url} target="_blank" rel="noopener noreferrer" className="underline">{row.source.authority}</a><div className="text-[var(--muted)]">{reportText('r.checked', 'checked')} {row.checked}</div></> },
+      ]} />
 
     <p className="text-xs text-[var(--muted)]">
       {reportText('r.windows-not-stated-in-the-table-above-florida-s', 'Windows not stated in the table above (Florida\'s disaster-preparedness and hunting/fishing/camping windows, Texas\' water-efficient products holiday, and every state whose publication this lane has not read) are listed as rows to add in the tax rule pack — never assumed absent. A-109\'s calendar below states WHEN most of them run a window, which is not the same as what the window exempts.')}

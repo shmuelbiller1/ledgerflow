@@ -178,6 +178,17 @@
       background: var(--panel);
     }
   }
+  /* Keep explanatory captions readable before horizontally scrolling the figures. */
+  .report-schedule caption > span { display: block; max-inline-size: min(100%, calc(100vw - 2rem)); }
+  .report-schedule th:not(.text-right) { text-align: start; }
+  .report-schedule td.text-right, .report-schedule tfoot td {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    unicode-bidi: isolate;
+    direction: ltr;
+  }
+  .report-schedule tfoot { border-top: 2px solid var(--line); font-weight: 600; }
+  .report-schedule tfoot td { text-align: right; }
   .mono-value {
     @apply font-mono tracking-tight tabular-nums text-[13px] font-medium text-[var(--text)];
   }

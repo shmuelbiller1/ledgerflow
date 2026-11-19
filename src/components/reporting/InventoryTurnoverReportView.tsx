@@ -1,12 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { isItemDetails } from '../../lib/reportListRows';
+import { useReportList } from '../../hooks/useReportList';
+import { useMemo, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
-import type { ItemDetails } from '../../lib/stockMoves';
 import { inventoryTurnover, turnoverCsvRows, TURNOVER_CSV_HEADERS } from '../../lib/inventoryTurnover';
-import ReportTableScroll from './ReportTableScroll';
-import { inBackground } from '../../lib/inBackground';
-import { runCommand } from '../../lib/runCommand';
+import ReportSchedule from './ReportSchedule';
+import { useReportDates } from './useReportDates';
 import { useReportText } from './useReportText';
 
 const qty = (n: number) => String(Math.round(n * 100) / 100);
@@ -19,39 +19,19 @@ const ratio = (n: number | null) => (n === null ? '—' : n.toFixed(2));
  */
 export default function InventoryTurnoverReportView() {
   const reportText = useReportText();
+  const dates = useReportDates();
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const workspaceId = workspace?.id || '';
   const home = workspace?.currency || 'USD';
   const today = getLocalDateISO();
   const [from, setFrom] = useState(`${today.slice(0, 4)}-01-01`);
   const [to, setTo] = useState(today);
-  const [attempt, setAttempt] = useState(0);
-  const [result, setResult] = useState<{ key: string; items?: ItemDetails[]; error?: string } | null>(null);
 
   const periodValid = /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && from <= to;
-  const key = workspaceId && periodValid ? `${workspaceId}:${from}:${to}:${attempt}` : '';
-
-  useEffect(() => {
-    if (!key) return;
-    let alive = true;
-    inBackground((async () => {
-      try {
-        const query = new URLSearchParams({ workspaceId, startDate: from, endDate: to }).toString();
-        const data = await runCommand<{ items?: ItemDetails[] }>({ path: `/api/v1/reports/inventory-details?${query}` }) ?? {};
-        if (alive) setResult({ key, items: data.items || [] });
-      } catch (error) {
-        if (alive) setResult({ key, error: error instanceof Error ? error.message : String(error) });
-      }
-    })());
-    return () => { alive = false; };
-  }, [key, workspaceId, from, to]);
-
-  const current = result && result.key === key ? result : null;
-  const loading = Boolean(key) && !current;
-  const rows = useMemo(
-    () => (current?.items ? inventoryTurnover(current.items, from, to) : []),
-    [current, from, to],
-  );
+  const query = new URLSearchParams({ workspaceId, startDate: from, endDate: to });
+  const { rows: items, loading, failed, error, retry } = useReportList(
+    workspaceId && periodValid ? `/api/v1/reports/inventory-details?${query}` : null, 'items', isItemDetails);
+  const rows = useMemo(() => items ? inventoryTurnover(items, from, to) : [], [items, from, to]);
 
   return <section aria-label={reportText('r.inventory-turnover', 'Inventory turnover')} className="p-4 space-y-4 min-w-0">
     <h2>{reportText('r.inventory-turnover', 'Inventory turnover')}</h2>
@@ -72,43 +52,28 @@ export default function InventoryTurnoverReportView() {
 
     {!periodValid && <p role="alert" className="text-sm">{reportText('r.choose-a-valid-period-the-start-must-not-be-afte', 'Choose a valid period: the start must not be after the end.')}</p>}
     {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.reading-the-stock-history', 'Reading the stock history…')}</p>}
-    {current?.error && <div className="space-y-2">
-      <p role="alert" className="text-sm">{reportText('r.the-stock-history-could-not-be-read', 'The stock history could not be read:')} {current.error}</p>
-      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={() => setAttempt(n => n + 1)}>{reportText('r.retry', 'Retry')}</button>
+    {failed && <div className="space-y-2">
+      <p role="alert" className="text-sm">{reportText('r.the-stock-history-could-not-be-read', 'The stock history could not be read:')} {error || reportText('r.missing-report-rows', 'The response did not contain report rows.')}</p>
+      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={retry}>{reportText('r.retry', 'Retry')}</button>
     </div>}
 
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>{reportText('r.inventory-turnover-by-item', 'Inventory turnover by item,')} {from} {reportText('r.to-2', 'to')} {to} {reportText('r.values-in', '(values in')} {home})</caption>
-        <thead>
-          <tr>
-            {[reportText('r.item', 'Item'), reportText('r.opening-units', 'Opening units'), reportText('r.received', 'Received'), reportText('r.sold-net', 'Sold (net)'), reportText('r.issued-all-reasons', 'Issued (all reasons)'), reportText('r.closing-units', 'Closing units'), reportText('r.average-units', 'Average units'),
-              reportText('r.cost-of-what-sold', 'Cost of what sold'), reportText('r.average-value', 'Average value'), reportText('r.turnover-units', 'Turnover (units)'), reportText('r.turnover-value', 'Turnover (value)'), reportText('r.days-of-stock', 'Days of stock')].map((head, i) =>
-              <th key={head} scope="col" className={`${i === 0 ? 'text-left' : 'text-right'} py-1 px-2`}>{head}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(row => (
-            <tr key={row.itemId} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.itemName}</bdi>
-                {row.note === 'negative-stock' && <span className="text-[var(--muted)]"> {reportText('r.stock-was-negative', '· stock was negative')}</span>}</th>
-              <td className="py-1 px-2 text-right tabular-nums">{qty(row.openingQty)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{qty(row.receivedQty)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{qty(row.soldQty)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{qty(row.issuedQty)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{qty(row.closingQty)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{qty(row.averageQty)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{formatCurrency(row.costOfSoldCents, home)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{formatCurrency(row.averageValueCents, home)}</td>
-              <td className="py-1 px-2 text-right tabular-nums font-semibold">{ratio(row.turnoverUnits)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{ratio(row.turnoverValue)}</td>
-              <td className="py-1 px-2 text-right tabular-nums">{row.daysOfStock === null ? '—' : row.daysOfStock.toFixed(1)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {current?.items && !rows.length && <p className="text-sm text-[var(--muted)]">{reportText('r.no-item-has-stock-or-a-stock-movement-in-this-pe', 'No item has stock or a stock movement in this period.')}</p>}
-    </ReportTableScroll>
+    {rows.length > 0 && <ReportSchedule columnControls allowDisplayedExport rows={rows} rowKey={row => row.itemId}
+      caption={<>{reportText('r.inventory-turnover-by-item', 'Inventory turnover by item,')} <bdi>{dates.periodText(from, to)}</bdi> {reportText('r.values-in', '(values in')} {home})</>}
+      columns={[
+        { header: reportText('r.item', 'Item'), cell: row => <><bdi>{row.itemName}</bdi>{row.note === 'negative-stock' && <> {reportText('r.stock-was-negative', '· stock was negative')}</>}</> },
+        { header: reportText('r.opening-units', 'Opening units'), align: 'right', cell: row => qty(row.openingQty) },
+        { header: reportText('r.received', 'Received'), align: 'right', cell: row => qty(row.receivedQty) },
+        { header: reportText('r.sold-net', 'Sold (net)'), align: 'right', cell: row => qty(row.soldQty) },
+        { header: reportText('r.issued-all-reasons', 'Issued (all reasons)'), align: 'right', cell: row => qty(row.issuedQty) },
+        { header: reportText('r.closing-units', 'Closing units'), align: 'right', cell: row => qty(row.closingQty) },
+        { header: reportText('r.average-units', 'Average units'), align: 'right', cell: row => qty(row.averageQty) },
+        { header: reportText('r.cost-of-what-sold', 'Cost of what sold'), align: 'right', cell: row => formatCurrency(row.costOfSoldCents, home) },
+        { header: reportText('r.average-value', 'Average value'), align: 'right', cell: row => formatCurrency(row.averageValueCents, home) },
+        { header: reportText('r.turnover-units', 'Turnover (units)'), align: 'right', cell: row => ratio(row.turnoverUnits) },
+        { header: reportText('r.turnover-value', 'Turnover (value)'), align: 'right', cell: row => ratio(row.turnoverValue) },
+        { header: reportText('r.days-of-stock', 'Days of stock'), align: 'right', cell: row => row.daysOfStock === null ? '—' : row.daysOfStock.toFixed(1) },
+      ]} />}
+    {items && !rows.length && <p role="status">{reportText('r.no-item-has-stock-or-a-stock-movement-in-this-pe', 'No item has stock or a stock movement in this period.')}</p>}
 
     <p className="text-xs text-[var(--muted)]">
       {reportText('r.inventory-turnover-footnote', 'Values are the stock ledger\'s own, as in Inventory Valuation. Days of stock is the period\'s days divided by the units turnover — about how long the average stock lasts at this period\'s pace, not a promise about the next one.')}

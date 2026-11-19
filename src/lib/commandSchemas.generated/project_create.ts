@@ -9,8 +9,8 @@ export const COMMAND_INPUT_SCHEMA = {
       "minLength": 1,
       "description": "Name of the new project"
     },
-    "code": COMMAND_SCHEMA_PARTS.part23,
-    "description": COMMAND_SCHEMA_PARTS.part23,
+    "code": COMMAND_SCHEMA_PARTS.part24,
+    "description": COMMAND_SCHEMA_PARTS.part24,
     "budgetLimitCents": {
       "description": "Budget in whole cents; the legacy API also accepts a numeric string",
       "type": [
@@ -18,7 +18,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "string"
       ]
     },
-    "managerEmail": COMMAND_SCHEMA_PARTS.part23
+    "managerEmail": COMMAND_SCHEMA_PARTS.part24
   },
   "required": COMMAND_SCHEMA_PARTS.part3,
   "additionalProperties": false

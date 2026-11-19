@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { byCodeUnit } from '../src/lib/codeUnitOrder';
 import { commandRegistry } from '../src/server/commands/defaultRegistry';
+import { renderAssistantTools } from '../src/server/services/assistantToolDefinitions';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -254,6 +255,7 @@ export function renderCommandArtifacts(): Record<string, string> {
     '',
   ].join('\n');
   return {
+    'assistant/tools.json': renderAssistantTools(definitions),
     'src/lib/commands.generated.ts': manifest,
     ...manifestArtifacts,
     'src/lib/commandSchemas.generated/shared.ts': sharedSource,

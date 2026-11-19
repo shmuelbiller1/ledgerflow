@@ -105,9 +105,6 @@ export const runReportInput = z.object({
   params: z.record(z.string().max(80), z.union([z.string().max(2000), z.number(), z.boolean()])).default({}),
 }).strict();
 
-export const SANDBOX_READ_TOOLS = ['search_records', 'get_record', 'list_records', 'run_report', 'ask_books', 'explain_number', 'calculate'] as const;
-export type SandboxReadTool = (typeof SANDBOX_READ_TOOLS)[number];
-
 function refuse(message: string, status = 400, code = 'INVALID_INPUT', details?: unknown): never {
   throw new CommandRefusal(message, status, code, details);
 }

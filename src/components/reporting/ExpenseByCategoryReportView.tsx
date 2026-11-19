@@ -9,6 +9,7 @@ import { formatCurrency } from '../../lib/utils';
 import { PieChart } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
+import { CappedCollectionsNote } from '../common/LoadedEntriesOnlyNote';
 import { csvMoney } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -16,6 +17,7 @@ import { LEDGER_COLLECTIONS } from '../../lib/ledgerCollections';
 import ExpenseBillCategories from './ExpenseBillCategories';
 import { useServerExpenseByCategory } from '../../hooks/useServerExpenseByCategory';
 import { AccountReportResult } from './AccountReportResult';
+import { percentWidthStyle } from '../../lib/percentBar';
 
 interface Props {
   selectedYear?: number;
@@ -51,7 +53,7 @@ const LoadedReport: React.FC<Props> = ({
     { id: 'share', accessorFn: row => row.percentage, header: reportText('r.share', 'Share'), cell: info => (
       <span className="flex items-center justify-end gap-2">
         <span className="w-24 bg-neutral-100 rounded-full h-1.5 overflow-hidden" aria-hidden="true">
-          <span className="block bg-rose-500 h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, Number(info.getValue())))}%` }} />
+          <span className="block bg-rose-500 h-full rounded-full" style={percentWidthStyle(info.getValue())} />
         </span>
         <span className="font-mono w-12 text-right">{Number(info.getValue()).toFixed(1)}%</span>
       </span>
@@ -65,6 +67,8 @@ const LoadedReport: React.FC<Props> = ({
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto p-4 sm:p-6" id="expense-by-category-report">
+      {/* R-8: read from the bills loaded in this browser: say so when that list is capped */}
+      <CappedCollectionsNote testId="expense-by-category-capped" keys={['bills', 'accounts']} what={reportText('r.this-report-lower', 'this report')} />
       <div className="flex items-center justify-between border-b border-neutral-200 pb-4">
         <div>
           <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">

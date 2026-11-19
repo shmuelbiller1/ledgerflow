@@ -44,7 +44,7 @@ test('customer certificates keep the real detail page mounted, edit an address i
   const csv=review.getByRole('button',{name:'Export CSV'});await expect(csv).toBeDisabled();
   await review.getByRole('button',{name:'Refresh complete customers'}).click();await expect(csv).toBeEnabled();
   const rows=review.getByRole('table').getByRole('row');await expect(rows.nth(1)).toContainText('לקוח Soon');await expect(rows.nth(1)).toContainText('Expiring within 30 days');await expect(rows.nth(2)).toContainText('Expired');
-  const details=rows.nth(1).getByRole('button',{name:'Edit selected record details'});await details.focus();await details.press('Enter');
+  const details=rows.nth(1).getByRole('button',{name:'Edit details'});await details.focus();await details.press('Enter');
   const drawer=page.getByRole('dialog',{name:'Edit record details'});await expect(drawer).toBeVisible();
   await drawer.getByRole('textbox',{name:'Address',exact:true}).fill('כתובת חדשה\nStreet 7');
   await drawer.getByRole('button',{name:'Save details',exact:true}).click();await expect(drawer.getByRole('alert')).toContainText('Address update refused');
@@ -56,7 +56,7 @@ test('customer certificates keep the real detail page mounted, edit an address i
   const parsed=parseCsv(await readFile((await download.path())!,'utf8'));expect(parsed[0]).toEqual(['Customer','Certificate number','Recorded expiry','Recorded status','Review note','Assessment day','Retrieved at']);
   expect(parsed.slice(1).map(row=>[row[0],row[1],row[3]])).toEqual([['לקוח Soon','EX-אב','Expiring within 30 days'],['לקוח Expired','EX-ישן','Expired']]);
   const scroller=review.getByRole('region',{name:'Scrollable certificate table'});await scroller.focus();await scroller.press('ArrowRight');await expect.poll(()=>scroller.evaluate(node=>node.scrollLeft)).toBeGreaterThan(0);
-  for(const control of [csv,review.getByRole('button',{name:'Refresh complete customers'}),rows.nth(1).getByRole('button',{name:'Edit selected record details'})])expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  for(const control of [csv,review.getByRole('button',{name:'Refresh complete customers'}),rows.nth(1).getByRole('button',{name:'Edit details'})])expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   const a11y=await new AxeBuilder({page}).include('[role="dialog"]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();expect(a11y.violations).toEqual([]);
   await review.press('Escape');await expect(review).toHaveCount(0);await expect(opener).toBeFocused();await expect(page.getByRole('heading',{name:'לקוח Soon',exact:true})).toBeVisible();

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { toGeminiDeclaration, type GeminiToolDeclaration } from '../../assistant/gemini';
+import { ASSISTANT_READ_TOOL_NAMES, geminiReadTools, proposedToolName } from '../server/services/assistantToolDefinitions';
 import fs from 'node:fs';
 import test from 'node:test';
 import { z } from 'zod';
@@ -113,5 +115,27 @@ test('generated command metadata, OpenAPI schemas, and SDK names match the regis
   for (const [relativePath, expected] of Object.entries(renderCommandArtifacts())) {
     assert.equal(fs.readFileSync(relativePath, 'utf8'), expected,
       `${relativePath} is stale; run npm run commands:generate`);
+  }
+});
+
+test('every registered command has a usable example, hooks, role and risk, and one Gemini declaration', () => {
+  const { functionDeclarations } = JSON.parse(fs.readFileSync('assistant/tools.json', 'utf8')) as { functionDeclarations: GeminiToolDeclaration[] };
+  const byName = new Map(functionDeclarations.map(tool => [tool.name, tool]));
+  assert.equal(functionDeclarations.length, commandRegistry.names().length + ASSISTANT_READ_TOOL_NAMES.length);
+  assert.equal(byName.size, functionDeclarations.length);
+  for (const read of geminiReadTools) assert.deepEqual(byName.get(read.name), read);
+  for (const definition of commandRegistry.list()) {
+    const { name, describe, risk, input } = definition;
+    assert.ok(definition.roles.length > 0 && (risk === 'normal' || risk === 'high'), name);
+    for (const key of ['handler', 'preview', 'audit'] as const) assert.equal(typeof definition[key], 'function', `${name}.${key}`);
+    if (definition.inverse !== undefined) assert.equal(typeof definition.inverse, 'function', `${name}.inverse`);
+    const parsed = input.safeParse(describe.example);
+    assert.ok(parsed.success, `${name} example must validate: ${parsed.error?.message}`);
+    const schema = z.toJSONSchema(input, { io: 'input', unrepresentable: 'any' });
+    const tool = byName.get(proposedToolName(name));
+    assert.ok(tool, name);
+    assert.deepEqual(tool.parametersJsonSchema, toGeminiDeclaration({ name, description: '', schema }).parametersJsonSchema);
+    assert.ok(tool.description.includes(describe.sentence) && tool.description.includes(JSON.stringify(describe.example)), name);
+    for (const refusal of describe.refusals) assert.ok(tool.description.includes(`${refusal.code}: ${refusal.when} ${refusal.next}`), name);
   }
 });

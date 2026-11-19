@@ -4,7 +4,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part100,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part104,
     "operations": {
       "minItems": 1,
       "maxItems": 250,
@@ -12,7 +12,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "items": {
         "type": "object",
         "properties": {
-          "id": COMMAND_SCHEMA_PARTS.part47,
+          "id": COMMAND_SCHEMA_PARTS.part49,
           "type": {
             "type": "string",
             "enum": [
@@ -21,7 +21,7 @@ export const COMMAND_INPUT_SCHEMA = {
               "createTransaction"
             ]
           },
-          "data": COMMAND_SCHEMA_PARTS.part153
+          "data": COMMAND_SCHEMA_PARTS.part158
         },
         "required": [
           "id",

@@ -8,12 +8,12 @@ historical, not an acceptance test. Earlier migration batches and their evidence
 
 | Counter (`computeQualityMetrics()`) | Start of this batch | Now | Target |
 |---|---:|---:|---|
-| `rawTables` | 122 | **120** | Zero or an individual reason to keep each site |
+| `rawTables` | 109 | **84** | Zero or an individual reason to keep each site |
 | `handTypedApiCalls` | 5 | **5** | Zero or individually justified (§3) |
 | `directDbWrites` | 0 | **0** | 0 |
 | `screensWithManyPrimaryButtons` | 0 | **0** | 0 |
 
-**120 is files, not tables**: 118 paths on the migration queue, `PivotSheetView` (dynamic pivot) and
+**84 is files, not tables**: 82 paths on the migration queue, `PivotSheetView` (dynamic pivot) and
 `RowTable` (the embedded-table renderer itself). The full-list grid is excluded by the existing metric.
 `raw-table-decisions.test.ts` now compares the metric's actual paths against the queue and named exceptions;
 a new raw screen cannot slip in when a different screen migrates in the same PR. A queued file is **not** an exemption.
@@ -177,12 +177,48 @@ migrate the purchase item register.
       captured and rechecked all eight `purchase-item-register-*` and `receipt-methods-*` references.
       Both viewport sets were reviewed; no other references or tolerances changed.
 
-**Next batch:** on the supplied `8de8fe7` base the dry run offered **12 tables in 11 files**;
-now **10 in 9**, with **132** blocks still refused. `rawTables`: **122 → 120 files**, no new exemption.
-Start with `src/components/ledger/ProjectProfitabilityView.tsx` if still unreserved. It is the chart
-and transaction-line matrix, not the similarly named invoice-based report: preserve all/high-yield/loss
-filters, chart expansion and the existing export. Check open PRs and run `npx tsx scripts/codemod-row-table.ts --files`
-again on the next base. These two embedded report migrations do not finish the list, palette or proposal work.
+At the end of that batch the dry run offered **10 tables in 9 files** (12 in 11 on its
+`8de8fe7` base), with **132** blocks refused. `rawTables`: **122 → 120 files**.
+
+### Project, time, item and stock schedules
+
+- [x] Ten screens use the shared row renderer: **Project profitability, Time by person and project,
+      Sales by item, Gross margin by item group, Inactive items, Backorders, Inventory item details,
+      Stock aging, Inventory turnover and Stock transfers**. `ChartFrame`’s data alternative was a
+      separate raw-table file, so this is **eleven files**, not eleven screen migrations. No new exception.
+- [x] The transaction-line matrix now opens under **Projects → Profitability**. It is not the
+      invoice-based `profitability-by` report. Matching-line counts, all / margin over 40% / loss,
+      filtered totals, top ten / all chart rows and the keyboard data alternative use the same rows.
+      Chart money is passed to the formatter in minor units. Maximize and file export were **disabled**
+      on the base; they still explain why, rather than appearing to perform an action.
+- [x] Embedded schedules keep their identifying headers, stock opening/closing rows and weighted
+      margin footers. The month-margin detail opens by keyboard or touch, not just hover. Incomplete
+      reads cannot establish an empty period, release stock or bypass a disabled financial export
+      through the column chooser. The buyer's outstanding orders and the transfer ledger have separate
+      caps. Approval and billing still belong to Time, moving stock to Inventory, posting to the server.
+- [x] [Worked figures, reproduction and all before/after views](verification/UI2_STOCK_PROJECT_SCHEDULES.md).
+      Browser tests exercise the real components and the ten shell destinations separately. Report
+      fixtures cover English / Hebrew and LTR / RTL, 390 / 1280, light / dark, keyboard, scoped axe
+      and actual CSV downloads. The database-backed route tests are separate from the browser mocks.
+      The [hosted Chromium run](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44583505427)
+      captured and independently rechecked all 40 references. Reviewed the RTL chart axes, phone row
+      headings, opening/closing balances and matrix footers. No unrelated reference or tolerance changed.
+
+### Stock, customer and tax schedules — fifth batch
+
+- [x] **25 stock, customer and tax screen files** ([worked figures, before/after images and checks](verification/UI2_NEXT_25_SCHEDULES.md)).
+      This removes 26 raw tables: Stock Value by Location & Lot had two. Milestone Billing already had
+      a shared detail schedule — only its order table counts. No change to posting or the valuation formulas.
+      An unassigned location remains a real group; an item whose stock history cannot be explained is not
+      allocated to it. Received lot value and sold references are separate from stock on the selected day.
+      Reader dates and translated column labels do not alter the machine CSV contracts. A chosen column
+      cannot hide the row's name or shift the total into a different amount column.
+
+**Next batch:** measured from `1572821`: `rawTables` **109 → 84**, migration queue **107 → 82**,
+dry codemod **8 tables / 7 files → 4 / 3**, hand-work blocks **123 → 101**. Recheck the live queue
+and PR reservations first. The three remaining automatic candidates are `TimeView`,
+`PriceListImportView` and `PurchaseOrdersView`. The purchase-order file also contains hand work:
+migrating one convertible table is not migrating a screen. No other UI-2 part is certified by this batch.
 
 ## 3. One way to act
 

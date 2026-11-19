@@ -10,7 +10,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import GrossMarginByItemGroupReportView from '../components/reporting/GrossMarginByItemGroupReportView';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
-import { setComponentWorkspace } from './helpers/componentFixtures';
+import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
 import { getSupabase } from '../lib/db/client';
 import { getLocalDateISO } from '../lib/utils';
 
@@ -20,6 +20,7 @@ describe('Gross margin by item group screen', () => {
   beforeEach(() => {
     stubFetch(404);
     setComponentWorkspace('owner');
+    markComponentCollectionsLoaded('invoices', 'inventory', 'transactions', 'accounts');
     useDataNeedsStore.setState({ failed: {} as never });
     useLedgerStore.setState({
       invoices: [{

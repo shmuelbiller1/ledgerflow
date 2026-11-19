@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import {
-  ruleCoverage, ruleCoverageCsvRows, RULE_COVERAGE_CSV_HEADERS, COVERAGE_KINDS, COVERAGE_KIND_LABELS, CORE_COVERAGE_KINDS,
+  ruleCoverage, ruleCoverageCsvRows, RULE_COVERAGE_CSV_HEADERS, COVERAGE_KINDS, CORE_COVERAGE_KINDS,
   type CoverageKind,
 } from '../../lib/rules/coverage';
 import { IL_VAT_SPECIAL_AREAS, ilVatAreaKeyFor, ilVatAreaNames } from '../../lib/tax/ilVat';
 import { formatDate, getLocalDateISO } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 import { byCodeUnit } from '../../lib/codeUnitOrder';
 import { useReportText, fill } from './useReportText';
 
@@ -25,6 +25,19 @@ const GAP_SHOWN = 12;
  */
 export default function RulePackCoverageReportView({ asOfDate = '' }: { asOfDate?: string }) {
   const reportText = useReportText();
+  const kindName: Record<CoverageKind, string> = {
+    'rate': reportText('r.rate', 'Rate'),
+    'taxability': reportText('r.coverage-taxability', 'Taxability'),
+    'nexus': reportText('r.coverage-nexus', 'Nexus'),
+    'registration': reportText('r.registration', 'Registration'),
+    'filing': reportText('r.coverage-filing', 'Filing'),
+    'marketplace': reportText('r.coverage-marketplace', 'Marketplace'),
+    'withholding': reportText('r.coverage-withholding', 'Withholding'),
+    'reverse-charge': reportText('r.coverage-reverse-charge', 'Reverse charge'),
+    'scheme': reportText('r.coverage-scheme', 'Scheme'),
+    'use-tax': reportText('r.coverage-use-tax', 'Use tax'),
+    'import-vat': reportText('r.coverage-import-vat', 'Import VAT'),
+  };
   const [asOf, setAsOf] = useState(asOfDate || getLocalDateISO());
   const [country, setCountry] = useState('all');
   const [kind, setKind] = useState<CoverageKind | 'all'>('all');
@@ -55,7 +68,7 @@ export default function RulePackCoverageReportView({ asOfDate = '' }: { asOfDate
       <label className="flex flex-col gap-1 text-sm">{reportText('r.kind-of-rule', 'Kind of rule')}
         <select aria-label={reportText('r.kind-of-rule', 'Kind of rule')} className={field} value={kind} onChange={event => setKind(event.target.value as CoverageKind | 'all')}>
           <option value="all">{reportText('r.every-kind', 'Every kind')}</option>
-          {COVERAGE_KINDS.map(k => <option key={k} value={k}>{COVERAGE_KIND_LABELS[k]}</option>)}
+          {COVERAGE_KINDS.map(k => <option key={k} value={k}>{kindName[k]}</option>)}
         </select>
       </label>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!rows.length}
@@ -68,40 +81,27 @@ export default function RulePackCoverageReportView({ asOfDate = '' }: { asOfDate
     </p>
 
     {gaps.map(gap => gap.places.length > 0 && <p key={gap.kind} className="text-sm text-[var(--muted)]">
-      <b>{COVERAGE_KIND_LABELS[gap.kind]}:</b> {gap.places.length} {reportText('r.covered-place-s-have-no-rule-of-this-kind', 'covered place(s) have no rule of this kind')}
+      <b>{kindName[gap.kind]}:</b> {gap.places.length} {reportText('r.covered-place-s-have-no-rule-of-this-kind', 'covered place(s) have no rule of this kind')}
       {' — '}{gap.places.slice(0, GAP_SHOWN).join(', ')}{gap.places.length > GAP_SHOWN ? ` ${fill(reportText('r.and-0-more-all-of-them-in-the-csv', '…and {0} more (all of them in the CSV)'), { 0: gap.places.length - GAP_SHOWN })}` : ''}
     </p>)}
 
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>{reportText('r.rule-pack-coverage', 'Rule pack coverage')}{asOf ? fill(reportText('r.rules-in-force-on-0', ', rules in force on {0}'), { 0: formatDate(asOf) }) : ''}</caption>
-        <thead>
-          <tr>
-            <th scope="col" className="text-left py-1 px-2">{reportText('r.place', 'Place')}</th>
-            {COVERAGE_KINDS.map(k => <th key={k} scope="col" className="text-right py-1 px-2">{COVERAGE_KIND_LABELS[k]}</th>)}
-            <th scope="col" className="text-right py-1 px-2">{reportText('r.rules', 'Rules')}</th>
-            <th scope="col" className="text-left py-1 px-2">{reportText('r.packs', 'Packs')}</th>
-            <th scope="col" className="text-right py-1 px-2">{reportText('r.sources-2', 'Sources')}</th>
-            <th scope="col" className="text-left py-1 px-2">{reportText('r.from', 'From')}</th>
-            <th scope="col" className="text-left py-1 px-2">{reportText('r.latest-start', 'Latest start')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(row => <tr key={row.place} className="border-b border-[var(--line)]/50">
-            <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{row.place}</bdi></th>
-            {COVERAGE_KINDS.map(k => <td key={k} className="text-right py-1 px-2 tabular-nums">
-              {row.kinds[k] ? row.kinds[k] : <span className="text-[var(--muted)]">—</span>}
-            </td>)}
-            <td className="text-right py-1 px-2 tabular-nums">{row.rules}</td>
-            <td className="py-1 px-2 text-xs text-[var(--muted)]"><bdi>{row.packs.join(', ')}</bdi></td>
-            <td className="text-right py-1 px-2 tabular-nums">{row.sources}</td>
-            <td className="py-1 px-2">{row.earliestValidFrom}</td>
-            <td className="py-1 px-2">{row.latestValidFrom}</td>
-          </tr>)}
-        </tbody>
-      </table>
-      {!rows.length && <p className="text-sm text-[var(--muted)]">{reportText('r.no-rule-in-the-packs-matches-these-filters', 'No rule in the packs matches these filters.')}</p>}
-    </ReportTableScroll>
+    <ReportSchedule
+      columnControls={rows.length > 0}
+      allowDisplayedExport={rows.length > 0}
+      caption={<>{reportText('r.rule-pack-coverage', 'Rule pack coverage')}{asOf ? fill(reportText('r.rules-in-force-on-0', ', rules in force on {0}'), { 0: formatDate(asOf) }) : ''}</>}
+      rowClassName="border-b border-[var(--line)]/50"
+      bodyClassName=""
+      rows={rows} rowKey={row => row.place}
+      columns={[
+        { header: reportText('r.place', 'Place'), cell: row => <bdi>{row.place}</bdi> },
+        { over: COVERAGE_KINDS, head: k => kindName[k], align: 'right', className: 'tabular-nums', cell: (row, k) => row.kinds[k] ? row.kinds[k] : <span className="text-[var(--muted)]">—</span> },
+        { header: reportText('r.rules', 'Rules'), align: 'right', className: 'tabular-nums', cell: row => row.rules },
+        { header: reportText('r.packs', 'Packs'), className: 'text-xs text-[var(--muted)]', cell: row => <bdi>{row.packs.join(', ')}</bdi> },
+        { header: reportText('r.sources-2', 'Sources'), align: 'right', className: 'tabular-nums', cell: row => row.sources },
+        { header: reportText('r.from', 'From'), cell: row => row.earliestValidFrom },
+        { header: reportText('r.latest-start', 'Latest start'), cell: row => row.latestValidFrom },
+      ]} />
+    {!rows.length && <p role="status" data-report-empty-state className="text-sm text-[var(--muted)]">{reportText('r.no-rule-in-the-packs-matches-these-filters', 'No rule in the packs matches these filters.')}</p>}
 
     <details className="text-sm" data-il-special-areas>
       <summary className="min-h-11 cursor-pointer">{reportText('r.israel-the-places-outside-the-ordinary-rate-a-99', 'Israel: the places outside the ordinary rate (A-99)')}</summary>
@@ -125,7 +125,7 @@ export default function RulePackCoverageReportView({ asOfDate = '' }: { asOfDate
     </details>
 
     <p className="text-xs text-[var(--muted)]">
-      {reportText('r.a-rule-of-the-four-the-queue-asks-about', 'A rule of the four the queue asks about (')}{CORE_COVERAGE_KINDS.map(k => COVERAGE_KIND_LABELS[k]).join(', ')}{reportText('r.is-counted-once-per-place-it-names-so-a-state-ru', ') is counted once per place it names, so a state rule is a place inside its country and a pack\'s federal rows stay a country row of their own. "Sources" counts the distinct authority pages behind that place — a place with one source is one page read, not fifty-one checks.')}
+      {reportText('r.a-rule-of-the-four-the-queue-asks-about', 'A rule of the four the queue asks about (')}{CORE_COVERAGE_KINDS.map(k => kindName[k]).join(', ')}{reportText('r.is-counted-once-per-place-it-names-so-a-state-ru', ') is counted once per place it names, so a state rule is a place inside its country and a pack\'s federal rows stay a country row of their own. "Sources" counts the distinct authority pages behind that place — a place with one source is one page read, not fifty-one checks.')}
     </p>
   </section>;
 }
