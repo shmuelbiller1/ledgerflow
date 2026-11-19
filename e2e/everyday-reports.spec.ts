@@ -8,7 +8,10 @@ for(const [id,title,component] of reports){
   await page.goto(`/?report=${id}&start=2024-02-29&end=2024-03-31&cmp=prev#reports`);
   const report=page.getByRole('region',{name:title,exact:true});
   await expect(report).toBeVisible();await expect(report.getByRole('table')).toBeVisible();
-  await expect(report).toContainText('2024-03-31');
+  if(id==='sales-payment-summary'){
+   await expect(report).toContainText('Feb 29, 2024 – Mar 31, 2024');
+   await expect(report).toContainText('Previous: Jan 28, 2024 – Feb 28, 2024');
+  }else await expect(report).toContainText('2024-03-31');
   if(id.endsWith('period-summary')){
    await expect(report.getByRole('columnheader',{name:'Previous closing / change'})).toBeVisible();
    await report.getByRole('button',{name:'Scroll table right',exact:true}).press('Enter');

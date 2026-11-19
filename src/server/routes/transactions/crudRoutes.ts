@@ -21,7 +21,7 @@ import { errorMessage, HttpError, requestUser } from '../../auth/requestUser';
 import { enforceDoubleEntrySafety, ifMatchVersion } from './helpers';
 import { FieldsError, parseFields, pickFields } from '../../http/sparseFields';
 import { refusedLabels, refusedLabelsMessage } from '../../../lib/requiredLabels';
-import { documentPostedByServer } from './bulkRoutes';
+import { documentPostedByServer } from '../../services/serverPostedDocuments';
 
 function journalEditError(outcome: Exclude<CommandExecutionOutcome, { ok: true }>): { status: number; body: unknown } {
   const error = outcome.error as { currentTransaction?: unknown; missingLabels?: unknown } | undefined;

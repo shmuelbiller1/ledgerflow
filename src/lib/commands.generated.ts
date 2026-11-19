@@ -3,11 +3,14 @@ import { ACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/account';
 import { ALERTS_COMMAND_MANIFEST } from './commandManifests.generated/alerts';
 import { APIKEY_COMMAND_MANIFEST } from './commandManifests.generated/apikey';
 import { ASSET_COMMAND_MANIFEST } from './commandManifests.generated/asset';
+import { AUDIT_COMMAND_MANIFEST } from './commandManifests.generated/audit';
 import { AUDITLOG_COMMAND_MANIFEST } from './commandManifests.generated/auditlog';
 import { AUTORULE_COMMAND_MANIFEST } from './commandManifests.generated/autorule';
+import { BANK_COMMAND_MANIFEST } from './commandManifests.generated/bank';
 import { BILL_COMMAND_MANIFEST } from './commandManifests.generated/bill';
 import { BUDGET_COMMAND_MANIFEST } from './commandManifests.generated/budget';
 import { CHARTACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/chartaccount';
+import { CONSOLIDATION_COMMAND_MANIFEST } from './commandManifests.generated/consolidation';
 import { CONTACT_COMMAND_MANIFEST } from './commandManifests.generated/contact';
 import { CREDITNOTE_COMMAND_MANIFEST } from './commandManifests.generated/creditnote';
 import { CUSTOMER_COMMAND_MANIFEST } from './commandManifests.generated/customer';
@@ -59,11 +62,14 @@ export const COMMAND_MANIFEST = [
   ...ALERTS_COMMAND_MANIFEST,
   ...APIKEY_COMMAND_MANIFEST,
   ...ASSET_COMMAND_MANIFEST,
+  ...AUDIT_COMMAND_MANIFEST,
   ...AUDITLOG_COMMAND_MANIFEST,
   ...AUTORULE_COMMAND_MANIFEST,
+  ...BANK_COMMAND_MANIFEST,
   ...BILL_COMMAND_MANIFEST,
   ...BUDGET_COMMAND_MANIFEST,
   ...CHARTACCOUNT_COMMAND_MANIFEST,
+  ...CONSOLIDATION_COMMAND_MANIFEST,
   ...CONTACT_COMMAND_MANIFEST,
   ...CREDITNOTE_COMMAND_MANIFEST,
   ...CUSTOMER_COMMAND_MANIFEST,

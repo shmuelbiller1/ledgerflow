@@ -29,10 +29,13 @@ import { autoRuleLearnCommand, autoRuleResetCommand } from './rulePatterns';
 import { dimensionAxesCommand, dimensionNodeCommand, dimensionNodesCommand, dimensionNodesMigrateCommand } from './dimensions';
 import { userProvisionCommand, workspaceCreateCommand } from './bootstrap';
 import { userPreferencesCommand } from './userPreferences';
-import { projectDeleteCommand, projectRestoreCommand } from './projects';
+import { projectCreateCommand, projectDeleteCommand, projectRestoreCommand } from './projects';
 import { budgetDeleteCommand, budgetSaveCommand } from './budgets';
-import { chartAccountCreateCommand, chartAccountDeleteCommand, chartAccountUpdateCommand } from './chartAccounts';
-import { documentSaveCommand } from './attachments';
+import { chartAccountCreateCommand, chartAccountDeleteCommand, chartAccountRegisterCommand, chartAccountUpdateCommand } from './chartAccounts';
+import { documentRemoveCommand, documentSaveCommand } from './attachments';
+import { consolidationVerifyCommand } from './consolidation';
+import { bankReconnectCommand } from './bankFeeds';
+import { deepAuditCommand } from './deepAudit';
 import { ASSET_COMMANDS, assetCostAdditionCommand } from './assets';
 import { loanPaymentCommand } from './loans';
 import { notificationsReadCommand } from './notifications';
@@ -61,6 +64,8 @@ import {
   taxProfilesSaveCommand,
 } from './savedLists';
 import { journalCreateCommand } from './ledger';
+import { ledgerBulkCommand } from './ledgerBulk';
+import { documentPostCommand } from './documentPost';
 import {
   workspaceApplyTemplateCommand, workspaceImportRecordsCommand, workspaceInviteCommand, workspaceSaveTemplateCommand,
   workspaceScheduleDeletionCommand, workspaceUndoImportCommand, workspaceUpdateRoleCommand,
@@ -148,6 +153,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(workspaceCreateCommand);
   registry.register(dimensionNodesCommand);
   registry.register(dimensionNodesMigrateCommand);
+  registry.register(projectCreateCommand);
   registry.register(projectDeleteCommand);
   registry.register(projectRestoreCommand);
   registry.register(workspaceBudgetControlCommand);
@@ -161,6 +167,11 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(inventoryItemDeleteCommand);
   registry.register(inventoryCategoryRenameCommand);
   registry.register(documentSaveCommand);
+  registry.register(documentRemoveCommand);
+  registry.register(documentPostCommand);
+  registry.register(consolidationVerifyCommand);
+  registry.register(bankReconnectCommand);
+  registry.register(deepAuditCommand);
   ASSET_COMMANDS.forEach(command => registry.register(command));
   registry.register(assetCostAdditionCommand);
   registry.register(autoRuleResetCommand);
@@ -176,6 +187,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(presenceBeatCommand);
   registry.register(presenceLeaveCommand);
   registry.register(chartAccountCreateCommand);
+  registry.register(chartAccountRegisterCommand);
   registry.register(chartAccountDeleteCommand);
   registry.register(chartAccountUpdateCommand);
   registry.register(budgetSaveCommand);
@@ -219,6 +231,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(vendorCreateCommand);
   registry.register(vendorUpdateCommand);
   registry.register(journalCreateCommand);
+  registry.register(ledgerBulkCommand);
   registry.register(numberingUpdateCommand);
   registry.register(paymentReceiveCommand);
   registry.register(paymentCreditApplyCommand);

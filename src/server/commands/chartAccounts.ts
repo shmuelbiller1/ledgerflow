@@ -1,6 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { HttpError } from '../auth/requestUser';
 import { accountParentProblem, type AccountGroupMember } from '../../lib/accountGroups';
+import { ChartAccountSchema } from '../../schemas';
+import { assertDeveloperUsageQuota } from '../services/developerUsageQuota';
 import type { CommandContext, CommandDefinition } from './types';
 
 /**
@@ -354,5 +357,63 @@ export const chartAccountDeleteCommand: CommandDefinition<typeof chartAccountDel
       { code: 'ROLE_REQUIRED', when: 'The caller is not an owner or an accountant.', next: 'Ask a workspace owner or accountant to delete the account.' },
     ],
     next: [{ command: 'chartaccount.update', label: 'Archive it instead' }],
+  },
+};
+
+// The developer POST predates chartaccount.create: it accepts an integration-supplied ID, more
+// account types, and optional codes. It registers metadata only, it does not set an opening balance.
+const chartAccountRegisterInput = ChartAccountSchema.omit({ workspaceId: true, uid: true }).extend({
+  parentId: z.string().describe('ID of the account group').nullable().optional().describe('Null or omitted for a top-level account'),
+  balanceCents: ChartAccountSchema.shape.balanceCents.describe('Accepted for legacy callers but does not set the ledger balance'),
+  openingBalanceCents: ChartAccountSchema.shape.openingBalanceCents.describe('Accepted for legacy callers; use a journal to post an opening balance'),
+});
+type RegisteredAccount = {
+  id: string; workspaceId: string; name: string; type: string; code: string; parentId: string | null;
+  isActive: boolean; tags: string[]; createdAt: string;
+};
+
+function accountIdConflict() {
+  return Object.assign(new HttpError('Chart account ID already exists', 409), { code: 'CONFLICT' });
+}
+
+export const chartAccountRegisterCommand: CommandDefinition<typeof chartAccountRegisterInput, { account: RegisteredAccount }> = {
+  name: 'chartaccount.register',
+  input: chartAccountRegisterInput,
+  roles: ['owner', 'accountant', 'bookkeeper'],
+  allowPlatformAdmin: true,
+  async authorizeInput(ctx) {
+    if (!ctx.user.admin) await assertDeveloperUsageQuota(ctx.db, ctx.workspaceId, ctx.workspace);
+  },
+  async handler(ctx, tx, input) {
+    const id = input.id || `acc_${randomUUID().replace(/-/g, '')}`;
+    const ref = ctx.db.collection('chartAccounts').doc(id);
+    if ((await tx.get(ref)).exists) throw accountIdConflict();
+    const account = {
+      id, workspaceId: ctx.workspaceId, name: input.name, type: input.type, code: input.code || '',
+      parentId: input.parentId || null, isActive: input.isActive ?? true, tags: input.tags || [], createdAt: new Date().toISOString(),
+    };
+    tx.create(ref, account);
+    return { account };
+  },
+  async preview(ctx, input) {
+    if (input.id && (await ctx.db.collection('chartAccounts').doc(input.id).get()).exists) throw accountIdConflict();
+    return { title: `Register the account “${input.name}”`, lines: [input.type, 'Adds chart metadata only; no opening balance is set.'] };
+  },
+  audit(_input, { account }) {
+    return {
+      action: 'ACCOUNT_CREATED', entityType: 'chart_account', entityId: account.id,
+      description: `Created chart account "${account.name}" (${account.type})`, details: { code: account.code, type: account.type },
+    };
+  },
+  risk: 'normal',
+  describe: {
+    sentence: 'Register an account from a developer integration, optionally with a caller-chosen identifier; use chartaccount.create for the chart form’s code and grouping checks, and never use this to set an opening balance.',
+    example: { id: 'acc_integration_cash', name: 'Cash', type: 'asset', code: '1000' },
+    refusals: [
+      { code: 'CONFLICT', when: 'The requested ID is already taken.', next: 'Use a new ID, or read the chart before retrying.' },
+      { code: 'INVALID_INPUT', when: 'The name, type or other account fields do not pass validation.', next: 'Check the chart account schema.' },
+      { code: 'PAYMENT_REQUIRED', when: 'The developer API credit balance is exhausted.', next: 'Restore the workspace credit balance before registering accounts.' },
+      { code: 'QUOTA_EXCEEDED', when: 'The developer API spending limit was reached.', next: 'Ask the workspace administrator to review the limit before importing the chart.' },
+    ],
   },
 };

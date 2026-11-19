@@ -8,7 +8,7 @@ import { FieldValue } from '../db/firestore';
 import { BudgetBlocked, budgetWarningsFor, enforceBudgetControl, type BudgetWarning } from '../services/budgetGuard';
 import { refusedLabels, refusedLabelsMessage } from '../../lib/requiredLabels';
 import { HttpError } from '../auth/requestUser';
-import { documentPostedByServer } from '../routes/transactions/bulkRoutes';
+import { documentPostedByServer } from '../services/serverPostedDocuments';
 import type { CommandContext, CommandDefinition } from './types';
 
 const JournalEntryInputSchema = TransactionSchema.extend({

@@ -146,3 +146,24 @@ test('duplicate import review ignores weak name-only pairs and reports omitted l
   const unrelated = contactImportDuplicates('customers', [{ row: 2, name: 'Fresh Company', email: 'fresh@example.com' }], unrelatedCrowd);
   assert.equal(unrelated.incomplete, false);
 });
+
+test('duplicate import review ignores identifier groups wholly within the file', () => {
+  const incoming = Array.from({ length: 41 }, (_, i) => ({ row: i + 2, name: `New Company ${i}`, email: 'shared@example.com' }));
+  const check = contactImportDuplicates('customers', incoming, []);
+  assert.equal(check.incomplete, false);
+  assert.equal(check.possibleTotal, 0);
+});
+
+test('stored-to-stored pairs do not exhaust the import match budget', () => {
+  // Seven 40-member groups (39 stored + 1 incoming each) yield 5,460 all-pairs
+  // comparisons but only 273 relevant stored-to-incoming matches.
+  const groups = Array.from({ length: 7 }, (_, i) => `shared-${i}@example.com`);
+  const existing: ReviewContact[] = groups.flatMap((email, group) => Array.from({ length: 39 }, (_, i) => ({
+    id: `stored-${group}-${i}`, kind: 'vendor', name: `Stored ${group} Company ${i}`, email,
+  })));
+  const incoming = groups.map((email, i) => ({ row: i + 2, name: `Incoming Company ${i}`, email }));
+  const check = contactImportDuplicates('vendors', incoming, existing);
+  assert.equal(check.incomplete, false);
+  assert.equal(check.possibleTotal, 273);
+  assert.equal(check.possible.length, 20);
+});

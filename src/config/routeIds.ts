@@ -9,7 +9,7 @@ import { discoverPluginModules, extractPluginRouteIds } from './pluginDiscovery'
  * 1-to-1 parity with `registry.tsx` is enforced by `src/tests/stage6-footprint-optimization.test.ts`.
  */
 const STATIC_SCREEN_TAB_IDS: readonly string[] =
-  "dashboard inbox practice copilot transactions credit-notes assets register ledger intercompany recurring query-builder banking audit-trail client-queries tasks reconciliation month-end-close fiscal-periods sales estimates payments time purchases purchase-orders inventory loans petty-cash payroll reports charts forecaster budgets projects intelligence settings data-health support help glossary vault pricing api-hub system-command-center architecture audit time-machine ask magic taxes consolidation accept-invite general-ledger statement tax-liability accountant-queue".split(' ');
+  "dashboard inbox practice copilot transactions credit-notes assets register ledger intercompany recurring query-builder banking audit-trail client-queries tasks reconciliation month-end-close fiscal-periods sales estimates payments time purchases purchase-orders inventory loans petty-cash payroll reports charts forecaster budgets projects intelligence settings data-health support help glossary vault pricing api-hub system-command-center architecture audit time-machine ask sandbox-review magic taxes consolidation accept-invite general-ledger statement tax-liability accountant-queue".split(' ');
 
 /**
  * Combines static core screen route IDs with dynamically discovered plugin route IDs

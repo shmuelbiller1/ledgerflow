@@ -1,3 +1,4 @@
+import { checkItemRegister, checkReceiptRegister } from './support/registerReportJourney';
 import { checkVendorQuoteTable } from './support/vendorQuoteTableJourney';
 import { checkDocumentTrends } from './support/documentTrendsJourney';
 import { checkComparisonReports } from './support/reportRowTableJourney';
@@ -126,6 +127,12 @@ for (const width of [1280, 390]) for (const theme of ['light', 'dark'] as const)
 
 // Include the open chooser, translated table headings and a non-first row header in baseline review.
 for (const width of [390, 1280]) for (const theme of ['light', 'dark'] as const) {
+  test(`visual purchase item register ${width} ${theme}`, async ({ page }) => {
+    await checkItemRegister(page, width, theme);
+  });
+  test(`visual receipt methods ${width} ${theme}`, async ({ page }) => {
+    await checkReceiptRegister(page, width, theme);
+  });
   test(`visual comparison reports ${width} ${theme}`, async ({ page }) => {
     await checkComparisonReports(page, width, theme);
   });
