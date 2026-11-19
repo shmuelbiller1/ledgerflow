@@ -385,6 +385,12 @@ export class Transaction {
 }
 
 export interface TransactionOptions { maxAttempts?: number; readOnly?: boolean }
+/**
+ * A sandbox review re-runs every drafted step in one serializable transaction, so it reads far more than an
+ * ordinary command and is the likeliest pivot when other writers are busy. Eight attempts (about 2-3 s of
+ * backoff) were exhausted in CI while other suites wrote the same tables; sixteen give it about 10 s.
+ */
+const SANDBOX_BATCH_RETRIES: TransactionOptions = { maxAttempts: 16 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -523,7 +529,7 @@ export class Firestore {
     assertOutsideCommandStage();
     if (this.sandbox) throw invalid('A sandbox batch must start on the server live handle');
     return this.serializable(runner => work(createSandboxBatch(this, runner, (db, state) => new Transaction(db, runner, state),
-      (db, active) => { if (active) db.scopedRunners.add(runner); else db.scopedRunners.delete(runner); })));
+      (db, active) => { if (active) db.scopedRunners.add(runner); else db.scopedRunners.delete(runner); })), SANDBOX_BATCH_RETRIES);
   }
 
   async runTransaction<R>(fn: (t: Transaction) => Promise<R>, options: TransactionOptions = {}): Promise<R> {
