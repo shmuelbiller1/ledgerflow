@@ -94,7 +94,8 @@ export async function validateWorkspaceAccounts(db: Firestore, workspaceId: stri
 
   for (const accDoc of docs) {
     if (!accDoc.exists) {
-      throw new Error(`Account ${accDoc.id} not found in chart of accounts.`);
+      // the caller named an account that does not exist: an input problem, not a server fault
+      throw Object.assign(new Error(`Account ${accDoc.id} not found in chart of accounts.`), { status: 400, code: 'ACCOUNT_NOT_FOUND' });
     }
     const accData = accDoc.data() || {};
     if (accData.workspaceId !== workspaceId) {

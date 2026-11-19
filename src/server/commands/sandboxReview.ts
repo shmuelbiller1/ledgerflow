@@ -4,14 +4,14 @@ import { requestUser, type RequestUser } from '../auth/requestUser';
 import { getDb, isWorkspaceMemberData, type Firestore } from '../db/firestore';
 import { validateSandboxId } from '../db/pg/sandbox';
 import { sandboxBatch, type SandboxBatch } from '../db/pg/sandboxBatch';
-import { boundWorkspace, clearDraft, createBinding, draftBytes, isUnresolved, lockBinding, MAX_PENDING_STEPS, saveStep, stepsOf, updateBinding, type StoredStep } from '../db/pg/sandboxReviewStore';
+import { boundWorkspace, clearDraft, createBinding, draftBytes, isUnresolved, lockBinding, MAX_PENDING_STEPS, overlayTables, saveStep, stepsOf, updateBinding, type StoredStep } from '../db/pg/sandboxReviewStore';
 import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedgerWriter';
 import { assertWorkspaceActiveForCommand, CommandRefusal, runCommandAfterCommit, runRegisteredCommand, type CommandAfterCommit } from '../utils/commandExecutor';
 import { commandRegistry } from './defaultRegistry';
 import type { CommandExecutionOutcome } from './types';
 import { requestPayloadHash } from '../utils/idempotency';
 import { assertDraftOrder, parentsOf, rebuildDraft, saveDraftStep, stepFailure, type ReviewActor } from './sandboxRebuild';
-import { overlayCollections, replayReviewedStep, stepCommand } from './sandboxStepCommands';
+import { replayReviewedStep, stepCommand } from './sandboxStepCommands';
 import type { CommandRisk } from './types';
 
 export interface SandboxReview {
@@ -159,10 +159,11 @@ async function applySelection(batch: SandboxBatch, actor: ReviewActor, active: S
   }
   const accepted = new Set(selected.map(step => step.id));
   for (const step of rows.filter(row => accepted.has(row.id))) {
-    const { command, writable } = stepCommand(step.command);
+    const command = stepCommand(step.command);
+    // exactly the tables the reviewed draft wrote; `expectedLive` then holds the replay to the same records
+    const writable = new Set([...step.dependencies.filter(ref => ref.written).map(ref => ref.collectionId), 'auditLogs']);
     try {
-      const { value } = await batch.live({ ids: new Map(Object.entries(step.preview.allocatedIds)),
-        writable: new Set([...writable, 'auditLogs']),
+      const { value } = await batch.live({ ids: new Map(Object.entries(step.preview.allocatedIds)), writable,
         expectedLive: { workspaceId: actor.workspaceId, writes: step.dependencies.filter(ref => ref.written), creates: step.recordIds } },
       async (db, tx) => {
         const replay = await replayReviewedStep(actor, db, tx, command, step.input, callbacks);
@@ -187,7 +188,7 @@ async function editDraft(batch: SandboxBatch, actor: ReviewActor, all: StoredSte
   intent: Extract<SandboxReviewIntent, { kind: 'edit' | 'reorder' | 'reject' }>): Promise<SandboxReview> {
   const id = actor.sandboxId;
   if (intent.kind === 'reject' && intent.stepIds === undefined) {
-    await batch.draft(id, phase => clearDraft(phase.runner, overlayCollections));
+    await batch.draft(id, async phase => clearDraft(phase.runner, await overlayTables(phase.runner)));
     for (const step of active) await saveStep(batch.runner, id, { ...step, state: 'rejected' });
     return response(id, await stepsOf(batch.runner, id), 'closed');
   }
@@ -247,7 +248,7 @@ export async function reviewSandbox(req: Request, scope: Scope, intent: SandboxR
       result = await editDraft(batch, actor, all, active, intent);
     }
     const closed = result.outcome === 'closed';
-    const bytes = closed ? 0 : await batch.draft(id, phase => draftBytes(phase.runner, overlayCollections));
+    const bytes = closed ? 0 : await batch.draft(id, async phase => draftBytes(phase.runner, await overlayTables(phase.runner)));
     if (!await updateBinding(batch.runner, binding, bytes, Date.now() - started, closed)) {
       throw new CommandRefusal('This workspace would exceed its 50 MB sandbox storage limit', 409, 'SANDBOX_STORAGE_LIMIT');
     }

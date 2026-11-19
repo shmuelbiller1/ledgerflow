@@ -66,6 +66,31 @@ export async function saveStep(runner: Runner, id: string, step: StoredStep): Pr
 }
 
 /** All physical writes come from reviewed steps. Clear just the manifest's collections. */
+/**
+ * Stock moves take `dbSeq` from a public sequence in a live insert trigger. The overlay has no
+ * sequence, so a drafted move would sort differently from its live replay and cost of goods could
+ * change between review and acceptance. Steps that move stock are refused until that is designed.
+ */
+const COUNTER_OWNED_TABLES: ReadonlySet<string> = new Set(['stockMoves']);
+let tableCache: { overlay: string[]; writable: string[] } | undefined;
+async function tables(runner: Runner): Promise<NonNullable<typeof tableCache>> {
+  if (!tableCache) {
+    // Every overlay table, and whether the sandbox role may read its live base. A draft write
+    // copies the live row's version first, so a table the role cannot read cannot be drafted.
+    const { rows } = await runner.query<{ table_name: string; book: boolean }>(`select table_name,
+      has_table_privilege('lf_sandbox', format('public.%I', table_name), 'SELECT') as book
+      from information_schema.tables where table_schema = 'sandbox' and table_type = 'BASE TABLE'
+      and table_name not in ('sandboxes', 'sandboxSteps') order by table_name`);
+    tableCache = { overlay: rows.map(row => row.table_name),
+      writable: rows.filter(row => row.book && !COUNTER_OWNED_TABLES.has(row.table_name)).map(row => row.table_name) };
+  }
+  return tableCache;
+}
+/** Every overlay table (one per document table in public), read once from the catalogue. */
+export const overlayTables = async (runner: Runner): Promise<string[]> => (await tables(runner)).overlay;
+/** The tables a draft step may write: the books the sandbox role can read, minus counter-owned ones. */
+export const draftWritableTables = async (runner: Runner): Promise<string[]> => (await tables(runner)).writable;
+
 export async function clearDraft(runner: Runner, collections: readonly string[]): Promise<void> {
   for (const id of collections) {
     await runner.query(`delete from sandbox.${quoteIdent(id)} where sandbox_id = sandbox.active_id()`);

@@ -163,7 +163,8 @@ export class CommandRefusal extends Error {
   }
 }
 
-async function enforcePlanCapacity(
+/** Exported for the sandbox: accepting a plan-metered step checks capacity again, against the live books. */
+export async function enforcePlanCapacity(
   req: Request,
   workspaceId: string,
   resource: Parameters<typeof requirePlanCapacity>[0],
