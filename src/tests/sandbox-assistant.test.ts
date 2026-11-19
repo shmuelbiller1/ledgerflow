@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { sandboxRequestForGeminiCall, type GeminiToolDeclaration } from '../../assistant/gemini';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { after, before, describe, test, type TestContext } from 'node:test';
@@ -225,6 +226,138 @@ describe('SBX-1 assistant token, read tools and routes (PostgreSQL)', { skip: !u
     assert.equal(await f.count('customers'), 1);
     assert.equal(await f.count('payments'), 1);
     assert.deepEqual(sends, ['billing@acme.test'], 'the real email happens once, after the save');
+  });
+
+  test('Gemini tools draft a create, edit and delete; stored reviews are read-only and the person can partially accept and undo', { timeout: 30_000 }, async t => {
+    const f = await setup(t);
+    const customer = live.doc(`customers/${f.id('old')}`);
+    const watch = live.doc(`documents/${f.id('watch')}`);
+    const record = { type: 'account', id: f.id('bank'), label: 'Bank' };
+    await customer.create({ workspaceId: f.workspaceId, name: 'Original contact', balanceCents: 0 });
+    await watch.create({ workspaceId: f.workspaceId, kind: 'watch', watcher: f.owner, record, createdAt: date, seenAt: date });
+    const sends = await f.fingerprint();
+    const loaded = await f.assistant('GET', '/tools');
+    assert.equal(loaded.status, 200);
+    assert.equal(loaded.json.workspaceCurrency, 'USD');
+    const [{ functionDeclarations }] = loaded.json.tools as Array<{ functionDeclarations: GeminiToolDeclaration[] }>;
+    assert.equal(functionDeclarations.length, 25);
+    const names = functionDeclarations.map(tool => tool.name);
+    assert.ok(names.includes('propose_customer_create') && names.includes('propose_customer_update'));
+    assert.ok(!names.includes('propose_watches_remove'), 'load a less common command through find_command');
+    assert.ok(!names.includes('propose_support_reply'), 'the offline catalog is not an authorization list');
+
+    const gemini = (name: string, args: Record<string, unknown> = {}, token = f.token) => {
+      const request = sandboxRequestForGeminiCall(f.sandbox.id, { name, args });
+      return call(request.method, request.path, { token }, request.body);
+    };
+    const found = await gemini('find_command', { words: 'watches remove' });
+    assert.equal(found.status, 200, JSON.stringify(found.json));
+    const matches = found.json.matches as Array<{ command: string; tool: GeminiToolDeclaration }>;
+    assert.equal(matches[0]?.command, 'watches.remove');
+    assert.equal(matches[0]?.tool.name, 'propose_watches_remove');
+    assert.deepEqual((await gemini('find_command', { words: 'support reply' })).json.matches, []);
+
+    // A token issued with a lower role cannot gain new draft abilities after a promotion.
+    const scoped = issueAssistantToken({ sandboxId: f.sandbox.id, personId: f.owner, workspaceId: f.workspaceId, role: 'bookkeeper', aal: 'aal2' });
+    assert.deepEqual((await gemini('find_command', { words: 'chartaccount delete' }, scoped.token)).json.matches, []);
+    assert.equal((await gemini('propose_chartaccount_delete', { id: f.id('bank') }, scoped.token)).json.code, 'ROLE_REQUIRED');
+
+    const created = await gemini('propose_customer_create', { customer: { id: f.id('new'), name: 'New contact' } });
+    const edited = await gemini('propose_customer_update', { id: f.id('old'), data: { name: 'Draft edit' } });
+    const deleted = await gemini(matches[0].tool.name, { watchId: f.id('watch') });
+    assert.deepEqual([created.status, edited.status, deleted.status], [201, 201, 201], JSON.stringify(deleted.json));
+    const [createStep, editStep, deleteStep] = deleted.json.steps as StoredStep[];
+    assert.deepEqual([createStep.state, editStep.state, deleteStep.state], ['pending', 'pending', 'pending']);
+    assert.deepEqual(await f.fingerprint(), sends, 'proposing did not change the live books, audit or operation keys');
+
+    const stored = async () => (await live.pool.query(`select to_jsonb(s) as binding,
+      (select jsonb_agg(to_jsonb(st) order by st.position) from sandbox."sandboxSteps" st where st.sandbox_id = s.id) as steps
+      from sandbox.sandboxes s where s.id = $1`, [f.sandbox.id])).rows[0];
+    const original = await stored();
+    const listed = await gemini('list_proposals');
+    assert.equal(listed.status, 200, JSON.stringify(listed.json));
+    assert.deepEqual((listed.json.proposals as Array<{ id: string }>).map(p => p.id), [f.sandbox.id]);
+    const previewed = await gemini('preview_proposal', { proposalId: f.sandbox.id });
+    assert.equal(previewed.status, 200, JSON.stringify(previewed.json));
+    const proposal = previewed.json.proposal as { steps: Array<{ id: string; input?: unknown; inverse?: unknown; preview: { title: string } }> };
+    assert.deepEqual(proposal.steps.map(s => s.id), [createStep.id, editStep.id, deleteStep.id]);
+    assert.match(proposal.steps[0].preview.title, /New contact/);
+    assert.match(proposal.steps[2].preview.title, /Stopped watching Bank/);
+    assert.ok(proposal.steps.every(s => s.input === undefined && s.inverse === undefined));
+    assert.deepEqual(await stored(), original, 'listing and reading the stored preview do not rebuild or persist anything');
+    const another = await call('POST', `/api/v1/workspaces/${f.workspaceId}/sandboxes`, { uid: f.owner });
+    const otherId = (another.json.sandbox as { id: string }).id;
+    assert.equal((await gemini('preview_proposal', { proposalId: otherId })).json.code, 'ASSISTANT_SANDBOX_MISMATCH');
+    assert.equal((await call('GET', `/api/v1/sandboxes/${otherId}/tools`, { token: f.token })).status, 403);
+    assert.equal((await gemini('list_proposals', { workspaceId: 'anywhere-else' })).status, 400);
+
+    const accepted = await f.person('POST', '/accept', { revision: deleted.json.revision, stepIds: [createStep.id, deleteStep.id] });
+    assert.equal(accepted.status, 200, JSON.stringify(accepted.json));
+    assert.deepEqual(accepted.json.accepted, [createStep.id, deleteStep.id]);
+    assert.deepEqual((accepted.json.steps as StoredStep[]).map(s => s.state), ['accepted', 'pending', 'accepted']);
+    assert.equal((await live.doc(`customers/${f.id('new')}`).get()).data()?.name, 'New contact');
+    assert.equal((await customer.get()).data()?.name, 'Original contact');
+    assert.equal((await watch.get()).exists, false);
+    assert.equal(await f.count('auditLogs'), 2);
+    assert.equal((await f.assistant('POST', `/steps/${deleteStep.id}/undo`, {})).status, 404);
+    const undo = await f.person('POST', `/steps/${deleteStep.id}/undo`, {});
+    assert.equal(undo.status, 200, JSON.stringify(undo.json));
+    assert.equal((undo.json.step as StoredStep).state, 'undone');
+    assert.deepEqual((await live.collection('documents').where('workspaceId', '==', f.workspaceId).where('kind', '==', 'watch').get()).docs.map(doc => doc.data().record), [record]);
+    assert.equal(await f.count('auditLogs'), 3);
+    assert.equal((await f.person('POST', `/steps/${deleteStep.id}/undo`, {})).json.code, 'SANDBOX_STEP_NOT_ACCEPTED');
+
+    // Someone removed the original contact after the proposal was drafted. Only the person's
+    // review rebuilds it; both of the assistant's read tools must explain the saved refusal.
+    await customer.delete();
+    const repaired = await f.person('GET', '');
+    assert.equal(repaired.status, 200, JSON.stringify(repaired.json));
+    const failed = (repaired.json.steps as StoredStep[]).find(step => step.id === editStep.id)!;
+    assert.equal(failed.state, 'failed');
+    assert.ok(failed.failureReason);
+    const lastReview = await stored();
+    const afterList = (await gemini('list_proposals')).json.proposals as Array<{ steps: StoredStep[] }>;
+    const afterPreview = (await gemini('preview_proposal', { proposalId: f.sandbox.id })).json.proposal as { steps: StoredStep[] };
+    const listedFailure = afterList[0].steps.find(step => step.id === editStep.id);
+    assert.equal(listedFailure?.failureReason, failed.failureReason);
+    assert.equal(listedFailure?.preview, undefined, 'the list carries the refusal without the preview');
+    assert.equal(afterPreview.steps.find(step => step.id === editStep.id)?.failureReason, failed.failureReason);
+    assert.deepEqual(await stored(), lastReview);
+  });
+
+  test('proposal discovery and drafting honor live membership, issued role and workspace state', async t => {
+    const f = await setup(t);
+    const path = `/api/v1/workspaces/${f.workspaceId}/sandboxes`;
+    const opened = await call('POST', path, { uid: f.editor });
+    assert.equal(opened.status, 201, JSON.stringify(opened.json));
+    const sandboxId = (opened.json.sandbox as { id: string }).id;
+    const token = (opened.json.assistant as { token: string }).token;
+    const ws = live.doc(`workspaces/${f.workspaceId}`);
+    const ask = (method: string, suffix: string, body?: unknown, credential = token) =>
+      call(method, `/api/v1/sandboxes/${sandboxId}${suffix}`, { token: credential }, body);
+    const find = (words: string) => ask('POST', '/tools/find_command', { words });
+    const draft = { command: 'customer.create', input: { customer: { name: 'Blocked draft' } } };
+    assert.ok((await find('customer create')).json.matches instanceof Array);
+    assert.equal(((await find('customer create')).json.matches as unknown[]).length > 0, true);
+    assert.equal((await ask('POST', '/steps', { command: 'support.reply', input: {} })).json.code, 'SANDBOX_COMMAND_UNAVAILABLE');
+    for (const [field, code] of [[{ concurrentUserLimit: 0 }, 'WORKSPACE_FROZEN'], [{ status: 'pending_deletion' }, 'WORKSPACE_PENDING_DELETION']]) {
+      await ws.update(field);
+      assert.deepEqual((await find('customer create')).json.matches, []);
+      assert.equal((await ask('POST', '/steps', draft)).json.code, code);
+      await ws.update({ concurrentUserLimit: 50, status: 'active' });
+    }
+    const passwordOnly = issueAssistantToken({ sandboxId, workspaceId: f.workspaceId, personId: f.editor, role: 'bookkeeper', aal: 'aal1' });
+    await ws.update({ requireTwoStep: true });
+    assert.equal((await ask('GET', '/tools', undefined, passwordOnly.token)).json.code, 'TWO_STEP_REQUIRED');
+    assert.equal((await ask('POST', '/steps', draft, passwordOnly.token)).json.code, 'TWO_STEP_REQUIRED');
+    await ws.update({ requireTwoStep: false, roles: { [f.editor]: 'viewer' } });
+    assert.deepEqual((await find('customer create')).json.matches, []);
+    assert.equal((await ask('POST', '/steps', draft)).json.code, 'ROLE_REQUIRED');
+    await ws.update({ members: [f.owner], roles: {} });
+    assert.equal((await find('customer create')).status, 403);
+    assert.equal((await ask('POST', '/tools/preview_proposal', { proposalId: sandboxId })).status, 403);
+    assert.equal(await f.count('customers'), 0);
+    assert.equal(await f.count('auditLogs'), 0);
   });
 
   test('the assistant can edit, reorder and remove its own steps; the person can undo an accepted step through its inverse', { timeout: 20_000 }, async t => {

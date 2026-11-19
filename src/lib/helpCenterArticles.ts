@@ -141,6 +141,7 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     'statement',
     
     'accountant-export-pack',
+    'year-end-pack',
     'rule-pack-coverage',
     'customer-credit-limits',
     'aged-receivables-by-rep',

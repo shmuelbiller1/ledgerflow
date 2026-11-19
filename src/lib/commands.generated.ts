@@ -8,6 +8,7 @@ import { AUDITLOG_COMMAND_MANIFEST } from './commandManifests.generated/auditlog
 import { AUTORULE_COMMAND_MANIFEST } from './commandManifests.generated/autorule';
 import { BANK_COMMAND_MANIFEST } from './commandManifests.generated/bank';
 import { BILL_COMMAND_MANIFEST } from './commandManifests.generated/bill';
+import { BILLING_COMMAND_MANIFEST } from './commandManifests.generated/billing';
 import { BUDGET_COMMAND_MANIFEST } from './commandManifests.generated/budget';
 import { CHARTACCOUNT_COMMAND_MANIFEST } from './commandManifests.generated/chartaccount';
 import { CONSOLIDATION_COMMAND_MANIFEST } from './commandManifests.generated/consolidation';
@@ -22,6 +23,7 @@ import { ESTIMATE_COMMAND_MANIFEST } from './commandManifests.generated/estimate
 import { GROUPS_COMMAND_MANIFEST } from './commandManifests.generated/groups';
 import { INVENTORY_COMMAND_MANIFEST } from './commandManifests.generated/inventory';
 import { INVENTORYITEM_COMMAND_MANIFEST } from './commandManifests.generated/inventoryitem';
+import { INVITE_COMMAND_MANIFEST } from './commandManifests.generated/invite';
 import { INVOICE_COMMAND_MANIFEST } from './commandManifests.generated/invoice';
 import { JOURNAL_COMMAND_MANIFEST } from './commandManifests.generated/journal';
 import { JOURNALTEMPLATE_COMMAND_MANIFEST } from './commandManifests.generated/journaltemplate';
@@ -67,6 +69,7 @@ export const COMMAND_MANIFEST = [
   ...AUTORULE_COMMAND_MANIFEST,
   ...BANK_COMMAND_MANIFEST,
   ...BILL_COMMAND_MANIFEST,
+  ...BILLING_COMMAND_MANIFEST,
   ...BUDGET_COMMAND_MANIFEST,
   ...CHARTACCOUNT_COMMAND_MANIFEST,
   ...CONSOLIDATION_COMMAND_MANIFEST,
@@ -81,6 +84,7 @@ export const COMMAND_MANIFEST = [
   ...GROUPS_COMMAND_MANIFEST,
   ...INVENTORY_COMMAND_MANIFEST,
   ...INVENTORYITEM_COMMAND_MANIFEST,
+  ...INVITE_COMMAND_MANIFEST,
   ...INVOICE_COMMAND_MANIFEST,
   ...JOURNAL_COMMAND_MANIFEST,
   ...JOURNALTEMPLATE_COMMAND_MANIFEST,

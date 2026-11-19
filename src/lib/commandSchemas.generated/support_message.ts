@@ -4,15 +4,9 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "ticketId": COMMAND_SCHEMA_PARTS.part100,
-    "body": COMMAND_SCHEMA_PARTS.part104,
-    "authorRole": {
-      "type": "string",
-      "enum": [
-        "user",
-        "admin"
-      ]
-    }
+    "ticketId": COMMAND_SCHEMA_PARTS.part104,
+    "body": COMMAND_SCHEMA_PARTS.part108,
+    "authorRole": COMMAND_SCHEMA_PARTS.part79
   },
   "required": [
     "ticketId",

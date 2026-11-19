@@ -5,6 +5,7 @@ import { useLedgerStore } from '../stores/useLedgerStore';
 import { doc, getDoc } from './db/firestore';
 import { localSet, localUpdate } from './db/localStore';
 import { runNamedCommand } from './commandByName';
+import { ServerCommandError } from './runCommand';
 import { db } from '../firebase';
 import { DEFAULT_WORKSPACE_DIMENSIONS, resolveDimensionLabel, setLineDimension, suggestNextDimensionNodeId, updateDimensionNodeDescription } from './dimensionUtils';
 import { normalizeSearchText } from './textNormalization';
@@ -143,15 +144,13 @@ export const defaultDimensionNodeAdapter: DimensionNodeActionAdapter = {
       writeGuestBatch([{ op: 'set', table: 'dimensionNodes', id: rowId, data: { ...node, workspaceId } }], sampleSession);
       return 'created';
     }
-    const { error } = await db.client().from('dimensionNodes').insert({
-      id: rowId,
-      data: { ...node, workspaceId },
-    });
-    if (!error) return 'created';
-    if (error.code === '23505' || /duplicate key|already exists/i.test(error.message || '')) {
-      return 'conflict';
+    try {
+      await runNamedCommand('workspace.dimensionnode', { node, createOnly: true }, { workspaceId });
+      return 'created';
+    } catch (error) {
+      if (error instanceof ServerCommandError && error.status === 409 && (error.body as { code?: string } | undefined)?.code === 'DUPLICATE_RECORD') return 'conflict';
+      throw error;
     }
-    throw new Error(`${error.message || 'Database error'} (dimensionNodes/${rowId})`);
   },
   readNode: async (workspaceId, dimensionId, nodeId) => {
     if (!db) return undefined;

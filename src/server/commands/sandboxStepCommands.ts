@@ -22,9 +22,10 @@ import type { AnyCommandDefinition, CommandAuditSummary } from './types';
  * `lf_sandbox` role, which can write only the overlay (every document table has one), so the draft
  * stage accepts any overlay table; the records it actually wrote are recorded on the step. At accept,
  * the live stage is allowed exactly those tables (plus the audit log), and `expectedLive` refuses a
- * replay whose write set differs from the reviewed draft at all. A command that needs a database
- * sequence (stock moves), a live job or a provider call cannot draft: the role has no sequence
- * privilege and the effect guards refuse, so the step is refused and nothing is kept.
+ * replay whose write set differs from the reviewed draft at all. A command that needs a live job or
+ * a provider call cannot draft: the effect guards refuse, so the step is refused and nothing is kept.
+ * Drafted stock moves get a provisional `dbSeq` from the overlay trigger (no public sequence is
+ * advanced); the accepted replay's posting hash must still equal the preview's.
  */
 const STEP_AREAS: ReadonlySet<string> = new Set([
   'asset', 'autorule', 'bill', 'budget', 'chartaccount', 'contact', 'creditnote', 'customer', 'document', 'employee', 'entrylink',

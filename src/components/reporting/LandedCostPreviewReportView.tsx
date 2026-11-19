@@ -1,3 +1,4 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 /**
  * A-63 / A-170: Landed cost preview on receipts, plus A-79 / A-171 barcode scanning on receipts.
  * Spreads freight, duty and handling across a purchase receipt's lines (or a custom/scanned
@@ -10,7 +11,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import {
   landedCostPreview,
@@ -22,7 +22,7 @@ import { findItemByBarcode, isScannerBurst, readScan } from '../../lib/barcodeSc
 import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import type { Bill, ChartAccount, InventoryItem, Vendor } from '../../types';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 import LandedCostPostPanel from './LandedCostPostPanel';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { useReportText, fill } from './useReportText';
@@ -52,8 +52,6 @@ export default function LandedCostPreviewReportView() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const homeCurrency = (workspace?.currency || 'USD').toUpperCase();
-  const truncated = useLedgerStore(s => s.truncatedCollections);
-  const failed = useDataNeedsStore(s => s.failed);
   const { loading } = useLedgerCollections('bills', 'inventory', 'vendors');
 
   const bills = useLedgerStore(s => s.bills) as Bill[];
@@ -185,10 +183,7 @@ export default function LandedCostPreviewReportView() {
     setScanNotice(`Added 1 × ${item.name} (${scan.code})${burst ? ' via scanner' : ''} to the receipt preview.`);
   };
 
-  const partial = Boolean(
-    truncated.bills || truncated.inventory || truncated.vendors ||
-    failed.bills || failed.inventory || failed.vendors,
-  );
+  const partial = usePartialReportInputs(['bills', 'inventory', 'vendors']);
 
   const exportCsv = () => {
     if (!preview) return;
@@ -328,40 +323,25 @@ export default function LandedCostPreviewReportView() {
             {' · '}{reportText('r.freight-duty-handling', 'Freight, duty & handling:')} <strong>{formatCurrency(preview.extraCostCents, activeCurrency)}</strong>
             {' · '}{reportText('r.landed-total', 'Landed total:')} <strong>{formatCurrency(preview.landedCents, activeCurrency)}</strong>
           </div>
-          <ReportTableScroll>
-            <table className="w-full text-sm border-collapse">
-              <caption className="sr-only">{reportText('r.landed-cost-allocation-preview', 'Landed cost allocation preview')}</caption>
-              <thead>
-                <tr className="border-b text-left">
-                  <th scope="col" className="py-2 pr-3">{reportText('r.item', 'Item')}</th>
-                  <th scope="col" className="py-2 pr-3">{CODE_NAMES.c0}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.quantity', 'Quantity')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.unit-cost-before', 'Unit cost before')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.goods-value-2', 'Goods value')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.allocated-freight-duty', 'Allocated freight/duty')}</th>
-                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.landed-line-total', 'Landed line total')}</th>
-                  <th scope="col" className="py-2 text-right">{reportText('r.landed-unit-cost', 'Landed unit cost')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.lines.map((line) => {
-                  const meta = activeLines.find(a => a.id === line.id);
-                  return (
-                    <tr key={`${line.id}:${line.unitCostCents}`} className="border-b">
-                      <td className="py-2 pr-3"><bdi>{line.description}</bdi></td>
-                      <td className="py-2 pr-3 font-mono text-xs">{meta?.sku || '—'}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{line.quantity}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{formatCurrency(line.unitCostCents, activeCurrency)}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{formatCurrency(line.goodsCents, activeCurrency)}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{formatCurrency(line.allocatedCents, activeCurrency)}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{formatCurrency(line.landedCents, activeCurrency)}</td>
-                      <td className="py-2 text-right tabular-nums font-medium">{formatCurrency(line.landedUnitCents, activeCurrency)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </ReportTableScroll>
+          <ReportSchedule
+            columnControls
+            allowDisplayedExport={!partial && !loading}
+            caption={reportText('r.landed-cost-allocation-preview', 'Landed cost allocation preview')}
+            captionClassName="sr-only"
+            headRowClassName="border-b text-start"
+            rowClassName="border-b"
+            bodyClassName=""
+            rows={preview.lines} rowKey={line => JSON.stringify([line.id, line.unitCostCents])}
+            columns={[
+              { header: reportText('r.item', 'Item'), cell: line => <bdi>{line.description}</bdi> },
+              { header: CODE_NAMES.c0, className: 'font-mono text-xs', cell: line => { const meta = activeLines.find(a => a.id === line.id); return meta?.sku || '—'; } },
+              { header: reportText('r.quantity', 'Quantity'), align: 'right', className: 'tabular-nums', cell: line => line.quantity },
+              { header: reportText('r.unit-cost-before', 'Unit cost before'), align: 'right', className: 'tabular-nums', cell: line => formatCurrency(line.unitCostCents, activeCurrency) },
+              { header: reportText('r.goods-value-2', 'Goods value'), align: 'right', className: 'tabular-nums', cell: line => formatCurrency(line.goodsCents, activeCurrency) },
+              { header: reportText('r.allocated-freight-duty', 'Allocated freight/duty'), align: 'right', className: 'tabular-nums', cell: line => formatCurrency(line.allocatedCents, activeCurrency) },
+              { header: reportText('r.landed-line-total', 'Landed line total'), align: 'right', className: 'tabular-nums', cell: line => formatCurrency(line.landedCents, activeCurrency) },
+              { header: reportText('r.landed-unit-cost', 'Landed unit cost'), align: 'right', className: 'tabular-nums font-medium', cell: line => formatCurrency(line.landedUnitCents, activeCurrency) },
+            ]} />
         </>
       )}
 

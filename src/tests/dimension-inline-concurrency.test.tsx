@@ -125,12 +125,15 @@ describe('Dimension inline concurrency, uncached IDs, and archived-node preserva
     });
 
     let releaseInsert!: () => void;
+    const inserts: unknown[] = [];
     const insertGate = new Promise<void>(resolve => { releaseInsert = resolve; });
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-      if (url.includes('/rest/v1/dimensionNodes') && init?.method === 'POST') {
+      assert.ok(!(url.includes('/rest/v1/dimensionNodes') && init?.method === 'POST'), 'no direct label write');
+      if (url.includes('/commands/workspace.dimensionnode') && init?.method === 'POST') {
+        inserts.push(JSON.parse(String(init.body)));
         await insertGate;
-        return new Response(JSON.stringify([]), { status: 201, headers: { 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ status: 'success', data: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
       return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }) as typeof fetch;
@@ -156,6 +159,8 @@ describe('Dimension inline concurrency, uncached IDs, and archived-node preserva
     fireEvent.click(screen.getByRole('button', { name: /Save .*Alpha.* as Property label/ }));
     fireEvent.change(propInput, { target: { value: 'Beta' } });
 
+    await waitFor(() => assert.equal(inserts.length, 1));
+    assert.equal((inserts[0] as { input: { createOnly: boolean } }).input.createOnly, true);
     await act(async () => { releaseInsert(); });
     await waitFor(() => {
       assert.ok(useLedgerStore.getState().dimensionNodes.some(n => n.description === 'Alpha'));

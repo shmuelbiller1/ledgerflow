@@ -10,25 +10,10 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { runCommand } from '../../lib/runCommand';
 import { RowTable } from '../ui/RowTable';
+import { buildExplainBody, parseExplanation, type ExplainRequest, type Explanation } from '../../lib/reportExplain';
 
-/** N-12: the filter that made a report figure; the drill-down then explains it from the server. */
-export interface ExplainRequest {
-  accountIds: string[];
-  /** none = a balance "as of" the end date, from the opening balance */
-  startDate?: string;
-  endDate?: string;
-  /** the figure the report shows, in the report's sign */
-  expectedCents?: number;
-  /** -1 where the report shows credits as positive (income, liabilities, equity) */
-  sign?: 1 | -1;
-  /** how the report names the filter, e.g. "1 Mar – 31 Mar 2026" */
-  label?: string;
-  /** CB-25: only lines with this value of a label ("Unassigned": lines without one) */
-  labelFilter?: { dimensionId: string; value: string };
-}
-
-interface ExplainLine { key: string; transactionId: string | null; date: string; description: string; payee?: string; accountName: string; amountCents: number; document: { type: 'invoice' | 'bill' | 'transaction'; id: string } | null; bankMatched: boolean; attachments: number; opening?: boolean }
-interface Explanation { lines: ExplainLine[]; totalCents: number; entries: number }
+/** N-12: the request and the answer's shape live in src/lib/reportExplain.ts, shared with R-7's panel. */
+export type { ExplainRequest } from '../../lib/reportExplain';
 
 /** The lines behind a figure, from the full history on the server (src/server/reports/explain.ts). */
 function Explained({ request, formatCurrency, onOpen, onFail }: { request: ExplainRequest; formatCurrency: (val: number) => string; onOpen: () => void; onFail: () => void }) {
@@ -37,16 +22,15 @@ function Explained({ request, formatCurrency, onOpen, onFail }: { request: Expla
   const [data, setData] = React.useState<Explanation | null>(null);
   const sign = request.sign || 1;
   // sent in the body: a total over a large chart of accounts is too long for a link
-  const query = workspaceId ? JSON.stringify({ workspaceId, accountIds: request.accountIds, ...(request.startDate ? { startDate: request.startDate } : {}), ...(request.endDate ? { endDate: request.endDate } : {}), ...(request.labelFilter ? { labelDimension: request.labelFilter.dimensionId, labelValue: request.labelFilter.value } : {}) }) : '';
+  const query = workspaceId ? buildExplainBody(workspaceId, request) : '';
   React.useEffect(() => {
     if (!query) return;
     let live = true;
     (async () => {
       // `query` is already the request text (it is also the effect's key), so it goes on the wire as-is —
       // passing it as `body` would JSON-encode the string and wrap the whole request in quotes
-      const body = await runCommand<Partial<Explanation>>({ path: '/api/v1/reports/explain', method: 'POST', rawBody: query }) ?? {};
-      if (!Array.isArray(body.lines)) throw new Error('The entries could not be loaded');
-      return body as Explanation;
+      const body = await runCommand<Partial<Explanation> | null>({ path: '/api/v1/reports/explain', method: 'POST', rawBody: query });
+      return parseExplanation(body);
     })().then(d => { if (live) setData(d); }).catch(() => { if (live) onFail(); });
     return () => { live = false; };
   }, [query, onFail]);
