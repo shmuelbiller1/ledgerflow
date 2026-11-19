@@ -5,6 +5,7 @@ import { formatCurrency } from '../../../lib/utils';
 
 import { BRAND_NAME } from '../../../config/brand';
 import { runCommand } from '../../../lib/runCommand';
+import { percentWidthStyle } from '../../../lib/percentBar';
 
 interface Meter {
   used: number;
@@ -132,7 +133,7 @@ export default function UsagePanel() {
                     className={`h-1.5 rounded ${
                       share >= 1 ? 'bg-rose-600' : share >= NEAR_LIMIT ? 'bg-amber-500' : 'bg-emerald-600'
                     }`}
-                    style={{ width: `${Math.min(100, Math.round(share * 100))}%` }}
+                    style={percentWidthStyle(Math.round(share * 100))}
                   />
                 </div>
                 {share >= 1 ? (
