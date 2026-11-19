@@ -171,10 +171,11 @@ test.describe('H-1 Hebrew screen baselines', () => {
       if (screen.id === 'trial-balance') {
         await main.getByRole('button', { name: 'Accountant Lens', exact: true }).click();
         await main.getByRole('button', { name: /^(Trial Balance|מאזן בוחן)$/ }).click();
-        await expect(main.getByLabel('נכון לתאריך')).toHaveValue(hebrewSample.to);
       }
       if (screen.id === 'settings') await main.getByRole('button', { name: 'מראה ותצוגה', exact: true }).click();
       await expect(screen.ready(main)).toBeVisible({ timeout: 20_000 });
+      // Trial Balance and its date control mount together after the lazy report loads.
+      if (screen.id === 'trial-balance') await expect(main.getByLabel('נכון לתאריך')).toHaveValue(hebrewSample.to);
       await expect(page.locator('html')).toHaveAttribute('lang', 'he');
       await expect(main).toHaveCSS('direction', 'rtl');
       await expect(main.locator('[data-screen-data-notice]')).toHaveCount(0);
