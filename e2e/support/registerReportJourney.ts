@@ -41,7 +41,8 @@ export async function checkItemRegister(page: Page, width: number, theme: 'light
   });
   await pressAt(page, load, 'Enter', true);
   await expect(financial).toBeEnabled(); await expect(templates).toBeVisible();
-  expect(reads.sort()).toEqual(['bills', 'inventory']);
+  expect(reads).toHaveLength(2);
+  expect(reads).toEqual(expect.arrayContaining(['bills', 'inventory']));
   const ledger = await downloadAt(page, financial);
   expect(ledger.name).toBe('purchase-items-2026-02-28.csv');
   expect(ledger.rows).toEqual([
