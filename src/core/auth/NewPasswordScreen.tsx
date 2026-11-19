@@ -1,7 +1,7 @@
 import React, { useId, useState } from 'react';
 import { KeyRound } from 'lucide-react';
 import { MIN_PASSWORD_LENGTH, passwordProblemCode } from '../../lib/passwordPolicy';
-import { fillOnboarding, onboardingText } from '../../lib/i18n/onboardingTranslations';
+import { onboardingText, onboardingTextWith } from '../../lib/i18n/onboardingTranslations';
 import { directionOf, useUiLanguage } from '../../lib/i18n/useUiLanguage';
 import { FilledText } from '../../components/onboarding/FilledText';
 
@@ -25,11 +25,9 @@ export default function NewPasswordScreen({ email, onSave, onSignOut }: { email:
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const code = passwordProblemCode(password, email);
-    // English keeps the exact sentences it always showed.
+    // Both languages fill {min}: English keeps the exact sentence it always showed.
     const problem = code
-      ? (language === 'he'
-        ? fillOnboarding(onboardingText(`password.${code}` as 'password.tooShort', language), { min: MIN_PASSWORD_LENGTH })
-        : onboardingText(`password.${code}` as 'password.tooShort', language))
+      ? onboardingTextWith(`password.${code}` as 'password.tooShort', language, { min: MIN_PASSWORD_LENGTH })
       : password !== again
         ? t('password.mismatch')
         : null;

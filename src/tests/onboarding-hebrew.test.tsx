@@ -175,6 +175,40 @@ describe('the sign-in screen', () => {
     assert.deepEqual(signups, []);
   });
 
+  /**
+   * The regression Gitar found on this PR: the refusals were rendered without filling `{min}` in
+   * English, so a person typing a short password read the literal "Use at least {min} characters".
+   * These two cases press the real buttons on the real screens, so a sentence that is only correct
+   * when a test calls the filling helper itself cannot pass.
+   */
+  test('an English refusal renders the real number, never the placeholder', async () => {
+    useUIStore.setState({ language: 'en' });
+    const signups: string[] = [];
+    render(<AuthScreen {...props} onEmailSignup={async (e) => { signups.push(e); }} language="en" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to Sign up' }));
+    await screen.findByRole('button', { name: 'Submit Registration' });
+    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'dana@example.com' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'short1!' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Submit Registration' })); });
+    const refusal = screen.getByRole('alert').textContent || '';
+    assert.equal(refusal, `Use at least ${MIN_PASSWORD_LENGTH} characters`);
+    assert.equal(/\{\w+\}/.test(refusal), false, `a placeholder reached the sign-up screen: ${refusal}`);
+    assert.deepEqual(signups, [], 'a refused password is not sent anywhere');
+  });
+
+  test('the new-password screen fills {min} in English too', async () => {
+    useUIStore.setState({ language: 'en' });
+    const saves: string[] = [];
+    render(<NewPasswordScreen email="dana@example.com" onSave={async p => { saves.push(p); }} onSignOut={() => {}} />);
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'short1!' } });
+    fireEvent.change(screen.getByLabelText('The same again'), { target: { value: 'short1!' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save the new password' })); });
+    const refusal = screen.getByRole('alert').textContent || '';
+    assert.equal(refusal, `Use at least ${MIN_PASSWORD_LENGTH} characters`);
+    assert.equal(/\{\w+\}/.test(refusal), false, `a placeholder reached the reset screen: ${refusal}`);
+    assert.deepEqual(saves, []);
+  });
+
   test('the Hebrew sentence for every refusal code exists, and the English one is unchanged', () => {
     const cases: Array<[string, string]> = [['short1!', 'tooShort'], ['Password123', 'tooLong'.replace('tooLong', 'common')], ['aaaaaaaaaaaa', 'repeated']];
     for (const [password, code] of cases) {
