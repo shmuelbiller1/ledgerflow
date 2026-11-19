@@ -4,7 +4,7 @@ import type { RecordRef, RecordVersion } from './commandStage';
 import { quoteIdent, type Runner } from './sql';
 
 export interface SandboxBinding { id: string; workspaceId: string; personId: string }
-export type StepState = 'pending' | 'accepted' | 'rejected' | 'needs-recheck' | 'failed';
+export type StepState = 'pending' | 'accepted' | 'rejected' | 'needs-recheck' | 'failed' | 'undone';
 export interface StepPreview extends CommandPreview {
   effects: EffectIntent[];
   entityId?: string;
@@ -28,7 +28,7 @@ export interface StoredStep {
 export const MAX_PENDING_STEPS = 200;
 const MAX_OPEN_SANDBOXES = 3;
 const MAX_OPEN_DRAFT_BYTES = 50_000_000;
-export const isUnresolved = (step: StoredStep) => step.state !== 'accepted' && step.state !== 'rejected';
+export const isUnresolved = (step: StoredStep) => step.state !== 'accepted' && step.state !== 'rejected' && step.state !== 'undone';
 
 export async function createBinding(runner: Runner, binding: SandboxBinding): Promise<'created' | 'person-limit' | 'workspace-limit'> {
   if (await openDraftBytes(runner, binding.workspaceId, binding.id) >= MAX_OPEN_DRAFT_BYTES) return 'workspace-limit';
@@ -96,4 +96,25 @@ export async function updateBinding(runner: Runner, binding: SandboxBinding, byt
 export async function boundWorkspace(runner: Runner, workspaceId: string): Promise<Record<string, unknown> | undefined> {
   const { rows: [row] } = await runner.query<{ data: Record<string, unknown> }>('select data from public."workspaces" where id = $1', [workspaceId]);
   return row?.data;
+}
+
+/** Whether an open, unexpired sandbox with this binding exists (a read; no lock). */
+export async function ownsOpenSandbox(runner: Runner, binding: SandboxBinding): Promise<boolean> {
+  const res = await runner.query(`select 1 from sandbox.sandboxes
+    where id = $1 and workspace_id = $2 and person_id = $3 and status = 'open' and expires_at > statement_timestamp()`,
+  [binding.id, binding.workspaceId, binding.personId]);
+  return res.rowCount === 1;
+}
+
+export interface OpenSandboxSummary { id: string; createdAt: string; expiresAt: string; pendingSteps: number }
+
+/** The person's own open sandboxes in one workspace, newest first: what the review screen lists. */
+export async function listOpenSandboxes(runner: Runner, workspaceId: string, personId: string): Promise<OpenSandboxSummary[]> {
+  const { rows } = await runner.query<{ id: string; created_at: string; expires_at: string; pending: number }>(`
+    select s.id, s.created_at::text as created_at, s.expires_at::text as expires_at,
+      (select count(*)::int from sandbox."sandboxSteps" st where st.sandbox_id = s.id and st.state in ('pending', 'needs-recheck', 'failed')) as pending
+    from sandbox.sandboxes s
+    where s.workspace_id = $1 and s.person_id = $2 and s.status = 'open' and s.expires_at > statement_timestamp()
+    order by s.created_at desc`, [workspaceId, personId]);
+  return rows.map(row => ({ id: row.id, createdAt: row.created_at, expiresAt: row.expires_at, pendingSteps: row.pending }));
 }

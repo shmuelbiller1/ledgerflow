@@ -89,13 +89,10 @@ async function expectNoBrokenFigures(region: Locator) {
   for (const bad of ['NaN', 'Infinity', 'Invalid Date']) {
     expect(text, `a figure reads "${bad}"`).not.toContain(bad);
   }
-  const cells = region.locator('td, th, dd, dt, output');
-  const cellCount = await cells.count();
-  for (let index = 0; index < cellCount; index += 1) {
-    const cell = cells.nth(index);
-    const value = (await cell.textContent()) || '';
-    expect(value, `a cell reads "${value.trim()}"`).not.toContain('undefined');
-  }
+  // Inspect every cell in one browser read. Re-querying the whole tax coverage table
+  // once per cell used up the 120-second test budget on the second (RTL) pass.
+  const values = await region.locator('td, th, dd, dt, output').allTextContents();
+  expect(values.filter(value => value.includes('undefined')), 'cells displaying undefined').toEqual([]);
 }
 
 for (const { id, title, selector: reportSelector } of reports) {

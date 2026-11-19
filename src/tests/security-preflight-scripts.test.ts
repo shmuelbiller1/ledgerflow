@@ -190,6 +190,7 @@ test('S-25: evaluateResponseHeaders detects missing/weak headers and passes Ledg
     const findings = evaluateResponseHeaders('/api/health', res.headers, { isHttps: true });
     const failures = findings.filter(f => f.status === 'fail');
     assert.deepEqual(failures, [], `Unexpected security header failures: ${JSON.stringify(failures)}`);
+    // #827 landed: the production middleware sets Permissions-Policy
     const pp = findings.find(f => f.header === 'Permissions-Policy');
     assert.equal(pp?.status, 'pass');
   } finally {

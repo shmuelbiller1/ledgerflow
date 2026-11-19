@@ -4,9 +4,9 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part97,
-    "subject": COMMAND_SCHEMA_PARTS.part97,
-    "body": COMMAND_SCHEMA_PARTS.part101,
+    "id": COMMAND_SCHEMA_PARTS.part100,
+    "subject": COMMAND_SCHEMA_PARTS.part100,
+    "body": COMMAND_SCHEMA_PARTS.part104,
     "priority": {
       "type": "string",
       "enum": [
@@ -16,8 +16,8 @@ export const COMMAND_INPUT_SCHEMA = {
         "urgent"
       ]
     },
-    "errorDiagnostics": COMMAND_SCHEMA_PARTS.part149,
-    "errorLogId": COMMAND_SCHEMA_PARTS.part57
+    "errorDiagnostics": COMMAND_SCHEMA_PARTS.part153,
+    "errorLogId": COMMAND_SCHEMA_PARTS.part58
   },
   "required": [
     "id",

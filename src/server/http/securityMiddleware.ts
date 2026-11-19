@@ -5,6 +5,8 @@ import helmet from "helmet";
 import { supabaseUrl } from "../auth/supabaseAuth";
 import { isAiStudioProxy } from "./origins";
 import { requestContext } from "./requestContext";
+
+export const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), usb=(), payment=(self)';
 import {
   APP_INLINE_SCRIPT_HASHES, CSP_REPORT_PATH, configuredSupabaseConnectSources, connectSources,
   cspRollout, helmetDirectives, tightenedCspDirectives, tightenedCspHeaderValue,
@@ -54,24 +56,7 @@ export function applySecurityMiddleware(app: express.Express, isAllowedOrigin: (
     frameguard: aiStudioProxy ? false : { action: 'sameorigin' },
     hsts: process.env.NODE_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-    permissionsPolicy: {
-      features: {
-        camera: ["'none'"],
-        microphone: ["'none'"],
-        geolocation: ["'none'"],
-        usb: ["'none'"],
-        payment: ["'self'"],
-      },
-    },
   }));
-
-  // Permissions-Policy is not covered by vercel.json for the standalone Node server (API) — emit it here too
-  app.use((_req, res, next) => {
-    if (!res.headersSent && !res.getHeader('Permissions-Policy')) {
-      res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=(), payment=(self)');
-    }
-    next();
-  });
 
   // S-23 stage two: the tightened policy alongside the enforced one, so the browser reports what it
   // would have blocked (cspReportRoutes.ts) without a single page breaking while it is still allowed.
@@ -82,6 +67,11 @@ export function applySecurityMiddleware(app: express.Express, isAllowedOrigin: (
       next();
     });
   }
+  // S-25 / #827: browser features the app never uses are switched off for every page and frame
+  app.use((_req, res, next) => {
+    res.setHeader('Permissions-Policy', PERMISSIONS_POLICY);
+    next();
+  });
   // D-21: request id + one JSON access line per /api request (replaces the morgan text line).
   app.use(requestContext());
 }

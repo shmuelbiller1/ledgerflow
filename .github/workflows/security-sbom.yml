@@ -11,6 +11,8 @@ on:
 
 permissions:
   contents: read
+  # gitleaks-action lists a pull request's commits, which needs pull-requests: read
+  pull-requests: read
 
 concurrency:
   group: sbom-${{ github.event.pull_request.number || github.ref }}
@@ -76,8 +78,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: 'false'
-        with:
-          config-path: .gitleaks.toml
+          # the action takes no inputs; its config is read from this variable
+          GITLEAKS_CONFIG: .gitleaks.toml
       - name: Audit production dependencies against High/Critical threshold (S-25)
         run: node scripts/check-dependency-audit.ts --allowlist=security-audit-allowlist.json
       - name: Generate CycloneDX software bill of materials

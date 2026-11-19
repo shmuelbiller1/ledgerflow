@@ -30,6 +30,7 @@ import type { Server } from 'node:http';
 import { suggestFromRules, sameSuggestion, reconcileCreateDefaults } from '../lib/bankRules';
 import type { AutoRule, ChartAccount } from '../types';
 import { commitAsServer } from './helpers/serverCommit';
+import pg from 'pg';
 
 const rule = (id: string, priority: number, condition: AutoRule['condition'], action: AutoRule['action'], extra: Partial<AutoRule> = {}): AutoRule =>
   ({ id, uid: 'someone-else', priority, condition, action, confidence: 1, isHardened: true, isActive: true, createdAt: '2026-10-01', ...extra });
@@ -133,7 +134,7 @@ describe('EG-9 bank rules on the server', { skip: !url && 'LF_TEST_DATABASE_URL 
 
   after(async () => {
     server?.close();
-    for (const table of ['transactions', 'bankLines', 'autoRules', 'chartAccounts', 'vendors', 'idempotencyKeys', 'workspaces']) {
+    for (const table of ['transactions', 'bankLines', 'autoRules', 'chartAccounts', 'vendors', 'idempotencyKeys', 'auditLogs', 'workspaces']) {
       await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [ws]);
     }
     const { getSupabase } = await import('../lib/db/client');
@@ -190,6 +191,39 @@ describe('EG-9 bank rules on the server', { skip: !url && 'LF_TEST_DATABASE_URL 
     assert.equal(await entries(), 0);
   });
 
+  // #796: the runner's transaction retries once (40001) after the work is done: the retried attempt still
+  // reports the change and writes the audit line, and the rule still counts one hit
+  test('a serializable retry keeps the change count and the audit line', async () => {
+    const audits = async () => (await db.pool.query<{ c: number }>(`select count(*)::int as c from public."auditLogs" where workspace_id = $1 and data->>'action' = 'BANK_RULES_RERUN'`, [ws])).rows[0].c;
+    const before = await audits();
+    await db.collection('autoRules').doc(id('R7')).set({ ...rule(id('R7'), 0, { descriptionContains: 'coffee' }, { targetAccountId: id('a7000') }), workspaceId: ws } as never);
+    const original = db.runTransaction.bind(db);
+    let injected = false;
+    type Tx = Parameters<Parameters<typeof original>[0]>[0];
+    db.runTransaction = (async (work: (t: Tx) => Promise<unknown>) => {
+      db.runTransaction = original; // only the next (outer) call is wrapped; calls made inside it pass through
+      return original(async (t: Tx) => {
+        const result = await work(t);
+        if (!injected) {
+          injected = true;
+          throw Object.assign(new pg.DatabaseError('test-only retry', 0, 'error'), { code: '40001' });
+        }
+        return result;
+      });
+    }) as typeof db.runTransaction;
+    try {
+      const res = await send(ACC, { workspaceId: ws });
+      assert.equal(injected, true, 'the retry was injected');
+      assert.deepEqual(res.body, { checked: 3, changed: 1, suggested: 3, truncated: false });
+    } finally {
+      db.runTransaction = original;
+    }
+    assert.equal((await line('C')).suggestion?.ruleIds?.[0], id('R7'));
+    assert.equal((await hits()).R7, 1);
+    assert.equal(await audits(), before + 1);
+    await db.collection('autoRules').doc(id('R7')).delete();
+  });
+
   // review 4368675668: the statement's fingerprint is kept, one line per fingerprint
   test('importing the same file twice gives one line (and its entry once)', async () => {
     const file = (n: string) => ({ workspaceId: ws, transactions: [], bankLines: [
@@ -236,5 +270,23 @@ describe('EG-9 bank rules on the server', { skip: !url && 'LF_TEST_DATABASE_URL 
     await db.collection('bankLines').doc(id('A')).update({ status: 'matched', matchedTransactionId: 'tx-elsewhere' });
     const res = await send(OWNER, { workspaceId: ws });
     assert.deepEqual(res.body, { checked: 3, changed: 0, suggested: 2, truncated: false });
+  });
+
+  // Gitar on #908: the runner's transaction reads everything before it writes, so more lines than one chunk (200) work
+  test('more pending lines than one chunk re-run in the command transaction', async () => {
+    const c = await line('C');
+    const extra = Array.from({ length: 250 }, (_, i) => id(`X${String(i).padStart(3, '0')}`));
+    for (const lineId of extra) await db.collection('bankLines').doc(lineId).set({ ...c, id: lineId, suggestion: null, ruleIdsApplied: [] });
+    await db.collection('autoRules').doc(id('R8')).set({ ...rule(id('R8'), 0, { descriptionContains: 'coffee' }, { targetAccountId: id('a7000') }), workspaceId: ws } as never);
+    try {
+      const res = await send(OWNER, { workspaceId: ws });
+      assert.equal(res.status, 200, JSON.stringify(res.body));
+      assert.equal(res.body.checked, 253);
+      assert.ok(res.body.changed >= 251, `changed ${res.body.changed}`);
+      assert.equal((await db.collection('bankLines').doc(extra[249]).get()).data()?.suggestion?.ruleIds?.[0], id('R8'));
+    } finally {
+      for (const lineId of extra) await db.collection('bankLines').doc(lineId).delete();
+      await db.collection('autoRules').doc(id('R8')).delete();
+    }
   });
 });

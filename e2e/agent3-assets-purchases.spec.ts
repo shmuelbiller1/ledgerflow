@@ -3,6 +3,11 @@ import AxeBuilder from '@axe-core/playwright';
 import { readFile } from 'node:fs/promises';
 
 import { BRAND_NAME } from '../src/config/brand';
+const workspaceId = 'agent3-browser';
+const item = { id: 'chair', uid: 'agent3-user', workspaceId, name: 'כיסא', sku: 'chair', unitPriceCents: 1000, unitCostCents: 500, quantityAtHand: 3, reorderPoint: 0, createdAt: '2026-01-01' };
+const bill = { id: 'b1', uid: item.uid, workspaceId, vendorId: 'vendor', vendorName: 'ספק', date: '2026-10-01', dueDate: '2026-10-01', status: 'approved', amountCents: 2468, splits: [{ accountId: 'stock', itemId: 'chair', quantity: 2, amountCents: 2468 }] };
+const purchaseRecords = { inventory: [item], bills: [bill, { ...bill, id: 'eur', currency: 'EUR', exchangeRate: 2 }] };
+
 // Authenticated component fixtures with the real DB request boundary stubbed. No live provider writes.
 async function mount(page: Page, mode: 'maintenance' | 'labels' | 'purchases') {
   await page.route('**/agent3-fixture', route => route.fulfill({
@@ -10,7 +15,7 @@ async function mount(page: Page, mode: 'maintenance' | 'labels' | 'purchases') {
     body: `<!doctype html><html lang="en"><head><title>${BRAND_NAME} Agent 3 workflow</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body><div id="root"></div></body></html>`,
   }));
   await page.goto('/agent3-fixture');
-  await page.evaluate(async mode => {
+  await page.evaluate(async ({ mode, workspaceId, purchaseRecords }) => {
     const refresh = await import('/@react-refresh');
     refresh.default.injectIntoGlobalHook(window);
     Object.assign(window, { $RefreshReg$: () => {}, $RefreshSig$: () => (type: unknown) => type, __vite_plugin_react_preamble_installed__: true });
@@ -20,14 +25,11 @@ async function mount(page: Page, mode: 'maintenance' | 'labels' | 'purchases') {
       '/src/components/assets/MaintenanceLog.tsx', '/src/components/assets/AssetLabels.tsx', '/src/components/reporting/DocumentTrendsView.tsx',
     ];
     const [{ default: React }, { default: { createRoot } }, { useAuthStore }, { useLedgerStore }, { useDataNeedsStore }, { MaintenanceLog }, { default: AssetLabels }, { PurchaseTrendsView }] = await Promise.all(paths.map(path => import(path)));
-    const workspaceId = 'agent3-browser';
     const user = { uid: 'agent3-user', email: 'agent3@example.test', isAnonymous: false, getIdToken: async () => 'browser-fixture-token' };
     useAuthStore.setState({ user, isGuest: false, currentWorkspaceId: workspaceId, workspaces: [{ id: workspaceId, uid: user.uid, name: 'Demo Co', currency: 'USD', roles: { [user.uid]: 'owner' } }] });
     const asset = { id: 'van', uid: user.uid, workspaceId, name: 'ציוד', assetTag: 'AT-0001', purchaseDate: '2026-01-01', purchasePriceCents: 1200000, salvageValueCents: 10000, usefulLifeYears: 5, depreciationMethod: 'straight-line', accumulatedDepreciationCents: 20000, status: 'active', createdAt: '2026-01-01', maintenance: [] };
-    const item = { id: 'chair', uid: user.uid, workspaceId, name: 'כיסא', sku: 'chair', unitPriceCents: 1000, unitCostCents: 500, quantityAtHand: 3, reorderPoint: 0, createdAt: '2026-01-01' };
-    const bill = { id: 'b1', uid: user.uid, workspaceId, vendorId: 'vendor', vendorName: 'ספק', date: '2026-10-01', dueDate: '2026-10-01', status: 'approved', amountCents: 2468, splits: [{ accountId: 'stock', itemId: 'chair', quantity: 2, amountCents: 2468 }] };
-    useLedgerStore.setState({ assets: [asset], inventory: [item], bills: [bill, { ...bill, id: 'eur', currency: 'EUR', exchangeRate: 2 }], vendors: [], invoices: [], customers: [], accounts: [], transactions: [], truncatedCollections: {} });
-    useDataNeedsStore.setState({ loaded: { assets: true, inventory: true, bills: true, vendors: true, invoices: true, customers: true, accounts: true, transactions: true }, failed: {} });
+    useLedgerStore.setState({ assets: [asset], ...purchaseRecords, vendors: [], invoices: [], customers: [], accounts: [], transactions: [], truncatedCollections: {} });
+    useDataNeedsStore.setState({ loadedWorkspaceId: workspaceId, loaded: { assets: true, inventory: true, bills: true, vendors: true, invoices: true, customers: true, accounts: true, transactions: true }, failed: {} });
     function Fixture() {
       const current = useLedgerStore((state: { assets: Array<typeof asset> }) => state.assets[0]);
       const [labels, setLabels] = React.useState(false);
@@ -40,7 +42,7 @@ async function mount(page: Page, mode: 'maintenance' | 'labels' | 'purchases') {
         labels ? React.createElement(AssetLabels, { assets: [current], company: 'Demo Co', onClose: () => setLabels(false) }) : null);
     }
     createRoot(document.getElementById('root')).render(React.createElement(Fixture));
-  }, mode);
+  }, { mode, workspaceId, purchaseRecords });
 }
 
 test('phone maintenance retains a refused draft, retries, removes a note and links its file without posting', async ({ page }) => {
@@ -129,7 +131,20 @@ test('asset labels trap keyboard focus, retain QR, print Code 128 and bought dat
 
 test('phone item trends switch from vendor, keep currencies apart, export Hebrew safely and remain accessible', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.route('**/rest/v1/**', route => route.fulfill({ json: [] }));
+  // The visible cache is a preview. This third bill exists only in the complete history.
+  const history = { ...purchaseRecords, bills: [...purchaseRecords.bills, {
+    ...bill, id: 'history-only', date: '2026-09-30', amountCents: 1234,
+    splits: [{ ...bill.splits[0], quantity: 1, amountCents: 1234 }],
+  }] };
+  const reads: string[] = [];
+  await page.route('**/rest/v1/**', route => {
+    const url = new URL(route.request().url());
+    expect(url.searchParams.get('workspace_id')).toBe(`eq.${workspaceId}`);
+    const name = url.pathname.split('/').at(-1);
+    if (name !== 'bills' && name !== 'inventory') throw new Error(`Unexpected history read: ${name}`);
+    reads.push(name);
+    return route.fulfill({ json: history[name].map(data => ({ id: data.id, data })) });
+  });
   await mount(page, 'purchases');
   await page.getByLabel('Group purchases by').selectOption('item');
   const report = page.getByRole('region', { name: 'Purchase trends by item', exact: true });
@@ -140,11 +155,18 @@ test('phone item trends switch from vendor, keep currencies apart, export Hebrew
   await expect(report.getByRole('cell', { name: 'USD', exact: true })).toBeVisible();
   const csv = report.getByRole('button', { name: 'Export item trends CSV' });
   expect((await csv.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await expect(csv).toBeDisabled();
+  await report.getByRole('button', { name: 'Load / refresh full history' }).press('Enter');
+  await expect(report.getByRole('status')).toContainText('Full bill and item history loaded');
+  await expect(report.getByRole('rowheader', { name: 'כיסא' })).toHaveCount(3);
+  await expect(csv).toBeEnabled();
+  expect(reads).toHaveLength(2); expect(reads).toEqual(expect.arrayContaining(['bills', 'inventory']));
   const downloadPromise = page.waitForEvent('download');
   await csv.focus(); await csv.press('Enter');
   const download = await downloadPromise;
   const text = await readFile((await download.path())!, 'utf8');
   expect(text).toContain('כיסא'); expect(text).toContain('"EUR"'); expect(text).toContain('"USD"');
+  expect(text).toContain('"2026-09","chair","כיסא","USD",1,1234,1');
   expect(text).toContain(',2,2468,1'); expect(text).toContain('Line amount (minor units)');
   const layout = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth, overflow: [...document.querySelectorAll('body *')].filter(element => element.getBoundingClientRect().right > innerWidth).map(element => ({ tag: element.tagName, class: element.getAttribute('class'), x: element.getBoundingClientRect().x, width: element.getBoundingClientRect().width })) }));
   expect(layout.scrollWidth, JSON.stringify(layout.overflow)).toBeLessThanOrEqual(layout.width);
