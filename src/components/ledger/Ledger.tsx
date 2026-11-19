@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage, ServerCommandError } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { useNewRecord } from '../../hooks/useNewRecord';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useId, useState, useMemo } from 'react';
@@ -149,7 +150,7 @@ const Ledger = React.memo(() => {
       toast.success(`Reconciliation finalized: ${(data.reconciledIds || []).length} transactions marked reconciled.`);
     } catch (err) {
       console.error('Failed to persist reconciliation:', err);
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
       throw err;
     }
   };

@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 
 /**
  * Uses a recovery code at the code step of sign-in (L-85): the password-only session may call this
@@ -12,6 +13,6 @@ export async function redeemRecoveryCode(code: string): Promise<string> {
     return '';
   } catch (err) {
     // a refused code is an ordinary answer to this screen, so it returns the server's sentence instead of throwing
-    return commandErrorMessage(err) || 'That recovery code could not be checked';
+    return commandErrorMessage(err, uiLanguageNow()) || 'That recovery code could not be checked';
   }
 }

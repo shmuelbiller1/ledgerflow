@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
@@ -78,7 +79,7 @@ export default function DisposeAssetDialog({ asset, accounts, workspaceId, today
       toast.success(`${share ? `${percent}% of ` : ''}${asset.name} ${proceedsCents > 0 ? 'sold' : 'scrapped'}${data.gainLossCents ? `: ${data.gainLossCents > 0 ? 'gain' : 'loss'} of ${formatCurrency(Math.abs(data.gainLossCents), currency)}` : ''}`);
       onClose();
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setSaving(false);
     }

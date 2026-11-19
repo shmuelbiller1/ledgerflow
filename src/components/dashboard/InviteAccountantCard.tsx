@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -35,7 +36,7 @@ export default function InviteAccountantCard() {
         });
         if (useAuthStore.getState().currentWorkspaceId !== asked) return; // another set of books is open now
       } catch (err) {
-        toast.error(commandErrorMessage(err));
+        toast.error(commandErrorMessage(err, uiLanguageNow()));
         return;
       }
       const token = body.invite?.token;

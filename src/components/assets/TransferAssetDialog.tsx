@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
@@ -61,7 +62,7 @@ export default function TransferAssetDialog({ asset, accounts, workspaceId, toda
       toast.success(data.description || summary);
       onClose();
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setSaving(false);
     }

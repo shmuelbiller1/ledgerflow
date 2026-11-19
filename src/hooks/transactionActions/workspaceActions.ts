@@ -7,6 +7,7 @@ import { Transaction } from '../../types';
 import { toast } from 'sonner';
 import { formatDate } from '../../lib/utils';
 import { describeError } from '../../lib/errorRemedies';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { safeConfirm, getLocalDateISO } from '../../lib/utils';
 import { retentionFor } from '../../lib/retentionPolicy';
 import { saveChartAccount } from '../../lib/recordWrites';
@@ -49,7 +50,7 @@ export function createWorkspaceActions(ctx: ActionContext) {
       toast.success(`"${name}" will be deleted on ${when}`, { description: 'Until then, an owner can keep it from the banner at the top of the screen.' });
       useAuthStore.getState().setWorkspaces(useAuthStore.getState().workspaces.map(w => w.id === currentWorkspaceId ? { ...w, status: 'pending_deletion', scheduledPurgeAt: body.scheduledPurgeAt } as typeof w : w));
     } catch (error) {
-      const described = describeError(error, 'delete');
+      const described = describeError(error, 'delete', uiLanguageNow());
       toast.error(described.title, { description: described.remedy });
     }
   };

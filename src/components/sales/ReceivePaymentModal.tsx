@@ -12,6 +12,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { toast } from 'sonner';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { describeError } from '../../lib/errorRemedies';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { savedInOtherWorkspace, workspaceChangedSince } from '../../lib/saveWorkspace';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useSuggestedRate } from '../../hooks/useSuggestedRate';
@@ -251,7 +252,7 @@ export default function ReceivePaymentModal({
       onClose();
     } catch (err) {
       console.error('Failed to post payment:', err);
-      const described = describeError(err, 'create');
+      const described = describeError(err, 'create', uiLanguageNow());
       toast.error(`Payment not recorded: ${described.title.charAt(0).toLowerCase()}${described.title.slice(1)}`, { description: described.remedy });
     } finally {
       setIsSubmitting(false);

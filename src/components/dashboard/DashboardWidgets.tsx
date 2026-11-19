@@ -1,4 +1,5 @@
 import type { Workspace } from '../../types';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import React, { useMemo, useState } from 'react';
 import { collection, getDocs, limit, orderBy, query, where } from '../../lib/db/firestore';
@@ -118,7 +119,7 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
     try {
       body = await runCommand<{ roleDashboards?: Workspace['roleDashboards'] }>({ path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/role-dashboards`, method: 'PUT', body: { role: forRole, layout } });
     } catch (err) {
-      setRoleNote(commandErrorMessage(err));
+      setRoleNote(commandErrorMessage(err, uiLanguageNow()));
       return;
     }
     useAuthStore.setState(state => ({ workspaces: state.workspaces.map(w => (w.id === workspace.id ? { ...w, roleDashboards: body.roleDashboards } : w)) }));
