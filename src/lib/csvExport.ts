@@ -1,3 +1,4 @@
+import { currencyDigits } from './currencyMinorUnits';
 import { formatDecimal } from './moneyFormat';
 import { sanitizeCsvCell } from './csv';
 
@@ -13,6 +14,19 @@ export type CsvValue = string | number | boolean | null | undefined;
 /** Money in a CSV file: a plain decimal from cents ("1234.50", "-12.00"), no currency sign. */
 export function csvMoney(cents: number | null | undefined): string {
   return formatDecimal(cents ?? 0);
+}
+
+/** Make a numeric-cell writer for this currency. Determine the scale once for the whole
+ * file; splitting an integer avoids rounding a large balance through floating point. */
+export function csvMoneyForCurrency(currency: string): (minor: number) => string {
+  if (!/^[A-Z]{3}$/.test(currency)) throw new RangeError('Invalid currency for CSV export.');
+  const digits = currencyDigits(currency);
+  return minor => {
+    if (!Number.isSafeInteger(minor)) throw new RangeError('Unsafe amount cannot be exported.');
+    const s = String(Math.abs(minor)).padStart(digits + 1, '0');
+    const sign = minor < 0 ? '-' : '';
+    return digits ? `${sign}${s.slice(0, -digits)}.${s.slice(-digits)}` : sign + s;
+  };
 }
 
 export function toCsv(headers: CsvValue[], rows: CsvValue[][]): string {

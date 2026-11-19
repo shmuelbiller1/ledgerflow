@@ -3,7 +3,8 @@ import { Package } from 'lucide-react';
 import { formatCurrency, cn } from '../../lib/utils';
 import { yearRange } from '../../server/reports/itemReports';
 import { useServerSalesByItem } from '../../hooks/useServerSalesByItem';
-import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import ReportSkeleton from './ReportSkeleton';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { useReportText } from './useReportText';
 
 interface Props {
@@ -16,25 +17,39 @@ const pct = (value: number | null) => (value === null ? '—' : `${value.toFixed
 
 export const SalesByItemReportView: React.FC<Props> = ({ selectedYear, startDate, endDate }) => {
   const reportText = useReportText();
-  useLedgerCollections('inventory', 'invoices');
+  const title = reportText('r.sales-by-item-profit-margin', 'Sales by Item & Profit Margin');
 
   const { startDate: from, endDate: to } = startDate || endDate ? { startDate, endDate } : yearRange(selectedYear);
   // L-123 step 4b: the whole report from the server when the loaded invoices or entries are capped
-  const { rows, totals, source } = useServerSalesByItem(from, to);
-
+  const { report, source, failed, retryFull } = useServerSalesByItem(from, to);
+  const retry = retryFull && <button type="button" onClick={retryFull} className="mt-2 min-h-11 rounded border border-[var(--line)] px-3 text-sm">
+    {reportText('r.retry-full-report', 'Retry full report')}
+  </button>;
+  if (!report || (source === 'loaded-incomplete' && !report.rows.length)) {
+    return <section id="sales-by-item-report" className="mx-auto max-w-6xl space-y-3 p-4 text-[var(--text)] sm:p-6">
+      <h2 className="text-lg font-bold">{title}</h2>
+      {failed ? <ScreenDataNotice failedKeys={failed.failedKeys} message={failed.message} onRetry={failed.retry} />
+        : !report ? <ReportSkeleton rows={3} label={reportText('r.loading-report-records', 'Loading report records…')} />
+        : <p role="status">{reportText('r.no-matches-in-subset', 'No matching records were loaded. This report is incomplete; the full period may contain activity.')}</p>}
+      {retry}
+    </section>;
+  }
+  const { rows, totals } = report;
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 sm:p-6 text-[var(--text)]" id="sales-by-item-report">
       <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-[var(--line)] pb-4 gap-4">
         <div>
           <h2 className="text-lg font-bold flex items-center gap-2">
             <Package className="w-5 h-5 text-[var(--brass)]" />
-            {reportText('r.sales-by-item-profit-margin', 'Sales by Item & Profit Margin')}
+            {title}
           </h2>
           <p className="text-xs text-[var(--muted)] mt-0.5">
             {reportText('r.items-sold-on-issued-invoices-in-your-base-curre', 'Items sold on issued invoices, in your base currency, with cost of goods sold and margin.')}
           </p>
+          {source === 'refreshing' && <p role="status" className="text-xs text-[var(--muted)] mt-1" data-testid="sales-by-item-source">{reportText('r.updating-item-sales', 'Updating this period. Figures shown are from the previous full report.')}</p>}
           {source === 'server' && <p className="text-xs text-[var(--muted)] mt-1" data-testid="sales-by-item-source">{reportText('r.every-invoice-in-this-period-read-from-the-serve', 'Every invoice in this period, read from the server.')}</p>}
-          {source === 'loaded-incomplete' && <p role="status" className="text-xs text-amber-700 mt-1" data-testid="sales-by-item-source">{reportText('r.only-the-invoices-loaded-in-this-browser-some-sa', 'Only the invoices loaded in this browser: some sales or posted costs may be missing.')}</p>}
+          {source === 'loaded-incomplete' && <p role="status" className="text-xs text-amber-700 dark:text-amber-300 mt-1" data-testid="sales-by-item-source">{reportText('r.only-the-invoices-loaded-in-this-browser-some-sa', 'Only the invoices loaded in this browser: some sales or posted costs may be missing.')}</p>}
+          {retry}
         </div>
         <div className="flex items-center gap-6 bg-[var(--panel)] p-3 rounded-xl border border-[var(--line)]">
           <div>
