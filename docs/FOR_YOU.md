@@ -928,6 +928,20 @@ service-key roles, and keep `sandbox` and `sandbox_read` out of Supabase's expos
 database passed with this migration; live state was not independently checked in the report read pass.
 No assistant routes are enabled by the migration or by the report read pass.
 
+### SBX-1 assistant token, routes, review screen and Undo (this PR)
+
+`supabase/migrations/20261119090000_sandbox_step_undone.sql` is for the release lead **after this PR has merged
+and deployed**, in order after the two SBX-1 migrations above. It only widens the `sandboxSteps.state` check to
+allow `undone` (an accepted step whose recorded inverse was run through the ordinary command path). No grant, role
+or exposed-schema change; no new login. Tested on disposable PostgreSQL; the live database was not touched.
+
+What is now live once deployed: `POST /api/v1/workspaces/:id/sandboxes` (person, sign-in) opens a sandbox and
+answers a one-hour assistant token bound to that sandbox, person and role; `/api/v1/sandboxes/:id/...` (assistant
+token only) drafts steps and runs the seven read tools on the sandbox handle; accept / reject / undo stay behind
+the person's sign-in and refuse the assistant token (`src/tests/sandbox-assistant-token-routes.test.ts` proves every
+write route in the app does). The "Assistant drafts" screen is at `#sandbox-review`. The `SESSION_SECRET` env
+signs the assistant token, as it already signs sessions; nothing new to configure.
+
 ### SBX-1 live-read hardening (#825)
 
 `20261118130000_sandbox_live_read_boundary.sql` is for the release lead after the hardening PR

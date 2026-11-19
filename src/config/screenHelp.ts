@@ -449,6 +449,8 @@ export const SCREEN_HELP: Record<string, Record<string, string>> = {
       "Manage tax definitions and inspect tax workflows. Review rates and component rules before changing them. Review resulting tax totals on the affected documents.",
     consolidation:
       "Inspect consolidation across entities. Review selected entities and source account activity. A displayed elimination does not itself post a journal.",
+    "sandbox-review":
+      "What the assistant proposed, kept apart from your books until you accept it. Each step is listed as it would be recorded, and the trial balance is shown with the draft applied. Accept all, accept a selection with the steps it depends on, remove a step, or reject the draft; a high-risk step is confirmed on its own.",
     "accept-invite":
       "Review a workspace invitation. Sign in and accept a valid invitation using its existing workflow. Only a valid invitation can grant workspace access.",
   },
