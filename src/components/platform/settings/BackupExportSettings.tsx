@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage, ServerCommandError } from '../../../lib/runCommand';
+import { uiLanguageNow } from '../../../lib/i18n/uiLanguageNow';
 import { useState, useRef, useEffect, useLayoutEffect, type ChangeEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Download, Database, FileSpreadsheet, Archive, AlertCircle, Upload } from 'lucide-react';
@@ -158,7 +159,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
       payload = await runCommand({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/export`, token });
     } catch (error) {
       if (!isCurrent()) return;
-      setExportError(commandErrorMessage(error));
+      setExportError(commandErrorMessage(error, uiLanguageNow()));
       // Service outages and network failures can offer a different file; an access refusal cannot.
       setOfferPartial(error instanceof ServerCommandError ? error.status >= 500 : error instanceof TypeError);
       return;
@@ -171,7 +172,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
       if (!collections.transactions || !collections.accounts) throw new Error('The server backup is missing its ledger or accounts.');
       downloadJson(payload, 'backup', workspaceId);
     } catch (error) {
-      if (isCurrent()) setExportError(commandErrorMessage(error));
+      if (isCurrent()) setExportError(commandErrorMessage(error, uiLanguageNow()));
       return;
     }
     // The browser can start a download, but cannot verify that the file was saved to disk.
@@ -196,7 +197,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
       downloadJson(payload, 'partial-export', workspaceId);
       toast.warning('Partial copy download started. It cannot restore the workspace.');
     } catch (error) {
-      if (isCurrent()) setExportError(`Partial copy could not be downloaded: ${commandErrorMessage(error)}`);
+      if (isCurrent()) setExportError(`Partial copy could not be downloaded: ${commandErrorMessage(error, uiLanguageNow())}`);
     }
   };
 
@@ -212,7 +213,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
       const selection = await readRestoreFile(file, workspaceId);
       if (isCurrent()) setRestoreFile(selection);
     } catch (error) {
-      if (isCurrent()) setRestoreError(error instanceof SyntaxError ? 'The backup is not readable JSON.' : commandErrorMessage(error));
+      if (isCurrent()) setRestoreError(error instanceof SyntaxError ? 'The backup is not readable JSON.' : commandErrorMessage(error, uiLanguageNow()));
     } finally {
       fileReadPending.current = false;
       if (isCurrent()) setReading(false);
@@ -252,7 +253,7 @@ function BackupExportSettingsBody({ workspaceId, identity, canRestore }: {
         const refused = error instanceof ServerCommandError && error.status >= 400 && error.status < 500;
         setRestoreError(sent && !refused
           ? 'Could not confirm whether the restore finished. Check the workspace before trying again.'
-          : commandErrorMessage(error));
+          : commandErrorMessage(error, uiLanguageNow()));
       }
     } finally {
       restorePending.current = false;

@@ -1,4 +1,5 @@
 import { AssetInlineDetails } from './AssetInlineDetails';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import React, { useMemo, useState } from 'react';
 import { Building, Check, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -118,7 +119,7 @@ export const FixedAssetsView: React.FC = () => {
       });
       toast.success(`${asset.name} is back on the books; its disposal entry is void`);
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setUndoing('');
     }
@@ -135,7 +136,7 @@ export const FixedAssetsView: React.FC = () => {
       });
       toast.success(`${asset.name} is back where it was`);
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setUndoing('');
     }
@@ -191,7 +192,7 @@ export const FixedAssetsView: React.FC = () => {
       });
       toast.success(data.assets ? `Posted ${formatCurrency(data.totalCents)} depreciation for ${runMonth} (${data.assets} asset${data.assets === 1 ? '' : 's'}).` : `Nothing to post for ${runMonth}: everything is up to date.`);
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setRunning(false);
     }

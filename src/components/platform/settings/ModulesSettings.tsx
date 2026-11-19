@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { uiLanguageNow } from '../../../lib/i18n/uiLanguageNow';
 import { Blocks } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -46,7 +47,7 @@ export default function ModulesSettings() {
       const name = MODULES.find(m => m.id === id)?.name || id;
       toast.success(on ? `${name} is on: its screens are in the menu` : `${name} is off: its screens left the menu, nothing was deleted`);
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setSaving(null);
     }

@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import { uiLanguageNow } from '../lib/i18n/uiLanguageNow';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { commandErrorMessage, runCommand } from '../lib/runCommand';
 
@@ -17,7 +18,7 @@ export async function undoSpreadRequest(kind: 'bill' | 'invoice', workspaceId: s
   } catch (error) {
     // a refusal here is expected and explainable (a closed month); the caller gets false and the
     // screen is left as it was
-    toast.error(commandErrorMessage(error));
+    toast.error(commandErrorMessage(error, uiLanguageNow()));
     return false;
   }
   if (kind === 'bill') {

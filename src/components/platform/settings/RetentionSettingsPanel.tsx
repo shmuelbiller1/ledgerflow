@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useCurrentRole } from '../../../hooks/useCurrentRole';
 import { describeError } from '../../../lib/errorRemedies';
+import { uiLanguageNow } from '../../../lib/i18n/uiLanguageNow';
 import { RETENTION_LIMITS, retentionFor, type RetentionSettings } from '../../../lib/retentionPolicy';
 import { clearDirtyTracking, registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
 
@@ -47,7 +48,7 @@ export default function RetentionSettingsPanel() {
       clearDirtyTracking(panelRef.current);
       toast.success('Retention settings saved');
     } catch (err) {
-      const described = describeError(err, 'update');
+      const described = describeError(err, 'update', uiLanguageNow());
       toast.error(described.title, { description: described.remedy });
     } finally {
       setBusy(false);

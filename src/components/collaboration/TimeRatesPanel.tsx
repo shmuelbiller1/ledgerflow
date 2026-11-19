@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -32,7 +33,7 @@ export default function TimeRatesPanel({ workspaceId, rates, onSaved, people }: 
       const data = await runCommand<{ rates?: TimeRates }>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/time/rates`, method: 'PUT', body: { rates: next } });
       onSaved(data.rates ?? next);
       setId(''); setAmount('');
-    } catch (err) { toast.error(commandErrorMessage(err)); }
+    } catch (err) { toast.error(commandErrorMessage(err, uiLanguageNow())); }
   };
   const cents = Math.round(Number(amount.replace(',', '.')) * 100);
   const set = () => save({ ...rates, [kind]: { ...(rates[kind] || {}), [id]: cents } });

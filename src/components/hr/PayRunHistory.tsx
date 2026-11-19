@@ -4,6 +4,7 @@
  * posted run, and the direct deposit file (U-09). Split out of PayrollView.
  */
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import React, { useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { getIdToken } from '../../firebase';
@@ -47,7 +48,7 @@ export function PayRunHistory({ payRuns, canRunPayroll, onDone, onError }: {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (err) {
-      onError(commandErrorMessage(err));
+      onError(commandErrorMessage(err, uiLanguageNow()));
     }
   };
 
@@ -59,7 +60,7 @@ export function PayRunHistory({ payRuns, canRunPayroll, onDone, onError }: {
       setPayRuns(payRuns.map(r => (r.id === run.id ? { ...r, status: 'undone' } : r)));
       onDone(`Pay run of ${formatDate(run.date)} undone; its entry is void.`);
     } catch (err) {
-      onError(commandErrorMessage(err));
+      onError(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setUndoingRun('');
     }

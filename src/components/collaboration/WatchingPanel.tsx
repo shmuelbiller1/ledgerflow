@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -54,13 +55,13 @@ export default function WatchingPanel() {
       setWatches(list => [created, ...(list || []).filter(w => w.id !== created.id)]);
       setType(''); setId('');
       toast.success(`Watching ${label}: you are told once a day when it changes`);
-    } catch (err) { toast.error(commandErrorMessage(err)); }
+    } catch (err) { toast.error(commandErrorMessage(err, uiLanguageNow())); }
   };
   const stop = async (w: Watch) => {
     try {
       await call(workspaceId, `/${encodeURIComponent(w.id)}`, 'DELETE');
       setWatches(list => (list || []).filter(x => x.id !== w.id));
-    } catch (err) { toast.error(commandErrorMessage(err)); }
+    } catch (err) { toast.error(commandErrorMessage(err, uiLanguageNow())); }
   };
 
   return (

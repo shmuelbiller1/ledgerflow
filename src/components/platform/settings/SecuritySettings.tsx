@@ -4,6 +4,7 @@ import { useLedgerStore } from '../../../stores/useLedgerStore';
 import { Lock, ShieldCheck, AlertCircle, RefreshCw } from 'lucide-react';
 import { cn, safeConfirm } from '../../../lib/utils';
 import { describeError } from '../../../lib/errorRemedies';
+import { uiLanguageNow } from '../../../lib/i18n/uiLanguageNow';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useTransactionActions } from '../../../hooks/useTransactionActions';
 import { multiFactor, TotpMultiFactorGenerator, type TotpSecret } from '../../../lib/db/auth';
@@ -221,7 +222,7 @@ export default function SecuritySettings() {
     try {
         await txActions.handleResetWorkspace();
     } catch (err) {
-        const described = describeError(err, 'delete');
+        const described = describeError(err, 'delete', uiLanguageNow());
         toast.error(described.title, { description: described.remedy });
     } finally {
         setIsResetting(false);
@@ -346,7 +347,7 @@ export default function SecuritySettings() {
                       link.click();
                       URL.revokeObjectURL(link.href);
                     } catch (err) {
-                      const described = describeError(err, 'get');
+                      const described = describeError(err, 'get', uiLanguageNow());
                       toast.error(described.title, { description: described.remedy });
                     }
                   }}
@@ -381,7 +382,7 @@ export default function SecuritySettings() {
                         toast.success('Your account was deleted.');
                         inBackground(auth.signOut(), 'Your account was deleted, but signing out failed. Sign out again, or close this tab.');
                       } catch (err) {
-                        const described = describeError(err, 'delete');
+                        const described = describeError(err, 'delete', uiLanguageNow());
                         toast.error(described.title, { description: described.remedy });
                       }
                     }

@@ -9,6 +9,7 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { saveWorkspaceSettings, saveWorkspaceAxes } from '../../lib/workspaceSettingsSave';
 import { BUSINESS_TEMPLATES } from '../../lib/businessTemplates';
 import { describeError } from '../../lib/errorRemedies';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { modulesForBusiness } from '../../lib/modules';
 import {
   businessPresetName, businessTemplateDescription, businessTemplateName, fillOnboarding, monthNames, onboardingText,
@@ -80,7 +81,7 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
     try {
       await action();
     } catch (err) {
-      const described = describeError(err, 'update');
+      const described = describeError(err, 'update', uiLanguageNow());
       toast.error(described.title, { description: described.remedy });
     } finally {
       setBusy(false);

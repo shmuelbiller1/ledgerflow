@@ -185,18 +185,37 @@ function refusalMessage(raw: unknown, status: number): string {
  */
 const SERVER_403_IS_MORE_SPECIFIC = /verify|two.?step|two_step|recovery/i;
 
-export function commandErrorMessage(error: unknown): string {
+/**
+ * AI12-N3: a refusal the app writes itself, in the language the person is reading.
+ *
+ * The server's own sentences are not translated here — they are printed as the server wrote them, with
+ * `describeError` around them. These are the app's four fixed replies, and English keeps every word.
+ */
+const COMMAND_WORDS = {
+  en: {
+    sessionEnded: 'Your session has ended. Sign in again and retry.',
+    role: 'Your role cannot do that. Ask an owner or admin.',
+    didNotWork: 'That did not work',
+  },
+  he: {
+    sessionEnded: 'פג תוקף החיבור. יש להתחבר שוב ולנסות שוב.',
+    role: 'התפקיד שלכם לא מאפשר את הפעולה הזו. אפשר לבקש מבעל העסק או ממנהל.',
+    didNotWork: 'הפעולה לא הצליחה',
+  },
+} as const;
+
+export function commandErrorMessage(error: unknown, language: 'en' | 'he' = 'en'): string {
+  const words = COMMAND_WORDS[language];
   if (error instanceof ServerCommandError) {
-    if (error.status === 401) return 'Your session has ended. Sign in again and retry.';
+    if (error.status === 401) return words.sessionEnded;
     if (error.status === 403) {
-      return SERVER_403_IS_MORE_SPECIFIC.test(error.message)
-        ? error.message
-        : 'Your role cannot do that. Ask an owner or admin.';
+      // the server's sentence is more specific than a role: it is shown as written, in both languages
+      return SERVER_403_IS_MORE_SPECIFIC.test(error.message) ? error.message : words.role;
     }
-    return error.message;
+    return error.message || words.didNotWork;
   }
-  if (error instanceof Error) return error.message || 'That did not work';
+  if (error instanceof Error) return error.message || words.didNotWork;
   // `String(undefined)` is the word "undefined", which is the one thing this must never show
-  if (error === undefined || error === null) return 'That did not work';
-  return String(error) || 'That did not work';
+  if (error === undefined || error === null) return words.didNotWork;
+  return String(error) || words.didNotWork;
 }
