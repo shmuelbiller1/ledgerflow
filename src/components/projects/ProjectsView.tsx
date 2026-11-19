@@ -303,7 +303,7 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
                             <span className="text-[10px] font-bold font-mono text-[var(--text)]">{rule.percentage}%</span>
                           </div>
                           <div className="h-1 w-full bg-[var(--line)] rounded-full overflow-hidden">
-                            <div className="h-full bg-[var(--brass)]" style={{ width: `${rule.percentage}%` }} />
+                            <div className="h-full bg-[var(--brass)]" style={{ width: `${Math.max(0, Math.min(100, Number(rule.percentage) || 0))}%` }} />
                           </div>
                         </div>
                       ))}

@@ -107,6 +107,14 @@ describe('the screens that paint a stored file use the shared rule', () => {
     'src/components/common/AttachmentsPanel.tsx': [
       /safeDownloadDocumentUrl\(file\.fileUrl\)/,
     ],
+    'src/components/forensics/DocumentEntanglement.tsx': [
+      /safeEmbeddedDocumentUrl\(receiptUrl\)/,
+      /src=\{safeReceiptUrl\}/,
+    ],
+    'src/components/transactions/TransactionEditModalView.tsx': [
+      /safeEmbeddedDocumentUrl\(url\)/,
+      /src=\{safeImageSrc\}/,
+    ],
   };
 
   for (const [file, patterns] of Object.entries(screens)) {
@@ -117,7 +125,7 @@ describe('the screens that paint a stored file use the shared rule', () => {
     });
   }
 
-  it('no component paints a raw stored fileUrl into src or href', () => {
+  it('no component paints a raw stored fileUrl or receiptUrl into src or href', () => {
     const files: string[] = [];
     const walk = (dir: string) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -127,8 +135,8 @@ describe('the screens that paint a stored file use the shared rule', () => {
       }
     };
     walk(path.join(root, 'src/components'));
-    const offenders = files.filter(file => /(src|href)=\{[^}]*(\.|\.\?\.)fileUrl\}/.test(fs.readFileSync(file, 'utf8')))
+    const offenders = files.filter(file => /(src|href)=\{[^}]*((\.|\.\?\.)fileUrl|receiptUrl)\}/.test(fs.readFileSync(file, 'utf8')))
       .map(file => path.relative(root, file));
-    assert.deepEqual(offenders, [], `these components paint an unchecked fileUrl: ${offenders.join(', ')}`);
+    assert.deepEqual(offenders, [], `these components paint an unchecked fileUrl/receiptUrl: ${offenders.join(', ')}`);
   });
 });

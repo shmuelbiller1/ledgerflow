@@ -16,6 +16,7 @@ import EntryLinks from './EntryLinks';
 import EntryQuestions from './EntryQuestions';
 import type { TransactionEditModalModel } from './TransactionEditModal';
 import { runCommand } from '../../lib/runCommand';
+import { safeEmbeddedDocumentUrl } from '../../lib/documentUrl';
 
 /** Presentation modal for editing or reversing a multi-line ledger transaction and its dimension labels. */
 export function TransactionEditModalView({ transaction, accounts, lockDate, onClose, onReverseAndCorrect, withOccurrenceKeys, formId, baseCurrency, isDocBacked, dimensionNodes, isReverseMode, setIsReverseMode, reversalDate, setReversalDate, correctionReason, setCorrectionReason, date, setDate, description, setDescription, payee, setPayee, type, setType, status, setStatus, project, setProject, isCleared, setIsCleared, isFlagged, setIsFlagged, fileUrls, setFileUrls, originalCurrency, setOriginalCurrency, exchangeRate, setExchangeRate, isFetchingRate, setIsFetchingRate, transactions, activeDimensions, lines, lineKeys, isLocked, totalAmountCents, sumLines, handleAddLine, handleRemoveLine, handleLineChange, handleSave, dialogProps, titleId }: TransactionEditModalModel) {
@@ -650,10 +651,13 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
 
               {fileUrls.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-                  {withOccurrenceKeys(fileUrls, url => url).map(({ item: url, key }, i) => (
+                  {withOccurrenceKeys(fileUrls, url => url).map(({ item: url, key }, i) => {
+                    const safeUrl = safeEmbeddedDocumentUrl(url);
+                    const safeImageSrc = safeUrl && safeUrl.startsWith('data:image/') ? safeUrl : null;
+                    return (
                     <div key={key} className="relative group rounded-xl border border-[var(--line)] overflow-hidden bg-[var(--surface)] h-24 flex items-center justify-center">
-                      {url.startsWith('data:image') ? (
-                        <img src={url} alt="Attached receipt" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                      {safeImageSrc ? (
+                        <img src={safeImageSrc} alt="Attached receipt" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
                       ) : (
                         <div className="flex flex-col items-center gap-1 text-zinc-400">
                           <FileText aria-hidden="true" size={24} />
@@ -670,7 +674,8 @@ export function TransactionEditModalView({ transaction, accounts, lockDate, onCl
                         </button>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
