@@ -175,19 +175,38 @@ describe('the sign-in screen', () => {
     assert.deepEqual(signups, []);
   });
 
-  // Gitar review on PR #897: the first N-10 cut filled `{min}` only on the Hebrew path, so an
-  // English reader saw the literal placeholder. Render the real form, do not call the table.
-  test('an English short-password refusal shows the number, not the {min} placeholder', async () => {
-    const signups: string[] = [];
+  /**
+   * The regression Gitar found on this PR: the refusals were rendered without filling `{min}` in
+   * English, so a person typing a short password read the literal "Use at least {min} characters".
+   * These two cases press the real buttons on the real screens, so a sentence that is only correct
+   * when a test calls the filling helper itself cannot pass.
+   */
+  test('an English refusal renders the real number, never the placeholder', async () => {
     useUIStore.setState({ language: 'en' });
+    const signups: string[] = [];
     render(<AuthScreen {...props} onEmailSignup={async (e) => { signups.push(e); }} language="en" />);
     fireEvent.click(screen.getByRole('button', { name: 'Switch to Sign up' }));
     await screen.findByRole('button', { name: 'Submit Registration' });
     fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'dana@example.com' } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'short1!' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Submit Registration' })); });
-    assert.equal(screen.getByRole('alert').textContent, `Use at least ${MIN_PASSWORD_LENGTH} characters`);
-    assert.deepEqual(signups, []);
+    const refusal = screen.getByRole('alert').textContent || '';
+    assert.equal(refusal, `Use at least ${MIN_PASSWORD_LENGTH} characters`);
+    assert.equal(/\{\w+\}/.test(refusal), false, `a placeholder reached the sign-up screen: ${refusal}`);
+    assert.deepEqual(signups, [], 'a refused password is not sent anywhere');
+  });
+
+  test('the new-password screen fills {min} in English too', async () => {
+    useUIStore.setState({ language: 'en' });
+    const saves: string[] = [];
+    render(<NewPasswordScreen email="dana@example.com" onSave={async p => { saves.push(p); }} onSignOut={() => {}} />);
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'short1!' } });
+    fireEvent.change(screen.getByLabelText('The same again'), { target: { value: 'short1!' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save the new password' })); });
+    const refusal = screen.getByRole('alert').textContent || '';
+    assert.equal(refusal, `Use at least ${MIN_PASSWORD_LENGTH} characters`);
+    assert.equal(/\{\w+\}/.test(refusal), false, `a placeholder reached the reset screen: ${refusal}`);
+    assert.deepEqual(saves, []);
   });
 
   test('the Hebrew sentence for every refusal code exists, and the English one is unchanged', () => {
@@ -349,14 +368,5 @@ describe('the new-password screen after a reset link', () => {
     fireEvent.change(screen.getByLabelText('סיסמה חדשה'), { target: { value: 'password123' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'שמירת הסיסמה החדשה' })); });
     assert.equal(screen.getByRole('alert').textContent, 'הסיסמה הזו נפוצה מאוד; יש לבחור אחרת');
-  });
-
-  // The same Gitar finding applied here: English must get the filled sentence too.
-  test('an English short-password refusal shows the number, not the {min} placeholder', async () => {
-    useUIStore.setState({ language: 'en' });
-    render(<NewPasswordScreen email="dana@example.com" onSave={async () => {}} onSignOut={() => {}} />);
-    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'short1!' } });
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save the new password' })); });
-    assert.equal(screen.getByRole('alert').textContent, `Use at least ${MIN_PASSWORD_LENGTH} characters`);
   });
 });
