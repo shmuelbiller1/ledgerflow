@@ -1,0 +1,455 @@
+=== focused tests ===
+TAP version 13
+# profit-and-loss server fetch fallback: ServerCommandError: The server answered 404
+#     at runCommand (/home/user/ledgerflow/src/lib/runCommand.ts:103:11)
+#     at async <anonymous> (/home/user/ledgerflow/src/hooks/useFinancialReporting.ts:85:20)
+#     at async <anonymous> (/home/user/ledgerflow/src/components/ledger/ProfitAndLossView.tsx:119:19) {
+#   status: 404,
+#   body: {},
+#   accepted: false
+# }
+# Subtest: F-1: DashboardWidgets report links navigate in-SPA without document reload and sync Reports custom period
+ok 1 - F-1: DashboardWidgets report links navigate in-SPA without document reload and sync Reports custom period
+  ---
+  duration_ms: 1552.425159
+  type: 'test'
+  ...
+# Error: Not implemented: navigation (except hash changes)
+#     at module.exports (/home/user/ledgerflow/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+#     at navigateFetch (/home/user/ledgerflow/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+#     at exports.navigate (/home/user/ledgerflow/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+#     at Timeout._onTimeout (/home/user/ledgerflow/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+#     at listOnTimeout (node:internal/timers:585:17)
+#     at process.processTimers (node:internal/timers:521:7) undefined
+# Error: Not implemented: navigation (except hash changes)
+#     at module.exports (/home/user/ledgerflow/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+#     at navigateFetch (/home/user/ledgerflow/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+#     at exports.navigate (/home/user/ledgerflow/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+#     at Timeout._onTimeout (/home/user/ledgerflow/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+#     at listOnTimeout (node:internal/timers:585:17)
+#     at process.processTimers (node:internal/timers:521:7) undefined
+# Subtest: plExport formats 0-decimal JPY and 3-decimal KWD amounts with ISO 4217 minor units instead of hardcoded /100
+ok 2 - plExport formats 0-decimal JPY and 3-decimal KWD amounts with ISO 4217 minor units instead of hardcoded /100
+  ---
+  duration_ms: 426.634876
+  type: 'test'
+  ...
+# Subtest: TransactionEditModal respects workspace baseCurrency, shows balanced journal total, syncs FX line rates, and guards document entries
+ok 3 - TransactionEditModal respects workspace baseCurrency, shows balanced journal total, syncs FX line rates, and guards document entries
+  ---
+  duration_ms: 386.33781
+  type: 'test'
+  ...
+# Subtest: TransactionEditModal preserves per-line FX rates and precomputed home amounts on metadata-only save
+ok 4 - TransactionEditModal preserves per-line FX rates and precomputed home amounts on metadata-only save
+  ---
+  duration_ms: 604.267295
+  type: 'test'
+  ...
+# Subtest: transaction schema retains explicitly balanced home amounts through server normalization
+ok 5 - transaction schema retains explicitly balanced home amounts through server normalization
+  ---
+  duration_ms: 6.12234
+  type: 'test'
+  ...
+# Subtest: TransactionEditModal never double-converts home-native FX journal amounts
+ok 6 - TransactionEditModal never double-converts home-native FX journal amounts
+  ---
+  duration_ms: 308.886886
+  type: 'test'
+  ...
+# Subtest: entryActions: a successful flag toggle never invents updatedAt when the server omits it
+ok 7 - entryActions: a successful flag toggle never invents updatedAt when the server omits it
+  ---
+  duration_ms: 5.862774
+  type: 'test'
+  ...
+# Subtest: entryActions: full journal edit uses the persisted version, never the echoed request timestamp
+ok 8 - entryActions: full journal edit uses the persisted version, never the echoed request timestamp
+  ---
+  duration_ms: 4.973302
+  type: 'test'
+  ...
+# Subtest: entryActions: handleDuplicateTransaction strips document/reconcile/reversal metadata and handleToggleFlag checks res.ok
+ok 9 - entryActions: handleDuplicateTransaction strips document/reconcile/reversal metadata and handleToggleFlag checks res.ok
+  ---
+  duration_ms: 4.027592
+  type: 'test'
+  ...
+# Subtest: Following a journal record link
+    # Subtest: a different record reloads the draft; a re-render of the same record keeps edits
+    ok 1 - a different record reloads the draft; a re-render of the same record keeps edits
+      ---
+      duration_ms: 564.052923
+      type: 'test'
+      ...
+    1..1
+ok 10 - Following a journal record link
+  ---
+  duration_ms: 626.080521
+  type: 'suite'
+  ...
+# Subtest: The journal list
+    # Subtest: hand-typed entries newest first; all of them on request; search
+    ok 1 - hand-typed entries newest first; all of them on request; search
+      ---
+      duration_ms: 223.809732
+      type: 'test'
+      ...
+    # Subtest: an entry opens to its lines; badges say how it relates to reversals
+    ok 2 - an entry opens to its lines; badges say how it relates to reversals
+      ---
+      duration_ms: 73.313628
+      type: 'test'
+      ...
+# [JournalEntryModal] Journal templates unavailable: TypeError: Failed to parse URL from /api/v1/workspaces/w/journal-templates
+#     at node:internal/deps/undici/undici:14976:13
+#     at async runCommand (/home/user/ledgerflow/src/lib/runCommand.ts:87:15)
+#     at async call (/home/user/ledgerflow/src/services/journalTemplateActions.ts:7:16)
+#     at async listJournalTemplates (/home/user/ledgerflow/src/services/journalTemplateActions.ts:17:16) {
+#   [cause]: TypeError: Invalid URL
+#       at new URL (node:internal/url:818:25)
+#       at new Request (node:internal/deps/undici/undici:9804:25)
+#       at fetch (node:internal/deps/undici/undici:10533:25)
+#       at fetch (node:internal/deps/undici/undici:14974:10)
+#       at fetch (node:internal/bootstrap/web/exposed-window-or-worker:75:12)
+#       at runCommand (/home/user/ledgerflow/src/lib/runCommand.ts:87:21)
+#       at async call (/home/user/ledgerflow/src/services/journalTemplateActions.ts:7:16)
+#       at async listJournalTemplates (/home/user/ledgerflow/src/services/journalTemplateActions.ts:17:16) {
+#     code: 'ERR_INVALID_URL',
+#     input: '/api/v1/workspaces/w/journal-templates'
+#   }
+# }
+    # Subtest: reverse on a chosen day with a reason; reversals and reversed entries offer no Reverse
+    ok 3 - reverse on a chosen day with a reason; reversals and reversed entries offer no Reverse
+      ---
+      duration_ms: 142.197689
+      type: 'test'
+      ...
+    # Subtest: duplicate hands over the entry; a viewer gets no actions
+    ok 4 - duplicate hands over the entry; a viewer gets no actions
+      ---
+      duration_ms: 66.872748
+      type: 'test'
+      ...
+    1..4
+ok 11 - The journal list
+  ---
+  duration_ms: 507.399554
+  type: 'suite'
+  ...
+# Subtest: Duplicating into the journal form
+    # Subtest: the form starts with the entry's description and lines
+    ok 1 - the form starts with the entry's description and lines
+      ---
+      duration_ms: 155.434218
+      type: 'test'
+      ...
+    1..1
+ok 12 - Duplicating into the journal form
+  ---
+  duration_ms: 155.642287
+  type: 'suite'
+  ...
+# Subtest: Adjusting entries (BD-03)
+    # Subtest: marked in the list, and listed alone on request
+    ok 1 - marked in the list, and listed alone on request
+      ---
+      duration_ms: 58.613544
+      type: 'test'
+      ...
+    # Subtest: the journal form saves the mark with the entry; a duplicate keeps it
+    ok 2 - the journal form saves the mark with the entry; a duplicate keeps it
+      ---
+      duration_ms: 101.188481
+      type: 'test'
+      ...
+    1..2
+ok 13 - Adjusting entries (BD-03)
+  ---
+  duration_ms: 160.286933
+  type: 'suite'
+  ...
+# Subtest: Ledger keyboard region (\#104)
+    # Subtest: it is a labelled, focusable group with a polite live region
+    ok 1 - it is a labelled, focusable group with a polite live region
+      ---
+      duration_ms: 135.375147
+      type: 'test'
+      ...
+    # Subtest: clicking a row moves focus into the grid; clicking a button inside it does not steal it
+    ok 2 - clicking a row moves focus into the grid; clicking a button inside it does not steal it
+      ---
+      duration_ms: 33.634317
+      type: 'test'
+      ...
+    # Subtest: arrows move the highlight and are handled; the target row is one row further
+    ok 3 - arrows move the highlight and are handled; the target row is one row further
+      ---
+      duration_ms: 15.422935
+      type: 'test'
+      ...
+    # Subtest: Tab and Shift+Tab are left to the browser so the keyboard can leave the grid
+    ok 4 - Tab and Shift+Tab are left to the browser so the keyboard can leave the grid
+      ---
+      duration_ms: 11.561961
+      type: 'test'
+      ...
+    # Subtest: Escape clears the highlight, Enter and typing open the editor
+    ok 5 - Escape clears the highlight, Enter and typing open the editor
+      ---
+      duration_ms: 20.273101
+      type: 'test'
+      ...
+    # Subtest: an empty list cannot throw or move, however many keys arrive
+    ok 6 - an empty list cannot throw or move, however many keys arrive
+      ---
+      duration_ms: 6.467365
+      type: 'test'
+      ...
+    # Subtest: with no highlight yet the first arrow key starts one, so the grid is reachable by keyboard
+    ok 7 - with no highlight yet the first arrow key starts one, so the grid is reachable by keyboard
+      ---
+      duration_ms: 7.165677
+      type: 'test'
+      ...
+    # Subtest: closing an inline editor gives focus back to the grid, not to the page body
+    ok 8 - closing an inline editor gives focus back to the grid, not to the page body
+      ---
+      duration_ms: 60.475476
+      type: 'test'
+      ...
+    # Subtest: an open editor keeps the keys: arrows inside it are native
+    ok 9 - an open editor keeps the keys: arrows inside it are native
+      ---
+      duration_ms: 10.925705
+      type: 'test'
+      ...
+    # Subtest: keys from a control inside the grid are not taken over
+    ok 10 - keys from a control inside the grid are not taken over
+      ---
+      duration_ms: 7.288401
+      type: 'test'
+      ...
+    1..10
+ok 14 - Ledger keyboard region (\#104)
+  ---
+  duration_ms: 310.159654
+  type: 'suite'
+  ...
+# Subtest: Ledger grid navigation (\#104)
+    # Subtest: the fields follow the drawn columns, with the amount column stored as amountCents
+    ok 1 - the fields follow the drawn columns, with the amount column stored as amountCents
+      ---
+      duration_ms: 1.691083
+      type: 'test'
+      ...
+    # Subtest: a list with no highlight yet starts on its first cell (or on the last row with End)
+    ok 2 - a list with no highlight yet starts on its first cell (or on the last row with End)
+      ---
+      duration_ms: 0.221763
+      type: 'test'
+      ...
+    # Subtest: the announced column is named the way the grid names it, never by its stored id
+    ok 3 - the announced column is named the way the grid names it, never by its stored id
+      ---
+      duration_ms: 0.124739
+      type: 'test'
+      ...
+    # Subtest: arrows move one row and stop at the ends instead of running past the list
+    ok 4 - arrows move one row and stop at the ends instead of running past the list
+      ---
+      duration_ms: 0.409282
+      type: 'test'
+      ...
+    # Subtest: Home and End jump to the first and last row without changing the column
+    ok 5 - Home and End jump to the first and last row without changing the column
+      ---
+      duration_ms: 0.149156
+      type: 'test'
+      ...
+    # Subtest: left and right walk the columns and then the neighbouring row
+    ok 6 - left and right walk the columns and then the neighbouring row
+      ---
+      duration_ms: 1.210057
+      type: 'test'
+      ...
+    # Subtest: an unknown field starts the row walk from the first column
+    ok 7 - an unknown field starts the row walk from the first column
+      ---
+      duration_ms: 0.152519
+      type: 'test'
+      ...
+    # Subtest: a stale index follows the record; a missing record clears the highlight; no rows never throws
+    ok 8 - a stale index follows the record; a missing record clears the highlight; no rows never throws
+      ---
+      duration_ms: 0.251132
+      type: 'test'
+      ...
+    # Subtest: after a sort the highlight follows its record; after a filter removes it, the highlight is dropped
+    ok 9 - after a sort the highlight follows its record; after a filter removes it, the highlight is dropped
+      ---
+      duration_ms: 0.40213
+      type: 'test'
+      ...
+    # Subtest: Enter edits only cells the row draws an editor for
+    ok 10 - Enter edits only cells the row draws an editor for
+      ---
+      duration_ms: 0.401798
+      type: 'test'
+      ...
+    1..10
+ok 15 - Ledger grid navigation (\#104)
+  ---
+  duration_ms: 6.322257
+  type: 'suite'
+  ...
+# Subtest: Stable editable transaction rows
+    # Subtest: an ID-less split line keeps its input, value, and focus when an earlier line is removed
+    ok 1 - an ID-less split line keeps its input, value, and focus when an earlier line is removed
+      ---
+      duration_ms: 268.618544
+      type: 'test'
+      ...
+    # Subtest: duplicate ID-less split lines remain distinct without React key errors
+    ok 2 - duplicate ID-less split lines remain distinct without React key errors
+      ---
+      duration_ms: 56.698258
+      type: 'test'
+      ...
+    # Subtest: an appended split row survives earlier deletion and saves only transaction line data
+    ok 3 - an appended split row survives earlier deletion and saves only transaction line data
+      ---
+      duration_ms: 313.055354
+      type: 'test'
+      ...
+    # Subtest: duplicate legacy lines in the transaction dialog retain identity while their content changes
+    ok 4 - duplicate legacy lines in the transaction dialog retain identity while their content changes
+      ---
+      duration_ms: 146.914348
+      type: 'test'
+      ...
+# [JournalEntryModal] Journal templates unavailable: TypeError: Failed to parse URL from /api/v1/workspaces/ws-1/journal-templates
+#     at node:internal/deps/undici/undici:14976:13
+#     at async runCommand (/home/user/ledgerflow/src/lib/runCommand.ts:87:15)
+#     at async call (/home/user/ledgerflow/src/services/journalTemplateActions.ts:7:16)
+#     at async listJournalTemplates (/home/user/ledgerflow/src/services/journalTemplateActions.ts:17:16) {
+#   [cause]: TypeError: Invalid URL
+#       at new URL (node:internal/url:818:25)
+#       at new Request (node:internal/deps/undici/undici:9804:25)
+#       at fetch (node:internal/deps/undici/undici:10533:25)
+#       at fetch (node:internal/deps/undici/undici:14974:10)
+#       at fetch (node:internal/bootstrap/web/exposed-window-or-worker:75:12)
+#       at runCommand (/home/user/ledgerflow/src/lib/runCommand.ts:87:21)
+#       at async call (/home/user/ledgerflow/src/services/journalTemplateActions.ts:7:16)
+#       at async listJournalTemplates (/home/user/ledgerflow/src/services/journalTemplateActions.ts:17:16) {
+#     code: 'ERR_INVALID_URL',
+#     input: '/api/v1/workspaces/ws-1/journal-templates'
+#   }
+# }
+    # Subtest: saving the transaction dialog preserves legacy line fields without UI row identifiers
+    ok 5 - saving the transaction dialog preserves legacy line fields without UI row identifiers
+      ---
+      duration_ms: 182.288576
+      type: 'test'
+      ...
+    # Subtest: journal rows keep their inputs and focus across account edits, duplicate accounts, and earlier deletion
+    ok 6 - journal rows keep their inputs and focus across account edits, duplicate accounts, and earlier deletion
+      ---
+      duration_ms: 275.425612
+      type: 'test'
+      ...
+    1..6
+ok 16 - Stable editable transaction rows
+  ---
+  duration_ms: 1244.510417
+  type: 'suite'
+  ...
+# Subtest: withNewAmount
+    # Subtest: a two-line entry gets the new amount on both sides, still balanced
+    ok 1 - a two-line entry gets the new amount on both sides, still balanced
+      ---
+      duration_ms: 3.988516
+      type: 'test'
+      ...
+    # Subtest: the credit can come first; a negative typed amount uses its size
+    ok 2 - the credit can come first; a negative typed amount uses its size
+      ---
+      duration_ms: 0.202619
+      type: 'test'
+      ...
+    # Subtest: split, unbalanced or empty entries are left to the entry dialog
+    ok 3 - split, unbalanced or empty entries are left to the entry dialog
+      ---
+      duration_ms: 0.144385
+      type: 'test'
+      ...
+    1..3
+ok 17 - withNewAmount
+  ---
+  duration_ms: 5.491832
+  type: 'suite'
+  ...
+1..17
+# tests 46
+# suites 8
+# pass 46
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20678.126382
+
+=== tsc (empty means clean) ===
+
+=== eslint (empty means clean) ===
+
+=== layers ===
+
+> ledgerflow@0.1.0 check:layers
+> tsx --test src/tests/layers-guard.test.ts
+
+TAP version 13
+# Subtest: F-40 architecture layers
+    # Subtest: lib/ never imports components/ or server/ (reports/ excepted); components/ never imports server/ (reports/ excepted)
+    ok 1 - lib/ never imports components/ or server/ (reports/ excepted); components/ never imports server/ (reports/ excepted)
+      ---
+      duration_ms: 126.09645
+      type: 'test'
+      ...
+    # Subtest: the guard sees the whole tree, and the rule is not vacuous
+    ok 2 - the guard sees the whole tree, and the rule is not vacuous
+      ---
+      duration_ms: 0.670382
+      type: 'test'
+      ...
+    # Subtest: type-only imports are erased and do not count, value imports beside them still do
+    ok 3 - type-only imports are erased and do not count, value imports beside them still do
+      ---
+      duration_ms: 0.325448
+      type: 'test'
+      ...
+    # Subtest: a wrong import is classified with its file and the rule it breaks
+    ok 4 - a wrong import is classified with its file and the rule it breaks
+      ---
+      duration_ms: 0.319831
+      type: 'test'
+      ...
+    1..4
+ok 1 - F-40 architecture layers
+  ---
+  duration_ms: 128.55456
+  type: 'suite'
+  ...
+1..1
+# tests 4
+# suites 1
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 335.970732
+
+=== PR 917 metadata ===
+{"baseRefName":"main","headRefOid":"cd9df790cf2c70ee4a697afec23653c2f9f0e3ce","mergeStateStatus":"UNSTABLE","mergeable":"MERGEABLE","state":"OPEN","title":"AI #7: reload journal editor draft when the record link changes (#873)","url":"https://github.com/shmuelbiller1/ledgerflow/pull/917"}
