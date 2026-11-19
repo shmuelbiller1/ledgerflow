@@ -144,7 +144,8 @@ a new raw screen cannot slip in when a different screen migrates in the same PR.
       keyboard-only at 390/1280, light/dark, English/Hebrew, scoped axe (including the open quote editor),
       CSV contents, layout persistence, and a live role change. The original deep-link tests still assert the
       2024 period and both Sales group headings. [Before views](verification/images/ui2-trends-quotes/);
-      the after views are the `trends-sales-*`, `trends-purchases-*` and `quotes-*` visual references.
+      the [official refresh](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44427641084) captured and rechecked
+      the 12 `trends-sales-*`, `trends-purchases-*` and `quotes-*` references. Reviewed both viewport sets.
 
 **Next batch:** On the `bce500c` base the dry run offered 15 tables in 14 files. Two eligible table blocks
 were migrated; the re-survey offers **13 tables in 12 files**, still **131 refused blocks** (including the
