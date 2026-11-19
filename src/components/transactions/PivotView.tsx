@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronRight } from 'lucide-react';
 import { cn, formatCurrency } from '../../lib/utils';
+import { percentWidthStyle } from '../../lib/percentBar';
 
 interface PivotViewProps {
   pivotData: Array<{ name: string, value: number, count: number }>;
@@ -35,7 +36,7 @@ export default function PivotView({ pivotData }: PivotViewProps) {
             <div className="w-full bg-zinc-100 h-1.5 rounded-full overflow-hidden">
               <div 
                 className="bg-orange-500 h-full rounded-full" 
-                style={{ width: `${Math.min(100, (Math.abs(item.value) / 1000) * 100)}%` }}
+                style={percentWidthStyle((Math.abs(item.value) / 1000) * 100)}
               />
             </div>
           </div>

@@ -19,6 +19,7 @@ import { LoadingState } from '../ui/LoadingState';
 import { projectTasksFromProject } from '../../lib/projectTemplates';
 import type { ProjectsModel } from './Projects';
 import { inBackground } from '../../lib/inBackground';
+import { percentWidthStyle } from '../../lib/percentBar';
 
 const ProjectProfitability = lazy(() => import('../ledger/ProjectProfitabilityView'));
 function ProfitabilityTab({ transactions }: Pick<ProjectsModel, 'transactions'>) {
@@ -218,7 +219,7 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
                 <div className={cn("h-1 w-full rounded-full overflow-hidden relative z-10", selectedProjectId === project.id ? "bg-[var(--surface)]/10" : "bg-slate-100")}>
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(progress, 100)}%` }}
+                    animate={percentWidthStyle(progress)}
                     className={cn(
                       "h-full rounded-full",
                       selectedProjectId === project.id
@@ -303,7 +304,7 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
                             <span className="text-[10px] font-bold font-mono text-[var(--text)]">{rule.percentage}%</span>
                           </div>
                           <div className="h-1 w-full bg-[var(--line)] rounded-full overflow-hidden">
-                            <div className="h-full bg-[var(--brass)]" style={{ width: `${rule.percentage}%` }} />
+                            <div className="h-full bg-[var(--brass)]" style={percentWidthStyle(rule.percentage)} />
                           </div>
                         </div>
                       ))}
