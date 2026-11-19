@@ -11,7 +11,7 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { cashLegForBankLine } from '../lib/reconciliationSuggestions';
+import { cashLegForBankLine, cashLegFromLegs, cashLegsOf } from '../lib/reconciliationSuggestions';
 
 const cash = new Set(['bank1010', 'bank1020']);
 const withdrawal = { accountId: 'bank1010', amountCents: -141600 };
@@ -74,5 +74,54 @@ describe('cashLegForBankLine', () => {
     const jpyPayment = { id: 'jpy', totalAmountCents: 10000, lines: [{ accountId: 'bank1010', amountCents: -10000 }] };
     const leg = cashLegForBankLine(jpyPayment, cash, { accountId: 'bank1010', amountCents: -6700 }, () => -6700);
     assert.equal(leg, -6700);
+  });
+});
+
+describe('cashLegsOf / cashLegFromLegs (the indexed form the screen uses)', () => {
+  it('agrees with the one-shot helper everywhere, including the other-bank-account refusal', () => {
+    const bankLines = [
+      withdrawal,
+      deposit,
+      allAccountsWithdrawal,
+      { accountId: 'bank1020', amountCents: -141600 },
+      { accountId: 'bank1020', amountCents: 141600 },
+      { accountId: 'non-cash-account', amountCents: -141600 },
+    ];
+    for (const entry of [billAccrual, payment, transfer]) {
+      const legs = cashLegsOf(entry, cash);
+      for (const bankLine of bankLines) {
+        assert.equal(
+          cashLegFromLegs(legs, bankLine, cash),
+          cashLegForBankLine(entry, cash, bankLine),
+          `${entry.id} vs ${JSON.stringify(bankLine)}`,
+        );
+      }
+    }
+    // ...and the table itself, so a future change to one cannot silently move the other.
+    const paymentLegs = cashLegsOf(payment, cash);
+    assert.equal(cashLegFromLegs(paymentLegs, withdrawal, cash), -141600);
+    assert.equal(cashLegFromLegs(paymentLegs, deposit, cash), null, 'wrong direction');
+    assert.equal(cashLegFromLegs(paymentLegs, { accountId: 'bank1020', amountCents: -141600 }, cash), null,
+      'an entry that moved only another bank account is not a candidate');
+    assert.equal(cashLegFromLegs(paymentLegs, { accountId: 'non-cash-account', amountCents: -141600 }, cash), -141600,
+      'no cash account on the line means the all-accounts view');
+    const transferLegs = cashLegsOf(transfer, cash);
+    assert.equal(cashLegFromLegs(transferLegs, withdrawal, cash), -141600);
+    assert.equal(cashLegFromLegs(transferLegs, { accountId: 'bank1020', amountCents: 141600 }, cash), 141600);
+    assert.equal(cashLegFromLegs(transferLegs, allAccountsWithdrawal, cash), null);
+    assert.equal(cashLegFromLegs(cashLegsOf(billAccrual, cash), withdrawal, cash), null);
+  });
+
+  it('converts each cash line once, at index time, never per bank line', () => {
+    let conversions = 0;
+    const amountOf = (line: { amountCents: number }) => { conversions += 1; return line.amountCents; };
+    const legs = cashLegsOf(payment, cash, amountOf);
+    assert.equal(conversions, 1, 'only the cash line is converted, once');
+    assert.equal(cashLegsOf(billAccrual, cash, amountOf) && conversions, 1, 'a non-cash entry converts nothing');
+    conversions = 0;
+    for (let i = 0; i < 500; i += 1) {
+      assert.equal(cashLegFromLegs(legs, { accountId: 'bank1010', amountCents: -141600 }, cash), -141600);
+    }
+    assert.equal(conversions, 0, 'the bank line loop must not convert anything');
   });
 });

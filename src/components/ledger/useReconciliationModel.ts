@@ -11,7 +11,7 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { jaroWinklerSimilarity, findGlobalOptimalMatch } from '../../lib/algorithms';
 import { toast } from 'sonner';
 import { isPostable, lineAmount } from '../../lib/txFilters';
-import { cashLegForBankLine } from '../../lib/reconciliationSuggestions';
+import { cashLegFromLegs, cashLegsOf, type CashLegs } from '../../lib/reconciliationSuggestions';
 
 import type { BankLineActionTarget } from './BankLineActionDialog';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -96,29 +96,57 @@ export function useReconciliationModel() {
     const cashAccountIds = new Set(cashAccounts.map(a => a.id));
     interface PreparedLedgerEntry {
       ltx: (typeof unclearedLedgerTransactions)[number];
+      legs: CashLegs;
       dateMs: number;
     }
-    const preparedList: PreparedLedgerEntry[] = [];
+    // Same amount, same cash account -> same candidate. Indexed so a bank line only looks at its own
+    // bucket instead of every entry (Gitar: the first version re-summed each entry per bank line).
+    const byAccountAbs = new Map<string, Map<number, PreparedLedgerEntry[]>>();
+    const byNetAbs = new Map<number, PreparedLedgerEntry[]>();
 
     for (const ltx of unclearedLedgerTransactions) {
       // An entry that touches no recognised cash account cannot have produced a bank movement.
       if (!(ltx.lines || []).some(l => cashAccountIds.has(l.accountId))) continue;
-      preparedList.push({ ltx, dateMs: parseLocalDate(ltx.date).getTime() });
+      const legs = cashLegsOf(ltx, cashAccountIds, l => lineAmount(l as Parameters<typeof lineAmount>[0], ltx));
+      const prepared: PreparedLedgerEntry = { ltx, legs, dateMs: parseLocalDate(ltx.date).getTime() };
+      legs.byAccount.forEach((leg, accountId) => {
+        if (leg === 0) return;
+        const bucket = byAccountAbs.get(accountId) || new Map<number, PreparedLedgerEntry[]>();
+        const key = Math.abs(leg);
+        const list = bucket.get(key) || [];
+        list.push(prepared);
+        bucket.set(key, list);
+        byAccountAbs.set(accountId, bucket);
+      });
+      if (legs.net !== 0) {
+        const key = Math.abs(legs.net);
+        const list = byNetAbs.get(key) || [];
+        list.push(prepared);
+        byNetAbs.set(key, list);
+      }
     }
 
     const sourceItems = unmatchedBankLines.map(btx => {
       const scoreMap = new Map<string, number>();
       const bAbsAmount = Math.abs(btx.amountCents);
       const bDateMs = parseLocalDate(btx.date).getTime();
-      for (const entry of preparedList) {
-        // #891: a candidate is a cash movement in this bank line's direction — its own account's leg,
-        // or the entry's net cash in the all-accounts view. An entry with no cash leg is not offered.
-        const legCents = cashLegForBankLine(
-          { id: entry.ltx.id, totalAmountCents: entry.ltx.totalAmountCents, lines: entry.ltx.lines },
-          cashAccountIds,
-          btx,
-          line => lineAmount(line as Parameters<typeof lineAmount>[0], entry.ltx),
-        );
+      // #891: a candidate is a cash movement in this bank line's direction — its own account's leg,
+      // or the entry's net cash in the all-accounts view. An entry with no cash leg is not offered.
+      // At exact tolerance only the matching bucket can qualify; a tolerance widens it to the legs
+      // already converted, so no line is ever converted inside this loop.
+      const ownAccountId = btx.accountId && cashAccountIds.has(btx.accountId) ? btx.accountId : null;
+      const indexed = ownAccountId ? byAccountAbs.get(ownAccountId) : byNetAbs;
+      const pool: PreparedLedgerEntry[] = [];
+      if (matchToleranceCents === 0) {
+        pool.push(...(indexed?.get(bAbsAmount) || []));
+      } else {
+        indexed?.forEach((entries, absAmount) => {
+          if (Math.abs(absAmount - bAbsAmount) <= matchToleranceCents) pool.push(...entries);
+        });
+      }
+
+      for (const entry of pool) {
+        const legCents = cashLegFromLegs(entry.legs, btx, cashAccountIds);
         if (legCents === null) continue;
         const absAmount = Math.abs(legCents);
         if (Math.abs(absAmount - bAbsAmount) > matchToleranceCents) continue;

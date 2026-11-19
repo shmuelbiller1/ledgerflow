@@ -27,13 +27,58 @@ export interface CashCandidateLine {
   amountCents: number;
 }
 
+/** An entry's cash movements, converted once: per cash account, plus the net across them. */
+export interface CashLegs {
+  /** cash account id -> signed base amount on that account */
+  byAccount: Map<string, number>;
+  /** signed base amount summed across every cash account */
+  net: number;
+}
+
+/** Convert one entry's lines into its cash legs. Call this once per entry, not once per bank line. */
+export function cashLegsOf(
+  entry: CashCandidateEntry,
+  cashAccountIds: ReadonlySet<string>,
+  amountOf: (line: { accountId: string; amountCents: number }) => number = line => line.amountCents,
+): CashLegs {
+  const byAccount = new Map<string, number>();
+  for (const line of entry.lines || []) {
+    if (!cashAccountIds.has(line.accountId)) continue;
+    byAccount.set(line.accountId, (byAccount.get(line.accountId) || 0) + amountOf(line));
+  }
+  let net = 0;
+  byAccount.forEach(delta => { net += delta; });
+  return { byAccount, net };
+}
+
 /**
- * The signed cash movement `entry` could have produced for `bankLine`, or `null` when it could not
- * have produced one (no cash leg, zero net, or the wrong direction).
+ * The signed cash movement an entry with these legs could have produced for `bankLine`, or `null`
+ * when it could not have produced one (no cash leg, zero net, or the wrong direction).
  *
- * @param cashAccountIds ids of the workspace's cash accounts
+ * A statement line in a named cash account is measured by **that account's own leg**: an entry that
+ * moved only another bank account is not a candidate, however large its total. Only the all-accounts
+ * view (no cash account on the line) falls back to the entry's net cash movement.
+ *
+ * @param legs the entry's cash legs, precomputed with `cashLegsOf`
  * @param bankLine the statement line (its `accountId` may be missing in the all-accounts view)
- * @param amountOf how one line's base amount is read (the caller passes `lineAmount(l, tx)`)
+ * @param cashAccountIds ids of the workspace's cash accounts
+ */
+export function cashLegFromLegs(
+  legs: CashLegs,
+  bankLine: CashCandidateLine,
+  cashAccountIds: ReadonlySet<string>,
+): number | null {
+  if (legs.byAccount.size === 0) return null;
+  const ownAccountId = bankLine.accountId && cashAccountIds.has(bankLine.accountId) ? bankLine.accountId : null;
+  const leg = ownAccountId !== null ? (legs.byAccount.get(ownAccountId) || 0) : legs.net;
+  if (leg === 0) return null;
+  if (Math.sign(leg) !== Math.sign(bankLine.amountCents)) return null;
+  return leg;
+}
+
+/**
+ * Convenience wrapper: convert one entry's legs and ask whether they could produce `bankLine`.
+ * Prefer `cashLegsOf` + `cashLegFromLegs` when the same entry is tested against many bank lines.
  */
 export function cashLegForBankLine(
   entry: CashCandidateEntry,
@@ -41,16 +86,5 @@ export function cashLegForBankLine(
   bankLine: CashCandidateLine,
   amountOf: (line: { accountId: string; amountCents: number }) => number = line => line.amountCents,
 ): number | null {
-  const ownAccountId = bankLine.accountId && cashAccountIds.has(bankLine.accountId) ? bankLine.accountId : null;
-  let leg = 0;
-  let sawCashLeg = false;
-  for (const line of entry.lines || []) {
-    if (!cashAccountIds.has(line.accountId)) continue;
-    sawCashLeg = true;
-    const delta = amountOf(line);
-    if (ownAccountId === null || line.accountId === ownAccountId) leg += delta;
-  }
-  if (!sawCashLeg || leg === 0) return null;
-  if (Math.sign(leg) !== Math.sign(bankLine.amountCents)) return null;
-  return leg;
+  return cashLegFromLegs(cashLegsOf(entry, cashAccountIds, amountOf), bankLine, cashAccountIds);
 }

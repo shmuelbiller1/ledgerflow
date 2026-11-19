@@ -37,12 +37,11 @@ async function main() {
 
   // One pooled connection: PGlite serves a single session, so the RLS checks borrow the app's client.
   const client = await db.pool.connect();
-  let stageSetsInsert = '';
-  let attachmentInsert = '';
-  let templateInsert = '';
-  let timeEntryInsert = '';
-  let ticketUpdate = '';
-  let ticketUpdateRows = 0;
+  let stageSetsInsert: string | undefined;
+  let attachmentInsert: string | undefined;
+  let templateInsert: string | undefined;
+  let timeEntryInsert: string | undefined;
+  let ticketUpdate: string | undefined;
 
   const attempt = async (label: string, sql: string, params: unknown[]) => {
     const savepoint = `sp_${label}`;
@@ -81,7 +80,6 @@ async function main() {
 
     const ticket = await attempt('a6', `UPDATE public."supportTickets" SET data = jsonb_set(data, '{status}', '"closed"'::jsonb) WHERE id = $1`,
       [`${wsId}_t1`]);
-    ticketUpdateRows = ticket.ok ? ticket.rowCount : 0;
     ticketUpdate = ticket.ok ? `ACCEPTED (${ticket.rowCount} row)` : `REFUSED: ${ticket.error}`;
 
     // COMMIT, not ROLLBACK: a rolled-back write would make every refused/accepted verdict vacuous.
@@ -91,10 +89,10 @@ async function main() {
   }
 
   const ticketAfter = (await db.collection('supportTickets').doc(`${wsId}_t1`).get()).data();
-  results.push({ id: 'A1', verdict: stageSetsInsert === 'ACCEPTED' ? 'LIVE' : 'FIXED', evidence: stageSetsInsert, note: 'A viewer must not create a staged record in public.documents.' });
-  results.push({ id: 'A2', verdict: attachmentInsert === 'ACCEPTED' ? 'LIVE' : 'FIXED', evidence: attachmentInsert, note: 'A viewer must not attach a file to an arbitrary invoice.' });
-  results.push({ id: 'A3', verdict: templateInsert === 'ACCEPTED' ? 'LIVE' : 'FIXED', evidence: templateInsert, note: 'A viewer must not inject a journal template the owner then serves.' });
-  results.push({ id: 'A4', verdict: timeEntryInsert === 'ACCEPTED' ? 'LIVE' : 'FIXED', evidence: timeEntryInsert, note: 'A viewer must not create a time entry with approved hours and a rate.' });
+  results.push({ id: 'A1', verdict: stageSetsInsert === 'ACCEPTED' ? 'LIVE' : 'FIXED', evidence: stageSetsInsert ?? 'NOT RUN', note: 'A viewer must not create a staged record in public.documents.' });
+  results.push({ id: 'A2', verdict: attachmentInsert === 'ACCEPTED' ? 'LIVE' : 'FIXED', evidence: attachmentInsert ?? 'NOT RUN', note: 'A viewer must not attach a file to an arbitrary invoice.' });
+  results.push({ id: 'A3', verdict: templateInsert === 'ACCEPTED' ? 'LIVE' : 'FIXED', evidence: templateInsert ?? 'NOT RUN', note: 'A viewer must not inject a journal template the owner then serves.' });
+  results.push({ id: 'A4', verdict: timeEntryInsert === 'ACCEPTED' ? 'LIVE' : 'FIXED', evidence: timeEntryInsert ?? 'NOT RUN', note: 'A viewer must not create a time entry with approved hours and a rate.' });
   results.push({ id: 'A6', verdict: ticketAfter?.status === 'closed' ? 'LIVE' : 'FIXED', evidence: { attempt: ticketUpdate, storedStatus: ticketAfter?.status }, note: 'A viewer must not close the owner\'s support ticket.' });
 
   // A3 second half: the owner's journal-template route must not serve a viewer-injected template.
@@ -155,7 +153,14 @@ async function main() {
     { amountCents: 67000, currency: 'JPY', exchangeRate: 0.0067, items: [{ accountId: 'exp', amountCents: 67000 }] } as never,
     [{ id: 'exp', workspaceId: wsId, name: 'Expense', type: 'expense', category: 'Expenses', role: 'expense' } as never],
     'expense', 'exp', 'USD');
-  results.push({ id: 'H1-prepaid-line', verdict: line && line.baseCents === 449 ? 'FIXED' : 'CHECK', evidence: { line }, note: '¥67,000 at 0.0067 = $448.90 = 44,890 cents; the old code returned 449 cents.' });
+  // 44,890 cents is correct; 449 is the old 100x undercount. Gitar caught this verdict inverted.
+  const prepaidCents = line ? line.baseCents : null;
+  results.push({
+    id: 'H1-prepaid-line',
+    verdict: prepaidCents === 44890 ? 'FIXED' : prepaidCents === 449 ? 'LIVE' : 'CHECK',
+    evidence: { line },
+    note: '¥67,000 at 0.0067 = $448.90 = 44,890 cents (FIXED); the old code returned 449 cents (LIVE); anything else needs a human.',
+  });
 
   console.log(JSON.stringify({ probe: 'r3-rls-and-minor-units-reverify', results }, null, 2));
   assert.ok(results.length > 0);
