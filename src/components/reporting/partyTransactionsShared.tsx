@@ -12,6 +12,7 @@ import { PartyTransactionRow } from '../../server/reports/partyReports';
 import { toast } from 'sonner';
 import { csvMoney, downloadCsv } from '../../lib/csvExport';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useReportText } from './useReportText';
 
 /**
  * Configuration for a party-transaction report (customer or vendor).
@@ -68,6 +69,7 @@ export function TransactionsByPartyView<P, D1, D2>({
   startDate?: string;
   endDate?: string;
 }) {
+  const reportText = useReportText();
   const {
     title,
     description,
@@ -168,7 +170,7 @@ export function TransactionsByPartyView<P, D1, D2>({
   const columns: ColumnDef<PartyTransactionRow>[] = [
     {
       key: 'date',
-      header: 'Date',
+      header: reportText('r.date-2', 'Date'),
       className: 'whitespace-nowrap font-mono',
     },
     {
@@ -182,7 +184,7 @@ export function TransactionsByPartyView<P, D1, D2>({
     },
     {
       key: 'type',
-      header: 'Type',
+      header: reportText('r.type', 'Type'),
       render: (item) => (
         <span
           className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
@@ -196,12 +198,12 @@ export function TransactionsByPartyView<P, D1, D2>({
     },
     {
       key: 'reference',
-      header: 'Number / Ref',
+      header: reportText('r.number-ref', 'Number / Ref'),
       className: 'font-mono text-neutral-600 dark:text-neutral-400',
     },
     {
       key: 'status',
-      header: 'Status',
+      header: reportText('r.status', 'Status'),
       render: (item) => (
         <span className="capitalize text-[11px] text-neutral-500 dark:text-neutral-400">
           {item.status}
@@ -210,7 +212,7 @@ export function TransactionsByPartyView<P, D1, D2>({
     },
     {
       key: 'amountCents',
-      header: 'Amount',
+      header: reportText('r.amount', 'Amount'),
       align: 'right',
       render: (item) => (
         <span className={`font-bold ${

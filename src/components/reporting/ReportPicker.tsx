@@ -4,6 +4,7 @@ import { reportQuestion } from '../../lib/reportQuestions';
 import { starredReports } from '../../lib/starredReports';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
+import { useReportText } from './useReportText';
 
 type GroupId = 'Statements' | 'Sales' | 'Purchases' | 'Stock' | 'Tax' | 'Banking' | 'Analysis';
 const GROUP_ORDER: GroupId[] = ['Statements', 'Sales', 'Purchases', 'Stock', 'Tax', 'Banking', 'Analysis'];
@@ -141,6 +142,7 @@ const REPORT_GROUP: Record<string, GroupId> = {
 
 /** Native disclosure and select retain normal Tab, typing and platform keyboard behaviour. */
 export default function ReportPicker({ activeTab, onSelect }: { activeTab: string; onSelect: (id: string) => void }) {
+  const reportText = useReportText();
   const [query, setQuery] = useState('');
   const recent = useUIStore(s => s.recentReports);
   const recordRecent = useUIStore(s => s.recordRecentReport);
@@ -159,40 +161,40 @@ export default function ReportPicker({ activeTab, onSelect }: { activeTab: strin
     onSelect(id);
   };
   return <details className="rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--text)] p-2">
-    <summary className="min-h-11 flex items-center gap-1 cursor-pointer text-sm focus-visible:outline-2"><span className="text-[var(--muted)]">Report:</span> <span className="font-semibold">{label(activeTab)}</span>{reportQuestion(activeTab) && <span className="text-xs text-[var(--muted)]">· {reportQuestion(activeTab)}</span>}<span className="ml-auto text-xs text-[var(--muted)]">Change</span></summary>
+    <summary className="min-h-11 flex items-center gap-1 cursor-pointer text-sm focus-visible:outline-2"><span className="text-[var(--muted)]">{reportText('r.report-2', 'Report:')}</span> <span className="font-semibold">{label(activeTab)}</span>{reportQuestion(activeTab) && <span className="text-xs text-[var(--muted)]">· {reportQuestion(activeTab)}</span>}<span className="ml-auto text-xs text-[var(--muted)]">{reportText('r.change-2', 'Change')}</span></summary>
     <div className="space-y-3 pt-2">
       <div>
-        <label htmlFor="report-picker-search" className="block">Search reports</label>
+        <label htmlFor="report-picker-search" className="block">{reportText('r.search-reports', 'Search reports')}</label>
         <input id="report-picker-search" value={query} onChange={e => setQuery(e.target.value)} type="search" className="block min-h-11 w-full rounded border border-[var(--line)] bg-[var(--panel)] text-[var(--text)] px-3" />
       </div>
       <div>
-        <label htmlFor="report-picker-select" className="block">Choose report</label>
+        <label htmlFor="report-picker-select" className="block">{reportText('r.choose-report', 'Choose report')}</label>
         <select id="report-picker-select" value={filtered.some(r => r.id === activeTab) ? activeTab : ''} onChange={e => select(e.target.value)} className="block min-h-11 w-full max-w-full rounded border border-[var(--line)] bg-[var(--panel)] text-[var(--text)] px-2">
-          <option value="" disabled>Select a report</option>
+          <option value="" disabled>{reportText('r.select-a-report', 'Select a report')}</option>
           {GROUP_ORDER.map(group => <optgroup key={group} label={group}>
             {filtered.filter(r => (REPORT_GROUP[r.id] || 'Analysis') === group).map(r => <option key={r.id} value={r.id} title={reportQuestion(r.id) || undefined}>{r.label.en}</option>)}
           </optgroup>)}
         </select>
       </div>
-      {filtered.length === 0 && <p role="status">No reports match. Clear the search to see all reports.</p>}
-      {!query.trim() && pinned.length === 0 && <section aria-label="Starred for your business">
-        <h2 className="font-semibold">Starred for your business</h2>
+      {filtered.length === 0 && <p role="status">{reportText('r.no-reports-match-clear-the-search-to-see-all-rep', 'No reports match. Clear the search to see all reports.')}</p>}
+      {!query.trim() && pinned.length === 0 && <section aria-label={reportText('r.starred-for-your-business', 'Starred for your business')}>
+        <h2 className="font-semibold">{reportText('r.starred-for-your-business', 'Starred for your business')}</h2>
         <div className="flex flex-wrap gap-2">{starred.map(id => <button type="button" key={id} onClick={() => select(id)} className="min-h-11 px-3 border border-[var(--line)] rounded text-start">{label(id)}</button>)}</div>
-        <p className="text-xs text-[var(--muted)]">Pin your own with Alt+P on a report; they replace these.</p>
+        <p className="text-xs text-[var(--muted)]">{reportText('r.pin-your-own-with-alt-p-on-a-report-they-replace', 'Pin your own with Alt+P on a report; they replace these.')}</p>
       </section>}
       {!query.trim() && [['Pinned reports', pinned], ['Recent reports', recent]].map(([title, ids]) => <section key={title as string} aria-label={title as string}>
         <h2 className="font-semibold">{title}</h2>
-        <div className="flex flex-wrap gap-2">{(ids as string[]).length ? (ids as string[]).map(id => <button type="button" key={id} onClick={() => select(id)} className="min-h-11 px-3 border border-[var(--line)] rounded text-start">{label(id)}</button>) : <p className="text-sm">{title === 'Pinned reports' ? 'Use Alt+P to pin the current report.' : 'Reports selected here appear here on this device.'}</p>}</div>
+        <div className="flex flex-wrap gap-2">{(ids as string[]).length ? (ids as string[]).map(id => <button type="button" key={id} onClick={() => select(id)} className="min-h-11 px-3 border border-[var(--line)] rounded text-start">{label(id)}</button>) : <p className="text-sm">{title === 'Pinned reports' ? reportText('r.use-alt-p-to-pin-the-current-report', 'Use Alt+P to pin the current report.') : reportText('r.reports-selected-here-appear-here-on-this-device', 'Reports selected here appear here on this device.')}</p>}</div>
       </section>)}
-      {deviceError && <p role="status">The report opened, but this browser could not keep a device copy of your recent reports and pins.</p>}
+      {deviceError && <p role="status">{reportText('r.the-report-opened-but-this-browser-could-not-kee', 'The report opened, but this browser could not keep a device copy of your recent reports and pins.')}</p>}
       <p className="text-sm" role={syncStatus === 'error' ? 'status' : undefined}>
-        {syncStatus === 'loading' && 'Your device copy is ready; loading account sync for recent reports and pinned pages…'}
-        {syncStatus === 'saving' && 'Saving recent reports and pinned pages to your account…'}
-        {syncStatus === 'synced' && 'Recent reports and pinned pages sync to your account for these books.'}
+        {syncStatus === 'loading' && reportText('r.your-device-copy-is-ready-loading-account-sync-f', 'Your device copy is ready; loading account sync for recent reports and pinned pages…')}
+        {syncStatus === 'saving' && reportText('r.saving-recent-reports-and-pinned-pages-to-your-a', 'Saving recent reports and pinned pages to your account…')}
+        {syncStatus === 'synced' && reportText('r.recent-reports-and-pinned-pages-sync-to-your-acc', 'Recent reports and pinned pages sync to your account for these books.')}
         {syncStatus === 'error' && (deviceError
-          ? 'Account sync failed, and this browser could not keep a device copy. Reconnect and try another change.'
-          : 'Saved on this device. Account sync failed and will retry after a change or when you reconnect.')}
-        {syncStatus === 'device' && 'Recent reports and pinned pages are saved on this device for these books.'}
+          ? reportText('r.account-sync-failed-and-this-browser-could-not-k', 'Account sync failed, and this browser could not keep a device copy. Reconnect and try another change.')
+          : reportText('r.saved-on-this-device-account-sync-failed-and-wil', 'Saved on this device. Account sync failed and will retry after a change or when you reconnect.'))}
+        {syncStatus === 'device' && reportText('r.recent-reports-and-pinned-pages-are-saved-on-thi', 'Recent reports and pinned pages are saved on this device for these books.')}
       </p>
     </div>
   </details>;

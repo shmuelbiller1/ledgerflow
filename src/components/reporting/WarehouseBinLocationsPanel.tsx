@@ -10,10 +10,15 @@ import { binLocationFieldPath, binLocationProblem, itemBinForLocation, warehouse
 import type { InventoryItem, ItemBinLocation } from '../../types';
 import InlineEdit from '../ui/InlineEdit';
 import ReportTableScroll from './ReportTableScroll';
+import { useReportText, fill } from './useReportText';
+
+/** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
+const CODE_NAMES = { c0: 'SKU' } as const;
 
 const field = 'min-h-11 min-w-0 max-w-full border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 
 export default function WarehouseBinLocationsPanel() {
+  const reportText = useReportText();
   const inventory = useLedgerStore(state => state.inventory) as InventoryItem[];
   const nodes = useLedgerStore(state => state.dimensionNodes || []);
   const truncated = useLedgerStore(state => state.truncatedCollections);
@@ -64,37 +69,37 @@ export default function WarehouseBinLocationsPanel() {
     } as Record<string, unknown>, bin ? `Bin ${bin} saved for ${item.name}.` : `Bin cleared for ${item.name}.`);
   };
 
-  return <section aria-label="Bin locations" className="space-y-4 min-w-0">
+  return <section aria-label={reportText('r.bin-locations', 'Bin locations')} className="space-y-4 min-w-0">
     <div>
-      <h3 className="text-lg font-semibold">Bin locations</h3>
-      <p className="text-sm text-[var(--muted)]">Assign a bin within an existing Location dimension. A bin is a label only: it does not allocate, reserve, count, or move stock.</p>
+      <h3 className="text-lg font-semibold">{reportText('r.bin-locations', 'Bin locations')}</h3>
+      <p className="text-sm text-[var(--muted)]">{reportText('r.assign-a-bin-within-an-existing-location-dimensi', 'Assign a bin within an existing Location dimension. A bin is a label only: it does not allocate, reserve, count, or move stock.')}</p>
     </div>
-    {loading && <p role="status" className="text-sm text-[var(--muted)]">Loading inventory…</p>}
-    {partial && <p role="alert" className="text-sm text-[var(--muted)]">The inventory list is capped or failed. Only the loaded items are shown; an edit here changes only the selected item.</p>}
+    {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-inventory', 'Loading inventory…')}</p>}
+    {partial && <p role="alert" className="text-sm text-[var(--muted)]">{reportText('r.the-inventory-list-is-capped-or-failed-only-the', 'The inventory list is capped or failed. Only the loaded items are shown; an edit here changes only the selected item.')}</p>}
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
-      <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">Location
-        <select aria-label="Bin location" className={field} value={locationId} onChange={event => setSelectedLocationId(event.target.value)}>
-          {!locations.length && <option value={NO_LOCATION_VALUE}>No Location values are configured</option>}
-          {locations.map(option => <option key={option.id} value={option.id}>{option.description || option.id}{option.status === 'archived' ? ' (archived)' : ''}</option>)}
+      <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">{reportText('r.location', 'Location')}
+        <select aria-label={reportText('r.bin-location', 'Bin location')} className={field} value={locationId} onChange={event => setSelectedLocationId(event.target.value)}>
+          {!locations.length && <option value={NO_LOCATION_VALUE}>{reportText('r.no-location-values-are-configured', 'No Location values are configured')}</option>}
+          {locations.map(option => <option key={option.id} value={option.id}>{option.description || option.id}{option.status === 'archived' ? ` ${reportText('r.archived', '(archived)')}` : ''}</option>)}
         </select>
       </label>
-      <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">Find item
-        <input aria-label="Find item for bin" type="search" className={field} value={query} onChange={event => setQuery(event.target.value)} placeholder="Name or SKU" />
+      <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">{reportText('r.find-item', 'Find item')}
+        <input aria-label={reportText('r.find-item-for-bin', 'Find item for bin')} type="search" className={field} value={query} onChange={event => setQuery(event.target.value)} placeholder={reportText('r.name-or-sku', 'Name or SKU')} />
       </label>
-      <span className="text-sm text-[var(--muted)]">{visibleItems.length} of {items.length} loaded stock item(s)</span>
+      <span className="text-sm text-[var(--muted)]">{visibleItems.length} {reportText('r.of', 'of')} {items.length} {reportText('r.loaded-stock-item-s', 'loaded stock item(s)')}</span>
     </div>
 
-    {!locations.length && <p className="text-sm text-[var(--muted)]">Create a Location value in Labels before assigning bins. You can still view the loaded inventory below.</p>}
-    {location?.status === 'archived' && <p className="text-sm text-[var(--muted)]">This Location is archived. Existing bin labels are shown read-only and cannot be changed.</p>}
+    {!locations.length && <p className="text-sm text-[var(--muted)]">{reportText('r.create-a-location-value-in-labels-before-assigni', 'Create a Location value in Labels before assigning bins. You can still view the loaded inventory below.')}</p>}
+    {location?.status === 'archived' && <p className="text-sm text-[var(--muted)]">{reportText('r.this-location-is-archived-existing-bin-labels-ar', 'This Location is archived. Existing bin labels are shown read-only and cannot be changed.')}</p>}
 
     <ReportTableScroll>
       <table className="w-full text-sm">
-        <caption>Inventory bin assignments{location ? ` at ${location.description || location.id}` : ''}</caption>
+        <caption>{reportText('r.inventory-bin-assignments', 'Inventory bin assignments')}{location ? ` ${fill(reportText('r.at-0', 'at {0}'), { 0: location.description || location.id })}` : ''}</caption>
         <thead><tr>
-          <th scope="col" className="text-left py-2 px-2">Item</th>
-          <th scope="col" className="text-left py-2 px-2">SKU</th>
-          <th scope="col" className="text-left py-2 px-2">Bin</th>
+          <th scope="col" className="text-left py-2 px-2">{reportText('r.item', 'Item')}</th>
+          <th scope="col" className="text-left py-2 px-2">{CODE_NAMES.c0}</th>
+          <th scope="col" className="text-left py-2 px-2">{reportText('r.bin', 'Bin')}</th>
         </tr></thead>
         <tbody>
           {visibleItems.map(item => {
@@ -105,15 +110,15 @@ export default function WarehouseBinLocationsPanel() {
               <td className="py-2 px-2"><bdi>{item.sku || '—'}</bdi></td>
               <td className="py-2 px-2 min-w-48">
                 {location && location.id !== NO_LOCATION_VALUE
-                  ? <InlineEdit kind="text" label={label} value={current} placeholder="Assign bin" canEdit={canEdit}
+                  ? <InlineEdit kind="text" label={label} value={current} placeholder={reportText('r.assign-bin', 'Assign bin')} canEdit={canEdit}
                     onSave={next => saveBin(item, next)} />
-                  : <span className="text-[var(--muted)]">{current || 'No Location assigned'}</span>}
+                  : <span className="text-[var(--muted)]">{current || reportText('r.no-location-assigned', 'No Location assigned')}</span>}
               </td>
             </tr>;
           })}
         </tbody>
       </table>
-      {visibleItems.length === 0 && <p className="p-3 text-sm text-[var(--muted)]">No inventory items match this search.</p>}
+      {visibleItems.length === 0 && <p className="p-3 text-sm text-[var(--muted)]">{reportText('r.no-inventory-items-match-this-search', 'No inventory items match this search.')}</p>}
     </ReportTableScroll>
   </section>;
 }

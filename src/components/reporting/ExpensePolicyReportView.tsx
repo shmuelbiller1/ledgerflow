@@ -11,6 +11,7 @@ import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import type { Bill } from '../../types';
 import { RowTable } from '../ui/RowTable';
+import { useReportText } from './useReportText';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const CSV_HEADERS = ['Claim date', 'Person', 'State', 'Account', 'Line', 'Amount', 'Finding', 'Rule', 'What it asks'];
@@ -28,6 +29,7 @@ const claimLines = (bill: Bill) => (bill.splits || []).map(split => ({ descripti
  * A claim whose receipts were counted by the approving screen shows the real answer there.
  */
 export default function ExpensePolicyReportView({ endDate = '' }: { endDate?: string }) {
+  const reportText = useReportText();
   const bills = useLedgerStore(state => state.bills);
   const truncated = useLedgerStore(state => state.truncatedCollections);
   const failed = useDataNeedsStore(state => state.failed);
@@ -77,33 +79,33 @@ export default function ExpensePolicyReportView({ endDate = '' }: { endDate?: st
   const partial = truncated.bills || failed.bills;
   const money = (cents: number) => formatCurrency(cents, currency);
 
-  return <section aria-label="Expense policy check" className="p-4 space-y-4 min-w-0">
-    <h2>Expense policy check</h2>
-    <p className="text-sm text-[var(--muted)]">Read-only. Each expense claim dated in the period is checked against the workspace's own policy, kept on the workspace as <code>{EXPENSE_POLICY_METADATA_KEY}</code>: a maximum per line, and from what amount a receipt is needed. A maximum is inclusive: a line at the limit is within policy. Nothing here changes a claim, approves it or posts it.</p>
-    <p className="text-sm text-[var(--muted)]">The receipt count is not read on this screen, so a line that needs a receipt is listed as “receipt not checked here”, never as a missing receipt. Amounts are the claim's own stored lines in the workspace currency; a claim in another currency keeps its own currency and is not converted.</p>
+  return <section aria-label={reportText('r.expense-policy-check', 'Expense policy check')} className="p-4 space-y-4 min-w-0">
+    <h2>{reportText('r.expense-policy-check', 'Expense policy check')}</h2>
+    <p className="text-sm text-[var(--muted)]">{reportText('r.read-only-each-expense-claim-dated-in-the-period', 'Read-only. Each expense claim dated in the period is checked against the workspace\'s own policy, kept on the workspace as')} <code>{EXPENSE_POLICY_METADATA_KEY}</code>{reportText('r.a-maximum-per-line-and-from-what-amount-a-receip', ': a maximum per line, and from what amount a receipt is needed. A maximum is inclusive: a line at the limit is within policy. Nothing here changes a claim, approves it or posts it.')}</p>
+    <p className="text-sm text-[var(--muted)]">{reportText('r.the-receipt-count-is-not-read-on-this-screen-so', 'The receipt count is not read on this screen, so a line that needs a receipt is listed as “receipt not checked here”, never as a missing receipt. Amounts are the claim\'s own stored lines in the workspace currency; a claim in another currency keeps its own currency and is not converted.')}</p>
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
-      <label className="flex flex-col gap-1">From
-        <input aria-label="Policy check from date" type="date" className={field} value={from} onChange={event => setChosenFrom(event.target.value)} />
+      <label className="flex flex-col gap-1">{reportText('r.from', 'From')}
+        <input aria-label={reportText('r.policy-check-from-date', 'Policy check from date')} type="date" className={field} value={from} onChange={event => setChosenFrom(event.target.value)} />
       </label>
-      <label className="flex flex-col gap-1">To
-        <input aria-label="Policy check to date" type="date" className={field} value={to} readOnly />
+      <label className="flex flex-col gap-1">{reportText('r.to', 'To')}
+        <input aria-label={reportText('r.policy-check-to-date', 'Policy check to date')} type="date" className={field} value={to} readOnly />
       </label>
       <button type="button" className="btn-secondary min-h-11 px-3" disabled={!rows.length} onClick={() => downloadCsv(
         `expense-policy-${from}-${to}.csv`, CSV_HEADERS,
         rows.map(row => [row.bill.date || '', row.claim?.submittedByName || row.bill.vendorName || '', row.claim?.state || '', row.account, row.bill.number || row.bill.id, (row.amountCents / 100).toFixed(2), row.finding, row.rule, row.ask]),
-      )}>Export CSV</button>
+      )}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
 
-    {loading && <p role="status">Loading claims…</p>}
-    {!valid && <p role="alert">Choose a valid end date on the report.</p>}
-    {partial && <p role="alert">Loaded claim history is incomplete or failed to load. Claims that are not loaded are not shown and are not treated as within policy.</p>}
-    {dropped > 0 && <p role="alert">{dropped} stored policy row(s) could not be read and were ignored; fix them on the workspace record ({EXPENSE_POLICY_METADATA_KEY}).</p>}
-    {!policy.rows.length && <p role="note">This workspace has no expense policy rows yet, so every claim is within policy by default. Add rows to <code>{EXPENSE_POLICY_METADATA_KEY}</code> (id, accountId or category, maxAmountCents and/or receiptFromCents, validFrom) to check claims.</p>}
+    {loading && <p role="status">{reportText('r.loading-claims', 'Loading claims…')}</p>}
+    {!valid && <p role="alert">{reportText('r.choose-a-valid-end-date-on-the-report', 'Choose a valid end date on the report.')}</p>}
+    {partial && <p role="alert">{reportText('r.loaded-claim-history-is-incomplete-or-failed-to', 'Loaded claim history is incomplete or failed to load. Claims that are not loaded are not shown and are not treated as within policy.')}</p>}
+    {dropped > 0 && <p role="alert">{dropped} {reportText('r.stored-policy-row-s-could-not-be-read-and-were-i', 'stored policy row(s) could not be read and were ignored; fix them on the workspace record (')}{EXPENSE_POLICY_METADATA_KEY}).</p>}
+    {!policy.rows.length && <p role="note">{reportText('r.this-workspace-has-no-expense-policy-rows-yet-so', 'This workspace has no expense policy rows yet, so every claim is within policy by default. Add rows to')} <code>{EXPENSE_POLICY_METADATA_KEY}</code> {reportText('r.id-accountid-or-category-maxamountcents-and-or-r', '(id, accountId or category, maxAmountCents and/or receiptFromCents, validFrom) to check claims.')}</p>}
 
     {rows.length > 0 && <ReportTableScroll><RowTable
       rowClassName="border-t border-[var(--line)] align-top"
-      caption={(<>Expense claims from {from} to {to} checked against the policy in force on each claim's date</>)}
+      caption={(<>{reportText('r.expense-claims-from', 'Expense claims from')} {from} {reportText('r.to-2', 'to')} {to} {reportText('r.checked-against-the-policy-in-force-on-each-clai', 'checked against the policy in force on each claim\'s date')}</>)}
       rows={rows}
       rowKey={row => `${row.bill.id}-${row.line}-${row.finding}-${row.rule}`}
       captionClassName=""
@@ -111,15 +113,15 @@ export default function ExpensePolicyReportView({ endDate = '' }: { endDate?: st
       headRowClassName=""
       bodyClassName=""
       columns={[
-        { header: "Claim", className: "text-left", headClassName: "", cell: (row) => (<><bdi>{row.bill.date} · {row.bill.number || row.bill.id}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.claim?.submittedByName || row.bill.vendorName}</bdi></div></>) },
-        { header: "State", headClassName: "", cell: (row) => row.claim?.state || '' },
-        { header: "Account", headClassName: "", cell: (row) => <code>{row.account || '—'}</code> },
-        { header: "Amount", className: "text-right tabular-nums", headClassName: "", cell: (row) => money(row.amountCents) },
-        { header: "Finding", headClassName: "", cell: (row) => row.finding },
-        { header: "What the policy asks", headClassName: "", cell: (row) => row.ask || (policy.rows.length ? 'The policy rows in force match nothing on this claim' : '') },
+        { header: reportText('r.claim', 'Claim'), className: "text-left", headClassName: "", cell: (row) => (<><bdi>{row.bill.date} · {row.bill.number || row.bill.id}</bdi><div className="text-xs text-[var(--muted)]"><bdi>{row.claim?.submittedByName || row.bill.vendorName}</bdi></div></>) },
+        { header: reportText('r.state', 'State'), headClassName: "", cell: (row) => row.claim?.state || '' },
+        { header: reportText('r.account', 'Account'), headClassName: "", cell: (row) => <code>{row.account || '—'}</code> },
+        { header: reportText('r.amount', 'Amount'), className: "text-right tabular-nums", headClassName: "", cell: (row) => money(row.amountCents) },
+        { header: reportText('r.finding', 'Finding'), headClassName: "", cell: (row) => row.finding },
+        { header: reportText('r.what-the-policy-asks', 'What the policy asks'), headClassName: "", cell: (row) => row.ask || (policy.rows.length ? 'The policy rows in force match nothing on this claim' : '') },
       ]}
     /></ReportTableScroll>}
 
-    {!loading && rows.length === 0 && <p>No expense claim in this period. Claims are bills whose record carries an expense-claim state; a bill that is not a claim is not checked here.</p>}
+    {!loading && rows.length === 0 && <p>{reportText('r.no-expense-claim-in-this-period-claims-are-bills', 'No expense claim in this period. Claims are bills whose record carries an expense-claim state; a bill that is not a claim is not checked here.')}</p>}
   </section>;
 }

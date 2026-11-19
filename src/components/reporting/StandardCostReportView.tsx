@@ -19,6 +19,7 @@ import { formatVariancePct, standardCostReport } from '../../lib/standardCost';
 import type { InventoryItem } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
 import ReportEmptyState from './ReportEmptyState';
+import { useReportText, fill } from './useReportText';
 
 const CSV_HEADERS = [
   'Item',
@@ -32,6 +33,7 @@ const CSV_HEADERS = [
 ];
 
 export default function StandardCostReportView() {
+  const reportText = useReportText();
   const inventory = useLedgerStore(s => s.inventory) as InventoryItem[];
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const currency = useAuthStore(s => s.workspaces?.find(w => w.id === s.currentWorkspaceId)?.currency || 'USD');
@@ -49,13 +51,12 @@ export default function StandardCostReportView() {
   const partial = Boolean(truncated.inventory || failed.inventory);
 
   return (
-    <section aria-label="Standard cost variance" className="p-4 space-y-4 min-w-0">
+    <section aria-label={reportText('r.standard-cost-variance', 'Standard cost variance')} className="p-4 space-y-4 min-w-0">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2>Standard cost variance</h2>
+          <h2>{reportText('r.standard-cost-variance', 'Standard cost variance')}</h2>
           <p className="text-sm text-[var(--muted)]">
-            Compares each stock item’s moving weighted average cost against its planned standard cost.
-            A positive variance means the stock cost more than planned (unfavourable). This screen is read-only.
+            {reportText('r.compares-each-stock-item-s-moving-weighted-avera', 'Compares each stock item’s moving weighted average cost against its planned standard cost. A positive variance means the stock cost more than planned (unfavourable). This screen is read-only.')}
           </p>
         </div>
         {report.rows.length > 0 && (
@@ -63,7 +64,7 @@ export default function StandardCostReportView() {
             type="button"
             data-print-hide
             disabled={loading || partial}
-            title={loading || partial ? 'Wait until every item is loaded; a partial list is not exported.' : undefined}
+            title={loading || partial ? reportText('r.wait-until-every-item-is-loaded-a-partial-list-i', 'Wait until every item is loaded; a partial list is not exported.') : undefined}
             onClick={() =>
               downloadCsv(
                 'standard-cost-variance',
@@ -85,15 +86,15 @@ export default function StandardCostReportView() {
             }
             className="min-h-11 px-3 py-1.5 rounded border border-[var(--line)] bg-[var(--surface)] text-[var(--text)] text-sm disabled:opacity-50"
           >
-            Download CSV
+            {reportText('r.download-csv', 'Download CSV')}
           </button>
         )}
       </div>
 
-      {loading && <p role="status" className="text-sm text-[var(--muted)]">Loading items…</p>}
+      {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-items', 'Loading items…')}</p>}
       {partial && (
         <p role="alert" className="text-sm text-amber-700 dark:text-amber-400">
-          Items are only partly loaded; items outside the loaded list are not shown.
+          {reportText('r.items-are-only-partly-loaded-items-outside-the-l', 'Items are only partly loaded; items outside the loaded list are not shown.')}
         </p>
       )}
 
@@ -103,27 +104,27 @@ export default function StandardCostReportView() {
           className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm rounded border border-[var(--line)] bg-[var(--panel)] text-[var(--text)]"
         >
           <span>
-            {report.withoutStandard} {report.withoutStandard === 1 ? 'item has' : 'items have'} no standard cost.
+            {report.withoutStandard === 1 ? reportText('r.one-item-no-standard-cost', '1 item has no standard cost.') : fill(reportText('r.n-items-no-standard-cost', '{n} items have no standard cost.'), { n: report.withoutStandard })}
           </span>
           <button
             type="button"
             onClick={() => setActiveTab('inventory')}
             className="min-h-11 px-3 py-1 text-xs font-semibold rounded border border-[var(--brass)] text-[var(--brass)] hover:bg-[var(--brass)]/10"
           >
-            Go to Inventory
+            {reportText('r.go-to-inventory', 'Go to Inventory')}
           </button>
         </div>
       )}
 
       {!loading && report.rows.length === 0 ? (
         <ReportEmptyState
-          title={scopedItems.length === 0 ? 'No inventory items found' : 'No items with a standard cost found'}
+          title={scopedItems.length === 0 ? reportText('r.no-inventory-items-found', 'No inventory items found') : reportText('r.no-items-with-a-standard-cost-found', 'No items with a standard cost found')}
           description={
             scopedItems.length === 0
-              ? 'Add items to your inventory to track standard costs.'
-              : 'Set a standard cost on your items in Inventory to see variances.'
+              ? reportText('r.add-items-to-your-inventory-to-track-standard-co', 'Add items to your inventory to track standard costs.')
+              : reportText('r.set-a-standard-cost-on-your-items-in-inventory-t', 'Set a standard cost on your items in Inventory to see variances.')
           }
-          actionLabel="Go to Inventory"
+          actionLabel={reportText('r.go-to-inventory', 'Go to Inventory')}
           onAction={() => setActiveTab('inventory')}
         />
       ) : (
@@ -131,16 +132,16 @@ export default function StandardCostReportView() {
           <>
             <ReportTableScroll>
               <table className="w-full text-sm">
-                <caption className="sr-only">Standard cost variances by stock item</caption>
+                <caption className="sr-only">{reportText('r.standard-cost-variances-by-stock-item', 'Standard cost variances by stock item')}</caption>
                 <thead>
                   <tr className="border-b border-[var(--line)] text-left text-[var(--muted)]">
-                    <th scope="col" className="py-2 pr-3">Item</th>
-                    <th scope="col" className="py-2 pr-3 text-right">On hand</th>
-                    <th scope="col" className="py-2 pr-3 text-right">Standard cost</th>
-                    <th scope="col" className="py-2 pr-3 text-right">Actual cost</th>
-                    <th scope="col" className="py-2 pr-3 text-right">Variance / unit</th>
-                    <th scope="col" className="py-2 pr-3 text-right">Variance %</th>
-                    <th scope="col" className="py-2 text-right">Variance on hand</th>
+                    <th scope="col" className="py-2 pr-3">{reportText('r.item', 'Item')}</th>
+                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.on-hand', 'On hand')}</th>
+                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.standard-cost', 'Standard cost')}</th>
+                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.actual-cost', 'Actual cost')}</th>
+                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.variance-unit', 'Variance / unit')}</th>
+                    <th scope="col" className="py-2 pr-3 text-right">{reportText('r.variance-3', 'Variance %')}</th>
+                    <th scope="col" className="py-2 text-right">{reportText('r.variance-on-hand', 'Variance on hand')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -177,7 +178,7 @@ export default function StandardCostReportView() {
                 <tfoot>
                   <tr className="border-t-2 border-[var(--line)] font-semibold">
                     <th scope="row" colSpan={6} className="py-2.5 pr-3 text-left">
-                      Total variance on hand
+                      {reportText('r.total-variance-on-hand', 'Total variance on hand')}
                     </th>
                     <td className="py-2.5 text-right font-mono">
                       <span className={report.totalVarianceCents > 0 ? 'text-[var(--neg,#ef4444)]' : report.totalVarianceCents < 0 ? 'text-[var(--pos,#22c55e)]' : ''}>
@@ -189,8 +190,7 @@ export default function StandardCostReportView() {
               </table>
             </ReportTableScroll>
             <p className="text-xs text-[var(--muted)]">
-              Variance on hand is based on stock on hand multiplied by unit variance (actual − standard).
-              Negative stock counts as 0 on hand. Standard costing does not post any entries or change inventory valuation.
+              {reportText('r.variance-on-hand-is-based-on-stock-on-hand-multi', 'Variance on hand is based on stock on hand multiplied by unit variance (actual − standard). Negative stock counts as 0 on hand. Standard costing does not post any entries or change inventory valuation.')}
             </p>
           </>
         )

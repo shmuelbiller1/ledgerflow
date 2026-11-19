@@ -12,11 +12,13 @@ export const STEP_STATUS_TONE: Record<JourneyStepStatus, string> = {
 };
 
 /** The words a step's status carries, in the period the journey covers. */
-export function stepStatusLabel(period: 'month' | 'quarter'): Record<JourneyStepStatus, string> {
+export function stepStatusLabel(period: 'month' | 'quarter', reportText: (key: string, fallback: string) => string): Record<JourneyStepStatus, string> {
   return {
-    done: 'Done from the recorded data',
-    attention: 'Needs attention',
-    'not-applicable': `Does not apply to this ${period}`,
+    done: reportText('r.journey-done', 'Done from the recorded data'),
+    attention: reportText('r.journey-attention', 'Needs attention'),
+    'not-applicable': period === 'month'
+      ? reportText('r.journey-na-month', 'Does not apply to this month')
+      : reportText('r.journey-na-quarter', 'Does not apply to this quarter'),
   };
 }
 

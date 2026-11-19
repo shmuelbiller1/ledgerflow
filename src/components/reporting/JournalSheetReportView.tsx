@@ -6,6 +6,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency, cn } from '../../lib/utils';
 import { computeJournalSheet, yearRange } from '../../server/reports/itemReports';
 import { RowTable } from '../ui/RowTable';
+import { useReportText, fill } from './useReportText';
 
 interface Props {
   selectedYear?: number;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export const JournalSheetReportView: React.FC<Props> = ({ selectedYear, startDate, endDate }) => {
+  const reportText = useReportText();
   const transactions = useLedgerStore(s => s.transactions);
   const accounts = useLedgerStore(s => s.accounts);
 
@@ -33,24 +35,24 @@ export const JournalSheetReportView: React.FC<Props> = ({ selectedYear, startDat
         <div>
           <h2 className="text-lg font-bold flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-[var(--brass)]" />
-            Journal Sheet
+            {reportText('r.journal-sheet', 'Journal Sheet')}
           </h2>
           <p className="text-xs text-[var(--muted)] mt-0.5">
-            Every posted journal entry in the period, oldest first, with debits and credits in your base currency.
+            {reportText('r.every-posted-journal-entry-in-the-period-oldest', 'Every posted journal entry in the period, oldest first, with debits and credits in your base currency.')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
-          <div>Debits: <span className="font-bold">{formatCurrency(sheet.totals.debitCents)}</span></div>
-          <div>Credits: <span className="font-bold">{formatCurrency(sheet.totals.creditCents)}</span></div>
+          <div>{reportText('r.debits', 'Debits:')} <span className="font-bold">{formatCurrency(sheet.totals.debitCents)}</span></div>
+          <div>{reportText('r.credits-2', 'Credits:')} <span className="font-bold">{formatCurrency(sheet.totals.creditCents)}</span></div>
           {unbalancedCount > 0 ? (
             <div role="status" className="flex items-center gap-2 px-3 py-1.5 border border-[var(--neg)] rounded-xl text-[var(--neg)] font-bold font-sans">
               <AlertTriangle size={16} aria-hidden="true" />
-              {unbalancedCount} unbalanced {unbalancedCount === 1 ? 'entry' : 'entries'}
+              {unbalancedCount} {reportText('r.unbalanced', 'unbalanced')} {unbalancedCount === 1 ? reportText('r.entry-2', 'entry') : reportText('r.entries-3', 'entries')}
             </div>
           ) : (
             <div role="status" className="flex items-center gap-2 px-3 py-1.5 border border-[var(--pos)] rounded-xl text-[var(--pos)] font-bold font-sans">
               <CheckCircle2 size={16} aria-hidden="true" />
-              All entries balance
+              {reportText('r.all-entries-balance', 'All entries balance')}
             </div>
           )}
         </div>
@@ -58,7 +60,7 @@ export const JournalSheetReportView: React.FC<Props> = ({ selectedYear, startDat
 
       {sheet.entries.length === 0 ? (
         <div className="text-center py-12 bg-[var(--panel)] rounded-lg border border-[var(--line)] text-[var(--muted)] text-xs">
-          No posted transactions in the selected period.
+          {reportText('r.no-posted-transactions-in-the-selected-period', 'No posted transactions in the selected period.')}
         </div>
       ) : (
         <div className="space-y-4">
@@ -76,12 +78,12 @@ export const JournalSheetReportView: React.FC<Props> = ({ selectedYear, startDat
                   )}
                 </div>
                 <div className="flex items-center gap-4 text-xs font-mono">
-                  <div>Debits: <span className="font-bold">{formatCurrency(entry.debitCents)}</span></div>
-                  <div>Credits: <span className="font-bold">{formatCurrency(entry.creditCents)}</span></div>
+                  <div>{reportText('r.debits', 'Debits:')} <span className="font-bold">{formatCurrency(entry.debitCents)}</span></div>
+                  <div>{reportText('r.credits-2', 'Credits:')} <span className="font-bold">{formatCurrency(entry.creditCents)}</span></div>
                   {!entry.isBalanced && (
                     <div className="flex items-center gap-1 text-[var(--neg)] font-bold">
                       <AlertTriangle size={14} aria-hidden="true" />
-                      Off by {formatCurrency(Math.abs(entry.imbalanceCents))}
+                      {reportText('r.off-by', 'Off by')} {formatCurrency(Math.abs(entry.imbalanceCents))}
                     </div>
                   )}
                 </div>
@@ -90,16 +92,16 @@ export const JournalSheetReportView: React.FC<Props> = ({ selectedYear, startDat
               <div className="mt-3 overflow-x-auto">
                 <RowTable
                   rowHeaderColumn={false}
-                  caption={`Lines of ${entry.description || entry.id}`}
+                  caption={fill(reportText('r.lines-of-0', 'Lines of {0}'), { 0: entry.description || entry.id })}
                   rows={entry.lines}
                   rowKey={line => line.key}
                   tableClassName="w-full text-left text-xs"
                   headRowClassName="text-[var(--muted)] font-bold uppercase text-[10px]"
                   columns={[
-                    { header: "Account", className: "py-2 font-medium", headClassName: "pb-2", cell: (line) => line.accountName },
-                    { header: "Memo", className: "py-2 text-[var(--muted)]", headClassName: "pb-2", cell: (line) => line.description || '—' },
-                    { header: "Debit", align: 'right', className: "py-2 font-mono", headClassName: "pb-2", cell: (line) => line.debitCents ? formatCurrency(line.debitCents) : '—' },
-                    { header: "Credit", align: 'right', className: "py-2 font-mono", headClassName: "pb-2", cell: (line) => line.creditCents ? formatCurrency(line.creditCents) : '—' },
+                    { header: reportText('r.account', 'Account'), className: "py-2 font-medium", headClassName: "pb-2", cell: (line) => line.accountName },
+                    { header: reportText('r.memo', 'Memo'), className: "py-2 text-[var(--muted)]", headClassName: "pb-2", cell: (line) => line.description || '—' },
+                    { header: reportText('r.debit', 'Debit'), align: 'right', className: "py-2 font-mono", headClassName: "pb-2", cell: (line) => line.debitCents ? formatCurrency(line.debitCents) : '—' },
+                    { header: reportText('r.credit', 'Credit'), align: 'right', className: "py-2 font-mono", headClassName: "pb-2", cell: (line) => line.creditCents ? formatCurrency(line.creditCents) : '—' },
                   ]}
                 />
               </div>

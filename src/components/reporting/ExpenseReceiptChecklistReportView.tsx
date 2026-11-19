@@ -10,6 +10,7 @@ import { formatCurrency } from '../../lib/utils';
 import { downloadCsv } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import { RowTable } from '../ui/RowTable';
+import { useReportText, fill } from './useReportText';
 
 /** A-133: expense claims are bills; linked file metadata is loaded without selecting file contents. */
 export default function ExpenseReceiptChecklistReportView({ startDate = '', endDate = '' }: { startDate?: string; endDate?: string }) {
@@ -90,6 +91,7 @@ export function ExpenseReceiptChecklistPanel({
   attachmentError?: boolean;
   periodValid?: boolean;
 }) {
+  const reportText = useReportText();
   const exportRows = () => downloadCsv('expense-receipt-checklist', RECEIPT_CHECKLIST_CSV_HEADERS, receiptChecklistCsvRows(report.rows));
   const evidenceLabel = (row: ReceiptChecklistSummary['rows'][number]) => {
     if (row.receiptUrlRecorded && row.attachmentCount) return `Receipt URL and ${row.attachmentCount} linked file(s); content not checked`;
@@ -101,38 +103,38 @@ export function ExpenseReceiptChecklistPanel({
     return 'Not checked';
   };
 
-  return <section aria-label="Expense receipt checklist" className="p-4 space-y-4 min-w-0">
-    <h2>Expense receipt checklist</h2>
+  return <section aria-label={reportText('r.expense-receipt-checklist', 'Expense receipt checklist')} className="p-4 space-y-4 min-w-0">
+    <h2>{reportText('r.expense-receipt-checklist', 'Expense receipt checklist')}</h2>
     <p className="text-sm text-[var(--muted)]">
-      Expense claims are bills carrying an expense-claim record. Claims with no receipt URL or linked bill file are grouped for review by employee; the bill date follows the Reports period. A linked file is not inspected and may not be a receipt, so absence is a review cue, not an approval or deletion decision.
+      {reportText('r.expense-claims-are-bills-carrying-an-expense-cla', 'Expense claims are bills carrying an expense-claim record. Claims with no receipt URL or linked bill file are grouped for review by employee; the bill date follows the Reports period. A linked file is not inspected and may not be a receipt, so absence is a review cue, not an approval or deletion decision.')}
     </p>
 
-    {!periodValid && <p role="alert">Choose a valid report period.</p>}
-    {loading && <p role="status">Loading expense claims and linked-file metadata…</p>}
-    {partial && <p role="alert">Claim or attachment history is capped or failed to load. Results may be incomplete; attachment absence is marked missing only when linked-file metadata is complete, and CSV is unavailable until the loaded history is complete.</p>}
-    {!attachmentIndexAvailable && !loading && <p role="note">The attachment index is not available in demo/offline mode. A receipt URL can still be shown, but no file is assumed missing.</p>}
+    {!periodValid && <p role="alert">{reportText('r.choose-a-valid-report-period', 'Choose a valid report period.')}</p>}
+    {loading && <p role="status">{reportText('r.loading-expense-claims-and-linked-file-metadata', 'Loading expense claims and linked-file metadata…')}</p>}
+    {partial && <p role="alert">{reportText('r.claim-or-attachment-history-is-capped-or-failed', 'Claim or attachment history is capped or failed to load. Results may be incomplete; attachment absence is marked missing only when linked-file metadata is complete, and CSV is unavailable until the loaded history is complete.')}</p>}
+    {!attachmentIndexAvailable && !loading && <p role="note">{reportText('r.the-attachment-index-is-not-available-in-demo-of', 'The attachment index is not available in demo/offline mode. A receipt URL can still be shown, but no file is assumed missing.')}</p>}
 
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm" aria-label="Receipt checklist summary">
-      <p><b>Claims in period:</b> {report.rows.length}</p>
-      <p><b>No receipt link or file recorded:</b> {report.missingClaims}</p>
-      <p><b>Not checked:</b> {report.notCheckedClaims}</p>
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm" aria-label={reportText('r.receipt-checklist-summary', 'Receipt checklist summary')}>
+      <p><b>{reportText('r.claims-in-period', 'Claims in period:')}</b> {report.rows.length}</p>
+      <p><b>{reportText('r.no-receipt-link-or-file-recorded', 'No receipt link or file recorded:')}</b> {report.missingClaims}</p>
+      <p><b>{reportText('r.not-checked', 'Not checked:')}</b> {report.notCheckedClaims}</p>
     </div>
 
     {report.missingByEmployee.length > 0 && <div className="space-y-2">
-      <h3 className="font-semibold">Claims to review by employee</h3>
+      <h3 className="font-semibold">{reportText('r.claims-to-review-by-employee', 'Claims to review by employee')}</h3>
       <ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
         {report.missingByEmployee.map(employee => <li key={employee.employeeName}><bdi>{employee.employeeName}</bdi>: {employee.claims}</li>)}
       </ul>
     </div>}
 
     <div data-print-hide>
-      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={exportRows} disabled={!report.rows.length || loading || partial}>Export CSV</button>
+      <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" onClick={exportRows} disabled={!report.rows.length || loading || partial}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
 
     <ReportTableScroll>
       <RowTable
         rowClassName="border-b border-[var(--line)]/50 align-top"
-        caption={(<>Expense claims{from || to ? ` from ${from || 'any date'} to ${to || 'any date'}` : ' in the loaded history'}; receipt evidence is not verified</>)}
+        caption={(<>{reportText('r.expense-claims', 'Expense claims')}{from || to ? ` ${fill(reportText('r.from-0-to-1', 'from {0} to {1}'), { 0: from || 'any date', 1: to || 'any date' })}` : ` ${reportText('r.in-the-loaded-history', 'in the loaded history')}`}{reportText('r.receipt-evidence-is-not-verified', '; receipt evidence is not verified')}</>)}
         rows={report.rows}
         rowKey={row => row.billId}
         captionClassName=""
@@ -140,16 +142,16 @@ export function ExpenseReceiptChecklistPanel({
         headRowClassName=""
         bodyClassName=""
         columns={[
-          { header: "Employee", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.employeeName}</bdi> },
-          { header: "Submitted by", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.submittedBy || '—'}</bdi> },
-          { header: "Date", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.date || '—' },
-          { header: "Claim", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.billNumber}</bdi> },
-          { header: "Claim state", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.state },
-          { header: "Amount", className: "py-1 px-2 text-right tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.amountCents, row.currency) },
-          { header: "Receipt record", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => evidenceLabel(row) },
+          { header: reportText('r.employee', 'Employee'), className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.employeeName}</bdi> },
+          { header: reportText('r.submitted-by', 'Submitted by'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.submittedBy || '—'}</bdi> },
+          { header: reportText('r.date-2', 'Date'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.date || '—' },
+          { header: reportText('r.claim', 'Claim'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => <bdi>{row.billNumber}</bdi> },
+          { header: reportText('r.claim-state', 'Claim state'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => row.state },
+          { header: reportText('r.amount', 'Amount'), className: "py-1 px-2 text-right tabular-nums", headClassName: "text-left py-1 px-2", cell: (row) => formatCurrency(row.amountCents, row.currency) },
+          { header: reportText('r.receipt-record', 'Receipt record'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (row) => evidenceLabel(row) },
         ]}
       />
-      {!loading && report.rows.length === 0 && <p className="text-sm text-[var(--muted)]">No expense claim is recorded in this period. Ordinary bills are not included.</p>}
+      {!loading && report.rows.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-expense-claim-is-recorded-in-this-period-ordi', 'No expense claim is recorded in this period. Ordinary bills are not included.')}</p>}
     </ReportTableScroll>
   </section>;
 }

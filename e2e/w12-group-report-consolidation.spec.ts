@@ -280,7 +280,7 @@ for (const width of [1280, 390]) {
     await page.getByLabel('From', { exact: true }).fill('2026-01-01');
     await page.getByLabel('To', { exact: true }).fill('2026-12-31');
     await page.getByLabel('In one currency').selectOption('USD');
-    await page.getByLabel('At 2026-12-31 (assets, liabilities)').fill('1.2');
+    await page.getByLabel('At Dec 31, 2026 (assets, liabilities)').fill('1.2');
     await page.getByLabel('Average (income, costs)').fill('1.1');
     await page.getByLabel('Historical (equity)').fill('1');
 

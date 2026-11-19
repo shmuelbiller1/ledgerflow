@@ -17,6 +17,7 @@
  */
 import { taxReturnDocument, type TaxableDocument } from '../taxReturnDocs';
 import { COUNTED_SALES } from '../taxCodes';
+import { convertMinorUnits } from '../currencyMinorUnits';
 import { exemptionOn } from '../taxExemption';
 import { placeState, registrationKey, registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
 import { documentEntityLabels } from './ilVatReturn';
@@ -50,7 +51,8 @@ export interface UsSalesTaxReturn {
   unplaced: { documentCount: number; netCents: number; taxCents: number; documents: Array<{ id: string; netCents: number; taxCents: number }> };
 }
 
-const toBase = (cents: number, rate?: number) => Math.round(cents * (rate && rate > 0 ? rate : 1));
+// the rate is per major unit: yen (0 digits) and dinars (3 digits) scale by their own minor units (#844)
+const toBase = (cents: number, rate: number | undefined, from: string | undefined) => (rate && rate > 0 ? convertMinorUnits(cents, rate, from, 'USD') : Math.round(cents));
 
 export function usSalesTaxReturn(input: {
   registration: string;
@@ -85,8 +87,8 @@ export function usSalesTaxReturn(input: {
       const buyerState = destination.state;
       if (!buyerState) {
         const unplacedFigures = taxReturnDocument(doc);
-        const netCents = sign * toBase(unplacedFigures.netCents, doc.exchangeRate);
-        const taxCents = sign * toBase(unplacedFigures.taxCents, doc.exchangeRate);
+        const netCents = sign * toBase(unplacedFigures.netCents, doc.exchangeRate, doc.currency);
+        const taxCents = sign * toBase(unplacedFigures.taxCents, doc.exchangeRate, doc.currency);
         out.unplaced.documentCount++;
         out.unplaced.netCents += netCents;
         out.unplaced.taxCents += taxCents;
@@ -95,14 +97,14 @@ export function usSalesTaxReturn(input: {
       }
       if (buyerState !== state) continue;
       const figures = taxReturnDocument(doc);
-      const net = sign * toBase(figures.netCents, doc.exchangeRate);
-      const tax = sign * toBase(figures.taxCents, doc.exchangeRate);
+      const net = sign * toBase(figures.netCents, doc.exchangeRate, doc.currency);
+      const tax = sign * toBase(figures.taxCents, doc.exchangeRate, doc.currency);
       const certified = exemptionOn(customer, date)?.state === 'exempt';
       const exempt = certified || doc.taxTreatment === 'exempt' || doc.taxTreatment === 'zero_rated' || (figures.taxCents === 0 && doc.taxTreatment !== 'standard');
       out.grossSalesCents += net;
       if (exempt) out.exemptSalesCents += net; else out.taxableSalesCents += net;
       out.taxCollectedCents += tax;
-      for (const part of doc.taxBreakdown || []) parts.set(part.name, (parts.get(part.name) || 0) + sign * toBase(part.taxCents, doc.exchangeRate));
+      for (const part of doc.taxBreakdown || []) parts.set(part.name, (parts.get(part.name) || 0) + sign * toBase(part.taxCents, doc.exchangeRate, doc.currency));
       out.documentCount++;
       if (sign === 1) out.invoiceIds.push(String(doc.id));
     }

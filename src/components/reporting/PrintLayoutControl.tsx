@@ -9,6 +9,7 @@ import {
   savePrintPaper,
   type PrintPaper,
 } from '../../lib/printLayout';
+import { useReportText } from './useReportText';
 
 /**
  * A-218: the paper control beside Print / PDF on the Reports page.
@@ -26,6 +27,7 @@ export function PrintLayoutControl({
   columnCount?: number;
   onPaperChange?: (paper: PrintPaper) => void;
 }) {
+  const reportText = useReportText();
   const [paper, setPaper] = useState<PrintPaper>(() => readPrintPaper());
   // A stacked table (name + this period + last period + change + %) still prints upright.
   const orientation = choosePrintOrientation(columnCount);
@@ -48,13 +50,13 @@ export function PrintLayoutControl({
       data-testid="print-layout-control"
     >
       <label htmlFor="print-paper-size" className="font-medium">
-        Print on
+        {reportText('r.print-on', 'Print on')}
       </label>
       <select
         id="print-paper-size"
         value={paper}
         aria-describedby="print-paper-hint"
-        aria-label="Paper size for printing"
+        aria-label={reportText('r.paper-size-for-printing', 'Paper size for printing')}
         onChange={e => {
           const next = isPrintPaper(e.target.value) ? e.target.value : 'a4';
           setPaper(savePrintPaper(next));
@@ -70,7 +72,7 @@ export function PrintLayoutControl({
       </select>
       <span id="print-paper-hint" data-testid="print-layout-summary" className="tabular-nums">
         {printLayoutSummary(paper, orientation)}
-        {orientation === 'landscape' ? ' — wide table turned so no column is cut' : ''}
+        {orientation === 'landscape' ? ` ${reportText('r.wide-table-turned-so-no-column-is-cut', '— wide table turned so no column is cut')}` : ''}
       </span>
     </div>
   );

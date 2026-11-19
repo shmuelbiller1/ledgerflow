@@ -10,6 +10,7 @@ import {
   type SavedReportView,
 } from '../../lib/reportViews';
 import type { ReportUrlState } from '../../lib/reportPermalink';
+import { useReportText, fill } from './useReportText';
 
 interface Props {
   state: ReportUrlState;
@@ -38,6 +39,7 @@ function ScopedViews({ state, onUse, storageKey, user, workspace }: Props & {
   user: string;
   workspace: string;
 }) {
+  const reportText = useReportText();
   const [views, setViews] = useState<SavedReportView[]>(() => {
     try { return parseReportViews(localStorage.getItem(storageKey)); } catch { return []; }
   });
@@ -87,27 +89,26 @@ function ScopedViews({ state, onUse, storageKey, user, workspace }: Props & {
 
   return (
     <details data-print-hide className="min-w-0 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--text)] open:pb-3 open:w-full">
-      <summary className="min-h-11 flex items-center cursor-pointer font-medium">Saved report views</summary>
+      <summary className="min-h-11 flex items-center cursor-pointer font-medium">{reportText('r.saved-report-views', 'Saved report views')}</summary>
       <p className="text-xs">
-        Save the report, period, comparison and date range under a name. It is kept for you in this
-        workspace on this device; no report rows or amounts are stored.
+        {reportText('r.save-the-report-period-comparison-and-date-range', 'Save the report, period, comparison and date range under a name. It is kept for you in this workspace on this device; no report rows or amounts are stored.')}
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
-        <label className="min-w-0 text-sm">View name
+        <label className="min-w-0 text-sm">{reportText('r.view-name', 'View name')}
           <input value={name} onChange={event => setName(event.target.value)} maxLength={80}
             className="block min-h-11 max-w-full rounded border px-2" />
         </label>
-        <button type="button" onClick={saveView} className="min-h-11 rounded border px-3">Save this report view</button>
+        <button type="button" onClick={saveView} className="min-h-11 rounded border px-3">{reportText('r.save-this-report-view', 'Save this report view')}</button>
       </div>
-      {views.length === 0 && <p className="mt-2 text-xs">No saved report views yet.</p>}
+      {views.length === 0 && <p className="mt-2 text-xs">{reportText('r.no-saved-report-views-yet', 'No saved report views yet.')}</p>}
       <ul>
         {views.map(view => (
           <li key={view.name} className="mt-2 flex flex-wrap items-center gap-2">
             <bdi dir="auto" className="break-words">{view.name}</bdi>
-            <button type="button" onClick={() => applyView(view)} aria-label={`Use report view ${view.name}`}
-              className="min-h-11 rounded border px-3">Use</button>
+            <button type="button" onClick={() => applyView(view)} aria-label={fill(reportText('r.use-report-view-0', 'Use report view {0}'), { 0: view.name })}
+              className="min-h-11 rounded border px-3">{reportText('r.use', 'Use')}</button>
             <button type="button" onClick={() => persist(views.filter(item => item.name !== view.name))}
-              aria-label={`Remove report view ${view.name}`} className="min-h-11 rounded border px-3">Remove</button>
+              aria-label={fill(reportText('r.remove-report-view-0', 'Remove report view {0}'), { 0: view.name })} className="min-h-11 rounded border px-3">{reportText('r.remove', 'Remove')}</button>
           </li>
         ))}
       </ul>

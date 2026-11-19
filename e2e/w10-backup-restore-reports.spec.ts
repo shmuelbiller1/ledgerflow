@@ -4,7 +4,7 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mountJourney, remountJourney, setLedgerField, settleStyles } from './support/journeyFixture';
 import { expectNoNewAccessibilityIssues, waitForFiniteAnimations } from './support/a11yGate';
-import { buildWorkspaceArchive } from '../src/lib/workspaceArchive';
+import { backupFromWorkspaceArchive, buildWorkspaceArchive } from '../src/lib/workspaceArchive';
 
 /**
  * D-98 · W10 (RELEASE_GATE): backup → change records → restore → the P&L, balance sheet and trial
@@ -358,8 +358,7 @@ for (const [scenario, options] of [
   });
 }
 
-test('W10 a blocked reminder write does not report a failed download', async ({ page }) => {
-  await mountBackupScreen(page, BACKUP_TXS);
+async function blockReminderWrite(page: Page) {
   await page.evaluate(id => {
     const setItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
@@ -369,11 +368,67 @@ test('W10 a blocked reminder write does not report a failed download', async ({ 
       setItem.call(this, key, value);
     };
   }, WORKSPACE);
+}
+
+test('W10 a blocked reminder write does not report a failed download', async ({ page }) => {
+  await mountBackupScreen(page, BACKUP_TXS);
+  await blockReminderWrite(page);
   const text = await exportBackup(page);
   expect(JSON.parse(text).metadata.checksum).toBe(fileChecksum(text));
   await expect(page.getByRole('status')).toContainText('The backup download started, but the reminder could not be updated');
   await expect(page.getByRole('alert').filter({ hasText: 'The full backup could not be downloaded' })).toHaveCount(0);
   expect(await backupMarker(page)).toBeNull();
+});
+
+test('W10 ZIP downloads even when its reminder cannot be updated', async ({ page }) => {
+  await mountBackupScreen(page, BACKUP_TXS);
+  await blockReminderWrite(page);
+  const button = page.getByRole('button', { name: 'Download workspace ZIP archive' });
+  const [download] = await Promise.all([page.waitForEvent('download'), button.click()]);
+  expect(download.suggestedFilename()).toMatch(/^ledgerflow-archive-w10-backup-\d{4}-\d{2}-\d{2}\.zip$/);
+  const path = await download.path();
+  expect(path, 'the verified archive must actually download').toBeTruthy();
+  const { backup } = await backupFromWorkspaceArchive(fs.readFileSync(path!));
+  expect(backup).toEqual(backupPayload(BACKUP_TXS));
+  await expect(page.getByRole('status')).toContainText('The ZIP download started, but the reminder could not be updated');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(button).toBeEnabled();
+  expect(await backupMarker(page)).toBeNull();
+});
+
+test('W10 reports unmatched attachments after restoring records', async ({ page }) => {
+  await mountBackupScreen(page, BACKUP_TXS);
+  const payload = {
+    ...backupPayload(BACKUP_TXS),
+    attachments: [{ id: 'file-1' }, { id: 'file-2' }, { id: 'file-3' }],
+  };
+  payload.metadata.checksum = fileChecksum(JSON.stringify(payload));
+  const text = JSON.stringify(payload);
+  let missing = ['file-2', 'file-3'];
+  await page.route('**/restore', route => route.fulfill({ json: {
+    success: true,
+    message: 'General ledger workspace successfully restored from backup.',
+    attachments: { listed: 3, present: 3 - missing.length, missing },
+  } }));
+
+  const notice = page.getByRole('status').filter({ hasText: 'Attachments not matched' });
+  const uploads: string[] = [];
+  page.on('request', request => {
+    if (request.url().endsWith('/restore') && request.method() === 'POST') uploads.push(request.postData() ?? '');
+  });
+  await restoreBackup(page, text, uploads);
+  await expect(notice).toContainText('Attachments not matched: 2');
+  await expect(notice).toContainText('This backup does not contain the files');
+  await expect(notice).not.toContainText('file-2');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+
+  missing = [];
+  await selectJsonBackup(page, 'ledgerflow-next-backup.json', text);
+  await expect(notice).toHaveCount(0);
+  await restoreDialog(page).getByRole('button', { name: 'Replace workspace records' }).click();
+  await expect(restoreDialog(page)).toHaveCount(0);
+  await expect(notice).toHaveCount(0);
+  expect(uploads).toEqual([text, text]);
 });
 
 test('W10 a workspace archive requires confirmation and submits its exact JSON once on server refusal', async ({ page }) => {

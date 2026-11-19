@@ -1,6 +1,7 @@
 import React from 'react';
 import { useUIStore } from '../../stores/useUIStore';
 import { explanationsForReport } from '../../lib/reportTotalExplanations';
+import { useReportText } from './useReportText';
 
 /**
  * A-202: "what does this number mean?" — a disclosure under the report that explains, in plain
@@ -11,6 +12,7 @@ import { explanationsForReport } from '../../lib/reportTotalExplanations';
  * shows no empty control.
  */
 export default function ReportTotalExplainer({ reportId }: { reportId: string }) {
+  const reportText = useReportText();
   const language = useUIStore((state) => (state.language === 'he' ? 'he' : 'en'));
   const explanations = explanationsForReport(reportId);
   if (!explanations.length) return null;
@@ -29,7 +31,7 @@ export default function ReportTotalExplainer({ reportId }: { reportId: string })
         summary: 'What does this number mean?',
         intro:
           'Plain words for each total on this report: what it counts, what it leaves out, and what it must not be read as proof of. The words describe the calculation that produced the figure.',
-        what: 'What it is',
+        what: reportText('r.what-it-is', 'What it is'),
         includes: 'What it counts',
         leavesOut: 'What it leaves out',
         notProves: 'What it does not prove',

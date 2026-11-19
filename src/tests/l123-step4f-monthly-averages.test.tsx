@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { Y, chart, entries, loadedOf, balanceRouteHarness } from './helpers/l123RangeLedger';
-import { setComponentWorkspace } from './helpers/componentFixtures';
+import { setLoadedAccountReportWorkspace } from './helpers/componentFixtures';
 import AverageMonthlyReportView from '../components/reporting/AverageMonthlyReportView';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { formatCurrency } from '../lib/utils';
@@ -39,7 +39,7 @@ describe('L-123 step 4f: monthly averages (no database)', () => {
   });
 
   test('screen: the loaded averages when not capped, the server\'s when capped, the loaded ones with a note when it fails', async () => {
-    setComponentWorkspace('owner');
+    setLoadedAccountReportWorkspace();
     useLedgerStore.setState({ accounts, transactions: loadedOf(all), truncatedCollections: {} } as never);
     const asked: string[] = [];
     globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -50,7 +50,7 @@ describe('L-123 step 4f: monthly averages (no database)', () => {
     const cases: Array<{ capped: boolean; fail?: boolean; avg: number; note: RegExp | null }> = [
       { capped: false, avg: 200, note: null },
       { capped: true, avg: 450, note: /read from every entry on the server/ },
-      { capped: true, fail: true, avg: 200, note: /server could not be asked: .* may be incomplete/ },
+      { capped: true, fail: true, avg: 200, note: /loaded entries only and may be incomplete/ },
     ];
     for (const c of cases) {
       if (c.fail) stubFetch(500);

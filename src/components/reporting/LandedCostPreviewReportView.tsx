@@ -20,11 +20,15 @@ import {
 } from '../../lib/landedCostPreview';
 import { findItemByBarcode, isScannerBurst, readScan } from '../../lib/barcodeScan';
 import { downloadCsv } from '../../lib/csvExport';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, formatDate } from '../../lib/utils';
 import type { Bill, ChartAccount, InventoryItem, Vendor } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
 import LandedCostPostPanel from './LandedCostPostPanel';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
+import { useReportText, fill } from './useReportText';
+
+/** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
+const CODE_NAMES = { c0: 'SKU' } as const;
 
 interface ReceiptOption {
   key: string;
@@ -44,6 +48,7 @@ const toCents = (text: string): number => {
 };
 
 export default function LandedCostPreviewReportView() {
+  const reportText = useReportText();
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const homeCurrency = (workspace?.currency || 'USD').toUpperCase();
@@ -95,7 +100,7 @@ export default function LandedCostPreviewReportView() {
         const date = bill.date || bill.issueDate || bill.dueDate || '';
         out.push({
           key: bill.id,
-          label: `${refNumber} · Receipt ${date} · ${vendorName}`,
+          label: fill(reportText('r.0-receipt-1-2', '{0} · Receipt {1} · {2}'), { 0: refNumber, 1: formatDate(date), 2: vendorName }),
           currency: billCurrency,
           date,
           refNumber,
@@ -105,7 +110,7 @@ export default function LandedCostPreviewReportView() {
       }
     }
     return out;
-  }, [bills, workspaceId, vendorsById, itemsById, homeCurrency]);
+  }, [bills, workspaceId, vendorsById, itemsById, homeCurrency, reportText]);
 
   const [selectedKey, setSelectedKey] = useState<string>('');
   const [basis, setBasis] = useState<SpreadBasis>('value');
@@ -208,13 +213,12 @@ export default function LandedCostPreviewReportView() {
   };
 
   return (
-    <section aria-label="Landed cost preview" className="p-4 space-y-4 min-w-0">
+    <section aria-label={reportText('r.landed-cost-preview', 'Landed cost preview')} className="p-4 space-y-4 min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2>Landed cost preview on receipts</h2>
+          <h2>{reportText('r.landed-cost-preview-on-receipts', 'Landed cost preview on receipts')}</h2>
           <p className="text-sm text-[var(--muted)]">
-            Spread freight, duty and handling across receipt lines by value or by quantity. The preview posts nothing;
-            owners and accountants can post it below (Inventory, or cost of goods sold for units already sold).
+            {reportText('r.spread-freight-duty-and-handling-across-receipt', 'Spread freight, duty and handling across receipt lines by value or by quantity. The preview posts nothing; owners and accountants can post it below (Inventory, or cost of goods sold for units already sold).')}
           </p>
         </div>
         <button
@@ -223,22 +227,22 @@ export default function LandedCostPreviewReportView() {
           disabled={!preview || preview.lines.length === 0}
           className="px-3 py-1.5 rounded border text-sm disabled:opacity-50"
         >
-          Download CSV
+          {reportText('r.download-csv', 'Download CSV')}
         </button>
       </div>
 
-      {loading && <p role="status" className="text-sm text-[var(--muted)]">Loading receipts and items…</p>}
+      {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-receipts-and-items', 'Loading receipts and items…')}</p>}
       {partial && (
         <p role="alert" className="text-sm text-amber-700">
-          Bills, items or vendors are only partly loaded; receipts outside the loaded list are not shown.
+          {reportText('r.bills-items-or-vendors-are-only-partly-loaded-re', 'Bills, items or vendors are only partly loaded; receipts outside the loaded list are not shown.')}
         </p>
       )}
 
       <div className="flex flex-wrap items-end gap-3" data-print-hide>
         <label className="flex flex-col gap-1 text-sm">
-          Receipt source
+          {reportText('r.receipt-source', 'Receipt source')}
           <select
-            aria-label="Receipt source"
+            aria-label={reportText('r.receipt-source', 'Receipt source')}
             value={selectedReceipt?.key || (selectedKey === '__custom__' ? '__custom__' : '')}
             onChange={e => {
               setSelectedKey(e.target.value);
@@ -249,27 +253,27 @@ export default function LandedCostPreviewReportView() {
             {receipts.map(r => (
               <option key={r.key} value={r.key}>{r.label} ({r.currency})</option>
             ))}
-            <option value="__custom__">Draft receipt (scan or add items)</option>
+            <option value="__custom__">{reportText('r.draft-receipt-scan-or-add-items', 'Draft receipt (scan or add items)')}</option>
           </select>
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          Spread basis
+          {reportText('r.spread-basis', 'Spread basis')}
           <select
-            aria-label="Spread basis"
+            aria-label={reportText('r.spread-basis', 'Spread basis')}
             value={basis}
             onChange={e => setBasis(e.target.value as SpreadBasis)}
             className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
           >
-            <option value="value">By line value</option>
-            <option value="quantity">By quantity</option>
+            <option value="value">{reportText('r.by-line-value', 'By line value')}</option>
+            <option value="quantity">{reportText('r.by-quantity', 'By quantity')}</option>
           </select>
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          Freight, duty and handling ({activeCurrency})
+          {reportText('r.freight-duty-and-handling', 'Freight, duty and handling (')}{activeCurrency})
           <input
-            aria-label="Freight, duty and handling"
+            aria-label={reportText('r.freight-duty-and-handling-2', 'Freight, duty and handling')}
             type="text"
             inputMode="decimal"
             value={extraInput}
@@ -280,11 +284,11 @@ export default function LandedCostPreviewReportView() {
 
         <div className="flex items-end gap-2">
           <label className="flex flex-col gap-1 text-sm">
-            Scan barcode for receipt
+            {reportText('r.scan-barcode-for-receipt', 'Scan barcode for receipt')}
             <input
-              aria-label="Scan barcode for receipt"
+              aria-label={reportText('r.scan-barcode-for-receipt', 'Scan barcode for receipt')}
               type="text"
-              placeholder="Scan or type SKU"
+              placeholder={reportText('r.scan-or-type-sku', 'Scan or type SKU')}
               value={scanInput}
               onChange={e => {
                 keystrokeTimes.current.push(Date.now());
@@ -304,7 +308,7 @@ export default function LandedCostPreviewReportView() {
             onClick={handleScan}
             className="min-h-11 px-3 rounded border text-sm"
           >
-            Add scanned item
+            {reportText('r.add-scanned-item', 'Add scanned item')}
           </button>
         </div>
       </div>
@@ -320,23 +324,23 @@ export default function LandedCostPreviewReportView() {
       {preview && preview.lines.length > 0 && (
         <>
           <div className="text-sm text-[var(--muted)]">
-            Goods value: <strong>{formatCurrency(preview.goodsCents, activeCurrency)}</strong>
-            {' · '}Freight, duty &amp; handling: <strong>{formatCurrency(preview.extraCostCents, activeCurrency)}</strong>
-            {' · '}Landed total: <strong>{formatCurrency(preview.landedCents, activeCurrency)}</strong>
+            {reportText('r.goods-value', 'Goods value:')} <strong>{formatCurrency(preview.goodsCents, activeCurrency)}</strong>
+            {' · '}{reportText('r.freight-duty-handling', 'Freight, duty & handling:')} <strong>{formatCurrency(preview.extraCostCents, activeCurrency)}</strong>
+            {' · '}{reportText('r.landed-total', 'Landed total:')} <strong>{formatCurrency(preview.landedCents, activeCurrency)}</strong>
           </div>
           <ReportTableScroll>
             <table className="w-full text-sm border-collapse">
-              <caption className="sr-only">Landed cost allocation preview</caption>
+              <caption className="sr-only">{reportText('r.landed-cost-allocation-preview', 'Landed cost allocation preview')}</caption>
               <thead>
                 <tr className="border-b text-left">
-                  <th scope="col" className="py-2 pr-3">Item</th>
-                  <th scope="col" className="py-2 pr-3">SKU</th>
-                  <th scope="col" className="py-2 pr-3 text-right">Quantity</th>
-                  <th scope="col" className="py-2 pr-3 text-right">Unit cost before</th>
-                  <th scope="col" className="py-2 pr-3 text-right">Goods value</th>
-                  <th scope="col" className="py-2 pr-3 text-right">Allocated freight/duty</th>
-                  <th scope="col" className="py-2 pr-3 text-right">Landed line total</th>
-                  <th scope="col" className="py-2 text-right">Landed unit cost</th>
+                  <th scope="col" className="py-2 pr-3">{reportText('r.item', 'Item')}</th>
+                  <th scope="col" className="py-2 pr-3">{CODE_NAMES.c0}</th>
+                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.quantity', 'Quantity')}</th>
+                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.unit-cost-before', 'Unit cost before')}</th>
+                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.goods-value-2', 'Goods value')}</th>
+                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.allocated-freight-duty', 'Allocated freight/duty')}</th>
+                  <th scope="col" className="py-2 pr-3 text-right">{reportText('r.landed-line-total', 'Landed line total')}</th>
+                  <th scope="col" className="py-2 text-right">{reportText('r.landed-unit-cost', 'Landed unit cost')}</th>
                 </tr>
               </thead>
               <tbody>

@@ -67,7 +67,7 @@ export default function SupportView() {
     () => (tagRevision >= 0 ? loadFeedbackTags(currentWorkspace?.id) : {}),
     [currentWorkspace?.id, tagRevision],
   );
-  const [attachDiagnostics, setAttachDiagnostics] = useState(true);
+  const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(null);
   const [showDiagnosticsDetail, setShowDiagnosticsDetail] = useState(false);
   const [copiedTrace, setCopiedTrace] = useState(false);
   // the ticket on screen now: a copy that settles after the reader moved on must not report on the new one
@@ -119,6 +119,10 @@ export default function SupportView() {
       if (!ticketId) throw new Error('Secure random identifiers are unavailable');
       const safeSubject = maskCardNumbers(newTicketSubject);
       const safeInitialMessage = maskCardNumbers(initialMessage);
+      // The buffer can change (or be cleared on a scope change) without this
+      // form rendering again. Never send a replacement for the selected error.
+      const currentError = getLatestErrorDiagnostic();
+      const attachment = currentError?.errorLogId && currentError.errorLogId === selectedDiagnosticId ? currentError : null;
 
       // `support.ticket` opens the ticket AND its first message in one transaction: the ticket can no longer exist
       // without the description, and the row's owner and workspace come from the session rather than the tab
@@ -127,9 +131,9 @@ export default function SupportView() {
         subject: safeSubject,
         body: safeInitialMessage,
         priority: newTicketPriority,
-        ...(attachDiagnostics && latestError ? {
-          errorLogId: latestError.errorLogId,
-          errorDiagnostics: latestError.diagnostics,
+        ...(attachment ? {
+          errorLogId: attachment.errorLogId,
+          errorDiagnostics: attachment.diagnostics,
         } : {}),
       }, { workspaceId: currentWorkspace.id });
 
@@ -207,7 +211,7 @@ export default function SupportView() {
           {!isAdmin && (
             <button 
               aria-label="Create support ticket"
-              onClick={() => setIsCreating(true)}
+              onClick={() => { setSelectedDiagnosticId(null); setIsCreating(true); }}
               className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Plus aria-hidden="true" className="w-5 h-5" />
@@ -367,19 +371,19 @@ export default function SupportView() {
                     </div>
                   </div>
 
-                  {latestError && (
+                  {latestError?.errorLogId && (
                     <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 text-sm">
                       <div className="flex items-start gap-3">
                         <Bug aria-hidden="true" className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="font-semibold text-amber-900">Recent application error detected</p>
                           <p className="text-xs text-amber-800 mt-1 font-mono truncate">{latestError.diagnostics.message}</p>
-                          <label htmlFor={`${formId}-diagnostics`} className="flex items-center gap-2 mt-3 cursor-pointer text-xs font-medium text-amber-900">
-                            <input 
+                          <label htmlFor={`${formId}-diagnostics`} className="flex min-h-11 items-center gap-2 mt-3 cursor-pointer text-xs font-medium text-amber-900">
+                            <input
                               id={`${formId}-diagnostics`}
                               type="checkbox"
-                              checked={attachDiagnostics}
-                              onChange={e => setAttachDiagnostics(e.target.checked)}
+                              checked={selectedDiagnosticId === latestError.errorLogId}
+                              onChange={e => setSelectedDiagnosticId(e.currentTarget.checked ? latestError.errorLogId : null)}
                               className="rounded border-amber-300 text-blue-600 focus:ring-blue-500"
                             />
                             Attach error stack trace and release diagnostics to this report

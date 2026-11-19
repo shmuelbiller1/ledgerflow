@@ -172,6 +172,7 @@ export function TransactionGridView(model: TransactionGridModel) {
       )}
       {editingDetailsTx && (!model.focusedTxId || editingDetailsTx.id === model.focusedTxId) && (
         <TransactionEditModal
+          key={editingDetailsTx.id}
           isOpen={!!editingDetailsTx}
           transaction={editingDetailsTx}
           accounts={accounts}
