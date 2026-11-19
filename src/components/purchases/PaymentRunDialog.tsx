@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
@@ -126,7 +127,7 @@ export default function PaymentRunDialog({ bills, vendors, onClose }: { bills: B
         }) ?? {};
       } catch (error) {
         if (!scope.isCurrent()) return;
-        toast.error(commandErrorMessage(error) || 'Vendor payouts failed');
+        toast.error(commandErrorMessage(error, uiLanguageNow()) || 'Vendor payouts failed');
         return;
       }
       if (!scope.isCurrent()) return;

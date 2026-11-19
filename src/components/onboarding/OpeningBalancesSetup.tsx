@@ -6,6 +6,7 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { isOpeningBalanceEquity, openingBalanceAccounts, openingEntry } from '../../lib/openingBalances';
 import { formatCurrency, getLocalDateISO, monthBoundsISO } from '../../lib/utils';
 import { describeError } from '../../lib/errorRemedies';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
 import { failed, identityScope, ok } from '../../lib/serverAction';
 import { BRAND_NAME } from '../../config/brand';
@@ -51,7 +52,7 @@ export default function OpeningBalancesSetup({ onClose }: { onClose: () => void 
       store.setWorkspaces(store.workspaces.map(w => w.id === workspace.id ? { ...w, openingBalanceDate: startDate } : w));
       return ok(undefined);
     } catch (err) {
-      const described = describeError(err, 'update');
+      const described = describeError(err, 'update', uiLanguageNow());
       if (isCurrent()) toast.error(described.title, { description: described.remedy });
       return failed(err);
     } finally { pending.current = false; if (isCurrent()) setBusy(false); }

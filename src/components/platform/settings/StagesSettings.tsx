@@ -1,4 +1,5 @@
 import { guestSession, SAMPLE_WORKSPACE_ID } from '../../../lib/db/guestDatabase';
+import { uiLanguageNow } from '../../../lib/i18n/uiLanguageNow';
 import { readGuestStages, saveGuestStages } from '../../../lib/guestSettings';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -58,7 +59,7 @@ export default function StagesSettings() {
       if (guestSession() !== sampleSession || useAuthStore.getState().currentWorkspaceId !== workspaceId) return;
       resetStages();
       toast.success('Stages saved');
-    } catch (err) { toast.error(commandErrorMessage(err)); } finally { setBusy(false); }
+    } catch (err) { toast.error(commandErrorMessage(err, uiLanguageNow())); } finally { setBusy(false); }
   };
 
   return (

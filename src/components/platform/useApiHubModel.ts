@@ -1,4 +1,5 @@
 import { useDialog } from '../../hooks/useDialog';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { useState, useEffect, useId, useCallback, useRef } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 
@@ -291,7 +292,7 @@ export function useApiHubModel() {
       setSandboxLatency(Math.round(performance.now() - startedAt));
       setSandboxStatus(error instanceof ServerCommandError ? error.status : 0);
       setSandboxResult({
-        error: commandErrorMessage(error),
+        error: commandErrorMessage(error, uiLanguageNow()),
         // the offered next step, for the sandbox reader who wants to know what to change
         next: error instanceof ServerCommandError && (error.body as { next?: string } | undefined)?.next,
       });

@@ -3,12 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { mountJourney, remountJourney } from './support/journeyFixture';
 import { stockJourneyServer } from './support/stockJourneyServer';
 import { tabTo } from './support/tabTo';
+import { MINIMAL_INVOICE_PDF_BASE64 } from './helpers/pdfStub';
 
 // Signed-in workspace with an isolated Postgres database. No focus shortcuts, synthetic tab changes
 // or direct report mounts. Fixture refreshes represent subscription snapshots, not financial writes.
 // Email goes through the production route to the test transport, never a real recipient.
 test.use({ reducedMotion: 'reduce', timezoneId: 'UTC' });
-for (const width of [390, 1280]) test(`a first-time user at ${width}px, keyboard only: customer → email invoice → payment → profit and loss`, async ({ page }, testInfo) => {
+for (const width of [390, 1280]) test(`a first-time user at ${width}px, keyboard only: customer → invoice → preview → payment → profit and loss`, async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const databaseUrl = process.env.LF_TEST_DATABASE_URL;
   if (process.env.CI) expect(databaseUrl, 'CI must run this against the real test Postgres').toBeTruthy();
@@ -54,6 +55,10 @@ for (const width of [390, 1280]) test(`a first-time user at ${width}px, keyboard
     };
     const main = page.locator('#main-content'), dialog = page.getByRole('dialog');
     const daily = page.getByRole('navigation', { name: 'Daily tools' });
+    // N-8 starts on a fresh Sales screen: the journey fixture seeds a sample "Acme" customer,
+    // but the customer this journey creates is not there and there are no invoices to open.
+    expect((await server.all('customers')).some(c => c.name === customerName), `${customerName} is not there yet`).toBe(false);
+    expect(await server.all('invoices'), 'a new workspace starts with no invoices').toEqual([]);
     if (width === 390) await press(button('Open navigation menu'));
     await press(button('Sales', daily));
     if (width === 390) await expect(daily, 'the chosen page must not be obscured by the phone navigation').toBeHidden();
@@ -84,6 +89,31 @@ for (const width of [390, 1280]) test(`a first-time user at ${width}px, keyboard
     const invoices = await server.all('invoices');
     expect(invoices).toMatchObject([{ number: 'INV-FIRST', customerId: customers[0].id, amountCents: 90000 }]);
     expect(await server.mail(), 'issuing an invoice is not the same as emailing it').toEqual([]);
+    await server.refresh(page);
+
+    // N-8: the new invoice can be looked at before it is sent. The preview is opened from the
+    // row's own action, asks for this document as a preview, shows a loaded PDF and closes again.
+    // PDF rendering itself is not this journey's subject (print-styles.spec.ts covers it and the
+    // email step below generates a real one), so the request boundary is stubbed as in the other
+    // first-run specs. This route is registered after the catch-all, so it takes precedence.
+    let pdfRequest = '';
+    await page.route('**/api/v1/documents/invoice/*/pdf*', async route => {
+      pdfRequest = route.request().url();
+      await route.fulfill({ status: 200, contentType: 'application/pdf', body: Buffer.from(MINIMAL_INVOICE_PDF_BASE64, 'base64') });
+    });
+    const invoiceRow = main.getByRole('row').filter({ hasText: 'INV-FIRST' }).first();
+    await expect(invoiceRow).toBeVisible();
+    await press(invoiceRow.getByRole('button', { name: 'Preview PDF', exact: true }));
+    const preview = page.getByRole('dialog', { name: /Invoice INV-FIRST/ });
+    await expect(preview).toBeVisible({ timeout: 30_000 });
+    await expect(preview.getByText('invoice_INV-FIRST.pdf')).toBeVisible();
+    await expect(preview.locator('iframe')).toBeVisible({ timeout: 30_000 });
+    await expect(preview.getByText('Unable to render PDF')).toHaveCount(0);
+    expect(pdfRequest, 'the preview must ask for this invoice, not a download').toContain(`/invoice/${invoices[0].id}/pdf`);
+    expect(pdfRequest).toContain('preview=1');
+    await page.keyboard.press('Escape');
+    await expect(preview).toHaveCount(0);
+    await page.unroute('**/api/v1/documents/invoice/*/pdf*');
     await server.refresh(page);
 
     await press(button('Email the invoice', main));

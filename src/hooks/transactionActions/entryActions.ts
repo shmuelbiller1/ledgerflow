@@ -1,4 +1,5 @@
 import { recategorizeLines } from '../../lib/accountChoices';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { commandErrorMessage, runCommand, runWrite, writeWasAccepted, ServerCommandError } from '../../lib/runCommand';
 import { identityScope } from '../../lib/serverAction';
 import { currentIdentity, useAuthStore } from '../../stores/useAuthStore';
@@ -375,7 +376,7 @@ export function createEntryActions(ctx: ActionContext, posting: PostingHelpers, 
       // the server took the change — so the read below completes the work instead of inviting a second click.
       if (!writeWasAccepted(error)) {
         if (!scope.isCurrent()) return false;
-        toast.error(commandErrorMessage(error) || 'Could not update transaction flag');
+        toast.error(commandErrorMessage(error, uiLanguageNow()) || 'Could not update transaction flag');
         return false;
       }
     }

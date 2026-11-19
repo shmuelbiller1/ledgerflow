@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { formatDate } from '../../lib/utils';
 import { describeError } from '../../lib/errorRemedies';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 
 /**
  * A deleted workspace waits its recovery window (30 days by default; Settings → Security → Data
@@ -28,7 +29,7 @@ export default function PendingDeletionBanner() {
       useAuthStore.getState().setWorkspaces(useAuthStore.getState().workspaces.map(w => w.id === workspace.id ? { ...w, status: 'active', scheduledPurgeAt: undefined, deletedAt: undefined } : w));
       toast.success(`"${workspace.name}" is kept`);
     } catch (err) {
-      const described = describeError(err, 'update');
+      const described = describeError(err, 'update', uiLanguageNow());
       toast.error(described.title, { description: described.remedy });
     } finally {
       setBusy(false);

@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import React, { useRef, useEffect, useState } from 'react';
 import { Clock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -88,7 +89,7 @@ export default function TimeView() {
       if (!created) throw new Error('The entry was saved but the server did not send it back. Reload to see it.');
       setEntries(list => [created, ...(list || [])]);
       setDraft(d => ({ ...d, duration: '', description: '' }));
-    } catch (err) { toast.error(commandErrorMessage(err)); } finally { setBusy(false); }
+    } catch (err) { toast.error(commandErrorMessage(err, uiLanguageNow())); } finally { setBusy(false); }
   };
   const move = async (list: TimeEntry[], to: 'submitted' | 'open' | 'approved', done: string, note?: string) => {
     try {
@@ -97,10 +98,10 @@ export default function TimeView() {
       if (!answer) throw new Error('The move was sent but the server did not send the entries back. Reload to see them.');
       replace(answer);
       toast.success(done);
-    } catch (err) { toast.error(commandErrorMessage(err)); }
+    } catch (err) { toast.error(commandErrorMessage(err, uiLanguageNow())); }
   };
   const remove = async (e: TimeEntry) => {
-    try { await call(workspaceId, `/${encodeURIComponent(e.id)}`, 'DELETE'); setEntries(list => (list || []).filter(x => x.id !== e.id)); } catch (err) { toast.error(commandErrorMessage(err)); }
+    try { await call(workspaceId, `/${encodeURIComponent(e.id)}`, 'DELETE'); setEntries(list => (list || []).filter(x => x.id !== e.id)); } catch (err) { toast.error(commandErrorMessage(err, uiLanguageNow())); }
   };
 
   const all = entries || [];
@@ -142,12 +143,12 @@ export default function TimeView() {
       try {
         await call(workspaceId, '/invoiced', 'POST', { entryIds: billable.map(e => e.id), invoiceId: ref.id });
       } catch (err) {
-        throw new Error(`Draft invoice ${number} was saved, but the time was not marked as invoiced (${commandErrorMessage(err)}). Press "Make a draft invoice" again to link it; no second invoice is made.`, { cause: err });
+        throw new Error(`Draft invoice ${number} was saved, but the time was not marked as invoiced (${commandErrorMessage(err, uiLanguageNow())}). Press "Make a draft invoice" again to link it; no second invoice is made.`, { cause: err });
       }
       unlinked.current.delete(hours);
       setEntries(list => (list || []).map(e => (billable.some(b => b.id === e.id) ? { ...e, status: 'invoiced', invoiceId: ref.id } : e)));
       toast.success(`Draft invoice ${number} for ${formatCurrency(billTotal, currency)} made from ${lines.length} time ${lines.length === 1 ? 'entry' : 'entries'}. Review it in Sales, then send it.`);
-    } catch (err) { toast.error(commandErrorMessage(err)); } finally { setBusy(false); }
+    } catch (err) { toast.error(commandErrorMessage(err, uiLanguageNow())); } finally { setBusy(false); }
   };
 
   return (

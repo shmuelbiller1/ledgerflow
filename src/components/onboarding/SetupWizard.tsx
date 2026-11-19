@@ -9,13 +9,17 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { saveWorkspaceSettings, saveWorkspaceAxes } from '../../lib/workspaceSettingsSave';
 import { BUSINESS_TEMPLATES } from '../../lib/businessTemplates';
 import { describeError } from '../../lib/errorRemedies';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { modulesForBusiness } from '../../lib/modules';
+import { businessPresetName, monthNames, setupText, setupTextWith } from '../../lib/i18n/setupTranslations';
+import { templateDescriptionHe, templateNameHe } from '../../lib/i18n/onboardingTemplateCopy';
+import { directionOf, useUiLanguage } from '../../lib/i18n/useUiLanguage';
 
 import { BUSINESS_PRESETS, presetForBusiness, presetDimensions } from '../../lib/businessPresets';
+import { labelRole } from '../../lib/labelRoles';
 /** Business type selects optional starter accounts and labels; opening figures live on Overview. */
-const STEPS = ['Your business', 'Chart of accounts', 'Done'] as const;
+const STEP_KEYS = ['setup.step.business', 'setup.step.chart', 'setup.step.done'] as const;
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'ILS', 'CAD', 'AUD', 'CHF', 'JPY', 'INR'];
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function supportedTimeZones(): string[] {
   try {
@@ -37,6 +41,9 @@ interface Props {
 }
 
 export default function SetupWizard({ onStarted, onDone }: Props) {
+  // AI12-N10-01 (#838): the wizard speaks the language chosen in Accessibility & language.
+  const language = useUiLanguage();
+  const t = (key: Parameters<typeof setupText>[0]) => setupText(key, language);
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const role = useCurrentRole();
   const accounts = useLedgerStore(s => s.accounts);
@@ -52,11 +59,14 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
   const [fiscalStart, setFiscalStart] = useState(workspace?.fiscalYearStartMonth || 1);
   const [businessType, setBusinessType] = useState(() => presetForBusiness(workspace?.businessType)?.id || '');
   const [templateId, setTemplateId] = useState(() => accounts.length ? '' : (presetForBusiness(workspace?.businessType)?.id || ''));
+  // The labels the chosen template contributes; the self-balancing one is named only when the preset has it.
+  const chosenLabels = presetForBusiness(businessType)?.labels ?? [];
+  const selfBalancingLabel = chosenLabels.find(d => labelRole(d) === 'self-balancing');
   if (!workspace) return null;
   if (role !== 'owner' && role !== 'accountant') {
     return (
-      <main className="flex-1 flex items-center justify-center p-6 text-[var(--text)]">
-        <p className="max-w-md text-center text-[var(--muted)]">This workspace isn&apos;t set up yet. Ask an owner or accountant to finish the setup.</p>
+      <main lang={language} dir={directionOf(language)} className="flex-1 flex items-center justify-center p-6 text-[var(--text)]">
+        <p className="max-w-md text-center text-[var(--muted)]">{t('setup.notSetUp')}</p>
       </main>
     );
   }
@@ -70,7 +80,7 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
     try {
       await action();
     } catch (err) {
-      const described = describeError(err, 'update');
+      const described = describeError(err, 'update', uiLanguageNow());
       toast.error(described.title, { description: described.remedy });
     } finally {
       setBusy(false);
@@ -124,15 +134,15 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
 
   const field = 'w-full px-3 py-2 bg-[var(--ink)] border border-[var(--line)] rounded-lg text-sm';
   return (
-    <main className="flex-1 p-4 sm:p-8 text-[var(--text)]">
+    <main lang={language} dir={directionOf(language)} className="flex-1 p-4 sm:p-8 text-[var(--text)]">
       <div className="max-w-2xl mx-auto space-y-6">
         <header className="space-y-2">
-          <h1 className="text-2xl font-bold">Set up your books</h1>
-          <ol className="flex flex-wrap gap-2 text-xs" aria-label="Setup steps">
-            {STEPS.map((label, i) => (
-              <li key={label} aria-current={i === step ? 'step' : undefined}
+          <h1 className="text-2xl font-bold">{t('setup.title')}</h1>
+          <ol className="flex flex-wrap gap-2 text-xs" aria-label={t('setup.stepsLabel')}>
+            {STEP_KEYS.map((key, i) => (
+              <li key={key} aria-current={i === step ? 'step' : undefined}
                 className={`px-2.5 py-1 rounded-md border ${i === step ? 'border-[var(--brass)] text-[var(--text)] font-semibold' : 'border-[var(--line)] text-[var(--muted)]'}`}>
-                {i + 1}. {label}
+                {i + 1}. {t(key)}
               </li>
             ))}
           </ol>
@@ -140,81 +150,87 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
 
         {step === 0 && (
           <section className="space-y-4" aria-labelledby="setup-business">
-            <h2 id="setup-business" className="text-lg font-semibold">What kind of business?</h2>
+            <h2 id="setup-business" className="text-lg font-semibold">{t('setup.business.heading')}</h2>
             <fieldset className="grid gap-2 sm:grid-cols-2">
-              <legend className="text-sm text-[var(--muted)] mb-3">Choose a starting point. You can change the accounts and labels later.</legend>
+              <legend className="text-sm text-[var(--muted)] mb-3">{t('setup.business.legend')}</legend>
               {BUSINESS_PRESETS.map(preset => <label key={preset.id} className="flex items-center gap-3 min-h-11 p-3 rounded-lg border border-[var(--line)]">
                 <input type="radio" name="business-type" checked={businessType === preset.id} onChange={() => { setBusinessType(preset.id); setTemplateId(preset.id); }} />
-                {preset.name}
+                {businessPresetName(preset.id, preset.name, language)}
               </label>)}
             </fieldset>
             {/* EU-A4: people moving from another package start with their own books, not a blank set */}
             <div className="rounded-lg border border-[var(--line)] bg-[var(--ink)] p-3 text-sm flex flex-wrap items-center gap-3" data-testid="setup-coming-from">
-              <span className="flex-1 min-w-[12rem]">Coming from QuickBooks, Xero or Wave? Bring in your customers, vendors, items, chart of accounts and opening balances; it ends by checking your trial balance matches.</span>
+              <span className="flex-1 min-w-[12rem]">{t('setup.comingFrom')}</span>
               <button type="button" onClick={() => { useUIStore.getState().goToPage({ tab: 'settings', sub: 'import' }); onDone(); }} disabled={busy}
-                className="min-h-11 px-3 rounded-lg border border-[var(--line)] font-semibold">Bring in my books</button>
+                className="min-h-11 px-3 rounded-lg border border-[var(--line)] font-semibold">{t('setup.comingFrom.button')}</button>
             </div>
-            <p className="text-sm text-[var(--muted)]">Suggested labels: {BUSINESS_PRESETS.find(p => p.id === businessType)?.labels.map(d => d.name).join(' and ') || 'None'}. Existing labels stay unchanged. Fund is self-balancing for a new non-profit label.</p>
+            {/* What the template writes into the person's own chart stays as stored; only the sentence is translated.
+                The label's name is data (a person may have renamed it), so it is passed in, not translated —
+                and the self-balancing sentence appears only for the preset that has such a label. */}
+            <p className="text-sm text-[var(--muted)]">
+              {setupTextWith('setup.suggestedLabels', language, { labels: chosenLabels.map(d => d.name).join(language === 'he' ? ' ו' : ' and ') || t('setup.labels.none') })}
+              {selfBalancingLabel ? setupTextWith('setup.suggestedLabels.selfBalancing', language, { label: selfBalancingLabel.name }) : null}
+            </p>
             <div className="space-y-1">
-              <label htmlFor="setup-name" className="micro-label">Business name</label>
+              <label htmlFor="setup-name" className="micro-label">{t('setup.field.name')}</label>
               <input id="setup-name" className={field} value={name} onChange={e => setName(e.target.value)} />
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-1">
-                <label htmlFor="setup-currency" className="micro-label">Home currency</label>
+                <label htmlFor="setup-currency" className="micro-label">{t('setup.field.currency')}</label>
                 <select id="setup-currency" className={field} value={currency} onChange={e => setCurrency(e.target.value)}>
                   {[...new Set([currency, ...CURRENCIES])].map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
-                <label htmlFor="setup-fiscal" className="micro-label">Financial year starts in</label>
+                <label htmlFor="setup-fiscal" className="micro-label">{t('setup.field.fiscal')}</label>
                 <select id="setup-fiscal" className={field} value={fiscalStart} onChange={e => setFiscalStart(Number(e.target.value))}>
-                  {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                  {monthNames(language).map((m, i) => <option key={m} value={i + 1} dir="auto">{m}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
-                <label htmlFor="setup-tz" className="micro-label">Time zone</label>
+                <label htmlFor="setup-tz" className="micro-label">{t('setup.field.timezone')}</label>
                 <select id="setup-tz" className={field} value={timezone} onChange={e => setTimezone(e.target.value)}>
-                  {timeZones(timezone).map(z => <option key={z} value={z}>{z}</option>)}
+                  {timeZones(timezone).map(z => <option key={z} value={z} dir="ltr">{z}</option>)}
                 </select>
               </div>
             </div>
-            <p className="text-xs text-[var(--muted)]">The home currency can&apos;t be changed once there are entries.</p>
+            <p className="text-xs text-[var(--muted)]">{t('setup.currencyLocked')}</p>
             <div className="flex justify-between">
-              <button type="button" className="btn-tonal min-h-11" onClick={startFromZero} disabled={busy}>Skip setup</button>
-              <button type="button" className="btn-primary min-h-11 bg-[var(--text)] text-[var(--surface)]" onClick={saveBusiness} disabled={busy || !businessType}>{busy ? 'Saving…' : 'Next'}</button>
+              <button type="button" className="btn-tonal min-h-11" onClick={startFromZero} disabled={busy}>{t('setup.skip')}</button>
+              <button type="button" className="btn-primary min-h-11 bg-[var(--text)] text-[var(--surface)]" onClick={saveBusiness} disabled={busy || !businessType}>{busy ? t('setup.saving') : t('setup.next')}</button>
             </div>
           </section>
         )}
 
         {step === 1 && (
           <section className="space-y-4" aria-labelledby="setup-chart">
-            <h2 id="setup-chart" className="text-lg font-semibold">Chart of accounts</h2>
+            <h2 id="setup-chart" className="text-lg font-semibold">{t('setup.chart.heading')}</h2>
             {accounts.length > 0 && (
-              <p className="text-sm text-[var(--muted)]">This workspace has {accounts.length} accounts. Keep them, or pick a template to replace them (only possible before the first entry).</p>
+              <p className="text-sm text-[var(--muted)]">{setupTextWith('setup.chart.existing', language, { count: accounts.length })}</p>
             )}
             <fieldset className="space-y-2">
-              <legend className="micro-label">Start from a template for your kind of business</legend>
+              <legend className="micro-label">{t('setup.chart.legend')}</legend>
               {accounts.length > 0 && (
                 <div className="flex items-start gap-2 p-3 rounded-lg border border-[var(--line)]">
                   <input id="tpl-keep" type="radio" name="template" checked={templateId === ''} onChange={() => setTemplateId('')} />
-                  <label htmlFor="tpl-keep" className="text-sm font-semibold">Keep my accounts</label>
+                  <label htmlFor="tpl-keep" className="text-sm font-semibold">{t('setup.chart.keep')}</label>
                 </div>
               )}
-              {Object.values(BUSINESS_TEMPLATES).map(t => (
-                <div key={t.id} className="flex items-start gap-2 p-3 rounded-lg border border-[var(--line)]">
-                  <input id={`tpl-${t.id}`} type="radio" name="template" checked={templateId === t.id} onChange={() => setTemplateId(t.id)} aria-describedby={`tpl-${t.id}-desc`} />
+              {Object.values(BUSINESS_TEMPLATES).map(template => (
+                <div key={template.id} className="flex items-start gap-2 p-3 rounded-lg border border-[var(--line)]">
+                  <input id={`tpl-${template.id}`} type="radio" name="template" checked={templateId === template.id} onChange={() => setTemplateId(template.id)} aria-describedby={`tpl-${template.id}-desc`} />
                   <div className="text-sm">
-                    <label htmlFor={`tpl-${t.id}`} className="font-semibold">{t.name}</label>
-                    <p id={`tpl-${t.id}-desc`} className="text-xs text-[var(--muted)]">{t.description}</p>
+                    <label htmlFor={`tpl-${template.id}`} className="font-semibold">{language === 'he' ? (templateNameHe(template.id) ?? template.name) : template.name}</label>
+                    <p id={`tpl-${template.id}-desc`} className="text-xs text-[var(--muted)]">{language === 'he' ? (templateDescriptionHe(template.id) ?? template.description) : template.description}</p>
                   </div>
                 </div>
               ))}
             </fieldset>
             <div className="flex justify-between">
-              <button type="button" className="btn-tonal min-h-11" onClick={() => setStep(0)} disabled={busy}>Back</button>
+              <button type="button" className="btn-tonal min-h-11" onClick={() => setStep(0)} disabled={busy}>{t('setup.back')}</button>
               <button type="button" className="btn-primary min-h-11 bg-[var(--text)] text-[var(--surface)]" onClick={applyChart} disabled={busy || (!templateId && accounts.length === 0)}>
-                {busy ? 'Applying…' : 'Next'}
+                {busy ? t('setup.applying') : t('setup.next')}
               </button>
             </div>
           </section>
@@ -222,14 +238,14 @@ export default function SetupWizard({ onStarted, onDone }: Props) {
 
         {step === 2 && (
           <section className="space-y-4" aria-labelledby="setup-done">
-            <h2 id="setup-done" className="text-lg font-semibold flex items-center gap-2"><CheckCircle2 className="text-[var(--pos)]" aria-hidden="true" /> Your books are set up</h2>
+            <h2 id="setup-done" className="text-lg font-semibold flex items-center gap-2"><CheckCircle2 className="text-[var(--pos)]" aria-hidden="true" /> {t('setup.done.heading')}</h2>
             <p className="text-sm text-[var(--muted)]">
-              Your starter settings are ready. If you have previous books, use “Bring in last year's numbers” on Overview when you are ready.
+              {t('setup.done.body')}
             </p>
             <div className="flex flex-wrap gap-2">
-              <button type="button" className="btn-primary min-h-11 bg-[var(--text)] text-[var(--surface)]" onClick={() => finish('sales')}>Create the first invoice</button>
-              <button type="button" className="btn-tonal min-h-11" onClick={() => finish('banking')}>Connect or import a bank account</button>
-              <button type="button" className="btn-tonal min-h-11" onClick={() => finish()}>Go to Overview</button>
+              <button type="button" className="btn-primary min-h-11 bg-[var(--text)] text-[var(--surface)]" onClick={() => finish('sales')}>{t('setup.done.invoice')}</button>
+              <button type="button" className="btn-tonal min-h-11" onClick={() => finish('banking')}>{t('setup.done.bank')}</button>
+              <button type="button" className="btn-tonal min-h-11" onClick={() => finish()}>{t('setup.done.overview')}</button>
             </div>
           </section>
         )}

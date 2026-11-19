@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, UserCheck, AlertTriangle, RefreshCw, CheckCircle2, Lock, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -50,7 +51,7 @@ export const AcceptInviteView: React.FC<AcceptInviteViewProps> = ({ token: initi
         }
       } catch (err) {
         // the refusal is the invite being expired or already used; show what the server said
-        setError(commandErrorMessage(err));
+        setError(commandErrorMessage(err, uiLanguageNow()));
       } finally {
         setLoading(false);
       }

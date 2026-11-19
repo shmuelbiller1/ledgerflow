@@ -10,6 +10,7 @@
  * never disagree with the server about why something was refused.
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { uiLanguageNow } from '../lib/i18n/uiLanguageNow';
 import { COMMAND_MANIFEST, type RegisteredCommandName } from '../lib/commands.generated';
 import { runCommand, commandErrorMessage, ServerCommandError } from '../lib/runCommand';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -145,7 +146,7 @@ export function useCommand<T = Record<string, unknown>>(name: RegisteredCommandN
         : undefined;
       setRefusal({
         code,
-        message: commandErrorMessage(error),
+        message: commandErrorMessage(error, uiLanguageNow()),
         // the command's own offered next step for this refusal code
         next: refusalSentence(entry, code),
       });

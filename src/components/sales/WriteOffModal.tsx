@@ -9,6 +9,7 @@ import { calculateAmountDue } from '../../lib/documentMath';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { toast } from 'sonner';
 import { describeError } from '../../lib/errorRemedies';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { runCommand, type CommandBody } from '../../lib/runCommand';
 
 interface WriteOffModalProps {
@@ -49,7 +50,7 @@ export default function WriteOffModal({ isOpen, onClose, invoice }: WriteOffModa
       toast.success(`Written off ${formatCurrency(remainingCents, invoice.currency)} as bad debt`);
       onClose();
     } catch (err) {
-      const described = describeError(err, 'create');
+      const described = describeError(err, 'create', uiLanguageNow());
       toast.error(`Not written off: ${described.title.charAt(0).toLowerCase()}${described.title.slice(1)}`, { description: described.remedy });
     } finally {
       setIsSubmitting(false);

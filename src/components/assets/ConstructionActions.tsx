@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { toast } from 'sonner';
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import { addAssetCost } from '../../lib/recordWrites';
@@ -45,7 +46,7 @@ export function ConstructionActions({ asset, accounts, workspaceId, today, curre
       toast.success(`${formatCurrency(cents, currency)} added to ${asset.name}`);
       setMode('');
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setBusy(false);
     }
@@ -68,7 +69,7 @@ export function ConstructionActions({ asset, accounts, workspaceId, today, curre
       toast.success(data.description || `${asset.name} is in service`);
       setMode('');
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setBusy(false);
     }
@@ -80,7 +81,7 @@ export function ConstructionActions({ asset, accounts, workspaceId, today, curre
       await call('DELETE');
       toast.success(`${asset.name} is being built again`);
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setBusy(false);
     }
