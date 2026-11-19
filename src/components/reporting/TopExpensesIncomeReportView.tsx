@@ -1,14 +1,15 @@
 import { ReportInputBoundary } from './ReportInputBoundary';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useServerTopLines } from '../../hooks/useServerTopLines';
 import { AccountReportResult } from './AccountReportResult';
 import { BarChart3, TrendingDown, TrendingUp } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
-import { csvMoney } from '../../lib/csvExport';
+import { csvMoneyForBook } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useReportText } from './useReportText';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 interface Props {
   selectedYear?: number;
@@ -22,6 +23,9 @@ const LoadedReport: React.FC<Props> = ({
   endDate
 }) => {
   const reportText = useReportText();
+  // #910: the file is in the book's currency, so its decimals come from that currency (JPY yen, KWD fils)
+  const bookCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  const moneyCell = useMemo(() => csvMoneyForBook(bookCurrency), [bookCurrency]);
   const [activeTab, setActiveTab] = useState<'expenses' | 'income'>('expenses');
 
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
@@ -104,7 +108,7 @@ const LoadedReport: React.FC<Props> = ({
             filename: `top-${activeTab}.csv`,
             label: reportText('r.export-csv', 'Export CSV'),
             headers: ['Date', 'Description', 'Payee', 'Account / Category', 'Amount'],
-            mapRow: row => [row.date, row.description, row.payee || '', row.accountName, csvMoney(row.amountCents)],
+            mapRow: row => [row.date, row.description, row.payee || '', row.accountName, moneyCell(row.amountCents)],
           }}
           emptyState={<EmptyState title={activeTab === 'expenses' ? reportText('r.no-expenses-in-period', 'No expenses in this period') : reportText('r.no-income-in-period', 'No income in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
           filteredEmptyState={<EmptyState title={reportText('r.no-record-matches-your-search', 'No record matches your search')} description={reportText('r.try-another-word-or-account', 'Try another word or account.')} />}

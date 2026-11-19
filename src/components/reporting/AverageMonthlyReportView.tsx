@@ -1,8 +1,8 @@
 import { ReportInputBoundary } from './ReportInputBoundary';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
-import { csvMoney } from '../../lib/csvExport';
+import { csvMoneyForBook } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { formatCurrency, workspaceYearMonth } from '../../lib/utils';
 import { useServerMonthlyAverages } from '../../hooks/useServerMonthlyAverages';
@@ -10,6 +10,7 @@ import { AccountReportResult } from './AccountReportResult';
 import { Calendar, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
 import ReportEmptyState from './ReportEmptyState';
 import { useReportText } from './useReportText';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 interface Props {
   selectedYear?: number;
@@ -19,6 +20,9 @@ const LoadedReport: React.FC<Props> = ({
   selectedYear = workspaceYearMonth().year
 }) => {
   const reportText = useReportText();
+  // #910: the file is in the book's currency, so its decimals come from that currency (JPY yen, KWD fils)
+  const bookCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  const moneyCell = useMemo(() => csvMoneyForBook(bookCurrency), [bookCurrency]);
   // L-123 step 4f: with the loaded lists capped, the months come from the server (every entry of the year)
   const { summary, ...read } = useServerMonthlyAverages(selectedYear);
   const noActivity = summary.monthlyData.every(month => month.incomeCents === 0 && month.expenseCents === 0);
@@ -102,9 +106,9 @@ const LoadedReport: React.FC<Props> = ({
             headers: ['Month', 'Revenue', 'Expense / Burn', 'Net Cash Flow', 'Status / Anomaly'],
             mapRow: row => [
               `${row.monthName} ${selectedYear}`,
-              csvMoney(row.incomeCents),
-              csvMoney(row.expenseCents),
-              csvMoney(row.incomeCents - row.expenseCents),
+              moneyCell(row.incomeCents),
+              moneyCell(row.expenseCents),
+              moneyCell(row.incomeCents - row.expenseCents),
               row.isExpenseAnomaly || row.isIncomeAnomaly ? 'Variance spike' : 'Normal',
             ],
           }}

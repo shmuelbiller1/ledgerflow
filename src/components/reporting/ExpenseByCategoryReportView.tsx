@@ -9,7 +9,7 @@ import { formatCurrency } from '../../lib/utils';
 import { PieChart } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
-import { csvMoney } from '../../lib/csvExport';
+import { csvMoneyForBook } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { LEDGER_COLLECTIONS } from '../../lib/ledgerCollections';
@@ -30,6 +30,9 @@ const LoadedReport: React.FC<Props> = ({
   endDate
 }) => {
   const reportText = useReportText();
+  // #910: the file is in the book's currency, so its decimals come from that currency (JPY yen, KWD fils)
+  const bookCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  const moneyCell = useMemo(() => csvMoneyForBook(bookCurrency), [bookCurrency]);
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
   const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
 
@@ -99,7 +102,7 @@ const LoadedReport: React.FC<Props> = ({
             filename: 'expenses-by-category.csv',
             label: reportText('r.export-csv', 'Export CSV'),
             headers: ['Category', 'Transactions', 'Share %', 'Total Outflow'],
-            mapRow: row => [row.category, row.transactionCount, row.percentage.toFixed(1), csvMoney(row.totalAmountCents)],
+            mapRow: row => [row.category, row.transactionCount, row.percentage.toFixed(1), moneyCell(row.totalAmountCents)],
           }}
           emptyState={<EmptyState title={reportText('r.no-posted-expenses-in-this-period', 'No posted expenses in this period')} description={reportText('r.try-a-wider-period', 'Try a wider period.')} />}
           filteredEmptyState={<EmptyState title={reportText('r.no-category-matches-your-search', 'No category matches your search')} description={reportText('r.try-another-category-name', 'Try another category name.')} />}
