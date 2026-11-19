@@ -344,6 +344,11 @@ jobs:
           test -s build/server.cjs
           test -s build/api.cjs
           npm run test:bundle
+      # D-27: the built client is measured against perf/budgets.json, and an exceeded budget fails
+      # this job. --require-dist makes a missing build an error instead of a silent skip. Bytes, not
+      # a stopwatch: see the script header for exactly what is measured.
+      - name: Performance budgets (built bundle)
+        run: node scripts/check-perf-budgets.mjs --require-dist
 
   # The whole unit suite again in a time zone ahead of and one behind UTC, in parallel with the
   # job above (run one after the other they took the job past its time limit).

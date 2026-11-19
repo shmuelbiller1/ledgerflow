@@ -23,7 +23,8 @@ import ts from 'typescript';
  *
  * The selection is therefore made from the parsed source: string literals only (comments are not
  * literals), then either a path into the `docs/` or `audit/` tree, or a `*.md`/`*.txt`/`*.rst`
- * name that resolves to a file in the repository.
+ * name that resolves to a file in the repository. A bare directory name needs path context:
+ * a test that asserts on an `audit` command property is not reading the `audit/` directory.
  */
 
 export const UNIT_TEST_DIRS = ['src/tests', 'src/lib', 'src/server/utils'];
@@ -36,31 +37,42 @@ export const EXCLUDED = ['src/tests/database-tests-notice.test.ts'];
 
 // Anchored: `/api/v1/audit/jobs/...` is a route, not a document.
 // Case-sensitive: the folders are `docs/` and `audit/`; a UI label like "Audit" is not a path.
-const DOC_TREE = /^(?:\.{1,2}\/)*(?:docs|audit)(?:\/|$)/;
+const DOC_TREE = /^(?:\.{1,2}\/)*(?:docs|audit)(\/|$)/;
+const DOC_PATH_CALLS = /^(?:(?:path\.)?(?:join|resolve)|(?:fs(?:\.promises)?\.)?(?:readFile(?:Sync)?|readdir(?:Sync)?|existsSync))$/;
 // Only prose extensions count by file name; a `.json`/`.csv` is documentation only inside the
 // `docs/` or `audit/` tree above (`quality-baseline.json` at the root is not a document).
 const DOC_FILE = /\.(?:md|mdx|txt|rst)$/i;
 
 /** Literal strings in a JS/TS file; comments and regular expressions are not literals. */
-export function stringLiterals(file, text) {
+function literalReferences(file, text) {
   const kind = /\.[jt]sx$/i.test(file) ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind);
   const literals = [];
   const visit = node => {
-    if (ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) literals.push(node.text);
+    if (ts.isStringLiteralLike(node)) literals.push({ value: node.text, node });
     // `docs/help/${slug}.md` keeps only the head, which still names the documentation tree.
-    else if (ts.isTemplateExpression(node)) literals.push(node.head.text);
+    else if (ts.isTemplateExpression(node)) literals.push({ value: node.head.text, node });
     ts.forEachChild(node, visit);
   };
   visit(source);
   return literals;
 }
 
+export function stringLiterals(file, text) {
+  return literalReferences(file, text).map(({ value }) => value);
+}
+
+function isPathArgument(node) {
+  const call = node.parent;
+  return ts.isCallExpression(call) && call.arguments.includes(node) && DOC_PATH_CALLS.test(call.expression.getText());
+}
+
 export function referencesDocumentation(file, text, root = process.cwd()) {
-  return stringLiterals(file, text).some(literal => {
-    const clean = literal.split('?')[0].split('#')[0].replace(/\\/g, '/');
+  return literalReferences(file, text).some(({ value, node }) => {
+    const clean = value.split('?')[0].split('#')[0].replace(/\\/g, '/');
     if (!clean) return false;
-    if (DOC_TREE.test(clean)) return true;
+    const docTree = DOC_TREE.exec(clean);
+    if (docTree) return docTree[1] === '/' || isPathArgument(node);
     if (!DOC_FILE.test(clean)) return false;
     // A root-relative or file-relative name that exists: `CURRENT_WORK.md`, `src/AGENTS.md`.
     return fs.existsSync(path.resolve(root, path.dirname(file), clean))

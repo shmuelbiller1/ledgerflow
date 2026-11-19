@@ -342,6 +342,7 @@ export const NON_TABLE_MODULES: Readonly<Record<string, string>> = {
   "entityFilings.ts": "Calculation, review, profile or document helper; no embedded dated source table.",
   "filedReturns.ts": "Picks a saved filed tax return for a period; no embedded dated source table.",
   "form856.ts":"Calculation, review, profile or document helper; no embedded dated source table.",
+  "form856AuthorityCsv.ts": "E-17: writes the Tax Authority record-60 field-order CSV from recorded payments; its constant is the published fixed-width layout (column positions, widths and labels), not a dated rate or source table.",
   "form856ReviewExport.ts": "Calculation, review, profile or document helper; no embedded dated source table.",
   "ilImportServices.ts": "Calculation, review, profile or document helper; no embedded dated source table.",
   "ilVatReturn.ts": "Calculation, review, profile or document helper; no embedded dated source table.",

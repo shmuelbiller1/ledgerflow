@@ -7,6 +7,30 @@ removed from this list.
 
 Last updated: 2026-11-19.
 
+## CMD-1: deploy the replacement UI before closing the browser write door
+
+**Pending — do not apply before deployment.** The migration is
+[`20261120100000_cmd1_browser_write_policies.sql`](../supabase/migrations/20261120100000_cmd1_browser_write_policies.sql).
+It removes browser INSERT/UPDATE/DELETE from 29 application tables. Reads (including private templates),
+Realtime, object Storage, MFA and server/overlay access stay as before. It passed the local PostgreSQL
+rules suite after a fresh migration setup; it has **not** been applied to the live database.
+
+1. After CI and review, merge and deploy the code. Confirm the deployed UI creates and renames a label
+   from Settings and inside a bill, creates/edits a customer or draft estimate, and saves settings
+   with a writer session. Check a viewer still reads but cannot perform those writes. Also smoke-test
+   attachment upload/removal, presence and notifications; they use separate server paths.
+2. Once those deployed checks pass, the merger applies the migration through the Supabase migration
+   tool (not manual SQL), in order after the earlier sandbox migrations, including
+   `20261120090000_sandbox_stock_move_order.sql` from [#935](https://github.com/shmuelbiller1/ledgerflow/pull/935).
+   Confirm it appears in the migration ledger. Refresh a browser
+   using the new build; repeat those write/read checks and verify a direct browser write is refused
+   on a disposable workspace. Do not probe historical production records or remove read policies.
+
+Existing Stripe verification is not changed here. Its legacy session claim, plan update and audit
+are separate commits; a failure after the claim can leave a session marked verified before credits
+are provisioned. Treat recovery/consolidation with the subscription webhook as a separate billing
+change with provider-order and failure evidence.
+
 ## CMD-1: posting, project/chart writes, attachment removal and verification (nothing to apply)
 
 The old addresses still work. Invoice/bill/credit and bulk posting use the same posting rules and legacy retry keys. Project/chart creation and bank reconnection commit their state and audit together; Plaid webhook registration and the deep-audit worker start only after their database changes commit. Attachment removal still allows viewers to remove their own uploads. The moved writes now share the same frozen and pending-deletion guard as the other commands. **No migration or configuration action is needed.** GitHub runs the release checks; this does not mark the assistant or its sandbox complete.
@@ -942,7 +966,23 @@ the person's sign-in and refuse the assistant token (`src/tests/sandbox-assistan
 write route in the app does). The "Assistant drafts" screen is at `#sandbox-review`. The `SESSION_SECRET` env
 signs the assistant token, as it already signs sessions; nothing new to configure.
 
-### SBX-1 admitting the command registry as steps (this PR)
+### SBX-1 stock moves in the sandbox (this PR)
+
+`supabase/migrations/20261120090000_sandbox_stock_move_order.sql` is for the release lead **after this PR has merged
+and deployed**, in order after the three SBX-1 migrations above. It adds one trigger function in the `sandbox` schema
+that gives a drafted stock move a provisional order number (`dbSeq`) — after every live move of the workspace and
+every earlier draft move — so the sandbox computes cost of goods in the same order the real save will. No grant on
+`public`, no sequence privilege, no new login; the live sequence is untouched (the RLS suite and
+`sandbox-readiness.test.ts` prove it). Tested on disposable PostgreSQL; the live database was not touched.
+
+What changes once deployed: an invoice with inventory lines, a stock adjustment, delivery, return, count or
+revaluation can now be drafted by the assistant and shown in the sandbox books; before this they were refused with
+"needs a write that has not been reviewed". Acceptance replays the step live, where the real sequence numbers the
+move; if the cost would differ from the preview (someone moved the same item meanwhile) the accept is refused and
+the step marked for re-check, as for any other posting. The cost repost queue (`lf_repost_mark`) is not run in the
+draft on purpose: it is a later background correction, and the live insert at accept queues it exactly as before.
+
+### SBX-1 admitting the command registry as steps (#932)
 
 No migration, no grant, no env. The sandbox now drafts any command of the books (customers, vendors, invoices,
 bills, payments, journals, chart, assets, inventory, projects, time, tasks and so on — 100+ commands, listed by

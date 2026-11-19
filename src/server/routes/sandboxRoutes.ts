@@ -3,12 +3,14 @@ import { z } from 'zod';
 import { assistantAuthenticate, assistantClaims, issueAssistantToken } from '../auth/assistantToken';
 import { requestUser } from '../auth/requestUser';
 import { openSandbox, reviewSandbox, undoSandboxStep } from '../commands/sandboxReview';
-import { stepCommand, stepCommandNames } from '../commands/sandboxStepCommands';
 import { getDb, isWorkspaceMemberData, type Firestore } from '../db/firestore';
 import { validateSandboxId } from '../db/pg/sandbox';
 import { listOpenSandboxes, ownsOpenSandbox } from '../db/pg/sandboxReviewStore';
 import { roleInWorkspace } from '../middleware/requireLedgerWriter';
-import { answerCents, calculate, explainNumberInput, getRecord, listRecords, readBooksQuestion, runReportInput, SANDBOX_READ_TOOLS, searchRecords } from '../services/sandboxTools';
+import { answerCents, calculate, explainNumberInput, getRecord, listRecords, readBooksQuestion, runReportInput, searchRecords } from '../services/sandboxTools';
+import { defaultAssistantTools, draftableCommands, findAssistantCommands } from '../services/assistantCatalog';
+import { ASSISTANT_READ_TOOL_NAMES, findCommandInput, listProposalsInput, previewProposalInput } from '../services/assistantToolDefinitions';
+import { storedSandboxProposal } from '../services/storedSandboxProposal';
 import { CommandRefusal, errorOutcome } from '../utils/commandExecutor';
 import { createBalanceRouter } from './balanceRoutes';
 import { createReportRouter } from './reportRoutes';
@@ -83,6 +85,7 @@ async function readableSandbox(live: Firestore, req: express.Request) {
   if (!await ownsOpenSandbox(live.pool, { id: scope.sandboxId, workspaceId: scope.workspaceId, personId: user.uid })) throw new CommandRefusal('No open sandbox belongs to you in this workspace', 404, 'SANDBOX_NOT_FOUND');
   const workspace = (await live.collection('workspaces').doc(scope.workspaceId).get()).data();
   if (!workspace || !isWorkspaceMemberData(workspace, { uid: user.uid }, scope.workspaceId)) throw new CommandRefusal('You are not a member of these books', 403, 'FORBIDDEN');
+  if (workspace.requireTwoStep === true && user.aal !== 'aal2') throw new CommandRefusal('Sign in with two-step verification for these books', 403, 'TWO_STEP_REQUIRED');
   const books = live.forSandbox(scope.sandboxId);
   return { ...scope, user, workspace, books };
 }
@@ -135,12 +138,19 @@ function toolRoutes(router: express.Router, live: Firestore) {
     res.json(await getRecord(books, workspaceId, { collection: param(req, 'collection'), id: param(req, 'recordId') }));
   }));
 
+  router.get('/:sandboxId/tools', guarded(async (req, res) => {
+    const { user, workspace } = await readableSandbox(live, req);
+    const commands = draftableCommands(workspace, user, assistantClaims(req)?.role);
+    res.json({ tools: defaultAssistantTools(commands), workspaceCurrency: typeof workspace.currency === 'string' ? workspace.currency : null });
+  }));
+
   router.post('/:sandboxId/tools/:tool', guarded(async (req, res) => {
     const tool = param(req, 'tool');
-    if (!(SANDBOX_READ_TOOLS as readonly string[]).includes(tool)) {
-      throw new CommandRefusal(`Unknown tool: ${tool}`, 404, 'TOOL_NOT_FOUND', { tools: SANDBOX_READ_TOOLS });
+    if (!(ASSISTANT_READ_TOOL_NAMES as readonly string[]).includes(tool)) {
+      throw new CommandRefusal(`Unknown tool: ${tool}`, 404, 'TOOL_NOT_FOUND', { tools: ASSISTANT_READ_TOOL_NAMES });
     }
-    const { books, workspaceId, workspace } = await readableSandbox(live, req);
+    const { books, workspaceId, workspace, sandboxId, user } = await readableSandbox(live, req);
+    const binding = { id: sandboxId, workspaceId, personId: user.uid };
     const input = req.body && typeof req.body === 'object' ? req.body : {};
     const routers = () => boundRouters(live, books);
     switch (tool) {
@@ -148,6 +158,20 @@ function toolRoutes(router: express.Router, live: Firestore) {
       case 'get_record': return res.json(await getRecord(books, workspaceId, input));
       case 'search_records': return res.json(await searchRecords(books, workspaceId, input));
       case 'calculate': return res.json(calculate(input));
+      case 'list_proposals': {
+        parse(listProposalsInput, req.body ?? {});
+        return res.json({ proposals: [await storedSandboxProposal(live.pool, binding, false)] });
+      }
+      case 'preview_proposal': {
+        const { proposalId } = parse(previewProposalInput, req.body);
+        if (proposalId !== sandboxId) throw new CommandRefusal('This proposal belongs to another sandbox', 403, 'ASSISTANT_SANDBOX_MISMATCH');
+        return res.json({ proposal: await storedSandboxProposal(live.pool, binding, true) });
+      }
+      case 'find_command': {
+        const { words, limit } = parse(findCommandInput, req.body);
+        const commands = draftableCommands(workspace, user, assistantClaims(req)?.role);
+        return res.json({ matches: findAssistantCommands(commands, words, limit) });
+      }
       case 'run_report': {
         const { report, source, params } = parse(runReportInput, input);
         const search = new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)]));
@@ -180,12 +204,11 @@ function toolRoutes(router: express.Router, live: Firestore) {
 /** Drafting routes, shared by both principals: the person may also draft by hand. */
 function draftRoutes(router: express.Router, live: Firestore) {
   router.get('/:sandboxId', guarded(async (req, res) => res.json(await reviewSandbox(req, sandboxScope(req), { kind: 'review' }, live))));
-  // What may be drafted here, in the command's own words; the input schema is at /api/v1/commands.
+  // Command metadata for this binding. The provider's loadable functions are at /tools.
   router.get('/:sandboxId/commands', guarded(async (req, res) => {
-    await readableSandbox(live, req);
-    res.json({ commands: stepCommandNames().map(name => {
-      const command = stepCommand(name);
-      return { name, risk: command.risk, ...(command.capacity ? { metered: true } : {}), sentence: command.describe.sentence, example: command.describe.example };
+    const { user, workspace } = await readableSandbox(live, req);
+    res.json({ commands: draftableCommands(workspace, user, assistantClaims(req)?.role).map(command => {
+      return { name: command.name, risk: command.risk, ...(command.capacity ? { metered: true } : {}), sentence: command.describe.sentence, example: command.describe.example };
     }) });
   }));
   router.post('/:sandboxId/steps', guarded(async (req, res) => {

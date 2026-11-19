@@ -1,39 +1,194 @@
-import test from 'node:test';
+/**
+ * R-7: "Why did this number change?" — worked by hand, not by copying the code.
+ *
+ * The figures below are one month against the month before, in cents, in the statement's own sign
+ * (income positive because it is a credit the report shows as positive). Every expected number was
+ * added up on paper:
+ *
+ *   income   Sales    1,000,000 → 1,200,000   +200,000  (+200,000 net profit)
+ *            Services   200,000 →   150,000    −50,000   (−50,000)
+ *   cogs     Materials  300,000 →   400,000   +100,000  (−100,000)
+ *   expense  Rent       100,000 →   100,000          0   (not listed)
+ *            Wages      250,000 →   200,000    −50,000   (+50,000)
+ *   ------------------------------------------------------------------
+ *   net profit         550,000 →   650,000   +100,000  (+100,000)
+ */
+import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { statementChangeGroups, changeFilter, changeContributions } from '../lib/statementChange';
-import { computeBalanceSheet, computeProfitAndLoss } from '../server/reports/computeReports';
-import { explainFigure } from '../server/reports/explain';
-import { makeChartAccount, makeTransaction } from './fixtures';
+import {
+  accountValues,
+  buildStatementChange,
+  changePercent,
+  movementWindow,
+  type StatementSides,
+} from '../lib/statementChange';
 
-const period = (startDate: string, endDate: string) => ({ startDate, endDate, id: startDate, label: startDate });
-const a = period('2026-01-01', '2026-01-31'), b = period('2026-02-01', '2026-02-28');
-const accounts = [makeChartAccount({ id: 'cash', openingBalanceCents: 80000 }), makeChartAccount({ id: 'capital', type: 'equity', openingBalanceCents: 80000 }),
-  makeChartAccount({ id: 'loans', type: 'liability' }), makeChartAccount({ id: 'sales', type: 'income' }), makeChartAccount({ id: 'cogs', type: 'cost_of_goods' }), makeChartAccount({ id: 'rent', type: 'expense' })];
-const tx = (id: string, date: string, amounts: Record<string, number>) => makeTransaction({ id, date, description: id, status: 'completed', lines: Object.entries(amounts).map(([accountId, amountCents]) => ({ accountId, amountCents })) });
-const ledger = [tx('jan-sale', '2026-01-31', { cash: 7500, cogs: 2500, sales: -10000 }), tx('feb-sale', '2026-02-01', { cash: 13500, cogs: 1500, sales: -15000 }),
-  tx('rent', '2026-02-28', { rent: 3000, cash: -3000 }), tx('loan', '2026-02-04', { cash: 100000, loans: -100000 })];
-const totals: Record<string, [number, number]> = {
-  'total:income': [15000, 10000], 'total:cogs': [1500, 2500], 'total:expense': [3000, 0], 'total:grossProfit': [13500, 7500], 'total:netIncome': [10500, 7500],
-  'total:assets': [198000, 87500], 'total:liabilities': [100000, 0], 'total:retainedEarnings': [18000, 7500], 'total:equity': [98000, 87500], 'total:claims': [198000, 87500],
+const current: StatementSides = {
+  income: {
+    sales: { name: 'Sales', code: '4000', balance: 1_200_000 },
+    services: { name: 'Services', code: '4100', balance: 150_000 },
+  },
+  cogs: { materials: { name: 'Materials', code: '5000', balance: 400_000 } },
+  expense: {
+    rent: { name: 'Rent', code: '6000', balance: 100_000 },
+    wages: { name: 'Wages', code: '6100', balance: 200_000 },
+  },
 };
-for (const asOf of [false, true]) test(`reconcile all ${asOf ? 'balance sheet' : 'P&L'} headline totals in both directions, excluding common entries and openings`, () => {
-  const chart = asOf ? computeBalanceSheet(accounts, []) : computeProfitAndLoss(accounts, []);
-  for (const [id, group] of Object.entries(statementChangeGroups(chart, accounts))) {
-    const [current, prior] = totals[id];
-    const lines = explainFigure(accounts, ledger, changeFilter(group, asOf, b, a)).lines;
-    const changes = changeContributions(lines, group, asOf, b, a, current, prior);
-    assert.ok(changes, id);
-    assert.equal(changes.reduce((sum, e) => sum + e.change, 0), current - prior, id);
-    const reverse = changeContributions(lines, group, asOf, a, b, prior, current);
-    assert.deepEqual(reverse, changes.map(e => ({ ...e, change: -e.change })), id);
-    if (asOf) assert.ok(changes.every(e => e.id !== 'jan-sale'), id);
-  }
+
+const prior: StatementSides = {
+  income: {
+    sales: { name: 'Sales', code: '4000', balance: 1_000_000 },
+    services: { name: 'Services', code: '4100', balance: 200_000 },
+  },
+  cogs: { materials: { name: 'Materials', code: '5000', balance: 300_000 } },
+  expense: {
+    rent: { name: 'Rent', code: '6000', balance: 100_000 },
+    wages: { name: 'Wages', code: '6100', balance: 250_000 },
+  },
+};
+
+const netProfitSigns = { income: 1 as const, cogs: -1 as const, expense: -1 as const };
+
+describe('the accounts behind a change in net profit', () => {
+  const change = buildStatementChange(current, prior, { signs: netProfitSigns });
+
+  test('the three figures are the statement’s own, and the change is one minus the other', () => {
+    assert.equal(change.currentTotalCents, 650_000);
+    assert.equal(change.priorTotalCents, 550_000);
+    assert.equal(change.changeCents, 100_000);
+  });
+
+  test('income raises net profit, cost of goods and expenses lower it', () => {
+    const byId = Object.fromEntries(change.rows.map(row => [row.accountId, row]));
+    assert.deepEqual(
+      [byId.sales.changeCents, byId.sales.effectCents],
+      [200_000, 200_000],
+    );
+    assert.deepEqual(
+      [byId.services.changeCents, byId.services.effectCents],
+      [-50_000, -50_000],
+    );
+    // a cost that rose 100,000 takes 100,000 off net profit
+    assert.deepEqual(
+      [byId.materials.changeCents, byId.materials.effectCents],
+      [100_000, -100_000],
+    );
+    // an expense that fell 50,000 adds 50,000 back
+    assert.deepEqual(
+      [byId.wages.changeCents, byId.wages.effectCents],
+      [-50_000, 50_000],
+    );
+  });
+
+  test('the parts add up to the whole: every effect sums to the change', () => {
+    const sum = change.rows.reduce((total, row) => total + row.effectCents, 0);
+    assert.equal(sum, 100_000);
+    assert.equal(sum, change.changeCents);
+  });
+
+  test('the biggest share is first, and a tie is broken the same way every run', () => {
+    assert.deepEqual(change.rows.map(row => row.accountId), ['sales', 'materials', 'services', 'wages']);
+  });
+
+  test('an account that did not move is counted, not listed', () => {
+    assert.equal(change.unchangedCount, 1);
+    assert.equal(change.rows.some(row => row.accountId === 'rent'), false);
+  });
+
+  test('an account that only existed before is compared with nothing, and counted', () => {
+    const withClosed = buildStatementChange(
+      current,
+      { ...prior, income: { ...prior.income, closed: { name: 'Closed line', code: '4200', balance: 60_000 } } },
+      { signs: netProfitSigns },
+    );
+    const closed = withClosed.rows.find(row => row.accountId === 'closed');
+    assert.ok(closed);
+    assert.deepEqual([closed.currentCents, closed.priorCents, closed.changeCents], [0, 60_000, -60_000]);
+    // prior net profit was 610,000 (income 1,260,000 − 400,000... see the table above with the extra
+    // line): current 650,000, so the change is 40,000 and the closed line is 60,000 of it
+    assert.equal(withClosed.changeCents, 40_000);
+    assert.equal(withClosed.rows.reduce((total, row) => total + row.effectCents, 0), 40_000);
+  });
+
+  test('a section with no sign is counted but does not move this figure', () => {
+    const balanceOnly = buildStatementChange(
+      { assets: { bank: { name: 'Bank', balance: 900_000 } }, income: current.income },
+      { assets: { bank: { name: 'Bank', balance: 400_000 } }, income: prior.income },
+      { signs: { income: 1 } },
+    );
+    assert.equal(balanceOnly.rows.some(row => row.accountId === 'bank'), false);
+    assert.equal(balanceOnly.unchangedCount, 1); // Bank: it changed, but assets do not count toward this figure
+    assert.equal(balanceOnly.changeCents, 150_000); // income only: 1,350,000 − 1,200,000
+  });
+
+  test('a figure that did not move has no rows, and says so through the count', () => {
+    const same = buildStatementChange(current, current, { signs: netProfitSigns });
+    assert.deepEqual(same.rows, []);
+    assert.equal(same.changeCents, 0);
+    assert.equal(same.unchangedCount, 5);
+  });
+
+  test('a fraction of a cent is rounded, never carried as one', () => {
+    const fractional = buildStatementChange(
+      { expense: { odd: { name: 'Odd', balance: 100.6 } } },
+      { expense: { odd: { name: 'Odd', balance: 99.4 } } },
+      { signs: { expense: -1 } },
+    );
+    assert.deepEqual(
+      [fractional.rows[0].currentCents, fractional.rows[0].priorCents, fractional.rows[0].changeCents],
+      [101, 99, 2],
+    );
+    assert.equal(fractional.rows[0].effectCents, -2);
+  });
 });
-test('overlapping days cancel; two offsetting entries remain even when the total change is zero', () => {
-  const now = period('2026-01-15', '2026-02-28');
-  const group = { ids: ['sales'], sign: -1 as const };
-  const prior = period('2026-01-01', '2026-02-01');
-  const activity = [...ledger, tx('repeat', '2026-02-10', { cash: 2000, sales: -2000 }), tx('earlier', '2026-01-10', { cash: 2000, sales: -2000 })];
-  const lines = explainFigure(accounts, activity, changeFilter(group, false, now, prior)).lines;
-  assert.deepEqual(changeContributions(lines, group, false, now, prior, 27000, 27000)?.map(e => [e.id, e.change]), [['earlier', -2000], ['repeat', 2000]]);
+
+describe('a change as a percentage', () => {
+  test('is taken against the size of the figure it is compared with', () => {
+    assert.equal(changePercent(500, 1_000), 50);
+    assert.equal(changePercent(-250, -1_000), -25);
+  });
+
+  test('is undefined against zero, not 100%', () => {
+    assert.equal(changePercent(500, 0), null);
+  });
+});
+
+describe('the days whose entries are a balance sheet movement', () => {
+  test('run from the day after the compared date through the later date', () => {
+    assert.deepEqual(movementWindow('2025-12-31', '2026-03-31'), { start: '2026-01-01', end: '2026-03-31' });
+  });
+
+  test('follow the calendar: a leap day is a day', () => {
+    assert.deepEqual(movementWindow('2024-02-28', '2024-03-01'), { start: '2024-02-29', end: '2024-03-01' });
+    assert.deepEqual(movementWindow('2025-02-28', '2025-03-01'), { start: '2025-03-01', end: '2025-03-01' });
+  });
+
+  test('are not invented when the two dates are the same or in the wrong order', () => {
+    assert.equal(movementWindow('2026-03-31', '2026-03-31'), null);
+    assert.equal(movementWindow('2026-04-30', '2026-03-31'), null);
+    assert.equal(movementWindow('', '2026-03-31'), null);
+  });
+});
+
+describe('the accounts a statement section holds', () => {
+  const chart = [
+    { id: 'bank', name: 'Bank', code: '1000', type: 'asset' },
+    { id: 'rent', name: 'Rent', code: '6000', type: 'expense' },
+    { id: 'unused', name: 'Spare account', type: 'asset' },
+  ];
+
+  test('come from the chart’s own names and codes, with the report’s balances', () => {
+    const values = accountValues(chart, { bank: 250_000 }, 'asset');
+    assert.deepEqual(values.bank, { name: 'Bank', code: '1000', balance: 250_000 });
+  });
+
+  test('keep an account that has no balance, so "unchanged" is honest', () => {
+    const values = accountValues(chart, {}, 'asset');
+    assert.deepEqual(Object.keys(values).sort(), ['bank', 'unused']);
+    assert.equal(values.unused.balance, 0);
+  });
+
+  test('only include their own section', () => {
+    assert.equal(Object.prototype.hasOwnProperty.call(accountValues(chart, {}, 'asset'), 'rent'), false);
+  });
 });

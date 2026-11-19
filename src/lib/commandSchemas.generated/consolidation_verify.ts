@@ -4,15 +4,15 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "workspaceId": COMMAND_SCHEMA_PARTS.part47,
+    "workspaceId": COMMAND_SCHEMA_PARTS.part49,
     "entityWorkspaceIds": {
       "minItems": 1,
       "maxItems": 50,
       "type": "array",
-      "items": COMMAND_SCHEMA_PARTS.part47,
+      "items": COMMAND_SCHEMA_PARTS.part49,
       "description": "Entity books to verify along with the primary workspace"
     },
-    "asOfDate": COMMAND_SCHEMA_PARTS.part119,
+    "asOfDate": COMMAND_SCHEMA_PARTS.part123,
     "reportingCurrency": {
       "description": "Currency for consolidated totals; defaults to the primary workspace’s currency",
       "type": "string",
@@ -22,8 +22,8 @@ export const COMMAND_INPUT_SCHEMA = {
     "exchangeRates": {
       "description": "Positive rates for translating foreign entity books",
       "type": "object",
-      "propertyNames": COMMAND_SCHEMA_PARTS.part23,
-      "additionalProperties": COMMAND_SCHEMA_PARTS.part74
+      "propertyNames": COMMAND_SCHEMA_PARTS.part24,
+      "additionalProperties": COMMAND_SCHEMA_PARTS.part77
     }
   },
   "required": [

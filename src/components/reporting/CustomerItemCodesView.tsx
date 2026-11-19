@@ -1,3 +1,4 @@
+import ReportSchedule from './ReportSchedule';
 /**
  * A-122: Customer-specific item codes — map internal catalogue items to each customer's part code
  * and buyer description, search either side instantly, flag duplicate codes for the same buyer, and
@@ -175,50 +176,33 @@ export default function CustomerItemCodesView() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <table className="w-full text-sm text-start">
-            <caption className="sr-only">{reportText('r.customer-part-numbers-cross-reference', 'Customer part numbers cross-reference')}</caption>
-            <thead className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
-              <tr>
-                <th scope="col" className="px-4 py-3 text-start">{reportText('r.customer', 'Customer')}</th>
-                <th scope="col" className="px-4 py-3 text-start">{reportText('r.buyer-part-code', 'Buyer part code')}</th>
-                <th scope="col" className="px-4 py-3 text-start">{reportText('r.buyer-title', 'Buyer title')}</th>
-                <th scope="col" className="px-4 py-3 text-start">{reportText('r.internal-item', 'Internal item')}</th>
-                <th scope="col" className="px-4 py-3 text-start">{reportText('r.internal-sku', 'Internal SKU')}</th>
-                {canWrite && <th scope="col" className="px-4 py-3 text-end">{reportText('r.actions', 'Actions')}</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {filtered.map(r => (
-                <tr key={`${r.itemId}-${r.customerId}`}>
-                  <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{r.customerName}</td>
-                  <td className="px-4 py-3 font-mono font-semibold text-indigo-700 dark:text-indigo-300">
-                    {r.customerCode}
+        <div className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <ReportSchedule
+            caption={reportText('r.customer-part-numbers-cross-reference', 'Customer part numbers cross-reference')}
+            captionClassName="sr-only"
+            headRowClassName="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400"
+            bodyClassName="divide-y divide-slate-200 dark:divide-slate-800"
+            rows={filtered} rowKey={r => JSON.stringify([r.itemId, r.customerId])}
+            columns={[
+              { header: reportText('r.customer', 'Customer'), className: 'font-medium text-slate-900 dark:text-white', cell: r => r.customerName },
+              { header: reportText('r.buyer-part-code', 'Buyer part code'), rowHeader: true, className: 'font-mono font-semibold text-indigo-700 dark:text-indigo-300', cell: r => <>{r.customerCode}
                     {r.duplicateForCustomer && (
-                      <span className="ml-2 inline-block px-2 py-0.5 text-[11px] font-sans font-bold rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                      <span className="ms-2 inline-block px-2 py-0.5 text-[11px] font-sans font-bold rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
                         {reportText('r.duplicate-for-buyer', 'Duplicate for buyer')}
                       </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{r.customerDescription || '—'}</td>
-                  <td className="px-4 py-3 text-slate-900 dark:text-white">{r.itemName}</td>
-                  <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-400">{r.internalSku || '—'}</td>
-                  {canWrite && (
-                    <td className="px-4 py-3 text-end">
-                      <button
+                    )}</> },
+              { header: reportText('r.buyer-title', 'Buyer title'), className: 'text-slate-600 dark:text-slate-400', cell: r => r.customerDescription || '—' },
+              { header: reportText('r.internal-item', 'Internal item'), className: 'text-slate-900 dark:text-white', cell: r => r.itemName },
+              { header: reportText('r.internal-sku', 'Internal SKU'), className: 'font-mono text-slate-600 dark:text-slate-400', cell: r => r.internalSku || '—' },
+              canWrite ? { header: reportText('r.actions', 'Actions'), align: 'right', cell: r => <button
                         type="button"
                         aria-label={fill(reportText('r.remove-0-for-1', 'Remove {0} for {1}'), { 0: r.customerCode, 1: r.customerName })}
                         onClick={() => handleRemove(r.itemId, r.customerId)}
                         className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg"
                       >
                         <Trash2 className="w-4 h-4" aria-hidden="true" />
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      </button> } : false,
+            ]} />
         </div>
       )}
     </div>

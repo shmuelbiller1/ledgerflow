@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
+import { assistantClaims } from '../auth/assistantToken';
 import { requestUser, type RequestUser } from '../auth/requestUser';
 import { getDb, isWorkspaceMemberData, type Firestore } from '../db/firestore';
 import { validateSandboxId } from '../db/pg/sandbox';
@@ -230,6 +231,11 @@ export async function reviewSandbox(req: Request, scope: Scope, intent: SandboxR
     const callbacks: CommandAfterCommit[] = [];
     if (intent.kind !== 'add' && intent.kind !== 'review' && intent.revision !== current.revision) return { result: { ...current, outcome: 'review-changed' } as SandboxReview, callbacks };
     const active = all.filter(isUnresolved);
+    const issuedRole = assistantClaims(req)?.role;
+    const draftOf = intent.kind === 'add' ? intent.command : intent.kind === 'edit' ? active.find(step => step.id === intent.stepId)?.command : undefined;
+    if (issuedRole !== undefined && draftOf && !stepCommand(draftOf).roles.some(role => role === issuedRole)) {
+      throw new CommandRefusal('This command is outside the role granted to this assistant token', 403, 'ROLE_REQUIRED');
+    }
     let result: SandboxReview;
     if (intent.kind === 'add') {
       if (active.length >= MAX_PENDING_STEPS) throw new CommandRefusal(`This sandbox has ${MAX_PENDING_STEPS} unresolved steps`, 409, 'SANDBOX_STEP_LIMIT');

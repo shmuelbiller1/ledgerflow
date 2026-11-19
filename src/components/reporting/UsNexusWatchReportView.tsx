@@ -1,12 +1,12 @@
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
 import React, { useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { usNexusWatch, US_NEXUS_SUPPORTED_STATES, type NexusSaleDocument, type NexusYear, type UsNexusWatch } from '../../lib/tax/usNexusWatch';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
-import ReportTableScroll from './ReportTableScroll';
+import ReportSchedule from './ReportSchedule';
 
 import { BRAND_NAME } from '../../config/brand';
 import { useReportText, fill } from './useReportText';
@@ -26,14 +26,12 @@ export default function UsNexusWatchReportView({ asOfDate: pageAsOfDate }: { asO
   const invoices = useLedgerStore(state => state.invoices);
   const creditNotes = useLedgerStore(state => state.creditNotes);
   const customers = useLedgerStore(state => state.customers);
-  const truncated = useLedgerStore(state => state.truncatedCollections);
-  const failed = useDataNeedsStore(state => state.failed);
   const workspace = useAuthStore(state => state.getCurrentWorkspace());
   const workspaceId = useAuthStore(state => state.currentWorkspaceId);
   const { loading } = useLedgerCollections('invoices', 'creditNotes', 'customers');
   // the Reports period's end date (a past year, a permalink), with the date field here to change it
   const [asOf, setAsOf] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
-  const partial = Boolean(truncated.invoices || truncated.creditNotes || truncated.customers || failed.invoices || failed.creditNotes || failed.customers);
+  const partial = usePartialReportInputs(['invoices', 'creditNotes', 'customers']);
 
   const watch = useMemo(() => DATE.test(asOf) ? usNexusWatch({
     asOf,
@@ -80,27 +78,25 @@ export function UsNexusWatchPanel({ watch, currency = 'USD', asOf, onAsOfChange,
       {watch.mixedEntityDocuments ? ` ${fill(reportText('r.0-posted-sale-s-have-lines-for-different-selling', '{0} posted sale(s) have lines for different selling entities, so they are left out rather than split by a guess.'), { 0: watch.mixedEntityDocuments })}` : ''}
       {' '}{reportText('r.invoices-keep-their-customer-s-tax-place-from-th', 'Invoices keep their customer\'s tax place from the day they were issued; older invoices without one are placed by the customer\'s tax place as recorded now.')}
     </p>}
-    {watch && watch.states.length > 0 && <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption className="text-left font-semibold text-[var(--text)] pb-1">{reportText('r.sales-by-state-against-the-economic-nexus-thresh', 'Sales by state against the economic-nexus thresholds')}</caption>
-        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-          {[...(entities > 1 ? ['Entity'] : []), reportText('r.state', 'State'), reportText('r.status', 'Status'), fill(reportText('r.this-year-to-0', 'This year to {0}'), { 0: formatDate(watch.asOf) }), reportText('r.last-year-2', 'Last year'), reportText('r.threshold', 'Threshold'), reportText('r.permit', 'Permit'), reportText('r.table', 'Table')].map(head =>
-            <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-        </tr></thead>
-        <tbody>
-          {watch.states.map(s => <tr key={`${s.entity}|${s.state}`} className="border-b border-[var(--line)]/50 align-top">
-            {entities > 1 && <td className="py-1 px-2">{s.entityName || (s.entity === 'books' ? reportText('r.the-books', 'The books') : s.entity.split(':').pop())}</td>}
-            <th scope="row" className="text-left font-normal py-1 px-2">{s.thisYear?.stateName || s.lastYear?.stateName || s.state}</th>
-            <td className="py-1 px-2">{s.noTest ? reportText('r.no-economic-nexus-test-in-this-state', 'No economic-nexus test in this state') : s.crossed ? reportText('r.threshold-crossed-ask-about-registering', 'Threshold crossed: ask about registering') : s.warning ? reportText('r.at-80-or-over-watch', 'At 80% or over: watch') : reportText('r.below-80', 'Below 80%')}</td>
-            <td className="py-1 px-2 tabular-nums whitespace-nowrap">{yearText(s.thisYear, currency)}</td>
-            <td className="py-1 px-2 tabular-nums whitespace-nowrap">{yearText(s.lastYear, currency)}</td>
-            <td className="py-1 px-2">{thresholdText(s.thisYear || s.lastYear, currency)}</td>
-            <td className="py-1 px-2">{s.permit ? reportText('r.recorded-2', 'Recorded') : reportText('r.none-recorded', 'None recorded')}</td>
-            <td className="py-1 px-2">{s.verified ? reportText('r.checked-2', 'Checked') : reportText('r.not-verified', 'Not verified')}</td>
-          </tr>)}
-        </tbody>
-      </table>
-    </ReportTableScroll>}
+    {watch && watch.states.length > 0 && <ReportSchedule
+      columnControls
+      allowDisplayedExport={!partial && !loading}
+      caption={reportText('r.sales-by-state-against-the-economic-nexus-thresh', 'Sales by state against the economic-nexus thresholds')}
+      captionClassName="text-start font-semibold text-[var(--text)] pb-1"
+      headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+      rowClassName="border-b border-[var(--line)]/50 align-top"
+      bodyClassName=""
+      rows={watch.states} rowKey={s => JSON.stringify([s.entity, s.state])}
+      columns={[
+        entities > 1 ? { header: reportText('r.entity-2', 'Entity'), cell: s => s.entityName || (s.entity === 'books' ? reportText('r.the-books', 'The books') : s.entity.split(':').pop()) } : false,
+        { header: reportText('r.state', 'State'), rowHeader: true, cell: s => s.thisYear?.stateName || s.lastYear?.stateName || s.state },
+        { header: reportText('r.status', 'Status'), cell: s => s.noTest ? reportText('r.no-economic-nexus-test-in-this-state', 'No economic-nexus test in this state') : s.crossed ? reportText('r.threshold-crossed-ask-about-registering', 'Threshold crossed: ask about registering') : s.warning ? reportText('r.at-80-or-over-watch', 'At 80% or over: watch') : reportText('r.below-80', 'Below 80%') },
+        { header: fill(reportText('r.this-year-to-0', 'This year to {0}'), { 0: formatDate(watch.asOf) }), className: 'tabular-nums whitespace-nowrap', cell: s => yearText(s.thisYear, currency) },
+        { header: reportText('r.last-year-2', 'Last year'), className: 'tabular-nums whitespace-nowrap', cell: s => yearText(s.lastYear, currency) },
+        { header: reportText('r.threshold', 'Threshold'), cell: s => thresholdText(s.thisYear || s.lastYear, currency) },
+        { header: reportText('r.permit', 'Permit'), cell: s => s.permit ? reportText('r.recorded-2', 'Recorded') : reportText('r.none-recorded', 'None recorded') },
+        { header: reportText('r.table', 'Table'), cell: s => s.verified ? reportText('r.checked-2', 'Checked') : reportText('r.not-verified', 'Not verified') },
+      ]} />}
   </section>;
 }
 

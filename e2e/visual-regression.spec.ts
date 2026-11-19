@@ -1,3 +1,5 @@
+import { nextScheduleIds } from './support/nextSchedules';
+import { checkNextSchedule } from './support/nextScheduleJourney';
 import { schedules } from './support/stockProjectFixture';
 import { checkSchedule } from './support/stockProjectJourney';
 import { checkItemRegister, checkReceiptRegister } from './support/registerReportJourney';
@@ -129,6 +131,9 @@ for (const width of [1280, 390]) for (const theme of ['light', 'dark'] as const)
 
 // Include the open chooser, translated table headings and a non-first row header in baseline review.
 for (const width of [390, 1280]) for (const theme of ['light', 'dark'] as const) {
+  for (const id of nextScheduleIds) test(`visual next schedules ${id} ${width} ${theme}`, async ({ page }) => {
+    await checkNextSchedule(page, id, width, theme);
+  });
   for (const screen of schedules) test(`visual stock and project ${screen} ${width} ${theme}`, async ({ page }) => {
     await checkSchedule(page, screen, width, theme);
   });
