@@ -291,11 +291,11 @@ export async function undoSandboxStep(req: Request, scope: Scope, stepId: string
   try {
     outcome = await runRegisteredCommand(req, { definition, workspaceId: binding.workspaceId, input: inverse.input }, { getDb: () => db });
   } catch (err) {
-    await restoreAccepted();
+    await restoreAccepted().catch(restoreErr => console.error('[sandbox] undo restore failed', restoreErr));
     throw err;
   }
   if (!outcome.ok) {
-    await restoreAccepted();
+    await restoreAccepted().catch(restoreErr => console.error('[sandbox] undo restore failed', restoreErr));
     return { step, outcome };
   }
   const undone: StoredStep = { ...step, state: 'undone', failureReason: null };
