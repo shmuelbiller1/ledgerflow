@@ -190,3 +190,14 @@ test('a period refused as too long points to the period control, not the same in
   assert.ok(!screen.queryByRole('button', { name: 'Load the full report' }));
   assert.ok(!screen.queryByRole('button', { name: 'Export CSV' }));
 });
+
+test('the bill panel requests its own list before displaying bill counts, without hiding posted expenses', () => {
+  useDataNeedsStore.setState({ asked: [], loaded: { accounts: true, transactions: true } });
+  render(<ExpenseByCategoryReportView selectedYear={2026} />);
+  assert.ok(useDataNeedsStore.getState().asked.includes('bills'));
+  assert.ok(screen.getByText('Loading bills…'));
+  assert.ok(!screen.queryByLabelText('Filter bills by expense category'));
+  assert.ok(screen.getByRole('button', { name: 'Export CSV' }));
+  act(() => useDataNeedsStore.getState().markLoaded('bills'));
+  assert.ok(screen.getByLabelText('Filter bills by expense category'));
+});

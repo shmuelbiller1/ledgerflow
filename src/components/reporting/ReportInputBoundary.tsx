@@ -17,12 +17,17 @@ export function ReportInputBoundary({ collections = ['accounts', 'transactions']
   const cacheWorkspace = useDataNeedsStore(s => s.loadedWorkspaceId);
   const reportText = useReportText();
   const current = !!workspace && workspace === cacheWorkspace;
-  if (current && health.failedKeys.length) return <div role="status" className="flex flex-wrap items-center gap-3 text-sm text-[var(--text)]">
+  if (current && health.failedKeys.length) return <ReportInputFailure onRetry={health.retry} />;
+  if (!current || !health.ready) return <LoadingState label={reportText('r.loading-report-records', 'Loading report records…')} />;
+  return children;
+}
+
+export function ReportInputFailure({ onRetry }: { onRetry: () => void }) {
+  const reportText = useReportText();
+  return <div role="status" className="flex flex-wrap items-center gap-3 text-sm text-[var(--text)]">
     <span>{reportText('r.report-inputs-failed', 'Report records could not be loaded.')}</span>
-    <button type="button" className="min-h-11 rounded border border-[var(--line)] px-3 font-semibold" onClick={health.retry}>
+    <button type="button" className="min-h-11 rounded border border-[var(--line)] px-3 font-semibold" onClick={onRetry}>
       {reportText('r.try-again', 'Try again')}
     </button>
   </div>;
-  if (!current || !health.ready) return <LoadingState label={reportText('r.loading-report-records', 'Loading report records…')} />;
-  return children;
 }

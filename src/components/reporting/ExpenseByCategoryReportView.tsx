@@ -1,4 +1,7 @@
-import { ReportInputBoundary } from './ReportInputBoundary';
+import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { LoadingState } from '../ui/LoadingState';
+import { ReportInputBoundary, ReportInputFailure } from './ReportInputBoundary';
 import { useReportText } from './useReportText';
 import React, { useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -107,6 +110,9 @@ const LoadedReport: React.FC<Props> = ({
 };
 
 function BillPanel({ selectedYear, startDate, endDate }: Props) {
+  const reportText = useReportText();
+  const { loading } = useLedgerCollections('bills');
+  const health = useScreenDataHealth(['bills']);
   const accounts = useLedgerStore(s => s.accounts);
   const bills = useLedgerStore(s => s.bills);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
@@ -118,6 +124,8 @@ function BillPanel({ selectedYear, startDate, endDate }: Props) {
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
   const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
 
+  if (health.failedKeys.length) return <ReportInputFailure onRetry={health.retry} />;
+  if (loading) return <LoadingState label={reportText('r.loading-bills', 'Loading bills…')} />;
   return <ExpenseBillCategories key={workspaceId} workspaceId={workspaceId}
     accounts={accounts} bills={bills} startDate={start} endDate={end}
     loading={false} incomplete={listIncomplete} currency={currency} />;
@@ -126,7 +134,7 @@ function BillPanel({ selectedYear, startDate, endDate }: Props) {
 export function ExpenseByCategoryReportView(props: Props) {
   return <ReportInputBoundary collections={['accounts']}>
     <ReportInputBoundary collections={['transactions']}><LoadedReport {...props} /></ReportInputBoundary>
-    <ReportInputBoundary collections={['bills']}><BillPanel {...props} /></ReportInputBoundary>
+    <BillPanel {...props} />
   </ReportInputBoundary>;
 }
 
