@@ -1,3 +1,5 @@
+import { RowTable } from '../ui/RowTable';
+import { fill, useReportText } from '../reporting/useReportText';
 import React, { useMemo, useState } from 'react';
 import { formatCurrency } from '../../lib/utils';
 import { useChartKind, useChartScope, type ChartKind } from '../../hooks/useChartKind';
@@ -28,6 +30,7 @@ export default function ChartFrame(props: ChartFrameProps) {
   return <ScopedChartFrame key={scope} {...props} preferenceKey={scope} />;
 }
 function ScopedChartFrame({ title, rows, series, currency, time = false, categories = false, chartId, defaultKind = 'bar', selectionRange, onRangeChange, onRangeReset, children, preferenceKey }: ChartFrameProps & { preferenceKey: string }) {
+  const reportText = useReportText();
   const { kind, changeKind, storageError } = useChartKind(preferenceKey, defaultKind);
   const [focusedCategory, setFocusedCategory] = useState<string>();
   const [table, setTable] = useState(false), [hidden, setHidden] = useState<Set<string>>(() => new Set());
@@ -41,11 +44,15 @@ function ScopedChartFrame({ title, rows, series, currency, time = false, categor
   const legends = categories ? rows.map(row => ({ key: row.id, name: row.label })) : series;
   const value = (row: ChartRow, column: ChartSeries) => formatChartValue(row[column.key], column.unit, currency);
   return <section aria-label={title} className="min-w-0 border border-[var(--line)] rounded-xl p-4 bg-[var(--panel)] text-[var(--text)] space-y-3"><h2 className="font-semibold">{title}</h2>
-    <div className="flex flex-wrap gap-2"><button type="button" aria-pressed={!table} onClick={() => setTable(false)} className="option-state min-h-11 px-3 border rounded-lg">Chart</button><button type="button" aria-pressed={table} onClick={() => setTable(true)} className="option-state min-h-11 px-3 border rounded-lg">Table</button></div>
+    <div className="flex flex-wrap gap-2"><button type="button" aria-pressed={!table} onClick={() => setTable(false)} className="option-state min-h-11 px-3 border rounded-lg">{reportText('r.chart-toggle', 'Chart')}</button><button type="button" aria-pressed={table} onClick={() => setTable(true)} className="option-state min-h-11 px-3 border rounded-lg">{reportText('r.table', 'Table')}</button></div>
     {chartId && <ChartKindPicker title={title} kind={kind} onChange={changeKind} />}
     {chartId && storageError && <p role="status">Chart style changed for this visit; this browser could not save it.</p>}
-    <div aria-label={`${title} legend`} className="flex flex-wrap gap-2">{legends.map(item => <button key={item.key} type="button" aria-pressed={!hidden.has(item.key)} onFocus={() => { if (categories) setFocusedCategory(item.key); }} onBlur={() => setFocusedCategory(undefined)} onClick={() => setHidden(previous => { const next = new Set(previous); if (next.has(item.key)) next.delete(item.key); else next.add(item.key); return next; })} className="option-state min-h-11 px-3 border rounded-lg"><bdi>{item.name}</bdi></button>)}</div>
+    <div aria-label={fill(reportText('r.chart-legend', '{title} legend'), { title })} className="flex flex-wrap gap-2">{legends.map(item => <button key={item.key} type="button" aria-pressed={!hidden.has(item.key)} onFocus={() => { if (categories) setFocusedCategory(item.key); }} onBlur={() => setFocusedCategory(undefined)} onClick={() => setHidden(previous => { const next = new Set(previous); if (next.has(item.key)) next.delete(item.key); else next.add(item.key); return next; })} className="option-state min-h-11 px-3 border rounded-lg"><bdi>{item.name}</bdi></button>)}</div>
     {time && rows.length > 1 && <fieldset className="space-y-2"><legend>Date range brush</legend>{onRangeChange && <ChartDragBrush title={title} rows={rows} start={start} end={end} onChange={changeRange} />}<label className="block">From: {rows[start]?.label}<input aria-label={`${title} brush start`} type="range" min={0} max={rows.length - 1} value={start} onChange={event => changeRange([Math.min(Number(event.target.value), end), end])} className="block w-full min-h-11" /></label><label className="block">To: {rows[end]?.label}<input aria-label={`${title} brush end`} type="range" min={0} max={rows.length - 1} value={end} onChange={event => changeRange([start, Math.max(start, Number(event.target.value))])} className="block w-full min-h-11" /></label><button type="button" onClick={resetRange} className="min-h-11 underline">Reset zoom</button></fieldset>}
-    {shown.length === 0 || columns.length === 0 ? <p role="status">No visible data. Show a series or reset the date range.</p> : table ? <div className="overflow-x-auto"><table className="w-full text-sm"><caption className="sr-only">{title} data</caption><thead><tr><th scope="col" className="text-left">{time ? 'Date' : 'Record'}</th>{columns.map(column => <th key={column.key} scope="col" className="text-right">{column.name}</th>)}</tr></thead><tbody>{shown.map(row => <tr key={row.id}><th scope="row" className="text-left font-normal"><bdi>{row.label}</bdi></th>{columns.map(column => <td key={column.key} className="text-right tabular-nums">{value(row, column)}</td>)}</tr>)}</tbody></table></div> : <div className="h-72 w-full min-w-0">{children({ rows: shown, hidden, kind, focusedCategory })}</div>}
+    {shown.length === 0 || columns.length === 0 ? <p role="status">{reportText('r.chart-no-visible-data', 'No visible data. Show a series or reset the date range.')}</p> : table ? <div className="overflow-x-auto"><RowTable rows={shown} rowKey={row => row.id} tableClassName="w-full text-sm" bodyClassName="" headRowClassName=""
+      caption={fill(reportText('r.chart-data-caption', '{title} data'), { title })} columns={[
+        { header: time ? reportText('r.date-2', 'Date') : reportText('r.record', 'Record'), headClassName: 'text-start', className: 'text-start font-normal', cell: row => <bdi>{row.label}</bdi> },
+        { over: columns, head: column => column.name, align: 'right', headClassName: '', className: 'tabular-nums', cell: (row, column) => value(row, column) },
+      ]} /></div> : <div className="h-72 w-full min-w-0">{children({ rows: shown, hidden, kind, focusedCategory })}</div>}
   </section>;
 }

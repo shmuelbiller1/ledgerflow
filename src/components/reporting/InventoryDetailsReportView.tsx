@@ -1,13 +1,16 @@
-import { runCommand, ServerCommandError } from '../../lib/runCommand';
-import React, { useEffect, useState } from 'react';
+import { isItemDetails } from '../../lib/reportListRows';
+import ReportSchedule from './ReportSchedule';
+import { useReportDates } from './useReportDates';
+import { useReportList } from '../../hooks/useReportList';
+import { useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
-import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
-import { purchasesByItem, STOCK_MOVE_LABEL, type ItemDetails } from '../../lib/stockMoves';
-import { RowTable } from '../ui/RowTable';
+import { formatCurrency, getLocalDateISO } from '../../lib/utils';
+import { purchasesByItem } from '../../lib/stockMoves';
+import { stockMovementText } from './stockMovementText';
 import { useReportText } from './useReportText';
 
-const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
+const field = 'min-h-11 px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 const qty = (n: number) => String(Math.round(n * 1e6) / 1e6);
 
 /**
@@ -19,31 +22,18 @@ const qty = (n: number) => String(Math.round(n * 1e6) / 1e6);
  */
 export default function InventoryDetailsReportView() {
   const reportText = useReportText();
+  const dates = useReportDates();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const openRecord = useUIStore(s => s.openRecord);
   const [startDate, setStartDate] = useState(`${getLocalDateISO().slice(0, 7)}-01`);
   const [endDate, setEndDate] = useState(getLocalDateISO());
-  const [result, setResult] = useState<{ key: string; items?: ItemDetails[]; error?: string } | null>(null);
   const currency = workspace?.currency || 'USD';
   const key = workspace && startDate && endDate && startDate <= endDate ? new URLSearchParams({ workspaceId: workspace.id, startDate, endDate }).toString() : '';
 
-  useEffect(() => {
-    if (!key) return;
-    let live = true;
-    (async () => {
-      return runCommand({
-        path: `/api/v1/reports/inventory-details?${key}`,
-        parse: (raw): ItemDetails[] => {
-          const items = (raw as { items?: ItemDetails[] }).items;
-          if (!Array.isArray(items)) throw new ServerCommandError(200, 'The stock history could not be read');
-          return items;
-        },
-      });
-    })().then(items => { if (live) setResult({ key, items }); }).catch(err => { if (live) setResult({ key, error: err instanceof Error ? err.message : String(err) }); });
-    return () => { live = false; };
-  }, [key]);
-  const shown = result && result.key === key ? result : null;
+  const { rows: items, loading, failed, error, retry } = useReportList(
+    key ? `/api/v1/reports/inventory-details?${key}` : null, 'items', isItemDetails);
 
+  const purchases = purchasesByItem(items || []);
   return (
     <section aria-labelledby="inventory-details-title" className="space-y-4">
       <h2 id="inventory-details-title" className="text-lg font-bold text-[var(--text)]">{reportText('r.inventory-item-details', 'Inventory item details')}</h2>
@@ -52,73 +42,38 @@ export default function InventoryDetailsReportView() {
         <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.to', 'To')}<input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={field} /></label>
       </div>
       {startDate > endDate && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{reportText('r.the-period-starts-after-it-ends', 'The period starts after it ends.')}</p>}
-      {key && !shown && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
-      {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
-      {shown?.items && shown.items.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-stock-and-no-movements-in-this-period', 'No stock and no movements in this period.')}</p>}
-      {shown?.items && purchasesByItem(shown.items).length > 0 && (
-        <RowTable
-          rowClassName="border-b border-[var(--line)]/50"
-          caption={(<>{reportText('r.bought-in-the-period', 'Bought in the period')}</>)}
-          rows={purchasesByItem(shown.items)}
-          rowKey={p => p.itemId}
-          captionClassName="text-left font-semibold text-[var(--text)] pb-1"
-          tableClassName="w-full text-sm"
-          headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
-          bodyClassName=""
-          columns={[
-            { header: reportText('r.item', 'Item'), className: "text-left font-normal py-1", headClassName: "text-left font-semibold py-1", cell: (p) => <bdi>{p.itemName}</bdi> },
-            { header: reportText('r.units', 'Units'), align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => qty(p.quantity) },
-            { header: reportText('r.cost', 'Cost'), align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => formatCurrency(p.valueCents, currency) },
-            { header: reportText('r.per-unit-2', 'Per unit'), align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => formatCurrency(p.averageCents, currency) },
-          ]}
-        />
-      )}
-      {shown?.items?.map(item => (
-        <div key={item.itemId} className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
-          <table className="w-full text-sm">
-            <caption className="text-left font-semibold text-[var(--text)] pb-1"><bdi>{item.itemName}</bdi></caption>
-            <thead>
-              <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                <th scope="col" className="text-left font-semibold py-1">{reportText('r.date-2', 'Date')}</th>
-                <th scope="col" className="text-left font-semibold py-1">{reportText('r.movement', 'Movement')}</th>
-                <th scope="col" className="text-right font-semibold py-1">{reportText('r.quantity', 'Quantity')}</th>
-                <th scope="col" className="text-right font-semibold py-1">{reportText('r.on-hand-after', 'On hand after')}</th>
-                <th scope="col" className="text-right font-semibold py-1">{reportText('r.value', 'Value')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="text-[var(--muted)]">
-                <th scope="row" colSpan={3} className="text-left font-normal py-1">{reportText('r.opening-2', 'Opening')}</th>
-                <td className="text-right font-mono py-1">{qty(item.opening.quantity)}</td>
-                <td className="text-right font-mono py-1">{formatCurrency(item.opening.valueCents, currency)}</td>
-              </tr>
-              {item.moves.map(m => (
-                <tr key={m.key} className="border-b border-[var(--line)]/50">
-                  <td className="py-1 font-mono text-xs">{formatDate(m.date)}</td>
-                  <td className="py-1">
-                    {m.transactionId ? (
-                      <button type="button" className="text-indigo-600 dark:text-indigo-400 hover:underline" onClick={() => openRecord({ type: 'transaction', id: String(m.transactionId) })}>
-                        {STOCK_MOVE_LABEL[m.kind]}<span className="sr-only"> {reportText('r.on-2', 'on')} {m.date}{reportText('r.open-its-entry', ': open its entry')}</span>
-                      </button>
-                    ) : STOCK_MOVE_LABEL[m.kind]}
-                  </td>
-                  <td className="py-1 text-right font-mono">{m.quantity > 0 ? '+' : ''}{qty(m.quantity)}</td>
-                  <td className="py-1 text-right font-mono">{qty(m.quantityAfter)}</td>
-                  <td className="py-1 text-right font-mono">{formatCurrency(m.valueCents, currency)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="font-semibold">
-                <th scope="row" className="text-left py-1" colSpan={2}>{reportText('r.closing', 'Closing')} <span className="font-normal text-xs text-[var(--muted)]">{reportText('r.in-3', '(in')} {qty(item.received)}{reportText('r.out-2', ', out')} {qty(item.issued)})</span></th>
-                <td />
-                <td className="text-right font-mono py-1">{qty(item.closing.quantity)}</td>
-                <td className="text-right font-mono py-1">{formatCurrency(item.closing.valueCents, currency)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      ))}
+      {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {failed && <div>
+        <p role="alert">{reportText('r.the-stock-history-could-not-be-read', 'The stock history could not be read:')} {error || reportText('r.missing-report-rows', 'The response did not contain report rows.')}</p>
+        <button type="button" className="min-h-11 rounded border px-3" onClick={retry}>{reportText('r.retry', 'Retry')}</button>
+      </div>}
+      {items && items.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-stock-and-no-movements-in-this-period', 'No stock and no movements in this period.')}</p>}
+      {purchases.length > 0 && <ReportSchedule rows={purchases} rowKey={p => p.itemId}
+        caption={reportText('r.bought-in-the-period', 'Bought in the period')}
+        columns={[
+          { header: reportText('r.item', 'Item'), cell: p => <bdi>{p.itemName}</bdi> },
+          { header: reportText('r.units', 'Units'), align: 'right', cell: p => qty(p.quantity) },
+          { header: reportText('r.cost', 'Cost'), align: 'right', cell: p => formatCurrency(p.valueCents, currency) },
+          { header: reportText('r.per-unit-2', 'Per unit'), align: 'right', cell: p => formatCurrency(p.averageCents, currency) },
+        ]} />}
+      {items?.map(item => <ReportSchedule key={item.itemId} rows={item.moves} rowKey={m => m.key} caption={<bdi>{item.itemName}</bdi>}
+        bodyStart={<tr className="text-[var(--muted)]">
+          <th scope="row" colSpan={3}>{reportText('r.opening-2', 'Opening')}</th>
+          <td className="text-right">{qty(item.opening.quantity)}</td><td className="text-right">{formatCurrency(item.opening.valueCents, currency)}</td>
+        </tr>}
+        columns={[
+          { header: reportText('r.date-2', 'Date'), cell: m => <time dateTime={m.date} className="whitespace-nowrap">{dates.dateText(m.date)}</time> },
+          { header: reportText('r.movement', 'Movement'), rowHeader: true, cell: m => m.transactionId ? (
+            <button type="button" className="min-h-11 underline text-start" onClick={() => openRecord({ type: 'transaction', id: String(m.transactionId) })}>
+              {stockMovementText(reportText, m.kind)}<span className="sr-only"> {reportText('r.on-2', 'on')} {dates.dateText(m.date)}{reportText('r.open-its-entry', ': open its entry')}</span>
+            </button>) : stockMovementText(reportText, m.kind) },
+          { header: reportText('r.quantity', 'Quantity'), align: 'right', cell: m => `${m.quantity > 0 ? '+' : ''}${qty(m.quantity)}` },
+          { header: reportText('r.on-hand-after', 'On hand after'), align: 'right', cell: m => qty(m.quantityAfter) },
+          { header: reportText('r.value', 'Value'), align: 'right', cell: m => formatCurrency(m.valueCents, currency) },
+        ]}
+        footer={<tr><th colSpan={3} scope="row">{reportText('r.closing', 'Closing')} <span className="font-normal text-xs">{reportText('r.in-3', '(in')} {qty(item.received)}{reportText('r.out-2', ', out')} {qty(item.issued)})</span></th>
+          <td>{qty(item.closing.quantity)}</td><td>{formatCurrency(item.closing.valueCents, currency)}</td>
+        </tr>} />)}
     </section>
   );
 }

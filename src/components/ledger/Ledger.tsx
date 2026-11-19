@@ -28,7 +28,6 @@ import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { isIncomeAccount } from '../../lib/accountUtils';
 const TrialBalanceView = React.lazy(() => import('./TrialBalanceView'));
 // Keep legacy views reachable for the structural component guard.
-const _ProjectProfitabilityView = React.lazy(() => import('./ProjectProfitabilityView'));
 const _AuditTrailView = React.lazy(() => import('./AuditTrailView'));
 
 const ReconciliationWizard = React.lazy(() => import('./ReconciliationWizard'));

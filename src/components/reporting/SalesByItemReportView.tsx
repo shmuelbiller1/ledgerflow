@@ -1,6 +1,7 @@
+import ReportSchedule from './ReportSchedule';
 import React from 'react';
 import { Package } from 'lucide-react';
-import { formatCurrency, cn } from '../../lib/utils';
+import { formatCurrency } from '../../lib/utils';
 import { yearRange } from '../../server/reports/itemReports';
 import { useServerSalesByItem } from '../../hooks/useServerSalesByItem';
 import ReportSkeleton from './ReportSkeleton';
@@ -51,7 +52,7 @@ export const SalesByItemReportView: React.FC<Props> = ({ selectedYear, startDate
           {source === 'loaded-incomplete' && <p role="status" className="text-xs text-amber-700 dark:text-amber-300 mt-1" data-testid="sales-by-item-source">{reportText('r.only-the-invoices-loaded-in-this-browser-some-sa', 'Only the invoices loaded in this browser: some sales or posted costs may be missing.')}</p>}
           {retry}
         </div>
-        <div className="flex items-center gap-6 bg-[var(--panel)] p-3 rounded-xl border border-[var(--line)]">
+        <div className="flex flex-wrap items-center gap-4 bg-[var(--panel)] p-3 rounded-xl border border-[var(--line)]">
           <div>
             <div className="text-[10px] text-[var(--muted)] uppercase font-bold">{reportText('r.sales', 'Sales')}</div>
             <div className="text-sm font-mono font-bold text-[var(--pos)]">{formatCurrency(totals.salesCents)}</div>
@@ -72,52 +73,21 @@ export const SalesByItemReportView: React.FC<Props> = ({ selectedYear, startDate
           {reportText('r.no-invoice-lines-found-for-the-selected-period', 'No invoice lines found for the selected period.')}
         </div>
       ) : (
-        <div className="bg-[var(--panel)] rounded-lg border border-[var(--line)] overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <caption className="sr-only">{reportText('r.sales-by-item', 'Sales by item')}</caption>
-            <thead className="bg-[var(--surface)] border-b border-[var(--line)] text-[var(--muted)] font-semibold uppercase tracking-wider">
-              <tr>
-                <th scope="col" className="py-3 px-4">{reportText('r.item-sku', 'Item / SKU')}</th>
-                <th scope="col" className="py-3 px-4 text-right">{reportText('r.qty-sold', 'Qty sold')}</th>
-                <th scope="col" className="py-3 px-4 text-right">{reportText('r.sales', 'Sales')}</th>
-                <th scope="col" className="py-3 px-4 text-right">{reportText('r.cost', 'Cost')}</th>
-                <th scope="col" className="py-3 px-4 text-right">{reportText('r.gross-profit', 'Gross profit')}</th>
-                <th scope="col" className="py-3 px-4 text-right">{reportText('r.margin-2', 'Margin')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--line)]">
-              {rows.map(row => (
-                <tr key={row.key}>
-                  <td className="py-3 px-4">
-                    <div className={cn('font-semibold', !row.itemId && 'italic text-[var(--muted)]')}>{row.name}</div>
-                    {row.sku && <div className="text-[10px] text-[var(--muted)] font-mono">{reportText('r.sku', 'SKU:')} {row.sku}</div>}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono">{row.quantity}</td>
-                  <td className="py-3 px-4 text-right font-mono font-semibold text-[var(--pos)]">{formatCurrency(row.salesCents)}</td>
-                  <td className="py-3 px-4 text-right font-mono">
-                    {formatCurrency(row.costCents)}
-                    {row.costIsEstimate && <span className="ml-1 text-[10px] text-[var(--muted)]" title={reportText('r.cost-of-goods-sold-not-posted-yet-quantity-unit', 'Cost of goods sold not posted yet: quantity × unit cost')}>{reportText('r.est', '(est.)')}</span>}
-                  </td>
-                  <td className={cn('py-3 px-4 text-right font-mono font-semibold', row.marginCents < 0 && 'text-[var(--neg)]')}>{formatCurrency(row.marginCents)}</td>
-                  <td className="py-3 px-4 text-right font-mono font-bold">{pct(row.marginPct)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="border-t-2 border-[var(--line)] font-bold">
-              <tr>
-                <th scope="row" className="py-3 px-4 text-left">{reportText('r.total', 'Total')}</th>
-                <td className="py-3 px-4 text-right font-mono">{totals.quantity}</td>
-                <td className="py-3 px-4 text-right font-mono text-[var(--pos)]">{formatCurrency(totals.salesCents)}</td>
-                <td className="py-3 px-4 text-right font-mono">
-                  {formatCurrency(totals.costCents)}
-                  {totals.costIsEstimate && <span className="ml-1 text-[10px] text-[var(--muted)]">{reportText('r.est', '(est.)')}</span>}
-                </td>
-                <td className="py-3 px-4 text-right font-mono">{formatCurrency(totals.marginCents)}</td>
-                <td className="py-3 px-4 text-right font-mono">{pct(totals.marginPct)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <ReportSchedule rows={rows} rowKey={row => row.key} caption={reportText('r.sales-by-item', 'Sales by item')}
+          columns={[
+            { header: reportText('r.item-sku', 'Item / SKU'), cell: row => <><bdi>{row.itemId ? row.name : reportText('r.no-item', 'No item')}</bdi>
+              {row.sku && <div className="text-xs text-[var(--muted)]">{reportText('r.sku', 'SKU:')} <bdi>{row.sku}</bdi></div>}</> },
+            { header: reportText('r.qty-sold', 'Qty sold'), align: 'right', cell: row => row.quantity },
+            { header: reportText('r.sales', 'Sales'), align: 'right', cell: row => formatCurrency(row.salesCents) },
+            { header: reportText('r.cost', 'Cost'), align: 'right', cell: row => <>{formatCurrency(row.costCents)}{row.costIsEstimate && <> <span title={reportText('r.cost-of-goods-sold-not-posted-yet-quantity-unit', 'Cost of goods sold not posted yet: quantity × unit cost')}>{reportText('r.est', '(est.)')}</span></>}</> },
+            { header: reportText('r.gross-profit', 'Gross profit'), align: 'right', cell: row => <span className={row.marginCents < 0 ? 'text-[var(--neg)]' : undefined}>{formatCurrency(row.marginCents)}</span> },
+            { header: reportText('r.margin-2', 'Margin'), align: 'right', cell: row => pct(row.marginPct) },
+          ]}
+          footer={<tr>
+            <th scope="row">{reportText('r.total', 'Total')}</th><td>{totals.quantity}</td><td>{formatCurrency(totals.salesCents)}</td>
+            <td>{formatCurrency(totals.costCents)}{totals.costIsEstimate && <> {reportText('r.est', '(est.)')}</>}</td>
+            <td>{formatCurrency(totals.marginCents)}</td><td>{pct(totals.marginPct)}</td>
+          </tr>} />
       )}
       {totals.costIsEstimate && (
         <p className="text-[11px] text-[var(--muted)]">

@@ -94,7 +94,7 @@ describe('Reports → Inventory Item Details', () => {
     assert.ok(calls[0].url.startsWith('/api/v1/reports/inventory-details?workspaceId=component-workspace'));
     assert.match(screen.getByText('Chair', { selector: 'caption bdi' }).closest('table')!.textContent || '', /Opening10\$100\.00.*Sold.*-37.*Bought.*\+512.*Closing \(in 5, out 3\)12\$130\.00/);
     assert.match(screen.getByText('Bought in the period').closest('table')!.textContent || '', /Chair5\$60\.00\$12\.00/);
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Sold on 2026-02-03/ })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Sold on Feb 3, 2026/ })); });
     assert.deepEqual(useUIStore.getState().focusRecord, { type: 'transaction', id: 't-sale' });
   });
 });

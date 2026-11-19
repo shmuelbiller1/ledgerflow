@@ -1,247 +1,91 @@
-import ChartFrame, { ChartTooltip } from '../charts/ChartFrame';
-import { useAuthStore } from '../../stores/useAuthStore';
-import React, { useState } from 'react';
-import { Transaction } from '../../types';
-import { TrendingUp, Filter, Maximize2, Download, Zap, Compass, Activity, BrainCircuit } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { useMemo, useState } from 'react';
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import ChartFrame, { ChartTooltip, type ChartSeries } from '../charts/ChartFrame';
+import { useAuthStore } from '../../stores/useAuthStore';
+import type { Transaction } from '../../types';
 import { isPostable, lineAmount } from '../../lib/txFilters';
+import ReportSchedule from '../reporting/ReportSchedule';
+import { fill, useReportText } from '../reporting/useReportText';
 
-interface ProjectProfitabilityViewProps {
-  transactions: Transaction[];
-  formatCurrency: (val: number) => string;
-}
+interface Props { transactions: Transaction[]; formatCurrency: (val: number) => string }
+type Mode = 'all' | 'high-yield' | 'loss';
+const margin = (net: number, income: number) => income > 0 ? `${(net / income * 100).toFixed(1)}%` : '0%';
 
-export default function ProjectProfitabilityView({ transactions, formatCurrency }: ProjectProfitabilityViewProps) {
-  const currency = useAuthStore(state => state.getCurrentWorkspace()?.currency);
-  const [filterMode, setFilterMode] = useState<'all' | 'high-yield' | 'loss'>('all');
-  const [showAllChart, setShowAllChart] = useState(false);
-
-  const projectProfitability = React.useMemo(() => {
-    const projectData: Record<string, { income: number, expense: number, net: number, name: string, transactionsCount: number }> = {};
-    
-    transactions.forEach(t => {
-      if (!isPostable(t)) return;
-      
-      t.lines?.forEach(l => {
-        const pId = l.project || t.projectId || 'General Topology';
-        if (!projectData[pId]) {
-          projectData[pId] = { income: 0, expense: 0, net: 0, name: pId, transactionsCount: 0 };
+/** Transaction-line analysis, not the separate invoice profitability report. All money stays
+ * in home minor units, including in the chart; the count is matching lines, not journal entries. */
+export default function ProjectProfitabilityView({ transactions, formatCurrency }: Props) {
+  const reportText = useReportText();
+  const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency);
+  const [mode, setMode] = useState<Mode>('all');
+  const [showAll, setShowAll] = useState(false);
+  const rows = useMemo(() => {
+    const groups = new Map<string | null, { project: string | null; income: number; expense: number; net: number; lines: number }>();
+    for (const tx of transactions) {
+      if (!isPostable(tx)) continue;
+      for (const line of tx.lines || []) {
+        const project = line.project || tx.projectId || null;
+        let row = groups.get(project);
+        if (!row) { row = { project, income: 0, expense: 0, net: 0, lines: 0 }; groups.set(project, row); }
+        const amount = lineAmount(line, tx);
+        const account = (line.accountName || '').toLowerCase();
+        const category = (typeof line.category === 'string' ? line.category : '').toLowerCase();
+        if (/income|revenue/.test(account) || /income|revenue/.test(category)) {
+          row.income -= amount; row.net -= amount; row.lines++;
+        } else if (/expense|cost|cogs/.test(account) || /expense|cost/.test(category)) {
+          row.expense += amount; row.net -= amount; row.lines++;
         }
-        const amt = lineAmount(l, t);
-        const accName = (l.accountName || '').toLowerCase();
-        const catName = (typeof l.category === 'string' ? l.category : '').toLowerCase();
-        
-        const isRev = accName.includes('income') || accName.includes('revenue') || catName.includes('revenue') || catName.includes('income');
-        const isExp = accName.includes('expense') || accName.includes('cost') || accName.includes('cogs') || catName.includes('expense') || catName.includes('cost');
-        
-        if (isRev) {
-          const incomeDelta = -amt; // Revenue is credit normal
-          projectData[pId].income += incomeDelta;
-          projectData[pId].net += incomeDelta;
-          projectData[pId].transactionsCount += 1;
-        } else if (isExp) {
-          const expDelta = amt; // Expense is debit normal
-          projectData[pId].expense += expDelta;
-          projectData[pId].net -= expDelta;
-          projectData[pId].transactionsCount += 1;
-        }
-      });
-    });
-
-    let results = Object.values(projectData).sort((a, b) => b.net - a.net);
-    if (filterMode === 'high-yield') {
-      results = results.filter(r => r.income > 0 && r.net / r.income > 0.4);
-    } else if (filterMode === 'loss') {
-      results = results.filter(r => r.net < 0);
+      }
     }
-
-    return results;
-  }, [transactions, filterMode]);
-
-  const totalIncome = projectProfitability.reduce((sum, p) => sum + p.income, 0);
-  const totalExpense = projectProfitability.reduce((sum, p) => sum + p.expense, 0);
-  const totalNet = totalIncome - totalExpense;
-
-  const chartData = projectProfitability.map(p => ({
-    id: p.name,
-    label: p.name,
-    name: p.name.length > 15 ? p.name.substring(0, 15) + '...' : p.name,
-    income: p.income / 100,
-    expense: p.expense / 100,
-    net: p.net / 100,
-    margin: p.income > 0 ? (p.net / p.income) * 100 : 0
-  })).slice(0, showAllChart ? undefined : 10);
-
-  return (
-    <div className="space-y-8 pb-20">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-           <span className="text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.4em] mb-2 block">Project Matrix</span>
-           <h2 className="text-3xl md:text-5xl font-black text-[var(--text)] uppercase italic tracking-tighter leading-none">Profitability Engine</h2>
-        </div>
-        <div className="flex items-center gap-3">
-           {['all', 'high-yield', 'loss'].map((mode) => (
-             <button
-               key={mode}
-               onClick={() => setFilterMode(mode as unknown as React.SetStateAction<"all" | "high-yield" | "loss">)}
-               className={cn(
-                 "px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all",
-                 filterMode === mode ? "bg-slate-900 text-white shadow-lg" : "bg-[var(--surface)] text-slate-500 hover:bg-[var(--ink)] border border-[var(--line)]"
-               )}
-             >
-               {mode.replace('-', ' ')}
-             </button>
-           ))}
-        </div>
-      </div>
-
-      {/* KPI Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 tabular-nums">
-         {[
-           { label: 'Total Global Income', val: formatCurrency(totalIncome), color: 'text-indigo-600', icon: TrendingUp },
-           { label: 'Total Energy Expense', val: formatCurrency(totalExpense), color: 'text-rose-500', icon: Zap },
-           { label: 'Net System Amount', val: formatCurrency(totalNet), color: 'text-emerald-500', icon: Activity },
-           { label: 'Overall Margin Resonance', val: totalIncome > 0 ? `${((totalNet / totalIncome) * 100).toFixed(1)}%` : '0%', color: 'text-purple-500', icon: BrainCircuit },
-         ].map(kpi => (
-           <div key={kpi.label} className="bg-[var(--surface)] p-6 rounded-[32px] border border-[var(--line)] shadow-sm relative overflow-hidden group hover:border-slate-300 transition-all">
-             <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
-                <kpi.icon size={48} className={kpi.color} />
-             </div>
-             <p className="text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] mb-2">{kpi.label}</p>
-             <h3 className={cn("text-3xl font-mono font-light tracking-tight", kpi.color)}>{kpi.val}</h3>
-           </div>
-         ))}
-      </div>
-
-      {/* Advanced Charting */}
-      {chartData.length > 0 && (
-        <div className="bg-[var(--surface)] p-8 rounded-[32px] border border-[var(--line)] shadow-sm">
-           <div className="flex justify-between items-center mb-8">
-             <div>
-                <h3 className="text-sm font-black text-[var(--text)] uppercase tracking-widest">{showAllChart ? 'All Projects Vector Analysis' : 'Top 10 Vector Analysis'}</h3>
-                <p className="text-[10px] font-medium text-[var(--muted)] uppercase tracking-widest mt-1">Income vs Expense vs Net Margin</p>
-             </div>
-             <div className="flex items-center gap-2">
-               {projectProfitability.length > 10 && (
-                 <button 
-                   onClick={() => setShowAllChart(!showAllChart)}
-                   className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-xl bg-[var(--ink)] hover:bg-slate-200 border border-[var(--line)] transition-all cursor-pointer text-[var(--text)]"
-                 >
-                   {showAllChart ? 'Show Top 10' : `Show All (${projectProfitability.length})`}
-                 </button>
-               )}
-               <div className="min-w-0 space-y-1"><button className="disabled:cursor-not-allowed disabled:opacity-50 w-10 h-10 flex items-center justify-center rounded-full bg-[var(--ink)] text-[var(--muted)] hover:bg-slate-100 transition-all" type="button" disabled aria-describedby="chart-expand-help" title="Chart expansion is not available. Use the table below to review all projects." aria-label="Maximize2 action">
-                  <Maximize2 size={16} />
-               </button>
-            <p id="chart-expand-help" className="text-xs text-[var(--muted)] max-w-sm">Chart expansion is not available. Use the table below to review all projects.</p></div>
-             </div>
-           </div>
-           
-           <ChartFrame title="Project profitability data" rows={chartData} currency={currency} series={[{key:'income',name:'Income',unit:'majorMoney'},{key:'expense',name:'Expense',unit:'majorMoney'},{key:'margin',name:'Margin',unit:'percent'}]}>
-             {({rows,hidden}) =>
-             <ResponsiveContainer width="100%" height="100%">
-               <ComposedChart data={rows} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                 <XAxis 
-                   dataKey="name" 
-                   axisLine={false}
-                   tickLine={false}
-                   tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
-                   dy={10}
-                 />
-                 <YAxis 
-                   yAxisId="left"
-                   axisLine={false}
-                   tickLine={false}
-                   tick={{ fontSize: 10, fill: '#64748b', fontFamily: 'monospace' }}
-                   tickFormatter={(value) => formatCurrency(Math.round(Number(value) * 100))}
-                 />
-                 <YAxis 
-                   yAxisId="right"
-                   orientation="right"
-                   axisLine={false}
-                   tickLine={false}
-                   tick={{ fontSize: 10, fill: '#64748b', fontFamily: 'monospace' }}
-                   tickFormatter={(value) => `${value}%`}
-                 />
-                 <Tooltip content={<ChartTooltip currency={currency} series={[{key:'income',name:'Income',unit:'majorMoney'},{key:'expense',name:'Expense',unit:'majorMoney'},{key:'margin',name:'Margin',unit:'percent'}]} />} />
-                 <Bar hide={hidden.has('income')} yAxisId="left" dataKey="income" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={40} name="Flux Income" />
-                 <Bar hide={hidden.has('expense')} yAxisId="left" dataKey="expense" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={40} name="Energy Expense" />
-                 <Line hide={hidden.has('margin')} yAxisId="right" type="monotone" dataKey="margin" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, fill: '#8b5cf6', strokeWidth: 2, stroke: '#fff' }} name="Margin Resonance %" />
-               </ComposedChart>
-             </ResponsiveContainer>}
-           </ChartFrame>
-        </div>
-      )}
-
-      {/* Data Table */}
-      <div className="bg-[var(--surface)] rounded-[32px] border border-[var(--line)] shadow-sm overflow-hidden">
-        <div className="p-6 md:p-8 border-b border-[var(--line)] flex items-center justify-between bg-[var(--ink)]/50">
-          <div>
-            <h3 className="text-sm font-black text-[var(--text)] uppercase tracking-widest">Project Ledger Engine</h3>
-            <p className="text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] mt-1">Real-time vector synchronization</p>
-          </div>
-          <div className="min-w-0 space-y-1"><button className="disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-600 hover:bg-[var(--ink)] flex items-center gap-2 transition-all" type="button" disabled aria-describedby="project-export-help" title="Project export is not available. The displayed analysis uses the loaded transactions only." aria-label="Export Node">
-            <Download size={14} /> Export Node
-          </button>
-            <p id="project-export-help" className="text-xs text-[var(--muted)] max-w-sm">Project export is not available. The displayed analysis uses the loaded transactions only.</p></div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[800px]">
-            <caption className="sr-only">Project profitability</caption>
-            <thead>
-              <tr className="bg-[var(--ink)]/80 border-b border-[var(--line)]">
-                <th scope="col" className="px-8 py-4 text-[9px] font-black text-[var(--muted)] uppercase tracking-[0.2em]">Project Node</th>
-                <th scope="col" className="px-8 py-4 text-[9px] font-black text-[var(--muted)] uppercase tracking-[0.2em] text-right">Transactions</th>
-                <th scope="col" className="px-8 py-4 text-[9px] font-black text-[var(--muted)] uppercase tracking-[0.2em] text-right">Flux Income</th>
-                <th scope="col" className="px-8 py-4 text-[9px] font-black text-[var(--muted)] uppercase tracking-[0.2em] text-right">Energy Expense</th>
-                <th scope="col" className="px-8 py-4 text-[9px] font-black text-[var(--muted)] uppercase tracking-[0.2em] text-right">Net Amount</th>
-                <th scope="col" className="px-8 py-4 text-[9px] font-black text-[var(--muted)] uppercase tracking-[0.2em] text-right">Yield Resonance</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100/50">
-              {projectProfitability.map(p => (
-                <tr key={p.name} className="hover:bg-[var(--ink)]/50 transition-all group">
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-slate-100 rounded-[32px] border border-[var(--line)] flex items-center justify-center text-slate-500 group-hover:bg-slate-900 group-hover:text-white transition-all transform group-hover:rotate-6">
-                        <Compass size={18} />
-                      </div>
-                      <div>
-                        <span className="font-bold text-[var(--text)] tracking-tight">{p.name}</span>
-                        <p className="text-[9px] font-mono text-[var(--muted)] mt-1 uppercase tracking-widest">Active Node</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-8 py-5 text-right font-mono text-slate-600 font-bold text-xs">{p.transactionsCount}</td>
-                  <td className="px-8 py-5 text-right font-mono text-indigo-600 font-bold text-sm tabular-nums">{formatCurrency(p.income)}</td>
-                  <td className="px-8 py-5 text-right font-mono text-rose-500/80 font-bold text-sm tabular-nums">{formatCurrency(p.expense)}</td>
-                  <td className="px-8 py-5 text-right font-mono font-black text-[var(--text)] text-sm tabular-nums">{formatCurrency(p.net)}</td>
-                  <td className="px-8 py-5 text-right">
-                    <span className={cn(
-                      "px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-sm border",
-                      p.income > 0 ? (p.net / p.income > 0.3 ? "bg-slate-900/10 text-indigo-600 border-indigo-600/20" : "bg-orange-500/10 text-orange-600 border-orange-500/20") : "bg-slate-100 text-[var(--muted)] border-[var(--line)]"
-                    )}>
-                      {p.income > 0 ? `${((p.net / p.income) * 100).toFixed(1)}%` : '0%'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {projectProfitability.length === 0 && (
-                <tr>
-                   <td colSpan={6} className="px-8 py-16 text-center">
-                     <div className="flex flex-col items-center justify-center text-[var(--muted)]">
-                        <Filter size={32} className="mb-4 opacity-50" />
-                        <p className="text-sm font-bold uppercase tracking-widest">No Projects Match Filter</p>
-                     </div>
-                   </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+    return [...groups.values()].filter(r => mode === 'all' || (mode === 'loss' ? r.net < 0 : r.income > 0 && r.net / r.income > 0.4)).sort((a, b) => b.net - a.net);
+  }, [transactions, mode]);
+  const income = rows.reduce((sum, r) => sum + r.income, 0), expense = rows.reduce((sum, r) => sum + r.expense, 0);
+  const incomeLabel = reportText('r.section-income', 'Income'), expenseLabel = reportText('r.section-expense', 'Expenses');
+  const netLabel = reportText('r.net-amount', 'Net amount'), marginLabel = reportText('r.margin-2', 'Margin');
+  const title = reportText('r.project-ledger-profit', 'Project profitability');
+  const modes: Record<Mode, string> = { all: reportText('r.all', 'All'), 'high-yield': reportText('r.project-high-margin', 'Margin over 40%'), loss: reportText('r.loss', 'Loss') };
+  const name = (project: string | null) => project ?? reportText('r.unspecified-project', 'No project recorded');
+  const series: ChartSeries[] = [{ key: 'income', name: incomeLabel, unit: 'money' }, { key: 'expense', name: expenseLabel, unit: 'money' }, { key: 'margin', name: marginLabel, unit: 'percent' }];
+  const chart = rows.slice(0, showAll ? undefined : 10).map(r => ({ id: JSON.stringify(r.project), label: name(r.project), income: r.income, expense: r.expense, margin: r.income > 0 ? r.net / r.income * 100 : 0 }));
+  const exportLabel = reportText('r.export-project-rows', 'Export project rows');
+  const expandLabel = reportText('r.expand-project-chart', 'Expand chart');
+  return <section aria-label={title} className="p-4 space-y-4 min-w-0 text-[var(--text)]">
+    <h2 className="text-lg font-bold">{title}</h2>
+    <p className="text-sm text-[var(--muted)]">{reportText('r.project-ledger-scope', 'Income, expenses and profit from loaded journal lines. The figures below follow the selected filter.')}</p>
+    <div className="flex flex-wrap gap-2" data-print-hide>{(Object.keys(modes) as Mode[]).map(key => <button type="button" key={key} aria-pressed={key === mode}
+      className="option-state min-h-11 rounded-lg border px-3" onClick={() => setMode(key)}>{modes[key]}</button>)}</div>
+    <dl className="grid grid-cols-2 gap-2 md:grid-cols-4">{[[incomeLabel, formatCurrency(income)], [expenseLabel, formatCurrency(expense)], [netLabel, formatCurrency(income - expense)], [marginLabel, margin(income - expense, income)]].map(([label, value]) => (
+      <div key={label} className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3"><dt className="text-sm text-[var(--muted)]">{label}</dt><dd className="font-semibold tabular-nums"><bdi dir="ltr">{value}</bdi></dd></div>
+    ))}</dl>
+    {rows.length > 0 ? <>
+      <ReportSchedule rows={rows} rowKey={r => JSON.stringify(r.project)} caption={reportText('r.project-results', 'Results by project')}
+        columns={[
+          { header: reportText('r.project', 'Project'), cell: r => <bdi>{name(r.project)}</bdi> },
+          { header: reportText('r.matching-lines', 'Matching lines'), align: 'right', cell: r => r.lines },
+          { header: incomeLabel, align: 'right', cell: r => formatCurrency(r.income) },
+          { header: expenseLabel, align: 'right', cell: r => formatCurrency(r.expense) },
+          { header: netLabel, align: 'right', cell: r => formatCurrency(r.net) },
+          { header: marginLabel, align: 'right', cell: r => margin(r.net, r.income) },
+        ]} />
+      {rows.length > 10 && <button type="button" className="min-h-11 rounded border px-3" aria-pressed={showAll} onClick={() => setShowAll(!showAll)}>
+        {showAll ? reportText('r.show-top-ten', 'Chart the top 10') : fill(reportText('r.chart-all-projects', 'Chart all {count} projects'), { count: rows.length })}</button>}
+      <ChartFrame title={reportText('r.project-chart', 'Project income, expenses and margin')} rows={chart} series={series} currency={currency}>
+        {({ rows: visible, hidden }) => <div dir="ltr" className="h-full"><ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={visible} margin={{ top: 12, right: 0, left: 0, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--line)" />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--muted)' }} />
+            <YAxis yAxisId="money" tick={{ fontSize: 11, fill: 'var(--muted)' }} tickFormatter={value => formatCurrency(Number(value))} />
+            <YAxis yAxisId="margin" orientation="right" width={42} tick={{ fontSize: 11, fill: 'var(--muted)' }} tickFormatter={n => `${n}%`} />
+            <Tooltip content={<ChartTooltip currency={currency} series={series} />} />
+            <Bar isAnimationActive={false} yAxisId="money" dataKey="income" name={incomeLabel} hide={hidden.has('income')} fill="#3b82f6" maxBarSize={40} />
+            <Bar isAnimationActive={false} yAxisId="money" dataKey="expense" name={expenseLabel} hide={hidden.has('expense')} fill="#ef4444" maxBarSize={40} />
+            <Line isAnimationActive={false} yAxisId="margin" dataKey="margin" name={marginLabel} hide={hidden.has('margin')} stroke="#8b5cf6" strokeWidth={3} />
+          </ComposedChart>
+        </ResponsiveContainer></div>}
+      </ChartFrame>
+      <div><button type="button" disabled aria-label={expandLabel} aria-describedby="chart-expand-help" className="btn-tonal px-3">{expandLabel}</button>
+        <p id="chart-expand-help" className="text-sm text-[var(--muted)]">{reportText('r.project-expand-help', 'Chart expansion is not available. Use the results table to review all projects.')}</p></div>
+    </> : <p role="status">{reportText('r.no-project-results', 'No projects match this filter in the loaded entries.')}</p>}
+    <div><button type="button" disabled aria-label={exportLabel} aria-describedby="project-export-help" className="btn-tonal px-3">{exportLabel}</button>
+      <p id="project-export-help" className="text-sm text-[var(--muted)]">{reportText('r.project-export-help', 'Export is not available because the analysis uses loaded transactions only.')}</p></div>
+  </section>;
 }

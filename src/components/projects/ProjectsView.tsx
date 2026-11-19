@@ -1,3 +1,10 @@
+import { lazy, Suspense } from 'react';
+import { useReportText } from '../reporting/useReportText';
+import { usePartialReportInputs } from '../../hooks/usePartialReportInputs';
+import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
+import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { RecordInlineField } from '../ui/RecordInlineField';
 import { ProjectInlineDetails } from './ProjectInlineDetails';
 import { BrainCircuit, Pencil, Plus, Search, FolderKanban, Trash2, Target, Users, BookOpen, DollarSign, BarChart3, Calendar, LayoutDashboard, List } from 'lucide-react';
@@ -13,7 +20,25 @@ import { projectTasksFromProject } from '../../lib/projectTemplates';
 import type { ProjectsModel } from './Projects';
 import { inBackground } from '../../lib/inBackground';
 
+const ProjectProfitability = lazy(() => import('../ledger/ProjectProfitabilityView'));
+function ProfitabilityTab({ transactions }: Pick<ProjectsModel, 'transactions'>) {
+  const reportText = useReportText();
+  const workspace = useAuthStore(s => s.currentWorkspaceId);
+  const guest = useAuthStore(s => s.isGuest && !s.user);
+  const current = useDataNeedsStore(s => s.loadedWorkspaceId === workspace);
+  const health = useScreenDataHealth(['transactions']);
+  const partial = usePartialReportInputs(['transactions']);
+  const pending = <p role="status">{reportText('r.loading-report-records', 'Loading report records…')}</p>;
+  if (!workspace || (!guest && !current)) return pending;
+  if (health.failedKeys.length) return <ScreenDataNotice failedKeys={health.failedKeys} message={health.message} onRetry={health.retry} />;
+  if (!health.ready) return pending;
+  return <Suspense fallback={pending}>
+    {partial && <p role="alert">{reportText('r.project-capped', 'Only part of the journal is loaded. Project figures and rankings are provisional.')}</p>}
+    <ProjectProfitability transactions={transactions.filter(t => t.workspaceId === workspace)} formatCurrency={formatCurrency} /></Suspense>;
+}
+
 export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects, transactions, loading, onUpdate, searchTerm, setSearchTerm, activeSubTab, setActiveSubTab, isNewProjectModalOpen, setIsNewProjectModalOpen, overlay1DialogProps, overlay1TitleId, editingProject, setEditingProject, overlay2DialogProps, overlay2TitleId, selectedProjectId, setSelectedProjectId, newProject, setNewProject, selectedTemplateId, projectTemplates, handleApplyTemplate, handleToggleProjectTask, handleSaveProjectTemplate, handleAddProject, handleUpdateProject, handleDeleteProject, filteredProjects, projectStats, selectedProject, projectVendors }: ProjectsModel) {
+  const reportText = useReportText();
   return (
     <div className="w-full space-y-6 max-w-[1600px] mx-auto pb-12">
       {/* Header with brand gold backdrop */}
@@ -30,7 +55,7 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
           </div>
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <div className="flex items-center bg-[var(--surface)]/80 p-1 rounded-xl border border-[var(--line)] shadow-inner backdrop-blur-sm">
+            <div className="flex flex-wrap items-center bg-[var(--surface)]/80 p-1 rounded-xl border border-[var(--line)] shadow-inner backdrop-blur-sm">
               <button
                 onClick={() => setActiveSubTab('pipeline')}
                 className={cn(
@@ -53,8 +78,10 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
               >
                 <List aria-hidden="true" size={13} /> List
               </button>
+              <button type="button" aria-pressed={activeSubTab === 'profitability'} onClick={() => setActiveSubTab('profitability')}
+                className="option-state min-h-11 rounded-lg px-3 text-xs font-semibold">{reportText('r.profitability', 'Profitability')}</button>
             </div>
-            <div className="relative group">
+            {activeSubTab !== 'profitability' && <div className="relative group">
               <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)] group-focus-within:text-[var(--brass)] transition-colors" size={14} />
               <input
                 aria-label="Search projects or tags"
@@ -64,7 +91,7 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 pr-4 py-2 bg-[var(--surface)] border border-[var(--line)] rounded-xl text-xs focus:outline-none focus:border-[var(--brass-line)] focus:ring-1 focus:ring-[var(--brass)] transition-all w-52 sm:w-60 text-[var(--text)] placeholder:text-[var(--faint)] font-medium"
               />
-            </div>
+            </div>}
             <button
               onClick={() => setIsNewProjectModalOpen(true)}
               className="h-9 px-4 bg-gradient-to-r from-[var(--brass)] via-[#e5be6b] to-[var(--brass)] text-black hover:opacity-95 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 shadow-md hover:shadow-lg cursor-pointer"
@@ -76,7 +103,7 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
         </div>
       </div>
 
-      {activeSubTab === 'pipeline' ? (
+      {activeSubTab === 'profitability' ? <ProfitabilityTab transactions={transactions} /> : activeSubTab === 'pipeline' ? (
          <ProjectPipeline
            projects={filteredProjects}
            onUpdateProject={async (id, data) => { if (onUpdate) await onUpdate(id, data); }}

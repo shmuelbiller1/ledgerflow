@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import { isStockAge } from '../../lib/reportListRows';
+import ReportSchedule from './ReportSchedule';
+import { useReportDates } from './useReportDates';
+import { useReportList } from '../../hooks/useReportList';
+import { useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { AGE_BUCKETS, type StockAge } from '../../lib/stockMoves';
-import { runCommand } from '../../lib/runCommand';
 import { useReportText, fill } from './useReportText';
 
-const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
+const field = 'min-h-11 px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 const qty = (n: number) => (n ? String(Math.round(n * 1e6) / 1e6) : '');
 
 /**
@@ -15,62 +18,43 @@ const qty = (n: number) => (n ? String(Math.round(n * 1e6) / 1e6) : '');
  */
 export default function StockAgingReportView() {
   const reportText = useReportText();
+  const dates = useReportDates();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const [asOf, setAsOf] = useState(getLocalDateISO());
-  const [result, setResult] = useState<{ key: string; items?: StockAge[]; error?: string } | null>(null);
   const currency = workspace?.currency || 'USD';
   const key = workspace && /^\d{4}-\d{2}-\d{2}$/.test(asOf) ? new URLSearchParams({ workspaceId: workspace.id, asOf }).toString() : '';
 
-  useEffect(() => {
-    if (!key) return;
-    let live = true;
-    (async () => {
-      const body = await runCommand<{ items?: StockAge[] }>({ path: `/api/v1/reports/stock-aging?${key}` }) ?? {};
-      if (!Array.isArray(body.items)) throw new Error('The stock history could not be read');
-      return body.items as StockAge[];
-    })().then(items => { if (live) setResult({ key, items }); }).catch(err => { if (live) setResult({ key, error: err instanceof Error ? err.message : String(err) }); });
-    return () => { live = false; };
-  }, [key]);
-  const shown = result && result.key === key ? result : null;
-  const items = shown?.items || [];
-  const unknown = items.some(i => i.unknownAge > 0);
+  const { rows: items, loading, failed, error, retry } = useReportList(
+    key ? `/api/v1/reports/stock-aging?${key}` : null, 'items', isStockAge);
+  const bucketLabels = {
+    d30: reportText('r.stock-age-d30', '0–30 days'), d90: reportText('r.stock-age-d90', '31–90 days'),
+    d180: reportText('r.stock-age-d180', '91–180 days'), d365: reportText('r.stock-age-d365', '181–365 days'),
+    older: reportText('r.stock-age-older', 'Over a year'),
+  };
+  const unknown = items?.some(i => i.unknownAge > 0);
 
   return (
     <section aria-labelledby="stock-aging-title" className="space-y-4">
       <h2 id="stock-aging-title" className="text-lg font-bold text-[var(--text)]">{reportText('r.stock-aging', 'Stock aging')}</h2>
       <label className="flex flex-col gap-1 text-sm text-[var(--muted)] w-fit">{reportText('r.as-of-2', 'As of')}<input type="date" value={asOf} onChange={e => setAsOf(e.target.value)} className={field} /></label>
-      {key && !shown && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
-      {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
-      {shown?.items && items.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-stock-on-hand-that-day', 'No stock on hand that day.')}</p>}
-      {items.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
-          <table className="w-full text-sm">
-            <caption className="text-left text-xs text-[var(--muted)] pb-1">{reportText('r.units-on-hand-by-how-long-ago-they-came-in-the-l', 'Units on hand by how long ago they came in, the latest units taken to be the ones still there; the oldest stock first.')}</caption>
-            <thead>
-              <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                <th scope="col" className="text-left font-semibold py-1 px-2">{reportText('r.item', 'Item')}</th>
-                <th scope="col" className="text-right font-semibold py-1 px-2">{reportText('r.on-hand', 'On hand')}</th>
-                <th scope="col" className="text-right font-semibold py-1 px-2">{reportText('r.value', 'Value')}</th>
-                {AGE_BUCKETS.map(b => <th key={b.key} scope="col" className="text-right font-semibold py-1 px-2">{b.label}</th>)}
-                {unknown && <th scope="col" className="text-right font-semibold py-1 px-2">{reportText('r.before-the-history', 'Before the history')}</th>}
-                <th scope="col" className="text-right font-semibold py-1 px-2">{reportText('r.last-sold', 'Last sold')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map(i => (
-                <tr key={i.itemId} className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{i.itemName}</bdi></th>
-                  <td className="text-right font-mono py-1 px-2">{qty(i.quantity)}</td>
-                  <td className="text-right font-mono py-1 px-2">{formatCurrency(i.valueCents, currency)}</td>
-                  {AGE_BUCKETS.map(b => <td key={b.key} className="text-right font-mono py-1 px-2">{qty(i.buckets[b.key])}</td>)}
-                  {unknown && <td className="text-right font-mono py-1 px-2">{qty(i.unknownAge)}</td>}
-                  <td className="text-right py-1 px-2 text-xs">{i.lastSold ? fill(reportText('r.0-1-days-ago', '{0} ({1} days ago)'), { 0: i.lastSold, 1: i.daysSinceSold ?? '' }) : reportText('r.never', 'never')}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {failed && <div>
+        <p role="alert">{reportText('r.the-stock-history-could-not-be-read', 'The stock history could not be read:')} {error || reportText('r.missing-report-rows', 'The response did not contain report rows.')}</p>
+        <button type="button" className="min-h-11 rounded border px-3" onClick={retry}>{reportText('r.retry', 'Retry')}</button>
+      </div>}
+      {items && items.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-stock-on-hand-that-day', 'No stock on hand that day.')}</p>}
+      {items && items.length > 0 && <ReportSchedule rows={items} rowKey={row => row.itemId}
+        caption={reportText('r.units-on-hand-by-how-long-ago-they-came-in-the-l', 'Units on hand by how long ago they came in, the latest units taken to be the ones still there; the oldest stock first.')}
+        columns={[
+          { header: reportText('r.item', 'Item'), cell: row => <bdi>{row.itemName}</bdi> },
+          { header: reportText('r.on-hand', 'On hand'), align: 'right', cell: row => qty(row.quantity) },
+          { header: reportText('r.value', 'Value'), align: 'right', cell: row => formatCurrency(row.valueCents, currency) },
+          ...AGE_BUCKETS.map(bucket => ({ header: bucketLabels[bucket.key], align: 'right' as const, cell: (row: StockAge) => qty(row.buckets[bucket.key]) })),
+          unknown ? { header: reportText('r.before-the-history', 'Before the history'), align: 'right', cell: row => qty(row.unknownAge) } : false,
+          { header: reportText('r.last-sold', 'Last sold'), cell: row => row.lastSold
+            ? <time dateTime={row.lastSold}>{fill(reportText('r.0-1-days-ago', '{0} ({1} days ago)'), { 0: dates.dateText(row.lastSold), 1: row.daysSinceSold ?? '' })}</time>
+            : reportText('r.never', 'never') },
+        ]} />}
     </section>
   );
 }
