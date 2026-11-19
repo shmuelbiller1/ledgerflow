@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
-import { matchingUnconvertedPosts, PROVIDER_ROUTE_EXCEPTIONS, READ_ONLY_ROUTE_EXCEPTIONS, scanCommandWrites, type CommandWriteCounts } from '../../scripts/commands-baseline';
+import ts from 'typescript';
+import { COMMAND_ROUTE_PROTOCOLS } from '../../scripts/command-route-protocols';
+import { isDirectBrowserWrite, matchingUnconvertedPosts, PROVIDER_ROUTE_EXCEPTIONS, READ_ONLY_ROUTE_EXCEPTIONS, scanCommandWrites, scanNonCommandRegistrations, type CommandWriteCounts } from '../../scripts/commands-baseline';
 
 type CommandBaseline = Pick<CommandWriteCounts, 'writeRoutes' | 'directBrowserWrites' | 'routeSites' | 'browserSites' | 'localStoreWrites' | 'localStoreSites'>;
 const baseline = JSON.parse(fs.readFileSync('commands-baseline.json', 'utf8')) as CommandBaseline;
@@ -51,4 +53,45 @@ test('each scoped POST exception still names exactly one unconverted registratio
     assert.equal(matchingUnconvertedPosts(exception), 1, `${key} must be a real, unconverted POST`);
     assert.ok(exception.why.length > 40, `${key} explains why this route does not run a command`);
   }
+});
+
+test('every counted protocol matches one exact registration, including path expressions and DELETE', () => {
+  const keyFor = ({ method, file, route, expression }: ReturnType<typeof scanNonCommandRegistrations>[number]) =>
+    `${file}:${method.toUpperCase()} ${expression ? 'expression:' : ''}${route}`;
+  const actual = scanNonCommandRegistrations().map(keyFor);
+  const reviewed = COMMAND_ROUTE_PROTOCOLS.map(keyFor);
+  assert.equal(new Set(reviewed).size, reviewed.length, 'no duplicate reviewed registration');
+  assert.deepEqual(actual.toSorted(), reviewed.toSorted(), 'new sites must call a command or be reviewed individually');
+  for (const protocol of COMMAND_ROUTE_PROTOCOLS) {
+    assert.ok(protocol.why.length > 40 && protocol.tests.length > 0, keyFor(protocol));
+    for (const testFile of protocol.tests) assert.ok(fs.existsSync(`src/tests/${testFile}`), `${keyFor(protocol)}: ${testFile} not found`);
+  }
+});
+
+test('browser write inventory sees PostgREST DML and RPCs without confusing reads or local state updates', () => {
+  const fixture = ts.createSourceFile('write-fixture.ts', `
+    db.client().from('dimensionNodes').insert(value);
+    supabase.from('customers').upsert(value).select();
+    supabase.from('projects')['update'](value).eq('id', id);
+    supabase['from']('vendors').delete().eq('id', id);
+    supabase['rpc'](\`lf_batch\`, args);
+    supabase.rpc('lf_set', args);
+    supabase.rpc('lf_update', args);
+    supabase.rpc('lf_delete', args);
+    setDoc(ref, value);
+    supabase.from('dimensionNodes').select();
+    supabase.rpc('lf_select', args);
+    draft.delete(id);
+    query.update(field);
+  `, ts.ScriptTarget.Latest, true);
+  const statements = fixture.statements.map(statement => {
+    const sites: string[] = [];
+    const visit = (node: ts.Node) => {
+      if (ts.isCallExpression(node) && isDirectBrowserWrite(node)) sites.push(node.getText());
+      ts.forEachChild(node, visit);
+    };
+    visit(statement);
+    return sites.length;
+  });
+  assert.deepEqual(statements, [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0]);
 });

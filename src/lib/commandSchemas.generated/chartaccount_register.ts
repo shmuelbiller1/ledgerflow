@@ -4,7 +4,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "id": COMMAND_SCHEMA_PARTS.part23,
+    "id": COMMAND_SCHEMA_PARTS.part24,
     "name": {
       "type": "string",
       "minLength": 2,
@@ -28,10 +28,10 @@ export const COMMAND_INPUT_SCHEMA = {
         "other_expense"
       ]
     },
-    "category": COMMAND_SCHEMA_PARTS.part56,
-    "subtype": COMMAND_SCHEMA_PARTS.part23,
-    "taxCategory": COMMAND_SCHEMA_PARTS.part23,
-    "currency": COMMAND_SCHEMA_PARTS.part23,
+    "category": COMMAND_SCHEMA_PARTS.part58,
+    "subtype": COMMAND_SCHEMA_PARTS.part24,
+    "taxCategory": COMMAND_SCHEMA_PARTS.part24,
+    "currency": COMMAND_SCHEMA_PARTS.part24,
     "balanceCents": {
       "default": 0,
       "description": "Accepted for legacy callers but does not set the ledger balance",
@@ -39,7 +39,7 @@ export const COMMAND_INPUT_SCHEMA = {
       "minimum": -9007199254740991,
       "maximum": 9007199254740991
     },
-    "description": COMMAND_SCHEMA_PARTS.part62,
+    "description": COMMAND_SCHEMA_PARTS.part64,
     "parentId": {
       "description": "Null or omitted for a top-level account",
       "anyOf": [
@@ -57,8 +57,8 @@ export const COMMAND_INPUT_SCHEMA = {
       "minimum": -9007199254740991,
       "maximum": 9007199254740991
     },
-    "isActive": COMMAND_SCHEMA_PARTS.part26,
-    "tags": COMMAND_SCHEMA_PARTS.part77
+    "isActive": COMMAND_SCHEMA_PARTS.part27,
+    "tags": COMMAND_SCHEMA_PARTS.part81
   },
   "required": [
     "name",

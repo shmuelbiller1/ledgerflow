@@ -1,14 +1,15 @@
 import { errorMessage, requestUser, type RequestUser } from '../auth/requestUser';
 import { planFor } from '../../lib/plans';
 import express from "express";
-import crypto from "crypto";
 import { getDb, validateWorkspaceMember, FieldValue } from "../db/firestore.ts";
 import { checkoutIdempotencyKey, checkoutParamsFingerprint, getStripe, isIdempotencyInFlight } from "../services/stripeService.ts";
 import { getTrustedAppUrl } from "../utils/urlHelper.ts";
 import { roleInWorkspace } from "../middleware/requireLedgerWriter.ts";
-import { incrementShardedCounter, getShardedCounterValue } from "../services/shardedCounterService.ts";
+import { getShardedCounterValue } from "../services/shardedCounterService.ts";
 import { writeServerAuditLog } from "../services/auditLogService.ts";
 
+import { billingRecordComputeCommand } from '../commands/billingCompute';
+import { executeCommand } from '../utils/commandExecutor';
 import { BRAND_NAME } from '../../config/brand';
 export const billingRouter = express.Router();
 
@@ -219,59 +220,21 @@ billingRouter.get("/status", async (req: express.Request, res: express.Response)
 });
 
 billingRouter.post("/record-compute", async (req: express.Request, res: express.Response) => {
-  try {
-    const { workspaceId, algorithmName, complexityFormat, weightScore, executionTimeMs } = req.body;
-    if (!workspaceId || !algorithmName) {
-      return res.status(400).json({ status: "error", message: "Missing required query parameters: workspaceId and algorithmName" });
-    }
-
-    const user = requestUser(req);
-    const wsData = ((await authorizeWorkspace(user, workspaceId)) || {}) as Record<string, number | undefined>;
-
-    const sanitizedWeight = Math.max(1, Math.min(1000, Math.floor(Math.abs(Number(weightScore) || 10))));
-    const sanitizedExecutionTime = Math.max(1, Math.min(60000, Math.floor(Math.abs(Number(executionTimeMs) || 50))));
-
-    const ledgerEntry = {
-      id: `trace-${crypto.randomUUID()}`,
-      workspaceId,
-      uid: user.uid,
-      userEmail: user.email,
-      algorithmName,
-      complexityFormat,
-      weightScore: sanitizedWeight,
-      executionTimeMs: sanitizedExecutionTime,
-      timestamp: new Date().toISOString(),
-      hash: crypto.createHash('sha256').update(`${workspaceId}-${algorithmName}-${sanitizedWeight}-${crypto.randomUUID()}`).digest('hex')
-    };
-
-    const db = getDb();
-    const billingLedgerRef = db.collection("billingLedgerTraces").doc();
-    ledgerEntry.id = billingLedgerRef.id;
-    await billingLedgerRef.set(ledgerEntry);
-
-    // Usage counters: sharded for the hot ones, atomic increments on the workspace for the rest
-    const quotaCents = Math.round(sanitizedWeight * 0.1); // 0.1 cent per complexity score
-    await incrementShardedCounter(db, workspaceId, 'totalQueriesThisMonth', 1);
-    await incrementShardedCounter(db, workspaceId, 'computeCreditBalance', -sanitizedWeight);
-    await db.collection("workspaces").doc(workspaceId).update({
-      apiQuotaTotalCentsUsed: FieldValue.increment(quotaCents),
-      computeHardnessScore: FieldValue.increment(sanitizedWeight)
-    });
-
-    const updatedMetrics = {
-      apiQuotaTotalCentsUsed: (wsData.apiQuotaTotalCentsUsed || 0) + quotaCents,
-      totalQueriesThisMonth: await getShardedCounterValue(db, workspaceId, 'totalQueriesThisMonth', wsData.totalQueriesThisMonth || 0),
-      computeHardnessScore: (wsData.computeHardnessScore || 0) + sanitizedWeight,
-      computeCreditBalance: Math.max(0, await getShardedCounterValue(db, workspaceId, 'computeCreditBalance', wsData.computeCreditBalance ?? 100000))
-    };
-
-    res.json({
-      status: "success",
-      traceRecord: ledgerEntry,
-      updatedMetrics
-    });
-  } catch (err) {
-    console.error("[Record Compute Error]:", err);
-    res.status(errorStatus(err)).json({ status: "error", message: errorMessage(err) });
+  const { workspaceId, algorithmName, complexityFormat, weightScore, executionTimeMs } = req.body || {};
+  if (!workspaceId || !algorithmName) {
+    return res.status(400).json({ status: "error", message: "Missing required query parameters: workspaceId and algorithmName" });
   }
+  if (typeof workspaceId !== 'string') {
+    return res.status(404).json({ status: "error", message: "NOT_FOUND: Invalid workspace identifier provided." });
+  }
+  return executeCommand(req, res, {
+    definition: billingRecordComputeCommand, workspaceId, input: { algorithmName, complexityFormat, weightScore, executionTimeMs },
+    legacyRoute: true, legacyOperationId: 'ignore',
+    formatResponse: outcome => {
+      if (outcome.ok) return { status: 200, body: { status: "success", ...(outcome.data as Record<string, unknown>) } };
+      if (outcome.code === 'NOT_A_MEMBER') return { status: 403, body: { status: "error", message: "FORBIDDEN: User does not belong to this workspace." } };
+      if (outcome.code === 'WORKSPACE_NOT_FOUND') return { status: 500, body: { status: "error", message: "Workspace not found." } };
+      return { status: outcome.status, body: { status: "error", message: outcome.message } };
+    },
+  });
 });

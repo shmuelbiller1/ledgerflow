@@ -1,20 +1,14 @@
-import { errorMessage, requestUser } from '../auth/requestUser';
+import { errorMessage } from '../auth/requestUser';
 import type { UserRequest } from '../auth/requestUser';
 import express from 'express';
 import { verifyIdToken } from '../auth/supabaseAuth';
-import { z } from 'zod';
 import { getDb } from '../db/firestore';
 import { verifyInviteTokenSignature } from '../../lib/inviteManager';
-import { notify } from '../services/notificationService';
-import { writeServerAuditLog } from '../services/auditLogService';
-import { planFor } from '../../lib/plans';
+import { inviteAcceptCommand, inviteTokenParamsSchema } from '../commands/invites';
+import { executeCommand } from '../utils/commandExecutor';
 
 import { BRAND_NAME } from '../../config/brand';
 export const invitePublicRouter = express.Router();
-
-const inviteTokenParamsSchema = z.object({
-  token: z.string().min(10, 'Token too short').max(256, 'Token too long')
-});
 
 const populateUserAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers.authorization;
@@ -100,127 +94,15 @@ invitePublicRouter.get('/:token', async (req, res) => {
  */
 invitePublicRouter.post('/:token/accept', async (req, res) => {
   const parsedParams = inviteTokenParamsSchema.safeParse(req.params);
-  if (!parsedParams.success) {
-    return sendError(res, 'Invalid invite token format', 400, parsedParams.error.issues);
-  }
-  const { token } = parsedParams.data;
-  const user = requestUser(req);
-
-  if (!user || !user.uid) {
-    return sendError(res, 'Authentication required to accept invite', 401);
-  }
-  // #842: the invite is bound to an email address, which only means something once the person has proved they
-  // own it. The sign-in middleware refuses unverified accounts too; this route checks it itself, before reading
-  // the invite, rather than rely on that.
-  if (user.email_verified !== true) {
-    return sendError(res, 'Verify your email address first, then open the invitation again.', 403);
-  }
-
-  try {
-    const db = getDb();
-    const snap = await db.collection('invites').where('token', '==', token).limit(1).get();
-
-    if (snap.empty) {
-      return sendError(res, 'Invite not found or invalid token', 404);
-    }
-
-    const inviteDoc = snap.docs[0];
-    const invite = inviteDoc.data() as Parameters<typeof verifyInviteTokenSignature>[0] & { status?: string };
-
-    if (invite.status !== 'pending') {
-      return sendError(res, `Invite is no longer pending (currently ${invite.status})`, 400);
-    }
-
-    if (new Date() > new Date(invite.expiresAt)) {
-      return sendError(res, 'Invite has expired', 400);
-    }
-
-    const isValidSig = verifyInviteTokenSignature(invite);
-    if (!isValidSig) {
-      return sendError(res, 'Invalid invite token signature', 400);
-    }
-
-    // Email binding verification
-    const userEmail = (user.email || '').toLowerCase().trim();
-    const inviteEmail = (invite.email || '').toLowerCase().trim();
-
-    if (userEmail !== inviteEmail) {
-      return sendError(
-        res,
-        `This invitation was issued to ${invite.email}, but you are currently signed in as ${user.email}. Please sign in with ${invite.email} to accept this invite.`,
-        403
-      );
-    }
-
-    const wsRef = db.collection('workspaces').doc(invite.workspaceId);
-    
-    await db.runTransaction(async (tx) => {
-      const wsSnap = await tx.get(wsRef);
-      if (!wsSnap.exists) throw new Error('WORKSPACE_NOT_FOUND');
-
-      const wsData = wsSnap.data() || {};
-      const members: string[] = Array.isArray(wsData.members) ? [...wsData.members] : [];
-      // the plan's own seats when no explicit cap is set (Codex on #460: Pro is 25, not 5); never below the old 5
-      const maxSeats = wsData.maxSeats || Math.max(5, planFor(String(wsData.plan || 'free')).limits.seats);
-
-      if (wsData.bypassBilling !== true && !members.includes(user.uid) && new Set([...members, wsData.uid || 'owner']).size >= maxSeats) { // owner counted once (ACC-1b)
-        throw new Error('SEAT_LIMIT_EXCEEDED');
-      }
-
-      if (!members.includes(user.uid)) {
-        members.push(user.uid);
-      }
-
-      const roles = { ...(wsData.roles || {}) };
-      roles[user.uid] = invite.role;
-
-      tx.update(wsRef, {
-        members,
-        roles,
-        updatedAt: new Date().toISOString()
-      });
-
-      tx.update(inviteDoc.ref, {
-        status: 'accepted',
-        acceptedAt: new Date().toISOString(),
-        acceptedByUid: user.uid,
-        updatedAt: new Date().toISOString()
-      });
-
-      // Audit log entry
-      await writeServerAuditLog({
-        workspaceId: invite.workspaceId,
-        uid: user.uid,
-        email: user.email || '',
-        action: 'INVITE_ACCEPTED',
-        entityType: 'workspace',
-        entityId: invite.workspaceId,
-        details: {
-          email: invite.email,
-          role: invite.role,
-          inviteId: inviteDoc.id,
-          description: `User ${user.email} accepted workspace invitation as ${invite.role}`
-        }
-      }, { db, tx });
-    });
-
-    await notify(db, {
-      workspaceId: invite.workspaceId, kind: 'member.joined',
-      title: `${user.email || invite.email} joined the workspace`,
-      message: `They accepted the invitation as ${invite.role}.`,
-      eventKey: `member.joined:${inviteDoc.id}`, actorUid: user.uid,
-    });
-    res.json({
-      status: 'success',
-      workspaceId: invite.workspaceId,
-      role: invite.role,
-      message: 'Successfully joined workspace'
-    });
-  } catch (err) {
-    if (errorMessage(err) === 'WORKSPACE_NOT_FOUND') return sendError(res, 'Workspace not found', 404);
-    if (errorMessage(err) === 'SEAT_LIMIT_EXCEEDED') {
-      return sendError(res, 'Payment Required: Workspace seat limit reached. The workspace owner must upgrade the plan.', 402);
-    }
-    sendError(res, 'Failed to accept invite', 500, errorMessage(err));
-  }
+  if (!parsedParams.success) return sendError(res, 'Invalid invite token format', 400, parsedParams.error.issues);
+  return executeCommand(req, res, {
+    definition: inviteAcceptCommand, workspaceId: '', input: parsedParams.data,
+    legacyRoute: true, legacyOperationId: 'ignore',
+    formatResponse: result => {
+      if (result.ok) return { status: 200, body: { status: 'success', ...(result.data as Record<string, unknown>), message: 'Successfully joined workspace' } };
+      if (result.status >= 500) return { status: 500, body: { status: 'error', message: 'Failed to accept invite', details: errorMessage(result.error) } };
+      const message = result.code === 'UNAUTHENTICATED' ? 'Authentication required to accept invite' : result.message;
+      return { status: result.status, body: { status: 'error', message } };
+    },
+  });
 });

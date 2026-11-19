@@ -7,6 +7,28 @@ removed from this list.
 
 Last updated: 2026-11-19.
 
+## CMD-1: deploy the replacement UI before closing the browser write door
+
+**Pending — do not apply before deployment.** The migration is
+[`20261120100000_cmd1_browser_write_policies.sql`](../supabase/migrations/20261120100000_cmd1_browser_write_policies.sql).
+It removes browser INSERT/UPDATE/DELETE from 29 application tables. Reads (including private templates),
+Realtime, object Storage, MFA and server/overlay access stay as before. It passed the local PostgreSQL
+rules suite after a fresh migration setup; it has **not** been applied to the live database.
+
+1. After CI and review, merge and deploy the code. Confirm the deployed UI creates and renames a label
+   from Settings and inside a bill, creates/edits a customer or draft estimate, and saves settings
+   with a writer session. Check a viewer still reads but cannot perform those writes. Also smoke-test
+   attachment upload/removal, presence and notifications; they use separate server paths.
+2. The merger applies the migration through the Supabase migration tool (in order, not manual SQL),
+   once those deployed checks pass. Confirm it appears in the migration ledger. Refresh a browser
+   using the new build; repeat those write/read checks and verify a direct browser write is refused
+   on a disposable workspace. Do not probe historical production records or remove read policies.
+
+Existing Stripe verification is not changed here. Its legacy session claim, plan update and audit
+are separate commits; a failure after the claim can leave a session marked verified before credits
+are provisioned. Treat recovery/consolidation with the subscription webhook as a separate billing
+change with provider-order and failure evidence.
+
 ## CMD-1: posting, project/chart writes, attachment removal and verification (nothing to apply)
 
 The old addresses still work. Invoice/bill/credit and bulk posting use the same posting rules and legacy retry keys. Project/chart creation and bank reconnection commit their state and audit together; Plaid webhook registration and the deep-audit worker start only after their database changes commit. Attachment removal still allows viewers to remove their own uploads. The moved writes now share the same frozen and pending-deletion guard as the other commands. **No migration or configuration action is needed.** GitHub runs the release checks; this does not mark the assistant or its sandbox complete.

@@ -4,17 +4,8 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "ticketId": COMMAND_SCHEMA_PARTS.part100,
-    "status": {
-      "type": "string",
-      "enum": [
-        "open",
-        "pending_user",
-        "pending_support",
-        "resolved",
-        "closed"
-      ]
-    }
+    "ticketId": COMMAND_SCHEMA_PARTS.part104,
+    "status": COMMAND_SCHEMA_PARTS.part166
   },
   "required": [
     "ticketId",

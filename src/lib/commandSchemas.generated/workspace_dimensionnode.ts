@@ -4,22 +4,26 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "node": COMMAND_SCHEMA_PARTS.part273,
-    "dimensionId": COMMAND_SCHEMA_PARTS.part97,
-    "nodeId": COMMAND_SCHEMA_PARTS.part97,
+    "node": COMMAND_SCHEMA_PARTS.part279,
+    "createOnly": {
+      "description": "Refuse an existing label instead of replacing it.",
+      "type": "boolean"
+    },
+    "dimensionId": COMMAND_SCHEMA_PARTS.part101,
+    "nodeId": COMMAND_SCHEMA_PARTS.part101,
     "fields": {
       "type": "object",
       "properties": {
-        "description": COMMAND_SCHEMA_PARTS.part59,
-        "aliases": COMMAND_SCHEMA_PARTS.part146,
-        "status": COMMAND_SCHEMA_PARTS.part90,
+        "description": COMMAND_SCHEMA_PARTS.part61,
+        "aliases": COMMAND_SCHEMA_PARTS.part151,
+        "status": COMMAND_SCHEMA_PARTS.part94,
         "parentId": {
           "anyOf": [
-            COMMAND_SCHEMA_PARTS.part97,
+            COMMAND_SCHEMA_PARTS.part101,
             COMMAND_SCHEMA_PARTS.part19
           ]
         },
-        "updatedAt": COMMAND_SCHEMA_PARTS.part51
+        "updatedAt": COMMAND_SCHEMA_PARTS.part53
       },
       "additionalProperties": false
     }
