@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -107,7 +108,7 @@ export default function GroupSummaryReportView() {
       await runCommand({ path: `/api/v1/account/groups/${encodeURIComponent(groupId)}/lines`, method: 'PUT', body: { merges } });
       setVersion(v => v + 1);
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     }
   };
   const memberCurrencies = [...new Set((summary?.members || []).map(m => m.currency))];
@@ -156,7 +157,7 @@ export default function GroupSummaryReportView() {
       if (!next.closing || !next.average || !next.historical) throw new Error(`The rate service has no rates for ${currency} on these dates: enter them`);
       setEntered(e => ({ ...e, [currency]: { closing: String(next.closing), average: String(next.average), historical: String(next.historical) } }));
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setFilling('');
     }

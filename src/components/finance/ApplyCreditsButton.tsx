@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
@@ -39,7 +40,7 @@ export default function ApplyCreditsButton({ kind, partyId, className }: { kind:
       if (documents === 0) toast.info(`No open credits to apply to open ${noun}s`);
       else toast.success(`${formatCurrency(applied?.totalCents || 0, currency)} of credits applied to ${documents} ${noun}${documents === 1 ? '' : 's'}`);
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setBusy(false);
     }

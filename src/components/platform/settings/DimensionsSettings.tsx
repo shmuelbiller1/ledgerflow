@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage, ServerCommandError } from '../../../lib/runCommand';
+import { uiLanguageNow } from '../../../lib/i18n/uiLanguageNow';
 import { displayDimensionName } from '../../../lib/dimensionUtils';
 import { mergeDimensionDrafts } from '../../../lib/dimensionDrafts';
 import { normalizeSearchText } from '../../../lib/textNormalization';
@@ -373,7 +374,7 @@ function DimensionsSettingsContent() {
       toast.success(`Migration complete! Converted ${migrationCount} free-text labels to stable node IDs.`);
     } catch (err) {
       console.error('Migration failed:', err);
-      toast.error(`Migration failed: ${commandErrorMessage(err)}`);
+      toast.error(`Migration failed: ${commandErrorMessage(err, uiLanguageNow())}`);
     } finally {
       setIsMigrating(false);
     }

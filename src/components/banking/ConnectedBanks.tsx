@@ -1,4 +1,5 @@
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { useUIStore } from '../../stores/useUIStore';
 import { translateScreenString } from '../../lib/i18n/screenTranslations';
 import React, { useEffect, useState } from 'react';
@@ -64,7 +65,7 @@ export default function ConnectedBanks() {
       toast.success(`${bank.institutionName} disconnected; its imported lines are kept`);
       setReload(n => n + 1);
     } catch (err) {
-      toast.error(commandErrorMessage(err));
+      toast.error(commandErrorMessage(err, uiLanguageNow()));
     } finally {
       setBusy('');
     }

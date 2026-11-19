@@ -5,6 +5,7 @@ import { collection, doc, getDoc, getDocs, query, where } from '../lib/db/firest
 import { localDelete, localSet, localUpdate, localUpdateMany } from '../lib/db/localStore';
 import { dryRunRules, ruleGroupName } from '../lib/rulesEngine';
 import { describeError } from '../lib/errorRemedies';
+import { uiLanguageNow } from '../lib/i18n/uiLanguageNow';
 import { useCurrentRole } from './useCurrentRole';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
@@ -48,7 +49,7 @@ function stored(rule: AutoRule): AutoRule {
 }
 
 const fail = (err: unknown) => {
-  const described = describeError(err, 'update');
+  const described = describeError(err, 'update', uiLanguageNow());
   toast.error(described.title, { description: described.remedy });
 };
 const isLocalSampleWorkspace = (workspaceId: string | null | undefined) => Boolean(guestSession()) || workspaceId === SAMPLE_WORKSPACE_ID;
@@ -226,7 +227,7 @@ export function useAutoRules() {
         if (!writeWasAccepted(error)) {
           const refusal = (error instanceof ServerCommandError ? error.body : null) as typeof body | null;
           if (refusal) body = refusal;
-          throw new Error(`${body.message || body.error || commandErrorMessage(error)}${body.entryId ? ` (entry ${body.entryId})` : ''}`, { cause: error });
+          throw new Error(`${body.message || body.error || commandErrorMessage(error, uiLanguageNow())}${body.entryId ? ` (entry ${body.entryId})` : ''}`, { cause: error });
         }
       }
       if (!currentContext()) return 0;

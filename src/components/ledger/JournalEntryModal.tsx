@@ -36,6 +36,7 @@ import {
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { isLockedDate } from '../../lib/periodLock';
 import { describeError } from '../../lib/errorRemedies';
+import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { savedInOtherWorkspace, workspaceChangedSince } from '../../lib/saveWorkspace';
 import { formLines, templateLines, templateProblem, templateSummary, type JournalTemplate } from '../../lib/journalTemplates';
 import { listJournalTemplates, removeJournalTemplate, saveJournalTemplate } from '../../services/journalTemplateActions';
@@ -412,7 +413,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
     } catch (error) {
       console.error("Journal Entry Error:", error);
       // PREV-5: why, in words (it said only "Failed to record journal entry"); the entry stays in the form
-      const described = describeError(error, 'create');
+      const described = describeError(error, 'create', uiLanguageNow());
       toast.error(`Journal entry not recorded: ${described.title.charAt(0).toLowerCase()}${described.title.slice(1)}`, { description: described.remedy });
     }
   };
