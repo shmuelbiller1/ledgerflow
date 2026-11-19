@@ -1,3 +1,7 @@
+import { toast } from 'sonner';
+import { useReportText } from '../reporting/useReportText';
+import { StatementChangeReview } from './StatementChangeReview';
+import type { ReportLabelFilterValue } from '../../lib/reportLabelScope';
 import ExportTemplateControls from '../reporting/ExportTemplateControls';
 import { useReportDates } from '../reporting/useReportDates';
 import React, { useId, useMemo, useState } from "react";
@@ -45,6 +49,7 @@ interface StatementColumnsProps {
   compare: boolean;
   /** the heading of the comparison column (R-2: "Budget"); "Previous" when not given */
   compareLabel?: string;
+  labelFilter?: ReportLabelFilterValue;
   mode: ReportColumnMode;
   onModeChange: (mode: ReportColumnMode) => void;
   showPercent: boolean;
@@ -85,6 +90,8 @@ export function StatementColumns(props: StatementColumnsProps) {
     onDrillDown,
   } = props;
   const reportDates = useReportDates();
+  const reportText = useReportText();
+  const currency = useAuthStore(state => state.getCurrentWorkspace()?.currency) || 'USD';
   const formId = useId();
   // K-14: a group starts open, so a report with groups shows every account it showed before.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
@@ -193,19 +200,15 @@ export function StatementColumns(props: StatementColumnsProps) {
       ),
     );
   const exportCsv = () => {
-    const csv = statementColumnCsv(
-      visibleRows,
-      displayedColumns,
-      showPercent,
-      compare,
-      accounts,
-      compareLabel,
-    );
-    downloadCsv(
-      `${kind === "pl" ? "Profit_and_Loss" : "Balance_Sheet"}_${startDate}_${endDate}_${mode}.csv`,
-      csv.headers,
-      csv.rows,
-    );
+    try {
+      const csv = statementColumnCsv(visibleRows, displayedColumns, showPercent, compare, accounts, compareLabel, currency);
+      downloadCsv(
+        `${kind === "pl" ? "Profit_and_Loss" : "Balance_Sheet"}_${startDate}_${endDate}_${mode}.csv`,
+        csv.headers, csv.rows,
+      );
+    } catch {
+      toast.error(reportText('r.report-csv-unavailable', 'CSV could not be created. Check the book currency and report amounts.'));
+    }
   };
   const cellsPerColumn = 1 + (showPercent ? 1 : 0) + (compare ? 3 : 0);
   return (
@@ -487,6 +490,11 @@ export function StatementColumns(props: StatementColumnsProps) {
               </tbody>
             </table>
           </div>
+          {mode === 'total' && compare && compareLabel !== 'Budget' && columns[0]?.previousData && columns[0].previousPeriod && (
+            <StatementChangeReview key={JSON.stringify([userId, workspaceId, periods, previousPeriods, props.labelFilter])}
+              column={columns[0]} chartSections={report.columns[0].data} rows={rows} accounts={accounts} transactions={transactions}
+              formatMoney={formatMoney} labelFilter={props.labelFilter} />
+          )}
         </>
       )}
     </section>

@@ -17,10 +17,15 @@ import {
   computeBillRetentionReport,
   retentionInputProblem,
 } from '../../lib/billRetention';
+import { useReportText, fill } from './useReportText';
+
+/** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
+const CODE_NAMES = { c0: 'Tower Phase 2' } as const;
 
 const field = 'w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white';
 
 export default function BillRetentionReportView() {
+  const reportText = useReportText();
   const bills = useLedgerStore(s => s.bills);
   const projects = useLedgerStore(s => s.projects);
   const dimensionNodes = useLedgerStore(s => s.dimensionNodes);
@@ -95,7 +100,7 @@ export default function BillRetentionReportView() {
   };
 
   if (loading) {
-    return <p className="p-6 text-sm text-slate-600 dark:text-slate-400">Loading milestone bill retention…</p>;
+    return <p className="p-6 text-sm text-slate-600 dark:text-slate-400">{reportText('r.loading-milestone-bill-retention', 'Loading milestone bill retention…')}</p>;
   }
 
   return (
@@ -104,10 +109,10 @@ export default function BillRetentionReportView() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <Scale className="w-6 h-6 text-indigo-600" aria-hidden="true" />
-            Retention (Holdbacks) on Milestone Bills
+            {reportText('r.retention-holdbacks-on-milestone-bills', 'Retention (Holdbacks) on Milestone Bills')}
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Tracks contractual retention held back on supplier and subcontractor milestone bills, grouped strictly per currency. Tracking metadata only — never alters posted bill totals or ledger balances.
+            {reportText('r.tracks-contractual-retention-held-back-on-suppli', 'Tracks contractual retention held back on supplier and subcontractor milestone bills, grouped strictly per currency. Tracking metadata only — never alters posted bill totals or ledger balances.')}
           </p>
         </div>
         <button
@@ -115,13 +120,13 @@ export default function BillRetentionReportView() {
           onClick={() => downloadCsv(`bill-retention-${asOfDate}.csv`, BILL_RETENTION_CSV_HEADERS, billRetentionCsvRows(report.rows))}
           className="min-h-11 px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-2"
         >
-          <Download className="w-4 h-4" aria-hidden="true" /> Export CSV
+          <Download className="w-4 h-4" aria-hidden="true" /> {reportText('r.export-csv', 'Export CSV')}
         </button>
       </div>
 
       <div className="max-w-xs">
         <label htmlFor="ret-as-of" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-          As of date (release due check)
+          {reportText('r.as-of-date-release-due-check', 'As of date (release due check)')}
         </label>
         <input id="ret-as-of" type="date" value={asOfDate} onChange={e => setAsOfDate(e.target.value)} className={field} />
       </div>
@@ -130,12 +135,12 @@ export default function BillRetentionReportView() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {report.totalsByCurrency.map(tot => (
             <div key={tot.currency} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-1">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">{tot.currency} holdbacks</div>
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">{tot.currency} {reportText('r.holdbacks', 'holdbacks')}</div>
               <div className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">
-                {formatCurrency(tot.heldOpenCents, tot.currency)} <span className="text-xs font-normal text-slate-500">open held</span>
+                {formatCurrency(tot.heldOpenCents, tot.currency)} <span className="text-xs font-normal text-slate-500">{reportText('r.open-held', 'open held')}</span>
               </div>
               <div className="text-xs tabular-nums text-amber-700 dark:text-amber-300">
-                Past release date: {formatCurrency(tot.pastDueCents, tot.currency)} · Released: {formatCurrency(tot.releasedCents, tot.currency)}
+                {reportText('r.past-release-date', 'Past release date:')} {formatCurrency(tot.pastDueCents, tot.currency)} {reportText('r.released', '· Released:')} {formatCurrency(tot.releasedCents, tot.currency)}
               </div>
             </div>
           ))}
@@ -144,12 +149,12 @@ export default function BillRetentionReportView() {
 
       {canWrite && (
         <form onSubmit={handleSaveRetention} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
-          <h2 className="text-sm font-bold text-slate-900 dark:text-white">Record retention holdback on an issued bill</h2>
+          <h2 className="text-sm font-bold text-slate-900 dark:text-white">{reportText('r.record-retention-holdback-on-an-issued-bill', 'Record retention holdback on an issued bill')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
-              <label htmlFor="ret-bill" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Issued bill</label>
+              <label htmlFor="ret-bill" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.issued-bill', 'Issued bill')}</label>
               <select id="ret-bill" value={billId} onChange={e => setBillId(e.target.value)} className={field}>
-                <option value="">Select bill…</option>
+                <option value="">{reportText('r.select-bill', 'Select bill…')}</option>
                 {eligibleBills.map(b => (
                   <option key={b.id} value={b.id}>
                     {b.number || b.id} — {b.vendorName} ({formatCurrency(b.amountCents || 0, b.currency || workspaceCurrency)})
@@ -158,20 +163,20 @@ export default function BillRetentionReportView() {
               </select>
             </div>
             <div>
-              <label htmlFor="ret-held" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Held back amount</label>
+              <label htmlFor="ret-held" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.held-back-amount', 'Held back amount')}</label>
               <input id="ret-held" type="text" inputMode="decimal" placeholder="500.00" value={heldInput} onChange={e => setHeldInput(e.target.value)} className={field} />
             </div>
             <div>
-              <label htmlFor="ret-due" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Release due date</label>
+              <label htmlFor="ret-due" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.release-due-date', 'Release due date')}</label>
               <input id="ret-due" type="date" value={releaseDate} onChange={e => setReleaseDate(e.target.value)} className={field} />
             </div>
             <div>
-              <label htmlFor="ret-proj" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Project (optional)</label>
+              <label htmlFor="ret-proj" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.project-optional', 'Project (optional)')}</label>
               <input
                 id="ret-proj"
                 list="ret-project-list"
                 type="text"
-                placeholder="Tower Phase 2"
+                placeholder={CODE_NAMES.c0}
                 value={projectLabel}
                 onChange={e => setProjectLabel(e.target.value)}
                 className={field}
@@ -183,11 +188,11 @@ export default function BillRetentionReportView() {
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex-1 min-w-[200px]">
-              <label htmlFor="ret-notes" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Milestone / release condition</label>
-              <input id="ret-notes" type="text" maxLength={240} placeholder="10% held until final inspection certificate" value={notes} onChange={e => setNotes(e.target.value)} className={field} />
+              <label htmlFor="ret-notes" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">{reportText('r.milestone-release-condition', 'Milestone / release condition')}</label>
+              <input id="ret-notes" type="text" maxLength={240} placeholder={reportText('r.10-held-until-final-inspection-certificate', '10% held until final inspection certificate')} value={notes} onChange={e => setNotes(e.target.value)} className={field} />
             </div>
             <button type="submit" className="min-h-11 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white inline-flex items-center gap-1.5">
-              <Plus className="w-4 h-4" aria-hidden="true" /> Save holdback
+              <Plus className="w-4 h-4" aria-hidden="true" /> {reportText('r.save-holdback', 'Save holdback')}
             </button>
           </div>
         </form>
@@ -195,25 +200,25 @@ export default function BillRetentionReportView() {
 
       {report.rows.length === 0 ? (
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center">
-          <p className="text-sm font-semibold text-slate-900 dark:text-white">No retention holdbacks recorded</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{reportText('r.no-retention-holdbacks-recorded', 'No retention holdbacks recorded')}</p>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-            Attach a holdback amount and release date to any issued milestone bill above to track upcoming and past-due releases per project and currency.
+            {reportText('r.attach-a-holdback-amount-and-release-date-to-any', 'Attach a holdback amount and release date to any issued milestone bill above to track upcoming and past-due releases per project and currency.')}
           </p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <table className="w-full text-sm text-start">
-            <caption className="sr-only">Milestone bill retention schedule</caption>
+            <caption className="sr-only">{reportText('r.milestone-bill-retention-schedule', 'Milestone bill retention schedule')}</caption>
             <thead className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
               <tr>
-                <th scope="col" className="px-4 py-3 text-start">Bill</th>
-                <th scope="col" className="px-4 py-3 text-start">Vendor / Project</th>
-                <th scope="col" className="px-4 py-3 text-end">Gross bill</th>
-                <th scope="col" className="px-4 py-3 text-end">Held back</th>
-                <th scope="col" className="px-4 py-3 text-end">Before release</th>
-                <th scope="col" className="px-4 py-3 text-start">Release due</th>
-                <th scope="col" className="px-4 py-3 text-start">Status</th>
-                {canWrite && <th scope="col" className="px-4 py-3 text-end">Actions</th>}
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.bill-2', 'Bill')}</th>
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.vendor-project', 'Vendor / Project')}</th>
+                <th scope="col" className="px-4 py-3 text-end">{reportText('r.gross-bill', 'Gross bill')}</th>
+                <th scope="col" className="px-4 py-3 text-end">{reportText('r.held-back', 'Held back')}</th>
+                <th scope="col" className="px-4 py-3 text-end">{reportText('r.before-release', 'Before release')}</th>
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.release-due', 'Release due')}</th>
+                <th scope="col" className="px-4 py-3 text-start">{reportText('r.status', 'Status')}</th>
+                {canWrite && <th scope="col" className="px-4 py-3 text-end">{reportText('r.actions', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -234,7 +239,7 @@ export default function BillRetentionReportView() {
                   <td className="px-4 py-3 text-end tabular-nums text-slate-600 dark:text-slate-400">
                     {formatCurrency(r.netPayableBeforeReleaseCents, r.currency)}
                   </td>
-                  <td className="px-4 py-3 tabular-nums">{r.releaseDate || 'Unscheduled'}</td>
+                  <td className="px-4 py-3 tabular-nums">{r.releaseDate || reportText('r.unscheduled', 'Unscheduled')}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded ${
                       r.state === 'past-due'
@@ -243,7 +248,7 @@ export default function BillRetentionReportView() {
                           ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
                           : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200'
                     }`}>
-                      {r.state === 'past-due' ? 'Due for release' : r.state === 'released' ? `Released (${r.releasedAt})` : r.state}
+                      {r.state === 'past-due' ? reportText('r.due-for-release', 'Due for release') : r.state === 'released' ? fill(reportText('r.released-0', 'Released ({0})'), { 0: r.releasedAt }) : r.state}
                     </span>
                   </td>
                   {canWrite && (
@@ -254,7 +259,7 @@ export default function BillRetentionReportView() {
                           onClick={() => handleMarkReleased(r.billId)}
                           className="min-h-9 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-300 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 inline-flex items-center gap-1"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Mark released
+                          <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> {reportText('r.mark-released', 'Mark released')}
                         </button>
                       )}
                     </td>

@@ -8,6 +8,7 @@ import { displayDimensionName } from '../../lib/dimensionUtils';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { calculateAmountDue } from '../../lib/documentMath';
 import { labelValueView } from '../../lib/labelValuePage';
+import { useReportText, fill } from './useReportText';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
@@ -23,6 +24,7 @@ function fromAddress(): { label: string; value: string } {
  * invoices and bills, and its last entries. Read-only; each document opens itself.
  */
 export default function LabelValuePageView() {
+  const reportText = useReportText();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const nodes = useLedgerStore(s => s.dimensionNodes) || [];
   const transactions = useLedgerStore(s => s.transactions);
@@ -57,40 +59,40 @@ export default function LabelValuePageView() {
   const profitNow = profit?.key === key && profit.valueId === valueId ? profit : null; // never the previous value's profit
 
   if (!labels.length) {
-    return <p data-report-empty-state className="p-6 text-sm text-[var(--muted)]">No labels yet. Add one in Settings → Labels, then choose a value to see its page.</p>;
+    return <p data-report-empty-state className="p-6 text-sm text-[var(--muted)]">{reportText('r.no-labels-yet-add-one-in-settings-labels-then-ch', 'No labels yet. Add one in Settings → Labels, then choose a value to see its page.')}</p>;
   }
   return (
     <section aria-labelledby="label-value-title" className="space-y-4 p-4">
       <div className="flex flex-wrap items-end gap-3">
-        <h2 id="label-value-title" className="text-xl font-bold flex-1">{node ? node.description : 'Choose a value'}</h2>
-        <label className="flex flex-col text-xs">Label
-          <select aria-label="Label" className={field} value={labelId} onChange={e => { setLabel(e.target.value); setValue(''); }}>
+        <h2 id="label-value-title" className="text-xl font-bold flex-1">{node ? node.description : reportText('r.choose-a-value', 'Choose a value')}</h2>
+        <label className="flex flex-col text-xs">{reportText('r.label', 'Label')}
+          <select aria-label={reportText('r.label', 'Label')} className={field} value={labelId} onChange={e => { setLabel(e.target.value); setValue(''); }}>
             {labels.map(d => <option key={d.id} value={d.id}>{displayDimensionName(d)}</option>)}
           </select>
         </label>
-        <label className="flex flex-col text-xs">Value
-          <select aria-label="Value" className={field} value={valueId} onChange={e => setValue(e.target.value)}>
+        <label className="flex flex-col text-xs">{reportText('r.value', 'Value')}
+          <select aria-label={reportText('r.value', 'Value')} className={field} value={valueId} onChange={e => setValue(e.target.value)}>
             {values.map(v => <option key={v.id} value={v.id}>{v.description}</option>)}
           </select>
         </label>
       </div>
       {!node ? (
-        <p data-report-empty-state className="text-sm text-[var(--muted)]">No values for this label yet. Add one in Settings → Labels.</p>
+        <p data-report-empty-state className="text-sm text-[var(--muted)]">{reportText('r.no-values-for-this-label-yet-add-one-in-settings', 'No values for this label yet. Add one in Settings → Labels.')}</p>
       ) : (
         <>
           <div className="rounded-xl border border-[var(--line)] p-4">
-            <div className="text-xs text-[var(--muted)]">Profit this year</div>
+            <div className="text-xs text-[var(--muted)]">{reportText('r.profit-this-year', 'Profit this year')}</div>
             <div className="text-2xl font-bold tabular-nums" data-testid="label-value-profit">
-              {profitNow?.error ? <span className="text-sm text-rose-600">{profitNow.error}</span> : profitNow ? money(profitNow.netIncome || 0) : 'Working it out…'}
+              {profitNow?.error ? <span className="text-sm text-rose-600">{profitNow.error}</span> : profitNow ? money(profitNow.netIncome || 0) : reportText('r.working-it-out', 'Working it out…')}
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <RecordList title={`Open invoices (${view.openInvoices.length})`} empty="No open invoices with this value."
+            <RecordList title={fill(reportText('r.open-invoices-0', 'Open invoices ({0})'), { 0: view.openInvoices.length })} empty="No open invoices with this value."
               rows={view.openInvoices.map(inv => ({ key: inv.id, text: `${inv.number || inv.id} · ${inv.customerName || ''}`, amount: formatCurrency(calculateAmountDue(inv), inv.currency || currency), open: () => openRecord({ type: 'invoice', id: inv.id }) }))} />
-            <RecordList title={`Open bills (${view.openBills.length})`} empty="No open bills with this value."
+            <RecordList title={fill(reportText('r.open-bills-0', 'Open bills ({0})'), { 0: view.openBills.length })} empty="No open bills with this value."
               rows={view.openBills.map(b => ({ key: b.id, text: `${b.number || b.id} · ${b.vendorName || ''}`, amount: formatCurrency(calculateAmountDue(b), b.currency || currency), open: () => openRecord({ type: 'bill', id: b.id }) }))} />
           </div>
-          <RecordList title="Last entries" empty="No posted entries with this value yet."
+          <RecordList title={reportText('r.last-entries', 'Last entries')} empty="No posted entries with this value yet."
             rows={view.entries.map(t => ({ key: t.id, text: `${formatDate(t.date)} · ${t.description}`, amount: money(t.totalAmountCents || 0), open: () => openRecord({ type: 'transaction', id: t.id }) }))} />
         </>
       )}

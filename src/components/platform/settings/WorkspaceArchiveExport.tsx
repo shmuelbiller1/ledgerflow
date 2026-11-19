@@ -26,19 +26,27 @@ function WorkspaceArchiveExportBody() {
   const role = useCurrentRole();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [reminderFailed, setReminderFailed] = useState(false);
   const allowed = !isGuest && role === 'owner' && Boolean(uid && workspaceId);
   const failure = 'The server export failed. No incomplete archive was downloaded.';
 
   const { start } = useServerExport({
     allowed, setBusy, setError, failure,
     run: async ({ workspaceId: selectedId, signal, stillHere }) => {
+      setReminderFailed(false);
       const source = await readVerifiedBackup(selectedId, signal, failure);
       if (!stillHere()) return;
       const archive = await buildWorkspaceArchive(source, selectedId);
       if (!stillHere()) return;
       saveBlob(archive.blob, `${BRAND.fileSlug}-archive-` + selectedId.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + getLocalDateISO() + '.zip');
-      recordBackupCompleted(selectedId);
-      toast.success('Archived ' + archive.collections.length + ' server-backup collections as JSON and CSV.');
+      // The download has already started. A storage error only affects the local reminder.
+      try {
+        recordBackupCompleted(selectedId);
+      } catch {
+        setReminderFailed(true);
+        return;
+      }
+      toast.success('Workspace ZIP download started. Keep the file somewhere secure.');
     },
   });
   return (
@@ -52,12 +60,15 @@ function WorkspaceArchiveExportBody() {
         in that backup, including empty collections. CSV keeps nested values in a Record JSON column.
       </p>
       <p className="mb-5 text-xs text-[var(--muted)]">
-        It holds every record and the settings, and lists each attached file (name, size, checksum) without
-        the file itself. Members, API keys, bank connections and the audit trail are not included. Restore it
+        The archive lists attached files (names and sizes), not their contents.
+        Members, API keys, bank connections and the audit trail are not included. Restore it
         with Restore Workspace below. The ZIP contains sensitive financial and payroll records. Store it securely.
         Only a signed-in workspace owner can start this download; no demo or browser-cache fallback.
       </p>
       {error && <p role="alert" className="mb-3 text-xs text-[var(--neg)]">{error}</p>}
+      {reminderFailed && <p role="status" className="mb-3 text-sm text-[var(--muted)]">
+        The ZIP download started, but the reminder could not be updated. Check that you saved the file.
+      </p>}
       <button type="button" onClick={() => void start()} disabled={!allowed || busy}
         className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-600 disabled:opacity-40">
         <Download size={16} aria-hidden="true" />

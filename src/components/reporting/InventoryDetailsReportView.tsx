@@ -5,6 +5,7 @@ import { useUIStore } from '../../stores/useUIStore';
 import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { purchasesByItem, STOCK_MOVE_LABEL, type ItemDetails } from '../../lib/stockMoves';
 import { RowTable } from '../ui/RowTable';
+import { useReportText } from './useReportText';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 const qty = (n: number) => String(Math.round(n * 1e6) / 1e6);
@@ -17,6 +18,7 @@ const qty = (n: number) => String(Math.round(n * 1e6) / 1e6);
  * each item in the period (J-08: on bills or on Inventory), with its cost per unit.
  */
 export default function InventoryDetailsReportView() {
+  const reportText = useReportText();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const openRecord = useUIStore(s => s.openRecord);
   const [startDate, setStartDate] = useState(`${getLocalDateISO().slice(0, 7)}-01`);
@@ -44,19 +46,19 @@ export default function InventoryDetailsReportView() {
 
   return (
     <section aria-labelledby="inventory-details-title" className="space-y-4">
-      <h2 id="inventory-details-title" className="text-lg font-bold text-[var(--text)]">Inventory item details</h2>
+      <h2 id="inventory-details-title" className="text-lg font-bold text-[var(--text)]">{reportText('r.inventory-item-details', 'Inventory item details')}</h2>
       <div className="flex flex-wrap items-end gap-3 text-sm">
-        <label className="flex flex-col gap-1 text-[var(--muted)]">From<input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={field} /></label>
-        <label className="flex flex-col gap-1 text-[var(--muted)]">To<input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={field} /></label>
+        <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.from', 'From')}<input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={field} /></label>
+        <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.to', 'To')}<input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={field} /></label>
       </div>
-      {startDate > endDate && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">The period starts after it ends.</p>}
-      {key && !shown && <p className="text-sm text-[var(--muted)]">Loading…</p>}
+      {startDate > endDate && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{reportText('r.the-period-starts-after-it-ends', 'The period starts after it ends.')}</p>}
+      {key && !shown && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
       {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
-      {shown?.items && shown.items.length === 0 && <p className="text-sm text-[var(--muted)]">No stock and no movements in this period.</p>}
+      {shown?.items && shown.items.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-stock-and-no-movements-in-this-period', 'No stock and no movements in this period.')}</p>}
       {shown?.items && purchasesByItem(shown.items).length > 0 && (
         <RowTable
           rowClassName="border-b border-[var(--line)]/50"
-          caption={(<>Bought in the period</>)}
+          caption={(<>{reportText('r.bought-in-the-period', 'Bought in the period')}</>)}
           rows={purchasesByItem(shown.items)}
           rowKey={p => p.itemId}
           captionClassName="text-left font-semibold text-[var(--text)] pb-1"
@@ -64,10 +66,10 @@ export default function InventoryDetailsReportView() {
           headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
           bodyClassName=""
           columns={[
-            { header: "Item", className: "text-left font-normal py-1", headClassName: "text-left font-semibold py-1", cell: (p) => <bdi>{p.itemName}</bdi> },
-            { header: "Units", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => qty(p.quantity) },
-            { header: "Cost", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => formatCurrency(p.valueCents, currency) },
-            { header: "Per unit", align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => formatCurrency(p.averageCents, currency) },
+            { header: reportText('r.item', 'Item'), className: "text-left font-normal py-1", headClassName: "text-left font-semibold py-1", cell: (p) => <bdi>{p.itemName}</bdi> },
+            { header: reportText('r.units', 'Units'), align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => qty(p.quantity) },
+            { header: reportText('r.cost', 'Cost'), align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => formatCurrency(p.valueCents, currency) },
+            { header: reportText('r.per-unit-2', 'Per unit'), align: 'right', className: "font-mono py-1", headClassName: "font-semibold py-1", cell: (p) => formatCurrency(p.averageCents, currency) },
           ]}
         />
       )}
@@ -77,16 +79,16 @@ export default function InventoryDetailsReportView() {
             <caption className="text-left font-semibold text-[var(--text)] pb-1"><bdi>{item.itemName}</bdi></caption>
             <thead>
               <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                <th scope="col" className="text-left font-semibold py-1">Date</th>
-                <th scope="col" className="text-left font-semibold py-1">Movement</th>
-                <th scope="col" className="text-right font-semibold py-1">Quantity</th>
-                <th scope="col" className="text-right font-semibold py-1">On hand after</th>
-                <th scope="col" className="text-right font-semibold py-1">Value</th>
+                <th scope="col" className="text-left font-semibold py-1">{reportText('r.date-2', 'Date')}</th>
+                <th scope="col" className="text-left font-semibold py-1">{reportText('r.movement', 'Movement')}</th>
+                <th scope="col" className="text-right font-semibold py-1">{reportText('r.quantity', 'Quantity')}</th>
+                <th scope="col" className="text-right font-semibold py-1">{reportText('r.on-hand-after', 'On hand after')}</th>
+                <th scope="col" className="text-right font-semibold py-1">{reportText('r.value', 'Value')}</th>
               </tr>
             </thead>
             <tbody>
               <tr className="text-[var(--muted)]">
-                <th scope="row" colSpan={3} className="text-left font-normal py-1">Opening</th>
+                <th scope="row" colSpan={3} className="text-left font-normal py-1">{reportText('r.opening-2', 'Opening')}</th>
                 <td className="text-right font-mono py-1">{qty(item.opening.quantity)}</td>
                 <td className="text-right font-mono py-1">{formatCurrency(item.opening.valueCents, currency)}</td>
               </tr>
@@ -96,7 +98,7 @@ export default function InventoryDetailsReportView() {
                   <td className="py-1">
                     {m.transactionId ? (
                       <button type="button" className="text-indigo-600 dark:text-indigo-400 hover:underline" onClick={() => openRecord({ type: 'transaction', id: String(m.transactionId) })}>
-                        {STOCK_MOVE_LABEL[m.kind]}<span className="sr-only"> on {m.date}: open its entry</span>
+                        {STOCK_MOVE_LABEL[m.kind]}<span className="sr-only"> {reportText('r.on-2', 'on')} {m.date}{reportText('r.open-its-entry', ': open its entry')}</span>
                       </button>
                     ) : STOCK_MOVE_LABEL[m.kind]}
                   </td>
@@ -108,7 +110,7 @@ export default function InventoryDetailsReportView() {
             </tbody>
             <tfoot>
               <tr className="font-semibold">
-                <th scope="row" className="text-left py-1" colSpan={2}>Closing <span className="font-normal text-xs text-[var(--muted)]">(in {qty(item.received)}, out {qty(item.issued)})</span></th>
+                <th scope="row" className="text-left py-1" colSpan={2}>{reportText('r.closing', 'Closing')} <span className="font-normal text-xs text-[var(--muted)]">{reportText('r.in-3', '(in')} {qty(item.received)}{reportText('r.out-2', ', out')} {qty(item.issued)})</span></th>
                 <td />
                 <td className="text-right font-mono py-1">{qty(item.closing.quantity)}</td>
                 <td className="text-right font-mono py-1">{formatCurrency(item.closing.valueCents, currency)}</td>

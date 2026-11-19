@@ -18,6 +18,8 @@ const url = process.env.LF_TEST_DATABASE_URL;
 const today = new Date().toISOString().slice(0, 10);
 const tomorrow = addDaysYMD(today, 1);
 const previousMonthEnd = dayBefore(`${today.slice(0, 7)}-01`);
+/** the documents existed before the past month-end the historical run looks at (#806) */
+const issued = addDaysYMD(previousMonthEnd, -10);
 
 describe('Month-end currency revaluation', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, () => {
   const ws = `ws_fx_${crypto.randomBytes(4).toString('hex')}`;
@@ -69,7 +71,7 @@ describe('Month-end currency revaluation', { skip: !url && 'LF_TEST_DATABASE_URL
     }
     const invoice = (name: string, fields: Record<string, unknown> = {}) => db.collection('invoices').doc(id(name)).set({
       workspaceId: ws, customerId: id('c1'), customerName: 'Acme', number: name.toUpperCase(), status: 'sent',
-      currency: 'EUR', exchangeRate: 1.08, amountCents: 100000, date: today, dueDate: tomorrow, ...fields,
+      currency: 'EUR', exchangeRate: 1.08, amountCents: 100000, date: issued, dueDate: tomorrow, ...fields,
     });
     await invoice('full');
     await invoice('half', { amountPaidCents: 50000 });
@@ -79,12 +81,12 @@ describe('Month-end currency revaluation', { skip: !url && 'LF_TEST_DATABASE_URL
     await invoice('norat', { exchangeRate: undefined });
     await db.collection('bills').doc(id('bill')).set({
       workspaceId: ws, vendorId: id('v1'), vendorName: 'Globex', number: 'BILL-1', status: 'pending',
-      currency: 'GBP', exchangeRate: 1.1, amountCents: 50000, date: today, dueDate: tomorrow,
+      currency: 'GBP', exchangeRate: 1.1, amountCents: 50000, date: issued, dueDate: tomorrow,
     });
   });
 
   after(async () => {
-    for (const table of ['transactions', 'invoices', 'bills', 'chartAccounts', 'customers', 'vendors', 'workspaces']) {
+    for (const table of ['transactions', 'invoices', 'bills', 'payments', 'paymentAllocations', 'chartAccounts', 'customers', 'vendors', 'workspaces']) {
       await db.pool.query(`delete from public."${table}" where workspace_id = any($1) or id = any($1) or data->>'workspaceId' = any($1)`, [[ws, nofx, id('c1'), id('v1'), ...Object.values(accounts)]]);
     }
     await db.terminate();
@@ -211,5 +213,40 @@ describe('Month-end currency revaluation', { skip: !url && 'LF_TEST_DATABASE_URL
     const future = await failure(() => revaluate(db, { workspaceId: ws, user: owner, rates, date: addDaysYMD(today, 1) }));
     assert.equal(future?.status, 400);
     assert.match(String(future?.message), /cannot be after/);
+  });
+
+  test('a past date counts only what existed then, and refuses when a payment came after it (#806)', async () => {
+    const date = previousMonthEnd;
+    await undo(db, { workspaceId: ws, user: owner, date }); // the test above posted this date
+    // issued after the month-end: not part of that day's books
+    await db.collection('invoices').doc(id('later')).set({ workspaceId: ws, customerId: id('c1'), customerName: 'Acme', number: 'LATER', status: 'sent',
+      currency: 'EUR', exchangeRate: 1, amountCents: 999900, date: addDaysYMD(date, 1), dueDate: tomorrow });
+    const withLater = await revaluate(db, { workspaceId: ws, user: owner, date, rates, dryRun: true });
+    const withoutLater = await (async () => { await db.collection('invoices').doc(id('later')).delete(); return revaluate(db, { workspaceId: ws, user: owner, date, rates, dryRun: true }); })();
+    assert.equal(withLater.summary, withoutLater.summary, 'an invoice issued after the date changes nothing');
+
+    // a payment on the cutoff day is that day's; one after it makes the day's open amounts unknowable
+    await db.collection('payments').doc(id('p-on')).set({ workspaceId: ws, direction: 'received', contactId: id('c1'), date, amountCents: 100, status: 'posted',
+      allocations: [{ documentId: id('half'), documentType: 'invoice', amountCents: 100 }] });
+    assert.equal(await failure(() => revaluate(db, { workspaceId: ws, user: owner, date, rates, dryRun: true })), null);
+    await db.collection('payments').doc(id('p-after')).set({ workspaceId: ws, direction: 'received', contactId: id('c1'), date: addDaysYMD(date, 1), amountCents: 100, status: 'posted',
+      allocations: [{ documentId: id('half'), documentType: 'invoice', amountCents: 100 }] });
+    for (const dryRun of [true, false]) {
+      const refused = await failure(() => revaluate(db, { workspaceId: ws, user: owner, date, rates, dryRun }));
+      assert.equal(refused?.status, 409);
+      assert.match(String(refused?.message), /paid, credited or written off after/);
+    }
+    // a void payment is not a settlement
+    await db.collection('payments').doc(id('p-after')).set({ status: 'void' }, { merge: true });
+    assert.equal(await failure(() => revaluate(db, { workspaceId: ws, user: owner, date, rates, dryRun: true })), null);
+
+    // a credit applied after the date settles too (allocation ledger), unless it was reversed; so does a later write-off
+    await db.collection('paymentAllocations').doc(id('alloc')).set({ workspaceId: ws, kind: 'credit', documentId: id('full'), amountCents: 500, date: addDaysYMD(date, 2) });
+    assert.match(String((await failure(() => revaluate(db, { workspaceId: ws, user: owner, date, rates, dryRun: true })))?.message), /credited or written off/);
+    await db.collection('paymentAllocations').doc(id('alloc')).set({ reversedBy: 'r1' }, { merge: true });
+    assert.equal(await failure(() => revaluate(db, { workspaceId: ws, user: owner, date, rates, dryRun: true })), null);
+    await db.collection('invoices').doc(id('full')).set({ writtenOffAt: addDaysYMD(date, 3) }, { merge: true });
+    assert.equal((await failure(() => revaluate(db, { workspaceId: ws, user: owner, date, rates, dryRun: true })))?.status, 409);
+    await db.collection('invoices').doc(id('full')).set({ writtenOffAt: null }, { merge: true });
   });
 });

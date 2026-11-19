@@ -117,7 +117,11 @@ export default function LegalModal({ isOpen, onClose, initialTab = 'terms' }: Le
                 <section>
                   <h3 className="text-base font-bold text-slate-900 mb-2">1. Information We Collect</h3>
                   <p>
-                    We collect information required to deliver enterprise accounting services: account credentials (email, UID), workspace configuration metadata, uploaded bank statement files, journal entries, and system diagnostic telemetry.
+                    We collect information required to deliver accounting services, including account details (email and user ID), workspace settings, uploaded bank statements, and journal entries.
+                  </p>
+                  <p className="mt-2">
+                    Automatic browser crash reports are optional. You can turn them off in Settings → Security → Crash reports.
+                    You can also choose whether to attach diagnostic details to each support ticket.
                   </p>
                 </section>
 

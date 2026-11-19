@@ -3,6 +3,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { displayDimensionName } from '../../lib/dimensionUtils';
 import type { ReportLabelFilterValue } from '../../lib/reportLabelScope';
+import { useReportText } from './useReportText';
 
 const DEFAULT_LABELS = [{ id: 'location', name: 'Location' }, { id: 'class', name: 'Class' }, { id: 'project', name: 'Project' }, { id: 'department', name: 'Department' }];
 
@@ -13,6 +14,7 @@ const field = 'bg-[var(--ink)] min-h-11 min-w-0 w-full border border-[var(--line
  * one of its values. A report that cannot honour it does not render this (hidden, never ignored).
  */
 export function useReportLabelFilter(): { filter: ReportLabelFilterValue | null; control: ReactElement | null } {
+  const reportText = useReportText();
   const formId = useId();
   // the workspace's labels, else the P&L's usual four (AU-2), so the filter is there before any label is set up
   const own = (useAuthStore(s => s.getCurrentWorkspace()?.dimensions) || []).filter(d => d.id !== 'category');
@@ -26,14 +28,14 @@ export function useReportLabelFilter(): { filter: ReportLabelFilterValue | null;
   const filter = label && value.trim() ? { dimensionId: label.id, value: value.trim() } : null;
   const control = (
     <div data-filter-group data-testid="report-label-filter" className="flex min-w-0 flex-col gap-1 text-[9px] font-bold text-[var(--text)]">
-      <label htmlFor={`${formId}-label-kind`}>Label</label>
-      <select id={`${formId}-label-kind`} aria-label="Label kind" value={dimensionId} onChange={e => { setDimensionId(e.target.value); setValue(''); }} className={field}>
-        <option value="">All</option>
+      <label htmlFor={`${formId}-label-kind`}>{reportText('r.label', 'Label')}</label>
+      <select id={`${formId}-label-kind`} aria-label={reportText('r.label-kind', 'Label kind')} value={dimensionId} onChange={e => { setDimensionId(e.target.value); setValue(''); }} className={field}>
+        <option value="">{reportText('r.all', 'All')}</option>
         {labels.map(d => <option key={d.id} value={d.id}>{displayDimensionName(d)}</option>)}
       </select>
       {label && <>
-        <label htmlFor={`${formId}-label-value`}>Label value</label>
-        <input id={`${formId}-label-value`} aria-label="Label value" list={`${formId}-label-values`} value={value} onChange={e => setValue(e.target.value)} placeholder="e.g. Tel Aviv" className={field} />
+        <label htmlFor={`${formId}-label-value`}>{reportText('r.label-value', 'Label value')}</label>
+        <input id={`${formId}-label-value`} aria-label={reportText('r.label-value', 'Label value')} list={`${formId}-label-values`} value={value} onChange={e => setValue(e.target.value)} placeholder={reportText('r.e-g-tel-aviv', 'e.g. Tel Aviv')} className={field} />
         <datalist id={`${formId}-label-values`}>{values.map(v => <option key={v.id} value={v.description} />)}</datalist>
       </>}
     </div>

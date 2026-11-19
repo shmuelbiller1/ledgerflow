@@ -479,15 +479,15 @@ export const bankRulesRerunCommand: CommandDefinition<typeof bankRulesRerunInput
   async prepare(ctx) {
     return prepareRerunBankRules(ctx.db, { workspaceId: ctx.workspaceId, uid: ctx.actor });
   },
-  async handler(ctx, _tx, input) {
-    // the rules walk the pending lines a chunk at a time, each chunk in its own transaction
+  async handler(ctx, tx, input) {
+    // #796: the chunks run in the runner's transaction, so a retry cannot lose the change count or the audit line
     try {
       const result = await rerunBankRules(ctx.db, {
         workspaceId: ctx.workspaceId,
         uid: ctx.actor,
         ...(input.after !== undefined ? { after: input.after } : {}),
         ...(input.limit !== undefined ? { limit: input.limit } : {}),
-      });
+      }, tx);
       return result;
     } catch (error) {
       if (error instanceof BankRuleError) throw error;

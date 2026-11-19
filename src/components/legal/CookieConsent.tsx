@@ -1,23 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useSyncExternalStore } from 'react';
 import { Cookie, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { BRAND_NAME } from '../../config/brand';
-import { getCookieConsent, setCookieConsent, type CookieConsentChoice } from '../../lib/cookieConsent';
+import { getCookieConsent, setCookieConsent, subscribeCookieConsent, type CookieConsentChoice } from '../../lib/cookieConsent';
 
 interface CookieConsentProps {
   onOpenPrivacyPolicy?: () => void;
 }
 
 export default function CookieConsent({ onOpenPrivacyPolicy }: CookieConsentProps) {
-  const [showBanner, setShowBanner] = useState(() => getCookieConsent() === null);
+  const choice = useSyncExternalStore(subscribeCookieConsent, getCookieConsent, () => null);
+  const [showStorageNotice, setShowStorageNotice] = useState(false);
 
   const handleAccept = (type: CookieConsentChoice) => {
-    setCookieConsent(type);
-    setShowBanner(false);
+    setShowStorageNotice(!setCookieConsent(type) && type === 'all');
   };
 
-  if (!showBanner) return null;
+  if (choice !== null && !showStorageNotice) return null;
 
   return (
     <AnimatePresence>
@@ -37,8 +37,9 @@ export default function CookieConsent({ onOpenPrivacyPolicy }: CookieConsentProp
             <h2 id="cookie-notice-title" className="text-sm font-bold text-white">Cookie & Privacy Notice</h2>
           </div>
           <button
+            type="button"
             onClick={() => handleAccept('essential')}
-            className="p-1 text-slate-400 hover:text-white rounded-md transition-colors"
+            className="min-w-11 min-h-11 inline-flex items-center justify-center text-slate-400 hover:text-white rounded-md transition-colors"
             aria-label="Dismiss cookie banner"
           >
             <X size={16} />
@@ -46,27 +47,33 @@ export default function CookieConsent({ onOpenPrivacyPolicy }: CookieConsentProp
         </div>
 
         <p className="text-xs text-slate-300 leading-relaxed mb-4">
-          {BRAND_NAME} uses essential cookies and client storage to secure workspace sessions, maintain active financial state, and meet compliance standards.{' '}
+          {BRAND_NAME} uses essential storage to keep you signed in and remember your settings.
+          Accept All also lets {BRAND_NAME} send automatic crash reports to help fix errors. Essential Only keeps them off.
+          You can change this in Settings → Security.{' '}
           {onOpenPrivacyPolicy && (
             <button
+              type="button"
               onClick={onOpenPrivacyPolicy}
-              className="text-indigo-400 hover:underline font-semibold"
+              className="min-h-11 text-indigo-400 hover:underline font-semibold"
             >
               Read Privacy Policy
             </button>
           )}
         </p>
 
+        {showStorageNotice && <p role="alert" className="mb-3 text-xs">Your browser couldn't save the choice. Automatic crash reports are off in this tab.</p>}
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => handleAccept('all')}
-            className="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+            className="min-h-11 flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
           >
             Accept All
           </button>
           <button
+            type="button"
             onClick={() => handleAccept('essential')}
-            className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+            className="min-h-11 flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
           >
             Essential Only
           </button>

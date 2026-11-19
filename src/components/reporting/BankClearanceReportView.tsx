@@ -11,6 +11,7 @@ import { bankClearance } from '../../lib/bankClearance';
 import { csvMoney } from '../../lib/csvExport';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import type { ColumnDef } from '@tanstack/react-table';
+import { useReportText } from './useReportText';
 
 type ClearanceRow = ReturnType<typeof bankClearance>['rows'][number];
 
@@ -22,6 +23,7 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
  * the balance the bank should show (src/lib/bankClearance.ts). Each entry opens.
  */
 export default function BankClearanceReportView() {
+  const reportText = useReportText();
   const { loading } = useLedgerCollections('accounts', 'transactions', 'bankLines');
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const accounts = useLedgerStore(s => s.accounts);
@@ -47,14 +49,14 @@ export default function BankClearanceReportView() {
     clearedText(row) === 'Outstanding' ? '2Outstanding' : row.clearedOn ? `1${row.clearedOn}` : '0Reconciled';
 
   const clearanceColumns: ColumnDef<ClearanceRow, unknown>[] = [
-    { id: 'date', accessorFn: row => row.date, header: 'Date', cell: info => <span className="font-mono text-xs">{formatDate(String(info.getValue()))}</span> },
-    { id: 'entry', accessorFn: row => row.description || 'Entry', header: 'Entry', cell: info => (
+    { id: 'date', accessorFn: row => row.date, header: reportText('r.date-2', 'Date'), cell: info => <span className="font-mono text-xs">{formatDate(String(info.getValue()))}</span> },
+    { id: 'entry', accessorFn: row => row.description || 'Entry', header: reportText('r.entry', 'Entry'), cell: info => (
       <button type="button" className="text-left text-indigo-600 dark:text-indigo-400 hover:underline" onClick={() => openRecord({ type: 'transaction', id: (info.row.original as ClearanceRow).id })}>
-        <bdi>{String(info.getValue())}</bdi><span className="sr-only">: open it</span>
+        <bdi>{String(info.getValue())}</bdi><span className="sr-only">{reportText('r.open-it', ': open it')}</span>
       </button>
     ) },
-    { id: 'in', accessorFn: row => (row.amountCents > 0 ? row.amountCents : null), header: 'In', cell: info => (info.getValue() === null ? '' : <span className="font-mono">{money(Number(info.getValue()))}</span>) },
-    { id: 'out', accessorFn: row => (row.amountCents < 0 ? -row.amountCents : null), header: 'Out', cell: info => (info.getValue() === null ? '' : <span className="font-mono">{money(Number(info.getValue()))}</span>) },
+    { id: 'in', accessorFn: row => (row.amountCents > 0 ? row.amountCents : null), header: reportText('r.in-2', 'In'), cell: info => (info.getValue() === null ? '' : <span className="font-mono">{money(Number(info.getValue()))}</span>) },
+    { id: 'out', accessorFn: row => (row.amountCents < 0 ? -row.amountCents : null), header: reportText('r.out', 'Out'), cell: info => (info.getValue() === null ? '' : <span className="font-mono">{money(Number(info.getValue()))}</span>) },
     /**
      * Sorted on the stored date, with the two states on either side of the dates: sorting the printed
      * date put "Feb 01, 2026" before "Jan 20, 2026", and a day-first format sorted by day of month.
@@ -69,7 +71,7 @@ export default function BankClearanceReportView() {
      * also return them. The key must not lead the accessor: the grid's global filter compares the
      * accessor, and a key in front of it would put the printed-first ordering back.
      */
-    { id: 'cleared', accessorFn: clearedText, sortingFn: (a, b) => clearedSortKey(a.original).localeCompare(clearedSortKey(b.original)), header: 'Cleared', cell: info => {
+    { id: 'cleared', accessorFn: clearedText, sortingFn: (a, b) => clearedSortKey(a.original).localeCompare(clearedSortKey(b.original)), header: reportText('r.cleared', 'Cleared'), cell: info => {
       // the cell prints the record's own state; only the sort key carries the stored date
       const text = clearedText(info.row.original as ClearanceRow);
       return text === 'Outstanding' ? <span className="text-amber-700 dark:text-amber-400">{text}</span> : <span className="text-xs">{text}</span>;
@@ -78,49 +80,49 @@ export default function BankClearanceReportView() {
 
   return (
     <section aria-labelledby="bank-clearance-title" className="space-y-4">
-      <h2 id="bank-clearance-title" className="text-lg font-bold text-[var(--text)]">Bank clearance summary</h2>
-      {banks.length === 0 ? <p className="text-sm text-[var(--muted)]">No bank or cash account yet.</p> : (
+      <h2 id="bank-clearance-title" className="text-lg font-bold text-[var(--text)]">{reportText('r.bank-clearance-summary', 'Bank clearance summary')}</h2>
+      {banks.length === 0 ? <p className="text-sm text-[var(--muted)]">{reportText('r.no-bank-or-cash-account-yet', 'No bank or cash account yet.')}</p> : (
         <div className="flex flex-wrap items-end gap-3 text-sm">
-          <label className="flex flex-col gap-1 text-[var(--muted)]">Bank account
+          <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.bank-account', 'Bank account')}
             <select value={accountId} onChange={e => setPicked(e.target.value)} className={field}>
               {banks.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[var(--muted)]">From<input type="date" value={from} onChange={e => setFrom(e.target.value)} className={field} /></label>
-          <label className="flex flex-col gap-1 text-[var(--muted)]">To<input type="date" value={to} onChange={e => setTo(e.target.value)} className={field} /></label>
+          <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.from', 'From')}<input type="date" value={from} onChange={e => setFrom(e.target.value)} className={field} /></label>
+          <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.to', 'To')}<input type="date" value={to} onChange={e => setTo(e.target.value)} className={field} /></label>
         </div>
       )}
-      {loading && <LoadingState what="this account's entries" rows={5} />}
+      {loading && <LoadingState what={reportText('r.this-account-s-entries', 'this account\'s entries')} rows={5} />}
       {summary && (
         <>
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
             {[['Book balance', summary.bookBalanceCents], ['Deposits not yet on the statement', summary.outstandingInCents], ['Payments not yet taken', summary.outstandingOutCents], ['The bank should show', summary.bankBalanceCents]].map(([label, cents]) => (
               <div key={label} className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3">
-                <dt className="text-xs text-[var(--muted)]">{label} on {formatDate(to)}</dt>
+                <dt className="text-xs text-[var(--muted)]">{label} {reportText('r.on-2', 'on')} {formatDate(to)}</dt>
                 <dd className="font-mono font-semibold text-[var(--text)]">{money(Number(cents))}</dd>
               </div>
             ))}
           </dl>
           <TanStackDataGrid
-            caption={`Each entry on the account in the period and the day the bank cleared it`}
+            caption={reportText('r.each-entry-on-the-account-in-the-period-and-the', 'Each entry on the account in the period and the day the bank cleared it')}
             data={summary.rows}
             columns={clearanceColumns}
             rowHeaderColumn="entry"
             pageSize={25}
-            searchPlaceholder="Search this account's entries..."
+            searchPlaceholder={reportText('r.search-this-account-s-entries', 'Search this account\'s entries...')}
             searchLabel="Search this account's entries"
             columnScope="report-bank-clearance"
             columnLabel="Bank clearance columns"
             columnNames={['Date', 'Entry', 'In', 'Out', 'Cleared']}
             exportConfig={{
               filename: 'bank-clearance.csv',
-              label: 'Export CSV',
+              label: reportText('r.export-csv', 'Export CSV'),
               headers: ['Date', 'Entry', 'In', 'Out', 'Cleared'],
               // amounts leave the app as plain decimals (`1234.50`), never the display format
               mapRow: row => [row.date, row.description || 'Entry', row.amountCents > 0 ? csvMoney(row.amountCents) : '', row.amountCents < 0 ? csvMoney(-row.amountCents) : '', clearedText(row)],
             }}
-            emptyState={<EmptyState title="No entries on this account in the period" description="Choose another account or a wider period." />}
-            filteredEmptyState={<EmptyState title="No entry matches your search" description="Try another description or date." />}
+            emptyState={<EmptyState title={reportText('r.no-entries-on-this-account-in-the-period', 'No entries on this account in the period')} description={reportText('r.choose-another-account-or-a-wider-period', 'Choose another account or a wider period.')} />}
+            filteredEmptyState={<EmptyState title={reportText('r.no-entry-matches-your-search', 'No entry matches your search')} description={reportText('r.try-another-description-or-date', 'Try another description or date.')} />}
           />
         </>
       )}

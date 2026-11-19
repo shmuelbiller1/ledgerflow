@@ -1,5 +1,6 @@
 import React from 'react';
 import { useReportDates } from './useReportDates';
+import { useReportText, fill } from './useReportText';
 
 /**
  * A-220: the line under a report's title that says which period the figures cover, written the
@@ -31,6 +32,7 @@ export function ReportPeriodHeading({
   as?: 'p' | 'h2' | 'div' | 'span';
   asOf?: boolean;
 }) {
+  const reportText = useReportText();
   const reportDates = useReportDates();
   const { locale } = reportDates;
   const period = asOf
@@ -53,7 +55,7 @@ export function ReportPeriodHeading({
     >
       {title ? `${title}: ` : ''}
       {period}
-      {comparison ? ` · compared with ${comparison}` : ''}
+      {comparison ? ` ${fill(reportText('r.compared-with-0', '· compared with {0}'), { 0: comparison })}` : ''}
     </Element>
   );
 }

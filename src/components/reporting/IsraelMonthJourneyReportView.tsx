@@ -21,7 +21,6 @@ import { useReportText, fill } from './useReportText';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const MONTH_TEXT = /^\d{4}-\d{2}$/;
-const STATUS_LABEL = stepStatusLabel('month');
 
 /** Only this workspace's rows; a row with no workspace id is a fixture or a shared record. */
 const inWorkspace = <T extends { workspaceId?: string }>(rows: T[] | undefined, workspaceId?: string | null) =>
@@ -354,7 +353,7 @@ export function IsraelMonthJourneyPanel({ journey, preview, currency = 'ILS', mo
         : journey.nextStep ? ` ${fill(reportText('r.journey-next', '· next: {step}.'), { step: journey.steps.find(s => s.id === journey.nextStep)?.title ?? '' })}` : ''}
     </p>}
 
-    {journey && <JourneySteps steps={journey.steps} currency={currency} formatCurrency={formatCurrency} statusLabel={STATUS_LABEL}
+    {journey && <JourneySteps steps={journey.steps} currency={currency} formatCurrency={formatCurrency} statusLabel={stepStatusLabel('month', reportText)}
       afterFigures={step => <>
         {step.returns.length > 0 && <VatReturnTable returns={step.returns} currency={currency} onRecordFiled={onRecordFiled} />}
         {step.allocation.length > 0 && <AllocationTable cases={step.allocation} currency={currency} />}

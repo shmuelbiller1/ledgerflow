@@ -61,6 +61,8 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         return res.status(403).json({ error: 'Not a member' });
       }
 
+      // #827: a query parameter without a name is a malformed request, not an ignorable one
+      if (Object.prototype.hasOwnProperty.call(req.query, '')) return res.status(400).json({ error: 'A query parameter has no name' });
       const { startDate, endDate, accountId, limit, cursor } = req.query;
       // Z-04: ?fields=date,description,… returns only those fields (and the id)
       let fields: string[] | null;

@@ -19,7 +19,8 @@ const COMMAND_AREA_SCOPE: Readonly<Record<string, string>> = {
   inventory: 'write:transactions', inventoryitem: 'write:transactions', rma: 'write:transactions',
   asset: 'write:transactions', loan: 'write:transactions', lease: 'write:transactions',
   revenue: 'write:transactions', reconciliations: 'write:transactions', transaction: 'write:transactions',
-  period: 'write:transactions',
+  // #820: every period command changes the books' state (close, lock a year, rebuild snapshots, restate FX)
+  period: 'write:workspaces',
   // the chart and the plan
   chartaccount: 'write:ledger', budget: 'write:ledger',
   // contacts and their own records
@@ -43,9 +44,6 @@ export function requiredApiKeyScope(method: string, path: string): string {
     const match = /\/commands\/([^/]+)/.exec(cleanPath);
     let name = match?.[1] || '';
     try { name = decodeURIComponent(name); } catch { /* an invalid name will be refused by the command router */ }
-    // Period-management commands keep the legacy /workspaces/:id/periods restriction; in
-    // particular, transaction integrations must not gain permission to unlock or reopen books.
-    if (/^period\.(close|closesteps|depreciation|relock|reopen|signoff|unlock)$/.test(name)) return 'write:workspaces';
     if (name === 'audit.deep' || name === 'consolidation.verify') return 'write:transactions';
     if (name === 'estimate.signlink' || name === 'document.remove') return 'write:workspaces';
     const area = name.split('.')[0];

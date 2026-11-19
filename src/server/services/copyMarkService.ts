@@ -20,10 +20,16 @@ export async function takeCopyMark(
   type: string,
   id: string,
   workspace: { taxProfiles?: TaxProfiles } | null | undefined,
-  options?: { readOnly?: boolean },
+  options?: { readOnly?: boolean; preview?: boolean },
 ): Promise<'original' | 'copy' | undefined> {
   const collection = MARKED[type];
   if (!collection || !marksOriginals(workspace)) return undefined;
+  // a preview on screen is not given to anyone: it never takes the original, and before the original is issued it carries no mark (#845)
+  if (options?.preview) {
+    const doc = (await db.collection(collection).doc(id).get()).data();
+    if (!doc || doc.status === 'draft' || doc.status === 'void') return undefined;
+    return doc.originalIssuedAt ? 'copy' : undefined;
+  }
   if (options?.readOnly) {
     const doc = (await db.collection(collection).doc(id).get()).data();
     if (!doc || doc.status === 'draft' || doc.status === 'void') return undefined;

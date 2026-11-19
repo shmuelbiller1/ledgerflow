@@ -26,12 +26,17 @@ import { goodsLeaveWith } from '../../lib/deliveries';
 import type { Estimate, InventoryItem, Invoice, Transaction } from '../../types';
 import ReportTableScroll from './ReportTableScroll';
 import { RowTable } from '../ui/RowTable';
+import { useReportText, fill } from './useReportText';
+
+/** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
+const CODE_NAMES = { c0: 'SKU', printCss: '@media print { /* H-7 (AI #10): the slip is the print root, so the shared rules in src/index.css narrow the paper to it. The body class is kept for the one thing those rules do not do here — the slip\'s own white paper box — and as a fallback for an engine without :has(). */ body.warehouse-packing-print * { visibility: hidden !important; } body.warehouse-packing-print [data-warehouse-packing-slip], body.warehouse-packing-print [data-warehouse-packing-slip] * { visibility: visible !important; } body.warehouse-packing-print [data-warehouse-packing-slip] { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; padding: 24px !important; background: white !important; color: black !important; } }' } as const;
 
 const field = 'min-h-11 min-w-0 max-w-full border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const PICK_CSV_HEADERS = ['Sales order', 'Customer', 'Location', 'Bin', 'SKU', 'Item', 'Quantity to pick'];
 const displayQty = (value: number) => Number(value).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
 export default function PickPackShipPanel({ embedded = false }: { embedded?: boolean } = {}) {
+  const reportText = useReportText();
   const estimates = useLedgerStore(state => state.estimates) as Estimate[];
   const invoices = useLedgerStore(state => state.invoices) as Invoice[];
   const inventory = useLedgerStore(state => state.inventory) as InventoryItem[];
@@ -169,41 +174,28 @@ export default function PickPackShipPanel({ embedded = false }: { embedded?: boo
   ]);
   const selectedLocation = locations.find(location => location.id === locationId);
 
-  return <section aria-label="Pick, pack and ship" className="space-y-4 min-w-0">
-    <style>{`
-      @media print {
-        /* H-7 (AI #10): the slip is the print root, so the shared rules in src/index.css narrow the
-           paper to it. The body class is kept for the one thing those rules do not do here — the
-           slip's own white paper box — and as a fallback for an engine without :has(). */
-        body.warehouse-packing-print * { visibility: hidden !important; }
-        body.warehouse-packing-print [data-warehouse-packing-slip],
-        body.warehouse-packing-print [data-warehouse-packing-slip] * { visibility: visible !important; }
-        body.warehouse-packing-print [data-warehouse-packing-slip] {
-          position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important;
-          padding: 24px !important; background: white !important; color: black !important;
-        }
-      }
-    `}</style>
+  return <section aria-label={reportText('r.pick-pack-and-ship', 'Pick, pack and ship')} className="space-y-4 min-w-0">
+    <style>{CODE_NAMES.printCss}</style>
     <div>
-      <h3 className="text-lg font-semibold">Pick, pack and ship</h3>
-      <p className="text-sm text-[var(--muted)]">Pick quantities come from open sales-order lines, using issued invoices when goods leave with an invoice, or posted deliveries and returns when goods leave with a delivery. Printing a packing slip is read-only. A shipped mark adds carrier and tracking details to an existing fulfilment record; it does not deliver goods, reduce stock, create an invoice, or post money.</p>
+      <h3 className="text-lg font-semibold">{reportText('r.pick-pack-and-ship', 'Pick, pack and ship')}</h3>
+      <p className="text-sm text-[var(--muted)]">{reportText('r.pick-quantities-come-from-open-sales-order-lines', 'Pick quantities come from open sales-order lines, using issued invoices when goods leave with an invoice, or posted deliveries and returns when goods leave with a delivery. Printing a packing slip is read-only. A shipped mark adds carrier and tracking details to an existing fulfilment record; it does not deliver goods, reduce stock, create an invoice, or post money.')}</p>
     </div>
 
-    {loading && <p role="status" className="text-sm text-[var(--muted)]">Loading orders, invoices, inventory and stock movements…</p>}
-    {partial && <p role="alert" className="text-sm text-[var(--warning,#b45309)]">At least one required list is capped or failed. Pick quantities may be incomplete; printing and shipment edits are disabled until the lists are complete.</p>}
+    {loading && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.loading-orders-invoices-inventory-and-stock-move', 'Loading orders, invoices, inventory and stock movements…')}</p>}
+    {partial && <p role="alert" className="text-sm text-[var(--warning,#b45309)]">{reportText('r.at-least-one-required-list-is-capped-or-failed-p', 'At least one required list is capped or failed. Pick quantities may be incomplete; printing and shipment edits are disabled until the lists are complete.')}</p>}
     {mode === 'delivery'
-      ? <p className="text-sm text-[var(--muted)]">This workspace moves stock when a delivery is recorded. Use the existing Sales order delivery workflow before adding shipment tracking here.</p>
-      : <p className="text-sm text-[var(--muted)]">This workspace moves stock when an invoice is issued. Only issued invoices can be marked shipped here.</p>}
+      ? <p className="text-sm text-[var(--muted)]">{reportText('r.this-workspace-moves-stock-when-a-delivery-is-re', 'This workspace moves stock when a delivery is recorded. Use the existing Sales order delivery workflow before adding shipment tracking here.')}</p>
+      : <p className="text-sm text-[var(--muted)]">{reportText('r.this-workspace-moves-stock-when-an-invoice-is-is', 'This workspace moves stock when an invoice is issued. Only issued invoices can be marked shipped here.')}</p>}
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
-      <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">Pick location
-        <select aria-label="Warehouse pick location" className={field} value={locationId} onChange={event => setSelectedLocationId(event.target.value)}>
-          {!locations.length && <option value={NO_LOCATION_VALUE}>No Location values configured</option>}
-          {locations.map(location => <option key={location.id} value={location.id}>{location.description || location.id}{location.status === 'archived' ? ' (archived)' : ''}</option>)}
+      <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">{reportText('r.pick-location', 'Pick location')}
+        <select aria-label={reportText('r.warehouse-pick-location', 'Warehouse pick location')} className={field} value={locationId} onChange={event => setSelectedLocationId(event.target.value)}>
+          {!locations.length && <option value={NO_LOCATION_VALUE}>{reportText('r.no-location-values-configured', 'No Location values configured')}</option>}
+          {locations.map(location => <option key={location.id} value={location.id}>{location.description || location.id}{location.status === 'archived' ? ` ${reportText('r.archived', '(archived)')}` : ''}</option>)}
         </select>
       </label>
-      <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">Sales order
-        <select aria-label="Pick and ship sales order" className={field} value={order?.id || ''} onChange={event => {
+      <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">{reportText('r.sales-order', 'Sales order')}
+        <select aria-label={reportText('r.pick-and-ship-sales-order', 'Pick and ship sales order')} className={field} value={order?.id || ''} onChange={event => {
           setSelectedOrderId(event.target.value);
           setSelectedSourceKey('');
           setCarrier('');
@@ -211,74 +203,74 @@ export default function PickPackShipPanel({ embedded = false }: { embedded?: boo
           setProblem('');
           setShowPackingSlip(false);
         }}>
-          {orders.map(candidate => <option key={candidate.id} value={candidate.id}>{candidate.number || candidate.id} — {candidate.customerName || 'Customer'}</option>)}
+          {orders.map(candidate => <option key={candidate.id} value={candidate.id}>{candidate.number || candidate.id} — {candidate.customerName || reportText('r.customer', 'Customer')}</option>)}
         </select>
       </label>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)] disabled:opacity-50"
         disabled={!pickRows.length || !mayUseCurrentRows || locationId === NO_LOCATION_VALUE}
-        onClick={() => { setShowPackingSlip(true); setPrintRequest(current => current + 1); }}>Print packing slip</button>
+        onClick={() => { setShowPackingSlip(true); setPrintRequest(current => current + 1); }}>{reportText('r.print-packing-slip', 'Print packing slip')}</button>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)] disabled:opacity-50"
         disabled={!allPickRows.length || !mayUseCurrentRows}
-        onClick={() => downloadCsv(`warehouse-pick-list-${today}`, PICK_CSV_HEADERS, rowsForCsv)}>Export pick list CSV</button>
+        onClick={() => downloadCsv(`warehouse-pick-list-${today}`, PICK_CSV_HEADERS, rowsForCsv)}>{reportText('r.export-pick-list-csv', 'Export pick list CSV')}</button>
     </div>
 
-    {!orders.length && !loading && <p className="text-sm text-[var(--muted)]">No accepted sales orders with inventory lines are loaded.</p>}
-    {orders.length > 0 && !locations.length && <p className="text-sm text-[var(--muted)]">Create a Location value in Labels and assign bins before printing a location-specific pick list.</p>}
+    {!orders.length && !loading && <p className="text-sm text-[var(--muted)]">{reportText('r.no-accepted-sales-orders-with-inventory-lines-ar', 'No accepted sales orders with inventory lines are loaded.')}</p>}
+    {orders.length > 0 && !locations.length && <p className="text-sm text-[var(--muted)]">{reportText('r.create-a-location-value-in-labels-and-assign-bin', 'Create a Location value in Labels and assign bins before printing a location-specific pick list.')}</p>}
 
     <ReportTableScroll>
       <table className="w-full text-sm">
-        <caption>Open pick list for {order?.number || order?.id || 'selected sales order'}{selectedLocation ? ` at ${selectedLocation.description || selectedLocation.id}` : ''}</caption>
+        <caption>{reportText('r.open-pick-list-for', 'Open pick list for')} {order?.number || order?.id || reportText('r.selected-sales-order', 'selected sales order')}{selectedLocation ? ` ${fill(reportText('r.at-0', 'at {0}'), { 0: selectedLocation.description || selectedLocation.id })}` : ''}</caption>
         <thead><tr>
-          <th scope="col" className="text-left py-2 px-2">Bin</th>
-          <th scope="col" className="text-left py-2 px-2">SKU</th>
-          <th scope="col" className="text-left py-2 px-2">Item</th>
-          <th scope="col" className="text-right py-2 px-2">Quantity to pick</th>
+          <th scope="col" className="text-left py-2 px-2">{reportText('r.bin', 'Bin')}</th>
+          <th scope="col" className="text-left py-2 px-2">{CODE_NAMES.c0}</th>
+          <th scope="col" className="text-left py-2 px-2">{reportText('r.item', 'Item')}</th>
+          <th scope="col" className="text-right py-2 px-2">{reportText('r.quantity-to-pick', 'Quantity to pick')}</th>
         </tr></thead>
         <tbody>
           {pickRows.map(row => <PickRow key={`${row.orderId}:${row.linePosition}`} row={row} />)}
         </tbody>
       </table>
-      {order && !pickRows.length && <p className="p-3 text-sm text-[var(--muted)]">No remaining stock quantities to pick for this sales order at the selected Location.</p>}
+      {order && !pickRows.length && <p className="p-3 text-sm text-[var(--muted)]">{reportText('r.no-remaining-stock-quantities-to-pick-for-this-s', 'No remaining stock quantities to pick for this sales order at the selected Location.')}</p>}
     </ReportTableScroll>
 
     <div className="rounded border border-[var(--line)] p-3 space-y-3">
-      <h4 className="font-semibold">Record an existing shipment</h4>
+      <h4 className="font-semibold">{reportText('r.record-an-existing-shipment', 'Record an existing shipment')}</h4>
       {!shipmentSources.length
-        ? <p className="text-sm text-[var(--muted)]">No existing {mode === 'delivery' ? 'delivery' : 'issued invoice'} with stock lines is available for this order. Record the normal fulfilment first; this form never creates it.</p>
+        ? <p className="text-sm text-[var(--muted)]">{reportText('r.no-existing', 'No existing')} {mode === 'delivery' ? reportText('r.delivery', 'delivery') : reportText('r.issued-invoice', 'issued invoice')} {reportText('r.with-stock-lines-is-available-for-this-order-rec', 'with stock lines is available for this order. Record the normal fulfilment first; this form never creates it.')}</p>
         : <>
-          <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm max-w-2xl">Existing {mode === 'delivery' ? 'delivery' : 'issued invoice'}
-            <select aria-label="Existing shipment source" className={field} value={currentSource ? shipmentSourceKey(currentSource.sourceType, currentSource.sourceId) : ''}
+          <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm max-w-2xl">{reportText('r.existing', 'Existing')} {mode === 'delivery' ? reportText('r.delivery', 'delivery') : reportText('r.issued-invoice', 'issued invoice')}
+            <select aria-label={reportText('r.existing-shipment-source', 'Existing shipment source')} className={field} value={currentSource ? shipmentSourceKey(currentSource.sourceType, currentSource.sourceId) : ''}
               onChange={event => {
                 setSelectedSourceKey(event.target.value);
                 setCarrier('');
                 setTrackingNumber('');
                 setProblem('');
               }}>
-              {unshippedSources.map(source => <option key={shipmentSourceKey(source.sourceType, source.sourceId)} value={shipmentSourceKey(source.sourceType, source.sourceId)}>{source.label} · {source.date || 'date not recorded'}</option>)}
-              {!unshippedSources.length && <option value="">All current fulfilments are marked shipped</option>}
+              {unshippedSources.map(source => <option key={shipmentSourceKey(source.sourceType, source.sourceId)} value={shipmentSourceKey(source.sourceType, source.sourceId)}>{source.label} · {source.date || reportText('r.date-not-recorded', 'date not recorded')}</option>)}
+              {!unshippedSources.length && <option value="">{reportText('r.all-current-fulfilments-are-marked-shipped', 'All current fulfilments are marked shipped')}</option>}
             </select>
           </label>
           {unshippedSources.length > 0 && <div className="flex flex-wrap items-end gap-3">
-            <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">Carrier
-              <input aria-label="Shipment carrier" className={field} maxLength={80} value={carrier} onChange={event => setCarrier(event.target.value)} placeholder="Carrier name" />
+            <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">{reportText('r.carrier', 'Carrier')}
+              <input aria-label={reportText('r.shipment-carrier', 'Shipment carrier')} className={field} maxLength={80} value={carrier} onChange={event => setCarrier(event.target.value)} placeholder={reportText('r.carrier-name', 'Carrier name')} />
             </label>
-            <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">Tracking number
-              <input aria-label="Shipment tracking number" className={field} maxLength={120} value={trackingNumber} onChange={event => setTrackingNumber(event.target.value)} placeholder="Tracking reference" />
+            <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">{reportText('r.tracking-number', 'Tracking number')}
+              <input aria-label={reportText('r.shipment-tracking-number', 'Shipment tracking number')} className={field} maxLength={120} value={trackingNumber} onChange={event => setTrackingNumber(event.target.value)} placeholder={reportText('r.tracking-reference', 'Tracking reference')} />
             </label>
-            <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">Shipment date
-              <input aria-label="Shipment date" type="date" className={field} max={today} value={shippedDate} onChange={event => setShippedDate(event.target.value)} />
+            <label className="flex min-w-0 max-w-full flex-col gap-1 text-sm">{reportText('r.shipment-date', 'Shipment date')}
+              <input aria-label={reportText('r.shipment-date', 'Shipment date')} type="date" className={field} max={today} value={shippedDate} onChange={event => setShippedDate(event.target.value)} />
             </label>
             <button type="button" onClick={() => { void markShipped(); }} disabled={!canEdit || !mayUseCurrentRows || !currentSource || saving}
-              className="min-h-11 px-4 rounded bg-[var(--text)] text-[var(--surface)] disabled:opacity-50">{saving ? 'Saving shipment…' : 'Mark shipped'}</button>
+              className="min-h-11 px-4 rounded bg-[var(--text)] text-[var(--surface)] disabled:opacity-50">{saving ? reportText('r.saving-shipment', 'Saving shipment…') : reportText('r.mark-shipped', 'Mark shipped')}</button>
           </div>}
-          {!unshippedSources.length && <p className="text-sm text-[var(--muted)]">Every existing fulfilment source for this order already has a shipment record.</p>}
+          {!unshippedSources.length && <p className="text-sm text-[var(--muted)]">{reportText('r.every-existing-fulfilment-source-for-this-order', 'Every existing fulfilment source for this order already has a shipment record.')}</p>}
         </>}
       {problem && <p role="alert" className="text-sm text-[var(--neg)]">{problem}</p>}
 
       <ReportTableScroll>
         <RowTable
           rowClassName="border-b border-[var(--line)]/50"
-          caption={(<>Shipment tracking history for {order?.number || order?.id || 'selected sales order'}</>)}
+          caption={(<>{reportText('r.shipment-tracking-history-for', 'Shipment tracking history for')} {order?.number || order?.id || reportText('r.selected-sales-order', 'selected sales order')}</>)}
           rows={existingShipments}
           rowKey={record => record.id}
           captionClassName=""
@@ -286,40 +278,41 @@ export default function PickPackShipPanel({ embedded = false }: { embedded?: boo
           headRowClassName=""
           bodyClassName=""
           columns={[
-            { header: "Source", className: "text-left font-normal py-2 px-2", headClassName: "text-left py-2 px-2", cell: (record) => record.label || `${record.sourceType} ${record.sourceNumber}` },
-            { header: "Shipped", className: "py-2 px-2", headClassName: "text-left py-2 px-2", cell: (record) => record.shippedDate },
-            { header: "Carrier", className: "py-2 px-2", headClassName: "text-left py-2 px-2", cell: (record) => <bdi>{record.carrier}</bdi> },
-            { header: "Tracking number", className: "py-2 px-2", headClassName: "text-left py-2 px-2", cell: (record) => <bdi>{record.trackingNumber}</bdi> },
+            { header: reportText('r.source', 'Source'), className: "text-left font-normal py-2 px-2", headClassName: "text-left py-2 px-2", cell: (record) => record.label || `${record.sourceType} ${record.sourceNumber}` },
+            { header: reportText('r.shipped', 'Shipped'), className: "py-2 px-2", headClassName: "text-left py-2 px-2", cell: (record) => record.shippedDate },
+            { header: reportText('r.carrier', 'Carrier'), className: "py-2 px-2", headClassName: "text-left py-2 px-2", cell: (record) => <bdi>{record.carrier}</bdi> },
+            { header: reportText('r.tracking-number', 'Tracking number'), className: "py-2 px-2", headClassName: "text-left py-2 px-2", cell: (record) => <bdi>{record.trackingNumber}</bdi> },
           ]}
         />
-        {!existingShipments.length && <p className="p-3 text-sm text-[var(--muted)]">No shipment tracking has been recorded for this order.</p>}
+        {!existingShipments.length && <p className="p-3 text-sm text-[var(--muted)]">{reportText('r.no-shipment-tracking-has-been-recorded-for-this', 'No shipment tracking has been recorded for this order.')}</p>}
       </ReportTableScroll>
     </div>
 
-    {showPackingSlip && order && <article id="warehouse-packing-slip" data-print-root={embedded ? undefined : ''} data-warehouse-packing-slip aria-label="Warehouse packing slip" className="rounded border border-[var(--line)] p-4 space-y-3 bg-white text-black">
+    {showPackingSlip && order && <article id="warehouse-packing-slip" data-print-root={embedded ? undefined : ''} data-warehouse-packing-slip aria-label={reportText('r.warehouse-packing-slip', 'Warehouse packing slip')} className="rounded border border-[var(--line)] p-4 space-y-3 bg-white text-black">
       <div className="flex flex-wrap justify-between gap-3 items-start">
-        <div><h4 className="text-xl font-bold">Packing slip</h4><p>Sales order: {order.number || order.id}</p><p>Customer: {order.customerName || '—'}</p><p>Location: {selectedLocation?.description || selectedLocation?.id || '—'}</p></div>
-        <div><p>Printed: {today}</p><p>Goods only — prices omitted.</p></div>
+        <div><h4 className="text-xl font-bold">{reportText('r.packing-slip', 'Packing slip')}</h4><p>{reportText('r.sales-order-2', 'Sales order:')} {order.number || order.id}</p><p>{reportText('r.customer-3', 'Customer:')} {order.customerName || '—'}</p><p>{reportText('r.location-2', 'Location:')} {selectedLocation?.description || selectedLocation?.id || '—'}</p></div>
+        <div><p>{reportText('r.printed', 'Printed:')} {today}</p><p>{reportText('r.goods-only-prices-omitted', 'Goods only — prices omitted.')}</p></div>
       </div>
       <table className="w-full text-sm border-collapse">
-        <caption>Open pick quantities only; this slip does not record a shipment.</caption>
+        <caption>{reportText('r.open-pick-quantities-only-this-slip-does-not-rec', 'Open pick quantities only; this slip does not record a shipment.')}</caption>
         <thead><tr>
-          <th scope="col" className="text-left border-b border-black py-2 px-2">Bin</th>
-          <th scope="col" className="text-left border-b border-black py-2 px-2">SKU</th>
-          <th scope="col" className="text-left border-b border-black py-2 px-2">Item</th>
-          <th scope="col" className="text-right border-b border-black py-2 px-2">Quantity</th>
+          <th scope="col" className="text-left border-b border-black py-2 px-2">{reportText('r.bin', 'Bin')}</th>
+          <th scope="col" className="text-left border-b border-black py-2 px-2">{CODE_NAMES.c0}</th>
+          <th scope="col" className="text-left border-b border-black py-2 px-2">{reportText('r.item', 'Item')}</th>
+          <th scope="col" className="text-right border-b border-black py-2 px-2">{reportText('r.quantity', 'Quantity')}</th>
         </tr></thead>
         <tbody>{pickRows.map(row => <PickRow key={`slip:${row.orderId}:${row.linePosition}`} row={row} />)}</tbody>
       </table>
-      <p>Prepared by: ____________________ &nbsp; Packed by: ____________________ &nbsp; Received by: ____________________</p>
-      <button type="button" data-print-hide className="min-h-11 px-4 rounded border border-black" onClick={() => setShowPackingSlip(false)}>Close packing slip</button>
+      <p>{reportText('r.prepared-by-packed-by-received-by', 'Prepared by: ____________________ Packed by: ____________________ Received by: ____________________')}</p>
+      <button type="button" data-print-hide className="min-h-11 px-4 rounded border border-black" onClick={() => setShowPackingSlip(false)}>{reportText('r.close-packing-slip', 'Close packing slip')}</button>
     </article>}
   </section>;
 }
 
 function PickRow({ row }: { row: PickListLine }) {
+  const reportText = useReportText();
   return <tr className="border-b border-[var(--line)]/50">
-    <td className="py-2 px-2"><bdi>{row.bin || 'Unassigned'}</bdi></td>
+    <td className="py-2 px-2"><bdi>{row.bin || reportText('r.unassigned', 'Unassigned')}</bdi></td>
     <td className="py-2 px-2"><bdi>{row.sku || '—'}</bdi></td>
     <th scope="row" className="text-left font-normal py-2 px-2">{row.description}</th>
     <td className="text-right py-2 px-2">{displayQty(row.quantityToPick)}</td>

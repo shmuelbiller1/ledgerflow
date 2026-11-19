@@ -91,9 +91,18 @@ export function isPeriodLocked(date: string, periods: Array<Pick<AccountingPerio
 export function lineAmount(l: TransactionLine, t?: Transaction): number {
   if (!l) return 0;
   if (Number.isInteger(l.baseAmountCents)) return l.baseAmountCents as number;
-  const raw = l.amountCents || 0;
-  const rate = l.exchangeRate ?? t?.exchangeRate ?? 1;
-  return Math.round(raw * rate);
+  return toHomeMinor(l.amountCents || 0, l.exchangeRate ?? t?.exchangeRate ?? 1, (t as { currency?: string } | undefined)?.currency);
+}
+
+/**
+ * An amount in an entry's own minor units in the home currency's, for entries that carry no stored
+ * home amount. The rate is per major unit, so yen and dinars scale by their own minor units (#844);
+ * rate 1 is already the home currency. The home currency's digits are the books' usual 2 (as
+ * settleHomeCurrency assumes when it is not given).
+ */
+function toHomeMinor(amount: number, rate: number, currency?: string, homeCurrency?: string): number {
+  // same rounding as before for same-digit currencies; only the scale changes
+  return Math.round(amount * (rate === 1 || !currency ? rate : minorUnitRate(rate, currency, homeCurrency || 'USD')));
 }
 
 /**
@@ -425,7 +434,7 @@ export function baseAbsoluteTotal(tx: Transaction): number {
   if (!tx) return 0;
   return Array.isArray(tx.lines) && tx.lines.length > 0
     ? getAbsoluteTotal(tx)
-    : Math.round(Math.abs(tx.totalAmountCents || 0) * (tx.exchangeRate ?? 1));
+    : toHomeMinor(Math.abs(tx.totalAmountCents || 0), tx.exchangeRate ?? 1, (tx as { currency?: string }).currency);
 }
 
 /**
@@ -469,12 +478,12 @@ export function calculateFilteredTotals(
     if (t.type === 'income' || isInflow(t, accountMap)) {
       const amt = t.lines && t.lines.length > 0
         ? t.lines.filter(l => (l.amountCents || 0) > 0).reduce((s, l) => s + lineAmount(l, t), 0)
-        : Math.round(Math.abs(t.totalAmountCents || 0) * (t.exchangeRate ?? 1));
+        : toHomeMinor(Math.abs(t.totalAmountCents || 0), t.exchangeRate ?? 1, (t as { currency?: string }).currency);
       inflowCents += amt;
     } else if (t.type === 'expense' || isOutflow(t, accountMap)) {
       const amt = t.lines && t.lines.length > 0
         ? t.lines.filter(l => (l.amountCents || 0) > 0).reduce((s, l) => s + lineAmount(l, t), 0)
-        : Math.round(Math.abs(t.totalAmountCents || 0) * (t.exchangeRate ?? 1));
+        : toHomeMinor(Math.abs(t.totalAmountCents || 0), t.exchangeRate ?? 1, (t as { currency?: string }).currency);
       outflowCents += amt;
     } else if (t.lines && t.lines.length > 0) {
       let handled = false;
@@ -501,7 +510,7 @@ export function calculateFilteredTotals(
         else if (cashNet < 0) outflowCents += -cashNet;
       }
     } else {
-      const amt = Math.round(Math.abs(t.totalAmountCents || 0) * (t.exchangeRate ?? 1));
+      const amt = toHomeMinor(Math.abs(t.totalAmountCents || 0), t.exchangeRate ?? 1, (t as { currency?: string }).currency);
       outflowCents += amt;
     }
   }

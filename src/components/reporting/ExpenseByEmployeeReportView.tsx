@@ -11,6 +11,7 @@ import {
 } from '../../lib/expenseByEmployee';
 import type { ReceiptChecklistRow } from '../../lib/receiptChecklist';
 import ReportTableScroll from './ReportTableScroll';
+import { useReportText, fill } from './useReportText';
 
 const stateText: Record<string, string> = { submitted: 'Waiting', approved: 'Approved', rejected: 'Rejected' };
 const evidenceText = (row: ReceiptChecklistRow) =>
@@ -24,6 +25,7 @@ const evidenceText = (row: ReceiptChecklistRow) =>
  * evidence is recorded. Amounts stay in each bill's own currency. Read-only.
  */
 export default function ExpenseByEmployeeReportView({ startDate = '', endDate = '' }: { startDate?: string; endDate?: string }) {
+  const reportText = useReportText();
   const bills = useLedgerStore(state => state.bills);
   const truncated = useLedgerStore(state => state.truncatedCollections);
   const failed = useDataNeedsStore(state => state.failed);
@@ -61,30 +63,26 @@ export default function ExpenseByEmployeeReportView({ startDate = '', endDate = 
   const loading = billsLoading || attachmentLoading;
   const partial = Boolean(truncated.bills || failed.bills || currentAttachmentSnapshot?.truncated || currentAttachmentSnapshot?.error);
 
-  return <section aria-label="Expense by employee" className="p-4 space-y-4 min-w-0">
-    <h2>Expense by employee</h2>
+  return <section aria-label={reportText('r.expense-by-employee', 'Expense by employee')} className="p-4 space-y-4 min-w-0">
+    <h2>{reportText('r.expense-by-employee', 'Expense by employee')}</h2>
     <p className="text-sm text-[var(--muted)]">
-      Expense claims grouped by the employee each claim is owed to: how much was claimed in each currency,
-      where the claims stand, and whether receipt evidence is recorded — the Expense Receipt Checklist&apos;s
-      own reading (a recorded receipt address or a linked file; the file itself is not inspected and may
-      not be a receipt). Amounts stay in each claim bill&apos;s own currency and are never added across
-      currencies. Employees with the most missing receipts come first.
+      {reportText('r.expense-claims-grouped-by-the-employee-each-clai', 'Expense claims grouped by the employee each claim is owed to: how much was claimed in each currency, where the claims stand, and whether receipt evidence is recorded — the Expense Receipt Checklist\'s own reading (a recorded receipt address or a linked file; the file itself is not inspected and may not be a receipt). Amounts stay in each claim bill\'s own currency and are never added across currencies. Employees with the most missing receipts come first.')}
     </p>
 
-    {loading && <p role="status">Loading expense claims and linked-file metadata…</p>}
-    {partial && <p role="alert">Claim or attachment history is capped or failed to load. Results may be incomplete; a receipt is marked missing only when the linked-file metadata is complete.</p>}
+    {loading && <p role="status">{reportText('r.loading-expense-claims-and-linked-file-metadata', 'Loading expense claims and linked-file metadata…')}</p>}
+    {partial && <p role="alert">{reportText('r.claim-or-attachment-history-is-capped-or-failed-2', 'Claim or attachment history is capped or failed to load. Results may be incomplete; a receipt is marked missing only when the linked-file metadata is complete.')}</p>}
 
     <div data-print-hide>
       <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!report.rows.length}
-        onClick={() => downloadCsv('expense-by-employee', [...EXPENSE_BY_EMPLOYEE_CSV_HEADERS], expenseByEmployeeCsvRows(report.rows))}>Export CSV</button>
+        onClick={() => downloadCsv('expense-by-employee', [...EXPENSE_BY_EMPLOYEE_CSV_HEADERS], expenseByEmployeeCsvRows(report.rows))}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
 
     <ReportTableScroll>
       <table className="w-full text-sm">
-        <caption>Expense claims by employee{startDate || endDate ? `, ${startDate || 'any date'} to ${endDate || 'any date'}` : ' in the loaded history'}</caption>
+        <caption>{reportText('r.expense-claims-by-employee', 'Expense claims by employee')}{startDate || endDate ? fill(reportText('r.0-to-1', ', {0} to {1}'), { 0: startDate || 'any date', 1: endDate || 'any date' }) : ` ${reportText('r.in-the-loaded-history', 'in the loaded history')}`}</caption>
         <thead>
           <tr>
-            {['Employee', 'Claims', 'Claimed', 'Waiting', 'Approved', 'Rejected', 'Receipts recorded', 'Receipts missing', 'Not checked'].map((head, i) =>
+            {[reportText('r.employee', 'Employee'), reportText('r.claims', 'Claims'), reportText('r.claimed', 'Claimed'), reportText('r.waiting', 'Waiting'), reportText('r.approved', 'Approved'), reportText('r.rejected', 'Rejected'), reportText('r.receipts-recorded', 'Receipts recorded'), reportText('r.receipts-missing', 'Receipts missing'), reportText('r.not-checked-2', 'Not checked')].map((head, i) =>
               <th key={head} scope="col" className={`${i < 2 ? 'text-left' : 'text-right'} py-1 px-2`}>{head}</th>)}
           </tr>
         </thead>
@@ -105,16 +103,16 @@ export default function ExpenseByEmployeeReportView({ startDate = '', endDate = 
           ))}
         </tbody>
       </table>
-      {!report.rows.length && !loading && <p className="text-sm text-[var(--muted)]">No expense claim is recorded in this period.</p>}
+      {!report.rows.length && !loading && <p className="text-sm text-[var(--muted)]">{reportText('r.no-expense-claim-is-recorded-in-this-period', 'No expense claim is recorded in this period.')}</p>}
     </ReportTableScroll>
 
     {report.claims.length > 0 && <div className="space-y-2">
-      <h3 className="font-semibold">The claims behind these rows</h3>
+      <h3 className="font-semibold">{reportText('r.the-claims-behind-these-rows', 'The claims behind these rows')}</h3>
       <ReportTableScroll>
         <table className="w-full text-sm">
-          <caption>Every expense claim in the period with its receipt record</caption>
+          <caption>{reportText('r.every-expense-claim-in-the-period-with-its-recei', 'Every expense claim in the period with its receipt record')}</caption>
           <thead>
-            <tr>{['Employee', 'Date', 'Claim', 'State', 'Amount', 'Receipt record'].map(head =>
+            <tr>{[reportText('r.employee', 'Employee'), reportText('r.date-2', 'Date'), reportText('r.claim', 'Claim'), reportText('r.state', 'State'), reportText('r.amount', 'Amount'), reportText('r.receipt-record', 'Receipt record')].map(head =>
               <th key={head} scope="col" className={`${head === 'Amount' ? 'text-right' : 'text-left'} py-1 px-2`}>{head}</th>)}
             </tr>
           </thead>
@@ -135,8 +133,7 @@ export default function ExpenseByEmployeeReportView({ startDate = '', endDate = 
     </div>}
 
     <p className="text-xs text-[var(--muted)]">
-      A claim is a bill carrying an expense-claim record; approving it stays on the Expense Claims screen.
-      Missing evidence is a review cue, not a decision about the claim.
+      {reportText('r.a-claim-is-a-bill-carrying-an-expense-claim-reco', 'A claim is a bill carrying an expense-claim record; approving it stays on the Expense Claims screen. Missing evidence is a review cue, not a decision about the claim.')}
     </p>
   </section>;
 }

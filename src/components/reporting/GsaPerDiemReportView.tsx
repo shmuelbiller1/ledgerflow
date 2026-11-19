@@ -8,6 +8,10 @@ import {
 } from '../../lib/tax/gsaPerDiemImport';
 import ReportTableScroll from './ReportTableScroll';
 import { RowTable } from '../ui/RowTable';
+import { useReportText } from './useReportText';
+
+/** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
+const CODE_NAMES = { c0: 'Houston, Harris…' } as const;
 
 // GSA rates are US dollars by definition (not the workspace currency), so USD is stated.
 const dollars = (cents: number) => formatCurrency(cents, 'USD');
@@ -20,6 +24,7 @@ const dollars = (cents: number) => formatCurrency(cents, 'USD');
  * Read-only: the import is previewed here, nothing is saved, posted or filed.
  */
 export default function GsaPerDiemReportView() {
+  const reportText = useReportText();
   const today = getLocalDateISO();
   const [fiscalChoice, setFiscalChoice] = useState('');
   const [read, setRead] = useState<GsaPerDiemImport | null>(null);
@@ -52,69 +57,60 @@ export default function GsaPerDiemReportView() {
       gsaLocalityLabel(l).toLowerCase().includes(needle) || l.county.toLowerCase().includes(needle));
   }, [read, search]);
 
-  return <section aria-label="US per diem rates (GSA)" className="p-4 space-y-4 min-w-0">
-    <h2>US per diem rates (GSA)</h2>
+  return <section aria-label={reportText('r.us-per-diem-rates-gsa', 'US per diem rates (GSA)')} className="p-4 space-y-4 min-w-0">
+    <h2>{reportText('r.us-per-diem-rates-gsa', 'US per diem rates (GSA)')}</h2>
     <p className="text-sm text-[var(--muted)]">
-      The US General Services Administration sets a daily meals-and-incidental (M&amp;IE) allowance for each
-      listed locality in the continental United States, per fiscal year (October 1 to September 30). The
-      expense claim&apos;s built-in table carries the standard rate for places with no locality of their own;
-      download the fiscal year&apos;s <a href={GSA_PER_DIEM_FILES_URL} target="_blank" rel="noopener noreferrer">GSA per diem rates workbook</a>,
-      save its rates sheet as CSV and read it here to see each locality&apos;s own rate — then a per-diem line on
-      an expense claim can import the same file and take the rate of the locality you pick. The fiscal year
-      comes from the file&apos;s rate columns, or from the year you type below; it is never guessed from the
-      amounts. Lodging caps are shown beside the allowance and are never added into it. Alaska, Hawaii, the
-      territories and foreign per diem are set by other agencies and are not in this file. Nothing here is
-      saved or posted — the claim records the rate left in its field.
+      {reportText('r.the-us-general-services-administration-sets-a-da', 'The US General Services Administration sets a daily meals-and-incidental (M&IE) allowance for each listed locality in the continental United States, per fiscal year (October 1 to September 30). The expense claim\'s built-in table carries the standard rate for places with no locality of their own; download the fiscal year\'s')} <a href={GSA_PER_DIEM_FILES_URL} target="_blank" rel="noopener noreferrer">{reportText('r.gsa-per-diem-rates-workbook', 'GSA per diem rates workbook')}</a>{reportText('r.save-its-rates-sheet-as-csv-and-read-it-here-to', ', save its rates sheet as CSV and read it here to see each locality\'s own rate — then a per-diem line on an expense claim can import the same file and take the rate of the locality you pick. The fiscal year comes from the file\'s rate columns, or from the year you type below; it is never guessed from the amounts. Lodging caps are shown beside the allowance and are never added into it. Alaska, Hawaii, the territories and foreign per diem are set by other agencies and are not in this file. Nothing here is saved or posted — the claim records the rate left in its field.')}
     </p>
 
     <div className="flex flex-wrap items-end gap-3" data-print-hide>
-      <label className="flex flex-col gap-1 text-sm">Fiscal year (only when the file does not state it)
-        <input aria-label="Fiscal year" inputMode="numeric" className="min-h-11 w-28 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.fiscal-year-only-when-the-file-does-not-state-it', 'Fiscal year (only when the file does not state it)')}
+        <input aria-label={reportText('r.fiscal-year', 'Fiscal year')} inputMode="numeric" className="min-h-11 w-28 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
           placeholder="2026" value={fiscalChoice} onChange={e => setFiscalChoice(e.target.value)} />
       </label>
-      <label className="flex flex-col gap-1 text-sm">GSA per diem rates CSV
-        <input aria-label="GSA per diem rates CSV" type="file" accept=".csv,text/csv"
+      <label className="flex flex-col gap-1 text-sm">{reportText('r.gsa-per-diem-rates-csv', 'GSA per diem rates CSV')}
+        <input aria-label={reportText('r.gsa-per-diem-rates-csv', 'GSA per diem rates CSV')} type="file" accept=".csv,text/csv"
           className="min-h-11 border rounded px-3 py-2 bg-[var(--panel)] text-[var(--text)]"
           onChange={e => void onFile(e.target.files?.[0])} />
       </label>
-      {read && <label className="flex flex-col gap-1 text-sm">Search localities
-        <input aria-label="Search localities" className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
-          placeholder="Houston, Harris…" value={search} onChange={e => setSearch(e.target.value)} />
+      {read && <label className="flex flex-col gap-1 text-sm">{reportText('r.search-localities', 'Search localities')}
+        <input aria-label={reportText('r.search-localities', 'Search localities')} className="min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]"
+          placeholder={CODE_NAMES.c0} value={search} onChange={e => setSearch(e.target.value)} />
       </label>}
       {read && <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!rows.length}
-        onClick={() => downloadCsv(`gsa-per-diem-fy${read.fiscalYear}`, [...GSA_LOCALITIES_CSV_HEADERS], gsaLocalitiesCsvRows(rows, today))}>Export CSV</button>}
+        onClick={() => downloadCsv(`gsa-per-diem-fy${read.fiscalYear}`, [...GSA_LOCALITIES_CSV_HEADERS], gsaLocalitiesCsvRows(rows, today))}>{reportText('r.export-csv', 'Export CSV')}</button>}
     </div>
 
     {problem && <p role="alert" className="text-sm">{problem}</p>}
     {read && <div role="status" className="text-sm space-y-1">
-      <p>Read <b>{read.localities.length} localities</b> for fiscal year <b>{read.fiscalYear}</b> from {fileName} (read {today}).</p>
+      <p>{reportText('r.read-2', 'Read')} <b>{read.localities.length} {reportText('r.localities', 'localities')}</b> {reportText('r.for-fiscal-year', 'for fiscal year')} <b>{read.fiscalYear}</b> {reportText('r.from-3', 'from')} {fileName} {reportText('r.read-3', '(read')} {today}).</p>
       {read.standardMieCents !== null && <p>
-        The file&apos;s standard CONUS rate is {dollars(read.standardMieCents)} a day
+        {reportText('r.the-file-s-standard-conus-rate-is', 'The file\'s standard CONUS rate is')} {dollars(read.standardMieCents)} {reportText('r.a-day', 'a day')}
         {builtInStandard
           ? builtInStandard.dailyCents === read.standardMieCents
-            ? <> — it agrees with the built-in expense-claim table for FY{read.fiscalYear}.</>
-            : <> — the built-in expense-claim table says {dollars(builtInStandard.dailyCents)} for FY{read.fiscalYear}. The GSA file is the authority; the built-in row should be updated to match it.</>
-          : <> — the built-in expense-claim table has no standard row for FY{read.fiscalYear}, so claims for unlisted places type their rate.</>}
+            ? <> {reportText('r.it-agrees-with-the-built-in-expense-claim-table', '— it agrees with the built-in expense-claim table for FY')}{read.fiscalYear}.</>
+            : <> {reportText('r.the-built-in-expense-claim-table-says', '— the built-in expense-claim table says')} {dollars(builtInStandard.dailyCents)} {reportText('r.for-fy', 'for FY')}{read.fiscalYear}{reportText('r.the-gsa-file-is-the-authority-the-built-in-row-s', '. The GSA file is the authority; the built-in row should be updated to match it.')}</>
+          : <> {reportText('r.the-built-in-expense-claim-table-has-no-standard', '— the built-in expense-claim table has no standard row for FY')}{read.fiscalYear}{reportText('r.so-claims-for-unlisted-places-type-their-rate', ', so claims for unlisted places type their rate.')}</>}
       </p>}
     </div>}
 
     {read && <ReportTableScroll>
       <RowTable
         rowClassName="border-b border-[var(--line)]/50"
-        caption={(<>GSA per diem localities, fiscal year {read.fiscalYear} ({rows.length} shown)</>)}
+        caption={(<>{reportText('r.gsa-per-diem-localities-fiscal-year', 'GSA per diem localities, fiscal year')} {read.fiscalYear} ({rows.length} {reportText('r.shown', 'shown)')}</>)}
         rows={rows}
         rowKey={l => `${l.state}-${l.destination}-${l.county}`}
         captionClassName=""
         tableClassName="w-full text-sm"
         headRowClassName=""
         bodyClassName=""
-        emptyRow={<tr><td colSpan={5} className="py-2 px-2">No locality matches — a place with no locality of its own takes the standard rate, it is not given a neighbour&apos;s.</td></tr>}
+        emptyRow={<tr><td colSpan={5} className="py-2 px-2">{reportText('r.no-locality-matches-a-place-with-no-locality-of', 'No locality matches — a place with no locality of its own takes the standard rate, it is not given a neighbour\'s.')}</td></tr>}
         columns={[
-          { header: "Locality", className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (l) => gsaLocalityLabel(l) },
-          { header: "County / location defined", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (l) => l.county },
-          { header: "M&IE per day", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (l) => dollars(l.mieCents) },
-          { header: "Lodging cap per night", className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (l) => [...new Set(l.seasons.map(s => s.lodgingCents).filter((c): c is number => c !== null))].map(c => dollars(c)).join(' / ') || '—' },
-          { header: "Seasons", className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (l) => l.seasons.some(s => s.begin)
+          { header: reportText('r.locality', 'Locality'), className: "text-left font-normal py-1 px-2", headClassName: "text-left py-1 px-2", cell: (l) => gsaLocalityLabel(l) },
+          { header: reportText('r.county-location-defined', 'County / location defined'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (l) => l.county },
+          { header: reportText('r.m-ie-per-day', 'M&IE per day'), className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (l) => dollars(l.mieCents) },
+          { header: reportText('r.lodging-cap-per-night', 'Lodging cap per night'), className: "py-1 px-2 tabular-nums", headClassName: "text-left py-1 px-2", cell: (l) => [...new Set(l.seasons.map(s => s.lodgingCents).filter((c): c is number => c !== null))].map(c => dollars(c)).join(' / ') || '—' },
+          { header: reportText('r.seasons', 'Seasons'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (l) => l.seasons.some(s => s.begin)
                   ? l.seasons.map(s => `${s.begin || '…'} to ${s.end || '…'}`).join('; ')
                   : `All of FY${read.fiscalYear}` },
         ]}
@@ -122,9 +118,7 @@ export default function GsaPerDiemReportView() {
     </ReportTableScroll>}
 
     <p className="text-xs text-[var(--muted)]">
-      Source: U.S. General Services Administration, per diem files ({GSA_PER_DIEM_FILES_URL}). The first and
-      last day of travel are 75% of the M&amp;IE rate. Status: calculation — a reference for the rate a claim
-      records, not a decision that a trip is deductible.
+      {reportText('r.source-u-s-general-services-administration-per-d', 'Source: U.S. General Services Administration, per diem files (')}{GSA_PER_DIEM_FILES_URL}{reportText('r.the-first-and-last-day-of-travel-are-75-of-the-m', '). The first and last day of travel are 75% of the M&IE rate. Status: calculation — a reference for the rate a claim records, not a decision that a trip is deductible.')}
     </p>
   </section>;
 }

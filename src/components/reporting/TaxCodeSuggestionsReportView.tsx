@@ -7,6 +7,10 @@ import { historyFromDocuments } from './taxCodeSuggestionHistory';
 import { downloadCsv } from '../../lib/csvExport';
 import { getLocalDateISO } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
+import { useReportText, fill } from './useReportText';
+
+/** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
+const CODE_NAMES = { c0: 'taxCodeId', c1: 'e.g. c1', c2: 'e.g. i1', c3: 'e.g. il', c4: 'e.g. zero' } as const;
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const TAX_CODE_CSV_HEADERS = ['Date', 'Contact', 'Item', 'Entity', 'Tax code', 'Source'] as const;
@@ -21,6 +25,7 @@ function csvRows(history: TaxHistoryRow[]): Array<Array<string | number>> {
  * Never applied silently; the invoice/bill form remains the place where a code is chosen.
  */
 export default function TaxCodeSuggestionsReportView() {
+  const reportText = useReportText();
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const invoices = useLedgerStore(s => s.invoices);
@@ -75,86 +80,86 @@ export default function TaxCodeSuggestionsReportView() {
 
   const partial = Boolean(truncated.invoices || truncated.bills);
 
-  return <section aria-label="Tax code suggestions" className="p-4 space-y-4 min-w-0">
+  return <section aria-label={reportText('r.tax-code-suggestions', 'Tax code suggestions')} className="p-4 space-y-4 min-w-0">
     <div className="space-y-1">
-      <h2>Tax code suggestions from history</h2>
+      <h2>{reportText('r.tax-code-suggestions-from-history', 'Tax code suggestions from history')}</h2>
       <p className="text-sm text-[var(--muted)]">
-        Learns from tax codes already saved on invoices and bills in this workspace. For the same customer or vendor, item and entity, the most specific past pattern wins; recent documents count more (half-life 180 days by default; corrections are learned as the next document). This is <b>calculation status only</b>: it does not verify a tax decision, choose a rate, or file anything. Suggestions are never applied automatically — a person reviews and accepts them on the invoice or bill form. The reserved invoice/bill editors remain the place where a tax code is chosen; this screen shows what would be suggested.
+        {reportText('r.learns-from-tax-codes-already-saved-on-invoices', 'Learns from tax codes already saved on invoices and bills in this workspace. For the same customer or vendor, item and entity, the most specific past pattern wins; recent documents count more (half-life 180 days by default; corrections are learned as the next document). This is')} <b>{reportText('r.calculation-status-only', 'calculation status only')}</b>{reportText('r.it-does-not-verify-a-tax-decision-choose-a-rate', ': it does not verify a tax decision, choose a rate, or file anything. Suggestions are never applied automatically — a person reviews and accepts them on the invoice or bill form. The reserved invoice/bill editors remain the place where a tax code is chosen; this screen shows what would be suggested.')}
       </p>
       <p className="text-xs text-[var(--muted)]">
-        Source: saved invoices/bills with a taxCodeId (<code>taxCodeId</code>), up to {history.length} history rows from this load. History outside the loaded cap is marked provisional below. No network lookup, no HMRC/VIES, no authority source is claimed.
+        {reportText('r.source-saved-invoices-bills-with-a-taxcodeid', 'Source: saved invoices/bills with a taxCodeId (')}<code>{CODE_NAMES.c0}</code>{reportText('r.up-to-2', '), up to')} {history.length} {reportText('r.history-rows-from-this-load-history-outside-the', 'history rows from this load. History outside the loaded cap is marked provisional below. No network lookup, no HMRC/VIES, no authority source is claimed.')}
       </p>
     </div>
 
-    {loading && <p role="status">Loading invoices and bills…</p>}
-    {partial && <p role="alert">A loaded invoice or bill list is capped. Suggestion counts and the export are provisional until both lists are complete.</p>}
-    {!loading && !history.length && <p role="status" className="text-sm text-[var(--muted)]">No saved invoice or bill in this workspace has a tax code yet. Create an invoice with a tax code to see suggestions here. Example: customer c1 + item i1 with vat18 on 2026-01-05 will make a later query for c1/i1 suggest vat18.</p>}
+    {loading && <p role="status">{reportText('r.loading-invoices-and-bills', 'Loading invoices and bills…')}</p>}
+    {partial && <p role="alert">{reportText('r.a-loaded-invoice-or-bill-list-is-capped-suggesti', 'A loaded invoice or bill list is capped. Suggestion counts and the export are provisional until both lists are complete.')}</p>}
+    {!loading && !history.length && <p role="status" className="text-sm text-[var(--muted)]">{reportText('r.no-saved-invoice-or-bill-in-this-workspace-has-a', 'No saved invoice or bill in this workspace has a tax code yet. Create an invoice with a tax code to see suggestions here. Example: customer c1 + item i1 with vat18 on 2026-01-05 will make a later query for c1/i1 suggest vat18.')}</p>}
 
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3 rounded-lg border border-[var(--line)] bg-[var(--surface)]">
-      <label className="block text-sm">Customer/Vendor ID (contact)
-        <input className={field + ' w-full mt-1'} value={contactId} onChange={e => setContactId(e.target.value)} placeholder="e.g. c1" autoComplete="off" />
+      <label className="block text-sm">{reportText('r.customer-vendor-id-contact', 'Customer/Vendor ID (contact)')}
+        <input className={field + ' w-full mt-1'} value={contactId} onChange={e => setContactId(e.target.value)} placeholder={CODE_NAMES.c1} autoComplete="off" />
       </label>
-      <label className="block text-sm">Item ID
-        <input className={field + ' w-full mt-1'} value={itemId} onChange={e => setItemId(e.target.value)} placeholder="e.g. i1" autoComplete="off" />
+      <label className="block text-sm">{reportText('r.item-id', 'Item ID')}
+        <input className={field + ' w-full mt-1'} value={itemId} onChange={e => setItemId(e.target.value)} placeholder={CODE_NAMES.c2} autoComplete="off" />
       </label>
-      <label className="block text-sm">Entity label value
-        <input className={field + ' w-full mt-1'} value={entity} onChange={e => setEntity(e.target.value)} placeholder="e.g. il" autoComplete="off" />
+      <label className="block text-sm">{reportText('r.entity-label-value', 'Entity label value')}
+        <input className={field + ' w-full mt-1'} value={entity} onChange={e => setEntity(e.target.value)} placeholder={CODE_NAMES.c3} autoComplete="off" />
       </label>
-      <label className="block text-sm">Today (for weighting)
+      <label className="block text-sm">{reportText('r.today-for-weighting', 'Today (for weighting)')}
         <input type="date" className={field + ' w-full mt-1'} value={today} onChange={e => setToday(e.target.value)} />
       </label>
-      <label className="block text-sm">Half-life (days)
+      <label className="block text-sm">{reportText('r.half-life-days', 'Half-life (days)')}
         <input inputMode="numeric" className={field + ' w-full mt-1'} value={halfLife} onChange={e => setHalfLife(e.target.value)} placeholder="180" />
       </label>
       <div className="flex items-end">
-        <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!history.length || partial && loading} onClick={() => history.length && downloadCsv(`tax-history-${workspace?.id || 'books'}`, [...TAX_CODE_CSV_HEADERS], csvRows(history))}>Export history CSV</button>
+        <button type="button" className="min-h-11 px-4 rounded border border-[var(--line)]" disabled={!history.length || partial && loading} onClick={() => history.length && downloadCsv(`tax-history-${workspace?.id || 'books'}`, [...TAX_CODE_CSV_HEADERS], csvRows(history))}>{reportText('r.export-history-csv', 'Export history CSV')}</button>
       </div>
     </div>
 
     <div className="rounded border border-[var(--line)] p-3 space-y-2 bg-[var(--panel)]">
-      <h3 className="font-semibold">What would be suggested?</h3>
-      {!query.contactId && !query.itemId && !query.entity && <p className="text-sm text-[var(--muted)]">Enter at least one of contact, item or entity to see a suggestion. The most specific match that has history wins: contact+item+entity → contact+item → contact → item → entity.</p>}
-      {suggestionError && <p role="alert" className="text-sm text-amber-700">Could not compute a suggestion: <bdi>{suggestionError}</bdi>. This is <b>not</b> a statement that there is no history — the suggestion was not calculated.</p>}
-      {(query.contactId || query.itemId || query.entity) && !suggestion && !suggestionError && !loading && <p className="text-sm">No history for <bdi>{JSON.stringify(query)}</bdi> on or before {today}. Try a contact or item that has a past invoice/bill, or clear filters to the least specific.</p>}
+      <h3 className="font-semibold">{reportText('r.what-would-be-suggested', 'What would be suggested?')}</h3>
+      {!query.contactId && !query.itemId && !query.entity && <p className="text-sm text-[var(--muted)]">{reportText('r.enter-at-least-one-of-contact-item-or-entity-to', 'Enter at least one of contact, item or entity to see a suggestion. The most specific match that has history wins: contact+item+entity → contact+item → contact → item → entity.')}</p>}
+      {suggestionError && <p role="alert" className="text-sm text-amber-700">{reportText('r.could-not-compute-a-suggestion', 'Could not compute a suggestion:')} <bdi>{suggestionError}</bdi>{reportText('r.this-is', '. This is')} <b>{reportText('r.not', 'not')}</b> {reportText('r.a-statement-that-there-is-no-history-the-suggest', 'a statement that there is no history — the suggestion was not calculated.')}</p>}
+      {(query.contactId || query.itemId || query.entity) && !suggestion && !suggestionError && !loading && <p className="text-sm">{reportText('r.no-history-for', 'No history for')} <bdi>{JSON.stringify(query)}</bdi> {reportText('r.on-or-before', 'on or before')} {today}{reportText('r.try-a-contact-or-item-that-has-a-past-invoice-bi', '. Try a contact or item that has a past invoice/bill, or clear filters to the least specific.')}</p>}
       {suggestion && <div className="text-sm space-y-1">
-        <p><b>Suggested code:</b> <code className="px-1 py-0.5 rounded bg-[var(--surface)] border border-[var(--line)]"><bdi>{suggestion.taxCodeId}</bdi></code> · <b>Share:</b> {(suggestion.share * 100).toFixed(0)}% · <b>Based on:</b> {suggestion.basedOn} document(s) · <b>Match:</b> {suggestion.match}</p>
-        <p className="text-xs text-[var(--muted)]">Share is the weighted share (0.5 after one half-life) of documents with this code among the matched rows. Based on is the count of matched rows on or before {today}.</p>
+        <p><b>{reportText('r.suggested-code', 'Suggested code:')}</b> <code className="px-1 py-0.5 rounded bg-[var(--surface)] border border-[var(--line)]"><bdi>{suggestion.taxCodeId}</bdi></code> · <b>{reportText('r.share-2', 'Share:')}</b> {(suggestion.share * 100).toFixed(0)}% · <b>{reportText('r.based-on', 'Based on:')}</b> {suggestion.basedOn} {reportText('r.document-s', 'document(s) ·')} <b>{reportText('r.match', 'Match:')}</b> {suggestion.match}</p>
+        <p className="text-xs text-[var(--muted)]">{reportText('r.share-is-the-weighted-share-0-5-after-one-half-l', 'Share is the weighted share (0.5 after one half-life) of documents with this code among the matched rows. Based on is the count of matched rows on or before')} {today}.</p>
       </div>}
     </div>
 
     <div className="rounded border border-[var(--line)] p-3 space-y-2 bg-[var(--panel)]">
-      <h3 className="font-semibold">Is this code unusual?</h3>
-      <p className="text-xs text-[var(--muted)]">Checks a draft line against history <i>before</i> it: if the same customer/item/entity got another code in at least 80% of at least 3 earlier documents, it is flagged.</p>
+      <h3 className="font-semibold">{reportText('r.is-this-code-unusual', 'Is this code unusual?')}</h3>
+      <p className="text-xs text-[var(--muted)]">{reportText('r.checks-a-draft-line-against-history', 'Checks a draft line against history')} <i>{reportText('r.before', 'before')}</i> {reportText('r.it-if-the-same-customer-item-entity-got-another', 'it: if the same customer/item/entity got another code in at least 80% of at least 3 earlier documents, it is flagged.')}</p>
       <div className="flex flex-wrap gap-3 items-end">
-        <label className="block text-sm">Draft date
+        <label className="block text-sm">{reportText('r.draft-date', 'Draft date')}
           <input type="date" className={field + ' mt-1'} value={checkDate} onChange={e => setCheckDate(e.target.value)} />
         </label>
-        <label className="block text-sm">Draft tax code
-          <input className={field + ' mt-1'} value={checkTaxCode} onChange={e => setCheckTaxCode(e.target.value)} placeholder="e.g. zero" />
+        <label className="block text-sm">{reportText('r.draft-tax-code', 'Draft tax code')}
+          <input className={field + ' mt-1'} value={checkTaxCode} onChange={e => setCheckTaxCode(e.target.value)} placeholder={CODE_NAMES.c4} />
         </label>
       </div>
-      {!checkTaxCode.trim() && <p className="text-sm text-[var(--muted)]">Enter a draft code to check.</p>}
-      {unusualError && <p role="alert" className="text-sm text-amber-700">Could not check this code: <bdi>{unusualError}</bdi>. Not a statement that the code is usual.</p>}
-      {checkTaxCode.trim() && !unusual && !unusualError && <p className="text-sm">Not flagged as unusual (usual is {suggestion?.taxCodeId || 'none'} with share {suggestion ? `${(suggestion.share*100).toFixed(0)}% on ${suggestion.basedOn}` : 'insufficient history'}; needs 3+ docs and 80% share).</p>}
-      {unusual && <p className="text-sm"><span className="font-semibold text-amber-700">Unusual:</span> this draft uses <code>{checkTaxCode.trim()}</code> but the same customer/item/entity usually got <code>{unusual.taxCodeId}</code> ({(unusual.share*100).toFixed(0)}% on {unusual.basedOn} docs, via {unusual.match}). Review whether the unusual code is intended.</p>}
+      {!checkTaxCode.trim() && <p className="text-sm text-[var(--muted)]">{reportText('r.enter-a-draft-code-to-check', 'Enter a draft code to check.')}</p>}
+      {unusualError && <p role="alert" className="text-sm text-amber-700">{reportText('r.could-not-check-this-code', 'Could not check this code:')} <bdi>{unusualError}</bdi>{reportText('r.not-a-statement-that-the-code-is-usual', '. Not a statement that the code is usual.')}</p>}
+      {checkTaxCode.trim() && !unusual && !unusualError && <p className="text-sm">{reportText('r.not-flagged-as-unusual-usual-is', 'Not flagged as unusual (usual is')} {suggestion?.taxCodeId || reportText('r.none-3', 'none')} {reportText('r.with-share', 'with share')} {suggestion ? fill(reportText('r.0-on-1', '{0}% on {1}'), { 0: (suggestion.share*100).toFixed(0), 1: suggestion.basedOn }) : reportText('r.insufficient-history', 'insufficient history')}{reportText('r.needs-3-docs-and-80-share', '; needs 3+ docs and 80% share).')}</p>}
+      {unusual && <p className="text-sm"><span className="font-semibold text-amber-700">{reportText('r.unusual', 'Unusual:')}</span> {reportText('r.this-draft-uses', 'this draft uses')} <code>{checkTaxCode.trim()}</code> {reportText('r.but-the-same-customer-item-entity-usually-got', 'but the same customer/item/entity usually got')} <code>{unusual.taxCodeId}</code> ({(unusual.share*100).toFixed(0)}{reportText('r.on-3', '% on')} {unusual.basedOn} {reportText('r.docs-via', 'docs, via')} {unusual.match}{reportText('r.review-whether-the-unusual-code-is-intended', '). Review whether the unusual code is intended.')}</p>}
     </div>
 
     <details className="rounded border border-[var(--line)] p-2">
-      <summary className="min-h-11 cursor-pointer content-center font-semibold">How history is built (for review)</summary>
-      <p className="text-sm text-[var(--muted)]">Each saved invoice contributes one row per document (date = invoice date or dueDate, taxCodeId from the invoice, contactId = customerId, itemId = first line item, entity = none in this view). Bills do the same with vendorId. The store cap (10,000) keeps recent documents; a capped store makes this screen provisional.</p>
+      <summary className="min-h-11 cursor-pointer content-center font-semibold">{reportText('r.how-history-is-built-for-review', 'How history is built (for review)')}</summary>
+      <p className="text-sm text-[var(--muted)]">{reportText('r.each-saved-invoice-contributes-one-row-per-docum', 'Each saved invoice contributes one row per document (date = invoice date or dueDate, taxCodeId from the invoice, contactId = customerId, itemId = first line item, entity = none in this view). Bills do the same with vendorId. The store cap (10,000) keeps recent documents; a capped store makes this screen provisional.')}</p>
       <ReportTableScroll>
         <table className="w-full text-sm">
-          <caption className="sr-only">History rows used for suggestions</caption>
+          <caption className="sr-only">{reportText('r.history-rows-used-for-suggestions', 'History rows used for suggestions')}</caption>
           <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">{TAX_CODE_CSV_HEADERS.map(h => <th key={h} scope="col" className="text-left py-1 px-2">{h}</th>)}</tr></thead>
           <tbody>
-            {history.slice(0, 50).map(r => <tr key={`${r.date}|${r.contactId}|${r.taxCodeId}|${r.itemId || ''}|${r.entity || ''}`} className="border-b border-[var(--line)]/50"><td className="py-1 px-2">{r.date}</td><td className="py-1 px-2"><bdi>{r.contactId}</bdi></td><td className="py-1 px-2"><bdi>{r.itemId || '—'}</bdi></td><td className="py-1 px-2"><bdi>{r.entity || '—'}</bdi></td><td className="py-1 px-2"><code>{r.taxCodeId}</code></td><td className="py-1 px-2 text-xs">invoice/bill</td></tr>)}
+            {history.slice(0, 50).map(r => <tr key={`${r.date}|${r.contactId}|${r.taxCodeId}|${r.itemId || ''}|${r.entity || ''}`} className="border-b border-[var(--line)]/50"><td className="py-1 px-2">{r.date}</td><td className="py-1 px-2"><bdi>{r.contactId}</bdi></td><td className="py-1 px-2"><bdi>{r.itemId || '—'}</bdi></td><td className="py-1 px-2"><bdi>{r.entity || '—'}</bdi></td><td className="py-1 px-2"><code>{r.taxCodeId}</code></td><td className="py-1 px-2 text-xs">{reportText('r.invoice-bill', 'invoice/bill')}</td></tr>)}
           </tbody>
         </table>
       </ReportTableScroll>
-      {history.length > 50 && <p className="text-xs text-[var(--muted)]">Showing 50 of {history.length} rows; export for the full list.</p>}
-      {!history.length && !loading && <p className="text-sm text-[var(--muted)]">No history rows yet.</p>}
+      {history.length > 50 && <p className="text-xs text-[var(--muted)]">{reportText('r.showing-50-of', 'Showing 50 of')} {history.length} {reportText('r.rows-export-for-the-full-list', 'rows; export for the full list.')}</p>}
+      {!history.length && !loading && <p className="text-sm text-[var(--muted)]">{reportText('r.no-history-rows-yet', 'No history rows yet.')}</p>}
     </details>
 
-    <p className="text-xs text-[var(--muted)]">Capability: <b>Calculation only</b> — help text only, no tax advice. See docs/CAPABILITIES #143-era notes; this report does not post, file or verify a tax treatment.</p>
+    <p className="text-xs text-[var(--muted)]">{reportText('r.capability', 'Capability:')} <b>{reportText('r.calculation-only', 'Calculation only')}</b> {reportText('r.help-text-only-no-tax-advice-see-docs-capabiliti', '— help text only, no tax advice. See docs/CAPABILITIES #143-era notes; this report does not post, file or verify a tax treatment.')}</p>
   </section>;
 }

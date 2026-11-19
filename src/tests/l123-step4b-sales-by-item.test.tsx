@@ -19,8 +19,9 @@ import test, { after, afterEach, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
-import { setComponentWorkspace } from './helpers/componentFixtures';
+import { markComponentCollectionsLoaded, setComponentWorkspace } from './helpers/componentFixtures';
 import { SalesByItemReportView } from '../components/reporting/SalesByItemReportView';
+import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { formatCurrency } from '../lib/utils';
 import { computeSalesByItem, type SalesByItemReport } from '../server/reports/itemReports';
@@ -44,7 +45,8 @@ describe('L-123 step 4b: sales by item (no database)', () => {
   });
 
   test('screen: no request when not capped; the server\'s report when capped; the loaded report with a note when it fails', async () => {
-    setComponentWorkspace('owner');
+    useDataNeedsStore.getState().resetLoaded(setComponentWorkspace('owner').id);
+    markComponentCollectionsLoaded('transactions', 'accounts', 'invoices', 'inventory');
     useLedgerStore.setState({ accounts, inventory: items, invoices: loadedInvoices, transactions: loadedTxs, truncatedCollections: {} } as never);
     const urls: string[] = [];
     globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -94,6 +96,8 @@ describe('L-123 step 4b: sales by item (no database)', () => {
     stubFetch(500);
     render(<SalesByItemReportView selectedYear={Number(Y)} />);
     await waitFor(() => assert.match(screen.getByTestId('sales-by-item-source').textContent || '', /may be missing/));
+    assert.ok(document.body.textContent!.includes(formatCurrency(1000)), 'the partial report keeps the loaded sales');
+    assert.ok(document.body.textContent!.includes(formatCurrency(700)), 'and its loaded margin');
     assert.ok(!document.body.textContent!.includes(formatCurrency(4500)));
   });
 });

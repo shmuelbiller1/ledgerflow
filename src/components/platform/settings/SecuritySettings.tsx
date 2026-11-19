@@ -22,6 +22,7 @@ import AccessReviewPanel from './AccessReviewPanel';
 import { TWO_STEP_CHANGED } from '../../../lib/accessReview';
 import AuditEvidencePackPanel from './AuditEvidencePackPanel';
 import { inBackground } from '../../../lib/inBackground';
+import CrashReportPreference from '../../legal/CrashReportPreference';
 
 import { BRAND_NAME, BRAND } from '../../../config/brand';
 type AuthenticatorFactor = Awaited<ReturnType<ReturnType<typeof multiFactor>['getFactors']>>[number];
@@ -229,6 +230,7 @@ export default function SecuritySettings() {
 
   return (
     <div className="space-y-10">
+      <CrashReportPreference />
       <RequireTwoStepPanel />
       <TwoPersonRulePanel />
       <AccessReviewPanel />
