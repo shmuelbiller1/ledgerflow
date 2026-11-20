@@ -35,6 +35,24 @@ export function csvMoneyForCurrency(currency: string): (minor: number) => string
   };
 }
 
+/**
+ * Money in a CSV file for a report whose figures are already in the book's currency (#910):
+ * the scale comes from that currency (JPY writes whole yen, KWD three decimals, USD two).
+ *
+ * `csvMoneyForCurrency` refuses an unknown code, which is right for a file whose currency the screen
+ * chose on purpose; a report's currency comes from the workspace, so an unfinished or malformed
+ * workspace setting must not break the download — it falls back to the two-decimal writer instead.
+ */
+export function csvMoneyForBook(currency?: string | null): (minor: number) => string {
+  const code = typeof currency === 'string' ? currency.trim().toUpperCase() : '';
+  if (!/^[A-Z]{3}$/.test(code)) return csvMoney;
+  try {
+    return csvMoneyForCurrency(code);
+  } catch {
+    return csvMoney;
+  }
+}
+
 export function toCsv(headers: CsvValue[], rows: CsvValue[][]): string {
   const cell = (v: CsvValue) => sanitizeCsvCell(typeof v === 'boolean' ? String(v) : v);
   return [headers, ...rows].map(row => row.map(cell).join(',')).join('\r\n');
