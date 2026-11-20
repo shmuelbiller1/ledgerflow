@@ -375,6 +375,15 @@ export class TruthEngine {
     wacc: number,
     terminalGrowthRate: number
   ): number {
+    if (!Array.isArray(forecastedFCFF)) {
+      throw new Error("Integrity Violation: forecastedFCFF must be an array.");
+    }
+    if (forecastedFCFF.length === 0) {
+      throw new Error("Integrity Violation: forecastedFCFF must not be empty.");
+    }
+    if (forecastedFCFF.length > 1000) {
+      throw new Error("Integrity Violation: forecastedFCFF exceeds maximum supported forecast horizon.");
+    }
     if (wacc <= terminalGrowthRate) throw new Error("Integrity Violation: WACC must be strictly greater than Terminal Growth Rate to avoid infinite valuation.");
     let impliedValue = new Decimal(0);
     const w = new Decimal(wacc);
