@@ -127,3 +127,29 @@ test('S-19: fetchSupabaseBackups and sendBackupFailureAlert talk cleanly to HTTP
     await new Promise<void>(resolve => server.close(() => resolve()));
   }
 });
+
+test('S-19: required PITR cannot be certified by an ordinary completed backup', () => {
+  const completed = { status: 'COMPLETED', inserted_at: '2026-11-19T11:59:00.000Z' };
+  const withoutAnchor = evaluateSupabaseBackups({ pitr_enabled: true, backups: [completed] }, { nowMs: NOW_MS, requirePitr: true });
+  assert.equal(withoutAnchor.ok, false);
+  assert.match(withoutAnchor.reason, /PITR.*(?:timestamp|anchor)/i);
+  const staleAnchor = evaluateSupabaseBackups({
+    pitr_enabled: true,
+    backups: [completed],
+    physical_backup_data: { latest_physical_backup_date_unix: (NOW_MS / 1000) - 27 * 3600 },
+  }, { nowMs: NOW_MS, requirePitr: true });
+  assert.equal(staleAnchor.ok, false);
+  assert.equal(staleAnchor.latestBackupAgeHours, 27);
+  const optional = evaluateSupabaseBackups({ pitr_enabled: true, backups: [completed] }, { nowMs: NOW_MS });
+  assert.equal(optional.ok, true);
+  assert.match(optional.reason, /completed backup/i);
+  assert.doesNotMatch(optional.reason, /PITR active/i);
+});
+
+test('S-19: freshness decisions use precise age, and impossible physical timestamps fail closed', () => {
+  const completedAtAge = (ageMs: number) => ({ backups: [{ status: 'COMPLETED', inserted_at: new Date(NOW_MS - ageMs).toISOString() }] });
+  assert.equal(evaluateSupabaseBackups(completedAtAge(26 * 3600000), { nowMs: NOW_MS }).ok, true);
+  assert.equal(evaluateSupabaseBackups(completedAtAge(26 * 3600000 + 1), { nowMs: NOW_MS }).ok, false);
+  assert.equal(evaluateSupabaseBackups(completedAtAge(-3600001), { nowMs: NOW_MS }).ok, false);
+  assert.equal(evaluateSupabaseBackups({ pitr_enabled: true, physical_backup_data: { latest_physical_backup_date_unix: 9e15 } }, { nowMs: NOW_MS, requirePitr: true }).ok, false);
+});

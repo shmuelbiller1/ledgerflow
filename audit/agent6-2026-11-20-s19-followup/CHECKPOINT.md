@@ -1,0 +1,17 @@
+# Agent 6: backup verification follow-up, 2026-11-20
+
+Base `f9750524ab5b7c97f234413ebde4b438545015ed`, branch `arena/6cdc1cc8-ledgerflow`. Workstream S-19, independent of open PRs; no production or server/database changes. Prior #961 merged at `dc85a9cf15e69c445f02f78eb4ba21ccda0d123b`; its two review threads are resolved. At inspection, its latest GitHub checks succeeded except two intended skipped jobs. No new PR review has yet been completed for this branch.
+
+## Confirmed findings
+
+**A6-S19-01 — High, operational/recovery false assurance.** `scripts/verify-backups.ts`, `evaluateSupabaseBackups`, formerly combined completed-backup and physical timestamps even for `requirePitr`. Reproduce with `pitr_enabled: true`, a fresh completed backup, no physical timestamp (or a 27-hour-old one), and `{requirePitr:true}`: it returned `ok: true` and reported PITR active. This could mask missing/stale reported PITR evidence. Correction: require a fresh reported physical timestamp when PITR is required; when optional, a completed backup can pass but is identified as such. Do not interpret this as proof of WAL continuity, an accessible restore, or provider API semantics. Test `src/tests/security-s19-backup-verification.test.ts`.
+
+**A6-S19-02 — Low, boundary/robustness.** Same function used rounded age to determine thresholds, allowing values just over the configured maximum and future skew to pass; extreme physical timestamp caused `toISOString()` to throw. Correction compares raw age and rejects invalid physical dates. Test checks exact threshold, +1 ms, future skew, and invalid date.
+
+**A6-S19-03 — Medium, existing configuration gap, not changed.** `.github/workflows/backup-verify.yml` invokes `--skip-if-unconfigured`: a scheduled run can be green without checking backups. Owner must configure token/alert and inspect job logs; no claims about current configuration. Repository secrets listing returned HTTP 403, and Actions log download from the artifact host failed in this sandbox. Latest listed scheduled run 44742216648 is success but does not prove the check ran. See `docs/runbooks/backup-verification.md`. Assess removing skip with owner and ensure an independent failure alert channel. Missing credentials also return before the webhook path.
+
+## Verification and handoff
+
+Before fix, two new tests failed (5 pass / 2 fail). After fix S-19 suite 7/7; targeted ESLint and TypeScript pass. `npm ci --ignore-scripts` succeeded under Node 22.22.3 despite repository requiring Node 24. No live provider query, restore, database, browser, complete test suite or full build verified in this session; PR CI and provider-side validation remain necessary. GitHub #941–945 and #962 remain open; do not modify their server/money lanes. Inspect new PR checks and review comments after push, address legitimate findings. Owner must decide real-money launch after full gate verification; this narrow work cannot establish launch readiness.
+
+Instruction sources examined: root `AGENTS.md`, `CURRENT_WORK.md`, `CLAUDE.md`, `docs/COORDINATION.md` NOW/security queue/messages, `docs/INDEPENDENT_AUDIT_AGENT.md`, `docs/FIRST_TESTERS_GATE.md`, `docs/prompts/SEC-SCAN-1-api-and-web-scans.md`, `src/AGENTS.md`, `src/lib/AGENTS.md`, `src/tests/AGENTS.md`, previous `audit/agent6-2026-11-20/` handoff and Drive addendum. GitHub open PR/issue list, #961 reviews/checks, base checks and backup schedule inspected. Full historical audit, all issues/PRs, and production deployment were not exhaustively reviewed. No subagent or model-selection tool was available.
