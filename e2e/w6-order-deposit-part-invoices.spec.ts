@@ -42,8 +42,8 @@ const secondPart = { id: 'inv-p2', number: 'INV-102', status: 'sent', date: '202
 /** The draft invoice's lines as the screen shows them: description and amount, in order. */
 async function draftLines(page: import('@playwright/test').Page): Promise<Array<[string, string]>> {
   const table = page.getByRole('table', { name: 'The draft invoice' });
-  return table.locator('tbody tr').evaluateAll(trs => trs.map(tr => {
-    const cells = Array.from(tr.querySelectorAll('td')).map(td => (td.textContent ?? '').trim());
+  return table.locator('tbody tr, tfoot tr').evaluateAll(trs => trs.map(tr => {
+    const cells = Array.from(tr.cells).map(td => (td.textContent ?? '').trim());
     return [cells[0], cells[1]] as [string, string];
   }));
 }

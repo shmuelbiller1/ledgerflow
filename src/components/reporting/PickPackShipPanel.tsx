@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
@@ -19,7 +20,6 @@ import {
   shipmentSourcesForOrder,
   warehouseLocationOptions,
   warehouseOrders,
-  type PickListLine,
 } from '../../lib/warehouseWorkflows';
 import { randomWarehouseToken } from '../../lib/warehouseRecordUtils';
 import { goodsLeaveWith } from '../../lib/deliveries';
@@ -217,19 +217,42 @@ export default function PickPackShipPanel({ embedded = false }: { embedded?: boo
     {!orders.length && !loading && <p className="text-sm text-[var(--muted)]">{reportText('r.no-accepted-sales-orders-with-inventory-lines-ar', 'No accepted sales orders with inventory lines are loaded.')}</p>}
     {orders.length > 0 && !locations.length && <p className="text-sm text-[var(--muted)]">{reportText('r.create-a-location-value-in-labels-and-assign-bin', 'Create a Location value in Labels and assign bins before printing a location-specific pick list.')}</p>}
 
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>{reportText('r.open-pick-list-for', 'Open pick list for')} {order?.number || order?.id || reportText('r.selected-sales-order', 'selected sales order')}{selectedLocation ? ` ${fill(reportText('r.at-0', 'at {0}'), { 0: selectedLocation.description || selectedLocation.id })}` : ''}</caption>
-        <thead><tr>
-          <th scope="col" className="text-left py-2 px-2">{reportText('r.bin', 'Bin')}</th>
-          <th scope="col" className="text-left py-2 px-2">{CODE_NAMES.c0}</th>
-          <th scope="col" className="text-left py-2 px-2">{reportText('r.item', 'Item')}</th>
-          <th scope="col" className="text-right py-2 px-2">{reportText('r.quantity-to-pick', 'Quantity to pick')}</th>
-        </tr></thead>
-        <tbody>
-          {pickRows.map(row => <PickRow key={`${row.orderId}:${row.linePosition}`} row={row} />)}
-        </tbody>
-      </table>
+    <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
+      <RowTable
+        caption={
+          <>
+            {reportText('r.open-pick-list-for', 'Open pick list for')} {order?.number || order?.id || reportText('r.selected-sales-order', 'selected sales order')}
+            {selectedLocation ? ` ${fill(reportText('r.at-0', 'at {0}'), { 0: selectedLocation.description || selectedLocation.id })}` : ''}
+          </>
+        }
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        rowClassName="border-b border-[var(--line)]/50"
+        rows={pickRows}
+        rowKey={(row) => `${row.orderId}:${row.linePosition}`}
+        columns={[
+          {
+            header: reportText('r.bin', 'Bin'),
+            headClassName: 'text-left py-2 px-2', className: 'py-2 px-2',
+            cell: (row) => <bdi>{row.bin || reportText('r.unassigned', 'Unassigned')}</bdi>,
+          },
+          { header: CODE_NAMES.c0, headClassName: 'text-left py-2 px-2', className: 'py-2 px-2', cell: (row) => <bdi>{row.sku || '—'}</bdi> },
+          {
+            header: reportText('r.item', 'Item'),
+            headClassName: 'text-left py-2 px-2',
+            rowHeader: true,
+            className: 'text-left font-normal py-2 px-2',
+            cell: (row) => row.description,
+          },
+          {
+            header: reportText('r.quantity-to-pick', 'Quantity to pick'),
+            headClassName: 'text-right py-2 px-2', className: 'text-right py-2 px-2',
+            cell: (row) => displayQty(row.quantityToPick),
+          },
+        ]}
+      />
       {order && !pickRows.length && <p className="p-3 text-sm text-[var(--muted)]">{reportText('r.no-remaining-stock-quantities-to-pick-for-this-s', 'No remaining stock quantities to pick for this sales order at the selected Location.')}</p>}
     </ReportTableScroll>
 
@@ -267,7 +290,7 @@ export default function PickPackShipPanel({ embedded = false }: { embedded?: boo
         </>}
       {problem && <p role="alert" className="text-sm text-[var(--neg)]">{problem}</p>}
 
-      <ReportTableScroll>
+      <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
         <RowTable
           rowClassName="border-b border-[var(--line)]/50"
           caption={(<>{reportText('r.shipment-tracking-history-for', 'Shipment tracking history for')} {order?.number || order?.id || reportText('r.selected-sales-order', 'selected sales order')}</>)}
@@ -293,28 +316,38 @@ export default function PickPackShipPanel({ embedded = false }: { embedded?: boo
         <div><h4 className="text-xl font-bold">{reportText('r.packing-slip', 'Packing slip')}</h4><p>{reportText('r.sales-order-2', 'Sales order:')} {order.number || order.id}</p><p>{reportText('r.customer-3', 'Customer:')} {order.customerName || '—'}</p><p>{reportText('r.location-2', 'Location:')} {selectedLocation?.description || selectedLocation?.id || '—'}</p></div>
         <div><p>{reportText('r.printed', 'Printed:')} {today}</p><p>{reportText('r.goods-only-prices-omitted', 'Goods only — prices omitted.')}</p></div>
       </div>
-      <table className="w-full text-sm border-collapse">
-        <caption>{reportText('r.open-pick-quantities-only-this-slip-does-not-rec', 'Open pick quantities only; this slip does not record a shipment.')}</caption>
-        <thead><tr>
-          <th scope="col" className="text-left border-b border-black py-2 px-2">{reportText('r.bin', 'Bin')}</th>
-          <th scope="col" className="text-left border-b border-black py-2 px-2">{CODE_NAMES.c0}</th>
-          <th scope="col" className="text-left border-b border-black py-2 px-2">{reportText('r.item', 'Item')}</th>
-          <th scope="col" className="text-right border-b border-black py-2 px-2">{reportText('r.quantity', 'Quantity')}</th>
-        </tr></thead>
-        <tbody>{pickRows.map(row => <PickRow key={`slip:${row.orderId}:${row.linePosition}`} row={row} />)}</tbody>
-      </table>
+      <RowTable
+        caption={reportText('r.open-pick-quantities-only-this-slip-does-not-rec', 'Open pick quantities only; this slip does not record a shipment.')}
+        captionClassName=""
+        tableClassName="w-full text-sm border-collapse"
+        headRowClassName=""
+        bodyClassName=""
+        rowClassName="border-b border-[var(--line)]/50"
+        rows={pickRows}
+        rowKey={(row) => `slip:${row.orderId}:${row.linePosition}`}
+        columns={[
+          {
+            header: reportText('r.bin', 'Bin'),
+            headClassName: 'text-left border-b border-black py-2 px-2', className: 'py-2 px-2',
+            cell: (row) => <bdi>{row.bin || reportText('r.unassigned', 'Unassigned')}</bdi>,
+          },
+          { header: CODE_NAMES.c0, headClassName: 'text-left border-b border-black py-2 px-2', className: 'py-2 px-2', cell: (row) => <bdi>{row.sku || '—'}</bdi> },
+          {
+            header: reportText('r.item', 'Item'),
+            headClassName: 'text-left border-b border-black py-2 px-2',
+            rowHeader: true,
+            className: 'text-left font-normal py-2 px-2',
+            cell: (row) => row.description,
+          },
+          {
+            header: reportText('r.quantity', 'Quantity'),
+            headClassName: 'text-right border-b border-black py-2 px-2', className: 'text-right py-2 px-2',
+            cell: (row) => displayQty(row.quantityToPick),
+          },
+        ]}
+      />
       <p>{reportText('r.prepared-by-packed-by-received-by', 'Prepared by: ____________________ Packed by: ____________________ Received by: ____________________')}</p>
       <button type="button" data-print-hide className="min-h-11 px-4 rounded border border-black" onClick={() => setShowPackingSlip(false)}>{reportText('r.close-packing-slip', 'Close packing slip')}</button>
     </article>}
   </section>;
-}
-
-function PickRow({ row }: { row: PickListLine }) {
-  const reportText = useReportText();
-  return <tr className="border-b border-[var(--line)]/50">
-    <td className="py-2 px-2"><bdi>{row.bin || reportText('r.unassigned', 'Unassigned')}</bdi></td>
-    <td className="py-2 px-2"><bdi>{row.sku || '—'}</bdi></td>
-    <th scope="row" className="text-left font-normal py-2 px-2">{row.description}</th>
-    <td className="text-right py-2 px-2">{displayQty(row.quantityToPick)}</td>
-  </tr>;
 }

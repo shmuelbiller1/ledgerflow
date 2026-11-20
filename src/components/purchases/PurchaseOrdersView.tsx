@@ -1,3 +1,6 @@
+import { useListText } from '../../lib/i18n/useListText';
+import { RowTable } from '../ui/RowTable';
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { useDialog } from '../../hooks/useDialog';
 import { PageHeader } from '../ui/PageHeader';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
@@ -16,7 +19,7 @@ import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { performThreeWayMatch } from '../../lib/threeWayMatchEngine';
 import { lotExpiryProblem, lotProblem, normalizeLot, parseSerialList, serialListProblem } from '../../lib/serialNumbers';
-import { addOrderItem, awaitingApproval, billLinesFromOrder, canChangeOrder, canDeleteOrder, canMoveDelivery, changeOrderItem, lastOrderLines, nextPoNumber, orderDecision, orderDecisionProblem, poOrderNeedsApproval, removeOrderItem, vendorsByOrders } from '../../lib/purchaseOrders';
+import { awaitingApproval, billLinesFromOrder, canChangeOrder, canDeleteOrder, canMoveDelivery, lastOrderLines, nextPoNumber, orderDecision, orderDecisionProblem, poOrderNeedsApproval, vendorsByOrders } from '../../lib/purchaseOrders';
 import { normalizePoApproval } from '../../lib/invoiceApproval';
 import { suggestionsFrom } from '../../lib/inlineEdit';
 import { isArchivedParty } from '../../lib/contacts';
@@ -25,7 +28,7 @@ import BillModal from './BillModal';
 import AttachmentsPanel from '../common/AttachmentsPanel';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { inBackground } from '../../lib/inBackground';
-import { RowTable } from '../ui/RowTable';
+import PurchaseOrderLines from './PurchaseOrderLines';
 
 /**
  * Purchase orders (saved in `purchaseOrders`), goods received against them, and turning an order
@@ -41,6 +44,7 @@ const newLine = (): DraftLine => ({ key: crypto.randomUUID(), desc: '', qty: '1'
 const inputClass = 'w-full p-2 bg-[var(--panel)] border border-[var(--line)] rounded-lg text-[var(--text)]';
 
 export const PurchaseOrdersView: React.FC = () => {
+  const listText = useListText();
   const bills = useLedgerStore(s => (s.bills || []) as Bill[]);
   const vendors = useLedgerStore(s => (s.vendors || []) as Vendor[]);
   const accounts = useLedgerStore(s => s.accounts || []);
@@ -249,21 +253,8 @@ export const PurchaseOrdersView: React.FC = () => {
       {activeTab === 'pos' && (
         // A-276: a scrollable region a keyboard can reach (axe scrollable-region-focusable)
         <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto" role="region" aria-label="Purchase orders table" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-          <table className="w-full text-left text-xs">
-            <caption className="sr-only">Purchase orders</caption>
-            <thead className="border-b border-[var(--line)] text-[var(--muted)] font-semibold uppercase tracking-wider">
-              <tr>
-                <th scope="col" className="py-3 px-4">Number</th><th scope="col" className="py-3 px-4">Vendor</th>
-                <th scope="col" className="py-3 px-4">Issued</th><th scope="col" className="py-3 px-4">Expected</th>
-                <th scope="col" className="py-3 px-4 text-right">Amount</th><th scope="col" className="py-3 px-4 text-center">Status</th>
-                <th scope="col" className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--line)]">
-              {(collectionsLoading || ordersLoading) && <tr><td colSpan={7}><LoadingState what="purchase orders" /></td></tr>}
-              {!collectionsLoading && !ordersLoading && ordersError && (
-                <tr><td colSpan={7} className="p-4">
-                  <div role="status" data-orders-notice className="flex flex-col gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 sm:flex-row sm:items-start">
+          {(collectionsLoading || ordersLoading) && <LoadingState what="purchase orders" />}
+          {!collectionsLoading && !ordersLoading && ordersError && (<div role="status" data-orders-notice className="flex flex-col gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 sm:flex-row sm:items-start">
                     <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[var(--neg)]" aria-hidden="true" />
                     <div className="min-w-0 flex-1 text-sm">
                       <p className="font-semibold text-[var(--text)]">Couldn't load the purchase orders.</p>
@@ -272,92 +263,210 @@ export const PurchaseOrdersView: React.FC = () => {
                     <button type="button" onClick={() => refetchOrders()} className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--line)] px-4 text-xs font-bold text-[var(--text)] hover:bg-[var(--panel)]">
                       <RotateCw size={14} aria-hidden="true" /> Try again
                     </button>
-                  </div>
-                </td></tr>
-              )}
-              {!collectionsLoading && !ordersLoading && !ordersError && purchaseOrders.length === 0 && (
-                <tr><td colSpan={7} className="p-4">
-                  <EmptyState
+                  </div>)}
+          {!collectionsLoading && !ordersLoading && !ordersError && purchaseOrders.length === 0 && (<EmptyState
                     title="No purchase orders yet"
                     description="A purchase order tells a vendor what to send before anything is billed; what arrives is recorded against it and the 3-way match compares order, receipt and bill."
                     actionLabel={canEdit ? 'New purchase order' : undefined}
                     onAction={canEdit ? () => setIsCreatingPO(true) : undefined}
-                  />
-                </td></tr>
-              )}
-              {purchaseOrders.map(po => (
-                <React.Fragment key={po.id}>
-                <tr>
-                  <td className="py-3 px-4 font-mono font-bold">
-                    <button type="button" onClick={() => toggleOrder(po.id)} aria-expanded={openOrders.has(po.id)} aria-label={`Lines of ${po.poNumber}`}
-                      className="inline-flex items-center gap-1">
+                  />)}
+          {purchaseOrders.length > 0 && (<TanStackDataGrid
+            data={purchaseOrders}
+            getRowId={(po) => po.id}
+            caption={listText('Purchase orders')}
+            columnScope="purchase-orders"
+            columnLabel={listText('Purchase orders')}
+            rowHeaderColumn="number"
+            hidePaginationOnSinglePage
+
+            renderDetail={(po) =>
+              openOrders.has(po.id) ? (
+                <div className="px-4 pb-4 bg-[var(--panel)]">
+                  <>
+                    <PurchaseOrderLines po={po} canEdit={canEdit && canChangeOrder(po)} suggestions={itemSuggestions} onSave={saveOrder} />
+                    <AttachmentsPanel
+                      target={{ collection: 'purchaseOrders', id: po.id, label: `Purchase order ${po.poNumber}` }}
+                      workspaceId={po.workspaceId}
+                      className="mt-3 border-t border-[var(--line)] pt-3"
+                    />
+                  </>
+                </div>
+              ) : null
+            }
+            columns={[
+              {
+                id: 'number', header: listText('Number'), accessorFn: (po) => po.poNumber,
+                cell: ({ row: { original: po } }) => (
+                  <div className="font-mono font-bold">
+                    <button
+                      type="button"
+                      onClick={() => toggleOrder(po.id)}
+                      aria-expanded={openOrders.has(po.id)}
+                      aria-label={`Lines of ${po.poNumber}`}
+                      className="inline-flex items-center gap-1"
+                    >
                       {openOrders.has(po.id) ? <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" /> : <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />}
                       {po.poNumber}
                     </button>
-                  </td>
-                  <td className="py-3 px-4">
-                    <InlineEdit kind="select" value={po.vendorId} display={po.vendorName} label={`Vendor of ${po.poNumber}`}
-                      options={vendorChoices.map(v => ({ value: v.id, label: v.name }))} canEdit={canEdit && canChangeOrder(po)}
-                      onSave={x => { const v = vendors.find(vendor => vendor.id === x); return v ? saveOrder(po, { vendorId: v.id, vendorName: v.name }, 'Vendor changed') : undefined; }} />
-                  </td>
-                  <td className="py-3 px-4 font-mono">{formatDate(po.issueDate)}</td>
-                  <td className="py-3 px-4 font-mono">
-                    <InlineEdit kind="date" value={po.expectedDeliveryDate?.slice(0, 10)} display={po.expectedDeliveryDate ? formatDate(po.expectedDeliveryDate) : undefined}
-                      label={`Expected delivery of ${po.poNumber}`} placeholder="Add date" canEdit={canEdit && canMoveDelivery(po)}
-                      validate={x => (po.issueDate && String(x) < po.issueDate.slice(0, 10) ? 'Delivery can\'t be before the order date' : null)}
-                      onSave={x => saveOrder(po, { expectedDeliveryDate: String(x) }, 'Expected delivery saved')} />
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono font-bold">{formatCurrency(po.totalAmountCents, po.currency)}</td>
-                  <td className="py-3 px-4 text-center"><span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusClass(po.status)}`}>{po.status.replace('_', ' ')}</span></td>
-                  <td className="py-3 px-4 text-right whitespace-nowrap space-x-2">
-                    {awaitingApproval(po) && (() => {
-                      const problem = orderDecisionProblem(po, role, myUid);
-                      if (problem) return <span className="text-[var(--muted)]">{problem === 'Not waiting for approval' ? '' : problem}</span>;
-                      if (declining === po.id) return (
-                        <span className="inline-flex items-center gap-2">
-                          <label htmlFor={`decline-${po.id}`} className="sr-only">Why is it declined?</label>
-                          <input id={`decline-${po.id}`} value={declineReason} onChange={e => setDeclineReason(e.target.value)} placeholder="Why? (optional)" className="px-2 py-1 border border-[var(--line)] rounded bg-[var(--panel)]" />
-                          <button type="button" onClick={() => { void decideOrder(po, false, declineReason.trim() || undefined); setDeclining(null); setDeclineReason(''); }} className="font-semibold text-[var(--neg)]">Decline</button>
-                          <button type="button" onClick={() => setDeclining(null)} className="text-[var(--muted)]">Cancel</button>
-                        </span>
-                      );
-                      return (
-                        <>
-                          <button type="button" onClick={() => void decideOrder(po, true)} aria-label={`Approve ${po.poNumber}`} className="px-2.5 py-1 font-semibold bg-[var(--pos)] text-white rounded-md">Approve</button>
-                          <button type="button" onClick={() => setDeclining(po.id)} aria-label={`Decline ${po.poNumber}`} className="px-2.5 py-1 font-semibold border border-[var(--line)] rounded-md">Decline</button>
-                        </>
-                      );
-                    })()}
-                    {canEdit && !awaitingApproval(po) && !['received', 'billed', 'cancelled', 'closed'].includes(po.status) && (
-                      <button type="button" onClick={() => openReceive(po)} className="px-2.5 py-1 font-semibold border border-[var(--line)] rounded-md">Receive goods</button>
-                    )}
-                    {canEdit && !awaitingApproval(po) && !po.billId && po.status !== 'cancelled' && (
-                      <button type="button" onClick={() => setBillingPO(po)} className="px-2.5 py-1 font-semibold bg-[var(--brass)] text-[var(--ink)] rounded-md inline-flex items-center gap-1">
-                        <FileText className="w-3 h-3" aria-hidden="true" /> Create bill
+                  </div>
+                ),
+              },
+              {
+                id: 'vendor', header: listText('Vendor'), accessorFn: (po) => po.vendorName,
+                cell: ({ row: { original: po } }) => (
+                  <InlineEdit
+                    kind="select"
+                    value={po.vendorId}
+                    display={po.vendorName}
+                    label={`Vendor of ${po.poNumber}`}
+                    options={vendorChoices.map((v) => ({ value: v.id, label: v.name }))}
+                    canEdit={canEdit && canChangeOrder(po)}
+                    onSave={(x) => {
+                      const v = vendors.find((vendor) => vendor.id === x);
+                      return v ? saveOrder(po, { vendorId: v.id, vendorName: v.name }, 'Vendor changed') : undefined;
+                    }}
+                  />
+                ),
+              },
+              {
+                id: 'issued', header: listText('Issued'), accessorFn: (po) => po.issueDate,
+                cell: ({ row: { original: po } }) => <div className="font-mono">{formatDate(po.issueDate)}</div>,
+              },
+              {
+                id: 'expected', header: listText('Expected'), accessorFn: (po) => po.expectedDeliveryDate,
+                cell: ({ row: { original: po } }) => (
+                  <div className="font-mono">
+                    <InlineEdit
+                      kind="date"
+                      value={po.expectedDeliveryDate?.slice(0, 10)}
+                      display={po.expectedDeliveryDate ? formatDate(po.expectedDeliveryDate) : undefined}
+                      label={`Expected delivery of ${po.poNumber}`}
+                      placeholder="Add date"
+                      canEdit={canEdit && canMoveDelivery(po)}
+                      validate={(x) => (po.issueDate && String(x) < po.issueDate.slice(0, 10) ? "Delivery can't be before the order date" : null)}
+                      onSave={(x) => saveOrder(po, { expectedDeliveryDate: String(x) }, 'Expected delivery saved')}
+                    />
+                  </div>
+                ),
+              },
+              {
+                id: 'total', header: listText('Amount'), accessorFn: (po) => po.totalAmountCents,
+                cell: ({ row: { original: po } }) => <div className="text-right font-mono font-bold">{formatCurrency(po.totalAmountCents, po.currency)}</div>,
+              },
+              {
+                id: 'status', header: listText('Status'), accessorFn: (po) => po.status,
+                cell: ({ row: { original: po } }) => (
+                  <div className="text-center">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusClass(po.status)}`}>{po.status.replace('_', ' ')}</span>
+                  </div>
+                ),
+              },
+              {
+                id: 'actions',
+                header: listText('Actions'),
+                cell: ({ row: { original: po } }) => (
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <>
+                      {awaitingApproval(po) &&
+                        (() => {
+                          const problem = orderDecisionProblem(po, role, myUid);
+                          if (problem) return <span className="text-[var(--muted)]">{problem === 'Not waiting for approval' ? '' : problem}</span>;
+                          if (declining === po.id)
+                            return (
+                              <span className="inline-flex flex-wrap items-center gap-2">
+                                <label htmlFor={`decline-${po.id}`} className="sr-only">
+                                  Why is it declined?
+                                </label>
+                                <input
+                                  id={`decline-${po.id}`}
+                                  value={declineReason}
+                                  onChange={(e) => setDeclineReason(e.target.value)}
+                                  placeholder="Why? (optional)"
+                                  className="px-2 py-1 border border-[var(--line)] rounded bg-[var(--panel)]"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void decideOrder(po, false, declineReason.trim() || undefined);
+                                    setDeclining(null);
+                                    setDeclineReason('');
+                                  }}
+                                  className="font-semibold text-[var(--neg)]"
+                                >
+                                  Decline
+                                </button>
+                                <button type="button" onClick={() => setDeclining(null)} className="text-[var(--muted)]">
+                                  Cancel
+                                </button>
+                              </span>
+                            );
+                          return (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => void decideOrder(po, true)}
+                                aria-label={`Approve ${po.poNumber}`}
+                                className="px-2.5 py-1 font-semibold bg-[var(--pos)] text-white rounded-md"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeclining(po.id)}
+                                aria-label={`Decline ${po.poNumber}`}
+                                className="px-2.5 py-1 font-semibold border border-[var(--line)] rounded-md"
+                              >
+                                Decline
+                              </button>
+                            </>
+                          );
+                        })()}
+                      {canEdit && !awaitingApproval(po) && !['received', 'billed', 'cancelled', 'closed'].includes(po.status) && (
+                        <button type="button" onClick={() => openReceive(po)} className="px-2.5 py-1 font-semibold border border-[var(--line)] rounded-md">
+                          Receive goods
+                        </button>
+                      )}
+                      {canEdit && !awaitingApproval(po) && !po.billId && po.status !== 'cancelled' && (
+                        <button
+                          type="button"
+                          onClick={() => setBillingPO(po)}
+                          className="px-2.5 py-1 font-semibold bg-[var(--brass)] text-[var(--ink)] rounded-md inline-flex items-center gap-1"
+                        >
+                          <FileText className="w-3 h-3" aria-hidden="true" /> Create bill
+                        </button>
+                      )}
+                      {canEdit && !po.billId && po.status !== 'cancelled' && (
+                        <button type="button" onClick={() => cancelPO(po)} className="p-1 text-[var(--muted)]" aria-label={`Cancel ${po.poNumber}`} title="Cancel">
+                          <Ban className="w-3.5 h-3.5" aria-hidden="true" />
+                        </button>
+                      )}
+                      {po.billId && <span className="text-[var(--muted)]">Billed</span>}
+                      <button
+                        type="button"
+                        onClick={() => setPreviewPO(po)}
+                        className="p-1 text-[var(--muted)]"
+                        aria-label={`PDF of ${po.poNumber}`}
+                        title="Preview / download PDF"
+                      >
+                        <Printer className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
-                    )}
-                    {canEdit && !po.billId && po.status !== 'cancelled' && (
-                      <button type="button" onClick={() => cancelPO(po)} className="p-1 text-[var(--muted)]" aria-label={`Cancel ${po.poNumber}`} title="Cancel"><Ban className="w-3.5 h-3.5" aria-hidden="true" /></button>
-                    )}
-                    {po.billId && <span className="text-[var(--muted)]">Billed</span>}
-                    <button type="button" onClick={() => setPreviewPO(po)} className="p-1 text-[var(--muted)]" aria-label={`PDF of ${po.poNumber}`} title="Preview / download PDF"><Printer className="w-3.5 h-3.5" aria-hidden="true" /></button>
-                    {canEdit && canDeleteOrder(po) && (
-                      <button type="button" onClick={() => deletePO(po)} className="p-1 text-[var(--muted)] hover:text-[var(--neg)]" aria-label={`Delete ${po.poNumber}`} title="Delete"><Trash2 className="w-3.5 h-3.5" aria-hidden="true" /></button>
-                    )}
-                  </td>
-                </tr>
-                {openOrders.has(po.id) && (
-                  <tr>
-                    <td colSpan={7} className="px-4 pb-4 bg-[var(--panel)]">
-                      <OrderLines po={po} canEdit={canEdit && canChangeOrder(po)} suggestions={itemSuggestions} onSave={saveOrder} />
-                      <AttachmentsPanel target={{ collection: 'purchaseOrders', id: po.id, label: `Purchase order ${po.poNumber}` }} workspaceId={po.workspaceId} className="mt-3 border-t border-[var(--line)] pt-3" />
-                    </td>
-                  </tr>
-                )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
+                      {canEdit && canDeleteOrder(po) && (
+                        <button
+                          type="button"
+                          onClick={() => deletePO(po)}
+                          className="p-1 text-[var(--muted)] hover:text-[var(--neg)]"
+                          aria-label={`Delete ${po.poNumber}`}
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                        </button>
+                      )}
+                    </>
+                  </div>
+                ),
+              },
+            ]}
+          />)}
         </div>
       )}
 
@@ -396,41 +505,53 @@ export const PurchaseOrdersView: React.FC = () => {
 
       {activeTab === 'receipts' && (
         <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-x-auto" role="region" aria-label="Goods received table" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-          <table className="w-full text-left text-xs">
-            <caption className="sr-only">Goods received</caption>
-            <thead className="border-b border-[var(--line)] text-[var(--muted)] font-semibold uppercase tracking-wider">
-              <tr>
-                <th scope="col" className="py-3 px-4">Receipt</th><th scope="col" className="py-3 px-4">Order</th><th scope="col" className="py-3 px-4">Vendor</th>
-                <th scope="col" className="py-3 px-4">Date</th><th scope="col" className="py-3 px-4">Items</th><th scope="col" className="py-3 px-4 text-center">Condition</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--line)]">
-              {goodsReceipts.length === 0 && (
-                <tr><td colSpan={6} className="p-4">
-                  <EmptyState
-                    title="Nothing received yet"
-                    description="Recording what arrived against an order (with its delivery note and quantities) is what the 3-way match and the stock ledger read."
-                    actionLabel={canEdit && purchaseOrders.length > 0 ? 'Record what arrived' : undefined}
-                    onAction={canEdit && purchaseOrders.length > 0 ? () => setActiveTab('pos') : undefined}
-                  />
-                </td></tr>
-              )}
-              {goodsReceipts.map(gr => (
-                <tr key={gr.id}>
-                  <td className="py-3 px-4 font-mono font-bold">{gr.receiptNumber}</td>
-                  <td className="py-3 px-4 font-mono">{gr.poNumber}</td>
-                  <td className="py-3 px-4">{gr.vendorName}</td>
-                  <td className="py-3 px-4 font-mono">{formatDate(gr.receivedDate)}</td>
-                  <td className="py-3 px-4">{gr.items.map(i => [
-                    `${i.description} (${i.quantityReceived})`,
-                    ...(i.lotNumber ? [`lot ${i.lotNumber}${i.lotExpiryDate ? `, expires ${i.lotExpiryDate}` : ''}`] : []),
-                    ...((i.serialNumbers || []).length ? [`serials: ${(i.serialNumbers || []).join(', ')}`] : []),
-                  ].join(' · ')).join(', ')}</td>
-                  <td className="py-3 px-4 text-center">{gr.items[0]?.condition || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TanStackDataGrid
+            data={goodsReceipts}
+            getRowId={(gr) => gr.id}
+            emptyState={
+              <EmptyState
+                title="Nothing received yet"
+                description="Recording what arrived against an order (with its delivery note and quantities) is what the 3-way match and the stock ledger read."
+                actionLabel={canEdit && purchaseOrders.length > 0 ? 'Record what arrived' : undefined}
+                onAction={canEdit && purchaseOrders.length > 0 ? () => setActiveTab('pos') : undefined}
+              />
+            }
+            caption={listText('Goods received')}
+            columnScope="purchase-orders-receipts"
+            columnLabel={listText('Goods received')}
+            rowHeaderColumn="receipt"
+            hidePaginationOnSinglePage
+
+            columns={[
+              {
+                id: 'receipt', header: listText('Receipt'), accessorFn: (gr) => gr.receiptNumber,
+                cell: ({ row: { original: gr } }) => <div className="font-mono font-bold">{gr.receiptNumber}</div>,
+              },
+              { id: 'order', header: listText('Order'), accessorFn: (gr) => gr.poNumber, cell: ({ row: { original: gr } }) => <div className="font-mono">{gr.poNumber}</div> },
+              { id: 'vendor', header: listText('Vendor'), accessorFn: (gr) => gr.vendorName, cell: ({ row: { original: gr } }) => gr.vendorName },
+              {
+                id: 'date', header: listText('Date'), accessorFn: (gr) => gr.receivedDate,
+                cell: ({ row: { original: gr } }) => <div className="font-mono">{formatDate(gr.receivedDate)}</div>,
+              },
+              {
+                id: 'items', header: listText('Items'), accessorFn: (gr) => gr.items.map((i) => i.description).join(', '),
+                cell: ({ row: { original: gr } }) =>
+                  gr.items
+                    .map((i) =>
+                      [
+                        `${i.description} (${i.quantityReceived})`,
+                        ...(i.lotNumber ? [`lot ${i.lotNumber}${i.lotExpiryDate ? `, expires ${i.lotExpiryDate}` : ''}`] : []),
+                        ...((i.serialNumbers || []).length ? [`serials: ${(i.serialNumbers || []).join(', ')}`] : []),
+                      ].join(' · '),
+                    )
+                    .join(', '),
+              },
+              {
+                id: 'status', header: listText('Condition'), accessorFn: (gr) => gr.items[0]?.condition,
+                cell: ({ row: { original: gr } }) => <div className="text-center">{gr.items[0]?.condition || '—'}</div>,
+              },
+            ]}
+          />
         </div>
       )}
 
@@ -583,84 +704,5 @@ export const PurchaseOrdersView: React.FC = () => {
     </div>
   );
 };
-
-/** An order's lines, editable in place while nothing was received or billed (I-22). */
-function OrderLines({ po, canEdit, suggestions, onSave }: {
-  po: PurchaseOrder;
-  canEdit: boolean;
-  suggestions: string[];
-  onSave: (po: PurchaseOrder, changes: Partial<PurchaseOrder>, message: string) => Promise<unknown>;
-}) {
-  const ids = useId();
-  const [desc, setDesc] = useState('');
-  const [qty, setQty] = useState('1');
-  const [price, setPrice] = useState('');
-  const positive = (x: string | number) => (Number(x) > 0 ? null : 'Enter more than 0');
-  const add = async () => {
-    const quantity = Number(qty);
-    const unitPriceCents = Math.round(Number(price) * 100);
-    if (!desc.trim() || !(quantity > 0) || !(unitPriceCents > 0)) return;
-    await onSave(po, addOrderItem(po, { id: crypto.randomUUID(), description: desc.trim(), quantity, unitPriceCents, receivedQuantity: 0 }), 'Line added');
-    setDesc(''); setQty('1'); setPrice('');
-  };
-  const cell = 'py-1.5 px-2';
-  return (
-    <table className="w-full text-left text-xs mt-2">
-      <caption className="sr-only">Lines of {po.poNumber}</caption>
-      <thead className="text-[var(--muted)]">
-        <tr>
-          <th scope="col" className={cell}>Item</th><th scope="col" className={`${cell} text-right`}>Quantity</th>
-          <th scope="col" className={`${cell} text-right`}>Unit price</th><th scope="col" className={`${cell} text-right`}>Received</th>
-          <th scope="col" className={`${cell} text-right`}>Total</th><th scope="col" className={cell}><span className="sr-only">Remove</span></th>
-        </tr>
-      </thead>
-      <tbody>
-        {po.items.map(item => (
-          <tr key={item.id}>
-            <td className={cell}>
-              <InlineEdit value={item.description} label={`Item on ${po.poNumber}`} canEdit={canEdit} suggestions={suggestions}
-                validate={x => (String(x).trim() ? null : 'Describe the item')}
-                onSave={x => onSave(po, changeOrderItem(po, item.id, { description: String(x) }), 'Line saved')} />
-            </td>
-            <td className={`${cell} text-right font-mono`}>
-              <InlineEdit kind="number" value={item.quantity} label={`Quantity of ${item.description}`} canEdit={canEdit} validate={positive}
-                onSave={x => onSave(po, changeOrderItem(po, item.id, { quantity: Number(x) }), 'Quantity saved')} />
-            </td>
-            <td className={`${cell} text-right font-mono`}>
-              <InlineEdit kind="money" value={item.unitPriceCents} display={formatCurrency(item.unitPriceCents, po.currency)} label={`Unit price of ${item.description}`} canEdit={canEdit} validate={positive}
-                onSave={x => onSave(po, changeOrderItem(po, item.id, { unitPriceCents: Number(x) }), 'Price saved')} />
-            </td>
-            <td className={`${cell} text-right font-mono`}>{item.receivedQuantity || 0}</td>
-            <td className={`${cell} text-right font-mono font-bold`}>{formatCurrency(item.totalCents, po.currency)}</td>
-            <td className={`${cell} text-right`}>
-              {canEdit && po.items.length > 1 && (
-                <button type="button" onClick={() => onSave(po, removeOrderItem(po, item.id), 'Line removed')} className="p-1 text-[var(--muted)] hover:text-[var(--neg)]"
-                  aria-label={`Remove ${item.description}`}><X className="w-3.5 h-3.5" aria-hidden="true" /></button>
-              )}
-            </td>
-          </tr>
-        ))}
-        {canEdit && (
-          <tr onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void add(); } }}>
-            <td className={cell}>
-              <input aria-label={`New line on ${po.poNumber}`} placeholder="Add a line…" value={desc} onChange={e => setDesc(e.target.value)} list={`${ids}-items`}
-                className="w-full p-1 bg-[var(--surface)] border border-[var(--line)] rounded-md" />
-              <datalist id={`${ids}-items`}>{suggestions.map(x => <option key={x} value={x} />)}</datalist>
-            </td>
-            <td className={cell}>
-              <input aria-label={`Quantity of the new line on ${po.poNumber}`} type="number" min="0" step="any" value={qty} onChange={e => setQty(e.target.value)}
-                className="w-full p-1 bg-[var(--surface)] border border-[var(--line)] rounded-md text-right" />
-            </td>
-            <td className={cell}>
-              <input aria-label={`Unit price of the new line on ${po.poNumber}`} type="number" min="0" step="0.01" placeholder="0.00" value={price} onChange={e => setPrice(e.target.value)}
-                className="w-full p-1 bg-[var(--surface)] border border-[var(--line)] rounded-md text-right font-mono" />
-            </td>
-            <td colSpan={3} className={`${cell} text-[var(--muted)]`}>Enter adds the line</td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  );
-}
 
 export default PurchaseOrdersView;

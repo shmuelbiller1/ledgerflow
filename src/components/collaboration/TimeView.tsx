@@ -1,3 +1,6 @@
+import { useListText } from '../../lib/i18n/useListText';
+import type { ColumnDef } from '@tanstack/react-table';
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import React, { useRef, useEffect, useState } from 'react';
@@ -42,6 +45,7 @@ async function call(workspaceId: string, path: string, method: 'GET' | 'POST' | 
  */
 export default function TimeView() {
   // the log-time form offers the customers and projects it labels time with
+  const listText = useListText();
   const { loading } = useLedgerCollections('customers', 'projects');
   const dataHealth = useScreenDataHealth(['customers', 'projects']);
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
@@ -105,6 +109,8 @@ export default function TimeView() {
   };
 
   const all = entries || [];
+  const timeLabel = listText(canApprove ? "Everyone's time" : 'Your time');
+  const timeCaption = `${timeLabel} (${formatDuration(all.reduce((sum, entry) => sum + entry.minutes, 0))} h)`;
   const mineOpen = all.filter(e => e.person === uid && e.status === 'open');
   const waiting = all.filter(e => e.status === 'submitted');
   const billable = all.filter(e => e.billable && e.status === 'approved' && !e.invoiceId && (!billFor || e.customerId === billFor));
@@ -187,7 +193,7 @@ export default function TimeView() {
           {(draft.duration || draft.description) && problem && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{problem}</p>}
         </fieldset>
 
-        {failed && <p role="alert" className="text-sm text-rose-600">{failed}</p>}
+        {failed && <p role="alert" className="text-sm text-[var(--neg)]">{failed}</p>}
         {!entries && !failed && <LoadingState what="logged time" />}
 
         {mineOpen.length > 0 && (
@@ -206,7 +212,7 @@ export default function TimeView() {
                   <span><bdi>{personName(e.person)}</bdi> · {formatDate(e.date)} · {formatDuration(e.minutes)} h · <bdi>{e.description}</bdi>{e.customerId ? ` · ${customerName(e.customerId)}` : ''}</span>
                   <span className="flex gap-2 text-xs">
                     <button type="button" onClick={() => void move([e], 'approved', 'Approved')} className="text-emerald-700 hover:underline">Approve<span className="sr-only"> {e.description}</span></button>
-                    <button type="button" onClick={() => { const note = window.prompt('What should change? (optional)'); if (note !== null) void move([e], 'open', 'Sent back', note); }} className="text-rose-600 hover:underline">Send back<span className="sr-only"> {e.description}</span></button>
+                    <button type="button" onClick={() => { const note = window.prompt('What should change? (optional)'); if (note !== null) void move([e], 'open', 'Sent back', note); }} className="text-[var(--neg)] hover:underline">Send back<span className="sr-only"> {e.description}</span></button>
                   </span>
                 </li>
               ))}
@@ -216,35 +222,82 @@ export default function TimeView() {
         )}
 
         {entries && (
-          <table className="w-full text-sm rounded-xl border border-[var(--line)] bg-[var(--surface)]">
-            <caption className="text-left font-semibold text-[var(--text)] pb-1">{canApprove ? 'Everyone\'s time' : 'Your time'} ({formatDuration(all.reduce((s, e) => s + e.minutes, 0))} h)</caption>
-            <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-              <th scope="col" className="text-left p-2">Day</th>{canApprove && <th scope="col" className="text-left p-2">Who</th>}<th scope="col" className="text-left p-2">What</th>
-              <th scope="col" className="text-right p-2">Hours</th>{rates && <th scope="col" className="text-right p-2">Value</th>}<th scope="col" className="text-left p-2">Status</th><th scope="col"><span className="sr-only">Remove</span></th>
-            </tr></thead>
-            <tbody>
-              {all.length === 0 && (
-                <tr><td colSpan={7}>
-                  {loading ? <LoadingState what="logged time" /> : (
-                    <EmptyState
-                      title="No time logged yet"
-                      description="Hours logged above show here with their status; billable time can then be priced and pulled onto an invoice."
-                    />
-                  )}
-                </td></tr>
-              )}
-              {all.map(e => (
-                <tr key={e.id} className="border-b border-[var(--line)]/50">
-                  <td className="p-2 font-mono">{e.date}</td>{canApprove && <td className="p-2"><bdi>{personName(e.person)}</bdi></td>}
-                  <td className="p-2"><bdi>{e.description}</bdi><span className="text-xs text-[var(--muted)]">{[customerName(e.customerId), projectName(e.projectId), e.billable ? 'billable' : ''].filter(Boolean).map(x => ` · ${x}`).join('')}</span>{e.note && <span className="block text-xs text-rose-600">Sent back: <bdi>{e.note}</bdi></span>}</td>
-                  <td className="p-2 text-right font-mono">{formatDuration(e.minutes)}</td>
-                  {rates && <td className="p-2 text-right font-mono">{e.billable ? formatCurrency(entryValueCents(e, rates), currency) : ''}</td>}
-                  <td className="p-2 text-xs">{STATUS_LABEL[e.status]}</td>
-                  <td className="p-2 text-right">{((e.person === uid && e.status === 'open') || (canApprove && e.status !== 'invoiced')) && <button type="button" onClick={() => void remove(e)} className="text-xs text-rose-600 hover:underline">Remove<span className="sr-only"> {e.description} on {e.date}</span></button>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <section aria-label={timeLabel}><h2 className="font-semibold">{timeCaption}</h2>
+            <TanStackDataGrid
+            data={all}
+            getRowId={(e) => e.id}
+            emptyState={
+              loading ? (
+                <LoadingState what="logged time" />
+              ) : (
+                <EmptyState
+                  title="No time logged yet"
+                  description="Hours logged above show here with their status; billable time can then be priced and pulled onto an invoice."
+                />
+              )
+            }
+            caption={timeCaption}
+            columnScope="time"
+            columnLabel={timeLabel}
+            rowHeaderColumn="what"
+            hidePaginationOnSinglePage
+
+            columns={[
+              { id: 'day', header: listText('Day'), accessorFn: (e) => e.date, cell: ({ row: { original: e } }) => <div className="font-mono">{e.date}</div> },
+              ...(canApprove
+                ? [{ id: 'who', header: listText('Who'), accessorFn: (e) => personName(e.person), cell: ({ row: { original: e } }) => <bdi>{personName(e.person)}</bdi> }] satisfies ColumnDef<TimeEntry>[]
+                : []),
+              {
+                id: 'what', header: listText('What'), accessorFn: (e) => e.description,
+                cell: ({ row: { original: e } }) => (
+                  <>
+                    <bdi>{e.description}</bdi>
+                    <span className="text-xs text-[var(--muted)]">
+                      {[customerName(e.customerId), projectName(e.projectId), e.billable ? 'billable' : '']
+                        .filter(Boolean)
+                        .map((x) => ` · ${x}`)
+                        .join('')}
+                    </span>
+                    {e.note && (
+                      <span className="block text-xs text-[var(--neg)]">
+                        Sent back: <bdi>{e.note}</bdi>
+                      </span>
+                    )}
+                  </>
+                ),
+              },
+              {
+                id: 'hours', header: listText('Hours'), accessorFn: (e) => e.minutes,
+                cell: ({ row: { original: e } }) => <div className="text-right font-mono">{formatDuration(e.minutes)}</div>,
+              },
+              ...(rates
+                ? [
+                    {
+                      id: 'value', header: listText('Value'), accessorFn: (e) => (e.billable ? entryValueCents(e, rates) : 0),
+                      cell: ({ row: { original: e } }) => <div className="text-right font-mono">{e.billable ? formatCurrency(entryValueCents(e, rates), currency) : ''}</div>,
+                    },
+                  ] satisfies ColumnDef<TimeEntry>[]
+                : []),
+              { id: 'status', header: listText('Status'), accessorFn: (e) => e.status, cell: ({ row: { original: e } }) => STATUS_LABEL[e.status] },
+              {
+                id: 'remove',
+                header: listText('Remove'),
+                cell: ({ row: { original: e } }) => (
+                  <div className="text-right">
+                    {((e.person === uid && e.status === 'open') || (canApprove && e.status !== 'invoiced')) && (
+                      <button type="button" onClick={() => void remove(e)} className="text-xs text-[var(--neg)] hover:underline">
+                        Remove
+                        <span className="sr-only">
+                          {' '}
+                          {e.description} on {e.date}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+          /></section>
         )}
 
         {canBill && billCustomers.length > 0 && (
