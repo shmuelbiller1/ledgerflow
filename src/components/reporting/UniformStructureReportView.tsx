@@ -10,16 +10,20 @@
 import React from 'react';
 import { FileText } from 'lucide-react';
 import { RowTable } from '../ui/RowTable';
+import { EmptyState } from '../ui/EmptyState';
 import { useReportText } from './useReportText';
 import {
   UNIFORM_RECORD_LAYOUTS,
   UNIFORM_FIXTURE,
   UNIFORM_SYSTEM_CONSTANT,
+  type UniformRecordLayout,
 } from '../../lib/tax/uniformStructure';
 
 const th = 'font-semibold py-1 px-2';
 
-export default function UniformStructureReportView() {
+export default function UniformStructureReportView({
+  layouts = UNIFORM_RECORD_LAYOUTS,
+}: { layouts?: readonly UniformRecordLayout[] } = {}) {
   const reportText = useReportText();
   const fixture = UNIFORM_FIXTURE;
   const journalDebits = fixture.journalEntries
@@ -59,7 +63,13 @@ export default function UniformStructureReportView() {
           <RowTable
             rowClassName="border-b border-[var(--line)]/50"
             caption={reportText('r.record-layouts', 'Record layouts')}
-            rows={UNIFORM_RECORD_LAYOUTS}
+            rows={layouts}
+            empty={(
+              <EmptyState
+                title={reportText('r.uniform-no-layouts', 'Research layouts are unavailable')}
+                description={reportText('r.uniform-refresh-layouts', 'Refresh this page. If the layouts are still missing, report the problem. This research screen cannot produce an export.')}
+              />
+            )}
             rowKey={(row) => row.code}
             captionClassName="text-left font-semibold text-[var(--text)] pb-1"
             tableClassName="w-full text-sm"

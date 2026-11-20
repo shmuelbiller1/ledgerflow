@@ -539,6 +539,8 @@ export const REPORT_STRINGS_5: ScreenStringEntry[] = [
   { key: 'r.system-constant', en: 'System constant', he: 'קבוע מערכת' },
   { key: 'r.record-layouts', en: 'Record layouts', he: 'פריסות רשומות' },
   { key: 'r.uniform-journal-totals', en: 'Journal totals (agorot, ILS minor units)', he: 'סכומי היומן (באגורות)' },
+  { key: 'r.uniform-no-layouts', en: 'Research layouts are unavailable', he: 'פריסות המחקר אינן זמינות' },
+  { key: 'r.uniform-refresh-layouts', en: 'Refresh this page. If the layouts are still missing, report the problem. This research screen cannot produce an export.', he: 'רעננו את הדף. אם הפריסות עדיין חסרות, דווחו על הבעיה. מסך המחקר הזה אינו יכול להפיק קובץ לייצוא.' },
   { key: 'r.uniform-width', en: 'Width', he: 'רוחב' },
   { key: 'r.uniform-fields', en: 'Fields', he: 'שדות' },
   { key: 'r.sample-fixture', en: 'Sample fixture', he: 'דוגמת קבצים' },

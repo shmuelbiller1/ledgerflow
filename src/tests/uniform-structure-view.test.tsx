@@ -38,6 +38,13 @@ test('the screen names the sample fixture and the not-built writer', () => {
   assert.equal(screen.queryByRole('button'), null, 'research screen offers no filing action');
 });
 
+test('missing research layouts explain the problem and the next step', () => {
+  render(<UniformStructureReportView layouts={[]} />);
+  assert.ok(screen.getByRole('heading', { name: 'Research layouts are unavailable' }));
+  assert.ok(screen.getByText(/Refresh this page/));
+  assert.equal(screen.queryByRole('table'), null);
+});
+
 test('Hebrew copy includes the limitations, table headings and money units', () => {
   useUIStore.setState({ language: 'he' });
   render(<UniformStructureReportView />);
