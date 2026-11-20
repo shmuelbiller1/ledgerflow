@@ -6,7 +6,7 @@ import { AccountReportResult } from './AccountReportResult';
 import { BarChart3, TrendingDown, TrendingUp } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
-import { csvMoneyForCurrency } from '../../lib/csvExport';
+import { csvMoneyForBook } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useReportText } from './useReportText';
 import { useBookCurrency } from '../../hooks/useBookCurrency';
@@ -33,7 +33,7 @@ const LoadedReport: React.FC<Props> = ({
   const { topExpenses, topIncome, ...read } = useServerTopLines(start, end, 25);
 
   const activeItems = activeTab === 'expenses' ? topExpenses : topIncome;
-  const writeCsvMoney = csvMoneyForCurrency(bookCurrency);
+  const writeCsvMoney = csvMoneyForBook(bookCurrency);
 
   /**
    * The biggest lines of the period, one row each. The description names the row (a payee underneath,
