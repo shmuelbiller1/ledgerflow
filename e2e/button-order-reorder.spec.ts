@@ -65,7 +65,7 @@ test('sidebar tool order uses real pointer input, survives reload, stays workspa
     localStorage.setItem('isGuest', 'false');
     localStorage.setItem('has_seen_onboarding', 'true');
   });
-  const { daily } = await mountSidebar(page, 'order-workspace-a');
+  const { daily, errors } = await mountSidebar(page, 'order-workspace-a');
   const standard = await labels(daily);
   expect(standard).toEqual(['Overview', 'To review', 'Sales', 'Purchases', 'Bank', 'Reports', 'Settings']);
 
@@ -92,6 +92,7 @@ test('sidebar tool order uses real pointer input, survives reload, stays workspa
   // The cancellation guard expires with the pointer sequence; an ordinary click still navigates.
   await source.click();
   expect(await captured(page, 'tab')).toEqual([['reports']]);
+  expect(errors).toEqual([], 'the real mouse-drag, cancel, and click phase must not throw');
 
   // A browser reload discards React state; remount the same signed-in user/workspace from localStorage.
   await page.reload();
