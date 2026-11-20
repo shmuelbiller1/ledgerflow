@@ -14,7 +14,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
-import { dashboardReportHref, dashboardComparison, withServerBalances, dashboardPeriod, dashboardAging, validDashboardPeriod, startingLayout, DASHBOARD_ROLES, DASHBOARD_WIDGETS } from '../../lib/dashboardOverview';
+import { dashboardReportHref, dashboardComparison, withServerBalances, dashboardPeriod, dashboardAging, billsDueThisWeek, validDashboardPeriod, startingLayout, DASHBOARD_ROLES, DASHBOARD_WIDGETS } from '../../lib/dashboardOverview';
 import type { DashboardRange, DashboardRole, DashboardWidget, DashboardLayout } from '../../lib/dashboardOverview';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { AGING_BUCKETS, partyStats } from '../../lib/aging';
@@ -30,7 +30,7 @@ import { RowTable } from '../ui/RowTable';
  * D-85/D-82: plain words for the first four cards. The rest keep the accounting names.
  * The ids stay the same, so layouts saved before this change keep working.
  */
-const LABELS: Record<DashboardWidget, string> = { revenue: 'Revenue', expenses: 'Expenses', profit: 'Profit', networth: 'Net worth', scenario: 'Scenario preview', summary: 'Account summary', cash: 'Cash', receivables: 'Owed to you', payables: 'You owe', banks: 'Bank and cash accounts', feeds: 'Bank feed health', recent: 'Recent transactions', integrity: 'Books balance' };
+const LABELS: Record<DashboardWidget, string> = { revenue: 'Revenue', expenses: 'Expenses', profit: 'Profit', networth: 'Net worth', scenario: 'Scenario preview', summary: 'Account summary', cash: 'Cash', receivables: 'Owed to you', payables: 'You owe', billsDue: 'Bills due this week', banks: 'Bank and cash accounts', feeds: 'Bank feed health', recent: 'Recent transactions', integrity: 'Books balance' };
 const KPIS = ['networth', 'revenue', 'expenses', 'profit', 'cash'] as const;
 /** Each refresh reads only the collections feeding its own widget; no global cache is overwritten. */
 const WIDGET_SOURCES: Record<DashboardWidget, readonly LedgerKey[]> = {
@@ -38,7 +38,7 @@ const WIDGET_SOURCES: Record<DashboardWidget, readonly LedgerKey[]> = {
   networth: ['accounts', 'transactions'], cash: ['accounts', 'transactions'],
   banks: ['accounts', 'transactions'], summary: ['accounts', 'transactions'], recent: ['transactions'],
   integrity: ['accounts', 'transactions'], receivables: ['customers', 'invoices'],
-  payables: ['vendors', 'bills'], scenario: ['scenarios'], feeds: [],
+  payables: ['vendors', 'bills'], billsDue: ['bills'], scenario: ['scenarios'], feeds: [],
 };
 interface WidgetSnapshot {
   accounts?: ChartAccount[]; transactions?: Transaction[]; invoices?: Invoice[];
@@ -214,6 +214,28 @@ function ScopedDashboardWidgets({ children }: { children?: React.ReactNode }) {
     }
     if (id === 'receivables') return aging(widgetAr, 'customer');
     if (id === 'payables') return aging(widgetAp, 'vendor');
+    if (id === 'billsDue') {
+      const dueSummary = billsDueThisWeek(currentBills, getLocalDateISO(), currency || 'USD');
+      return (
+        <div>
+          <p className="text-2xl font-bold tabular-nums">{formatCurrency(dueSummary.totalCents, currency)}</p>
+          <p className="text-sm text-[var(--muted)]">{dueSummary.count} {dueSummary.count === 1 ? 'bill' : 'bills'} due in the next 7 days</p>
+          {dueSummary.bills.length === 0 ? (
+            <p className="text-sm text-[var(--muted)] mt-3">No bills due this week.</p>
+          ) : (
+            <ul className="mt-3 space-y-1 text-sm">
+              {dueSummary.bills.map(item => (
+                <li key={item.id} className="flex justify-between gap-2 py-1 border-b border-[var(--border)] last:border-b-0">
+                  <span className="min-w-0 truncate"><bdi>{item.vendorName}</bdi> · {item.dueDate}</span>
+                  <span className="tabular-nums shrink-0">{formatCurrency(item.amountDueCents, item.currency)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap gap-2 mt-4"><button type="button" className="px-3 py-1.5 text-sm rounded border border-[var(--border)] hover:bg-[var(--surface-hover)]" onClick={() => useUIStore.getState().setActiveTab('bills')}>View bills</button></div>
+        </div>
+      );
+    }
     if (id === 'scenario') {
       if (scenarioLoading) return <p role="status">Loading scenario preview…</p>;
       const scenario = widgetScenarios.find(item => item.id === activeScenarioId);

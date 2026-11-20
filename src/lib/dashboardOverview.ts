@@ -63,8 +63,46 @@ export function dashboardAging(parties: Array<{ id: string; name: string }>, doc
   return { rows, top };
 }
 
+/** D-58: bills due in the next 7 days (inclusive of asOfDate), excluding paid/void/zero-balance bills. */
+export interface BillsDueSummary {
+  count: number;
+  totalCents: number;
+  bills: Array<{ id: string; billNumber: string; vendorName: string; dueDate: string; amountDueCents: number; currency: string }>;
+}
+
+function addDaysISO(dateISO: string, days: number): string {
+  const [y, m, d] = dateISO.slice(0, 10).split('-').map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, (d || 1) + days));
+  return dt.toISOString().slice(0, 10);
+}
+
+export function billsDueThisWeek(bills: readonly Bill[], asOfDate: string, fallbackCurrency = 'USD'): BillsDueSummary {
+  const start = asOfDate.slice(0, 10);
+  const end = addDaysISO(start, 7);
+  const matching: BillsDueSummary['bills'] = [];
+  let totalCents = 0;
+  for (const bill of bills) {
+    if (bill.status === 'paid' || bill.status === 'void') continue;
+    const due = (bill.dueDate || '').slice(0, 10);
+    if (!due || due < start || due > end) continue;
+    const amountDueCents = Math.max(0, bill.amountCents ?? 0);
+    if (amountDueCents <= 0) continue;
+    totalCents += amountDueCents;
+    matching.push({
+      id: bill.id,
+      billNumber: bill.id,
+      vendorName: bill.vendorName || 'Vendor',
+      dueDate: due,
+      amountDueCents,
+      currency: bill.currency || fallbackCurrency,
+    });
+  }
+  matching.sort((a, b) => a.dueDate.localeCompare(b.dueDate) || b.amountDueCents - a.amountDueCents);
+  return { count: matching.length, totalCents, bills: matching.slice(0, 5) };
+}
+
 /** D-85: the first row answers the owner's questions in order — cash, owed to you, you owe, profit. */
-export const DASHBOARD_WIDGETS = ['cash', 'receivables', 'payables', 'profit', 'networth', 'revenue', 'expenses', 'banks', 'feeds', 'recent', 'integrity', 'summary', 'scenario'] as const;
+export const DASHBOARD_WIDGETS = ['cash', 'receivables', 'payables', 'profit', 'billsDue', 'networth', 'revenue', 'expenses', 'banks', 'feeds', 'recent', 'integrity', 'summary', 'scenario'] as const;
 export type DashboardWidget = typeof DASHBOARD_WIDGETS[number];
 export interface DashboardLayout { order: DashboardWidget[]; hidden: DashboardWidget[] }
 export function dashboardLayout(value?: unknown): DashboardLayout {

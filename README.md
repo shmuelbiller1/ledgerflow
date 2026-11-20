@@ -127,3 +127,17 @@ npm run scaffold:algo <name>
 - **Data Encryption:** Sensitive fields are encrypted using AES-256-GCM.
 - **PII Scrubbing:** Automated sanitization of SSNs, credit card numbers, and secret tokens in logs.
 - **Role-Based Access Control:** Postgres row level security (`supabase/migrations/`, tested by `supabase/tests/rls.test.sql`) enforces workspace boundaries, roles, allowed fields, closed-period write lockdown and two-step login.
+
+---
+
+### 🐳 Local Development with Docker Compose (D-24)
+
+Run Postgres and the Ledgerflow dev server in one command:
+
+```bash
+docker compose up --build
+```
+
+- App & API: `http://localhost:3000` (Vite HMR on `5173`)
+- Postgres: `postgresql://ledgerflow:ledgerflow_dev_password@localhost:5432/ledgerflow`
+
