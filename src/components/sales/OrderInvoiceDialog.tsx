@@ -1,3 +1,6 @@
+import { useListText } from '../../lib/i18n/useListText';
+import ReportSchedule from '../reporting/ReportSchedule';
+
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { useDialog } from '../../hooks/useDialog';
@@ -28,6 +31,7 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
 }) {
   const byQuantity = hasItemLines(estimate);
   const lines = orderLineProgress(estimate, progress);
+  const listText = useListText();
   const [mode, setMode] = useState<Mode>(byQuantity ? 'quantities' : 'rest');
   const [percent, setPercent] = useState('50');
   const [amount, setAmount] = useState('');
@@ -126,21 +130,35 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
           </fieldset>
           )}
           {preview.length > 0 && (
-            <table className="w-full text-xs">
-              <caption className="text-left text-xs font-semibold text-[var(--muted)] mb-1">The draft invoice</caption>
-              <tbody>
-                {preview.map(item => (
-                  <tr key={item.id}>
-                    <td className="py-0.5 pr-2">{item.description}{byQuantity ? ` × ${item.quantity}` : ''}</td>
-                    <td className="py-0.5 text-right font-mono">{money(item.amountCents)}</td>
-                  </tr>
-                ))}
+            <ReportSchedule
+              caption={listText('The draft invoice')}
+              captionClassName="text-left text-xs font-semibold text-[var(--muted)] mb-1"
+              tableClassName="w-full text-xs"
+              bodyClassName=""
+              rows={preview}
+              rowKey={(item) => item.id}
+              rowHeaderClassName="font-normal text-start"
+              headRowClassName="sr-only"
+              footer={
                 <tr className="border-t border-[var(--line)] font-semibold">
                   <td className="py-0.5">Total</td>
                   <td className="py-0.5 text-right font-mono">{money(cents)}</td>
                 </tr>
-              </tbody>
-            </table>
+              }
+              columns={[
+                {
+                  header: listText('Description'),
+                  headClassName: 'sr-only', className: 'py-0.5 pr-2',
+                  cell: (item) => (
+                    <>
+                      {item.description}
+                      {byQuantity ? ` × ${item.quantity}` : ''}
+                    </>
+                  ),
+                },
+                { header: listText('Amount'), headClassName: 'sr-only', className: 'py-0.5 text-right font-mono', cell: (item) => money(item.amountCents) },
+              ]}
+            />
           )}
           {/* WCAG AA: rose-600 on the dialog's panel is 4.22:1; rose-700 reaches 6.3:1 and keeps
               the error readable in light and dark themes. */}
@@ -149,7 +167,7 @@ export default function OrderInvoiceDialog({ estimate, progress, currency, onCre
           <div className="flex justify-end gap-2">
             <button type="button" onClick={close} className="px-3 py-2 text-[var(--muted)] hover:underline">Cancel</button>
             <button type="button" onClick={() => void create()} disabled={Boolean(problem) || saving}
-              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold disabled:opacity-50">
+              className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-semibold disabled:opacity-50">
               {saving ? 'Creating…' : `Create ${money(cents)} invoice`}
             </button>
           </div>

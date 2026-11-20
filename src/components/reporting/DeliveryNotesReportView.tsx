@@ -3,6 +3,7 @@
  * and Hebrew ('he', RTL), numbered in their own DN-YYYY-NNN series, with an option to hide or
  * show prices (default: goods only, no prices).
  */
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -384,41 +385,52 @@ function DeliveryNotesContent({ embedded }: { embedded: boolean }) {
             </div>
           </header>
 
-          <ReportTableScroll>
-            <table className="w-full text-sm border-collapse">
-              <caption className="sr-only">{doc.labels.title} {doc.number}</caption>
-              <thead>
-                <tr className="border-b">
-                  <th scope="col" className="py-2 px-2 text-start">#</th>
-                  {columns.map(col => (
-                    <th key={col} scope="col" className="py-2 px-2 text-start">{col}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {doc.rows.map(row => (
-                  <tr key={`${row.line}:${row.item}`} className="border-b">
-                    <td className="py-2 px-2 tabular-nums">{row.line}</td>
-                    <td className="py-2 px-2"><bdi>{row.item}</bdi></td>
-                    <td className="py-2 px-2 tabular-nums font-medium">
-                      {row.quantity}{row.unit ? ` ${row.unit}` : ''}
-                    </td>
-                    {doc.showPrices && (
-                      <>
-                        <td className="py-2 px-2 tabular-nums">
-                          {row.unitPriceCents !== undefined ? formatCurrency(row.unitPriceCents, selected.currency) : '—'}
-                        </td>
-                        <td className="py-2 px-2 tabular-nums">
-                          {row.amountCents !== undefined ? formatCurrency(row.amountCents, selected.currency) : '—'}
-                        </td>
-                      </>
-                    )}
-                    {hasSerials && <td className="py-2 px-2"><bdi>{row.serials || '\u2014'}</bdi></td>}
-                    {hasLots && <td className="py-2 px-2"><bdi>{row.lot || '\u2014'}</bdi></td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <ReportTableScroll allowDisplayedExport={false}>
+            <RowTable
+              caption={
+                <>
+                  {doc.labels.title} {doc.number}
+                </>
+              }
+              captionClassName="sr-only"
+              tableClassName="w-full text-sm border-collapse"
+              headRowClassName="border-b"
+              bodyClassName=""
+              rowClassName="border-b"
+              rows={doc.rows}
+              rowKey={(row) => `${row.line}:${row.item}`}
+              rowHeaderClassName="font-normal text-start"
+              columns={[
+                { header: '#', headClassName: 'py-2 px-2 text-start', className: 'py-2 px-2 tabular-nums', cell: (row) => row.line },
+                { header: doc.labels.item, headClassName: 'py-2 px-2 text-start', rowHeader: true, className: 'py-2 px-2', cell: (row) => <bdi>{row.item}</bdi> },
+                {
+                  header: doc.labels.quantity,
+                  headClassName: 'py-2 px-2 text-start', className: 'py-2 px-2 tabular-nums font-medium',
+                  cell: (row) => (
+                    <>
+                      {row.quantity}
+                      {row.unit ? ` ${row.unit}` : ''}
+                    </>
+                  ),
+                },
+                Boolean(doc.showPrices) && {
+                  header: doc.labels.unitPrice,
+                  headClassName: 'py-2 px-2 text-start', className: 'py-2 px-2 tabular-nums',
+                  cell: (row) => (row.unitPriceCents !== undefined ? formatCurrency(row.unitPriceCents, selected.currency) : '—'),
+                },
+                Boolean(doc.showPrices) && {
+                  header: doc.labels.amount,
+                  headClassName: 'py-2 px-2 text-start', className: 'py-2 px-2 tabular-nums',
+                  cell: (row) => (row.amountCents !== undefined ? formatCurrency(row.amountCents, selected.currency) : '—'),
+                },
+                Boolean(hasSerials) && {
+                  header: doc.labels.serials,
+                  headClassName: 'py-2 px-2 text-start', className: 'py-2 px-2',
+                  cell: (row) => <bdi>{row.serials || '\u2014'}</bdi>,
+                },
+                Boolean(hasLots) && { header: doc.labels.lot, headClassName: 'py-2 px-2 text-start', className: 'py-2 px-2', cell: (row) => <bdi>{row.lot || '\u2014'}</bdi> },
+              ]}
+            />
           </ReportTableScroll>
 
           {doc.showPrices && doc.totalCents !== undefined ? (

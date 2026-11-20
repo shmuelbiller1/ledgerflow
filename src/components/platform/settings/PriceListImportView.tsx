@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -132,17 +133,21 @@ export default function PriceListImportView() {
       <p className="text-sm">
         {read.rows.length} row(s) read, {read.problems.length} row(s) left out{read.rows.length ? '' : ' — nothing to import'}
       </p>
-      {read.problems.length > 0 && <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption>Rows left out of the import</caption>
-          <thead><tr>{['Record', 'Problem'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr></thead>
-          <tbody>
-            {read.problems.map(p => <tr key={p.line} className="border-b border-[var(--line)]/50">
-              <td className="py-1 px-2">{p.line}</td>
-              <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{p.message}</bdi></th>
-            </tr>)}
-          </tbody>
-        </table>
+      {read.problems.length > 0 && <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
+        <RowTable
+          caption="Rows left out of the import"
+          captionClassName=""
+          tableClassName="w-full text-sm"
+          headRowClassName=""
+          bodyClassName=""
+          rowClassName="border-b border-[var(--line)]/50"
+          rows={read.problems}
+          rowKey={(p) => p.line}
+          columns={[
+            { header: 'Record', headClassName: 'text-left py-1 px-2', className: 'py-1 px-2', cell: (p) => p.line },
+            { header: 'Problem', headClassName: 'text-left py-1 px-2', rowHeader: true, className: 'text-left font-normal py-1 px-2', cell: (p) => <bdi>{p.message}</bdi> },
+          ]}
+        />
       </ReportTableScroll>}
     </div>}
 
@@ -151,7 +156,7 @@ export default function PriceListImportView() {
       {plan.problem
         ? <p role="alert" className="text-sm">{plan.problem} — the import cannot be saved like this; fix the file or the lists.</p>
         : <>
-          <ReportTableScroll>
+          <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
             <RowTable
               rowClassName="border-b border-[var(--line)]/50"
               caption={(<>The lists after the import</>)}
@@ -182,21 +187,35 @@ export default function PriceListImportView() {
         {busy ? 'Saving…' : 'Undo the import'}</button>
     </div>}
 
-    {read && read.rows.length > 0 && <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>Rows that import</caption>
-        <thead><tr>{['Record', 'Item', 'List', 'Price (minor units)', 'Discount', 'Currency'].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr></thead>
-        <tbody>
-          {read.rows.map(row => <tr key={row.line} className="border-b border-[var(--line)]/50">
-            <td className="py-1 px-2">{row.line}</td>
-            <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{itemName(row.itemId)}</bdi></th>
-            <td className="py-1 px-2"><bdi>{row.list}</bdi></td>
-            <td className="py-1 px-2">{row.priceCents ?? ''}</td>
-            <td className="py-1 px-2">{row.discountPercent !== undefined ? `${row.discountPercent}%` : ''}</td>
-            <td className="py-1 px-2">{row.currency || home}</td>
-          </tr>)}
-        </tbody>
-      </table>
+    {read && read.rows.length > 0 && <ReportTableScroll nameFromCaption allowDisplayedExport={false}>
+      <RowTable
+        caption="Rows that import"
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        rowClassName="border-b border-[var(--line)]/50"
+        rows={read.rows}
+        rowKey={(row) => row.line}
+        columns={[
+          { header: 'Record', headClassName: 'text-left py-1 px-2', className: 'py-1 px-2', cell: (row) => row.line },
+          {
+            header: 'Item',
+            headClassName: 'text-left py-1 px-2',
+            rowHeader: true,
+            className: 'text-left font-normal py-1 px-2',
+            cell: (row) => <bdi>{itemName(row.itemId)}</bdi>,
+          },
+          { header: 'List', headClassName: 'text-left py-1 px-2', className: 'py-1 px-2', cell: (row) => <bdi>{row.list}</bdi> },
+          { header: 'Price (minor units)', headClassName: 'text-left py-1 px-2', className: 'py-1 px-2', cell: (row) => row.priceCents ?? '' },
+          {
+            header: 'Discount',
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2',
+            cell: (row) => (row.discountPercent !== undefined ? `${row.discountPercent}%` : ''),
+          },
+          { header: 'Currency', headClassName: 'text-left py-1 px-2', className: 'py-1 px-2', cell: (row) => row.currency || home },
+        ]}
+      />
     </ReportTableScroll>}
   </section>;
 }

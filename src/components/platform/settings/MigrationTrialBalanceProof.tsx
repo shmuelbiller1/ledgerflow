@@ -1,3 +1,4 @@
+
 import { useRef, useState } from 'react';
 import { getIdToken } from '../../../firebase';
 import { formatCurrency } from '../../../lib/utils';
@@ -92,14 +93,37 @@ export function MigrationTrialBalanceProof({ workspaceId }: { workspaceId: strin
           <p role="status" className="font-semibold text-sm text-[var(--text)]">
             {proof.accountsMatch ? 'Trial balance figures match by account for this comparison.' : 'Trial balance differences require review.'}
           </p>
-          <div className="overflow-x-auto"><table className="w-full text-sm tabular-nums">
-            <caption className="sr-only">QuickBooks versus {BRAND_NAME} trial balance in cents</caption>
-            <thead><tr><th scope="col" className="text-left py-2">Measure</th><th scope="col" className="text-right py-2">QuickBooks</th><th scope="col" className="text-right py-2">{BRAND_NAME}</th><th scope="col" className="text-right py-2">Difference</th></tr></thead>
-            <tbody>
-              <tr className="border-t border-[var(--line)]"><th scope="row" className="text-left py-2">Debits</th><td className="text-right">{amount(proof.sourceDebitCents)}</td><td className="text-right">{amount(proof.ledgerDebitCents)}</td><td className="text-right">{amount(proof.debitDifferenceCents)}</td></tr>
-              <tr className="border-t border-[var(--line)]"><th scope="row" className="text-left py-2">Credits</th><td className="text-right">{amount(proof.sourceCreditCents)}</td><td className="text-right">{amount(proof.ledgerCreditCents)}</td><td className="text-right">{amount(proof.creditDifferenceCents)}</td></tr>
-            </tbody>
-          </table></div>
+          <div className="overflow-x-auto" role="region" aria-label="Trial balance comparison" tabIndex={0}>{/* NOSONAR: named, keyboard-scrollable schedule */}<RowTable
+            caption={<>QuickBooks versus {BRAND_NAME} trial balance in cents</>}
+            captionClassName="sr-only"
+            tableClassName="w-full text-sm tabular-nums"
+            headRowClassName=""
+            bodyClassName=""
+            rowClassName="border-t border-[var(--line)]"
+            rows={[
+              {
+                id: 'debits',
+                measure: 'Debits',
+                source: amount(proof.sourceDebitCents),
+                ledger: amount(proof.ledgerDebitCents),
+                difference: amount(proof.debitDifferenceCents),
+              },
+              {
+                id: 'credits',
+                measure: 'Credits',
+                source: amount(proof.sourceCreditCents),
+                ledger: amount(proof.ledgerCreditCents),
+                difference: amount(proof.creditDifferenceCents),
+              },
+            ]}
+            rowKey={(row) => row.id}
+            columns={[
+              { header: 'Measure', headClassName: 'text-left py-2', className: 'text-left py-2', cell: (row) => row.measure },
+              { header: 'QuickBooks', headClassName: 'text-right py-2', className: 'text-right', cell: (row) => row.source },
+              { header: BRAND_NAME, headClassName: 'text-right py-2', className: 'text-right', cell: (row) => row.ledger },
+              { header: 'Difference', headClassName: 'text-right py-2', className: 'text-right', cell: (row) => row.difference },
+            ]}
+          /></div>
           {proof.differences.length > 0 && <div className="max-h-60 overflow-auto"><RowTable
             rowHeaderColumn={false}
             rowClassName="border-t border-[var(--line)]"
