@@ -21,7 +21,7 @@ fix rather than report.
 | Area | Before | After |
 |------|--------|-------|
 | CSV exports (every screen) | Formula injection blocked only when the formula was the very first character | Blocked behind the whitespace a spreadsheet skips (space, NBSP, ZWSP, BOM); round-trip unchanged; guard covers the inverse direction too |
-| Public token pages | `index, follow` + `robots.txt Allow: /` | `noindex, nofollow, noarchive, nosnippet, noimageindex` set before render + `Disallow` in `robots.txt` + a guard that a new token route cannot be added uncovered |
+| Public token pages | `index, follow` + `robots.txt Allow: /` | `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex` on all four prefixes at the edge (`vercel.json`, first response) + the same directive on the page meta before render + `robots.txt` blocking only `/api/` (token pages stay fetchable so the `noindex` is readable) + a guard that a new token route, a re-disallowed prefix or a lost header fails the build |
 | Client error reporting | A second, inline path that POSTed raw stacks to a route that does not exist, without consent | One path: the app's own tracker (consent, redaction, de-dupe, scope-clear), started before the first render |
 | CSP bookkeeping | Report-Only policy pinned a hash for an inline script | No inline scripts ship; no stale hash; preflight rule requires the Report-Only `script-src` to drop `'unsafe-inline'` |
 

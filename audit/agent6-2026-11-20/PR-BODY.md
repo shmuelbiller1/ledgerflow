@@ -22,11 +22,22 @@ and a plain number such as ` -1,000.00` stays a number.
 `/i/<token>`, `/c/<token>`, `/e/<token>`, `/invite/<token>` open with no sign-in and are all served the
 same `index.html`, which said `index, follow, max-image-preview:large`, with `robots.txt` at `Allow: /`.
 A customer who forwards their invoice link into a public place hands a search engine the document's text,
-amounts and payment token. `src/lib/privacyRobots.ts` sets `noindex, nofollow, noarchive, nosnippet,
-noimageindex` for those paths before the first render; `public/robots.txt` disallows them and `/api/`; a
-guard fails if a new `App.tsx` prefix is added without being covered.
-**Server half reported, not patched:** `X-Robots-Tag: noindex` at the edge/Express for the same four
-prefixes — the directive a crawler cannot ignore.
+amounts and payment token.
+
+Three directives, one message, none hiding another:
+- `vercel.json` sends `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex` on
+  `/i/(.*)`, `/c/(.*)`, `/e/(.*)`, `/invite/(.*)` — edge, first response, before any script runs.
+- `src/lib/privacyRobots.ts` (+ `src/main.tsx`) sets the same directive on the page meta before the first
+  render, which covers a client-side navigation into a token page.
+- `public/robots.txt` blocks **only** `/api/`. The token prefixes are deliberately left fetchable: a
+  crawler that may not fetch a page never reads its `noindex`, and a blocked URL can still be listed when
+  something links to it — which is the leak this finding is about. (Corrected after Gitar's review of the
+  first version, which did both.)
+
+A guard fails if `App.tsx` routes a new prefix the rule does not cover, if `robots.txt` disallows a token
+prefix again, or if the header stops granting `noindex`; 6 tests.
+**Still open (API lane):** the same header in front of those paths when the SPA is served by Express
+(`serveApp.ts`) rather than Vercel's edge.
 
 ### AF6-20261120-03 — the inline crash reporter reported to a route that does not exist
 `index.html` POSTed the message and raw stack to `/api/health` on every error. That route has only ever
@@ -57,7 +68,7 @@ becomes `123.45` (10× low).
 | `npm run build` (incl. `vercel-csp --check`, Vite, PWA, `server.cjs`, `api.cjs`) | passes |
 | `npx tsx scripts/vercel-csp.ts` | exit 0 |
 | `npx tsx scripts/check-dependency-audit.ts` (S-25) | PASS — 0 production advisories |
-| Suites for the changed code (9 suites) | **74/74** |
+| Suites for the changed code (11 suites) | **78/78** |
 | Export/archive neighbours (14 suites) | **85/85** |
 | Structural guards (reachability, layers, vercel boundary) | 9/9 |
 | Boundary/contract/security sweep set | 18/18 |

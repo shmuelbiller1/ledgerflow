@@ -21,7 +21,7 @@ code changed — the full suite and the browser shards belong to CI)
 | Suite(s) | Tests | Result |
 |----------|-------|--------|
 | `security-csv-formula-injection`, `audit-af010b-csv-dates`, `j1-export-import-roundtrip`, `pure-financial-utils-equivalence`, `csv-export` | 25 | **pass** |
-| `security-token-page-indexing`, `security-client-error-reporting`, `csp-report-only`, `security-preflight-scripts` | 49 | **pass** |
+| `security-token-page-indexing`, `security-client-error-reporting`, `csp-report-only`, `security-preflight-scripts` | 49 → **50** after the Gitar correction (`robots.txt` must not disallow token prefixes; `vercel.json` must send `X-Robots-Tag`) | **pass** |
 | Combined run of the nine suites above | **74** | **74 pass, 0 fail** |
 | Export/archive neighbours: `accountant-export-pack`(+view), `csv-export`, `audit-af010c-expr-csv`, `iif-export`, `j1-export-import-roundtrip`, `j5-hebrew-exports`, `j8-year-end-archive`, `scheduled-reports`, `report-export-header`, `monthly-report-csv`, `hebrew-data`, `bk10-archive-restore`, `asset-register-export` | **85** | **85 pass, 0 fail** |
 | Structural guards: `vercel-ignore-boundary`, `reachability-guard`, `layers-guard` | 9 | **pass** |

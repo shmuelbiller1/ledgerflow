@@ -1,12 +1,14 @@
 User-agent: *
 Allow: /
 # AF6-20261120-02: a token in the path is a credential (an invoice, the customer portal, an
-# estimate to sign, an invitation). Crawling one hands a customer's document to a search engine
+# estimate to sign, an invitation). Those four prefixes are deliberately NOT disallowed here.
 #
-# Use `noindex` on the page itself as well (src/lib/privacyRobots.ts); the two cover different
-# crawlers.
-Disallow: /i/
-Disallow: /c/
-Disallow: /e/
-Disallow: /invite/
+# A crawler that is told not to fetch a page never sees that page's `noindex` — and a blocked URL
+# can still be listed in a search result when something else links to it, which is exactly how a
+# forwarded invoice link leaks. So the token pages are left fetchable and are removed from the index
+# by the directive instead: `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet` is sent on those
+# paths (vercel.json → headers), and `src/lib/privacyRobots.ts` sets the same `noindex` on the page
+# meta for a client-side route change.
+#
+# /api/ is not a document: nothing there should ever be fetched by a crawler.
 Disallow: /api/

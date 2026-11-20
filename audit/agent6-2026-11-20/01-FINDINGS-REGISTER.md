@@ -12,7 +12,7 @@ line by line; suspected items are labelled as such. Nothing here is extrapolated
 | ID | Severity | What | Status on this branch |
 |----|----------|------|-----------------------|
 | **AF6-20261120-01** | **Medium** | `GET /api/v1/workspaces/:id/export?format=csv` writes user text unguarded (CSV formula injection, CWE-1236) and writes every amount as `/100` with two decimals whatever the currency (¥ ×100 high, KWD ×10 low) | **Confirmed, not fixed here** — `src/server/**` is AI #1's lane. Patch `patches/01-…patch` (`git apply --check` clean) + reproduction script + GitHub issue |
-| **AF6-20261120-02** | **Medium** | The four bearer-token pages (`/i/<token>` invoice, `/c/<token>` portal, `/e/<token>` estimate, `/invite/<token>`) were served with `index, follow, max-image-preview:large` and a `robots.txt` of `Allow: /` — a customer link forwarded into a public place could be crawled, indexed and cached | **Fixed here** (`src/lib/privacyRobots.ts`, `src/main.tsx`, `public/robots.txt`, guard test). Server-side `X-Robots-Tag` half is reported for the lead |
+| **AF6-20261120-02** | **Medium** | The four bearer-token pages (`/i/<token>` invoice, `/c/<token>` portal, `/e/<token>` estimate, `/invite/<token>`) were served with `index, follow, max-image-preview:large` and a `robots.txt` of `Allow: /` — a customer link forwarded into a public place could be crawled, indexed and cached | **Fixed** (`src/lib/privacyRobots.ts`, `src/main.tsx`, `public/robots.txt`, **`vercel.json` `X-Robots-Tag`**, 6-case guard test). Express-hosted deployments still need the same header (`serveApp.ts`, API lane) |
 | **AF6-20261120-03** | **Medium** | `index.html` shipped an inline crash reporter that POSTed message + raw stack to `/api/health`, which has only ever been a `GET`: nothing was recorded, the browser got a 404 per error, and the stack left the browser with no consent, no redaction and no de-duplication | **Fixed here** (inline script removed, `APP_INLINE_SCRIPT_HASHES` emptied, `vercel.json` CSP regenerated, preflight rule corrected, guard test) |
 | **AF6-20261120-04** | **Low → Medium** | `sanitizeCsvCell` decided on the very first character, so a formula behind whitespace (` =1+1`, NBSP, zero-width space, BOM — the ordinary shape of Hebrew copied from a web page) was exported **unguarded** through every screen export (carried finding AF-010-F5, P3) | **Fixed here** (`src/lib/csv.ts`), 4-case regression suite |
 | **AF6-20261120-05** | Info | Service worker caching of authenticated data (a class worth checking, not a defect found): `/api/*` and Supabase auth/rest/realtime/storage/functions are `NetworkOnly`; only content-hashed assets, and HTML is refused from the runtime cache | **Verified, no defect** |
@@ -101,19 +101,31 @@ read the same page. `/i/` and `/e/` also carry actions (pay, sign).
   and `applyRobotsDirective()` (rewrites the existing meta, creates one if absent, never throws).
 - `src/main.tsx` — `applyRobotsDirective(window.location.pathname)` runs before the first render, so the
   directive is in the document before any crawler reads it.
-- `public/robots.txt` — `Disallow: /i/`, `/c/`, `/e/`, `/invite/`, `/api/`; `Allow: /` stays, so the
-  marketing pages and `/status` are unaffected.
+- `vercel.json` — `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex` on
+  `/i/(.*)`, `/c/(.*)`, `/e/(.*)`, `/invite/(.*)`. This is the half a crawler cannot ignore or arrive
+  too late for: Vercel reads `vercel.json` before the build, the header is on the very first response,
+  and no script has to run. No site-wide header — the marketing pages stay indexable.
+- `public/robots.txt` — **the four token prefixes are deliberately NOT disallowed**; only `/api/` is.
+  This is the correction from the Gitar review of this PR (see below), and it matters: a crawler told
+  not to fetch a page never reads the page's `noindex`, and a blocked URL can still be listed in a
+  search result when another page links to it — which is exactly how a forwarded invoice link leaks.
+  Keeping the page fetchable is what makes `noindex` do its work.
 - Guard: `src/tests/security-token-page-indexing.test.ts` also fails if `App.tsx` ever routes a new
-  prefix that `privacyRobots.ts` does not cover, so the class cannot come back quietly.
+  prefix that `privacyRobots.ts` does not cover, if `robots.txt` ever disallows a token prefix again,
+  or if the `X-Robots-Tag` entry disappears or starts granting `index`.
 
-**Not done here (reported for the lead):** `X-Robots-Tag: noindex` on those responses. It is the
-authoritative half — it survives a crawler that ignores the meta tag — and it has to be sent by the
-server/edge before the SPA runs (`serveApp.ts` / `vercel.json` headers for `/i/*`, `/c/*`, `/e/*`,
-`/invite/*`). It is one `headers` entry in `vercel.json` plus the Express equivalent, but it changes
-API responses, so it is left to AI #1 with this finding rather than patched across the lane boundary.
+**Corrected after review (Gitar, comment on `public/robots.txt:3-11`):** the first version of this fix
+did both — `Disallow` **and** `noindex` — and its comments claimed "the two do not fight". They do
+fight, and the review was right: `Disallow` hides the `noindex`, so the URL can still be indexed bare.
+The four `Disallow` lines and both comments are gone; the header is now the primary control and
+`robots.txt` only blocks `/api/`. Test updated to assert the correct direction (5 → 6 cases).
 
-**Verification:** 5/5 tests (`src/tests/security-token-page-indexing.test.ts`), including the App.tsx
-route-coverage guard and the `robots.txt` content check.
+**Still open (API lane):** the same `X-Robots-Tag` in front of those paths when the SPA is served by
+Express (`serveApp.ts`) instead of Vercel's edge, and a `noindex` on any redirect target. Reported to
+AI #1 in `docs/COORDINATION.md`; it does not touch production today, which is Vercel.
+
+**Verification:** 6/6 tests (`src/tests/security-token-page-indexing.test.ts`), including the App.tsx
+route-coverage guard, the corrected `robots.txt` direction and the `vercel.json` header check.
 
 ---
 

@@ -91,12 +91,40 @@ test('AF6-20261120-02: a new token route cannot be added without being covered',
   }
 });
 
-test('AF6-20261120-02: robots.txt keeps the token prefixes and the API out of a crawl', () => {
+test('AF6-20261120-02: robots.txt leaves token pages fetchable and blocks only the API', () => {
+  // A crawler that is told not to fetch a page never reads its `noindex` — and a blocked URL can
+  // still be listed when another page links to it, which is how a forwarded invoice link would leak.
+  // So `noindex` has to be reachable: robots.txt must NOT disallow the token prefixes.
   const robots = fs.readFileSync(path.join(process.cwd(), 'public', 'robots.txt'), 'utf8');
-  for (const prefix of [...TOKEN_PAGE_PREFIXES, '/api/']) {
-    assert.equal(robots.includes(`Disallow: ${prefix}`), true, `robots.txt disallows ${prefix}`);
+  const rules = robots.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#'));
+  for (const prefix of TOKEN_PAGE_PREFIXES) {
+    assert.equal(rules.some(rule => rule.toLowerCase() === `disallow: ${prefix}`.toLowerCase()), false,
+      `robots.txt must not disallow ${prefix}: the noindex can only be read if the page is fetched`);
   }
-  assert.match(robots, /^User-agent: \*$/m);
-  assert.match(robots, /^Allow: \/$/m, 'the site itself stays crawlable');
-  assert.doesNotMatch(robots, /^Disallow: \/$/m, 'nothing disallows the whole site');
+  assert.ok(rules.includes('Disallow: /api/'), 'the API stays out of a crawl');
+  assert.ok(rules.includes('Allow: /'), 'the site itself stays crawlable');
+  assert.equal(rules.some(rule => rule === 'Disallow: /'), false, 'nothing disallows the whole site');
+});
+
+test('AF6-20261120-02: the edge sends X-Robots-Tag on exactly the token paths, before any script runs', () => {
+  // vercel.json is read before the build, so this header is the only one of the three directives a
+  // crawler is guaranteed to see on the first response (the meta is applied after React starts).
+  const config = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'vercel.json'), 'utf8')) as {
+    headers?: Array<{ source: string; headers: Array<{ key: string; value: string }> }>;
+  };
+  const blocks = config.headers || [];
+  const robotsHeaders = blocks
+    .map(block => ({ source: block.source, value: block.headers.find(h => h.key.toLowerCase() === 'x-robots-tag')?.value }))
+    .filter(entry => entry.value !== undefined);
+
+  for (const prefix of TOKEN_PAGE_PREFIXES) {
+    const entry = robotsHeaders.find(e => new RegExp(`^${prefix.replace(/\//g, '\\/')}`).test(e.source));
+    assert.ok(entry, `vercel.json sends X-Robots-Tag on ${prefix}*`);
+    assert.match(entry!.value!, /noindex/);
+    assert.match(entry!.value!, /nofollow/);
+    assert.doesNotMatch(entry!.value!, /(^|,\s*)index/, `the ${prefix} header never grants index`);
+  }
+  // The marketing pages must stay indexable: a whole-site X-Robots-Tag would deindex the product.
+  assert.equal(robotsHeaders.some(e => e.source === '/(.*)'), false,
+    'no site-wide X-Robots-Tag');
 });

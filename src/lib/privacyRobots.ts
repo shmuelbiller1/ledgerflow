@@ -16,13 +16,19 @@
  *
  * The route is decided here, once, before React renders: the token paths get `noindex, nofollow,
  * noarchive, nosnippet, noimageindex` and the rest of the site keeps the marketing directives it has.
- * `public/robots.txt` also keeps the four token prefixes (and `/api/`) out of a crawl, so a crawler
- * that never fetches the page still does not fetch a customer's document. The two do not fight:
- * robots.txt stops the crawl, which is the protection that matters for a credential, and the meta
- * directive covers the crawler that arrived from a public link anyway.
  *
- * `X-Robots-Tag` on those responses is the server-side half and belongs to the API lane (it must be
- * sent before the SPA loads); it is reported with this finding, not patched here.
+ * `public/robots.txt` deliberately does **not** disallow the four token prefixes, and that is the
+ * point rather than an omission: a crawler told not to fetch the page never reads this meta, and a
+ * blocked URL can still appear in a search result when another page links to it — which is exactly
+ * how a forwarded invoice link would leak. The page must stay fetchable so that the `noindex` is
+ * what keeps it out of the index. `vercel.json` therefore sends `X-Robots-Tag: noindex, nofollow,
+ * noarchive, nosnippet` on those four paths (the header is what a crawler sees before any script
+ * runs), `public/robots.txt` disallows only `/api/`, and this meta covers a client-side route change
+ * after the document loaded. All three say the same thing; none of them hides another.
+ *
+ * A deployment that serves the SPA from Express instead of Vercel's edge still needs the same header
+ * in front of those paths (helmet, API lane) — the header is the only one of the three that a
+ * crawler is guaranteed to see on the first response.
  */
 
 /** Path prefixes whose first segment after the slash is a bearer token. */
