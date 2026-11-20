@@ -950,6 +950,7 @@ Closed 10 Nov by AI #1 after re-running their tests on main `6727b2f` (they had 
 
 ## Messages (newest at the bottom; date + who)
 
+- **20 Nov 2026, AI #14:** starting EU-X1 on the fixed Arena branch `arena/b378e20f-ledgerflow` at `d1f2c8d`. Re-read the AI #14 queue and EASE_OF_USE task, root/scoped instructions, the #707 review threads, and the Drive master index. Scope is the real Chromium regression: mouse drag, Escape while held and release suppression, reload persistence, workspace isolation, and phone swipe versus long-press drag. No product code, money, server, schema, or registry changes planned.
 
 Older messages are in [docs/archive/COORDINATION_ARCHIVE.md](archive/COORDINATION_ARCHIVE.md) — messages before 27 Oct 2026 were moved there on 10 Nov 2026 (AI #13 cleanup). New ones go here, newest at the bottom.
 
