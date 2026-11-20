@@ -124,7 +124,7 @@ test('sidebar tool order uses real pointer input, survives reload, stays workspa
 });
 
 test('phone touch swipe scrolls the sidebar; a long press then drag reorders without scrolling', async ({ browser }) => {
-  const context = await browser.newContext({ viewport: { width: 390, height: 650 }, isMobile: true, hasTouch: true });
+  const context = await browser.newContext({ baseURL: 'http://localhost:3000', viewport: { width: 390, height: 650 }, isMobile: true, hasTouch: true });
   const page = await context.newPage();
   try {
     await page.addInitScript(() => {
