@@ -1,2 +1,12 @@
 User-agent: *
 Allow: /
+# AF6-20261120-02: a token in the path is a credential (an invoice, the customer portal, an
+# estimate to sign, an invitation). Crawling one hands a customer's document to a search engine
+#
+# Use `noindex` on the page itself as well (src/lib/privacyRobots.ts); the two cover different
+# crawlers.
+Disallow: /i/
+Disallow: /c/
+Disallow: /e/
+Disallow: /invite/
+Disallow: /api/
