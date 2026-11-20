@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import { classifyIsraeliDocument, israeliDocumentTitle, type IsraeliDocumentEvidence } from '../../lib/tax/israeliDocumentTypes';
 import ReportTableScroll from './ReportTableScroll';
@@ -135,17 +136,44 @@ export default function IsraeliDocumentTypesView() {
       </div>}
     </div>
 
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption className="text-left font-semibold text-[var(--text)] pb-1">{reportText('r.examples-the-four-supported-types-and-two-refusa', 'Examples — the four supported types and two refusal cases')}</caption>
-        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">{[reportText('r.example', 'Example'), reportText('r.evidence-summary', 'Evidence summary'), reportText('r.result', 'Result')].map(h => <th key={h} scope="col" className="text-left py-1 px-2">{h}</th>)}</tr></thead>
-        <tbody>
-          {EXAMPLES.map(row => {
-            const r = classifyIsraeliDocument(row.evidence);
-            return <tr key={row.labelKey} className="border-b border-[var(--line)]/50"><th scope="row" className="text-left font-normal py-1 px-2">{exampleLabel[row.labelKey]}</th><td className="py-1 px-2 text-xs"><code className="break-all">{JSON.stringify(row.evidence)}</code></td><td className="py-1 px-2">{r.status === 'classified' ? <span><bdi>{r.titleHe}</bdi> / <bdi>{r.titleEn}</bdi></span> : r.reason}</td></tr>;
-          })}
-        </tbody>
-      </table>
+    <ReportTableScroll allowDisplayedExport={false}>
+      <RowTable
+        caption={reportText('r.examples-the-four-supported-types-and-two-refusa', 'Examples — the four supported types and two refusal cases')}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        bodyClassName=""
+        rowClassName="border-b border-[var(--line)]/50"
+        rows={EXAMPLES.map((row) => {
+          const r = classifyIsraeliDocument(row.evidence);
+          return { row, r };
+        })}
+        rowKey={({ row }) => row.labelKey}
+        columns={[
+          {
+            header: reportText('r.example', 'Example'),
+            headClassName: 'text-left py-1 px-2', className: 'text-left font-normal py-1 px-2',
+            cell: ({ row }) => exampleLabel[row.labelKey],
+          },
+          {
+            header: reportText('r.evidence-summary', 'Evidence summary'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 text-xs',
+            cell: ({ row }) => <code className="break-all">{JSON.stringify(row.evidence)}</code>,
+          },
+          {
+            header: reportText('r.result', 'Result'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2',
+            cell: ({ r }) =>
+              r.status === 'classified' ? (
+                <span>
+                  <bdi>{r.titleHe}</bdi> / <bdi>{r.titleEn}</bdi>
+                </span>
+              ) : (
+                r.reason
+              ),
+          },
+        ]}
+      />
     </ReportTableScroll>
 
     <p className="text-xs text-[var(--muted)]">{reportText('r.capability', 'Capability:')} <b>{reportText('r.internal-test-or-demo-only', 'Internal, test or demo only')}</b> {reportText('r.titles-only-no-authority-approved-numbering-allo', '— titles only; no authority-approved numbering, allocation or filing code. Four kinds supported; transaction-invoices and unknown issuance states are refused with a reason.')}</p>

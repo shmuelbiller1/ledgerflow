@@ -11,6 +11,7 @@
  *
  * Viewer role: can read everything, posts nothing.
  */
+import { RowTable } from '../ui/RowTable';
 import { runCommand, ServerCommandError } from '../../lib/runCommand';
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -322,7 +323,7 @@ export default function LoansView() {
           <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-4" aria-labelledby="new-loan">
             <h2 id="new-loan" className="text-lg font-medium text-[var(--text)]">A new loan</h2>
             {!chartReady && (
-              <p role="alert" className="text-sm text-amber-700 flex items-start gap-2">
+              <p role="alert" className="text-sm text-amber-800 dark:text-amber-300 flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 mt-0.5" aria-hidden="true" />
                 <span>
                   {!liabilityAccounts.length && 'This workspace has no liability account. '}
@@ -418,7 +419,7 @@ export default function LoansView() {
                   <div className="flex items-center gap-3">
                     {posted
                       ? <span className="text-xs font-semibold text-[var(--pos)] inline-flex items-center gap-1"><BadgeCheck className="w-4 h-4" aria-hidden="true" /> In the books</span>
-                      : <span className="text-xs font-semibold text-amber-700 inline-flex items-center gap-1"><AlertTriangle className="w-4 h-4" aria-hidden="true" /> Not in the books yet</span>}
+                      : <span className="text-xs font-semibold text-amber-800 dark:text-amber-300 inline-flex items-center gap-1"><AlertTriangle className="w-4 h-4" aria-hidden="true" /> Not in the books yet</span>}
                     {!isOpen && (
                       <button type="button" onClick={() => setOpenLoanId(loan.id)} className="text-xs font-semibold text-[var(--brass)] hover:underline">
                         Open the schedule
@@ -438,52 +439,24 @@ export default function LoansView() {
                       </button>
                     )}
 
-                    <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
-                      <table className="w-full border-collapse text-sm tabular-nums">
-                        <caption className="sr-only">
-                          Repayment schedule for the loan from {loan.lender}: {info.schedule.installments.length} monthly payments of about {money(info.schedule.paymentCents)}
-                        </caption>
-                        <thead className="bg-[var(--ink)]">
-                          <tr>
-                            <th scope="col" className="p-3 text-left">#</th>
-                            <th scope="col" className="p-3 text-left whitespace-nowrap"><CalendarClock className="w-4 h-4 inline" aria-hidden="true" /> Due</th>
-                            <th scope="col" className="p-3 text-right">Payment</th>
-                            <th scope="col" className="p-3 text-right">Interest</th>
-                            <th scope="col" className="p-3 text-right">Principal</th>
-                            <th scope="col" className="p-3 text-right">Balance after</th>
-                            <th scope="col" className="p-3 text-right">Recorded</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {info.schedule.installments.map(installment => {
-                            const record = (loan.payments || []).find(p => p.installment === installment.number);
-                            return (
-                              <tr key={installment.number} className={cn('border-t border-[var(--line)]', record && 'text-[var(--muted)]')}>
-                                <th scope="row" className="p-3 text-left">{installment.number}</th>
-                                <td className="p-3 whitespace-nowrap">{installment.dueDate}</td>
-                                <td className="p-3 text-right whitespace-nowrap">{money(installment.paymentCents)}</td>
-                                <td className="p-3 text-right whitespace-nowrap">{money(installment.interestCents)}</td>
-                                <td className="p-3 text-right whitespace-nowrap">{money(installment.principalCents)}</td>
-                                <td className="p-3 text-right whitespace-nowrap">{money(installment.balanceCents)}</td>
-                                <td className="p-3 text-right whitespace-nowrap">
-                                  {record ? (
-                                    <span className="inline-flex items-center gap-1 text-[var(--pos)]">
-                                      <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> {record.date}
-                                    </span>
-                                  ) : canWrite && next?.number === installment.number ? (
-                                    <button type="button" disabled={busy} onClick={() => recordPayment(loan, installment)}
-                                      className="text-xs font-semibold text-[var(--brass)] hover:underline disabled:opacity-50">
-                                      Record payment
-                                    </button>
-                                  ) : (
-                                    <span className="text-xs text-[var(--muted)]">{next ? 'Not yet' : 'Not recorded'}</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot>
+                    <div className="overflow-x-auto rounded-xl border border-[var(--line)]" role="region" aria-label={`Repayment schedule for ${loan.lender}`} tabIndex={0}>{/* NOSONAR: named, keyboard-scrollable schedule */}
+                      <RowTable
+                        caption={
+                          <>
+                            Repayment schedule for the loan from {loan.lender}: {info.schedule.installments.length} monthly payments of about {money(info.schedule.paymentCents)}
+                          </>
+                        }
+                        captionClassName="sr-only"
+                        tableClassName="w-full border-collapse text-sm tabular-nums"
+                        headRowClassName="bg-[var(--ink)]"
+                        bodyClassName=""
+                        rowClassName={({ record }) => cn('border-t border-[var(--line)]', record && 'text-[var(--muted)]')}
+                        rows={info.schedule.installments.map((installment) => {
+                          const record = (loan.payments || []).find((p) => p.installment === installment.number);
+                          return { installment, record };
+                        })}
+                        rowKey={({ installment }) => installment.number}
+                        footer={
                           <tr className="border-t border-[var(--line)] font-semibold">
                             <td className="p-3" />
                             <td className="p-3">Total</td>
@@ -493,8 +466,57 @@ export default function LoansView() {
                             <td className="p-3 text-right">—</td>
                             <td className="p-3" />
                           </tr>
-                        </tfoot>
-                      </table>
+                        }
+                        columns={[
+                          { header: '#', headClassName: 'p-3 text-left', className: 'p-3 text-left', cell: ({ installment }) => installment.number },
+                          {
+                            header: (
+                              <>
+                                <CalendarClock className="w-4 h-4 inline" aria-hidden="true" /> Due
+                              </>
+                            ),
+                            headClassName: 'p-3 text-left whitespace-nowrap', className: 'p-3 whitespace-nowrap',
+                            cell: ({ installment }) => installment.dueDate,
+                          },
+                          { header: 'Payment', headClassName: 'p-3 text-right', className: 'p-3 text-right whitespace-nowrap', cell: ({ installment }) => money(installment.paymentCents) },
+                          {
+                            header: 'Interest',
+                            headClassName: 'p-3 text-right', className: 'p-3 text-right whitespace-nowrap',
+                            cell: ({ installment }) => money(installment.interestCents),
+                          },
+                          {
+                            header: 'Principal',
+                            headClassName: 'p-3 text-right', className: 'p-3 text-right whitespace-nowrap',
+                            cell: ({ installment }) => money(installment.principalCents),
+                          },
+                          {
+                            header: 'Balance after',
+                            headClassName: 'p-3 text-right', className: 'p-3 text-right whitespace-nowrap',
+                            cell: ({ installment }) => money(installment.balanceCents),
+                          },
+                          {
+                            header: 'Recorded',
+                            headClassName: 'p-3 text-right', className: 'p-3 text-right whitespace-nowrap',
+                            cell: ({ installment, record }) =>
+                              record ? (
+                                <span className="inline-flex items-center gap-1 text-[var(--pos)]">
+                                  <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> {record.date}
+                                </span>
+                              ) : canWrite && next?.number === installment.number ? (
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => recordPayment(loan, installment)}
+                                  className="text-xs font-semibold text-[var(--brass)] hover:underline disabled:opacity-50"
+                                >
+                                  Record payment
+                                </button>
+                              ) : (
+                                <span className="text-xs text-[var(--muted)]">{next ? 'Not yet' : 'Not recorded'}</span>
+                              ),
+                          },
+                        ]}
+                      />
                     </div>
 
                     <div className="flex items-end justify-between gap-4 flex-wrap text-sm">
@@ -522,7 +544,7 @@ export default function LoansView() {
                     {notices[loan.id] && <p role="status" className="text-sm text-[var(--text)]">{notices[loan.id]}</p>}
 
                     {posted ? (
-                      <p className={cn('text-sm font-medium', Math.abs(ledgerOwed - scheduleOwed) > 0.5 ? 'text-amber-700' : 'text-[var(--pos)]')}>
+                      <p className={cn('text-sm font-medium', Math.abs(ledgerOwed - scheduleOwed) > 0.5 ? 'text-amber-800 dark:text-amber-300' : 'text-[var(--pos)]')}>
                         {Math.abs(ledgerOwed - scheduleOwed) > 0.5
                           ? `The ledger says ${money(ledgerOwed)} is owed; the schedule says ${money(scheduleOwed)}. The difference is entries made without this loan's reference.`
                           : `The ledger agrees: ${money(ledgerOwed)} owed on ${liability ? liability.name : 'the loan account'}.`}

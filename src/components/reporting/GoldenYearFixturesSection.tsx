@@ -1,3 +1,4 @@
+
 import { useMemo } from 'react';
 import {
   GOLDEN_IL_YEAR, GOLDEN_TX_YEAR, goldenIlYearTotals, goldenTxYearTotals, verifyGoldenYearFixtures,
@@ -44,27 +45,24 @@ export function GoldenYearFixturesPanel({ result }: { result: { ilPeriods: numbe
     </ul>}
 
     <h3 className="font-semibold text-sm">{reportText('r.a-198-israel-vat-year-six-bi-monthly-periods', 'A-198 · Israel VAT year, six bi-monthly periods (₪)')}</h3>
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption className="text-left font-semibold text-[var(--text)] pb-1">{reportText('r.israeli-vat-year-taxable-zero-rated-and-exempt-s', 'Israeli VAT year: taxable, zero-rated and exempt sales; equipment and other input VAT; to pay or reclaim')}</caption>
-        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-          {[reportText('r.col-period', 'Period'), reportText('r.taxable-sales', 'Taxable sales'), reportText('r.output-vat', 'Output VAT'), reportText('r.zero-rated', 'Zero-rated'), reportText('r.exempt', 'Exempt'), reportText('r.input-equipment', 'Input — equipment'), reportText('r.input-other', 'Input — other'), reportText('r.to-pay-reclaim-2', 'To pay / (reclaim)'), reportText('r.documents-heading', 'Documents'), reportText('r.check', 'Check')].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-        </tr></thead>
-        <tbody>
-          {GOLDEN_IL_YEAR.periods.map(p => <tr key={p.period} className="border-b border-[var(--line)]/50">
-            <th scope="row" className="text-left font-normal py-1 px-2">{p.period}</th>
-            <td className="py-1 px-2 tabular-nums">{ils(p.expected.taxableSalesCents)}</td>
-            <td className="py-1 px-2 tabular-nums">{ils(p.expected.outputVatCents)}</td>
-            <td className="py-1 px-2 tabular-nums">{ils(p.expected.zeroRatedSalesCents)}</td>
-            <td className="py-1 px-2 tabular-nums">{ils(p.expected.exemptSalesCents)}</td>
-            <td className="py-1 px-2 tabular-nums">{ils(p.expected.fixedAssetInputVatCents)}</td>
-            <td className="py-1 px-2 tabular-nums">{ils(p.expected.otherInputVatCents)}</td>
-            <td className="py-1 px-2 tabular-nums">{ils(p.expected.toPayCents)}</td>
-            <td className="py-1 px-2 tabular-nums">{p.expected.documentCount}</td>
-            <td className="py-1 px-2">{failedIds.has(`A-198 ${p.period}`) ? reportText('r.fails-see-above', 'Fails — see above') : reportText('r.matches', 'Matches')}</td>
-          </tr>)}
+    <ReportTableScroll nameFromCaption allowDisplayedExport={true}>
+      <RowTable
+        caption={reportText(
+          'r.israeli-vat-year-taxable-zero-rated-and-exempt-s',
+          'Israeli VAT year: taxable, zero-rated and exempt sales; equipment and other input VAT; to pay or reclaim',
+        )}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        bodyClassName=""
+        rowClassName="border-b border-[var(--line)]/50"
+        rows={GOLDEN_IL_YEAR.periods}
+        rowKey={(p) => p.period}
+        footer={
           <tr className="border-t-2 border-[var(--line)] font-semibold">
-            <th scope="row" className="text-left py-1 px-2">{reportText('r.year', 'Year')}</th>
+            <th scope="row" className="text-left py-1 px-2">
+              {reportText('r.year', 'Year')}
+            </th>
             <td className="py-1 px-2 tabular-nums">{ils(ilTotals.taxableSalesCents)}</td>
             <td className="py-1 px-2 tabular-nums">{ils(ilTotals.outputVatCents)}</td>
             <td className="py-1 px-2 tabular-nums">{ils(ilTotals.zeroRatedSalesCents)}</td>
@@ -75,29 +73,77 @@ export function GoldenYearFixturesPanel({ result }: { result: { ilPeriods: numbe
             <td className="py-1 px-2 tabular-nums">{ilTotals.documentCount}</td>
             <td className="py-1 px-2" />
           </tr>
-        </tbody>
-      </table>
+        }
+        columns={[
+          { header: reportText('r.col-period', 'Period'), headClassName: 'text-left py-1 px-2', className: 'text-left font-normal py-1 px-2', cell: (p) => p.period },
+          {
+            header: reportText('r.taxable-sales', 'Taxable sales'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums',
+            cell: (p) => ils(p.expected.taxableSalesCents),
+          },
+          {
+            header: reportText('r.output-vat', 'Output VAT'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums',
+            cell: (p) => ils(p.expected.outputVatCents),
+          },
+          {
+            header: reportText('r.zero-rated', 'Zero-rated'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums',
+            cell: (p) => ils(p.expected.zeroRatedSalesCents),
+          },
+          {
+            header: reportText('r.exempt', 'Exempt'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums',
+            cell: (p) => ils(p.expected.exemptSalesCents),
+          },
+          {
+            header: reportText('r.input-equipment', 'Input — equipment'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums',
+            cell: (p) => ils(p.expected.fixedAssetInputVatCents),
+          },
+          {
+            header: reportText('r.input-other', 'Input — other'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums',
+            cell: (p) => ils(p.expected.otherInputVatCents),
+          },
+          {
+            header: reportText('r.to-pay-reclaim-2', 'To pay / (reclaim)'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums',
+            cell: (p) => ils(p.expected.toPayCents),
+          },
+          {
+            header: reportText('r.documents-heading', 'Documents'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums',
+            cell: (p) => p.expected.documentCount,
+          },
+          {
+            header: reportText('r.check', 'Check'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2',
+            cell: (p) => (failedIds.has(`A-198 ${p.period}`) ? reportText('r.fails-see-above', 'Fails — see above') : reportText('r.matches', 'Matches')),
+          },
+        ]}
+      />
     </ReportTableScroll>
 
     <h3 className="font-semibold text-sm">{reportText('r.a-199-texas-sales-tax-year-four-quarters', 'A-199 · Texas sales-tax year, four quarters ($)')}</h3>
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption className="text-left font-semibold text-[var(--text)] pb-1">{reportText('r.texas-state-base-rate-6-25-only-gross-exempt-and', 'Texas state base rate 6.25% only: gross, exempt and taxable sales with the tax collected')}</caption>
-        <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-          {[reportText('r.quarter', 'Quarter'), reportText('r.gross-sales', 'Gross sales'), reportText('r.exempt', 'Exempt'), reportText('r.taxable', 'Taxable'), reportText('r.tax-collected', 'Tax collected'), reportText('r.documents-heading', 'Documents'), reportText('r.check', 'Check')].map(head => <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}
-        </tr></thead>
-        <tbody>
-          {GOLDEN_TX_YEAR.quarters.map(q => <tr key={q.quarter} className="border-b border-[var(--line)]/50">
-            <th scope="row" className="text-left font-normal py-1 px-2">{q.quarter}</th>
-            <td className="py-1 px-2 tabular-nums">{usd(q.expected.grossSalesCents)}</td>
-            <td className="py-1 px-2 tabular-nums">{usd(q.expected.exemptSalesCents)}</td>
-            <td className="py-1 px-2 tabular-nums">{usd(q.expected.taxableSalesCents)}</td>
-            <td className="py-1 px-2 tabular-nums">{usd(q.expected.taxCollectedCents)}</td>
-            <td className="py-1 px-2 tabular-nums">{q.expected.documentCount}</td>
-            <td className="py-1 px-2">{failedIds.has(`A-199 ${q.quarter}`) ? reportText('r.fails-see-above', 'Fails — see above') : reportText('r.matches', 'Matches')}</td>
-          </tr>)}
+    <ReportTableScroll nameFromCaption allowDisplayedExport={true}>
+      <RowTable
+        caption={reportText(
+          'r.texas-state-base-rate-6-25-only-gross-exempt-and',
+          'Texas state base rate 6.25% only: gross, exempt and taxable sales with the tax collected',
+        )}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+        bodyClassName=""
+        rowClassName="border-b border-[var(--line)]/50"
+        rows={GOLDEN_TX_YEAR.quarters}
+        rowKey={(q) => q.quarter}
+        footer={
           <tr className="border-t-2 border-[var(--line)] font-semibold">
-            <th scope="row" className="text-left py-1 px-2">{reportText('r.year', 'Year')}</th>
+            <th scope="row" className="text-left py-1 px-2">
+              {reportText('r.year', 'Year')}
+            </th>
             <td className="py-1 px-2 tabular-nums">{usd(txTotals.grossSalesCents)}</td>
             <td className="py-1 px-2 tabular-nums">{usd(txTotals.exemptSalesCents)}</td>
             <td className="py-1 px-2 tabular-nums">{usd(txTotals.taxableSalesCents)}</td>
@@ -105,12 +151,45 @@ export function GoldenYearFixturesPanel({ result }: { result: { ilPeriods: numbe
             <td className="py-1 px-2 tabular-nums">{txTotals.documentCount}</td>
             <td className="py-1 px-2" />
           </tr>
-        </tbody>
-      </table>
+        }
+        columns={[
+          { header: reportText('r.quarter', 'Quarter'), headClassName: 'text-left py-1 px-2', className: 'text-left font-normal py-1 px-2', cell: (q) => q.quarter },
+          {
+            header: reportText('r.gross-sales', 'Gross sales'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums',
+            cell: (q) => usd(q.expected.grossSalesCents),
+          },
+          {
+            header: reportText('r.exempt', 'Exempt'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums',
+            cell: (q) => usd(q.expected.exemptSalesCents),
+          },
+          {
+            header: reportText('r.taxable', 'Taxable'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums',
+            cell: (q) => usd(q.expected.taxableSalesCents),
+          },
+          {
+            header: reportText('r.tax-collected', 'Tax collected'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums',
+            cell: (q) => usd(q.expected.taxCollectedCents),
+          },
+          {
+            header: reportText('r.documents-heading', 'Documents'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2 tabular-nums',
+            cell: (q) => q.expected.documentCount,
+          },
+          {
+            header: reportText('r.check', 'Check'),
+            headClassName: 'text-left py-1 px-2', className: 'py-1 px-2',
+            cell: (q) => (failedIds.has(`A-199 ${q.quarter}`) ? reportText('r.fails-see-above', 'Fails — see above') : reportText('r.matches', 'Matches')),
+          },
+        ]}
+      />
     </ReportTableScroll>
 
     <h3 className="font-semibold text-sm">{reportText('r.a-106-us-1099-reporting-thresholds-by-year', 'A-106 · US 1099 reporting thresholds by year ($)')}</h3>
-    <ReportTableScroll>
+    <ReportTableScroll nameFromCaption allowDisplayedExport={true}>
       <RowTable
         rowClassName="border-b border-[var(--line)]/50"
         caption={(<>{reportText('r.1099-nec-and-1099-misc-thresholds-the-year-s-tot', '1099-NEC and 1099-MISC thresholds: the year’s total at or above which a payment is reportable')}</>)}

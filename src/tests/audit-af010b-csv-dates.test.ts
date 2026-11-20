@@ -16,8 +16,10 @@ test('AF-010 CSV: quotes, doubling and formula neutralisation', () => {
   assert.equal(sanitizeCsvCell('he said "hi"'), '"he said ""hi"""', 'quotes doubled inside a quoted cell');
   assert.equal(sanitizeCsvCell('line1\nline2'), '"line1\nline2"', 'line break kept inside the cell');
   assert.equal(sanitizeCsvCell('-1,000.00'), '"-1,000.00"', 'a safe negative number is not prefixed');
-  // AF-010-F5 (P3): a whitespace-prefixed formula is not neutralised
-  assert.equal(sanitizeCsvCell(' =1+1'), '" =1+1"', 'OBSERVED GAP: leading-space formula passes through unneutralised');
+  // AF-010-F5 (P3): a whitespace-prefixed formula is not neutralised. FIXED 20 Nov 2026 (Agent #6):
+  // the guard now decides on the first character a spreadsheet reads, so this is neutralised too.
+  // Evidence: src/tests/security-csv-formula-injection.test.ts, docs/verification/ai6-2026-11-20.md
+  assert.equal(sanitizeCsvCell(' =1+1'), '"\' =1+1"', 'leading-space formula is neutralised (AF-010-F5 fixed)');
   // AF-010-F6 (P3): non-finite money is rendered as text garbage rather than refused
   assert.equal(formatDecimal(Infinity), 'Infinity.NaN', 'OBSERVED GAP: Infinity cents are not refused');
   assert.equal(formatDecimal(NaN), '0.00');

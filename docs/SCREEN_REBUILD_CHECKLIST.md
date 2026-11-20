@@ -8,12 +8,12 @@ historical, not an acceptance test. Earlier migration batches and their evidence
 
 | Counter (`computeQualityMetrics()`) | Start of this batch | Now | Target |
 |---|---:|---:|---|
-| `rawTables` | 109 | **84** | Zero or an individual reason to keep each site |
+| `rawTables` | 84 | **44** | Zero or an individual reason to keep each site |
 | `handTypedApiCalls` | 5 | **5** | Zero or individually justified (§3) |
 | `directDbWrites` | 0 | **0** | 0 |
 | `screensWithManyPrimaryButtons` | 0 | **0** | 0 |
 
-**84 is files, not tables**: 82 paths on the migration queue, `PivotSheetView` (dynamic pivot) and
+**44 is files, not tables**: 42 paths on the migration queue, `PivotSheetView` (dynamic pivot) and
 `RowTable` (the embedded-table renderer itself). The full-list grid is excluded by the existing metric.
 `raw-table-decisions.test.ts` now compares the metric's actual paths against the queue and named exceptions;
 a new raw screen cannot slip in when a different screen migrates in the same PR. A queued file is **not** an exemption.
@@ -25,6 +25,11 @@ a new raw screen cannot slip in when a different screen migrates in the same PR.
 | Navigation | Seven daily areas, All tools, business-type defaults (`modulesForBusiness`), report/settings index and off-module “turn on” results. `business-menu.spec.ts` passed at 390 and 1280. | `CommandPalette` searches `SYSTEM_COMMANDS` and indexed pages, **not** every role-permitted entry in the 210-command generated manifest. Connect that manifest to a real form/page, and test finding and activating allowed commands in English/Hebrew and withholding forbidden ones. `palette-role-filter` is a helper test; `palette-reachability-guard` proves destinations, not that command contract. |
 | Proposals | The private sandbox, persisted steps, live-read restrictions and atomic acceptance exist (#787, #853, #855). | Verify CMD-1 part 3's edit/revalidation, partial acceptance, rejection, expiry and inverse contracts before the “Waiting for you” UI. Customer estimates are not assistant proposals. |
 | First hour | `first-hour-journey.spec.ts` at **390 and 1280**: Tab/Enter through the signed-in workspace shell to create a customer, issue and **email** an invoice, record its payment and open Reports. It checks the PDF reached the test mailbox once, the recipient’s send log, the paid invoice and **$900** net income from the server. The phone menu now closes over the chosen page and returns keyboard focus there. | The external mail provider and hosted sign-in are test boundaries, not certified by the journey. H-3 remains a separate keyboard test with stubbed writes. |
+
+**Current batch:** [40 operational screens and embedded schedules](verification/UI2_NEXT_40_OPERATIONS.md).
+Base `8329520`: 49 table sites, eight interactive lists and 41 embedded schedules/editors. Includes worked
+purchase-order/receipt, payroll, stock, forecast, tax, export-pack and document previews. The remaining
+42 queued files still need a screen-by-screen decision and verification.
 
 ## 1. One list — earlier batches
 
