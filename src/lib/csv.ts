@@ -39,8 +39,13 @@ export function parseCsvChecked(input: string, delimiter = detectDelimiter(input
   return rows;
 }
 
+const MAX_CSV_CHARS = 5_000_000;
+
 function readCsv(input: string, delimiter: string): { rows: string[][]; unclosedQuote: boolean } {
   const text = input.replace(/^\uFEFF/, '');
+  if (text.length > MAX_CSV_CHARS) {
+    throw new Error(`CSV: file is too large (max ${MAX_CSV_CHARS} characters).`);
+  }
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = '';
@@ -51,7 +56,8 @@ function readCsv(input: string, delimiter: string): { rows: string[][]; unclosed
     row = [];
     cell = '';
   };
-  for (let i = 0; i < text.length; i++) {
+  const limit = text.length;
+  for (let i = 0; i < limit; i++) {
     const ch = text[i];
     if (quoted) {
       if (ch === '"' && text[i + 1] === '"') {
