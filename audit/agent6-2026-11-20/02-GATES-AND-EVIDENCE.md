@@ -21,6 +21,7 @@ code changed — the full suite and the browser shards belong to CI)
 | Suite(s) | Tests | Result |
 |----------|-------|--------|
 | `security-csv-formula-injection`, `audit-af010b-csv-dates`, `j1-export-import-roundtrip`, `pure-financial-utils-equivalence`, `csv-export` | 25 | **pass** |
+| `security-csv-formula-injection`, `audit-af010b-csv-dates`, `csv-export`, `agent10-account-report-csv-currency`, `audit-af010c-expr-csv`, `af001-csv-bank-account` and the four export/archive suites | 108 | **pass** (after splitting the `SAFE_NUMBER` regex — see §SonarCloud below) |
 | `security-token-page-indexing`, `security-client-error-reporting`, `csp-report-only`, `security-preflight-scripts` | 49 → **50** after the Gitar correction (`robots.txt` must not disallow token prefixes; `vercel.json` must send `X-Robots-Tag`) | **pass** |
 | Combined run of the nine suites above | **74** | **74 pass, 0 fail** |
 | Export/archive neighbours: `accountant-export-pack`(+view), `csv-export`, `audit-af010c-expr-csv`, `iif-export`, `j1-export-import-roundtrip`, `j5-hebrew-exports`, `j8-year-end-archive`, `scheduled-reports`, `report-export-header`, `monthly-report-csv`, `hebrew-data`, `bk10-archive-restore`, `asset-register-export` | **85** | **85 pass, 0 fail** |
@@ -58,3 +59,33 @@ change is committed on this branch).
 - #953 (intermittent `40001` serialization conflict in `sandbox-step-admission.test.ts`) is a CI-flake
   investigation owned by the DB/CI lane; it is not touched here, and nothing on this branch changes
   concurrency or transaction boundaries.
+
+---
+
+## SonarCloud — the one new issue on PR #961
+
+The quality gate passed (`0` security hotspots, `0.0%` duplication, `0.0%` coverage on new code) with
+**1 new issue**, reported by Sonar through the check-run annotation at **`src/lib/csv.ts:90`** — the one
+combined `SAFE_NUMBER` expression this PR introduced:
+
+```
+const SAFE_NUMBER = /^\s*-?\$?\s*\d{1,3}(,?\d{3})*(\.\d+)?$/;
+```
+
+`sonarcloud.io` is not reachable from the agent sandbox (only GitHub, npm and PyPI are), and the repo has
+no `sonar-project.properties` and no `eslint-plugin-sonarjs`, so the rule key could not be read back. Both
+plausible rules for that line — regex complexity / backtracking — are answered by removing the pattern
+rather than guessing at it:
+
+* The expression became two simpler anchored ones, `AMOUNT_PREFIX` and `AMOUNT_BODY`, with an
+  `isFormattedAmount()` helper.
+* **The accepted language is unchanged**, checked by a 350,653-input differential test (the full
+  three-part product of 36 awkward tokens — `-$50.00`, ` -12.5`, `1,2345`, `,123`, `¥100`, `=1+1`, NBSP,
+  tabs, decimals — plus 300,000 random strings over `0-9 , . - $ = \t \u00a0`): `0` mismatches.
+* The redundant members of the whitespace character class (`\u00a0` and `\ufeff` are already inside `\s`)
+  were dropped, so the class is `[\s\u200b]`; compared character by character over the full whitespace
+  set, identical.
+* `108` tests across the eight CSV/export/archive suites still pass; `tsc` and ESLint clean.
+
+If the rule turns out to be something else, the fix is one line and the tests above are the proof that it
+cannot change behaviour — this is written down rather than assumed.
