@@ -1,3 +1,4 @@
+import ReportSchedule from '../reporting/ReportSchedule';
 import React, { useMemo, useState } from 'react';
 import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { X } from 'lucide-react';
@@ -116,22 +117,36 @@ export default function OpeningDocumentsDialog({ side, onClose }: { side: 'custo
           </label>
           {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
           {current && rows.length > 0 && (
-            <table className="w-full text-xs">
-              <caption className="text-left text-xs font-semibold text-[var(--muted)] mb-1">Preview: {ok.length} to add · {formatCurrency(current.openTotalCents, currency)}{problems ? ` · ${problems} with a problem: fix ${problems === 1 ? 'it' : 'them'} or take ${problems === 1 ? 'it' : 'them'} out, nothing is added until every line is right` : ''}</caption>
-              <thead><tr className="text-[var(--muted)]"><th scope="col" className="text-left">Line</th><th scope="col" className="text-left">{side === 'customer' ? 'Customer' : 'Vendor'}</th><th scope="col" className="text-left">Number</th><th scope="col" className="text-left">Date</th><th scope="col" className="text-left">Due</th><th scope="col" className="text-right">Owed</th></tr></thead>
-              <tbody>
-                {rows.map(r => (
-                  <tr key={r.line} className={r.problem ? 'text-rose-700' : ''}>
-                    <td>{pastedLine(r)}</td>
-                    <td><bdi>{r.contactName}</bdi></td>
-                    <td>{r.number}</td>
-                    <td>{r.date}</td>
-                    <td>{r.dueDate}</td>
-                    <td className="text-right tabular-nums">{r.problem ? r.problem : formatCurrency(r.openCents, currency)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <ReportSchedule
+              caption={
+                <>
+                  Preview: {ok.length} to add · {formatCurrency(current.openTotalCents, currency)}
+                  {problems
+                    ? ` · ${problems} with a problem: fix ${problems === 1 ? 'it' : 'them'} or take ${problems === 1 ? 'it' : 'them'} out, nothing is added until every line is right`
+                    : ''}
+                </>
+              }
+              captionClassName="text-left text-xs font-semibold text-[var(--muted)] mb-1"
+              tableClassName="w-full text-xs"
+              headRowClassName="text-[var(--muted)]"
+              bodyClassName=""
+              rowClassName={(r) => (r.problem ? 'text-rose-700' : '')}
+              rows={rows}
+              rowKey={(r) => r.line}
+              rowHeaderClassName="font-normal text-start"
+              columns={[
+                { header: 'Line', headClassName: 'text-left', cell: (r) => pastedLine(r) },
+                { header: side === 'customer' ? 'Customer' : 'Vendor', headClassName: 'text-left', cell: (r) => <bdi>{r.contactName}</bdi> },
+                { header: 'Number', headClassName: 'text-left', cell: (r) => r.number },
+                { header: 'Date', headClassName: 'text-left', cell: (r) => r.date },
+                { header: 'Due', headClassName: 'text-left', cell: (r) => r.dueDate },
+                {
+                  header: 'Owed',
+                  headClassName: 'text-right', className: 'text-right tabular-nums',
+                  cell: (r) => (r.problem ? r.problem : formatCurrency(r.openCents, currency)),
+                },
+              ]}
+            />
           )}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} className="px-3 py-2 text-[var(--muted)] hover:underline">Cancel</button>

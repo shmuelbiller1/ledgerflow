@@ -25,7 +25,7 @@ const example: Record<NextSchedule, readonly [number, string][]> = {
   'vendor-tax-records': [[0,vendor],[1,'IL']],
   'vendor-withholding': [[0,vendor],[1,'USD'],[2,'$15.00'],[3,'$13.50'],[4,'$1.50'],[6,'W-12']],
   'financial-ratios': [[2,'100.00 %']],
-  'us-filing-calendar': [[0,'TX'],[1,'Texas']],
+  'us-filing-calendar': [[0,'TX'],[1,'Texas'],[4,'2026-10-20']],
   'us-nexus-watch': [[0,'Texas'],[2,'$100.00'],[4,'$500,000.00']],
   'sales-tax-holidays': [[0,'Texas'],[1,'Back-to-School'],[4,'100.00']],
   'top-customers-vendors': [[0,'1'],[1,customer],[2,'$100.00'],[3,'$20.00'],[5,'$80.00']],

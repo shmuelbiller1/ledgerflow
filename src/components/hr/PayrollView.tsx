@@ -1,3 +1,5 @@
+import { useListText } from '../../lib/i18n/useListText';
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { runCommand, commandErrorMessage, ServerCommandError } from '../../lib/runCommand';
 import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { inlineRecordAdapter } from '../../lib/inlineRecordAdapter';
@@ -50,6 +52,7 @@ const PayrollViewContent: React.FC = () => {
   const user = useAuthStore(s => s.user);
   const currentWorkspace = getCurrentWorkspace();
 
+  const listText = useListText();
   const [activeTab, setActiveTab] = useState<'runs' | 'employees'>('runs');
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
   const { dialogProps: overlay1DialogProps, titleId: overlay1TitleId } = useDialog(() => { if (!employeeSaving) setIsAddingEmployee(false); }, isAddingEmployee);
@@ -250,26 +253,26 @@ const PayrollViewContent: React.FC = () => {
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 sm:p-6" id="payroll-view">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--line)] pb-5">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 flex items-center gap-2">
-            <Users aria-hidden="true" className="w-5 h-5 text-neutral-800" />
+          <h1 className="text-xl font-bold text-[var(--text)] flex items-center gap-2">
+            <Users aria-hidden="true" className="w-5 h-5 text-[var(--text)]" />
             Payroll & Compensation Engine
           </h1>
-          <p className="text-sm text-neutral-500 mt-1">
+          <p className="text-sm text-[var(--muted)] mt-1">
             Progressive gross-to-net calculations, statutory tax withholding schedules, and atomic general ledger postings.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {canRunPayroll && (
-            <button onClick={() => setImportOpen(true)} className="min-h-11 px-3.5 py-2 text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-lg border border-neutral-300 cursor-pointer" id="import-payroll-btn">
+            <button onClick={() => setImportOpen(true)} className="min-h-11 px-3.5 py-2 text-xs font-semibold bg-[var(--elevated)] hover:bg-neutral-200 text-[var(--text)] rounded-lg border border-[var(--line)] cursor-pointer" id="import-payroll-btn">
               Import from payroll provider
             </button>
           )}
           <button
             disabled={!canWrite}
             onClick={() => { setEmployeeError(''); setIsAddingEmployee(true); }}
-            className="px-3.5 py-2 text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-lg flex items-center gap-1.5 transition-colors border border-neutral-300 cursor-pointer"
+            className="px-3.5 py-2 text-xs font-semibold bg-[var(--elevated)] hover:bg-neutral-200 text-[var(--text)] rounded-lg flex items-center gap-1.5 transition-colors border border-[var(--line)] cursor-pointer"
             id="add-employee-btn"
           >
             <Plus aria-hidden="true" className="w-3.5 h-3.5" />
@@ -303,7 +306,7 @@ const PayrollViewContent: React.FC = () => {
       {successMessage && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CheckCircle2 aria-hidden="true" className="w-4 h-4 text-emerald-600" />
+            <CheckCircle2 aria-hidden="true" className="w-4 h-4 text-[var(--pos)]" />
             <span>{successMessage}</span>
           </div>
           <button aria-label="Dismiss payroll confirmation" onClick={() => setSuccessMessage(null)} className="text-emerald-700 hover:text-emerald-900">
@@ -313,11 +316,11 @@ const PayrollViewContent: React.FC = () => {
       )}
 
       {/* Tab Switcher */}
-      <div className="flex border-b border-neutral-200 bg-neutral-100/60 p-1 rounded-lg w-fit">
+      <div className="flex border-b border-[var(--line)] bg-[var(--elevated)]/60 p-1 rounded-lg w-fit">
         <button
           onClick={() => setActiveTab('runs')}
           className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-            activeTab === 'runs' ? 'bg-white text-neutral-900 shadow-xs' : 'text-neutral-600 hover:text-neutral-900'
+            activeTab === 'runs' ? 'bg-[var(--surface)] text-[var(--text)] shadow-xs' : 'text-[var(--muted)] hover:text-[var(--text)]'
           }`}
         >
           Pay Runs History ({payRuns.length})
@@ -325,7 +328,7 @@ const PayrollViewContent: React.FC = () => {
         <button
           onClick={() => setActiveTab('employees')}
           className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-            activeTab === 'employees' ? 'bg-white text-neutral-900 shadow-xs' : 'text-neutral-600 hover:text-neutral-900'
+            activeTab === 'employees' ? 'bg-[var(--surface)] text-[var(--text)] shadow-xs' : 'text-[var(--muted)] hover:text-[var(--text)]'
           }`}
         >
           Employee Directory ({employees.length})
@@ -337,10 +340,10 @@ const PayrollViewContent: React.FC = () => {
       {/* Main Content */}
       {activeTab === 'runs' ? (
         payRuns.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg border border-neutral-200 p-6">
+          <div className="text-center py-12 bg-[var(--surface)] rounded-lg border border-[var(--line)] p-6">
             <Briefcase aria-hidden="true" className="w-8 h-8 text-neutral-300 mx-auto mb-3" />
-            <h2 className="text-sm font-semibold text-neutral-800">No Pay Runs Processed Yet</h2>
-            <p className="text-xs text-neutral-500 mt-1 max-w-md mx-auto">
+            <h2 className="text-sm font-semibold text-[var(--text)]">No Pay Runs Processed Yet</h2>
+            <p className="text-xs text-[var(--muted)] mt-1 max-w-md mx-auto">
               Add employees to your roster and execute your first automated pay run to calculate deductions and post wages to the ledger.
             </p>
             <button
@@ -359,10 +362,10 @@ const PayrollViewContent: React.FC = () => {
         )
       ) : (
         employees.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg border border-neutral-200 p-6">
+          <div className="text-center py-12 bg-[var(--surface)] rounded-lg border border-[var(--line)] p-6">
             <Users aria-hidden="true" className="w-8 h-8 text-neutral-300 mx-auto mb-3" />
-            <h2 className="text-sm font-semibold text-neutral-800">No Employees in Directory</h2>
-            <p className="text-xs text-neutral-500 mt-1 max-w-md mx-auto">
+            <h2 className="text-sm font-semibold text-[var(--text)]">No Employees in Directory</h2>
+            <p className="text-xs text-[var(--muted)] mt-1 max-w-md mx-auto">
               Add team members to calculate recurring payroll obligations, tax withholdings, and pay stubs.
             </p>
             <button
@@ -375,72 +378,114 @@ const PayrollViewContent: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="bg-white border border-neutral-200 rounded-lg overflow-hidden shadow-xs">
-            <table className="w-full text-left text-xs">
-              <caption className="sr-only">Employees</caption>
-              <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-semibold uppercase tracking-wider">
-                <tr>
-                  <th scope="col" className="py-3 px-4">Employee</th>
-                  <th scope="col" className="py-3 px-4">Role & State</th>
-                  <th scope="col" className="py-3 px-4">Frequency</th>
-                  <th scope="col" className="py-3 px-4 text-right">Annual Gross</th>
-                  <th scope="col" className="py-3 px-4 text-right">Period Net Pay</th>
-                  <th scope="col" className="py-3 px-4 text-right">Paid in {thisYear}</th>
-                  <th scope="col" className="py-3 px-4 text-right">Time off</th>
-                  <th scope="col" className="py-3 px-4 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {employees.map((emp) => {
-                  const est = computePeriodPayroll(emp);
+          <div className="bg-[var(--surface)] border border-[var(--line)] rounded-lg overflow-hidden shadow-xs">
+            <TanStackDataGrid
+              data={employees.map((emp) => {
+                const est = computePeriodPayroll(emp);
+                return { emp, est };
+              })}
+              getRowId={({ emp }) => emp.id}
+              caption={listText('Employees')}
+              columnScope="payroll"
+              columnLabel={listText('Employees')}
+              rowHeaderColumn="employee"
+              hidePaginationOnSinglePage
 
-                  return (
-                    <tr key={emp.id} className="hover:bg-neutral-50/80 transition-colors">
-                      <td className="py-3 px-4 font-semibold text-neutral-900">
-                        <EmployeeInlineDetails employee={emp} />
-                      </td>
-                      <td className="py-3 px-4 text-neutral-700">
-                        <span className="sr-only">Role is editable beside the employee name</span>
-                        <div className="text-[11px] text-neutral-400">{emp.workerType === 'contractor' ? 'Contractor · nothing withheld' : <>{emp.state || 'CA'} &bull; {emp.filingStatus || 'Single'}</>}</div>
-                      </td>
-                      <td className="py-3 px-4 text-neutral-600">
-                        {emp.payFrequency}
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-medium text-neutral-900">
-                        {isHourly(emp) ? '' : formatCurrency(emp.salaryCents || 0)}
-                        <div><HourlyPayCell employee={emp} canWrite={canWrite} /></div>
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600">
-                        {formatCurrency(est.netPayCents)}
-                        <div className="font-normal"><DeductionsCell employee={emp} canWrite={canWrite} /></div>
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono text-neutral-700">
-                        {ytd.get(emp.id) ? (
+              columns={[
+                {
+                  id: 'employee', header: listText('Employee'), accessorFn: ({ emp }) => emp.name,
+                  cell: ({ row: { original: { emp } } }) => <EmployeeInlineDetails employee={emp} />,
+                },
+                {
+                  id: 'role', header: listText('Role & State'), accessorFn: ({ emp }) => emp.state,
+                  cell: ({ row: { original: { emp } } }) => (
+                    <>
+                      <span className="sr-only">Role is editable beside the employee name</span>
+                      <div className="text-[11px] text-[var(--muted)]">
+                        {emp.workerType === 'contractor' ? (
+                          'Contractor · nothing withheld'
+                        ) : (
                           <>
-                            <div>{formatCurrency(ytd.get(emp.id)!.grossCents)} gross</div>
-                            <div className="text-[10px] text-neutral-500">
-                              {formatCurrency(ytd.get(emp.id)!.withheldCents)} withheld · {formatCurrency(ytd.get(emp.id)!.netCents)} net · {ytd.get(emp.id)!.runs} run{ytd.get(emp.id)!.runs === 1 ? '' : 's'}
-                            </div>
+                            {emp.state || 'CA'} &bull; {emp.filingStatus || 'Single'}
                           </>
-                        ) : <span className="text-neutral-400">nothing yet</span>}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <TimeOffCell employee={emp} runs={payRuns} canWrite={canWrite} />
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-semibold">
-                          {emp.status}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        )}
+                      </div>
+                    </>
+                  ),
+                },
+                {
+                  id: 'frequency', header: listText('Frequency'), accessorFn: ({ emp }) => emp.payFrequency,
+                  cell: ({ row: { original: { emp } } }) => emp.payFrequency,
+                },
+                {
+                  id: 'gross', header: listText('Annual Gross'), accessorFn: ({ emp }) => emp.salaryCents,
+                  cell: ({ row: { original: { emp } } }) => (
+                    <div className="text-right font-mono font-medium text-[var(--text)]">
+                      <>
+                        {isHourly(emp) ? '' : formatCurrency(emp.salaryCents || 0)}
+                        <div>
+                          <HourlyPayCell employee={emp} canWrite={canWrite} />
+                        </div>
+                      </>
+                    </div>
+                  ),
+                },
+                {
+                  id: 'net', header: listText('Period Net Pay'), accessorFn: ({ est }) => est.netPayCents,
+                  cell: ({ row: { original: { emp, est } } }) => (
+                    <div className="text-right font-mono font-bold text-[var(--pos)]">
+                      <>
+                        {formatCurrency(est.netPayCents)}
+                        <div className="font-normal">
+                          <DeductionsCell employee={emp} canWrite={canWrite} />
+                        </div>
+                      </>
+                    </div>
+                  ),
+                },
+                {
+                  id: 'paid', header: listText('Paid in {year}', { year: thisYear }), accessorFn: ({ emp }) => ytd.get(emp.id)?.grossCents,
+                  cell: ({ row: { original: { emp } } }) => (
+                    <div className="text-right font-mono text-[var(--text)]">
+                      {ytd.get(emp.id) ? (
+                        <>
+                          <div>{formatCurrency(ytd.get(emp.id)!.grossCents)} gross</div>
+                          <div className="text-[10px] text-[var(--muted)]">
+                            {formatCurrency(ytd.get(emp.id)!.withheldCents)} withheld · {formatCurrency(ytd.get(emp.id)!.netCents)} net · {ytd.get(emp.id)!.runs} run
+                            {ytd.get(emp.id)!.runs === 1 ? '' : 's'}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-[var(--muted)]">nothing yet</span>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  id: 'timeOff',
+                  header: listText('Time off'),
+                  cell: ({ row: { original: { emp } } }) => (
+                    <div className="text-right">
+                      <TimeOffCell employee={emp} runs={payRuns} canWrite={canWrite} />
+                    </div>
+                  ),
+                },
+                {
+                  id: 'status', header: listText('Status'), accessorFn: ({ emp }) => emp.status,
+                  cell: ({ row: { original: { emp } } }) => (
+                    <div className="text-center">
+                      <span className="inline-block px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-semibold">
+                        {emp.status}
+                      </span>
+                    </div>
+                  ),
+                },
+              ]}
+            />
           {necList.length > 0 && (
-            <section aria-labelledby="nec-title" className="border-t border-neutral-200 p-4 text-xs">
-              <h2 id="nec-title" className="text-sm font-semibold text-neutral-900">1099-NEC for {thisYear}</h2>
-              <p className="text-neutral-500 mt-0.5">Contractors paid $600 or more this year by posted pay runs; each needs a 1099-NEC.</p>
+            <section aria-labelledby="nec-title" className="border-t border-[var(--line)] p-4 text-xs">
+              <h2 id="nec-title" className="text-sm font-semibold text-[var(--text)]">1099-NEC for {thisYear}</h2>
+              <p className="text-[var(--muted)] mt-0.5">Contractors paid $600 or more this year by posted pay runs; each needs a 1099-NEC.</p>
               <ul className="mt-2 divide-y divide-neutral-100">
                 {necList.map(c => (
                   <li key={c.employeeId} className="py-1.5 flex justify-between"><span>{c.name}</span><span className="font-mono">{formatCurrency(c.paidCents)}</span></li>
@@ -458,47 +503,47 @@ const PayrollViewContent: React.FC = () => {
       {/* Add Employee Modal */}
       {isAddingEmployee && (
         <div {...overlay1DialogProps} className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden border border-neutral-200">
-            <div className="p-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50">
-              <h2 id={overlay1TitleId} className="text-sm font-bold text-neutral-900">Add Employee to Roster</h2>
-              <button disabled={employeeSaving} aria-label="Close employee dialog" onClick={() => setIsAddingEmployee(false)} className="p-1.5 text-neutral-400 hover:text-neutral-700 rounded-md">
+          <div className="bg-[var(--surface)] rounded-xl shadow-xl max-w-md w-full overflow-hidden border border-[var(--line)]">
+            <div className="p-4 border-b border-[var(--line)] flex items-center justify-between bg-[var(--panel)]">
+              <h2 id={overlay1TitleId} className="text-sm font-bold text-[var(--text)]">Add Employee to Roster</h2>
+              <button disabled={employeeSaving} aria-label="Close employee dialog" onClick={() => setIsAddingEmployee(false)} className="p-1.5 text-[var(--muted)] hover:text-[var(--text)] rounded-md">
                 <X aria-hidden="true" className="w-4 h-4" />
               </button>
             </div>
 
             <fieldset disabled={employeeSaving || !canWrite} className="p-5 space-y-4 text-xs">
               <div>
-                <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="Full Name">
+                <Labelled labelClassName="block font-semibold text-[var(--text)] mb-1" label="Full Name">
                   <input
                     type="text" dir="auto"
                     placeholder="e.g. Alex Morgan"
                     value={empName}
                     onChange={e => setEmpName(e.target.value)}
-                    className="w-full p-2.5 bg-white border border-neutral-300 rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden"
+                    className="w-full p-2.5 bg-[var(--surface)] border border-[var(--line)] rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden"
                   />
                 </Labelled>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="Email">
+                  <Labelled labelClassName="block font-semibold text-[var(--text)] mb-1" label="Email">
                     <input
                       type="email"
                       placeholder="alex@company.com"
                       value={empEmail}
                       onChange={e => setEmpEmail(e.target.value)}
-                      className="w-full p-2.5 bg-white border border-neutral-300 rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden"
+                      className="w-full p-2.5 bg-[var(--surface)] border border-[var(--line)] rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden"
                     />
                   </Labelled>
                 </div>
                 <div>
-                  <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="Job Role / Title">
+                  <Labelled labelClassName="block font-semibold text-[var(--text)] mb-1" label="Job Role / Title">
                     <input
                       type="text" dir="auto"
                       placeholder="Senior Engineer"
                       value={empRole}
                       onChange={e => setEmpRole(e.target.value)}
-                      className="w-full p-2.5 bg-white border border-neutral-300 rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden"
+                      className="w-full p-2.5 bg-[var(--surface)] border border-[var(--line)] rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden"
                     />
                   </Labelled>
                 </div>
@@ -506,22 +551,22 @@ const PayrollViewContent: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="Annual Salary ($)">
+                  <Labelled labelClassName="block font-semibold text-[var(--text)] mb-1" label="Annual Salary ($)">
                     <input
                       type="number"
                       placeholder="95000"
                       value={empSalary}
                       onChange={e => setEmpSalary(e.target.value)}
-                      className="w-full p-2.5 bg-white border border-neutral-300 rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden font-mono"
+                      className="w-full p-2.5 bg-[var(--surface)] border border-[var(--line)] rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden font-mono"
                     />
                   </Labelled>
                 </div>
                 <div>
-                  <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="Pay Frequency">
+                  <Labelled labelClassName="block font-semibold text-[var(--text)] mb-1" label="Pay Frequency">
                     <select
                       value={empFrequency}
                       onChange={e => setEmpFrequency(e.target.value as Employee['payFrequency'])}
-                      className="w-full p-2.5 bg-white border border-neutral-300 rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden"
+                      className="w-full p-2.5 bg-[var(--surface)] border border-[var(--line)] rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden"
                     >
                       <option value="Weekly">Weekly (52/yr)</option>
                       <option value="Bi-Weekly">Bi-Weekly (26/yr)</option>
@@ -532,9 +577,9 @@ const PayrollViewContent: React.FC = () => {
               </div>
 
               <div>
-                <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="Worker type">
+                <Labelled labelClassName="block font-semibold text-[var(--text)] mb-1" label="Worker type">
                   <select value={empWorkerType} onChange={e => setEmpWorkerType(e.target.value === 'contractor' ? 'contractor' : 'employee')}
-                    className="w-full p-2.5 bg-white border border-neutral-300 rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden">
+                    className="w-full p-2.5 bg-[var(--surface)] border border-[var(--line)] rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden">
                     <option value="employee">Employee on the payroll (taxes withheld)</option>
                     <option value="contractor">Contractor (paid in full, nothing withheld; 1099-NEC)</option>
                   </select>
@@ -543,11 +588,11 @@ const PayrollViewContent: React.FC = () => {
 
               {empWorkerType === 'employee' && <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="Filing Status">
+                  <Labelled labelClassName="block font-semibold text-[var(--text)] mb-1" label="Filing Status">
                     <select
                       value={empStatus}
                       onChange={e => setEmpStatus(e.target.value as Employee['filingStatus'])}
-                      className="w-full p-2.5 bg-white border border-neutral-300 rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden"
+                      className="w-full p-2.5 bg-[var(--surface)] border border-[var(--line)] rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden"
                     >
                       <option value="Single">Single</option>
                       <option value="Married">Married Filing Jointly</option>
@@ -556,14 +601,14 @@ const PayrollViewContent: React.FC = () => {
                   </Labelled>
                 </div>
                 <div>
-                  <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="State Tax Code">
+                  <Labelled labelClassName="block font-semibold text-[var(--text)] mb-1" label="State Tax Code">
                     <input
                       type="text" dir="auto"
                       maxLength={2}
                       placeholder="CA / NY / TX"
                       value={empState}
                       onChange={e => setEmpState(e.target.value.toUpperCase())}
-                      className="w-full p-2.5 bg-white border border-neutral-300 rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden uppercase"
+                      className="w-full p-2.5 bg-[var(--surface)] border border-[var(--line)] rounded-lg focus:ring-1 focus:ring-neutral-500 focus:outline-hidden uppercase"
                     />
                   </Labelled>
                 </div>
@@ -575,7 +620,7 @@ const PayrollViewContent: React.FC = () => {
                   type="button"
                   onClick={() => setIsAddingEmployee(false)}
                   disabled={employeeSaving}
-                  className="px-4 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-[var(--elevated)] rounded-lg transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -597,15 +642,15 @@ const PayrollViewContent: React.FC = () => {
       {/* Generate Pay Run Modal & Preview */}
       {isGeneratingRun && (
         <div {...overlay2DialogProps} className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-neutral-200">
-            <div className="p-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50">
+          <div className="bg-[var(--surface)] rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-[var(--line)]">
+            <div className="p-4 border-b border-[var(--line)] flex items-center justify-between bg-[var(--panel)]">
               <div>
-                <h2 id={overlay2TitleId} className="text-base font-bold text-neutral-900">Execute Pay Run</h2>
-                <p className="text-xs text-neutral-500 mt-0.5">
+                <h2 id={overlay2TitleId} className="text-base font-bold text-[var(--text)]">Execute Pay Run</h2>
+                <p className="text-xs text-[var(--muted)] mt-0.5">
                   Preview withholding taxes and post balanced journal entries to the ledger.
                 </p>
               </div>
-              <button aria-label="Close payroll run dialog" onClick={() => setIsGeneratingRun(false)} className="p-1.5 text-neutral-400 hover:text-neutral-700 rounded-md">
+              <button aria-label="Close payroll run dialog" onClick={() => setIsGeneratingRun(false)} className="p-1.5 text-[var(--muted)] hover:text-[var(--text)] rounded-md">
                 <X aria-hidden="true" className="w-4 h-4" />
               </button>
             </div>
@@ -613,18 +658,18 @@ const PayrollViewContent: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="Disbursement Date">
+                  <Labelled labelClassName="block font-semibold text-[var(--text)] mb-1" label="Disbursement Date">
                     <input
                       type="date"
                       value={runPayDate}
                       onChange={e => setRunPayDate(e.target.value)}
-                      className="w-full p-2 bg-white border border-neutral-300 rounded-lg"
+                      className="w-full p-2 bg-[var(--surface)] border border-[var(--line)] rounded-lg"
                     />
                   </Labelled>
                 </div>
                 <div>
-                  <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label="Who is paid">
-                    <select value={runSchedule} onChange={e => setRunSchedule(e.target.value as typeof runSchedule)} className="w-full p-2 bg-white border border-neutral-300 rounded-lg">
+                  <Labelled labelClassName="block font-semibold text-[var(--text)] mb-1" label="Who is paid">
+                    <select value={runSchedule} onChange={e => setRunSchedule(e.target.value as typeof runSchedule)} className="w-full p-2 bg-[var(--surface)] border border-[var(--line)] rounded-lg">
                       <option value="all">Everyone (each one period of their own schedule)</option>
                       <option value="Monthly">Monthly-paid people</option>
                       <option value="Bi-Weekly">People paid every two weeks</option>
@@ -639,8 +684,8 @@ const PayrollViewContent: React.FC = () => {
                   ['Payroll liabilities account (taxes and deductions to pay over)', liabilitiesAccountId, setLiabilitiesAccountId, liabilityAccounts],
                 ] as const).map(([label, value, set, options]) => (
                   <div key={label}>
-                    <Labelled labelClassName="block font-semibold text-neutral-700 mb-1" label={label}>
-                      <select value={value} onChange={e => set(e.target.value)} className="w-full p-2 bg-white border border-neutral-300 rounded-lg">
+                    <Labelled labelClassName="block font-semibold text-[var(--text)] mb-1" label={label}>
+                      <select value={value} onChange={e => set(e.target.value)} className="w-full p-2 bg-[var(--surface)] border border-[var(--line)] rounded-lg">
                         <option value="">Choose…</option>
                         {options.map(acc => <option key={acc.id} value={acc.id}>{acc.code ? `${acc.code} · ` : ''}{acc.name}</option>)}
                       </select>
@@ -651,50 +696,50 @@ const PayrollViewContent: React.FC = () => {
               {postError && <p role="alert" className="text-rose-700">{postError}</p>}
 
               {/* Calculation Summary KPIs */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-neutral-50 p-3 rounded-lg border border-neutral-200">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-[var(--panel)] p-3 rounded-lg border border-[var(--line)]">
                 <div>
-                  <div className="text-[11px] text-neutral-500">Gross Wages</div>
-                  <div className="font-mono font-bold text-neutral-900">{formatCurrency(calculatedPayRun.totalGrossCents)}</div>
+                  <div className="text-[11px] text-[var(--muted)]">Gross Wages</div>
+                  <div className="font-mono font-bold text-[var(--text)]">{formatCurrency(calculatedPayRun.totalGrossCents)}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-neutral-500">Employee Withholdings</div>
+                  <div className="text-[11px] text-[var(--muted)]">Employee Withholdings</div>
                   <div className="font-mono font-bold text-rose-600">{formatCurrency(calculatedPayRun.totalTaxWithheldCents)}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-neutral-500">Employer Taxes</div>
+                  <div className="text-[11px] text-[var(--muted)]">Employer Taxes</div>
                   <div className="font-mono font-bold text-rose-600">{formatCurrency(calculatedPayRun.totalEmployerTaxesCents)}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-neutral-500">Net Distribution</div>
-                  <div className="font-mono font-bold text-emerald-600">{formatCurrency(calculatedPayRun.totalNetCents)}</div>
+                  <div className="text-[11px] text-[var(--muted)]">Net Distribution</div>
+                  <div className="font-mono font-bold text-[var(--pos)]">{formatCurrency(calculatedPayRun.totalNetCents)}</div>
                 </div>
               </div>
 
               {/* Employee Breakdown */}
-              <div className="border border-neutral-200 rounded-lg overflow-hidden">
+              <div className="border border-[var(--line)] rounded-lg overflow-hidden">
                 <RowTable
                   rowHeaderColumn={false}
                   caption={(<>Pay run by employee</>)}
                   rows={calculatedPayRun.items}
                   rowKey={item => item.employee.id}
                   tableClassName="w-full text-left text-[11px]"
-                  headRowClassName="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-semibold"
+                  headRowClassName="bg-[var(--panel)] border-b border-[var(--line)] text-[var(--muted)] font-semibold"
                   bodyClassName="divide-y divide-neutral-100"
                   columns={[
-                    { header: "Employee", className: "py-2 px-3 font-medium text-neutral-900", headClassName: "py-2 px-3", cell: (item) => <EmployeeInlineDetails employee={item.employee} /> },
+                    { header: "Employee", className: "py-2 px-3 font-medium text-[var(--text)]", headClassName: "py-2 px-3", cell: (item) => <EmployeeInlineDetails employee={item.employee} /> },
                     { header: "Gross", align: 'right', className: "py-2 px-3 font-mono", headClassName: "py-2 px-3", cell: (item) => formatCurrency(item.calc.grossPayCents) },
-                    { header: "Income Tax W/H", align: 'right', className: "py-2 px-3 font-mono text-neutral-600", headClassName: "py-2 px-3", cell: (item) => formatCurrency(item.calc.employeeFederalTaxCents + item.calc.employeeStateTaxCents) },
-                    { header: "FICA & Med", align: 'right', className: "py-2 px-3 font-mono text-neutral-600", headClassName: "py-2 px-3", cell: (item) => formatCurrency(item.calc.employeeFicaSocialSecurityCents + item.calc.employeeFicaMedicareCents) },
-                    { header: "Net Pay", align: 'right', className: "py-2 px-3 font-mono font-bold text-emerald-600", headClassName: "py-2 px-3", cell: (item) => formatCurrency(item.calc.netPayCents) },
+                    { header: "Income Tax W/H", align: 'right', className: "py-2 px-3 font-mono text-[var(--muted)]", headClassName: "py-2 px-3", cell: (item) => formatCurrency(item.calc.employeeFederalTaxCents + item.calc.employeeStateTaxCents) },
+                    { header: "FICA & Med", align: 'right', className: "py-2 px-3 font-mono text-[var(--muted)]", headClassName: "py-2 px-3", cell: (item) => formatCurrency(item.calc.employeeFicaSocialSecurityCents + item.calc.employeeFicaMedicareCents) },
+                    { header: "Net Pay", align: 'right', className: "py-2 px-3 font-mono font-bold text-[var(--pos)]", headClassName: "py-2 px-3", cell: (item) => formatCurrency(item.calc.netPayCents) },
                   ]}
                 />
               </div>
             </div>
 
-            <div className="p-4 border-t border-neutral-200 bg-neutral-50 flex items-center justify-between">
+            <div className="p-4 border-t border-[var(--line)] bg-[var(--panel)] flex items-center justify-between">
               <button
                 onClick={() => setIsGeneratingRun(false)}
-                className="px-4 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-200 rounded-lg transition-colors cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-[var(--text)] hover:bg-neutral-200 rounded-lg transition-colors cursor-pointer"
               >
                 Cancel
               </button>

@@ -112,13 +112,18 @@ export function evaluateResponseHeaders(
     if (problems.length > 0) {
       push('Content-Security-Policy', 'fail', problems.join('; '));
     } else if (hasInlineScript) {
-      const roHasHash = /'sha256-[A-Za-z0-9+/=]+'/.test(cspReportOnly) && !parseCspDirectives(cspReportOnly).get('script-src')?.includes("'unsafe-inline'");
+      // The enforced policy still allows inline scripts, so the Report-Only one must be the tightened
+      // version: script-src without 'unsafe-inline'. A 'sha256-…' pin is required only when the page
+      // actually ships an inline script that has to keep running (AF6-20261120-03 removed the last
+      // one, so index.html now needs no hash — and a hash that matches nothing would be noise).
+      const roScriptSrc = parseCspDirectives(cspReportOnly).get('script-src');
+      const roTightens = Boolean(roScriptSrc) && !roScriptSrc!.includes("'unsafe-inline'");
       push(
         'Content-Security-Policy',
-        roHasHash ? 'warn' : 'fail',
-        roHasHash
-          ? "Core CSP directives present; S-23 at report-only stage (Report-Only header enforces hash-pinned script-src)."
-          : "script-src contains 'unsafe-inline' without a hash-pinned Content-Security-Policy-Report-Only header.",
+        roTightens ? 'warn' : 'fail',
+        roTightens
+          ? "Core CSP directives present; S-23 at report-only stage (Report-Only header carries the tightened script-src)."
+          : "script-src contains 'unsafe-inline' without a tightened Content-Security-Policy-Report-Only header.",
       );
     } else {
       push('Content-Security-Policy', 'pass', 'Enforced CSP passes strict directive checks.');

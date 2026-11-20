@@ -1,3 +1,4 @@
+import ReportSchedule from '../reporting/ReportSchedule';
 /**
  * Stock history (W-02) of one item, on Inventory: every change to its quantity on hand, oldest
  * first, with why it changed (sold, sale undone, bought, opening stock, adjusted, counted), the
@@ -101,7 +102,7 @@ export default function StockHistoryDialog({ item, workspaceId, currency, onClos
         </div>
         <div className="p-5 space-y-3 text-sm">
           <p className="text-xs text-[var(--muted)]">{item.quantityAtHand} on hand now. Every change below was recorded with the entry it belongs to.</p>
-          {error && <p role="alert" className="text-xs text-rose-600">The history could not be loaded: {error}</p>}
+          {error && <p role="alert" className="text-xs text-[var(--neg)]">The history could not be loaded: {error}</p>}
           {problem && <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">{problem}. Count the stock to set it right.</p>}
           {trail && <p className="text-xs text-[var(--muted)]" data-testid="stock-trail-summary">Where it came from: {stockTrailSummary(trail)}</p>}
           {(at.size > 1 || [...at.keys()].some(k => k !== NO_LOCATION)) && (
@@ -136,39 +137,65 @@ export default function StockHistoryDialog({ item, workspaceId, currency, onClos
           {moves === null ? <p className="text-xs text-[var(--muted)]">Loading…</p> : moves.length === 0 ? (
             <p className="text-xs text-[var(--muted)]">No recorded changes yet (changes are recorded from 7 Oct 2026 on).</p>
           ) : (
-            <table className="w-full text-xs">
-              <caption className="sr-only">Changes to the stock of {item.name}, oldest first</caption>
-              <thead>
-                <tr className="text-[var(--muted)] border-b border-[var(--line)]">
-                  <th scope="col" className="text-left font-semibold py-1">Date</th>
-                  <th scope="col" className="text-left font-semibold py-1">What</th>
-                  <th scope="col" className="text-right font-semibold py-1">Change</th>
-                  <th scope="col" className="text-right font-semibold py-1">On hand after</th>
-                  <th scope="col" className="text-right font-semibold py-1">Value</th>
-                  <th scope="col" className="text-left font-semibold py-1 pl-3">From / to</th>
-                  <th scope="col" className="py-1"><span className="sr-only">Entry</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {moves.map(m => (
-                  <tr key={m.id || m.seq} className="border-b border-[var(--line)]/50">
-                    <td className="py-1">{formatDate(m.date)}</td>
-                    <td className="py-1">{STOCK_MOVE_LABEL[m.kind] || m.kind}{m.locationId ? <span className="text-[var(--muted)]"> · <bdi>{locationName(m.locationId)}</bdi></span> : null}</td>
-                    <td className={`py-1 text-right font-mono ${m.quantity < 0 ? 'text-rose-600' : 'text-emerald-700 dark:text-emerald-400'}`}>{signed(m.quantity)}</td>
-                    <td className="py-1 text-right font-mono">{m.quantityAfter}</td>
-                    <td className="py-1 text-right font-mono">{formatCurrency(m.valueCents, currency)}</td>
-                    <td className="py-1 pl-3"><TrailCell step={stepOf.get(m.id || m.seq)} labelName={(dim, id) => resolveDimensionLabel(nodes, dim, id)} /></td>
-                    <td className="py-1 text-right">
-                      {m.transactionId && (
-                        <button type="button" onClick={() => { onClose(); openRecord({ type: 'transaction', id: String(m.transactionId) }); }} className="text-indigo-600 dark:text-indigo-400 hover:underline">
-                          Entry<span className="sr-only"> of {formatDate(m.date)}</span>
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <ReportSchedule
+              caption={<>Changes to the stock of {item.name}, oldest first</>}
+              captionClassName="sr-only"
+              tableClassName="w-full text-xs"
+              headRowClassName="text-[var(--muted)] border-b border-[var(--line)]"
+              bodyClassName=""
+              rowClassName="border-b border-[var(--line)]/50"
+              rows={moves}
+              rowKey={(m) => m.id || m.seq}
+              rowHeaderClassName="font-normal text-start"
+              columns={[
+                { header: 'Date', headClassName: 'text-left font-semibold py-1', className: 'py-1', cell: (m) => formatDate(m.date) },
+                {
+                  header: 'What',
+                  headClassName: 'text-left font-semibold py-1', className: 'py-1',
+                  cell: (m) => (
+                    <>
+                      {STOCK_MOVE_LABEL[m.kind] || m.kind}
+                      {m.locationId ? (
+                        <span className="text-[var(--muted)]">
+                          {' '}
+                          · <bdi>{locationName(m.locationId)}</bdi>
+                        </span>
+                      ) : null}
+                    </>
+                  ),
+                },
+                {
+                  header: 'Change',
+                  headClassName: 'text-right font-semibold py-1',
+                  cellProps: (m) => ({ className: `py-1 text-right font-mono ${m.quantity < 0 ? 'text-[var(--neg)]' : 'text-emerald-700 dark:text-emerald-400'}` }),
+                  cell: (m) => signed(m.quantity),
+                },
+                { header: 'On hand after', headClassName: 'text-right font-semibold py-1', className: 'py-1 text-right font-mono', cell: (m) => m.quantityAfter },
+                { header: 'Value', headClassName: 'text-right font-semibold py-1', className: 'py-1 text-right font-mono', cell: (m) => formatCurrency(m.valueCents, currency) },
+                {
+                  header: 'From / to',
+                  headClassName: 'text-left font-semibold py-1 pl-3', className: 'py-1 pl-3',
+                  cell: (m) => <TrailCell step={stepOf.get(m.id || m.seq)} labelName={(dim, id) => resolveDimensionLabel(nodes, dim, id)} />,
+                },
+                {
+                  header: <span className="sr-only">Entry</span>,
+                  headClassName: 'py-1', className: 'py-1 text-right',
+                  cell: (m) =>
+                    m.transactionId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          openRecord({ type: 'transaction', id: String(m.transactionId) });
+                        }}
+                        className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                      >
+                        Entry<span className="sr-only"> of {formatDate(m.date)}</span>
+                      </button>
+                    ),
+                },
+              ]}
+            />
           )}
         </div>
       </div>

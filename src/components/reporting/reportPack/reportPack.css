@@ -1,4 +1,4 @@
-.report-pack-paper { overflow-wrap: anywhere; }
+.report-pack-paper { overflow-wrap: anywhere; color: #0e2229; --text: #0e2229; --muted: #4d6564; }
 .report-pack-cover { padding-block: 2rem; }
 .report-pack-cover p, .report-pack-cover ol { margin-block: 1rem; }
 .report-pack-section { margin-block: 2rem; }

@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
@@ -93,31 +94,47 @@ export default function WarehouseBinLocationsPanel() {
     {!locations.length && <p className="text-sm text-[var(--muted)]">{reportText('r.create-a-location-value-in-labels-before-assigni', 'Create a Location value in Labels before assigning bins. You can still view the loaded inventory below.')}</p>}
     {location?.status === 'archived' && <p className="text-sm text-[var(--muted)]">{reportText('r.this-location-is-archived-existing-bin-labels-ar', 'This Location is archived. Existing bin labels are shown read-only and cannot be changed.')}</p>}
 
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>{reportText('r.inventory-bin-assignments', 'Inventory bin assignments')}{location ? ` ${fill(reportText('r.at-0', 'at {0}'), { 0: location.description || location.id })}` : ''}</caption>
-        <thead><tr>
-          <th scope="col" className="text-left py-2 px-2">{reportText('r.item', 'Item')}</th>
-          <th scope="col" className="text-left py-2 px-2">{CODE_NAMES.c0}</th>
-          <th scope="col" className="text-left py-2 px-2">{reportText('r.bin', 'Bin')}</th>
-        </tr></thead>
-        <tbody>
-          {visibleItems.map(item => {
-            const current = location && location.id !== NO_LOCATION_VALUE ? itemBinForLocation(item, location.id) : '';
-            const label = `Bin for ${item.name} at ${location?.description || location?.id || 'Location'}`;
-            return <tr key={item.id} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-medium py-2 px-2">{item.name}</th>
-              <td className="py-2 px-2"><bdi>{item.sku || '—'}</bdi></td>
-              <td className="py-2 px-2 min-w-48">
-                {location && location.id !== NO_LOCATION_VALUE
-                  ? <InlineEdit kind="text" label={label} value={current} placeholder={reportText('r.assign-bin', 'Assign bin')} canEdit={canEdit}
-                    onSave={next => saveBin(item, next)} />
-                  : <span className="text-[var(--muted)]">{current || reportText('r.no-location-assigned', 'No Location assigned')}</span>}
-              </td>
-            </tr>;
-          })}
-        </tbody>
-      </table>
+    <ReportTableScroll allowDisplayedExport={false}>
+      <RowTable
+        caption={
+          <>
+            {reportText('r.inventory-bin-assignments', 'Inventory bin assignments')}
+            {location ? ` ${fill(reportText('r.at-0', 'at {0}'), { 0: location.description || location.id })}` : ''}
+          </>
+        }
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        headRowClassName=""
+        bodyClassName=""
+        rowClassName="border-b border-[var(--line)]/50"
+        rows={visibleItems.map((item) => {
+          const current = location && location.id !== NO_LOCATION_VALUE ? itemBinForLocation(item, location.id) : '';
+          const label = `Bin for ${item.name} at ${location?.description || location?.id || 'Location'}`;
+          return { item, current, label };
+        })}
+        rowKey={({ item }) => item.id}
+        columns={[
+          { header: reportText('r.item', 'Item'), headClassName: 'text-left py-2 px-2', className: 'text-left font-medium py-2 px-2', cell: ({ item }) => item.name },
+          { header: CODE_NAMES.c0, headClassName: 'text-left py-2 px-2', className: 'py-2 px-2', cell: ({ item }) => <bdi>{item.sku || '—'}</bdi> },
+          {
+            header: reportText('r.bin', 'Bin'),
+            headClassName: 'text-left py-2 px-2', className: 'py-2 px-2 min-w-48',
+            cell: ({ item, current, label }) =>
+              location && location.id !== NO_LOCATION_VALUE ? (
+                <InlineEdit
+                  kind="text"
+                  label={label}
+                  value={current}
+                  placeholder={reportText('r.assign-bin', 'Assign bin')}
+                  canEdit={canEdit}
+                  onSave={(next) => saveBin(item, next)}
+                />
+              ) : (
+                <span className="text-[var(--muted)]">{current || reportText('r.no-location-assigned', 'No Location assigned')}</span>
+              ),
+          },
+        ]}
+      />
       {visibleItems.length === 0 && <p className="p-3 text-sm text-[var(--muted)]">{reportText('r.no-inventory-items-match-this-search', 'No inventory items match this search.')}</p>}
     </ReportTableScroll>
   </section>;

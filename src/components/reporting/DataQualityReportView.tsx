@@ -1,3 +1,5 @@
+import { useReportDates } from './useReportDates';
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -105,6 +107,7 @@ export function DataQualityReportPanel({
   loading?: boolean;
   partial?: boolean;
 }) {
+  const dates = useReportDates();
   const reportText = useReportText();
   const openRecord = useUIStore(s => s.openRecord);
   const setActiveTab = useUIStore(s => s.setActiveTab);
@@ -228,33 +231,52 @@ export function DataQualityReportPanel({
           ) : labelRows.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">{reportText('r.every-posted-entry-meets-all-active-required-lab', 'Every posted entry meets all active required-label rules.')}</p>
           ) : (
-            <ReportTableScroll>
-              <table className="w-full text-sm">
-                <caption className="sr-only">{reportText('r.posted-entries-missing-required-labels', 'Posted entries missing required labels')}</caption>
-                <thead>
-                  <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                    {[reportText('r.date-2', 'Date'), reportText('r.entry', 'Entry'), reportText('r.missing-label-and-account', 'Missing label and account'), reportText('r.rule-kind', 'Rule kind'), reportText('r.amount', 'Amount'), reportText('r.action', 'Action')].map(h => (
-                      <th key={h} scope="col" className="text-left py-2 px-2">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {labelRows.map(row => (
-                    <tr key={row.transactionId} className="border-b border-[var(--line)]/50">
-                      <td className="py-2 px-2 tabular-nums whitespace-nowrap">{row.date}</td>
-                      <th scope="row" className="text-left font-normal py-2 px-2"><bdi>{row.description}</bdi></th>
-                      <td className="py-2 px-2"><bdi>{row.summary}</bdi></td>
-                      <td className="py-2 px-2">{row.severity === 'medium' ? reportText('r.refuses-save-when-missing', 'Refuses save when missing') : reportText('r.warns-when-missing', 'Warns when missing')}</td>
-                      <td className="py-2 px-2 tabular-nums whitespace-nowrap">{formatCurrency(row.totalAmountCents, row.currency)}</td>
-                      <td className="py-2 px-2">
-                        <button type="button" className="min-h-11 px-3 underline text-left" onClick={() => openRecord(row.record)}>
-                          {reportText('r.open-entry', 'Open entry')}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <ReportTableScroll nameFromCaption allowDisplayedExport={!partial && !loading}>
+              <RowTable
+                caption={reportText('r.posted-entries-missing-required-labels', 'Posted entries missing required labels')}
+                captionClassName="sr-only"
+                tableClassName="w-full text-sm"
+                headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+                bodyClassName=""
+                rowClassName="border-b border-[var(--line)]/50"
+                rows={labelRows}
+                rowKey={(row) => row.transactionId}
+                columns={[
+                  { header: reportText('r.date-2', 'Date'), headClassName: 'text-left py-2 px-2', className: 'py-2 px-2 tabular-nums whitespace-nowrap', cell: (row) => dates.dateText(row.date) },
+                  {
+                    header: reportText('r.entry', 'Entry'),
+                    headClassName: 'text-left py-2 px-2',
+                    rowHeader: true,
+                    className: 'text-left font-normal py-2 px-2',
+                    cell: (row) => <bdi>{row.description}</bdi>,
+                  },
+                  {
+                    header: reportText('r.missing-label-and-account', 'Missing label and account'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2',
+                    cell: (row) => <bdi>{row.summary}</bdi>,
+                  },
+                  {
+                    header: reportText('r.rule-kind', 'Rule kind'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2',
+                    cell: (row) =>
+                      row.severity === 'medium' ? reportText('r.refuses-save-when-missing', 'Refuses save when missing') : reportText('r.warns-when-missing', 'Warns when missing'),
+                  },
+                  {
+                    header: reportText('r.amount', 'Amount'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2 tabular-nums whitespace-nowrap',
+                    cell: (row) => formatCurrency(row.totalAmountCents, row.currency),
+                  },
+                  {
+                    header: reportText('r.action', 'Action'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2',
+                    cell: (row) => (
+                      <button type="button" className="min-h-11 px-3 underline text-left" onClick={() => openRecord(row.record)}>
+                        {reportText('r.open-entry', 'Open entry')}
+                      </button>
+                    ),
+                  },
+                ]}
+              />
             </ReportTableScroll>
           )}
         </div>
@@ -266,40 +288,64 @@ export function DataQualityReportPanel({
           {filingRows.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">{reportText('r.no-active', 'No active')} {report.taxYear} {reportText('r.customer-or-supplier-filing-details-are-missing', 'customer or supplier filing details are missing.')}</p>
           ) : (
-            <ReportTableScroll>
-              <table className="w-full text-sm">
-                <caption className="sr-only">{reportText('r.customers-and-vendors-missing-tax-ids-or-postal', 'Customers and vendors missing tax IDs or postal addresses needed for filings')}</caption>
-                <thead>
-                  <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                    {[reportText('r.contact', 'Contact'), reportText('r.kind', 'Kind'), reportText('r.country', 'Country'), reportText('r.tax-id-masked', 'Tax ID (masked)'), reportText('r.address', 'Address'), reportText('r.missing', 'Missing'), reportText('r.why-needed', 'Why needed'), reportText('r.activity', 'Activity'), reportText('r.action', 'Action')].map(h => (
-                      <th key={h} scope="col" className="text-left py-2 px-2">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filingRows.map(row => (
-                    <tr key={row.id} className="border-b border-[var(--line)]/50 align-top">
-                      <th scope="row" className="text-left font-normal py-2 px-2"><bdi>{row.name}</bdi></th>
-                      <td className="py-2 px-2">{row.kind === 'vendor' ? reportText('r.vendor', 'Vendor') : reportText('r.customer', 'Customer')}</td>
-                      <td className="py-2 px-2">{row.country}</td>
-                      <td className="py-2 px-2 font-mono">{row.maskedTaxId}</td>
-                      <td className="py-2 px-2">{row.hasAddress ? reportText('r.recorded-2', 'Recorded') : reportText('r.missing', 'Missing')}</td>
-                      <td className="py-2 px-2">{row.missingFields.map(f => (f === 'taxId' ? 'Tax ID' : 'Address')).join(', ')}</td>
-                      <td className="py-2 px-2">{row.filingReasons.join('; ')}</td>
-                      <td className="py-2 px-2 tabular-nums whitespace-nowrap">{formatCurrency(row.activityAmountCents, row.currency)}</td>
-                      <td className="py-2 px-2">
-                        <button
-                          type="button"
-                          className="min-h-11 px-3 underline text-left"
-                          onClick={() => row.record ? openRecord(row.record) : setActiveTab(row.kind === 'vendor' ? 'purchases' : 'sales')}
-                        >
-                          {reportText('r.open', 'Open')}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <ReportTableScroll nameFromCaption allowDisplayedExport={!partial && !loading}>
+              <RowTable
+                caption={reportText('r.customers-and-vendors-missing-tax-ids-or-postal', 'Customers and vendors missing tax IDs or postal addresses needed for filings')}
+                captionClassName="sr-only"
+                tableClassName="w-full text-sm"
+                headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+                bodyClassName=""
+                rowClassName="border-b border-[var(--line)]/50 align-top"
+                rows={filingRows}
+                rowKey={(row) => row.id}
+                columns={[
+                  {
+                    header: reportText('r.contact', 'Contact'),
+                    headClassName: 'text-left py-2 px-2', className: 'text-left font-normal py-2 px-2',
+                    cell: (row) => <bdi>{row.name}</bdi>,
+                  },
+                  {
+                    header: reportText('r.kind', 'Kind'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2',
+                    cell: (row) => (row.kind === 'vendor' ? reportText('r.vendor', 'Vendor') : reportText('r.customer', 'Customer')),
+                  },
+                  { header: reportText('r.country', 'Country'), headClassName: 'text-left py-2 px-2', className: 'py-2 px-2', cell: (row) => row.country },
+                  {
+                    header: reportText('r.tax-id-masked', 'Tax ID (masked)'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2 font-mono',
+                    cell: (row) => row.maskedTaxId,
+                  },
+                  {
+                    header: reportText('r.address', 'Address'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2',
+                    cell: (row) => (row.hasAddress ? reportText('r.recorded-2', 'Recorded') : reportText('r.missing', 'Missing')),
+                  },
+                  {
+                    header: reportText('r.missing', 'Missing'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2',
+                    cell: (row) => row.missingFields.map((f) => (f === 'taxId' ? 'Tax ID' : 'Address')).join(', '),
+                  },
+                  { header: reportText('r.why-needed', 'Why needed'), headClassName: 'text-left py-2 px-2', className: 'py-2 px-2', cell: (row) => row.filingReasons.join('; ') },
+                  {
+                    header: reportText('r.activity', 'Activity'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2 tabular-nums whitespace-nowrap',
+                    cell: (row) => formatCurrency(row.activityAmountCents, row.currency),
+                  },
+                  {
+                    header: reportText('r.action', 'Action'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2',
+                    cell: (row) => (
+                      <button
+                        type="button"
+                        className="min-h-11 px-3 underline text-left"
+                        onClick={() => (row.record ? openRecord(row.record) : setActiveTab(row.kind === 'vendor' ? 'purchases' : 'sales'))}
+                      >
+                        {reportText('r.open', 'Open')}
+                      </button>
+                    ),
+                  },
+                ]}
+              />
             </ReportTableScroll>
           )}
         </div>
@@ -311,37 +357,55 @@ export function DataQualityReportPanel({
           {itemRows.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">{reportText('r.every-active-stock-and-service-item-has-its-expe', 'Every active stock and service item has its expected pricing recorded.')}</p>
           ) : (
-            <ReportTableScroll>
-              <table className="w-full text-sm">
-                <caption className="sr-only">{reportText('r.catalogue-items-missing-unit-cost-or-selling-pri', 'Catalogue items missing unit cost or selling price')}</caption>
-                <thead>
-                  <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                    {[reportText('r.item', 'Item'), CODE_NAMES.c0, reportText('r.type', 'Type'), reportText('r.unit-cost', 'Unit cost'), reportText('r.selling-price', 'Selling price'), reportText('r.missing', 'Missing'), reportText('r.effect-on-books', 'Effect on books'), reportText('r.action', 'Action')].map(h => (
-                      <th key={h} scope="col" className="text-left py-2 px-2">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {itemRows.map(row => (
-                    <tr key={row.itemId} className="border-b border-[var(--line)]/50 align-top">
-                      <th scope="row" className="text-left font-normal py-2 px-2"><bdi>{row.name}</bdi></th>
-                      <td className="py-2 px-2 font-mono">{row.sku || '—'}</td>
-                      <td className="py-2 px-2">{row.itemType === 'service' ? reportText('r.service', 'Service') : reportText('r.stock', 'Stock')}</td>
-                      <td className="py-2 px-2 tabular-nums whitespace-nowrap">
-                        {row.itemType === 'service' ? reportText('r.not-used', 'Not used') : formatCurrency(row.unitCostCents, report.homeCurrency)}
-                      </td>
-                      <td className="py-2 px-2 tabular-nums whitespace-nowrap">{formatCurrency(row.unitPriceCents, report.homeCurrency)}</td>
-                      <td className="py-2 px-2">{row.missingFields.map(f => (f === 'cost' ? 'Unit cost' : 'Selling price')).join(', ')}</td>
-                      <td className="py-2 px-2">{row.reason}</td>
-                      <td className="py-2 px-2">
-                        <button type="button" className="min-h-11 px-3 underline text-left" onClick={() => openRecord(row.record)}>
-                          {reportText('r.open-item', 'Open item')}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <ReportTableScroll nameFromCaption allowDisplayedExport={!partial && !loading}>
+              <RowTable
+                caption={reportText('r.catalogue-items-missing-unit-cost-or-selling-pri', 'Catalogue items missing unit cost or selling price')}
+                captionClassName="sr-only"
+                tableClassName="w-full text-sm"
+                headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+                bodyClassName=""
+                rowClassName="border-b border-[var(--line)]/50 align-top"
+                rows={itemRows}
+                rowKey={(row) => row.itemId}
+                columns={[
+                  {
+                    header: reportText('r.item', 'Item'),
+                    headClassName: 'text-left py-2 px-2', className: 'text-left font-normal py-2 px-2',
+                    cell: (row) => <bdi>{row.name}</bdi>,
+                  },
+                  { header: CODE_NAMES.c0, headClassName: 'text-left py-2 px-2', className: 'py-2 px-2 font-mono', cell: (row) => row.sku || '—' },
+                  {
+                    header: reportText('r.type', 'Type'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2',
+                    cell: (row) => (row.itemType === 'service' ? reportText('r.service', 'Service') : reportText('r.stock', 'Stock')),
+                  },
+                  {
+                    header: reportText('r.unit-cost', 'Unit cost'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2 tabular-nums whitespace-nowrap',
+                    cell: (row) => (row.itemType === 'service' ? reportText('r.not-used', 'Not used') : formatCurrency(row.unitCostCents, report.homeCurrency)),
+                  },
+                  {
+                    header: reportText('r.selling-price', 'Selling price'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2 tabular-nums whitespace-nowrap',
+                    cell: (row) => formatCurrency(row.unitPriceCents, report.homeCurrency),
+                  },
+                  {
+                    header: reportText('r.missing', 'Missing'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2',
+                    cell: (row) => row.missingFields.map((f) => (f === 'cost' ? 'Unit cost' : 'Selling price')).join(', '),
+                  },
+                  { header: reportText('r.effect-on-books', 'Effect on books'), headClassName: 'text-left py-2 px-2', className: 'py-2 px-2', cell: (row) => row.reason },
+                  {
+                    header: reportText('r.action', 'Action'),
+                    headClassName: 'text-left py-2 px-2', className: 'py-2 px-2',
+                    cell: (row) => (
+                      <button type="button" className="min-h-11 px-3 underline text-left" onClick={() => openRecord(row.record)}>
+                        {reportText('r.open-item', 'Open item')}
+                      </button>
+                    ),
+                  },
+                ]}
+              />
             </ReportTableScroll>
           )}
         </div>

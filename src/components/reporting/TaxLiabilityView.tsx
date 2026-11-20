@@ -1,3 +1,5 @@
+import ReportSchedule from './ReportSchedule';
+
 import { runCommand } from '../../lib/runCommand';
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -211,21 +213,26 @@ export default function TaxLiabilityView({ startDate: pageStartDate, endDate: pa
         </div>
       )}
 
-      <table className="w-full text-sm border border-[var(--line)] rounded-xl overflow-hidden">
-        <caption className="sr-only">{reportText('r.tax-return-boxes', 'Tax return boxes')}</caption>
-        <thead className="text-xs text-[var(--muted)] border-b border-[var(--line)]">
-          <tr><th scope="col" className="text-start p-3 w-16">{reportText('r.box', 'Box')}</th><th scope="col" className="text-start p-3">{reportText('r.description', 'Description')}</th><th scope="col" className="text-right p-3">{reportText('r.amount', 'Amount')}</th></tr>
-        </thead>
-        <tbody className="divide-y divide-[var(--line)]">
-          {taxReturn.boxes.map(b => (
-            <tr key={b.key} className={b.key === '5' ? 'font-bold' : ''}>
-              <td className="p-3 font-mono">{b.key}</td>
-              <td className="p-3">{b.label}</td>
-              <td className="p-3 text-right font-mono tabular-nums">{renderMoney(b.cents)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <ReportSchedule
+        caption={reportText('r.tax-return-boxes', 'Tax return boxes')}
+        captionClassName="sr-only"
+        tableClassName="w-full text-sm border border-[var(--line)] rounded-xl overflow-hidden"
+        headRowClassName="text-xs text-[var(--muted)] border-b border-[var(--line)]"
+        bodyClassName="divide-y divide-[var(--line)]"
+        rowClassName={(b) => (b.key === '5' ? 'font-bold' : '')}
+        rows={taxReturn.boxes}
+        rowKey={(b) => b.key}
+        rowHeaderClassName="font-normal text-start"
+        columns={[
+          { header: reportText('r.box', 'Box'), headClassName: 'text-start p-3 w-16', className: 'p-3 font-mono', cell: (b) => b.key },
+          { header: reportText('r.description', 'Description'), headClassName: 'text-start p-3', className: 'p-3', cell: (b) => b.label },
+          {
+            header: reportText('r.amount', 'Amount'),
+            headClassName: 'text-right p-3', className: 'p-3 text-right font-mono tabular-nums',
+            cell: (b) => renderMoney(b.cents),
+          },
+        ]}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {(['sales', 'purchases'] as const).map(side => (
