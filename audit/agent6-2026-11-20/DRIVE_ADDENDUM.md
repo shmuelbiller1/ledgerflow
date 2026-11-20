@@ -23,7 +23,7 @@
 | ID | Severity | Finding | Status |
 |----|----------|---------|--------|
 | AF6-20261120-04 | Low→Medium | `sanitizeCsvCell` guarded only the first character, so a formula behind whitespace (` =1+1`, NBSP, ZWSP, BOM) was exported unguarded from every screen export (CWE-1236; carried as AF-010-F5 "OBSERVED GAP") | **Fixed** — `looksLikeFormula()` shared by writer and inverse; 4-case suite; 85/85 export neighbours |
-| AF6-20261120-02 | Medium | `/i/`, `/c/`, `/e/`, `/invite/` token pages were served `index, follow` with `robots.txt Allow: /` — the token is the credential, so a forwarded customer link could be crawled/indexed/cached | **Fixed client-side** (`privacyRobots.ts` + `robots.txt` + App.tsx route guard). `X-Robots-Tag` half reported for the API/edge lane |
+| AF6-20261120-02 | Medium | `/i/`, `/c/`, `/e/`, `/invite/` token pages were served `index, follow` with `robots.txt Allow: /` — the token is the credential, so a forwarded customer link could be crawled/indexed/cached | **Fixed** — `X-Robots-Tag` in `vercel.json` (edge, first response), the same directive on the page meta before render, `robots.txt` blocking only `/api/`, 6-case guard. Express `serveApp.ts` still needs the header (API lane) |
 | AF6-20261120-03 | Medium | `index.html`'s inline reporter POSTed message + raw stack to `/api/health`, which has no `POST` route: 404 per error, nothing recorded, stack left the browser with no consent/redaction/dedupe | **Fixed** — script removed, `APP_INLINE_SCRIPT_HASHES = []`, `vercel.json` CSP regenerated, preflight rule corrected, 3-case guard |
 | AF6-20261120-01 | Medium | `GET /api/v1/workspaces/:id/export?format=csv` writes `=`-leading text verbatim (formula injection) and every amount `/100` + `toFixed(2)` regardless of currency (¥ ×100 high, KWD ×10 low) | **Reported → #962**, patch `01-workspace-csv-export-formula-and-currency.patch` (`git apply --check` clean), reproduction script |
 | AF6-20261120-05/06 | Info | PWA cache boundary (no authenticated caching) and dependency surface (0 production advisories; 15 moderate dev-only) | **Verified, no defect** |
@@ -32,12 +32,17 @@ Prior findings re-checked at `d1f2c8d`: #824, #826, #827 **closed**; **#941–#9
 
 ## Gates (local, exact)
 
-`tsc --noEmit` exit 0 (needs `--max-old-space-size=3072` here) · ESLint 0 errors / 0 warnings on every changed file · `npm run build` passes (incl. `vercel-csp --check`, PWA, `server.cjs`, `api.cjs`) · `check-dependency-audit` PASS · **74/74** nine suites for changed code · **85/85** fourteen export/archive neighbours · 9/9 structural guards · 18/18 boundary/contract/security set.
-**Not run and not claimed:** full suite, six TZ shards, RLS/database suites (no PostgreSQL), Playwright shards, ZAP/Schemathesis. CI is the authority.
+`tsc --noEmit` exit 0 (needs `--max-old-space-size=3072` here) · ESLint 0 errors / 0 warnings on every changed file · `npm run build` passes (incl. `vercel-csp --check`, PWA, `server.cjs`, `api.cjs`) · `check-dependency-audit` PASS · **78/78** eleven suites for changed code · **108** CSV/export/archive tests · 9/9 structural guards · 18/18 boundary/contract/security set.
+
+**Real CI on PR #961, head `11f2bb4` (all green):** `CI` full matrix (4 unit shards, 3 × Los Angeles, 3 × Auckland, 5 browser shards, Playwright smoke, coverage gate, production build, lint/types/DB rules) · `CodeQL` 0 alerts · `Dependency SBOM evidence` (gitleaks full history + S-25 audit + CycloneDX) · `API schema fuzzing (Schemathesis)` · `SonarCloud` Quality Gate passed · `Gitar` pass.
+
+**Both bot findings fixed and resolved:** Gitar — `robots.txt Disallow` hid the `noindex`, so the four token prefixes now stay fetchable and the header (`vercel.json`) is the primary control (`404cb10`); CodeQL `js/incomplete-sanitization` in the new guard — the `RegExp` built from a prefix is gone, the test matches literal sources (`6c44d26`). SonarCloud's one new issue (`src/lib/csv.ts:90`) — the combined amount regex split in two with a 350,653-input differential test proving the language unchanged (`8bceee4`).
+
+**One thing to know before reading a red X:** three consecutive pushes produced *no* CI at all, because the PR had become `CONFLICTING` with `main` and a `pull_request` workflow runs on the merge commit — no merge, no run, no check suite. Merging `main` (`b26076e`) restored it.
 
 ## Files in this Drive session (uploaded with the addendum)
 
-Repo paths that carry the same content (all merged into the PR branch):
+Repo paths that carry the same content (all on the PR branch):
 
 - `audit/agent6-2026-11-20/00-INDEX.md` — how to resume
 - `audit/agent6-2026-11-20/01-FINDINGS-REGISTER.md` — the register above, with reproduction and evidence
@@ -46,6 +51,7 @@ Repo paths that carry the same content (all merged into the PR branch):
 - `audit/agent6-2026-11-20/patches/01-workspace-csv-export-formula-and-currency.patch`
 - `audit/agent6-2026-11-20/repro/workspace-csv-export.mjs`
 - `docs/verification/ai6-2026-11-20.md`
+- `docs/security/OWASP_ASVS_L1_CHECKLIST.md` (§ 2026-11-20 addendum)
 
 ## How a replacement agent resumes
 
