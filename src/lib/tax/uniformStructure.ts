@@ -7,8 +7,9 @@
  * registered accounting software must be able to produce for a computerized audit.
  *
  * This module is the research fixture for E-33 (the writer): it transcribes the spec's field
- * layouts (field numbers, widths, kinds) from the authority's published tables and provides the
- * typed input shape the writer will consume, with a sample fixture. It does NOT write files,
+ * layouts (field numbers, widths, kinds) using third-party SHAAM CSV transcriptions and provides
+ * the typed input shape the writer will consume, with a sample fixture. The official PDF could
+ * not be retrieved here; direct official-source verification remains open. It does NOT write files,
  * calculate tax, or post anything. `readyForFiling` is always false: nothing here is filed.
  *
  * Sources (see docs/UNIFORM_STRUCTURE_RESEARCH.md for the full note):

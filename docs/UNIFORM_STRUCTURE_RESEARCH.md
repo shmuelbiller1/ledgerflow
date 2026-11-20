@@ -66,7 +66,12 @@ Document type codes (spec Appendix 1) include `305` tax invoice, `320` tax invoi
 | [Karteset help: מבנה אחיד (OPEN FORMAT)](https://karteset.co.il/help/uniform) | Independent implementation notes: `OPENFRMT` folder shape, ISO-8859-8-i encoding, simulator validation, form 2.6/5.4 outputs |
 | [Israel Invoice Model API (gov.il/KPMG)](https://www.gov.il/BlobFolder/generalpage/israel-invoice-160723/he/vat_software-houses-180724-en.pdf) | Document type codes and their uniform-file field numbers |
 
-The field tables were verified programmatically: every layout in `uniformStructure.ts` matches
+**Source-access limitation (20 Nov 2026):** the official PDF link could not be retrieved in
+this environment. The layout transcription was checked against the third-party SHAAM CSVs,
+not independently against the official PDF. Official-source verification and simulator acceptance
+remain E-33 prerequisites; these research widths are not statutory certification.
+
+The field tables were checked programmatically: every layout in `uniformStructure.ts` matches
 the CSV transcription field-for-field (number, width, kind), and each record's declared width
 equals the sum of its field widths (A000 466, A100 95, B100 317, B110 376, C100 445, D110 339,
 D120 222, M100 294, Z900 110).

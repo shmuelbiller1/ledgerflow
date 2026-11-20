@@ -120,6 +120,7 @@ export const SCREEN_HELP_DOCS: readonly ScreenHelpDoc[] = [
     'commissions',
     'backorders',
     'form-856',
+    'uniform-structure',
     'inventory-details',
     'stock-sources-uses',
     'expiring-lots',
