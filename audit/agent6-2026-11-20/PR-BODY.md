@@ -74,7 +74,25 @@ becomes `123.45` (10× low).
 | Boundary/contract/security sweep set | 18/18 |
 
 Not run locally: the whole `npm test`, the six TZ shards, RLS and every database-backed security suite
-(no PostgreSQL in this sandbox), Playwright shards, ZAP/Schemathesis. **No CI-green claim is made here.**
+(no PostgreSQL in this sandbox), Playwright shards, ZAP/Schemathesis — those are CI's, and CI is green on
+this branch's head `b26076e`:
+
+| GitHub check | Result |
+|---|---|
+| `CI` — full matrix (4 unit shards, 3 × Los Angeles, 3 × Auckland, 5 browser shards, Playwright smoke, coverage gate, production build, lint/types/DB rules) | **success** |
+| `CodeQL security scanning` | **success, 0 alerts** (this PR's own alert, `js/incomplete-sanitization`, fixed) |
+| `Dependency SBOM evidence` — gitleaks full history + S-25 audit + CycloneDX | **success** |
+| `API schema fuzzing (Schemathesis)` (report-only) | **success** |
+| `SonarCloud Code Analysis` | Quality Gate passed; the one new issue addressed |
+| `Gitar` | pass; its finding fixed and the thread resolved |
+
+Two notes for the reviewer, so a red or missing check is not misread: (1) pushes to this branch produced
+no CI runs while the PR was `CONFLICTING` with `main` — a `pull_request` workflow runs on the merge
+commit, and GitHub creates no run when the merge is impossible; the merge in `b26076e` fixed that and all
+four workflows started on their own. (2) The only local test failures were two fixed-budget performance
+assertions (`InboxView` 1,188 ms against a 1,000 ms budget) measured with 1,865 tests sharing a 3.8 GB
+sandbox — the same class as open issues #833/#834; that shard is green on CI here and was red on `main`
+at `e90de82`. The budgets were not touched.
 
 ## Test-contract changes, stated openly
 

@@ -89,3 +89,51 @@ rather than guessing at it:
 
 If the rule turns out to be something else, the fix is one line and the tests above are the proof that it
 cannot change behaviour — this is written down rather than assumed.
+
+---
+
+## Real CI on PR #961 — 2026-11-20, head `b26076e`
+
+Everything below is a GitHub check on the PR's own head commit, not a local run.
+
+| Workflow | Run | Result |
+|---|---|---|
+| `CI` (full matrix: `What changed`, lint/types/DB rules, production build, 4 unit shards, 3 × `America/Los_Angeles`, 3 × `Pacific/Auckland`, 5 browser shards, Playwright smoke, coverage gate) | [`44680634481`](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44680634481) | **success** |
+| `CodeQL security scanning` | [`44680634499`](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44680634499) | **success — 0 alerts** (the one alert this PR opened, `js/incomplete-sanitization`, is fixed in `6c44d26` and the thread resolved) |
+| `Dependency SBOM evidence` (gitleaks full history, S-25 dependency audit, CycloneDX) | [`44680634504`](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44680634504) | **success** |
+| `API schema fuzzing (Schemathesis)` (report-only, `SEC-SCAN-1`) | [`44680634506`](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44680634506) | **success** |
+| `SonarCloud Code Analysis` | PR #961 | **Quality Gate passed**; the one new issue (`src/lib/csv.ts:90`) addressed in `8bceee4` |
+| `Gitar` | PR #961 | **pass** — its one finding (`robots.txt` `Disallow` hiding the `noindex`) fixed in `404cb10`, thread resolved |
+| `Vercel` / `Netlify` / `render` | — | skipped by repository config (`git.deploymentEnabled` is `false` for everything but `main`) — not a code result |
+
+## Two delivery facts worth writing down (they look like failures and are not)
+
+**1. Pushes that produced no CI at all.** Three pushes to this branch (`404cb10`, `8bceee4`, `6c44d26`)
+created **zero** workflow runs, while other branches' pushes in the same minutes did. Cause: `main` had
+moved (`e90de82` merged `docs/COORDINATION.md` too) and the PR had become **`CONFLICTING`**, and a
+`pull_request` workflow runs against the merge commit — which GitHub cannot build when the merge is
+impossible, so it creates no run and no check suite. Checked with
+`gh pr view 961 --json mergeable,mergeStateStatus` → `CONFLICTING` / `DIRTY`, and
+`gh api …/actions/runs?head_sha=6c44d26` → `0`. After merging `origin/main` (`b26076e`, conflict only in
+the append-at-EOF `docs/COORDINATION.md`, both agents' messages kept) the PR went to `MERGEABLE` and all
+four workflows started by themselves. **A red X is not always the code; sometimes it is a branch that
+cannot be merged.**
+
+**2. `workflow_dispatch` of `security-sbom.yml` fails, `pull_request` passes.** While the PR was
+conflicting I dispatched the workflows by hand to get evidence; SBOM failed at the **gitleaks** step on
+`8bceee4` (dispatch) and passed on the same content at `b26076e` (pull_request). The action derives its
+scan range from the event's before/after commits, which a dispatch event does not carry. The dispatch runs
+of `CI`/`CodeQL`/`Schemathesis` were used only as a stopgap and are superseded by the table above; nothing
+in this PR rests on them.
+
+## The one local-only failure, and why it is not a regression
+
+`TZ=Pacific/Auckland TEST_SHARD=1/3` in this sandbox: **1860/1865 pass, 3 skipped, 2 fail** — both
+performance assertions with fixed millisecond budgets:
+`R-5: all 153 report views open under 1000 ms` (`ledger/InboxView.tsx 1188.27 ms`) and
+`A-206: AI #3 heaviest reports load well under 1,000 ms`. They are the class already tracked as open
+issues **#833** (`Top Customers and Vendors misses the native mount budget on a 2-CPU checkout`) and
+**#834** (`cold preload of the ten screens exceeds the 1,500 ms check`), measured while 1,865 tests share a
+3.8 GB sandbox. On CI the same shard is **green** on `b26076e` and was **red on `main` at `e90de82`** and
+on another agent's branch at `de3edcb` — i.e. it fails under contention, not because of this PR. The
+budgets were not touched.
