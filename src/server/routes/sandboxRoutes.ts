@@ -176,7 +176,12 @@ function toolRoutes(router: express.Router, live: Firestore) {
         const { report, source, params } = parse(runReportInput, input);
         const search = new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)]));
         search.set('workspaceId', workspaceId);
-        return dispatch(routers()[source], req, res, 'GET', `/${report}?${search.toString()}`);
+        const routeTable = routers() as Record<string, unknown>;
+        const selectedRouter = routeTable[source];
+        if (typeof selectedRouter !== 'function') {
+          throw new CommandRefusal(`Unknown report source: ${source}`, 404, 'REPORT_SOURCE_NOT_FOUND');
+        }
+        return dispatch(selectedRouter as express.Router, req, res, 'GET', `/${report}?${search.toString()}`);
       }
       case 'explain_number': {
         const explain = parse(explainNumberInput, input);
