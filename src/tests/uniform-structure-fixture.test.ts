@@ -95,6 +95,14 @@ test('the sample fixture covers every record type and is internally consistent',
   const debits = fixture.journalEntries.filter((e) => e.debitCredit === '1').reduce((s, e) => s + e.amountCents, 0);
   const credits = fixture.journalEntries.filter((e) => e.debitCredit === '2').reduce((s, e) => s + e.amountCents, 0);
   assert.equal(debits, credits);
+  // every account's B110 totals equal the sum of its B100 lines (the trial balance balances)
+  for (const account of fixture.accounts) {
+    const lines = fixture.journalEntries.filter((e) => e.accountKey === account.accountKey);
+    const dr = lines.filter((e) => e.debitCredit === '1').reduce((s, e) => s + e.amountCents, 0);
+    const cr = lines.filter((e) => e.debitCredit === '2').reduce((s, e) => s + e.amountCents, 0);
+    assert.equal(account.totalDebitsCents ?? 0, dr, `${account.accountKey} debits`);
+    assert.equal(account.totalCreditsCents ?? 0, cr, `${account.accountKey} credits`);
+  }
   // the sample document's amounts add up: excl-VAT + VAT = incl-VAT
   const doc = fixture.documents[0];
   assert.equal(
