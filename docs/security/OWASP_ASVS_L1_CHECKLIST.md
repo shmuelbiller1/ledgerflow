@@ -1,7 +1,9 @@
 # OWASP ASVS 4.0.3 Level 1 & API Security Checklist (S-36)
 
-**Audit date:** 2026-11-18  
-**Audited commit baseline:** `f2a39a422` (`main`) + AI #6 verification/scanner branch  
+**Audit date:** 2026-11-18 (last full pass) · **addendum:** 2026-11-20 (Agent #6, PR #961 — see the
+section at the end of this file; no earlier row was changed by it)  
+**Audited commit baseline:** `f2a39a422` (`main`) + AI #6 verification/scanner branch; 2026-11-20
+addendum pinned at `d1f2c8d` (`main`) + `arena/b1a560b0-ledgerflow`  
 **Scope:** LedgerFlow web client (`src/`), Express/Vercel API (`server.ts`, `src/server/`), PostgreSQL Row-Level Security & triggers (`supabase/migrations/`), and CI security workflows (`.github/workflows/`).
 
 Status key:
@@ -158,3 +160,26 @@ at minimum the Critical/High server issues **`#821`** (API-key 2FA/group isolati
 **`#824`** (ASC 606/842 command idempotency), **`#830`** (viewer bank-line write), and **`#825`**
 (before exposing assistant sandbox routes), and complete owner `OPS` checks (`DATABASE_CA_CERT`,
 live webhook secrets, and `npx tsx scripts/check-security-headers.ts` against the live HTTPS URL).
+
+---
+
+## Addendum — 2026-11-20 (Agent #6, PR #961): exported formulas, indexable token links, one error path
+
+Pinned at `d1f2c8d` (`main`) + `arena/b1a560b0-ledgerflow`. Findings register:
+`audit/agent6-2026-11-20/01-FINDINGS-REGISTER.md`. No row above was edited; these are the deltas.
+
+| ID | Control | Status | Evidence |
+|---|---|---|---|
+| 5.3.3 | Spreadsheet (CSV) formula injection is neutralised in every exported file | **PASS after PR #961** — was **PARTIAL** | `src/lib/csv.ts` `looksLikeFormula()` (decides on the first character a spreadsheet reads, not the first byte: leading space, NBSP, ZWSP and BOM included; carried as AF-010-F5), used by `toCsv`/`sanitizeCsvCell` **and** `unguardCsvCell`; `src/tests/security-csv-formula-injection.test.ts`; 85/85 export/archive suites. **Still open in the API lane:** `GET /api/v1/workspaces/:id/export?format=csv` builds its CSV by hand — filed with a verified patch as **`#962`** |
+| 5.1.4 | Money in an exported file is written in the currency it is stored in | **FAIL in the API lane** (`#962`) | `handleWorkspaceExport` writes `totalAmountCents / 100` + `toFixed(2)`: ¥1,000,000 → `10000.00` (100× high), KWD 12.345 → `123.45` (10× low). Reproduction: `audit/agent6-2026-11-20/repro/workspace-csv-export.mjs` |
+| 8.2.1 / 8.3.4 | A URL that carries a bearer token (invoice `/i/`, portal `/c/`, estimate `/e/`, invitation `/invite/`) is not crawlable, indexable or snippet-cached | **PARTIAL after PR #961** — client half fixed, edge/server half open | `src/lib/privacyRobots.ts` (+ `src/main.tsx`, `public/robots.txt`, `src/tests/security-token-page-indexing.test.ts` incl. an `App.tsx` route guard). Open: `X-Robots-Tag: noindex` at the edge/Express for the same four prefixes (reported with the PR) |
+| 7.1.1 / 8.1.2 | Client error telemetry respects the visitor's choice, is redacted, de-duplicated, and does not cross an account boundary | **PASS after PR #961** — was **PARTIAL** | `index.html`'s inline reporter (raw stack → `POST /api/health`, a route with no `POST` handler, no consent, no redaction) removed; `src/server/http/contentSecurityPolicy.ts` `APP_INLINE_SCRIPT_HASHES = []`; `vercel.json` CSP regenerated; `src/tests/security-client-error-reporting.test.ts` |
+| 14.4.3 | Every inline script a page ships is named by hash in the tightened CSP, and a page with none ships none | **PASS** | `csp-report-only.test.ts` recomputes hashes from `index.html`; `scripts/check-security-headers.ts` now requires the Report-Only `script-src` to drop `'unsafe-inline'` (a hash only when the page has an inline script) |
+
+**Dependency surface at this pin (unchanged status):** `scripts/check-dependency-audit.ts` → PASS,
+0 production advisories at any severity; the 15 `npm audit` moderates are dev-tool transitive
+(`qs` under Stryker's `typed-rest-client`, `minimatch`/`glob` under eslint/workbox) and stay out of
+the shipped bundle.
+
+**Release-gate recommendation change:** add **`#962`** (server CSV export: formula injection and
+wrong-currency amounts) to the Critical/High list that must be closed before real customer books.
