@@ -118,8 +118,10 @@ test('AF6-20261120-02: the edge sends X-Robots-Tag on exactly the token paths, b
     .filter(entry => entry.value !== undefined);
 
   for (const prefix of TOKEN_PAGE_PREFIXES) {
-    const entry = robotsHeaders.find(e => new RegExp(`^${prefix.replace(/\//g, '\\/')}`).test(e.source));
-    assert.ok(entry, `vercel.json sends X-Robots-Tag on ${prefix}*`);
+    // Exact source match on purpose: building a RegExp from a prefix is what CodeQL rightly calls
+    // incomplete sanitisation (js/incomplete-sanitization), and the patterns here are literals.
+    const entry = robotsHeaders.find(e => e.source === `${prefix}(.*)`);
+    assert.ok(entry, `vercel.json sends X-Robots-Tag on ${prefix}(.*)`);
     assert.match(entry!.value!, /noindex/);
     assert.match(entry!.value!, /nofollow/);
     assert.doesNotMatch(entry!.value!, /(^|,\s*)index/, `the ${prefix} header never grants index`);
