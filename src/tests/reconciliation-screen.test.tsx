@@ -118,6 +118,21 @@ describe('#891 — a suggestion is a cash movement, not a document total', () =>
     assert.equal(screen.queryByText(/Review \d+ suggested matches/), null, 'the leg is in another account');
   });
 
+  test('a statement line with an unavailable account does not match a different bank', async () => {
+    stubFetchWithBodies(200, {});
+    useLedgerStore.setState({
+      accounts: billAccounts,
+      transactions: [bankPayment],
+      bankLines: [{ ...withdrawal, accountId: 'unavailable-bank' }],
+    });
+    render(<Reconciliation />);
+    assert.ok(!screen.queryByText(/Review \d+ suggested matches/));
+    await click(screen.getByText('AWS-914'));
+    await click(screen.getByText('AWS-914 paid from bank 1010'));
+    assert.equal(screen.queryByText('Amounts match'), null);
+    assert.ok(screen.getByText('No matching cash leg'));
+  });
+
   test('a deposit is not paired with a cash outflow of the same size', () => {
     stubFetchWithBodies(200, {});
     const deposit = line({ id: 'dep1', accountId: 'bank1010', date: '2026-09-28', description: 'AWS-914 receipt', amountCents: 141600 });
