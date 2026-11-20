@@ -184,6 +184,23 @@ describe('runCommand is the one place a screen calls its server', () => {
     assert.equal(commandErrorMessage(undefined), 'That did not work');
   });
 
+  test('known authentication refusals explain the next step in the selected language', async () => {
+    for (const [message, english, hebrew] of [
+      ['Access Denied: Please verify your email protocol.', /verify your email address/i, /אימות.*הדוא״ל/],
+      ['Verify your email address first, then open the invitation again.', /open the invitation again/i, /לפתוח שוב את ההזמנה/],
+      ['A workspace you belong to requires two-step login: set up an authenticator app to continue', /authenticator app/i, /אפליקציית אימות/],
+    ] as const) {
+      answer(403, { status: 'error', message });
+      await assert.rejects(runCommand({ path: '/api/v1/test', token: 'test-token' }), error => {
+        assert.ok(error instanceof ServerCommandError);
+        assert.equal(error.message, message, 'retain original refusal for callers');
+        assert.match(commandErrorMessage(error), english);
+        assert.match(commandErrorMessage(error, 'he'), hebrew);
+        return true;
+      });
+    }
+  });
+
   test('extra headers are sent, so an idempotency key survives the move off hand-typed calls', async () => {
     const sent = captureHeaders();
     await runCommand({

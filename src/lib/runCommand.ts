@@ -185,11 +185,28 @@ function refusalMessage(raw: unknown, status: number): string {
  */
 const SERVER_403_IS_MORE_SPECIFIC = /verify|two.?step|two_step|recovery/i;
 
+// Only translate these fixed 403s. A more specific server instruction, including any
+// dynamic detail, must not be replaced by a guessed translation.
+const AUTH_REFUSALS = new Map<string, { en: string; he: string }>([
+  ['Access Denied: Please verify your email protocol.', {
+    en: 'Verify your email address, then try again.',
+    he: 'לאחר אימות כתובת הדוא״ל אפשר לנסות שוב.',
+  }],
+  ['Verify your email address first, then open the invitation again.', {
+    en: 'Verify your email address first, then open the invitation again.',
+    he: 'יש לאמת את כתובת הדוא״ל ואז לפתוח שוב את ההזמנה.',
+  }],
+  ['A workspace you belong to requires two-step login: set up an authenticator app to continue', {
+    en: 'A workspace you belong to requires two-step login. Set up an authenticator app to continue.',
+    he: 'אחת מסביבות העבודה שלך דורשת אימות דו־שלבי. כדי להמשיך, יש להגדיר אפליקציית אימות.',
+  }],
+]);
+
 /**
  * AI12-N3: a refusal the app writes itself, in the language the person is reading.
  *
- * The server's own sentences are not translated here — they are printed as the server wrote them, with
- * `describeError` around them. These are the app's four fixed replies, and English keeps every word.
+ * These are the generic fallback replies, separate from the known authentication
+ * instructions above. Other specific verification instructions keep their original wording.
  */
 const COMMAND_WORDS = {
   en: {
@@ -209,7 +226,8 @@ export function commandErrorMessage(error: unknown, language: 'en' | 'he' = 'en'
   if (error instanceof ServerCommandError) {
     if (error.status === 401) return words.sessionEnded;
     if (error.status === 403) {
-      // the server's sentence is more specific than a role: it is shown as written, in both languages
+      const known = AUTH_REFUSALS.get(error.message);
+      if (known) return known[language];
       return SERVER_403_IS_MORE_SPECIFIC.test(error.message) ? error.message : words.role;
     }
     return error.message || words.didNotWork;
