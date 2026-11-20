@@ -385,11 +385,7 @@ export class Transaction {
 }
 
 export interface TransactionOptions { maxAttempts?: number; readOnly?: boolean }
-/**
- * A sandbox review re-runs every drafted step in one serializable transaction, so it reads far more than an
- * ordinary command and is the likeliest pivot when other writers are busy. Eight attempts (about 2-3 s of
- * backoff) were exhausted in CI while other suites wrote the same tables; sixteen give it about 10 s.
- */
+// A sandbox review re-runs every draft step in one serializable transaction; 8 attempts ran out under load.
 const SANDBOX_BATCH_RETRIES: TransactionOptions = { maxAttempts: 16 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
