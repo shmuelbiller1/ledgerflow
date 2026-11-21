@@ -1,4 +1,5 @@
 import { rateUsedFor, rateUsedId, type RateUsed } from '../../lib/rateUsed';
+import { BILL_PAID_BEFORE_APPROVAL, billAwaitsApproval } from './billApprovalGuard';
 import { minorUnitRate } from '../../lib/currencyMinorUnits';
 import { createHash } from 'node:crypto';
 import { ledgerCreate } from './ledgerDoor';
@@ -306,6 +307,10 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
 
       if (docData.status === 'void' || docData.status === 'draft') {
         throw new Error(`Cannot record a payment against a ${docData.status} document`);
+      }
+      // G-19 (#893): a bill over the approval limit is approved before it is paid, whichever path pays it
+      if (alloc.documentType === 'bill' && billAwaitsApproval(docData, wsData)) {
+        throw new Error(BILL_PAID_BEFORE_APPROVAL);
       }
       const docCurrency = String(docData.currency || baseCurrency);
       const docRate = typeof docData.exchangeRate === 'number' && docData.exchangeRate > 0 ? docData.exchangeRate : 1;
@@ -662,6 +667,7 @@ export async function applyUnappliedPayment(db: Firestore, input: {
       const doc = (await tx.get(ref)).data();
       if (!doc || doc.workspaceId !== workspaceId) throw new PaymentApplyError(404, `Document ${alloc.documentId} not found`);
       if (doc.status === 'void' || doc.status === 'draft') throw new PaymentApplyError(409, `Cannot apply a payment to a ${doc.status} document`);
+      if (!received && billAwaitsApproval(doc, wsData)) throw new PaymentApplyError(409, BILL_PAID_BEFORE_APPROVAL);
       if (partyId && (received ? doc.customerId : doc.vendorId) !== partyId) throw new PaymentApplyError(400, `${doc.number || alloc.documentId} belongs to another ${received ? 'customer' : 'vendor'}`);
       if (String(doc.currency || baseCurrency) !== paymentCurrency) throw new PaymentApplyError(400, `${doc.number || alloc.documentId} is in another currency than the payment`);
       // EG-2 step 1: not dated before the payment or the document; an advance clears only at its own rate

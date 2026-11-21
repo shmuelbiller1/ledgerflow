@@ -21,6 +21,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { nextDocumentNumber } from '../../services/documentNumbers';
 import AsyncButton from '../ui/AsyncButton';
 import { evaluateApprovalRequirement } from '../../lib/approvalWorkflow';
+import { billBookCents, billLimitCents } from '../../lib/billApproval';
 import { workspaceRole } from '../../lib/periodLock';
 import { approvesInPlace } from '../../lib/approvalDelegation';
 import { addComment } from '../../lib/commentService';
@@ -225,6 +226,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
     }
 
     const wsId = useAuthStore.getState().currentWorkspaceId || 'default';
+    const billLimit = billLimitCents(workspace?.invoiceApproval);
     const userEmail = useAuthStore.getState().user?.email || 'user';
     // G-19: a bill already held for approval (status 'pending') is being *decided* by the reviewer,
     // not submitted again — re-applying the submission threshold there loops the decision back to
@@ -237,9 +239,9 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
       : 0;
     const isReviewingPending = initialBill?.status === 'pending' && total > 0 && total <= savedTotalCents;
     const approval = evaluateApprovalRequirement(
-      { ...bill, amountCents: total } as Bill,
+      { ...bill, amountCents: billBookCents({ ...bill, amountCents: total }, workspace?.currency || 'USD') } as Bill,
       'bill',
-      { id: 'rule_1', workspaceId: wsId, entityType: 'bill', thresholdCents: 500000, approverRoles: ['owner', 'accountant'], autoApproveBelowThreshold: true }
+      { id: 'rule_1', workspaceId: wsId, entityType: 'bill', thresholdCents: billLimit, approverRoles: ['owner', 'accountant'], autoApproveBelowThreshold: true }
     );
 
     let finalStatus = actionStatus;
@@ -250,7 +252,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
     const heldForApproval = !isReviewingPending && approval.requiresApproval && actionStatus === 'approved';
     if (heldForApproval) {
       finalStatus = 'pending';
-      toast.info('Bill amount exceeds threshold ($5,000). Submitted for management approval.');
+      toast.info(`Bill amount exceeds the approval limit (${formatCurrency(billLimit, workspace?.currency || 'USD')}). Submitted for management approval.`);
       addComment({
         workspaceId: wsId,
         entityType: 'bill',
