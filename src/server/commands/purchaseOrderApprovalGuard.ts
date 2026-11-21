@@ -5,7 +5,7 @@ type Row = Record<string, unknown>;
 
 /** Statuses that mean the order was approved (and may be receiving, billed or closed). */
 const LIVE_PO = new Set(['approved', 'partially_received', 'received', 'billed', 'closed']);
-const APPROVAL_KEYS = ['approvalStatus', 'approvedBy', 'approvedAt'] as const;
+const APPROVAL_KEYS = ['approvalStatus', 'approvedBy', 'approvedAt', 'requestedBy'] as const;
 
 const refused = (message: string) => Object.assign(new HttpError(message, 403), { code: 'FORBIDDEN', field: 'status' });
 
@@ -47,12 +47,14 @@ export function guardPurchaseOrderApproval(existing: Row | undefined, merged: Ro
     currency: typeof merged.currency === 'string' ? merged.currency : undefined,
     workspaceCurrency: String(who.workspace.currency || 'USD'),
   });
-  const hold = () => { merged.status = 'pending_approval'; merged.approvalStatus = 'pending'; merged.approvedBy = null; merged.approvedAt = null; };
+  const hold = () => { merged.status = 'pending_approval'; merged.approvalStatus = 'pending'; merged.approvedBy = null; merged.approvedAt = null; merged.requestedBy = who.uid; };
   const stamp = (state: 'approved' | 'rejected') => { merged.approvalStatus = state; merged.approvedBy = who.uid; merged.approvedAt = who.now; };
 
   if (before === 'pending_approval' && status !== 'pending_approval') {
     if (LIVE_PO.has(status)) {
-      const problem = orderDecisionProblem({ status: 'pending_approval', uid: String(existing?.uid ?? '') }, who.role, who.uid);
+      // the person whose save put it in review (a raise counts), not only whoever first made the order
+      const requester = String(existing?.requestedBy ?? existing?.uid ?? '');
+      const problem = orderDecisionProblem({ status: 'pending_approval', uid: requester }, who.role, who.uid);
       if (problem) throw refused(problem);
       if (purchaseOrderTotalCents(merged) > purchaseOrderTotalCents(existing || {})) throw refused('Approve the order as it was asked for; change its lines first and ask again');
       stamp('approved');
@@ -60,7 +62,7 @@ export function guardPurchaseOrderApproval(existing: Row | undefined, merged: Ro
     }
     if (status === 'cancelled') {
       const approver = who.role === 'owner' || who.role === 'accountant';
-      if (!approver && existing?.uid !== who.uid) throw refused('Waiting for an owner or accountant');
+      if (!approver && String(existing?.requestedBy ?? existing?.uid ?? '') !== who.uid) throw refused('Waiting for an owner or accountant');
       stamp('rejected');
     }
     return;
@@ -71,5 +73,8 @@ export function guardPurchaseOrderApproval(existing: Row | undefined, merged: Ro
     hold();
     return;
   }
-  if (status === 'approved' && before === 'approved' && purchaseOrderTotalCents(merged) > purchaseOrderTotalCents(existing || {}) && needs()) hold();
+  if (LIVE_PO.has(status) && LIVE_PO.has(before) && purchaseOrderTotalCents(merged) > purchaseOrderTotalCents(existing || {}) && needs()) {
+    if (status !== 'approved') throw refused('This order waits for approval before goods are received');
+    hold();
+  }
 }

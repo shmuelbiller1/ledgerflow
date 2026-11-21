@@ -78,3 +78,21 @@ test('a request is declined by an approver or withdrawn by the person who asked;
 test('an understated total does not slip under the limit', () => {
   assert.equal(purchaseOrderTotalCents({ totalAmountCents: 1, items: lines(90_000) }), 90_000);
 });
+
+test('a raise that also moves the order into receiving is refused (#980 review)', async () => {
+  const d = db({ invoiceApproval: { poEnabled: true, poThresholdCents: 50_000 } });
+  await create(d, 'po-g', order(40_000, 'approved'), bookkeeper);
+  assert.equal((await update(d, 'po-g', { status: 'partially_received', items: lines(9_000_000), totalAmountCents: 9_000_000 }, bookkeeper)).ok, false);
+  assert.equal(d.read('purchaseOrders/po-g')?.totalAmountCents, 40_000);
+});
+
+test('whoever raised an order into review cannot approve it, even if someone else made the order (#980 review)', async () => {
+  const d = db({ invoiceApproval: { poEnabled: true, poThresholdCents: 50_000 } });
+  await create(d, 'po-h', order(40_000, 'approved'), bookkeeper);
+  await update(d, 'po-h', { items: lines(90_000), totalAmountCents: 90_000 }, accountant);
+  const held = d.read('purchaseOrders/po-h')!;
+  assert.equal(held.status, 'pending_approval');
+  assert.equal(held.requestedBy, accountant.uid);
+  assert.equal((await update(d, 'po-h', { status: 'approved' }, accountant)).ok, false);
+  assert.equal((await update(d, 'po-h', { status: 'approved', requestedBy: 'someone' }, owner)).ok, true);
+});
