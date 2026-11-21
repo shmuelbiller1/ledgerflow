@@ -46,9 +46,10 @@ export function awaitingApproval(po: Pick<PurchaseOrder, 'status'>): boolean {
 }
 
 /** Why this person can't approve or decline the request, or null. */
-export function orderDecisionProblem(po: Pick<PurchaseOrder, 'status' | 'uid'>, role: string, uid: string): string | null {
+export function orderDecisionProblem(po: Pick<PurchaseOrder, 'status' | 'uid'> & { requestedBy?: string | null }, role: string, uid: string): string | null {
   if (!awaitingApproval(po)) return 'Not waiting for approval';
   if (role !== 'owner' && role !== 'accountant') return 'Waiting for an owner or accountant';
-  if (po.uid === uid && role !== 'owner') return 'Someone else must approve your own request';
+  // whoever put it in review (a raise counts, #980), else whoever made it — the same person the server checks
+  if ((po.requestedBy || po.uid) === uid && role !== 'owner') return 'Someone else must approve your own request';
   return null;
 }

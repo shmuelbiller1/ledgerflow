@@ -8,6 +8,7 @@ import type { RequestUser } from '../server/auth/requestUser';
 import { executeCommand } from '../server/utils/commandExecutor';
 import { recordSaveCommand, recordSaveInput } from '../server/commands/plainRecords';
 import { purchaseOrderTotalCents } from '../server/commands/purchaseOrderApprovalGuard';
+import { orderDecisionProblem } from '../lib/purchaseOrderApproval';
 import { captureResponse, fakeRequest, MemoryDb, owner, runnerDependencies, seedWorkspace, workspaceId } from './helpers/commandTestUtils';
 
 const accountant: RequestUser = { uid: 'acc-1', email: 'acc@example.test', aal: 'aal2' };
@@ -128,4 +129,11 @@ test('an order saved with no currency is the workspace currency: moving it to EU
   d.seed('purchaseOrders/po-l', { id: 'po-l', workspaceId, uid: bookkeeper.uid, ...noCurrency, approvalStatus: 'approved' });
   await update(d, 'po-l', { currency: 'EUR' }, bookkeeper);
   assert.equal(d.read('purchaseOrders/po-l')?.status, 'pending_approval');
+});
+
+test('the screen and the server name the same requester: requestedBy, else the maker (#980 Codex)', () => {
+  const raised = { status: 'pending_approval' as const, uid: 'acc-1', requestedBy: 'acc-2' };
+  assert.equal(orderDecisionProblem(raised, 'accountant', 'acc-1'), null, 'the maker may decide once someone else raised it');
+  assert.equal(orderDecisionProblem(raised, 'accountant', 'acc-2'), 'Someone else must approve your own request');
+  assert.equal(orderDecisionProblem({ status: 'pending_approval', uid: 'acc-1' }, 'accountant', 'acc-1'), 'Someone else must approve your own request');
 });

@@ -58,8 +58,7 @@ export function guardPurchaseOrderApproval(existing: Row | undefined, merged: Ro
   if (before === 'pending_approval' && status !== 'pending_approval') {
     if (LIVE_PO.has(status)) {
       // the person whose save put it in review (a raise counts), not only whoever first made the order
-      const requester = String(existing?.requestedBy ?? existing?.uid ?? '');
-      const problem = orderDecisionProblem({ status: 'pending_approval', uid: requester }, who.role, who.uid);
+      const problem = orderDecisionProblem({ status: 'pending_approval', uid: String(existing?.uid ?? ''), requestedBy: existing?.requestedBy as string | null | undefined }, who.role, who.uid);
       if (problem) throw refused(problem);
       if (grew()) throw refused('Approve the order as it was asked for; change its lines first and ask again');
       stamp('approved');
