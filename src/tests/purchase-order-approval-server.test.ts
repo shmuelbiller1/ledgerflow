@@ -98,3 +98,26 @@ test('whoever raised an order into review cannot approve it, even if someone els
   assert.equal((await update(d, 'po-h', { status: 'approved' }, accountant)).ok, false);
   assert.equal((await update(d, 'po-h', { status: 'approved', requestedBy: 'someone' }, owner)).ok, true);
 });
+
+test('moving an approved order to another currency sends it back for approval (#980 Codex)', async () => {
+  const d = db({ invoiceApproval: { poEnabled: true, poThresholdCents: 50_000 } });
+  await create(d, 'po-i', order(40_000, 'approved'), bookkeeper);
+  await update(d, 'po-i', { currency: 'EUR' }, bookkeeper);
+  assert.equal(d.read('purchaseOrders/po-i')?.status, 'pending_approval');
+});
+
+test('only an approver or the person who asked takes an order out of review, to a draft too (#980 Codex)', async () => {
+  const d = db();
+  d.seed('purchaseOrders/po-j', { id: 'po-j', workspaceId, uid: 'other-book', ...order(10_000, 'pending_approval') });
+  assert.equal((await update(d, 'po-j', { status: 'draft' }, bookkeeper)).ok, false);
+  assert.equal(d.read('purchaseOrders/po-j')?.status, 'pending_approval');
+});
+
+test('raising a held order makes the raiser the one asking, so they cannot approve it next (#980 Codex)', async () => {
+  const d = db({ invoiceApproval: { poEnabled: true, poThresholdCents: 50_000 } });
+  await create(d, 'po-k', order(90_000, 'approved'), bookkeeper);
+  await update(d, 'po-k', { items: lines(900_000), totalAmountCents: 900_000 }, accountant);
+  assert.equal(d.read('purchaseOrders/po-k')?.requestedBy, accountant.uid);
+  assert.equal((await update(d, 'po-k', { status: 'approved' }, accountant)).ok, false);
+  assert.equal((await update(d, 'po-k', { status: 'approved' }, owner)).ok, true);
+});

@@ -48,6 +48,9 @@ export function guardPurchaseOrderApproval(existing: Row | undefined, merged: Ro
     workspaceCurrency: String(who.workspace.currency || 'USD'),
   });
   const hold = () => { merged.status = 'pending_approval'; merged.approvalStatus = 'pending'; merged.approvedBy = null; merged.approvedAt = null; merged.requestedBy = who.uid; };
+  // more exposure than what was decided or asked: a larger total, or another currency
+  const grew = () => purchaseOrderTotalCents(merged) > purchaseOrderTotalCents(existing || {})
+    || String(merged.currency ?? '') !== String(existing?.currency ?? merged.currency ?? '');
   const stamp = (state: 'approved' | 'rejected') => { merged.approvalStatus = state; merged.approvedBy = who.uid; merged.approvedAt = who.now; };
 
   if (before === 'pending_approval' && status !== 'pending_approval') {
@@ -56,15 +59,19 @@ export function guardPurchaseOrderApproval(existing: Row | undefined, merged: Ro
       const requester = String(existing?.requestedBy ?? existing?.uid ?? '');
       const problem = orderDecisionProblem({ status: 'pending_approval', uid: requester }, who.role, who.uid);
       if (problem) throw refused(problem);
-      if (purchaseOrderTotalCents(merged) > purchaseOrderTotalCents(existing || {})) throw refused('Approve the order as it was asked for; change its lines first and ask again');
+      if (grew()) throw refused('Approve the order as it was asked for; change its lines first and ask again');
       stamp('approved');
       return;
     }
-    if (status === 'cancelled') {
-      const approver = who.role === 'owner' || who.role === 'accountant';
-      if (!approver && String(existing?.requestedBy ?? existing?.uid ?? '') !== who.uid) throw refused('Waiting for an owner or accountant');
-      stamp('rejected');
-    }
+    // any other way out of review (declined, or taken back to a draft) is for an approver or the person who asked
+    const approver = who.role === 'owner' || who.role === 'accountant';
+    if (!approver && String(existing?.requestedBy ?? existing?.uid ?? '') !== who.uid) throw refused('Waiting for an owner or accountant');
+    if (status === 'cancelled') stamp('rejected');
+    return;
+  }
+  // a held order raised (or moved to another currency) while it waits: whoever raised it is now the one asking
+  if (before === 'pending_approval' && status === 'pending_approval') {
+    if (grew()) merged.requestedBy = who.uid;
     return;
   }
   if (LIVE_PO.has(status) && !LIVE_PO.has(before)) {
@@ -73,7 +80,7 @@ export function guardPurchaseOrderApproval(existing: Row | undefined, merged: Ro
     hold();
     return;
   }
-  if (LIVE_PO.has(status) && LIVE_PO.has(before) && purchaseOrderTotalCents(merged) > purchaseOrderTotalCents(existing || {}) && needs()) {
+  if (LIVE_PO.has(status) && LIVE_PO.has(before) && grew() && needs()) {
     if (status !== 'approved') throw refused('This order waits for approval before goods are received');
     hold();
   }
