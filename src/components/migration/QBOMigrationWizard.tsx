@@ -4,6 +4,7 @@ import { useDropzone } from 'react-dropzone';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { migrationPreflight, migrationRunKey } from '../../lib/migrationImport';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { ChartAccount } from '../../types';
 import { getLocalDateISO } from '../../lib/utils';
@@ -365,6 +366,16 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
     if (step === 3) {
       setIsProcessing(true);
       try {
+        // #904: the whole file is checked before anything (accounts included) is written
+        const workspace = useAuthStore.getState().workspaces.find(w => w.id === currentWorkspaceId);
+        const problems = migrationPreflight(parsedRows, workspace as never, user?.uid || '');
+        if (problems.length > 0) {
+          toast.error(`Nothing was imported. ${problems.length} row(s) cannot be posted: ${problems.slice(0, 3).join(' ')}${problems.length > 3 ? ' …' : ''}`);
+          setIsProcessing(false);
+          return;
+        }
+        // #904: the same file gives the same key, so a retry replays saved chunks instead of posting them again
+        const runKey = await migrationRunKey(currentWorkspaceId, parsedRows);
         // 1. Create missing accounts in chartAccounts with type-based GAAP numbering
         const createdAccountMap: Record<string, string> = {};
         const updatedAccounts = [...accounts];
@@ -393,7 +404,13 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
         };
 
         for (const mapping of accountMappings) {
-          if (mapping.targetAccountId === '__create_new__') {
+          // #904: a retry reuses the account an earlier attempt created (same name and type), instead of a second one
+          const already = mapping.targetAccountId === '__create_new__'
+            ? updatedAccounts.find(a => a.type === mapping.detectedType && String(a.name || '').trim().toLowerCase() === mapping.qbAccount.trim().toLowerCase())
+            : undefined;
+          if (already) {
+            createdAccountMap[mapping.qbAccount] = already.id;
+          } else if (mapping.targetAccountId === '__create_new__') {
             const newAccCode = getNextCode(mapping.detectedType);
             const newAcc: Omit<ChartAccount, 'id'> = {
               uid: user?.uid || 'system',
@@ -425,7 +442,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
         // 2. Prepare atomic double-entry transactions
         const txList: import("../../types").Transaction[] = [];
 
-        for (const row of parsedRows) {
+        for (const [rowIndex, row] of parsedRows.entries()) {
           const primaryAccId = createdAccountMap[row.account] || cashAccount?.id || updatedAccounts[0]?.id || '';
           const primaryAcc = updatedAccounts.find(a => a.id === primaryAccId);
           const primaryAccName = primaryAcc?.name || row.account;
@@ -469,7 +486,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
           ];
 
           const newTx: import("../../types").Transaction = {
-            id: `tx-qbo-${crypto.randomUUID()}`,
+            id: `tx-qbo-${runKey.slice(0, 24)}-${rowIndex}`,
             uid: user?.uid || 'system',
             workspaceId: currentWorkspaceId,
             date: row.date,
@@ -482,7 +499,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
             lines,
             classId: row.class,
             locationId: row.location,
-            createdAt: new Date().toISOString(),
+            // #904: no client time in the body, so an unchanged retry is the same request (the server stamps createdAt)
             metadata: {
               importedFrom: 'quickbooks',
               originalRef: row.num
@@ -498,9 +515,6 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
           throw new Error('Authentication required to import ledger transactions.');
         }
         const BATCH_SIZE = 50;
-        const migrationRunKey = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : `qbo_${Date.now()}`;
 
         for (let i = 0; i < txList.length; i += BATCH_SIZE) {
           const chunk = txList.slice(i, i + BATCH_SIZE);
@@ -508,7 +522,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
             path: '/api/v1/transactions/bulk',
             method: 'POST',
             // per chunk: a retried chunk is recorded once, not twice
-            headers: { 'Idempotency-Key': `${migrationRunKey}_chunk_${i}` },
+            headers: { 'Idempotency-Key': `qbo_${runKey}_chunk_${i}` },
             body: {
               transactions: chunk,
               workspaceId: currentWorkspaceId
