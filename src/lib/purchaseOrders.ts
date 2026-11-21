@@ -3,7 +3,6 @@
  * number, and the bill lines an order turns into (BE-11).
  */
 import type { Bill, PurchaseOrder, PurchaseOrderItem } from '../types';
-import { normalizePoApproval } from './invoiceApproval';
 import { formatCurrency } from './utils';
 
 /** What the bill should say: the received quantities when anything was received, else what was ordered. */
@@ -92,53 +91,7 @@ export function vendorsByOrders<V extends { id: string; name: string }>(vendors:
   return [...vendors].sort((a, b) => (uses.get(b.id) || 0) - (uses.get(a.id) || 0) || a.name.localeCompare(b.name));
 }
 
-/**
- * Purchase requisitions & amount thresholds (K-23, A-120):
- * - When no PO threshold is enabled on the workspace, K-23 applies unchanged: a bookkeeper's order
- *   waits in 'pending_approval' until an owner or accountant approves it.
- * - When a PO approval threshold `poThresholdCents > 0` is enabled (A-120):
- *   - Orders in the workspace currency at or below `poThresholdCents` go through without waiting
- *     (so routine small purchases are not held up).
- *   - Orders strictly above `poThresholdCents` (or in a foreign currency where no rate is guessed)
- *     wait for another approver unless saved by the workspace owner.
- */
-export function orderNeedsApproval(role: string): boolean {
-  return role === 'bookkeeper';
-}
-
-export function poOrderNeedsApproval(
-  role: string,
-  options?: {
-    totalAmountCents?: number;
-    settings?: unknown;
-    currency?: string;
-    workspaceCurrency?: string;
-  },
-): boolean {
-  const poRule = normalizePoApproval(options?.settings);
-  if (!poRule.enabled) {
-    return orderNeedsApproval(role);
-  }
-  if (role === 'owner') return false;
-  const foreignCurrency = Boolean(
-    options?.currency && options?.workspaceCurrency && options.currency !== options.workspaceCurrency,
-  );
-  if (foreignCurrency) return true;
-  const amount = Math.round(Number(options?.totalAmountCents) || 0);
-  return amount > poRule.thresholdCents;
-}
-
-export function awaitingApproval(po: Pick<PurchaseOrder, 'status'>): boolean {
-  return po.status === 'pending_approval';
-}
-
-/** Why this person can't approve or decline the request, or null. */
-export function orderDecisionProblem(po: Pick<PurchaseOrder, 'status' | 'uid'>, role: string, uid: string): string | null {
-  if (!awaitingApproval(po)) return 'Not waiting for approval';
-  if (role !== 'owner' && role !== 'accountant') return 'Waiting for an owner or accountant';
-  if (po.uid === uid && role !== 'owner') return 'Someone else must approve your own request';
-  return null;
-}
+export { orderNeedsApproval, poOrderNeedsApproval, awaitingApproval, orderDecisionProblem } from './purchaseOrderApproval';
 
 /** The changes that approve or decline a requested order. */
 export function orderDecision(approve: boolean, by: string, now: string, reason?: string): Partial<PurchaseOrder> {
