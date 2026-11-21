@@ -1,6 +1,7 @@
 import { deferEffects } from './sandboxEffects';
 import { isDeepStrictEqual } from 'node:util';
 import { ApprovalRefused, serverApproval } from './invoiceApprovalGuard';
+import { serverBillApproval } from './billApprovalGuard';
 import { approvalEvent, notifyApproval, type ApprovalEvent } from './approvalNotifications';
 import type { InvoiceApprovalRecord } from '../../lib/invoiceApproval';
 import { FieldValue, isWorkspaceMemberData, type Firestore, type Transaction as FirestoreTransaction } from '../db/firestore';
@@ -406,6 +407,20 @@ export async function prepareLedgerBulkCommit(db: Firestore, user: RequestUser, 
           Object.assign(validatedData, serverApproval(existingEntity, validatedData, wsNow || {}, user.uid, new Date().toISOString()));
           const event = approvalEvent(existingEntity?.approval as InvoiceApprovalRecord | undefined, validatedData.approval as InvoiceApprovalRecord | undefined);
           if (event && entityRef) approvalNotice = { invoiceId: entityRef.id, invoice: { ...(existingEntity || {}), ...validatedData }, event };
+        } catch (err) {
+          if (err instanceof ApprovalRefused) throw new LedgerPostingError(403, err.message);
+          throw err;
+        }
+      }
+      // G-19 (#893): who may approve a bill over the limit is decided here, not by the request
+      if (entityMutation.collection === 'bills') {
+        const sentMeta = validatedData.metadata as Record<string, unknown> | undefined;
+        if (sentMeta && 'approval' in sentMeta) {
+          const { approval: _ignored, ...rest } = sentMeta;
+          validatedData.metadata = { ...rest, ...(existingEntity?.metadata && typeof existingEntity.metadata === 'object' && 'approval' in existingEntity.metadata ? { approval: (existingEntity.metadata as Record<string, unknown>).approval } : {}) };
+        }
+        try {
+          Object.assign(validatedData, serverBillApproval(existingEntity, validatedData, wsNow || {}, user.uid, new Date().toISOString()));
         } catch (err) {
           if (err instanceof ApprovalRefused) throw new LedgerPostingError(403, err.message);
           throw err;

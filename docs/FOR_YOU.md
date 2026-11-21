@@ -16,6 +16,8 @@ Last updated: 2026-11-19.
 4. For a bill in another currency, is the limit checked in the book's currency? *Default:* yes, at the bill's rate.
 If I hear nothing, I'll build it with these defaults.
 
+*Update 21 Nov:* built on the server with these defaults (PR for #893). The server now decides who may approve a bill over the limit; the record (who asked, who decided, "self-approved" when the only approver approved their own) is kept on the bill. The limit is read from `billThresholdCents` beside the invoice limit and starts at $5,000; the Settings field to change it is not on screen yet (next step, phone/Settings lane).
+
 **#887: vendors uploading bill PDFs into an inbox.** There is no upload page for vendors today, and it needs real choices before any of it is built:
 - how a vendor is invited and tied to your workspace;
 - where files are kept and for how long;

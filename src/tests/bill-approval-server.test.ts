@@ -1,0 +1,90 @@
+/**
+ * Bill approval on the server (G-19, #893): a bill over the workspace limit, in book currency, is
+ * decided only by an owner or an accountant other than whoever entered it, unless they are the only
+ * approver; a reject can be followed by a fresh submission.
+ */
+import test, { describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { ApprovalRefused } from '../server/services/invoiceApprovalGuard';
+import { BILL_SECOND_PERSON_REFUSAL, serverBillApproval } from '../server/services/billApprovalGuard';
+import { DEFAULT_BILL_LIMIT_CENTS, billBookCents, billLimitCents } from '../lib/billApproval';
+
+const team = { uid: 'owner', currency: 'USD', members: ['owner', 'acc', 'book'], roles: { acc: 'accountant', book: 'bookkeeper' } };
+const solo = { uid: 'owner', currency: 'USD', members: ['owner', 'book'], roles: { book: 'bookkeeper' } };
+const now = '2026-11-21T16:00:00.000Z';
+const heldBy = (who: string) => ({ amountCents: 600000, status: 'pending', uid: who, metadata: { approval: { state: 'awaiting', thresholdCents: 500000, requestedBy: who, requestedAt: '2026-11-20T10:00:00.000Z' } } });
+const approval = (out: { metadata?: Record<string, unknown> }) => out.metadata?.approval as Record<string, unknown> | undefined;
+
+describe('limit and currency', () => {
+  test('default limit is the old $5,000; a workspace can set its own', () => {
+    assert.equal(billLimitCents(undefined), DEFAULT_BILL_LIMIT_CENTS);
+    assert.equal(billLimitCents({ billThresholdCents: 100000 }), 100000);
+    assert.equal(billLimitCents({ billThresholdCents: 0 }), DEFAULT_BILL_LIMIT_CENTS);
+  });
+  test('a foreign-currency bill is measured in book currency at its own rate', () => {
+    assert.equal(billBookCents({ amountCents: 400000, currency: 'EUR', exchangeRate: 1.5 }, 'USD'), 600000);
+    const out = serverBillApproval(undefined, { amountCents: 400000, currency: 'EUR', exchangeRate: 1.5, status: 'approved' }, team, 'book', now);
+    assert.equal(out.status, 'pending');
+  });
+  test('below or at the limit nothing changes (USD control)', () => {
+    assert.deepEqual(serverBillApproval(undefined, { amountCents: 4250, status: 'approved' }, team, 'book', now), {});
+    assert.deepEqual(serverBillApproval({ amountCents: 500000, status: 'pending' }, { status: 'approved' }, team, 'book', now), {});
+  });
+});
+
+describe('deciding a held bill', () => {
+  test('another approver approves it, and the record says who and when', () => {
+    const out = serverBillApproval(heldBy('book'), { status: 'approved' }, team, 'acc', now);
+    assert.equal(out.status, undefined);
+    assert.equal(approval(out)?.state, 'approved');
+    assert.equal(approval(out)?.decidedBy, 'acc');
+    assert.equal(approval(out)?.requestedBy, 'book');
+    assert.equal(approval(out)?.selfApproved, undefined);
+  });
+  test('the owner can finish it (the G-19 loop)', () => {
+    assert.equal(approval(serverBillApproval(heldBy('book'), { status: 'approved' }, team, 'owner', now))?.state, 'approved');
+  });
+  test('a bookkeeper may not approve or reject it', () => {
+    for (const status of ['approved', 'rejected']) assert.throws(() => serverBillApproval(heldBy('acc'), { status }, team, 'book', now), ApprovalRefused);
+  });
+  test('an approver may not approve a bill they entered when someone else can', () => {
+    assert.throws(() => serverBillApproval(heldBy('acc'), { status: 'approved' }, team, 'acc', now), { message: BILL_SECOND_PERSON_REFUSAL });
+  });
+  test('the only approver may approve their own bill, and it is recorded', () => {
+    const out = serverBillApproval(heldBy('owner'), { status: 'approved' }, solo, 'owner', now);
+    assert.equal(approval(out)?.selfApproved, true);
+  });
+  test('raising the amount while approving is a new submission', () => {
+    const out = serverBillApproval(heldBy('book'), { status: 'approved', amountCents: 900000 }, team, 'acc', now);
+    assert.equal(out.status, 'pending');
+    assert.equal(approval(out)?.requestedBy, 'acc');
+  });
+  test('reject, then submit again, then another approver approves', () => {
+    const rejected = serverBillApproval(heldBy('book'), { status: 'rejected' }, team, 'owner', now);
+    assert.equal(approval(rejected)?.state, 'rejected');
+    const after = { ...heldBy('book'), status: 'rejected', metadata: rejected.metadata };
+    const again = serverBillApproval(after, { status: 'pending' }, team, 'book', now);
+    assert.equal(approval(again)?.state, 'awaiting');
+    assert.equal(approval(again)?.requestedBy, 'book');
+    const held = { ...after, status: 'pending', metadata: again.metadata };
+    assert.equal(approval(serverBillApproval(held, { status: 'approved' }, team, 'acc', now))?.state, 'approved');
+  });
+});
+
+describe('saving a bill straight to approved', () => {
+  test('by a bookkeeper or by one of several approvers: held for someone else', () => {
+    for (const who of ['book', 'acc']) {
+      const out = serverBillApproval(undefined, { amountCents: 600000, status: 'approved' }, team, who, now);
+      assert.equal(out.status, 'pending');
+      assert.equal(approval(out)?.requestedBy, who);
+    }
+  });
+  test('by the only approver: approved and marked self-approved', () => {
+    const out = serverBillApproval(undefined, { amountCents: 600000, status: 'approved' }, solo, 'owner', now);
+    assert.equal(out.status, undefined);
+    assert.equal(approval(out)?.selfApproved, true);
+  });
+  test('an already approved bill edited again is left alone', () => {
+    assert.deepEqual(serverBillApproval({ amountCents: 600000, status: 'approved' }, { notes: 'x' }, team, 'book', now), {});
+  });
+});
