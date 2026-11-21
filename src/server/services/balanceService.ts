@@ -147,8 +147,9 @@ export function resetPeriodBalancesReadyForTests(): void {
   warned = false;
 }
 
-const add = (map: Cents, key: string, cents: number) => { map[key] = (map[key] || 0) + cents; };
-const prune = (map: Cents): Cents => Object.fromEntries(Object.entries(map).filter(([, v]) => v !== 0));
+const createCents = (): Cents => Object.create(null) as Cents;
+const add = (map: Cents, key: string, cents: number) => { map[key] = (map[key] ?? 0) + cents; };
+const prune = (map: Cents): Cents => Object.fromEntries(Object.entries(map).filter(([, v]) => v !== 0)) as Cents;
 const norm = (kind: string) => kind.normalize('NFC').toLowerCase().trim();
 
 /** The label kinds an entry's lines can carry a value for (what getLineDimension reads), plus "category". */
@@ -176,14 +177,14 @@ export function labelKinds(entries: Transaction[]): Set<string> {
 export interface Sums { accounts: Cents; byLabel: LabelCents; count: number; debits: Cents; credits: Cents; lines: Cents; labelLines: Record<string, Cents> }
 
 export function sumEntries(entries: Transaction[], kinds: Iterable<string> = []): Sums {
-  const accounts: Cents = {};
-  const debits: Cents = {};
-  const credits: Cents = {};
-  const lines: Cents = {};
-  const byLabel: LabelCents = {};
-  const labelLines: Record<string, Cents> = {};
+  const accounts: Cents = createCents();
+  const debits: Cents = createCents();
+  const credits: Cents = createCents();
+  const lines: Cents = createCents();
+  const byLabel: LabelCents = Object.create(null) as LabelCents;
+  const labelLines: Record<string, Cents> = Object.create(null) as Record<string, Cents>;
   const kindList = [...kinds];
-  kindList.forEach(k => { byLabel[k] = {}; labelLines[k] = {}; });
+  kindList.forEach(k => { byLabel[k] = createCents(); labelLines[k] = createCents(); });
   let count = 0;
   for (const tx of entries) {
     if (!isPostable(tx)) continue;
@@ -197,7 +198,8 @@ export function sumEntries(entries: Transaction[], kinds: Iterable<string> = [])
       if (cents < 0) add(credits, line.accountId, -cents);
       for (const kind of kindList) {
         const value = getLineDimension(line, tx, kind) || UNASSIGNED;
-        add(byLabel[kind][value] ||= {}, line.accountId, cents);
+        if (!byLabel[kind][value]) byLabel[kind][value] = createCents();
+        add(byLabel[kind][value], line.accountId, cents);
         add(labelLines[kind], value, 1);
       }
     }
