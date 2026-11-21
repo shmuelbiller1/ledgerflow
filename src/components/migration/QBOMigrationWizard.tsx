@@ -4,7 +4,7 @@ import { useDropzone } from 'react-dropzone';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { migrationPreflight, migrationRunKey } from '../../lib/migrationImport';
+import { contentKey, migrationPreflight, migrationRowIds } from '../../lib/migrationImport';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { ChartAccount } from '../../types';
 import { getLocalDateISO } from '../../lib/utils';
@@ -374,8 +374,9 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
           setIsProcessing(false);
           return;
         }
-        // #904: the same file gives the same key, so a retry replays saved chunks instead of posting them again
-        const runKey = await migrationRunKey(currentWorkspaceId, parsedRows);
+        // #904 (Gitar on #974): each entry's id comes from its own row, so a retry (also of a corrected file)
+        // keeps the ids of rows already saved; those are left out below and the server refuses them anyway
+        const rowIds = await migrationRowIds(currentWorkspaceId, parsedRows);
         // 1. Create missing accounts in chartAccounts with type-based GAAP numbering
         const createdAccountMap: Record<string, string> = {};
         const updatedAccounts = [...accounts];
@@ -486,7 +487,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
           ];
 
           const newTx: import("../../types").Transaction = {
-            id: `tx-qbo-${runKey.slice(0, 24)}-${rowIndex}`,
+            id: rowIds[rowIndex],
             uid: user?.uid || 'system',
             workspaceId: currentWorkspaceId,
             date: row.date,
@@ -516,13 +517,18 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
         }
         const BATCH_SIZE = 50;
 
-        for (let i = 0; i < txList.length; i += BATCH_SIZE) {
-          const chunk = txList.slice(i, i + BATCH_SIZE);
+        // rows an earlier attempt already saved are not sent again
+        const saved = new Set(useLedgerStore.getState().transactions.map(t => t.id));
+        const toSend = txList.filter(t => !saved.has(t.id));
+        for (let i = 0; i < toSend.length; i += BATCH_SIZE) {
+          const chunk = toSend.slice(i, i + BATCH_SIZE);
+          // the key follows what the chunk sends: an unchanged retry replays, another mapping is a new request
+          const chunkKey = await contentKey([currentWorkspaceId, chunk]);
           await runCommand({
             path: '/api/v1/transactions/bulk',
             method: 'POST',
             // per chunk: a retried chunk is recorded once, not twice
-            headers: { 'Idempotency-Key': `qbo_${runKey}_chunk_${i}` },
+            headers: { 'Idempotency-Key': `qbo_${chunkKey}` },
             body: {
               transactions: chunk,
               workspaceId: currentWorkspaceId

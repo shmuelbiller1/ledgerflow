@@ -4,9 +4,12 @@
  *
  * - `migrationPreflight` refuses the file when any row has no real date or a date in a closed period
  *   (the server refuses those too, but by then earlier chunks would already be saved).
- * - `migrationRunKey` is a SHA-256 of the workspace and the rows: the same file in the same
- *   workspace gives the same key, so each chunk's Idempotency-Key and each entry's id stay the same
- *   across retries; a corrected file gives a new key and imports as new.
+ * - each entry's id comes from its own row (`migrationRowIds`: SHA-256 of the workspace and that row,
+ *   plus an occurrence count for identical rows), so editing one row after a partial import leaves
+ *   the ids of the rows already saved unchanged (Gitar on #974). The wizard leaves out rows already
+ *   saved, and the server refuses an id that exists, so a saved row is never posted twice.
+ * - each chunk's Idempotency-Key is a hash of what that chunk sends (`contentKey`), so an unchanged
+ *   retry replays it and a chunk sent with another account mapping is a new request, not a 409.
  */
 import { postingLock, lockMessage, type PeriodLockSettings } from './periodLock';
 
@@ -44,9 +47,27 @@ export function migrationPreflight(rows: readonly MigrationRow[], ws: PeriodLock
   return problems;
 }
 
-/** A stable key for this file in this workspace (hex SHA-256). */
-export async function migrationRunKey(workspaceId: string, rows: readonly MigrationRow[]): Promise<string> {
-  const canonical = JSON.stringify([workspaceId, rows.map(r => [r.date, r.num ?? '', r.payee ?? '', r.memo ?? '', r.account, r.split ?? '', r.debitCents, r.creditCents, r.netCents, r.class ?? '', r.location ?? ''])]);
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+const rowFields = (r: MigrationRow) => [r.date, r.num ?? '', r.payee ?? '', r.memo ?? '', r.account, r.split ?? '', r.debitCents, r.creditCents, r.netCents, r.class ?? '', r.location ?? ''];
+
+/** One entry id per row, from the workspace and that row alone; identical rows are told apart by their occurrence. */
+export async function migrationRowIds(workspaceId: string, rows: readonly MigrationRow[]): Promise<string[]> {
+  const seen = new Map<string, number>();
+  const ids: string[] = [];
+  for (const row of rows) {
+    const key = (await sha256Hex(JSON.stringify([workspaceId, rowFields(row)]))).slice(0, 24);
+    const occurrence = seen.get(key) ?? 0;
+    seen.set(key, occurrence + 1);
+    ids.push(`tx-qbo-${key}-${occurrence}`);
+  }
+  return ids;
+}
+
+/** A key for exactly this content (hex SHA-256): the same chunk body gives the same Idempotency-Key. */
+export function contentKey(value: unknown): Promise<string> {
+  return sha256Hex(JSON.stringify(value));
 }
