@@ -84,6 +84,20 @@ describe('saving a bill straight to approved', () => {
     assert.equal(out.status, undefined);
     assert.equal(approval(out)?.selfApproved, true);
   });
+  test('an over-limit bill saved straight as unpaid, paid or overdue is held too; a held one moved to unpaid needs an approver', () => {
+    for (const status of ['unpaid', 'partially_paid', 'paid', 'overdue']) {
+      assert.equal(serverBillApproval(undefined, { amountCents: 600000, status }, team, 'book', now).status, 'pending', status);
+    }
+    assert.throws(() => serverBillApproval(heldBy('acc'), { status: 'unpaid' }, team, 'book', now), ApprovalRefused);
+    assert.equal(approval(serverBillApproval(heldBy('book'), { status: 'unpaid' }, team, 'acc', now))?.state, 'approved');
+  });
+  test('raising an approved bill over the limit sends it back for approval', () => {
+    const out = serverBillApproval({ amountCents: 4250, status: 'approved' }, { amountCents: 90000000 }, team, 'book', now);
+    assert.equal(out.status, 'pending');
+    const decided = { amountCents: 600000, status: 'approved' };
+    assert.equal(serverBillApproval(decided, { amountCents: 700000 }, team, 'acc', now).status, 'pending');
+    assert.deepEqual(serverBillApproval(decided, { amountCents: 550000 }, team, 'book', now), {}, 'lowering is fine');
+  });
   test('an already approved bill edited again is left alone', () => {
     assert.deepEqual(serverBillApproval({ amountCents: 600000, status: 'approved' }, { notes: 'x' }, team, 'book', now), {});
   });

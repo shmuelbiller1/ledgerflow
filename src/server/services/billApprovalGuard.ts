@@ -11,7 +11,8 @@ export const BILL_SECOND_PERSON_REFUSAL = 'Someone else approves a bill you ente
 /**
  * Bill approval on the server (G-19, #893). Every bill the server saves passes here, so the limit is
  * not only a screen. It looks only at saves that would leave the bill 'approved' (or 'rejected' out of
- * a hold) when it was not before, and only when the bill is over the workspace's limit in book currency:
+ * a hold) or any other approved/owed status when it was not before, or that raise a live bill's
+ * amount past what was decided, and only when the bill is over the workspace's limit in book currency:
  * - a person who may not approve: deciding a held bill is refused; a new bill is held as 'pending';
  * - an approver deciding a held bill they did not enter: approved (or rejected), with who and when;
  * - an approver deciding a held bill they entered: refused, unless they are the only approver;
@@ -20,15 +21,21 @@ export const BILL_SECOND_PERSON_REFUSAL = 'Someone else approves a bill you ente
  * Raising a held bill's amount while approving it counts as a new submission. The record lives in
  * `metadata.approval`; who and when come from the server, never from the request.
  */
+/** Statuses that mean the bill was approved and is owed (or paid): reaching one is an approval. */
+const LIVE = new Set(['approved', 'unpaid', 'partially_paid', 'paid', 'overdue']);
+
 export function serverBillApproval(existing: DocumentData | undefined, incoming: DocumentData, workspace: DocumentData, uid: string, now: string): { status?: string; metadata?: Record<string, unknown> } {
   const merged = { ...(existing || {}), ...incoming };
   const status = String(merged.status || '');
   const before = String(existing?.status || '');
   const entering = status === 'pending' && before !== 'pending';
-  if (status === before || (!entering && status !== 'approved' && !(status === 'rejected' && before === 'pending'))) return {};
+  const approving = LIVE.has(status) && !LIVE.has(before);
   const book = String(workspace.currency || 'USD');
   const limit = billLimitCents(workspace.invoiceApproval);
   const amount = billBookCents(merged, book);
+  // a live bill whose amount grows over the limit and past what was decided is a new submission
+  const raised = LIVE.has(status) && LIVE.has(before) && amount > limit && amount > billBookCents(existing || {}, book);
+  if (!raised && (status === before || (!entering && !approving && !(status === 'rejected' && before === 'pending')))) return {};
   if (amount <= limit) return {};
 
   const meta = { ...((existing?.metadata as Record<string, unknown>) || {}), ...((incoming.metadata as Record<string, unknown>) || {}) };
@@ -52,14 +59,14 @@ export function serverBillApproval(existing: DocumentData | undefined, incoming:
   if (!approver) throw new ApprovalRefused(BILL_APPROVER_REFUSAL);
   const enteredBy = prior?.requestedBy || (existing?.createdBy as string | undefined) || (existing?.uid as string | undefined);
   const own = Boolean(enteredBy) && enteredBy === uid;
-  if (own && !soleApprover && status === 'approved') throw new ApprovalRefused(BILL_SECOND_PERSON_REFUSAL);
+  if (own && !soleApprover && status !== 'rejected') throw new ApprovalRefused(BILL_SECOND_PERSON_REFUSAL);
   const record: BillApprovalRecord = {
-    state: status === 'approved' ? 'approved' : 'rejected',
+    state: status === 'rejected' ? 'rejected' : 'approved',
     thresholdCents: limit,
     ...(prior?.requestedBy ? { requestedBy: prior.requestedBy, requestedAt: prior.requestedAt } : {}),
     decidedBy: uid,
     decidedAt: now,
-    ...(own && status === 'approved' ? { selfApproved: true } : {}),
+    ...(own && status !== 'rejected' ? { selfApproved: true } : {}),
   };
   return { metadata: { ...meta, approval: record } };
 }
