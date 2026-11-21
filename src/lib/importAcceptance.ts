@@ -102,10 +102,28 @@ export function compareImport(source: SourceTrialBalance, accounts: ChartAccount
   const sourceOf = new Map<string, number>();
   const differences: AcceptanceLine[] = [];
   const unmatched: SourceLine[] = [];
+  // #898: a match must be unambiguous. Distinct source accounts landing on one account (a repeated or
+  // conflicting code), or a code that points at one account while the name names another, would be summed
+  // and certified as "every account agrees"; they block acceptance and are named instead.
+  const ambiguity: string[] = [];
+  const namesAt = new Map<string, Array<{ name: string; row: number }>>();
   for (const line of source.lines) {
-    const account = (line.code && byCode.get(norm(line.code))) || byName.get(norm(line.account));
+    const byItsCode = line.code ? byCode.get(norm(line.code)) : undefined;
+    const byItsName = byName.get(norm(line.account));
+    if (byItsCode && byItsName && byItsCode.id !== byItsName.id) {
+      ambiguity.push(`Row ${line.row}: "${line.account}" has code ${line.code} (${byItsCode.name}) but its name is ${byItsName.code ? `${byItsName.code} ` : ''}${byItsName.name}`);
+    }
+    const account = byItsCode || byItsName;
     if (!account) { unmatched.push(line); continue; }
     sourceOf.set(account.id, (sourceOf.get(account.id) || 0) + line.debitCents);
+    const seen = namesAt.get(account.id) || [];
+    seen.push({ name: norm(line.account), row: line.row });
+    namesAt.set(account.id, seen);
+  }
+  for (const [accountId, seen] of namesAt) {
+    if (new Set(seen.map(s => s.name)).size < 2) continue;
+    const a = accounts.find(x => x.id === accountId)!;
+    ambiguity.push(`Rows ${seen.map(s => s.row).join(', ')} are different source accounts that all match ${a.code ? `${a.code} ` : ''}${a.name}; map each to its own account (or merge them in the source) before accepting`);
   }
   let agreeing = 0;
   const ordered = [...accounts].sort((a, b) => String(a.code || '￿').localeCompare(String(b.code || '￿'), 'en', { numeric: true }) || a.name.localeCompare(b.name, 'en'));
@@ -139,6 +157,6 @@ export function compareImport(source: SourceTrialBalance, accounts: ChartAccount
     roll('cash', 'Cash and bank', a => resolveAccountRole(a) === 'cash', 1),
     roll('tax', tax ? `Tax payable (${tax.name})` : 'Tax payable (no account set)', a => a.id === tax?.id, -1),
   ];
-  const problems = [...source.problems, ...(source.totalDebitCents !== source.totalCreditCents ? [`The source file does not balance: debits ${money(source.totalDebitCents)}, credits ${money(source.totalCreditCents)}`] : [])];
+  const problems = [...source.problems, ...ambiguity, ...(source.totalDebitCents !== source.totalCreditCents ? [`The source file does not balance: debits ${money(source.totalDebitCents)}, credits ${money(source.totalCreditCents)}`] : [])];
   return { checks, differences, agreeing, accepted: differences.length === 0 && checks.every(c => c.differenceCents === 0) && problems.length === 0, problems };
 }
