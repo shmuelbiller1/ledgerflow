@@ -92,6 +92,13 @@ describe('review findings (#978)', () => {
   });
 });
 
+test('a claim naming someone else as submitter than who wrote it is not trusted', () => {
+  const forged = { amountCents: 600000, status: 'draft', uid: 'acc', metadata: { expenseClaim: { state: 'submitted', submittedBy: 'owner' } } };
+  const out = serverBillApproval(forged, { status: 'approved' }, team, 'acc', now);
+  assert.equal(out.status, 'pending');
+  assert.equal(approval(out)?.requestedBy, 'acc');
+});
+
 describe('saving a bill straight to approved', () => {
   test('by a bookkeeper or by one of several approvers: held for someone else', () => {
     for (const who of ['book', 'acc']) {

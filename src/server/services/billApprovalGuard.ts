@@ -52,7 +52,9 @@ export function serverBillApproval(existing: DocumentData | undefined, incoming:
   // an expense claim waiting for a decision (kept as a draft, #908) is held too: its decision was
   // already checked by assertClaimDecision, and the person who submitted it is who asked
   const claim = (existing?.metadata as { expenseClaim?: { state?: string; submittedBy?: string; submittedAt?: string } } | undefined)?.expenseClaim;
-  const claimHeld = claim?.state === 'submitted';
+  // the claim's submitter is client-written: trust it only when it is who the server recorded writing
+  // the bill (a submitted claim cannot be edited until decided, so the last writer is the submitter)
+  const claimHeld = claim?.state === 'submitted' && Boolean(claim.submittedBy) && claim.submittedBy === existing?.uid;
   const held = (before === 'pending' || claimHeld) && amount <= billBookCents(existing || {}, book);
   const hold = (): { status: string; metadata: Record<string, unknown> } => ({
     status: 'pending',
