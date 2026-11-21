@@ -6,7 +6,7 @@
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { ApprovalRefused } from '../server/services/invoiceApprovalGuard';
-import { BILL_PAID_BEFORE_APPROVAL, BILL_SECOND_PERSON_REFUSAL, serverBillApproval } from '../server/services/billApprovalGuard';
+import { BILL_PAID_BEFORE_APPROVAL, BILL_SECOND_PERSON_REFUSAL, billAwaitsApproval, serverBillApproval } from '../server/services/billApprovalGuard';
 import { DEFAULT_BILL_LIMIT_CENTS, billBookCents, billLimitCents } from '../lib/billApproval';
 
 const team = { uid: 'owner', currency: 'USD', members: ['owner', 'acc', 'book'], roles: { acc: 'accountant', book: 'bookkeeper' } };
@@ -151,4 +151,11 @@ describe('saving a bill straight to approved', () => {
   test('an already approved bill edited again is left alone', () => {
     assert.deepEqual(serverBillApproval({ amountCents: 600000, status: 'approved' }, { notes: 'x' }, team, 'book', now), {});
   });
+});
+
+test('the payment path: a held or refused bill over the limit cannot be paid; approved or small ones can', () => {
+  assert.equal(billAwaitsApproval({ amountCents: 600000, status: 'pending' }, team), true);
+  assert.equal(billAwaitsApproval({ amountCents: 600000, status: 'rejected' }, team), true);
+  assert.equal(billAwaitsApproval({ amountCents: 600000, status: 'approved' }, team), false);
+  assert.equal(billAwaitsApproval({ amountCents: 4250, status: 'pending' }, team), false);
 });

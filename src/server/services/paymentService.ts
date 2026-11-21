@@ -1,4 +1,5 @@
 import { rateUsedFor, rateUsedId, type RateUsed } from '../../lib/rateUsed';
+import { BILL_PAID_BEFORE_APPROVAL, billAwaitsApproval } from './billApprovalGuard';
 import { minorUnitRate } from '../../lib/currencyMinorUnits';
 import { createHash } from 'node:crypto';
 import { ledgerCreate } from './ledgerDoor';
@@ -306,6 +307,10 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
 
       if (docData.status === 'void' || docData.status === 'draft') {
         throw new Error(`Cannot record a payment against a ${docData.status} document`);
+      }
+      // G-19 (#893): a bill over the approval limit is approved before it is paid, whichever path pays it
+      if (alloc.documentType === 'bill' && billAwaitsApproval(docData, wsData)) {
+        throw new Error(BILL_PAID_BEFORE_APPROVAL);
       }
       const docCurrency = String(docData.currency || baseCurrency);
       const docRate = typeof docData.exchangeRate === 'number' && docData.exchangeRate > 0 ? docData.exchangeRate : 1;

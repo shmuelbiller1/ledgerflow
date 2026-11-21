@@ -106,3 +106,10 @@ export function keepStoredBillApproval(data: Record<string, unknown>, existing: 
   const stored = (existing?.metadata as { approval?: unknown } | undefined)?.approval;
   data.metadata = stored === undefined ? rest : { ...rest, approval: stored };
 }
+
+/** A bill still waiting for (or refused) approval while over the workspace's limit: no payment may be put against it. */
+export function billAwaitsApproval(bill: DocumentData, workspace: DocumentData): boolean {
+  const status = String(bill.status || '');
+  if (status !== 'pending' && status !== 'rejected') return false;
+  return billBookCents(bill, String(workspace.currency || 'USD')) > billLimitCents(workspace.invoiceApproval);
+}

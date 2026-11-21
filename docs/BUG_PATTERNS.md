@@ -193,7 +193,7 @@
 - [ ] `server-direct-ledger-write` src/server/services/assetDisposalService.ts:207 — update
 - [ ] `server-direct-ledger-write` src/server/services/assetTransferService.ts:132 — update
 - [ ] `server-direct-ledger-write` src/server/services/fxRevaluationService.ts:383 — update
-- [ ] `server-direct-ledger-write` src/server/services/paymentService.ts:555 — set
+- [ ] `server-direct-ledger-write` src/server/services/paymentService.ts:560 — set
 - [ ] `server-direct-ledger-write` src/server/services/placeInServiceService.ts:118 — update
 - [ ] `server-partial-batch-commit` src/server/services/maintenanceService.ts:25 — batch.commit
 - [ ] `server-partial-batch-commit` src/server/services/notificationService.ts:164 — batch.commit
