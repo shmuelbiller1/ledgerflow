@@ -219,3 +219,39 @@ describe('Status watermark (Y-16)', () => {
     assert.doesNotMatch(sent, /DRAFT|PAID|VOID/);
   });
 });
+
+describe('#890 (J-6): seller VAT number and recipient address', () => {
+  const workspace = {
+    name: 'Seller Ltd',
+    branding: { address: '17 Seller Street' },
+    taxProfiles: { books: { name: 'Books', place: { country: 'IL' }, registrations: [
+      { kind: 'vat', number: '515123456', place: { country: 'IL' }, validFrom: '2026-01-01' },
+      { kind: 'vat', number: '999000111', place: { country: 'IL' }, validTo: '2025-12-31' },
+      { kind: 'employer', number: '777', place: { country: 'IL' } },
+    ] } },
+  } as never;
+
+  test('the VAT number in force on the document date goes under the seller address; the address under the buyer', () => {
+    const layout = layoutDocumentPdf('invoice', { number: 'INV-1', date: '2026-09-30', customerName: 'Buyer', amountCents: 100 }, workspace, { recipientAddress: '29 Buyer Avenue\nTel Aviv' });
+    assert.deepEqual(layout.company.addressLines, ['17 Seller Street', 'VAT No. 515123456']);
+    assert.deepEqual(layout.recipientAddressLines, ['29 Buyer Avenue', 'Tel Aviv']);
+    // a number that ended before the document is printed on documents of its time only
+    const old = layoutDocumentPdf('invoice', { number: 'INV-0', date: '2025-06-01', amountCents: 100 }, workspace);
+    assert.deepEqual(old.company.addressLines, ['17 Seller Street', 'VAT No. 999000111']);
+  });
+
+  test('a statement in Hebrew prints both, and the address saved on the document wins over the contact\'s', async () => {
+    const layout = layoutDocumentPdf('statement', { date: '2026-09-30', customerName: 'קונה', recipientAddress: '1 Issued Road' } as never, workspace, { language: 'he', recipientAddress: '29 Buyer Avenue' });
+    assert.deepEqual(layout.company.addressLines, ['17 Seller Street', 'עוסק מורשה 515123456']);
+    assert.deepEqual(layout.recipientAddressLines, ['1 Issued Road']);
+    const text = pdfText(await generateDocumentPdf('invoice', { number: 'INV-2', date: '2026-09-30', customerName: 'Buyer', amountCents: 100 }, workspace, { recipientAddress: '29 Buyer Avenue' }));
+    assert.match(text, /515123456/);
+    assert.match(text, /29 Buyer Avenue/);
+  });
+
+  test('no tax profile or address: nothing extra is printed', () => {
+    const layout = layoutDocumentPdf('invoice', { number: 'INV-3', amountCents: 100 }, { name: 'Co' });
+    assert.deepEqual(layout.company.addressLines, []);
+    assert.deepEqual(layout.recipientAddressLines, []);
+  });
+});

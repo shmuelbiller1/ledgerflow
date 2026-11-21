@@ -7,6 +7,11 @@ removed from this list.
 
 Last updated: 2026-11-19.
 
+## Invoice and statement PDFs now print your VAT number and the customer's address (#890 — defaults used)
+
+- **Your VAT number:** the PDF prints the VAT number from Settings → Tax that was in force on the document's date. It comes from the "valid from/to" dates, so an invoice from before a number changed still shows the old number.
+- **The customer's address:** the PDF prints the address saved on the document, if it has one. Documents don't save one today, so it prints the customer's current address. If a customer moves, re-downloading an old invoice shows the new address. The fix would be to save the address on the invoice when it is issued, then use it for that invoice from then on. Say if you want that; I'll build it.
+
 ## Entries made with Reconcile → "Create entry" had their two sides reversed (#891, PR #972 — default used: fix new ones, leave old ones until you decide)
 
 Until PR #972, creating an entry from a bank line on the Reconcile screen posted the expense (or income) on the wrong side, and the bank on the other wrong side. For a ₪250 withdrawal it credited the expense ₪250 and debited the bank ₪250, when it should have debited the expense and credited the bank. Each entry still balanced, so no check flagged it, but those expenses lower the P&L instead of raising it, and the bank balance moves the wrong way.
