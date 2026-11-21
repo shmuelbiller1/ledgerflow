@@ -517,7 +517,9 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
 
         // rows already saved are left out; each chunk's key follows what it sends
         const savedIds = new Set(useLedgerStore.getState().transactions.map(t => t.id));
-        const post = (entries: typeof txList, key: string) => runCommand({
+        // chunk by chunk on purpose (#904 resumable import): every chunk has a stable key, a retry resumes,
+        // and a refusal stops with an error, never a success message
+        const sendChunk = (entries: typeof txList, key: string) => runCommand({
           path: '/api/v1/transactions/bulk',
           method: 'POST',
           headers: { 'Idempotency-Key': `qbo_${key}` },
@@ -527,13 +529,13 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
         let skipped = txList.filter(t => savedIds.has(t.id)).length;
         for (const { key: chunkKey, chunk } of await mi.migrationChunks(currentWorkspaceId, txList, savedIds, BATCH_SIZE)) {
           try {
-            await post(chunk, chunkKey);
+            await sendChunk(chunk, chunkKey);
           } catch (err) {
             if (!alreadyThere(err)) throw err;
             // Codex on #974: this browser's list of entries is not the whole book, so a chunk can hold rows an
             // earlier attempt saved; they are sent one at a time and only the ones already there are skipped
             for (const entry of chunk) {
-              try { await post([entry], await mi.contentKey([currentWorkspaceId, [entry]])); }
+              try { await sendChunk([entry], await mi.contentKey([currentWorkspaceId, [entry]])); }
               catch (one) { if (!alreadyThere(one)) throw one; skipped += 1; }
             }
           }
