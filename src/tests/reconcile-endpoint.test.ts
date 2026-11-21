@@ -153,6 +153,14 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
     assert.equal(created.statusCode, 200, String(created.body?.error || ''));
     assert.equal(db.getDocData('bankLines', 'w').status, 'matched');
     await send({ status: 'pending', matchedTransactionId: null });
+    // Codex on #972: two updates to one line in a batch (target, then status) are refused
+    const dup = recordingResponse();
+    await handleReconcile({ user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+      { id: 'w', type: 'updateBankLine', data: { status: 'pending', matchedTransactionId: 'accrual' } },
+      { id: 'w', type: 'updateBankLine', data: { status: 'matched' } },
+    ] } } as unknown as express.Request, dup.res, db as unknown as Firestore);
+    assert.equal(dup.statusCode, 400);
+    assert.equal(db.getDocData('bankLines', 'w').status, 'pending');
     // Codex on #972: a line with no account (a file import) clears against a transfer between two banks
     db.data.set('bankLines/u', { id: 'u', workspaceId: 'ws-1', date: '2026-10-28', status: 'pending', amountCents: -50_000 });
     entry('transfer', [{ accountId: 'bank', amountCents: -50_000 }, { accountId: 'bank2', amountCents: 50_000 }]);

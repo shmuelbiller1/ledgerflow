@@ -136,6 +136,9 @@ export async function prepareReconcile(
   for (const op of operations) {
     if (!op.id || typeof op.id !== 'string') throw new ReconcileError(400, 'Invalid operation ID');
     if (op.type === 'updateBankLine') {
+      // #891 (Codex on #972): each update is checked against the stored line, so two updates to one line
+      // in a batch could set a target and then the status without the pair ever being checked
+      if (bankLineIds.has(op.id)) throw new ReconcileError(400, `Bank line ${op.id} is changed more than once in this request; send one change per line`);
       bankLineIds.add(op.id);
     } else if (op.type === 'updateTransaction' || op.type === 'createTransaction') {
       txIds.add(op.id);
