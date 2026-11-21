@@ -1,0 +1,75 @@
+import { HttpError } from '../auth/requestUser';
+import { orderDecisionProblem, poOrderNeedsApproval } from '../../lib/purchaseOrders';
+
+type Row = Record<string, unknown>;
+
+/** Statuses that mean the order was approved (and may be receiving, billed or closed). */
+const LIVE_PO = new Set(['approved', 'partially_received', 'received', 'billed', 'closed']);
+const APPROVAL_KEYS = ['approvalStatus', 'approvedBy', 'approvedAt'] as const;
+
+const refused = (message: string) => Object.assign(new HttpError(message, 403), { code: 'FORBIDDEN', field: 'status' });
+
+/** The order's total: the larger of its stated total and the sum of its lines, so an understated total cannot slip under the limit. */
+export function purchaseOrderTotalCents(order: Row): number {
+  const lines = Array.isArray(order.items) ? order.items as Array<{ totalCents?: unknown; quantity?: unknown; unitPriceCents?: unknown; unitCostCents?: unknown }> : [];
+  const fromLines = lines.reduce((sum, l) => {
+    const total = Number(l.totalCents);
+    if (Number.isFinite(total) && total > 0) return sum + Math.round(total);
+    const q = Number(l.quantity) || 0;
+    const p = Number(l.unitPriceCents ?? l.unitCostCents) || 0;
+    return sum + Math.max(0, Math.round(q * p));
+  }, 0);
+  return Math.max(Math.round(Number(order.totalAmountCents) || 0), fromLines);
+}
+
+/**
+ * Purchase-order approval on the server (#921, after #893 did bills). The screen already decides with
+ * `poOrderNeedsApproval` and `orderDecisionProblem` (K-23, A-120); every save through `record.save` now gets the
+ * same answer, so a bookkeeper or an API caller cannot commit an order the rule holds:
+ * - a new order (or a draft) that would go live is held as `pending_approval` when the rule says it needs approval;
+ *   one asked to start already receiving goods is refused instead;
+ * - an order waiting for approval goes live only through an owner or accountant, never the person who asked
+ *   (unless an owner), and is declined (cancelled) only by such an approver or by the person who asked;
+ * - an approved order whose total grows past what the rule lets this person commit goes back for approval;
+ * - who approved and when are the server's: the request's own `approvalStatus`/`approvedBy`/`approvedAt` are
+ *   replaced by the stored values (or by the decision this save makes).
+ */
+export function guardPurchaseOrderApproval(existing: Row | undefined, merged: Row, who: { role: string; uid: string; workspace: Row; now: string }): void {
+  for (const k of APPROVAL_KEYS) {
+    if (existing && existing[k] !== undefined) merged[k] = existing[k];
+    else delete merged[k];
+  }
+  const status = String(merged.status ?? '');
+  const before = String(existing?.status ?? '');
+  const needs = () => poOrderNeedsApproval(who.role, {
+    totalAmountCents: purchaseOrderTotalCents(merged),
+    settings: who.workspace.invoiceApproval,
+    currency: typeof merged.currency === 'string' ? merged.currency : undefined,
+    workspaceCurrency: String(who.workspace.currency || 'USD'),
+  });
+  const hold = () => { merged.status = 'pending_approval'; merged.approvalStatus = 'pending'; merged.approvedBy = null; merged.approvedAt = null; };
+  const stamp = (state: 'approved' | 'rejected') => { merged.approvalStatus = state; merged.approvedBy = who.uid; merged.approvedAt = who.now; };
+
+  if (before === 'pending_approval' && status !== 'pending_approval') {
+    if (LIVE_PO.has(status)) {
+      const problem = orderDecisionProblem({ status: 'pending_approval', uid: String(existing?.uid ?? '') }, who.role, who.uid);
+      if (problem) throw refused(problem);
+      if (purchaseOrderTotalCents(merged) > purchaseOrderTotalCents(existing || {})) throw refused('Approve the order as it was asked for; change its lines first and ask again');
+      stamp('approved');
+      return;
+    }
+    if (status === 'cancelled') {
+      const approver = who.role === 'owner' || who.role === 'accountant';
+      if (!approver && existing?.uid !== who.uid) throw refused('Waiting for an owner or accountant');
+      stamp('rejected');
+    }
+    return;
+  }
+  if (LIVE_PO.has(status) && !LIVE_PO.has(before)) {
+    if (!needs()) { stamp('approved'); return; }
+    if (status !== 'approved') throw refused('This order waits for approval before goods are received');
+    hold();
+    return;
+  }
+  if (status === 'approved' && before === 'approved' && purchaseOrderTotalCents(merged) > purchaseOrderTotalCents(existing || {}) && needs()) hold();
+}
