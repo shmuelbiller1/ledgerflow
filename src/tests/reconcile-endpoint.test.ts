@@ -122,6 +122,17 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
       assert.equal(db.getDocData('bankLines', 'w').status, 'pending', `${txId}: nothing written`);
       assert.equal(db.getDocData('transactions', txId).status, 'completed', `${txId}: entry untouched`);
     }
+    // Gitar on #972: the id first (still pending), then the status alone, is checked as the result
+    const send = async (data: Record<string, unknown>) => {
+      const answer = recordingResponse();
+      const req = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [{ id: 'w', type: 'updateBankLine', data }] } } as unknown as express.Request;
+      await handleReconcile(req, answer.res, db as unknown as Firestore);
+      return answer.statusCode;
+    };
+    assert.equal(await send({ status: 'pending', matchedTransactionId: 'accrual' }), 200, 'a pending line may hold a draft target');
+    assert.equal(await send({ status: 'matched' }), 400, 'matching it then checks the stored target');
+    assert.equal(db.getDocData('bankLines', 'w').status, 'pending');
+    assert.equal(await send({ status: 'pending', matchedTransactionId: null }), 200);
     assert.equal((await match('payment')).statusCode, 200, 'the payment from this account clears it');
     assert.equal(db.getDocData('bankLines', 'w').status, 'matched');
   });

@@ -213,7 +213,9 @@ export async function reconcileInTransaction(
   // #891: the entries bank lines are matched to, read now (no closed-period check: only the line changes)
   const matchedSnaps = new Map<string, DocumentData & { exists?: boolean; id?: string; data(): DocumentData }>();
   for (const op of operations) {
-    const mid = op.type === 'updateBankLine' ? op.data?.matchedTransactionId : undefined;
+    if (op.type !== 'updateBankLine') continue;
+    const sentMid = op.data && 'matchedTransactionId' in op.data ? op.data.matchedTransactionId : undefined;
+    const mid = sentMid !== undefined ? sentMid : bankLineSnaps.get(op.id)?.data?.()?.matchedTransactionId;
     if (typeof mid === 'string' && mid && !txSnaps.has(mid) && !matchedSnaps.has(mid)) {
       const snap = await t.get(db.collection('transactions').doc(mid));
       matchedSnaps.set(mid, snap as unknown as DocumentData & { exists?: boolean; id?: string; data(): DocumentData });
@@ -272,8 +274,12 @@ export async function reconcileInTransaction(
       }
       // #891: the entry must be a cash movement in this line's account and direction. Its lines are the
       // last ones this batch sends for it, or else the stored ones.
-      const matchedId = (validatedData as { matchedTransactionId?: unknown }).matchedTransactionId;
-      if (validatedData.status === 'matched' && typeof matchedId === 'string' && matchedId) {
+      // Gitar on #972: the line's resulting state decides, so the id and the status sent in separate
+      // requests (or a stored id) are checked too
+      const storedLine = lineSnap.data() || {};
+      const finalStatus = validatedData.status ?? storedLine.status;
+      const matchedId = 'matchedTransactionId' in validatedData ? (validatedData as { matchedTransactionId?: unknown }).matchedTransactionId : storedLine.matchedTransactionId;
+      if (finalStatus === 'matched' && typeof matchedId === 'string' && matchedId) {
         const sent = operations.filter(o => (o.type === 'createTransaction' || o.type === 'updateTransaction') && o.id === matchedId && Array.isArray(o.data?.lines));
         const stored = txSnaps.get(matchedId) || matchedSnaps.get(matchedId);
         const entryLines = sent.length ? sent[sent.length - 1].data?.lines : (stored?.exists ? stored.data()?.lines : undefined);
@@ -559,15 +565,19 @@ export async function updateBankLineInTransaction(
 ): Promise<{ id: string; data: Record<string, unknown> }> {
   // Strict allowlist validation (#78) - rejects any unknown or protected properties
   const validatedData = BankLineUpdateSchema.parse(input.data) as Record<string, unknown>;
-  // #830: a line is matched only to an entry of its own workspace
-  if (typeof validatedData.matchedTransactionId === 'string' && validatedData.matchedTransactionId) {
-    const matched = await t.get(db.collection('transactions').doc(validatedData.matchedTransactionId));
+  // #830: a line is matched only to an entry of its own workspace. #891 (and Gitar on #972): the line's
+  // resulting state decides, so an id and a status sent in separate requests are checked too
+  const lineSnap = await t.get(db.collection('bankLines').doc(input.id));
+  const stored = lineSnap.data() || {};
+  const finalStatus = validatedData.status ?? stored.status;
+  const sentId = 'matchedTransactionId' in validatedData;
+  const finalMatch = sentId ? validatedData.matchedTransactionId : stored.matchedTransactionId;
+  if (typeof finalMatch === 'string' && finalMatch && (sentId || finalStatus === 'matched')) {
+    const matched = await t.get(db.collection('transactions').doc(finalMatch));
     if (!matched.exists || matched.data()?.workspaceId !== input.workspaceId) {
-      throw new UpdateBankLineError(404, `Entry ${validatedData.matchedTransactionId} not found in workspace`);
+      throw new UpdateBankLineError(404, `Entry ${finalMatch} not found in workspace`);
     }
-    // #891: only a cash movement in the line's account and direction clears it
-    if (validatedData.status === undefined || validatedData.status === 'matched') {
-      const lineSnap = await t.get(db.collection('bankLines').doc(input.id));
+    if (finalStatus === 'matched') {
       const entryLines = matched.data()?.lines;
       const ids = [...new Set((Array.isArray(entryLines) ? entryLines as Array<{ accountId?: unknown }> : []).map(l => l?.accountId).filter((id): id is string => typeof id === 'string' && !!id))];
       const accounts = new Map<string, DocumentData>();
@@ -576,7 +586,7 @@ export async function updateBankLineInTransaction(
           if (snap.exists) accounts.set(snap.id, snap.data() || {});
         }
       }
-      const refusal = cashMovementRefusal(lineSnap.data() || {}, entryLines, accounts);
+      const refusal = cashMovementRefusal(stored, entryLines, accounts);
       if (refusal) throw new UpdateBankLineError(400, refusal);
     }
   }
