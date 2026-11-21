@@ -238,8 +238,10 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       const keyOf = { current: 'current', d1_30: '1-30', d31_60: '31-60', d61_90: '61-90', d90plus: '90+' } as const;
       const wsTimezone = typeof wsData?.timezone === 'string' ? wsData.timezone : undefined;
       const todayIso = getDateInTimezoneISO(new Date(), wsTimezone);
+      // #816: convert into the book's currency (¥ has no decimals, KWD has three), not the helper's USD default
+      const bookCurrency = String((wsData as { currency?: string } | undefined)?.currency || 'USD');
       items.forEach((item) => {
-        const outstanding = outstandingBaseCents(item, side);
+        const outstanding = outstandingBaseCents(item, side, bookCurrency);
         if (outstanding <= 0) return;
         aging[keyOf[agingBucket(daysOverdue(item, todayIso))]] += outstanding;
         aging.total += outstanding;
