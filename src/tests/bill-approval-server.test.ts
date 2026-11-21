@@ -71,6 +71,27 @@ describe('deciding a held bill', () => {
   });
 });
 
+describe('review findings (#978)', () => {
+  test('raising a held bill and keeping it held makes the raiser the requester, so they cannot then approve it', () => {
+    const raised = serverBillApproval(heldBy('book'), { amountCents: 900000 }, team, 'acc', now);
+    assert.equal(approval(raised)?.requestedBy, 'acc');
+    const after = { ...heldBy('book'), amountCents: 900000, metadata: raised.metadata };
+    assert.throws(() => serverBillApproval(after, { status: 'approved' }, team, 'acc', now), { message: BILL_SECOND_PERSON_REFUSAL });
+  });
+  test('an active delegate counts as a second approver', () => {
+    const delegated = { ...solo, approvalDelegates: [{ from: 'owner', to: 'book', until: '2026-12-31' }] };
+    assert.equal(serverBillApproval(undefined, { amountCents: 600000, status: 'approved' }, delegated, 'book', now).status, 'pending');
+    assert.throws(() => serverBillApproval(heldBy('book'), { status: 'approved' }, delegated, 'book', now), { message: BILL_SECOND_PERSON_REFUSAL });
+  });
+  test('an expense claim the accountant approves stays approved, recorded against the submitter', () => {
+    const claim = { amountCents: 600000, status: 'draft', uid: 'book', metadata: { expenseClaim: { state: 'submitted', submittedBy: 'book', submittedAt: '2026-11-20' } } };
+    const out = serverBillApproval(claim, { status: 'approved' }, team, 'acc', now);
+    assert.equal(out.status, undefined);
+    assert.equal(approval(out)?.state, 'approved');
+    assert.equal(approval(out)?.requestedBy, 'book');
+  });
+});
+
 describe('saving a bill straight to approved', () => {
   test('by a bookkeeper or by one of several approvers: held for someone else', () => {
     for (const who of ['book', 'acc']) {
