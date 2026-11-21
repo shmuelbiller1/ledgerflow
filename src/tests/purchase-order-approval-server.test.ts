@@ -77,6 +77,8 @@ test('a request is declined by an approver or withdrawn by the person who asked;
 
 test('an understated total does not slip under the limit', () => {
   assert.equal(purchaseOrderTotalCents({ totalAmountCents: 1, items: lines(90_000) }), 90_000);
+  // a small stated line total does not hide quantity × unit price (what the bill is built from)
+  assert.equal(purchaseOrderTotalCents({ totalAmountCents: 10_000, items: [{ quantity: 1, unitPriceCents: 90_000, totalCents: 10_000 }] }), 90_000);
 });
 
 test('a raise that also moves the order into receiving is refused (#980 review)', async () => {

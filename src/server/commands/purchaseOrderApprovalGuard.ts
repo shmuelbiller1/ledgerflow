@@ -13,11 +13,11 @@ const refused = (message: string) => Object.assign(new HttpError(message, 403), 
 export function purchaseOrderTotalCents(order: Row): number {
   const lines = Array.isArray(order.items) ? order.items as Array<{ totalCents?: unknown; quantity?: unknown; unitPriceCents?: unknown; unitCostCents?: unknown }> : [];
   const fromLines = lines.reduce((sum, l) => {
-    const total = Number(l.totalCents);
-    if (Number.isFinite(total) && total > 0) return sum + Math.round(total);
+    // the larger of the stated line total and quantity × unit price: the bill is built from the latter
+    const stated = Number(l.totalCents);
     const q = Number(l.quantity) || 0;
     const p = Number(l.unitPriceCents ?? l.unitCostCents) || 0;
-    return sum + Math.max(0, Math.round(q * p));
+    return sum + Math.max(0, Number.isFinite(stated) ? Math.round(stated) : 0, Math.round(q * p));
   }, 0);
   return Math.max(Math.round(Number(order.totalAmountCents) || 0), fromLines);
 }
