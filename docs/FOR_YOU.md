@@ -7,6 +7,23 @@ removed from this list.
 
 Last updated: 2026-11-19.
 
+## Two decisions needed before work can start (#893 and #887). Defaults are noted; nothing is built yet.
+
+**#893: bills over the approval limit cannot be approved.** A pending bill over the limit (the code has a fixed amount) sends "pending" again when anyone, the owner included, presses Approve. It stays stuck, and you cannot pay it. Before I build the approve step, decide:
+1. Who may approve? *Default I'll use:* owners and accountants.
+2. Must the approver be someone other than the person who entered the bill? *Default:* yes, unless the workspace has only one owner. Then the owner may approve their own bill, and that is recorded in the log.
+3. Should the limit be set per workspace instead of fixed in the code? *Default:* yes, in Settings, starting at today's fixed amount.
+4. For a bill in another currency, is the limit checked in the book's currency? *Default:* yes, at the bill's rate.
+If I hear nothing, I'll build it with these defaults.
+
+**#887: vendors uploading bill PDFs into an inbox.** There is no upload page for vendors today, and it needs real choices before any of it is built:
+- how a vendor is invited and tied to your workspace;
+- where files are kept and for how long;
+- virus/file checks and size limits;
+- who may turn an uploaded file into a bill.
+
+Nothing a vendor sends would ever become a posted bill on its own; someone in your workspace reviews it first. *Default:* not started until you say you want it. Without your answers I'd have to guess at storage and access rules, and I won't guess at those.
+
 ## Invoice and statement PDFs now print your VAT number and the customer's address (#890 — defaults used)
 
 - **Your VAT number:** the PDF prints the VAT number from Settings → Tax that was in force on the document's date. It comes from the "valid from/to" dates, so an invoice from before a number changed still shows the old number.
