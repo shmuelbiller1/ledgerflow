@@ -1,5 +1,5 @@
 import { HttpError } from '../auth/requestUser';
-import { orderDecisionProblem, poOrderNeedsApproval } from '../../lib/purchaseOrders';
+import { orderDecisionProblem, poOrderNeedsApproval } from '../../lib/purchaseOrderApproval';
 
 type Row = Record<string, unknown>;
 
