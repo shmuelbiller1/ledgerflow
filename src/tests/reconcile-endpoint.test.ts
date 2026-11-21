@@ -88,6 +88,44 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
     assert.equal(db.getDocData('bankLines', 'line-usd').status, 'matched');
   });
 
+  test('#891: a bank line is cleared only by a cash movement in its own account and direction', async () => {
+    const db = new MockTransactionalDb();
+    db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', roles: { 'user-owner': 'owner' } });
+    db.data.set('chartAccounts/bank', { id: 'bank', workspaceId: 'ws-1', name: 'Checking', type: 'asset', subtype: 'bank' });
+    db.data.set('chartAccounts/bank2', { id: 'bank2', workspaceId: 'ws-1', name: 'Savings', type: 'asset', subtype: 'bank' });
+    db.data.set('chartAccounts/ap', { id: 'ap', workspaceId: 'ws-1', name: 'Accounts Payable', type: 'liability' });
+    db.data.set('chartAccounts/exp', { id: 'exp', workspaceId: 'ws-1', name: 'Hosting', type: 'expense' });
+    db.data.set('bankLines/w', { id: 'w', workspaceId: 'ws-1', accountId: 'bank', date: '2026-10-28', status: 'pending', amountCents: -141_600 });
+    const entry = (id: string, lines: Array<{ accountId: string; amountCents: number }>) =>
+      db.data.set(`transactions/${id}`, { id, workspaceId: 'ws-1', uid: 'user-owner', date: '2026-10-17', description: id, currency: 'USD', type: 'actual', status: 'completed', lines });
+    // the bill accrual: expense and A/P only, no bank leg
+    entry('accrual', [{ accountId: 'exp', amountCents: 141_600 }, { accountId: 'ap', amountCents: -141_600 }]);
+    // a payment from another bank account
+    entry('other-bank', [{ accountId: 'ap', amountCents: 141_600 }, { accountId: 'bank2', amountCents: -141_600 }]);
+    // a deposit into this account (wrong direction for a withdrawal)
+    entry('deposit', [{ accountId: 'bank', amountCents: 141_600 }, { accountId: 'ap', amountCents: -141_600 }]);
+    // the real payment from this account
+    entry('payment', [{ accountId: 'ap', amountCents: 141_600 }, { accountId: 'bank', amountCents: -141_600 }]);
+    const match = async (txId: string) => {
+      const answer = recordingResponse();
+      const req = { user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+        { id: 'w', type: 'updateBankLine', data: { status: 'matched', matchedTransactionId: txId } },
+        { id: txId, type: 'updateTransaction', data: { status: 'reconciled' } },
+      ] } } as unknown as express.Request;
+      await handleReconcile(req, answer.res, db as unknown as Firestore);
+      return { statusCode: answer.statusCode, error: String(answer.body?.error || '') };
+    };
+    for (const [txId, why] of [['accrual', /moved no money/], ['other-bank', /moved no money/], ['deposit', /cannot clear a withdrawal/]] as const) {
+      const r = await match(txId);
+      assert.equal(r.statusCode, 400, txId);
+      assert.match(r.error, why);
+      assert.equal(db.getDocData('bankLines', 'w').status, 'pending', `${txId}: nothing written`);
+      assert.equal(db.getDocData('transactions', txId).status, 'completed', `${txId}: entry untouched`);
+    }
+    assert.equal((await match('payment')).statusCode, 200, 'the payment from this account clears it');
+    assert.equal(db.getDocData('bankLines', 'w').status, 'matched');
+  });
+
   test('AF-001: undoing a match applies what the bank changed since (CodeRabbit on #439)', async () => {
     const db = new MockTransactionalDb();
     db.data.set('workspaces/ws-1', { id: 'ws-1', currency: 'USD', roles: { 'user-owner': 'owner' } });
