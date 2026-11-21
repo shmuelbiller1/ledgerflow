@@ -133,6 +133,26 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
     assert.equal(await send({ status: 'matched' }), 400, 'matching it then checks the stored target');
     assert.equal(db.getDocData('bankLines', 'w').status, 'pending');
     assert.equal(await send({ status: 'pending', matchedTransactionId: null }), 200);
+    // Codex on #972: a rewrite with a bank leg followed by a status-only update would save the old lines
+    const twice = recordingResponse();
+    await handleReconcile({ user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+      { id: 'accrual', type: 'updateTransaction', data: { lines: [{ accountId: 'exp', amountCents: 141_600 }, { accountId: 'bank', amountCents: -141_600 }] } },
+      { id: 'accrual', type: 'updateTransaction', data: { status: 'reconciled' } },
+      { id: 'w', type: 'updateBankLine', data: { status: 'matched', matchedTransactionId: 'accrual' } },
+    ] } } as unknown as express.Request, twice.res, db as unknown as Firestore);
+    assert.equal(twice.statusCode, 400);
+    assert.match(String(twice.body?.error), /more than once/);
+    assert.equal(db.getDocData('bankLines', 'w').status, 'pending');
+    // Codex on #972: the screen's create-from-bank-line flow (expense debited, bank credited) still saves
+    const created = recordingResponse();
+    await handleReconcile({ user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+      { id: 'new-1', type: 'createTransaction', data: { id: 'new-1', uid: 'user-owner', workspaceId: 'ws-1', date: '2026-10-28', description: 'AWS', totalAmountCents: 141_600, currency: 'USD', status: 'reconciled', type: 'actual',
+        lines: [{ accountId: 'exp', amountCents: 141_600 }, { accountId: 'bank', amountCents: -141_600 }] } },
+      { id: 'w', type: 'updateBankLine', data: { status: 'matched', matchedTransactionId: 'new-1' } },
+    ] } } as unknown as express.Request, created.res, db as unknown as Firestore);
+    assert.equal(created.statusCode, 200, String(created.body?.error || ''));
+    assert.equal(db.getDocData('bankLines', 'w').status, 'matched');
+    await send({ status: 'pending', matchedTransactionId: null });
     assert.equal((await match('payment')).statusCode, 200, 'the payment from this account clears it');
     assert.equal(db.getDocData('bankLines', 'w').status, 'matched');
   });

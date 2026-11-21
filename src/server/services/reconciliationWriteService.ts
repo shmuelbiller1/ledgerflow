@@ -280,9 +280,15 @@ export async function reconcileInTransaction(
       const finalStatus = validatedData.status ?? storedLine.status;
       const matchedId = 'matchedTransactionId' in validatedData ? (validatedData as { matchedTransactionId?: unknown }).matchedTransactionId : storedLine.matchedTransactionId;
       if (finalStatus === 'matched' && typeof matchedId === 'string' && matchedId) {
-        const sent = operations.filter(o => (o.type === 'createTransaction' || o.type === 'updateTransaction') && o.id === matchedId && Array.isArray(o.data?.lines));
+        // Codex on #972: each update merges with the stored entry on its own, so with two changes to the
+        // same entry the lines checked might not be the ones saved. One change per matched entry.
+        const entryOps = operations.filter(o => (o.type === 'createTransaction' || o.type === 'updateTransaction') && o.id === matchedId);
+        if (entryOps.length > 1) {
+          throw new ReconcileError(400, `Entry ${matchedId} is changed more than once in this request; send one change for an entry a bank line is matched to`);
+        }
+        const sent = entryOps.filter(o => Array.isArray(o.data?.lines));
         const stored = txSnaps.get(matchedId) || matchedSnaps.get(matchedId);
-        const entryLines = sent.length ? sent[sent.length - 1].data?.lines : (stored?.exists ? stored.data()?.lines : undefined);
+        const entryLines = sent.length ? sent[0].data?.lines : (stored?.exists ? stored.data()?.lines : undefined);
         if (!sent.length && (!stored || !stored.exists || stored.data()?.workspaceId !== workspaceId)) {
           throw new ReconcileError(404, `Entry ${matchedId} not found in workspace`);
         }
