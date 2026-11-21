@@ -61,16 +61,13 @@ export function cashLegsOf(
  *
  * @param legs the entry's cash legs, precomputed with `cashLegsOf`
  * @param bankLine the statement line (its `accountId` may be missing in the all-accounts view)
- * @param cashAccountIds ids of the workspace's cash accounts
  */
 export function cashLegFromLegs(
   legs: CashLegs,
   bankLine: CashCandidateLine,
-  cashAccountIds: ReadonlySet<string>,
 ): number | null {
   if (legs.byAccount.size === 0) return null;
-  const ownAccountId = bankLine.accountId && cashAccountIds.has(bankLine.accountId) ? bankLine.accountId : null;
-  const leg = ownAccountId !== null ? (legs.byAccount.get(ownAccountId) || 0) : legs.net;
+  const leg = bankLine.accountId ? (legs.byAccount.get(bankLine.accountId) ?? 0) : legs.net;
   if (leg === 0) return null;
   if (Math.sign(leg) !== Math.sign(bankLine.amountCents)) return null;
   return leg;
@@ -86,5 +83,5 @@ export function cashLegForBankLine(
   bankLine: CashCandidateLine,
   amountOf: (line: { accountId: string; amountCents: number }) => number = line => line.amountCents,
 ): number | null {
-  return cashLegFromLegs(cashLegsOf(entry, cashAccountIds, amountOf), bankLine, cashAccountIds);
+  return cashLegFromLegs(cashLegsOf(entry, cashAccountIds, amountOf), bankLine);
 }
