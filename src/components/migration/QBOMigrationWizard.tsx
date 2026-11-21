@@ -4,7 +4,6 @@ import { useDropzone } from 'react-dropzone';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { contentKey, migrationPreflight, migrationRowIds } from '../../lib/migrationImport';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { ChartAccount } from '../../types';
 import { getLocalDateISO } from '../../lib/utils';
@@ -366,17 +365,19 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
     if (step === 3) {
       setIsProcessing(true);
       try {
+        // #904 (src/lib/migrationImport.ts), loaded when an import runs: the app's first chunk has a size budget
+        const mi = await import('../../lib/migrationImport');
         // #904: the whole file is checked before anything (accounts included) is written
         const workspace = useAuthStore.getState().workspaces.find(w => w.id === currentWorkspaceId);
-        const problems = migrationPreflight(parsedRows, workspace as never, user?.uid || '');
+        const problems = mi.migrationPreflight(parsedRows, workspace as never, user?.uid || '');
         if (problems.length > 0) {
-          toast.error(`Nothing was imported. ${problems.length} row(s) cannot be posted: ${problems.slice(0, 3).join(' ')}${problems.length > 3 ? ' …' : ''}`);
+          toast.error(mi.preflightMessage(problems));
           setIsProcessing(false);
           return;
         }
         // #904 (Gitar on #974): each entry's id comes from its own row, so a retry (also of a corrected file)
         // keeps the ids of rows already saved; those are left out below and the server refuses them anyway
-        const rowIds = await migrationRowIds(currentWorkspaceId, parsedRows);
+        const rowIds = await mi.migrationRowIds(currentWorkspaceId, parsedRows);
         // 1. Create missing accounts in chartAccounts with type-based GAAP numbering
         const createdAccountMap: Record<string, string> = {};
         const updatedAccounts = [...accounts];
@@ -405,12 +406,9 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
         };
 
         for (const mapping of accountMappings) {
-          // #904: a retry reuses the account an earlier attempt created (same name and type), instead of a second one
-          const already = mapping.targetAccountId === '__create_new__'
-            ? updatedAccounts.find(a => a.type === mapping.detectedType && String(a.name || '').trim().toLowerCase() === mapping.qbAccount.trim().toLowerCase())
-            : undefined;
-          if (already) {
-            createdAccountMap[mapping.qbAccount] = already.id;
+          const reuse = mi.reusableAccountId(updatedAccounts, mapping);
+          if (reuse) {
+            createdAccountMap[mapping.qbAccount] = reuse;
           } else if (mapping.targetAccountId === '__create_new__') {
             const newAccCode = getNextCode(mapping.detectedType);
             const newAcc: Omit<ChartAccount, 'id'> = {
@@ -517,13 +515,8 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
         }
         const BATCH_SIZE = 50;
 
-        // rows an earlier attempt already saved are not sent again
-        const saved = new Set(useLedgerStore.getState().transactions.map(t => t.id));
-        const toSend = txList.filter(t => !saved.has(t.id));
-        for (let i = 0; i < toSend.length; i += BATCH_SIZE) {
-          const chunk = toSend.slice(i, i + BATCH_SIZE);
-          // the key follows what the chunk sends: an unchanged retry replays, another mapping is a new request
-          const chunkKey = await contentKey([currentWorkspaceId, chunk]);
+        // rows already saved are left out; each chunk's key follows what it sends
+        for (const { key: chunkKey, chunk } of await mi.migrationChunks(currentWorkspaceId, txList, new Set(useLedgerStore.getState().transactions.map(t => t.id)), BATCH_SIZE)) {
           await runCommand({
             path: '/api/v1/transactions/bulk',
             method: 'POST',

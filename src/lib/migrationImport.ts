@@ -11,7 +11,7 @@
  * - each chunk's Idempotency-Key is a hash of what that chunk sends (`contentKey`), so an unchanged
  *   retry replays it and a chunk sent with another account mapping is a new request, not a 409.
  */
-import { postingLock, lockMessage, type PeriodLockSettings } from './periodLock';
+import { postingLock, type PeriodLockSettings } from './periodLock';
 
 export interface MigrationRow {
   date: string;
@@ -42,7 +42,7 @@ export function migrationPreflight(rows: readonly MigrationRow[], ws: PeriodLock
     const date = String(row.date || '');
     if (!realDate(date)) { problems.push(`Row ${i + 1}: "${date}" is not a date (YYYY-MM-DD).`); return; }
     const lock = postingLock(date, ws, uid);
-    if (lock) problems.push(`Row ${i + 1}: ${lockMessage(date, lock)}`);
+    if (lock) problems.push(`Row ${i + 1}: ${date} is in a ${lock.kind === 'hard' ? 'closed' : 'soft-closed'} period (through ${lock.through}).`);
   });
   return problems;
 }
@@ -70,4 +70,27 @@ export async function migrationRowIds(workspaceId: string, rows: readonly Migrat
 /** A key for exactly this content (hex SHA-256): the same chunk body gives the same Idempotency-Key. */
 export function contentKey(value: unknown): Promise<string> {
   return sha256Hex(JSON.stringify(value));
+}
+
+/** The wizard's refusal when the preflight found problems (the first three rows named). */
+export function preflightMessage(problems: readonly string[]): string {
+  return `Nothing was imported. ${problems.length} row(s) cannot be posted: ${problems.slice(0, 3).join(' ')}${problems.length > 3 ? ' …' : ''}`;
+}
+
+/** An account an earlier attempt of this import created (same name and type), reused instead of a second one. */
+export function reusableAccountId(accounts: ReadonlyArray<{ id: string; name?: string; type?: string }>, mapping: { qbAccount: string; detectedType: string; targetAccountId: string }): string | undefined {
+  if (mapping.targetAccountId !== '__create_new__') return undefined;
+  const name = mapping.qbAccount.trim().toLowerCase();
+  return accounts.find(a => a.type === mapping.detectedType && String(a.name || '').trim().toLowerCase() === name)?.id;
+}
+
+/** The entries not yet in the books, in chunks of `size`, each with its content key. */
+export async function migrationChunks<T extends { id: string }>(workspaceId: string, entries: readonly T[], savedIds: ReadonlySet<string>, size: number): Promise<Array<{ key: string; chunk: T[] }>> {
+  const toSend = entries.filter(t => !savedIds.has(t.id));
+  const out: Array<{ key: string; chunk: T[] }> = [];
+  for (let i = 0; i < toSend.length; i += size) {
+    const chunk = toSend.slice(i, i + size);
+    out.push({ key: await contentKey([workspaceId, chunk]), chunk });
+  }
+  return out;
 }
