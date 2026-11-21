@@ -516,20 +516,32 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
         const BATCH_SIZE = 50;
 
         // rows already saved are left out; each chunk's key follows what it sends
-        for (const { key: chunkKey, chunk } of await mi.migrationChunks(currentWorkspaceId, txList, new Set(useLedgerStore.getState().transactions.map(t => t.id)), BATCH_SIZE)) {
-          await runCommand({
-            path: '/api/v1/transactions/bulk',
-            method: 'POST',
-            // per chunk: a retried chunk is recorded once, not twice
-            headers: { 'Idempotency-Key': `qbo_${chunkKey}` },
-            body: {
-              transactions: chunk,
-              workspaceId: currentWorkspaceId
+        const savedIds = new Set(useLedgerStore.getState().transactions.map(t => t.id));
+        const post = (entries: typeof txList, key: string) => runCommand({
+          path: '/api/v1/transactions/bulk',
+          method: 'POST',
+          headers: { 'Idempotency-Key': `qbo_${key}` },
+          body: { transactions: entries, workspaceId: currentWorkspaceId },
+        });
+        const alreadyThere = (e: unknown) => /already exists/i.test((e as Error)?.message || '');
+        let skipped = txList.filter(t => savedIds.has(t.id)).length;
+        for (const { key: chunkKey, chunk } of await mi.migrationChunks(currentWorkspaceId, txList, savedIds, BATCH_SIZE)) {
+          try {
+            await post(chunk, chunkKey);
+          } catch (err) {
+            if (!alreadyThere(err)) throw err;
+            // Codex on #974: this browser's list of entries is not the whole book, so a chunk can hold rows an
+            // earlier attempt saved; they are sent one at a time and only the ones already there are skipped
+            for (const entry of chunk) {
+              try { await post([entry], await mi.contentKey([currentWorkspaceId, [entry]])); }
+              catch (one) { if (!alreadyThere(one)) throw one; skipped += 1; }
             }
-          });
+          }
         }
 
-        toast.success(`Successfully migrated ${parsedRows.length} transactions into ${BRAND_NAME}!`);
+        // rows matching one already in the books are skipped, and said so (Codex on #974: never silently)
+        if (skipped > 0) toast.message?.(`${skipped} row(s) were already imported and were skipped. If they are separate transactions, change their memo or reference and import them again.`);
+        toast.success(`Successfully migrated ${parsedRows.length - skipped} transactions into ${BRAND_NAME}!`);
         setIsProcessing(false);
         onClose();
       } catch (err) {
