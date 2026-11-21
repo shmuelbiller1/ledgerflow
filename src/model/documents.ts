@@ -456,8 +456,6 @@ export interface PurchaseOrder {
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   approvedBy?: string;
   approvedAt?: string;
-  /** who put the order in review (a raise counts); written by the server (#980) */
-  requestedBy?: string | null;
   currency?: string;
   /** A-62: a blanket order — a total and a validity period that several receipts/bills draw down */
   blanket?: {
