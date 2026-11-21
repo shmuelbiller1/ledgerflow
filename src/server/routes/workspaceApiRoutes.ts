@@ -185,6 +185,13 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
     try {
       const workspaceId = String(req.params.workspaceId);
       await authorizeWorkspace(req as AuthenticatedRequest, workspaceId);
+      // #941: replacing the books is a high-risk command; this older address holds it to the same
+      // two-step rule as /api/v1/commands/workspace.restorebackup (a person with aal2, never an API key)
+      const restorer = (req as AuthenticatedRequest).user as { aal?: string; developerWorkspaceId?: string } | undefined;
+      if (restorer?.developerWorkspaceId || restorer?.aal !== 'aal2') {
+        res.status(403).json({ status: 'error', code: 'TWO_STEP_REQUIRED', message: 'High-risk commands require a person signed in with two-step verification; API keys cannot confirm this step.' });
+        return;
+      }
       await executeCommand(req, res, {
         definition: workspaceRestoreBackupCommand, workspaceId, input: { backup: req.body }, legacyRoute: true,
         formatResponse(outcome) {

@@ -108,7 +108,7 @@ describe('S-11: session hardening & API-key auth-route boundary', { skip: !hasDb
   });
 
   // #941: these state the secure outcome and are todo until the fix lands, so fixing the gap turns them green, not CI red
-  it('S-11 #941: a workspace write:transactions API key cannot read sign-in history, revoke sessions or delete the account', { todo: 'fixed by #941' }, async () => {
+  it('S-11 #941: a workspace write:transactions API key cannot read sign-in history, revoke sessions or delete the account', async () => {
     try {
       assert.equal((await api('GET', '/api/v1/auth/login-audits', apiKey)).status, 403);
       assert.equal((await api('POST', '/api/v1/auth/revoke-sessions', apiKey, {})).status, 403);
@@ -135,12 +135,12 @@ describe('S-11: session hardening & API-key auth-route boundary', { skip: !hasDb
 
   });
 
-  it('S-11 #941: the legacy /restore route refuses a stale aal1 session the same way', { todo: 'fixed by #941' }, async () => {
+  it('S-11 #941: the legacy /restore route refuses a stale aal1 session the same way', async () => {
     const legacyRes = await api('POST', `/api/v1/workspaces/${wsId}/restore`, tokenAal1Stale, { invalid: true });
     assert.equal((legacyRes.json as { code?: string }).code, 'TWO_STEP_REQUIRED');
   });
 
-  it('S-11 #941: a stale two-hour-old aal1 session cannot provision workspace API keys', { todo: 'fixed by #941' }, async () => {
+  it('S-11 #941: a stale two-hour-old aal1 session cannot provision workspace API keys', { todo: 'needs a real sign-in time (auth_time is the token issue time today); follow-up to #941' }, async () => {
     const provisioned = await api('POST', '/api/v1/keys/provision', tokenAal1Stale, {
       workspaceId: wsId,
       name: 'Stale Session Key',
