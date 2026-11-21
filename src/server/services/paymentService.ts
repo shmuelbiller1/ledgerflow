@@ -667,6 +667,7 @@ export async function applyUnappliedPayment(db: Firestore, input: {
       const doc = (await tx.get(ref)).data();
       if (!doc || doc.workspaceId !== workspaceId) throw new PaymentApplyError(404, `Document ${alloc.documentId} not found`);
       if (doc.status === 'void' || doc.status === 'draft') throw new PaymentApplyError(409, `Cannot apply a payment to a ${doc.status} document`);
+      if (!received && billAwaitsApproval(doc, wsData)) throw new PaymentApplyError(409, BILL_PAID_BEFORE_APPROVAL);
       if (partyId && (received ? doc.customerId : doc.vendorId) !== partyId) throw new PaymentApplyError(400, `${doc.number || alloc.documentId} belongs to another ${received ? 'customer' : 'vendor'}`);
       if (String(doc.currency || baseCurrency) !== paymentCurrency) throw new PaymentApplyError(400, `${doc.number || alloc.documentId} is in another currency than the payment`);
       // EG-2 step 1: not dated before the payment or the document; an advance clears only at its own rate
