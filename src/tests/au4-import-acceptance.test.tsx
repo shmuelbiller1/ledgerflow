@@ -142,3 +142,10 @@ test('#898: two source accounts on one code (or a code naming another account) b
   const ok = compareImport(fixed, accounts, [{ id: 'north', debit: 1000, credit: 0 }, { id: 'south', debit: 2000, credit: 0 }, { id: 'eq', debit: 0, credit: 3000 }] as never);
   assert.equal(ok.accepted, true, ok.problems.join(' | '));
 });
+
+test('#898 (Gitar/Codex on #975): chart accounts sharing a name are told apart by code and still accepted', () => {
+  const accounts = [acc('c1', '1000', 'Checking', 'asset', 'Bank'), acc('c2', '1010', 'Checking', 'asset', 'Bank'), acc('eq', '3000', 'Opening equity', 'equity', 'Equity')];
+  const source = readSourceTrialBalance('Account,Code,Debit,Credit\nChecking,1000,10.00,\nChecking,1010,20.00,\nOpening equity,3000,,30.00\n');
+  const result = compareImport(source, accounts, [{ id: 'c1', debit: 1000, credit: 0 }, { id: 'c2', debit: 2000, credit: 0 }, { id: 'eq', debit: 0, credit: 3000 }] as never);
+  assert.equal(result.accepted, true, result.problems.join(' | '));
+});

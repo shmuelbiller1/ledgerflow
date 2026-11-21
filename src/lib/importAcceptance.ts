@@ -106,11 +106,16 @@ export function compareImport(source: SourceTrialBalance, accounts: ChartAccount
   // conflicting code), or a code that points at one account while the name names another, would be summed
   // and certified as "every account agrees"; they block acceptance and are named instead.
   const ambiguity: string[] = [];
+  const nameCount = new Map<string, number>();
+  for (const a of accounts) nameCount.set(norm(a.name), (nameCount.get(norm(a.name)) || 0) + 1);
   const namesAt = new Map<string, Array<{ name: string; row: number }>>();
   for (const line of source.lines) {
     const byItsCode = line.code ? byCode.get(norm(line.code)) : undefined;
     const byItsName = byName.get(norm(line.account));
-    if (byItsCode && byItsName && byItsCode.id !== byItsName.id) {
+    // Gitar/Codex on #975: chart names need not be unique, so a name only contradicts the code when the
+    // code's own account has another name and the name points to exactly one account
+    const nameIsUnique = (nameCount.get(norm(line.account)) || 0) === 1;
+    if (byItsCode && byItsName && nameIsUnique && byItsCode.id !== byItsName.id && norm(byItsCode.name) !== norm(line.account)) {
       ambiguity.push(`Row ${line.row}: "${line.account}" has code ${line.code} (${byItsCode.name}) but its name is ${byItsName.code ? `${byItsName.code} ` : ''}${byItsName.name}`);
     }
     const account = byItsCode || byItsName;
