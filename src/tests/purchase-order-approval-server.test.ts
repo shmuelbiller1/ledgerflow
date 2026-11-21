@@ -137,3 +137,19 @@ test('the screen and the server name the same requester: requestedBy, else the m
   assert.equal(orderDecisionProblem(raised, 'accountant', 'acc-2'), 'Someone else must approve your own request');
   assert.equal(orderDecisionProblem({ status: 'pending_approval', uid: 'acc-1' }, 'accountant', 'acc-1'), 'Someone else must approve your own request');
 });
+
+test('saving an order straight into review makes the saver the one asking (#980 Codex)', async () => {
+  const d = db({ invoiceApproval: { poEnabled: true, poThresholdCents: 50_000 } });
+  await create(d, 'po-m', order(40_000, 'approved'), bookkeeper);
+  await update(d, 'po-m', { status: 'pending_approval', items: lines(90_000), totalAmountCents: 90_000 }, accountant);
+  assert.equal(d.read('purchaseOrders/po-m')?.requestedBy, accountant.uid);
+  assert.equal((await update(d, 'po-m', { status: 'approved' }, accountant)).ok, false);
+});
+
+test('goods received beyond the order count toward the limit (#980 Codex)', async () => {
+  assert.equal(purchaseOrderTotalCents({ items: [{ quantity: 1, receivedQuantity: 10, unitPriceCents: 40_000, totalCents: 40_000 }] }), 400_000);
+  const d = db({ invoiceApproval: { poEnabled: true, poThresholdCents: 50_000 } });
+  await create(d, 'po-n', order(40_000, 'approved'), bookkeeper);
+  const overReceived = [{ id: 'l1', description: 'Paper', quantity: 1, unitPriceCents: 40_000, totalCents: 40_000, receivedQuantity: 10 }];
+  assert.equal((await update(d, 'po-n', { status: 'received', items: overReceived }, bookkeeper)).ok, false);
+});

@@ -11,11 +11,12 @@ const refused = (message: string) => Object.assign(new HttpError(message, 403), 
 
 /** The order's total: the larger of its stated total and the sum of its lines, so an understated total cannot slip under the limit. */
 export function purchaseOrderTotalCents(order: Row): number {
-  const lines = Array.isArray(order.items) ? order.items as Array<{ totalCents?: unknown; quantity?: unknown; unitPriceCents?: unknown; unitCostCents?: unknown }> : [];
+  const lines = Array.isArray(order.items) ? order.items as Array<{ totalCents?: unknown; quantity?: unknown; receivedQuantity?: unknown; unitPriceCents?: unknown; unitCostCents?: unknown }> : [];
   const fromLines = lines.reduce((sum, l) => {
     // the larger of the stated line total and quantity × unit price: the bill is built from the latter
     const stated = Number(l.totalCents);
-    const q = Number(l.quantity) || 0;
+    // goods received beyond the order are billed too (billLinesFromOrder uses the received quantity)
+    const q = Math.max(Number(l.quantity) || 0, Number(l.receivedQuantity) || 0);
     const p = Number(l.unitPriceCents ?? l.unitCostCents) || 0;
     return sum + Math.max(0, Number.isFinite(stated) ? Math.round(stated) : 0, Math.round(q * p));
   }, 0);
@@ -55,6 +56,8 @@ export function guardPurchaseOrderApproval(existing: Row | undefined, merged: Ro
     || String(merged.currency || bookCurrency) !== String(existing?.currency || bookCurrency);
   const stamp = (state: 'approved' | 'rejected') => { merged.approvalStatus = state; merged.approvedBy = who.uid; merged.approvedAt = who.now; };
 
+  // any save that puts the order into review, the status sent explicitly included, makes this person the one asking
+  if (status === 'pending_approval' && before !== 'pending_approval') { hold(); return; }
   if (before === 'pending_approval' && status !== 'pending_approval') {
     if (LIVE_PO.has(status)) {
       // the person whose save put it in review (a raise counts), not only whoever first made the order
