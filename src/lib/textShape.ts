@@ -226,9 +226,11 @@ const EMAIL_LABEL = (c: string | undefined) => c !== undefined && /[a-zA-Z0-9-]/
 /** `text` with every email address replaced by `mask`, scanning once. Same as
  * text.replace(/[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/g, mask). */
 export function maskEmails(text: string, mask: string): string {
+  if (typeof text !== 'string') return '';
   let out = '';
   let i = 0;
-  while (i < text.length) {
+  const n = text.length;
+  while (i < n) {
     if (!EMAIL_LOCAL(text[i])) { out += text[i]; i++; continue; }
     let at = i;
     while (EMAIL_LOCAL(text[at])) at++;
