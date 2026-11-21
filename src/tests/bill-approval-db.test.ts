@@ -5,8 +5,8 @@
 import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'crypto';
-import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
+import { startDocumentRoutes } from './helpers/documentRouteServer';
 
 const url = process.env.LF_TEST_DATABASE_URL;
 
@@ -17,7 +17,7 @@ describe('G-19: bill approval through the documents route', { skip: !url && 'LF_
   const BOOK = 'book-g19';
   let db: import('../server/db/pgFirestore').Firestore;
   let server: Server;
-  let base = '';
+  let send: Awaited<ReturnType<typeof startDocumentRoutes>>['post'];
   const accounts = [
     { id: `${ws}_bank`, name: 'Bank', type: 'asset', category: 'Cash', code: '1000' },
     { id: `${ws}_ap`, name: 'Accounts Payable', type: 'liability', category: 'Payables', code: '2000' },
@@ -28,10 +28,7 @@ describe('G-19: bill approval through the documents route', { skip: !url && 'LF_
     id, workspaceId: ws, number: `B-${id.slice(-2)}`, vendorName: 'Paper Co', vendorId: 'v1', date: '2026-10-21', dueDate: '2026-11-20', status, currency: 'USD',
     amountCents, items: [{ id: 'b1', description: 'Paper', quantity: 1, rateCents: amountCents, amountCents, accountId: `${ws}_supplies` }],
   });
-  const post = async (uid: string, id: string, action: 'create' | 'update', data: Record<string, unknown>) => {
-    const res = await fetch(`${base}/api/v1/documents/bills/${id}/post`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': uid, 'idempotency-key': crypto.randomUUID() }, body: JSON.stringify({ workspaceId: ws, action, data }) });
-    return { status: res.status, body: await res.json() as Record<string, unknown> };
-  };
+  const post = (uid: string, id: string, action: 'create' | 'update', data: Record<string, unknown>) => send(uid, 'bills', id, { workspaceId: ws, action, data });
   const stored = async (id: string) => (await db.collection('bills').doc(id).get()).data() as { status: string; metadata?: { approval?: Record<string, unknown> } };
 
   before(async () => {
@@ -43,14 +40,7 @@ describe('G-19: bill approval through the documents route', { skip: !url && 'LF_
       defaultAccountMappings: { ap: `${ws}_ap` },
     });
     for (const a of accounts) await db.collection('chartAccounts').doc(a.id).set(a);
-    const express = (await import('express')).default;
-    const { documentRouter } = await import('../server/routes/documentRoutes');
-    const app = express();
-    app.use(express.json());
-    app.use((req, _res, next) => { (req as unknown as { user: { uid: string } }).user = { uid: String(req.header('x-test-uid')) }; next(); });
-    app.use('/api/v1/documents', documentRouter);
-    server = app.listen(0);
-    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    ({ server, post: send } = await startDocumentRoutes());
   });
 
   after(async () => {

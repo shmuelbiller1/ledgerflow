@@ -80,3 +80,12 @@ export function serverBillApproval(existing: DocumentData | undefined, incoming:
   };
   return { metadata: { ...meta, approval: record } };
 }
+
+/** A bill's approval record is the server's: one sent in the request is replaced by the stored one (or dropped). */
+export function keepStoredBillApproval(data: Record<string, unknown>, existing: DocumentData | undefined): void {
+  const sent = data.metadata as Record<string, unknown> | undefined;
+  if (!sent || !('approval' in sent)) return;
+  const { approval: _ignored, ...rest } = sent;
+  const stored = (existing?.metadata as { approval?: unknown } | undefined)?.approval;
+  data.metadata = stored === undefined ? rest : { ...rest, approval: stored };
+}

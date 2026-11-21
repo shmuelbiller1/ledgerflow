@@ -1,7 +1,7 @@
 import { deferEffects } from './sandboxEffects';
 import { isDeepStrictEqual } from 'node:util';
 import { ApprovalRefused, serverApproval } from './invoiceApprovalGuard';
-import { serverBillApproval } from './billApprovalGuard';
+import { keepStoredBillApproval, serverBillApproval } from './billApprovalGuard';
 import { approvalEvent, notifyApproval, type ApprovalEvent } from './approvalNotifications';
 import type { InvoiceApprovalRecord } from '../../lib/invoiceApproval';
 import { FieldValue, isWorkspaceMemberData, type Firestore, type Transaction as FirestoreTransaction } from '../db/firestore';
@@ -401,30 +401,20 @@ export async function prepareLedgerBulkCommit(db: Firestore, user: RequestUser, 
       const sent = { ...(entityMutation.data || {}), workspaceId: wsId };
       const parsed = (entityMutation.action === 'update' ? schema.partial() : schema).parse(sent);
       const validatedData = entityMutation.action === 'update' ? Object.fromEntries(Object.entries(parsed).filter(([k]) => k in sent)) : parsed;
-      // who approved an invoice is decided here, not by the request (BE-04, L-191; A8-006: use fresh in-tx wsNow)
-      if (entityMutation.collection === 'invoices') {
-        try {
+      // who approved an invoice or a bill is decided here, not by the request (BE-04, L-191, G-19 #893;
+      // A8-006: use fresh in-tx wsNow)
+      if (entityMutation.collection === 'bills') keepStoredBillApproval(validatedData, existingEntity);
+      try {
+        if (entityMutation.collection === 'invoices') {
           Object.assign(validatedData, serverApproval(existingEntity, validatedData, wsNow || {}, user.uid, new Date().toISOString()));
           const event = approvalEvent(existingEntity?.approval as InvoiceApprovalRecord | undefined, validatedData.approval as InvoiceApprovalRecord | undefined);
           if (event && entityRef) approvalNotice = { invoiceId: entityRef.id, invoice: { ...(existingEntity || {}), ...validatedData }, event };
-        } catch (err) {
-          if (err instanceof ApprovalRefused) throw new LedgerPostingError(403, err.message);
-          throw err;
-        }
-      }
-      // G-19 (#893): who may approve a bill over the limit is decided here, not by the request
-      if (entityMutation.collection === 'bills') {
-        const sentMeta = validatedData.metadata as Record<string, unknown> | undefined;
-        if (sentMeta && 'approval' in sentMeta) {
-          const { approval: _ignored, ...rest } = sentMeta;
-          validatedData.metadata = { ...rest, ...(existingEntity?.metadata && typeof existingEntity.metadata === 'object' && 'approval' in existingEntity.metadata ? { approval: (existingEntity.metadata as Record<string, unknown>).approval } : {}) };
-        }
-        try {
+        } else if (entityMutation.collection === 'bills') {
           Object.assign(validatedData, serverBillApproval(existingEntity, validatedData, wsNow || {}, user.uid, new Date().toISOString()));
-        } catch (err) {
-          if (err instanceof ApprovalRefused) throw new LedgerPostingError(403, err.message);
-          throw err;
         }
+      } catch (err) {
+        if (err instanceof ApprovalRefused) throw new LedgerPostingError(403, err.message);
+        throw err;
       }
       if (extra.metadata) validatedData.metadata = { ...((existingEntity?.metadata as object) || {}), ...((validatedData.metadata as object) || {}), ...extra.metadata };
       t.set(entityRef, { ...validatedData, uid: user.uid, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
