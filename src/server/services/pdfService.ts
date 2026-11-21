@@ -305,7 +305,10 @@ export async function generateDocumentPdf(
   pdf.font(body).fontSize(8); muted(); text(layout.recipientLabel, PAGE.margin, y, 300); y += 12;
   pdf.font(bold).fontSize(12); ink(); text(layout.recipient, PAGE.margin, y, 400); y += 16;
   pdf.font(body).fontSize(9);
-  for (const line of layout.recipientAddressLines) { text(line, PAGE.margin, y, 400); y += 12; }
+  // Codex on #973: a long address line is wrapped to the column, not drawn past the page edge
+  for (const line of layout.recipientAddressLines) {
+    for (const part of wrapText(pdf, latin(line), 400)) { text(part, PAGE.margin, y, 400); y += 12; }
+  }
   y += 10;
 
   // --- the lines, over as many pages as needed
