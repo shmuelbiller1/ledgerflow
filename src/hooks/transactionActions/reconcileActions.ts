@@ -184,22 +184,22 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
             const acc = accounts.find(a => a.id === l.accountId);
             return acc && resolveAccountRole(acc) === 'cash';
           }) || [];
-          const scopedCashLines = bl.accountId ? cashLines.filter(l => l.accountId === bl.accountId) : cashLines;
-          const cashDelta = scopedCashLines.reduce((s, l) => s + lineAmount(l, tx), 0);
-
-          // a line from one bank account is never matched to money that moved through another (CodeRabbit on #439)
-          if (bl.accountId && cashLines.length > 0 && scopedCashLines.length === 0) return;
-
-          // If transaction has explicit cash lines, cash movement direction MUST match bank line sign!
-          if (cashDelta !== 0 && Math.sign(cashDelta) !== Math.sign(bl.amountCents)) {
-            return; // Skip incompatible cash directions
-          }
+          // #891 (Codex on #972): only a cash movement in the line's direction is a candidate. A line in a
+          // named account uses that account's leg; a line with no account qualifies through any one cash
+          // account (a transfer between two banks nets to zero overall but moves money in each). An entry
+          // with no cash leg (a bill accrual) is never a candidate; the server refuses those matches too.
+          const legs = new Map<string, number>();
+          for (const l of cashLines) legs.set(l.accountId, (legs.get(l.accountId) || 0) + lineAmount(l, tx));
+          const sameWay = (leg: number) => leg !== 0 && Math.sign(leg) === Math.sign(bl.amountCents);
+          const qualifying = bl.accountId ? [legs.get(bl.accountId) || 0].filter(sameWay) : [...legs.values()].filter(sameWay);
+          if (qualifying.length === 0) return;
+          const cashDelta = qualifying[0];
 
           let score = 0;
           
           // Amount Match (respecting ISO-4217 minor-unit exponents and split/fee-netted cash lines)
           const tTotal = Math.abs(convertMinorUnits(Math.abs(tx.totalAmountCents || 0), tx.exchangeRate || 1, tx.currency || home, home));
-          const expectedBankAbs = scopedCashLines.length > 0 && cashDelta !== 0 ? Math.abs(cashDelta) : tTotal;
+          const expectedBankAbs = Math.abs(cashDelta);
           if (Math.abs(bl.amountCents) === expectedBankAbs || Math.abs(bl.amountCents) === tTotal) {
             score += 65;
           }

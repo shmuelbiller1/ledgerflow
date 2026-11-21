@@ -26,20 +26,21 @@ export function cashMovementRefusal(
   const lines = Array.isArray(entryLines) ? entryLines as Array<{ accountId?: unknown; amountCents?: unknown }> : [];
   const ownAccount = typeof line.accountId === 'string' && line.accountId ? line.accountId : null;
   const isCash = (id: string) => resolveAccountRole(accountsById.get(id) as ChartAccount | undefined) === 'cash';
-  let leg = 0;
-  let touches = false;
+  // a line in a named account uses that account's leg; a line with no account qualifies through any one
+  // cash account (Codex on #972: a transfer between two banks nets to zero overall but moves money in each)
+  const legs = new Map<string, number>();
   for (const l of lines) {
     const id = typeof l?.accountId === 'string' ? l.accountId : '';
     if (!id || (ownAccount ? id !== ownAccount : !isCash(id))) continue;
-    touches = true;
-    leg += Number(l.amountCents) || 0;
+    legs.set(id, (legs.get(id) || 0) + (Number(l.amountCents) || 0));
   }
-  if (!touches || leg === 0) {
+  const moved = [...legs.values()].filter(leg => leg !== 0);
+  if (moved.length === 0) {
     return ownAccount
       ? 'This entry moved no money in the bank line\'s account, so it cannot clear it. Record the payment first.'
       : 'This entry moved no money in a bank or cash account, so it cannot clear a bank line. Record the payment first.';
   }
-  if (Number.isFinite(amount) && amount !== 0 && Math.sign(leg) !== Math.sign(amount)) {
+  if (Number.isFinite(amount) && amount !== 0 && !moved.some(leg => Math.sign(leg) === Math.sign(amount))) {
     return amount < 0
       ? 'This entry put money into the account; it cannot clear a withdrawal.'
       : 'This entry took money out of the account; it cannot clear a deposit.';

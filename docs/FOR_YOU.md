@@ -11,7 +11,7 @@ Last updated: 2026-11-19.
 
 Until PR #972, creating an entry from a bank line on the Reconcile screen posted the expense (or income) on the wrong side, and the bank on the other wrong side. For a ₪250 withdrawal it credited the expense ₪250 and debited the bank ₪250, when it should have debited the expense and credited the bank. Each entry still balanced, so no check flagged it, but those expenses lower the P&L instead of raising it, and the bank balance moves the wrong way.
 
-PR #972 fixes new entries. **Old entries are not changed.** The default is to leave them alone, because changing posted entries in a real book needs your OK. If you want them corrected, say so: I'd find entries with the "Bank Settlement" line and status `reconciled` and post a correcting entry for each, leaving the originals in place so the history stays.
+PR #972 fixes new entries. **Old entries are not changed.** The default is to leave them alone, because changing posted entries in a real book needs your OK. If you want them corrected, say so. I'd find every entry made by Reconcile → "Create entry": those with a "Bank Settlement" line, and those with an "Asset Settlement" line (bank lines that had no account). I'd include entries whose match was undone later, which now have the status `completed`. Then I'd post a correcting entry for each and leave the originals in place, so the history stays.
 
 ## CMD-1: deploy the replacement UI before closing the browser write door
 

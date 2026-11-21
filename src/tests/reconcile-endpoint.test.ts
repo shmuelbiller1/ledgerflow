@@ -153,6 +153,14 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
     assert.equal(created.statusCode, 200, String(created.body?.error || ''));
     assert.equal(db.getDocData('bankLines', 'w').status, 'matched');
     await send({ status: 'pending', matchedTransactionId: null });
+    // Codex on #972: a line with no account (a file import) clears against a transfer between two banks
+    db.data.set('bankLines/u', { id: 'u', workspaceId: 'ws-1', date: '2026-10-28', status: 'pending', amountCents: -50_000 });
+    entry('transfer', [{ accountId: 'bank', amountCents: -50_000 }, { accountId: 'bank2', amountCents: 50_000 }]);
+    const unscoped = recordingResponse();
+    await handleReconcile({ user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+      { id: 'u', type: 'updateBankLine', data: { status: 'matched', matchedTransactionId: 'transfer' } },
+    ] } } as unknown as express.Request, unscoped.res, db as unknown as Firestore);
+    assert.equal(unscoped.statusCode, 200, String(unscoped.body?.error || ''));
     assert.equal((await match('payment')).statusCode, 200, 'the payment from this account clears it');
     assert.equal(db.getDocData('bankLines', 'w').status, 'matched');
   });
