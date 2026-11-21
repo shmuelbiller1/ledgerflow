@@ -48,9 +48,11 @@ export function guardPurchaseOrderApproval(existing: Row | undefined, merged: Ro
     workspaceCurrency: String(who.workspace.currency || 'USD'),
   });
   const hold = () => { merged.status = 'pending_approval'; merged.approvalStatus = 'pending'; merged.approvedBy = null; merged.approvedAt = null; merged.requestedBy = who.uid; };
+  // a missing currency is the workspace's own, as poOrderNeedsApproval reads it
+  const bookCurrency = String(who.workspace.currency || 'USD');
   // more exposure than what was decided or asked: a larger total, or another currency
   const grew = () => purchaseOrderTotalCents(merged) > purchaseOrderTotalCents(existing || {})
-    || String(merged.currency ?? '') !== String(existing?.currency ?? merged.currency ?? '');
+    || String(merged.currency || bookCurrency) !== String(existing?.currency || bookCurrency);
   const stamp = (state: 'approved' | 'rejected') => { merged.approvalStatus = state; merged.approvedBy = who.uid; merged.approvedAt = who.now; };
 
   if (before === 'pending_approval' && status !== 'pending_approval') {

@@ -121,3 +121,11 @@ test('raising a held order makes the raiser the one asking, so they cannot appro
   assert.equal((await update(d, 'po-k', { status: 'approved' }, accountant)).ok, false);
   assert.equal((await update(d, 'po-k', { status: 'approved' }, owner)).ok, true);
 });
+
+test('an order saved with no currency is the workspace currency: moving it to EUR still counts (#980 Gitar)', async () => {
+  const d = db({ invoiceApproval: { poEnabled: true, poThresholdCents: 50_000 } });
+  const { currency: _none, ...noCurrency } = order(40_000, 'approved');
+  d.seed('purchaseOrders/po-l', { id: 'po-l', workspaceId, uid: bookkeeper.uid, ...noCurrency, approvalStatus: 'approved' });
+  await update(d, 'po-l', { currency: 'EUR' }, bookkeeper);
+  assert.equal(d.read('purchaseOrders/po-l')?.status, 'pending_approval');
+});
