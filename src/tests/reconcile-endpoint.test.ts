@@ -161,6 +161,18 @@ describe('Reconcile Endpoint Test Suite (Part 2d)', () => {
     ] } } as unknown as express.Request, dup.res, db as unknown as Firestore);
     assert.equal(dup.statusCode, 400);
     assert.equal(db.getDocData('bankLines', 'w').status, 'pending');
+    // Codex on #972: an FX entry whose raw bank legs net to zero still moved 1,000 home cents out
+    db.data.set('bankLines/fx', { id: 'fx', workspaceId: 'ws-1', accountId: 'bank', date: '2026-10-28', status: 'pending', amountCents: -1_000 });
+    entry('fx-entry', [
+      { accountId: 'bank', amountCents: 10_000, baseAmountCents: 11_000 } as never,
+      { accountId: 'bank', amountCents: -10_000, baseAmountCents: -12_000 } as never,
+      { accountId: 'exp', amountCents: 0, baseAmountCents: 1_000 } as never,
+    ]);
+    const fx = recordingResponse();
+    await handleReconcile({ user: { uid: 'user-owner' }, body: { workspaceId: 'ws-1', operations: [
+      { id: 'fx', type: 'updateBankLine', data: { status: 'matched', matchedTransactionId: 'fx-entry' } },
+    ] } } as unknown as express.Request, fx.res, db as unknown as Firestore);
+    assert.equal(fx.statusCode, 200, String(fx.body?.error || ''));
     // Codex on #972: a line with no account (a file import) clears against a transfer between two banks
     db.data.set('bankLines/u', { id: 'u', workspaceId: 'ws-1', date: '2026-10-28', status: 'pending', amountCents: -50_000 });
     entry('transfer', [{ accountId: 'bank', amountCents: -50_000 }, { accountId: 'bank2', amountCents: 50_000 }]);

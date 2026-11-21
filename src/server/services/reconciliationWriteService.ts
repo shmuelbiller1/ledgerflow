@@ -7,7 +7,7 @@ import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedge
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { BankLineUpdateSchema } from '../../schemas';
 import { assertPostingOpen } from '../../lib/periodLock';
-import { settleHomeCurrency } from '../../lib/txFilters';
+import { lineAmount, settleHomeCurrency } from '../../lib/txFilters';
 import type { ChartAccount, Transaction } from '../../types';
 import { resolveAccountRole } from '../../lib/accountUtils';
 
@@ -21,9 +21,13 @@ export function cashMovementRefusal(
   line: { accountId?: unknown; amountCents?: unknown },
   entryLines: unknown,
   accountsById: ReadonlyMap<string, DocumentData>,
+  entry: { exchangeRate?: unknown; currency?: unknown } = {},
 ): string | null {
   const amount = Number(line.amountCents);
   const lines = Array.isArray(entryLines) ? entryLines as Array<{ accountId?: unknown; amountCents?: unknown }> : [];
+  // Codex on #972: home-currency amounts (a line's settled baseAmountCents, else its rate), as the
+  // reports and the auto-matcher read them, so an FX entry's direction is the money that really moved
+  const home = (l: { amountCents?: unknown }) => lineAmount(l as Parameters<typeof lineAmount>[0], entry as Parameters<typeof lineAmount>[1]);
   const ownAccount = typeof line.accountId === 'string' && line.accountId ? line.accountId : null;
   const isCash = (id: string) => resolveAccountRole(accountsById.get(id) as ChartAccount | undefined) === 'cash';
   // a line in a named account uses that account's leg; a line with no account qualifies through any one
@@ -32,7 +36,7 @@ export function cashMovementRefusal(
   for (const l of lines) {
     const id = typeof l?.accountId === 'string' ? l.accountId : '';
     if (!id || (ownAccount ? id !== ownAccount : !isCash(id))) continue;
-    legs.set(id, (legs.get(id) || 0) + (Number(l.amountCents) || 0));
+    legs.set(id, (legs.get(id) || 0) + (home(l) || 0));
   }
   const moved = [...legs.values()].filter(leg => leg !== 0);
   if (moved.length === 0) {
@@ -292,11 +296,13 @@ export async function reconcileInTransaction(
         }
         const sent = entryOps.filter(o => Array.isArray(o.data?.lines));
         const stored = txSnaps.get(matchedId) || matchedSnaps.get(matchedId);
-        const entryLines = sent.length ? sent[0].data?.lines : (stored?.exists ? stored.data()?.lines : undefined);
+        const storedEntry = stored?.exists ? stored.data() || {} : {};
+        const entryData = sent.length ? { ...storedEntry, ...(sent[0].data || {}) } : storedEntry;
+        const entryLines = entryData.lines;
         if (!sent.length && (!stored || !stored.exists || stored.data()?.workspaceId !== workspaceId)) {
           throw new ReconcileError(404, `Entry ${matchedId} not found in workspace`);
         }
-        const refusal = cashMovementRefusal(lineSnap.data() || {}, entryLines, accMap);
+        const refusal = cashMovementRefusal(lineSnap.data() || {}, entryLines, accMap, entryData);
         if (refusal) throw new ReconcileError(400, refusal);
       }
       // undoing a match on a line the bank later changed or withdrew: the bank's version is what goes
@@ -596,7 +602,7 @@ export async function updateBankLineInTransaction(
           if (snap.exists) accounts.set(snap.id, snap.data() || {});
         }
       }
-      const refusal = cashMovementRefusal(stored, entryLines, accounts);
+      const refusal = cashMovementRefusal(stored, entryLines, accounts, matched.data() || {});
       if (refusal) throw new UpdateBankLineError(400, refusal);
     }
   }
