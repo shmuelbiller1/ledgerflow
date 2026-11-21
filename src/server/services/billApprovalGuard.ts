@@ -1,6 +1,7 @@
 import type { DocumentData } from '../db/firestore';
 import { workspaceRole } from '../../lib/periodLock';
 import { approvesInPlace } from '../../lib/approvalDelegation';
+import { formatTzDate } from '../../lib/calendarDate';
 import { billBookCents, billLimitCents, type BillApprovalRecord } from '../../lib/billApproval';
 import { ApprovalRefused } from './invoiceApprovalGuard';
 
@@ -20,8 +21,18 @@ export const BILL_SECOND_PERSON_REFUSAL = 'Someone else approves a bill you ente
  * Raising a held bill's amount while approving it counts as a new submission. The record lives in
  * `metadata.approval`; who and when come from the server, never from the request.
  */
+// a delegation runs to a day in the workspace's own time zone, as approvalDelegateService saves it
+const workspaceDay = (workspace: DocumentData, now: string) => formatTzDate(new Date(now), typeof workspace.timezone === 'string' ? workspace.timezone : 'UTC');
 const mayApproveBillFor = (workspace: DocumentData, uid: string, now: string) =>
-  ['owner', 'accountant'].includes(workspaceRole(workspace, uid)) || Boolean(approvesInPlace(workspace, uid, now.slice(0, 10)));
+  ['owner', 'accountant'].includes(workspaceRole(workspace, uid)) || Boolean(approvesInPlace(workspace, uid, workspaceDay(workspace, now)));
+
+/** The record is saved by a deep merge: every field is written, so nothing from an earlier decision survives. */
+const fullRecord = (r: BillApprovalRecord): Record<string, unknown> => ({
+  requestedBy: null, requestedAt: null, decidedBy: null, decidedAt: null, selfApproved: null, ...r,
+});
+/** Statuses where money has left: a bill that has to wait for approval cannot be saved as paid. */
+const CASH_PAID = new Set(['paid', 'partially_paid']);
+export const BILL_PAID_BEFORE_APPROVAL = 'A bill over the approval limit is approved before it is paid';
 
 /** Statuses that mean the bill was approved and is owed (or paid): reaching one is an approval. */
 const LIVE = new Set(['approved', 'unpaid', 'partially_paid', 'paid', 'overdue']);
@@ -58,15 +69,19 @@ export function serverBillApproval(existing: DocumentData | undefined, incoming:
   const held = (before === 'pending' || claimHeld) && amount <= billBookCents(existing || {}, book);
   const hold = (): { status: string; metadata: Record<string, unknown> } => ({
     status: 'pending',
-    metadata: { ...meta, approval: { state: 'awaiting', thresholdCents: limit, requestedBy: uid, requestedAt: now } satisfies BillApprovalRecord },
+    metadata: { ...meta, approval: fullRecord({ state: 'awaiting', thresholdCents: limit, requestedBy: uid, requestedAt: now }) },
   });
 
   // whoever puts a bill over the limit into review is who entered it, for the second-person check
   if (entering || reHeld) return { metadata: hold().metadata };
   if (!held) {
     if (status === 'rejected') throw new ApprovalRefused(BILL_APPROVER_REFUSAL);
-    if (!approver || !soleApprover) return hold();
-    return { metadata: { ...meta, approval: { state: 'approved', thresholdCents: limit, requestedBy: uid, requestedAt: now, decidedBy: uid, decidedAt: now, selfApproved: true } satisfies BillApprovalRecord } };
+    if (!approver || !soleApprover) {
+      // the entries for this save were built for the status asked for: holding a paid bill would keep its payment
+      if (CASH_PAID.has(status)) throw new ApprovalRefused(BILL_PAID_BEFORE_APPROVAL);
+      return hold();
+    }
+    return { metadata: { ...meta, approval: fullRecord({ state: 'approved', thresholdCents: limit, requestedBy: uid, requestedAt: now, decidedBy: uid, decidedAt: now, selfApproved: true }) } };
   }
   if (!approver) throw new ApprovalRefused(BILL_APPROVER_REFUSAL);
   const enteredBy = (claimHeld ? claim?.submittedBy : undefined) || prior?.requestedBy || (existing?.createdBy as string | undefined) || (existing?.uid as string | undefined);
@@ -80,7 +95,7 @@ export function serverBillApproval(existing: DocumentData | undefined, incoming:
     decidedAt: now,
     ...(own && status !== 'rejected' ? { selfApproved: true } : {}),
   };
-  return { metadata: { ...meta, approval: record } };
+  return { metadata: { ...meta, approval: fullRecord(record) } };
 }
 
 /** A bill's approval record is the server's: one sent in the request is replaced by the stored one (or dropped). */

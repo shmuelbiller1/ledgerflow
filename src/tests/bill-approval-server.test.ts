@@ -6,7 +6,7 @@
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { ApprovalRefused } from '../server/services/invoiceApprovalGuard';
-import { BILL_SECOND_PERSON_REFUSAL, serverBillApproval } from '../server/services/billApprovalGuard';
+import { BILL_PAID_BEFORE_APPROVAL, BILL_SECOND_PERSON_REFUSAL, serverBillApproval } from '../server/services/billApprovalGuard';
 import { DEFAULT_BILL_LIMIT_CENTS, billBookCents, billLimitCents } from '../lib/billApproval';
 
 const team = { uid: 'owner', currency: 'USD', members: ['owner', 'acc', 'book'], roles: { acc: 'accountant', book: 'bookkeeper' } };
@@ -39,7 +39,7 @@ describe('deciding a held bill', () => {
     assert.equal(approval(out)?.state, 'approved');
     assert.equal(approval(out)?.decidedBy, 'acc');
     assert.equal(approval(out)?.requestedBy, 'book');
-    assert.equal(approval(out)?.selfApproved, undefined);
+    assert.equal(approval(out)?.selfApproved, null);
   });
   test('the owner can finish it (the G-19 loop)', () => {
     assert.equal(approval(serverBillApproval(heldBy('book'), { status: 'approved' }, team, 'owner', now))?.state, 'approved');
@@ -99,6 +99,24 @@ test('a claim naming someone else as submitter than who wrote it is not trusted'
   assert.equal(approval(out)?.requestedBy, 'acc');
 });
 
+test('a new request clears the earlier decision fields (the record is deep-merged on save)', () => {
+  const after = { ...heldBy('book'), status: 'rejected', metadata: { approval: { state: 'rejected', decidedBy: 'owner', decidedAt: 'x', selfApproved: true } } };
+  const again = approval(serverBillApproval(after, { status: 'pending' }, team, 'book', now));
+  assert.equal(again?.decidedBy, null);
+  assert.equal(again?.selfApproved, null);
+});
+
+test('a delegation runs to its last day in the workspace time zone', () => {
+  const ny = { ...solo, timezone: 'America/New_York', approvalDelegates: [{ from: 'owner', to: 'book', until: '2026-11-21' }] };
+  // 01:00 UTC on the 22nd is still the 21st in New York: the delegate may decide
+  assert.equal(approval(serverBillApproval(heldBy('owner'), { status: 'approved' }, ny, 'book', '2026-11-22T01:00:00.000Z'))?.decidedBy, 'book');
+});
+
+test('saving the invoice or PO rule keeps the bill limit', async () => {
+  const { normalizeInvoiceApproval } = await import('../lib/invoiceApproval');
+  assert.equal(billLimitCents(normalizeInvoiceApproval({ enabled: true, thresholdCents: 100, billThresholdCents: 100000 })), 100000);
+});
+
 describe('saving a bill straight to approved', () => {
   test('by a bookkeeper or by one of several approvers: held for someone else', () => {
     for (const who of ['book', 'acc']) {
@@ -113,8 +131,12 @@ describe('saving a bill straight to approved', () => {
     assert.equal(approval(out)?.selfApproved, true);
   });
   test('an over-limit bill saved straight as unpaid, paid or overdue is held too; a held one moved to unpaid needs an approver', () => {
-    for (const status of ['unpaid', 'partially_paid', 'paid', 'overdue']) {
+    for (const status of ['unpaid', 'overdue']) {
       assert.equal(serverBillApproval(undefined, { amountCents: 600000, status }, team, 'book', now).status, 'pending', status);
+    }
+    // paid ones are refused: their payment entry was already built for the save
+    for (const status of ['partially_paid', 'paid']) {
+      assert.throws(() => serverBillApproval(undefined, { amountCents: 600000, status }, team, 'book', now), { message: BILL_PAID_BEFORE_APPROVAL });
     }
     assert.throws(() => serverBillApproval(heldBy('acc'), { status: 'unpaid' }, team, 'book', now), ApprovalRefused);
     assert.equal(approval(serverBillApproval(heldBy('book'), { status: 'unpaid' }, team, 'acc', now))?.state, 'approved');

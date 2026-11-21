@@ -71,6 +71,11 @@ describe('G-19: bill approval through the documents route', { skip: !url && 'LF_
     assert.equal((await post(ACC, id, 'update', bill(id, 600000, 'approved'))).status, 403);
     assert.equal((await post(OWNER, id, 'update', bill(id, 600000, 'rejected'))).status, 200);
     assert.equal((await stored(id)).metadata?.approval?.state, 'rejected');
+    // sent again: the stored record keeps nothing of the rejection (saves deep-merge nested maps)
+    assert.equal((await post(ACC, id, 'update', bill(id, 600000, 'pending'))).status, 200);
+    const again = (await stored(id)).metadata?.approval;
+    assert.equal(again?.state, 'awaiting');
+    assert.equal(again?.decidedBy ?? null, null);
   });
 
   test('a forged approval record in the request is ignored', async () => {
