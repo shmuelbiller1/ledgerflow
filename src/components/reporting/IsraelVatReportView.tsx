@@ -133,8 +133,9 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
       vendorCredits: equipmentVendorCredits as unknown as IlVatDocument[],
       startDate,
       endDate,
+      baseCurrency: currency,
     });
-  }, [activeReg, workspace?.taxProfiles, registrationOrder, invoices, creditNotes, equipmentBills, equipmentVendorCredits, workspaceId, startDate, endDate]);
+  }, [activeReg, workspace?.taxProfiles, registrationOrder, invoices, creditNotes, equipmentBills, equipmentVendorCredits, workspaceId, startDate, endDate, currency]);
 
   const mixedBillsCount = useMemo(() => activeReg ? countedMixedBills(mixed, {
     profiles: workspace?.taxProfiles,
