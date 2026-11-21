@@ -9,6 +9,7 @@ import type { BrandedDocument, WorkspaceBranding } from '../../lib/branding';
 import { drawLine, wrapText } from './pdfText';
 import { DOCUMENT_WORDS, type DocumentLanguage, type DocumentWords } from '../../lib/documentLanguage';
 import { splitTrimmedLines } from '../../lib/textShape';
+import { registrationsOn, type TaxProfile } from '../../lib/tax/profile';
 
 import { BRAND_NAME } from '../../config/brand';
 /**
@@ -61,7 +62,7 @@ export interface PdfDocument {
   signature?: { name?: string; signedAt?: string };
 }
 
-export interface PdfWorkspace { name?: string; companyName?: string; currency?: string; timezone?: string; branding?: WorkspaceBranding }
+export interface PdfWorkspace { name?: string; companyName?: string; currency?: string; timezone?: string; branding?: WorkspaceBranding; /** #890: the books' VAT registration is printed */ taxProfiles?: { books?: TaxProfile } }
 
 export interface PdfOptions {
   /** The invoice's public payment page; printed as a QR code on invoices. */
@@ -72,6 +73,8 @@ export interface PdfOptions {
   terms?: string;
   /** IL-2: an Israeli tax document's first print is the original, later ones are copies */
   copyMark?: 'original' | 'copy';
+  /** #890 (J-6): the customer's (or vendor's) address, printed under their name */
+  recipientAddress?: string;
 }
 
 export interface PdfLayout {
@@ -80,6 +83,8 @@ export interface PdfLayout {
   meta: Array<[string, string]>;
   recipientLabel: string;
   recipient: string;
+  /** #890 (J-6): the recipient's address, up to five lines */
+  recipientAddressLines: string[];
   rows: Array<{ description: string; quantity: string; amount: string; balance?: string }>;
   summary: Array<{ label: string; value: string; strong?: boolean }>;
   terms?: string;
@@ -123,6 +128,23 @@ export function watermarkFor(type: PdfDocumentType, status: unknown): string | u
   if (s === 'void' || s === 'cancelled') return 'VOID';
   if (s === 'paid' && (type === 'invoice' || type === 'bill')) return 'PAID';
   return undefined;
+}
+
+/**
+ * #890 (J-6): the seller's VAT numbers in force on the document's date, from the books' tax profile
+ * (validFrom/validTo, so a number that ended or had not started is not printed on that document).
+ */
+export function sellerVatLines(workspace: PdfWorkspace | null | undefined, date: unknown): string[] {
+  const books = workspace?.taxProfiles?.books;
+  if (!books || !Array.isArray(books.registrations)) return [];
+  const day = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date) ? date.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  return [...new Set(registrationsOn(books, 'vat', day).map(r => clean(r.number, 40)).filter(Boolean))].slice(0, 2);
+}
+
+/** #890 (J-6): a contact's saved address for the PDF, when it has one. */
+export function contactAddress(contact: unknown): { recipientAddress?: string } {
+  const address = (contact as { address?: unknown } | null | undefined)?.address;
+  return typeof address === 'string' && address.trim() ? { recipientAddress: address } : {};
 }
 
 export function layoutDocumentPdf(
@@ -192,11 +214,16 @@ export function layoutDocumentPdf(
     title: `${saleReceipt ? words.titles.saleReceipt : salesOrder ? words.titles.salesOrder : words.titles[type]}${options.copyMark ? ` · ${words.copyMark[options.copyMark]}` : ''}`,
     company: {
       name: clean(workspace?.name || workspace?.companyName || `${BRAND_NAME} Workspace`, 120),
-      addressLines: splitTrimmedLines(clean(branding.address, 300)).slice(0, 5),
+      addressLines: [
+        ...splitTrimmedLines(clean(branding.address, 300)).slice(0, 5),
+        ...sellerVatLines(workspace, doc.date).map(n => `${words.vatNumber} ${n}`),
+      ],
     },
     meta,
     recipientLabel: words.recipient[type],
     recipient: clean(doc.customerName || doc.vendorName || doc.contactName || words.client, 120),
+    // the address saved on the document when it has one (what was issued), else the one passed in
+    recipientAddressLines: splitTrimmedLines(clean((doc as { recipientAddress?: unknown }).recipientAddress || options.recipientAddress, 300)).slice(0, 5),
     rows,
     summary,
     terms: clean(options.terms || (branding.terms as Partial<Record<PdfDocumentType, string>> | undefined)?.[type], 2000) || undefined,
@@ -276,7 +303,13 @@ export async function generateDocumentPdf(
   else pdf.moveTo(PAGE.margin, y).lineTo(RIGHT, y).lineWidth(1).strokeColor(layout.style === 'minimal' ? '#D1D5DB' : layout.color).stroke();
   y += 12;
   pdf.font(body).fontSize(8); muted(); text(layout.recipientLabel, PAGE.margin, y, 300); y += 12;
-  pdf.font(bold).fontSize(12); ink(); text(layout.recipient, PAGE.margin, y, 400); y += 26;
+  pdf.font(bold).fontSize(12); ink(); text(layout.recipient, PAGE.margin, y, 400); y += 16;
+  pdf.font(body).fontSize(9);
+  // Codex on #973: a long address line is wrapped to the column, not drawn past the page edge
+  for (const line of layout.recipientAddressLines) {
+    for (const part of wrapText(pdf, latin(line), 400)) { text(part, PAGE.margin, y, 400); y += 12; }
+  }
+  y += 10;
 
   // --- the lines, over as many pages as needed
   const bottom = PAGE.height - PAGE.margin - FOOTER_SPACE;
