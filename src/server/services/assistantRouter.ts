@@ -29,7 +29,7 @@ const MODEL_ONLY = /\b(create|record|make|add|set ?up|move|write ?off|fix|delete
 const VAGUE = /\b(something|anything|stuff|things?|looks? off|weird|wrong)\b/i;
 /**
  * Words that narrow, exclude, split or compare a figure. ask_books matches accounts and a period but
- * does not reject words it does not use, so "sales excluding refunds" would read as plain sales: any
+ * does not reject words it does not use, so "sales excluding refunds" would read as plain sales; any
  * of these sends the question to the model.
  */
 const QUALIFIER = /\b(exclud\w*|includ\w*|except|without|minus|less|net|profit|gross|only|just|but|not|no|per|each|every|by|average|avg|mean|median|total of|compared?|versus|vs|than|growth|change|increase|decrease|trend|share|ratio|margin|from|to|in|at|between|since|until|before|after|for|of)\b|%|percent/i;
