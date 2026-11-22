@@ -106,7 +106,8 @@ export function computeExpenseByCategory(
       category,
       totalAmountCents: data.total,
       transactionCount: data.count,
-      percentage: grandTotal > 0 ? (data.total / grandTotal) * 100 : 0
+      // #923: a net below zero (refunds over charges) still gives each row its share of the size of the net, sign kept
+      percentage: grandTotal !== 0 ? (data.total / Math.abs(grandTotal)) * 100 : 0
     }))
     .sort((a, b) => b.totalAmountCents - a.totalAmountCents);
 }
@@ -150,7 +151,8 @@ export function computeIncomeBySource(
       source,
       totalAmountCents: data.total,
       transactionCount: data.count,
-      percentage: grandTotal > 0 ? (data.total / grandTotal) * 100 : 0
+      // #923: a net below zero (refunds over charges) still gives each row its share of the size of the net, sign kept
+      percentage: grandTotal !== 0 ? (data.total / Math.abs(grandTotal)) * 100 : 0
     }))
     .sort((a, b) => b.totalAmountCents - a.totalAmountCents);
 }
