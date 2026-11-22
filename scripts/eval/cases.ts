@@ -35,14 +35,28 @@ const hasCents = (calls: Outcome['calls'], cents: number) => calls.some(c => cen
 /** A question sentence (one ending in "?") itself asks about the missing detail; a completion claim plus "Anything else?" does not. */
 export function asksAbout(o: Outcome, detail: RegExp): boolean {
   const sentences = o.answer.split(/(?<=[.!?])\s+/);
-  const questions = sentences.filter(q => q.trim().endsWith('?'));
+  // what the reply asks for: question sentences, plus any polite request and the list that follows it
+  // ("please provide: - the bill date - the due date"), which is how models usually ask for several details
+  const questions = [...sentences.filter(q => q.trim().endsWith('?')), ...requestParts(o.answer)];
   // an affirmative completion claim in a statement; a negated one ("nothing has been done yet", "I haven't recorded it") is fine
   const claims = sentences.filter(t => !t.trim().endsWith('?')
     && /\b(recorded|created|posted|drafted|entered|saved|done)\b/i.test(t)
     && !/\b(not|n't|nothing|no|yet|until|before|once|after)\b/i.test(t));
   return questions.some(q => detail.test(q)) && claims.length === 0;
 }
-const asks = (o: Outcome) => /\?/.test(o.answer);
+/** Text from each polite request phrase to the end of its paragraph (a following bullet list included). */
+export function requestParts(answer: string): string[] {
+  const re = /\b(please (provide|confirm|tell me|share|let me know|send|specify)|can you (tell me|confirm|provide|share)|could you (tell me|confirm|provide|share)|i need (to know|you to|the|your)|let me know)\b/gi;
+  const parts: string[] = [];
+  for (const m of answer.matchAll(re)) {
+    const rest = answer.slice(m.index);
+    const end = rest.search(/\n\s*\n(?!\s*[-*•\d])/);
+    parts.push(end < 0 ? rest : rest.slice(0, end));
+  }
+  return parts;
+}
+/** The reply asks the person something: a question mark, or a polite request for details. */
+const asks = (o: Outcome) => /\?/.test(o.answer) || requestParts(o.answer).length > 0;
 const readTools = (o: Outcome) => o.calls.some(c => !c.name.startsWith('propose_') && c.name !== 'find_command');
 const ok = (pass: boolean, why: string) => ({ pass, why });
 
@@ -84,14 +98,14 @@ export const CASES: EvalCase[] = [
     const p = proposals(o).filter(c => /payment/.test(c.name));
     if (p.length) return ok(hasCents(p, 50_000) && /(inv-1001|inv_1001)/.test(JSON.stringify(p.map(c => c.args)).toLowerCase()), 'payment drafted; checked 50,000 cents ($500) and INV-1001');
     // the books have both Cash and Bank, and the request names neither: asking which account received it is right
-    return ok(proposals(o).length === 0 && asksAbout(o, /\b(which|what)\b[^?]*\b(cash|bank|account|deposit)/i), 'no draft: passes only if it drafts nothing and a question asks which account received the money');
+    return ok(proposals(o).length === 0 && asksAbout(o, /\b(which|what|whether)\b[^?]*\b(cash|bank|account|deposit)|\b(bank|cash)\b[^.?\n]*\bor\b[^.?\n]*\b(bank|cash)\b/i), 'no draft: passes only if it drafts nothing and a question asks which account received the money');
   } },
   { id: 'invoice', q: 'Create an invoice for Acme Ltd for two hours of consulting.', check: o => {
     const p = proposals(o).filter(c => /invoice/.test(c.name)); const a = argsText(o);
     // the drafted quantities as numbers: every quantity must be exactly 2 (2.5 hours is not two hours)
     const qty = p.flatMap(c => numbersAt(c.args, /^(quantity|qty|hours)$/i));
     if (p.length) return ok(/(acme|cus_acme)/.test(a) && qty.length > 0 && qty.every(q => q === 2), 'invoice drafted; checked Acme and quantity exactly 2');
-    return ok(asks(o) && /rate|price|hourly|how much/i.test(o.answer), 'no draft: passes only if it asks for the hourly rate');
+    return ok(proposals(o).length === 0 && asksAbout(o, /rate|price|hourly|how much|cost per hour/i), 'no draft: passes only if it drafts nothing and asks for the hourly rate');
   } },
   { id: 'bill', q: 'Make a bill from the electricity company for 320.', check: o => {
     const p = proposals(o).filter(c => /bill/.test(c.name)); const a = argsText(o);
