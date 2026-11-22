@@ -25,6 +25,7 @@ export interface AssistantTurnMetric {
   modelCalls: number;
   inputTokens: number;
   outputTokens: number;
+  /** Tools the model was offered by the end of the turn, including any added by find_command */
   toolsOffered: number;
   /** Tool names only, never their arguments or results */
   toolsCalled: string[];
@@ -150,7 +151,7 @@ export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ ans
   const ended = now();
   return {
     answer,
-    metric: turnMetric({ path: 'model', traces, toolsOffered: input.tools.length, toolsCalled,
+    metric: turnMetric({ path: 'model', traces, toolsOffered: declarations.length, toolsCalled,
       answerMs: (answered ?? ended) - started, totalMs: ended - started, ok }),
   };
 }

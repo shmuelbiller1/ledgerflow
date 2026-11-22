@@ -168,6 +168,7 @@ test('a command found with find_command becomes callable for the rest of the tur
   assert.equal(answer, 'Drafted.');
   assert.deepEqual(ran, ['find_command', 'propose_record_save'], 'the discovered command ran');
   assert.deepEqual(metric.toolsCalled, ['find_command', 'propose_record_save']);
+  assert.equal(metric.toolsOffered, 2, 'the discovered tool counts as offered');
   assert.deepEqual(offeredPerCall[0], ['find_command']);
   assert.deepEqual(offeredPerCall[1], ['find_command', 'propose_record_save'], 'the next model call is offered the discovered command');
 });
