@@ -305,7 +305,7 @@ const Ledger = React.memo(() => {
               <ArrowRightLeft aria-hidden="true" size={14} />
               <LexiconText cardKey="ledger.button.journalEntry" defaultVal="Journal Entry" />
             </button>
-            <button aria-label="Add account"
+            <button aria-label="Append Node: add account"
               onClick={() => setActiveModal('account')}
               className="h-10 px-5 bg-gradient-to-r from-[var(--brass)] via-[#e5be6b] to-[var(--brass)] text-black hover:opacity-95 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg cursor-pointer active:scale-95"
             >

@@ -1,5 +1,7 @@
 import { displayDimensionName } from '../../lib/dimensionUtils';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { GroupedRowTable } from '../ui/RowTable';
+import type { BandCell, BandRow } from '../../lib/tableBands';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
@@ -51,9 +53,9 @@ export default function LabelBalanceSheetReportView() {
   // DIM-3: only a self-balancing label is expected to balance for each value
   const role = labelRole(dimension || {});
   const valueName = values.find(n => n.id === value)?.description || value;
-  const money = (cents: number) => <td className="text-right font-mono py-1 px-2">{cents ? formatCurrency(cents, currency) : ''}</td>;
-  const total = (label: string, own: number, rest: number) => (
-    <tr className="font-semibold border-b border-[var(--line)]"><th scope="row" className="text-left py-1">{label}</th>{money(own)}{money(rest)}</tr>
+  const money = (cents: number): BandCell => ({ className: "text-right font-mono py-1 px-2", content: cents ? formatCurrency(cents, currency) : '' });
+  const total = (label: string, own: number, rest: number): BandRow => (
+    { className: "font-semibold border-b border-[var(--line)]", cells: [{ scope: 'row', className: "text-left py-1", content: label }, money(own), money(rest)] }
   );
 
   return (
@@ -80,30 +82,34 @@ export default function LabelBalanceSheetReportView() {
       {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
       {report && (
         <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3" data-testid="label-balance-sheet">
-          <table className="w-full text-sm">
-            <caption className="text-left text-xs text-[var(--muted)] pb-1">{dimensionName} <bdi>{valueName}</bdi> {reportText('r.on-2', 'on')} {endDate}{reportText('r.from-posted-lines-with-that-value-lines-with-no', ', from posted lines with that value; lines with no')} {dimensionName} {reportText('r.and-opening-balances-are-shown-apart-not-shared', 'and opening balances are shown apart, not shared out.')}</caption>
-            <thead>
-              <tr className="border-b border-[var(--line)] text-[var(--muted)]">
-                <th scope="col" className="text-left font-semibold py-2">{reportText('r.account', 'Account')}</th>
-                <th scope="col" className="text-right font-semibold py-2 px-2"><bdi>{valueName}</bdi></th>
-                <th scope="col" className="text-right font-semibold py-2 px-2">{reportText('r.not-labelled', 'Not labelled')}</th>
-              </tr>
-            </thead>
-            {SECTIONS.map(([kind, title, part]) => (
-              <tbody key={kind}>
-                <tr><th scope="rowgroup" colSpan={3} className="text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)] pt-3">{title}</th></tr>
-                {report.rows.filter(r => r.type === kind).map(r => (
-                  <tr key={r.id} className="border-b border-[var(--line)]/50">
-                    <th scope="row" className="text-left font-normal py-1">{r.code ? <span className="font-mono text-xs text-[var(--muted)]">{r.code} </span> : null}<bdi>{r.name}</bdi></th>
-                    {money(report.sheet[part][r.id] || 0)}{money(report.notLabelled.sheet[part][r.id] || 0)}
-                  </tr>
-                ))}
-                {kind === 'equity' && <tr className="border-b border-[var(--line)]/50"><th scope="row" className="text-left font-normal py-1">{reportText('r.profit-to-date', 'Profit to date')}</th>{money(report.sheet.netIncome)}{money(report.notLabelled.sheet.netIncome)}</tr>}
-                {kind === 'asset' && total('Total assets', report.sheet.totalAssets, report.notLabelled.sheet.totalAssets)}
-              </tbody>
-            ))}
-            <tfoot>{total('Total liabilities and equity', report.sheet.totalClaims, report.notLabelled.sheet.totalClaims)}</tfoot>
-          </table>
+          <GroupedRowTable
+            caption={<>{dimensionName} <bdi>{valueName}</bdi> {reportText('r.on-2', 'on')} {endDate}{reportText('r.from-posted-lines-with-that-value-lines-with-no', ', from posted lines with that value; lines with no')} {dimensionName} {reportText('r.and-opening-balances-are-shown-apart-not-shared', 'and opening balances are shown apart, not shared out.')}</>}
+            captionClassName="text-left text-xs text-[var(--muted)] pb-1"
+            tableClassName="w-full text-sm"
+            head={[{ className: "border-b border-[var(--line)] text-[var(--muted)]", cells: [
+              { scope: 'col', className: "text-left font-semibold py-2", content: reportText('r.account', 'Account') },
+              { scope: 'col', className: "text-right font-semibold py-2 px-2", content: <bdi>{valueName}</bdi> },
+              { scope: 'col', className: "text-right font-semibold py-2 px-2", content: reportText('r.not-labelled', 'Not labelled') },
+            ] }]}
+            groups={SECTIONS.map(([kind, title, part]) => ({
+              key: kind,
+              rows: [
+                { cells: [{ scope: 'rowgroup', colSpan: 3, className: "text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)] pt-3", content: title }] },
+                ...report.rows.filter(r => r.type === kind).map(r => ({ key: r.id, className: "border-b border-[var(--line)]/50", cells: [
+                  { scope: 'row', className: "text-left font-normal py-1", content: <>{r.code ? <span className="font-mono text-xs text-[var(--muted)]">{r.code} </span> : null}<bdi>{r.name}</bdi></> },
+                  money(report.sheet[part][r.id] || 0),
+                  money(report.notLabelled.sheet[part][r.id] || 0),
+                ] })),
+                kind === 'equity' && { key: 'profit-to-date', className: "border-b border-[var(--line)]/50", cells: [
+                  { scope: 'row', className: "text-left font-normal py-1", content: reportText('r.profit-to-date', 'Profit to date') },
+                  money(report.sheet.netIncome),
+                  money(report.notLabelled.sheet.netIncome),
+                ] },
+                kind === 'asset' && total('Total assets', report.sheet.totalAssets, report.notLabelled.sheet.totalAssets),
+              ],
+            }))}
+            foot={[total('Total liabilities and equity', report.sheet.totalClaims, report.notLabelled.sheet.totalClaims)]}
+          />
           {report.sheet.isBalanced
             ? <p className="mt-1 text-xs text-[var(--muted)]">{reportText('r.assets-liabilities-equity-for', 'Assets = liabilities + equity for')} <bdi>{valueName}</bdi>.</p>
             : role === 'self-balancing'

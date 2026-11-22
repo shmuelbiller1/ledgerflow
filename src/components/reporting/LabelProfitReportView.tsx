@@ -1,5 +1,7 @@
 import { displayDimensionName, stableLabelValue } from '../../lib/dimensionUtils';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { GroupedRowTable } from '../ui/RowTable';
+import type { BandCell } from '../../lib/tableBands';
 import { fetchProfitByLabel } from '../../lib/profitByLabelFetch';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -62,17 +64,14 @@ export default function LabelProfitReportView() {
   const dimensionName = dimension ? displayDimensionName(dimension) : dimensionId;
 
   /** a figure that opens the entries behind it; income is shown as credits, so its sign is turned */
-  const cell = (cents: number, accountIds: string[], value: string | null, name: string, section: Section | null) => (
-    <td className="text-right font-mono py-1 px-2">
-      {cents === 0 || accountIds.length === 0 ? (cents === 0 ? '' : formatCurrency(cents, currency)) : (
+  const cell = (cents: number, accountIds: string[], value: string | null, name: string, section: Section | null): BandCell => ({ className: "text-right font-mono py-1 px-2", content:
+      cents === 0 || accountIds.length === 0 ? (cents === 0 ? '' : formatCurrency(cents, currency)) : (
         <button type="button" className="hover:underline" onClick={() => setDrill({
           name, explain: { accountIds, startDate, endDate, expectedCents: cents, sign: section === 'income' ? -1 : 1, ...(value !== null ? { labelFilter: { dimensionId, value }, label: fill(reportText('r.label-value-period', '{label} {value}, {period}'), { label: dimensionName, value: valueName(value), period: reportDates.periodText(startDate, endDate) }) } : {}) },
         })}>
           {formatCurrency(cents, currency)}<span className="sr-only"> {name}{value !== null ? ` ${fill(reportText('r.for-value', 'for {value}'), { value: valueName(value) })}` : ` ${reportText('r.in-total', 'in total')}`}{reportText('r.open-the-entries', ': open the entries')}</span>
         </button>
-      )}
-    </td>
-  );
+      ) });
   const idsOf = (section: Section) => (report?.rows || []).filter(r => r.section === section).map(r => r.id);
 
   return (
@@ -97,41 +96,38 @@ export default function LabelProfitReportView() {
       {report && report.columns.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-income-or-costs-in-this-period', 'No income or costs in this period.')}</p>}
       {report && report.columns.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
-          <table className="w-full text-sm">
-            <caption className="text-left text-xs text-[var(--muted)] pb-1">{reportText('r.each-value-of', 'Each value of')} {dimensionName}{reportText('r.and-the-lines-without-one-together-they-add-up-t', ', and the lines without one; together they add up to the profit and loss of the period. Posted entries only.')}</caption>
-            <thead>
-              <tr className="border-b border-[var(--line)] text-[var(--muted)]">
-                <th scope="col" className="text-left font-semibold py-2">{reportText('r.account', 'Account')}</th>
-                {report.columns.map(c => <th key={c.value} scope="col" className="text-right font-semibold py-2 px-2"><bdi>{valueName(c.value)}</bdi></th>)}
-                <th scope="col" className="text-right font-semibold py-2 px-2">{reportText('r.total', 'Total')}</th>
-              </tr>
-            </thead>
-            {SECTION_ORDER.filter(s => report.rows.some(r => r.section === s)).map(section => (
-              <tbody key={section}>
-                <tr><th scope="rowgroup" colSpan={report.columns.length + 2} className="text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)] pt-3">{SECTION_NAMES[section]}</th></tr>
-                {report.rows.filter(r => r.section === section).map(r => (
-                  <tr key={r.id} className="border-b border-[var(--line)]/50">
-                    <th scope="row" className="text-left font-normal py-1">{r.code ? <span className="font-mono text-xs text-[var(--muted)]">{r.code} </span> : null}<bdi>{r.name}</bdi></th>
-                    {report.columns.map(c => <React.Fragment key={c.value}>{cell(c.accounts[r.id] || 0, [r.id], c.value, r.name, section)}</React.Fragment>)}
-                    {cell(report.columns.reduce((s, c) => s + (c.accounts[r.id] || 0), 0), [r.id], null, r.name, section)}
-                  </tr>
-                ))}
-                <tr className="font-semibold border-b border-[var(--line)]">
-                  <th scope="row" className="text-left py-1">{sectionTotal(section)}</th>
-                  {report.columns.map(c => <React.Fragment key={c.value}>{cell(c[section], idsOf(section), c.value, sectionTotal(section), section)}</React.Fragment>)}
-                  {cell(report.total[section], idsOf(section), null, sectionTotal(section), section)}
-                </tr>
-              </tbody>
-            ))}
-            <tfoot>
-              {([['grossProfit', 'Gross profit'], ['netIncome', 'Net income']] as const).map(([k, label]) => (
-                <tr key={k} className="font-semibold">
-                  <th scope="row" className="text-left py-1">{label}</th>
-                  {report.columns.map(c => <td key={c.value} className="text-right font-mono py-1 px-2">{formatCurrency(c[k], currency)}</td>)}
-                  <td className="text-right font-mono py-1 px-2">{formatCurrency(report.total[k], currency)}</td>
-                </tr>
-              ))}
-              {(() => {
+          <GroupedRowTable
+            caption={<>{reportText('r.each-value-of', 'Each value of')} {dimensionName}{reportText('r.and-the-lines-without-one-together-they-add-up-t', ', and the lines without one; together they add up to the profit and loss of the period. Posted entries only.')}</>}
+            captionClassName="text-left text-xs text-[var(--muted)] pb-1"
+            tableClassName="w-full text-sm"
+            head={[{ className: "border-b border-[var(--line)] text-[var(--muted)]", cells: [
+              { scope: 'col', className: "text-left font-semibold py-2", content: reportText('r.account', 'Account') },
+              ...report.columns.map(c => ({ key: c.value, scope: 'col', className: "text-right font-semibold py-2 px-2", content: <bdi>{valueName(c.value)}</bdi> })),
+              { scope: 'col', className: "text-right font-semibold py-2 px-2", content: reportText('r.total', 'Total') },
+            ] }]}
+            groups={SECTION_ORDER.filter(s => report.rows.some(r => r.section === s)).map(section => ({
+              key: section,
+              rows: [
+                { cells: [{ scope: 'rowgroup', colSpan: report.columns.length + 2, className: "text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)] pt-3", content: SECTION_NAMES[section] }] },
+                ...report.rows.filter(r => r.section === section).map(r => ({ key: r.id, className: "border-b border-[var(--line)]/50", cells: [
+                  { scope: 'row', className: "text-left font-normal py-1", content: <>{r.code ? <span className="font-mono text-xs text-[var(--muted)]">{r.code} </span> : null}<bdi>{r.name}</bdi></> },
+                  ...report.columns.map(c => ({ key: c.value, ...cell(c.accounts[r.id] || 0, [r.id], c.value, r.name, section) })),
+                  cell(report.columns.reduce((s, c) => s + (c.accounts[r.id] || 0), 0), [r.id], null, r.name, section),
+                ] })),
+                { className: "font-semibold border-b border-[var(--line)]", cells: [
+                  { scope: 'row', className: "text-left py-1", content: sectionTotal(section) },
+                  ...report.columns.map(c => ({ key: c.value, ...cell(c[section], idsOf(section), c.value, sectionTotal(section), section) })),
+                  cell(report.total[section], idsOf(section), null, sectionTotal(section), section),
+                ] },
+              ],
+            }))}
+            foot={[
+              ...([['grossProfit', 'Gross profit'], ['netIncome', 'Net income']] as const).map(([k, label]) => ({ key: k, className: "font-semibold", cells: [
+                { scope: 'row', className: "text-left py-1", content: label },
+                ...report.columns.map(c => ({ key: c.value, className: "text-right font-mono py-1 px-2", content: formatCurrency(c[k], currency) })),
+                { className: "text-right font-mono py-1 px-2", content: formatCurrency(report.total[k], currency) },
+              ] })),
+              ...(() => {
                 const budgetOf = (value: string) => budgetedResult({ budgets: budgets || [], accounts: ledgerAccounts || [], dimensionId, value, start: startDate, end: endDate, nodes: nodes || [] });
                 // Old imports can supply descriptions while new entries carry node IDs.
                 // Give the canonical label's budget to its first actual column only.
@@ -152,30 +148,24 @@ export default function LabelProfitReportView() {
                     counted.add(key);
                     return true;
                   }).map(v => ({ value: v, cents: budgetOf(v) || 0 })).filter(v => v.cents !== 0);
-                if (budgeted.every(b => b === null) && budgetOnly.length === 0) return null;
+                if (budgeted.every(b => b === null) && budgetOnly.length === 0) return [];
                 const total = budgeted.reduce<number>((s, b) => s + (b || 0), 0) + budgetOnly.reduce((s, v) => s + v.cents, 0);
-                return (
-                  <>
-                    <tr data-testid="label-budget-row">
-                      <th scope="row" className="text-left py-1">{reportText('r.budgeted-result', 'Budgeted result')}</th>
-                      {budgeted.map((b, i) => <td key={report.columns[i].value} className="text-right font-mono py-1 px-2">{formatCurrency(b || 0, currency)}</td>)}
-                      <td className="text-right font-mono py-1 px-2">{formatCurrency(total, currency)}</td>
-                    </tr>
-                    <tr className="font-semibold">
-                      <th scope="row" className="text-left py-1">{reportText('r.net-income-vs-budget', 'Net income vs budget')}</th>
-                      {report.columns.map((c, i) => <td key={c.value} className="text-right font-mono py-1 px-2">{formatCurrency(c.netIncome - (budgeted[i] || 0), currency)}</td>)}
-                      <td className="text-right font-mono py-1 px-2">{formatCurrency(report.total.netIncome - total, currency)}</td>
-                    </tr>
-                    {budgetOnly.length > 0 && (
-                      <tr><td colSpan={report.columns.length + 2} className="text-xs text-[var(--muted)] pt-1" data-testid="label-budget-only">
-                        {reportText('r.budgeted-with-no-activity-in-this-period-in-the', 'Budgeted with no activity in this period (in the total):')} {budgetOnly.map(v => `${valueName(v.value)} ${formatCurrency(v.cents, currency)}`).join(', ')}
-                      </td></tr>
-                    )}
-                  </>
-                );
-              })()}
-            </tfoot>
-          </table>
+                return [
+                  { key: 'label-budget-row', 'data-testid': 'label-budget-row', cells: [
+                    { scope: 'row', className: "text-left py-1", content: reportText('r.budgeted-result', 'Budgeted result') },
+                    ...budgeted.map((b, i) => ({ key: report.columns[i].value, className: "text-right font-mono py-1 px-2", content: formatCurrency(b || 0, currency) })),
+                    { className: "text-right font-mono py-1 px-2", content: formatCurrency(total, currency) },
+                  ] },
+                  { key: 'net-income-vs-budget', className: "font-semibold", cells: [
+                    { scope: 'row', className: "text-left py-1", content: reportText('r.net-income-vs-budget', 'Net income vs budget') },
+                    ...report.columns.map((c, i) => ({ key: c.value, className: "text-right font-mono py-1 px-2", content: formatCurrency(c.netIncome - (budgeted[i] || 0), currency) })),
+                    { className: "text-right font-mono py-1 px-2", content: formatCurrency(report.total.netIncome - total, currency) },
+                  ] },
+                  ...budgetOnly.length > 0 ? [{ key: 'label-budget-only', cells: [{ colSpan: report.columns.length + 2, className: "text-xs text-[var(--muted)] pt-1", 'data-testid': 'label-budget-only', content: <>{reportText('r.budgeted-with-no-activity-in-this-period-in-the', 'Budgeted with no activity in this period (in the total):')} {budgetOnly.map(v => `${valueName(v.value)} ${formatCurrency(v.cents, currency)}`).join(', ')}</> }] }] : [],
+                ];
+              })(),
+            ]}
+          />
         </div>
       )}
       {report && (() => {

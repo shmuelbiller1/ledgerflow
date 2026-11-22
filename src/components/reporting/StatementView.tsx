@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import React, { useState, useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -346,45 +347,33 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
           {/* A phone scrolls this table sideways, so the scrolling area must be reachable by keyboard. */}
           <div role="group" aria-label={reportText('r.statement-activity', 'Statement activity')} className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto">
             <a href="#statement-activity-end" className="sr-only focus:not-sr-only focus:block focus:p-2 focus:underline">{reportText('r.skip-to-the-end-of-the-statement-rows', 'Skip to the end of the statement rows')}</a>
-            <table className="w-full text-left text-xs">
-              <caption className="sr-only">{reportText('r.account-statement-2', 'Account statement')}</caption>
-              <thead>
-                <tr className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase text-[10px] font-bold">
-                  <th scope="col" className="py-3 px-4">{reportText('r.date-2', 'Date')}</th>
-                  <th scope="col" className="py-3 px-4">{reportText('r.transaction-type', 'Transaction Type')}</th>
-                  <th scope="col" className="py-3 px-4">{reportText('r.reference-no', 'Reference / #')}</th>
-                  <th scope="col" className="py-3 px-4 text-right">{reportText('r.amount-billed', 'Amount Billed')}</th>
-                  <th scope="col" className="py-3 px-4 text-right">{reportText('r.amount-paid', 'Amount Paid')}</th>
-                  <th scope="col" className="py-3 px-4 text-right">{reportText('r.running-balance', 'Running Balance')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
-                <tr className="bg-slate-50/50 dark:bg-slate-900/30 font-semibold">
+            <RowTable
+caption={reportText('r.account-statement-2', 'Account statement')}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-left text-xs"}
+headRowClassName={''}
+headerRowClassName={"bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase text-[10px] font-bold"}
+bodyClassName={"divide-y divide-slate-200 dark:divide-slate-800 font-mono"}
+rows={statementData.entries}
+rowKey={entry => JSON.stringify([entry.type, entry.id])}
+rowHeaderColumn={false}
+rowClassName={"hover:bg-slate-50 dark:hover:bg-slate-800/30"}
+bodyStart={<tr className="bg-slate-50/50 dark:bg-slate-900/30 font-semibold">
                   <td className="py-2.5 px-4 text-[var(--muted)]">{statementData.startDate}</td>
                   <td className="py-2.5 px-4 font-sans italic text-[var(--muted)]" colSpan={4}>{reportText('r.opening-balance-brought-forward', 'Opening Balance Brought Forward')}</td>
                   <td className="py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white">
                     {formatCurrency(statementData.openingBalanceCents)}
                   </td>
-                </tr>
-
-                {statementData.entries.map(entry => (
-                  <tr key={JSON.stringify([entry.type, entry.id])} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                    <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">{entry.date}</td>
-                    <td className="py-2.5 px-4 font-sans font-medium text-slate-900 dark:text-white">{entry.type}</td>
-                    <td className="py-2.5 px-4 text-[var(--muted)]">#{entry.reference}</td>
-                    <td className="py-2.5 px-4 text-right text-slate-900 dark:text-white">
-                      {entry.debitCents > 0 ? formatCurrency(entry.debitCents) : '-'}
-                    </td>
-                    <td className="py-2.5 px-4 text-right text-emerald-700 dark:text-emerald-400">
-                      {entry.creditCents > 0 ? formatCurrency(entry.creditCents) : '-'}
-                    </td>
-                    <td className="py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white">
-                      {formatCurrency(entry.runningBalanceCents)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </tr>}
+columns={[
+{ header: reportText('r.date-2', 'Date'), headClassName: "py-3 px-4", className: "py-2.5 px-4 text-slate-600 dark:text-slate-400", cell: entry => (entry.date) },
+{ header: reportText('r.transaction-type', 'Transaction Type'), headClassName: "py-3 px-4", className: "py-2.5 px-4 font-sans font-medium text-slate-900 dark:text-white", cell: entry => (entry.type) },
+{ header: reportText('r.reference-no', 'Reference / #'), headClassName: "py-3 px-4", className: "py-2.5 px-4 text-[var(--muted)]", cell: entry => (<>#{entry.reference}</>) },
+{ header: reportText('r.amount-billed', 'Amount Billed'), headClassName: "py-3 px-4 text-right", className: "py-2.5 px-4 text-right text-slate-900 dark:text-white", cell: entry => (entry.debitCents > 0 ? formatCurrency(entry.debitCents) : '-') },
+{ header: reportText('r.amount-paid', 'Amount Paid'), headClassName: "py-3 px-4 text-right", className: "py-2.5 px-4 text-right text-emerald-700 dark:text-emerald-400", cell: entry => (entry.creditCents > 0 ? formatCurrency(entry.creditCents) : '-') },
+{ header: reportText('r.running-balance', 'Running Balance'), headClassName: "py-3 px-4 text-right", className: "py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white", cell: entry => (formatCurrency(entry.runningBalanceCents)) }
+]}
+/>
           </div>
         </div>
       )}

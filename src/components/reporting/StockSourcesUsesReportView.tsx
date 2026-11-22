@@ -8,6 +8,8 @@ import { resolveDimensionLabel } from '../../lib/dimensionUtils';
 import type { ItemDetails } from '../../lib/stockMoves';
 import { stockSourcesUses, stockSourcesUsesCsv, type FlowLine, type ItemSourcesUses } from '../../lib/stockSourcesUses';
 import { runCommand } from '../../lib/runCommand';
+import { GroupedRowTable } from '../ui/RowTable';
+import type { BandRow } from '../../lib/tableBands';
 import { useReportText } from './useReportText';
 
 /** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
@@ -81,44 +83,58 @@ export default function StockSourcesUsesReportView() {
   );
 }
 
-function FlowRows({ lines, currency }: { lines: FlowLine[]; currency: string }) {
-  const reportText = useReportText();
-  return <>{lines.map(l => (
-    <tr key={l.key} className="border-b border-[var(--line)]/50">
-      <th scope="row" className="text-left font-normal py-1 pl-4"><bdi>{l.label}</bdi>{l.unknown && <span className="ml-1 text-xs text-amber-700 dark:text-amber-400">{reportText('r.not-recorded-2', '(not recorded)')}</span>}</th>
-      <td className="text-right font-mono py-1">{qty(l.quantity)}</td>
-      <td className="text-right font-mono py-1">{formatCurrency(l.valueCents, currency)}</td>
-    </tr>
-  ))}</>;
+function flowRows(lines: FlowLine[], currency: string, reportText: ReturnType<typeof useReportText>): BandRow[] {
+  return lines.map(l => ({
+    key: l.key,
+    className: "border-b border-[var(--line)]/50",
+    cells: [
+      { scope: 'row', className: "text-left font-normal py-1 pl-4", content: <><bdi>{l.label}</bdi>{l.unknown && <span className="ml-1 text-xs text-amber-700 dark:text-amber-400">{reportText('r.not-recorded-2', '(not recorded)')}</span>}</> },
+      { className: "text-right font-mono py-1", content: qty(l.quantity) },
+      { className: "text-right font-mono py-1", content: formatCurrency(l.valueCents, currency) },
+    ],
+  }));
 }
 
 function ItemFlow({ row, currency }: { row: ItemSourcesUses; currency: string }) {
   const reportText = useReportText();
-  const head = (text: string) => <tr><th scope="rowgroup" colSpan={3} className="text-left text-xs font-semibold text-[var(--muted)] pt-2">{text}</th></tr>;
+  const sectionRow = (text: string): BandRow => ({ cells: [{ scope: 'rowgroup', colSpan: 3, className: "text-left text-xs font-semibold text-[var(--muted)] pt-2", content: text }] });
   return (
     <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3" data-testid="stock-flow">
-      <table className="w-full text-sm">
-        <caption className="text-left font-semibold text-[var(--text)] pb-1"><bdi>{row.itemName}</bdi></caption>
-        <thead>
-          <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-            <th scope="col" className="text-left font-semibold py-1">{reportText('r.line', 'Line')}</th>
-            <th scope="col" className="text-right font-semibold py-1">{reportText('r.units', 'Units')}</th>
-            <th scope="col" className="text-right font-semibold py-1">{reportText('r.value', 'Value')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><th scope="row" className="text-left font-normal py-1">{reportText('r.opening-2', 'Opening')}</th><td className="text-right font-mono py-1">{qty(row.opening.quantity)}</td><td className="text-right font-mono py-1">{formatCurrency(row.opening.valueCents, currency)}</td></tr>
-          {row.sources.length > 0 && head(reportText('r.came-from', 'Came from'))}
-          <FlowRows lines={row.sources} currency={currency} />
-          {row.uses.length > 0 && head(reportText('r.went-to', 'Went to'))}
-          <FlowRows lines={row.uses} currency={currency} />
-          {row.costChanges.moves > 0 && <tr><th scope="row" className="text-left font-normal py-1">{reportText('r.cost-changes-no-units', 'Cost changes (no units)')}</th><td className="text-right font-mono py-1">{CODE_NAMES.c0}</td><td className="text-right font-mono py-1">{formatCurrency(row.costChanges.valueCents, currency)}</td></tr>}
-          {row.transfers.moves > 0 && <tr className="text-[var(--muted)]"><th scope="row" className="text-left font-normal py-1">{reportText('r.moved-between-locations', 'Moved between locations (')}{row.transfers.moves} {reportText('r.moves-not-counted-twice', 'moves, not counted twice)')}</th><td className="text-right font-mono py-1">{qty(row.transfers.net)}</td><td /></tr>}
-        </tbody>
-        <tfoot>
-          <tr className="font-semibold"><th scope="row" className="text-left py-1">{reportText('r.closing', 'Closing')}</th><td className="text-right font-mono py-1">{qty(row.closing.quantity)}</td><td className="text-right font-mono py-1">{formatCurrency(row.closing.valueCents, currency)}</td></tr>
-        </tfoot>
-      </table>
+      <GroupedRowTable
+        caption={<bdi>{row.itemName}</bdi>}
+        captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+        tableClassName="w-full text-sm"
+        head={[{ className: "border-b border-[var(--line)] text-xs text-[var(--muted)]", cells: [
+          { scope: 'col', className: "text-left font-semibold py-1", content: reportText('r.line', 'Line') },
+          { scope: 'col', className: "text-right font-semibold py-1", content: reportText('r.units', 'Units') },
+          { scope: 'col', className: "text-right font-semibold py-1", content: reportText('r.value', 'Value') },
+        ] }]}
+        groups={[{ rows: [
+          { key: 'opening', cells: [
+            { scope: 'row', className: "text-left font-normal py-1", content: reportText('r.opening-2', 'Opening') },
+            { className: "text-right font-mono py-1", content: qty(row.opening.quantity) },
+            { className: "text-right font-mono py-1", content: formatCurrency(row.opening.valueCents, currency) },
+          ] },
+          ...row.sources.length > 0 ? [sectionRow(reportText('r.came-from', 'Came from')), ...flowRows(row.sources, currency, reportText)] : [],
+          ...row.uses.length > 0 ? [sectionRow(reportText('r.went-to', 'Went to')), ...flowRows(row.uses, currency, reportText)] : [],
+          row.costChanges.moves > 0 && { key: 'cost-changes', cells: [
+            { scope: 'row', className: "text-left font-normal py-1", content: reportText('r.cost-changes-no-units', 'Cost changes (no units)') },
+            { className: "text-right font-mono py-1", content: CODE_NAMES.c0 },
+            { className: "text-right font-mono py-1", content: formatCurrency(row.costChanges.valueCents, currency) },
+          ] },
+          row.transfers.moves > 0 && { key: 'transfers', className: "text-[var(--muted)]", cells: [
+            { scope: 'row', className: "text-left font-normal py-1", content: <>{reportText('r.moved-between-locations', 'Moved between locations (')}{row.transfers.moves} {reportText('r.moves-not-counted-twice', 'moves, not counted twice)')}</> },
+            { className: "text-right font-mono py-1", content: qty(row.transfers.net) },
+            { content: null },
+          ] },
+        ] }]}
+        footClassName=""
+        foot={[{ className: "font-semibold", cells: [
+          { scope: 'row', className: "text-left py-1", content: reportText('r.closing', 'Closing') },
+          { className: "text-right font-mono py-1", content: qty(row.closing.quantity) },
+          { className: "text-right font-mono py-1", content: formatCurrency(row.closing.valueCents, currency) },
+        ] }]}
+      />
       {row.differenceUnits !== 0
         ? <p role="alert" className="mt-1 text-xs text-rose-600">{reportText('r.these-do-not-add-up', 'These do not add up:')} {qty(row.differenceUnits)} {reportText('r.units-are-not-explained-by-the-stock-history', 'units are not explained by the stock history.')}</p>
         : <p className="mt-1 text-xs text-[var(--muted)]">{reportText('r.opening-came-from-went-to-closing', 'Opening + came from − went to = closing.')}</p>}

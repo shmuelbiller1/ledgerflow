@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React from 'react';
 import { Download, Search, LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
@@ -170,60 +171,24 @@ export function PartyReportLayout<T>({
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden shadow-xs">
         {/* the table scrolls inside its box so the header (and totals) stay in view (I-14) */}
         <div role="region" aria-label={reportText('r.scrollable-party-report', 'Scrollable party report')} tabIndex={0} className="overflow-auto max-h-[70vh] print:max-h-none print:overflow-visible">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-          <table className="w-full text-left text-xs">
-            <caption className="sr-only">{title}</caption>
-            <thead className="sticky top-0 z-10 bg-neutral-50 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-semibold uppercase tracking-wider text-[10px]">
-              <tr>
-                {columns.map((col) => (
-                  <th
-                    key={col.key}
-                    scope="col"
-                    className={`px-4 py-3 ${
-                      col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'
-                    } ${col.className || ''}`}
-                  >
-                    {col.header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-              {data.length === 0 ? (
-                <tr>
+          <RowTable
+caption={title}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-left text-xs"}
+headRowClassName={"sticky top-0 z-10 bg-neutral-50 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-semibold uppercase tracking-wider text-[10px]"}
+bodyClassName={"divide-y divide-neutral-100 dark:divide-neutral-800"}
+rows={paged.visible.map((item, index) => { const rowKey = getRowId(item, index);
+return { item, index, rowKey }; })}
+rowKey={({ rowKey }) => rowKey}
+rowHeaderClassName={'font-normal text-start'}
+rowClassName={"hover:bg-neutral-50/60 dark:hover:bg-neutral-800/40 transition-colors"}
+emptyRow={<tr>
                   <td colSpan={columns.length} className="text-center py-10 text-neutral-400 text-xs">
                     {emptyMessage}
                   </td>
-                </tr>
-              ) : (
-                paged.visible.map((item, index) => {
-                  const rowKey = getRowId(item, index);
-                  return (
-                    <tr
-                      key={rowKey}
-                      className="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/40 transition-colors"
-                    >
-                      {columns.map((col) => (
-                        <td
-                          key={col.key}
-                          className={`px-4 py-3 ${
-                            col.align === 'right'
-                              ? 'text-right font-mono'
-                              : col.align === 'center'
-                              ? 'text-center'
-                              : 'text-left'
-                          } ${col.className || ''}`}
-                        >
-                          {col.render ? col.render(item) : String((item as Record<string, unknown>)[col.key] ?? '')}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-            {sumKeys.length > 0 && data.length > 0 && (
-              <tfoot className="sticky bottom-0 bg-neutral-50 dark:bg-neutral-800 border-t-2 border-neutral-300 dark:border-neutral-700 font-bold text-neutral-900 dark:text-white">
-                <tr>
+                </tr>}
+footerClassName={"sticky bottom-0 bg-neutral-50 dark:bg-neutral-800 border-t-2 border-neutral-300 dark:border-neutral-700 font-bold text-neutral-900 dark:text-white"}
+footer={sumKeys.length > 0 && data.length > 0 && <><tr>
                   {columns.map((col, i) => (
                     <td key={col.key} className={`px-4 py-3 ${col.align === 'right' ? 'text-right font-mono' : col.align === 'center' ? 'text-center' : 'text-left'}`}>
                       {(sumKeys as string[]).includes(col.key)
@@ -231,10 +196,19 @@ export function PartyReportLayout<T>({
                         : i === 0 ? fill(reportText('r.total-0', 'Total ({0})'), { 0: data.length }) : ''}
                     </td>
                   ))}
-                </tr>
-              </tfoot>
-            )}
-          </table>
+                </tr></>}
+columns={[
+...(columns.map((col) => ({key: col.key, header: col.header, headClassName: `px-4 py-3 ${
+                      col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'
+                    } ${col.className || ''}`, className: `px-4 py-3 ${
+                            col.align === 'right'
+                              ? 'text-right font-mono'
+                              : col.align === 'center'
+                              ? 'text-center'
+                              : 'text-left'
+                          } ${col.className || ''}`, cell: ({ item }: { item: T }) => (col.render ? col.render(item) : String((item as Record<string, unknown>)[col.key] ?? '')) })))
+]}
+/>
           <ShowMoreRows shown={paged.visible.length} total={paged.total} noun="rows" onMore={paged.more} onAll={paged.all} />
         </div>
       </div>

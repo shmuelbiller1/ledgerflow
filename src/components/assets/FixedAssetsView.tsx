@@ -1,3 +1,4 @@
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { AssetInlineDetails } from './AssetInlineDetails';
 import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import React, { useMemo, useState } from 'react';
@@ -267,26 +268,17 @@ export const FixedAssetsView: React.FC = () => {
         )
       ) : (
         <div className="rounded-lg border border-[var(--line)] bg-[var(--surface)] overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <caption className="sr-only">Fixed assets</caption>
-            <thead className="bg-[var(--panel)] text-[var(--muted)] font-semibold uppercase tracking-wider">
-              <tr>
-                <th scope="col" className="py-3 px-4">Asset</th>
-                <th scope="col" className="py-3 px-4">Bought</th>
-                <th scope="col" className="py-3 px-4 text-right">Cost</th>
-                <th scope="col" className="py-3 px-4 text-right">Life</th>
-                <th scope="col" className="py-3 px-4 text-right">Depreciated</th>
-                <th scope="col" className="py-3 px-4 text-right">Book value</th>
-                <th scope="col" className="py-3 px-4">Posted through</th>
-                {canWrite && <th scope="col" className="py-3 px-4"><span className="sr-only">Actions</span></th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--line)] text-[var(--text)]">
-              {shown.map(asset => (
-                <React.Fragment key={asset.id}>
-                <tr>
-                  <td className="py-3 px-4 font-semibold">
-                    <AssetInlineDetails asset={asset} currency={workspace?.currency || 'USD'} />
+          <TanStackDataGrid
+caption={"Fixed assets"}
+data={shown}
+getRowId={asset => asset.id}
+columnScope="fixed-assets"
+columnLabel={"Fixed assets"}
+rowHeaderColumn="asset"
+hidePaginationOnSinglePage
+renderDetail={asset => (scheduleOf === asset.id && (<DepreciationScheduleTable asset={asset} />))}
+columns={[
+{ id: 'asset', header: "Asset", accessorFn: asset => asset.name, cell: ({ row: { original: asset } }) => (<><AssetInlineDetails asset={asset} currency={workspace?.currency || 'USD'} />
                     <div className="text-[11px] text-[var(--muted)] font-normal">{asset.status === 'in_progress' ? 'Being built (construction in progress)' : asset.depreciationMethod === 'declining-balance' ? 'Declining balance' : 'Straight line'}{asset.status === 'disposed' ? ' · disposed' : ''}</div>
                     {asset.placedInService && <div className="text-[11px] text-[var(--muted)] font-normal">In service since {formatDate(asset.placedInService.date)} (building started {formatDate(asset.placedInService.startedOn)})</div>}
                     {(asset.transfers || []).slice(-1).map(m => (
@@ -300,21 +292,16 @@ export const FixedAssetsView: React.FC = () => {
                     <button type="button" aria-expanded={scheduleOf === asset.id} onClick={() => setScheduleOf(scheduleOf === asset.id ? '' : asset.id)}
                       className="mt-1 text-[11px] font-semibold text-[var(--brass)] hover:underline">
                       {scheduleOf === asset.id ? 'Hide schedule' : 'Schedule'}<span className="sr-only"> of {asset.name}</span>
-                    </button>
-                  </td>
-                  <td className="py-3 px-4 font-mono">{formatDate(asset.purchaseDate)}</td>
-                  <td className="py-3 px-4 text-right font-mono">{formatCurrency(asset.purchasePriceCents)}</td>
-                  <td className="py-3 px-4 text-right">{asset.usefulLifeYears} yr</td>
-                  <td className="py-3 px-4 text-right font-mono">{formatCurrency(asset.accumulatedDepreciationCents || 0)}</td>
-                  <td className="py-3 px-4 text-right font-mono font-bold">{asset.status === 'disposed' ? '—' : formatCurrency((asset.purchasePriceCents || 0) - (asset.accumulatedDepreciationCents || 0))}</td>
-                  <td className="py-3 px-4 text-[var(--muted)]">
-                    {asset.status === 'disposed' && asset.disposedOn
+                    </button></>) },
+{ id: 'bought', header: "Bought", accessorFn: asset => asset.purchaseDate, cell: ({ row: { original: asset } }) => (formatDate(asset.purchaseDate)) },
+{ id: 'cost', header: "Cost", accessorFn: asset => asset.purchasePriceCents, cell: ({ row: { original: asset } }) => (<div className="text-end tabular-nums">{formatCurrency(asset.purchasePriceCents)}</div>) },
+{ id: 'life', header: "Life", accessorFn: asset => asset.usefulLifeYears, cell: ({ row: { original: asset } }) => (<div className="text-end tabular-nums">{<>{asset.usefulLifeYears} yr</>}</div>) },
+{ id: 'depreciated', header: "Depreciated", accessorFn: asset => asset.accumulatedDepreciationCents, cell: ({ row: { original: asset } }) => (<div className="text-end tabular-nums">{formatCurrency(asset.accumulatedDepreciationCents || 0)}</div>) },
+{ id: 'book-value', header: "Book value", accessorFn: asset => (asset.purchasePriceCents || 0) - (asset.accumulatedDepreciationCents || 0), enableSorting: false, cell: ({ row: { original: asset } }) => (<div className="text-end tabular-nums">{asset.status === 'disposed' ? '—' : formatCurrency((asset.purchasePriceCents || 0) - (asset.accumulatedDepreciationCents || 0))}</div>) },
+{ id: 'posted-through', header: "Posted through", accessorFn: asset => asset.depreciatedThrough, cell: ({ row: { original: asset } }) => (asset.status === 'disposed' && asset.disposedOn
                       ? <>{(asset.disposalProceedsCents || 0) > 0 ? 'Sold' : 'Scrapped'} {formatDate(asset.disposedOn)}{asset.disposalGainLossCents ? ` · ${asset.disposalGainLossCents > 0 ? 'gain' : 'loss'} ${formatCurrency(Math.abs(asset.disposalGainLossCents))}` : ''}</>
-                      : asset.status === 'in_progress' ? `Being built since ${formatDate(asset.purchaseDate)}` : asset.depreciatedThrough || 'not yet'}
-                  </td>
-                  {canWrite && (
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
-                      {asset.status !== 'disposed' ? (
+                      : asset.status === 'in_progress' ? `Being built since ${formatDate(asset.purchaseDate)}` : asset.depreciatedThrough || 'not yet') },
+...(canWrite ? [{ id: 'actions', header: "Actions", enableSorting: false, cell: ({ row: { original: asset } }: { row: { original: FixedAsset } }) => (<div className="text-end tabular-nums">{<>{asset.status !== 'disposed' ? (
                         <button type="button" onClick={() => setDisposing(asset)} className="text-xs font-semibold text-[var(--brass)] hover:underline">
                           Sell or scrap<span className="sr-only"> {asset.name}</span>
                         </button>
@@ -338,21 +325,9 @@ export const FixedAssetsView: React.FC = () => {
                         <button type="button" disabled={undoing === asset.id} onClick={() => void undoDisposal(asset)} className="block ml-auto mt-1 text-xs font-semibold text-[var(--muted)] hover:underline disabled:opacity-50">
                           Undo last part sold<span className="sr-only"> of {asset.name}</span>
                         </button>
-                      )}
-                    </td>
-                  )}
-                </tr>
-                {scheduleOf === asset.id && (
-                  <tr>
-                    <td colSpan={canWrite ? 8 : 7} className="px-4 pb-4 bg-[var(--panel)]">
-                      <DepreciationScheduleTable asset={asset} />
-                    </td>
-                  </tr>
-                )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
+                      )}</>}</div>) }] : [])
+]}
+/>
         </div>
       )}
 

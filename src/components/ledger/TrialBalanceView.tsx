@@ -33,6 +33,7 @@ import { useBalanceEntries } from '../../hooks/useBalanceEntries';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import PrintLayoutControl from '../reporting/PrintLayoutControl';
+import { RowTable } from '../ui/RowTable';
 import { useReportText, fill } from '../reporting/useReportText';
 
 /** the trial balance worked out here also reads the journal entries */
@@ -464,7 +465,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
             type="button"
             onClick={() => window.print()}
             className="min-h-11 flex items-center gap-1.5 px-3 py-1 bg-[var(--surface)] text-[var(--muted)] border border-[var(--line)] rounded-lg text-[9px] font-bold uppercase tracking-wider hover:text-[var(--text)] transition-all cursor-pointer"
-            aria-label={reportText('r.print-trial-balance', 'Print trial balance')}>
+            aria-label={`${reportText('r.print', 'Print')} — ${reportText('r.print-trial-balance', 'Print trial balance')}`}>
             <Printer aria-hidden="true" size={11} /> {reportText('r.print', 'Print')}
           </button>
           <button 
@@ -484,120 +485,23 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
 
       {/* Table */}
       <div className="overflow-x-auto relative z-10 custom-scrollbar" role="region" aria-label={reportText('r.trial-balance-table', 'Trial balance table')} tabIndex={0}>{/* NOSONAR: S6845 — focusable scroll region lets keyboard users pan the wide table on narrow screens */}
-        <table className="w-full text-start min-w-[700px] text-xs">
-          <caption className="sr-only">{reportText('r.trial-balance', 'Trial Balance')}</caption>
-          <thead>
-            <tr className="bg-slate-900 text-white whitespace-nowrap select-none">
-              <th scope="col"
-                onClick={() => handleSort('code')}
-                className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <span>{reportText('r.account-code', 'Account Code')}</span>
-                  {renderSortIcon('code')}
-                </div>
-              </th>
-              <th scope="col"
-                onClick={() => handleSort('name')}
-                className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <span>{reportText('r.account-name-classification', 'Account Name & Classification')}</span>
-                  {renderSortIcon('name')}
-                </div>
-              </th>
-              <th scope="col"
-                onClick={() => handleSort('debit')}
-                className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-right cursor-pointer hover:bg-slate-800 transition-colors"
-              >
-                <div className="flex items-center justify-end gap-2">
-                  <span>{reportText('r.debit-balance', 'Debit Balance')}</span>
-                  {renderSortIcon('debit')}
-                </div>
-              </th>
-              <th scope="col"
-                onClick={() => handleSort('credit')}
-                className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-right cursor-pointer hover:bg-slate-800 transition-colors"
-              >
-                <div className="flex items-center justify-end gap-2">
-                  <span>{reportText('r.credit-balance', 'Credit Balance')}</span>
-                  {renderSortIcon('credit')}
-                </div>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {groupedLines.rows.map((row) => {
-              // a subtotal row is not an account: nothing to drill into, and the footer total is unchanged
-              if (row.kind === 'subtotal') {
-                const subtotal = groupedLines.subtotals.get(row.member.id);
-                const debit = subtotal?.debit || 0;
-                const credit = subtotal?.credit || 0;
-                return (
-                  <tr key={row.key} className="bg-[var(--ink)]/40">
-                    <td className="px-5 py-2" />
-                    <th scope="row" className="px-5 py-2 text-start text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                      <span style={{ paddingInlineStart: `${row.depth * ACCOUNT_GROUP_INDENT_PX}px` }}>{row.label}</span>
-                    </th>
-                    <td className="px-5 py-2 text-right font-mono text-[10px] font-bold text-[var(--text)] tabular-nums">
-                      {debit > 0 ? <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(debit)}</bdi> : '—'}
-                    </td>
-                    <td className="px-5 py-2 text-right font-mono text-[10px] font-bold text-[var(--text)] tabular-nums">
-                      {credit > 0 ? <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(credit)}</bdi> : '—'}
-                    </td>
-                  </tr>
-                );
-              }
-              return (
-              <motion.tr 
-                key={row.key} 
-                whileHover={{ backgroundColor: "var(--ink)" }}
-                onClick={() => onDrillDown(row.member.id, { asOfDate, expectedCents: row.member.netBalance, sign: isDebitNatureType(row.member.type) ? 1 : -1 })}
-                className="group/row cursor-pointer transition-colors"
-              >
-                <td className="px-5 py-3 font-mono">
-                  <span className="font-mono text-[9px] font-bold text-[var(--muted)] bg-[var(--ink)] px-2 py-0.5 rounded border border-[var(--line)]">
-                    {row.member.code || '—'}
-                  </span>
-                </td>
-                <td className="px-5 py-3">
-                  <div className="flex items-start gap-1" style={{ paddingInlineStart: `${row.depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
-                    {row.hasChildren && (
-                      <AccountGroupToggle label={row.member.name} expanded={!collapsedGroups.has(row.member.id)}
-                        onToggle={(event) => {
-                          event.stopPropagation();
-                          setCollapsedGroups(collapsed => toggleAccountGroup(collapsed, row.member.id));
-                        }} />
-                    )}
-                    <div>
-                      <p className="text-xs font-bold text-[var(--text)] group-hover/row:text-indigo-600 transition-colors uppercase">
-                        {row.member.name}
-                      </p>
-                      <p className="text-[8px] font-bold text-[var(--muted)] uppercase tracking-wider">
-                        {row.member.type} {reportText('r.classification', 'Classification •')} {((row.member as typeof row.member & { category?: string }).category) || reportText('r.standard', 'Standard')}
-                      </p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-5 py-3 text-right font-mono text-[var(--text)] font-bold tabular-nums">
-                  {row.member.debit > 0 ? formatCurrency(row.member.debit) : '—'}
-                </td>
-                <td className="px-5 py-3 text-right font-mono text-[var(--text)] font-bold tabular-nums">
-                  {row.member.credit > 0 ? formatCurrency(row.member.credit) : '—'}
-                </td>
-              </motion.tr>
-              );
-            })}
-            {trialBalance.lines.length === 0 && (
-              <tr>
+        <RowTable
+          caption={reportText('r.trial-balance', 'Trial Balance')}
+          tableClassName="w-full text-start min-w-[700px] text-xs"
+          headerRowClassName="bg-slate-900 text-white whitespace-nowrap select-none"
+          bodyClassName="divide-y divide-slate-100"
+          rows={groupedLines.rows}
+          rowKey={row => row.key}
+          rowHeaderClassName=""
+          rowClassName={row => row.kind === 'subtotal' ? 'bg-[var(--ink)]/40' : 'group/row cursor-pointer transition-colors'}
+          rowProps={row => row.kind === 'subtotal' ? {} : { onClick: () => onDrillDown(row.member.id, { asOfDate, expectedCents: row.member.netBalance, sign: isDebitNatureType(row.member.type) ? 1 : -1 }) }}
+          emptyRow={<tr>
                 <td colSpan={4} className="py-12 text-center text-[var(--muted)] text-xs">
                   <ReportEmptyState title={reportText('r.no-accounts-found', 'No accounts found')} description={reportText('r.set-up-the-chart-of-accounts-then-add-an-entry-o', 'Set up the chart of accounts, then add an entry or choose another date.')} />
                 </td>
-              </tr>
-            )}
-          </tbody>
-          <tfoot className="border-t border-slate-250">
-            <tr className="bg-[var(--ink)]/50 whitespace-nowrap">
+              </tr>}
+          footerClassName="border-t border-slate-250"
+          footer={<tr className="bg-[var(--ink)]/50 whitespace-nowrap">
               <td colSpan={2} className="px-5 py-3.5">
                 <div className="flex items-center gap-2">
                   <Activity aria-hidden="true" size={14} className="text-[var(--muted)] shrink-0" />
@@ -635,9 +539,66 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
                 {/* Codex #600 P2: the print stylesheet hides buttons, so the paper carries the total as text */}
                 <span data-testid="tb-total-credits-print" className="hidden print:inline">{formatCurrency(trialBalance.totalCredits)}</span>
               </td>
-            </tr>
-          </tfoot>
-        </table>
+            </tr>}
+          columns={[
+            {
+              header: <button type="button" className="min-h-11" onClick={() => handleSort('code')}><div className="flex items-center gap-2"><span>{reportText('r.account-code', 'Account Code')}</span>{renderSortIcon('code')}</div></button>,
+              headClassName: "px-5 py-3 text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors",
+              cellProps: row => ({ className: row.kind === 'subtotal' ? 'px-5 py-2' : 'px-5 py-3 font-mono' }),
+              cell: row => row.kind === 'subtotal' ? '' : <span className="font-mono text-[9px] font-bold text-[var(--muted)] bg-[var(--ink)] px-2 py-0.5 rounded border border-[var(--line)]">{row.member.code || '—'}</span>,
+            },
+            {
+              rowHeader: true,
+              header: <button type="button" className="min-h-11" onClick={() => handleSort('name')}><div className="flex items-center gap-2"><span>{reportText('r.account-name-classification', 'Account Name & Classification')}</span>{renderSortIcon('name')}</div></button>,
+              headClassName: "px-5 py-3 text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors",
+              cellProps: row => ({ className: row.kind === 'subtotal' ? 'px-5 py-2 text-start text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]' : 'px-5 py-3 text-start' }),
+              cell: row => {
+                if (row.kind === 'subtotal') return <span style={{ paddingInlineStart: `${row.depth * ACCOUNT_GROUP_INDENT_PX}px` }}>{row.label}</span>;
+                return (
+                  <div className="flex items-start gap-1" style={{ paddingInlineStart: `${row.depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
+                    {row.hasChildren && (
+                      <AccountGroupToggle label={row.member.name} expanded={!collapsedGroups.has(row.member.id)}
+                        onToggle={(event) => {
+                          event.stopPropagation();
+                          setCollapsedGroups(collapsed => toggleAccountGroup(collapsed, row.member.id));
+                        }} />
+                    )}
+                    <div>
+                      <p className="text-xs font-bold text-[var(--text)] group-hover/row:text-indigo-600 transition-colors uppercase">
+                        {row.member.name}
+                      </p>
+                      <p className="text-[8px] font-bold text-[var(--muted)] uppercase tracking-wider">
+                        {row.member.type} {reportText('r.classification', 'Classification •')} {((row.member as typeof row.member & { category?: string }).category) || reportText('r.standard', 'Standard')}
+                      </p>
+                    </div>
+                  </div>
+                );
+              },
+            },
+            {
+              header: <button type="button" className="min-h-11" onClick={() => handleSort('debit')}><div className="flex items-center justify-end gap-2"><span>{reportText('r.debit-balance', 'Debit Balance')}</span>{renderSortIcon('debit')}</div></button>,
+              headClassName: "px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-right cursor-pointer hover:bg-slate-800 transition-colors",
+              cellProps: row => ({ className: row.kind === 'subtotal' ? 'px-5 py-2 text-right font-mono text-[10px] font-bold text-[var(--text)] tabular-nums' : 'px-5 py-3 text-right font-mono text-[var(--text)] font-bold tabular-nums' }),
+              cell: row => {
+                const debit = row.kind === 'subtotal' ? groupedLines.subtotals.get(row.member.id)?.debit || 0 : row.member.debit;
+                return row.kind === 'subtotal'
+                  ? debit > 0 ? <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(debit)}</bdi> : '—'
+                  : debit > 0 ? formatCurrency(debit) : '—';
+              },
+            },
+            {
+              header: <button type="button" className="min-h-11" onClick={() => handleSort('credit')}><div className="flex items-center justify-end gap-2"><span>{reportText('r.credit-balance', 'Credit Balance')}</span>{renderSortIcon('credit')}</div></button>,
+              headClassName: "px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-right cursor-pointer hover:bg-slate-800 transition-colors",
+              cellProps: row => ({ className: row.kind === 'subtotal' ? 'px-5 py-2 text-right font-mono text-[10px] font-bold text-[var(--text)] tabular-nums' : 'px-5 py-3 text-right font-mono text-[var(--text)] font-bold tabular-nums' }),
+              cell: row => {
+                const credit = row.kind === 'subtotal' ? groupedLines.subtotals.get(row.member.id)?.credit || 0 : row.member.credit;
+                return row.kind === 'subtotal'
+                  ? credit > 0 ? <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(credit)}</bdi> : '—'
+                  : credit > 0 ? formatCurrency(credit) : '—';
+              },
+            },
+          ]}
+        />
       </div>
     </div>
   </div>

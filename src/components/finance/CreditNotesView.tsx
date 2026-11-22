@@ -1,3 +1,4 @@
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -262,50 +263,33 @@ export default function CreditNotesView() {
             />
           ) : (
             <div role="region" aria-label="Scrollable credits" tabIndex={0} className="overflow-x-auto">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-              <table className="w-full text-left text-sm">
-                <caption className="sr-only">Credit notes</caption>
-                <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 uppercase text-xs">
-                  <tr>
-                    <th scope="col" className="p-3">Number</th>
-                    <th scope="col" className="p-3">Customer</th>
-                    <th scope="col" className="p-3">Date</th>
-                    <th scope="col" className="p-3">Reason</th>
-                    <th scope="col" className="p-3 text-right">Amount</th>
-                    <th scope="col" className="p-3 text-right">Remaining Credit</th>
-                    <th scope="col" className="p-3 text-center">Status</th>
-                    <th scope="col" className="p-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {creditNotes.map(cn => {
-                    const attachmentKey = `creditNotes:${cn.id}`;
+              <TanStackDataGrid
+caption={"Credit notes"}
+data={creditNotes.map((cn) => { const attachmentKey = `creditNotes:${cn.id}`;
                     const label = `Credit note ${cn.number || cn.id}`;
-                    return (
-                      <React.Fragment key={attachmentKey}>
-                    <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                      <td className="p-3 font-mono font-medium text-indigo-600 dark:text-indigo-400">
-                        <InlineEdit value={cn.number} label={`Number of credit note ${cn.number || ''}`.trim()} canEdit={canEdit}
+return { cn, attachmentKey, label }; })}
+getRowId={({ attachmentKey }) => attachmentKey}
+columnScope="credit-notes"
+columnLabel={"Credit notes"}
+rowHeaderColumn="number"
+hidePaginationOnSinglePage
+getRowProps={() => ({ className: "hover:bg-gray-50 dark:hover:bg-gray-800/50" })}
+renderDetail={({ cn, attachmentKey, label }) => (filesOpen(attachmentKey) && (<AttachmentsPanel target={{ collection: 'creditNotes', id: cn.id, label }} />))}
+columns={[
+{ id: 'number', header: "Number", accessorFn: ({ cn }) => cn.number, cell: ({ row: { original: { cn, label: _label } } }) => (<InlineEdit value={cn.number} label={`Number of credit note ${cn.number || ''}`.trim()} canEdit={canEdit}
                           validate={x => duplicateNumber(creditNotes, cn.id, String(x))}
-                          onSave={x => updateEntity('creditNotes', cn.id, { number: String(x) }, 'Credit note number saved')} />
-                      </td>
-                      <td className="p-3 font-medium text-gray-900 dark:text-white">{cn.customerName}</td>
-                      <td className="p-3 text-gray-600 dark:text-gray-400">
-                        <InlineEdit kind="date" value={cn.date?.slice(0, 10)} label={`Date of credit note ${cn.number}`} canEdit={canEdit && creditDateEditable(cn)}
-                          onSave={x => updateEntity('creditNotes', cn.id, { date: String(x) }, 'Date saved')} />
-                      </td>
-                      <td className="p-3 text-gray-600 dark:text-gray-400">
-                        <InlineEdit value={cn.reason} label={`Reason for credit note ${cn.number}`} placeholder="Add a reason" canEdit={canEdit} suggestions={reasonSuggestions}
-                          onSave={x => updateEntity('creditNotes', cn.id, { reason: String(x) }, 'Reason saved')} />
-                      </td>
-                      <td className="p-3 text-right font-semibold text-gray-900 dark:text-white"><Money cents={cn.amountCents} currency={cn.currency} colored /></td>
-                      <td className="p-3 text-right font-medium text-indigo-600 dark:text-indigo-400"><Money cents={cn.remainingCents} currency={cn.currency} colored /></td>
-                      <td className="p-3 text-center">
-                        <span className="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 font-semibold">
+                          onSave={x => updateEntity('creditNotes', cn.id, { number: String(x) }, 'Credit note number saved')} />) },
+{ id: 'customer', header: "Customer", accessorFn: ({ cn }) => cn.customerName, cell: ({ row: { original: { cn } } }) => (cn.customerName) },
+{ id: 'date', header: "Date", accessorFn: ({ cn }) => cn.date, cell: ({ row: { original: { cn, label: _label } } }) => (<InlineEdit kind="date" value={cn.date?.slice(0, 10)} label={`Date of credit note ${cn.number}`} canEdit={canEdit && creditDateEditable(cn)}
+                          onSave={x => updateEntity('creditNotes', cn.id, { date: String(x) }, 'Date saved')} />) },
+{ id: 'reason', header: "Reason", accessorFn: ({ cn }) => cn.reason, cell: ({ row: { original: { cn, label: _label } } }) => (<InlineEdit value={cn.reason} label={`Reason for credit note ${cn.number}`} placeholder="Add a reason" canEdit={canEdit} suggestions={reasonSuggestions}
+                          onSave={x => updateEntity('creditNotes', cn.id, { reason: String(x) }, 'Reason saved')} />) },
+{ id: 'amount', header: "Amount", accessorFn: ({ cn }) => cn.amountCents, cell: ({ row: { original: { cn } } }) => (<div className="text-end tabular-nums">{<Money cents={cn.amountCents} currency={cn.currency} colored />}</div>) },
+{ id: 'remaining-credit', header: "Remaining Credit", accessorFn: ({ cn }) => cn.remainingCents, cell: ({ row: { original: { cn } } }) => (<div className="text-end tabular-nums">{<Money cents={cn.remainingCents} currency={cn.currency} colored />}</div>) },
+{ id: 'status', header: "Status", accessorFn: ({ cn }) => cn.status, cell: ({ row: { original: { cn } } }) => (<span className="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 font-semibold">
                           {cn.status.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="p-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        </span>) },
+{ id: 'actions', header: "Actions", enableSorting: false, cell: ({ row: { original: { cn, attachmentKey, label: _label } } }) => (<div className="text-end tabular-nums">{<div className="flex items-center justify-end gap-1.5">
                           <button type="button" aria-expanded={filesOpen(attachmentKey)} aria-label={`Manage files for credit note ${cn.number || ''}`.trim()}
                             onClick={() => toggleFiles(attachmentKey)}
                             className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-gray-500 hover:text-indigo-600 focus-visible:outline focus-visible:outline-2" title="Files">
@@ -331,17 +315,9 @@ export default function CreditNotesView() {
                           >
                             <Download className="w-4 h-4" />
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {filesOpen(attachmentKey) && <tr><td colSpan={8} className="bg-[var(--surface)] p-3">
-                      <AttachmentsPanel target={{ collection: 'creditNotes', id: cn.id, label }} />
-                    </td></tr>}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </div>}</div>) }
+]}
+/>
             </div>
           )}
         </div>
@@ -356,50 +332,33 @@ export default function CreditNotesView() {
             />
           ) : (
             <div role="region" aria-label="Scrollable credits" tabIndex={0} className="overflow-x-auto">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-              <table className="w-full text-left text-sm">
-                <caption className="sr-only">Vendor credits</caption>
-                <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 uppercase text-xs">
-                  <tr>
-                    <th scope="col" className="p-3">Number</th>
-                    <th scope="col" className="p-3">Vendor</th>
-                    <th scope="col" className="p-3">Date</th>
-                    <th scope="col" className="p-3">Reason</th>
-                    <th scope="col" className="p-3 text-right">Amount</th>
-                    <th scope="col" className="p-3 text-right">Remaining Credit</th>
-                    <th scope="col" className="p-3 text-center">Status</th>
-                    <th scope="col" className="p-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {vendorCredits.map(vc => {
-                    const attachmentKey = `vendorCredits:${vc.id}`;
+              <TanStackDataGrid
+caption={"Vendor credits"}
+data={vendorCredits.map((vc) => { const attachmentKey = `vendorCredits:${vc.id}`;
                     const label = `Vendor credit ${vc.number || vc.id}`;
-                    return (
-                      <React.Fragment key={attachmentKey}>
-                    <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                      <td className="p-3 font-mono font-medium text-emerald-600 dark:text-emerald-400">
-                        <InlineEdit value={vc.number} label={`Number of vendor credit ${vc.number || ''}`.trim()} canEdit={canEdit}
+return { vc, attachmentKey, label }; })}
+getRowId={({ attachmentKey }) => attachmentKey}
+columnScope="credit-notes-vendor"
+columnLabel={"Vendor credits"}
+rowHeaderColumn="number"
+hidePaginationOnSinglePage
+getRowProps={() => ({ className: "hover:bg-gray-50 dark:hover:bg-gray-800/50" })}
+renderDetail={({ vc, attachmentKey, label }) => (filesOpen(attachmentKey) && (<AttachmentsPanel target={{ collection: 'vendorCredits', id: vc.id, label }} />))}
+columns={[
+{ id: 'number', header: "Number", accessorFn: ({ vc }) => vc.number, cell: ({ row: { original: { vc, label: _label } } }) => (<InlineEdit value={vc.number} label={`Number of vendor credit ${vc.number || ''}`.trim()} canEdit={canEdit}
                           validate={x => duplicateNumber(vendorCredits, vc.id, String(x))}
-                          onSave={x => updateEntity('vendorCredits', vc.id, { number: String(x) }, 'Vendor credit number saved')} />
-                      </td>
-                      <td className="p-3 font-medium text-gray-900 dark:text-white">{vc.vendorName}</td>
-                      <td className="p-3 text-gray-600 dark:text-gray-400">
-                        <InlineEdit kind="date" value={vc.date?.slice(0, 10)} label={`Date of vendor credit ${vc.number}`} canEdit={canEdit && creditDateEditable(vc)}
-                          onSave={x => updateEntity('vendorCredits', vc.id, { date: String(x) }, 'Date saved')} />
-                      </td>
-                      <td className="p-3 text-gray-600 dark:text-gray-400">
-                        <InlineEdit value={vc.reason} label={`Reason for vendor credit ${vc.number}`} placeholder="Add a reason" canEdit={canEdit} suggestions={reasonSuggestions}
-                          onSave={x => updateEntity('vendorCredits', vc.id, { reason: String(x) }, 'Reason saved')} />
-                      </td>
-                      <td className="p-3 text-right font-semibold text-gray-900 dark:text-white"><Money cents={vc.amountCents} currency={vc.currency} colored /></td>
-                      <td className="p-3 text-right font-medium text-emerald-600 dark:text-emerald-400"><Money cents={vc.remainingCents} currency={vc.currency} colored /></td>
-                      <td className="p-3 text-center">
-                        <span className="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 font-semibold">
+                          onSave={x => updateEntity('vendorCredits', vc.id, { number: String(x) }, 'Vendor credit number saved')} />) },
+{ id: 'vendor', header: "Vendor", accessorFn: ({ vc }) => vc.vendorName, cell: ({ row: { original: { vc } } }) => (vc.vendorName) },
+{ id: 'date', header: "Date", accessorFn: ({ vc }) => vc.date, cell: ({ row: { original: { vc, label: _label } } }) => (<InlineEdit kind="date" value={vc.date?.slice(0, 10)} label={`Date of vendor credit ${vc.number}`} canEdit={canEdit && creditDateEditable(vc)}
+                          onSave={x => updateEntity('vendorCredits', vc.id, { date: String(x) }, 'Date saved')} />) },
+{ id: 'reason', header: "Reason", accessorFn: ({ vc }) => vc.reason, cell: ({ row: { original: { vc, label: _label } } }) => (<InlineEdit value={vc.reason} label={`Reason for vendor credit ${vc.number}`} placeholder="Add a reason" canEdit={canEdit} suggestions={reasonSuggestions}
+                          onSave={x => updateEntity('vendorCredits', vc.id, { reason: String(x) }, 'Reason saved')} />) },
+{ id: 'amount', header: "Amount", accessorFn: ({ vc }) => vc.amountCents, cell: ({ row: { original: { vc } } }) => (<div className="text-end tabular-nums">{<Money cents={vc.amountCents} currency={vc.currency} colored />}</div>) },
+{ id: 'remaining-credit', header: "Remaining Credit", accessorFn: ({ vc }) => vc.remainingCents, cell: ({ row: { original: { vc } } }) => (<div className="text-end tabular-nums">{<Money cents={vc.remainingCents} currency={vc.currency} colored />}</div>) },
+{ id: 'status', header: "Status", accessorFn: ({ vc }) => vc.status, cell: ({ row: { original: { vc } } }) => (<span className="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 font-semibold">
                           {vc.status.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="p-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        </span>) },
+{ id: 'actions', header: "Actions", enableSorting: false, cell: ({ row: { original: { vc, attachmentKey, label: _label } } }) => (<div className="text-end tabular-nums">{<div className="flex items-center justify-end gap-1.5">
                           <button type="button" aria-expanded={filesOpen(attachmentKey)} aria-label={`Manage files for vendor credit ${vc.number || ''}`.trim()}
                             onClick={() => toggleFiles(attachmentKey)}
                             className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-gray-500 hover:text-indigo-600 focus-visible:outline focus-visible:outline-2" title="Files">
@@ -410,17 +369,9 @@ export default function CreditNotesView() {
                             <button type="button" onClick={() => setCreditAction({ kind: 'vendor', mode: 'refund', id: vc.id, number: vc.number, partyId: vc.vendorId, partyName: vc.vendorName, remainingCents: vc.remainingCents, currency: vc.currency })} className="rounded-md border border-[var(--line)] px-2 py-1 text-xs font-bold hover:border-[var(--brass-line)]">Refund</button>
                           </>)}
                           <button type="button" onClick={() => setPreviewCreditNote({ ...vc, pdfKind: 'vendorCredit' })} aria-label={`PDF of vendor credit ${vc.number || ''}`.trim()} className="rounded-md border border-[var(--line)] px-2 py-1 text-xs font-bold hover:border-[var(--brass-line)]">PDF</button>
-                        </div>
-                      </td>
-                    </tr>
-                    {filesOpen(attachmentKey) && <tr><td colSpan={8} className="bg-[var(--surface)] p-3">
-                      <AttachmentsPanel target={{ collection: 'vendorCredits', id: vc.id, label }} />
-                    </td></tr>}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </div>}</div>) }
+]}
+/>
             </div>
           )}
         </div>

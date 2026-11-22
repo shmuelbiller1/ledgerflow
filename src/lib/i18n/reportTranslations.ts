@@ -146,6 +146,7 @@ export const REPORTS_TRANSLATION_BUNDLE: ScreenTranslationBundle = {
     { key: 'r.quote-save-failed', en: 'Could not confirm the change. Check the quote before trying again.', he: 'לא ניתן לאשר שהשינוי נשמר. בדקו את הצעת המחיר לפני ניסיון נוסף.' },
     { key: 'r.window', en: 'Window', he: 'חלון' },
     { key: 'r.month', en: 'Month', he: 'חודש' },
+    { key: 'r.month-0', en: 'Month {0}', he: 'חודש {0}' },
     { key: 'r.amount', en: 'Amount', he: 'סכום' },
     { key: 'r.no-included-activity-in-the-current-twelve-month', en: 'No included activity in the current twelve-month window.', he: 'אין פעילות כלולה בחלון שנים-עשר החודשים הנוכחי.' },
     { key: 'r.group-purchases-by', en: 'Group purchases by', he: 'קיבוץ הרכישות לפי' },

@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import { itemDocumentDefaultsOf, type DocumentDefaults } from '../../lib/documentDefaults';
 import { bundleInvoiceLines, isBundle } from '../../lib/itemBundles';
 import { displayDimensionName } from '../../lib/dimensionUtils';
@@ -190,29 +191,27 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
         </div>
 
         <div className="border border-[var(--line)] rounded-xl overflow-hidden overflow-x-auto custom-scrollbar">
-          <table className="w-full border-collapse text-sm min-w-[600px]">
-            <caption className="sr-only">Journal Entry Lines</caption>
-            <thead>
-              <tr className="text-left border-b border-[var(--line)] bg-[var(--ink)]/50">
-                <th scope="col" className="p-3.5 font-bold text-[var(--muted)] uppercase tracking-widest text-[10px]">Account</th>
-                {dimensionsShown && activeDimensions.map(dim => (
-                  <th scope="col" key={dim.id} className={cn('p-3.5 font-bold text-[var(--muted)] uppercase tracking-widest text-[10px]', dim.isWorld && 'text-[var(--brass)]')}>
-                    {displayDimensionName(dim)}
-                  </th>
-                ))}
-                <th scope="col" className="p-3.5 font-bold text-[var(--muted)] uppercase tracking-widest text-[10px] text-right w-32">Debit</th>
-                <th scope="col" className="p-3.5 font-bold text-[var(--muted)] uppercase tracking-widest text-[10px] text-right w-32">Credit</th>
-                <th scope="col" className="p-3.5 w-12"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--line)]">
-              {lines.map((line, idx) => {
-                if (!isJournalLine(line)) return null;
+          <RowTable
+caption={"Journal Entry Lines"}
+captionClassName={"sr-only"}
+tableClassName={"w-full border-collapse text-sm min-w-[600px]"}
+headRowClassName={''}
+headerRowClassName={"text-left border-b border-[var(--line)] bg-[var(--ink)]/50"}
+bodyClassName={"divide-y divide-[var(--line)]"}
+rows={lines.flatMap((line, idx) => { if (!isJournalLine(line)) return [];
                 const matchedAcc = accounts.find(a => a.id === line.accountId);
-                return (
-                  <tr key={line.id} className="group hover:bg-[var(--ink)]/50 transition-colors">
-                    <td className="p-2.5">
-                      <div className="relative">
+return [{ line, idx, matchedAcc }]; })}
+rowKey={({ line }) => line.id}
+rowHeaderClassName={'font-normal text-start'}
+rowClassName={"group hover:bg-[var(--ink)]/50 transition-colors"}
+footer={<><tr className="bg-[var(--ink)]/50 font-bold">
+                <td className="p-4 text-right uppercase tracking-widest text-[10px] text-[var(--muted)]" colSpan={dimensionsShown ? 1 + activeDimensions.length : 1}>Totals</td>
+                <td className="p-4 text-right font-mono text-[var(--text)] tabular-nums">{money(totalDebit)}</td>
+                <td className="p-4 text-right font-mono text-[var(--text)] tabular-nums">{money(totalCredit)}</td>
+                <td></td>
+              </tr></>}
+columns={[
+{ header: "Account", headClassName: "p-3.5 font-bold text-[var(--muted)] uppercase tracking-widest text-[10px]", className: "p-2.5", cell: ({ line, idx, matchedAcc }) => (<div className="relative">
                         <input
                           required
                           id={`je-line-acc-${idx}`}
@@ -235,10 +234,8 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                             <option key={acc.id} value={`${acc.code} - ${acc.name}`}>{acc.name}</option>
                           ))}
                         </datalist>
-                      </div>
-                    </td>
-                    {dimensionsShown && activeDimensions.map(dim => {
-                      const dimKey = dim.id.toLowerCase();
+                      </div>) },
+...(dimensionsShown ? activeDimensions.map((dim) => ({key: dim.id, header: displayDimensionName(dim), headClassName: cn('p-3.5 font-bold text-[var(--muted)] uppercase tracking-widest text-[10px]', dim.isWorld && 'text-[var(--brass)]'), className: "p-2.5 align-top", cell: ({ line, idx }: { line: T; idx: number }) => { const dimKey = dim.id.toLowerCase();
                       const dimValue = line.dimensions && dimKey in line.dimensions
                         ? line.dimensions[dimKey]
                         : ((line as unknown as Record<string, string>)[dimKey] || '');
@@ -271,9 +268,7 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                           },
                           line.id,
                         );
-                      return (
-                        <td key={dim.id} className="p-2.5 align-top">
-                          <div className="relative">
+return (<div className="relative">
                             <input
                               id={`je-dim-${dim.id}-${idx}`}
                               list={listId}
@@ -296,17 +291,11 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                               onSelectNode={node => setJournalDim(node.id, true)}
                               onRenamed={node => { if (dimValue) setJournalDim(node.id, true); }}
                             />
-                          </div>
-                        </td>
-                      );
-                    })}
-                    {(['debit', 'credit'] as const).map(side => {
-                      const isDebit = side === 'debit';
+                          </div>); } })) : []),
+...((['debit', 'credit'] as const).map((side) => ({key: side, header: side === 'debit' ? 'Debit' : 'Credit', headClassName: "p-3.5 font-bold text-[var(--muted)] uppercase tracking-widest text-[10px] text-right w-32", className: "p-2.5", cell: ({ line, idx }: { line: T; idx: number }) => { if (!isJournalLine(line)) return null; const isDebit = side === 'debit';
                       const sideValue = isDebit ? line.debit : line.credit;
                       const labelPrefix = isDebit ? 'Debit' : 'Credit';
-                      return (
-                        <td key={side} className="p-2.5">
-                          <input
+return (<input
                             id={`je-line-${side}-${idx}`}
                             aria-label={`${labelPrefix} amount for line ${idx + 1}`}
                             type="number"
@@ -328,12 +317,8 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                             }}
                             placeholder="0.00"
                             className="w-full min-h-11 px-3 py-2 bg-[var(--ink)]/50 border border-transparent rounded-lg focus:bg-[var(--surface)] focus:border-[var(--line)] text-right font-mono font-bold text-[var(--text)]"
-                          />
-                        </td>
-                      );
-                    })}
-                    <td className="p-2.5 text-center">
-                      <button
+                          />); } }))),
+{ header: <span className="sr-only">Actions</span>, headClassName: "p-3.5 w-12", className: "p-2.5 text-center", cell: ({ line: _line, idx }) => (<button
                         type="button"
                         aria-label={`Remove line ${idx + 1}`}
                         onClick={() => {
@@ -342,21 +327,9 @@ export default function DocumentLineEditor<T extends DocumentEditorLine>({
                         className="min-h-11 min-w-11 inline-flex items-center justify-center p-2 text-[var(--muted)] hover:text-rose-600 transition-colors cursor-pointer"
                       >
                         <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="bg-[var(--ink)]/50 font-bold">
-                <td className="p-4 text-right uppercase tracking-widest text-[10px] text-[var(--muted)]" colSpan={dimensionsShown ? 1 + activeDimensions.length : 1}>Totals</td>
-                <td className="p-4 text-right font-mono text-[var(--text)] tabular-nums">{money(totalDebit)}</td>
-                <td className="p-4 text-right font-mono text-[var(--text)] tabular-nums">{money(totalCredit)}</td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
+                      </button>) }
+]}
+/>
         </div>
       </div>
     );

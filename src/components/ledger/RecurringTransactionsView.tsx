@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import { 
   RefreshCw, 
@@ -160,25 +161,31 @@ export default function RecurringTransactionsView() {
       {(!loading && recurring.length === 0) ? null : (
       <div className="flex-1 overflow-auto p-6 pt-0">
         <div role="region" aria-label="Scrollable recurring templates" tabIndex={0} className="bg-[var(--surface)] border border-[var(--line)] rounded-2xl overflow-x-auto shadow-sm">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-          <table className="w-full text-left border-collapse">
-            <caption className="sr-only">Recurring Transactions</caption>
-            <thead>
-              <tr className="bg-[var(--bg)]/50 text-[10px] uppercase font-bold text-zinc-500 tracking-widest border-b border-[var(--line)]">
-                <th scope="col" className="px-6 py-4">Template Description</th>
-                <th scope="col" className="px-6 py-4">Frequency</th>
-                <th scope="col" className="px-6 py-4">Last Run</th>
-                <th scope="col" className="px-6 py-4">Next Occurrence</th>
-                <th scope="col" className="px-6 py-4 text-right">Amount</th>
-                <th scope="col" className="px-6 py-4">Status</th>
-                <th scope="col" className="px-6 py-4 w-20"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--line)]">
-              {filteredRecurring.map((rule) => (
-                <tr key={rule.id} id={recordElementId('recurring', rule.id)} aria-current={focusedId === rule.id ? 'true' : undefined}
-                  className={cn("hover:bg-zinc-500/5 transition-colors group", focusedId === rule.id && "ring-2 ring-inset ring-[var(--brass)]")}>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
+          <RowTable
+caption={"Recurring Transactions"}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-left border-collapse"}
+headRowClassName={''}
+headerRowClassName={"bg-[var(--bg)]/50 text-[10px] uppercase font-bold text-zinc-500 tracking-widest border-b border-[var(--line)]"}
+bodyClassName={"divide-y divide-[var(--line)]"}
+rows={filteredRecurring}
+rowKey={rule => rule.id}
+rowHeaderClassName={'font-normal text-start'}
+rowClassName={rule => cn("hover:bg-zinc-500/5 transition-colors group", focusedId === rule.id && "ring-2 ring-inset ring-[var(--brass)]")}
+rowProps={rule => ({ "id": recordElementId('recurring', rule.id), "aria-current": focusedId === rule.id ? 'true' : undefined })}
+emptyRow={<tr>
+                  <td colSpan={7}>
+                    {loading ? <LoadingState what="recurring schedules" /> : (
+                      <div className="px-6 py-12 text-center text-zinc-500">
+                        <RefreshCw aria-hidden="true" size={48} className="mx-auto mb-4 opacity-10" />
+                        <p className="text-sm font-medium">No schedule matches the search</p>
+                        <p className="mt-2 text-xs">Try other words, or clear the search to see all {recurring.length}.</p>
+                      </div>
+                    )}
+                  </td>
+                </tr>}
+columns={[
+{ header: "Template Description", headClassName: "px-6 py-4", className: "px-6 py-4", cell: rule => (<div className="flex items-center gap-3">
                       <div className="h-8 w-8 rounded-lg bg-zinc-500/10 text-zinc-500 flex items-center justify-center shrink-0">
                         {(rule.type === 'invoice' || rule.invoiceTemplate || rule.template?.tags?.includes('invoice')) ? <FileText aria-hidden="true" size={16} aria-label="Invoice" />
                           : rule.type === 'bill' ? <Receipt aria-hidden="true" size={16} aria-label="Bill" /> : <DollarSign aria-hidden="true" size={16} aria-label="Entry" />}
@@ -190,38 +197,28 @@ export default function RecurringTransactionsView() {
                           className="text-sm font-semibold text-[var(--text)]" />
                         <p className="text-xs text-zinc-500">{rule.payee || 'Internal Transfer'}</p>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-sm text-[var(--text)]">
+                    </div>) },
+{ header: "Frequency", headClassName: "px-6 py-4", className: "px-6 py-4", cell: rule => (<div className="flex items-center gap-2 text-sm text-[var(--text)]">
                       <Clock aria-hidden="true" size={14} className="text-zinc-400" />
                       <InlineEdit kind="select" value={rule.frequency} label={`How often ${rule.description} runs`} canEdit={canEdit}
                         options={FREQUENCIES.map(f => ({ value: f, label: getFrequencyLabel(f) }))} display={getFrequencyLabel(rule.frequency)}
                         onSave={v => updateEntity('recurring', rule.id, { frequency: String(v) as RecurringTransaction['frequency'] }, 'Saved')} />
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <p className="text-sm text-[var(--text)]">
+                    </div>) },
+{ header: "Last Run", headClassName: "px-6 py-4", className: "px-6 py-4", cell: rule => (<p className="text-sm text-[var(--text)]">
                       {rule.lastOccurrence ? format(parseISO(rule.lastOccurrence), 'MMM dd, yyyy') : 'Never'}
-                    </p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-sm font-medium text-indigo-500">
+                    </p>) },
+{ header: "Next Occurrence", headClassName: "px-6 py-4", className: "px-6 py-4", cell: rule => (<div className="flex items-center gap-2 text-sm font-medium text-indigo-500">
                       <Calendar aria-hidden="true" size={14} />
                       {/* the next date also sets the day of the month it keeps to */}
                       <InlineEdit kind="date" value={rule.nextOccurrence} label={`Next date of ${rule.description}`} canEdit={canEdit}
                         display={rule.nextOccurrence ? format(parseISO(rule.nextOccurrence), 'MMM dd, yyyy') : 'Not scheduled'}
                         validate={v => (!v ? 'Enter a date' : rule.lastOccurrence && String(v) <= rule.lastOccurrence ? `After the last run (${rule.lastOccurrence})` : null)}
                         onSave={v => updateEntity('recurring', rule.id, { nextOccurrence: String(v), anchorDay: Number(String(v).slice(8, 10)) }, 'Next date saved')} />
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <p className="text-sm font-bold text-[var(--text)]">
+                    </div>) },
+{ header: "Amount", headClassName: "px-6 py-4 text-right", className: "px-6 py-4 text-right", cell: rule => (<p className="text-sm font-bold text-[var(--text)]">
                       {formatCurrency(rule.amountCents || 0)}
-                    </p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={cn(
+                    </p>) },
+{ header: "Status", headClassName: "px-6 py-4", className: "px-6 py-4", cell: rule => (<><span className={cn(
                       "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
                       getStatusColor(rule.isActive ? 'active' : 'paused')
                     )}>
@@ -231,10 +228,8 @@ export default function RecurringTransactionsView() {
                       <p className="mt-1 max-w-[220px] text-[11px] text-[var(--neg)]" title={rule.lastErrorAt || ''}>
                         <AlertCircle size={11} className="inline mr-1" aria-hidden="true" />{rule.lastErrorCode}
                       </p>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    {canEdit && (
+                    )}</>) },
+{ header: <span className="sr-only">Actions</span>, headClassName: "px-6 py-4 w-20", className: "px-6 py-4", cell: rule => (canEdit && (
                       <div className="flex items-center justify-end gap-2">
                         <button type="button" onClick={() => togglePause(rule)}
                           className="p-1.5 text-zinc-400 hover:text-indigo-500 hover:bg-indigo-500/10 rounded-lg transition-all"
@@ -247,25 +242,9 @@ export default function RecurringTransactionsView() {
                           <Trash2 size={16} aria-hidden="true" />
                         </button>
                       </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {filteredRecurring.length === 0 && (
-                <tr>
-                  <td colSpan={7}>
-                    {loading ? <LoadingState what="recurring schedules" /> : (
-                      <div className="px-6 py-12 text-center text-zinc-500">
-                        <RefreshCw aria-hidden="true" size={48} className="mx-auto mb-4 opacity-10" />
-                        <p className="text-sm font-medium">No schedule matches the search</p>
-                        <p className="mt-2 text-xs">Try other words, or clear the search to see all {recurring.length}.</p>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    )) }
+]}
+/>
         </div>
       </div>
       )}

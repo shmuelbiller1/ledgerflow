@@ -1,6 +1,7 @@
 import { useDialog } from '../../hooks/useDialog';
 import { useLedgerStore } from '../../stores/useLedgerStore';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react'
+import { GroupedRowTable } from '../ui/RowTable';
 import { User } from '../../lib/db/auth';
 import { ChartAccount, TaxRate } from '../../types';
 import { TruthEngine } from '../../modules/integrity/TruthEngine';
@@ -435,66 +436,36 @@ export default function TaxManager({
           <div className="bg-[var(--surface)] rounded-[32px] border border-[var(--line)] overflow-hidden shadow-sm relative group">
             <div className="absolute technical-grid inset-0 opacity-[0.01] pointer-events-none" />
             <div className="overflow-x-auto" role="region" aria-label="Tax liability accounts" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-              <table className="w-full text-start relative z-10 min-w-[700px]">
-                <caption className="sr-only">Tax liability accounts</caption>
-              <thead>
-                <tr className="bg-[var(--ink)] border-b border-[var(--line)]">
-                  <th scope="col" className="px-6 py-5 text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">Protocol Domain</th>
-                  <th scope="col" className="px-6 py-5 text-[10px] font-black text-[var(--muted)] uppercase tracking-widest text-right">Basis</th>
-                  <th scope="col" className="px-6 py-5 text-[10px] font-black text-[var(--muted)] uppercase tracking-widest text-center">Metric</th>
-                  <th scope="col" className="px-6 py-5 text-[10px] font-black text-[var(--text)] uppercase tracking-widest text-right bg-[var(--ink)]">Apportionment</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                <tr className="hover:bg-[var(--ink)]/50 transition-all group/row">
-                  <td className="px-6 py-6">
-                    <p className="text-sm font-black text-[var(--text)] tracking-tight uppercase">Federal Corporate Levy</p>
-                    <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1 font-mono">IRC SEC 11 COMPLIANT</p>
-                  </td>
-                  <td className="px-6 py-6 text-right font-mono text-sm font-black text-[var(--text)] tabular-nums">
-                    {formatCurrency(taxMetrics.netProfit)}
-                  </td>
-                  <td className="px-6 py-6 text-center">
-                    <div className="inline-flex h-7 items-center px-3 bg-[var(--ink)] rounded-lg text-[9px] font-black text-[var(--muted)] uppercase tracking-widest border border-[var(--line)]">NET_YIELD</div>
-                  </td>
-                  <td className="px-6 py-6 text-right font-mono text-base font-black text-[var(--text)] bg-[var(--ink)]/50 group-hover/row:bg-[var(--ink)] tabular-nums">
-                    {formatCurrency(taxMetrics.netProfit > 0 ? taxMetrics.netProfit * (taxRates.find(r => r.type === 'Income')?.rate ?? 0.21) : 0)}
-                  </td>
-                </tr>
-                {includeSE && (
-                <tr className="hover:bg-[var(--ink)]/50 transition-all group/row">
-                  <td className="px-6 py-6">
-                    <p className="text-sm font-black text-[var(--text)] tracking-tight uppercase">Self-Employment Tax</p>
-                    <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1 font-mono">SECA PROVISION (15.3%)</p>
-                  </td>
-                  <td className="px-6 py-6 text-right font-mono text-sm font-black text-[var(--text)] tabular-nums">
-                    {formatCurrency(taxMetrics.netProfit)}
-                  </td>
-                  <td className="px-6 py-6 text-center">
-                    <div className="inline-flex h-7 items-center px-3 bg-[var(--ink)] rounded-lg text-[9px] font-black text-[var(--muted)] uppercase tracking-widest border border-[var(--line)]">NET_YIELD</div>
-                  </td>
-                  <td className="px-6 py-6 text-right font-mono text-base font-black text-[var(--text)] bg-[var(--ink)]/50 group-hover/row:bg-[var(--ink)] tabular-nums">
-                    {formatCurrency(taxMetrics.netProfit > 0 ? taxMetrics.netProfit * 0.153 : 0)}
-                  </td>
-                </tr>
-                )}
-                <tr className="hover:bg-[var(--ink)]/50 transition-all group/row">
-                  <td className="px-6 py-6">
-                    <p className="text-sm font-black text-[var(--text)] tracking-tight uppercase">Indirect Consumption Flow</p>
-                    <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1 font-mono">SALES & USE PASS-THROUGH</p>
-                  </td>
-                  <td className="px-6 py-6 text-right font-mono text-sm font-black text-[var(--text)] tabular-nums">
-                    {formatCurrency(taxMetrics.salesTaxCollected)}
-                  </td>
-                  <td className="px-6 py-6 text-center">
-                    <div className="inline-flex h-7 items-center px-3 bg-[var(--ink)] rounded-lg text-[9px] font-black text-[var(--muted)] uppercase tracking-widest border border-[var(--line)]">GROSS_FLOW</div>
-                  </td>
-                  <td className="px-6 py-6 text-right font-mono text-base font-black text-emerald-700 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/30 group-hover/row:bg-emerald-50 dark:group-hover/row:bg-emerald-950/50 tabular-nums">
-                    {formatCurrency(taxMetrics.salesTaxCollected)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+              <GroupedRowTable
+               caption="Tax liability accounts"
+               tableClassName="w-full text-start relative z-10 min-w-[700px]"
+               head={[{ className: "bg-[var(--ink)] border-b border-[var(--line)]", cells: [
+                 { scope: 'col', className: "px-6 py-5 text-[10px] font-black text-[var(--muted)] uppercase tracking-widest", content: 'Protocol Domain' },
+                 { scope: 'col', className: "px-6 py-5 text-[10px] font-black text-[var(--muted)] uppercase tracking-widest text-right", content: 'Basis' },
+                 { scope: 'col', className: "px-6 py-5 text-[10px] font-black text-[var(--muted)] uppercase tracking-widest text-center", content: 'Metric' },
+                 { scope: 'col', className: "px-6 py-5 text-[10px] font-black text-[var(--text)] uppercase tracking-widest text-right bg-[var(--ink)]", content: 'Apportionment' },
+               ] }]}
+               groups={[{ className: "divide-y divide-slate-100", rows: [
+                 { key: 'federal', className: "hover:bg-[var(--ink)]/50 transition-all group/row", cells: [
+                   { className: "px-6 py-6", content: <><p className="text-sm font-black text-[var(--text)] tracking-tight uppercase">Federal Corporate Levy</p><p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1 font-mono">IRC SEC 11 COMPLIANT</p></> },
+                   { className: "px-6 py-6 text-right font-mono text-sm font-black text-[var(--text)] tabular-nums", content: formatCurrency(taxMetrics.netProfit) },
+                   { className: "px-6 py-6 text-center", content: <div className="inline-flex h-7 items-center px-3 bg-[var(--ink)] rounded-lg text-[9px] font-black text-[var(--muted)] uppercase tracking-widest border border-[var(--line)]">NET_YIELD</div> },
+                   { className: "px-6 py-6 text-right font-mono text-base font-black text-[var(--text)] bg-[var(--ink)]/50 group-hover/row:bg-[var(--ink)] tabular-nums", content: formatCurrency(taxMetrics.netProfit > 0 ? taxMetrics.netProfit * (taxRates.find(r => r.type === 'Income')?.rate ?? 0.21) : 0) },
+                 ] },
+                 includeSE && { key: 'self-employment', className: "hover:bg-[var(--ink)]/50 transition-all group/row", cells: [
+                   { className: "px-6 py-6", content: <><p className="text-sm font-black text-[var(--text)] tracking-tight uppercase">Self-Employment Tax</p><p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1 font-mono">SECA PROVISION (15.3%)</p></> },
+                   { className: "px-6 py-6 text-right font-mono text-sm font-black text-[var(--text)] tabular-nums", content: formatCurrency(taxMetrics.netProfit) },
+                   { className: "px-6 py-6 text-center", content: <div className="inline-flex h-7 items-center px-3 bg-[var(--ink)] rounded-lg text-[9px] font-black text-[var(--muted)] uppercase tracking-widest border border-[var(--line)]">NET_YIELD</div> },
+                   { className: "px-6 py-6 text-right font-mono text-base font-black text-[var(--text)] bg-[var(--ink)]/50 group-hover/row:bg-[var(--ink)] tabular-nums", content: formatCurrency(taxMetrics.netProfit > 0 ? taxMetrics.netProfit * 0.153 : 0) },
+                 ] },
+                 { key: 'consumption', className: "hover:bg-[var(--ink)]/50 transition-all group/row", cells: [
+                   { className: "px-6 py-6", content: <><p className="text-sm font-black text-[var(--text)] tracking-tight uppercase">Indirect Consumption Flow</p><p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1 font-mono">SALES & USE PASS-THROUGH</p></> },
+                   { className: "px-6 py-6 text-right font-mono text-sm font-black text-[var(--text)] tabular-nums", content: formatCurrency(taxMetrics.salesTaxCollected) },
+                   { className: "px-6 py-6 text-center", content: <div className="inline-flex h-7 items-center px-3 bg-[var(--ink)] rounded-lg text-[9px] font-black text-[var(--muted)] uppercase tracking-widest border border-[var(--line)]">GROSS_FLOW</div> },
+                   { className: "px-6 py-6 text-right font-mono text-base font-black text-emerald-700 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/30 group-hover/row:bg-emerald-50 dark:group-hover/row:bg-emerald-950/50 tabular-nums", content: formatCurrency(taxMetrics.salesTaxCollected) },
+                 ] },
+               ] }]}
+             />
             </div>
           </div>
         </div>

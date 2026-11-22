@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import ReportTableScroll from './ReportTableScroll';
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -45,7 +46,21 @@ function PartyPeriodSummaryView({kind,startDate='',endDate='',compareStartDate='
     {partial&&<p role="alert">{reportText('r.loaded-history-is-incomplete-or-failed-these-fig-2', 'Loaded history is incomplete or failed. These figures are provisional; CSV export is disabled.')}</p>}
     {!valid&&<p role="alert">{reportText('r.choose-a-valid-period-in-the-report-controls', 'Choose a valid period in the report controls.')}</p>}
     <div data-print-hide className="flex flex-wrap gap-3"><label>{reportText('r.search-party', 'Search party')} <input value={search} onChange={event=>setSearch(event.target.value)} className="min-h-11 border rounded px-3 bg-[var(--panel)]" /></label><button type="button" disabled={partial||loading||!valid} onClick={exportRows} className="min-h-11 border rounded px-3">{reportText('r.export-csv', 'Export CSV')}</button></div>
-    {valid&&!loading&&<ReportTableScroll><table className="w-full text-sm"><caption>{title}: {startDate} – {endDate}</caption><thead><tr><th scope="col">{reportText('r.party', 'Party')}</th>{columns.map(column=><th scope="col" key={column.key}>{column.label}</th>)}{compared&&<th scope="col">{reportText('r.previous-closing-change', 'Previous closing / change')}</th>}</tr></thead><tbody>{visible.map(row=><tr key={row.id}><th scope="row" className="text-left"><bdi>{row.name}</bdi></th>{columns.map(column=><td className="text-right tabular-nums" key={column.key}>{formatCurrency(row[column.key],currency)}</td>)}{compared&&<td className="text-right">{formatCurrency(previous.get(row.id)??0,currency)} / {formatCurrency(row.closingCents-(previous.get(row.id)??0),currency)}</td>}</tr>)}</tbody></table>{!visible.length&&<p>{reportText('r.no-matching-parties', 'No matching parties.')}</p>}</ReportTableScroll>}
+    {valid&&!loading&&<ReportTableScroll><RowTable
+caption={<>{title}: {startDate} – {endDate}</>}
+captionClassName={''}
+tableClassName={"w-full text-sm"}
+headRowClassName={''}
+bodyClassName={''}
+rows={visible}
+rowKey={row => row.id}
+rowHeaderClassName={''}
+columns={[
+{ header: reportText('r.party', 'Party'), headClassName: '', className: "text-left", cell: row => (<bdi>{row.name}</bdi>) },
+{ over: columns, head: column => (column.label), headClassName: '', className: "text-right tabular-nums", cell: (row, column) => (formatCurrency(row[column.key],currency)) },
+compared && { header: reportText('r.previous-closing-change', 'Previous closing / change'), headClassName: '', className: "text-right", cell: row => (<>{formatCurrency(previous.get(row.id)??0,currency)} / {formatCurrency(row.closingCents-(previous.get(row.id)??0),currency)}</>) }
+]}
+/>{!visible.length&&<p>{reportText('r.no-matching-parties', 'No matching parties.')}</p>}</ReportTableScroll>}
   </section>;
 }
 export function CustomerPeriodSummaryView(props:Props){return <PartyPeriodSummaryView {...props} kind="customer" />;}

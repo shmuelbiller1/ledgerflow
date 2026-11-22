@@ -21,8 +21,9 @@
  * The shared grid is still the answer for a list that needs sorting, searching, column choice or a saved
  * view. This is for the table that is part of a sentence.
  */
-import { Fragment, useContext, type ReactNode } from 'react';
+import { Fragment, useContext, type HTMLAttributes, type ReactNode } from 'react';
 import { ReportColumnOrder, ReportHiddenColumns, orderReportCells } from './reportColumnOrder';
+import type { Bands, BandRow, RowGroup } from "../../lib/tableBands";
 import { planColumns, type RowTableColumns } from '../../lib/rowTable';
 
 export type { RowTableColumn, RowTableColumns } from '../../lib/rowTable';
@@ -46,6 +47,9 @@ export interface RowTableProps<T, C = never> {
   /** Preserve row states (e.g. expired certificates, selected orders) without reimplementing a table. */
   rowClassName?: string | ((row: T) => string);
   tableClassName?: string;
+  /** Keep row-level interaction/identity on the record, not on its current position. */
+  rowProps?: (row: T) => HTMLAttributes<HTMLTableRowElement>;
+  headerRowClassName?: string;
   /** A class for the `<thead>` — `sticky top-0 bg-…` on a long list, which is a class of the head, not of a row. */
   headRowClassName?: string;
   bodyClassName?: string;
@@ -53,6 +57,8 @@ export interface RowTableProps<T, C = never> {
   footer?: ReactNode;
   /** Opening balance before the movement rows, including when the period had no movements. */
   bodyStart?: ReactNode;
+  /** A trailing section total or paging action that belongs inside the body. */
+  bodyEnd?: ReactNode;
   /** Optional editor below its own record; never part of a displayed export. */
   renderDetail?: (row: T) => ReactNode;
   /** A class for the `<tfoot>` the footer renders in — `sticky bottom-0` on a long list. */
@@ -87,7 +93,7 @@ export function RowTable<T, C = never>({
   bodyClassName = 'divide-y divide-[var(--line)]',
   footer,
   footerClassName,
-  bodyStart,
+  bodyStart, bodyEnd, rowProps, headerRowClassName,
   renderDetail,
   emptyRow,
   empty,
@@ -108,7 +114,7 @@ export function RowTable<T, C = never>({
     <table className={tableClassName}>
       <caption className={captionClassName}>{caption}</caption>
       <thead className={headRowClassName}>
-        <tr>
+        <tr className={headerRowClassName}>
           {layout.map(({ column, source }) => (
             <th key={column.key} data-source-column={source} scope="col" className={alignClass(column.align, column.headClassName ?? 'py-2 font-semibold')}>
               {column.header}
@@ -121,7 +127,7 @@ export function RowTable<T, C = never>({
         {rows.length === 0 && emptyRow !== undefined ? nativeRows(emptyRow) : rows.map((row, position) => {
           const key = keyOf(row, position);
           const dataRow = (
-            <tr key={key} className={typeof rowClassName === 'function' ? rowClassName(row) : rowClassName}>
+            <tr key={key} {...rowProps?.(row)} className={typeof rowClassName === 'function' ? rowClassName(row) : rowClassName}>
               {layout.map(({ column, source }) => {
                 const className = alignClass(column.align, column.className);
                 const cellProps = typeof column.cellProps === 'function' ? column.cellProps(row) : column.cellProps;
@@ -136,8 +142,42 @@ export function RowTable<T, C = never>({
           const detail = renderDetail(row);
           return <Fragment key={key}>{dataRow}{detail && <tr><td colSpan={layout.length}>{detail}</td></tr>}</Fragment>;
         })}
+        {nativeRows(bodyEnd)}
       </tbody>
-      {footer !== undefined ? <tfoot className={footerClassName}>{nativeRows(footer)}</tfoot> : null}
+      {footer ? <tfoot className={footerClassName}>{nativeRows(footer)}</tfoot> : null}
     </table>
   );
+}
+
+/** Recurring sections retain their own key space (e.g. a source and a use with the same ID).
+ * Positional keys are only for fixed slots, such as the opening or closing line. */
+function renderBands<T extends { key?: React.Key }>(parts: Bands<T>[], render: (part: T, key: React.Key) => ReactNode): ReactNode {
+  return parts.map((part, index): ReactNode => Array.isArray(part)
+    ? renderBands(part, render)
+    : part ? render(part, part.key ?? index) : null);
+}
+
+/** The sectioned member of the RowTable family. A multi-level financial statement supplies
+ * data for native row/column groups and spans; the shared renderer owns the table semantics.
+ * It has no filter, pagination or record actions of its own that could split a statement. */
+export function GroupedRowTable({ caption, captionClassName = 'sr-only', tableClassName, label, head, headClassName, groups, foot, footClassName }: {
+  caption: ReactNode; captionClassName?: string; tableClassName?: string; label?: string;
+  head?: Bands<BandRow>[]; headClassName?: string; groups: Bands<RowGroup>[]; foot?: Bands<BandRow>[]; footClassName?: string;
+}) {
+  const order = useContext(ReportColumnOrder);
+  const hidden = useContext(ReportHiddenColumns);
+  const rows = (parts: Bands<BandRow>[]) => {
+    const nodes = renderBands(parts, ({ key: _key, cells, ...props }, key) => (
+      <tr key={key} {...props}>{renderBands(cells, ({ key: _cellKey, content, scope, ...attributes }, cellKey) => scope
+        ? <th key={cellKey} scope={scope as 'col' | 'row' | 'colgroup' | 'rowgroup'} {...attributes}>{content}</th>
+        : <td key={cellKey} {...attributes}>{content}</td>)}</tr>
+    ));
+    return order === null ? nodes : orderReportCells(nodes, order, hidden);
+  };
+  return <table className={tableClassName} aria-label={label}>
+    <caption className={captionClassName}>{caption}</caption>
+    {head && <thead className={headClassName}>{rows(head)}</thead>}
+    {renderBands(groups, (group, key) => <tbody key={key} className={group.className}>{rows(group.rows)}</tbody>)}
+    {foot && <tfoot className={footClassName}>{rows(foot)}</tfoot>}
+  </table>;
 }
