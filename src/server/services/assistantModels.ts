@@ -17,7 +17,7 @@
  *    ("why", "should", "afford", "forecast", "compare", "versus", "trend", "summarise").
  * 4. `long`: over 300 characters.
  * 5. otherwise `simple`.
- * If the simple model fails (no answer, an error, the step limit), the turn is retried once on the
+ * If the simple model fails (no answer, an error, the step limit) before drafting any step, the turn is retried once on the
  * strong model with reason `simple-model-failed`. A turn is never moved to a *cheaper* model, and a
  * plan limit refuses the turn instead (Part 7).
  *

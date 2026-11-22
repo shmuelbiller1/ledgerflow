@@ -101,6 +101,16 @@ export function printedAmountToMinor(printed: string | null | undefined, currenc
   return negative ? -minor : minor;
 }
 
+/**
+ * The receipt screens' older field: major units x 100 whatever the currency (¥1,000 is 100000), which
+ * `readerCentsToMinor` turns back into the currency's own minor units. For a three-decimal currency it
+ * can be fractional (12.345 KWD is 1234.5) and still converts back exactly.
+ */
+export function legacyCents(minor: number | null, currency: string | null): number | undefined {
+  if (minor === null || !currency) return undefined;
+  return (minor * 100) / 10 ** currencyDigits(currency);
+}
+
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Turns the model's reply into a draft; anything unclear is left empty and listed for review. */

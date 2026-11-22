@@ -18,7 +18,9 @@ import { booksVersion, canonicalJson, memoryToolCache, ReadCache, sandboxToolCac
 import { answerTurn, routeQuestion } from '../server/services/assistantRouter';
 import { geminiReadTools, proposedToolName } from '../server/services/assistantToolDefinitions';
 import type { ModelClient } from '../server/services/assistantTurn';
-import { draftFromReply, printedAmountToMinor, readDocumentDraft } from '../server/services/receiptOcr';
+import { draftFromReply, legacyCents, printedAmountToMinor, readDocumentDraft } from '../server/services/receiptOcr';
+import { openAiCompatibleClient } from '../server/services/openAiCompatibleClient';
+import { readerCentsToMinor } from '../lib/snapReceipt';
 import { callCostCents, MODEL_PRICES } from '../lib/ai/modelPricing';
 import { PLANS } from '../lib/plans';
 
@@ -206,6 +208,50 @@ describe('Part 6: two models by a written rule, priced from the provider page; O
     assert.equal(metric.model, DEFAULT_ASSISTANT_MODELS.strong);
   });
 
+  test('no retry on the strong model once the simple model drafted a step (it would be drafted twice)', async () => {
+    const seen: string[] = [];
+    let step = 0;
+    const client: ModelClient = { models: { generateContent: async req => {
+      seen.push(req.model);
+      if (step++ === 0) return { functionCalls: [{ name: 'propose_invoice_create', args: {} }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 1 } };
+      throw new Error('simple model failed after drafting');
+    } } };
+    const drafted: string[] = [];
+    const q = 'Create an invoice for Acme Ltd for two hours of consulting.';
+    const { metric } = await answerTurn({ client, model: 'unused', systemPrompt: 's', question: q, currency: 'USD',
+      tools: [{ name: 'propose_invoice_create', description: 'x' }], callTool: async name => { drafted.push(name); return { drafted: true }; },
+      modelRule: { choose: reason => chooseModel(q, reason, owners), strong: DEFAULT_ASSISTANT_MODELS.strong } });
+    assert.deepEqual(drafted, ['propose_invoice_create']);
+    assert.deepEqual(seen, [DEFAULT_ASSISTANT_MODELS.simple, DEFAULT_ASSISTANT_MODELS.simple]);
+    assert.equal(metric.ok, false);
+    assert.equal(metric.modelTier, 'simple');
+  });
+
+  test('another provider receives the receipt image and the JSON request (not just the text)', async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const client = openAiCompatibleClient({ baseUrl: 'https://example.test/v1', fetchImpl: (async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ total: '1,000', currency: 'JPY', confidence: 90 }) } }], usage: {} }));
+    }) as typeof fetch });
+    const draft = await readDocumentDraft(client, { base64Data: Buffer.from('fake image bytes').toString('base64'), mimeType: 'image/png' }, [], { ...DEFAULT_ASSISTANT_MODELS, ocr: 'glm-4.6v' });
+    const [message] = (bodies[0].messages as Array<{ role: string; content: unknown }>).filter(m => m.role === 'user');
+    const parts = message.content as Array<{ type: string; image_url?: { url: string } }>;
+    assert.deepEqual(parts.map(p => p.type), ['text', 'image_url']);
+    assert.match(parts[1].image_url!.url, /^data:image\/png;base64,/);
+    assert.equal((bodies[0].response_format as { type: string }).type, 'json_schema');
+    assert.equal(draft.totalMinor, 1000);
+  });
+
+  test('the receipt screens keep their old amount contract (major units × 100), exact for yen and dinars', () => {
+    assert.equal(legacyCents(1000, 'JPY'), 100_000);
+    assert.equal(readerCentsToMinor(legacyCents(1000, 'JPY')!, 'JPY'), 1000, '¥1,000 stays ¥1,000 in the phone draft');
+    assert.equal(legacyCents(12345, 'KWD'), 1234.5);
+    assert.equal(readerCentsToMinor(legacyCents(12345, 'KWD')!, 'KWD'), 12345);
+    assert.equal(legacyCents(123456, 'USD'), 123456);
+    assert.equal(legacyCents(null, 'USD'), undefined);
+    assert.equal(legacyCents(5, null), undefined);
+  });
+
   test('printed amounts become minor units of their own currency, exactly, or stay empty', () => {
     const cases: Array<[string, string, number | null]> = [
       ['1,234.56', 'USD', 123456], ['$ 12.30', 'USD', 1230], ['1.234,56', 'EUR', 123456], ['12,5', 'EUR', 1250], ['1,234', 'USD', 123400],
@@ -221,7 +267,7 @@ describe('Part 6: two models by a written rule, priced from the provider page; O
     assert.equal(draft.posted, false);
     assert.equal(draft.totalMinor, 123456);
     assert.equal(draft.date, null);
-    assert.deepEqual(draft.needsReview.sort(), ['currency', 'date', 'lines[0].amount'].sort());
+    assert.deepEqual(new Set(draft.needsReview), new Set(['currency', 'date', 'lines[0].amount']));
     const asked: Array<Record<string, unknown>> = [];
     const client: ModelClient = { models: { generateContent: async req => {
       asked.push(req);
@@ -353,7 +399,7 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
 
   test('a draft step in the sandbox invalidates the sandbox’s cached answers', async t => {
     const a = await setup(t);
-    const cache = sandboxToolCache(live.pool, { workspaceId: a.workspaceId, sandboxId: a.sandboxId }, new ReadCache());
+    const cache = sandboxToolCache(live.pool, { workspaceId: a.workspaceId, sandboxId: a.sandboxId }, 'turn', { cache: new ReadCache() });
     let runs = 0;
     const read = () => cache.read('search_records', { text: 'Zed' }, async () => ({ value: ++runs }));
     await read();
@@ -401,6 +447,29 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     const shown = await workspaceUsage(live, a.workspaceId);
     assert.equal(shown?.assistant.modelTurns, 1);
     assert.deepEqual(shown?.assistant.limits, { modelTurns: 1, costCents: PLANS[0].limits.assistantCentsPerMonth });
+  });
+
+  test('turns arriving together cannot overspend: with one model turn left, exactly one gets the model', async t => {
+    const a = await setup(t, { maxAssistantModelTurns: 1 });
+    modelCalls.length = 0;
+    const results = await Promise.all([
+      a.turn('Create an invoice for Acme Ltd for two hours of consulting.'),
+      a.turn('Make a bill from the electricity company for 320.'),
+      a.turn('Record a payment of 500 from Acme Ltd for INV-1001.'),
+    ]);
+    assert.deepEqual(results.map(r => r.status).sort((x, y) => x - y), [200, 402, 402]);
+    assert.equal(modelCalls.length, 1, 'one model call in total');
+    const { rows } = await live.pool.query(`select data from public."billingLedgerTraces" where workspace_id = $1`, [a.workspaceId]);
+    assert.equal(rows.length, 1, 'the reservation was replaced by the real metric, not added to');
+    assert.equal(rows[0].data.assistantTurn.reserved, undefined);
+  });
+
+  test('a cached read from an assistant turn never breaks the direct tool route (separate cached shapes)', async t => {
+    const a = await setup(t);
+    assert.equal((await a.turn('Find the customer Acme Ltd.')).json.path, 'code');
+    const direct = await a.tool('search_records', { text: 'Acme Ltd', collections: ['customers'] });
+    assert.equal(direct.status, 200, JSON.stringify(direct.json));
+    assert.equal((direct.json.matches as unknown[]).length, 1);
   });
 
   test('the model drafts through propose_… into the sandbox only; the real books are unchanged', async t => {

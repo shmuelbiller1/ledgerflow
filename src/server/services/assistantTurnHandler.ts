@@ -22,7 +22,7 @@ import { z } from 'zod';
 import { ASSISTANT_SYSTEM_PROMPT } from '../../../assistant/systemPrompt.generated';
 import type { reviewSandbox } from '../commands/sandboxReview';
 import type { Firestore } from '../db/firestore';
-import { assistantLimitRefusal, assistantUsage } from '../middleware/planCapacity';
+import { assistantLimitRefusal, assistantUsage, reserveAssistantModelTurn } from '../middleware/planCapacity';
 import { assistantToolsFor, draftableCommands } from './assistantCatalog';
 import { assistantModels, chooseModel, routedModelClient } from './assistantModels';
 import { sandboxToolCache, type ToolCache } from './assistantReadCache';
@@ -106,20 +106,41 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
       return matches.flatMap(match => (match.tool ? [match.tool] : []));
     };
 
+    // The first model call of the turn (a model question, or a code answer that fell short) first takes
+    // a turn from the allowance; at the limit no model is called at all.
+    let reservation: { id: string } | null = null;
+    let refusedAtCall: NonNullable<ReturnType<typeof assistantLimitRefusal>> | null = null;
+    let busy = false;
+    const metered: ModelClient | null = client && !refusal ? { models: { generateContent: async request => {
+      if (!reservation) {
+        const reserved = await reserveAssistantModelTurn(live, workspaceId, user.uid, workspace).catch((err: unknown) => {
+          busy = true;
+          throw new ModelNotAllowed(err instanceof Error ? err.message : 'busy');
+        });
+        if ('refusal' in reserved) { refusedAtCall = reserved.refusal; throw new ModelNotAllowed('assistant allowance used'); }
+        reservation = { id: reserved.id };
+      }
+      return client.models.generateContent(request);
+    } } } : null;
+
     const { answer, metric } = await answerTurn({
-      client: refusal || !client ? blockedClient : client,
+      client: metered ?? blockedClient,
       model: models.simple,
       systemPrompt: ASSISTANT_SYSTEM_PROMPT,
       tools, question, callTool, discover,
-      cache: sandboxToolCache(live.pool, sandbox),
+      cache: sandboxToolCache(live.pool, sandbox, 'turn'),
       currency: typeof workspace.currency === 'string' ? workspace.currency : null,
       modelRule: { choose: reason => chooseModel(question, reason, commands, models), strong: models.strong },
     });
-    if (metric.path === 'model' && refusal) return res.status(402).json({ status: 'error', ...refusal });
+    const refused = refusal ?? (refusedAtCall as NonNullable<ReturnType<typeof assistantLimitRefusal>> | null);
+    if (metric.path === 'model' && refused && !reservation) return res.status(402).json({ status: 'error', ...refused });
+    if (metric.path === 'model' && busy && !reservation) {
+      return res.status(503).json({ status: 'error', code: 'ASSISTANT_BUSY', message: 'The assistant is busy for this workspace. Try again in a moment.' });
+    }
     if (metric.path === 'model' && !client) {
       return res.status(503).json({ status: 'error', code: 'ASSISTANT_MODEL_UNAVAILABLE', message: 'The assistant model is not configured. Questions the books answer directly still work.' });
     }
-    await recordAssistantTurn(live, workspaceId, user.uid, metric);
+    await recordAssistantTurn(live, workspaceId, user.uid, metric, (reservation as { id: string } | null)?.id);
     const after = usage && {
       ...usage,
       turns: usage.turns + 1,

@@ -198,7 +198,7 @@ async function main() {
   for (const r of modelRows) tiers.set(`${r.tier} (${r.reason})`, (tiers.get(`${r.tier} (${r.reason})`) ?? 0) + 1);
   say(); say('### Part 6: which model the written rule picks for the model turns (pass 1)'); say();
   say('| model (rule) | turns |'); say('|---|---|');
-  for (const [k, n] of [...tiers].sort()) say(`| ${k} | ${n} |`);
+  for (const [k, n] of [...tiers].sort(([a], [b]) => a.localeCompare(b))) say(`| ${k} | ${n} |`);
   // An estimate, labelled as one: the fixed prompt's input cost on the first model call of a turn, at
   // the list price of the model that answers (no prompt-cache discount). Before: one model for every
   // turn (the app's chat model, gemini-2.5-flash) with the fixed 25 tools.

@@ -38,10 +38,13 @@ export interface ToolCache {
 }
 
 /** JSON with object keys sorted, so the same inputs in another order are the same key. */
+/** Plain code-unit order (locale-independent), so the same inputs always give the same key. */
+const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
 export function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (value && typeof value === 'object') {
-    return `{${Object.keys(value as Record<string, unknown>).sort().filter(k => (value as Record<string, unknown>)[k] !== undefined)
+    return `{${Object.keys(value as Record<string, unknown>).sort(byCodeUnit).filter(k => (value as Record<string, unknown>)[k] !== undefined)
       .map(k => `${JSON.stringify(k)}:${canonicalJson((value as Record<string, unknown>)[k])}`).join(',')}}`;
   }
   return JSON.stringify(value) ?? 'null';
@@ -91,13 +94,19 @@ export const assistantReadCache = new ReadCache();
 
 export { booksVersion };
 
-/** The tool cache for one sandbox: every read checks the books' version at that moment. */
-export function sandboxToolCache(pool: Pool, scope: { workspaceId: string; sandboxId: string },
-  cache: ReadCache = assistantReadCache, today: () => string = () => new Date().toISOString().slice(0, 10)): ToolCache {
+/**
+ * The tool cache for one sandbox: every read checks the books' version at that moment. `namespace`
+ * keeps each caller's stored shape apart: the HTTP tool route keeps `{ status, body }`, the assistant
+ * turn keeps the tool's result, and one must never be served to the other.
+ */
+export function sandboxToolCache(pool: Pool, scope: { workspaceId: string; sandboxId: string }, namespace: 'http' | 'turn',
+  options: { cache?: ReadCache; today?: () => string } = {}): ToolCache {
+  const cache = options.cache ?? assistantReadCache;
+  const today = options.today ?? (() => new Date().toISOString().slice(0, 10));
   return {
     async read(tool, args, run) {
       if (!CACHEABLE_TOOLS.has(tool)) return { value: (await run()).value, hit: false };
-      const key = ReadCache.key(scope, await booksVersion(pool, scope.workspaceId, scope.sandboxId), tool, args, today());
+      const key = ReadCache.key(scope, await booksVersion(pool, scope.workspaceId, scope.sandboxId), `${namespace}:${tool}`, args, today());
       const stored = cache.get(key, scope);
       if (stored) return { value: stored.value, hit: true };
       const fresh = await run();

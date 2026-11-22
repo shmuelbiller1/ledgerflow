@@ -71,9 +71,10 @@ export function turnMetric(input: {
 }
 
 /** Stores one turn's metric with the other AI traces. Only the metric: no question or answer text. */
-export async function recordAssistantTurn(db: Firestore, workspaceId: string, uid: string, metric: AssistantTurnMetric): Promise<void> {
+export async function recordAssistantTurn(db: Firestore, workspaceId: string, uid: string, metric: AssistantTurnMetric, reservationId?: string): Promise<void> {
   try {
-    const id = `trace-${crypto.randomUUID()}`;
+    // a reserved model turn (planCapacity.reserveAssistantModelTurn) is replaced by its real metric
+    const id = reservationId ?? `trace-${crypto.randomUUID()}`;
     await db.collection('billingLedgerTraces').doc(id).set({
       id, workspaceId, uid, algorithmName: 'ASSISTANT_TURN', assistantTurn: metric,
       calls: [], executionTimeMs: metric.totalMs, degraded: !metric.ok, timestamp: new Date().toISOString(),

@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SecurityService } from "../../services/securityService";
 import { AutoRuleSchema } from "../../schemas";
 import { tracedClient, type AiCallTrace } from "./aiGateway";
-import { readDocumentDraft } from "./receiptOcr";
+import { legacyCents, readDocumentDraft } from "./receiptOcr";
 import { routedModelClient } from "./assistantModels";
 import type { ModelClient } from "./assistantTurn";
 
@@ -264,8 +264,11 @@ export class AIBackendService {
         return {
           status: draft.status, posted: draft.posted, needsReview: draft.needsReview,
           vendorName: draft.vendorName ?? undefined, date: draft.date ?? undefined, currency: draft.currency ?? undefined,
-          totalAmountCents: draft.totalMinor ?? undefined, taxAmountCents: draft.taxMinor ?? undefined,
-          lines: draft.lines.flatMap(line => line.amountMinor === null ? [] : [{ description: line.description, amountCents: line.amountMinor }]),
+          // the legacy fields keep their contract (major units x 100, as readerCentsToMinor expects);
+          // the exact amount in the currency's own minor units is totalMinor
+          totalAmountCents: legacyCents(draft.totalMinor, draft.currency), taxAmountCents: legacyCents(draft.taxMinor, draft.currency),
+          totalMinor: draft.totalMinor ?? undefined,
+          lines: draft.lines.flatMap(line => line.amountMinor === null ? [] : [{ description: line.description, amountCents: legacyCents(line.amountMinor, draft.currency) }]),
           confidence: draft.confidence ?? 0,
         };
       }

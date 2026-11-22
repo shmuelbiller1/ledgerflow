@@ -235,13 +235,16 @@ export interface ModelRule { choose: (routerReason: string) => ModelChoice; stro
 /**
  * The model loop with the written model rule: the chosen model answers; if the simple model fails, the
  * turn is retried once on the strong one (reason `simple-model-failed`), and both calls count in the
- * metric. Without a rule, `input.model` answers, as before.
+ * metric. No retry once the simple model has drafted a step (it would draft it twice). Without a rule, `input.model` answers, as before.
  */
 async function modelTurn(input: AssistantTurnInput, routerReason: string, rule?: ModelRule): Promise<{ answer: string; metric: AssistantTurnMetric }> {
   if (!rule) return runAssistantTurn(input);
   const choice = rule.choose(routerReason);
   const first = await runAssistantTurn({ ...input, model: choice.model });
-  if (first.metric.ok || choice.tier === 'strong') return { answer: first.answer, metric: { ...first.metric, modelTier: choice.tier, modelReason: choice.reason } };
+  // A step the simple model already drafted stays drafted; a fresh retry would not know of it and could
+  // draft the same invoice again, so after any propose_ call the failed turn is returned as it is.
+  const drafted = first.metric.toolsCalled.some(name => name.startsWith('propose_'));
+  if (first.metric.ok || choice.tier === 'strong' || drafted) return { answer: first.answer, metric: { ...first.metric, modelTier: choice.tier, modelReason: choice.reason } };
   const retry = await runAssistantTurn({ ...input, model: rule.strong });
   const a = first.metric;
   const b = retry.metric;

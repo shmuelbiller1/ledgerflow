@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
 import { PLANS, planFor, type PlanLimits } from '../../lib/plans';
@@ -334,4 +335,47 @@ export async function workspaceUsage(db: Firestore, workspaceId: string): Promis
     },
     assistant,
   };
+}
+
+const RESERVE_WAIT_MS = 5_000;
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Takes one model turn from this month's allowance before the model is called, so turns that arrive
+ * together cannot all pass the check and overspend it. Under a per-workspace advisory lock (it holds
+ * across server instances) it reads the usage, refuses at the limit, or stores a reservation row that
+ * counts as a model turn at once; `recordAssistantTurn(..., id)` later replaces it with the real
+ * metric. A waiting request does not hold a database connection between tries, so the lock holder can
+ * always finish. The turn count is exact; the cents limit can be passed by the cost of the turns that
+ * were already running when it was reached.
+ */
+export async function reserveAssistantModelTurn(db: Firestore, workspaceId: string, uid: string, ws: Record<string, unknown>):
+  Promise<{ id: string; usage: AssistantUsage | null } | { refusal: NonNullable<ReturnType<typeof assistantLimitRefusal>> }> {
+  requireLiveDb(db, 'Assistant allowance');
+  const started = Date.now();
+  for (;;) {
+    const client = await db.pool.connect();
+    let held = false;
+    try {
+      const { rows } = await client.query<{ locked: boolean }>(`select pg_try_advisory_lock(hashtextextended($1, 0)) as locked`, [`assistant-allowance:${workspaceId}`]);
+      held = rows[0]?.locked === true;
+      if (held) {
+        const usage = await assistantUsage(db, workspaceId, ws);
+        const refusal = usage ? assistantLimitRefusal(usage) : null;
+        if (refusal) return { refusal };
+        const id = `trace-${randomUUID()}`;
+        await db.collection('billingLedgerTraces').doc(id).set({
+          id, workspaceId, uid, algorithmName: 'ASSISTANT_TURN', timestamp: new Date().toISOString(), calls: [],
+          // counts as one model turn until the turn's own metric replaces it
+          assistantTurn: { reserved: true, path: 'model', modelCalls: 1, inputTokens: 0, outputTokens: 0, costCents: 0, ok: false },
+        });
+        return { id, usage };
+      }
+    } finally {
+      if (held) await client.query(`select pg_advisory_unlock(hashtextextended($1, 0))`, [`assistant-allowance:${workspaceId}`]).catch(() => undefined);
+      client.release();
+    }
+    if (Date.now() - started > RESERVE_WAIT_MS) throw new Error('The assistant allowance could not be checked in time');
+    await sleep(25 + Math.floor(Math.random() * 50));
+  }
 }
