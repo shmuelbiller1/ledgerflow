@@ -43,10 +43,11 @@ interface FinalQueueScreen {
   mask?: (page: Page) => Locator[];
 }
 
-const settings = (section: string, label: RegExp): FinalQueueScreen => ({
+const settings = (section: string, label: RegExp, figures: string[] = []): FinalQueueScreen => ({
   id: `settings-${section}`,
   url: '/#settings',
   ready: (main) => main.getByRole('heading', { name: /^Settings$|^הגדרות$/ }),
+  figures,
   setup: async (_page, main) => {
     await main.getByRole('button', { name: label }).click();
     await expect(main.locator(`[data-settings-section="${section}"]`)).toBeVisible({ timeout: 15_000 });
@@ -117,7 +118,9 @@ const screens: FinalQueueScreen[] = [
   { id: 'admin-panel', url: '/#system-command-center', ready: (main) => main.getByRole('heading', { name: /Admin Panel/ }) },
   // Settings sections
   settings('import', /Import Data/),
-  settings('rules', /Rules & Automation/),
+  // a rule row is the store-loaded wait: the audit used to race the hydration, and the group
+  // switches' accessible names are part of what it checks
+  settings('rules', /Rules & Automation/, ['Warehouse lease is rent']),
   settings('dimensions', /^Labels$/),
   settings('custom-fields', /Custom fields/),
   // The customer portal (K-27): a customer's invoices, no sign-in

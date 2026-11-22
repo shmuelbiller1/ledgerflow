@@ -210,7 +210,7 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
               <InlineEdit label={`Name of group ${group}`} value={group} canEdit={canEditRules && !isUpdatingGroup}
                 suggestions={groups} onSave={next => handleRenameGroup(group, next)} className="min-h-11 break-all" inputClassName="min-h-11"
                 validate={next => String(next).trim().length > 0 && String(next).trim().length <= 120 ? null : 'Enter a group name of 1–120 characters.'} />
-              <button type="button" aria-label={`Enable group ${group}`} aria-pressed={!disabledGroups.has(group)}
+              <button type="button" aria-label={`${disabledGroups.has(group) ? 'Off' : 'On'} — Enable group ${group}`} aria-pressed={!disabledGroups.has(group)}
                 disabled={!canEditRules || isUpdatingGroup} onClick={() => void handleToggleGroup(group)}
                 className="min-h-11 min-w-11 px-3 text-xs border-s border-neutral-200 disabled:opacity-50">
                 {disabledGroups.has(group) ? 'Off' : 'On'}
