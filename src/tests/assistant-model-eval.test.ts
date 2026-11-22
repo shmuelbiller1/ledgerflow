@@ -148,3 +148,8 @@ test('SBX-2 Part 6 model test: aging side, ask_books account scope, and exact in
   assert.ok(inv(draft(2)).pass);
   assert.ok(!inv(draft(2.5)).pass, '2.5 hours is not two hours');
 });
+
+test('SBX-2 Part 6 model test: a report the books do not have is refused, not replaced', () => {
+  assert.ok('error' in (bookTool('run_report', { report: 'cash-flow' }) as object));
+  assert.equal((bookTool('run_report', { report: 'profit-and-loss' }) as { report: string }).report, 'profit-and-loss');
+});

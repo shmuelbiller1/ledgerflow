@@ -179,6 +179,8 @@ export function bookTool(name: string, args: Record<string, unknown>): unknown {
         return { report, type: ap ? 'ap' : 'ar', ...aging(ap ? 'payables' : 'receivables'), byCustomer: ap ? undefined : owedByCustomer() };
       }
       if (/balance/.test(report)) return { report, endDate: params.endDate ?? TODAY, assets: { Cash: balances.acc_cash, Bank: balances.acc_bank, 'Accounts receivable': aging('receivables').total }, liabilities: { 'Accounts payable': aging('payables').total } };
+      // only the reports these books implement; any other (cash flow, budget …) is refused, never answered with another report
+      if (!/profit|loss|p&l|pnl|income-statement|income statement/.test(report)) return { error: `Report not available in the test books: ${report || '(none)'}` };
       const from = (params.startDate ?? '2026-01-01').slice(0, 7), to = (params.endDate ?? TODAY).slice(0, 7);
       return { report: 'profit-and-loss', ...profitAndLoss(from, to), previousMonth: profitAndLoss(lastMonth, lastMonth), thisMonth: profitAndLoss(thisMonth, thisMonth) };
     }
