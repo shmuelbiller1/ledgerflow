@@ -156,7 +156,7 @@ function toolRoutes(router: express.Router, live: Firestore) {
     const sandbox = await readableSandbox(live, req);
     const input = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body as Record<string, unknown> : {};
     const { status, body, cached } = await runReadTool(live, req, res, sandbox, tool, input);
-    if (cached) res.setHeader('X-LedgerFlow-Cache', 'hit');
+    if (cached) res.setHeader('X-Assistant-Cache', 'hit');
     res.status(status).json(body);
   }));
 }
@@ -337,7 +337,11 @@ export function createSandboxPersonRouter(live: Firestore = getDb(), options: Sa
   }));
   // SBX-2: one assistant turn on the server (the router, read cache, area tools, model rule and plan limit)
   router.post('/:sandboxId/assistant/turn', options.turnRateLimit ?? brainRateLimiter,
-    guarded(assistantTurnHandler(live, { readableSandbox, runReadTool }, options)));
+    guarded(assistantTurnHandler(live, {
+      readableSandbox, runReadTool,
+      // drafting goes through the review service's add intent only (the assistant token's intent)
+      draftStep: (req, scope, command, input) => reviewSandbox(req, scope, { kind: 'add', command, input }, live),
+    }, options)));
   draftRoutes(router, live);
   toolRoutes(router, live);
   router.post('/:sandboxId/accept', guarded(async (req, res) => {

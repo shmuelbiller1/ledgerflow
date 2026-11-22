@@ -298,7 +298,7 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     const call = async (method: string, path: string, body?: unknown) => {
       const res = await fetch(`${base}/api/v1/workspaces/${workspaceId}/sandboxes${path}`, { method, headers: { 'x-test-uid': owner, ...(body ? { 'content-type': 'application/json' } : {}) },
         body: body === undefined ? undefined : JSON.stringify(body) });
-      return { status: res.status, cache: res.headers.get('x-ledgerflow-cache'), json: await res.json() as Record<string, unknown> };
+      return { status: res.status, cache: res.headers.get('x-assistant-cache'), json: await res.json() as Record<string, unknown> };
     };
     const opened = await call('POST', '');
     assert.equal(opened.status, 201, JSON.stringify(opened.json));

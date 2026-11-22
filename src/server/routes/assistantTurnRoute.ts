@@ -20,7 +20,7 @@ import type express from 'express';
 import type { FunctionDeclaration } from '@google/genai';
 import { z } from 'zod';
 import { ASSISTANT_SYSTEM_PROMPT } from '../../../assistant/systemPrompt.generated';
-import { reviewSandbox } from '../commands/sandboxReview';
+import type { reviewSandbox } from '../commands/sandboxReview';
 import type { Firestore } from '../db/firestore';
 import { assistantLimitRefusal, assistantUsage } from '../middleware/planCapacity';
 import { assistantToolsFor, draftableCommands } from '../services/assistantCatalog';
@@ -38,6 +38,12 @@ export interface TurnHelpers<Sandbox extends { workspaceId: string; sandboxId: s
   readableSandbox: (live: Firestore, req: express.Request) => Promise<Sandbox>;
   runReadTool: (live: Firestore, req: express.Request, res: express.Response, sandbox: Sandbox, tool: string,
     input: Record<string, unknown>, cache?: ToolCache) => Promise<{ status: number; body: unknown; cached: boolean }>;
+  /**
+   * The only way a turn changes anything: the SBX-1 review service's `add` intent, which drafts a step
+   * into the sandbox overlay (never a real row). Passed in at the route so the drafting door is visible
+   * where the route is registered.
+   */
+  draftStep: (req: express.Request, scope: { workspaceId: string; sandboxId: string }, command: string, input: Record<string, unknown>) => ReturnType<typeof reviewSandbox>;
 }
 
 export interface TurnDependencies {
@@ -86,7 +92,7 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
       const proposal = PROPOSE.exec(name);
       if (proposal) {
         // the same drafting intent the assistant token has: the step lands in the sandbox, never the books
-        const review = await reviewSandbox(req, { workspaceId, sandboxId: sandbox.sandboxId }, { kind: 'add', command: `${proposal[1]}.${proposal[2]}`, input: args }, live);
+        const review = await helpers.draftStep(req, { workspaceId, sandboxId: sandbox.sandboxId }, `${proposal[1]}.${proposal[2]}`, args);
         const step = review.steps.at(-1);
         return { drafted: true, proposalId: review.id, step: step ? { id: step.id, command: step.command, state: step.state, preview: step.preview } : null };
       }
