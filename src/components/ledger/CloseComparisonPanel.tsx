@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 /**
  * R-09 close comparison (AI #3, A-1): the month being closed beside the month before it and the
  * same month last year. Read-only — the figures come from `buildCloseComparison`
@@ -48,57 +49,38 @@ function ComparisonTable({
   return (
     // a table that scrolls sideways can be reached and scrolled with the keyboard
     <div className="overflow-x-auto rounded-xl border border-[var(--line)]" tabIndex={0} role="region" aria-label={statement.title}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-      <table className="w-full border-collapse text-sm tabular-nums">
-        <caption className="sr-only">
-          {statement.title}: {monthLabel(periods.current.month)} beside {monthLabel(periods.previousMonth.month)} and{' '}
-          {monthLabel(periods.previousYear.month)}
-        </caption>
-        <thead className="bg-[var(--ink)]">
-          <tr>
-            <th scope="col" className="p-3 text-left">Account</th>
-            <th scope="col" className="p-3 text-right whitespace-nowrap">
-              {monthLabel(periods.current.month)}
-              <span className="block text-xs font-normal">{statement.id === 'bs' ? periods.current.endDate : 'This month'}</span>
-              {statement.incomplete.current && <span data-testid={`close-comparison-incomplete-${statement.id}-current`} className="block text-xs font-normal text-[var(--neg)]">Incomplete: loaded entries only</span>}
-            </th>
-            <th scope="col" className="p-3 text-right whitespace-nowrap">
-              Previous month
-              <span className="block text-xs font-normal">{statement.id === 'bs' ? periods.previousMonth.endDate : monthLabel(periods.previousMonth.month)}</span>
-              {statement.incomplete.previousMonth && <span data-testid={`close-comparison-incomplete-${statement.id}-previousMonth`} className="block text-xs font-normal text-[var(--neg)]">Incomplete: loaded entries only</span>}
-            </th>
-            <th scope="col" className="p-3 text-right whitespace-nowrap">Change</th>
-            <th scope="col" className="p-3 text-right whitespace-nowrap">
-              Same month last year
-              <span className="block text-xs font-normal">{statement.id === 'bs' ? periods.previousYear.endDate : monthLabel(periods.previousYear.month)}</span>
-              {statement.incomplete.previousYear && <span data-testid={`close-comparison-incomplete-${statement.id}-previousYear`} className="block text-xs font-normal text-[var(--neg)]">Incomplete: loaded entries only</span>}
-            </th>
-            <th scope="col" className="p-3 text-right whitespace-nowrap">Change</th>
-          </tr>
-        </thead>
-        <tbody>
-          {statement.rows.map(row => (
-            <tr
-              key={`${statement.id}:${row.id}`}
-              className={row.kind === 'total' ? 'border-t border-[var(--line)] font-semibold bg-[var(--ink)]' : 'border-t border-[var(--line)]'}
-            >
-              <th scope="row" className="p-3 text-left">
-                <span className="block">{row.label}</span>
+      <RowTable
+caption={<>{statement.title}: {monthLabel(periods.current.month)} beside {monthLabel(periods.previousMonth.month)} and{' '}
+          {monthLabel(periods.previousYear.month)}</>}
+captionClassName={"sr-only"}
+tableClassName={"w-full border-collapse text-sm tabular-nums"}
+headRowClassName={"bg-[var(--ink)]"}
+bodyClassName={''}
+rows={statement.rows}
+rowKey={row => `${statement.id}:${row.id}`}
+rowHeaderClassName={''}
+rowClassName={row => row.kind === 'total' ? 'border-t border-[var(--line)] font-semibold bg-[var(--ink)]' : 'border-t border-[var(--line)]'}
+columns={[
+{ header: "Account", headClassName: "p-3 text-left", className: "p-3 text-left", cell: row => (<><span className="block">{row.label}</span>
                 {row.code && <span className="block text-xs font-normal text-[var(--muted)]">{row.code}</span>}
                 {(row.bigMove || row.bigMoveYear) && (
                   <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-500/60 px-2 py-0.5 text-xs font-semibold text-amber-600">
                     <AlertTriangle className="w-3 h-3" aria-hidden="true" /> Big move
                   </span>
-                )}
-              </th>
-              <td className="p-3 text-right whitespace-nowrap">{formatCurrency(row.current, currency)}</td>
-              <td className="p-3 text-right whitespace-nowrap">{formatCurrency(row.previousMonth, currency)}</td>
-              <td className="p-3 text-right whitespace-nowrap">{changeText(row.changePreviousMonth, row.percentPreviousMonth, currency, row.comparablePreviousMonth)}</td>
-              <td className="p-3 text-right whitespace-nowrap">{formatCurrency(row.previousYear, currency)}</td>
-              <td className="p-3 text-right whitespace-nowrap">{changeText(row.changePreviousYear, row.percentPreviousYear, currency, row.comparablePreviousYear)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                )}</>) },
+{ header: <>{monthLabel(periods.current.month)}
+              <span className="block text-xs font-normal">{statement.id === 'bs' ? periods.current.endDate : 'This month'}</span>
+              {statement.incomplete.current && <span data-testid={`close-comparison-incomplete-${statement.id}-current`} className="block text-xs font-normal text-[var(--neg)]">Incomplete: loaded entries only</span>}</>, headClassName: "p-3 text-right whitespace-nowrap", className: "p-3 text-right whitespace-nowrap", cell: row => (formatCurrency(row.current, currency)) },
+{ header: <>Previous month
+              <span className="block text-xs font-normal">{statement.id === 'bs' ? periods.previousMonth.endDate : monthLabel(periods.previousMonth.month)}</span>
+              {statement.incomplete.previousMonth && <span data-testid={`close-comparison-incomplete-${statement.id}-previousMonth`} className="block text-xs font-normal text-[var(--neg)]">Incomplete: loaded entries only</span>}</>, headClassName: "p-3 text-right whitespace-nowrap", className: "p-3 text-right whitespace-nowrap", cell: row => (formatCurrency(row.previousMonth, currency)) },
+{ header: "Change", headClassName: "p-3 text-right whitespace-nowrap", className: "p-3 text-right whitespace-nowrap", cell: row => (changeText(row.changePreviousMonth, row.percentPreviousMonth, currency, row.comparablePreviousMonth)) },
+{ header: <>Same month last year
+              <span className="block text-xs font-normal">{statement.id === 'bs' ? periods.previousYear.endDate : monthLabel(periods.previousYear.month)}</span>
+              {statement.incomplete.previousYear && <span data-testid={`close-comparison-incomplete-${statement.id}-previousYear`} className="block text-xs font-normal text-[var(--neg)]">Incomplete: loaded entries only</span>}</>, headClassName: "p-3 text-right whitespace-nowrap", className: "p-3 text-right whitespace-nowrap", cell: row => (formatCurrency(row.previousYear, currency)) },
+{ header: "Change", headClassName: "p-3 text-right whitespace-nowrap", className: "p-3 text-right whitespace-nowrap", cell: row => (changeText(row.changePreviousYear, row.percentPreviousYear, currency, row.comparablePreviousYear)) }
+]}
+/>
     </div>
   );
 }

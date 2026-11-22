@@ -1,3 +1,4 @@
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { workspaceActor } from '../../lib/guestActor';
 import { RecordInlineField } from '../ui/RecordInlineField';
 import { EstimateSignLink, EstimateSignedNote } from './EstimateSignLink';
@@ -373,33 +374,25 @@ export default function EstimatesView() {
             onAction={canWrite ? () => setIsCreating(true) : undefined}
           />
         ) : (
-          <table className="w-full text-start text-xs">
-            <caption className="sr-only">Estimates</caption>
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 text-[var(--muted)] font-semibold uppercase text-[10px]">
-                <th scope="col" className="py-3 px-4">Estimate #</th>
-                <th scope="col" className="py-3 px-4">Customer</th>
-                <th scope="col" className="py-3 px-4">Date</th>
-                <th scope="col" className="py-3 px-4">Status</th>
-                <th scope="col" className="py-3 px-4 text-right">Amount</th>
-                <th scope="col" className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-              {shownRows.length === 0 && (
-                <tr><td colSpan={6} className="p-6 text-center text-[var(--muted)]">Nothing here.</td></tr>
-              )}
-              {shownRows.map(({ est, progress, stage }) => {
-                const attachmentKey = `estimates:${est.id}`;
+          <TanStackDataGrid
+caption={"Estimates"}
+data={shownRows.map(({ est, progress, stage }) => { const attachmentKey = `estimates:${est.id}`;
                 const label = `Estimate ${est.number || est.id}`;
-                return (
-                  <React.Fragment key={attachmentKey}>
-                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white"><RecordInlineField collection="estimates" record={est} field="number" label={`Reference of estimate ${est.number}`} display={`#${est.number}`} canEdit={est.status === 'draft'} /><div><RecordInlineField collection="estimates" record={est} field="notes" kind="textarea" label={`Notes of estimate ${est.number}`} canEdit={est.status === 'draft'} placeholder="Add notes" /></div></td>
-                  <td className="py-3 px-4 text-slate-800 dark:text-slate-200 font-medium">{est.customerName}</td>
-                  <td className="py-3 px-4 text-[var(--muted)]"><RecordInlineField collection="estimates" record={est} field="date" kind="date" label={`Date of estimate ${est.number}`} canEdit={est.status === 'draft'} /><div>Expires: <RecordInlineField collection="estimates" record={est} field="expiryDate" kind="date" label={`Expiry of estimate ${est.number}`} canEdit={est.status === 'draft'} placeholder="Add expiry" /></div></td>
-                  <td className="py-3 px-4">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${STAGE_STYLE[stage]}`}>
+return { est, progress, stage, attachmentKey, label }; })}
+getRowId={({ attachmentKey }) => attachmentKey}
+columnScope="estimates"
+columnLabel={"Estimates"}
+rowHeaderColumn="estimate"
+hidePaginationOnSinglePage
+enableGlobalFilter={false}
+emptyState={<div className="p-4 text-center">Nothing here.</div>}
+getRowProps={() => ({ className: "hover:bg-slate-50 dark:hover:bg-slate-800/30" })}
+renderDetail={({ est, attachmentKey, label }) => (filesOpen(attachmentKey) && (<AttachmentsPanel target={{ collection: 'estimates', id: est.id, label }} workspaceId={est.workspaceId} />))}
+columns={[
+{ id: 'estimate', header: "Estimate #", accessorFn: ({ est }) => est.number, cell: ({ row: { original: { est, label: _label } } }) => (<><RecordInlineField collection="estimates" record={est} field="number" label={`Reference of estimate ${est.number}`} display={`#${est.number}`} canEdit={est.status === 'draft'} /><div><RecordInlineField collection="estimates" record={est} field="notes" kind="textarea" label={`Notes of estimate ${est.number}`} canEdit={est.status === 'draft'} placeholder="Add notes" /></div></>) },
+{ id: 'customer', header: "Customer", accessorFn: ({ est }) => est.customerName, cell: ({ row: { original: { est } } }) => (est.customerName) },
+{ id: 'date', header: "Date", accessorFn: ({ est }) => est.date, cell: ({ row: { original: { est, label: _label } } }) => (<><RecordInlineField collection="estimates" record={est} field="date" kind="date" label={`Date of estimate ${est.number}`} canEdit={est.status === 'draft'} /><div>Expires: <RecordInlineField collection="estimates" record={est} field="expiryDate" kind="date" label={`Expiry of estimate ${est.number}`} canEdit={est.status === 'draft'} placeholder="Add expiry" /></div></>) },
+{ id: 'status', header: "Status", accessorFn: ({ est }) => est.status, cell: ({ row: { original: { est, progress, stage } } }) => (<><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${STAGE_STYLE[stage]}`}>
                       {stage}
                     </span>
                     {isOrder(est) && (
@@ -408,10 +401,8 @@ export default function EstimatesView() {
                         {progress.invoices.length > 0 && <div>Invoiced {formatCurrency(progress.invoicedCents)} ({progress.invoices.map(inv => inv.number || inv.id).join(', ')})</div>}
                         {progress.leftCents > 0 && <div className="font-semibold text-[var(--text)]">{formatCurrency(progress.leftCents)} left to invoice</div>}
                       </div>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
-                    {formatCurrency(est.amountCents)}
+                    )}</>) },
+{ id: 'amount', header: "Amount", accessorFn: ({ est }) => est.amountCents, cell: ({ row: { original: { est } } }) => (<div className="text-end tabular-nums">{<>{formatCurrency(est.amountCents)}
                     {(() => {
                       const deposit = estimateDeposits(payments || [], est.id);
                       return deposit.receivedCents > 0 ? (
@@ -419,10 +410,8 @@ export default function EstimatesView() {
                           Deposit received {formatCurrency(deposit.receivedCents)}{deposit.unappliedCents > 0 && est.status === 'converted' ? ' · apply it on the invoice' : ''}
                         </div>
                       ) : null;
-                    })()}
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
+                    })()}</>}</div>) },
+{ id: 'actions', header: "Actions", enableSorting: false, cell: ({ row: { original: { est, progress, stage, attachmentKey, label: _label } } }) => (<div className="text-end tabular-nums">{<><div className="flex items-center justify-end gap-1.5">
                       <button type="button" aria-expanded={filesOpen(attachmentKey)} aria-label={`Manage files for estimate ${est.number || est.id}`}
                         onClick={() => toggleFiles(attachmentKey)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-slate-500 hover:text-indigo-600 focus-visible:outline focus-visible:outline-2" title="Files">
                         <Paperclip className="w-4 h-4" aria-hidden="true" />
@@ -504,17 +493,9 @@ export default function EstimatesView() {
                         <button type="button" onClick={() => void confirmOrder(est)} className="px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">Make it an order</button>
                         <button type="button" onClick={() => setOrdering(null)} className="text-[var(--muted)] hover:underline">Cancel</button>
                       </div>
-                    )}
-                  </td>
-                </tr>
-                {filesOpen(attachmentKey) && <tr><td colSpan={6} className="bg-[var(--surface)] p-3">
-                  <AttachmentsPanel target={{ collection: 'estimates', id: est.id, label }} workspaceId={est.workspaceId} />
-                </td></tr>}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+                    )}</>}</div>) }
+]}
+/>
         )}
       </div>
 

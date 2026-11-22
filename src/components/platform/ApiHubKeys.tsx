@@ -1,3 +1,4 @@
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 
 
 import { Key, Copy, RefreshCw, CheckCircle2, AlertCircle, Shield, Trash2, Clock, Lock, X } from 'lucide-react';
@@ -82,29 +83,21 @@ export function ApiHubKeys({ model }: { model: ReturnType<typeof useApiHubModel>
                   </div>
                ) : (
                   <div className="border border-slate-150 rounded-[32px] shadow-3xs overflow-hidden">
-                     <table className="w-full text-left text-sm">
-                       <caption className="sr-only">API keys</caption>
-                        <thead className="bg-[var(--ink)]/80 border-b border-slate-150 text-[10px] uppercase tracking-wider text-[var(--muted)] font-black">
-                           <tr>
-                              <th scope="col" className="p-4 py-3.5">Details</th>
-                              <th scope="col" className="p-4 py-3.5">Granted Scopes</th>
-                              <th scope="col" className="p-4 py-3.5">Usage Telemetry</th>
-                              <th scope="col" className="p-4 py-3.5">Expiration</th>
-                              <th scope="col" className="p-4 py-3.5 text-right">Actions</th>
-                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 bg-[var(--surface)]">
-                           {publicKeys.map((k) => {
-                             const isExpired = k.expiresAt !== 'never' && new Date(k.expiresAt).getTime() < nowMs;
-                             return (
-                               <tr key={k.id} className="hover:bg-[var(--ink)]/40 transition-colors">
-                                  <td className="p-4">
-                                     <div className="font-bold text-slate-950 text-xs">{k.name}</div>
+                     <TanStackDataGrid
+caption={"API keys"}
+data={publicKeys.map((k) => { const isExpired = k.expiresAt !== 'never' && new Date(k.expiresAt).getTime() < nowMs;
+return { k, isExpired }; })}
+getRowId={({ k }) => k.id}
+columnScope="api-keys"
+columnLabel={"API keys"}
+rowHeaderColumn="details"
+hidePaginationOnSinglePage
+getRowProps={() => ({ className: "hover:bg-[var(--ink)]/40 transition-colors" })}
+columns={[
+{ id: 'details', header: "Details", accessorFn: ({ k }) => k.name, cell: ({ row: { original: { k } } }) => (<><div className="font-bold text-slate-950 text-xs">{k.name}</div>
                                      <div className="font-mono text-[10px] text-[var(--muted)] mt-0.5">{k.id}</div>
-                                     <div className="text-[10px] text-slate-400/90 mt-1">Created: {k.createdAt ? new Date(k.createdAt).toLocaleDateString() : '—'}</div>
-                                  </td>
-                                  <td className="p-4 max-w-xs">
-                                     <div className="flex flex-wrap gap-1">
+                                     <div className="text-[10px] text-slate-400/90 mt-1">Created: {k.createdAt ? new Date(k.createdAt).toLocaleDateString() : '—'}</div></>) },
+{ id: 'granted-scopes', header: "Granted Scopes", enableSorting: false, cell: ({ row: { original: { k } } }) => (<div className="flex flex-wrap gap-1">
                                         {k.scopes.length === 0 ? (
                                            <span className="text-[9px] bg-[var(--ink)] text-[var(--muted)] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-[var(--line)]">No Scopes</span>
                                         ) : (
@@ -122,17 +115,13 @@ export function ApiHubKeys({ model }: { model: ReturnType<typeof useApiHubModel>
                                               </span>
                                            ))
                                         )}
-                                     </div>
-                                  </td>
-                                  <td className="p-4 text-xs font-mono text-slate-600">
-                                     <div className="font-bold">{k.totalRequests} API calls</div>
+                                     </div>) },
+{ id: 'usage-telemetry', header: "Usage Telemetry", accessorFn: ({ k }) => k.totalRequests, cell: ({ row: { original: { k } } }) => (<><div className="font-bold">{k.totalRequests} API calls</div>
                                      <div className="text-[10px] text-[var(--muted)] mt-1 flex items-center gap-1">
                                         <Clock aria-hidden="true" size={10} />
                                         Last Used: {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : 'Never'}
-                                     </div>
-                                  </td>
-                                  <td className="p-4">
-                                     {isExpired ? (
+                                     </div></>) },
+{ id: 'expiration', header: "Expiration", accessorFn: ({ k }) => k.expiresAt, cell: ({ row: { original: { k, isExpired } } }) => (isExpired ? (
                                         <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase bg-red-500/10 border border-red-500/20 text-red-650 px-2.5 py-1 rounded-full">
                                           <Shield aria-hidden="true" size={10} className="stroke-[3]" /> Expired
                                         </span>
@@ -145,10 +134,8 @@ export function ApiHubKeys({ model }: { model: ReturnType<typeof useApiHubModel>
                                           <div className="font-bold text-[var(--text)]">{new Date(k.expiresAt).toLocaleDateString()}</div>
                                           <div className="text-[10px] text-[var(--muted)] mt-0.5">{new Date(k.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                                         </div>
-                                     )}
-                                  </td>
-                                  <td className="p-4 text-right">
-                                     <button
+                                     )) },
+{ id: 'actions', header: "Actions", enableSorting: false, cell: ({ row: { original: { k } } }) => (<div className="text-end tabular-nums">{<button
                                        onClick={() => {
                                          if(confirm('Are you absolutely certain you wish to revoke this credential? Any servers using this token will instantly lose secure database access coordinates.')) {
                                            inBackground(revokeKey(k.id));
@@ -159,13 +146,9 @@ export function ApiHubKeys({ model }: { model: ReturnType<typeof useApiHubModel>
                                        aria-label={`Revoke credential ${k.name}`}
                                      >
                                        <Trash2 aria-hidden="true" size={15} />
-                                     </button>
-                                  </td>
-                               </tr>
-                             );
-                           })}
-                        </tbody>
-                     </table>
+                                     </button>}</div>) }
+]}
+/>
                   </div>
                )}
             </div>

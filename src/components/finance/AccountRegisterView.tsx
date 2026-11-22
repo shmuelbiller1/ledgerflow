@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useState, useMemo } from 'react';
 import { usePagedRows } from '../../hooks/usePagedRows';
 import { ShowMoreRows } from '../common/ShowMoreRows';
@@ -280,38 +281,35 @@ export const AccountRegisterView: React.FC = () => {
 
       {/* Checkbook Register Table */}
       <div className="flex-1 overflow-auto custom-scrollbar">
-        <table className="w-full text-left border-collapse text-xs sm:text-sm">
-          <caption className="sr-only">Account Register</caption>
-          <thead className="sticky top-0 bg-[var(--surface-sunken)] border-b border-[var(--border)] text-[var(--text-muted)] uppercase tracking-wider font-semibold text-[11px] z-10">
-            <tr>
-              <th scope="col" className="py-2.5 px-3 w-10 text-center">Clr</th>
-              <th scope="col" className="py-2.5 px-3 w-28">Date</th>
-              <th scope="col" className="py-2.5 px-3 w-24">Ref / Chk</th>
-              <th scope="col" className="py-2.5 px-3 w-40">Payee</th>
-              <th scope="col" className="py-2.5 px-3">Description / Memo</th>
-              <th scope="col" className="py-2.5 px-3 text-right w-28">Increase (Dr)</th>
-              <th scope="col" className="py-2.5 px-3 text-right w-28">Decrease (Cr)</th>
-              <th scope="col" className="py-2.5 px-3 text-right w-32">Running Balance</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--border)]">
-            {displayedEntries.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="py-12 text-center text-[var(--text-muted)]">
-                  No register entries found for this account.
-                </td>
-              </tr>
-            ) : (
-              paged.visible.map(entry => (
-                <React.Fragment key={entry.id}>
-                <tr
-                  className={cn(
+        <RowTable
+caption={"Account Register"}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-left border-collapse text-xs sm:text-sm"}
+headRowClassName={"sticky top-0 bg-[var(--surface-sunken)] border-b border-[var(--border)] text-[var(--text-muted)] uppercase tracking-wider font-semibold text-[11px] z-10"}
+bodyClassName={"divide-y divide-[var(--border)]"}
+rows={paged.visible}
+rowKey={entry => entry.id}
+rowHeaderClassName={'font-normal text-start'}
+rowClassName={entry => cn(
                     "hover:bg-[var(--surface-sunken)]/60 transition-colors",
                     entry.isCleared && "bg-emerald-500/[0.02]"
                   )}
-                >
-                  <td className="py-2.5 px-3 text-center">
-                    <button aria-label={entry.isCleared ? "Mark transaction as uncleared" : "Mark transaction as cleared"}
+emptyRow={<tr>
+                <td colSpan={8} className="py-12 text-center text-[var(--text-muted)]">
+                  No register entries found for this account.
+                </td>
+              </tr>}
+renderDetail={entry => (clearing === entry.txId && (<div className="flex flex-wrap items-center gap-2 text-xs">
+                        <label className="flex items-center gap-1.5">Cleared the bank on
+                          <input type="date" value={clearOn} min={String(entry.date).slice(0, 10)} onChange={e => setClearOn(e.target.value)}
+                            className="px-2 py-1 border border-[var(--border)] rounded bg-[var(--surface)]" />
+                        </label>
+                        <button type="button" disabled={!clearOn || clearOn < String(entry.date).slice(0, 10)} onClick={() => void confirmCleared(entry.txId)}
+                          className="px-2 py-1 rounded bg-emerald-600 text-white font-semibold disabled:opacity-50">Mark cleared</button>
+                        <button type="button" onClick={() => setClearing(null)} className="text-[var(--text-muted)] hover:underline">Cancel</button>
+                      </div>))}
+columns={[
+{ header: "Clr", headClassName: "py-2.5 px-3 w-10 text-center", className: "py-2.5 px-3 text-center", cell: entry => (<button aria-label={entry.isCleared ? "Mark transaction as uncleared" : "Mark transaction as cleared"}
                       onClick={() => void handleToggleCleared(entry.txId, entry.isCleared)}
                       disabled={!canClear}
                       title={entry.isCleared ? `Cleared${entry.clearanceDate ? ` on ${entry.clearanceDate}` : ''}${canClear ? ' (click to unmark)' : ''}` : canClear ? 'Not cleared (click to mark cleared)' : 'Not cleared'}
@@ -322,51 +320,17 @@ export const AccountRegisterView: React.FC = () => {
                       ) : (
                         <Circle aria-hidden="true" className="w-4 h-4 opacity-40 hover:opacity-100" />
                       )}
-                    </button>
-                  </td>
-                  <td className="py-2.5 px-3 font-mono text-xs">
-                    {entry.date}
-                    {entry.isCleared && entry.clearanceDate && <div className="text-[10px] text-emerald-600">cleared {entry.clearanceDate}</div>}
-                  </td>
-                  <td className="py-2.5 px-3 font-mono text-xs text-[var(--text-muted)] truncate max-w-[96px]">
-                    {entry.reference || '—'}
-                  </td>
-                  <td className="py-2.5 px-3 truncate max-w-[160px] font-medium">
-                    {entry.payee || '—'}
-                  </td>
-                  <td className="py-2.5 px-3 truncate max-w-[280px] text-[var(--text-muted)]">
-                    {entry.description}
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-emerald-400 font-medium tabular-nums">
-                    {entry.debitMinor > 0 ? formatDecimal(entry.debitMinor) : ''}
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-rose-400 font-medium tabular-nums">
-                    {entry.creditMinor > 0 ? formatDecimal(entry.creditMinor) : ''}
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-semibold tabular-nums">
-                    {formatDecimal(entry.runningBalanceMinor)}
-                  </td>
-                </tr>
-                {clearing === entry.txId && (
-                  <tr>
-                    <td colSpan={8} className="py-2 px-3">
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <label className="flex items-center gap-1.5">Cleared the bank on
-                          <input type="date" value={clearOn} min={String(entry.date).slice(0, 10)} onChange={e => setClearOn(e.target.value)}
-                            className="px-2 py-1 border border-[var(--border)] rounded bg-[var(--surface)]" />
-                        </label>
-                        <button type="button" disabled={!clearOn || clearOn < String(entry.date).slice(0, 10)} onClick={() => void confirmCleared(entry.txId)}
-                          className="px-2 py-1 rounded bg-emerald-600 text-white font-semibold disabled:opacity-50">Mark cleared</button>
-                        <button type="button" onClick={() => setClearing(null)} className="text-[var(--text-muted)] hover:underline">Cancel</button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-                </React.Fragment>
-              ))
-            )}
-          </tbody>
-        </table>
+                    </button>) },
+{ header: "Date", headClassName: "py-2.5 px-3 w-28", className: "py-2.5 px-3 font-mono text-xs", cell: entry => (<>{entry.date}
+                    {entry.isCleared && entry.clearanceDate && <div className="text-[10px] text-emerald-600">cleared {entry.clearanceDate}</div>}</>) },
+{ header: "Ref / Chk", headClassName: "py-2.5 px-3 w-24", className: "py-2.5 px-3 font-mono text-xs text-[var(--text-muted)] truncate max-w-[96px]", cell: entry => (entry.reference || '—') },
+{ header: "Payee", headClassName: "py-2.5 px-3 w-40", className: "py-2.5 px-3 truncate max-w-[160px] font-medium", cell: entry => (entry.payee || '—') },
+{ header: "Description / Memo", rowHeader: true, headClassName: "py-2.5 px-3", className: "py-2.5 px-3 truncate max-w-[280px] text-[var(--text-muted)]", cell: entry => (entry.description) },
+{ header: "Increase (Dr)", headClassName: "py-2.5 px-3 text-right w-28", className: "py-2.5 px-3 text-right font-mono text-emerald-400 font-medium tabular-nums", cell: entry => (entry.debitMinor > 0 ? formatDecimal(entry.debitMinor) : '') },
+{ header: "Decrease (Cr)", headClassName: "py-2.5 px-3 text-right w-28", className: "py-2.5 px-3 text-right font-mono text-rose-400 font-medium tabular-nums", cell: entry => (entry.creditMinor > 0 ? formatDecimal(entry.creditMinor) : '') },
+{ header: "Running Balance", headClassName: "py-2.5 px-3 text-right w-32", className: "py-2.5 px-3 text-right font-mono font-semibold tabular-nums", cell: entry => (formatDecimal(entry.runningBalanceMinor)) }
+]}
+/>
         <ShowMoreRows shown={paged.visible.length} total={paged.total} noun="lines" onMore={paged.more} onAll={paged.all} />
       </div>
     </div>

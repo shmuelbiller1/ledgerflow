@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import { motion, AnimatePresence } from 'motion/react';
 import { FileUp, CheckCircle2, Download, Activity, RefreshCw, Loader2, Sparkles } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
@@ -106,31 +107,25 @@ export function QBOMigrationWizardView({ onClose, withOccurrenceKeys, overlayDia
                       <span className="text-xs font-mono font-bold text-indigo-600">{parsedRows.length} Total Rows</span>
                     </div>
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <caption className="sr-only">Sample QuickBooks export</caption>
-                        <thead>
-                          <tr className="border-b border-[var(--line)] text-[var(--muted)]">
-                            <th scope="col" className="p-2 font-semibold">Date</th>
-                            <th scope="col" className="p-2 font-semibold">Payee/Memo</th>
-                            <th scope="col" className="p-2 font-semibold">Source Account</th>
-                            <th scope="col" className="p-2 font-semibold">Split</th>
-                            <th scope="col" className="p-2 font-semibold text-right">Debit ($)</th>
-                            <th scope="col" className="p-2 font-semibold text-right">Credit ($)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--line)]">
-                          {withOccurrenceKeys(parsedRows.slice(0, 3), row => JSON.stringify(row)).map(({ item: r, key }) => (
-                            <tr key={key}>
-                              <td className="p-2 font-mono">{r.date}</td>
-                              <td className="p-2 truncate max-w-[200px]">{r.payee || r.memo}</td>
-                              <td className="p-2 font-medium">{r.account}</td>
-                              <td className="p-2 text-[var(--muted)]">{r.split || '—'}</td>
-                              <td className="p-2 text-right font-mono">{r.debitCents > 0 ? (r.debitCents / 100).toFixed(2) : '—'}</td>
-                              <td className="p-2 text-right font-mono">{r.creditCents > 0 ? (r.creditCents / 100).toFixed(2) : '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      <RowTable
+caption={"Sample QuickBooks export"}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-left text-xs border-collapse"}
+headRowClassName={''}
+headerRowClassName={"border-b border-[var(--line)] text-[var(--muted)]"}
+bodyClassName={"divide-y divide-[var(--line)]"}
+rows={withOccurrenceKeys(parsedRows.slice(0, 3), row => JSON.stringify(row))}
+rowKey={({ key }) => key}
+rowHeaderClassName={'font-normal text-start'}
+columns={[
+{ header: "Date", headClassName: "p-2 font-semibold", className: "p-2 font-mono", cell: ({ item: r }) => (r.date) },
+{ header: "Payee/Memo", headClassName: "p-2 font-semibold", className: "p-2 truncate max-w-[200px]", cell: ({ item: r }) => (r.payee || r.memo) },
+{ header: "Source Account", headClassName: "p-2 font-semibold", className: "p-2 font-medium", cell: ({ item: r }) => (r.account) },
+{ header: "Split", headClassName: "p-2 font-semibold", className: "p-2 text-[var(--muted)]", cell: ({ item: r }) => (r.split || '—') },
+{ header: "Debit ($)", headClassName: "p-2 font-semibold text-right", className: "p-2 text-right font-mono", cell: ({ item: r }) => (r.debitCents > 0 ? (r.debitCents / 100).toFixed(2) : '—') },
+{ header: "Credit ($)", headClassName: "p-2 font-semibold text-right", className: "p-2 text-right font-mono", cell: ({ item: r }) => (r.creditCents > 0 ? (r.creditCents / 100).toFixed(2) : '—') }
+]}
+/>
                     </div>
                   </div>
                 )}
@@ -153,32 +148,24 @@ export function QBOMigrationWizardView({ onClose, withOccurrenceKeys, overlayDia
                 </div>
 
                 <div className="border border-[var(--line)] rounded-xl overflow-hidden bg-[var(--panel)]">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <caption className="sr-only">Chart of accounts mapping</caption>
-                    <thead>
-                      <tr className="border-b border-[var(--line)] bg-[var(--surface)] text-[var(--muted)]">
-                        <th scope="col" className="p-3 font-bold uppercase tracking-wider">QuickBooks Account</th>
-                        <th scope="col" className="p-3 font-bold uppercase tracking-wider">Category Type</th>
-                        <th scope="col" className="p-3 font-bold uppercase tracking-wider text-center">Tx Count</th>
-                        <th scope="col" className="p-3 font-bold uppercase tracking-wider">Target {BRAND_NAME} Account</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--line)]">
-                      {accountMappings.map((m, idx) => (
-                        <tr key={m.qbAccount} className="hover:bg-[var(--surface)] transition-colors">
-                          <td className="p-3 font-bold text-[var(--text)]">
-                            {m.qbAccount}
-                          </td>
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                  <RowTable
+caption={"Chart of accounts mapping"}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-left text-xs border-collapse"}
+headRowClassName={''}
+headerRowClassName={"border-b border-[var(--line)] bg-[var(--surface)] text-[var(--muted)]"}
+bodyClassName={"divide-y divide-[var(--line)]"}
+rows={accountMappings.map((m, idx) => ({ m, idx }))}
+rowKey={({ m }) => m.qbAccount}
+rowHeaderClassName={'font-normal text-start'}
+rowClassName={"hover:bg-[var(--surface)] transition-colors"}
+columns={[
+{ header: "QuickBooks Account", headClassName: "p-3 font-bold uppercase tracking-wider", className: "p-3 font-bold text-[var(--text)]", cell: ({ m }) => (m.qbAccount) },
+{ header: "Category Type", headClassName: "p-3 font-bold uppercase tracking-wider", className: "p-3", cell: ({ m }) => (<span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                               {m.detectedType}
-                            </span>
-                          </td>
-                          <td className="p-3 text-center font-mono text-[var(--muted)]">
-                            {m.txCount}
-                          </td>
-                          <td className="p-3">
-                            <select aria-label={`Target account for ${m.qbAccount}`}
+                            </span>) },
+{ header: "Tx Count", headClassName: "p-3 font-bold uppercase tracking-wider text-center", className: "p-3 text-center font-mono text-[var(--muted)]", cell: ({ m }) => (m.txCount) },
+{ header: <>Target {BRAND_NAME} Account</>, headClassName: "p-3 font-bold uppercase tracking-wider", className: "p-3", cell: ({ m, idx }) => (<select aria-label={`Target account for ${m.qbAccount}`}
                               value={m.targetAccountId}
                               onChange={(e) => {
                                 const newMappings = [...accountMappings];
@@ -195,12 +182,9 @@ export function QBOMigrationWizardView({ onClose, withOccurrenceKeys, overlayDia
                                   </option>
                                 ))}
                               </optgroup>
-                            </select>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            </select>) }
+]}
+/>
                 </div>
               </motion.div>
             )}

@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Copy, Printer, Undo2 } from 'lucide-react';
 import { JournalEntry } from '../../types';
@@ -186,19 +187,22 @@ export default function JournalView({ journalEntries = [], formatCurrency, canEd
                   </div>
                 )}
                 {isOpen && (
-                  <table className="ml-12 mr-4 mb-3 text-xs w-[calc(100%-4rem)]">
-                    <caption className="sr-only">Lines of {e.description || 'the entry'}</caption>
-                    <thead><tr className="text-[var(--muted)]"><th scope="col" className="text-left font-semibold">Account</th><th scope="col" className="text-right font-semibold">Debit</th><th scope="col" className="text-right font-semibold">Credit</th></tr></thead>
-                    <tbody>
-                      {keyedLines(e.lines).map(({ line: l, key }) => (
-                        <tr key={key}>
-                          <td className="py-0.5">{l.accountName || l.accountId}</td>
-                          <td className="text-right font-mono">{l.debit ? formatCurrency(l.debit) : ''}</td>
-                          <td className="text-right font-mono">{l.credit ? formatCurrency(l.credit) : ''}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <RowTable
+caption={<>Lines of {e.description || 'the entry'}</>}
+captionClassName={"sr-only"}
+tableClassName={"ml-12 mr-4 mb-3 text-xs w-[calc(100%-4rem)]"}
+headRowClassName={''}
+headerRowClassName={"text-[var(--muted)]"}
+bodyClassName={''}
+rows={keyedLines(e.lines)}
+rowKey={({ key }) => key}
+rowHeaderClassName={'font-normal text-start'}
+columns={[
+{ header: "Account", headClassName: "text-left font-semibold", className: "py-0.5", cell: ({ line: l }) => (l.accountName || l.accountId) },
+{ header: "Debit", headClassName: "text-right font-semibold", className: "text-right font-mono", cell: ({ line: l }) => (l.debit ? formatCurrency(l.debit) : '') },
+{ header: "Credit", headClassName: "text-right font-semibold", className: "text-right font-mono", cell: ({ line: l }) => (l.credit ? formatCurrency(l.credit) : '') }
+]}
+/>
                 )}
               </li>
             );

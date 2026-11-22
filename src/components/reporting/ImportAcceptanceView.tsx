@@ -72,20 +72,24 @@ export default function ImportAcceptanceView() {
           </p>
           {acceptance.problems.map(p => <p key={p} className="text-xs text-amber-700 dark:text-amber-400">{p}</p>)}
           <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
-            <table className="w-full text-sm">
-              <caption className="text-left font-semibold text-[var(--text)] pb-1">{reportText('r.totals-on', 'Totals on')} {asOf}</caption>
-              <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                <th scope="col" className="text-left font-semibold py-1">{reportText('r.total', 'Total')}</th><th scope="col" className="text-right font-semibold py-1">{reportText('r.source', 'Source')}</th>
-                <th scope="col" className="text-right font-semibold py-1">{BRAND_NAME}</th><th scope="col" className="text-right font-semibold py-1">{reportText('r.col-difference', 'Difference')}</th>
-              </tr></thead>
-              <tbody>{acceptance.checks.map(c => (
-                <tr key={c.key} className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-left font-normal py-1">{c.label}</th>
-                  <td className="text-right font-mono py-1">{money(c.sourceCents)}</td><td className="text-right font-mono py-1">{money(c.ledgerCents)}</td>
-                  <td className={`text-right font-mono py-1 ${c.differenceCents ? 'text-rose-600' : ''}`}>{c.differenceCents ? money(c.differenceCents) : reportText('r.agrees', 'agrees')}</td>
-                </tr>
-              ))}</tbody>
-            </table>
+            <RowTable
+caption={<>{reportText('r.totals-on', 'Totals on')} {asOf}</>}
+captionClassName={"text-left font-semibold text-[var(--text)] pb-1"}
+tableClassName={"w-full text-sm"}
+headRowClassName={''}
+headerRowClassName={"border-b border-[var(--line)] text-xs text-[var(--muted)]"}
+bodyClassName={''}
+rows={acceptance.checks}
+rowKey={c => c.key}
+rowHeaderClassName={''}
+rowClassName={"border-b border-[var(--line)]/50"}
+columns={[
+{ header: reportText('r.total', 'Total'), headClassName: "text-left font-semibold py-1", className: "text-left font-normal py-1", cell: c => (c.label) },
+{ header: reportText('r.source', 'Source'), headClassName: "text-right font-semibold py-1", className: "text-right font-mono py-1", cell: c => (money(c.sourceCents)) },
+{ header: BRAND_NAME, headClassName: "text-right font-semibold py-1", className: "text-right font-mono py-1", cell: c => (money(c.ledgerCents)) },
+{ header: reportText('r.col-difference', 'Difference'), headClassName: "text-right font-semibold py-1", cellProps: c => ({ "className": `text-right font-mono py-1 ${c.differenceCents ? 'text-rose-600' : ''}` }), cell: c => (c.differenceCents ? money(c.differenceCents) : reportText('r.agrees', 'agrees')) }
+]}
+/>
           </div>
           {acceptance.differences.length > 0 && (
             <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">

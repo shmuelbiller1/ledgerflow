@@ -11,6 +11,7 @@ import { useUIStore } from '../../stores/useUIStore';
 import type { InventoryItem, Invoice } from '../../types';
 import type { PriceList } from '../../lib/priceLists';
 import ReportTableScroll from './ReportTableScroll';
+import { RowTable } from '../ui/RowTable';
 import { useReportText } from './useReportText';
 interface Props { startDate?: string; endDate?: string }
 interface Snapshot { invoices: Invoice[]; items: InventoryItem[]; lists: PriceList[]; loadedAt: string }
@@ -52,7 +53,26 @@ function ScopedDiscountMismatch({startDate='',endDate=''}: Props) {
     {loading&&!snapshot&&<p role="status">{reportText('r.loading-preview', 'Loading preview…')}</p>}{report.problem&&<p role="alert">{report.problem}</p>}{error&&<p role="alert">{error}</p>}
     <div className="flex flex-wrap gap-2"><button type="button" disabled={busy||!uid||guest||!workspaceId} onClick={()=>void refresh()} className="min-h-11 border rounded px-3">{busy?reportText('r.refreshing', 'Refreshing…'):reportText('r.refresh-complete-history', 'Refresh complete history')}</button><button type="button" disabled={!snapshot||busy||Boolean(error||report.problem)} onClick={exportCsv} className="min-h-11 border rounded px-3">{reportText('r.export-csv', 'Export CSV')}</button></div>
     <p>{report.uncomparableLines} {reportText('r.issued-lines-cannot-be-compared-because-their-cu', 'issued lines cannot be compared because their currency, item reference or price is unavailable or invalid.')}</p>
-    <ReportTableScroll><table className="w-full text-sm"><caption>{reportText('r.current-price-mismatch-review', 'Current price mismatch review')}</caption><thead><tr>{[reportText('r.date-2', 'Date'),reportText('r.invoice-2', 'Invoice'),reportText('r.customer', 'Customer'),reportText('r.item', 'Item'),reportText('r.invoice-unit-price', 'Invoice unit price'),reportText('r.expected-unit-price', 'Expected unit price'),reportText('r.difference-per-unit', 'Difference per unit'),reportText('r.comparison-source', 'Comparison source')].map(name=><th scope="col" key={name}>{name}</th>)}</tr></thead><tbody>{report.rows.map(row=><tr key={JSON.stringify([row.invoiceId,row.line])}><td>{row.date}</td><th scope="row"><button type="button" onClick={()=>useUIStore.getState().openRecord({type:'invoice',id:row.invoiceId})} className="min-h-11 underline"><bdi>{row.number}</bdi></button></th><td><bdi>{row.customer}</bdi></td><td><bdi>{row.item}</bdi></td>{[{id:'actual',amount:row.actualCents},{id:'expected',amount:row.expectedCents},{id:'difference',amount:row.differenceCents}].map(({id,amount})=><td key={id}><bdi dir="auto">{formatCurrency(amount,row.currency)}</bdi></td>)}<td><bdi>{row.source}</bdi></td></tr>)}</tbody></table></ReportTableScroll>
+    <ReportTableScroll><RowTable
+        caption={reportText('r.current-price-mismatch-review', 'Current price mismatch review')}
+        captionClassName=""
+        tableClassName="w-full text-sm"
+        bodyClassName=""
+        rows={report.rows}
+        rowKey={row => JSON.stringify([row.invoiceId, row.line])}
+        columns={[
+          { header: reportText('r.date-2', 'Date'), headClassName: "", cell: row => row.date },
+          { rowHeader: true, header: reportText('r.invoice-2', 'Invoice'), headClassName: "", cell: row => (
+            <button type="button" onClick={() => useUIStore.getState().openRecord({ type: 'invoice', id: row.invoiceId })} className="min-h-11 underline"><bdi>{row.number}</bdi></button>
+          ) },
+          { header: reportText('r.customer', 'Customer'), headClassName: "", cell: row => <bdi>{row.customer}</bdi> },
+          { header: reportText('r.item', 'Item'), headClassName: "", cell: row => <bdi>{row.item}</bdi> },
+          { header: reportText('r.invoice-unit-price', 'Invoice unit price'), headClassName: "", cell: row => <bdi dir="auto">{formatCurrency(row.actualCents, row.currency)}</bdi> },
+          { header: reportText('r.expected-unit-price', 'Expected unit price'), headClassName: "", cell: row => <bdi dir="auto">{formatCurrency(row.expectedCents, row.currency)}</bdi> },
+          { header: reportText('r.difference-per-unit', 'Difference per unit'), headClassName: "", cell: row => <bdi dir="auto">{formatCurrency(row.differenceCents, row.currency)}</bdi> },
+          { header: reportText('r.comparison-source', 'Comparison source'), headClassName: "", cell: row => <bdi>{row.source}</bdi> },
+        ]}
+      /></ReportTableScroll>
     {!report.problem&&!loading&&report.rows.length===0&&<p>{reportText('r.no-comparable-unit-price-mismatches-in-the-selec', 'No comparable unit-price mismatches in the selected period.')}</p>}
   </section>;
 }

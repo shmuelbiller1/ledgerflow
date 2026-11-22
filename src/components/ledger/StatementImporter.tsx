@@ -1,5 +1,6 @@
 import { useDialog } from '../../hooks/useDialog';
 import { ModalShell } from '../ui/ModalShell';
+import { RowTable } from '../ui/RowTable';
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { parseCsvChecked } from '../../lib/csv';
 import { assertReadableText, mapBankCsvRows } from '../../lib/bankCsvRows';
@@ -533,26 +534,21 @@ export default function StatementImporter({
                   <div className="p-4 bg-[var(--surface)] border-b border-[var(--line)]">
                     <p className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">Data Preview (First 20 Rows)</p>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs min-w-[600px]">
-                      <caption className="sr-only">Statement preview</caption>
-                      <thead>
-                        <tr className="bg-[var(--ink)] border-b border-[var(--line)]">
-                          {csvHeaders.map(({ item: col, key }, idx) => (
-                            <th scope="col" key={key} className="p-4 font-black text-[var(--text)] truncate max-w-[150px]">{col || `Col ${idx + 1}`}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {csvPreview.map(({ item: row, key }) => (
-                          <tr key={key} className="border-b border-[var(--line)]/50">
-                            {withOccurrenceKeys(row, cell => cell).map(({ item: cell, key: cellKey }, column) => (
-                              <td key={csvHeaders[column] ? `column-${csvHeaders[column].key}` : `extra-${cellKey}`} className="p-4 text-[var(--muted)] font-medium truncate max-w-[150px]">{cell}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="overflow-x-auto" role="region" aria-label="Statement preview table" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
+                    <RowTable
+                      caption="Statement preview"
+                      tableClassName="w-full text-left text-xs min-w-[600px]"
+                      headerRowClassName="bg-[var(--ink)] border-b border-[var(--line)]"
+                      rows={csvPreview.map(({ item: row, key }) => ({ key, cells: withOccurrenceKeys(row, cell => cell).map(({ item: cell }) => cell) }))}
+                      rowKey={row => row.key}
+                      columns={[{
+                        over: csvHeaders.map((_column, idx) => idx),
+                        head: idx => csvHeaders[idx].item || `Col ${idx + 1}`,
+                        headClassName: "p-4 font-black text-[var(--text)] truncate max-w-[150px]",
+                        className: "p-4 text-[var(--muted)] font-medium truncate max-w-[150px]",
+                        cell: (row, idx) => row.cells[idx] ?? '',
+                      }]}
+                    />
                   </div>
                 </div>
               </motion.div>

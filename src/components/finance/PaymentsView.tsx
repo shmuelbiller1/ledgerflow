@@ -1,3 +1,4 @@
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import React, { useMemo, useState } from 'react';
 import { usePagedRows } from '../../hooks/usePagedRows';
 import { ShowMoreRows } from '../common/ShowMoreRows';
@@ -13,7 +14,6 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { LoadingState } from '../ui/LoadingState';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { useScreenDataHealth } from '../../hooks/useScreenDataHealth';
-import ListColumnChooser from '../ui/ListColumnChooser';
 
 function withOccurrenceKeys<T>(items: T[], keyForItem: (item: T) => string) {
   const occurrences = new Map<string, number>();
@@ -88,61 +88,56 @@ export default function PaymentsView() {
       </div>
 
       <div className="ledger-card p-1 rounded-[32px] overflow-hidden">
-        <div className="overflow-x-auto" data-list-columns="payments-register">
-          <ListColumnChooser scope="payments-register" label="Payments"
-            columns={['Date', 'Entity', 'Method & Ref', 'Amount', 'Allocations', 'Actions']} />
-          <table className="w-full border-collapse min-w-[800px]">
-            <caption className="sr-only">Payments Register</caption>
-            <thead>
-              <tr className="text-left border-b border-[var(--line)]/50">
-                <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">Date</th>
-                <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">Entity</th>
-                <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">Method & Ref</th>
-                <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap text-right">Amount</th>
-                <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap">Allocations</th>
-                <th scope="col" className="p-4 md:p-8 text-[10px] font-black text-[var(--muted)] uppercase tracking-[0.2em] whitespace-nowrap text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ledger-line/30">
-              {paged.visible.map(payment => (
-                <tr key={payment.id} className="group hover:bg-[var(--ink)]/30 transition-all">
-                  <td className="p-4 md:p-8 font-mono font-bold text-[var(--muted)] group-hover:text-[var(--text)] transition-colors">
-                    {formatDate(payment.date)}
-                  </td>
-                  <td className="p-4 md:p-8">
-                    <div className="flex flex-col">
+        <TanStackDataGrid
+caption="Payments Register"
+data={paged.visible}
+pageSize={paged.visible.length}
+getRowId={payment => payment.id}
+columnScope="payments-register"
+rowHeaderColumn="entity"
+hidePaginationOnSinglePage
+columnNames={['Date','Entity','Method & Ref','Amount','Allocations','Actions']}
+columnLabel="Payments"
+enableGlobalFilter={false}
+emptyState={<div className="p-4 text-center">
+                    <div className="absolute technical-grid inset-0 opacity-5 pointer-events-none" />
+                    {loading ? <LoadingState what="payments" /> : (
+                    <div className="relative z-10 flex flex-col items-center gap-4">
+                      <div className="w-20 h-20 bg-slate-200/20 rounded-[32px] flex items-center justify-center text-slate-500/30">
+                        <DollarSign aria-hidden="true" size={40} />
+                      </div>
+                      <p className="text-base font-black text-[var(--muted)] uppercase tracking-[0.3em]">No payments recorded</p>
+                    </div>
+                    )}
+                  </div>}
+getRowProps={() => ({ className: "group hover:bg-[var(--ink)]/30 transition-all" })}
+columns={[
+{ id: 'date', header: "Date", accessorFn: payment => payment.date, cell: ({ row: { original: payment } }) => (formatDate(payment.date)) },
+{ id: 'entity', header: "Entity", accessorFn: payment => payment.contactName, cell: ({ row: { original: payment } }) => (<div className="flex flex-col">
                       <span className="font-black text-[var(--text)] text-base tracking-tight">{payment.contactName || payment.contactId}</span>
                       <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1">
                         {payment.direction === 'received' ? 'Customer' : payment.direction === 'made' ? 'Vendor' : 'Entity'}
                       </span>
-                    </div>
-                  </td>
-                  <td className="p-4 md:p-8">
-                    <div className="flex flex-col">
+                    </div>) },
+{ id: 'method-ref', header: "Method & Ref", accessorFn: payment => payment.method, cell: ({ row: { original: payment } }) => (<div className="flex flex-col">
                       <span className="font-bold text-[var(--text)] capitalize">{payment.method}</span>
                       {payment.reference && (
                         <span className="text-[10px] font-mono text-[var(--muted)] mt-1">{payment.reference}</span>
                       )}
-                    </div>
-                  </td>
-                  <td className="p-4 md:p-8 text-right font-black font-mono text-[var(--text)] text-lg tracking-tighter tabular-nums">
-                    <span className={cn(
+                    </div>) },
+{ id: 'amount', header: "Amount", accessorFn: payment => payment.amountCents, cell: ({ row: { original: payment } }) => (<div className="text-end tabular-nums">{<span className={cn(
                       payment.direction === 'received' ? "text-emerald-500" : "text-rose-500"
                     )}>
                       {payment.direction === 'received' ? '+' : '-'}{formatCurrency(payment.amountCents || 0, payment.currency)}
-                    </span>
-                  </td>
-                  <td className="p-4 md:p-8">
-                    <div className="flex flex-col gap-1">
+                    </span>}</div>) },
+{ id: 'allocations', header: "Allocations", enableSorting: false, cell: ({ row: { original: payment } }) => (<div className="flex flex-col gap-1">
                       {payment.allocations && withOccurrenceKeys(payment.allocations, alloc => JSON.stringify([alloc.documentType, alloc.documentId, alloc.amountCents])).map(({ item: alloc, key }) => (
                         <span key={key} className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest bg-[var(--surface)] px-2 py-1 rounded-md border border-[var(--line)]">
                           {alloc.documentType}: {documentLabel(alloc)} ({formatCurrency(alloc.amountCents, payment.currency)})
                         </span>
                       ))}
-                    </div>
-                  </td>
-                  <td className="p-4 md:p-8 text-right">
-                    <div className="flex items-center justify-end gap-2">
+                    </div>) },
+{ id: 'actions', header: "Actions", enableSorting: false, cell: ({ row: { original: payment } }) => (<div className="text-end tabular-nums">{<div className="flex items-center justify-end gap-2">
                       <button aria-label="Preview PDF Receipt"
                         onClick={() => setPreviewPayment(payment)}
                         className="p-2 text-[var(--muted)] hover:text-indigo-600 hover:bg-[var(--surface)] rounded-xl border border-transparent hover:border-[var(--line)] transition-all"
@@ -165,29 +160,10 @@ export default function PaymentsView() {
                           <Printer aria-hidden="true" size={16} />
                         </button>
                       )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filteredPayments.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="p-24 text-center relative overflow-hidden">
-                    <div className="absolute technical-grid inset-0 opacity-5 pointer-events-none" />
-                    {loading ? <LoadingState what="payments" /> : (
-                    <div className="relative z-10 flex flex-col items-center gap-4">
-                      <div className="w-20 h-20 bg-slate-200/20 rounded-[32px] flex items-center justify-center text-slate-500/30">
-                        <DollarSign aria-hidden="true" size={40} />
-                      </div>
-                      <p className="text-base font-black text-[var(--muted)] uppercase tracking-[0.3em]">No payments recorded</p>
-                    </div>
-                    )}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-          <ShowMoreRows shown={paged.visible.length} total={paged.total} noun="payments" onMore={paged.more} onAll={paged.all} />
-        </div>
+                    </div>}</div>) }
+]}
+/>
+        <ShowMoreRows shown={paged.visible.length} total={paged.total} noun="payments" onMore={paged.more} onAll={paged.all} />
       </div>
 
       {previewPayment && (

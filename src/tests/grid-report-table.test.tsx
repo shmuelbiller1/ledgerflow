@@ -252,3 +252,22 @@ describe('the second review pass', () => {
     );
   });
 });
+
+describe('the final batch\'s hand-converted sortable headings', () => {
+  test('the sortable headings print their labels as text, not as the hidden buttons', () => {
+    // #1001 (Codex + print-styles): the hand-converted trial balance and party aging draw their
+    // sortable column headings as buttons, and `@media print { button { display: none } }` would
+    // take the printed reports' column labels with them. The shared grid re-enables its own
+    // heading buttons via data-grid-sort-header, but print-styles.spec.ts pins ZERO buttons on
+    // paper for these screens — so each heading button carries a print-only twin of its label
+    // (the same hidden-print:inline pattern the trial balance totals use), and no marker.
+    const twins = (file: string, expected: number) => {
+      const source = fs.readFileSync(path.join(process.cwd(), file), 'utf8');
+      const hits = [...source.matchAll(/className="hidden print:inline"/g)].length;
+      assert.equal(hits, expected, `${file}: ${expected} print-only heading labels`);
+      assert.ok(!source.includes('data-grid-sort-header'), `${file}: no re-enabled buttons on paper`);
+    };
+    twins('src/components/ledger/TrialBalanceView.tsx', 6); // 4 headings + the two total cells
+    twins('src/components/reporting/PartyAgingReportView.tsx', 3);
+  });
+});

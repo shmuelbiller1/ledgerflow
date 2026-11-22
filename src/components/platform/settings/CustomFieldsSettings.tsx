@@ -1,3 +1,4 @@
+import { RowTable } from '../../ui/RowTable';
 /**
  * A-37 (tracker CG-01): owner-defined extra fields on customers, vendors and items. The
  * definitions (text, number, date or a choice) live on the workspace (`customFields`); each
@@ -112,52 +113,40 @@ export default function CustomFieldsSettings() {
       </p>
 
       <h3 className="text-sm font-semibold text-[var(--text)]">Definitions</h3>
-      <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption>Custom field definitions</caption>
-          <thead>
-            <tr>{['Name', 'Key', 'Kind', 'Options (a choice field)', 'Required', ''].map(head =>
-              <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-          </thead>
-          <tbody>
-            {defs.map((def, index) => (
-              <tr key={def.id} className="border-b border-[var(--line)]/50">
-                <td className="py-1 px-2">
-                  <input aria-label={`Name of field ${index + 1}`} className={`${field} w-40`} dir="auto" disabled={!canChange}
-                    value={def.label} onChange={e => change(defs.map(d => (d.id === def.id ? { ...d, label: e.target.value } : d)))} />
-                </td>
-                <td className="py-1 px-2">
-                  <input aria-label={`Key of field ${index + 1}`} className={`${field} w-32`} disabled={!canChange}
-                    value={def.key} onChange={e => change(defs.map(d => (d.id === def.id ? { ...d, key: e.target.value } : d)))} />
-                </td>
-                <td className="py-1 px-2">
-                  <select aria-label={`Kind of field ${index + 1}`} className={field} disabled={!canChange} value={def.type}
+      <ReportTableScroll nameFromCaption>
+        <RowTable
+caption={"Custom field definitions"}
+captionClassName={''}
+tableClassName={"w-full text-sm"}
+headRowClassName={''}
+bodyClassName={''}
+rows={defs.map((def, index) => ({ def, index }))}
+rowKey={({ def }) => def.id}
+rowHeaderClassName={'font-normal text-start'}
+rowClassName={"border-b border-[var(--line)]/50"}
+columns={[
+{ header: 'Name', headClassName: "text-left py-1 px-2", className: "py-1 px-2", cell: ({ def, index }) => (<input aria-label={`Name of field ${index + 1}`} className={`${field} w-40`} dir="auto" disabled={!canChange}
+                    value={def.label} onChange={e => change(defs.map(d => (d.id === def.id ? { ...d, label: e.target.value } : d)))} />) },
+{ header: 'Key', headClassName: "text-left py-1 px-2", className: "py-1 px-2", cell: ({ def, index }) => (<input aria-label={`Key of field ${index + 1}`} className={`${field} w-32`} disabled={!canChange}
+                    value={def.key} onChange={e => change(defs.map(d => (d.id === def.id ? { ...d, key: e.target.value } : d)))} />) },
+{ header: 'Kind', headClassName: "text-left py-1 px-2", className: "py-1 px-2", cell: ({ def, index }) => (<select aria-label={`Kind of field ${index + 1}`} className={field} disabled={!canChange} value={def.type}
                     onChange={e => change(defs.map(d => (d.id === def.id ? { ...d, type: e.target.value as CustomFieldType } : d)))}>
                     {(Object.keys(TYPE_LABELS) as CustomFieldType[]).map(t => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
-                  </select>
-                </td>
-                <td className="py-1 px-2">
-                  <input aria-label={`Options of field ${index + 1}`} className={`${field} w-48`} dir="auto" disabled={!canChange || def.type !== 'choice'}
+                  </select>) },
+{ header: 'Options (a choice field)', headClassName: "text-left py-1 px-2", className: "py-1 px-2", cell: ({ def, index }) => (<input aria-label={`Options of field ${index + 1}`} className={`${field} w-48`} dir="auto" disabled={!canChange || def.type !== 'choice'}
                     placeholder={def.type === 'choice' ? 'A, B, C' : 'Only for a choice field'}
                     value={(def.choices || []).join(', ')}
                     onChange={e => change(defs.map(d => (d.id === def.id
-                      ? { ...d, choices: e.target.value.split(',').map(c => c.trim()).filter(Boolean) } : d)))} />
-                </td>
-                <td className="py-1 px-2">
-                  <input type="checkbox" aria-label={`Required field ${index + 1}`} disabled={!canChange}
+                      ? { ...d, choices: e.target.value.split(',').map(c => c.trim()).filter(Boolean) } : d)))} />) },
+{ header: 'Required', headClassName: "text-left py-1 px-2", className: "py-1 px-2", cell: ({ def, index }) => (<input type="checkbox" aria-label={`Required field ${index + 1}`} disabled={!canChange}
                     checked={Boolean(def.required)}
-                    onChange={e => change(defs.map(d => (d.id === def.id ? { ...d, required: e.target.checked } : d)))} />
-                </td>
-                <td className="py-1 px-2">
-                  <button type="button" aria-label={`Remove field ${index + 1}`} disabled={!canChange}
+                    onChange={e => change(defs.map(d => (d.id === def.id ? { ...d, required: e.target.checked } : d)))} />) },
+{ header: <span className="sr-only">Actions</span>, headClassName: "text-left py-1 px-2", className: "py-1 px-2", cell: ({ def, index }) => (<button type="button" aria-label={`Remove field ${index + 1}`} disabled={!canChange}
                     onClick={() => change(defs.filter(d => d.id !== def.id))} className="text-rose-600 hover:underline">
                     <Trash2 size={16} aria-hidden="true" /> Remove
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </button>) }
+]}
+/>
         {defs.length === 0 && <p className="text-sm text-[var(--muted)]">No custom fields yet.</p>}
       </ReportTableScroll>
 
@@ -207,24 +196,23 @@ export default function CustomFieldsSettings() {
         No custom fields are defined for {ENTITY_LABELS[valuesType].toLocaleLowerCase()} yet. Add one above.
       </p>}
       {columns.length > 0 && (
-        <ReportTableScroll>
-          <table className="w-full text-sm">
-            <caption>Custom field values on {ENTITY_LABELS[valuesType].toLocaleLowerCase()}</caption>
-            <thead>
-              <tr>{['Name', ...columns.map(c => c.label)].map(head =>
-                <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-            </thead>
-            <tbody>
-              {records.map(record => (
-                <tr key={record.id} className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{record.name}</bdi></th>
-                  {columns.map(column => {
-                    const def = defs.find(d => d.entityType === valuesType && d.key === column.key);
+        <ReportTableScroll nameFromCaption>
+          <RowTable
+caption={<>Custom field values on {ENTITY_LABELS[valuesType].toLocaleLowerCase()}</>}
+captionClassName={''}
+tableClassName={"w-full text-sm"}
+headRowClassName={''}
+bodyClassName={''}
+rows={records}
+rowKey={record => record.id}
+rowHeaderClassName={''}
+rowClassName={"border-b border-[var(--line)]/50"}
+columns={[
+{ header: "Name", headClassName: "text-left py-1 px-2", className: "text-left font-normal py-1 px-2", cell: record => (<bdi>{record.name}</bdi>) },
+{ over: columns, head: column => (column.label), headClassName: "text-left py-1 px-2", className: "py-1 px-2", cell: (record, column) => { const def = defs.find(d => d.entityType === valuesType && d.key === column.key);
                     const values = (record.metadata?.customFields || {}) as Record<string, unknown>;
                     const entry = def ? customFieldValues([def], valuesType, values)[0] : undefined;
-                    return (
-                      <td key={column.key} className="py-1 px-2">
-                        {def ? (
+return (def ? (
                           <InlineEdit
                             kind={def.type === 'choice' ? 'select' : def.type}
                             options={def.type === 'choice' ? (def.choices || []).map(c => ({ value: c, label: c })) : undefined}
@@ -235,14 +223,9 @@ export default function CustomFieldsSettings() {
                             validate={next => fieldValueProblem(def, next)}
                             onSave={next => saveValue(record, column.key, next)}
                           />
-                        ) : '—'}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        ) : '—'); } }
+]}
+/>
           {records.length === 0 && <p className="text-sm text-[var(--muted)]">No records are loaded for this workspace.</p>}
         </ReportTableScroll>
       )}

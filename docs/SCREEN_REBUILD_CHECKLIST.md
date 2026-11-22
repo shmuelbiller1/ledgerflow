@@ -4,19 +4,18 @@
 Use [`prompts/UI-2-screens.md`](prompts/UI-2-screens.md) for the requirements. Its 17 November percentage is
 historical, not an acceptance test. Earlier migration batches and their evidence are recorded below.
 
-## Where we are — 18 November 2026
+## Where we are — 20 November 2026
 
 | Counter (`computeQualityMetrics()`) | Start of this batch | Now | Target |
 |---|---:|---:|---|
-| `rawTables` | 84 | **44** | Zero or an individual reason to keep each site |
+| `rawTables` | 84 | **2** | Zero or an individual reason to keep each site |
 | `handTypedApiCalls` | 5 | **5** | Zero or individually justified (§3) |
 | `directDbWrites` | 0 | **0** | 0 |
 | `screensWithManyPrimaryButtons` | 0 | **0** | 0 |
 
-**44 is files, not tables**: 42 paths on the migration queue, `PivotSheetView` (dynamic pivot) and
-`RowTable` (the embedded-table renderer itself). The full-list grid is excluded by the existing metric.
-`raw-table-decisions.test.ts` now compares the metric's actual paths against the queue and named exceptions;
-a new raw screen cannot slip in when a different screen migrates in the same PR. A queued file is **not** an exemption.
+**2 is the renderer and the pivot**: the migration queue is empty and `RowTable` (the embedded-table
+renderer itself) and `PivotSheetView` (dynamic pivot) are the two named exceptions `raw-table-decisions.test.ts`
+pins — a new raw screen cannot slip in when a different screen migrates in the same PR.
 
 | Area | Already there — don't rebuild | Still open |
 |---|---|---|
@@ -26,10 +25,13 @@ a new raw screen cannot slip in when a different screen migrates in the same PR.
 | Proposals | The private sandbox, persisted steps, live-read restrictions and atomic acceptance exist (#787, #853, #855). | Verify CMD-1 part 3's edit/revalidation, partial acceptance, rejection, expiry and inverse contracts before the “Waiting for you” UI. Customer estimates are not assistant proposals. |
 | First hour | `first-hour-journey.spec.ts` at **390 and 1280**: Tab/Enter through the signed-in workspace shell to create a customer, issue and **email** an invoice, record its payment and open Reports. It checks the PDF reached the test mailbox once, the recipient’s send log, the paid invoice and **$900** net income from the server. The phone menu now closes over the chosen page and returns keyboard focus there. | The external mail provider and hosted sign-in are test boundaries, not certified by the journey. H-3 remains a separate keyboard test with stubbed writes. |
 
-**Current batch:** [40 operational screens and embedded schedules](verification/UI2_NEXT_40_OPERATIONS.md).
-Base `8329520`: 49 table sites, eight interactive lists and 41 embedded schedules/editors. Includes worked
-purchase-order/receipt, payroll, stock, forecast, tax, export-pack and document previews. The remaining
-42 queued files still need a screen-by-screen decision and verification.
+**Final batch:** [the last 42 queued files](verification/UI2_FINAL_42_RAW_TABLES.md). Base `98b60c5`:
+52 table sites across 42 files — the eight #946-overlapping report screens, the statement and trial balance,
+the payments/credit-notes/estimates/assets registers, the journal, month-end close, tax manager, settings
+(import, rules, labels, custom fields), the customer portal, the drill-down, the document line editor and
+the importer previews — all on `RowTable`/`GroupedRowTable` or the shared grid, with 176 browser tests on
+the production routes in both themes, both widths and Hebrew/RTL, plus the before/after table-content
+evidence. The queue is now empty.
 
 ## 1. One list — earlier batches
 
@@ -208,6 +210,30 @@ At the end of that batch the dry run offered **10 tables in 9 files** (12 in 11 
       The [hosted Chromium run](https://github.com/shmuelbiller1/ledgerflow/actions/runs/44583505427)
       captured and independently rechecked all 40 references. Reviewed the RTL chart axes, phone row
       headings, opening/closing balances and matrix footers. No unrelated reference or tolerance changed.
+
+### The final 42 queued files — batch six (20 November)
+
+- [x] **The queue is empty.** 39 sites via the codemod, 13 by hand (TaxManager, DiscountMismatch, CustomerCohorts,
+      PeriodClosingPanel ×3, StockSourcesUses + orphaned-notes tail, LabelBalanceSheet, LabelProfit, GroupSummary ×2,
+      StatementColumns, TrialBalanceView, StatementImporter preview). `RowTable` gained `rowProps`, `headerRowClassName`,
+      `bodyEnd` and the `GroupedRowTable` export; `src/lib/tableBands.ts` describes multi-head/grouped/footered tables.
+- [x] **A false footer is no footer.** `footer={cond && <tr>…}` used to render an empty `<tfoot>`; with column
+      reordering that recursed forever (the party-report-layout SIGKILL). A falsy footer now renders nothing.
+- [x] **The row-header rule with a contract.** A column marked `rowHeader: true` renders as `<th scope="row">`;
+      tests that index `querySelectorAll('td')` shift (StatementView's reference column, the import preview's file-line
+      column). Where the original screen printed a plain `td`, the conversion passes `rowHeaderColumn={false}`.
+- [x] **Seven pre-existing a11y findings the new coverage surfaced, all fixed:** the empty header cell on the custom-fields
+      remove column, duplicated `ReportTableScroll` region labels (now `nameFromCaption`), the ledger button whose name
+      hid its visible text, the Hebrew trial-balance print label, two phone-width scroll regions without keyboard focus,
+      the cohorts month headers now actually translated, and the rules group switch whose name hid its On/Off state word
+      (the review pass caught it racing the store hydration on CI). Evidence and the two known pre-existing phone overflows
+      (portal page, wide report tables inside main) are in [the batch's verification](verification/UI2_FINAL_42_RAW_TABLES.md).
+      The review pass also caught the sortable headings of the trial balance and party aging losing their labels on paper
+      (now carried by print-only twins of the labels — print-styles pins zero buttons on paper) and the chart of accounts
+      showing "No accounts yet" for an empty search.
+- [x] **876 unit tests' worth of behavior contracts stay pinned** in the 132-file affected run (statement scope, import
+      previews, trial-balance drill, journal guard, fixed-asset book value, label sign conventions, practice navigation,
+      discount-mismatch boundaries), and the CSV currency behaviour of the eight #946-overlapping files is unchanged.
 
 ### Stock, customer and tax schedules — fifth batch
 

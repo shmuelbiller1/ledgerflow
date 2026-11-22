@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -8,7 +9,7 @@ import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { formatCurrency } from '../../lib/utils';
 import { downloadCsv, csvMoneyForBook } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
-import { useReportText } from './useReportText';
+import { useReportText, fill } from './useReportText';
 
 export default function CustomerCohortsReportView({ endDate = '' }: { endDate?: string }) {
   const reportText = useReportText();
@@ -28,7 +29,7 @@ export default function CustomerCohortsReportView({ endDate = '' }: { endDate?: 
   const report = useMemo(() => valid && !loading
     ? customerCohortReport(invoices.filter(invoice => !workspaceId || invoice.workspaceId === workspaceId), endDate, windowMonths, ageMonths, currency || 'USD')
     : null, [invoices, workspaceId, endDate, windowMonths, ageMonths, currency, valid, loading]);
-  const headers = ['First invoice month', 'Customers', ...Array.from({ length: ageMonths }, (_, age) => `Month ${age}`)];
+  const headers = ['First invoice month', 'Customers', ...Array.from({ length: ageMonths }, (_, age) => fill(reportText('r.month-0', 'Month {0}'), { 0: String(age) }))];
   const show = (cell: NonNullable<typeof report>['rows'][number]['months'][number]) => {
     if (cell.activeCustomers === null) return '—';
     if (mode === 'customers') return String(cell.activeCustomers);
@@ -68,15 +69,22 @@ export default function CustomerCohortsReportView({ endDate = '' }: { endDate?: 
       <button type="button" className="min-h-11 border rounded px-3" disabled={!report || partial} onClick={exportRows}>{reportText('r.export-csv', 'Export CSV')}</button>
     </div>
     {report && <ReportTableScroll>
-      <table className="min-w-full text-sm">
-        <caption>{reportText('r.customer-cohorts-through', 'Customer cohorts through')} {endDate}: {mode === 'amount' ? reportText('r.invoiced-totals', 'invoiced totals') : mode === 'customers' ? reportText('r.active-customers-3', 'active customers') : reportText('r.active-customer-percentage', 'active customer percentage')}</caption>
-        <thead><tr>{headers.map(heading => <th key={heading} scope="col" className="px-3 py-2 text-right whitespace-nowrap">{heading}</th>)}</tr></thead>
-        <tbody>{report.rows.map(row => <tr key={row.cohort} className="border-t border-[var(--line)]">
-          <th scope="row" className="px-3 py-2 text-left">{row.cohort}</th>
-          <td className="px-3 py-2 text-right tabular-nums">{row.customers}</td>
-          {row.months.map(cell => <td key={cell.age} className="px-3 py-2 text-right tabular-nums whitespace-nowrap" title={cell.month}>{show(cell)}</td>)}
-        </tr>)}</tbody>
-      </table>
+      <RowTable
+caption={<>{reportText('r.customer-cohorts-through', 'Customer cohorts through')} {endDate}: {mode === 'amount' ? reportText('r.invoiced-totals', 'invoiced totals') : mode === 'customers' ? reportText('r.active-customers-3', 'active customers') : reportText('r.active-customer-percentage', 'active customer percentage')}</>}
+captionClassName={''}
+tableClassName={"min-w-full text-sm"}
+headRowClassName={''}
+bodyClassName={''}
+rows={report.rows}
+rowKey={row => row.cohort}
+rowHeaderClassName={''}
+rowClassName={"border-t border-[var(--line)]"}
+columns={[
+{ header: headers[0], headClassName: "px-3 py-2 text-right whitespace-nowrap", className: "px-3 py-2 text-left", cell: row => (row.cohort) },
+{ header: headers[1], headClassName: "px-3 py-2 text-right whitespace-nowrap", className: "px-3 py-2 text-right tabular-nums", cell: row => (row.customers) },
+...Array.from({ length: ageMonths }, (_, age) => ({ header: headers[age + 2], headClassName: "px-3 py-2 text-right whitespace-nowrap", className: "px-3 py-2 text-right tabular-nums whitespace-nowrap", cellProps: (row: NonNullable<typeof report>['rows'][number]) => ({ title: row.months[age]?.month }), cell: (row: NonNullable<typeof report>['rows'][number]) => (row.months[age] ? show(row.months[age]) : '') }))
+]}
+/>
       {!report.rows.length && <p>{reportText('r.no-issued-invoice-customer-cohorts-in-this-windo', 'No issued-invoice customer cohorts in this window.')}</p>}
     </ReportTableScroll>}
   </section>;

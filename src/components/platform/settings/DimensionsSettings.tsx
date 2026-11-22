@@ -1,3 +1,4 @@
+import { RowTable } from '../../ui/RowTable';
 import { runCommand, commandErrorMessage, ServerCommandError } from '../../../lib/runCommand';
 import { uiLanguageNow } from '../../../lib/i18n/uiLanguageNow';
 import { displayDimensionName } from '../../../lib/dimensionUtils';
@@ -612,38 +613,26 @@ function DimensionsSettingsContent() {
               {/* Node List Table */}
               {canWrite && <SlashConversionOffer dimensionId={dim.id} plan={slashPlan} onChanged={() => setDimensionNodes(useLedgerStore.getState().dimensionNodes)} />}
               {axisNodes.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <caption className="sr-only">Labels</caption>
-                    <thead>
-                      <tr className="border-b border-[var(--line)] text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
-                        <th scope="col" className="py-2 px-3 w-24">Value ID</th>
-                        <th scope="col" className="py-2 px-3">Display Description</th>
-                        <th scope="col" className="py-2 px-3">Parent</th>
-                        <th scope="col" className="py-2 px-3">Aliases (CSV)</th>
-                        <th scope="col" className="py-2 px-3 w-28">Status</th>
-                        <th scope="col" className="py-2 px-3 w-28 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--line)]">
-                      {axisTree.map(({ node, depth }) => (
-                        <tr key={node.id} className={node.status === 'archived' ? 'opacity-50 bg-slate-900/30' : ''}>
-                          <td className="py-2.5 px-3 font-mono font-bold text-indigo-400 text-xs">
-                            {node.id}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <div style={{ paddingInlineStart: `${depth * 1.25}rem` }}>
+                <div className="overflow-x-auto" role="region" aria-label={`Label values table for ${dim.id}`} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
+                  <RowTable
+caption={"Labels"}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-left text-xs"}
+headRowClassName={''}
+headerRowClassName={"border-b border-[var(--line)] text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider"}
+bodyClassName={"divide-y divide-[var(--line)]"}
+rows={axisTree}
+rowKey={({ node }) => node.id}
+rowHeaderClassName={'font-normal text-start'}
+rowClassName={({ node }) => node.status === 'archived' ? 'opacity-50 bg-slate-900/30' : ''}
+columns={[
+{ header: "Value ID", headClassName: "py-2 px-3 w-24", className: "py-2.5 px-3 font-mono font-bold text-indigo-400 text-xs", cell: ({ node }) => (node.id) },
+{ header: "Display Description", headClassName: "py-2 px-3", className: "py-2.5 px-3", cell: ({ node, depth }) => (<div style={{ paddingInlineStart: `${depth * 1.25}rem` }}>
                               <RecordInlineField collection="dimensionNodes" record={node} documentId={`${currentWorkspaceId}_${dim.id}_${node.id}`} field="description" label={`Label ${dim.id} ${node.id}`} canEdit={canWrite} />
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <LabelParentSelect dimensionId={dim.id} node={node} nodes={dimensionNodes} canWrite={canWrite} onChanged={() => setDimensionNodes(useLedgerStore.getState().dimensionNodes)} />
-                          </td>
-                          <td className="py-2.5 px-3">
-                            {canWrite ? <EditableNodeAliases initialValue={(node.aliases || []).join(', ')} onCommit={newVal => { void handleUpdateNodeAliases(node.id, dim.id, newVal); }} /> : <span>{(node.aliases || []).join(', ')}</span>}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            {node.status === 'archived' ? (
+                            </div>) },
+{ header: "Parent", headClassName: "py-2 px-3", className: "py-2.5 px-3", cell: ({ node }) => (<LabelParentSelect dimensionId={dim.id} node={node} nodes={dimensionNodes} canWrite={canWrite} onChanged={() => setDimensionNodes(useLedgerStore.getState().dimensionNodes)} />) },
+{ header: "Aliases (CSV)", headClassName: "py-2 px-3", className: "py-2.5 px-3", cell: ({ node }) => (canWrite ? <EditableNodeAliases initialValue={(node.aliases || []).join(', ')} onCommit={newVal => { void handleUpdateNodeAliases(node.id, dim.id, newVal); }} /> : <span>{(node.aliases || []).join(', ')}</span>) },
+{ header: "Status", headClassName: "py-2 px-3 w-28", className: "py-2.5 px-3", cell: ({ node }) => (node.status === 'archived' ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-400 text-[10px] font-bold rounded-full">
                                 <Archive aria-hidden="true" size={10} /> Archived
                               </span>
@@ -651,10 +640,8 @@ function DimensionsSettingsContent() {
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded-full">
                                 <Check aria-hidden="true" size={10} /> Active
                               </span>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-3 text-right">
-                            {canWrite ? (
+                            )) },
+{ header: "Actions", headClassName: "py-2 px-3 w-28 text-right", className: "py-2.5 px-3 text-right", cell: ({ node }) => (canWrite ? (
                               <button
                                 type="button"
                                 onClick={() => { void handleToggleArchiveNode(node.id, dim.id); }}
@@ -669,12 +656,9 @@ function DimensionsSettingsContent() {
                               </button>
                             ) : (
                               <span className="text-[var(--muted)]">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            )) }
+]}
+/>
                 </div>
               ) : (
                 <div className="py-6 text-center border border-dashed border-[var(--line)] rounded-2xl text-xs text-[var(--muted)]">

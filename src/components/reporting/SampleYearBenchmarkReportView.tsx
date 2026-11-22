@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import {
   buildSampleBusinessYear,
@@ -83,88 +84,82 @@ export default function SampleYearBenchmarkReportView() {
 
       <div className="space-y-2">
         <h3 className="font-semibold text-sm">{reportText('r.five-heaviest-reports-against-the', 'Five heaviest reports against the')} {REPORT_BUDGET_MS} {reportText('r.ms-budget', 'ms budget')}</h3>
-        <ReportTableScroll>
-          <table className="w-full text-sm">
-            <caption className="sr-only">{reportText('r.five-heaviest-reports-measured-on-the-12-month-s', 'Five heaviest reports measured on the 12-month sample business fixture')}</caption>
-            <thead>
-              <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                {[reportText('r.rank', 'Rank'), reportText('r.report', 'Report'), reportText('r.measured-ms', 'Measured (ms)'), reportText('r.budget-ms', 'Budget (ms)'), reportText('r.rows-computed', 'Rows computed'), reportText('r.result', 'Result')].map(h => (
-                  <th key={h} scope="col" className="text-left py-2 px-2">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {benchmark.topFiveHeaviest.map((row, idx) => (
-                <tr key={row.reportId} className="border-b border-[var(--line)]/50">
-                  <td className="py-2 px-2 tabular-nums">{idx + 1}</td>
-                  <th scope="row" className="text-left font-normal py-2 px-2"><bdi>{row.label}</bdi></th>
-                  <td className="py-2 px-2 tabular-nums">{row.durationMs.toFixed(2)}</td>
-                  <td className="py-2 px-2 tabular-nums">{benchmark.budgetMs}</td>
-                  <td className="py-2 px-2 tabular-nums">{row.rowsProduced}</td>
-                  <td className="py-2 px-2">{row.withinBudget ? fill(reportText('r.pass-0-ms', 'Pass (< {0} ms)'), { 0: benchmark.budgetMs }) : reportText('r.over-budget', 'Over budget')}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <ReportTableScroll nameFromCaption>
+          <RowTable
+caption={reportText('r.five-heaviest-reports-measured-on-the-12-month-s', 'Five heaviest reports measured on the 12-month sample business fixture')}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-sm"}
+headRowClassName={''}
+headerRowClassName={"border-b border-[var(--line)] text-xs text-[var(--muted)]"}
+bodyClassName={''}
+rows={benchmark.topFiveHeaviest.map((row, idx) => ({ row, idx }))}
+rowKey={({ row }) => row.reportId}
+rowHeaderClassName={''}
+rowClassName={"border-b border-[var(--line)]/50"}
+columns={[
+{ header: reportText('r.rank', 'Rank'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums", cell: ({ idx }) => (idx + 1) },
+{ header: reportText('r.report', 'Report'), rowHeader: true, headClassName: "text-left py-2 px-2", className: "text-left font-normal py-2 px-2", cell: ({ row }) => (<bdi>{row.label}</bdi>) },
+{ header: reportText('r.measured-ms', 'Measured (ms)'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums", cell: ({ row }) => (row.durationMs.toFixed(2)) },
+{ header: reportText('r.budget-ms', 'Budget (ms)'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums", cell: () => (benchmark.budgetMs) },
+{ header: reportText('r.rows-computed', 'Rows computed'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums", cell: ({ row }) => (row.rowsProduced) },
+{ header: reportText('r.result', 'Result'), headClassName: "text-left py-2 px-2", className: "py-2 px-2", cell: ({ row }) => (row.withinBudget ? fill(reportText('r.pass-0-ms', 'Pass (< {0} ms)'), { 0: benchmark.budgetMs }) : reportText('r.over-budget', 'Over budget')) }
+]}
+/>
         </ReportTableScroll>
       </div>
 
       <div className="space-y-2">
         <h3 className="font-semibold text-sm">{reportText('r.all-measured-reports', 'All measured reports (')}{benchmark.reports.length})</h3>
-        <ReportTableScroll>
-          <table className="w-full text-sm">
-            <caption className="sr-only">{reportText('r.all-measured-reports-ordered-from-heaviest-to-fa', 'All measured reports ordered from heaviest to fastest')}</caption>
-            <thead>
-              <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                {[reportText('r.rank', 'Rank'), reportText('r.report', 'Report'), reportText('r.top-5', 'Top 5'), reportText('r.measured-ms', 'Measured (ms)'), reportText('r.rows-computed', 'Rows computed'), reportText('r.result', 'Result')].map(h => (
-                  <th key={h} scope="col" className="text-left py-2 px-2">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {benchmark.reports.map((row, idx) => (
-                <tr key={row.reportId} className="border-b border-[var(--line)]/50">
-                  <td className="py-2 px-2 tabular-nums">{idx + 1}</td>
-                  <th scope="row" className="text-left font-normal py-2 px-2"><bdi>{row.label}</bdi></th>
-                  <td className="py-2 px-2">{row.isTopFiveHeaviest ? reportText('r.top-5', 'Top 5') : '—'}</td>
-                  <td className="py-2 px-2 tabular-nums">{row.durationMs.toFixed(2)}</td>
-                  <td className="py-2 px-2 tabular-nums">{row.rowsProduced}</td>
-                  <td className="py-2 px-2">{row.withinBudget ? fill(reportText('r.pass-0-ms', 'Pass (< {0} ms)'), { 0: benchmark.budgetMs }) : reportText('r.over-budget', 'Over budget')}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <ReportTableScroll nameFromCaption>
+          <RowTable
+caption={reportText('r.all-measured-reports-ordered-from-heaviest-to-fa', 'All measured reports ordered from heaviest to fastest')}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-sm"}
+headRowClassName={''}
+headerRowClassName={"border-b border-[var(--line)] text-xs text-[var(--muted)]"}
+bodyClassName={''}
+rows={benchmark.reports.map((row, idx) => ({ row, idx }))}
+rowKey={({ row }) => row.reportId}
+rowHeaderClassName={''}
+rowClassName={"border-b border-[var(--line)]/50"}
+columns={[
+{ header: reportText('r.rank', 'Rank'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums", cell: ({ idx }) => (idx + 1) },
+{ header: reportText('r.report', 'Report'), rowHeader: true, headClassName: "text-left py-2 px-2", className: "text-left font-normal py-2 px-2", cell: ({ row }) => (<bdi>{row.label}</bdi>) },
+{ header: reportText('r.top-5', 'Top 5'), headClassName: "text-left py-2 px-2", className: "py-2 px-2", cell: ({ row }) => (row.isTopFiveHeaviest ? reportText('r.top-5', 'Top 5') : '—') },
+{ header: reportText('r.measured-ms', 'Measured (ms)'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums", cell: ({ row }) => (row.durationMs.toFixed(2)) },
+{ header: reportText('r.rows-computed', 'Rows computed'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums", cell: ({ row }) => (row.rowsProduced) },
+{ header: reportText('r.result', 'Result'), headClassName: "text-left py-2 px-2", className: "py-2 px-2", cell: ({ row }) => (row.withinBudget ? fill(reportText('r.pass-0-ms', 'Pass (< {0} ms)'), { 0: benchmark.budgetMs }) : reportText('r.over-budget', 'Over budget')) }
+]}
+/>
         </ReportTableScroll>
       </div>
 
       <div className="space-y-2">
         <h3 className="font-semibold text-sm">{reportText('r.12-month-sample-business-activity', '12-month sample business activity (')}{fixture.startDate} {reportText('r.to-2', 'to')} {fixture.endDate})</h3>
-        <ReportTableScroll>
-          <table className="w-full text-sm">
-            <caption className="sr-only">{reportText('r.monthly-document-counts-and-totals-in-the-12-mon', 'Monthly document counts and totals in the 12-month sample business fixture')}</caption>
-            <thead>
-              <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                {[reportText('r.month', 'Month'), reportText('r.invoices-2', 'Invoices'), reportText('r.bills-2', 'Bills'), reportText('r.purchase-orders', 'Purchase orders'), reportText('r.payments', 'Payments'), reportText('r.stock-moves', 'Stock moves'), reportText('r.journal-entries', 'Journal entries'), reportText('r.invoiced-2', 'Invoiced'), reportText('r.billed-2', 'Billed')].map(h => (
-                  <th key={h} scope="col" className="text-left py-2 px-2">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {monthly.map(m => (
-                <tr key={m.month} className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-left font-normal py-2 px-2 tabular-nums">{m.month}</th>
-                  <td className="py-2 px-2 tabular-nums">{m.invoices}</td>
-                  <td className="py-2 px-2 tabular-nums">{m.bills}</td>
-                  <td className="py-2 px-2 tabular-nums">{m.purchaseOrders}</td>
-                  <td className="py-2 px-2 tabular-nums">{m.payments}</td>
-                  <td className="py-2 px-2 tabular-nums">{m.stockMoves}</td>
-                  <td className="py-2 px-2 tabular-nums">{m.transactions}</td>
-                  <td className="py-2 px-2 tabular-nums whitespace-nowrap">{formatCurrency(m.invoicedCents, 'USD')}</td>
-                  <td className="py-2 px-2 tabular-nums whitespace-nowrap">{formatCurrency(m.billedCents, 'USD')}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <ReportTableScroll nameFromCaption>
+          <RowTable
+caption={reportText('r.monthly-document-counts-and-totals-in-the-12-mon', 'Monthly document counts and totals in the 12-month sample business fixture')}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-sm"}
+headRowClassName={''}
+headerRowClassName={"border-b border-[var(--line)] text-xs text-[var(--muted)]"}
+bodyClassName={''}
+rows={monthly}
+rowKey={m => m.month}
+rowHeaderClassName={''}
+rowClassName={"border-b border-[var(--line)]/50"}
+columns={[
+{ header: reportText('r.month', 'Month'), headClassName: "text-left py-2 px-2", className: "text-left font-normal py-2 px-2 tabular-nums", cell: m => (m.month) },
+{ header: reportText('r.invoices-2', 'Invoices'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums", cell: m => (m.invoices) },
+{ header: reportText('r.bills-2', 'Bills'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums", cell: m => (m.bills) },
+{ header: reportText('r.purchase-orders', 'Purchase orders'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums", cell: m => (m.purchaseOrders) },
+{ header: reportText('r.payments', 'Payments'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums", cell: m => (m.payments) },
+{ header: reportText('r.stock-moves', 'Stock moves'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums", cell: m => (m.stockMoves) },
+{ header: reportText('r.journal-entries', 'Journal entries'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums", cell: m => (m.transactions) },
+{ header: reportText('r.invoiced-2', 'Invoiced'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums whitespace-nowrap", cell: m => (formatCurrency(m.invoicedCents, 'USD')) },
+{ header: reportText('r.billed-2', 'Billed'), headClassName: "text-left py-2 px-2", className: "py-2 px-2 tabular-nums whitespace-nowrap", cell: m => (formatCurrency(m.billedCents, 'USD')) }
+]}
+/>
         </ReportTableScroll>
       </div>
     </section>

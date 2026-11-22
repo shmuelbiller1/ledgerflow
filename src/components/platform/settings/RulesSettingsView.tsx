@@ -1,3 +1,4 @@
+import { TanStackDataGrid } from '../../ui/TanStackDataGrid';
 import { formatCurrency } from '../../../lib/utils';
 import { SlidersHorizontal, Plus, Play, Trash2, Copy, CheckCircle2, AlertCircle, Filter, Tag, RotateCw, Search, Eye, Check, X, Sparkles } from 'lucide-react';
 import InlineEdit from '../../ui/InlineEdit';
@@ -209,7 +210,7 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
               <InlineEdit label={`Name of group ${group}`} value={group} canEdit={canEditRules && !isUpdatingGroup}
                 suggestions={groups} onSave={next => handleRenameGroup(group, next)} className="min-h-11 break-all" inputClassName="min-h-11"
                 validate={next => String(next).trim().length > 0 && String(next).trim().length <= 120 ? null : 'Enter a group name of 1–120 characters.'} />
-              <button type="button" aria-label={`Enable group ${group}`} aria-pressed={!disabledGroups.has(group)}
+              <button type="button" aria-label={`${disabledGroups.has(group) ? 'Off' : 'On'} — Enable group ${group}`} aria-pressed={!disabledGroups.has(group)}
                 disabled={!canEditRules || isUpdatingGroup} onClick={() => void handleToggleGroup(group)}
                 className="min-h-11 min-w-11 px-3 text-xs border-s border-neutral-200 disabled:opacity-50">
                 {disabledGroups.has(group) ? 'Off' : 'On'}
@@ -229,34 +230,26 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
         />
       ) : (
         <div role="region" aria-label="Automation rules table" tabIndex={0} className="bg-white border border-neutral-200 rounded-lg overflow-x-auto shadow-xs">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-          <table className="w-full text-start text-xs">
-            <caption className="sr-only">Automation rules</caption>
-            <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-semibold uppercase tracking-wider">
-              <tr>
-                <th scope="col" className="py-2.5 px-3 w-16">Active</th>
-                <th scope="col" className="py-2.5 px-3">Rule Name & Group</th>
-                <th scope="col" className="py-2.5 px-3">When Transaction Matches</th>
-                <th scope="col" className="py-2.5 px-3">Actions Applied</th>
-                <th scope="col" className="py-2.5 px-3 text-center">Hits</th>
-                <th scope="col" className="py-2.5 px-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100">
-              {filteredRules.map((rule) => {
-                const isActive = rule.isActive !== false;
-                return (
-                  <tr key={rule.id} className={`hover:bg-neutral-50/80 transition-colors ${!isActive ? 'opacity-50' : ''}`}>
-                    <td className="py-3 px-3">
-                      <input aria-label={`Enable rule ${rule.name}`}
+          <TanStackDataGrid
+caption={"Automation rules"}
+data={filteredRules.map((rule) => { const isActive = rule.isActive !== false;
+return { rule, isActive }; })}
+getRowId={({ rule }) => rule.id}
+columnScope="rules"
+columnLabel={"Automation rules"}
+rowHeaderColumn="rule-name-group"
+hidePaginationOnSinglePage
+enableGlobalFilter={false}
+getRowProps={({ isActive }) => ({ className: `hover:bg-neutral-50/80 transition-colors ${!isActive ? 'opacity-50' : ''}` })}
+columns={[
+{ id: 'active', header: "Active", accessorFn: ({ rule }) => rule.isActive, cell: ({ row: { original: { rule, isActive } } }) => (<input aria-label={`Enable rule ${rule.name}`}
                         type="checkbox"
                         checked={isActive}
                         disabled={!canEditRules}
                         onChange={() => handleToggleActive(rule.id)}
                         className="rounded-sm border-neutral-300 text-neutral-900 focus:ring-neutral-500 h-4 w-4 cursor-pointer"
-                      />
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="font-medium text-neutral-900">{rule.name || rule.id}</div>
+                      />) },
+{ id: 'rule-name-group', header: "Rule Name & Group", accessorFn: ({ rule }) => rule.name, cell: ({ row: { original: { rule } } }) => (<><div className="font-medium text-neutral-900">{rule.name || rule.id}</div>
                       <div className="text-[11px] text-neutral-500 flex items-center gap-2 mt-0.5">
                         <span className="bg-neutral-100 px-1.5 py-0.5 rounded-sm border border-neutral-200">
                           {rule.groupName || 'General'}
@@ -269,10 +262,8 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
                         {rule.stopProcessingOnMatch && (
                           <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-sm">Stop on match</span>
                         )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-neutral-700 space-y-0.5">
-                      {rule.condition.descriptionContains && (
+                      </div></>) },
+{ id: 'when-transaction-matches', header: "When Transaction Matches", enableSorting: false, cell: ({ row: { original: { rule } } }) => (<>{rule.condition.descriptionContains && (
                         <div>Desc contains: <span className="font-semibold text-neutral-900">"{rule.condition.descriptionContains}"</span></div>
                       )}
                       {rule.condition.vendor && (
@@ -283,10 +274,8 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
                       )}
                       {rule.condition.amountThreshold && (
                         <div>Amount &ge; <span className="font-semibold text-neutral-900">${rule.condition.amountThreshold}</span></div>
-                      )}
-                    </td>
-                    <td className="py-3 px-3 text-neutral-700 space-y-0.5">
-                      {rule.action.targetAccountId && <div>Counterparty: {chartAccounts.find(account => account.id === rule.action.targetAccountId)?.name || 'Account no longer available'}</div>}
+                      )}</>) },
+{ id: 'actions-applied', header: "Actions Applied", enableSorting: false, cell: ({ row: { original: { rule } } }) => (<>{rule.action.targetAccountId && <div>Counterparty: {chartAccounts.find(account => account.id === rule.action.targetAccountId)?.name || 'Account no longer available'}</div>}
                       {rule.action.targetTransactionKind && <div>Classification: {rule.action.targetTransactionKind}</div>}
                       {rule.action.targetCategory && (
                         <div className="flex items-center gap-1">
@@ -316,15 +305,11 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
                       )}
                       {rule.action.flagForReview && (
                         <div className="text-amber-700 font-medium">Flag for review</div>
-                      )}
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <span className="inline-block px-2 py-0.5 text-[11px] font-semibold bg-neutral-100 text-neutral-700 rounded-full">
+                      )}</>) },
+{ id: 'hits', header: "Hits", enableSorting: false, cell: ({ row: { original: { rule } } }) => (<span className="inline-block px-2 py-0.5 text-[11px] font-semibold bg-neutral-100 text-neutral-700 rounded-full">
                         {rule.hitCount || 0}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-right space-x-1">
-                      <button
+                      </span>) },
+{ id: 'actions', header: "Actions", enableSorting: false, cell: ({ row: { original: { rule } } }) => (<div className="text-end tabular-nums">{<><button
                         disabled={!canEditRules}
                           onClick={() => openEditModal(rule)}
                         className="p-1.5 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-md transition-colors"
@@ -350,13 +335,9 @@ export function RulesSettingsView({ formError, draftActionPreview, formTargetAcc
                         aria-label={`Delete rule ${rule.name}`}
                       >
                         <Trash2 aria-hidden="true" className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </button></>}</div>) }
+]}
+/>
         </div>
       )}
 
