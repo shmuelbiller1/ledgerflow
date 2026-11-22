@@ -17,7 +17,7 @@ type ChatMessage =
 
 interface ChatReply {
   choices?: Array<{ message?: { content?: string | null; tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }> } }>;
-  usage?: { prompt_tokens?: number; completion_tokens?: number };
+  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
 }
 
 /** Gemini `contents` → OpenAI `messages`. Tool call ids are made from position, which is stable within a turn. */
@@ -78,7 +78,8 @@ export function openAiCompatibleClient(options: { baseUrl: string; apiKey?: stri
     return {
       text: message.content ?? '',
       ...(functionCalls.length ? { functionCalls, candidates: [{ content: { role: 'model', parts: functionCalls.map(functionCall => ({ functionCall })) } }] } : {}),
-      usageMetadata: { promptTokenCount: reply.usage?.prompt_tokens ?? 0, candidatesTokenCount: reply.usage?.completion_tokens ?? 0 },
+      usageMetadata: { promptTokenCount: reply.usage?.prompt_tokens ?? 0, candidatesTokenCount: reply.usage?.completion_tokens ?? 0,
+        cachedContentTokenCount: reply.usage?.prompt_tokens_details?.cached_tokens ?? 0 },
     };
   } } };
 }

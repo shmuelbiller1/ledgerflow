@@ -2,6 +2,9 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SecurityService } from "../../services/securityService";
 import { AutoRuleSchema } from "../../schemas";
 import { tracedClient, type AiCallTrace } from "./aiGateway";
+import { readDocumentDraft } from "./receiptOcr";
+import { routedModelClient } from "./assistantModels";
+import type { ModelClient } from "./assistantTurn";
 
 export class AIBackendService {
   private static getAiClient() {
@@ -243,37 +246,28 @@ export class AIBackendService {
         }
       }
 
-      case 'parse-receipt': {
+      case 'parse-receipt':
+      case 'read-document': {
+        // SBX-2 Part 6: the separate OCR service (receiptOcr.ts) on the OCR model; the result is a draft only
         if (!ai || !payload.base64Data) {
-          throw new Error("Cannot parse receipt: Missing receipt data or Gemini AI service unavailable.");
+          throw new Error("Cannot read the document: Missing image data or Gemini AI service unavailable.");
         }
-        try {
-          const prompt = `Extract standard receipt fields: vendorName, date (YYYY-MM-DD), totalAmountCents (absolute total parsed as integer cents), and confidence score out of 100. Context: ${payload.context || ''}`;
-          const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: [
-              { text: prompt },
-              { inlineData: { data: payload.base64Data as string, mimeType: (payload.mimeType as string) || 'image/png' } }
-            ],
-            config: {
-              responseMimeType: 'application/json',
-              responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                  vendorName: { type: Type.STRING },
-                  date: { type: Type.STRING },
-                  totalAmountCents: { type: Type.INTEGER },
-                  confidence: { type: Type.INTEGER }
-                },
-                required: ["vendorName", "date", "totalAmountCents", "confidence"]
-              }
-            }
-          });
-          return JSON.parse(response.text || '{}');
-        } catch (err: unknown) {
-          console.warn("Gemini parse-receipt failed", err);
-          throw err;
-        }
+        const mimeType = typeof payload.mimeType === 'string' && payload.mimeType ? payload.mimeType : 'image/png';
+        const fallbackCurrency = typeof payload.fallbackCurrency === 'string' ? payload.fallbackCurrency : undefined;
+        // `ai` is already traced; the service traces its own call into the same list
+        const gemini = this.getAiClient() as unknown as ModelClient;
+        // an approved non-Google OCR model (ASSISTANT_MODEL_OCR) goes to its own endpoint
+        const draft = await readDocumentDraft(routedModelClient(gemini) ?? gemini,
+          { base64Data: payload.base64Data, mimeType, ...(fallbackCurrency ? { fallbackCurrency } : {}) }, traces);
+        if (task === 'read-document') return { draft };
+        // the receipt screen's fields, from the same draft (totals stay empty rather than guessed)
+        return {
+          status: draft.status, posted: draft.posted, needsReview: draft.needsReview,
+          vendorName: draft.vendorName ?? undefined, date: draft.date ?? undefined, currency: draft.currency ?? undefined,
+          totalAmountCents: draft.totalMinor ?? undefined, taxAmountCents: draft.taxMinor ?? undefined,
+          lines: draft.lines.flatMap(line => line.amountMinor === null ? [] : [{ description: line.description, amountCents: line.amountMinor }]),
+          confidence: draft.confidence ?? 0,
+        };
       }
 
       case 'parse-statement': {
