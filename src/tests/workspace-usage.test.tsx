@@ -60,6 +60,8 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
       paymentVolumeCents: { used: 0, limit: 5_000_000, platformFeeBps: 35 },
       seats: { used: 2, limit: 5 },
       storageMb: { used: 12, limit: 5000 },
+      // SBX-2 Part 7: this month's assistant use against the growth plan's allowance
+      assistant: { month: new Date().toISOString().slice(0, 7), turns: 0, modelTurns: 0, inputTokens: 0, outputTokens: 0, costCents: 0, unpricedTurns: 0, limits: { modelTurns: 1000, costCents: 500 } },
     });
     assert.equal((await get('stranger')).status, 403);
   });
@@ -91,6 +93,18 @@ describe('Settings → Billing: usage', () => {
     assert.equal(screen.getAllByRole('alert').length, 3, 'entities, rental units and seats reached');
     assert.match(screen.getAllByRole('alert')[0].textContent || '', /new companies are refused/);
     assert.ok(screen.getByText('Near the limit.'), 'storage at 82%');
+  });
+
+  test('assistant AI use is shown against the plan; at the limit it says book answers still work', async () => {
+    setComponentWorkspace('owner');
+    stubFetchWithBodies(200, { status: 'success', usage: { plan: 'free', unlimited: false, seats: { used: 1, limit: 1 }, storageMb: { used: 0, limit: 500 },
+      assistant: { month: '2026-11', turns: 80, modelTurns: 50, costCents: 12.4, limits: { modelTurns: 50, costCents: 25 } } } });
+    render(<UsagePanel />);
+    await waitFor(() => assert.ok(screen.getByText('Assistant answers using AI (this month)')));
+    assert.ok(screen.getByText('50 of 50'));
+    assert.ok(screen.getByText('Assistant AI cost (this month)'));
+    const alerts = screen.getAllByRole('alert').map(a => a.textContent || '');
+    assert.ok(alerts.some(text => /Answers read straight from your books still work/.test(text)));
   });
 
   test('no limits: said in one line', async () => {

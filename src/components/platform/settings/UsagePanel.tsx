@@ -22,6 +22,8 @@ interface Usage {
   paymentVolumeCents?: Meter & { platformFeeBps?: number };
   seats: Meter;
   storageMb: Meter;
+  /** SBX-2 Part 7: this month's assistant answers that used an AI model, and their cost. */
+  assistant?: { month: string; turns: number; modelTurns: number; costCents: number; limits: { modelTurns: number; costCents: number } | null };
 }
 
 /** Near a limit from 80% on, so it is seen before anything is refused. */
@@ -60,6 +62,7 @@ export default function UsagePanel() {
     limit: number;
     formatValue?: (n: number) => string;
     refusalNoun: string;
+    refusal?: string;
   }> = [];
 
   if (usage.entries && typeof usage.entries.limit === 'number') {
@@ -91,6 +94,19 @@ export default function UsagePanel() {
     formatValue: n => `${n.toLocaleString()} MB`,
     refusalNoun: 'document storage',
   });
+  if (usage.assistant?.limits) {
+    // only answers that needed an AI model count; answers read straight from the books are free
+    const refusal = 'The assistant’s AI limit for this month is reached: questions that need AI are refused until next month or a plan change. Answers read straight from your books still work.';
+    rows.push({ label: 'Assistant answers using AI (this month)', used: usage.assistant.modelTurns, limit: usage.assistant.limits.modelTurns, refusalNoun: 'AI answers', refusal });
+    rows.push({
+      label: 'Assistant AI cost (this month)',
+      used: Math.ceil(usage.assistant.costCents),
+      limit: usage.assistant.limits.costCents,
+      formatValue: cents => formatCurrency(cents, 'USD'),
+      refusalNoun: 'AI answers',
+      refusal,
+    });
+  }
 
   return (
     <section aria-labelledby="usage-title" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 space-y-2">
@@ -110,7 +126,7 @@ export default function UsagePanel() {
         </p>
       ) : (
         <ul className="space-y-2 text-sm">
-          {rows.map(({ label, used, limit, formatValue, refusalNoun }) => {
+          {rows.map(({ label, used, limit, formatValue, refusalNoun, refusal }) => {
             const share = limit > 0 ? used / limit : 0;
             const fmt = formatValue || ((n: number) => n.toLocaleString());
             return (
@@ -138,7 +154,7 @@ export default function UsagePanel() {
                 </div>
                 {share >= 1 ? (
                   <p role="alert" className="text-xs text-rose-600">
-                    The limit is reached: new {refusalNoun} are refused until the plan changes.
+                    {refusal ?? `The limit is reached: new ${refusalNoun} are refused until the plan changes.`}
                   </p>
                 ) : share >= NEAR_LIMIT ? (
                   <p className="text-xs text-amber-700 dark:text-amber-400">Near the limit.</p>
