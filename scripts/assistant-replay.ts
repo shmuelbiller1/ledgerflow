@@ -87,7 +87,7 @@ export function summarise(rows: Array<{ kind: string; metric: AssistantTurnMetri
       medianInputTokens: median(ms.map(m => m.inputTokens)),
       medianOutputTokens: median(ms.map(m => m.outputTokens)),
       medianToolsOffered: median(ms.map(m => m.toolsOffered)),
-      medianFirstWordMs: median(ms.map(m => m.firstWordMs)),
+      medianAnswerMs: median(ms.map(m => m.answerMs)),
       medianTotalMs: median(ms.map(m => m.totalMs)),
       totalCostCents: priced.length === ms.length ? priced.reduce((s, m) => s + (m.costCents ?? 0), 0) : null,
     };
@@ -116,14 +116,14 @@ async function main() {
   } else {
     lines.push('No model configured (ASSISTANT_REPLAY_MODEL / ASSISTANT_REPLAY_BASE_URL): every question would go to the model today; token, time and cost columns need a model run.');
     for (const { kind } of REPLAY_QUESTIONS) {
-      rows.push({ kind, metric: turnMetric({ path: 'model', traces: [], toolsOffered: tools.length, toolsCalled: [], firstWordMs: 0, totalMs: 0, ok: false }) });
+      rows.push({ kind, metric: turnMetric({ path: 'model', traces: [], toolsOffered: tools.length, toolsCalled: [], answerMs: 0, totalMs: 0, ok: false }) });
     }
   }
   const table = summarise(rows);
-  const header = '| path | turns | ok | model calls | median input tokens | median output tokens | median tools offered | median first word ms | median total ms | total cost (cents) |';
+  const header = '| path | turns | ok | model calls | median input tokens | median output tokens | median tools offered | median answer ms (no streaming yet) | median total ms | total cost (cents) |';
   const md = [header, '|---|---|---|---|---|---|---|---|---|---|',
     ...table.map(r => measured
-      ? `| ${r.path} | ${r.turns} | ${r.ok} | ${r.modelCalls} | ${r.medianInputTokens} | ${r.medianOutputTokens} | ${r.medianToolsOffered} | ${r.medianFirstWordMs} | ${r.medianTotalMs} | ${r.totalCostCents === null ? 'unknown (no price row)' : r.totalCostCents.toFixed(4)} |`
+      ? `| ${r.path} | ${r.turns} | ${r.ok} | ${r.modelCalls} | ${r.medianInputTokens} | ${r.medianOutputTokens} | ${r.medianToolsOffered} | ${r.medianAnswerMs} | ${r.medianTotalMs} | ${r.totalCostCents === null ? 'unknown (no price row)' : r.totalCostCents.toFixed(4)} |`
       : `| ${r.path} | ${r.turns} | not measured | not measured | not measured | not measured | ${r.medianToolsOffered} | not measured | not measured | not measured |`)];
   const out = [...lines, '', ...md].join('\n');
   console.log(out);

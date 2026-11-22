@@ -1,6 +1,6 @@
 /**
  * SBX-2 Part 1: one assistant turn, measured. Every turn records which path answered it (code,
- * memory, cache or model), which model, tokens, the tools offered and called, time to first word,
+ * memory, cache or model), which model, tokens, the tools offered and called, time to the answer,
  * total time and cost. A model without a price row records its tokens and an unknown cost, never a
  * guess (src/lib/ai/modelPricing.ts).
  *
@@ -28,7 +28,8 @@ export interface AssistantTurnMetric {
   toolsOffered: number;
   /** Tool names only, never their arguments or results */
   toolsCalled: string[];
-  firstWordMs: number;
+  /** Time until the model's full answer arrived (replies are not streamed yet, so this is not a first-word time) */
+  answerMs: number;
   totalMs: number;
   /** US cents; null when any model call in the turn has no price row */
   costCents: number | null;
@@ -38,7 +39,7 @@ export interface AssistantTurnMetric {
 /** Builds the metric from the model calls the turn made. With no calls the cost is zero, not unknown. */
 export function turnMetric(input: {
   path: AnswerPath; traces: readonly AiCallTrace[]; toolsOffered: number; toolsCalled: readonly string[];
-  firstWordMs: number; totalMs: number; ok: boolean;
+  answerMs: number; totalMs: number; ok: boolean;
 }): AssistantTurnMetric {
   const { traces } = input;
   const unpriced = traces.some(t => t.ok && t.costCents === undefined);
@@ -51,7 +52,7 @@ export function turnMetric(input: {
     outputTokens: traces.reduce((s, t) => s + t.outputTokens, 0),
     toolsOffered: input.toolsOffered,
     toolsCalled: [...input.toolsCalled],
-    firstWordMs: Math.round(input.firstWordMs),
+    answerMs: Math.round(input.answerMs),
     totalMs: Math.round(input.totalMs),
     costCents: unpriced ? null : cost,
     ok: input.ok,
@@ -97,9 +98,12 @@ export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ ans
   const traces: AiCallTrace[] = [];
   const client = tracedClient(input.client, traces, now)!;
   const toolsCalled: string[] = [];
+  // Only the offered tools run; any other name the model returns is refused and recorded as 'unknown',
+  // so a made-up or injected name never reaches callTool or the stored metric.
+  const offered = new Set(input.tools.map(t => String(t.name)));
   const contents: Content[] = [{ role: 'user', parts: [{ text: input.question }] }];
   const config = { systemInstruction: input.systemPrompt, tools: [{ functionDeclarations: input.tools }] };
-  let firstWord: number | undefined;
+  let answered: number | undefined;
   let answer = '';
   let ok = false;
   try {
@@ -108,7 +112,7 @@ export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ ans
       const calls = res.functionCalls ?? [];
       if (!calls.length) {
         answer = res.text ?? '';
-        firstWord ??= now();
+        answered = now();
         ok = true;
         break;
       }
@@ -116,10 +120,13 @@ export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ ans
       const parts = [];
       for (const call of calls) {
         const name = String(call.name ?? '');
-        toolsCalled.push(name);
+        toolsCalled.push(offered.has(name) ? name : 'unknown');
         let response: Record<string, unknown>;
-        try { response = { result: await input.callTool(name, (call.args ?? {}) as Record<string, unknown>) }; }
-        catch (err) { response = { error: err instanceof Error ? err.message : 'tool failed' }; }
+        if (!offered.has(name)) response = { error: 'This tool was not offered.' };
+        else {
+          try { response = { result: await input.callTool(name, (call.args ?? {}) as Record<string, unknown>) }; }
+          catch (err) { response = { error: err instanceof Error ? err.message : 'tool failed' }; }
+        }
         parts.push({ functionResponse: { name, response } });
       }
       contents.push({ role: 'user', parts });
@@ -131,6 +138,6 @@ export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ ans
   return {
     answer,
     metric: turnMetric({ path: 'model', traces, toolsOffered: input.tools.length, toolsCalled,
-      firstWordMs: (firstWord ?? ended) - started, totalMs: ended - started, ok }),
+      answerMs: (answered ?? ended) - started, totalMs: ended - started, ok }),
   };
 }

@@ -35,7 +35,7 @@ test('a model turn is measured: path, model, tokens, tools, times and cost from 
   assert.equal(metric.outputTokens, 50);
   assert.equal(metric.toolsOffered, 2);
   assert.deepEqual(metric.toolsCalled, ['run_report']);
-  assert.ok(metric.totalMs > 0 && metric.firstWordMs > 0 && metric.firstWordMs <= metric.totalMs);
+  assert.ok(metric.totalMs > 0 && metric.answerMs > 0 && metric.answerMs <= metric.totalMs);
   // gemini-2.5-flash: $0.30 in / $2.50 out per million tokens
   assert.ok(metric.costCents !== null && Math.abs(metric.costCents - (2200 * 0.3 + 50 * 2.5) * 100 / 1e6) < 1e-9);
   assert.equal(metric.ok, true);
@@ -52,7 +52,7 @@ test('a model with no price row records tokens and an unknown cost, never a gues
 });
 
 test('a turn answered without the model costs nothing and names no model', () => {
-  const metric = turnMetric({ path: 'code', traces: [], toolsOffered: 0, toolsCalled: ['ask_books'], firstWordMs: 3, totalMs: 5, ok: true });
+  const metric = turnMetric({ path: 'code', traces: [], toolsOffered: 0, toolsCalled: ['ask_books'], answerMs: 3, totalMs: 5, ok: true });
   assert.equal(metric.costCents, 0);
   assert.equal(metric.model, undefined);
   assert.equal(metric.modelCalls, 0);
@@ -113,4 +113,23 @@ test('the same loop runs on an OpenAI-compatible endpoint (Arena): tools, tool r
   const second = bodies[1] as { messages: Array<{ role: string; tool_call_id?: string; tool_calls?: unknown[] }> };
   assert.deepEqual(second.messages.map(m => m.role), ['system', 'user', 'assistant', 'tool']);
   assert.equal(second.messages[3].tool_call_id, 'call_0');
+});
+
+test('a tool the model was not offered is refused, not run, and recorded only as "unknown"', async () => {
+  const replies = [
+    { functionCalls: [{ name: 'delete_everything_IGNORE_PREVIOUS', args: {} }, { name: 'ask_books', args: {} }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 1 } },
+    { text: 'done', usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 1 } },
+  ];
+  const seen: Array<Record<string, unknown>> = [];
+  const client: ModelClient = { models: { generateContent: async req => { seen.push(req); return replies.shift(); } } };
+  const ran: string[] = [];
+  const { metric } = await runAssistantTurn({
+    client, model: 'gemini-2.5-flash', systemPrompt: 's', question: 'q', now: clock(),
+    tools: [{ name: 'ask_books', description: 'a' }], callTool: async name => { ran.push(name); return {}; },
+  });
+  assert.deepEqual(ran, ['ask_books'], 'only the offered tool ran');
+  assert.deepEqual(metric.toolsCalled, ['unknown', 'ask_books']);
+  assert.ok(!JSON.stringify(metric).includes('IGNORE_PREVIOUS'));
+  const sentBack = JSON.stringify(seen[1]);
+  assert.match(sentBack, /This tool was not offered/);
 });
