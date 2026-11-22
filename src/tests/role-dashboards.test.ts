@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import crypto from 'crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
+import { DASHBOARD_WIDGETS } from '../lib/dashboardOverview';
 
 describe('Per-role dashboards (database)', { skip: !process.env.LF_TEST_DATABASE_URL && 'LF_TEST_DATABASE_URL not set' }, () => {
   const ws = `ws_roledash_${crypto.randomBytes(4).toString('hex')}`;
@@ -48,7 +49,7 @@ describe('Per-role dashboards (database)', { skip: !process.env.LF_TEST_DATABASE
     const stored = (await db.collection('workspaces').doc(ws).get()).data()?.roleDashboards as Record<string, { order: string[]; hidden: string[] }>;
     assert.deepEqual(Object.keys(stored).sort(), ['bookkeeper', 'viewer']);
     assert.deepEqual(stored.bookkeeper.order.slice(0, 2), ['cash', 'recent']);
-    assert.equal(stored.bookkeeper.order.length, 13, 'every widget is in the order');
+    assert.equal(stored.bookkeeper.order.length, DASHBOARD_WIDGETS.length, 'every widget is in the order');
     assert.equal((await put('owner-1', { role: 'viewer', layout: null })).status, 200);
     assert.deepEqual(Object.keys((await db.collection('workspaces').doc(ws).get()).data()?.roleDashboards as object), ['bookkeeper']);
     const audit = await db.pool.query(`select count(*)::int as n from public."auditLogs" where workspace_id = $1 and data->>'action' = 'ROLE_DASHBOARD_SET'`, [ws]);
