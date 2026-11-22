@@ -12,7 +12,8 @@
 import { currencyDigits, minorToMajor } from '../../lib/currencyMinorUnits';
 import { formatMoney } from '../../lib/moneyFormat';
 import { answerCents } from '../../lib/askBooks';
-import { runAssistantTurn, turnMetric, type AssistantTurnInput, type AssistantTurnMetric } from './assistantTurn';
+import { cachedToolCall, runAssistantTurn, turnMetric, type AssistantTurnInput, type AssistantTurnMetric } from './assistantTurn';
+import type { ModelChoice } from './assistantModels';
 
 export type CodeRoute =
   | { tool: 'ask_books'; args: { question: string }; template: 'figure' }
@@ -228,20 +229,50 @@ export function wordCodeAnswer(route: CodeRoute, result: unknown, currency: stri
   }
 }
 
+/** SBX-2 Part 6: which model answers a turn the router sent to the model, and the strong model to retry on. */
+export interface ModelRule { choose: (routerReason: string) => ModelChoice; strong: string }
+
+/**
+ * The model loop with the written model rule: the chosen model answers; if the simple model fails, the
+ * turn is retried once on the strong one (reason `simple-model-failed`), and both calls count in the
+ * metric. Without a rule, `input.model` answers, as before.
+ */
+async function modelTurn(input: AssistantTurnInput, routerReason: string, rule?: ModelRule): Promise<{ answer: string; metric: AssistantTurnMetric }> {
+  if (!rule) return runAssistantTurn(input);
+  const choice = rule.choose(routerReason);
+  const first = await runAssistantTurn({ ...input, model: choice.model });
+  if (first.metric.ok || choice.tier === 'strong') return { answer: first.answer, metric: { ...first.metric, modelTier: choice.tier, modelReason: choice.reason } };
+  const retry = await runAssistantTurn({ ...input, model: rule.strong });
+  const a = first.metric;
+  const b = retry.metric;
+  return { answer: retry.answer, metric: { ...b, modelTier: 'strong', modelReason: 'simple-model-failed',
+    modelCalls: a.modelCalls + b.modelCalls, inputTokens: a.inputTokens + b.inputTokens, outputTokens: a.outputTokens + b.outputTokens,
+    cachedInputTokens: a.cachedInputTokens + b.cachedInputTokens, toolsCalled: [...a.toolsCalled, ...b.toolsCalled],
+    toolCacheHits: a.toolCacheHits + b.toolCacheHits, answerMs: a.totalMs + b.answerMs, totalMs: a.totalMs + b.totalMs,
+    costCents: a.costCents === null || b.costCents === null ? null : a.costCents + b.costCents } };
+}
+
 /**
  * One assistant turn with the router in front: an exact question is answered by its read tool and a
- * fixed template (path `code`, no model call); otherwise — or when the tool's answer is not complete
- * enough to state — the model loop answers (path `model`).
+ * fixed template (path `code`, no model call; path `cache` when every tool result came from the read
+ * cache); otherwise — or when the tool's answer is not complete enough to state — the model loop
+ * answers (path `model`), on the model the rule chooses.
  */
-export async function answerTurn(input: AssistantTurnInput & { currency: string | null }): Promise<{ answer: string; metric: AssistantTurnMetric }> {
+export async function answerTurn(input: AssistantTurnInput & { currency: string | null; modelRule?: ModelRule }): Promise<{ answer: string; metric: AssistantTurnMetric }> {
   const now = input.now ?? (() => performance.now());
   const started = now();
   const decision = routeQuestion(input.question);
   if (decision.path === 'code') {
     let result: unknown;
     const toolsUsed: string[] = [decision.route.tool];
+    let hits = 0;
+    const call = async (name: string, args: Record<string, unknown>) => {
+      const { value, hit } = await cachedToolCall(input, name, args);
+      if (hit) hits++;
+      return value;
+    };
     try {
-      result = await input.callTool(decision.route.tool, decision.route.args as unknown as Record<string, unknown>);
+      result = await call(decision.route.tool, decision.route.args as unknown as Record<string, unknown>);
       if (decision.route.template === 'balance') {
         const reading = (result as { reading?: { filter?: { accountIds?: string[]; endDate?: string; label?: unknown } | null; problem?: string | null } })?.reading;
         const filter = reading?.filter;
@@ -250,7 +281,7 @@ export async function answerTurn(input: AssistantTurnInput & { currency: string 
         if (!filter?.accountIds?.length || reading?.problem || filter.label) result = undefined;
         else {
           toolsUsed.push('explain_number');
-          const explained = await input.callTool('explain_number', { accountIds: filter.accountIds, ...(filter.endDate ? { endDate: filter.endDate } : {}) });
+          const explained = await call('explain_number', { accountIds: filter.accountIds, ...(filter.endDate ? { endDate: filter.endDate } : {}) });
           result = explained && typeof explained === 'object' ? { ...(explained as object), reading } : undefined;
         }
       }
@@ -258,15 +289,15 @@ export async function answerTurn(input: AssistantTurnInput & { currency: string 
     const answer = wordCodeAnswer(decision.route, result, input.currency);
     if (answer) {
       const ended = now();
-      return { answer, metric: turnMetric({ path: 'code', traces: [], toolsOffered: 0, toolsCalled: toolsUsed,
-        answerMs: ended - started, totalMs: ended - started, ok: true }) };
+      return { answer, metric: turnMetric({ path: hits === toolsUsed.length ? 'cache' : 'code', traces: [], toolsOffered: 0, toolsCalled: toolsUsed,
+        toolCacheHits: hits, answerMs: ended - started, totalMs: ended - started, ok: true }) };
     }
     // fell back: the person also waited for the code tool, so its time and name count in this turn
     const spent = now() - started;
-    const fallback = await runAssistantTurn(input);
+    const fallback = await modelTurn(input, 'code-answer-incomplete', input.modelRule);
     return { answer: fallback.answer, metric: { ...fallback.metric,
-      toolsCalled: [...toolsUsed, ...fallback.metric.toolsCalled],
+      toolsCalled: [...toolsUsed, ...fallback.metric.toolsCalled], toolCacheHits: fallback.metric.toolCacheHits + hits,
       answerMs: Math.round(fallback.metric.answerMs + spent), totalMs: Math.round(fallback.metric.totalMs + spent) } };
   }
-  return runAssistantTurn(input);
+  return modelTurn(input, decision.reason, input.modelRule);
 }

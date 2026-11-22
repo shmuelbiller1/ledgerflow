@@ -12,9 +12,12 @@ import { defaultAssistantTools, draftableCommands, findAssistantCommands } from 
 import { ASSISTANT_READ_TOOL_NAMES, findCommandInput, listProposalsInput, previewProposalInput, rememberedChoicesInput } from '../services/assistantToolDefinitions';
 import { listRemembered, suggestFor, suggestionFrom } from '../services/rememberedDecisions';
 import { storedSandboxProposal } from '../services/storedSandboxProposal';
+import { sandboxToolCache, type ToolCache } from '../services/assistantReadCache';
 import { CommandRefusal, errorOutcome } from '../utils/commandExecutor';
 import { createBalanceRouter } from './balanceRoutes';
 import { createReportRouter } from './reportRoutes';
+import { assistantTurnHandler, type TurnDependencies } from './assistantTurnRoute';
+import { brainRateLimiter } from '../middleware/rateLimiters';
 
 /**
  * SBX-1 "What the assistant can call" and "What the person can do", as HTTP.
@@ -78,7 +81,7 @@ function sandboxScope(req: express.Request) {
 }
 
 /** A sandbox the caller may read: it belongs to them, is open, and they are a live member. */
-async function readableSandbox(live: Firestore, req: express.Request) {
+export async function readableSandbox(live: Firestore, req: express.Request) {
   const scope = sandboxScope(req);
   const user = requestUser(req);
   if (!user?.uid || user.usedApiKeyId || user.developerWorkspaceId) throw new CommandRefusal('Only a signed-in person or their assistant can read a sandbox', 403, 'PERSON_ONLY');
@@ -150,32 +153,67 @@ function toolRoutes(router: express.Router, live: Firestore) {
     if (!(ASSISTANT_READ_TOOL_NAMES as readonly string[]).includes(tool)) {
       throw new CommandRefusal(`Unknown tool: ${tool}`, 404, 'TOOL_NOT_FOUND', { tools: ASSISTANT_READ_TOOL_NAMES });
     }
-    const { books, workspaceId, workspace, sandboxId, user } = await readableSandbox(live, req);
-    const binding = { id: sandboxId, workspaceId, personId: user.uid };
-    const input = req.body && typeof req.body === 'object' ? req.body : {};
-    const routers = () => boundRouters(live, books);
+    const sandbox = await readableSandbox(live, req);
+    const input = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body as Record<string, unknown> : {};
+    const { status, body, cached } = await runReadTool(live, req, res, sandbox, tool, input);
+    if (cached) res.setHeader('X-LedgerFlow-Cache', 'hit');
+    res.status(status).json(body);
+  }));
+}
+
+type ReadableSandbox = Awaited<ReturnType<typeof readableSandbox>>;
+
+/**
+ * Sends `req` through a bound router and returns what it answered instead of sending it, so the
+ * caller can cache it or hand it to the model. `req` and `res.json` are put back afterwards.
+ */
+function captured(router: express.Router, req: express.Request, res: express.Response, method: string, url: string, body?: unknown) {
+  const saved = { method: req.method, url: req.url, body: req.body, baseUrl: req.baseUrl, json: res.json };
+  return new Promise<{ status: number; body: unknown }>(resolve => {
+    res.json = ((payload: unknown) => { resolve({ status: res.statusCode || 200, body: payload }); return res; }) as typeof res.json;
+    dispatch(router, req, res, method, url, body);
+  }).finally(() => {
+    Object.assign(req, { method: saved.method, url: saved.url, body: saved.body, baseUrl: saved.baseUrl });
+    res.json = saved.json;
+    res.statusCode = 200;
+  });
+}
+
+/**
+ * One read tool on the sandbox handle, answered as `{ status, body }`. Shared by the assistant's tool
+ * door and the server-side assistant turn. Reports, explain, ask_books and search go through the
+ * SBX-2 read cache (services/assistantReadCache.ts): served only while the books are at the same
+ * version, never across workspaces or sandboxes, and refusals are never cached.
+ */
+export async function runReadTool(live: Firestore, req: express.Request, res: express.Response, sandbox: ReadableSandbox,
+  tool: string, input: Record<string, unknown>, cache: ToolCache = sandboxToolCache(live.pool, sandbox)): Promise<{ status: number; body: unknown; cached: boolean }> {
+  const { books, workspaceId, workspace, sandboxId, user } = sandbox;
+  const binding = { id: sandboxId, workspaceId, personId: user.uid };
+  const routers = () => boundRouters(live, books);
+  const ok = (body: unknown) => ({ status: 200, body });
+  const compute = async (): Promise<{ status: number; body: unknown }> => {
     switch (tool) {
-      case 'list_records': return res.json(await listRecords(books, workspaceId, input));
-      case 'get_record': return res.json(await getRecord(books, workspaceId, input));
-      case 'search_records': return res.json(await searchRecords(books, workspaceId, input));
-      case 'calculate': return res.json(calculate(input));
+      case 'list_records': return ok(await listRecords(books, workspaceId, input));
+      case 'get_record': return ok(await getRecord(books, workspaceId, input));
+      case 'search_records': return ok(await searchRecords(books, workspaceId, input));
+      case 'calculate': return ok(calculate(input));
       case 'list_proposals': {
-        parse(listProposalsInput, req.body ?? {});
-        return res.json({ proposals: [await storedSandboxProposal(live.pool, binding, false)] });
+        parse(listProposalsInput, input);
+        return ok({ proposals: [await storedSandboxProposal(live.pool, binding, false)] });
       }
       case 'preview_proposal': {
-        const { proposalId } = parse(previewProposalInput, req.body);
+        const { proposalId } = parse(previewProposalInput, input);
         if (proposalId !== sandboxId) throw new CommandRefusal('This proposal belongs to another sandbox', 403, 'ASSISTANT_SANDBOX_MISMATCH');
-        return res.json({ proposal: await storedSandboxProposal(live.pool, binding, true) });
+        return ok({ proposal: await storedSandboxProposal(live.pool, binding, true) });
       }
       case 'remembered_choices': {
         const body = parse(rememberedChoicesInput, req.body);
         return res.json({ suggestions: suggestFor(body.command, body.input, await listRemembered(live.pool, workspaceId)) });
       }
       case 'find_command': {
-        const { words, limit } = parse(findCommandInput, req.body);
+        const { words, limit } = parse(findCommandInput, input);
         const commands = draftableCommands(workspace, user, assistantClaims(req)?.role);
-        return res.json({ matches: findAssistantCommands(commands, words, limit) });
+        return ok({ matches: findAssistantCommands(commands, words, limit) });
       }
       case 'run_report': {
         const { report, source, params } = parse(runReportInput, input);
@@ -186,29 +224,32 @@ function toolRoutes(router: express.Router, live: Firestore) {
         if (typeof selectedRouter !== 'function') {
           throw new CommandRefusal(`Unknown report source: ${source}`, 404, 'REPORT_SOURCE_NOT_FOUND');
         }
-        return dispatch(selectedRouter as express.Router, req, res, 'GET', `/${report}?${search.toString()}`);
+        return captured(selectedRouter as express.Router, req, res, 'GET', `/${report}?${search.toString()}`);
       }
       case 'explain_number': {
         const explain = parse(explainNumberInput, input);
-        return dispatch(routers().reports, req, res, 'POST', '/explain', { ...explain, workspaceId });
+        return captured(routers().reports, req, res, 'POST', '/explain', { ...explain, workspaceId });
       }
       case 'ask_books': {
         const { question, reading, today } = await readBooksQuestion(books, workspaceId, workspace, input);
-        if (!reading.filter) return res.json({ question, today, reading, answer: null });
+        if (!reading.filter) return ok({ question, today, reading, answer: null });
         const { accountIds, startDate, endDate, label } = reading.filter;
         const body = { workspaceId, accountIds, startDate, endDate, ...(label ? { labelDimension: label.dimensionId, labelValue: label.value } : {}) };
-        const original = res.json.bind(res);
-        res.json = ((payload: unknown) => {
-          const explanation = payload as { totalCents?: number } | undefined;
-          return typeof explanation?.totalCents === 'number'
-            ? original({ question, today, reading, answer: { ...explanation, answerCents: answerCents(explanation.totalCents, reading.sense), sense: reading.sense } })
-            : original(payload);
-        }) as typeof res.json;
-        return dispatch(routers().reports, req, res, 'POST', '/explain', body);
+        const explained = await captured(routers().reports, req, res, 'POST', '/explain', body);
+        const explanation = explained.body as { totalCents?: number } | undefined;
+        return typeof explanation?.totalCents === 'number'
+          ? ok({ question, today, reading, answer: { ...explanation, answerCents: answerCents(explanation.totalCents, reading.sense), sense: reading.sense } })
+          : explained;
       }
       default: throw new CommandRefusal(`Unknown tool: ${tool}`, 404, 'TOOL_NOT_FOUND');
     }
-  }));
+  };
+  const { value, hit } = await cache.read(tool, input, async () => {
+    const result = await compute();
+    return { value: result, cache: result.status === 200 };
+  });
+  const { status, body } = value as { status: number; body: unknown };
+  return { status, body, cached: hit };
 }
 
 /** Drafting routes, shared by both principals: the person may also draft by hand. */
@@ -245,8 +286,13 @@ async function tokenFor(live: Firestore, req: express.Request, workspaceId: stri
   return issueAssistantToken({ sandboxId, personId: user.uid, workspaceId, role: roleInWorkspace(workspace, user.uid), aal: typeof user.aal === "string" ? user.aal : undefined, email: user.email });
 }
 
+export interface SandboxPersonRouterOptions extends TurnDependencies {
+  /** The per-person limit on assistant turns (the AI routes' limiter); a test passes its own. */
+  turnRateLimit?: express.RequestHandler;
+}
+
 /** Mounted under /api/v1/workspaces/:workspaceId/sandboxes behind the ordinary sign-in. */
-export function createSandboxPersonRouter(live: Firestore = getDb()): express.Router {
+export function createSandboxPersonRouter(live: Firestore = getDb(), options: SandboxPersonRouterOptions = {}): express.Router {
   const router = express.Router({ mergeParams: true });
   router.use((req, res, next) => {
     if (requestUser(req)?.assistantSandboxId) {
@@ -289,6 +335,9 @@ export function createSandboxPersonRouter(live: Firestore = getDb()): express.Ro
     const { workspaceId, sandboxId } = await readableSandbox(live, req);
     res.json({ assistant: await tokenFor(live, req, workspaceId, sandboxId) });
   }));
+  // SBX-2: one assistant turn on the server (the router, read cache, area tools, model rule and plan limit)
+  router.post('/:sandboxId/assistant/turn', options.turnRateLimit ?? brainRateLimiter,
+    guarded(assistantTurnHandler(live, { readableSandbox, runReadTool }, options)));
   draftRoutes(router, live);
   toolRoutes(router, live);
   router.post('/:sandboxId/accept', guarded(async (req, res) => {
