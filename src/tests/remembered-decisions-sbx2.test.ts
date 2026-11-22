@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { after, before, describe, test } from 'node:test';
 import { Firestore } from '../server/db/firestore';
 import {
-  OFFER_MIN_CASES, addObservation, decisionsIn, forgetRemembered, listRemembered, observe, recordOutcome,
+  OFFER_MIN_CASES, addObservation, decisionsIn, forgetRemembered, forgetRememberedCommand, listRemembered, observe, recordOutcome,
   suggestFor, suggestionFrom, type RememberedRow,
 } from '../server/services/rememberedDecisions';
 
@@ -111,6 +111,17 @@ describe('SBX-2 Part 3 remembered decisions (PostgreSQL)', { skip: !url && 'LF_T
     assert.deepEqual((await listRemembered(live.pool, a)).map(r => r.field), ['accountId']);
     assert.equal(await forgetRemembered(live.pool, a), 1);
     assert.deepEqual(await listRemembered(live.pool, a), []);
+  });
+
+  test('the forget command deletes before it answers, and a failed delete fails the command', async t => {
+    const ws = `rd-${randomUUID()}`;
+    t.after(() => live.pool.query('delete from assistant."rememberedDecisions" where workspace_id = $1', [ws]));
+    await recordOutcome(live.pool, ws, [{ command: 'bill.create', input: bill('acc-1') }], 'accepted');
+    const ctx = (db: unknown) => ({ db, workspaceId: ws, afterCommit: () => { throw new Error('no after-commit work'); } }) as never;
+    assert.deepEqual(await forgetRememberedCommand.handler(ctx(live), {} as never, {}), { forgotten: 1 });
+    assert.deepEqual(await listRemembered(live.pool, ws), []);
+    const broken = { pool: { query: async () => { throw new Error('db down'); } } };
+    await assert.rejects(forgetRememberedCommand.handler(ctx(broken), {} as never, {}), /db down/);
   });
 
   test('the assistant role cannot read or write remembered decisions', async () => {

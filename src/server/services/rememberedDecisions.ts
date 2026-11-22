@@ -181,12 +181,11 @@ export const forgetRememberedCommand: CommandDefinition<typeof forgetRememberedI
   roles: ['owner', 'accountant', 'bookkeeper'],
   async handler(ctx, _tx, input) {
     const pool = (ctx.db as unknown as { pool?: Runner }).pool;
-    if (!pool) return { forgotten: 0 };
-    // the table lives outside the document store, so the delete runs once the command has committed
-    let forgotten = 0;
+    if (!pool) throw new Error('Remembered choices are not available here');
+    // the table lives outside the document store, so the delete runs here, before the command commits:
+    // a failed delete fails the command (an error, no audit line, safe to retry), never a false success
     const key = input.command && input.subject && input.field ? { command: input.command, subject: input.subject, field: input.field } : undefined;
-    ctx.afterCommit(async () => { forgotten = await forgetRemembered(pool, ctx.workspaceId, key); return { forgotten }; });
-    return { forgotten };
+    return { forgotten: await forgetRemembered(pool, ctx.workspaceId, key) };
   },
   async preview(_ctx, input) {
     return { title: 'Forget remembered choices', lines: [input.command ? `Forget ${input.field} for ${input.subject} (${input.command})` : 'Forget every remembered choice for these books'] };
