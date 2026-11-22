@@ -45,18 +45,26 @@ New sessions pick it up. Until then, the replay runs without a model and records
 
 **Approved by the owner (22 Nov):** AI providers other than Google may be used for the assistant, including sending book data to them (for example through Arena). The Arena key still has to be added as a network secret (above) before models can be tested.
 
-## SBX-2 Part 6: model comparison result and a recommendation (needs your decision)
+## SBX-2 Part 6: graded model comparison and a recommendation (needs your decision)
 
-I replayed the 30 test questions through Arena on six models (table in `docs/assistant-baseline.md`; test data only). Cost is what Arena billed.
+Run 22 Nov on Arena with the graded test (`scripts/assistant-model-eval.ts`, 12 questions that need a model, a sample company's books, one model per run; full table and per-question results in `docs/assistant-model-eval.md`). Cost is what Arena billed. The earlier ungraded table in `docs/assistant-baseline.md` only counted "finished within 6 steps" and is superseded by this one.
 
-- **GPT-6 Luna** answered 38 of 42 model turns for about 8¢ per 100 model turns. Best price for what it did.
-- **GPT-6.1 Terra** answered 41 of 42, but costs about 62¢ per 100 model turns.
-- **Gemini 3.8 Flash** answered 1 of 21 and cost about $1.37 per 100: it kept calling tools until the step limit. GLM 5.3 answered 7 of 21 at about $2.17 per 100. MiniMax and DeepSeek mostly ran out of steps.
-- *Limits:* "answered" is not "right". The test books are thin, and I did not grade the wording. Please don't read this as final.
+| model | correct (of 12) | billed | cost per correct answer |
+|---|---|---|---|
+| GPT-6.1 Terra | 9 | 11.9¢ | 1.3¢ |
+| GPT-6 Luna | 5 | 1.3¢ | 0.27¢ |
+| GLM 5.3 | 4 | 33.0¢ | 8.3¢ |
+| Gemini 3.8 Flash | 1 | 19.3¢ | 19.3¢ |
+| MiniMax M3.1 Flash | 0 | at least 3.5¢ | — |
+| DeepSeek V4.1 Flash | 0 | at least 4.9¢ | — |
 
-*Recommendation:* simple turns on GPT-6 Luna, strong turns on GPT-6.1 Terra, same written rule as now (`assistantModels.ts`). *Not done:* neither has a price row, and the code ignores an unpriced model, so nothing changed: the app still uses the Gemini defaults. I won't write a price from memory. Please send me the prices Arena charges for these two, or tell me to read them from Arena's pricing page, and I will add the rows.
+Receipts (4 generated images, 4 fields each): Luna, Terra and Gemini 3.8 Flash each read 15 of 16 fields right, for 0.03¢, 0.25¢ and 0.77¢.
 
-*Spend:* the per-100 costs above are lower bounds (see the note in `docs/assistant-baseline.md`). My comparison runs cost about $8.6 of your Arena balance, more than I should have used, mostly from runs repeated after timeouts. The script now stops at 150 model calls per run.
+*Recommendation:* GPT-6.1 Terra is the only model that is mostly right (9 of 12), so use it for the strong turns. Luna is cheap but wrong on 7 of 12, so I would not use it for simple turns that can draft a step; it may do for reading receipts (same score as Terra at about a tenth of the price). Every model, Terra included, failed "record a payment" and "make a bill", which draft a step. That may be the test or the tool set rather than the models, and I have not looked into it. Gemini 3.8 Flash, our current strong model, got 1 of 12 here.
+
+*Not done:* none of these models has a price row, and the code ignores an unpriced model, so the app still uses the Gemini defaults. I won't write a price from memory. Please send me Arena's prices for Terra and Luna, or tell me to read them from Arena's pricing page, and I will add the rows. The test is one small run on test data, not final.
+
+*Spend:* about 70¢ for this run (376 calls, capped at 900). My earlier ungraded runs cost about $8 of your balance, mostly from runs repeated after timeouts and from early runs where the two-model rule swapped in Gemini; those are why the Gemini line on your usage page is large.
 
 ## SBX-2 Parts 4–7: defaults used for the assistant's models and plan limits (nothing needed unless you disagree)
 
