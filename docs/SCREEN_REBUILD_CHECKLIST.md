@@ -229,7 +229,8 @@ At the end of that batch the dry run offered **10 tables in 9 files** (12 in 11 
       (the review pass caught it racing the store hydration on CI). Evidence and the two known pre-existing phone overflows
       (portal page, wide report tables inside main) are in [the batch's verification](verification/UI2_FINAL_42_RAW_TABLES.md).
       The review pass also caught the sortable headings of the trial balance and party aging losing their labels on paper
-      (now marked `data-grid-sort-header`) and the chart of accounts showing "No accounts yet" for an empty search.
+      (now carried by print-only twins of the labels — print-styles pins zero buttons on paper) and the chart of accounts
+      showing "No accounts yet" for an empty search.
 - [x] **876 unit tests' worth of behavior contracts stay pinned** in the 132-file affected run (statement scope, import
       previews, trial-balance drill, journal guard, fixed-asset book value, label sign conventions, practice navigation,
       discount-mismatch boundaries), and the CSV currency behaviour of the eight #946-overlapping files is unchanged.
