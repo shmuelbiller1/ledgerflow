@@ -34,8 +34,13 @@ function numbersAt(v: unknown, key: RegExp, out: number[] = []): number[] {
 const hasCents = (calls: Outcome['calls'], cents: number) => calls.some(c => centsValues(c.args).includes(cents));
 /** A question sentence (one ending in "?") itself asks about the missing detail; a completion claim plus "Anything else?" does not. */
 export function asksAbout(o: Outcome, detail: RegExp): boolean {
-  const questions = o.answer.split(/(?<=[.!?])\s+/).filter(q => q.trim().endsWith('?'));
-  return questions.some(q => detail.test(q)) && !/\b(i('ve| have)? (recorded|created|posted|drafted|entered|saved)|done\b)/i.test(o.answer);
+  const sentences = o.answer.split(/(?<=[.!?])\s+/);
+  const questions = sentences.filter(q => q.trim().endsWith('?'));
+  // an affirmative completion claim in a statement; a negated one ("nothing has been done yet", "I haven't recorded it") is fine
+  const claims = sentences.filter(t => !t.trim().endsWith('?')
+    && /\b(recorded|created|posted|drafted|entered|saved|done)\b/i.test(t)
+    && !/\b(not|n't|nothing|no|yet|until|before|once|after)\b/i.test(t));
+  return questions.some(q => detail.test(q)) && claims.length === 0;
 }
 const asks = (o: Outcome) => /\?/.test(o.answer);
 const readTools = (o: Outcome) => o.calls.some(c => !c.name.startsWith('propose_') && c.name !== 'find_command');

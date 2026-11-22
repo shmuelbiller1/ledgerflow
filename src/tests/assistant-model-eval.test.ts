@@ -159,6 +159,8 @@ test('SBX-2 Part 6 model test: a fair question about missing details passes, and
   assert.ok(!byId('payment').check({ answer: 'Done.', calls: [] }).pass);
   assert.ok(!byId('payment').check({ answer: 'I recorded the payment in Bank. Anything else?', calls: [] }).pass, 'a completion claim plus an unrelated question');
   assert.ok(!byId('bill').check({ answer: 'I created the bill, due next week. Anything else?', calls: [] }).pass);
+  assert.ok(byId('payment').check({ answer: 'Nothing has been done yet. Which account received the $500, Cash or Bank?', calls: [] }).pass, 'a negated statement is not a claim');
+  assert.ok(byId('bill').check({ answer: "I haven't created the bill yet. What is the bill number?", calls: [] }).pass);
   assert.ok(byId('bill').check({ answer: 'What is the bill number and due date?', calls: [] }).pass);
   const seen = whatHappened({ answer: 'I could not draft it.', calls: [{ name: 'propose_bill_create', args: {}, ok: false, refusal: 'bill.date: Required' }] });
   assert.match(seen, /draft refused 1× \(propose_bill_create: bill.date: Required\)/);
