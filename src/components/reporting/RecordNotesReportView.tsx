@@ -5,6 +5,7 @@
  * no amount. Only the records loaded for this workspace are listed; a capped collection is said
  * so in plain words.
  */
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -120,38 +121,57 @@ export default function RecordNotesReportView() {
       </div>
 
       {query.trim() && (
-        <ReportTableScroll>
-          <table className="w-full text-sm">
-            <caption>{reportText('r.notes-matching-the-search', 'Notes matching the search')}</caption>
-            <thead>
-              <tr>{[reportText('r.note', 'Note'), reportText('r.author', 'Author'), reportText('r.record', 'Record'), reportText('r.kind', 'Kind'), reportText('r.when', 'When')].map(head =>
-                <th key={head} scope="col" className="text-left py-1 px-2">{head}</th>)}</tr>
-            </thead>
-            <tbody>
-              {matches.map(note => {
-                const row = catalog.find(r => r.entityId === note.entityId && r.entityType === note.entityType);
-                return (
-                  <tr key={`${note.entityType}:${note.entityId}:${note.id}`} className="border-b border-[var(--line)]/50">
-                    <th scope="row" className="text-left font-normal py-1 px-2"><bdi>{notePreview(note, 120)}</bdi></th>
-                    <td className="py-1 px-2"><bdi>{note.authorName || '—'}</bdi></td>
-                    <td className="py-1 px-2">
-                      <button type="button" className="text-left hover:underline" dir="auto"
-                        aria-label={fill(reportText('r.open-notes-on-0', 'Open notes on {0}'), { 0: nameOfNote(note) })}
-                        onClick={() => {
-                          if (!row) return;
-                          setType(row.entityType);
-                          setSelectedId(row.entityId);
-                        }}>
-                        <bdi>{nameOfNote(note)}</bdi>
-                      </button>
-                    </td>
-                    <td className="py-1 px-2">{TYPE_LABELS[note.entityType]}</td>
-                    <td className="py-1 px-2">{new Date(note.createdAt).toLocaleString()}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <ReportTableScroll allowDisplayedExport={false}>
+          <RowTable
+            caption={reportText('r.notes-matching-the-search', 'Notes matching the search')}
+            captionClassName=""
+            tableClassName="w-full text-sm"
+            headRowClassName=""
+            bodyClassName=""
+            rowClassName="border-b border-[var(--line)]/50"
+            rows={matches.map((note) => {
+              const row = catalog.find((r) => r.entityId === note.entityId && r.entityType === note.entityType);
+              return { note, row };
+            })}
+            rowKey={({ note }) => `${note.entityType}:${note.entityId}:${note.id}`}
+            columns={[
+              {
+                header: reportText('r.note', 'Note'),
+                headClassName: 'text-left py-1 px-2', className: 'text-left font-normal py-1 px-2',
+                cell: ({ note }) => <bdi>{notePreview(note, 120)}</bdi>,
+              },
+              {
+                header: reportText('r.author', 'Author'),
+                headClassName: 'text-left py-1 px-2', className: 'py-1 px-2',
+                cell: ({ note }) => <bdi>{note.authorName || '—'}</bdi>,
+              },
+              {
+                header: reportText('r.record', 'Record'),
+                headClassName: 'text-left py-1 px-2', className: 'py-1 px-2',
+                cell: ({ note, row }) => (
+                  <button
+                    type="button"
+                    className="text-left hover:underline"
+                    dir="auto"
+                    aria-label={fill(reportText('r.open-notes-on-0', 'Open notes on {0}'), { 0: nameOfNote(note) })}
+                    onClick={() => {
+                      if (!row) return;
+                      setType(row.entityType);
+                      setSelectedId(row.entityId);
+                    }}
+                  >
+                    <bdi>{nameOfNote(note)}</bdi>
+                  </button>
+                ),
+              },
+              { header: reportText('r.kind', 'Kind'), headClassName: 'text-left py-1 px-2', className: 'py-1 px-2', cell: ({ note }) => TYPE_LABELS[note.entityType] },
+              {
+                header: reportText('r.when', 'When'),
+                headClassName: 'text-left py-1 px-2', className: 'py-1 px-2',
+                cell: ({ note }) => new Date(note.createdAt).toLocaleString(),
+              },
+            ]}
+          />
           {matches.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-note-matches-this-search', 'No note matches this search.')}</p>}
         </ReportTableScroll>
       )}

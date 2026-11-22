@@ -6,7 +6,7 @@ import { AccountReportResult } from './AccountReportResult';
 import { TrendingUp } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
-import { csvMoneyForCurrency } from '../../lib/csvExport';
+import { csvMoneyForBook } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useReportText } from './useReportText';
 import { useBookCurrency } from '../../hooks/useBookCurrency';
@@ -50,7 +50,7 @@ const LoadedReport: React.FC<Props> = ({
     ) },
     { id: 'total', accessorFn: row => row.totalAmountCents, header: reportText('r.total-inflow', 'Total Inflow'), cell: info => <span className="font-mono font-semibold text-emerald-600">{formatCurrency(Number(info.getValue()), bookCurrency)}</span> },
   ];
-  const writeCsvMoney = csvMoneyForCurrency(bookCurrency);
+  const writeCsvMoney = csvMoneyForBook(bookCurrency);
 
   const totalIncomeCents = useMemo(() => {
     return breakdowns.reduce((sum, b) => sum + b.totalAmountCents, 0);

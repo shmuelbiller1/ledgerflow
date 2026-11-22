@@ -360,7 +360,13 @@ export const ProjectSchema = z.object({
   dimensions: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
   metadata: z.record(z.string(), z.any()).optional(),
-  splitRules: z.array(z.record(z.string(), z.any())).optional(),
+  // #924: each partner's share is a real percentage, and the shares cannot add up to more than the whole
+  splitRules: z.array(z.object({
+    partnerId: z.string().min(1).max(200),
+    partnerName: z.string().max(200).optional(),
+    percentage: z.number().finite().gt(0).max(100),
+  }).passthrough()).max(100).optional()
+    .refine(rules => !rules || rules.reduce((sum, rule) => sum + rule.percentage, 0) <= 100 + 1e-9, { message: 'The split rules add up to more than 100%.' }),
 });
 
 export const AdminUserUpdateSchema = z.object({

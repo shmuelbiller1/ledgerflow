@@ -1,3 +1,5 @@
+import { isForbidden } from '../http/serverKit';
+import { brainRateLimiter } from "../middleware/rateLimiters";
 import { trainClassifierWithWorkspaceData } from '../services/classifierTraining';
 import type { ChartAccount, Transaction as LedgerTransaction } from "../../types";
 import { errorMessage, requestUser } from "../auth/requestUser";
@@ -121,7 +123,7 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
         accounts
       });
     } catch (err) {
-      if (errorMessage(err) === "FORBIDDEN") return sendError(res, "Forbidden workspace access", 403);
+      if (isForbidden(errorMessage(err))) return sendError(res, "Forbidden workspace access", 403);
       if (errorMessage(err) === "NOT_FOUND" || errorMessage(err).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
       sendError(res, errorMessage(err), 500);
     }
@@ -279,7 +281,7 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
     }
   });
 
-  app.post("/api/v1/brain/classify-batch", apiAuthenticate, async (req: express.Request, res: express.Response) => {
+  app.post("/api/v1/brain/classify-batch", apiAuthenticate, brainRateLimiter, async (req: express.Request, res: express.Response) => {
     try {
       const workspaceId = (req.body.workspaceId as string) || requestUser(req).developerWorkspaceId;
       if (!workspaceId) return sendError(res, "Missing workspaceId parameter", 400);

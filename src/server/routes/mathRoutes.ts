@@ -15,7 +15,13 @@ import { logSafe, logSafeDetail } from '../utils/logSafe';
 export const mathRouter = express.Router();
 
 function sendError(res: express.Response, message: string, status: number = 500, details?: unknown) {
-  console.error(`[API Error] ${status}: ${logSafe(message)} (Path: ${logSafe(res.req?.originalUrl || "unknown")})`, logSafeDetail(details));
+  console.error(
+    "[API Error] %d: %s (Path: %s)",
+    status,
+    logSafe(message),
+    logSafe(res.req?.originalUrl || "unknown"),
+    logSafeDetail(details)
+  );
   res.status(status).json({
     status: "error",
     message,

@@ -54,7 +54,7 @@ describe('EG-9 create an entry from a bank line, pre-filled from the bank rules'
     await waitFor(() => assert.equal(calls.length, 1));
     const op = createOp(calls[0].body);
     assert.equal(op.data.lines[0].accountId, 'office');
-    assert.equal(op.data.lines[0].amountCents, -25000);
+    assert.equal(op.data.lines[0].amountCents, 25000, 'a withdrawal debits the expense (#891)');
     assert.deepEqual(op.data.lines[0].tags, ['supplies']);
     assert.deepEqual(op.data.lines[0].dimensions, { dept: 'ops' });
     assert.equal(op.data.payee, 'Office Depot');

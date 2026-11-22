@@ -40,7 +40,7 @@ export function registerApiKeysRoutes(app: express.Express, _ctx: ServerContext)
         if (outcome.ok === false && /Workspace ID is required/i.test(outcome.message)) {
           return { status: 400, body: { status: 'error', message: 'Missing workspaceId in body' } };
         }
-        return { status: outcome.status, body: { status: 'error', message: outcome.message } };
+        return { status: outcome.status, body: { status: 'error', message: outcome.message, ...(outcome.ok === false && outcome.code ? { code: outcome.code } : {}) } };
       },
     });
   });

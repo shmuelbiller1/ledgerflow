@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useRef, useState } from 'react';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { toast } from 'sonner';
@@ -249,31 +250,60 @@ export default function ReturnAuthorizationsPanel() {
       </div>
       {!invoicesByCustomer.length && !loading && <p className="text-sm text-[var(--muted)]">{reportText('r.no-issued-invoice-with-stock-lines-and-a-loaded', 'No issued invoice with stock lines and a loaded customer is available.')}</p>}
 
-      {selectedInvoice && <ReportTableScroll>
-        <table className="w-full text-sm">
-          <caption>{reportText('r.requested-quantities-must-not-exceed-the-quantit', 'Requested quantities must not exceed the quantities on invoice')} {selectedInvoice.number || selectedInvoice.id}</caption>
-          <thead><tr>
-            <th scope="col" className="text-left py-2 px-2">{reportText('r.invoice-line', 'Invoice line')}</th>
-            <th scope="col" className="text-left py-2 px-2">{CODE_NAMES.c0}</th>
-            <th scope="col" className="text-right py-2 px-2">{reportText('r.sold', 'Sold')}</th>
-            <th scope="col" className="text-right py-2 px-2">{reportText('r.return-quantity', 'Return quantity')}</th>
-          </tr></thead>
-          <tbody>{requestLines.map(line => {
+      {selectedInvoice && <ReportTableScroll allowDisplayedExport={false}>
+        <RowTable
+          caption={
+            <>
+              {reportText('r.requested-quantities-must-not-exceed-the-quantit', 'Requested quantities must not exceed the quantities on invoice')}{' '}
+              {selectedInvoice.number || selectedInvoice.id}
+            </>
+          }
+          captionClassName=""
+          tableClassName="w-full text-sm"
+          headRowClassName=""
+          bodyClassName=""
+          rowClassName="border-b border-[var(--line)]/50"
+          rows={requestLines.map((line) => {
             const item = itemById.get(line.itemId || '');
-            return <tr key={line.id} className="border-b border-[var(--line)]/50">
-              <th scope="row" className="text-left font-normal py-2 px-2">{line.description || item?.name || reportText('r.inventory-item', 'Inventory item')}</th>
-              <td className="py-2 px-2"><bdi>{item?.sku || '—'}</bdi></td>
-              <td className="text-right py-2 px-2">{Number(line.quantity).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-              <td className="text-right py-2 px-2">
-                <input aria-label={fill(reportText('r.return-quantity-for-0', 'Return quantity for {0}'), { 0: line.description || item?.name || line.id })} type="number" min="0" max={line.quantity} step="0.01" inputMode="decimal" className={`${field} w-36 text-right`}
-                  value={activeQuantityDrafts[line.id] || ''} onChange={event => setQuantityDrafts(current => ({
-                    invoiceId: selectedInvoice.id,
-                    values: { ...(current.invoiceId === selectedInvoice.id ? current.values : {}), [line.id]: event.target.value },
-                  }))} />
-              </td>
-            </tr>;
-          })}</tbody>
-        </table>
+            return { line, item };
+          })}
+          rowKey={({ line }) => line.id}
+          columns={[
+            {
+              header: reportText('r.invoice-line', 'Invoice line'),
+              headClassName: 'text-left py-2 px-2', className: 'text-left font-normal py-2 px-2',
+              cell: ({ line, item }) => line.description || item?.name || reportText('r.inventory-item', 'Inventory item'),
+            },
+            { header: CODE_NAMES.c0, headClassName: 'text-left py-2 px-2', className: 'py-2 px-2', cell: ({ item }) => <bdi>{item?.sku || '—'}</bdi> },
+            {
+              header: reportText('r.sold', 'Sold'),
+              headClassName: 'text-right py-2 px-2', className: 'text-right py-2 px-2',
+              cell: ({ line }) => Number(line.quantity).toLocaleString(undefined, { maximumFractionDigits: 2 }),
+            },
+            {
+              header: reportText('r.return-quantity', 'Return quantity'),
+              headClassName: 'text-right py-2 px-2', className: 'text-right py-2 px-2',
+              cell: ({ line, item }) => (
+                <input
+                  aria-label={fill(reportText('r.return-quantity-for-0', 'Return quantity for {0}'), { 0: line.description || item?.name || line.id })}
+                  type="number"
+                  min="0"
+                  max={line.quantity}
+                  step="0.01"
+                  inputMode="decimal"
+                  className={`${field} w-36 text-right`}
+                  value={activeQuantityDrafts[line.id] || ''}
+                  onChange={(event) =>
+                    setQuantityDrafts((current) => ({
+                      invoiceId: selectedInvoice.id,
+                      values: { ...(current.invoiceId === selectedInvoice.id ? current.values : {}), [line.id]: event.target.value },
+                    }))
+                  }
+                />
+              ),
+            },
+          ]}
+        />
         {!requestLines.length && <p className="p-3 text-sm text-[var(--muted)]">{reportText('r.this-invoice-has-no-stock-item-lines-available-f', 'This invoice has no stock item lines available for an RMA.')}</p>}
       </ReportTableScroll>}
 

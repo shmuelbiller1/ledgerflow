@@ -1,4 +1,5 @@
 import { FieldValue } from '../db/firestore';
+import { BILL_PAID_BEFORE_APPROVAL, billAwaitsApproval } from './billApprovalGuard';
 import { ledgerCreate } from './ledgerDoor';
 import type { DocumentData, Firestore } from '../db/firestore';
 import { calculateAmountDue, settledStatus } from '../../lib/documentMath';
@@ -221,6 +222,8 @@ export async function applyCredit(db: Firestore, input: ApplyCreditInput) {
     const unposted = await postedCreditProblem(db, t as never, input.kind, input.workspaceId, input.creditId, credit, String(workspace.currency || 'USD'));
     if (unposted) throw new CreditError(409, unposted);
     if (CLOSED_DOCUMENT.has(document.status)) throw new CreditError(409, `A ${document.status} ${side.documentLabel} can't be settled`);
+    // G-19 (#893): a bill over the approval limit is approved before anything settles it
+    if (input.kind === 'vendor' && billAwaitsApproval(document, workspace)) throw new CreditError(409, BILL_PAID_BEFORE_APPROVAL);
     if (credit[side.party] !== document[side.party]) throw new CreditError(400, `The ${side.documentLabel} belongs to a different ${input.kind}`);
     if ((credit.currency || 'USD') !== (document.currency || 'USD')) throw new CreditError(400, 'The credit and the document are in different currencies');
 
@@ -330,7 +333,9 @@ export async function autoApplyCredits(db: Firestore, input: { workspaceId: stri
     if (lock) throw new CreditError(409, lockMessage(date, lock));
     // a bill without `date` is dated by `issueDate`, as on the manual path
     const datable = (r: Row) => { const d = r.date || r.issueDate; return !d || String(d).slice(0, 10) <= date; };
-    const applications = planCreditApplications(input.kind, ledgerReady ? credits.filter(c => datable(c)) : credits, ledgerReady ? documents.filter(d => datable(d)) : documents);
+    // G-19 (#893): bills still waiting for approval over the limit are left out
+    const settleable = input.kind === 'vendor' ? documents.filter(d => !billAwaitsApproval(d, workspace)) : documents;
+    const applications = planCreditApplications(input.kind, ledgerReady ? credits.filter(c => datable(c)) : credits, ledgerReady ? settleable.filter(d => datable(d)) : settleable);
     // EG-2: the rows and their FX entries, worked out before any write (the chart is read only when one is due)
     const operationId = db.collection(ALLOCATION_OPERATIONS).doc().id;
     const rowArgs: CreditRowArgs[] = [];

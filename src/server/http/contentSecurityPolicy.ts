@@ -154,11 +154,18 @@ export function inlineScriptHashes(html: string): string[] {
 }
 
 /**
- * The hashes of the inline scripts index.html ships with (the global error reporter).
- * `csp-report-only.test.ts` recomputes them from index.html, so editing that script without
- * updating this list fails the suite instead of silently reporting a violation on every page.
+ * The hashes of the inline scripts index.html ships with.
+ *
+ * AF6-20261120-03 (Agent #6, 20 Nov): this is empty because index.html no longer ships an inline
+ * script. The one it had was a second crash reporter: on every `error`/`unhandledrejection` it POSTed
+ * the raw message and stack to `/api/health`, which has never had a POST route — so nothing was
+ * recorded, the browser got a 404 per error, and the stack (which can name a customer, an invoice or
+ * a path) left the browser without the consent, redaction and de-duplication the app's own tracker
+ * (`src/lib/errorTracker.ts`, `initGlobalErrorTracking`) applies. If an inline script is ever needed
+ * again, add its hash here; `csp-report-only.test.ts` recomputes this list from index.html, so the
+ * two cannot drift.
  */
-export const APP_INLINE_SCRIPT_HASHES = ["'sha256-pbcrfYdl/Qk8ttS7Jz8pIVrMNlc6e/N1+bD2ZPXAtzw='"];
+export const APP_INLINE_SCRIPT_HASHES: string[] = [];
 
 /** Everything the tightened policy needs that is not fixed. */
 export interface TightenedCspOptions {

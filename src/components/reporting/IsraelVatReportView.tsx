@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import { Printer, Download, Receipt } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -132,8 +133,9 @@ export default function IsraelVatReportView({ startDate: pageStartDate, endDate:
       vendorCredits: equipmentVendorCredits as unknown as IlVatDocument[],
       startDate,
       endDate,
+      baseCurrency: currency,
     });
-  }, [activeReg, workspace?.taxProfiles, registrationOrder, invoices, creditNotes, equipmentBills, equipmentVendorCredits, workspaceId, startDate, endDate]);
+  }, [activeReg, workspace?.taxProfiles, registrationOrder, invoices, creditNotes, equipmentBills, equipmentVendorCredits, workspaceId, startDate, endDate, currency]);
 
   const mixedBillsCount = useMemo(() => activeReg ? countedMixedBills(mixed, {
     profiles: workspace?.taxProfiles,
@@ -383,87 +385,113 @@ export function IsraelVatReportPanel({
             </div>
           )}
 
-          <ReportTableScroll>
-            <table className="w-full text-sm">
-              <caption className="text-start font-semibold text-[var(--text)] pb-2">
-                {reportText('r.periodic-vat-return-summary-836', 'Periodic VAT Return Summary (ריכוז דוח תקופתי למע״מ - טופס 836)')}
-              </caption>
-              <thead>
-                <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">
-                  <th scope="col" className="text-start py-2 px-3">{reportText('r.field', 'Field (שדה)')}</th>
-                  <th scope="col" className="text-start py-2 px-3">{reportText('r.hebrew-description', 'Hebrew Description (תיאור)')}</th>
-                  <th scope="col" className="text-right py-2 px-3">{reportText('r.amount-2', 'Amount (סכום)')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-start font-normal py-2 px-3">
-                    {reportText('r.taxable-sales-excluding-vat', 'Taxable sales (excluding VAT)')}
-                  </th>
-                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">{reportText('r.x', 'עסקאות חייבות במס (ללא מע״מ)')}</td>
-                  <td className="py-2 px-3 text-right font-mono tabular-nums font-medium">
-                    {renderMoney(report.taxableSalesCents)}
-                  </td>
-                </tr>
-                <tr className="border-b border-[var(--line)]/50 bg-[var(--surface)]/40">
-                  <th scope="row" className="text-start font-semibold py-2 px-3">
-                    {reportText('r.output-vat', 'Output VAT')}
-                  </th>
-                  <td className="py-2 px-3 text-[var(--muted)] font-semibold" dir="rtl">{reportText('r.x-2', 'מע״מ עסקאות')}</td>
-                  <td className="py-2 px-3 text-right font-mono tabular-nums font-bold">
-                    {renderMoney(report.outputVatCents)}
-                  </td>
-                </tr>
-                <tr className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-start font-normal py-2 px-3">
-                    {reportText('r.zero-rated-sales', 'Zero-rated sales')}
-                  </th>
-                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">{reportText('r.x-3', 'עסקאות בשיעור אפס (יצוא וכד׳)')}</td>
-                  <td className="py-2 px-3 text-right font-mono tabular-nums">
-                    {renderMoney(report.zeroRatedSalesCents)}
-                  </td>
-                </tr>
-                <tr className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-start font-normal py-2 px-3">
-                    {reportText('r.exempt-sales', 'Exempt sales')}
-                  </th>
-                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">{reportText('r.x-4', 'עסקאות פטורות')}</td>
-                  <td className="py-2 px-3 text-right font-mono tabular-nums">
-                    {renderMoney(report.exemptSalesCents)}
-                  </td>
-                </tr>
-                <tr className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-start font-normal py-2 px-3">
-                    {reportText('r.input-vat-on-fixed-assets-equipment', 'Input VAT on fixed assets (equipment)')}
-                  </th>
-                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">{reportText('r.x-5', 'מס תשומות על ציוד (נכסים קבועים)')}</td>
-                  <td className="py-2 px-3 text-right font-mono tabular-nums">
-                    {renderMoney(report.fixedAssetInputVatCents)}
-                  </td>
-                </tr>
-                <tr className="border-b border-[var(--line)]/50">
-                  <th scope="row" className="text-start font-normal py-2 px-3">
-                    {reportText('r.input-vat-on-other-purchases', 'Input VAT on other purchases')}
-                  </th>
-                  <td className="py-2 px-3 text-[var(--muted)]" dir="rtl">{reportText('r.x-6', 'מס תשומות אחרות (הוצאות שוטפות)')}</td>
-                  <td className="py-2 px-3 text-right font-mono tabular-nums">
-                    {renderMoney(report.otherInputVatCents)}
-                  </td>
-                </tr>
-                <tr className="border-t-2 border-[var(--line)] bg-[var(--panel)]">
-                  <th scope="row" className="text-start font-bold py-3 px-3">
-                    {report.toPayCents >= 0 ? reportText('r.total-vat-to-pay', 'Total VAT to pay') : reportText('r.total-vat-to-reclaim', 'Total VAT to reclaim')}
-                  </th>
-                  <td className="py-3 px-3 text-[var(--muted)] font-bold" dir="rtl">
-                    {report.toPayCents >= 0 ? 'סך הכל לתשלום' : 'סך הכל להחזר'}
-                  </td>
-                  <td className={`py-3 px-3 text-right font-mono tabular-nums font-extrabold text-base ${report.toPayCents >= 0 ? 'text-[var(--text)]' : 'text-[var(--pos)]'}`}>
-                    {renderMoney(Math.abs(report.toPayCents))}
-                    {report.toPayCents < 0 && <span className="text-xs font-normal ms-1">{reportText('r.reclaim-2', '(reclaim / להחזר)')}</span>}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <ReportTableScroll allowDisplayedExport={false}>
+            <RowTable
+              caption={reportText('r.periodic-vat-return-summary-836', 'Periodic VAT Return Summary (ריכוז דוח תקופתי למע״מ - טופס 836)')}
+              captionClassName="text-start font-semibold text-[var(--text)] pb-2"
+              tableClassName="w-full text-sm"
+              headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)]"
+              bodyClassName=""
+              rowClassName={(row) => row.rowStyle}
+              rows={[
+                {
+                  id: 'taxable',
+                  label: reportText('r.taxable-sales-excluding-vat', 'Taxable sales (excluding VAT)'),
+                  hebrew: reportText('r.x', 'עסקאות חייבות במס (ללא מע״מ)'),
+                  amount: renderMoney(report.taxableSalesCents),
+                  rowStyle: 'border-b border-[var(--line)]/50',
+                  labelStyle: 'text-start font-normal py-2 px-3',
+                  hebrewStyle: 'py-2 px-3 text-[var(--muted)]',
+                  amountStyle: 'py-2 px-3 text-right font-mono tabular-nums font-medium',
+                },
+                {
+                  id: 'output',
+                  label: reportText('r.output-vat', 'Output VAT'),
+                  hebrew: reportText('r.x-2', 'מע״מ עסקאות'),
+                  amount: renderMoney(report.outputVatCents),
+                  rowStyle: 'border-b border-[var(--line)]/50 bg-[var(--surface)]/40',
+                  labelStyle: 'text-start font-semibold py-2 px-3',
+                  hebrewStyle: 'py-2 px-3 text-[var(--muted)] font-semibold',
+                  amountStyle: 'py-2 px-3 text-right font-mono tabular-nums font-bold',
+                },
+                {
+                  id: 'zero',
+                  label: reportText('r.zero-rated-sales', 'Zero-rated sales'),
+                  hebrew: reportText('r.x-3', 'עסקאות בשיעור אפס (יצוא וכד׳)'),
+                  amount: renderMoney(report.zeroRatedSalesCents),
+                  rowStyle: 'border-b border-[var(--line)]/50',
+                  labelStyle: 'text-start font-normal py-2 px-3',
+                  hebrewStyle: 'py-2 px-3 text-[var(--muted)]',
+                  amountStyle: 'py-2 px-3 text-right font-mono tabular-nums',
+                },
+                {
+                  id: 'exempt',
+                  label: reportText('r.exempt-sales', 'Exempt sales'),
+                  hebrew: reportText('r.x-4', 'עסקאות פטורות'),
+                  amount: renderMoney(report.exemptSalesCents),
+                  rowStyle: 'border-b border-[var(--line)]/50',
+                  labelStyle: 'text-start font-normal py-2 px-3',
+                  hebrewStyle: 'py-2 px-3 text-[var(--muted)]',
+                  amountStyle: 'py-2 px-3 text-right font-mono tabular-nums',
+                },
+                {
+                  id: 'equipment',
+                  label: reportText('r.input-vat-on-fixed-assets-equipment', 'Input VAT on fixed assets (equipment)'),
+                  hebrew: reportText('r.x-5', 'מס תשומות על ציוד (נכסים קבועים)'),
+                  amount: renderMoney(report.fixedAssetInputVatCents),
+                  rowStyle: 'border-b border-[var(--line)]/50',
+                  labelStyle: 'text-start font-normal py-2 px-3',
+                  hebrewStyle: 'py-2 px-3 text-[var(--muted)]',
+                  amountStyle: 'py-2 px-3 text-right font-mono tabular-nums',
+                },
+                {
+                  id: 'purchases',
+                  label: reportText('r.input-vat-on-other-purchases', 'Input VAT on other purchases'),
+                  hebrew: reportText('r.x-6', 'מס תשומות אחרות (הוצאות שוטפות)'),
+                  amount: renderMoney(report.otherInputVatCents),
+                  rowStyle: 'border-b border-[var(--line)]/50',
+                  labelStyle: 'text-start font-normal py-2 px-3',
+                  hebrewStyle: 'py-2 px-3 text-[var(--muted)]',
+                  amountStyle: 'py-2 px-3 text-right font-mono tabular-nums',
+                },
+                {
+                  id: 'total',
+                  label: report.toPayCents >= 0 ? reportText('r.total-vat-to-pay', 'Total VAT to pay') : reportText('r.total-vat-to-reclaim', 'Total VAT to reclaim'),
+                  hebrew: report.toPayCents >= 0 ? 'סך הכל לתשלום' : 'סך הכל להחזר',
+                  amount: (
+                    <>
+                      {renderMoney(Math.abs(report.toPayCents))}
+                      {report.toPayCents < 0 && <span className="text-xs font-normal ms-1">{reportText('r.reclaim-2', '(reclaim / להחזר)')}</span>}
+                    </>
+                  ),
+                  rowStyle: 'border-t-2 border-[var(--line)] bg-[var(--panel)]',
+                  labelStyle: 'text-start font-bold py-3 px-3',
+                  hebrewStyle: 'py-3 px-3 text-[var(--muted)] font-bold',
+                  amountStyle: `py-3 px-3 text-right font-mono tabular-nums font-extrabold text-base ${report.toPayCents >= 0 ? 'text-[var(--text)]' : 'text-[var(--pos)]'}`,
+                },
+              ]}
+              rowKey={(row) => row.id}
+              columns={[
+                {
+                  header: reportText('r.field', 'Field (שדה)'),
+                  headClassName: 'text-start py-2 px-3',
+                  cellProps: (row) => ({ className: row.labelStyle }),
+                  cell: (row) => row.label,
+                },
+                {
+                  header: reportText('r.hebrew-description', 'Hebrew Description (תיאור)'),
+                  headClassName: 'text-start py-2 px-3',
+                  cellProps: (row) => ({ className: row.hebrewStyle, dir: 'rtl' }),
+                  cell: (row) => row.hebrew,
+                },
+                {
+                  header: reportText('r.amount-2', 'Amount (סכום)'),
+                  headClassName: 'text-right py-2 px-3',
+                  cellProps: (row) => ({ className: row.amountStyle }),
+                  cell: (row) => row.amount,
+                },
+              ]}
+            />
           </ReportTableScroll>
 
           <div className="p-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--muted)] space-y-1">

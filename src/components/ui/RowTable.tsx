@@ -21,7 +21,7 @@
  * The shared grid is still the answer for a list that needs sorting, searching, column choice or a saved
  * view. This is for the table that is part of a sentence.
  */
-import { useContext, type ReactNode } from 'react';
+import { Fragment, useContext, type ReactNode } from 'react';
 import { ReportColumnOrder, ReportHiddenColumns, orderReportCells } from './reportColumnOrder';
 import { planColumns, type RowTableColumns } from '../../lib/rowTable';
 
@@ -53,6 +53,8 @@ export interface RowTableProps<T, C = never> {
   footer?: ReactNode;
   /** Opening balance before the movement rows, including when the period had no movements. */
   bodyStart?: ReactNode;
+  /** Optional editor below its own record; never part of a displayed export. */
+  renderDetail?: (row: T) => ReactNode;
   /** A class for the `<tfoot>` the footer renders in — `sticky bottom-0` on a long list. */
   footerClassName?: string;
   /** A row to show *inside* the body when there are no rows: the sentence a report prints in place of its list.
@@ -86,6 +88,7 @@ export function RowTable<T, C = never>({
   footer,
   footerClassName,
   bodyStart,
+  renderDetail,
   emptyRow,
   empty,
 }: RowTableProps<T, C>) {
@@ -115,18 +118,24 @@ export function RowTable<T, C = never>({
       </thead>
       <tbody className={bodyClassName}>
         {nativeRows(bodyStart)}
-        {rows.length === 0 && emptyRow !== undefined ? nativeRows(emptyRow) : rows.map((row, position) => (
-          <tr key={keyOf(row, position)} className={typeof rowClassName === 'function' ? rowClassName(row) : rowClassName}>
-            {layout.map(({ column, source }) => {
-              const className = alignClass(column.align, column.className);
-              const cellProps = typeof column.cellProps === 'function' ? column.cellProps(row) : column.cellProps;
-              if (column === header) {
-                return <th key={column.key} data-source-column={source} scope="row" className={`${className} ${rowHeaderClassName}`.trim()} {...cellProps}>{column.cell(row)}</th>;
-              }
-              return <td key={column.key} data-source-column={source} className={className} {...cellProps}>{column.cell(row)}</td>;
-            })}
-          </tr>
-        ))}
+        {rows.length === 0 && emptyRow !== undefined ? nativeRows(emptyRow) : rows.map((row, position) => {
+          const key = keyOf(row, position);
+          const dataRow = (
+            <tr key={key} className={typeof rowClassName === 'function' ? rowClassName(row) : rowClassName}>
+              {layout.map(({ column, source }) => {
+                const className = alignClass(column.align, column.className);
+                const cellProps = typeof column.cellProps === 'function' ? column.cellProps(row) : column.cellProps;
+                if (column === header) {
+                  return <th key={column.key} data-source-column={source} scope="row" className={`${className} ${rowHeaderClassName}`.trim()} {...cellProps}>{column.cell(row)}</th>;
+                }
+                return <td key={column.key} data-source-column={source} className={className} {...cellProps}>{column.cell(row)}</td>;
+              })}
+            </tr>
+          );
+          if (!renderDetail) return dataRow;
+          const detail = renderDetail(row);
+          return <Fragment key={key}>{dataRow}{detail && <tr><td colSpan={layout.length}>{detail}</td></tr>}</Fragment>;
+        })}
       </tbody>
       {footer !== undefined ? <tfoot className={footerClassName}>{nativeRows(footer)}</tfoot> : null}
     </table>

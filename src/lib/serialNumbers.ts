@@ -127,14 +127,14 @@ export function lotRows(documents: Array<{ date?: string; lines?: SerializedLine
 }
 
 /** The same serial recorded twice for one item — a typo to look at, found across all documents. */
-export function duplicateSerials(documents: Array<{ id: string; lines?: SerializedLine[] }>): Array<{ serial: string; documents: string[] }> {
-  const seen = new Map<string, { serial: string; documents: string[] }>();
+export function duplicateSerials(documents: Array<{ id: string; lines?: SerializedLine[] }>): Array<{ itemId: string; serial: string; documents: string[] }> {
+  const seen = new Map<string, { itemId: string; serial: string; documents: string[] }>();
   for (const document of documents) {
     for (const line of document.lines || []) {
       if (!line.itemId) continue;
       for (const serial of lineSerials(line)) {
         const key = `${line.itemId}::${folded(serial)}`;
-        const row = seen.get(key) || { serial: normalizeSerial(serial), documents: [] };
+        const row = seen.get(key) || { itemId: line.itemId, serial: normalizeSerial(serial), documents: [] };
         row.documents.push(document.id);
         seen.set(key, row);
       }

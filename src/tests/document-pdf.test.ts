@@ -219,3 +219,57 @@ describe('Status watermark (Y-16)', () => {
     assert.doesNotMatch(sent, /DRAFT|PAID|VOID/);
   });
 });
+
+describe('#890 (J-6): seller VAT number and recipient address', () => {
+  const workspace = {
+    name: 'Seller Ltd',
+    branding: { address: '17 Seller Street' },
+    taxProfiles: { books: { name: 'Books', place: { country: 'IL' }, registrations: [
+      { kind: 'vat', number: '515123456', place: { country: 'IL' }, validFrom: '2026-01-01' },
+      { kind: 'vat', number: '999000111', place: { country: 'IL' }, validTo: '2025-12-31' },
+      { kind: 'employer', number: '777', place: { country: 'IL' } },
+    ] } },
+  } as never;
+
+  test('the VAT number in force on the document date goes under the seller address; the address under the buyer', () => {
+    const layout = layoutDocumentPdf('invoice', { number: 'INV-1', date: '2026-09-30', customerName: 'Buyer', amountCents: 100 }, workspace, { recipientAddress: '29 Buyer Avenue\nTel Aviv' });
+    assert.deepEqual(layout.company.addressLines, ['17 Seller Street', 'VAT No. 515123456']);
+    assert.deepEqual(layout.recipientAddressLines, ['29 Buyer Avenue', 'Tel Aviv']);
+    // a number that ended before the document is printed on documents of its time only
+    const old = layoutDocumentPdf('invoice', { number: 'INV-0', date: '2025-06-01', amountCents: 100 }, workspace);
+    assert.deepEqual(old.company.addressLines, ['17 Seller Street', 'VAT No. 999000111']);
+  });
+
+  test('a statement in Hebrew prints both, and the address saved on the document wins over the contact\'s', async () => {
+    const layout = layoutDocumentPdf('statement', { date: '2026-09-30', customerName: 'קונה', recipientAddress: '1 Issued Road' } as never, workspace, { language: 'he', recipientAddress: '29 Buyer Avenue' });
+    assert.deepEqual(layout.company.addressLines, ['17 Seller Street', 'עוסק מורשה 515123456']);
+    assert.deepEqual(layout.recipientAddressLines, ['1 Issued Road']);
+    const text = pdfText(await generateDocumentPdf('invoice', { number: 'INV-2', date: '2026-09-30', customerName: 'Buyer', amountCents: 100 }, workspace, { recipientAddress: '29 Buyer Avenue' }));
+    assert.match(text, /515123456/);
+    assert.match(text, /29 Buyer Avenue/);
+  });
+
+  test('a long one-line address is wrapped onto more lines, all of it printed (Codex on #973)', async () => {
+    const address = 'Accounts Payable Department, Apartment 1204, Building C, 45 Very Long Industrial Park Boulevard, North District, Tel Aviv-Yafo 6100000';
+    const pdf = await generateDocumentPdf('invoice', { number: 'INV-4', date: '2026-09-30', customerName: 'Buyer', amountCents: 100 }, workspace, { recipientAddress: address });
+    const text = pdfText(pdf);
+    assert.match(text, /Accounts Payable Department/);
+    assert.match(text, /6100000/);
+    // every word starts inside the A4 page (595 pt wide); unwrapped, the address ran on to x≈626
+    const raw = pdf.toString('latin1');
+    const xs: number[] = [];
+    for (let at = raw.indexOf('stream'); at >= 0; at = raw.indexOf('stream', raw.indexOf('endstream', at) + 9)) {
+      let body = Buffer.from(raw.slice(at + 7, raw.indexOf('endstream', at)), 'latin1');
+      try { body = zlib.inflateSync(body); } catch { continue; }
+      for (const m of body.toString('latin1').matchAll(/1 0 0 -?1 ([\d.]+) [\d.]+ Tm/g)) xs.push(Number(m[1]));
+    }
+    assert.ok(xs.length > 0);
+    assert.ok(Math.max(...xs) < 595, `a word starts at x=${Math.max(...xs)}, past the page edge`);
+  });
+
+  test('no tax profile or address: nothing extra is printed', () => {
+    const layout = layoutDocumentPdf('invoice', { number: 'INV-3', amountCents: 100 }, { name: 'Co' });
+    assert.deepEqual(layout.company.addressLines, []);
+    assert.deepEqual(layout.recipientAddressLines, []);
+  });
+});

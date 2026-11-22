@@ -54,6 +54,7 @@ test('lots are summarised per item and a serial on two documents is flagged', ()
   assert.deepEqual(lotRows(documents, 'it2').map(l => l.lotNumber), ['LOT-B']);
   const duplicates = duplicateSerials(documents);
   assert.equal(duplicates.length, 1, 'SN-101 vs sn-101 on two documents is one finding');
+  assert.equal(duplicates[0].itemId, 'it1', 'the same serial on a different item is a distinct report row');
   assert.deepEqual(duplicates[0].documents, ['bill1', 'inv1']);
   assert.deepEqual(duplicateSerials([{ id: 'x', lines: [{ itemId: 'it1', serialNumbers: ['A'] }] }]), []);
 });

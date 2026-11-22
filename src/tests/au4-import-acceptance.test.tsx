@@ -123,3 +123,29 @@ test(`the screen: upload the source, read ${BRAND_NAME}'s trial balance on the d
   assert.ok(rows.some(t => t === 'Cash and bank$5,000.00$5,000.00agrees'), rows.join(' | '));
   assert.ok(rows.some(t => t === `1050 Petty Cash (row 6)not in ${BRAND_NAME}$250.00—-$250.00`), rows.join(' | '));
 });
+
+test('#898: two source accounts on one code (or a code naming another account) block acceptance', () => {
+  const accounts = [
+    acc('north', '1000', 'Checking North', 'asset', 'Bank'),
+    acc('south', '1010', 'Checking South', 'asset', 'Bank'),
+    acc('eq', '3000', 'Opening equity', 'equity', 'Equity'),
+  ];
+  const ledger: LedgerRow[] = [{ id: 'north', debit: 3000, credit: 0 }, { id: 'eq', debit: 0, credit: 3000 }] as never;
+  const source = readSourceTrialBalance('Account,Code,Debit,Credit\nChecking North,1000,10.00,\nChecking South,1000,20.00,\nOpening equity,3000,,30.00\n');
+  const result = compareImport(source, accounts, ledger);
+  assert.equal(result.accepted, false, 'a summed, ambiguous match is not certified');
+  assert.ok(result.problems.some(p => /Row 3: "Checking South" has code 1000 \(Checking North\) but its name is 1010 Checking South/.test(p)), result.problems.join(' | '));
+  assert.ok(result.problems.some(p => /Rows 2, 3 are different source accounts that all match 1000 Checking North/.test(p)), result.problems.join(' | '));
+
+  // the corrected file (each row its own code) is accepted when the books agree
+  const fixed = readSourceTrialBalance('Account,Code,Debit,Credit\nChecking North,1000,10.00,\nChecking South,1010,20.00,\nOpening equity,3000,,30.00\n');
+  const ok = compareImport(fixed, accounts, [{ id: 'north', debit: 1000, credit: 0 }, { id: 'south', debit: 2000, credit: 0 }, { id: 'eq', debit: 0, credit: 3000 }] as never);
+  assert.equal(ok.accepted, true, ok.problems.join(' | '));
+});
+
+test('#898 (Gitar/Codex on #975): chart accounts sharing a name are told apart by code and still accepted', () => {
+  const accounts = [acc('c1', '1000', 'Checking', 'asset', 'Bank'), acc('c2', '1010', 'Checking', 'asset', 'Bank'), acc('eq', '3000', 'Opening equity', 'equity', 'Equity')];
+  const source = readSourceTrialBalance('Account,Code,Debit,Credit\nChecking,1000,10.00,\nChecking,1010,20.00,\nOpening equity,3000,,30.00\n');
+  const result = compareImport(source, accounts, [{ id: 'c1', debit: 1000, credit: 0 }, { id: 'c2', debit: 2000, credit: 0 }, { id: 'eq', debit: 0, credit: 3000 }] as never);
+  assert.equal(result.accepted, true, result.problems.join(' | '));
+});

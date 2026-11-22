@@ -120,3 +120,45 @@ describe('Paying a foreign-currency invoice (L-192)', () => {
     await waitFor(() => assert.ok(screen.getByText(/Without it, the payment is booked at the document's rate \(1\.1\)/)));
   });
 });
+
+describe('Payment dialog: an answer that cannot be read (#939)', () => {
+  beforeEach(seed);
+  afterEach(() => cleanup());
+  const open = (onClose: () => void) => render(<ReceivePaymentModal isOpen onClose={onClose} defaultContactId="c1" defaultDocumentId="i2" />);
+
+  test('a 2xx with a cut-off body is a recorded payment: the dialog closes instead of asking for a second one', async () => {
+    let posts = 0;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      if (String(input) === '/api/v1/payments') posts++;
+      return new Response('{"status":"success","data":', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as typeof fetch;
+    let closed = 0;
+    open(() => { closed++; });
+    await waitFor(() => assert.equal((screen.getByLabelText(/Amount/) as HTMLInputElement).value, '80.00'));
+    await click('Record & Post Payment');
+    await waitFor(() => assert.equal(closed, 1));
+    assert.equal(posts, 1);
+  });
+
+  test('no answer at all keeps the dialog, and pressing Record again replays the same operation id', async () => {
+    const ids: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/v1/payments') {
+        ids.push(new Headers(init?.headers).get('x-operation-id') || '');
+        throw new TypeError('Failed to fetch');
+      }
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+    let closed = 0;
+    open(() => { closed++; });
+    await waitFor(() => assert.equal((screen.getByLabelText(/Amount/) as HTMLInputElement).value, '80.00'));
+    await click('Record & Post Payment');
+    await waitFor(() => assert.equal(ids.length, 1));
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(closed, 0, 'an unknown outcome is not reported as saved');
+    await click('Record & Post Payment');
+    await waitFor(() => assert.equal(ids.length, 2));
+    assert.ok(ids[0]);
+    assert.equal(ids[1], ids[0], 'a retry cannot post a second payment');
+  });
+});

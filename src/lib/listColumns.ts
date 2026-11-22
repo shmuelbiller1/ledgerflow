@@ -41,7 +41,8 @@ export function listColumnCss(scope: string, hidden: number[]): string {
   const safeScope = scope.replace(/[^a-zA-Z0-9_-]/g, '');
   if (!safeScope || !hidden.length) return '';
   const selectors = hidden.flatMap(index => ['thead', 'tbody', 'tfoot'].map(section =>
-    `[data-list-columns="${safeScope}"] table > ${section} > tr:not(:has(> [colspan])) > :nth-child(${index + 1}):not([colspan])`,
+    `:is([data-list-columns="${safeScope}"] > table, table[data-list-table="${safeScope}"]) > ${section} > tr:not(:has(> [colspan])) > :nth-child(${index + 1}):not([colspan])`,
   ));
+  for (const index of hidden) selectors.push(`[data-list-columns="${safeScope}"] [data-grid-card-column="${index}"]`);
   return `@media screen {\n${selectors.join(',\n')} { display: none; }\n}`;
 }

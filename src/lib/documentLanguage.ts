@@ -45,6 +45,8 @@ export interface DocumentWords {
   copyMark: Record<'original' | 'copy', string>;
   /** IL-6 */
   allocationNumber: string;
+  /** #890 (J-6): the seller's VAT registration printed under its address */
+  vatNumber: string;
 }
 
 const NET = /^net_(\d{1,3})$/;
@@ -68,6 +70,7 @@ export const DOCUMENT_WORDS: Record<DocumentLanguage, DocumentWords> = {
     watermark: { DRAFT: 'DRAFT', VOID: 'VOID', PAID: 'PAID' },
     copyMark: { original: 'ORIGINAL', copy: 'TRUE COPY' },
     allocationNumber: 'Allocation number',
+    vatNumber: 'VAT No.',
   },
   he: {
     titles: {
@@ -87,5 +90,6 @@ export const DOCUMENT_WORDS: Record<DocumentLanguage, DocumentWords> = {
     watermark: { DRAFT: 'טיוטה', VOID: 'מבוטל', PAID: 'שולם' },
     copyMark: { original: 'מקור', copy: 'העתק נאמן למקור' },
     allocationNumber: 'מספר הקצאה',
+    vatNumber: 'עוסק מורשה',
   },
 };

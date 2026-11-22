@@ -117,17 +117,20 @@ export function evaluateSupabaseBackups(
 
   const physicalLatestUnix = data.physical_backup_data?.latest_physical_backup_date_unix;
   const physicalLatestMs = typeof physicalLatestUnix === 'number' && Number.isFinite(physicalLatestUnix) && physicalLatestUnix > 0
+    && Number.isFinite(new Date(physicalLatestUnix * 1000).getTime())
     ? physicalLatestUnix * 1000
     : null;
 
-  const candidateTimestamps = [...completedTimestampsMs];
+  // When PITR is required, a recent logical backup cannot demonstrate a usable recovery point.
+  const candidateTimestamps = requirePitr ? [] : [...completedTimestampsMs];
   if (pitrEnabled && physicalLatestMs !== null) {
     candidateTimestamps.push(physicalLatestMs);
   }
 
   const latestMs = candidateTimestamps.length > 0 ? Math.max(...candidateTimestamps) : null;
   const latestBackupAt = latestMs !== null ? new Date(latestMs).toISOString() : null;
-  const latestBackupAgeHours = latestMs !== null ? Number(((nowMs - latestMs) / 3_600_000).toFixed(2)) : null;
+  const ageHours = latestMs !== null ? (nowMs - latestMs) / 3_600_000 : null;
+  const latestBackupAgeHours = ageHours !== null ? Number(ageHours.toFixed(2)) : null;
 
   if (requirePitr && !pitrEnabled) {
     return {
@@ -151,13 +154,15 @@ export function evaluateSupabaseBackups(
       latestBackupAt: null,
       latestBackupAgeHours: null,
       completedBackupCount: completedTimestampsMs.length,
-      reason: pitrEnabled
-        ? 'PITR is enabled but no physical or completed backup timestamp was reported.'
+      reason: requirePitr && pitrEnabled
+        ? 'PITR is required but no valid physical recovery point timestamp was reported.'
+        : pitrEnabled
+          ? 'PITR is enabled but no physical or completed backup timestamp was reported.'
         : 'No COMPLETED database backup was returned by Supabase.',
     };
   }
 
-  if (latestBackupAgeHours < -1) {
+  if (ageHours !== null && ageHours < -1) {
     return {
       ok: false,
       region,
@@ -170,7 +175,7 @@ export function evaluateSupabaseBackups(
     };
   }
 
-  if (latestBackupAgeHours > maxAgeHours) {
+  if (ageHours !== null && ageHours > maxAgeHours) {
     return {
       ok: false,
       region,
@@ -179,7 +184,7 @@ export function evaluateSupabaseBackups(
       latestBackupAt,
       latestBackupAgeHours,
       completedBackupCount: completedTimestampsMs.length,
-      reason: `Latest verified backup is ${latestBackupAgeHours}h old, exceeding the ${maxAgeHours}h threshold.`,
+      reason: `Latest verified backup is ${ageHours.toFixed(2)}h old, exceeding the ${maxAgeHours}h threshold.`,
     };
   }
 
@@ -191,8 +196,8 @@ export function evaluateSupabaseBackups(
     latestBackupAt,
     latestBackupAgeHours,
     completedBackupCount: completedTimestampsMs.length,
-    reason: pitrEnabled
-      ? `PITR active (latest recovery point ${latestBackupAgeHours}h old).`
+    reason: pitrEnabled && physicalLatestMs === latestMs
+      ? `PITR enabled (reported physical recovery point ${latestBackupAgeHours}h old).`
       : `Latest completed backup is ${latestBackupAgeHours}h old (${completedTimestampsMs.length} completed backups visible).`,
   };
 }

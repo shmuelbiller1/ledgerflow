@@ -9,7 +9,7 @@ import { formatCurrency } from '../../lib/utils';
 import { PieChart } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
-import { csvMoneyForCurrency } from '../../lib/csvExport';
+import { csvMoneyForBook } from '../../lib/csvExport';
 import { CappedCollectionsNote } from '../common/LoadedEntriesOnlyNote';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -62,7 +62,7 @@ const LoadedReport: React.FC<Props> = ({
     ) },
     { id: 'total', accessorFn: row => row.totalAmountCents, header: reportText('r.total-outflow', 'Total Outflow'), cell: info => <span className="font-mono font-semibold text-rose-600">{formatCurrency(Number(info.getValue()), bookCurrency)}</span> },
   ];
-  const writeCsvMoney = csvMoneyForCurrency(bookCurrency);
+  const writeCsvMoney = csvMoneyForBook(bookCurrency);
 
   const totalExpenseCents = useMemo(() => {
     return breakdowns.reduce((sum, b) => sum + b.totalAmountCents, 0);

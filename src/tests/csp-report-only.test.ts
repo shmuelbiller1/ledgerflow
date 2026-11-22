@@ -255,7 +255,14 @@ describe('S-23 the headers the server sends', () => {
         const res = await fetch(`${origin}/page`);
         const enforced = res.headers.get('content-security-policy') || '';
         assert.ok(!allows(directive(enforced, 'script-src'), "'unsafe-inline'"), 'enforced policy is the tight one');
-        assert.ok(allows(directive(enforced, 'script-src'), APP_INLINE_SCRIPT_HASHES[0]), 'inline script still runs');
+        // AF6-20261120-03 (Agent #6): index.html no longer ships an inline script, so the tight
+        // policy names none. If one is ever added back, the enforced policy must allow it by hash —
+        // this asserts that for whatever the page has, including nothing.
+        assert.deepEqual(
+          APP_INLINE_SCRIPT_HASHES.filter(hash => !allows(directive(enforced, 'script-src'), hash)),
+          [],
+          'every inline script the page ships is allowed by the enforced policy',
+        );
         assert.deepEqual(directive(enforced, 'form-action'), ["'self'"]);
         assert.deepEqual(directive(enforced, 'report-uri'), [CSP_REPORT_PATH], 'still reports after enforcing');
         assert.equal(res.headers.get('content-security-policy-report-only'), null);
