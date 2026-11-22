@@ -106,7 +106,7 @@ test('sidebar tool order uses real pointer input, survives reload, stays workspa
     useAuthStore.setState({ currentWorkspaceId: 'order-workspace-b' });
   });
   await expect(reloaded.daily.locator('[data-reorder-item]')).toHaveText(standard);
-  await dragMouse(page, reloaded.daily.locator('[data-reorder-item="settings"]'), reloaded.daily.locator('[data-reorder-item="overview"]'));
+  await dragMouse(page, reloaded.daily.locator('[data-reorder-item="settings"]'), reloaded.daily.locator('[data-reorder-item="dashboard"]'));
   const workspaceBOrder = ['Settings', 'Overview', 'To review', 'Sales', 'Purchases', 'Bank', 'Reports'];
   await expect(reloaded.daily.locator('[data-reorder-item]')).toHaveText(workspaceBOrder);
 
