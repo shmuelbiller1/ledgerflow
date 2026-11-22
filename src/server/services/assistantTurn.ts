@@ -1,0 +1,157 @@
+/**
+ * SBX-2 Part 1: one assistant turn, measured. Every turn records which path answered it (code,
+ * memory, cache or model), which model, tokens, the tools offered and called, time to the answer,
+ * total time and cost. A model without a price row records its tokens and an unknown cost, never a
+ * guess (src/lib/ai/modelPricing.ts).
+ *
+ * Privacy: a metric never holds the question, the answer, amounts, names or any other book data —
+ * only the path, the model, counts, times and cost, tagged with the workspace it belongs to.
+ *
+ * `runAssistantTurn` is the thinnest model loop the later SBX-2 parts need: it sends the question
+ * with the system prompt and the offered tools, runs the read tools the model asks for through the
+ * caller's `callTool` (the sandbox read tools, which never write to the real books), and stops at a
+ * text answer or after `maxSteps` model calls.
+ */
+import type { Content, FunctionCall, FunctionDeclaration } from '@google/genai';
+import type { Firestore } from '../db/firestore';
+import { tracedClient, type AiCallTrace } from './aiGateway';
+
+export type AnswerPath = 'code' | 'memory' | 'cache' | 'model';
+
+export interface AssistantTurnMetric {
+  path: AnswerPath;
+  /** The model that answered, when one did */
+  model?: string;
+  modelCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** Tools the model was offered by the end of the turn, including any added by find_command */
+  toolsOffered: number;
+  /** Tool names only, never their arguments or results */
+  toolsCalled: string[];
+  /** Time until the model's full answer arrived (replies are not streamed yet, so this is not a first-word time) */
+  answerMs: number;
+  totalMs: number;
+  /** US cents; null when any model call in the turn has no price row */
+  costCents: number | null;
+  ok: boolean;
+}
+
+/** Builds the metric from the model calls the turn made. With no calls the cost is zero, not unknown. */
+export function turnMetric(input: {
+  path: AnswerPath; traces: readonly AiCallTrace[]; toolsOffered: number; toolsCalled: readonly string[];
+  answerMs: number; totalMs: number; ok: boolean;
+}): AssistantTurnMetric {
+  const { traces } = input;
+  const unpriced = traces.some(t => t.ok && t.costCents === undefined);
+  const cost = traces.reduce((sum, t) => sum + (t.costCents ?? 0), 0);
+  return {
+    path: input.path,
+    ...(traces.length ? { model: traces[traces.length - 1].model } : {}),
+    modelCalls: traces.length,
+    inputTokens: traces.reduce((s, t) => s + t.inputTokens, 0),
+    outputTokens: traces.reduce((s, t) => s + t.outputTokens, 0),
+    toolsOffered: input.toolsOffered,
+    toolsCalled: [...input.toolsCalled],
+    answerMs: Math.round(input.answerMs),
+    totalMs: Math.round(input.totalMs),
+    costCents: unpriced ? null : cost,
+    ok: input.ok,
+  };
+}
+
+/** Stores one turn's metric with the other AI traces. Only the metric: no question or answer text. */
+export async function recordAssistantTurn(db: Firestore, workspaceId: string, uid: string, metric: AssistantTurnMetric): Promise<void> {
+  try {
+    const id = `trace-${crypto.randomUUID()}`;
+    await db.collection('billingLedgerTraces').doc(id).set({
+      id, workspaceId, uid, algorithmName: 'ASSISTANT_TURN', assistantTurn: metric,
+      calls: [], executionTimeMs: metric.totalMs, degraded: !metric.ok, timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('[assistant turn not recorded]', err instanceof Error ? err.message : err);
+  }
+}
+
+interface GenerateResponse {
+  text?: string;
+  functionCalls?: FunctionCall[];
+  candidates?: Array<{ content?: Content }>;
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+}
+export interface ModelClient { models: { generateContent: (req: Record<string, unknown> & { model: string }) => Promise<unknown> } }
+
+export interface AssistantTurnInput {
+  client: ModelClient;
+  model: string;
+  systemPrompt: string;
+  tools: FunctionDeclaration[];
+  question: string;
+  /** Runs one read tool. Its result goes back to the model; it is never stored in the metric. */
+  callTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+  /**
+   * Turns a tool's result into extra tool definitions for the rest of the turn — `find_command`'s
+   * discovery. The definitions come from the caller's own command catalog (trusted server code),
+   * never from model text; they join both what the model is offered and what may run.
+   */
+  discover?: (tool: string, result: unknown) => FunctionDeclaration[];
+  maxSteps?: number;
+  now?: () => number;
+}
+
+export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ answer: string; metric: AssistantTurnMetric }> {
+  const now = input.now ?? (() => performance.now());
+  const started = now();
+  const traces: AiCallTrace[] = [];
+  const client = tracedClient(input.client, traces, now)!;
+  const toolsCalled: string[] = [];
+  // Only the offered tools run; any other name the model returns is refused and recorded as 'unknown',
+  // so a made-up or injected name never reaches callTool or the stored metric.
+  const declarations = [...input.tools];
+  const offered = new Set(declarations.map(t => String(t.name)));
+  const contents: Content[] = [{ role: 'user', parts: [{ text: input.question }] }];
+  const config = { systemInstruction: input.systemPrompt, tools: [{ functionDeclarations: declarations }] };
+  let answered: number | undefined;
+  let answer = '';
+  let ok = false;
+  try {
+    for (let step = 0; step < (input.maxSteps ?? 6); step++) {
+      const res = await client.models.generateContent({ model: input.model, contents, config }) as GenerateResponse;
+      const calls = res.functionCalls ?? [];
+      if (!calls.length) {
+        answer = res.text ?? '';
+        answered = now();
+        // An empty reply (e.g. a blocked response with only feedback) is not a successful answer.
+        ok = answer.trim().length > 0;
+        break;
+      }
+      contents.push(res.candidates?.[0]?.content ?? { role: 'model', parts: calls.map(functionCall => ({ functionCall })) });
+      const parts = [];
+      for (const call of calls) {
+        const name = String(call.name ?? '');
+        toolsCalled.push(offered.has(name) ? name : 'unknown');
+        let response: Record<string, unknown>;
+        if (!offered.has(name)) response = { error: 'This tool was not offered.' };
+        else {
+          try {
+            const result = await input.callTool(name, (call.args ?? {}) as Record<string, unknown>);
+            response = { result };
+            for (const found of input.discover?.(name, result) ?? []) {
+              if (found.name && !offered.has(String(found.name))) { offered.add(String(found.name)); declarations.push(found); }
+            }
+          } catch (err) { response = { error: err instanceof Error ? err.message : 'tool failed' }; }
+        }
+        parts.push({ functionResponse: { name, response } });
+      }
+      contents.push({ role: 'user', parts });
+    }
+  } catch {
+    ok = false;
+  }
+  const ended = now();
+  return {
+    answer,
+    metric: turnMetric({ path: 'model', traces, toolsOffered: declarations.length, toolsCalled,
+      answerMs: (answered ?? ended) - started, totalMs: ended - started, ok }),
+  };
+}

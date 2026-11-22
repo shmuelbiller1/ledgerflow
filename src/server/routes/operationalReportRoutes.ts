@@ -1,3 +1,4 @@
+import { isForbidden } from '../http/serverKit';
 import { budgetLabel } from '../../lib/budgetByLabel';
 import express from 'express';
 import { z } from 'zod';
@@ -36,7 +37,7 @@ function sendReportError(res: express.Response, message: string, status = 500, d
 
 function handleCommonError(res: express.Response, error: unknown, fallback: string) {
   const msg = errorMessage(error);
-  if (msg === 'FORBIDDEN') return sendReportError(res, 'Forbidden', 403);
+  if (isForbidden(msg)) return sendReportError(res, 'Forbidden', 403);
   if (msg === 'NOT_FOUND' || msg.includes('NOT_FOUND')) return sendReportError(res, 'Workspace not found', 404);
   return sendReportError(res, fallback, 500, msg);
 }

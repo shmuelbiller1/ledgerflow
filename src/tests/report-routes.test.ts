@@ -88,6 +88,25 @@ describe('Report routes', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, () =
     assert.equal(body.total, 700);
   });
 
+  test('#816: aging converts into the book currency (JPY book, USD invoice; KWD bill)', async () => {
+    const jws = `${ws}_jpy`;
+    await db.collection('workspaces').doc(jws).set({ uid: 'owner-1', name: 'Yen', currency: 'JPY', members: ['owner-1'] });
+    // $100.00 at ¥150 = ¥15,000 (not 1,500,000); KWD 1.000 (1000 fils) at ¥500 = ¥500
+    await db.collection('invoices').doc(`${jws}_i`).set({ workspaceId: jws, customerId: 'c', amountCents: 10_000, currency: 'USD', exchangeRate: 150, status: 'sent', dueDate: '2099-01-01' });
+    await db.collection('bills').doc(`${jws}_b`).set({ workspaceId: jws, vendorId: 'v', amountCents: 1000, currency: 'KWD', exchangeRate: 500, status: 'approved', dueDate: '2099-01-01' });
+    try {
+      const ar = await get(`/aging?workspaceId=${jws}&type=ar`);
+      assert.equal(ar.status, 200);
+      assert.equal(ar.body.total, 15_000);
+      const ap = await get(`/aging?workspaceId=${jws}&type=ap`);
+      assert.equal(ap.body.total, 500);
+    } finally {
+      for (const table of ['invoices', 'bills', 'workspaces']) {
+        await db.pool.query(`delete from public."${table}" where workspace_id = $1 or id = $1`, [jws]);
+      }
+    }
+  });
+
   test('budget vs actual finds the account by id or name and uses posted entries in the base currency', async () => {
     const { status, body } = await get(`/budget-vs-actual?workspaceId=${ws}&month=2026-05`);
     assert.equal(status, 200);

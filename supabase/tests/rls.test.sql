@@ -593,6 +593,17 @@ select pg_temp.expect_server_only_write('member posts a message', 'u-view',
 select pg_temp.expect_denied('member poses as support staff', 'u-view',
   $$insert into "supportMessages"(id,data) values ('m2', '{"ticketId":"t1","workspaceId":"ws1","authorUid":"u-view","authorRole":"admin","body":"Hi"}')$$);
 select pg_temp.expect_denied('edit a message', 'u-view', $$select lf_update('supportMessages','m1','{"body":"changed"}'::jsonb)$$);
+-- #913: only the author, owners/accountants (triage) and platform admins read a ticket and its thread
+select set_config('request.jwt.claims', '', true);
+insert into "supportMessages"(id,data) values ('m3', '{"ticketId":"t1","workspaceId":"ws1","authorUid":"u-staff","authorRole":"admin","body":"We are on it"}');
+select pg_temp.expect_count('author reads their ticket', 'u-view', $$select count(*) from "supportTickets" where id = 't1'$$, 1);
+select pg_temp.expect_count('author reads support staff replies on their ticket', 'u-view', $$select count(*) from "supportMessages" where id = 'm3'$$, 1);
+select pg_temp.expect_count('owner triages the ticket', 'u-owner', $$select count(*) from "supportTickets" where id = 't1'$$, 1);
+select pg_temp.expect_count('accountant triages the ticket', 'u-acct', $$select count(*) from "supportMessages" where data->>'ticketId' = 't1'$$, 2);
+select pg_temp.expect_count('bookkeeper cannot read someone else''s ticket', 'u-book', $$select count(*) from "supportTickets" where id = 't1'$$, 0);
+select pg_temp.expect_count('bookkeeper cannot read someone else''s thread', 'u-book', $$select count(*) from "supportMessages" where data->>'ticketId' = 't1'$$, 0);
+-- #916: no member closes someone else's ticket from the browser
+select pg_temp.expect_denied('bookkeeper closes someone else''s ticket', 'u-book', $$select lf_update('supportTickets','t1','{"status":"closed"}'::jsonb)$$);
 
 -- filed tax returns: written only by the server; members read; nobody changes them from the browser
 select set_config('request.jwt.claims', '', true);

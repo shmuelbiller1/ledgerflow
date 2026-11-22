@@ -10,6 +10,7 @@
  * are deleted. Business records they created stay with the workspace.
  */
 import type { Firestore } from '../db/firestore';
+import { pseudonymiseEmailAddress } from '../../lib/auditHashChain';
 import { writeServerAuditLog } from './auditLogService';
 import { scheduledPurgeAt as purgeDate } from '../../lib/retention';
 
@@ -80,18 +81,21 @@ export async function deleteAccount(db: Firestore, user: { uid: string; email?: 
   if (plan.blocked.length) throw new AccountDeletionBlocked(plan.blocked);
 
   const now = new Date();
+  // #944: the books keep who did what (the uid), never the erased person's email. Neither audit hash
+  // chain covers the top-level email fields, so replacing them keeps every chain verifiable.
+  const erasedEmail = pseudonymiseEmailAddress(user.uid, process.env.SYSTEM_SALT || '');
   for (const ws of plan.scheduleDeletion) {
     const scheduledPurgeAt = purgeDate(ws.data, now);
     await db.collection('workspaces').doc(ws.id).update({ status: 'pending_deletion', deletedAt: now.toISOString(), scheduledPurgeAt, updatedAt: now.toISOString() });
     await writeServerAuditLog({
-      workspaceId: ws.id, uid: user.uid, email: user.email || '', action: 'WORKSPACE_DELETION_SCHEDULED', entityType: 'workspace', entityId: ws.id,
+      workspaceId: ws.id, uid: user.uid, email: erasedEmail, action: 'WORKSPACE_DELETION_SCHEDULED', entityType: 'workspace', entityId: ws.id,
       details: { description: `The owner deleted their account; workspace scheduled for purge on ${scheduledPurgeAt}`, scheduledPurgeAt },
     }, { db });
   }
   for (const ws of plan.leave) {
     await db.collection('workspaces').doc(ws.id).update({ ...withoutMember(user.uid, ws.data), updatedAt: now.toISOString() });
     await writeServerAuditLog({
-      workspaceId: ws.id, uid: user.uid, email: user.email || '', action: 'MEMBER_LEFT', entityType: 'workspace', entityId: ws.id,
+      workspaceId: ws.id, uid: user.uid, email: erasedEmail, action: 'MEMBER_LEFT', entityType: 'workspace', entityId: ws.id,
       details: { description: 'Left the workspace when deleting their account' },
     }, { db });
   }
@@ -115,6 +119,15 @@ export async function deleteAccount(db: Firestore, user: { uid: string; email?: 
     const emails = { ...((data.sharedEmails as Record<string, string>) || {}) };
     delete emails[user.uid];
     await d.ref.update({ sharedWith: (data.sharedWith as string[]).filter(u => u !== user.uid), sharedEmails: emails });
+  }
+  // #944: earlier audit rows by this person keep their uid and hashes, with the email fields pseudonymised
+  for (const d of (await db.collection('auditLogs').where('uid', '==', user.uid).get()).docs) {
+    const data = d.data() || {};
+    const update: Record<string, string> = {};
+    for (const field of ['email', 'userEmail', 'actorEmail']) {
+      if (typeof data[field] === 'string' && data[field] && data[field] !== erasedEmail) update[field] = erasedEmail;
+    }
+    if (Object.keys(update).length) await d.ref.update(update);
   }
   await deleteSignIn(user.uid);
   return { scheduledForDeletion: plan.scheduleDeletion.map(w => w.id), left: plan.leave.map(w => w.id) };

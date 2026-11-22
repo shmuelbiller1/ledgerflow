@@ -12,6 +12,7 @@
  *
  * Viewer role: can read everything, posts nothing.
  */
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, ArrowDownToLine, ClipboardCheck, ReceiptText, Wallet } from 'lucide-react';
@@ -409,29 +410,32 @@ export default function PettyCashView() {
               ) : (
                 // a table that can scroll sideways is a focusable, labelled region
                 <div className="overflow-x-auto rounded-xl border border-[var(--line)]" role="region" aria-label="Latest movements of the petty cash box" tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-                  <table className="w-full border-collapse text-sm tabular-nums">
-                    <caption className="sr-only">The last {movements.length} posted entries that moved money in or out of {box.name}</caption>
-                    <thead className="bg-[var(--ink)]">
-                      <tr>
-                        <th scope="col" className="p-3 text-left whitespace-nowrap">Date</th>
-                        <th scope="col" className="p-3 text-left">What</th>
-                        <th scope="col" className="p-3 text-left">Reference</th>
-                        <th scope="col" className="p-3 text-right whitespace-nowrap">In / out of the box</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {movements.map(m => (
-                        <tr key={m.transaction.id} className="border-t border-[var(--line)]">
-                          <td className="p-3 whitespace-nowrap">{m.transaction.date}</td>
-                          <td className="p-3">{m.transaction.description || '—'}</td>
-                          <td className="p-3 whitespace-nowrap">{m.transaction.reference || '—'}</td>
-                          <td className={cn('p-3 text-right whitespace-nowrap font-medium', m.amountCents < 0 ? 'text-[var(--neg)]' : 'text-[var(--pos)]')}>
-                            {money(m.amountCents)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <RowTable
+                    caption={
+                      <>
+                        The last {movements.length} posted entries that moved money in or out of {box.name}
+                      </>
+                    }
+                    captionClassName="sr-only"
+                    tableClassName="w-full border-collapse text-sm tabular-nums"
+                    headRowClassName="bg-[var(--ink)]"
+                    bodyClassName=""
+                    rowClassName="border-t border-[var(--line)]"
+                    rows={movements}
+                    rowKey={(m) => m.transaction.id}
+                    rowHeaderClassName="font-normal text-start"
+                    columns={[
+                      { header: 'Date', headClassName: 'p-3 text-left whitespace-nowrap', className: 'p-3 whitespace-nowrap', cell: (m) => m.transaction.date },
+                      { header: 'What', headClassName: 'p-3 text-left', className: 'p-3', cell: (m) => m.transaction.description || '—' },
+                      { header: 'Reference', headClassName: 'p-3 text-left', className: 'p-3 whitespace-nowrap', cell: (m) => m.transaction.reference || '—' },
+                      {
+                        header: 'In / out of the box',
+                        headClassName: 'p-3 text-right whitespace-nowrap',
+                        cellProps: (m) => ({ className: cn('p-3 text-right whitespace-nowrap font-medium', m.amountCents < 0 ? 'text-[var(--neg)]' : 'text-[var(--pos)]') }),
+                        cell: (m) => money(m.amountCents),
+                      },
+                    ]}
+                  />
                 </div>
               )}
             </section>

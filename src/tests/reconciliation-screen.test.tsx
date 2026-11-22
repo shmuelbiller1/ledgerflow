@@ -343,3 +343,32 @@ describe('Bank reconciliation screen', () => {
     assert.match(screen.getByText(/of bank lines matched/).textContent || '', /0% of bank lines matched/);
   });
 });
+
+describe('B-3 — unmatched statement-date age review', () => {
+  beforeEach(() => {
+    setComponentWorkspace('owner');
+    markComponentCollectionsLoaded('bankLines', 'transactions', 'accounts');
+    useLedgerStore.setState({ accounts, transactions: [], bankLines: [
+      line({ id: 'recent', date: '2026-11-20', description: 'Recent receipt' }),
+      line({ id: 'old', date: '2020-01-01', description: 'Old receipt' }),
+      line({ id: 'matched-old', date: '2019-01-01', description: 'Already matched', status: 'matched' }),
+      line({ id: 'ignored-old', date: '2018-01-01', description: 'Already ignored', status: 'ignored' }),
+    ] });
+  });
+  afterEach(() => cleanup());
+
+  test('age view orders pending rows, labels groups, retains search and does not write', async () => {
+    const calls = stubFetchWithBodies(200, {});
+    const { container } = render(<Reconciliation />);
+    const order = screen.getByRole('combobox', { name: 'Bank line review order' });
+    assert.equal((order as HTMLSelectElement).value, 'needs-you', 'EU-C5 default remains');
+    await act(async () => { fireEvent.change(order, { target: { value: 'age' } }); });
+    assert.deepEqual(Array.from(container.querySelectorAll('[data-bank-line-id]'), e => e.getAttribute('data-bank-line-id')), ['old', 'recent']);
+    assert.ok(screen.getByRole('heading', { name: 'Over 30 days' }));
+    assert.match(container.textContent || '', /statement date, not the import date/);
+    await act(async () => { fireEvent.change(screen.getByRole('textbox', { name: 'Search reconciliation amounts or descriptions' }), { target: { value: 'Recent receipt' } }); });
+    assert.equal(screen.queryByText('Old receipt'), null);
+    assert.ok(screen.getByText('Recent receipt'));
+    assert.equal(calls.length, 0, 'sorting and searching never persist financial changes');
+  });
+});

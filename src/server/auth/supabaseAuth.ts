@@ -191,9 +191,21 @@ export async function verifyIdToken(token: string, opts: { firstStepOnly?: boole
     iss: issuer,
     iat: payload.iat ?? 0,
     exp: payload.exp ?? 0,
-    auth_time: payload.iat ?? 0,
+    auth_time: signInTime(payload),
     firebase: { sign_in_provider: provider, identities: {} },
   };
+}
+
+/**
+ * When the person actually signed in (#941). Supabase keeps each sign-in method's time in `amr` across
+ * token refreshes, so the latest of those is the real sign-in; `iat` only says when this token was minted.
+ */
+export function signInTime(payload: Record<string, unknown>): number {
+  const amr = Array.isArray(payload.amr) ? payload.amr : [];
+  const times = amr.map(entry => Number((entry as { timestamp?: unknown } | null)?.timestamp)).filter(n => Number.isFinite(n) && n > 0);
+  if (times.length) return Math.max(...times);
+  if (typeof payload.auth_time === 'number' && payload.auth_time > 0) return payload.auth_time;
+  return typeof payload.iat === 'number' ? payload.iat : 0;
 }
 
 // ---------------------------------------------------------------------------

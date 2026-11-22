@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import React, { useState, useMemo } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -59,13 +60,13 @@ function AccountLedgerCard({ acc, resetKey, dateText }: { acc: LedgerAccount; re
           </div>
           <div>
             <span className="text-[var(--muted)] mr-1">{reportText('r.period-debits', 'Period Debits:')}</span>
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+            <span className="font-semibold text-[var(--pos)]">
               +{formatCurrency(acc.periodDebitsCents)}
             </span>
           </div>
           <div>
             <span className="text-[var(--muted)] mr-1">{reportText('r.period-credits', 'Period Credits:')}</span>
-            <span className="font-semibold text-rose-600 dark:text-rose-400">
+            <span className="font-semibold text-[var(--neg)]">
               -{formatCurrency(acc.periodCreditsCents)}
             </span>
           </div>
@@ -84,38 +85,52 @@ function AccountLedgerCard({ acc, resetKey, dateText }: { acc: LedgerAccount; re
           {reportText('r.no-transactions-recorded-in-selected-period', 'No transactions recorded in selected period')}
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <caption className="sr-only">{reportText('r.general-ledger', 'General Ledger')}</caption>
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 text-[var(--muted)] font-semibold uppercase text-[10px]">
-                <th scope="col" className="py-2.5 px-4">{reportText('r.date-2', 'Date')}</th>
-                <th scope="col" className="py-2.5 px-4">{reportText('r.description', 'Description')}</th>
-                <th scope="col" className="py-2.5 px-4">{reportText('r.reference', 'Reference')}</th>
-                <th scope="col" className="py-2.5 px-4 text-right">{reportText('r.debit', 'Debit')}</th>
-                <th scope="col" className="py-2.5 px-4 text-right">{reportText('r.credit', 'Credit')}</th>
-                <th scope="col" className="py-2.5 px-4 text-right">{reportText('r.running-balance', 'Running Balance')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
-              {paged.visible.map(({ entry, key }) => (
-                <tr key={key} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="py-2 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap">{dateText(entry.date)}</td>
-                  <td className="py-2 px-4 text-slate-900 dark:text-white font-sans font-medium">{entry.description}</td>
-                  <td className="py-2 px-4 text-[var(--muted)]">{entry.reference || '-'}</td>
-                  <td className="py-2 px-4 text-right text-emerald-600 dark:text-emerald-400">
-                    {entry.debitCents > 0 ? formatCurrency(entry.debitCents) : '-'}
-                  </td>
-                  <td className="py-2 px-4 text-right text-rose-600 dark:text-rose-400">
-                    {entry.creditCents > 0 ? formatCurrency(entry.creditCents) : '-'}
-                  </td>
-                  <td className="py-2 px-4 text-right font-bold text-slate-900 dark:text-white">
-                    {formatCurrency(entry.runningBalanceCents)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="overflow-x-auto" role="region" aria-label={`${reportText('r.general-ledger', 'General Ledger')}: ${acc.accountName}`} tabIndex={0}>{/* NOSONAR: named, keyboard-scrollable schedule */}
+          <RowTable
+            caption={reportText('r.general-ledger', 'General Ledger')}
+            captionClassName="sr-only"
+            tableClassName="w-full text-left text-xs"
+            headRowClassName="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 text-[var(--muted)] font-semibold uppercase text-[10px]"
+            bodyClassName="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono"
+            rowClassName="hover:bg-slate-50 dark:hover:bg-slate-800/30"
+            rows={paged.visible}
+            rowKey={({ key }) => key}
+            rowHeaderClassName="font-normal text-start"
+            columns={[
+              {
+                header: reportText('r.date-2', 'Date'),
+                headClassName: 'py-2.5 px-4', className: 'py-2 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap',
+                cell: ({ entry }) => dateText(entry.date),
+              },
+              {
+                header: reportText('r.description', 'Description'),
+                headClassName: 'py-2.5 px-4',
+                rowHeader: true,
+                className: 'py-2 px-4 text-slate-900 dark:text-white font-sans font-medium',
+                cell: ({ entry }) => entry.description,
+              },
+              {
+                header: reportText('r.reference', 'Reference'),
+                headClassName: 'py-2.5 px-4', className: 'py-2 px-4 text-[var(--muted)]',
+                cell: ({ entry }) => entry.reference || '-',
+              },
+              {
+                header: reportText('r.debit', 'Debit'),
+                headClassName: 'py-2.5 px-4 text-right', className: 'py-2 px-4 text-right text-[var(--pos)]',
+                cell: ({ entry }) => (entry.debitCents > 0 ? formatCurrency(entry.debitCents) : '-'),
+              },
+              {
+                header: reportText('r.credit', 'Credit'),
+                headClassName: 'py-2.5 px-4 text-right', className: 'py-2 px-4 text-right text-[var(--neg)]',
+                cell: ({ entry }) => (entry.creditCents > 0 ? formatCurrency(entry.creditCents) : '-'),
+              },
+              {
+                header: reportText('r.running-balance', 'Running Balance'),
+                headClassName: 'py-2.5 px-4 text-right', className: 'py-2 px-4 text-right font-bold text-slate-900 dark:text-white',
+                cell: ({ entry }) => formatCurrency(entry.runningBalanceCents),
+              },
+            ]}
+          />
           <ShowMoreRows shown={paged.visible.length} total={paged.total} noun="lines" onMore={paged.more} onAll={paged.all} />
         </div>
       )}

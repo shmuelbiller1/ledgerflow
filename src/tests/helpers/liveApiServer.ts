@@ -34,15 +34,23 @@ export interface TestJwtClaims {
   authTimeOffsetSec?: number;
   appMetadata?: Record<string, unknown>;
   userMetadata?: Record<string, unknown>;
+  /** Supabase's `session_id` claim: which auth.sessions row this token belongs to */
+  sessionId?: string;
 }
 
 /** A Supabase-shaped access token signed with the suite's SUPABASE_JWT_SECRET. */
 export function signTestJwt(claims: TestJwtClaims): Promise<string> {
   const secret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
   const payload: Record<string, unknown> = { email: claims.email, email_verified: true, aal: claims.aal || 'aal1', role: 'authenticated' };
-  if (claims.authTimeOffsetSec !== undefined) payload.auth_time = Math.floor(Date.now() / 1000) + claims.authTimeOffsetSec;
+  if (claims.authTimeOffsetSec !== undefined) {
+    const at = Math.floor(Date.now() / 1000) + claims.authTimeOffsetSec;
+    // Supabase's real shape: the sign-in method and its time, kept across refreshes
+    payload.auth_time = at;
+    payload.amr = [{ method: 'password', timestamp: at }];
+  }
   if (claims.appMetadata) payload.app_metadata = claims.appMetadata;
   if (claims.userMetadata) payload.user_metadata = claims.userMetadata;
+  if (claims.sessionId) payload.session_id = claims.sessionId;
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(claims.uid)

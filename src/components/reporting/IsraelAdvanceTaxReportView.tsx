@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useMemo, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -245,78 +246,82 @@ export default function IsraelAdvanceTaxReportView() {
       </div>
 
       {/* Schedule Table */}
-      <ReportTableScroll>
-        <table className="w-full text-sm border-collapse">
-          <caption className="sr-only">
-            {reportText('r.israel-advance-income-tax-payment-mikdamot-sched', 'Israel Advance Income-Tax Payment (Mikdamot) Schedule for')} {year} ({activeFrequency})
-          </caption>
-          <thead>
-            <tr className="border-b border-[var(--line)] text-xs text-[var(--muted)] bg-[var(--surface)]">
-              <th scope="col" className="text-left py-2 px-3">{reportText('r.period', 'Period')}</th>
-              <th scope="col" className="text-left py-2 px-3">{reportText('r.date-range', 'Date Range')}</th>
-              <th scope="col" className="text-left py-2 px-3">{reportText('r.statutory-due-date', 'Statutory Due Date')}</th>
-              <th scope="col" className="text-left py-2 px-3">{reportText('r.adjusted-due-date', 'Adjusted Due Date')}</th>
-              <th scope="col" className="text-left py-2 px-3">{reportText('r.status', 'Status')}</th>
-              <th scope="col" className="text-right py-2 px-3">{reportText('r.estimated-advance-2', 'Estimated Advance')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {periods.map(period => {
-              const status = ilAdvanceTaxPeriodStatus(period, asOfDate);
-              const estimate = effectiveRatePercent !== undefined && turnoverCents !== undefined
-                ? ilAdvanceTaxEstimateCents(turnoverCents, effectiveRatePercent)
-                : undefined;
-
-              return (
-                <tr key={period.periodKey} className="border-b border-[var(--line)]/50 hover:bg-[var(--surface)]/50">
-                  <th scope="row" className="py-2 px-3 font-medium text-left">
-                    <span>{period.name}</span>{' '}
-                    <span className="text-xs text-[var(--muted)]">(<bdi>{period.nameHe}</bdi>)</span>
-                  </th>
-                  <td className="py-2 px-3 text-xs whitespace-nowrap text-[var(--muted)]">
-                    {period.startDate} {reportText('r.to-2', 'to')} {period.endDate}
-                  </td>
-                  <td className="py-2 px-3 text-xs whitespace-nowrap">
-                    {period.statutoryDueDate}
-                  </td>
-                  <td className="py-2 px-3 text-xs whitespace-nowrap">
-                    <span className={period.wasPostponedForRestDay ? 'font-semibold text-amber-700' : ''}>
-                      {period.adjustedDueDate}
-                    </span>
-                    {period.wasPostponedForRestDay && (
-                      <span className="text-[10px] text-amber-600 block">{reportText('r.postponed-to-sunday', 'Postponed to Sunday')}</span>
-                    )}
-                  </td>
-                  <td className="py-2 px-3 whitespace-nowrap">
-                    {status === 'due-soon' && (
-                      <span className="px-2 py-0.5 rounded text-xs bg-amber-500/10 text-amber-700 font-semibold">
-                        {reportText('r.due-soon', 'Due soon')}
-                      </span>
-                    )}
-                    {status === 'active' && (
-                      <span className="px-2 py-0.5 rounded text-xs bg-blue-500/10 text-blue-700 font-medium">
-                        {reportText('r.active', 'Active')}
-                      </span>
-                    )}
-                    {status === 'upcoming' && (
-                      <span className="px-2 py-0.5 rounded text-xs bg-zinc-500/10 text-[var(--muted)]">
-                        {reportText('r.upcoming', 'Upcoming')}
-                      </span>
-                    )}
-                    {status === 'past' && (
-                      <span className="px-2 py-0.5 rounded text-xs bg-zinc-500/10 text-[var(--muted)]">
-                        {reportText('r.past', 'Past')}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap font-medium">
-                    {estimate !== undefined ? formatCurrency(estimate, 'ILS') : '—'}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <ReportTableScroll allowDisplayedExport={false}>
+        <RowTable
+          caption={
+            <>
+              {reportText('r.israel-advance-income-tax-payment-mikdamot-sched', 'Israel Advance Income-Tax Payment (Mikdamot) Schedule for')} {year} ({activeFrequency})
+            </>
+          }
+          captionClassName="sr-only"
+          tableClassName="w-full text-sm border-collapse"
+          headRowClassName="border-b border-[var(--line)] text-xs text-[var(--muted)] bg-[var(--surface)]"
+          bodyClassName=""
+          rowClassName="border-b border-[var(--line)]/50 hover:bg-[var(--surface)]/50"
+          rows={periods.map((period) => {
+            const status = ilAdvanceTaxPeriodStatus(period, asOfDate);
+            const estimate = effectiveRatePercent !== undefined && turnoverCents !== undefined ? ilAdvanceTaxEstimateCents(turnoverCents, effectiveRatePercent) : undefined;
+            return { period, status, estimate };
+          })}
+          rowKey={({ period }) => period.periodKey}
+          columns={[
+            {
+              header: reportText('r.period', 'Period'),
+              headClassName: 'text-left py-2 px-3', className: 'py-2 px-3 font-medium text-left',
+              cell: ({ period }) => (
+                <>
+                  <span>{period.name}</span>{' '}
+                  <span className="text-xs text-[var(--muted)]">
+                    (<bdi>{period.nameHe}</bdi>)
+                  </span>
+                </>
+              ),
+            },
+            {
+              header: reportText('r.date-range', 'Date Range'),
+              headClassName: 'text-left py-2 px-3', className: 'py-2 px-3 text-xs whitespace-nowrap text-[var(--muted)]',
+              cell: ({ period }) => (
+                <>
+                  {period.startDate} {reportText('r.to-2', 'to')} {period.endDate}
+                </>
+              ),
+            },
+            {
+              header: reportText('r.statutory-due-date', 'Statutory Due Date'),
+              headClassName: 'text-left py-2 px-3', className: 'py-2 px-3 text-xs whitespace-nowrap',
+              cell: ({ period }) => period.statutoryDueDate,
+            },
+            {
+              header: reportText('r.adjusted-due-date', 'Adjusted Due Date'),
+              headClassName: 'text-left py-2 px-3', className: 'py-2 px-3 text-xs whitespace-nowrap',
+              cell: ({ period }) => (
+                <>
+                  <span className={period.wasPostponedForRestDay ? 'font-semibold text-amber-700' : ''}>{period.adjustedDueDate}</span>
+                  {period.wasPostponedForRestDay && <span className="text-[10px] text-amber-600 block">{reportText('r.postponed-to-sunday', 'Postponed to Sunday')}</span>}
+                </>
+              ),
+            },
+            {
+              header: reportText('r.status', 'Status'),
+              headClassName: 'text-left py-2 px-3', className: 'py-2 px-3 whitespace-nowrap',
+              cell: ({ status }) => (
+                <>
+                  {status === 'due-soon' && (
+                    <span className="px-2 py-0.5 rounded text-xs bg-amber-500/10 text-amber-700 font-semibold">{reportText('r.due-soon', 'Due soon')}</span>
+                  )}
+                  {status === 'active' && <span className="px-2 py-0.5 rounded text-xs bg-blue-500/10 text-blue-700 font-medium">{reportText('r.active', 'Active')}</span>}
+                  {status === 'upcoming' && <span className="px-2 py-0.5 rounded text-xs bg-zinc-500/10 text-[var(--muted)]">{reportText('r.upcoming', 'Upcoming')}</span>}
+                  {status === 'past' && <span className="px-2 py-0.5 rounded text-xs bg-zinc-500/10 text-[var(--muted)]">{reportText('r.past', 'Past')}</span>}
+                </>
+              ),
+            },
+            {
+              header: reportText('r.estimated-advance-2', 'Estimated Advance'),
+              headClassName: 'text-right py-2 px-3', className: 'py-2 px-3 text-right tabular-nums whitespace-nowrap font-medium',
+              cell: ({ estimate }) => (estimate !== undefined ? formatCurrency(estimate, 'ILS') : '—'),
+            },
+          ]}
+        />
       </ReportTableScroll>
 
       {/* Statutory footnote */}

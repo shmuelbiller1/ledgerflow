@@ -31,6 +31,21 @@ const COMMAND_AREA_SCOPE: Readonly<Record<string, string>> = {
   time: 'write:workspaces', stages: 'write:workspaces', workspace: 'write:workspaces', numbering: 'write:workspaces',
 };
 
+/**
+ * #941 (S-11): routes that act on a person's own account — sign-in history, revoking their sessions,
+ * deleting their account, recovery codes, two-step settings — are for that person signed in, never for a
+ * workspace API key, whatever scopes the key carries. The `account.*` commands are the same doors.
+ */
+export function isPersonOnlyPath(path: string): boolean {
+  const clean = path.toLowerCase().split('?')[0].replace(/\/$/, '');
+  if (/^\/api\/v1\/(auth|account)(\/|$)/.test(clean)) return true;
+  const match = /\/commands\/([^/]+)/.exec(clean);
+  if (!match) return false;
+  let name = match[1];
+  try { name = decodeURIComponent(name); } catch { /* an invalid name is refused by the command router */ }
+  return name.split('.')[0] === 'account';
+}
+
 export function requiredApiKeyScope(method: string, path: string): string {
   const cleanPath = path.toLowerCase().split('?')[0].replace(/\/$/, '');
   const isWrite = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase());
@@ -141,6 +156,11 @@ export const apiAuthenticate = async (req: express.Request, res: express.Respons
          if (Number.isNaN(expiryDate.getTime()) || expiryDate.getTime() < Date.now()) {
             return res.status(401).json({ status: "error", message: "API key has expired." });
          }
+      }
+
+      // #941: a person's own account is never managed with a workspace key
+      if (isPersonOnlyPath(req.originalUrl || req.url)) {
+        return res.status(403).json({ status: "error", message: "Forbidden: account and sign-in actions need the person signed in, not an API key." });
       }
 
       // Action Scope Matching & Authorization Guard

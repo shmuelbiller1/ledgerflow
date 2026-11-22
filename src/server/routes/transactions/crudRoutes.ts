@@ -1,3 +1,4 @@
+import { isForbidden } from '../../http/serverKit';
 import express from 'express';
 import { LabelFilterError, matchesLabelFilters, parseLabelFilters, type LabelDef } from '../../../lib/labelQueryFilter';
 import { BudgetBlocked, budgetWarningsFor, enforceBudgetControl, type BudgetWarning } from '../../services/budgetGuard';
@@ -120,7 +121,7 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
         transactions: pickFields(transactions as Array<Record<string, unknown>>, fields)
       });
     } catch (err) {
-      if (errorMessage(err) === "FORBIDDEN") return res.status(403).json({ error: "Forbidden workspace access" });
+      if (isForbidden(errorMessage(err))) return res.status(403).json({ error: "Forbidden workspace access" });
       console.error('[TRANSACTION ROUTE ERROR]', err);
       res.status(500).json({ error: "An unexpected internal server error occurred." });
     }

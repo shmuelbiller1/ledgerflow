@@ -1,3 +1,4 @@
+import { isForbidden } from '../http/serverKit';
 import { takeCopyMark } from '../services/copyMarkService';
 import type { TaxProfiles } from '../../lib/tax/profile';
 import { errorMessage, requestUser } from '../auth/requestUser';
@@ -5,7 +6,7 @@ import express from 'express';
 import { assertWorkspaceAccess, getDb } from '../db/firestore';
 import type { Firestore } from '../db/firestore';
 import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedgerWriter';
-import { generateDocumentPdf } from '../services/pdfService';
+import { contactAddress, generateDocumentPdf } from '../services/pdfService';
 import type { PdfDocument, PdfDocumentType, PdfWorkspace } from '../services/pdfService';
 import { loadStatement, statementDate, StatementScopeError } from '../services/statementService';
 import { contactTerms, documentLanguage, type DocumentLanguage } from '../../lib/documentLanguage';
@@ -55,14 +56,15 @@ type DocType = keyof typeof PDF_SOURCES;
 
 /** P-11, P-12: the printed words in the document's customer's (or vendor's) language, else the
  * workspace's, and their own terms when they have some. */
-async function contactStyle(db: Firestore, workspace: PdfWorkspace, docData: PdfDocument, workspaceId: string): Promise<{ language: DocumentLanguage; terms?: string }> {
+async function contactStyle(db: Firestore, workspace: PdfWorkspace, docData: PdfDocument, workspaceId: string): Promise<{ language: DocumentLanguage; terms?: string; recipientAddress?: string }> {
   const ref = docData as { customerId?: unknown; vendorId?: unknown; contactId?: unknown; direction?: unknown };
   const [collection, id] = typeof ref.customerId === 'string' && ref.customerId ? ['customers', ref.customerId]
     : typeof ref.vendorId === 'string' && ref.vendorId ? ['vendors', ref.vendorId]
       : typeof ref.contactId === 'string' && ref.contactId ? [ref.direction === 'made' ? 'vendors' : 'customers', ref.contactId] : ['', ''];
   const contact = collection ? (await db.collection(collection).doc(id).get()).data() : undefined;
   const own = contact && contact.workspaceId === workspaceId ? contact : null;
-  return { language: documentLanguage(workspace.branding, own), terms: contactTerms(own) };
+  // #890 (J-6): the contact's saved address goes under their name (a document's own saved address wins)
+  return { language: documentLanguage(workspace.branding, own), terms: contactTerms(own), ...contactAddress(own) };
 }
 
 /** A document of this workspace ready for the PDF (null when missing or another workspace's). */
@@ -115,7 +117,7 @@ export async function handleZipRequest(req: express.Request, res: express.Respon
     return res.send(zipStore(files));
   } catch (err) {
     if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: err.issues[0]?.message || 'Invalid request' });
-    if (errorMessage(err) === 'FORBIDDEN' || /not a member/i.test(errorMessage(err))) return res.status(403).json({ status: 'error', message: 'Forbidden' });
+    if (isForbidden(errorMessage(err)) || /not a member/i.test(errorMessage(err))) return res.status(403).json({ status: 'error', message: 'Forbidden' });
     return res.status(500).json({ status: 'error', message: errorMessage(err) || 'Failed to build the zip' });
   }
 }
@@ -147,7 +149,7 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
 
     let docData: PdfDocument | null = null;
     let paymentUrl: string | undefined;
-    let style: { language: DocumentLanguage; terms?: string } | undefined;
+    let style: { language: DocumentLanguage; terms?: string; recipientAddress?: string } | undefined;
 
     if (type !== 'statement') {
       const loaded = await loadDocumentForPdf(db, type, id, workspaceId, req);
@@ -166,7 +168,7 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
       }
       if (!statement) return res.status(404).json({ status: 'error', message: 'Contact not found' });
       docData = statement.pdf;
-      style = { language: documentLanguage(workspace.branding, statement.contact), terms: contactTerms(statement.contact) };
+      style = { language: documentLanguage(workspace.branding, statement.contact), terms: contactTerms(statement.contact), ...contactAddress(statement.contact) };
     }
 
     const preview = req.query.preview === '1' || req.query.preview === 'true';
@@ -189,7 +191,7 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
     res.setHeader('Content-Disposition', `inline; filename="${type}_${id}.pdf"`);
     return res.send(pdfBuffer);
   } catch (err) {
-    if (errorMessage(err) === 'FORBIDDEN' || /not a member/i.test(errorMessage(err))) return res.status(403).json({ status: 'error', message: 'Forbidden' });
+    if (isForbidden(errorMessage(err)) || /not a member/i.test(errorMessage(err))) return res.status(403).json({ status: 'error', message: 'Forbidden' });
     console.error('PDF Generation Error:', err);
     return res.status(500).json({ status: 'error', message: errorMessage(err) || 'Failed to generate PDF' });
   }

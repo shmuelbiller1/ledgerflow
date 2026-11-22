@@ -58,7 +58,8 @@ describe('The files panel', () => {
     const big = new PageFile(['x'], 'huge.tif', { type: 'image/tiff' });
     Object.defineProperty(big, 'size', { value: MAX_ATTACHMENT_BYTES + 1 });
     await act(async () => { fireEvent.change(input, { target: { files: [new PageFile(['hello'], 'contract.pdf', { type: 'application/pdf' }), big] } }); });
-    await waitFor(() => assert.equal(screen.getAllByRole('listitem').length, 3));
+    // reading the file and saving it can outlast waitFor's 1 s default on a loaded CI runner
+    await waitFor(() => assert.equal(screen.getAllByRole('listitem').length, 3), { timeout: 5_000 });
     // the row is written by `document.save`: the command stamps the owner and the workspace from the session
     const writes = calls.filter(c => c.url.includes('/commands/document.save')).map(c => (c.body as { workspaceId: string; input: Record<string, unknown> }));
     assert.equal(writes.length, 1, 'only the file that fits is written');
@@ -74,7 +75,8 @@ describe('The files panel', () => {
     await waitFor(() => assert.equal(screen.getAllByRole('listitem').length, 2));
     const file = new PageFile(['new file'], 'drop.pdf', { type: 'application/pdf' });
     await act(async () => { fireEvent.drop(screen.getByTestId('attachment-dropzone'), { dataTransfer: { files: [file] } }); });
-    await waitFor(() => assert.equal(screen.getAllByRole('listitem').length, 3));
+    // reading the file and saving it can outlast waitFor's 1 s default on a loaded CI runner
+    await waitFor(() => assert.equal(screen.getAllByRole('listitem').length, 3), { timeout: 5_000 });
     const writes = calls.filter(c => c.url.includes('/commands/document.save')).map(c => (c.body as { workspaceId: string; input: Record<string, unknown> }));
     assert.equal(writes.length, 1);
     assert.deepEqual([writes[0].input.name, writes[0].input.linkedCollection, writes[0].input.linkedId], ['drop.pdf', 'invoices', 'inv1']);

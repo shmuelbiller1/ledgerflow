@@ -18,7 +18,7 @@ const NATURAL: number[] = [];
  * known by the table's caption); hidden columns don't print either. C-54/C-91: a report table with
  * no rows gets one shared next-action empty state; loading and failure states are never called empty.
  */
-export default function ReportTableScroll({children, allowDisplayedExport = true, captionId}:{children:ReactNode; allowDisplayedExport?:boolean; captionId?:string}) {
+export default function ReportTableScroll({children, allowDisplayedExport = true, captionId, nameFromCaption}:{children:ReactNode; allowDisplayedExport?:boolean; captionId?:string; nameFromCaption?:boolean}) {
  const reportText = useReportText();
  const ref=useRef<HTMLDivElement>(null);
  const scope=useId().replace(/[^a-zA-Z0-9_-]/g,'');
@@ -118,12 +118,13 @@ export default function ReportTableScroll({children, allowDisplayedExport = true
   downloadCsv('Displayed_report_rows.csv',visible.map(index=>headers[index]),rows);
  };
  const columnOrder = reorderable && order.some((id, i) => Number(id) !== i) ? order.map(Number) : NATURAL;
+ const scrollName = reportText('r.scroll-region', 'Scrollable report table');
  return <>
   {empty&&<div data-print-hide className="mb-2">
    <ReportEmptyState title={reportText('r.empty-table', 'Nothing to show in this table yet')}
     description={reportText('r.empty-table-help', 'Check the selected period, search and filters. If the books are new, save the source invoice, bill, payment or journal first; the report reads saved records and does not invent rows.')} />
   </div>}
-  <div ref={ref} data-columns={scope} className="overflow-x-auto" role="region" aria-label={captionId ? undefined : reportText('r.scroll-region', 'Scrollable report table')} aria-labelledby={captionId ? `${scope}-scroll ${captionId}` : undefined} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
+  <div ref={ref} data-columns={scope} className="relative overflow-x-auto" role="region" aria-label={captionId ? undefined : nameFromCaption && report ? `${scrollName}: ${report}` : scrollName} aria-labelledby={captionId ? `${scope}-scroll ${captionId}` : undefined} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
    {captionId && <span className="sr-only" id={`${scope}-scroll`}>{reportText('r.scroll-region', 'Scrollable report table')}</span>}
    <style>{hiddenColumnsCss(scope,effectiveHidden.map(index=>reorderable?order.indexOf(String(index)):index))}</style>
    <div data-print-hide className="sticky start-0 flex flex-wrap gap-2 mb-2">

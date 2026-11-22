@@ -2,7 +2,7 @@ import { ReportInputBoundary } from './ReportInputBoundary';
 import React from 'react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
-import { csvMoneyForCurrency } from '../../lib/csvExport';
+import { csvMoneyForBook } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { formatCurrency, workspaceYearMonth } from '../../lib/utils';
 import { useServerMonthlyAverages } from '../../hooks/useServerMonthlyAverages';
@@ -25,7 +25,7 @@ const LoadedReport: React.FC<Props> = ({
   const { summary, ...read } = useServerMonthlyAverages(selectedYear);
   const noActivity = summary.monthlyData.every(month => month.incomeCents === 0 && month.expenseCents === 0);
 
-  const writeCsvMoney = csvMoneyForCurrency(bookCurrency);
+  const writeCsvMoney = csvMoneyForBook(bookCurrency);
 
   /** One row per month: what came in, what went out, the difference, and whether it was out of line. */
   const columns: ColumnDef<(typeof summary.monthlyData)[number], unknown>[] = [

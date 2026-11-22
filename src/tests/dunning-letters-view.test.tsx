@@ -12,6 +12,7 @@ import DunningLettersReportView from '../components/reporting/DunningLettersRepo
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useAuthStore } from '../stores/useAuthStore';
+import { reportDateText } from '../lib/reportLocale';
 import { getLocalDateISO } from '../lib/utils';
 
 const shift = (iso: string, days: number) => new Date(new Date(`${iso}T00:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
@@ -39,8 +40,8 @@ describe('Dunning letters screen', () => {
     render(<DunningLettersReportView />);
     assert.match(screen.getByText(/overdue invoice\(s\)/).textContent || '', /2 overdue invoice\(s\) · 2 with a letter due today/);
     const rows = within(screen.getByRole('table', { name: /Overdue invoices and the reminder due/ })).getAllByRole('row').slice(1);
-    assert.match(rows[0].textContent || '', new RegExp(`INV-1Acme Ltd${shift(today, -60)}60\\$1,200\\.00Step 3`));
-    assert.match(rows[1].textContent || '', new RegExp(`INV-2Acme Ltd${shift(today, -10)}10\\$500\\.00Step 1`));
+    assert.match(rows[0].textContent || '', new RegExp(`INV-1Acme Ltd${reportDateText(shift(today, -60))}60\\$1,200\\.00Step 3`));
+    assert.match(rows[1].textContent || '', new RegExp(`INV-2Acme Ltd${reportDateText(shift(today, -10))}10\\$500\\.00Step 1`));
     assert.equal(rows.length, 2, 'the paid, draft and not-yet-due invoices are not letters');
     assert.ok(screen.getByText(/Nothing is sent from this screen/), 'the screen says so');
   });

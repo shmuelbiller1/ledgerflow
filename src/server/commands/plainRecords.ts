@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { HttpError } from '../auth/requestUser';
 import { guardPlainRecordDelete, guardPlainRecordSave } from './plainRecordGuards';
+import { guardPurchaseOrderApproval } from './purchaseOrderApprovalGuard';
 import {
   PLAIN_RECORD_COLLECTIONS, PLAIN_RECORD_SERVER_KEYS, isPlainRecordCollection, type PlainRecordCollection,
 } from '../../lib/plainRecords';
@@ -129,6 +130,7 @@ export const recordSaveCommand: CommandDefinition<typeof recordSaveInput, Record
     for (const [field, value] of Object.entries(data)) setAt(merged, field, value);
     for (const field of input.unset ?? []) unsetAt(merged, field);
     guardPlainRecordSave(input.collection, existing, merged);
+    if (input.collection === 'purchaseOrders') guardPurchaseOrderApproval(existing, merged, { role: ctx.role, uid: ctx.user.uid, workspace: ctx.workspace, now });
     tx.set(ref, create
       ? { ...merged, id, uid: ctx.user.uid, workspaceId: ctx.workspaceId, createdAt: now, updatedAt: now }
       : { ...merged, id, uid: existing?.uid ?? ctx.user.uid, workspaceId: ctx.workspaceId, createdAt: existing?.createdAt ?? now, updatedAt: now });
