@@ -11,6 +11,8 @@ import { WorkspaceSchema } from "../../schemas";
 import { getDb } from "../db/firestore";
 import type { DocumentData } from "../db/firestore";
 import { exportWorkspaceBackup } from "../services/workspaceRestoreService";
+import { memberSignInFacts } from "../services/memberSignInService";
+import { roleInWorkspace } from "../middleware/requireLedgerWriter";
 import { BRAND } from '../../config/brand';
 import { computeLedgerCloseAnchor, verifyAuditHashChain, type HashChainableAuditEntry } from '../../lib/auditHashChain';
 import { z } from 'zod';
@@ -90,13 +92,20 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
       const data = wsDoc.data() || {};
       const members: string[] = Array.isArray(data.members) ? data.members : [];
       const ownerUid = data.uid;
+      // S-21: owners and accountants (who run the access review) also get each person's last
+      // sign-in and whether they use two-step sign-in, straight from the auth provider.
+      const role = roleInWorkspace(data, authReq.user.uid);
+      const signIn = role === 'owner' || role === 'accountant'
+        ? await memberSignInFacts(db, [String(ownerUid || ''), ...members])
+        : undefined;
 
       res.json({
         status: "success",
         workspaceId,
         ownerUid,
         members,
-        total: members.length + 1
+        total: members.length + 1,
+        ...(signIn ? { signIn } : {}),
       });
     } catch (err) {
       handleApiError(res, err);
