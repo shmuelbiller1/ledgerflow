@@ -86,6 +86,11 @@ export function replayTool(name: string, args: Record<string, unknown>): unknown
     return { matches: findAssistantCommands(ownerCommands(), words, limit) };
   }
   if (name.startsWith('propose_')) return { drafted: true, note: 'test fixture: a proposal step would be drafted in the sandbox' };
+  if (name === 'run_report') {
+    const report = String(args.report ?? '');
+    if (/profit|income|p&l|pnl/i.test(report)) return { report, period: args.params, revenueCents: 4_200_000, expensesCents: 3_100_000, netProfitCents: 1_100_000, previousPeriod: { revenueCents: 4_600_000, expensesCents: 3_000_000, netProfitCents: 1_600_000 }, biggestChanges: [{ account: 'Sales', changeCents: -400_000 }, { account: 'Office costs', changeCents: 100_000 }] };
+    if (/balance/i.test(report)) return { report, assetsCents: 9_500_000, liabilitiesCents: 3_200_000, equityCents: 6_300_000 };
+  }
   if (name === 'search_records') {
     // test books: the invoice or customer asked about exists, with the fields a lookup reads
     const text = typeof args.text === 'string' ? args.text : '';
@@ -175,7 +180,15 @@ async function main() {
   const measured = Boolean(model && baseUrl);
   // Without a model the router still answers what code can; the rest are recorded as not measured.
   const noModel: ModelClient = { models: { generateContent: async () => { throw new Error('no model configured'); } } };
-  const client = measured ? openAiCompatibleClient({ baseUrl: baseUrl! }) : noModel;
+  // The endpoint's own billed cost per call (Arena reports `usage.cost`, in dollars), summed for the run. It is
+  // the measured cost of a model that has no price row yet; the table's cost column stays "unknown" for it.
+  let billedUsd = 0; let billedCalls = 0;
+  const countingFetch: typeof fetch = async (input, init) => {
+    const res = await fetch(input, init);
+    try { const cost = (await res.clone().json() as { usage?: { cost?: number } }).usage?.cost; if (typeof cost === 'number') { billedUsd += cost; billedCalls++; } } catch { /* not JSON */ }
+    return res;
+  };
+  const client = measured ? openAiCompatibleClient({ baseUrl: baseUrl!, fetchImpl: countingFetch }) : noModel;
   const opts = { client, model: model ?? 'none', systemPrompt };
   const out: string[] = [];
   const say = (line = '') => out.push(line);
@@ -189,14 +202,21 @@ async function main() {
     ['After Parts 4–6 (today)', CURRENT],
   ];
   let current: Awaited<ReturnType<typeof replay>> = [];
+  // --current-only: one model comparison run replays only today's behaviour (a quarter of the model calls)
+  const currentOnly = process.argv.includes('--current-only');
+  // --single-model: every model turn goes to ASSISTANT_REPLAY_MODEL (no two-model rule), so candidates compare like for like
+  const single = process.argv.includes('--single-model');
+  if (single) runs.splice(0, runs.length, [`Model ${model} for every model turn (cache and tools by area on, no two-model rule)`, { ...CURRENT, label: 'single', modelRule: false }]);
   for (const [title, mode] of runs) {
+    if (currentOnly && mode !== CURRENT && !single) continue;
     const rows = await replay(mode, opts);
-    if (mode === CURRENT) current = rows;
+    if (mode === CURRENT || single) current = rows;
     const noModelCall = rows.filter(r => r.kind === 'code' && r.metric.modelCalls === 0).length;
     const wrong = rows.filter(r => r.kind === 'model' && r.metric.path !== 'model').length;
     say(); say(`### ${title}`); say();
     say(`Book questions answered without a model call: ${noModelCall} of ${rows.filter(r => r.kind === 'code').length} (both passes); questions that need the model answered without it: ${wrong} (must be 0).`);
     say(); say(table(rows, measured));
+    if (measured && billedCalls) say(`\nBilled by the endpoint for this run: ${(billedUsd * 100).toFixed(2)} cents over ${billedCalls} model calls (${model}).`);
   }
   const modelRows = current.filter(r => r.pass === 1 && r.metric.path === 'model');
   const tiers = new Map<string, number>();
@@ -208,7 +228,8 @@ async function main() {
   // An estimate, labelled as one: the fixed prompt's input cost on the first model call of a turn, at
   // the list price of the model that answers (no prompt-cache discount). Before: one model for every
   // turn (the app's chat model, gemini-2.5-flash) with the fixed 25 tools.
-  const before = (await replay(runs[0][1], opts)).filter(r => r.pass === 1 && r.metric.path === 'model');
+  // the estimate needs only the tools offered, so the before pass is replayed without a model
+  const before = (await replay(runs[0][1], { ...opts, client: noModel })).filter(r => r.pass === 1 && r.metric.path === 'model');
   const today = new Date().toISOString().slice(0, 10);
   const est = (rows: typeof before, modelOf: (r: (typeof before)[number]) => string) =>
     rows.reduce((sum, r) => sum + (callCostCents(modelOf(r), today, Math.ceil(r.offeredBytes / 4), 0) ?? Number.NaN), 0);
