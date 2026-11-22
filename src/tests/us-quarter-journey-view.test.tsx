@@ -63,18 +63,20 @@ test('A-153 screen: a capped list is called provisional', () => {
   assert.match(screen.getByRole('status').textContent ?? '', /Loading/);
 });
 
+/** T-08: the copy the server kept when the quarter's return was filed (i1 alone). */
+const filedCopy = {
+  startDate: '2026-07-01', endDate: '2026-09-30', registration: 'sales_tax:US-TX:3200',
+  boxes: [
+    { key: '1', label: 'Sales tax collected', cents: 8_250 },
+    { key: '3', label: 'Total tax due', cents: 8_250 },
+    { key: '5', label: 'Net tax payable', cents: 8_250 },
+    { key: '6', label: 'Gross sales', cents: 108_250 },
+  ],
+};
+
 test('A-153 screen: T-08 the changes since a return was filed are shown box by box', () => {
   // the return was filed from i1 alone (amount 1,082.50, tax 82.50 — the fixture carries no taxVersion);
   // i2 (amount 216.50, tax 16.50) was saved after the filing
-  const filedCopy = {
-    startDate: '2026-07-01', endDate: '2026-09-30', registration: 'sales_tax:US-TX:3200',
-    boxes: [
-      { key: '1', label: 'Sales tax collected', cents: 8_250 },
-      { key: '3', label: 'Total tax due', cents: 8_250 },
-      { key: '5', label: 'Net tax payable', cents: 8_250 },
-      { key: '6', label: 'Gross sales', cents: 108_250 },
-    ],
-  };
   // i2 (amount 216.50, tax 16.50) saved after the filing: the same boxes recomputed now
   const afterFiling = [...invoices, {
     id: 'i2', date: '2026-09-15', status: 'sent', amountCents: 21650, taxAmountCents: 1650, customerId: 'austin',
@@ -92,15 +94,6 @@ test('A-153 screen: T-08 the changes since a return was filed are shown box by b
 
 test('A-153 screen: T-08 nothing changed since filing says so; no filed copy says nothing', () => {
   // the fixture invoices carry no taxVersion, so i1's figures are amount 1,082.50, tax 82.50
-  const filedCopy = {
-    startDate: '2026-07-01', endDate: '2026-09-30', registration: 'sales_tax:US-TX:3200',
-    boxes: [
-      { key: '1', label: 'Sales tax collected', cents: 8_250 },
-      { key: '3', label: 'Total tax due', cents: 8_250 },
-      { key: '5', label: 'Net tax payable', cents: 8_250 },
-      { key: '6', label: 'Gross sales', cents: 108_250 },
-    ],
-  };
   const unchanged = render(<UsQuarterJourneyPanel journey={journey({ filedPeriods: [filedCopy] })}
     currency="USD" quarterText="2026-Q3" onQuarterChange={() => {}} />);
   assert.ok(unchanged.getByText(/Nothing has changed since it was filed/), 'the default quarter is i1 alone: the copy matches');

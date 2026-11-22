@@ -165,13 +165,14 @@ describe('Filing for one registration (database)', { skip: !url && 'LF_TEST_DATA
   });
 
   test('T-08: the stored copy compares with the same boxes recomputed after a late document', async () => {
-    // the Tel Aviv return is filed from INV 1001 alone (net 100,000 + VAT 18,000)
-    const filed = await svc.fileTaxReturn(db as never, { workspaceId: ws, uid: 'o', startDate: '2026-09-01', endDate: '2026-09-30', registration: TA });
-    assert.equal(filed.documentCount, 1);
+    // the Tel Aviv return is filed in the test above from INV 1001 alone (net 100,000 + VAT 18,000): take that copy
+    const listed = await svc.listTaxReturns(db as never, ws);
+    const filed = listed.find(r => r.registration === TA && r.startDate === '2026-09-01');
+    assert.ok(filed, 'the Tel Aviv return is on the books');
+    assert.equal(filed!.documentCount, 1);
     // then a second Tel Aviv invoice is saved after the filing (net 50,000 + VAT 9,000): the same boxes recomputed now
     const late = { id: 'i3', number: '1003', date: '2026-09-28', status: 'sent', taxVersion: 2, amountCents: 59000, taxAmountCents: 9000 };
     await db.collection('invoices').doc(`${ws}_i3`).set({ ...late, workspaceId: ws });
-    const listed = await svc.listTaxReturns(db as never, ws);
     // by hand: box 1 filed 18,000, now 27,000 (+9,000); box 6 filed 100,000, now 150,000 (+50,000)
     const changes = filedRegistrationChanges(listed, '2026-09-01', '2026-09-30', TA, [
       { key: '1', label: 'Tax on sales', cents: 27_000 },
@@ -186,12 +187,12 @@ describe('Filing for one registration (database)', { skip: !url && 'LF_TEST_DATA
       { key: '6', label: 'Sales excluding tax', filedCents: 100_000, nowCents: 150_000 },
     ]);
     // the journey over the same documents shows the same comparison
-    const journey = israelMonthJourney({
+    const j = israelMonthJourney({
       month: '2026-09', today: '2026-10-20', currency: 'ILS', profiles: PROFILES, order: ['world'],
       filedPeriods: listed as never,
       invoices: [invoices[0], late] as never,
     });
-    const returned = journey.steps.find(s => s.id === 'vat-report')!.returns.find(r => r.registration === TA)!;
+    const returned = j.steps.find(s => s.id === 'vat-report')!.returns.find(r => r.registration === TA)!;
     assert.equal(returned.filed, true);
     assert.deepEqual(returned.changes, changes);
   });

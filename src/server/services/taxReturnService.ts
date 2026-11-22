@@ -12,7 +12,7 @@ import { writeServerAuditLog } from './auditLogService';
 import { workspaceRole } from '../../lib/periodLock';
 import { belongsTo } from '../../lib/tax/ilVatReturn';
 import { placeState, registrationKey, type TaxProfiles } from '../../lib/tax/profile';
-import { usSalesTaxReturn, type UsSalesDocument } from '../../lib/tax/usSalesTaxReturn';
+import { usSalesTaxReturn, usSalesTaxReturnBoxes, type UsSalesDocument } from '../../lib/tax/usSalesTaxReturn';
 
 export class TaxReturnError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -114,17 +114,7 @@ export async function fileTaxReturn(db: Firestore, input: { workspaceId: string;
     computed = {
       startDate: input.startDate,
       endDate: input.endDate,
-      boxes: [
-        { key: '1', label: 'Sales tax collected', cents: stateReturn.taxCollectedCents },
-        { key: '2', label: 'Reverse charge', cents: 0 },
-        { key: '3', label: 'Total tax due', cents: stateReturn.taxCollectedCents },
-        { key: '4', label: 'Input tax', cents: 0 },
-        { key: '5', label: 'Net tax payable', cents: stateReturn.taxCollectedCents },
-        { key: '6', label: 'Gross sales', cents: stateReturn.grossSalesCents },
-        { key: '7', label: 'Purchases', cents: 0 },
-        { key: '8', label: 'Zero-rated sales', cents: 0 },
-        { key: '9', label: 'Exempt sales', cents: stateReturn.exemptSalesCents },
-      ],
+      boxes: usSalesTaxReturnBoxes(stateReturn),
       sales: {
         standard: { netCents: stateReturn.taxableSalesCents, taxCents: stateReturn.taxCollectedCents },
         zero_rated: { netCents: 0, taxCents: 0 },
