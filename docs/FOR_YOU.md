@@ -32,6 +32,19 @@ Nothing a vendor sends would ever become a posted bill on its own; someone in yo
 
 Applied with your approval and checked in the live database. Tickets and their messages are now readable only by the person who filed them, the workspace's owners and accountants, and platform admins. The browser can no longer change a ticket's status. Nothing left for you to do.
 
+## SBX-2: add your Arena API key so the assistant's speed and cost can be measured (needs you, 2 minutes)
+
+SBX-2 Part 1 replays 30 test questions, using test data only, to measure the assistant's speed and cost. It needs a model key. The secure key form couldn't be used in my session because the session is too long, so please add it yourself:
+
+Claude Code cloud environment settings → Network secrets → add:
+- host `api.arena.ai`
+- type Bearer token (`Authorization: Bearer`)
+- your Arena key
+
+New sessions pick it up. Until then, the replay runs without a model and records only the numbers that don't need one: the size of the fixed prompt and how many tools are offered per turn.
+
+Default used: models are measured on test data only. Sending real customers' books to Arena (a provider other than Google) stays off until you approve it here.
+
 ## Retried money requests from outside tools can post twice (#942, needs your decision; nothing changed yet)
 
 When an outside tool using an API key sends a transaction, a payment or an intercompany entry, and then sends it again (a timeout, a double click), the second copy is posted too, unless the tool included an `Idempotency-Key`. LedgerFlow's own screens always include one, so this only affects API integrations. The server can't simply ignore repeats with the same content: two identical entries can both be real (two coffees on the same day).
