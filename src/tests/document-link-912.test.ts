@@ -46,3 +46,16 @@ test('a bookkeeper links their own file, but cannot move the owner\'s receipt to
   assert.equal(db.read('documents/receipt-owner')?.linkedTransactionId, 'tx-ours');
   assert.equal((await run(db, { id: 'receipt-owner', linkedTransactionId: 'tx-other' }, owner)).ok, true, 'the owner may');
 });
+
+test('a bookkeeper cannot move the owner\'s receipt to another record or swap its file, but may attach an unlinked one', async () => {
+  const db = seeded();
+  db.seed('documents/receipt-owner-billed', { workspaceId: ws, uid: owner.uid, name: 'invoice.pdf', linkedCollection: 'bills', linkedId: 'bill-1', fileUrl: 'data:a' });
+  db.seed('documents/vault-owner', { workspaceId: ws, uid: owner.uid, name: 'scan.pdf', fileUrl: 'data:b' });
+  const moved = await run(db, { id: 'receipt-owner-billed', linkedCollection: 'bills', linkedId: 'bill-2' }, book);
+  assert.equal(moved.ok, false);
+  const swapped = await run(db, { id: 'receipt-owner-billed', fileUrl: 'data:evil' }, book);
+  assert.equal(swapped.ok, false);
+  assert.deepEqual([db.read('documents/receipt-owner-billed')?.linkedId, db.read('documents/receipt-owner-billed')?.fileUrl], ['bill-1', 'data:a']);
+  const attached = await run(db, { id: 'vault-owner', linkedCollection: 'bills', linkedId: 'bill-3', linkedLabel: 'Bill 3' }, book);
+  assert.equal(attached.ok, true, 'attaching an unlinked vault file is still allowed');
+});

@@ -52,6 +52,9 @@ type SaveInput = z.output<typeof documentSaveInput>;
 const ROLES = ['owner', 'accountant', 'bookkeeper'] as const;
 export type DocumentSaved = { id: string; created: boolean };
 
+const EVIDENCE_LINK_FIELDS = ['linkedTransactionId', 'linkedCollection', 'linkedId'] as const;
+const EVIDENCE_FILE_FIELDS = ['fileUrl', 'storagePath', 'mimeType', 'sizeBytes'] as const;
+
 export const documentSaveCommand: CommandDefinition<typeof documentSaveInput, DocumentSaved> = {
   name: 'document.save',
   input: documentSaveInput,
@@ -86,10 +89,17 @@ export const documentSaveCommand: CommandDefinition<typeof documentSaveInput, Do
     if (!snapshot.exists || existing?.workspaceId !== ctx.workspaceId) {
       throw Object.assign(new HttpError('This document is not in the selected workspace.', 404), { code: 'NOT_FOUND' });
     }
-    // #912: moving someone else's evidence to another entry is an owner's or accountant's decision
-    const relinks = 'linkedTransactionId' in fields && (fields.linkedTransactionId ?? null) !== (existing.linkedTransactionId ?? null);
-    if (relinks && existing.uid !== ctx.actor && ctx.role !== 'owner' && ctx.role !== 'accountant') {
-      throw Object.assign(new HttpError('Only an owner or accountant can move another member\'s document to a different entry.', 403), { code: 'ROLE_REQUIRED' });
+    // #912 (and Gitar on #989): on another member's document, a bookkeeper may fill in a link that is not
+    // set yet (attaching an unlinked vault file), but moving an existing link or replacing the file is an
+    // owner's or accountant's decision
+    if (existing.uid !== ctx.actor && ctx.role !== 'owner' && ctx.role !== 'accountant') {
+      const sent = fields as Record<string, unknown>;
+      const changes = (key: string) => key in sent && (sent[key] ?? null) !== (existing[key] ?? null);
+      const movesLink = EVIDENCE_LINK_FIELDS.some(key => changes(key) && (existing[key] ?? null) !== null && existing[key] !== '');
+      const replacesFile = EVIDENCE_FILE_FIELDS.some(changes);
+      if (movesLink || replacesFile) {
+        throw Object.assign(new HttpError('Only an owner or accountant can move or replace another member\'s document.', 403), { code: 'ROLE_REQUIRED' });
+      }
     }
     tx.update(ref, { ...fields, updatedAt: now });
     return { id, created: false };
