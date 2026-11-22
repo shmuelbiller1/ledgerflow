@@ -129,7 +129,8 @@ async function checkJourneyScreen(page: Page, screen: JourneyScreen, width: numb
   if (screen.setup) await screen.setup(page);
   const root = page.locator('#root');
   for (const figure of screen.figures) await expect(root.getByText(figure, { exact: false }).first()).toBeVisible({ timeout: 15_000 });
-  expect(state.errors).toEqual([]);
+  // the message leads the failure output, so CI's truncated annotations carry the actual errors
+  expect(state.errors, state.errors.length ? `journey page errors: ${state.errors.join(' ||| ')}` : 'no page errors').toEqual([]);
   await settleStyles(page);
   // A cold dev server (each CI playwright invocation starts its own) compiles modules on demand;
   // let those fetches settle before pixels are taken, or an icon-sized gap flakes the comparison.
