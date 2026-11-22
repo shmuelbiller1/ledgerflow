@@ -3,7 +3,7 @@ import rateLimit from 'express-rate-limit';
 import { authenticate, handleApiError, requireAdmin, type AuthenticatedRequest } from '../http/serverKit';
 import { writeServerAuditLog } from '../services/auditLogService';
 import { CSP_REPORT_PATH, cspRollout } from '../http/contentSecurityPolicy';
-import { cspViolationSummary, parseCspReport, recordCspViolation, resetCspViolations } from '../http/cspViolations';
+import { cspViolationSummary, parseCspReport, recordCspViolation, restoreCspViolations, takeCspViolations } from '../http/cspViolations';
 
 /**
  * S-23: where the browser posts what the tightened Content-Security-Policy would have blocked.
@@ -75,13 +75,15 @@ export function registerCspReportRoutes(app: express.Express): void {
   app.delete(`${CSP_REPORT_PATH}/summary`, summaryLimiter, authenticate, requireAdmin, async (req, res) => {
     // #943: clearing the evidence is an admin action, recorded first; if it cannot be recorded, nothing is cleared
     const user = (req as AuthenticatedRequest).user;
+    // take the batch first: reports arriving during the write are kept, and the record lists exactly what was removed
+    const taken = takeCspViolations();
     try {
       await writeServerAuditLog({ workspaceId: 'system', uid: user.uid, email: user.email ?? '', action: 'ADMIN_CSP_REPORTS_CLEARED',
-        entityType: 'system', entityId: 'system', details: { description: 'Cleared the CSP violation summary', before: cspViolationSummary(), after: null } });
+        entityType: 'system', entityId: 'system', details: { description: 'Cleared the CSP violation summary', before: taken, after: null } });
     } catch (err) {
+      restoreCspViolations(taken);
       return handleApiError(res, err);
     }
-    resetCspViolations();
     res.json({ status: 'ok', ...cspViolationSummary() });
   });
 }
