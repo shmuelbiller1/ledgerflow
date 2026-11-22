@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * D-23 (BN-05): Synthetic uptime check for the deployed Ledgerflow site.
- * Signs in as a test user and verifies the health + dashboard APIs respond 200.
+ * Checks GET /api/health; with test credentials it also signs in through Supabase Auth (password grant)
+ * and calls GET /api/v1/workspaces with the access token as a Bearer header, the way the app itself does.
  */
 
 export async function runUptimeCheck(fetchImpl, config) {
@@ -11,31 +12,40 @@ export async function runUptimeCheck(fetchImpl, config) {
   }
   const email = config?.email || '';
   const password = config?.password || '';
-  const loginPath = config?.loginPath || '/api/auth/login';
+  const supabaseUrl = (config?.supabaseUrl || '').replace(/\/+$/, '');
+  const supabaseAnonKey = config?.supabaseAnonKey || '';
   const healthPath = config?.healthPath || '/api/health';
-  const dashboardPath = config?.dashboardPath || '/api/workspaces';
+  const dashboardPath = config?.dashboardPath || '/api/v1/workspaces';
 
   const healthRes = await fetchImpl(`${baseUrl}${healthPath}`, { method: 'GET' });
   if (!healthRes.ok) {
     throw new Error(`Health check failed: ${healthRes.status} ${healthRes.statusText}`);
   }
+  // Without credentials there is no signed-in API to call: the health check is the whole check.
+  if (!email || !password) {
+    return { ok: true, baseUrl, healthStatus: healthRes.status, dashboardStatus: null };
+  }
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('UPTIME_SUPABASE_URL and UPTIME_SUPABASE_ANON_KEY are required to sign in');
+  }
 
-  let cookieHeader = '';
-  if (email && password) {
-    const loginRes = await fetchImpl(`${baseUrl}${loginPath}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    if (!loginRes.ok) {
-      throw new Error(`Synthetic sign-in failed: ${loginRes.status} ${loginRes.statusText}`);
-    }
-    cookieHeader = loginRes.headers?.get?.('set-cookie') || '';
+  const loginRes = await fetchImpl(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', apikey: supabaseAnonKey },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!loginRes.ok) {
+    throw new Error(`Synthetic sign-in failed: ${loginRes.status} ${loginRes.statusText}`);
+  }
+  const session = await loginRes.json();
+  const accessToken = session?.access_token;
+  if (!accessToken) {
+    throw new Error('Synthetic sign-in returned no access token');
   }
 
   const dashRes = await fetchImpl(`${baseUrl}${dashboardPath}`, {
     method: 'GET',
-    headers: cookieHeader ? { cookie: cookieHeader } : {},
+    headers: { authorization: `Bearer ${accessToken}`, 'x-ledgerflow-request': '1' },
   });
   if (!dashRes.ok) {
     throw new Error(`Dashboard check failed: ${dashRes.status} ${dashRes.statusText}`);
@@ -55,6 +65,8 @@ if (isMain) {
     baseUrl,
     email: process.env.UPTIME_TEST_EMAIL || '',
     password: process.env.UPTIME_TEST_PASSWORD || '',
+    supabaseUrl: process.env.UPTIME_SUPABASE_URL || '',
+    supabaseAnonKey: process.env.UPTIME_SUPABASE_ANON_KEY || '',
   })
     .then(result => {
       console.log('Synthetic uptime check passed:', JSON.stringify(result));

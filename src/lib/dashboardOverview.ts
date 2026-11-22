@@ -4,6 +4,7 @@ import { resolveAccountRole } from './accountUtils';
 import { computePartyAging } from './aging';
 import { getFiscalYearBounds, getFiscalQuarter, getReportPeriod, getComparePeriod, addDaysYMD } from './fiscalCalendar';
 import { addToDateISO } from './calendarDate';
+import { calculateAmountDue } from './documentMath';
 import { validCustomReportPeriod } from './reportCustomPeriod';
 
 export type DashboardRange = 'month' | 'quarter' | 'year' | 'custom';
@@ -63,34 +64,31 @@ export function dashboardAging(parties: Array<{ id: string; name: string }>, doc
   return { rows, top };
 }
 
-/** D-58: bills due in the next 7 days (inclusive of asOfDate), excluding paid/void/zero-balance bills. */
+/** D-58: bills due in the next 7 days (inclusive of asOfDate) that still have something to pay. */
 export interface BillsDueSummary {
   count: number;
   totalCents: number;
   bills: Array<{ id: string; billNumber: string; vendorName: string; dueDate: string; amountDueCents: number; currency: string }>;
 }
 
-function addDaysISO(dateISO: string, days: number): string {
-  const [y, m, d] = dateISO.slice(0, 10).split('-').map(Number);
-  const dt = new Date(Date.UTC(y, (m || 1) - 1, (d || 1) + days));
-  return dt.toISOString().slice(0, 10);
-}
+/** Bills that are not owed: settled, voided, refused, or never approved. */
+const NOT_PAYABLE = new Set(['paid', 'void', 'cancelled', 'rejected', 'draft']);
 
 export function billsDueThisWeek(bills: readonly Bill[], asOfDate: string, fallbackCurrency = 'USD'): BillsDueSummary {
   const start = asOfDate.slice(0, 10);
-  const end = addDaysISO(start, 7);
+  const end = addDaysYMD(start, 7);
   const matching: BillsDueSummary['bills'] = [];
   let totalCents = 0;
   for (const bill of bills) {
-    if (bill.status === 'paid' || bill.status === 'void') continue;
+    if (NOT_PAYABLE.has(String(bill.status))) continue;
     const due = (bill.dueDate || '').slice(0, 10);
     if (!due || due < start || due > end) continue;
-    const amountDueCents = Math.max(0, bill.amountCents ?? 0);
+    const amountDueCents = calculateAmountDue(bill);
     if (amountDueCents <= 0) continue;
     totalCents += amountDueCents;
     matching.push({
       id: bill.id,
-      billNumber: bill.id,
+      billNumber: bill.number || bill.id,
       vendorName: bill.vendorName || 'Vendor',
       dueDate: due,
       amountDueCents,

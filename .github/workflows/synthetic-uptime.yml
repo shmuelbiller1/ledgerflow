@@ -19,4 +19,6 @@ jobs:
           UPTIME_BASE_URL: ${{ vars.UPTIME_BASE_URL }}
           UPTIME_TEST_EMAIL: ${{ secrets.UPTIME_TEST_EMAIL }}
           UPTIME_TEST_PASSWORD: ${{ secrets.UPTIME_TEST_PASSWORD }}
+          UPTIME_SUPABASE_URL: ${{ vars.UPTIME_SUPABASE_URL }}
+          UPTIME_SUPABASE_ANON_KEY: ${{ vars.UPTIME_SUPABASE_ANON_KEY }}
         run: node scripts/synthetic-uptime.mjs
