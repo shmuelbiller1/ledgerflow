@@ -1,6 +1,6 @@
 # Payroll and Canadian historical tax — partial independent review
 
-**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7faa73705`. Sources checked 22 November 2026. These are synthetic, bounded reproductions, not a professional tax opinion, real filing or full payroll audit. Every feature below remains subject to end-to-end and jurisdictional review. Suggested priorities refer to the affected workflow, not every feature in the application.
+**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7fbaa73705`. Sources checked 22 November 2026. These are synthetic, bounded reproductions, not a professional tax opinion, real filing or full payroll audit. Every feature below remains subject to end-to-end and jurisdictional review. Suggested priorities refer to the affected workflow, not every feature in the application.
 
 ## PY-01 — Release blocker for actual payroll: forecast tax estimates feed a posting workflow
 

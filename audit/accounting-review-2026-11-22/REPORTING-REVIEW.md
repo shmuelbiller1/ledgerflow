@@ -1,6 +1,6 @@
 # Reporting, historical cutoffs and exports — partial audit
 
-**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7faa73705`. Synthetic data only; no customer records, actual emails, authenticated HTTP or real database used. These are scoped findings, not a complete review of these files or a release opinion. Severity is suggested for affected workflows and depends on business usage.
+**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7fbaa73705`. Synthetic data only; no customer records, actual emails, authenticated HTTP or real database used. These are scoped findings, not a complete review of these files or a release opinion. Severity is suggested for affected workflows and depends on business usage.
 
 ## RP-01 — P1: scheduled aging labels current settlement state as a past balance
 

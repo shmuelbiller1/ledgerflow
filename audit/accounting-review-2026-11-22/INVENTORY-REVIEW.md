@@ -1,6 +1,6 @@
 # Inventory and cost of sales — partial audit
 
-**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7faa73705` · **Status:** incomplete, not a release opinion. Evidence below uses synthetic items and documents, the real document-posting HTTP router with an injected owner identity, and a dedicated local PostgreSQL 18.7 database with repository migrations and plain-Postgres auth stubs. No hosted Supabase, genuine authentication, provider or customer data was used. Workspace-specific test records were removed afterward.
+**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7fbaa73705` · **Status:** incomplete, not a release opinion. Evidence below uses synthetic items and documents, the real document-posting HTTP router with an injected owner identity, and a dedicated local PostgreSQL 18.7 database with repository migrations and plain-Postgres auth stubs. No hosted Supabase, genuine authentication, provider or customer data was used. Workspace-specific test records were removed afterward.
 
 ## INV-01 — Invoice sale of zero/unknown-cost stock leaves quantity unchanged and no COGS-pending warning (P1)
 

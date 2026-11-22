@@ -1,6 +1,6 @@
 # Payment and allocation audit — partial
 
-**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7faa73705`. **Status:** in progress, not release approval. Independent probes used synthetic documents, an isolated PostgreSQL 18.7 with all repository migrations and stub auth, and real document/payment HTTP routers with a test-injected owner identity. This does not test actual authentication or hosted Supabase. No customer data or real financial transaction was used.
+**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7fbaa73705`. **Status:** in progress, not release approval. Independent probes used synthetic documents, an isolated PostgreSQL 18.7 with all repository migrations and stub auth, and real document/payment HTTP routers with a test-injected owner identity. This does not test actual authentication or hosted Supabase. No customer data or real financial transaction was used.
 
 ## PM-01 — Initial payment accepts mismatched customer/vendor and allocations to another party (P1)
 

@@ -1,6 +1,6 @@
 # Top-to-bottom accounting-program audit — coverage register
 
-**Pinned code:** `9b815a58ebbe1d0f99c44f908ee77b7faa73705`. **Overall status: IN PROGRESS; not an audit opinion or release approval.** Maintain a separate result for each function, caller, and end-to-end workflow; never infer correctness merely because a file is indexed or an existing test passes.
+**Pinned code:** `9b815a58ebbe1d0f99c44f908ee77b7fbaa73705`. **Overall status: IN PROGRESS; not an audit opinion or release approval.** Maintain a separate result for each function, caller, and end-to-end workflow; never infer correctness merely because a file is indexed or an existing test passes.
 
 ## File-level tracking
 

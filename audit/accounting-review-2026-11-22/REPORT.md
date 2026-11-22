@@ -1,6 +1,6 @@
 # Accounting and tax pre-release review — first audit slice
 
-**As of:** 22 November 2026 (UTC). **Source revision:** `9b815a58ebbe1d0f99c44f908ee77b7faa73705`. **Decision:** Do not represent the product as independently audited, tax-compliant, filing-ready, or ready for unrestricted public use. This is a targeted, independent code-and-test review, not an audit opinion, CPA attestation, legal advice, or an exhaustive review of every scenario or tax number. It did not inspect live data, deployment configuration, production policies, or customer records. A licensed professional in each supported jurisdiction must make the legal and accounting determinations.
+**As of:** 22 November 2026 (UTC). **Source revision:** `9b815a58ebbe1d0f99c44f908ee77b7fbaa73705`. **Decision:** Do not represent the product as independently audited, tax-compliant, filing-ready, or ready for unrestricted public use. This is a targeted, independent code-and-test review, not an audit opinion, CPA attestation, legal advice, or an exhaustive review of every scenario or tax number. It did not inspect live data, deployment configuration, production policies, or customer records. A licensed professional in each supported jurisdiction must make the legal and accounting determinations.
 
 ## Executive summary
 

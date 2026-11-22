@@ -1,6 +1,6 @@
 # Systematic audit: core bookkeeping and FX — batch 1
 
-**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7faa73705` · **Date:** 2026-11-22 UTC · **Status:** in progress; no subsystem below has been fully certified. See [coverage register](COVERAGE.md) and [file inventory](INVENTORY.csv). The [first slice](REPORT.md) remains part of the audit.
+**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7fbaa73705` · **Date:** 2026-11-22 UTC · **Status:** in progress; no subsystem below has been fully certified. See [coverage register](COVERAGE.md) and [file inventory](INVENTORY.csv). The [first slice](REPORT.md) remains part of the audit.
 
 ## Worked bookkeeping scenario
 

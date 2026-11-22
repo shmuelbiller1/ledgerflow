@@ -1,6 +1,6 @@
 # Accounting review — interim findings index
 
-**Code:** `9b815a58ebbe1d0f99c44f908ee77b7faa73705` · **Status: IN PROGRESS (`195` files partially inspected, `3,499` not reviewed, `0` certified fully reviewed). Not an audit opinion, certification, or public-release approval.** See [coverage register](COVERAGE.md) and [reproduction instructions](REPRODUCIBILITY.md) for what has been inspected, what remains, and test limitations. Severity is conditional on a workflow being enabled and affected records/transactions actually occurring; it does not assert that customers were harmed. No product code or live data was changed.
+**Code:** `9b815a58ebbe1d0f99c44f908ee77b7fbaa73705` · **Status: IN PROGRESS (`195` files partially inspected, `3,499` not reviewed, `0` certified fully reviewed). Not an audit opinion, certification, or public-release approval.** See [coverage register](COVERAGE.md) and [reproduction instructions](REPRODUCIBILITY.md) for what has been inspected, what remains, and test limitations. Severity is conditional on a workflow being enabled and affected records/transactions actually occurring; it does not assert that customers were harmed. No product code or live data was changed.
 
 ## Highest-priority release risks (P0 / P1)
 

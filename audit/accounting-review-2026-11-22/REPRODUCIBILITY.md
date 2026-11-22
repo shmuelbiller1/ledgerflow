@@ -1,6 +1,6 @@
 # Reproducing this in-progress audit
 
-Revision: `9b815a58ebbe1d0f99c44f908ee77b7faa73705`. These are diagnostic counterexamples, not fixes or a complete certification. Diagnostic tests intentionally assert the **current defective behavior**; once a defect is patched, invert or replace each assertion with positive acceptance assertions. Every test creates synthetic records only and deletes its own workspace-scoped rows.
+Revision: `9b815a58ebbe1d0f99c44f908ee77b7fbaa73705`. These are diagnostic counterexamples, not fixes or a complete certification. Diagnostic tests intentionally assert the **current defective behavior**; once a defect is patched, invert or replace each assertion with positive acceptance assertions. Every test creates synthetic records only and deletes its own workspace-scoped rows.
 
 ## Dependencies and safety
 

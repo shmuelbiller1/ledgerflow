@@ -1,6 +1,6 @@
 # Banking review: Plaid sync slice
 
-**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7faa73705`. **Status:** partial; not a full bank/reconciliation audit. This slice examines ingestion and cursor design, not live bank feeds or the deployed database.
+**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7fbaa73705`. **Status:** partial; not a full bank/reconciliation audit. This slice examines ingestion and cursor design, not live bank feeds or the deployed database.
 
 ## Source trace
 

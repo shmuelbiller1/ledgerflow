@@ -1,6 +1,6 @@
 # Credit notes and refunds — partial review
 
-**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7faa73705` · **Status:** incomplete; no release approval. Tests used real document and payment routers with an injected synthetic identity and an isolated PostgreSQL 18.7 database (migrations and plain-Postgres auth stubs), not hosted Supabase or real customer data.
+**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7fbaa73705` · **Status:** incomplete; no release approval. Tests used real document and payment routers with an injected synthetic identity and an isolated PostgreSQL 18.7 database (migrations and plain-Postgres auth stubs), not hosted Supabase or real customer data.
 
 ## CR-01 — Foreign-currency credit refunds use default 1:1 line rates and fail to clear control balance (P0 for affected requests)
 

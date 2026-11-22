@@ -1,6 +1,6 @@
 # Period close — partial review
 
-**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7faa73705`. Not a release opinion. The probe used a synthetic workspace and documents in isolated local PostgreSQL 18.7 with migrations and stub auth, not hosted Supabase or customer records. The actual document HTTP router was exercised with an injected test identity; `closePeriod` was invoked at the service boundary, not over the authenticated close route.
+**Revision:** `9b815a58ebbe1d0f99c44f908ee77b7fbaa73705`. Not a release opinion. The probe used a synthetic workspace and documents in isolated local PostgreSQL 18.7 with migrations and stub auth, not hosted Supabase or customer records. The actual document HTTP router was exercised with an injected test identity; `closePeriod` was invoked at the service boundary, not over the authenticated close route.
 
 ## PC-01 — Month-end draft with timestamp is missed by close guard (P2)
 
