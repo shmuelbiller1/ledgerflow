@@ -99,6 +99,21 @@ export const assistantReadCache = new ReadCache();
 export { booksVersion };
 
 /**
+ * The day part of a cache key: the UTC date and the workspace's own date. Answers that depend on
+ * "today" (aging buckets, "this month") use the workspace's timezone, so its midnight must start new
+ * keys too, not only UTC midnight. An unknown timezone counts as UTC.
+ */
+export function cacheDay(now: Date, timeZone: unknown): string {
+  const utc = now.toISOString().slice(0, 10);
+  if (typeof timeZone !== 'string' || !timeZone) return `${utc}|${utc}`;
+  try {
+    return `${utc}|${new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)}`;
+  } catch {
+    return `${utc}|${utc}`;
+  }
+}
+
+/**
  * The live tables a read names, when it names them: a search reads only its collections, so only they
  * (and the workspace row) decide whether its answer is still current. Reports and explanations may
  * read any book table, so they are checked against all of them.
@@ -116,9 +131,9 @@ export function tablesRead(tool: string, args: Record<string, unknown>): readonl
  * turn keeps the tool's result, and one must never be served to the other.
  */
 export function sandboxToolCache(pool: Pool, scope: { workspaceId: string; sandboxId: string }, namespace: 'http' | 'turn',
-  options: { cache?: ReadCache; today?: () => string } = {}): ToolCache {
+  options: { cache?: ReadCache; today?: () => string; timeZone?: unknown } = {}): ToolCache {
   const cache = options.cache ?? assistantReadCache;
-  const today = options.today ?? (() => new Date().toISOString().slice(0, 10));
+  const today = options.today ?? (() => cacheDay(new Date(), options.timeZone));
   return {
     async read(tool, args, run) {
       if (!CACHEABLE_TOOLS.has(tool)) return { value: (await run()).value, hit: false };

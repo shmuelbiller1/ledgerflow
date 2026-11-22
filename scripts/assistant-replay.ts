@@ -144,12 +144,17 @@ export async function replay(mode: ReplayMode, opts: { client: ModelClient; mode
   for (let pass = 1; pass <= mode.passes; pass++) {
     for (const { q, kind } of REPLAY_QUESTIONS) {
       const tools = mode.areaTools ? assistantToolsFor(commands, q)[0].functionDeclarations as FunctionDeclaration[] : fixed;
-      const decision = routeQuestion(q);
-      const choice = mode.modelRule ? chooseModel(q, decision.path === 'model' ? decision.reason : 'code-answer-incomplete', commands, models) : undefined;
-      const { metric } = await answerTurn({ client: opts.client, model: choice?.model ?? opts.model, systemPrompt: opts.systemPrompt, tools, question: q,
-        currency: REPLAY_CURRENCY, callTool: async (name, args) => replayTool(name, args), discover: replayDiscover, ...(cache ? { cache } : {}) });
+      // the same model rule the server's turn handler uses (assistantTurnHandler.ts), retry included
+      const modelRule = mode.modelRule ? { choose: (reason: string) => chooseModel(q, reason, commands, models), strong: models.strong } : undefined;
+      const { metric } = await answerTurn({ client: opts.client, model: opts.model, systemPrompt: opts.systemPrompt, tools, question: q,
+        currency: REPLAY_CURRENCY, callTool: async (name, args) => replayTool(name, args), discover: replayDiscover, ...(cache ? { cache } : {}),
+        ...(modelRule ? { modelRule } : {}) });
       const offeredBytes = metric.path === 'model' ? Buffer.byteLength(opts.systemPrompt) + Buffer.byteLength(JSON.stringify(tools)) : 0;
-      rows.push({ kind, pass, metric, offeredBytes, ...(metric.path === 'model' && choice ? { tier: choice.tier, reason: choice.reason } : {}) });
+      // the rule's first pick, for the table (the metric holds the model that finally answered, which
+      // without a model run is always the strong retry)
+      const decision = routeQuestion(q);
+      const first = mode.modelRule ? chooseModel(q, decision.path === 'model' ? decision.reason : 'code-answer-incomplete', commands, models) : undefined;
+      rows.push({ kind, pass, metric, offeredBytes, ...(metric.path === 'model' && first ? { tier: first.tier, reason: first.reason } : {}) });
     }
   }
   return rows;
@@ -196,7 +201,8 @@ async function main() {
   const modelRows = current.filter(r => r.pass === 1 && r.metric.path === 'model');
   const tiers = new Map<string, number>();
   for (const r of modelRows) tiers.set(`${r.tier} (${r.reason})`, (tiers.get(`${r.tier} (${r.reason})`) ?? 0) + 1);
-  say(); say('### Part 6: which model the written rule picks for the model turns (pass 1)'); say();
+  say(); say('### Part 6: which model the written rule picks first for the model turns (pass 1)'); say();
+  if (measured) say(`Retried on the strong model after the simple one failed: ${modelRows.filter(r => r.metric.modelReason === 'simple-model-failed').length}.`);
   say('| model (rule) | turns |'); say('|---|---|');
   for (const [k, n] of [...tiers].sort(([a], [b]) => a.localeCompare(b))) say(`| ${k} | ${n} |`);
   // An estimate, labelled as one: the fixed prompt's input cost on the first model call of a turn, at

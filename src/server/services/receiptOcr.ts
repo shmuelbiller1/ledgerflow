@@ -66,7 +66,7 @@ export interface OcrDraft {
  */
 export function printedAmountToMinor(printed: string | null | undefined, currency: string): number | null {
   if (!printed) return null;
-  const negative = /^\s*-|\(\s*[\d.,]+\s*\)/.test(printed);
+  const negative = /(?:^\s*-)|(?:\(\s*[\d.,]+\s*\))/.test(printed);
   const raw = printed.replace(/[^\d.,]/g, '');
   if (!/\d/.test(raw)) return null;
   const digits = currencyDigits(currency);

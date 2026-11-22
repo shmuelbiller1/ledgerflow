@@ -186,7 +186,7 @@ function captured(router: express.Router, req: express.Request, res: express.Res
  * version, never across workspaces or sandboxes, and refusals are never cached.
  */
 export async function runReadTool(live: Firestore, req: express.Request, res: express.Response, sandbox: ReadableSandbox,
-  tool: string, input: Record<string, unknown>, cache: ToolCache = sandboxToolCache(live.pool, sandbox, 'http')): Promise<{ status: number; body: unknown; cached: boolean }> {
+  tool: string, input: Record<string, unknown>, cache: ToolCache = sandboxToolCache(live.pool, sandbox, 'http', { timeZone: sandbox.workspace.timezone })): Promise<{ status: number; body: unknown; cached: boolean }> {
   const { books, workspaceId, workspace, sandboxId, user } = sandbox;
   const binding = { id: sandboxId, workspaceId, personId: user.uid };
   const routers = () => boundRouters(live, books);

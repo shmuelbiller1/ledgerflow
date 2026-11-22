@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
 import { PLANS, planFor, type PlanLimits } from '../../lib/plans';
@@ -200,12 +200,14 @@ export interface AssistantUsage {
   limits: { modelTurns: number; costCents: number } | null;
 }
 
-export async function assistantUsage(db: Firestore, workspaceId: string, ws?: Record<string, unknown>, now = new Date()): Promise<AssistantUsage | null> {
+type Runner = Pick<Firestore['pool'], 'query'>;
+
+export async function assistantUsage(db: Firestore, workspaceId: string, ws?: Record<string, unknown>, now = new Date(), runner: Runner = db.pool): Promise<AssistantUsage | null> {
   requireLiveDb(db, 'Assistant usage');
   const workspace = ws ?? (await db.collection('workspaces').doc(workspaceId).get()).data();
   if (!workspace) return null;
   const month = now.toISOString().slice(0, 7);
-  const { rows } = await db.pool.query<{ turns: number; model_turns: number; input: string; output: string; cents: string | null; unpriced: number }>(
+  const { rows } = await runner.query<{ turns: number; model_turns: number; input: string; output: string; cents: string | null; unpriced: number }>(
     `select count(*)::int as turns,
             count(*) filter (where (data->'assistantTurn'->>'modelCalls')::int > 0)::int as model_turns,
             coalesce(sum((data->'assistantTurn'->>'inputTokens')::bigint), 0)::text as input,
@@ -360,15 +362,18 @@ export async function reserveAssistantModelTurn(db: Firestore, workspaceId: stri
       const { rows } = await client.query<{ locked: boolean }>(`select pg_try_advisory_lock(hashtextextended($1, 0)) as locked`, [`assistant-allowance:${workspaceId}`]);
       held = rows[0]?.locked === true;
       if (held) {
-        const usage = await assistantUsage(db, workspaceId, ws);
+        // the read and the reservation run on the connection that holds the lock: reserving never needs
+        // a second pool slot (a pool of one, or many workspaces reserving at once, cannot starve it)
+        const usage = await assistantUsage(db, workspaceId, ws, new Date(), client);
         const refusal = usage ? assistantLimitRefusal(usage) : null;
         if (refusal) return { refusal };
         const id = `trace-${randomUUID()}`;
-        await db.collection('billingLedgerTraces').doc(id).set({
+        const row = {
           id, workspaceId, uid, algorithmName: 'ASSISTANT_TURN', timestamp: new Date().toISOString(), calls: [],
           // counts as one model turn until the turn's own metric replaces it
           assistantTurn: { reserved: true, path: 'model', modelCalls: 1, inputTokens: 0, outputTokens: 0, costCents: 0, ok: false },
-        });
+        };
+        await client.query(`insert into ${db.tableSource('billingLedgerTraces')} (id, data) values ($1, $2::jsonb)`, [id, JSON.stringify(row)]);
         return { id, usage };
       }
     } finally {
@@ -376,6 +381,6 @@ export async function reserveAssistantModelTurn(db: Firestore, workspaceId: stri
       client.release();
     }
     if (Date.now() - started > RESERVE_WAIT_MS) throw new Error('The assistant allowance could not be checked in time');
-    await sleep(25 + Math.floor(Math.random() * 50));
+    await sleep(randomInt(25, 75)); // spread the retries of requests that collided
   }
 }

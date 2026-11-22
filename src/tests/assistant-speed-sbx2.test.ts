@@ -14,7 +14,7 @@ import { quoteIdent } from '../server/db/pg/sql';
 import { assistantLimitRefusal, type AssistantUsage } from '../server/middleware/planCapacity';
 import { assistantToolsFor, defaultAssistantTools, findAssistantCommands, questionAreas } from '../server/services/assistantCatalog';
 import { assistantModels, chooseModel, DEFAULT_ASSISTANT_MODELS, routedModelClient } from '../server/services/assistantModels';
-import { booksVersion, canonicalJson, memoryToolCache, ReadCache, sandboxToolCache, tablesRead } from '../server/services/assistantReadCache';
+import { booksVersion, cacheDay, canonicalJson, memoryToolCache, ReadCache, sandboxToolCache, tablesRead } from '../server/services/assistantReadCache';
 import { AI_TASK_FIELDS } from '../server/services/aiGateway';
 import { answerTurn, routeQuestion } from '../server/services/assistantRouter';
 import { geminiReadTools, proposedToolName } from '../server/services/assistantToolDefinitions';
@@ -89,6 +89,16 @@ describe('Part 4: the read cache', () => {
     cache.set(k(), scope, { a: 1 });
     assert.deepEqual(cache.get(k(), scope), { value: { a: 1 } });
     assert.equal(cache.get(k(), { ...scope, workspaceId: 'w2' }), undefined, 'an entry is only ever served to its own workspace');
+  });
+
+  test('the workspace’s own midnight starts new keys (aging and "this month" use its timezone), not only UTC midnight', () => {
+    // 23:59 and 00:01 in Jerusalem on the same UTC date
+    const before = cacheDay(new Date('2026-11-22T21:59:00Z'), 'Asia/Jerusalem');
+    const after = cacheDay(new Date('2026-11-22T22:01:00Z'), 'Asia/Jerusalem');
+    assert.equal(before, '2026-11-22|2026-11-22');
+    assert.equal(after, '2026-11-22|2026-11-23');
+    assert.equal(cacheDay(new Date('2026-11-22T22:01:00Z'), 'Not/AZone'), '2026-11-22|2026-11-22');
+    assert.equal(cacheDay(new Date('2026-11-22T22:01:00Z'), undefined), '2026-11-22|2026-11-22');
   });
 
   test('bounded: the oldest entries go first; expired ones are never served; values are copies', () => {
@@ -484,6 +494,17 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     const { rows } = await live.pool.query(`select data from public."billingLedgerTraces" where workspace_id = $1`, [a.workspaceId]);
     assert.equal(rows.length, 1, 'the reservation was replaced by the real metric, not added to');
     assert.equal(rows[0].data.assistantTurn.reserved, undefined);
+  });
+
+  test('reserving a model turn needs no second connection (a pool of one does not starve it)', async t => {
+    const a = await setup(t, { maxAssistantModelTurns: 5 });
+    const { reserveAssistantModelTurn } = await import('../server/middleware/planCapacity');
+    const single = new Firestore({ connectionString: url, max: 1 });
+    try {
+      const ws = (await live.doc(`workspaces/${a.workspaceId}`).get()).data()!;
+      const reserved = await reserveAssistantModelTurn(single, a.workspaceId, a.owner, ws);
+      assert.ok('id' in reserved, JSON.stringify(reserved));
+    } finally { await single.terminate(); }
   });
 
   test('a cached read from an assistant turn never breaks the direct tool route (separate cached shapes)', async t => {

@@ -128,7 +128,7 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
       model: models.simple,
       systemPrompt: ASSISTANT_SYSTEM_PROMPT,
       tools, question, callTool, discover,
-      cache: sandboxToolCache(live.pool, sandbox, 'turn'),
+      cache: sandboxToolCache(live.pool, sandbox, 'turn', { timeZone: workspace.timezone }),
       currency: typeof workspace.currency === 'string' ? workspace.currency : null,
       modelRule: { choose: reason => chooseModel(question, reason, commands, models), strong: models.strong },
     });

@@ -94,7 +94,7 @@ Book questions answered without a model call: 18 of 36 (both passes); questions 
 | model | 42 | not measured | not measured | not measured | not measured | 10 | 2133 | 0 | 0 | not measured | not measured | not measured |
 | cache | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 10 | 10 | 0 | 0 | 0.0000 |
 
-### Part 6: which model the written rule picks for the model turns (pass 1)
+### Part 6: which model the written rule picks first for the model turns (pass 1)
 
 | model (rule) | turns |
 |---|---|
