@@ -25,6 +25,12 @@ const MUST_GO_TO_MODEL = [
   'Delete invoice INV-1001.',
   'What is 1,250 plus 17% VAT?', // words and a percentage: not pure arithmetic
   'Tell me a joke.',
+  'What were my sales excluding refunds this month?', // ask_books would ignore the exclusion
+  'What is my cash balance without the petty cash?',
+  'How much did I spend on rent compared to last year?',
+  'What were my sales per customer this month?',
+  'What is my revenue growth this year?',
+  'What were my sales only in Tel Aviv this month?',
   '',
 ];
 

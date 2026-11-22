@@ -25,6 +25,12 @@ export type RouteDecision = { path: 'code'; route: CodeRoute } | { path: 'model'
 /** Words that mean the person wants something done, judged, explained or advised: always the model. */
 const MODEL_ONLY = /\b(create|record|make|add|set ?up|move|write ?off|fix|delete|remove|send|pay|post|change|update|edit|cancel|void|refund|approve|reconcile|draft|should|why|could|would|afford|summari[sz]e|advise|recommend|suggest|check|forecast|predict|plan|hire|compare|best|worse|better|help)\b/i;
 const VAGUE = /\b(something|anything|stuff|things?|looks? off|weird|wrong)\b/i;
+/**
+ * Words that narrow, exclude, split or compare a figure. ask_books matches accounts and a period but
+ * does not reject words it does not use, so "sales excluding refunds" would read as plain sales: any
+ * of these sends the question to the model.
+ */
+const QUALIFIER = /\b(exclud\w*|includ\w*|except|without|minus|less|net of|gross|only|just|but|not|no|per|each|every|by|average|avg|mean|median|total of|compared?|versus|vs|than|growth|change|increase|decrease|trend|share|ratio|margin|from|to|between|since|until|before|after|for|of)\b|%|percent/i;
 
 const MAX_ROUTED_LENGTH = 120;
 /** search_records' default match limit (sandboxTools.ts): a full page may have been cut short */
@@ -77,7 +83,8 @@ export function routeQuestion(raw: string): RouteDecision {
 
   // a figure from accounts and a period ("what is my cash balance", "what were my sales this month"):
   // ask_books reads it with plain matching and refuses what it cannot place, so its answer decides.
-  if (/^(what('s| is| was| were| did)|how much)\b/.test(q) && /\b(balance|cash|bank|sales|revenue|income|spen[dt]|expenses?|costs?)\b/.test(q)) {
+  if (/^(what('s| is| was| were| did)|how much)\b/.test(q) && /\b(balance|cash|bank|sales|revenue|income|spen[dt]|expenses?|costs?)\b/.test(q)
+      && !QUALIFIER.test(q.replace(/\b(this|last) (month|year|quarter|week)\b|\btoday\b|\bin the bank( account)?\b/g, ''))) {
     return { path: 'code', route: { tool: 'ask_books', args: { question }, template: 'figure' } };
   }
 
