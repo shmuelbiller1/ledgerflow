@@ -18,6 +18,7 @@ import { JourneyNotices, JourneySteps } from './JourneySteps';
 import { stepStatusLabel } from './journeyStatus';
 import { PCN874_DRAFT_CLOSING_WIDTH, PCN874_DRAFT_HEADER_WIDTH, PCN874_DRAFT_TRANSACTION_WIDTH } from '../../lib/tax/pcn874Draft';
 import { useReportText, fill } from './useReportText';
+import { FilledChangesCell } from './filedChangesCell';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
 const MONTH_TEXT = /^\d{4}-\d{2}$/;
@@ -56,7 +57,7 @@ export default function IsraelMonthJourneyReportView() {
   const [monthText, setMonthText] = useState(() => previousMonthOf(getLocalDateISO()));
   const [typedDealerId, setTypedDealerId] = useState<string | null>(null);
   // the returns the server has recorded for this workspace, so "recorded as filed" is a fact, not a guess
-  const [filedPeriods, setFiledPeriods] = useState<Array<{ startDate: string; endDate: string; registration?: string }> | null>(null);
+  const [filedPeriods, setFiledPeriods] = useState<Array<{ startDate: string; endDate: string; registration?: string; boxes?: Array<{ key: string; label: string; cents: number }> }> | null>(null);
   const [filedLoadFailed, setFiledLoadFailed] = useState(false);
   const [filedReload, setFiledReload] = useState(0);
   const currency = workspace?.currency || 'ILS';
@@ -76,9 +77,14 @@ export default function IsraelMonthJourneyReportView() {
           return;
         }
         setFiledLoadFailed(false);
-        setFiledPeriods(((data.returns || []) as Array<{ startDate?: string; endDate?: string; registration?: string }>)
+        setFiledPeriods(((data.returns || []) as Array<{ startDate?: string; endDate?: string; registration?: string; boxes?: Array<{ key: string; label: string; cents: number }> }>)
           .filter(r => typeof r.startDate === 'string' && typeof r.endDate === 'string')
-          .map(r => ({ startDate: r.startDate!, endDate: r.endDate!, ...(typeof r.registration === 'string' ? { registration: r.registration } : {}) })));
+          .map(r => ({
+            startDate: r.startDate!, endDate: r.endDate!,
+            ...(typeof r.registration === 'string' ? { registration: r.registration } : {}),
+            // T-08: the copy's figures, so the journey can show what changed since filing
+            ...(Array.isArray(r.boxes) && r.boxes.length > 0 ? { boxes: r.boxes } : {}),
+          })));
       } catch {
         if (!cancelled) {
           setFiledLoadFailed(true);
@@ -119,6 +125,8 @@ export default function IsraelMonthJourneyReportView() {
       profiles: workspace?.taxProfiles,
       order: [workspace?.dimensions?.find(d => d.isWorld)?.id || 'world'],
       filedPeriods,
+      // T-08: nothing is compared with a filed copy while the document data is incomplete
+      partial,
       periods: [{ month, state: monthCloseState(month, workspace) }],
       customers: inWorkspace(customers, workspaceId) as IlJourneyParty[],
       vendors: inWorkspace(vendors, workspaceId) as IlJourneyParty[],
@@ -128,7 +136,7 @@ export default function IsraelMonthJourneyReportView() {
       vendorCredits: inWorkspace(vendorCredits, workspaceId) as IlJourneyDocument[],
       accounts,
     });
-  }, [monthText, currency, workspace, customers, vendors, workspaceId, invoices, creditNotes, bills, vendorCredits, filedPeriods, accounts]);
+  }, [monthText, currency, workspace, customers, vendors, workspaceId, invoices, creditNotes, bills, vendorCredits, filedPeriods, accounts, partial]);
 
   const suggestedDealerId = useMemo(() => {
     const registration = journey?.steps.find(s => s.id === 'vat-report')?.returns[0]?.registration || '';
@@ -452,6 +460,8 @@ function VatReturnTable({ returns, currency, onRecordFiled }: { returns: IsraelM
             ? <button type="button" className="min-h-11 px-3 rounded border border-[var(--line)]" disabled={saving === r.registration}
               onClick={() => { void record(r); }}>{saving === r.registration ? reportText('r.recording', 'Recording…') : fill(reportText('r.record-reg-as-filed', 'Record {registration} as filed'), { registration: r.registration.split(':').pop() ?? '' })}</button>
             : 'Not recorded here' },
+        // T-08: the box-by-box differences against the filed copy, or the fact that nothing changed
+        { header: reportText('r.since-filed', 'Since filed'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => (<FilledChangesCell changes={r.changes} currency={currency} reportText={reportText} />) },
       ]}
     />
   </ReportTableScroll>;

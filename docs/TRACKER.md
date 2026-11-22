@@ -1327,7 +1327,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 # SECTION T — TAX DEPTH
 
-- [~] T-08 Late changes: changes after filing are shown box by box with the difference to report; carrying them into the next return automatically is later
+- [x] T-08 Late changes: changes after filing are shown box by box with the difference to report; carrying them into the next return automatically is later — built: the filed copy's boxes (kept by `tax.file` since CON-4b) are compared with the same boxes recomputed now on the Tax return screen (`TaxLiabilityView`) and on the US quarter and Israel month journeys (`Since filed` column, box by box with the delta; a partial data run claims nothing). Tests: `t08-late-changes.test.ts` (hand-worked figures), the two journey view tests, and a database test in `con4b-il-return-registration.test.tsx`. The "carry into the next return automatically" half remains later, as the row says.
 - [ ] T-09 MTD / HMRC (UK only)
 - [ ] T-10 EC Sales List (EU only)
 - [ ] T-11 Intrastat (EU only)

@@ -78,6 +78,20 @@ Do not change posting, tax, or report math, and do not let any speed-up write to
   any book data to GLM (or any provider other than Google) until the owner approves it in
   `docs/FOR_YOU.md`** — a new provider receives customers' bookkeeping data, which is a privacy and
   contract decision.
+- **Update 22 Nov (owner):** providers other than Google are now **approved** (`docs/FOR_YOU.md`), so
+  models reached through Arena may be compared and used. Test on the replay's test books first; real
+  books only after the comparison shows the chosen model is good enough.
+- **How to run the comparison (already built in Parts 1–2):** the owner adds an Arena API key as a
+  network secret for host `api.arena.ai` (header `Authorization: Bearer …`; the proxy adds it, no agent
+  sees it). Then run, once per candidate model:
+  `ASSISTANT_REPLAY_MODEL=<model> ASSISTANT_REPLAY_BASE_URL=https://api.arena.ai/v1 npx tsx scripts/assistant-replay.ts`
+  It replays 30 typical questions (9 answered by code, the rest by the model) through
+  `openAiCompatibleClient` and prints model calls, tokens, tools called, time and cost per path.
+  Candidates the owner named: GPT-6 Luna, GPT-6.1 Terra, a Gemini Flash, a GLM Flash, plus the cheapest
+  models on Arena's tool-efficiency leaderboard. Add each model's price row before trusting its cost.
+- **Output:** the before/after table in `docs/assistant-baseline.md`, and a short recommendation in
+  `docs/FOR_YOU.md` (cheap model, strong model, the written rule for switching, cost per 100 questions).
+- **Blocked until:** the Arena key is saved (a new session's key form works; this one's did not).
 
 ## Part 7 — Plans and limits
 

@@ -18,6 +18,7 @@ import { stepStatusLabel } from './journeyStatus';
 import { runCommand, type CommandBody } from '../../lib/runCommand';
 import { RowTable } from '../ui/RowTable';
 import { useReportText, fill } from './useReportText';
+import { FilledChangesCell } from './filedChangesCell';
 
 /** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
 const CODE_NAMES = { c0: '2026-Q3' } as const;
@@ -58,7 +59,7 @@ export default function UsQuarterJourneyReportView() {
   const { loading } = useLedgerCollections('invoices', 'creditNotes', 'bills', 'customers', 'vendors', 'payments', 'inventory');
   const [quarterText, setQuarterText] = useState(() => quarterOfDate(getLocalDateISO()));
   // the returns the server has recorded for this workspace, matched by registration and kind (F-08)
-  const [filedPeriods, setFiledPeriods] = useState<Array<{ startDate: string; endDate: string; registration?: string; kind?: 'vat' | 'sales_tax' }> | null>(null);
+  const [filedPeriods, setFiledPeriods] = useState<Array<{ startDate: string; endDate: string; registration?: string; kind?: 'vat' | 'sales_tax'; boxes?: Array<{ key: string; label: string; cents: number }> }> | null>(null);
   const currency = workspace?.currency || 'USD';
   useEffect(() => {
     let cancelled = false;
@@ -67,13 +68,15 @@ export default function UsQuarterJourneyReportView() {
         if (!workspaceId) { if (!cancelled) setFiledPeriods([]); return; }
         const data = await runCommand<CommandBody>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tax-returns` }) ?? {};
         if (cancelled) return;
-        setFiledPeriods(((data.returns || []) as Array<{ startDate?: string; endDate?: string; registration?: string; kind?: 'vat' | 'sales_tax' }>)
+        setFiledPeriods(((data.returns || []) as Array<{ startDate?: string; endDate?: string; registration?: string; kind?: 'vat' | 'sales_tax'; boxes?: Array<{ key: string; label: string; cents: number }> }>)
           .filter(r => typeof r.startDate === 'string' && typeof r.endDate === 'string')
           .map(r => ({
             startDate: r.startDate!,
             endDate: r.endDate!,
             ...(typeof r.registration === 'string' && r.registration ? { registration: r.registration } : {}),
             ...(r.kind === 'vat' || r.kind === 'sales_tax' ? { kind: r.kind } : {}),
+            // T-08: the copy's figures, so the journey can show what changed since filing
+            ...(Array.isArray(r.boxes) && r.boxes.length > 0 ? { boxes: r.boxes } : {}),
           })));
       } catch { if (!cancelled) setFiledPeriods([]); }
     };
@@ -93,6 +96,8 @@ export default function UsQuarterJourneyReportView() {
       profiles: workspace?.taxProfiles,
       order: [workspace?.dimensions?.find(d => d.isWorld)?.id || 'world'],
       filedPeriods,
+      // T-08: nothing is compared with a filed copy while the document data is incomplete
+      partial,
       periods: months.map(month => ({ month, state: monthCloseState(month, workspace) })),
       customers: inWorkspace(customers, workspaceId) as Array<{ id: string; metadata?: unknown }>,
       invoices: inWorkspace(invoices, workspaceId) as never,
@@ -102,7 +107,7 @@ export default function UsQuarterJourneyReportView() {
       vendors: inWorkspace(vendors, workspaceId) as unknown as ReadinessVendor[],
       payments: inWorkspace(payments, workspaceId) as unknown as ReadinessPayment[],
     });
-  }, [quarterText, currency, workspace, customers, workspaceId, invoices, creditNotes, bills, inventory, vendors, payments, filedPeriods]);
+  }, [quarterText, currency, workspace, customers, workspaceId, invoices, creditNotes, bills, inventory, vendors, payments, filedPeriods, partial]);
 
   return <UsQuarterJourneyPanel
     journey={journey}
@@ -179,6 +184,8 @@ function StateReturnTable({ returns, currency }: { returns: UsQuarter['steps'][n
         { header: reportText('r.by-jurisdiction', 'By jurisdiction'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.byJurisdiction.map(part => `${part.name} ${formatCurrency(part.taxCents, currency)}`).join(', ') || '—' },
         { header: reportText('r.planning-due-date', 'Planning due date'), className: "py-1 px-2 whitespace-nowrap", headClassName: "text-left py-1 px-2", cell: (r) => (<>{r.dueDate || reportText('r.not-in-the-planning-calendar', 'not in the planning calendar')}{r.dueNote ? <div className="text-xs text-[var(--muted)]">{r.dueNote}</div> : null}</>) },
         { header: reportText('r.recorded-as-filed', 'Recorded as filed'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => r.filed ? reportText('r.yes', 'Yes') : r.recordedForDates ? reportText('r.period-record-only', 'Period record only (not per state)') : reportText('r.not-recorded-here', 'Not recorded here') },
+        // T-08: the box-by-box differences against the filed copy, or the fact that nothing changed
+        { header: reportText('r.since-filed', 'Since filed'), className: "py-1 px-2", headClassName: "text-left py-1 px-2", cell: (r) => (<FilledChangesCell changes={r.changes} currency={currency} reportText={reportText} />) },
       ]}
     />
   </ReportTableScroll>;
