@@ -56,7 +56,7 @@ I replayed the 30 test questions through Arena on six models (table in `docs/ass
 
 *Recommendation:* simple turns on GPT-6 Luna, strong turns on GPT-6.1 Terra, same written rule as now (`assistantModels.ts`). *Not done:* neither has a price row, and the code ignores an unpriced model, so nothing changed: the app still uses the Gemini defaults. I won't write a price from memory. Please send me the prices Arena charges for these two, or tell me to read them from Arena's pricing page, and I will add the rows.
 
-*Spend:* my comparison runs cost about $8 of your Arena balance, more than I should have used, mostly from runs repeated after timeouts. The script now stops at 150 model calls per run.
+*Spend:* the per-100 costs above are lower bounds (see the note in `docs/assistant-baseline.md`). My comparison runs cost about $8.6 of your Arena balance, more than I should have used, mostly from runs repeated after timeouts. The script now stops at 150 model calls per run.
 
 ## SBX-2 Parts 4–7: defaults used for the assistant's models and plan limits (nothing needed unless you disagree)
 

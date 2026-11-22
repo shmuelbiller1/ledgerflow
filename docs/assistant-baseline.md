@@ -64,6 +64,8 @@ Same 30 questions, `scripts/assistant-replay.ts --single-model`: the candidate a
 | gemini-3.8-flash | 1 | 21 | 1 | 126 | 12,094 | 400 | 28.78 | 137.0 |
 | glm-5p3 | 1 | 21 | 7 | 118 | 18,787 | 2,532 | 45.53 | 216.8 |
 
+**The billed column undercounts.** Arena's usage page for 16–22 Nov (read by the owner on 22 Nov after all runs, about 29.4M tokens) shows these totals per model, which include earlier runs that timed out or hit the step limit and are not in the table above: Gemini 3.8 Flash about 9.8M tokens / $5.21, MiniMax about 6.6M / $0.21, GLM 5.3 about 4.3M / $2.13, GPT-6 Luna about 3.8M / $0.11, GPT-6.1 Terra about 3.1M / $0.84, DeepSeek about 1.7M / $0.15 (percentages of the page's totals, rounded). The first runs used the two-model rule, which replaced the candidate with Gemini names; the simple one is not on Arena, so those turns were retried on Gemini 3.8 Flash. That is probably most of the Gemini spend (not verified). The ranking by price is the same either way; the cents-per-100 figures are lower bounds.
+
 Gemini 3.8 Flash and GLM 5.3 were first run twice over and timed out (the run was lost but Arena still billed it), so they were re-run once, capped at 150 calls. The first four ran earlier with a tool-result fixture that was less specific for reports. Treat the comparison as indicative, not final.
 
 ## Parts 4–6 — before and after (run 2026-11-22, `scripts/assistant-replay.ts --write`, test data only)
