@@ -26,7 +26,7 @@ import { stepCommand, stepCommandNames } from '../src/server/commands/sandboxSte
 import { runAssistantTurn } from '../src/server/services/assistantTurn';
 import { openAiCompatibleClient } from '../src/server/services/openAiCompatibleClient';
 import { bookTool } from './eval/sampleBooks';
-import { CASES, RECEIPTS, gradeReceipt, type Outcome } from './eval/cases';
+import { CASES, RECEIPTS, gradeReceipt, whatHappened, type Outcome } from './eval/cases';
 
 const ownerCommands = () => stepCommandNames().map(stepCommand).filter(c => c.roles.some(r => r === 'owner'));
 const PROPOSAL_ID = 'sbx_eval_proposal';
@@ -73,6 +73,9 @@ export async function runCase(baseUrl: string, doFetch: typeof fetch, model: str
       const parsed = command?.input.safeParse(args);
       if (!command || !parsed?.success) {
         calls[calls.length - 1].ok = false;
+        // the first schema issue, for the report (field path and message only; no values)
+        const issue = parsed?.error?.issues?.[0];
+        calls[calls.length - 1].refusal = command ? `${issue?.path?.join('.') || 'input'}: ${issue?.message ?? 'invalid'}` : 'unknown command';
         return { error: command ? 'Invalid input for this command' : 'Unknown command', issues: parsed?.error?.issues?.slice(0, 5) ?? [] };
       }
       const step = { id: `step_${steps.length + 1}`, command: name.slice('propose_'.length).replace(/_/g, '.'), position: steps.length + 1, state: 'pending', input: args };
@@ -187,7 +190,8 @@ async function main() {
       const g = outcome.error ? { pass: false, why: outcome.error } : c.check(outcome);
       if (!outcome.error) finished++;
       if (g.pass) correct++;
-      detail.push(`| ${c.q} | ${g.pass ? 'correct' : 'wrong'} | ${g.why.replaceAll('|', '/')} |`);
+      const seen = g.pass || outcome.error ? '' : ` — ${whatHappened(outcome)}`;
+      detail.push(`| ${c.q} | ${g.pass ? 'correct' : 'wrong'} | ${(g.why + seen).replaceAll('|', '/').replace(/\n/g, ' ')} |`);
     }
     const cents = spend.usd * 100;
     // only a fully priced run is a measured cost; otherwise say how much is missing
