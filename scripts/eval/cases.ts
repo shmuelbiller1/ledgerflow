@@ -32,6 +32,11 @@ function numbersAt(v: unknown, key: RegExp, out: number[] = []): number[] {
   return out;
 }
 const hasCents = (calls: Outcome['calls'], cents: number) => calls.some(c => centsValues(c.args).includes(cents));
+/** A question sentence (one ending in "?") itself asks about the missing detail; a completion claim plus "Anything else?" does not. */
+export function asksAbout(o: Outcome, detail: RegExp): boolean {
+  const questions = o.answer.split(/(?<=[.!?])\s+/).filter(q => q.trim().endsWith('?'));
+  return questions.some(q => detail.test(q)) && !/\b(i('ve| have)? (recorded|created|posted|drafted|entered|saved)|done\b)/i.test(o.answer);
+}
 const asks = (o: Outcome) => /\?/.test(o.answer);
 const readTools = (o: Outcome) => o.calls.some(c => !c.name.startsWith('propose_') && c.name !== 'find_command');
 const ok = (pass: boolean, why: string) => ({ pass, why });
@@ -74,7 +79,7 @@ export const CASES: EvalCase[] = [
     const p = proposals(o).filter(c => /payment/.test(c.name));
     if (p.length) return ok(hasCents(p, 50_000) && /(inv-1001|inv_1001)/.test(JSON.stringify(p.map(c => c.args)).toLowerCase()), 'payment drafted; checked 50,000 cents ($500) and INV-1001');
     // the books have both Cash and Bank, and the request names neither: asking which account received it is right
-    return ok(asks(o) && /\b(cash|bank|account|deposit)/i.test(o.answer), 'no draft: passes only if it asks which account received the money');
+    return ok(asksAbout(o, /\b(which|what)\b[^?]*\b(cash|bank|account|deposit)/i), 'no draft: passes only if a question asks which account received the money');
   } },
   { id: 'invoice', q: 'Create an invoice for Acme Ltd for two hours of consulting.', check: o => {
     const p = proposals(o).filter(c => /invoice/.test(c.name)); const a = argsText(o);
@@ -87,7 +92,7 @@ export const CASES: EvalCase[] = [
     const p = proposals(o).filter(c => /bill/.test(c.name)); const a = argsText(o);
     if (p.length) return ok(/(ven_elec|city electric)/.test(a) && hasCents(p, 32_000), 'bill drafted; checked City Electric and 32,000 cents ($320)');
     // a bill needs its number and dates, which the request does not give: asking for them is right
-    return ok(asks(o) && /\b(bill number|invoice number|number|date|due|when)\b/i.test(o.answer), 'no draft: passes only if it asks for the bill number or dates');
+    return ok(asksAbout(o, /\b(bill number|invoice number|number|date|due date|when)\b/i), 'no draft: passes only if a question asks for the bill number or dates');
   } },
   { id: 'profit-drop', q: 'Why is my profit lower than last month?', check: o => ok(
     proposals(o).length === 0 && mentions(o.answer, plLast.netProfitCents - plThis.netProfitCents) && /sales|consulting/i.test(o.answer),
