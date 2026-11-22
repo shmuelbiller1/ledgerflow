@@ -57,6 +57,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "employee.update",
   "entrylink.create",
   "entrylink.remove",
+  "estimate.dropship",
   "estimate.save",
   "estimate.signlink",
   "estimate.status",

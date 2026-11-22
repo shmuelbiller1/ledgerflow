@@ -3789,6 +3789,38 @@
       }
     },
     {
+      "name": "propose_estimate_dropship",
+      "description": "Propose estimate.dropship for review; never apply it to the live books. Place one vendor purchase order for the drop-ship lines of a sales order; the units ship to the customer and never come into stock.\nExample input: {\"id\":\"est_1\",\"vendorId\":\"vendor_1\"}\nCONFLICT: The quote is not an accepted order, or a drop-ship purchase order for it already exists. Accept the quote first, or use the existing purchase order.\nINVALID_INPUT: The order has no drop-ship lines, or one of them has no quantity or amount. Mark the lines to drop-ship on the order, with quantities and prices.\nNOT_FOUND: The order or the vendor is not in the selected workspace. Reload and choose ones in this workspace.\nROLE_REQUIRED: The caller is a viewer. Ask an owner, accountant or bookkeeper to place the order.",
+      "parametersJsonSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "vendorId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "expectedDeliveryDate": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 400
+          }
+        },
+        "required": [
+          "id",
+          "vendorId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "propose_estimate_save",
       "description": "Propose estimate.save for review; never apply it to the live books. Write a quote or change its terms, lines and milestone schedule while it is still a quote; do not use it to invoice it, which invoice.create does.\nExample input: {\"number\":\"EST-1042\",\"customerId\":\"cust_1\",\"customerName\":\"Acme\",\"date\":\"2026-11-16\",\"expiryDate\":\"2026-12-16\",\"amountCents\":250000,\"currency\":\"USD\"}\nINVALID_INPUT: A line, a milestone (>20, adding past 100%) or a date is not one the screen could have produced, or a new quote has no number. Send the number the series gave it, whole cents, and dates as YYYY-MM-DD.\nCONFLICT: The quote is already accepted, declined or converted and the change touches its lines or total. Write a new quote; an accepted order's terms are what the customer agreed to.\nNOT_FOUND: The quote is not in the selected workspace. Reload the quotes and choose one in this workspace.\nROLE_REQUIRED: The caller is a viewer. Ask an owner, accountant or bookkeeper to write the quote.",
       "parametersJsonSchema": {
@@ -3855,6 +3887,9 @@
                 "itemId": {
                   "type": "string",
                   "maxLength": 200
+                },
+                "dropShip": {
+                  "type": "boolean"
                 },
                 "description": {
                   "type": "string",

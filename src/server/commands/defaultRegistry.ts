@@ -45,7 +45,7 @@ import { inviteAcceptCommand } from './invites';
 import { billingRecordComputeCommand } from './billingCompute';
 import { supportPlatformStatusCommand, supportThreadReplyCommand } from './supportThreads';
 import { employeeCreateCommand, employeeUpdateCommand } from './employees';
-import { estimateSaveCommand, estimateStatusCommand } from './estimates';
+import { estimateDropshipCommand, estimateSaveCommand, estimateStatusCommand } from './estimates';
 import { inventoryCategoryRenameCommand, inventoryItemDeleteCommand, inventoryItemFieldCommand, inventoryItemSaveCommand } from './inventoryItems';
 import { workspaceSettingsCommand } from './workspaceSettingsPanel';
 import {
@@ -164,6 +164,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(workspaceModulesCommand);
   registry.register(employeeCreateCommand);
   registry.register(employeeUpdateCommand);
+  registry.register(estimateDropshipCommand);
   registry.register(estimateSaveCommand);
   registry.register(estimateStatusCommand);
   registry.register(inventoryItemSaveCommand);

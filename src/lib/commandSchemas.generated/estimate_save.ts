@@ -35,6 +35,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "type": "object",
         "properties": {
           "itemId": COMMAND_SCHEMA_PARTS.part60,
+          "dropShip": COMMAND_SCHEMA_PARTS.part27,
           "description": {
             "type": "string",
             "minLength": 1,
