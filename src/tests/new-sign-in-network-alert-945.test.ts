@@ -55,6 +55,18 @@ describe('S-13 new-network sign-in alert', { skip: !url && 'LF_TEST_DATABASE_URL
     assert.equal((await notices()).length, 1, 'the same new network is not told twice');
   });
 
+  test('a network last used long ago (beyond any recent window) is still known', async () => {
+    for (let i = 0; i < 205; i++) {
+      await db.collection('loginAudits').doc(`s13_bulk_${suffix}_${i}`).set({
+        id: `s13_bulk_${suffix}_${i}`, uid, event: 'login', ip: '192.0.2.50', userAgent: 'test', email: '', metadata: {},
+        timestamp: `2026-11-23T00:${String(Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}.000Z`,
+      });
+    }
+    const before = (await notices()).length;
+    await signIn('203.0.113.10', '2026-11-24T09:00:00.000Z');
+    assert.equal((await notices()).length, before, 'the first network is still known after 200+ later sign-ins');
+  });
+
   test('an unknown IP never alerts', async () => {
     const before = (await notices()).length;
     await signIn('unknown', '2026-11-22T11:00:00.000Z');

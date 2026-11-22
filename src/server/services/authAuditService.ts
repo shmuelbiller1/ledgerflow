@@ -115,12 +115,11 @@ export async function recordAuthEvent(
  */
 export async function isNewSignInNetwork(db: Firestore, uid: string, ip: string): Promise<boolean> {
   if (!ip || ip === 'unknown') return false;
-  const prior = await db.collection('loginAudits')
-    .where('uid', '==', uid)
-    .where('event', '==', 'login')
-    .orderBy('timestamp', 'desc')
-    .limit(200)
-    .get();
-  if (prior.empty) return false;
-  return !prior.docs.some(doc => doc.data()?.ip === ip);
+  // Two exact checks over the whole history (a recent-window check would call an old network new).
+  const logins = db.collection('loginAudits').where('uid', '==', uid).where('event', '==', 'login');
+  const [anyBefore, fromHere] = await Promise.all([
+    logins.limit(1).get(),
+    logins.where('ip', '==', ip).limit(1).get(),
+  ]);
+  return !anyBefore.empty && fromHere.empty;
 }
