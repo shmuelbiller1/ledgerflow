@@ -175,7 +175,9 @@ async function checkFinalQueueScreen(page: Page, screen: FinalQueueScreen, width
   await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /^(?!.*\bdark\b)/);
   await page.evaluate(() => document.fonts.ready);
   const audit = await new AxeBuilder({ page }).include(screen.signedOut ? 'main' : '#main-content').disableRules(['color-contrast']).analyze();
-  expect(audit.violations.map(v => [v.id, v.nodes.map(n => n.target)])).toEqual([]);
+  // the message leads the failure output, so CI's truncated annotations carry the rule ids and targets
+  expect(audit.violations.map(v => [v.id, v.nodes.map(n => n.target)]),
+    audit.violations.map(v => `${v.id}: ${v.nodes.map(n => n.target).join(',')}`).join(' ||| ') || 'no axe violations').toEqual([]);
   // No sideways scroll of the page itself at the real width. #main-content may scroll wide tables
   // internally — that is the app's own phone behaviour for report tables and is identical on the
   // base commit — so, like visual-regression.spec.ts, only the document is checked here. The
