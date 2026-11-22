@@ -28,6 +28,8 @@ interface Stage {
 }
 const stages = new AsyncLocalStorage<Stage>();
 export const stageWrites = Symbol('stageWrites');
+/** The transaction's own connection, for a command that must write a table outside the document store in the same commit. */
+export const transactionRunner = Symbol('transactionRunner');
 
 class CommandStageRefusal extends Error {
   readonly status = 409;
