@@ -92,10 +92,36 @@ export const owedByCustomer = () => customers.map(c => {
 const collections: Record<string, Array<Record<string, unknown>>> = { customers, vendors, accounts, invoices, bills, payments };
 const lastMonth = '2026-10', thisMonth = '2026-11';
 
+/** Arithmetic only (+ - * / parentheses, n% = n/100), parsed by hand: no code is ever evaluated. */
 function safeCalc(expression: string): number | null {
-  const e = expression.replace(/,/g, '').replace(/(\d+(?:\.\d+)?)%/g, '($1/100)');
-  if (!/^[\d+\-*/().\s]+$/.test(e)) return null;
-  try { const v = Function(`"use strict"; return (${e});`)() as unknown; return typeof v === 'number' && Number.isFinite(v) ? v : null; } catch { return null; }
+  const src = expression.replace(/,/g, '').replace(/\s+/g, '');
+  let i = 0;
+  const peek = () => src[i];
+  const num = (): number | null => {
+    const m = /^\d+(?:\.\d+)?/.exec(src.slice(i));
+    if (!m) return null;
+    i += m[0].length;
+    let v = Number(m[0]);
+    if (peek() === '%') { i++; v /= 100; }
+    return v;
+  };
+  const factor = (): number | null => {
+    if (peek() === '-') { i++; const v = factor(); return v === null ? null : -v; }
+    if (peek() === '(') { i++; const v = expr(); if (v === null || peek() !== ')') return null; i++; return v; }
+    return num();
+  };
+  const term = (): number | null => {
+    let v = factor();
+    while (v !== null && (peek() === '*' || peek() === '/')) { const op = src[i++]; const r = factor(); if (r === null) return null; v = op === '*' ? v * r : v / r; }
+    return v;
+  };
+  function expr(): number | null {
+    let v = term();
+    while (v !== null && (peek() === '+' || peek() === '-')) { const op = src[i++]; const r = term(); if (r === null) return null; v = op === '+' ? v + r : v - r; }
+    return v;
+  }
+  const v = expr();
+  return v !== null && i === src.length && Number.isFinite(v) ? v : null;
 }
 
 /** The read tools, answered from the books above in the shapes the real tools return. */

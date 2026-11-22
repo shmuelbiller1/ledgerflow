@@ -14,6 +14,8 @@ test('SBX-2 Part 6 model test: the sample books answer from their own records', 
   assert.deepEqual(bookTool('explain_number', { accountIds: ['acc_office'], startDate: '2026-11-01', endDate: '2026-11-22' }),
     { startDate: '2026-11', endDate: '2026-11', totalCents: 280_000, lines: [{ accountId: 'acc_office', label: 'Office costs', cents: 280_000 }] });
   assert.ok('error' in (bookTool('calculate', { expression: 'process.exit()' }) as object), 'only arithmetic is evaluated');
+  assert.equal((bookTool('calculate', { expression: '(1250 - 250) * 2 / 4 + -5' }) as { amount: number }).amount, 495);
+  assert.ok('error' in (bookTool('calculate', { expression: '2 +' }) as object));
 });
 
 test('SBX-2 Part 6 model test: graders pass the right outcome and fail a wrong one', () => {
