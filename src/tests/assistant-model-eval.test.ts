@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CASES, RECEIPTS, gradeReceipt, mentions, recommended } from '../../scripts/eval/cases';
+import { CASES, RECEIPTS, gradeReceipt, mentions, recommended, whatHappened } from '../../scripts/eval/cases';
 import { bookTool, profitAndLoss } from '../../scripts/eval/sampleBooks';
 import { meteredFetch, runCase } from '../../scripts/assistant-model-eval';
 import { stepCommand } from '../server/commands/sandboxStepCommands';
@@ -152,4 +152,13 @@ test('SBX-2 Part 6 model test: aging side, ask_books account scope, and exact in
 test('SBX-2 Part 6 model test: a report the books do not have is refused, not replaced', () => {
   assert.ok('error' in (bookTool('run_report', { report: 'cash-flow' }) as object));
   assert.equal((bookTool('run_report', { report: 'profit-and-loss' }) as { report: string }).report, 'profit-and-loss');
+});
+
+test('SBX-2 Part 6 model test: a fair question about missing details passes, and the report says what happened', () => {
+  assert.ok(byId('payment').check({ answer: 'Which account received the $500, Cash or Bank?', calls: [] }).pass);
+  assert.ok(!byId('payment').check({ answer: 'Done.', calls: [] }).pass);
+  assert.ok(byId('bill').check({ answer: 'What is the bill number and due date?', calls: [] }).pass);
+  const seen = whatHappened({ answer: 'I could not draft it.', calls: [{ name: 'propose_bill_create', args: {}, ok: false, refusal: 'bill.date: Required' }] });
+  assert.match(seen, /draft refused 1× \(propose_bill_create: bill.date: Required\)/);
+  assert.match(seen, /answered: "I could not draft it."/);
 });
