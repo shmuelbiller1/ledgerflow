@@ -25,3 +25,17 @@ No model configured (ASSISTANT_REPLAY_MODEL / ASSISTANT_REPLAY_BASE_URL): model-
 |---|---|---|---|---|---|---|---|---|---|
 | code | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0.0000 |
 | model | 21 | not measured | not measured | not measured | not measured | 25 | not measured | not measured | not measured |
+
+## Part 3 — remembered decisions (before / after)
+
+- **Before:** every proposed step started from scratch. A payee the person had already coded to the
+  same account many times was proposed with no account, and the model had to work it out again.
+- **After:** each accepted or rejected sandbox step updates `assistant."rememberedDecisions"` in the
+  same transaction, per workspace, keyed by command + payee/vendor/customer + field (account, cash
+  account, tax code, class). A choice is offered only at ≥95% over ≥5 cases, labelled "from your
+  earlier choice" with its case count (`POST /sandboxes/:id/remembered/suggest`). It is never applied
+  to the step and never auto-accepted. A member lists or deletes it (`GET`/`DELETE /sandboxes/remembered`).
+  Only ids and codes are stored; no amounts, memos or other book text. The assistant's database role
+  has no access.
+- **Measured effect:** none yet. It needs real accept history; the turn metric will show it as fewer
+  tool calls on steps with a remembered account.

@@ -10,6 +10,7 @@ import { roleInWorkspace } from '../middleware/requireLedgerWriter';
 import { answerCents, calculate, explainNumberInput, getRecord, listRecords, readBooksQuestion, runReportInput, searchRecords } from '../services/sandboxTools';
 import { defaultAssistantTools, draftableCommands, findAssistantCommands } from '../services/assistantCatalog';
 import { ASSISTANT_READ_TOOL_NAMES, findCommandInput, listProposalsInput, previewProposalInput } from '../services/assistantToolDefinitions';
+import { forgetRemembered, listRemembered, suggestFor, suggestionFrom } from '../services/rememberedDecisions';
 import { storedSandboxProposal } from '../services/storedSandboxProposal';
 import { CommandRefusal, errorOutcome } from '../utils/commandExecutor';
 import { createBalanceRouter } from './balanceRoutes';
@@ -138,6 +139,12 @@ function toolRoutes(router: express.Router, live: Firestore) {
     res.json(await getRecord(books, workspaceId, { collection: param(req, 'collection'), id: param(req, 'recordId') }));
   }));
 
+  // Remembered choices for one draft step: suggestions only, never applied to the step.
+  router.post('/:sandboxId/remembered/suggest', guarded(async (req, res) => {
+    const { workspaceId } = await readableSandbox(live, req);
+    const body = parse(z.object({ command: z.string().min(1).max(200), input: z.record(z.string(), z.unknown()) }).strict(), req.body);
+    res.json({ suggestions: suggestFor(body.command, body.input, await listRemembered(live.pool, workspaceId)) });
+  }));
   router.get('/:sandboxId/tools', guarded(async (req, res) => {
     const { user, workspace } = await readableSandbox(live, req);
     const commands = draftableCommands(workspace, user, assistantClaims(req)?.role);
@@ -258,6 +265,26 @@ export function createSandboxPersonRouter(live: Firestore = getDb()): express.Ro
     const workspace = (await live.collection('workspaces').doc(workspaceId).get()).data();
     if (!workspace || !isWorkspaceMemberData(workspace, { uid: user.uid }, workspaceId)) throw new CommandRefusal('You are not a member of these books', 403, 'FORBIDDEN');
     res.json({ sandboxes: await listOpenSandboxes(live.pool, workspaceId, user.uid) });
+  }));
+  // SBX-2 Part 3: a member sees and deletes what this workspace remembers. Person only, one workspace.
+  const rememberedKey = z.object({ command: z.string().min(1).max(200), subject: z.string().min(1).max(260), field: z.string().min(1).max(60) }).strict();
+  const memberWorkspace = async (req: express.Request) => {
+    const user = requestUser(req);
+    const workspaceId = param(req, 'workspaceId');
+    if (!user?.uid) throw new CommandRefusal('Sign in required', 401, 'UNAUTHENTICATED');
+    if (user.usedApiKeyId || user.developerWorkspaceId || user.assistantSandboxId) throw new CommandRefusal('Only a signed-in person can manage remembered decisions', 403, 'PERSON_ONLY');
+    const workspace = (await live.collection('workspaces').doc(workspaceId).get()).data();
+    if (!workspace || !isWorkspaceMemberData(workspace, { uid: user.uid }, workspaceId)) throw new CommandRefusal('You are not a member of these books', 403, 'FORBIDDEN');
+    return workspaceId;
+  };
+  router.get('/remembered', guarded(async (req, res) => {
+    const rows = await listRemembered(live.pool, await memberWorkspace(req));
+    res.json({ remembered: rows.map(row => ({ ...row, offered: suggestionFrom(row) ?? null })) });
+  }));
+  router.delete('/remembered', guarded(async (req, res) => {
+    const workspaceId = await memberWorkspace(req);
+    const key = req.body && typeof req.body === 'object' && Object.keys(req.body).length ? parse(rememberedKey, req.body) : undefined;
+    res.json({ forgotten: await forgetRemembered(live.pool, workspaceId, key) });
   }));
   router.post('/', guarded(async (req, res) => {
     const workspaceId = param(req, 'workspaceId');
