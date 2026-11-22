@@ -5,7 +5,7 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-11-19.
+Last updated: 2026-11-22.
 
 ## Two decisions needed before work can start (#893 and #887). Defaults are noted; nothing is built yet.
 
@@ -44,6 +44,25 @@ Claude Code cloud environment settings → Network secrets → add:
 New sessions pick it up. Until then, the replay runs without a model and records only the numbers that don't need one: the size of the fixed prompt and how many tools are offered per turn.
 
 **Approved by the owner (22 Nov):** AI providers other than Google may be used for the assistant, including sending book data to them (for example through Arena). The Arena key still has to be added as a network secret (above) before models can be tested.
+
+## SBX-2 Parts 4–7: defaults used for the assistant's models and plan limits (nothing needed unless you disagree)
+
+**Models (Part 6).** Simple turns use `gemini-3.5-flash-lite` ($0.30 in / $2.50 out per million tokens). Ambiguous, high-risk, multi-step and long turns use `gemini-3.8-flash` ($0.75 / $3.75 until 31 Dec 2026, then $1.50 / $7.50 by Google's page). Reading receipts uses `gemini-3.5-flash-lite`. Prices were read from Google's and Z.ai's pricing pages on 22 Nov and are stored with their dates and source links. The rule is written at the top of `src/server/services/assistantModels.ts`.
+
+*GLM, after your 22 Nov approval:* GLM-5.3-Flash lists at $0.15 / $0.50 (about half of the Gemini simple model) and GLM-OCR at $0.03 / $0.03. Both are priced in the table and can be switched on with `ASSISTANT_MODEL_SIMPLE=glm-5.3-flash` (or `ASSISTANT_MODEL_OCR=glm-ocr`) plus `ASSISTANT_MODEL_BASE_URL` (and `ASSISTANT_MODEL_API_KEY`). *Default I used:* Gemini stays the default until GLM's answers are measured on the replay. That needs the Arena key above. A cheaper model that answers worse is not a saving.
+
+**Assistant allowance per plan (Part 7).** Only turns that call a model count. Answers from the books' own numbers (code) or from the cache are free and keep working at the limit. *Defaults I used:*
+
+| Plan | Model turns per month | Model spend per month |
+|---|---|---|
+| Free | 50 | 25¢ |
+| Growth | 1,000 | $5 |
+| Pro | 5,000 | $25 |
+| Enterprise | 25,000 | $125 |
+
+At either limit the person sees a polite message and the turn is refused; it is never moved to a cheaper model. A workspace can be given its own limits with `maxAssistantModelTurns` / `maxAssistantCents`, and workspaces with billing switched off have no limit. Tell me if you want other numbers; it is one line each in `src/lib/plans.ts`.
+
+**Receipts.** The receipt reader now returns a draft, and anything it cannot read exactly is listed as "check before recording" instead of being guessed. The Vault screen also no longer records a $0 entry when the total could not be read. Its confidence figure was shown 100× too large (for example "9500%"); that is fixed.
 
 ## Retried money requests from outside tools can post twice (#942, needs your decision; nothing changed yet)
 
