@@ -47,6 +47,7 @@ export const NOTIFICATION_TYPES = {
   'cash.low': { label: 'Cash fell below the amount set in Settings → Alerts', roles: ['owner', 'accountant'] as Role[], tab: 'dashboard' },
   'asset.reminder': { label: "A fixed asset's warranty ends or its insurance renews soon", roles: BOOKS, tab: 'assets' },
   'payroll.approval_requested': { label: 'A pay run waits for your approval', roles: ['owner'] as Role[], tab: 'payroll' },
+  'security.new_sign_in': { label: 'Your account signed in from a new network (IP address)', roles: ['owner', 'accountant', 'bookkeeper', 'viewer'] as Role[], tab: 'settings' },
   'payroll.decided': { label: 'A pay run you prepared was approved or sent back', roles: ['owner', 'accountant'] as Role[], tab: 'payroll' },
 } as const;
 

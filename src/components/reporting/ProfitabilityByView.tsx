@@ -6,8 +6,10 @@ import type { ProfitabilityBy, ProfitabilityLine } from '../../lib/profitability
 import { yearRange } from '../../server/reports/itemReports';
 import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { formatCurrency } from '../../lib/utils';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { csvMoneyForBook, downloadCsv } from '../../lib/csvExport';
 import { useReportText } from './useReportText';
+import { useAuthStore } from '../../stores/useAuthStore';
+import { LoadingState } from '../ui/LoadingState';
 
 type By = ProfitabilityBy;
 type Line = ProfitabilityLine;
@@ -21,6 +23,8 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
  */
 export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selectedYear }) => {
   const reportText = useReportText();
+  // #910 family: revenue, cost and budget are in the base currency, so the file's decimals come from it
+  const moneyCell = csvMoneyForBook(useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD');
   const { loading } = useLedgerCollections('customers', 'invoices', 'inventory', 'transactions', 'accounts', 'projects');
   const [by, setBy] = useState<By>('customer');
   const initial = yearRange(selectedYear ?? new Date().getFullYear());
@@ -60,16 +64,16 @@ export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selec
       lines.map(l => by === 'project'
         ? [
             l.label,
-            csvMoney(l.revenueCents),
-            csvMoney(l.costCents),
-            l.budgetCents == null ? '' : csvMoney(l.budgetCents),
-            l.budgetRemainingCents == null ? '' : csvMoney(l.budgetRemainingCents),
+            moneyCell(l.revenueCents),
+            moneyCell(l.costCents),
+            l.budgetCents == null ? '' : moneyCell(l.budgetCents),
+            l.budgetRemainingCents == null ? '' : moneyCell(l.budgetRemainingCents),
             l.budgetUsedPct ?? '',
-            csvMoney(l.marginCents),
+            moneyCell(l.marginCents),
             l.marginPct ?? '',
             l.estimate ? 'yes' : 'no',
           ]
-        : [l.label, csvMoney(l.revenueCents), csvMoney(l.costCents), csvMoney(l.marginCents), l.marginPct ?? '', l.estimate ? 'yes' : 'no']));
+        : [l.label, moneyCell(l.revenueCents), moneyCell(l.costCents), moneyCell(l.marginCents), l.marginPct ?? '', l.estimate ? 'yes' : 'no']));
   };
 
   return (
@@ -95,7 +99,7 @@ export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selec
         {reportText('r.revenue-is-the-issued-invoice-lines-in-the-perio', 'Revenue is the issued invoice lines in the period, in the base currency. Cost is the cost of goods sold posted for each line (or quantity × unit cost while none is posted; marked as an estimate)')}{by === 'project' ? reportText('r.plus-the-expense-lines-carrying-the-project-labe', ', plus the expense lines carrying the project label, set against each project\'s allocated cost budget when one is configured') : ''}{reportText('r.margin-margin-revenue', '. Margin % = margin ÷ revenue.')}
       </p>
       {!validPeriod && <p role="alert" className="text-sm text-rose-600">{reportText('r.the-start-date-is-after-the-end-date', 'The start date is after the end date.')}</p>}
-      {loading && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {loading && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       {!loading && validPeriod && lines.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.nothing-sold-or-spent-in-this-period', 'Nothing sold or spent in this period.')}</p>}
       {lines.length > 0 && (
         <div role="region" aria-label={reportText('r.scrollable-profitability-table', 'Scrollable profitability table')} tabIndex={0} className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}

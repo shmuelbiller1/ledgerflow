@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { PackageSearch } from 'lucide-react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { csvMoneyForBook, downloadCsv } from '../../lib/csvExport';
 import { SLOW_MOVING_BUCKETS, noSaleInDays, slowMovingRows, slowMovingTotals } from '../../lib/slowMovingStock';
 import { RowTable } from '../ui/RowTable';
 import { useReportText } from './useReportText';
@@ -16,6 +17,8 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
  * figures come from the items and issued invoices already loaded (src/lib/slowMovingStock.ts).
  */
 export const SlowMovingStockView: React.FC = () => {
+  // #910 family: unit cost and value are in the book currency, so the file's decimals come from it
+  const moneyCell = csvMoneyForBook(useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD');
   const reportText = useReportText();
   useLedgerCollections('inventory', 'invoices');
   const inventory = useLedgerStore(s => s.inventory);
@@ -31,7 +34,7 @@ export const SlowMovingStockView: React.FC = () => {
   const exportCsv = () => {
     downloadCsv(`slow_moving_items_${asOf}.csv`,
       ['Item', 'SKU', 'On hand', 'Unit cost', 'Value', 'Last sold', 'Days since sale', 'Age'],
-      shown.map(r => [r.name, r.sku, r.quantity, csvMoney(r.unitCostCents), csvMoney(r.valueCents), r.lastSold || 'never', r.daysSinceSold ?? '', SLOW_MOVING_BUCKETS.find(b => b.key === r.bucket)?.label || '']));
+      shown.map(r => [r.name, r.sku, r.quantity, moneyCell(r.unitCostCents), moneyCell(r.valueCents), r.lastSold || 'never', r.daysSinceSold ?? '', SLOW_MOVING_BUCKETS.find(b => b.key === r.bucket)?.label || '']));
   };
 
   return (

@@ -39,6 +39,8 @@ export interface InvoiceApprovalSettings {
   /** A-120: Optional purchase-order approval threshold stored alongside invoiceApproval on the workspace. */
   poEnabled?: boolean;
   poThresholdCents?: number;
+  /** G-19 (#893): bills above this amount need an approver (src/lib/billApproval.ts); absent means the default. */
+  billThresholdCents?: number;
 }
 
 export interface PoApprovalSettings {
@@ -116,6 +118,8 @@ export function normalizeInvoiceApproval(input: unknown): InvoiceApprovalSetting
     enabled: Boolean(raw.enabled) && thresholdCents > 0,
     thresholdCents,
     ...(po.enabled || po.thresholdCents > 0 ? { poEnabled: po.enabled, poThresholdCents: po.thresholdCents } : {}),
+    // kept through every settings save, so saving the invoice or PO rule never resets the bill limit
+    ...(Number(raw.billThresholdCents) > 0 ? { billThresholdCents: Math.round(Number(raw.billThresholdCents)) } : {}),
   };
 }
 

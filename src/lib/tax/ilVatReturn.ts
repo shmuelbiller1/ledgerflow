@@ -66,11 +66,14 @@ export function israelVatReturn(input: {
   vendorCredits?: IlVatDocument[];
   startDate: string;
   endDate: string;
+  /** #928: the workspace (book) currency, so a yen or dinar document is converted with its own minor units */
+  baseCurrency?: string;
 }): IlVatReturn {
   const mine = (docs: IlVatDocument[] | undefined) => (docs || []).filter(d => belongsTo(d, input.profiles, input.order, input.registration));
   const period = { startDate: input.startDate, endDate: input.endDate };
-  const all = buildTaxReturn({ ...period, invoices: mine(input.invoices), bills: mine(input.bills), creditNotes: mine(input.creditNotes), vendorCredits: mine(input.vendorCredits) });
-  const assets = buildTaxReturn({ ...period, invoices: [], bills: mine(input.bills).filter(b => b.fixedAsset), vendorCredits: mine(input.vendorCredits).filter(b => b.fixedAsset) });
+  const baseCurrency = input.baseCurrency;
+  const all = buildTaxReturn({ ...period, baseCurrency, invoices: mine(input.invoices), bills: mine(input.bills), creditNotes: mine(input.creditNotes), vendorCredits: mine(input.vendorCredits) });
+  const assets = buildTaxReturn({ ...period, baseCurrency, invoices: [], bills: mine(input.bills).filter(b => b.fixedAsset), vendorCredits: mine(input.vendorCredits).filter(b => b.fixedAsset) });
   const box = (r: typeof all, key: string) => r.boxes.find(b => b.key === key)?.cents ?? 0;
   const fixedAssetInputVatCents = box(assets, '4');
   const outputVatCents = box(all, '3');

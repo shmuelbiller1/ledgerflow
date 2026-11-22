@@ -194,7 +194,8 @@ class MemoryTransaction {
   commit(): void { for (const write of this.writes.values()) this.db.apply(write); }
 }
 
-export const owner: RequestUser = { uid: 'owner-1', email: 'owner@example.test', aal: 'aal2' };
+// a person who just signed in: real users always carry a sign-in time from token verification (#941)
+export const owner: RequestUser = { uid: 'owner-1', email: 'owner@example.test', aal: 'aal2', auth_time: Math.floor(Date.now() / 1000) };
 export const workspaceId = 'ws-command-test';
 
 export function seedWorkspace(db: MemoryDb, id = workspaceId, fields: Record<string, unknown> = {}): void {

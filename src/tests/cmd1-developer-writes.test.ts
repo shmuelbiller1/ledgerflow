@@ -112,8 +112,9 @@ describe('Developer API compatibility (database)', { skip: !url && 'LF_TEST_DATA
       assert.equal(refused.status, 500); // original developer API quota status
       assert.match(String(refused.body.message), /^QUOTA_EXCEEDED:/);
       const foreign = await post('/api/v1/projects', { name: 'Foreign', workspaceId: `${ws}_foreign` });
-      assert.equal(foreign.status, 500);
-      assert.equal(foreign.body.message, `Unauthorized: API key is scoped strictly to workspace ${ws}`);
+      // #914: a key used on another workspace is refused (403), not a server fault, and the guard wording stays in the log
+      assert.equal(foreign.status, 403);
+      assert.equal(foreign.body.message, 'Forbidden');
       const named = await post('/api/v1/commands/project.create', { input: { name: 'Must not be saved' } });
       assert.equal(named.status, 429);
       assert.equal(named.body.code, 'QUOTA_EXCEEDED');
@@ -134,7 +135,7 @@ describe('Developer API compatibility (database)', { skip: !url && 'LF_TEST_DATA
 
   test('deep audit returns 202, rejects a different workspace, and accepts another job on legacy retry', async () => {
     const path = '/api/v1/audit/deep';
-    assert.equal((await post(path, { workspaceId: `${ws}_other` })).status, 500); // established error envelope
+    assert.equal((await post(path, { workspaceId: `${ws}_other` })).status, 403); // #914: a refusal, not a 500
     const jobs: string[] = [];
     for (const result of await Promise.all([post(path, { scenario: 'preview-a' }), post(path, { scenario: 'preview-a' })])) {
       const job = String(result.body.job_id);

@@ -12,7 +12,7 @@ import { renderEmail, resolveTemplate } from '../../lib/emailTemplates';
 import type { EmailTemplateKey, EmailTemplates, TemplateValues } from '../../lib/emailTemplates';
 import { isMailConfigured, sendMail } from './mailer';
 import { notify } from './notificationService';
-import { generateDocumentPdf } from './pdfService';
+import { contactAddress, generateDocumentPdf } from './pdfService';
 import { contactTerms, documentLanguage } from '../../lib/documentLanguage';
 import { loadStatement, StatementScopeError } from './statementService';
 import { isArchivedParty } from '../../lib/contacts';
@@ -128,7 +128,7 @@ export async function emailInvoice(db: Firestore, input: EmailInvoiceInput) {
   let attachments;
   try {
     const copyMark = await takeCopyMark(db, 'invoice', input.invoiceId, workspace as { taxProfiles?: TaxProfiles });
-    const pdf = await generateDocumentPdf('invoice', { ...invoice, id: input.invoiceId }, workspace, { paymentUrl: values.link, language: documentLanguage(workspace.branding, customer), terms: contactTerms(customer), ...(copyMark ? { copyMark } : {}) });
+    const pdf = await generateDocumentPdf('invoice', { ...invoice, id: input.invoiceId }, workspace, { paymentUrl: values.link, language: documentLanguage(workspace.branding, customer), terms: contactTerms(customer), ...contactAddress(customer), ...(copyMark ? { copyMark } : {}) });
     attachments = [{ filename: `invoice_${values.number}.pdf`, content: pdf, contentType: 'application/pdf' }];
   } catch {
     attachments = undefined;
@@ -275,7 +275,7 @@ export async function emailStatements(db: Firestore, input: { workspaceId: strin
     const paper = againstPreference(statement.contact);
     const logBase = { workspaceId: input.workspaceId, documentType: 'statement', documentId: id, template: 'statement', subject: message.subject, recipient: to, sentBy: input.system ? 'schedule' : input.uid, ...(paper ? { againstPreference: paper } : {}) };
     try {
-      const pdf = await generateDocumentPdf('statement', statement.pdf, workspace, { language: documentLanguage(workspace.branding, statement.contact), terms: contactTerms(statement.contact) });
+      const pdf = await generateDocumentPdf('statement', statement.pdf, workspace, { language: documentLanguage(workspace.branding, statement.contact), terms: contactTerms(statement.contact), ...contactAddress(statement.contact) });
       const sent = await sendMail({ to, subject: message.subject, html: message.html, text: message.text, attachments: [{ filename: `statement_${name.replace(/[^\w.-]+/g, '_')}.pdf`, content: pdf, contentType: 'application/pdf' }] });
       await logEmailEvent(db, { ...logBase, event: 'sent', provider: sent.provider, messageId: sent.messageId || null });
       result.sent.push({ id, name, to });

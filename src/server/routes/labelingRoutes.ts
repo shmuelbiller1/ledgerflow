@@ -1,3 +1,4 @@
+import { isForbidden } from '../http/serverKit';
 import { errorMessage, requestUser } from "../auth/requestUser";
 import { formatTzDate, sendError, authorizeWorkspace, authenticate } from "../http/serverKit";
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
@@ -66,7 +67,7 @@ export function registerLabelingRoutes(app: express.Express, _ctx: ServerContext
       const logs = snap.docs.map((doc) => doc.data());
       res.json(logs);
     } catch (error) {
-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
       sendError(res, "Failed to fetch activity feed", 500, errorMessage(error));
     }

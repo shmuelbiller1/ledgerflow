@@ -7,8 +7,50 @@ import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedge
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { BankLineUpdateSchema } from '../../schemas';
 import { assertPostingOpen } from '../../lib/periodLock';
-import { settleHomeCurrency } from '../../lib/txFilters';
-import type { Transaction } from '../../types';
+import { lineAmount, settleHomeCurrency } from '../../lib/txFilters';
+import type { ChartAccount, Transaction } from '../../types';
+import { resolveAccountRole } from '../../lib/accountUtils';
+
+/**
+ * #891 (A10-H1-01): a bank line is cleared only against a cash movement. The entry must have a leg in
+ * the line's own bank account (or, when the line names no account, in some cash account), and that
+ * leg must go the same way as the line: a withdrawal is not cleared by a deposit, and a bill accrual
+ * that only moves A/P and expense never moved money at the bank. Returns the refusal, or null.
+ */
+export function cashMovementRefusal(
+  line: { accountId?: unknown; amountCents?: unknown },
+  entryLines: unknown,
+  accountsById: ReadonlyMap<string, DocumentData>,
+  entry: { exchangeRate?: unknown; currency?: unknown } = {},
+): string | null {
+  const amount = Number(line.amountCents);
+  const lines = Array.isArray(entryLines) ? entryLines as Array<{ accountId?: unknown; amountCents?: unknown }> : [];
+  // Codex on #972: home-currency amounts (a line's settled baseAmountCents, else its rate), as the
+  // reports and the auto-matcher read them, so an FX entry's direction is the money that really moved
+  const home = (l: { amountCents?: unknown }) => lineAmount(l as Parameters<typeof lineAmount>[0], entry as Parameters<typeof lineAmount>[1]);
+  const ownAccount = typeof line.accountId === 'string' && line.accountId ? line.accountId : null;
+  const isCash = (id: string) => resolveAccountRole(accountsById.get(id) as ChartAccount | undefined) === 'cash';
+  // a line in a named account uses that account's leg; a line with no account qualifies through any one
+  // cash account (Codex on #972: a transfer between two banks nets to zero overall but moves money in each)
+  const legs = new Map<string, number>();
+  for (const l of lines) {
+    const id = typeof l?.accountId === 'string' ? l.accountId : '';
+    if (!id || (ownAccount ? id !== ownAccount : !isCash(id))) continue;
+    legs.set(id, (legs.get(id) || 0) + (home(l) || 0));
+  }
+  const moved = [...legs.values()].filter(leg => leg !== 0);
+  if (moved.length === 0) {
+    return ownAccount
+      ? 'This entry moved no money in the bank line\'s account, so it cannot clear it. Record the payment first.'
+      : 'This entry moved no money in a bank or cash account, so it cannot clear a bank line. Record the payment first.';
+  }
+  if (Number.isFinite(amount) && amount !== 0 && !moved.some(leg => Math.sign(leg) === Math.sign(amount))) {
+    return amount < 0
+      ? 'This entry put money into the account; it cannot clear a withdrawal.'
+      : 'This entry took money out of the account; it cannot clear a deposit.';
+  }
+  return null;
+}
 
 /**
  * POST /transactions/reconcile in one place (CA-01/CA-04): a batch of bank-line and transaction
@@ -98,6 +140,9 @@ export async function prepareReconcile(
   for (const op of operations) {
     if (!op.id || typeof op.id !== 'string') throw new ReconcileError(400, 'Invalid operation ID');
     if (op.type === 'updateBankLine') {
+      // #891 (Codex on #972): each update is checked against the stored line, so two updates to one line
+      // in a batch could set a target and then the status without the pair ever being checked
+      if (bankLineIds.has(op.id)) throw new ReconcileError(400, `Bank line ${op.id} is changed more than once in this request; send one change per line`);
       bankLineIds.add(op.id);
     } else if (op.type === 'updateTransaction' || op.type === 'createTransaction') {
       txIds.add(op.id);
@@ -173,6 +218,18 @@ export async function reconcileInTransaction(
     txSnaps.set(id, snap as unknown as DocumentData & { exists?: boolean; id?: string; data(): DocumentData });
   }
 
+  // #891: the entries bank lines are matched to, read now (no closed-period check: only the line changes)
+  const matchedSnaps = new Map<string, DocumentData & { exists?: boolean; id?: string; data(): DocumentData }>();
+  for (const op of operations) {
+    if (op.type !== 'updateBankLine') continue;
+    const sentMid = op.data && 'matchedTransactionId' in op.data ? op.data.matchedTransactionId : undefined;
+    const mid = sentMid !== undefined ? sentMid : bankLineSnaps.get(op.id)?.data?.()?.matchedTransactionId;
+    if (typeof mid === 'string' && mid && !txSnaps.has(mid) && !matchedSnaps.has(mid)) {
+      const snap = await t.get(db.collection('transactions').doc(mid));
+      matchedSnaps.set(mid, snap as unknown as DocumentData & { exists?: boolean; id?: string; data(): DocumentData });
+    }
+  }
+
   // Closed periods (src/lib/periodLock.ts): nothing dated in them is changed or created.
   for (const snap of [...bankLineSnaps.values(), ...txSnaps.values()]) {
     const date = snap.exists ? snap.data()?.date : undefined;
@@ -187,7 +244,7 @@ export async function reconcileInTransaction(
 
   // accounts named by the entries that already exist are added to the ones the batch named
   const accountIds = new Set(prepared.accountIds);
-  for (const snap of txSnaps.values()) {
+  for (const snap of [...txSnaps.values(), ...matchedSnaps.values()]) {
     const lines = snap.exists ? snap.data()?.lines : undefined;
     if (Array.isArray(lines)) {
       for (const l of lines as Array<{ accountId?: string }>) {
@@ -222,6 +279,31 @@ export async function reconcileInTransaction(
       const homeCurrency = String(prepared.workspace?.currency || wsNow.currency || 'USD').toUpperCase();
       if (validatedData.status === 'matched' && lineCurrency && lineCurrency !== homeCurrency) {
         throw new ReconcileError(400, `Bank line ${op.id} is in ${lineCurrency}, not ${homeCurrency}; it can't be matched until it is converted`);
+      }
+      // #891: the entry must be a cash movement in this line's account and direction. Its lines are the
+      // last ones this batch sends for it, or else the stored ones.
+      // Gitar on #972: the line's resulting state decides, so the id and the status sent in separate
+      // requests (or a stored id) are checked too
+      const storedLine = lineSnap.data() || {};
+      const finalStatus = validatedData.status ?? storedLine.status;
+      const matchedId = 'matchedTransactionId' in validatedData ? (validatedData as { matchedTransactionId?: unknown }).matchedTransactionId : storedLine.matchedTransactionId;
+      if (finalStatus === 'matched' && typeof matchedId === 'string' && matchedId) {
+        // Codex on #972: each update merges with the stored entry on its own, so with two changes to the
+        // same entry the lines checked might not be the ones saved. One change per matched entry.
+        const entryOps = operations.filter(o => (o.type === 'createTransaction' || o.type === 'updateTransaction') && o.id === matchedId);
+        if (entryOps.length > 1) {
+          throw new ReconcileError(400, `Entry ${matchedId} is changed more than once in this request; send one change for an entry a bank line is matched to`);
+        }
+        const sent = entryOps.filter(o => Array.isArray(o.data?.lines));
+        const stored = txSnaps.get(matchedId) || matchedSnaps.get(matchedId);
+        const storedEntry = stored?.exists ? stored.data() || {} : {};
+        const entryData = sent.length ? { ...storedEntry, ...(sent[0].data || {}) } : storedEntry;
+        const entryLines = entryData.lines;
+        if (!sent.length && (!stored || !stored.exists || stored.data()?.workspaceId !== workspaceId)) {
+          throw new ReconcileError(404, `Entry ${matchedId} not found in workspace`);
+        }
+        const refusal = cashMovementRefusal(lineSnap.data() || {}, entryLines, accMap, entryData);
+        if (refusal) throw new ReconcileError(400, refusal);
       }
       // undoing a match on a line the bank later changed or withdrew: the bank's version is what goes
       // back to To review, since the next sync will not send that change again (CodeRabbit on #439)
@@ -499,11 +581,29 @@ export async function updateBankLineInTransaction(
 ): Promise<{ id: string; data: Record<string, unknown> }> {
   // Strict allowlist validation (#78) - rejects any unknown or protected properties
   const validatedData = BankLineUpdateSchema.parse(input.data) as Record<string, unknown>;
-  // #830: a line is matched only to an entry of its own workspace
-  if (typeof validatedData.matchedTransactionId === 'string' && validatedData.matchedTransactionId) {
-    const matched = await t.get(db.collection('transactions').doc(validatedData.matchedTransactionId));
+  // #830: a line is matched only to an entry of its own workspace. #891 (and Gitar on #972): the line's
+  // resulting state decides, so an id and a status sent in separate requests are checked too
+  const lineSnap = await t.get(db.collection('bankLines').doc(input.id));
+  const stored = lineSnap.data() || {};
+  const finalStatus = validatedData.status ?? stored.status;
+  const sentId = 'matchedTransactionId' in validatedData;
+  const finalMatch = sentId ? validatedData.matchedTransactionId : stored.matchedTransactionId;
+  if (typeof finalMatch === 'string' && finalMatch && (sentId || finalStatus === 'matched')) {
+    const matched = await t.get(db.collection('transactions').doc(finalMatch));
     if (!matched.exists || matched.data()?.workspaceId !== input.workspaceId) {
-      throw new UpdateBankLineError(404, `Entry ${validatedData.matchedTransactionId} not found in workspace`);
+      throw new UpdateBankLineError(404, `Entry ${finalMatch} not found in workspace`);
+    }
+    if (finalStatus === 'matched') {
+      const entryLines = matched.data()?.lines;
+      const ids = [...new Set((Array.isArray(entryLines) ? entryLines as Array<{ accountId?: unknown }> : []).map(l => l?.accountId).filter((id): id is string => typeof id === 'string' && !!id))];
+      const accounts = new Map<string, DocumentData>();
+      if (ids.length) {
+        for (const snap of await t.getAll(...ids.map(id => db.collection('chartAccounts').doc(id)))) {
+          if (snap.exists) accounts.set(snap.id, snap.data() || {});
+        }
+      }
+      const refusal = cashMovementRefusal(stored, entryLines, accounts, matched.data() || {});
+      if (refusal) throw new UpdateBankLineError(400, refusal);
     }
   }
   t.update(db.collection('bankLines').doc(input.id), { ...validatedData, updatedAt: FieldValue.serverTimestamp() });

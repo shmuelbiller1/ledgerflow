@@ -150,3 +150,12 @@ test('#841: only the owner changes invoice approval; an accountant still changes
   assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.invoiceApproval, { enabled: true, thresholdCents: 100_000 });
   assert.equal((await run(workspaceSettingsInput.parse({ timezone: 'Asia/Jerusalem' }), db)).ok, true);
 });
+
+test('G-19 (#893): saving the invoice or PO rule keeps a custom bill limit the screen does not send', async () => {
+  const db = new MemoryDb();
+  seedWorkspace(db, workspaceId, { uid: owner.uid, invoiceApproval: { enabled: true, thresholdCents: 100_000, billThresholdCents: 50_000 } });
+  assert.equal((await run(workspaceSettingsInput.parse({ invoiceApproval: { enabled: true, thresholdCents: 200_000 } }), db)).ok, true);
+  assert.deepEqual(db.read(`workspaces/${workspaceId}`)?.invoiceApproval, { enabled: true, thresholdCents: 200_000, billThresholdCents: 50_000 });
+  assert.equal((await run(workspaceSettingsInput.parse({ invoiceApproval: { enabled: true, thresholdCents: 200_000, billThresholdCents: 70_000 } }), db)).ok, true);
+  assert.equal((db.read(`workspaces/${workspaceId}`)?.invoiceApproval as { billThresholdCents?: number }).billThresholdCents, 70_000);
+});

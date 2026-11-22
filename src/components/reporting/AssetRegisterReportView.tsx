@@ -4,7 +4,7 @@ import { useDataNeedsStore } from '../../stores/useDataNeedsStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useServerAssetRegister } from '../../hooks/useServerAssetRegister';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { csvMoneyForBook, downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import ReportTableScroll from './ReportTableScroll';
 import { RowTable } from '../ui/RowTable';
@@ -22,9 +22,11 @@ export default function AssetRegisterReportView({ endDate }: { endDate?: string 
   // the server's register reads every asset and run; only a failed load leaves it short
   const partial = report?.source === 'loaded-incomplete' || (['assets', 'transactions', 'accounts'] as const).some(key => failed[key]);
   const money = (cents: number) => formatCurrency(cents, currency);
+  // #910 family: the register is in the book currency, so the file's decimals come from it
+  const moneyCell = csvMoneyForBook(currency);
   const csv = () => { if (!report || partial) return; downloadCsv(`asset_register_${date}.csv`,
     ['Category', 'Tag', 'Asset', 'Purchase date', 'Status', 'Cost', 'Depreciation to date', 'Book value'],
-    report.rows.map(r => [r.category, r.tag, r.name, r.purchaseDate, r.status, csvMoney(r.costCents), csvMoney(r.depreciationCents), csvMoney(r.bookValueCents)])); };
+    report.rows.map(r => [r.category, r.tag, r.name, r.purchaseDate, r.status, moneyCell(r.costCents), moneyCell(r.depreciationCents), moneyCell(r.bookValueCents)])); };
   return <section aria-label={reportText('r.fixed-asset-register-report', 'Fixed asset register report')} className="p-4 min-w-0 space-y-4">
     <h2 className="text-lg font-semibold">{reportText('r.fixed-asset-register-as-of-date', 'Fixed asset register as of date')}</h2>
     <p className="text-sm text-[var(--muted)]">{reportText('r.read-only-view-of-assets-acquired-and-not-dispos', 'Read-only view of assets acquired and not disposed by the chosen date. Depreciation uses posted, non-reversed monthly runs plus any brought-in depreciation. Category is the asset\'s saved asset-account name. Nothing is posted.')}</p>
