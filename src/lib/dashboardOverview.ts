@@ -4,6 +4,7 @@ import { resolveAccountRole } from './accountUtils';
 import { computePartyAging } from './aging';
 import { getFiscalYearBounds, getFiscalQuarter, getReportPeriod, getComparePeriod, addDaysYMD } from './fiscalCalendar';
 import { addToDateISO } from './calendarDate';
+import { calculateAmountDue } from './documentMath';
 import { validCustomReportPeriod } from './reportCustomPeriod';
 
 export type DashboardRange = 'month' | 'quarter' | 'year' | 'custom';
@@ -63,8 +64,43 @@ export function dashboardAging(parties: Array<{ id: string; name: string }>, doc
   return { rows, top };
 }
 
+/** D-58: bills due in the next 7 days (inclusive of asOfDate) that still have something to pay. */
+export interface BillsDueSummary {
+  count: number;
+  totalCents: number;
+  bills: Array<{ id: string; billNumber: string; vendorName: string; dueDate: string; amountDueCents: number; currency: string }>;
+}
+
+/** Bills that are not owed: settled, voided, refused, or never approved. */
+const NOT_PAYABLE = new Set(['paid', 'void', 'cancelled', 'rejected', 'draft']);
+
+export function billsDueThisWeek(bills: readonly Bill[], asOfDate: string, fallbackCurrency = 'USD'): BillsDueSummary {
+  const start = asOfDate.slice(0, 10);
+  const end = addDaysYMD(start, 7);
+  const matching: BillsDueSummary['bills'] = [];
+  let totalCents = 0;
+  for (const bill of bills) {
+    if (NOT_PAYABLE.has(String(bill.status))) continue;
+    const due = (bill.dueDate || '').slice(0, 10);
+    if (!due || due < start || due > end) continue;
+    const amountDueCents = calculateAmountDue(bill);
+    if (amountDueCents <= 0) continue;
+    totalCents += amountDueCents;
+    matching.push({
+      id: bill.id,
+      billNumber: bill.number || bill.id,
+      vendorName: bill.vendorName || 'Vendor',
+      dueDate: due,
+      amountDueCents,
+      currency: bill.currency || fallbackCurrency,
+    });
+  }
+  matching.sort((a, b) => a.dueDate.localeCompare(b.dueDate) || b.amountDueCents - a.amountDueCents);
+  return { count: matching.length, totalCents, bills: matching.slice(0, 5) };
+}
+
 /** D-85: the first row answers the owner's questions in order — cash, owed to you, you owe, profit. */
-export const DASHBOARD_WIDGETS = ['cash', 'receivables', 'payables', 'profit', 'networth', 'revenue', 'expenses', 'banks', 'feeds', 'recent', 'integrity', 'summary', 'scenario'] as const;
+export const DASHBOARD_WIDGETS = ['cash', 'receivables', 'payables', 'profit', 'billsDue', 'networth', 'revenue', 'expenses', 'banks', 'feeds', 'recent', 'integrity', 'summary', 'scenario'] as const;
 export type DashboardWidget = typeof DASHBOARD_WIDGETS[number];
 export interface DashboardLayout { order: DashboardWidget[]; hidden: DashboardWidget[] }
 export function dashboardLayout(value?: unknown): DashboardLayout {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dashboardPeriod, validDashboardPeriod, dashboardComparison, dashboardAging, dashboardLayout } from '../lib/dashboardOverview';
+import { dashboardPeriod, validDashboardPeriod, dashboardComparison, dashboardAging, dashboardLayout, DASHBOARD_WIDGETS } from '../lib/dashboardOverview';
 import { reportStateFromParams, reportStateToParams } from '../lib/reportPermalink';
 import { makeChartAccount, makeTransaction, makeInvoice, makeBill } from './fixtures';
 
@@ -34,7 +34,7 @@ test('aging widgets retain unknown parties, use remaining base amounts and exclu
 });
 test('personal dashboard layout refuses foreign IDs, duplicates and malformed preferences', () => {
   const result = dashboardLayout({ order: ['cash', 'cash', 'evil', 'profit'], hidden: ['cash', 'evil', 'cash'] });
-  assert.deepEqual(result.order.slice(0, 2), ['cash', 'profit']); assert.equal(result.order.length, 13); assert.deepEqual(result.hidden, ['cash']);
+  assert.deepEqual(result.order.slice(0, 2), ['cash', 'profit']); assert.equal(result.order.length, DASHBOARD_WIDGETS.length); assert.deepEqual(result.hidden, ['cash']);
   assert.deepEqual(dashboardLayout('bad'), dashboardLayout());
 });
 test('custom report links round-trip exact dates without accepting invalid ranges or retaining stale custom dates', () => {

@@ -11,7 +11,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { toast } from 'sonner';
 import { calculateAmountDue } from '../../lib/documentMath';
-import { describeError } from '../../lib/errorRemedies';
+import { describePaymentRefusal } from '../../lib/paymentRefusals';
 import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { savedInOtherWorkspace, workspaceChangedSince } from '../../lib/saveWorkspace';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
@@ -264,8 +264,12 @@ export default function ReceivePaymentModal({
         toast.error('The payment may not have been recorded: the network connection dropped before the server answered.', { description: 'Check the payments list. If it is not there, press Record again: it will not be posted twice.' });
         return;
       }
-      const described = describeError(err, 'create', uiLanguageNow());
-      toast.error(`Payment not recorded: ${described.title.charAt(0).toLowerCase()}${described.title.slice(1)}`, { description: described.remedy });
+      const language = uiLanguageNow();
+      const described = describePaymentRefusal(err, language);
+      const title = language === 'he'
+        ? `התשלום לא נרשם: ${described.title}`
+        : `Payment not recorded: ${described.title.charAt(0).toLowerCase()}${described.title.slice(1)}`;
+      toast.error(title, { description: described.remedy });
     } finally {
       setIsSubmitting(false);
     }

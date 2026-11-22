@@ -1,0 +1,24 @@
+name: Synthetic Uptime Check
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  uptime:
+    runs-on: ubuntu-latest
+    if: vars.UPTIME_BASE_URL != ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run synthetic uptime check
+        env:
+          UPTIME_BASE_URL: ${{ vars.UPTIME_BASE_URL }}
+          UPTIME_TEST_EMAIL: ${{ secrets.UPTIME_TEST_EMAIL }}
+          UPTIME_TEST_PASSWORD: ${{ secrets.UPTIME_TEST_PASSWORD }}
+          UPTIME_SUPABASE_URL: ${{ vars.UPTIME_SUPABASE_URL }}
+          UPTIME_SUPABASE_ANON_KEY: ${{ vars.UPTIME_SUPABASE_ANON_KEY }}
+        run: node scripts/synthetic-uptime.mjs
