@@ -30,7 +30,7 @@ const VAGUE = /\b(something|anything|stuff|things?|looks? off|weird|wrong)\b/i;
  * does not reject words it does not use, so "sales excluding refunds" would read as plain sales: any
  * of these sends the question to the model.
  */
-const QUALIFIER = /\b(exclud\w*|includ\w*|except|without|minus|less|net of|gross|only|just|but|not|no|per|each|every|by|average|avg|mean|median|total of|compared?|versus|vs|than|growth|change|increase|decrease|trend|share|ratio|margin|from|to|between|since|until|before|after|for|of)\b|%|percent/i;
+const QUALIFIER = /\b(exclud\w*|includ\w*|except|without|minus|less|net|profit|gross|only|just|but|not|no|per|each|every|by|average|avg|mean|median|total of|compared?|versus|vs|than|growth|change|increase|decrease|trend|share|ratio|margin|from|to|in|at|between|since|until|before|after|for|of)\b|%|percent/i;
 
 const MAX_ROUTED_LENGTH = 120;
 /** search_records' default match limit (sandboxTools.ts): a full page may have been cut short */

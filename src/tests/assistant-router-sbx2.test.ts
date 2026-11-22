@@ -31,6 +31,10 @@ const MUST_GO_TO_MODEL = [
   'What were my sales per customer this month?',
   'What is my revenue growth this year?',
   'What were my sales only in Tel Aviv this month?',
+  'What is my net income this month?', // income without "net" would read as gross income
+  'What were my net sales this month?',
+  'What were my sales in Tel Aviv this month?', // an unknown place is ignored by ask_books
+  'What is my profit this year?',
   '',
 ];
 
