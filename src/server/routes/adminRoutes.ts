@@ -1,5 +1,6 @@
+import { writeServerAuditLog } from "../services/auditLogService";
 import type { Transaction as LedgerTransaction } from "../../types";
-import { globalAdminConfig, sendError, handleApiError, authenticate, requireAdmin, writeAuditLog, writeAuditLogStrict, getReportContext } from "../http/serverKit";
+import { globalAdminConfig, sendError, handleApiError, authenticate, requireAdmin, writeAuditLogStrict, getReportContext } from "../http/serverKit";
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
 import express from "express";
 import type { DocumentData } from "../db/firestore";
@@ -22,7 +23,11 @@ import { registerGiveAccessRoutes } from "./giveAccessRoutes";
 /** A system job trigger called by an admin (not the cron secret) leaves an actor row (#826). */
 async function auditManualTrigger(req: express.Request, action: string, details: string): Promise<void> {
   const user = (req as Partial<AuthenticatedRequest>).user;
-  if (user?.uid) await writeAuditLog(user.uid, user.email ?? '', action, details, 'system');
+  // #943: strict, and before the job runs: an admin's run that cannot be recorded does not run
+  if (user?.uid) {
+    await writeServerAuditLog({ workspaceId: 'system', uid: user.uid, email: user.email ?? '', action, entityType: 'system', entityId: 'system',
+      details: { description: details, before: null, after: null } });
+  }
 }
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
@@ -163,7 +168,7 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
         
         const auditResult = { ...before, ...updateData };
 
-        await writeAuditLog(
+        await writeAuditLogStrict(
           authReq.user.uid, 
           authReq.user.email!, 
           "ADMIN_WORKSPACE_UPDATED", 
@@ -229,6 +234,17 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
         ? deriveScopedOperationKey('system', 'ADMIN_USER_UPDATED', `${userId}:${rawOpId}`)
         : undefined;
 
+      // #943: the admins list follows the role in the same transaction as the profile and its audit row
+      const syncAdmins = (t: Transaction, email: unknown) => {
+        if (validated.role === undefined) return;
+        const adminRef = db.collection("admins").doc(userId);
+        if (validated.role === 'admin') {
+          t.set(adminRef, { uid: userId, email: typeof email === 'string' ? email : '', isAdmin: true, updatedAt: new Date().toISOString() }, { merge: true });
+        } else {
+          t.delete(adminRef);
+        }
+      };
+
       const performMutation = async (t: Transaction) => {
         const userRef = db.collection("users").doc(userId);
         const userSnap = await t.get(userRef);
@@ -240,6 +256,7 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
             updatedAt: new Date().toISOString()
           };
           t.set(userRef, updateData, { merge: true });
+          syncAdmins(t, undefined);
           // the grant is logged in the same transaction: no audit row, no privilege change (#826)
           await writeAuditLogStrict(authReq.user.uid, authReq.user.email!, "ADMIN_USER_UPDATED", `Created user ${userId}`, 'system', {}, updateData, t);
           return { auditResult: { userId, ...updateData }, before: {}, roleChanged: true, newRole: validated.role };
@@ -252,6 +269,7 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
         };
         
         t.update(userRef, updateData);
+        syncAdmins(t, before.email);
 
         const auditResult = { userId, ...before, ...updateData };
 
@@ -390,7 +408,7 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
         
         t.set(configRef, newConfig, { merge: true });
         
-        await writeAuditLog(
+        await writeAuditLogStrict(
           authReq.user.uid, 
           authReq.user.email!, 
           "ADMIN_GLOBAL_CONFIG_UPDATED", 
@@ -430,7 +448,8 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
       if (!workspaceId) {
         return res.status(400).json({ status: "error", message: "Missing workspaceId" });
       }
-      await writeAuditLog(authReq.user.uid, authReq.user.email ?? '', "ADMIN_ORPHAN_SCAN", `Ran an orphan scan on ${workspaceId}`, workspaceId);
+      await writeServerAuditLog({ workspaceId, uid: authReq.user.uid, email: authReq.user.email ?? '', action: "ADMIN_ORPHAN_SCAN", entityType: 'system',
+        entityId: workspaceId, details: { description: `Ran an orphan scan on ${workspaceId}`, before: null, after: null } });
       const { accounts, transactions } = await getReportContext(authReq, workspaceId);
       const scanResult = TruthEngine.scanOrphanedAccountReferences(accounts, transactions);
       res.json({

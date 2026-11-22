@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import { authenticate, requireAdmin, writeAuditLog, handleApiError, sendError } from "../http/serverKit";
+import { authenticate, requireAdmin, writeAuditLogStrict, handleApiError, sendError } from "../http/serverKit";
 import type { AuthenticatedRequest } from "../http/serverKit";
 import { getDb } from "../db/firestore";
 import type { Firestore } from "../db/firestore";
@@ -67,7 +67,7 @@ export async function giveAccess(
       // only fields the database rules already know (lf_guard, Codex on #460); who and when are in the audit line
       const update = { ...fields, updatedAt: now };
       t.update(doc.ref, update);
-      await writeAuditLog(actor.uid, actor.email, "ADMIN_ACCESS_GIVEN",
+      await writeAuditLogStrict(actor.uid, actor.email, "ADMIN_ACCESS_GIVEN",
         `Gave ${input.level} access to ${target.email}`, doc.id, before, { ...before, ...update }, t);
       changed.push({ id: doc.id, name: String(before.name || doc.id) });
       // a paid Stripe subscription is not cancelled here: free access is reported as still billed (Codex on #460)
@@ -75,7 +75,7 @@ export async function giveAccess(
     }
     if (input.makeAdmin) {
       t.set(userRef, { role: "admin", updatedAt: now }, { merge: true });
-      await writeAuditLog(actor.uid, actor.email, "ADMIN_USER_UPDATED",
+      await writeAuditLogStrict(actor.uid, actor.email, "ADMIN_USER_UPDATED",
         `Made ${target.email} a platform admin`, "system", userBefore, { ...userBefore, role: "admin" }, t);
     }
   });

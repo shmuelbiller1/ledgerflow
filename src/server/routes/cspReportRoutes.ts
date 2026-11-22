@@ -1,6 +1,7 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import { authenticate, requireAdmin } from '../http/serverKit';
+import { authenticate, handleApiError, requireAdmin, type AuthenticatedRequest } from '../http/serverKit';
+import { writeServerAuditLog } from '../services/auditLogService';
 import { CSP_REPORT_PATH, cspRollout } from '../http/contentSecurityPolicy';
 import { cspViolationSummary, parseCspReport, recordCspViolation, resetCspViolations } from '../http/cspViolations';
 
@@ -71,7 +72,15 @@ export function registerCspReportRoutes(app: express.Express): void {
     res.json({ rollout: cspRollout(), ...cspViolationSummary() });
   });
 
-  app.delete(`${CSP_REPORT_PATH}/summary`, summaryLimiter, authenticate, requireAdmin, (_req, res) => {
+  app.delete(`${CSP_REPORT_PATH}/summary`, summaryLimiter, authenticate, requireAdmin, async (req, res) => {
+    // #943: clearing the evidence is an admin action, recorded first; if it cannot be recorded, nothing is cleared
+    const user = (req as AuthenticatedRequest).user;
+    try {
+      await writeServerAuditLog({ workspaceId: 'system', uid: user.uid, email: user.email ?? '', action: 'ADMIN_CSP_REPORTS_CLEARED',
+        entityType: 'system', entityId: 'system', details: { description: 'Cleared the CSP violation summary', before: cspViolationSummary(), after: null } });
+    } catch (err) {
+      return handleApiError(res, err);
+    }
     resetCspViolations();
     res.json({ status: 'ok', ...cspViolationSummary() });
   });

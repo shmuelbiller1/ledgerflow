@@ -77,8 +77,7 @@ describe('S-26: platform-admin audit completeness', { skip: !hasDb && 'needs LF_
     restoreEnv(prevEnv);
   });
 
-  // #943: the secure outcome, todo until the fix lands (fixing the gap turns this green, not CI red)
-  it('S-26 #943: promotion keeps public.admins in step and a CSP reset writes an audit row', { todo: 'fixed by #943' }, async () => {
+  it('S-26 #943: promotion keeps public.admins in step and a CSP reset writes an audit row', async () => {
     const promote = await api('PUT', `/api/v1/admin/users/${targetUid}/role`, adminToken, { role: 'admin' });
     assert.equal(promote.status, 200);
 
@@ -99,7 +98,7 @@ describe('S-26: platform-admin audit completeness', { skip: !hasDb && 'needs LF_
     assert.equal(afterCount > beforeCount, true);
   });
 
-  it('S-26 #943: admin and give-access mutations use the strict audit writer', { todo: 'fixed by #943' }, () => {
+  it('S-26 #943: admin and give-access mutations use the strict audit writer', () => {
     const adminRoutes = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/adminRoutes.ts'), 'utf8');
     const giveAccessRoutes = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/giveAccessRoutes.ts'), 'utf8');
     const grantAdmin = fs.readFileSync(path.join(process.cwd(), 'scripts/grant-admin.ts'), 'utf8');
