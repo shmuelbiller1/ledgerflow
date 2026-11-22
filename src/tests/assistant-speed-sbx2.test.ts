@@ -14,7 +14,8 @@ import { quoteIdent } from '../server/db/pg/sql';
 import { assistantLimitRefusal, type AssistantUsage } from '../server/middleware/planCapacity';
 import { assistantToolsFor, defaultAssistantTools, findAssistantCommands, questionAreas } from '../server/services/assistantCatalog';
 import { assistantModels, chooseModel, DEFAULT_ASSISTANT_MODELS, routedModelClient } from '../server/services/assistantModels';
-import { booksVersion, canonicalJson, memoryToolCache, ReadCache, sandboxToolCache } from '../server/services/assistantReadCache';
+import { booksVersion, canonicalJson, memoryToolCache, ReadCache, sandboxToolCache, tablesRead } from '../server/services/assistantReadCache';
+import { AI_TASK_FIELDS } from '../server/services/aiGateway';
 import { answerTurn, routeQuestion } from '../server/services/assistantRouter';
 import { geminiReadTools, proposedToolName } from '../server/services/assistantToolDefinitions';
 import type { ModelClient } from '../server/services/assistantTurn';
@@ -243,6 +244,7 @@ describe('Part 6: two models by a written rule, priced from the provider page; O
   });
 
   test('the receipt screens keep their old amount contract (major units × 100), exact for yen and dinars', () => {
+    assert.ok(AI_TASK_FIELDS['parse-receipt'].includes('fallbackCurrency'), 'a "$"-only receipt is read in the books’ currency (flagged for review)');
     assert.equal(legacyCents(1000, 'JPY'), 100_000);
     assert.equal(readerCentsToMinor(legacyCents(1000, 'JPY')!, 'JPY'), 1000, '¥1,000 stays ¥1,000 in the phone draft');
     assert.equal(legacyCents(12345, 'KWD'), 1234.5);
@@ -336,7 +338,7 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     const owner = `${workspaceId}-owner`;
     t.after(async () => {
       await live.pool.query('delete from sandbox.sandboxes where workspace_id = $1', [workspaceId]);
-      for (const table of ['customers', 'billingLedgerTraces', 'auditLogs', 'chartAccounts']) await live.pool.query(`delete from public.${quoteIdent(table)} where workspace_id = $1`, [workspaceId]);
+      for (const table of ['customers', 'vendors', 'billingLedgerTraces', 'auditLogs', 'chartAccounts']) await live.pool.query(`delete from public.${quoteIdent(table)} where workspace_id = $1`, [workspaceId]);
       await live.doc(`workspaces/${workspaceId}`).delete();
     });
     await live.doc(`workspaces/${workspaceId}`).create({ uid: owner, name: 'SBX-2 test', members: [owner], currency: 'USD', timezone: 'UTC', fiscalYearStartMonth: 1, ...workspace });
@@ -372,6 +374,26 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     assert.notEqual(v3, v2, 'delete');
     await live.doc(`workspaces/${a.workspaceId}`).update({ currency: 'EUR' });
     assert.notEqual(await v(), v3, 'the workspace’s own settings');
+  });
+
+  test('the check covers what the read can use: not the audit log; a search only its own collections', async t => {
+    const a = await setup(t);
+    const all = () => booksVersion(live.pool, a.workspaceId, a.sandboxId);
+    const vendorsOnly = () => booksVersion(live.pool, a.workspaceId, a.sandboxId, tablesRead('search_records', { text: 'x', collections: ['vendors'] }));
+    const [v0, s0] = [await all(), await vendorsOnly()];
+    await live.doc(`auditLogs/${a.workspaceId}-a1`).create({ workspaceId: a.workspaceId, action: 'settings.update' });
+    assert.equal(await all(), v0, 'an audit row is not a change to the books a report reads');
+    await live.doc(`customers/${a.workspaceId}-c2`).create({ workspaceId: a.workspaceId, name: 'Gamma' });
+    assert.notEqual(await all(), v0);
+    assert.equal(await vendorsOnly(), s0, 'a new customer does not drop a cached vendor search');
+    await live.doc(`vendors/${a.workspaceId}-v1`).create({ workspaceId: a.workspaceId, name: 'Power Co' });
+    const s1 = await vendorsOnly();
+    assert.notEqual(s1, s0);
+    await live.doc(`workspaces/${a.workspaceId}`).update({ currency: 'GBP' });
+    assert.notEqual(await vendorsOnly(), s1, 'the workspace row always counts');
+    assert.equal(tablesRead('run_report', { report: 'pnl' }), undefined, 'reports are checked against every book table');
+    assert.equal(tablesRead('search_records', { text: 'x', collections: ['ve"ndors'] }), undefined, 'anything odd falls back to every table');
+    await live.pool.query('delete from public."vendors" where workspace_id = $1', [a.workspaceId]);
   });
 
   test('a real save invalidates cached answers before the next read; another workspace never gets them', async t => {

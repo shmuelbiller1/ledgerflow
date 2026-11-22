@@ -37,11 +37,23 @@ const rowsPart = (label: string, from: string, where: string) =>
 const quoteLiteral = (s: string) => `'${s.replaceAll("'", "''")}'`;
 
 /**
- * The version of everything a sandbox read can see: changes when any live book row of the workspace,
- * any overlay row of the sandbox, or any of its steps changes. Uses the server's own (live) pool.
+ * Live tables no cached read uses: the security audit log is append-only, written by every command,
+ * and read by no report, explanation or sandbox read tool (it is not a readable collection). Hashing
+ * it made every check cost as much as scanning the workspace's whole history, and every unrelated
+ * save (a settings change) dropped cached report answers.
  */
-export async function booksVersion(pool: Pool, workspaceId: string, sandboxId: string): Promise<string> {
-  const { live, overlays } = await versionTables(pool);
+const NOT_READ_BY_CACHED_TOOLS: ReadonlySet<string> = new Set(['auditLogs']);
+
+/**
+ * The version of what a sandbox read can see: changes when any live book row of the workspace it
+ * covers, any overlay row of the sandbox, or any of its steps changes. `onlyTables` narrows the live
+ * part to the tables a read names (a search names its collections; the workspace row always counts);
+ * without it, every live table a cached read may use. Uses the server's own (live) pool.
+ */
+export async function booksVersion(pool: Pool, workspaceId: string, sandboxId: string, onlyTables?: readonly string[]): Promise<string> {
+  const { live: all, overlays } = await versionTables(pool);
+  const only = onlyTables ? new Set([...onlyTables, 'workspaces']) : null;
+  const live = all.filter(t => !NOT_READ_BY_CACHED_TOOLS.has(t) && (!only || only.has(t)));
   const parts = [
     ...live.map(t => rowsPart(`l:${t}`, `public.${quoteIdent(t)}`, t === 'workspaces' ? 'id = $1' : 'workspace_id = $1')),
     ...overlays.map(t => rowsPart(`o:${t}`, `sandbox.${quoteIdent(t)}`, 'sandbox_id = $2::uuid')),

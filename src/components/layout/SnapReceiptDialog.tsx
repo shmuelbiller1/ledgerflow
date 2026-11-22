@@ -108,11 +108,14 @@ export default function SnapReceiptDialog({ onClose, writes }: { onClose: () => 
     setBusy('reading');
     setError('');
     try {
-      const parsed = await aiService.parseReceipt(asked) as { totalAmountCents?: number; date?: string } | null;
+      const parsed = await aiService.parseReceipt(asked, undefined, undefined, [], currency) as { totalAmountCents?: number; date?: string; currency?: string } | null;
       if (currentPhoto.current !== asked) return; // stale: the photo was replaced while it was read
-      if (typeof parsed?.totalAmountCents === 'number') setAmount(receiptAmountText(readerCentsToMinor(parsed.totalAmountCents, currency), currency));
+      // a receipt in another currency is not put into this amount field as if it were the books' currency
+      const foreign = parsed?.currency && parsed.currency.toUpperCase() !== currency.toUpperCase() ? parsed.currency.toUpperCase() : null;
+      if (typeof parsed?.totalAmountCents === 'number' && !foreign) setAmount(receiptAmountText(readerCentsToMinor(parsed.totalAmountCents, currency), currency));
       if (parsed?.date && /^\d{4}-\d{2}-\d{2}/.test(parsed.date)) setDate(parsed.date.slice(0, 10));
-      if (typeof parsed?.totalAmountCents !== 'number') setError('The amount could not be read. Type it in.');
+      if (foreign) setError(`This receipt is in ${foreign}. Type the amount in ${currency}.`);
+      else if (typeof parsed?.totalAmountCents !== 'number') setError('The amount could not be read. Type it in.');
     } catch (err) {
       if (currentPhoto.current !== asked) return;
       setError(`The receipt could not be read: ${err instanceof Error ? err.message : String(err)}. Type the amount in.`);

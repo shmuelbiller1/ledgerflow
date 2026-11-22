@@ -15,7 +15,7 @@ export const AI_TASK_FIELDS: Record<string, readonly string[]> = {
   'analyze-trends': ['transactions', 'context'],
   'parse-query': ['query', 'context'],
   'parse-magic-entry': ['input', 'accounts', 'categories', 'patternContext'],
-  'parse-receipt': ['base64Data', 'mimeType', 'context'],
+  'parse-receipt': ['base64Data', 'mimeType', 'context', 'fallbackCurrency'],
   'read-document': ['base64Data', 'mimeType', 'fallbackCurrency'],
   'parse-statement': ['content', 'mimeType', 'context'],
   'parse-personal-tax-profile': ['message'],
