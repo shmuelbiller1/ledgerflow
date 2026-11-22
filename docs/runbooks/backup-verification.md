@@ -7,7 +7,8 @@ How LedgerFlow verifies daily that Supabase database backups (or Point-in-Time R
 - **Script:** `scripts/verify-backups.ts` (unit-tested in `src/tests/security-s19-backup-verification.test.ts`).
 - **Schedule:** `.github/workflows/backup-verify.yml` runs daily at `04:23 UTC` and on manual dispatch.
 - **Check:** Queries Supabase Management API `GET /v1/projects/{ref}/database/backups`, confirms at least one `COMPLETED` backup (or active PITR physical recovery anchor when `pitr_enabled: true`) is no older than `MAX_BACKUP_AGE_HOURS` (default `26` hours).
-- **Failure behaviour:** Fails closed (`exit 1`) on HTTP errors, disabled backups/PITR (`REQUIRE_PITR=true`), or stale backup timestamps, and optionally POSTs a redacted JSON alert to `BACKUP_ALERT_WEBHOOK_URL` (HTTPS required).
+- **Failure behaviour:** With credentials configured, the script exits 1 on HTTP errors, stale/missing timestamps, or disabled PITR when `REQUIRE_PITR=true`, and optionally POSTs a redacted JSON alert to `BACKUP_ALERT_WEBHOOK_URL` (HTTPS required). When PITR is required, a recent completed backup does not substitute for a fresh reported physical timestamp.
+- **Limitations:** The scheduled workflow deliberately uses `--skip-if-unconfigured`: missing credentials produce a warning and successful skipped check, not proof of a backup. A fresh provider-reported timestamp does not prove WAL continuity or a successful restore; validate provider semantics and run an independent restore drill. Do not infer backup health from a green Actions run alone.
 
 ## Owner setup (once)
 
