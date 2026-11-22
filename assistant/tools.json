@@ -953,6 +953,31 @@
       }
     },
     {
+      "name": "propose_assistant_forgetremembered",
+      "description": "Propose assistant.forgetremembered for review; never apply it to the live books. Forget a choice the assistant remembered for these books (one payee and field), or all of them; do not use it to change a posted record.\nExample input: {\"command\":\"bill.create\",\"subject\":\"payee:ocean supplies\",\"field\":\"accountId\"}\nINVALID_INPUT: Only some of command, subject and field were given. Give all three to forget one choice, or none to forget everything.\nROLE_REQUIRED: The caller cannot change these books. Ask an owner, accountant or bookkeeper.",
+      "parametersJsonSchema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 260
+          },
+          "field": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "propose_audit_deep",
       "description": "Propose audit.deep for review; never apply it to the live books. Queue a metered deep audit of receivables, customer concentration, inventory margins and valuation; use it for an asynchronous analysis, not to post an entry.\nExample input: {}\nROLE_REQUIRED: The caller cannot write in the workspace. Ask a workspace writer to run it.\nPAYMENT_REQUIRED: The developer API credit balance is exhausted. Restore the balance before queuing this metered job.\nQUOTA_EXCEEDED: The developer API spending limit was reached. Ask an administrator to review the workspace budget for compute jobs.",
       "parametersJsonSchema": {

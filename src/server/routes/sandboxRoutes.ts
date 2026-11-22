@@ -10,7 +10,7 @@ import { roleInWorkspace } from '../middleware/requireLedgerWriter';
 import { answerCents, calculate, explainNumberInput, getRecord, listRecords, readBooksQuestion, runReportInput, searchRecords } from '../services/sandboxTools';
 import { defaultAssistantTools, draftableCommands, findAssistantCommands } from '../services/assistantCatalog';
 import { ASSISTANT_READ_TOOL_NAMES, findCommandInput, listProposalsInput, previewProposalInput, rememberedChoicesInput } from '../services/assistantToolDefinitions';
-import { forgetRemembered, listRemembered, suggestFor, suggestionFrom } from '../services/rememberedDecisions';
+import { listRemembered, suggestFor, suggestionFrom } from '../services/rememberedDecisions';
 import { storedSandboxProposal } from '../services/storedSandboxProposal';
 import { CommandRefusal, errorOutcome } from '../utils/commandExecutor';
 import { createBalanceRouter } from './balanceRoutes';
@@ -265,7 +265,6 @@ export function createSandboxPersonRouter(live: Firestore = getDb()): express.Ro
     res.json({ sandboxes: await listOpenSandboxes(live.pool, workspaceId, user.uid) });
   }));
   // SBX-2 Part 3: a member sees and deletes what this workspace remembers. Person only, one workspace.
-  const rememberedKey = z.object({ command: z.string().min(1).max(200), subject: z.string().min(1).max(260), field: z.string().min(1).max(60) }).strict();
   const memberWorkspace = async (req: express.Request) => {
     const user = requestUser(req);
     const workspaceId = param(req, 'workspaceId');
@@ -279,11 +278,7 @@ export function createSandboxPersonRouter(live: Firestore = getDb()): express.Ro
     const rows = await listRemembered(live.pool, await memberWorkspace(req));
     res.json({ remembered: rows.map(row => ({ ...row, offered: suggestionFrom(row) ?? null })) });
   }));
-  router.delete('/remembered', guarded(async (req, res) => {
-    const workspaceId = await memberWorkspace(req);
-    const key = req.body && typeof req.body === 'object' && Object.keys(req.body).length ? parse(rememberedKey, req.body) : undefined;
-    res.json({ forgotten: await forgetRemembered(live.pool, workspaceId, key) });
-  }));
+  // forgetting is the registered command assistant.forgetremembered (POST /api/v1/commands/assistant.forgetremembered)
   router.post('/', guarded(async (req, res) => {
     const workspaceId = param(req, 'workspaceId');
     const sandbox = await openSandbox(req, workspaceId, live);

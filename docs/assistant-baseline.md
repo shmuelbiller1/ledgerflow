@@ -34,7 +34,7 @@ No model configured (ASSISTANT_REPLAY_MODEL / ASSISTANT_REPLAY_BASE_URL): model-
   same transaction, per workspace, keyed by command + payee/vendor/customer + field (account, cash
   account, tax code, class). A choice is offered only at ≥95% over ≥5 cases, labelled "from your
   earlier choice" with its case count (the assistant read tool `remembered_choices`, `POST /sandboxes/:id/tools/remembered_choices`). It is never applied
-  to the step and never auto-accepted. A member lists or deletes it (`GET`/`DELETE /sandboxes/remembered`).
+  to the step and never auto-accepted. A member lists it (`GET /sandboxes/remembered`) and forgets one or all with the registered command `assistant.forgetremembered`.
   Only ids and codes are stored; no amounts, memos or other book text. The assistant's database role
   has no access.
 - **Measured effect:** none yet. It needs real accept history; the turn metric will show it as fewer

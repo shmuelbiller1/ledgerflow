@@ -12,6 +12,8 @@
  * Only ids and short codes are kept (an account id, a tax code) against a normalised subject (the
  * payee/vendor/customer id or name); no amounts, memos or other book text.
  */
+import { z } from 'zod';
+import type { CommandDefinition } from '../commands/types';
 import type { Runner } from '../db/pg/sql';
 
 export const OFFER_RATE = 0.95;
@@ -159,3 +161,44 @@ export async function forgetRemembered(runner: Runner, workspaceId: string, key?
     : await runner.query(`delete from assistant."rememberedDecisions" where workspace_id = $1`, [workspaceId]);
   return res.rowCount ?? 0;
 }
+
+// ---- the person's "forget" is a registered command (POST /api/v1/commands/assistant.forgetremembered) ----
+
+export const forgetRememberedInput = z.object({
+  command: z.string().min(1).max(200).optional(),
+  subject: z.string().min(1).max(260).optional(),
+  field: z.string().min(1).max(60).optional(),
+}).strict().refine(v => (v.command && v.subject && v.field) || (!v.command && !v.subject && !v.field), 'Give command, subject and field together, or none to forget everything');
+
+export const forgetRememberedCommand: CommandDefinition<typeof forgetRememberedInput, { forgotten: number }> = {
+  name: 'assistant.forgetremembered',
+  // a person decides what the assistant remembers about their books; never an API key or the assistant
+  peopleOnly: true,
+  input: forgetRememberedInput,
+  roles: ['owner', 'accountant', 'bookkeeper'],
+  async handler(ctx, _tx, input) {
+    const pool = (ctx.db as unknown as { pool?: Runner }).pool;
+    if (!pool) return { forgotten: 0 };
+    // the table lives outside the document store, so the delete runs once the command has committed
+    let forgotten = 0;
+    const key = input.command && input.subject && input.field ? { command: input.command, subject: input.subject, field: input.field } : undefined;
+    ctx.afterCommit(async () => { forgotten = await forgetRemembered(pool, ctx.workspaceId, key); return { forgotten }; });
+    return { forgotten };
+  },
+  async preview(_ctx, input) {
+    return { title: 'Forget remembered choices', lines: [input.command ? `Forget ${input.field} for ${input.subject} (${input.command})` : 'Forget every remembered choice for these books'] };
+  },
+  audit(_input, _result) {
+    return { action: 'assistant.remembered_forgotten', entityType: 'workspace', entityId: 'remembered-decisions', description: 'Remembered assistant choices were forgotten' };
+  },
+  inverse() { return null; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Forget a choice the assistant remembered for these books (one payee and field), or all of them; do not use it to change a posted record.',
+    example: { command: 'bill.create', subject: 'payee:ocean supplies', field: 'accountId' },
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'Only some of command, subject and field were given.', next: 'Give all three to forget one choice, or none to forget everything.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller cannot change these books.', next: 'Ask an owner, accountant or bookkeeper.' },
+    ],
+  },
+};
