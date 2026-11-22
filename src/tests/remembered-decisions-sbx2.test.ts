@@ -59,6 +59,15 @@ describe('SBX-2 Part 3 remembered decisions (pure)', () => {
     assert.deepEqual(suggestFor('expense.create', draft, rows), []);
     assert.deepEqual(suggestFor('bill.create', { payee: 'Someone else' }, rows), []);
   });
+
+  test('lines: a filled line is left alone, an empty line gets its own subject choice, and two line values are two choices', () => {
+    let rows: RememberedRow[] = [];
+    for (let i = 0; i < 5; i++) rows = fold(observe('bill.create', { vendorId: 'v1', lines: [{ accountId: 'a' }, { payee: 'Other', accountId: 'b' }] }, 'accepted'), rows);
+    assert.deepEqual(suggestFor('bill.create', { vendorId: 'v1', lines: [{ accountId: 'mine' }] }, rows), [], 'every line already names an account');
+    assert.deepEqual(suggestFor('bill.create', { vendorId: 'v1', lines: [{}] }, rows).map(s => [s.subject, s.value]), [['vendorId:v1', 'a']]);
+    assert.deepEqual(suggestFor('bill.create', { vendorId: 'v1', lines: [{ accountId: 'x' }, { payee: 'other' }] }, rows).map(s => [s.subject, s.value]), [['payee:other', 'b']]);
+    assert.equal(decisionsIn({ vendorId: 'v1', lines: [{ accountId: 'a' }, { accountId: 'c' }] }).length, 2);
+  });
 });
 
 const url = process.env.LF_TEST_DATABASE_URL;

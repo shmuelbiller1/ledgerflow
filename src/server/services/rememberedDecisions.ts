@@ -50,7 +50,8 @@ export function decisionsIn(input: unknown): Decision[] {
     if (!subject) return;
     for (const field of DECISION_KEYS) {
       const value = text(obj[field]);
-      if (value) out.set(`${subject}\u0000${field}`, { subject, field, value });
+      // two lines with the same subject and field but different values are two choices, not one
+      if (value) out.set(`${subject}\u0000${field}\u0000${value}`, { subject, field, value });
     }
   };
   take(root, rootSubject);
@@ -87,11 +88,26 @@ export function suggestionFrom(row: RememberedRow): Suggestion | undefined {
  * step for the person to take or ignore. Fields the draft already fills are left alone.
  */
 export function suggestFor(command: string, input: unknown, rows: readonly RememberedRow[]): Suggestion[] {
+  // the same walk as decisionsIn: the root and each line, each with its own subject (a line falls
+  // back to the root's), and a field the object being checked already fills is left alone
   const root = (input && typeof input === 'object' && !Array.isArray(input) ? input : {}) as Record<string, unknown>;
-  const subject = subjectOf(root);
-  if (!subject) return [];
-  return rows.filter(r => r.command === command && r.subject === subject && !text(root[r.field]))
-    .flatMap(r => suggestionFrom(r) ?? []);
+  const rootSubject = subjectOf(root);
+  // with lines, each line decides (a line without a subject uses the root's); the root alone only for a draft without lines
+  const lines = Array.isArray(root.lines) ? root.lines : [];
+  const targets: Array<[Record<string, unknown>, string | undefined]> = lines.length ? [] : [[root, rootSubject]];
+  for (const line of lines) {
+    if (line && typeof line === 'object' && !Array.isArray(line)) targets.push([line as Record<string, unknown>, subjectOf(line as Record<string, unknown>, rootSubject)]);
+  }
+  const out = new Map<string, Suggestion>();
+  for (const [obj, subject] of targets) {
+    if (!subject) continue;
+    for (const r of rows) {
+      if (r.command !== command || r.subject !== subject || text(obj[r.field])) continue;
+      const offered = suggestionFrom(r);
+      if (offered) out.set(`${r.subject}\u0000${r.field}`, offered);
+    }
+  }
+  return [...out.values()];
 }
 
 // ---- storage: assistant."rememberedDecisions", one row per (workspace, command, subject, field) ----
