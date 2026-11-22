@@ -21,6 +21,7 @@
 import fs from 'node:fs';
 import type { FunctionDeclaration } from '@google/genai';
 import { assistantToolsFor, findAssistantCommands } from '../src/server/services/assistantCatalog';
+import { proposedToolName } from '../src/server/services/assistantToolDefinitions';
 import { stepCommand, stepCommandNames } from '../src/server/commands/sandboxStepCommands';
 import { runAssistantTurn } from '../src/server/services/assistantTurn';
 import { openAiCompatibleClient } from '../src/server/services/openAiCompatibleClient';
@@ -66,6 +67,14 @@ export async function runCase(baseUrl: string, doFetch: typeof fetch, model: str
     if (name === 'find_command') return { matches: findAssistantCommands(commands, String(args.words ?? ''), typeof args.limit === 'number' ? args.limit : undefined) };
     // drafted steps are kept for this case, so the review tools the system prompt requires see them
     if (name.startsWith('propose_')) {
+      // validated against the command's own input schema, as drafting does in production; a refused
+      // input drafts nothing and is returned to the model, and the grader ignores it
+      const command = commands.find(c => proposedToolName(c.name) === name);
+      const parsed = command?.input.safeParse(args);
+      if (!command || !parsed?.success) {
+        calls[calls.length - 1].ok = false;
+        return { error: command ? 'Invalid input for this command' : 'Unknown command', issues: parsed?.error?.issues?.slice(0, 5) ?? [] };
+      }
       const step = { id: `step_${steps.length + 1}`, command: name.slice('propose_'.length).replace(/_/g, '.'), position: steps.length + 1, state: 'pending', input: args };
       steps.push(step);
       return { proposalId: PROPOSAL_ID, step: { id: step.id, command: step.command, state: step.state }, note: 'drafted in the sandbox for the person to review' };

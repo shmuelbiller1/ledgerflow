@@ -157,7 +157,12 @@ export function bookTool(name: string, args: Record<string, unknown>): unknown {
       const filters = Array.isArray(args.where) ? args.where as Array<{ field: string; op: string; value: unknown }> : [];
       const rows = (collections[c] ?? []).filter(r => filters.every(f => matches(r[f.field], f.op, f.value)));
       const order = args.orderBy as { field?: string; direction?: string } | undefined;
-      if (order?.field) rows.sort((a, b) => String(a[order.field!]).localeCompare(String(b[order.field!])) * (order.direction === 'desc' ? -1 : 1));
+      if (order?.field) {
+        const f = order.field;
+        // numbers numerically, text as text (the real store orders values by type, not as strings)
+        const cmp = (x: unknown, y: unknown) => typeof x === 'number' && typeof y === 'number' ? x - y : String(x ?? '').localeCompare(String(y ?? ''));
+        rows.sort((a, b) => cmp(a[f], b[f]) * (order.direction === 'desc' ? -1 : 1));
+      }
       return { collection: c, records: rows.slice(0, typeof args.limit === 'number' ? args.limit : 20), nextCursor: null };
     }
     case 'get_record': {

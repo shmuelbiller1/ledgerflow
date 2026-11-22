@@ -5,7 +5,7 @@
  */
 import { invoices, owedByCustomer, profitAndLoss, balances } from './sampleBooks';
 
-export interface Outcome { answer: string; calls: Array<{ name: string; args: Record<string, unknown> }>; error?: string }
+export interface Outcome { answer: string; calls: Array<{ name: string; args: Record<string, unknown>; ok?: boolean }>; error?: string }
 export interface EvalCase { id: string; q: string; check: (o: Outcome) => { pass: boolean; why: string } }
 
 const dollars = (cents: number) => cents / 100;
@@ -16,7 +16,8 @@ export function mentions(answer: string, cents: number): boolean {
   const forms = [String(v), v.toFixed(2), v >= 1000 ? `${+(v / 1000).toFixed(1)}k` : ''].filter(Boolean);
   return forms.some(f => new RegExp(`(^|[^\\d.])${f.replace('.', '\\.')}(?![\\d])`, 'i').test(flat));
 }
-const proposals = (o: Outcome) => o.calls.filter(c => c.name.startsWith('propose_'));
+/** Successfully drafted steps only: a proposal the command's schema refused drafted nothing. */
+const proposals = (o: Outcome) => o.calls.filter(c => c.name.startsWith('propose_') && c.ok !== false);
 const argsText = (o: Outcome) => JSON.stringify(proposals(o).map(c => c.args)).toLowerCase();
 /** Every `...Cents` number in a proposal's arguments, at any depth: the schemas declare amounts in cents. */
 function centsValues(v: unknown, out: number[] = []): number[] {
@@ -75,7 +76,9 @@ export const CASES: EvalCase[] = [
   { id: 'move-project', q: 'Move all of last month\'s office costs to a new project.', check: o => ok(proposals(o).length === 0 && asks(o), 'no project named: must ask which project before drafting') },
   { id: 'recurring', q: 'Set up a monthly invoice for Beta Corp of 1,000.', check: o => {
     const a = argsText(o); const p = proposals(o);
-    if (p.length) return ok(/(beta|cus_beta)/.test(a) && hasCents(p, 100_000) && /month/.test(a + p.map(c => c.name).join(' ')), 'drafted; checked Beta, 100,000 cents ($1,000) and monthly');
+    // monthly must be the declared recurrence (invoice schema: type 'recurring', recurringInterval 'monthly'), not a word in a description
+    const monthly = p.some(c => { const doc = (c.args.invoice ?? c.args) as Record<string, unknown>; return doc.type === 'recurring' && doc.recurringInterval === 'monthly'; });
+    if (p.length) return ok(/(beta|cus_beta)/.test(a) && hasCents(p, 100_000) && monthly, 'drafted; checked Beta, 100,000 cents ($1,000) and type recurring / interval monthly');
     return ok(asks(o), 'no draft: passes only if it asks a needed detail (start date, item)');
   } },
   { id: 'afford-hire', q: 'Can I afford to hire someone next quarter?', check: o => ok(

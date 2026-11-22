@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { CASES, RECEIPTS, gradeReceipt, mentions, recommended } from '../../scripts/eval/cases';
 import { bookTool, profitAndLoss } from '../../scripts/eval/sampleBooks';
 import { meteredFetch, runCase } from '../../scripts/assistant-model-eval';
+import { stepCommand } from '../server/commands/sandboxStepCommands';
 
 const byId = (id: string) => CASES.find(c => c.id === id)!;
 
@@ -63,7 +64,8 @@ test('SBX-2 Part 6 model test: a failed turn is an error, and a timed-out turn s
 
 test('SBX-2 Part 6 model test: a drafted step can be listed and previewed, as the system prompt requires', async () => {
   const replies = [
-    { tool_calls: [{ id: 'a', function: { name: 'propose_bill_create', arguments: '{"bill":{"vendorId":"ven_elec","totalCents":32000}}' } }] },
+    // a complete bill (the command's own published example, so it passes the input schema)
+    { tool_calls: [{ id: 'a', function: { name: 'propose_bill_create', arguments: JSON.stringify(stepCommand('bill.create').describe.example) } }] },
     { tool_calls: [{ id: 'b', function: { name: 'preview_proposal', arguments: '{"proposalId":"sbx_eval_proposal"}' } }] },
     { content: 'Drafted the bill for review.' },
   ];
@@ -107,4 +109,29 @@ test('SBX-2 Part 6 model test: a missing billed cost is counted as missing, not 
     for (let i = 0; i < 3; i++) await f('https://model.test/v1/chat/completions');
   } finally { globalThis.fetch = orig; }
   assert.deepEqual(spend, { usd: 0.002, calls: 3, priced: 1 });
+});
+
+test('SBX-2 Part 6 model test: numeric sort, structured recurrence, and only valid drafts count', async () => {
+  const top = bookTool('list_records', { collection: 'invoices', orderBy: { field: 'totalCents', direction: 'desc' }, limit: 1 }) as { records: Array<{ number: string }> };
+  assert.equal(top.records[0].number, 'INV-1003', '450,000 cents sorts above 95,000');
+  const rec = byId('recurring').check;
+  assert.ok(!rec({ answer: '', calls: [{ name: 'propose_invoice_create', args: { invoice: { customerId: 'cus_beta', totalCents: 100000, description: 'monthly services' } } }] }).pass, 'the word "monthly" is not a recurrence');
+  assert.ok(rec({ answer: '', calls: [{ name: 'propose_invoice_create', args: { invoice: { customerId: 'cus_beta', totalCents: 100000, type: 'recurring', recurringInterval: 'monthly' } } }] }).pass);
+  assert.ok(!byId('bill').check({ answer: '', calls: [{ name: 'propose_bill_create', ok: false, args: { bill: { vendorId: 'ven_elec', totalCents: 32000 } } }] }).pass, 'a refused draft does not count');
+
+  // the runner refuses an invalid proposal and returns the schema's error to the model
+  const replies = [
+    { tool_calls: [{ id: 'a', function: { name: 'propose_payment_receive', arguments: '{"amountCents":50000,"documentId":"inv_1001"}' } }] },
+    { content: 'Done.' },
+  ];
+  let n = 0; let toolReply = '';
+  const endpoint: typeof fetch = async (_input, init) => {
+    const msgs = (JSON.parse(String(init?.body)) as { messages: Array<{ role: string; content: string }> }).messages;
+    toolReply = msgs.filter(m => m.role === 'tool').map(m => m.content).join('');
+    return Response.json({ choices: [{ message: { content: null, ...replies[n++] } }], usage: {} });
+  };
+  const { outcome } = await runCase('https://model.test/v1', endpoint, 'm', 'sys', 'Record a payment of 500 from Acme Ltd for INV-1001.');
+  assert.equal(outcome.calls[0].ok, false);
+  assert.match(toolReply, /Invalid input/);
+  assert.ok(!byId('payment').check(outcome).pass);
 });
