@@ -17,6 +17,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "asset.undispose",
   "asset.undoplaceservice",
   "asset.undotransfer",
+  "assistant.forgetremembered",
   "audit.deep",
   "auditlog.append",
   "autorule.create",

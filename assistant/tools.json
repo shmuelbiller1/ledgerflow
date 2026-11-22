@@ -449,6 +449,32 @@
       }
     },
     {
+      "name": "remembered_choices",
+      "description": "Before proposing a step, get choices this workspace made the same way at least 95% of the time over 5+ cases. Offer them as \"from your earlier choice\" with the case count; never apply them without the person.",
+      "parametersJsonSchema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "input": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "command",
+          "input"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "find_command",
       "description": "Find additional commands that can be proposed here by their name or purpose. Discovery does not run a command.",
       "parametersJsonSchema": {
@@ -923,6 +949,31 @@
         "required": [
           "assetId"
         ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_assistant_forgetremembered",
+      "description": "Propose assistant.forgetremembered for review; never apply it to the live books. Forget a choice the assistant remembered for these books (one payee and field), or all of them; do not use it to change a posted record.\nExample input: {\"command\":\"bill.create\",\"subject\":\"payee:ocean supplies\",\"field\":\"accountId\"}\nINVALID_INPUT: Only some of command, subject and field were given. Give all three to forget one choice, or none to forget everything.\nROLE_REQUIRED: The caller cannot change these books. Ask an owner, accountant or bookkeeper.",
+      "parametersJsonSchema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 260
+          },
+          "field": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          }
+        },
         "additionalProperties": false
       }
     },

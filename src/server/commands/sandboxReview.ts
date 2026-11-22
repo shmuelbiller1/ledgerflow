@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { recordOutcome } from '../services/rememberedDecisions';
 import type { Request } from 'express';
 import { assistantClaims } from '../auth/assistantToken';
 import { requestUser, type RequestUser } from '../auth/requestUser';
@@ -179,6 +180,8 @@ async function applySelection(batch: SandboxBatch, actor: ReviewActor, active: S
       throw stepFailure(err, step);
     }
   }
+  // SBX-2 Part 3: the accepted choices join this workspace's remembered decisions, in the same transaction.
+  await recordOutcome(batch.runner, actor.workspaceId, rows.filter(row => accepted.has(row.id)), 'accepted');
   if (accepted.size) await rebuild(batch, actor, rows.filter(row => !accepted.has(row.id)), false);
   const skipped = intent.stepIds ? [] : rows.filter(row => !accepted.has(row.id)).map(row => row.id);
   const final = await stepsOf(batch.runner, id);
@@ -186,11 +189,13 @@ async function applySelection(batch: SandboxBatch, actor: ReviewActor, active: S
 }
 
 async function editDraft(batch: SandboxBatch, actor: ReviewActor, all: StoredStep[], active: StoredStep[],
-  intent: Extract<SandboxReviewIntent, { kind: 'edit' | 'reorder' | 'reject' }>): Promise<SandboxReview> {
+  intent: Extract<SandboxReviewIntent, { kind: 'edit' | 'reorder' | 'reject' }>, byAssistant = false): Promise<SandboxReview> {
   const id = actor.sandboxId;
   if (intent.kind === 'reject' && intent.stepIds === undefined) {
     await batch.draft(id, async phase => clearDraft(phase.runner, await overlayTables(phase.runner)));
     for (const step of active) await saveStep(batch.runner, id, { ...step, state: 'rejected' });
+    // the assistant removing its own draft is not the person's rejection
+    if (!byAssistant) await recordOutcome(batch.runner, actor.workspaceId, active, 'rejected');
     return response(id, await stepsOf(batch.runner, id), 'closed');
   }
   if (intent.kind === 'edit') {
@@ -205,6 +210,8 @@ async function editDraft(batch: SandboxBatch, actor: ReviewActor, all: StoredSte
     assertDraftOrder(active, next);
     const last = all.at(-1)?.position ?? 0;
     for (const step of removed) await saveStep(batch.runner, id, { ...step, state: 'rejected' });
+    // the assistant removing its own draft is not the person's rejection
+    if (!byAssistant) await recordOutcome(batch.runner, actor.workspaceId, removed, 'rejected');
     await rebuild(batch, actor, next.map((step, index) => ({ ...step, position: last + index + 1 })), true);
   }
   return response(id, await stepsOf(batch.runner, id));
@@ -251,7 +258,7 @@ export async function reviewSandbox(req: Request, scope: Scope, intent: SandboxR
     } else if (intent.kind === 'accept') {
       result = await applySelection(batch, actor, active, intent, callbacks);
     } else {
-      result = await editDraft(batch, actor, all, active, intent);
+      result = await editDraft(batch, actor, all, active, intent, issuedRole !== undefined || assistantClaims(req) !== undefined);
     }
     const closed = result.outcome === 'closed';
     const bytes = closed ? 0 : await batch.draft(id, async phase => draftBytes(phase.runner, await overlayTables(phase.runner)));

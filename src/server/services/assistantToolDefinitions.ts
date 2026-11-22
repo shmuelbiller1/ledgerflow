@@ -7,6 +7,7 @@ import {
 
 export const listProposalsInput = z.object({}).strict();
 export const previewProposalInput = z.object({ proposalId: z.string().min(1).max(120) }).strict();
+export const rememberedChoicesInput = z.object({ command: z.string().min(1).max(200), input: z.record(z.string(), z.unknown()) }).strict();
 export const findCommandInput = z.object({ words: z.string().trim().min(1).max(200), limit: z.number().int().min(1).max(8).optional() }).strict();
 
 const reads = {
@@ -19,6 +20,7 @@ const reads = {
   calculate: [calculateInput, 'Calculate with the exact numbers provided by books tools or the person.'],
   list_proposals: [listProposalsInput, 'List the proposal bound to this token and the states of its steps. Other sandboxes are not visible.'],
   preview_proposal: [previewProposalInput, 'Read the last stored preview of this proposal, without refreshing, accepting or changing it.'],
+  remembered_choices: [rememberedChoicesInput, 'Before proposing a step, get choices this workspace made the same way at least 95% of the time over 5+ cases. Offer them as "from your earlier choice" with the case count; never apply them without the person.'],
   find_command: [findCommandInput, 'Find additional commands that can be proposed here by their name or purpose. Discovery does not run a command.'],
 } as const;
 
