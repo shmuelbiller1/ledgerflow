@@ -67,6 +67,7 @@ describe('SBX-2 Part 3 remembered decisions (pure)', () => {
     for (let i = 0; i < 5; i++) rows = fold(observe('bill.create', step, 'accepted'), rows);
     assert.deepEqual(suggestFor('bill.create', { bill: { vendorId: 'v9', lines: [{}] } }, rows).map(s => s.field).sort(), ['accountId', 'cashAccountId']);
     assert.deepEqual(suggestFor('bill.create', { bill: { vendorId: 'v9', cashAccountId: 'mine', lines: [{ accountId: 'x' }] } }, rows), []);
+    assert.deepEqual(suggestFor('bill.create', { bill: { vendorId: 'v9', lines: [{ payee: 'Other' }] } }, rows).map(s => s.field), ['cashAccountId'], 'a line field is not offered at the document level');
   });
 
   test('lines: a filled line is left alone, an empty line gets its own subject choice, and two line values are two choices', () => {

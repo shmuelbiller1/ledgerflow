@@ -22,6 +22,8 @@ const SUBJECT_KEYS = ['vendorId', 'customerId', 'contactId', 'payee', 'payeeName
 /** The choices a person makes for that subject. */
 const DECISION_KEYS = ['accountId', 'cashAccountId', 'bankAccountId', 'expenseAccountId', 'incomeAccountId', 'categoryAccountId', 'taxCode', 'taxCodeId', 'taxRateId', 'classId'] as const;
 const MAX_VALUE = 200;
+/** Fields set once for the whole document, not per line. */
+const DOCUMENT_FIELDS = new Set(['cashAccountId', 'bankAccountId']);
 
 export interface Decision { subject: string; field: string; value: string }
 export interface Observation { command: string; subject: string; field: string; value: string | null }
@@ -117,8 +119,8 @@ export function suggestFor(command: string, input: unknown, rows: readonly Remem
     for (const r of rows) {
       // filled on the line or on the document itself (a cash account is set once, on the root)
       if (r.command !== command || r.subject !== subject || text(obj[r.field]) || text(root[r.field])) continue;
-      // on a draft with lines, the root offers only document-level fields (no line carries them)
-      if (obj === root && lines.some(l => l && typeof l === 'object' && r.field in (l as Record<string, unknown>))) continue;
+      // on a draft with lines, the root offers only document-level fields (set once for the whole document)
+      if (obj === root && lines.length && !DOCUMENT_FIELDS.has(r.field)) continue;
       const offered = suggestionFrom(r);
       if (offered) out.set(`${r.subject}\u0000${r.field}`, offered);
     }

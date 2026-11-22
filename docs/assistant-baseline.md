@@ -33,7 +33,7 @@ No model configured (ASSISTANT_REPLAY_MODEL / ASSISTANT_REPLAY_BASE_URL): model-
 - **After:** each accepted or rejected sandbox step updates `assistant."rememberedDecisions"` in the
   same transaction, per workspace, keyed by command + payee/vendor/customer + field (account, cash
   account, tax code, class). A choice is offered only at ≥95% over ≥5 cases, labelled "from your
-  earlier choice" with its case count (`POST /sandboxes/:id/remembered/suggest`). It is never applied
+  earlier choice" with its case count (the assistant read tool `remembered_choices`, `POST /sandboxes/:id/tools/remembered_choices`). It is never applied
   to the step and never auto-accepted. A member lists or deletes it (`GET`/`DELETE /sandboxes/remembered`).
   Only ids and codes are stored; no amounts, memos or other book text. The assistant's database role
   has no access.
