@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CASES, RECEIPTS, gradeReceipt, mentions } from '../../scripts/eval/cases';
+import { CASES, RECEIPTS, gradeReceipt, mentions, recommended } from '../../scripts/eval/cases';
 import { bookTool, profitAndLoss } from '../../scripts/eval/sampleBooks';
-import { runCase } from '../../scripts/assistant-model-eval';
+import { meteredFetch, runCase } from '../../scripts/assistant-model-eval';
 
 const byId = (id: string) => CASES.find(c => c.id === id)!;
 
@@ -77,4 +77,34 @@ test('SBX-2 Part 6 model test: a drafted step can be listed and previewed, as th
   assert.equal(outcome.error, undefined);
   const preview = (seen[2] as Array<{ result?: { proposal?: { steps: Array<{ command: string }> } } }>).at(-1)?.result?.proposal;
   assert.equal(preview?.steps[0].command, 'bill.create');
+});
+
+test('SBX-2 Part 6 model test: the chase check reads the recommendation, not the first name mentioned', () => {
+  assert.equal(recommended('Acme has 1,232 overdue, while Beta has 4,500 overdue. Chase Beta first.'), 'beta');
+  assert.equal(recommended('Beta owes more, but I would start with Acme.'), 'acme');
+  assert.equal(recommended('Beta should be your priority; Acme can wait.'), 'beta');
+  assert.equal(recommended('Acme and Beta both owe money.'), null);
+  assert.ok(byId('chase').check({ answer: 'Acme has 1,232 overdue, while Beta has 4,500 overdue. Chase Beta first.', calls: [{ name: 'run_report', args: {} }] }).pass);
+  assert.ok(!byId('chase').check({ answer: 'Beta owes more, but I would start with Acme.', calls: [{ name: 'run_report', args: {} }] }).pass);
+});
+
+test('SBX-2 Part 6 model test: list filters and the chartAccounts collection work like the real tools', () => {
+  const acme = bookTool('list_records', { collection: 'invoices', where: [{ field: 'customerId', op: '==', value: 'cus_acme' }] }) as { records: Array<{ customerId: string }> };
+  assert.ok(acme.records.length > 0 && acme.records.every(r => r.customerId === 'cus_acme'));
+  const open = bookTool('list_records', { collection: 'invoices', where: [{ field: 'status', op: 'in', value: ['open', 'overdue'] }] }) as { records: Array<{ status: string }> };
+  assert.ok(open.records.every(r => r.status !== 'paid'));
+  assert.ok((bookTool('list_records', { collection: 'chartAccounts' }) as { records: unknown[] }).records.length > 0);
+});
+
+test('SBX-2 Part 6 model test: a missing billed cost is counted as missing, not as zero', async () => {
+  const spend = { usd: 0, calls: 0, priced: 0 };
+  const replies = [{ usage: { cost: 0.002 } }, { usage: {} }, 'not json'];
+  let n = 0;
+  const orig = globalThis.fetch;
+  globalThis.fetch = (async () => { const r = replies[n++]; return typeof r === 'string' ? new Response(r) : Response.json(r); }) as typeof fetch;
+  try {
+    const f = meteredFetch(spend, { calls: 0 }, 10);
+    for (let i = 0; i < 3; i++) await f('https://model.test/v1/chat/completions');
+  } finally { globalThis.fetch = orig; }
+  assert.deepEqual(spend, { usd: 0.002, calls: 3, priced: 1 });
 });

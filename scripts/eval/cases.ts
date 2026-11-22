@@ -35,6 +35,21 @@ const cashTotal = balances.acc_cash + balances.acc_bank;
 const smallOverdue = invoices.filter(i => i.totalCents - i.paidCents > 0 && i.totalCents - i.paidCents < 10_000);
 const chaseFirst = [...owedByCustomer()].sort((a, b) => b.overdueCents - a.overdueCents)[0].customer.split(' ')[0].toLowerCase();
 
+/**
+ * Which of Acme or Beta the answer recommends chasing first, from the recommendation itself
+ * ("chase Beta first", "start with Beta", "Beta should come first"), not from whichever name the
+ * explanation happens to mention first. Undecided or both: null.
+ */
+export function recommended(answer: string): string | null {
+  const t = answer.toLowerCase();
+  const pick = new Set<string>();
+  for (const n of ['acme', 'beta']) {
+    const near = new RegExp(`(chase|start with|begin with|prioriti[sz]e|go after|contact|call)\\s+(\\w+\\s+){0,2}${n}\\b[^.]{0,20}\\b(first|before)|${n}\\b[^.]{0,40}\\b(first|priority|before)|(first|start with|begin with|prioriti[sz]e)\\s+(\\w+\\s+){0,2}${n}\\b`);
+    if (near.test(t)) pick.add(n);
+  }
+  return pick.size === 1 ? [...pick][0] : null;
+}
+
 export const CASES: EvalCase[] = [
   { id: 'payment', q: 'Record a payment of 500 from Acme Ltd for INV-1001.', check: o => {
     const p = proposals(o).filter(c => /payment/.test(c.name));
@@ -53,8 +68,7 @@ export const CASES: EvalCase[] = [
     proposals(o).length === 0 && mentions(o.answer, plLast.netProfitCents - plThis.netProfitCents) && /sales|consulting/i.test(o.answer),
     `must state the ${dollars(plLast.netProfitCents - plThis.netProfitCents)} drop and name sales/consulting income as the cause`) },
   { id: 'chase', q: 'Should I chase Acme or Beta first?', check: o => {
-    const t = o.answer.toLowerCase(); const first = ['acme', 'beta'].map(n => [n, t.indexOf(n)] as const).filter(([, i]) => i >= 0).sort((a, b) => a[1] - b[1])[0]?.[0];
-    return ok(proposals(o).length === 0 && first === chaseFirst && readTools(o), `must look at the books and say ${chaseFirst} first (larger overdue balance)`);
+    return ok(proposals(o).length === 0 && recommended(o.answer) === chaseFirst && readTools(o), `must look at the books and recommend ${chaseFirst} first (larger overdue balance)`);
   } },
   { id: 'fix-books', q: 'Fix the books.', check: o => ok(proposals(o).length === 0 && asks(o), 'vague: must ask what to fix, never draft a change') },
   { id: 'looks-off', q: 'Something looks off with my numbers, can you check?', check: o => ok(proposals(o).length === 0 && (asks(o) || readTools(o)), 'must look or ask, never draft a change') },

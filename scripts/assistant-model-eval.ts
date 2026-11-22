@@ -31,14 +31,15 @@ const ownerCommands = () => stepCommandNames().map(stepCommand).filter(c => c.ro
 const PROPOSAL_ID = 'sbx_eval_proposal';
 const TURN_TIMEOUT_MS = Number(process.env.ASSISTANT_EVAL_TURN_TIMEOUT_MS ?? 120_000);
 
-interface Spend { usd: number; calls: number }
+/** `priced` counts calls whose response carried a numeric billed cost; any other call leaves the total incomplete. */
+interface Spend { usd: number; calls: number; priced: number }
 /** Counts calls and the endpoint's billed cost, and refuses calls past the run's cap. */
-function meteredFetch(spend: Spend, total: { calls: number }, cap: number): typeof fetch {
+export function meteredFetch(spend: Spend, total: { calls: number }, cap: number): typeof fetch {
   return async (input, init) => {
     if (total.calls >= cap) throw new Error(`call cap of ${cap} reached`);
     total.calls++; spend.calls++;
     const res = await fetch(input, init);
-    try { const cost = (await res.clone().json() as { usage?: { cost?: number } }).usage?.cost; if (typeof cost === 'number') spend.usd += cost; } catch { /* not JSON */ }
+    try { const cost = (await res.clone().json() as { usage?: { cost?: number } }).usage?.cost; if (typeof cost === 'number' && Number.isFinite(cost)) { spend.usd += cost; spend.priced++; } } catch { /* not JSON: no billed cost */ }
     return res;
   };
 }
@@ -168,7 +169,7 @@ async function main() {
   say('|---|---|---|---|---|---|');
   const detail: string[] = [];
   for (const model of models) {
-    const spend: Spend = { usd: 0, calls: 0 };
+    const spend: Spend = { usd: 0, calls: 0, priced: 0 };
     const doFetch = meteredFetch(spend, total, cap);
     let correct = 0, finished = 0;
     detail.push('', `#### ${model}`, '', '| question | result | why |', '|---|---|---|');
@@ -180,7 +181,10 @@ async function main() {
       detail.push(`| ${c.q} | ${g.pass ? 'correct' : 'wrong'} | ${g.why.replaceAll('|', '/')} |`);
     }
     const cents = spend.usd * 100;
-    say(`| ${model} | ${correct} / ${CASES.length} | ${finished} / ${CASES.length} | ${spend.calls} | ${cents.toFixed(2)}¢ | ${correct ? (cents / correct).toFixed(2) + '¢' : '—'} |`);
+    // only a fully priced run is a measured cost; otherwise say how much is missing
+    const known = spend.priced === spend.calls;
+    const billed = known ? `${cents.toFixed(2)}¢` : `unknown (${spend.calls - spend.priced} of ${spend.calls} calls without a billed cost; ≥${cents.toFixed(2)}¢)`;
+    say(`| ${model} | ${correct} / ${CASES.length} | ${finished} / ${CASES.length} | ${spend.calls} | ${billed} | ${known && correct ? (cents / correct).toFixed(2) + '¢' : '—'} |`);
   }
   if (ocrModels.length) {
     say(); say('### Receipts (OCR)'); say();
@@ -188,14 +192,14 @@ async function main() {
     say('| model | fields right | receipts fully right | billed cost |'); say('|---|---|---|---|');
     const images = await receiptImages();
     for (const model of ocrModels) {
-      const spend: Spend = { usd: 0, calls: 0 };
+      const spend: Spend = { usd: 0, calls: 0, priced: 0 };
       const doFetch = meteredFetch(spend, total, cap);
       let fields = 0, full = 0;
       for (const r of RECEIPTS) {
         const got = await readReceipt(baseUrl, doFetch, model, images.get(r.id)!).catch(() => null);
         const g = gradeReceipt(r, got); fields += g.score; if (g.score === g.of) full++;
       }
-      say(`| ${model} | ${fields} / ${RECEIPTS.length * 4} | ${full} / ${RECEIPTS.length} | ${(spend.usd * 100).toFixed(2)}¢ |`);
+      say(`| ${model} | ${fields} / ${RECEIPTS.length * 4} | ${full} / ${RECEIPTS.length} | ${spend.priced === spend.calls ? `${(spend.usd * 100).toFixed(2)}¢` : 'unknown (no billed cost on some calls)'} |`);
     }
   }
   say(); say('### Per question'); detail.forEach(l => say(l));

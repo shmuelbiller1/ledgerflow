@@ -89,7 +89,8 @@ export const owedByCustomer = () => customers.map(c => {
   return { customer: c.name, owedCents: mine.reduce((s, i) => s + owed(i), 0), overdueCents: mine.filter(i => daysPast(i.dueDate) > 0).reduce((s, i) => s + owed(i), 0) };
 });
 
-const collections: Record<string, Array<Record<string, unknown>>> = { customers, vendors, accounts, invoices, bills, payments };
+// the collection names the real tools use (sandboxTools.ts): accounts are `chartAccounts`
+const collections: Record<string, Array<Record<string, unknown>>> = { customers, vendors, chartAccounts: accounts, invoices, bills, payments };
 const lastMonth = '2026-10', thisMonth = '2026-11';
 
 /** Arithmetic only (+ - * / parentheses, n% = n/100), parsed by hand: no code is ever evaluated. */
@@ -124,6 +125,22 @@ function safeCalc(expression: string): number | null {
   return v !== null && i === src.length && Number.isFinite(v) ? v : null;
 }
 
+/** The same predicates as the real list tool (sandboxTools.ts `whereSchema`). */
+function matches(v: unknown, op: string, want: unknown): boolean {
+  switch (op) {
+    case '==': return v === want;
+    case '!=': return v !== want;
+    case '<': return (v as number) < (want as number);
+    case '<=': return (v as number) <= (want as number);
+    case '>': return (v as number) > (want as number);
+    case '>=': return (v as number) >= (want as number);
+    case 'in': return Array.isArray(want) && want.includes(v);
+    case 'not-in': return Array.isArray(want) && !want.includes(v);
+    case 'array-contains': return Array.isArray(v) && v.includes(want);
+    default: return false;
+  }
+}
+
 /** The read tools, answered from the books above in the shapes the real tools return. */
 export function bookTool(name: string, args: Record<string, unknown>): unknown {
   const s = (v: unknown) => (typeof v === 'string' ? v : '');
@@ -137,7 +154,8 @@ export function bookTool(name: string, args: Record<string, unknown>): unknown {
     }
     case 'list_records': {
       const c = s(args.collection);
-      const rows = [...(collections[c] ?? [])];
+      const filters = Array.isArray(args.where) ? args.where as Array<{ field: string; op: string; value: unknown }> : [];
+      const rows = (collections[c] ?? []).filter(r => filters.every(f => matches(r[f.field], f.op, f.value)));
       const order = args.orderBy as { field?: string; direction?: string } | undefined;
       if (order?.field) rows.sort((a, b) => String(a[order.field!]).localeCompare(String(b[order.field!])) * (order.direction === 'desc' ? -1 : 1));
       return { collection: c, records: rows.slice(0, typeof args.limit === 'number' ? args.limit : 20), nextCursor: null };
