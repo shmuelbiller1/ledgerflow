@@ -45,6 +45,19 @@ New sessions pick it up. Until then, the replay runs without a model and records
 
 **Approved by the owner (22 Nov):** AI providers other than Google may be used for the assistant, including sending book data to them (for example through Arena). The Arena key still has to be added as a network secret (above) before models can be tested.
 
+## SBX-2 Part 6: model comparison result and a recommendation (needs your decision)
+
+I replayed the 30 test questions through Arena on six models (table in `docs/assistant-baseline.md`; test data only). Cost is what Arena billed.
+
+- **GPT-6 Luna** answered 38 of 42 model turns for about 8¢ per 100 model turns. Best price for what it did.
+- **GPT-6.1 Terra** answered 41 of 42, but costs about 62¢ per 100 model turns.
+- **Gemini 3.8 Flash** answered 1 of 21 and cost about $1.37 per 100: it kept calling tools until the step limit. GLM 5.3 answered 7 of 21 at about $2.17 per 100. MiniMax and DeepSeek mostly ran out of steps.
+- *Limits:* "answered" is not "right". The test books are thin, and I did not grade the wording. Please don't read this as final.
+
+*Recommendation:* simple turns on GPT-6 Luna, strong turns on GPT-6.1 Terra, same written rule as now (`assistantModels.ts`). *Not done:* neither has a price row, and the code ignores an unpriced model, so nothing changed: the app still uses the Gemini defaults. I won't write a price from memory. Please send me the prices Arena charges for these two, or tell me to read them from Arena's pricing page, and I will add the rows.
+
+*Spend:* the per-100 costs above are lower bounds (see the note in `docs/assistant-baseline.md`). My comparison runs cost about $8.6 of your Arena balance, more than I should have used, mostly from runs repeated after timeouts. The script now stops at 150 model calls per run.
+
 ## SBX-2 Parts 4–7: defaults used for the assistant's models and plan limits (nothing needed unless you disagree)
 
 **Models (Part 6).** Simple turns use `gemini-3.5-flash-lite` ($0.30 in / $2.50 out per million tokens). Ambiguous, high-risk, multi-step and long turns use `gemini-3.8-flash` ($0.75 / $3.75 until 31 Dec 2026, then $1.50 / $7.50 by Google's page). Reading receipts uses `gemini-3.5-flash-lite`. Prices were read from Google's and Z.ai's pricing pages on 22 Nov and are stored with their dates and source links. The rule is written at the top of `src/server/services/assistantModels.ts`.
