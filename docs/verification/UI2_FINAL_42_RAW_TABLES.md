@@ -47,7 +47,13 @@ grouped and footered tables declaratively.
   bank-statement import preview, a report figure's drill-down, and the document line editor — are
   mounted from their real production modules in `final-queue-journey.spec.ts` on the shared journey
   fixture with stubbed network. The remaining file, `QBOMigrationWizardView`, is covered by
-  `j2-qbo-migration-shared-csv.test.ts`'s populated tables.
+  `j2-qbo-migration-shared-csv.test.ts`'s populated tables. The pixel baselines are captured on the
+  CI Linux Chromium through the repo's "Refresh visual baselines" workflow — the same convention
+  the pre-existing `visual-regression.spec.ts` baselines follow — because a local dev Chromium
+  renders the densest screens a percent or two of pixels differently; CI is the pixel oracle, and
+  the full clean CI run is 176/176. The same capture refreshed the pre-existing Hebrew
+  trial-balance baseline of `visual-regression.spec.ts`, whose screen this batch's conversion
+  legitimately re-rendered (30 px taller).
 - **Before/after evidence:** the same two specs run against the base commit (with the six a11y
   rules this batch fixed disabled) also pass 176/176, and `LF_FINAL_EVIDENCE=<dir>` records each
   viewport's visible tables and phone cards as text. Of the 176 dumps, **144 are byte-identical**;
