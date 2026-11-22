@@ -89,6 +89,13 @@ Do not change posting, tax, or report math, and do not let any speed-up write to
   `openAiCompatibleClient` and prints model calls, tokens, tools called, time and cost per path.
   Candidates the owner named: GPT-6 Luna, GPT-6.1 Terra, a Gemini Flash, a GLM Flash, plus the cheapest
   models on Arena's tool-efficiency leaderboard. Add each model's price row before trusting its cost.
+- **The graded comparison (one command, rerun it to update):**
+  `ASSISTANT_EVAL_BASE_URL=https://api.arena.ai/v1 ASSISTANT_EVAL_MODELS=<m1>,<m2> ASSISTANT_EVAL_OCR_MODELS=<m1>,<m2> npx tsx scripts/assistant-model-eval.ts --write`
+  It grades 12 model questions against a sample company (`scripts/eval/`): the right step drafted, the
+  right figure stated, or a question asked instead of a guess. It also scores receipt reading (OCR) on 4
+  generated receipts whose true values are known, one model per run with no fallback, and records the
+  billed cost. The newest run goes on top of `docs/assistant-model-eval.md`. `--self-test` checks the
+  graders without a key.
 - **Output:** the before/after table in `docs/assistant-baseline.md`, and a short recommendation in
   `docs/FOR_YOU.md` (cheap model, strong model, the written rule for switching, cost per 100 questions).
 - **Blocked until:** the Arena key is saved (a new session's key form works; this one's did not).
