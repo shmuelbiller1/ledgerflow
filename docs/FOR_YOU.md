@@ -51,14 +51,16 @@ Run 22 Nov on Arena with the graded test (`scripts/assistant-model-eval.ts`, 12 
 
 | model | correct (of 12) | billed | cost per correct answer |
 |---|---|---|---|
-| GPT-6.1 Terra | 9 | 11.9¢ | 1.3¢ |
-| GPT-6 Luna | 5 | 1.3¢ | 0.27¢ |
+| GPT-6.1 Terra | 9 → 7 on the newer test | 11.9¢ → 11.4¢ | 1.3¢ → 1.6¢ |
+| GPT-6 Luna | 5 → 5 on the newer test | 1.3¢ → 1.2¢ | 0.27¢ → 0.23¢ |
 | GLM 5.3 | 4 | 33.0¢ | 8.3¢ |
 | Gemini 3.8 Flash | 1 | 19.3¢ | 19.3¢ |
 | MiniMax M3.1 Flash | 0 | at least 3.5¢ | — |
 | DeepSeek V4.1 Flash | 0 | at least 4.9¢ | — |
 
 Receipts (4 generated images, 4 fields each): Luna, Terra and Gemini 3.8 Flash each read 15 of 16 fields right, for 0.03¢, 0.25¢ and 0.77¢.
+
+*Rerun on the newer test (#1012, same day):* only GPT-6.1 Terra and GPT-6 Luna were rerun, so the other four rows are from the first test version. Terra 7 of 12, Luna 5 of 12; each fixed and broke different questions (Luna now passes payment and consulting invoice, Terra no longer passes the payment, invoice and bill because it answers instead of just asking). The numbers move by two questions between runs and test versions, so treat 7 to 9 as Terra's range. Receipts unchanged: 15 of 16 fields for both.
 
 *Recommendation:* GPT-6.1 Terra is the only model that is mostly right (9 of 12), so use it for the strong turns. Luna is cheap but wrong on 7 of 12, so I would not use it for simple turns that can draft a step; it may do for reading receipts (same score as Terra at about a tenth of the price). Every model except GLM 5.3 (which passed both) failed "record a payment" and "make a bill", which draft a step; Terra and Luna ended without drafting one. That may be the test or the tool set rather than the models, and I have not looked into it. Gemini 3.8 Flash, our current strong model, got 1 of 12 here.
 
