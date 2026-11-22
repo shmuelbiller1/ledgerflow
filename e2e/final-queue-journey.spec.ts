@@ -131,6 +131,9 @@ async function checkJourneyScreen(page: Page, screen: JourneyScreen, width: numb
   for (const figure of screen.figures) await expect(root.getByText(figure, { exact: false }).first()).toBeVisible({ timeout: 15_000 });
   expect(state.errors).toEqual([]);
   await settleStyles(page);
+  // A cold dev server (each CI playwright invocation starts its own) compiles modules on demand;
+  // let those fetches settle before pixels are taken, or an icon-sized gap flakes the comparison.
+  await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
   const audit = await new AxeBuilder({ page }).include('#root').disableRules(['color-contrast']).analyze();
   expect(audit.violations.map(v => [v.id, v.nodes.map(n => n.target)])).toEqual([]);
   if (process.env.LF_FINAL_EVIDENCE) {
