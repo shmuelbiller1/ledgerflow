@@ -261,7 +261,7 @@ export default function ReceivePaymentModal({
       // the request never got an answer at all: it may or may not have been recorded. Keep the form (and its
       // operation id) so "try again" replays the same request instead of posting a new one.
       if (!(err instanceof ServerCommandError)) {
-        toast.error('The payment may not have been recorded: the connection dropped before the server answered.', { description: 'Check the payments list. If it is not there, press Record again: it will not be posted twice.' });
+        toast.error('The payment may not have been recorded: the network connection dropped before the server answered.', { description: 'Check the payments list. If it is not there, press Record again: it will not be posted twice.' });
         return;
       }
       const described = describeError(err, 'create', uiLanguageNow());
