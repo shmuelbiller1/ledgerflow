@@ -134,8 +134,8 @@ export function useReconciliationModel() {
       // or the entry's net cash in the all-accounts view. An entry with no cash leg is not offered.
       // At exact tolerance only the matching bucket can qualify; a tolerance widens it to the legs
       // already converted, so no line is ever converted inside this loop.
-      const ownAccountId = btx.accountId && cashAccountIds.has(btx.accountId) ? btx.accountId : null;
-      const indexed = ownAccountId ? byAccountAbs.get(ownAccountId) : byNetAbs;
+      // An unavailable named account has no bucket; only an unassigned line may use net cash.
+      const indexed = btx.accountId ? byAccountAbs.get(btx.accountId) : byNetAbs;
       const pool: PreparedLedgerEntry[] = [];
       if (matchToleranceCents === 0) {
         pool.push(...(indexed?.get(bAbsAmount) || []));
@@ -146,7 +146,7 @@ export function useReconciliationModel() {
       }
 
       for (const entry of pool) {
-        const legCents = cashLegFromLegs(entry.legs, btx, cashAccountIds);
+        const legCents = cashLegFromLegs(entry.legs, btx);
         if (legCents === null) continue;
         const absAmount = Math.abs(legCents);
         if (Math.abs(absAmount - bAbsAmount) > matchToleranceCents) continue;
