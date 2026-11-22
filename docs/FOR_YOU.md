@@ -28,13 +28,9 @@ If I hear nothing, I'll build it with these defaults.
 
 Nothing a vendor sends would ever become a posted bill on its own; someone in your workspace reviews it first. *Default:* not started until you say you want it. Without your answers I'd have to guess at storage and access rules, and I won't guess at those.
 
-## Please apply one database migration: support tickets visible only to their author, owners/accountants and admins (#913, #916, PR #988 merged)
+## Done 22 Nov: support-ticket visibility migration applied to the live database (#913, #916, PR #988)
 
-PR #988 is merged, but the live database doesn't have its change yet. The Supabase approval prompt went unanswered twice, so I stopped calling it rather than block the session. Until it's applied, any member of a workspace (viewers included) can still read other people's support tickets and messages.
-
-To apply: in Supabase, SQL editor, run `supabase/migrations/20261122050000_support_ticket_visibility.sql`. It is idempotent. Or set the Supabase connector to "Always allow" and I'll apply it myself.
-
-Default used: owners and accountants keep seeing all of their workspace's tickets (they triage them); viewers and bookkeepers see only their own.
+Applied with your approval and checked in the live database. Tickets and their messages are now readable only by the person who filed them, the workspace's owners and accountants, and platform admins. The browser can no longer change a ticket's status. Nothing left for you to do.
 
 ## Retried money requests from outside tools can post twice (#942, needs your decision; nothing changed yet)
 
@@ -62,29 +58,25 @@ Until PR #972, creating an entry from a bank line on the Reconcile screen posted
 
 PR #972 fixes new entries. **Old entries are not changed.** The default is to leave them alone, because changing posted entries in a real book needs your OK. If you want them corrected, say so. I'd find every entry made by Reconcile → "Create entry": those with a "Bank Settlement" line, and those with an "Asset Settlement" line (bank lines that had no account). I'd include entries whose match was undone later, which now have the status `completed`. Then I'd post a correcting entry for each and leave the originals in place, so the history stays.
 
-## CMD-1: deploy the replacement UI before closing the browser write door
+## Done 22 Nov: CMD-1 browser write door closed on the live database — please do a 2-minute check
 
-**Pending — do not apply before deployment.** The migration is
-[`20261120100000_cmd1_browser_write_policies.sql`](../supabase/migrations/20261120100000_cmd1_browser_write_policies.sql).
-It removes browser INSERT/UPDATE/DELETE from 29 application tables. Reads (including private templates),
-Realtime, object Storage, MFA and server/overlay access stay as before. It passed the local PostgreSQL
-rules suite after a fresh migration setup; it has **not** been applied to the live database.
+Applied with your approval after confirming that production runs the latest `main` (the #995 build), which has no direct browser writes left (`commands-baseline.json`: 0).
 
-1. After CI and review, merge and deploy the code. Confirm the deployed UI creates and renames a label
-   from Settings and inside a bill, creates/edits a customer or draft estimate, and saves settings
-   with a writer session. Check a viewer still reads but cannot perform those writes. Also smoke-test
-   attachment upload/removal, presence and notifications; they use separate server paths.
-2. Once those deployed checks pass, the merger applies the migration through the Supabase migration
-   tool (not manual SQL), in order after the earlier sandbox migrations, including
-   `20261120090000_sandbox_stock_move_order.sql` from [#935](https://github.com/shmuelbiller1/ledgerflow/pull/935).
-   Confirm it appears in the migration ledger. Refresh a browser
-   using the new build; repeat those write/read checks and verify a direct browser write is refused
-   on a disposable workspace. Do not probe historical production records or remove read policies.
+What I checked in the live database:
+- browser write permissions on the 29 tables: **0 left**;
+- the only rule still on those tables is the `two_step_login` restriction, which can only narrow access and stays on purpose;
+- reads are kept, including private templates;
+- both migrations are recorded in the migration history.
 
-Existing Stripe verification is not changed here. Its legacy session claim, plan update and audit
-are separate commits; a failure after the claim can leave a session marked verified before credits
-are provisioned. Treat recovery/consolidation with the subscription webhook as a separate billing
-change with provider-order and failure evidence.
+All other repo migrations are in the live database. I compared every file with what the live database actually contains, not only with the migration names.
+
+**I did not click through the live app**, because I don't test the live site without your written OK. Please check, signed in as an owner:
+1. create and rename a label (Settings, and inside a bill);
+2. edit a customer;
+3. save a setting;
+4. upload and remove an attachment.
+
+As a viewer, check you can still see everything but can't make those changes. If anything says "permission denied", tell me what you clicked and I'll fix it in the server path the same day.
 
 ## CMD-1: posting, project/chart writes, attachment removal and verification (nothing to apply)
 
