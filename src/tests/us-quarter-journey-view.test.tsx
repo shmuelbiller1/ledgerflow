@@ -62,3 +62,50 @@ test('A-153 screen: a capped list is called provisional', () => {
   assert.match(screen.getByRole('alert').textContent ?? '', /provisional/);
   assert.match(screen.getByRole('status').textContent ?? '', /Loading/);
 });
+
+test('A-153 screen: T-08 the changes since a return was filed are shown box by box', () => {
+  // the return was filed from i1 alone (amount 1,082.50, tax 82.50 — the fixture carries no taxVersion);
+  // i2 (amount 216.50, tax 16.50) was saved after the filing
+  const filedCopy = {
+    startDate: '2026-07-01', endDate: '2026-09-30', registration: 'sales_tax:US-TX:3200',
+    boxes: [
+      { key: '1', label: 'Sales tax collected', cents: 8_250 },
+      { key: '3', label: 'Total tax due', cents: 8_250 },
+      { key: '5', label: 'Net tax payable', cents: 8_250 },
+      { key: '6', label: 'Gross sales', cents: 108_250 },
+    ],
+  };
+  // i2 (amount 216.50, tax 16.50) saved after the filing: the same boxes recomputed now
+  const afterFiling = [...invoices, {
+    id: 'i2', date: '2026-09-15', status: 'sent', amountCents: 21650, taxAmountCents: 1650, customerId: 'austin',
+    dimensions: { world: 'tx' }, taxTreatment: 'standard',
+    taxBreakdown: [{ name: 'Texas state sales tax', rate: 0, taxCents: 1250 }, { name: 'Austin', rate: 0, taxCents: 400 }],
+  }] as never;
+  render(<UsQuarterJourneyPanel journey={journey({ invoices: afterFiling, filedPeriods: [filedCopy] })}
+    currency="USD" quarterText="2026-Q3" onQuarterChange={() => {}} />);
+  const table = screen.getByRole('table', { name: /The state returns of the quarter/ });
+  assert.match(table.textContent ?? '', /Since filed/);
+  // the fixture invoices carry no taxVersion, so a document's net is its amount: i1 1,082.50 + i2 216.50 = 1,299.00
+  assert.match(table.textContent ?? '', /Sales tax collected : filed \$82\.50, now \$99\.00\(\+\$16\.50\)/);
+  assert.match(table.textContent ?? '', /Gross sales : filed \$1,082\.50, now \$1,299\.00\(\+\$216\.50\)/);
+});
+
+test('A-153 screen: T-08 nothing changed since filing says so; no filed copy says nothing', () => {
+  // the fixture invoices carry no taxVersion, so i1's figures are amount 1,082.50, tax 82.50
+  const filedCopy = {
+    startDate: '2026-07-01', endDate: '2026-09-30', registration: 'sales_tax:US-TX:3200',
+    boxes: [
+      { key: '1', label: 'Sales tax collected', cents: 8_250 },
+      { key: '3', label: 'Total tax due', cents: 8_250 },
+      { key: '5', label: 'Net tax payable', cents: 8_250 },
+      { key: '6', label: 'Gross sales', cents: 108_250 },
+    ],
+  };
+  const unchanged = render(<UsQuarterJourneyPanel journey={journey({ filedPeriods: [filedCopy] })}
+    currency="USD" quarterText="2026-Q3" onQuarterChange={() => {}} />);
+  assert.ok(unchanged.getByText(/Nothing has changed since it was filed/), 'the default quarter is i1 alone: the copy matches');
+  unchanged.unmount();
+  const withCopy = render(<UsQuarterJourneyPanel journey={journey({ filedPeriods: [] })}
+    currency="USD" quarterText="2026-Q3" onQuarterChange={() => {}} />);
+  assert.ok(withCopy.queryByText(/Nothing has changed since it was filed/) === null, 'no copy: no claim');
+});

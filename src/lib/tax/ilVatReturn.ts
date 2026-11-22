@@ -11,6 +11,7 @@
  * are the screen's rounding. Pure.
  */
 import { buildTaxReturn, type TaxableDocument } from '../taxReturnDocs';
+import type { TaxReturnBox } from '../taxCodes';
 import { registrationKey, registrationsOn, resolveSellerProfile, type TaxProfiles } from './profile';
 
 export interface IlVatDocument extends TaxableDocument {
@@ -69,6 +70,15 @@ export function israelVatReturn(input: {
   /** #928: the workspace (book) currency, so a yen or dinar document is converted with its own minor units */
   baseCurrency?: string;
 }): IlVatReturn {
+  return israelVatReturnWithBoxes(input).return;
+}
+
+/**
+ * T-08: the same computation as `israelVatReturn`, plus the nine generic boxes `tax.file` keeps on the
+ * server for this registration's return (buildTaxReturn over its documents), so a filed copy can be
+ * compared box by box. The journey uses both; the return alone keeps its long-standing shape.
+ */
+export function israelVatReturnWithBoxes(input: Parameters<typeof israelVatReturn>[0]): { return: IlVatReturn; boxes: TaxReturnBox[] } {
   const mine = (docs: IlVatDocument[] | undefined) => (docs || []).filter(d => belongsTo(d, input.profiles, input.order, input.registration));
   const period = { startDate: input.startDate, endDate: input.endDate };
   const baseCurrency = input.baseCurrency;
@@ -79,15 +89,18 @@ export function israelVatReturn(input: {
   const outputVatCents = box(all, '3');
   const inputVatCents = box(all, '4');
   return {
-    registration: input.registration,
-    ...period,
-    taxableSalesCents: all.sales.standard.netCents,
-    outputVatCents,
-    zeroRatedSalesCents: all.sales.zero_rated.netCents,
-    exemptSalesCents: all.sales.exempt.netCents,
-    fixedAssetInputVatCents,
-    otherInputVatCents: inputVatCents - fixedAssetInputVatCents,
-    toPayCents: outputVatCents - inputVatCents,
-    documentCount: all.documentCount,
+    return: {
+      registration: input.registration,
+      ...period,
+      taxableSalesCents: all.sales.standard.netCents,
+      outputVatCents,
+      zeroRatedSalesCents: all.sales.zero_rated.netCents,
+      exemptSalesCents: all.sales.exempt.netCents,
+      fixedAssetInputVatCents,
+      otherInputVatCents: inputVatCents - fixedAssetInputVatCents,
+      toPayCents: outputVatCents - inputVatCents,
+      documentCount: all.documentCount,
+    },
+    boxes: all.boxes,
   };
 }

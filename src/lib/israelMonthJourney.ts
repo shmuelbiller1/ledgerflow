@@ -24,7 +24,8 @@ import { calculateDocumentNet, calculateDocumentTax } from './documentMath';
 import { monthEnd, type MonthCloseState } from './periodLock';
 import { COUNTED_PURCHASES, COUNTED_SALES } from './taxCodes';
 import { allocationNumberProblem, allocationThresholdCents, needsAllocationNumber } from './tax/ilAllocation';
-import { belongsTo, israelVatReturn, type IlVatDocument } from './tax/ilVatReturn';
+import { belongsTo, israelVatReturnWithBoxes, type IlVatDocument, type IlVatReturn } from './tax/ilVatReturn';
+import { filedRegistrationChanges, type FiledReturnChange } from './tax/filedReturns';
 import {
   buildPcn874FixtureDraft, type Pcn874DraftOutput, type Pcn874FixtureDocument,
 } from './tax/pcn874Draft';
@@ -62,7 +63,7 @@ export interface IlMonthFigure {
 }
 
 /** One VAT registration's return for the month, as the return screen computes it. */
-export interface IlMonthReturn extends ReturnType<typeof israelVatReturn> {
+export interface IlMonthReturn extends IlVatReturn {
   /** the registration this return belongs to (a permit in force on the month's last day) */
   from: string;
   /** the frequency the registration itself records, when it states one */
@@ -78,6 +79,12 @@ export interface IlMonthReturn extends ReturnType<typeof israelVatReturn> {
   pending: boolean;
   /** a return for exactly these dates is recorded for the workspace (with several registrations, not attributable) */
   recordedForDates: boolean;
+  /**
+   * T-08: box-by-box differences between the filed copy for exactly this registration and period and
+   * the same boxes recomputed now; [] when nothing changed. Absent when no filed copy with figures
+   * exists for this registration, or the caller said its document data is partial.
+   */
+  changes?: FiledReturnChange[];
 }
 
 /** An invoice that needs an allocation number, and what is wrong with the one recorded. */
@@ -142,8 +149,16 @@ export interface IsraelMonthInput {
   accounts?: ChartAccount[];
   /** the close state of the month; a month not listed is open */
   periods?: Array<{ month: string; state: MonthCloseState }>;
-  /** returns the server keeps for this workspace: a return for exactly this period counts as filed */
-  filedPeriods?: Array<{ startDate: string; endDate: string; /** CON-4b: the registration a return was filed for ('vat:IL:…'); absent: the whole workspace */ registration?: string }>;
+  /**
+   * returns the server keeps for this workspace: a return for exactly this period counts as filed.
+   * `boxes` is the copy the server kept at filing (T-08 compares it with the boxes recomputed now).
+   */
+  filedPeriods?: Array<{ startDate: string; endDate: string; /** CON-4b: the registration a return was filed for ('vat:IL:…'); absent: the whole workspace */ registration?: string; boxes?: Array<{ key: string; label: string; cents: number }> }>;
+  /**
+   * T-08: the caller's document data is truncated or failed for this run, so nothing is compared with
+   * the filed copy (a phantom difference from a missing document would be worse than no comparison).
+   */
+  partial?: boolean;
 }
 
 const MONTH_TEXT = /^(\d{4})-(0[1-9]|1[0-2])$/;
@@ -531,18 +546,26 @@ export function israelMonthJourney(given: IsraelMonthInput): IsraelMonth {
       }
       const from = own?.startDate || startDate;
       const to = own?.endDate || endDate;
+      const { return: figures, boxes } = israelVatReturnWithBoxes({
+        registration: registration.registration,
+        profiles: input.profiles,
+        order: input.order || [],
+        invoices: input.invoices || [],
+        bills: input.bills || [],
+        creditNotes: input.creditNotes || [],
+        vendorCredits: input.vendorCredits || [],
+        startDate: from, endDate: to,
+        baseCurrency: input.currency,
+      });
+      // T-08: only an exact copy filed for THIS registration can be compared box by box; a partial run claims nothing
+      const filedCopy = input.partial ? undefined : (input.filedPeriods || []).find(r =>
+        r.registration === registration.registration && r.startDate === from && r.endDate === to
+        && Array.isArray(r.boxes) && r.boxes.length > 0);
+      const changes = filedCopy
+        ? filedRegistrationChanges([filedCopy], from, to, registration.registration, boxes)
+        : null;
       return {
-        ...israelVatReturn({
-          registration: registration.registration,
-          profiles: input.profiles,
-          order: input.order || [],
-          invoices: input.invoices || [],
-          bills: input.bills || [],
-          creditNotes: input.creditNotes || [],
-          vendorCredits: input.vendorCredits || [],
-          startDate: from, endDate: to,
-          baseCurrency: input.currency,
-        }),
+        ...figures,
         from: registration.from,
         ...(registration.filing ? { filing: registration.filing } : {}),
         ...(own ? { dueDate: own.dueDate } : {}),
@@ -553,6 +576,7 @@ export function israelMonthJourney(given: IsraelMonthInput): IsraelMonth {
         filed: (input.filedPeriods || []).some(r => r.startDate === from && r.endDate === to
           && (r.registration ? r.registration === registration.registration : registrations.length === 1)),
         recordedForDates: (input.filedPeriods || []).some(r => r.startDate === from && r.endDate === to && !r.registration),
+        ...(changes ? { changes } : {}),
         pending: (own?.endMonth || month) > month,
       };
     })

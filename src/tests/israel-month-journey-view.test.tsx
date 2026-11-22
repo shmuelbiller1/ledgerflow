@@ -112,3 +112,50 @@ test('A-152 screen: a capped list is called provisional while it loads', () => {
   assert.ok(screen.getAllByRole('status').some(node => /Loading/.test(node.textContent ?? '')), 'the loading line');
   assert.match(screen.getByRole('alert').textContent ?? '', /provisional/);
 });
+
+test('A-152 screen: T-08 the changes since a return was filed are shown box by box', () => {
+  // the return was filed from i1 and i2 alone (output VAT 198,000; input VAT 36,000 from bill b1);
+  // a credit note CN1 (VAT 1,800) is saved after the filing
+  const filedCopy = {
+    startDate: '2026-09-01', endDate: '2026-09-30', registration: 'vat:IL:514000000',
+    boxes: [
+      { key: '1', label: 'Tax on sales', cents: 198_000 },
+      { key: '2', label: 'Tax due on reverse-charge purchases', cents: 0 },
+      { key: '3', label: 'Total tax due', cents: 198_000 },
+      { key: '4', label: 'Tax reclaimable on purchases', cents: 36_000 },
+      { key: '5', label: 'Net tax to pay (negative: to reclaim)', cents: 162_000 },
+      { key: '6', label: 'Sales excluding tax', cents: 1_100_000 },
+      { key: '7', label: 'Purchases excluding tax', cents: 200_000 },
+      { key: '8', label: 'Zero-rated sales', cents: 0 },
+      { key: '9', label: 'Exempt sales', cents: 0 },
+    ],
+  };
+  const credit = { id: 'cn1', number: 'CN1', date: '2026-09-25', status: 'issued', taxVersion: 2, amountCents: 11_800, taxAmountCents: 1_800, customerId: 'c1' } as never;
+  panel({
+    journey: journey({ creditNotes: [credit], filedPeriods: [filedCopy] }),
+  });
+  const table = screen.getByRole('table', { name: /The VAT report each registration files for this month/ });
+  assert.match(table.textContent ?? '', /Since filed/);
+  assert.match(table.textContent ?? '', new RegExp(`Tax on sales : filed ${formatCurrency(198_000, 'ILS')}, now ${formatCurrency(196_200, 'ILS')}(${formatCurrency(-1_800, 'ILS')})`.replace(/\(/g, '\\(').replace(/\)/g, '\\)')));
+  assert.match(table.textContent ?? '', new RegExp(`Sales excluding tax : filed ${formatCurrency(1_100_000, 'ILS')}, now ${formatCurrency(1_090_000, 'ILS')}(${formatCurrency(-10_000, 'ILS')})`.replace(/\(/g, '\\(').replace(/\)/g, '\\)')));
+});
+
+test('A-152 screen: T-08 nothing changed since filing says so; no filed copy says nothing', () => {
+  // the month's i1 and i2 alone (bill b1's input VAT is in the same nine boxes): the copy matches now
+  const filedCopy = {
+    startDate: '2026-09-01', endDate: '2026-09-30', registration: 'vat:IL:514000000',
+    boxes: [
+      { key: '1', label: 'Tax on sales', cents: 198_000 },
+      { key: '2', label: 'Tax due on reverse-charge purchases', cents: 0 },
+      { key: '3', label: 'Total tax due', cents: 198_000 },
+      { key: '4', label: 'Tax reclaimable on purchases', cents: 36_000 },
+      { key: '5', label: 'Net tax to pay (negative: to reclaim)', cents: 162_000 },
+      { key: '6', label: 'Sales excluding tax', cents: 1_100_000 },
+      { key: '7', label: 'Purchases excluding tax', cents: 200_000 },
+      { key: '8', label: 'Zero-rated sales', cents: 0 },
+      { key: '9', label: 'Exempt sales', cents: 0 },
+    ],
+  };
+  panel({ journey: journey({ filedPeriods: [filedCopy] }) });
+  assert.ok(screen.getByText(/Nothing has changed since it was filed/), 'the month as i1 and i2: the copy matches');
+});

@@ -357,6 +357,7 @@ export const REPORTS_TRANSLATION_BUNDLE: ScreenTranslationBundle = {
     { key: 'r.choose-another-date-range-or-issue-an-invoice-or', en: 'Choose another date range, or issue an invoice or approve a supplier bill to include it here.', he: 'בחרו טווח תאריכים אחר, או הנפיקו חשבונית או אשרו חשבון ספק כדי לכלול אותם כאן.' },
     { key: 'r.filed-on', en: 'Filed on', he: 'הוגש ב-' },
     { key: 'r.nothing-has-changed-since-it-was-filed', en: 'Nothing has changed since it was filed.', he: 'דבר לא השתנה מאז ההגשה.' },
+    { key: 'r.since-filed', en: 'Since filed', he: 'מאז ההגשה' },
     { key: 'r.documents-in-this-period-changed-after-filing-re', en: 'Documents in this period changed after filing. Report the difference in your next return (or correct this one with the tax office):', he: 'מסמכים בתקופה זו השתנו אחרי ההגשה. דווחו על ההפרש בדוח הבא (או תקנו את הדוח הזה מול רשות המסים):' },
     { key: 'r.box', en: 'Box', he: 'שדה' },
     { key: 'r.filed', en: ': filed', he: ': הוגש' },

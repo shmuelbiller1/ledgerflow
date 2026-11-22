@@ -17,7 +17,7 @@
  * the deadline, and nothing here knows a holiday, a marketplace facilitator, a local return or a
  * transaction-count nexus test. Read-only; money is whole cents in the workspace currency.
  */
-import { COUNTED_SALES } from './taxCodes';
+import { COUNTED_SALES, type TaxReturnBox } from './taxCodes';
 import { exemptionOn } from './taxExemption';
 import {
   placeState, registrationsOn, registrationKey,
@@ -25,7 +25,8 @@ import {
 } from './tax/profile';
 import { filingCalendarRow, filingDueDate } from './tax/usFilingCalendar';
 import { nexusThreshold } from './tax/usNexus';
-import { usSalesTaxReturn, type UsSalesDocument } from './tax/usSalesTaxReturn';
+import { usSalesTaxReturn, usSalesTaxReturnBoxes, type UsSalesDocument } from './tax/usSalesTaxReturn';
+import { filedRegistrationChanges, type FiledReturnChange } from './tax/filedReturns';
 import { NO_STATE_SALES_TAX, US_STATE_SALES_TAX } from './tax/usStateSalesTax';
 import { reviewUseTax, type UseTaxBill, type UseTaxItem, type UseTaxReview } from './tax/usUseTax';
 import { productTaxabilityRows } from './tax/usProductTaxability';
@@ -72,6 +73,12 @@ export interface UsQuarterStateReturn {
   filed: boolean;
   /** true when a whole-workspace return covers the period but multiple permits exist so the state is ambiguous */
   recordedForDates?: boolean;
+  /**
+   * T-08: box-by-box differences between the filed copy for exactly this permit and quarter and the
+   * same boxes recomputed now; [] when nothing changed. Absent when no filed copy with figures exists
+   * for this permit, or the caller said its document data is partial (then nothing is claimed).
+   */
+  changes?: FiledReturnChange[];
   /** the state's economic-nexus sales threshold in force at the quarter end, when it has one */
   nexusThresholdCents: number | null;
   /** the quarter's gross sales into the state reach that threshold (the sales test only) */
@@ -157,10 +164,16 @@ export interface UsQuarterInput {
    * Filed returns the server keeps for this workspace (the same record the return screen lists):
    * a return recorded for this registration counts for its own permit; an unscoped whole-workspace
    * return counts only when the workspace holds a single US sales-tax permit (F-08, CON-4b).
+   * The `boxes` are the copy the server kept at filing (T-08 compares them with the boxes recomputed now).
    */
-  filedPeriods?: Array<{ startDate: string; endDate: string; registration?: string; kind?: 'vat' | 'sales_tax' }>;
+  filedPeriods?: Array<{ startDate: string; endDate: string; registration?: string; kind?: 'vat' | 'sales_tax'; boxes?: TaxReturnBox[] }>;
   /** the state the use-tax review is run for; defaults to the first permit state of the quarter */
   useTaxState?: string;
+  /**
+   * T-08: the caller's document data is truncated or failed for this run, so nothing is compared with
+   * the filed copy (a phantom difference from a missing document would be worse than no comparison).
+   */
+  partial?: boolean;
 }
 
 const QUARTER_TEXT = /^(\d{4})-Q([1-4])$/;
@@ -269,6 +282,13 @@ export function usQuarterJourney(input: UsQuarterInput): UsQuarter {
     const dueDate = filingDueDate(permit.state, endDate);
     const nexus = nexusThreshold(permit.state, endDate);
     const threshold = nexus?.salesThresholdCents ?? null;
+    // T-08: only an exact copy filed for THIS permit can be compared box by box; a partial run claims nothing
+    const filedCopy = input.partial ? undefined : (input.filedPeriods || []).find(f =>
+      f.registration === permit.registration && f.startDate === startDate && f.endDate === endDate
+      && Array.isArray(f.boxes) && f.boxes.length > 0);
+    const changes = filedCopy
+      ? filedRegistrationChanges([filedCopy], startDate, endDate, permit.registration, usSalesTaxReturnBoxes(r))
+      : null;
     return {
       registration: permit.registration,
       permitNumber: permit.permitNumber,
@@ -293,6 +313,7 @@ export function usQuarterJourney(input: UsQuarterInput): UsQuarter {
       recordedForDates: (input.filedPeriods || []).some(f =>
         f.startDate === startDate && f.endDate === endDate && !f.registration && f.kind !== 'vat' && permits.length > 1,
       ),
+      ...(changes ? { changes } : {}),
       nexusThresholdCents: threshold,
       // the state's own wording: New York's "more than" is not reached at exactly the threshold
       nexusSalesReached: threshold !== null && (nexus?.strict ? r.grossSalesCents > threshold : r.grossSalesCents >= threshold),
@@ -511,14 +532,21 @@ export function usQuarterJourney(input: UsQuarterInput): UsQuarter {
 
 export const US_QUARTER_JOURNEY_CSV_HEADERS = [
   'Quarter', 'Step', 'Status', 'What to do', 'Screen', 'Permit', 'Gross sales', 'Exempt sales',
-  'Taxable sales', 'Tax collected', 'Due date', 'Recorded as filed',
+  'Taxable sales', 'Tax collected', 'Due date', 'Recorded as filed', 'Since filed',
 ];
+
+/** T-08: the changes of one filed return as one CSV cell: "box 3: filed 15, now 20 (+5); ...". */
+function changesSummary(changes: FiledReturnChange[] | undefined): string {
+  if (!changes) return '';
+  if (changes.length === 0) return 'unchanged';
+  return changes.map(c => `box ${c.key}: filed ${(c.filedCents / 100).toFixed(2)}, now ${(c.nowCents / 100).toFixed(2)} (${(c.nowCents - c.filedCents) / 100 >= 0 ? '+' : ''}${((c.nowCents - c.filedCents) / 100).toFixed(2)})`).join('; ');
+}
 
 /** One row per step, plus one row per state return, for the export on the journey screen. */
 export function usQuarterJourneyCsvRows(journey: UsQuarter): string[][] {
   const rows: string[][] = [];
   for (const step of journey.steps) {
-    rows.push([journey.quarter, step.title, step.status, step.what, step.screenLabel, '', '', '', '', '', '', '']);
+    rows.push([journey.quarter, step.title, step.status, step.what, step.screenLabel, '', '', '', '', '', '', '', '']);
     for (const r of step.returns) {
       rows.push([
         journey.quarter, `${step.title} — ${r.state}`, step.status, `Permit ${r.permitNumber}`, step.screenLabel,
@@ -529,6 +557,7 @@ export function usQuarterJourneyCsvRows(journey: UsQuarter): string[][] {
         (r.taxCollectedCents / 100).toFixed(2),
         r.dueDate || 'not in the planning calendar',
         r.filed ? 'yes' : 'no',
+        changesSummary(r.changes),
       ]);
     }
   }
