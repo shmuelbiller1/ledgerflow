@@ -28,6 +28,17 @@ If I hear nothing, I'll build it with these defaults.
 
 Nothing a vendor sends would ever become a posted bill on its own; someone in your workspace reviews it first. *Default:* not started until you say you want it. Without your answers I'd have to guess at storage and access rules, and I won't guess at those.
 
+## Retried money requests from outside tools can post twice (#942, needs your decision; nothing changed yet)
+
+When an outside tool using an API key sends a transaction, a payment or an intercompany entry, and then sends it again (a timeout, a double click), the second copy is posted too, unless the tool included an `Idempotency-Key`. LedgerFlow's own screens always include one, so this only affects API integrations. The server can't simply ignore repeats with the same content: two identical entries can both be real (two coffees on the same day).
+
+Options:
+1. **Require the key for API-key callers** on these three routes: a request without one gets a clear 400 explaining how to add it. Stripe supports the same header but leaves it optional, so this is stricter than Stripe; it is the only option that fully prevents double posts. It breaks integrations that don't send the key yet, so I'd announce it in the API docs first.
+2. **Ignore exact repeats from the same key within a short window** (for example 60 seconds). Nothing breaks, but a genuine second identical entry within that window would be refused.
+3. **Leave it as it is** and document the header.
+
+Default: nothing changed yet. My recommendation is option 1, after a notice in the API docs. Tell me which option you want and I'll build it.
+
 ## Creating an API key now needs a sign-in from the last 30 minutes (#941, default used: 30 minutes)
 
 Before, any open session could create a workspace API key, even a session from days ago that was only refreshed. Now an owner whose last real sign-in is older than 30 minutes is told to sign out and sign in again, then try once more. A stolen, long-lived session can no longer mint keys. Tell me if you want a different window, or a sign-in prompt inside the API key screen instead of the message.
