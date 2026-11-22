@@ -22,7 +22,9 @@ on:
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Two workers, not four: every Playwright invocation boots its own cold dev server, and the
+    # first parallel pass over the whole suite can transiently fail module fetches on the runner.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -48,7 +50,7 @@ jobs:
         # job log is not always reachable from a reviewer's tools.
         run: |
           set +e
-          node_modules/.bin/playwright test $SPEC --grep "$SCREENS" --update-snapshots --retries=0 --reporter=list,json
+          node_modules/.bin/playwright test $SPEC --grep "$SCREENS" --update-snapshots --retries=0 --workers=2 --reporter=list,json
           status=$?
           node scripts/playwright-failures.mjs "$PLAYWRIGHT_JSON_OUTPUT_NAME" --summary "$GITHUB_STEP_SUMMARY"
           exit $status
@@ -67,7 +69,7 @@ jobs:
         # transiently fail module fetches; the retry runs against the warmed server.
         run: |
           status=0
-          node_modules/.bin/playwright test $SPEC --grep "$SCREENS" --retries=1 --reporter=list,html,json || status=$?
+          node_modules/.bin/playwright test $SPEC --grep "$SCREENS" --retries=1 --workers=2 --reporter=list,html,json || status=$?
           node scripts/playwright-failures.mjs "$PLAYWRIGHT_JSON_OUTPUT_NAME" --summary "$GITHUB_STEP_SUMMARY"
           exit "$status"
       - uses: actions/upload-artifact@v4
