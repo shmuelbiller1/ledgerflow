@@ -113,6 +113,9 @@ test('A-152 screen: a capped list is called provisional while it loads', () => {
   assert.match(screen.getByRole('alert').textContent ?? '', /provisional/);
 });
 
+/** The delta text in a "Since filed" cell is wrapped in parentheses; quote it for the regex. */
+const quoted = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /** T-08: the copy the server kept when the month's return was filed (i1 and i2, bill b1). */
 const filedCopy = {
   startDate: '2026-09-01', endDate: '2026-09-30', registration: 'vat:IL:514000000',
@@ -138,8 +141,8 @@ test('A-152 screen: T-08 the changes since a return was filed are shown box by b
   });
   const table = screen.getByRole('table', { name: /The VAT report each registration files for this month/ });
   assert.match(table.textContent ?? '', /Since filed/);
-  assert.match(table.textContent ?? '', new RegExp(`Tax on sales : filed ${formatCurrency(198_000, 'ILS')}, now ${formatCurrency(196_200, 'ILS')}(${formatCurrency(-1_800, 'ILS')})`.replace(/\(/g, '\\(').replace(/\)/g, '\\)')));
-  assert.match(table.textContent ?? '', new RegExp(`Sales excluding tax : filed ${formatCurrency(1_100_000, 'ILS')}, now ${formatCurrency(1_090_000, 'ILS')}(${formatCurrency(-10_000, 'ILS')})`.replace(/\(/g, '\\(').replace(/\)/g, '\\)')));
+  assert.match(table.textContent ?? '', new RegExp(`Tax on sales : filed ${quoted(formatCurrency(198_000, 'ILS'))}, now ${quoted(formatCurrency(196_200, 'ILS'))}\\(${quoted(formatCurrency(-1_800, 'ILS'))}\\)`));
+  assert.match(table.textContent ?? '', new RegExp(`Sales excluding tax : filed ${quoted(formatCurrency(1_100_000, 'ILS'))}, now ${quoted(formatCurrency(1_090_000, 'ILS'))}\\(${quoted(formatCurrency(-10_000, 'ILS'))}\\)`));
 });
 
 test('A-152 screen: T-08 nothing changed since filing says so; no filed copy says nothing', () => {
