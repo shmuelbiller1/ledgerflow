@@ -105,7 +105,9 @@ describe('SBX-2 Part 3 remembered decisions (PostgreSQL)', { skip: !url && 'LF_T
     assert.deepEqual(rows.map(r => [r.field, r.cases, r.choices]), [['accountId', 5, { 'acc-1': 5 }], ['taxCode', 5, { VAT20: 5 }]]);
     assert.deepEqual(await listRemembered(live.pool, b), [], 'another workspace sees nothing');
     assert.equal(suggestFor('bill.create', { payee: 'Ocean Supplies' }, await listRemembered(live.pool, b)).length, 0);
-    const stored = JSON.stringify((await live.pool.query('select * from assistant."rememberedDecisions" where workspace_id = $1', [a])).rows);
+    // only what the step could have put there: the random workspace id and the timestamp could contain "1234" by chance
+    const stored = JSON.stringify((await live.pool.query('select * from assistant."rememberedDecisions" where workspace_id = $1', [a])).rows
+      .map(({ workspace_id: _ws, updated_at: _u, ...row }) => row));
     assert.ok(!stored.includes('secret memo') && !stored.includes('1234'), 'no memo or amount is stored');
     assert.equal(await forgetRemembered(live.pool, a, { command: 'bill.create', subject: 'payee:ocean supplies', field: 'taxCode' }), 1);
     assert.deepEqual((await listRemembered(live.pool, a)).map(r => r.field), ['accountId']);
@@ -113,15 +115,22 @@ describe('SBX-2 Part 3 remembered decisions (PostgreSQL)', { skip: !url && 'LF_T
     assert.deepEqual(await listRemembered(live.pool, a), []);
   });
 
-  test('the forget command deletes before it answers, and a failed delete fails the command', async t => {
+  test('the forget command deletes in the command transaction: it commits with it or rolls back with it', async t => {
     const ws = `rd-${randomUUID()}`;
     t.after(() => live.pool.query('delete from assistant."rememberedDecisions" where workspace_id = $1', [ws]));
     await recordOutcome(live.pool, ws, [{ command: 'bill.create', input: bill('acc-1') }], 'accepted');
-    const ctx = (db: unknown) => ({ db, workspaceId: ws, afterCommit: () => { throw new Error('no after-commit work'); } }) as never;
-    assert.deepEqual(await forgetRememberedCommand.handler(ctx(live), {} as never, {}), { forgotten: 1 });
+    const ctx = { db: live, workspaceId: ws, afterCommit: () => { throw new Error('no after-commit work'); } } as never;
+    // the audit line or the commit fails after the delete: nothing is forgotten
+    await assert.rejects(live.runTransaction(async tx => {
+      assert.deepEqual(await forgetRememberedCommand.handler(ctx, tx as never, {}), { forgotten: 1 });
+      throw new Error('audit write failed');
+    }, { maxAttempts: 1 }), /audit write failed/);
+    assert.equal((await listRemembered(live.pool, ws)).length, 1, 'the delete rolled back with the command');
+    // the command commits: the choice is gone
+    assert.deepEqual(await live.runTransaction(tx => forgetRememberedCommand.handler(ctx, tx as never, {})), { forgotten: 1 });
     assert.deepEqual(await listRemembered(live.pool, ws), []);
-    const broken = { pool: { query: async () => { throw new Error('db down'); } } };
-    await assert.rejects(forgetRememberedCommand.handler(ctx(broken), {} as never, {}), /db down/);
+    // outside a database transaction there is nothing to delete with
+    await assert.rejects(forgetRememberedCommand.handler(ctx, {} as never, {}), /not available here/);
   });
 
   test('the assistant role cannot read or write remembered decisions', async () => {

@@ -13,6 +13,7 @@
  * payee/vendor/customer id or name); no amounts, memos or other book text.
  */
 import { z } from 'zod';
+import { transactionRunner } from '../db/pg/commandStage';
 import type { CommandDefinition } from '../commands/types';
 import type { Runner } from '../db/pg/sql';
 
@@ -179,13 +180,13 @@ export const forgetRememberedCommand: CommandDefinition<typeof forgetRememberedI
   peopleOnly: true,
   input: forgetRememberedInput,
   roles: ['owner', 'accountant', 'bookkeeper'],
-  async handler(ctx, _tx, input) {
-    const pool = (ctx.db as unknown as { pool?: Runner }).pool;
-    if (!pool) throw new Error('Remembered choices are not available here');
-    // the table lives outside the document store, so the delete runs here, before the command commits:
-    // a failed delete fails the command (an error, no audit line, safe to retry), never a false success
+  async handler(ctx, tx, input) {
+    // the delete runs on the command's own connection, so it commits or rolls back with the audit line and
+    // the idempotency record; a serializable retry starts a fresh transaction and deletes (and counts) again
+    const runner = (tx as unknown as { [transactionRunner]?: () => Runner })[transactionRunner]?.();
+    if (!runner) throw new Error('Remembered choices are not available here');
     const key = input.command && input.subject && input.field ? { command: input.command, subject: input.subject, field: input.field } : undefined;
-    return { forgotten: await forgetRemembered(pool, ctx.workspaceId, key) };
+    return { forgotten: await forgetRemembered(runner, ctx.workspaceId, key) };
   },
   async preview(_ctx, input) {
     return { title: 'Forget remembered choices', lines: [input.command ? `Forget ${input.field} for ${input.subject} (${input.command})` : 'Forget every remembered choice for these books'] };
