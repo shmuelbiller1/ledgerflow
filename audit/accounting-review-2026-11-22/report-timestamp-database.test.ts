@@ -1,0 +1,14 @@
+// Synthetic legacy timestamps seeded in isolated Postgres; current transaction write validation is stricter.
+import test from 'node:test';import assert from 'node:assert/strict';import crypto from'node:crypto';import type{AddressInfo}from'node:net';
+const url=process.env.LF_TEST_DATABASE_URL;const valid=url&&new URL(url).hostname==='127.0.0.1'&&new URL(url).port==='55439'&&new URL(url).pathname==='/lf_test';
+test('report query drops legacy timestamp on inclusive end date',{skip:!valid&&'dedicated local audit database required'},async()=>{
+ process.env.DATABASE_URL=url;const express=(await import('express')).default;const{getDb}=await import('../../src/server/db/firestore');const{reportRouter}=await import('../../src/server/routes/reportRoutes');const{computeProfitAndLoss}=await import('../../src/server/reports/computeReports');const db=getDb();const ws=`ws_audit_date_${crypto.randomBytes(5).toString('hex')}`;const id=(x:string)=>`${ws}_${x}`;const accounts=[{id:id('cash'),workspaceId:ws,name:'Cash',type:'asset',category:'Cash',code:'1000'},{id:id('sales'),workspaceId:ws,name:'Sales',type:'revenue',category:'Revenue',code:'4000'}];
+ const app=express();app.use((req,_res,next)=>{(req as never as{user:{uid:string}}).user={uid:'audit-owner'};next();});app.use('/api/v1/reports',reportRouter);const server=app.listen(0,'127.0.0.1');await new Promise<void>(r=>server.once('listening',r));
+ try{
+  await db.collection('workspaces').doc(ws).set({uid:'audit-owner',members:['audit-owner'],name:'Synthetic legacy dates',currency:'USD'});for(const a of accounts)await db.collection('chartAccounts').doc(a.id).set(a);
+  for(const [key,date] of [['day','2026-05-31'],['timestamp','2026-05-31T12:00:00Z']])await db.collection('transactions').doc(id(key)).set({id:id(key),workspaceId:ws,uid:'audit-owner',date,status:'completed',type:'actual',currency:'USD',exchangeRate:1,lines:[{accountId:id('cash'),amountCents:10000},{accountId:id('sales'),amountCents:-10000}]});
+  const all=(await db.collection('transactions').where('workspaceId','==',ws).get()).docs.map(d=>({...d.data(),id:d.id}));const pure=computeProfitAndLoss(accounts as never,all as never,'2026-05-01','2026-05-31');assert.equal(pure.income.total,20000);
+  const res=await fetch(`http://127.0.0.1:${(server.address()as AddressInfo).port}/api/v1/reports/profit-and-loss?workspaceId=${ws}&startDate=2026-05-01&endDate=2026-05-31`);const data=await res.json();assert.equal(res.status,200,JSON.stringify(data));assert.equal(data.income.total,10000);
+  console.log(JSON.stringify({storedEntries:all.length,pureInclusiveRevenue:pure.income.total,routeRevenue:data.income.total}));
+ }finally{await new Promise<void>(r=>server.close(()=>r()));for(const table of ['transactions','chartAccounts','workspaces'])await db.pool.query(`delete from public."${table}" where workspace_id=$1 or id=$1`,[ws]);await db.terminate();}
+});

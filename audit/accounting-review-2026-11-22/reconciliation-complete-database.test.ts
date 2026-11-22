@@ -1,0 +1,17 @@
+// Synthetic rows, actual reconciliation route with injected identity and isolated Postgres.
+import test from'node:test';import assert from'node:assert/strict';import crypto from'node:crypto';import type{AddressInfo}from'node:net';
+const url=process.env.LF_TEST_DATABASE_URL;const valid=url&&new URL(url).hostname==='127.0.0.1'&&new URL(url).port==='55439'&&new URL(url).pathname==='/lf_test';
+test('completion records arbitrary statement balance and clears unrelated future entries',{skip:!valid&&'dedicated local audit database required'},async()=>{
+ process.env.DATABASE_URL=url;const express=(await import('express')).default;const{getDb}=await import('../../src/server/db/firestore');const{transactionRouter}=await import('../../src/server/routes/transactionRoutes');const db=getDb();const ws=`ws_audit_rec_${crypto.randomBytes(5).toString('hex')}`;const id=(s:string)=>`${ws}_${s}`;
+ const app=express();app.use(express.json());app.use((req,_res,next)=>{(req as never as{user:{uid:string}}).user={uid:'audit-owner'};next();});app.use('/api/v1/transactions',transactionRouter);const server=app.listen(0,'127.0.0.1');await new Promise<void>(r=>server.once('listening',r));const base=`http://127.0.0.1:${(server.address()as AddressInfo).port}`;
+ try{
+  await db.collection('workspaces').doc(ws).set({uid:'audit-owner',members:['audit-owner'],name:'Synthetic reconciliation',currency:'USD'});
+  for(const [name,type,category]of[['bank','asset','Cash'],['sales','revenue','Revenue'],['expense','expense','Expense'],['payable','liability','Payables']])await db.collection('chartAccounts').doc(id(name)).set({workspaceId:ws,name,type,category});
+  async function journal(name:string,date:string,debit:string,credit:string,cents:number){await db.collection('transactions').doc(id(name)).set({id:id(name),workspaceId:ws,uid:'audit-owner',date,description:name,status:'completed',type:'actual',currency:'USD',totalAmountCents:cents,lines:[{accountId:id(debit),amountCents:cents},{accountId:id(credit),amountCents:-cents}]});}
+  await journal('receipt','2026-05-01','bank','sales',10000);await journal('future','2026-06-01','expense','payable',2000);
+  const res=await fetch(`${base}/api/v1/transactions/reconciliation/complete`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({workspaceId:ws,accountId:id('bank'),statementDate:'2026-05-31',statementBalanceCents:0,reconciledTransactionIds:[id('receipt'),id('future')]})});const body=await res.json();assert.equal(res.status,200,JSON.stringify(body));
+  const rec=(await db.collection('reconciliations').doc(body.reconciliationId).get()).data()!;const receipt=(await db.collection('transactions').doc(id('receipt')).get()).data()!;const future=(await db.collection('transactions').doc(id('future')).get()).data()!;
+  assert.deepEqual([rec.statementBalanceCents,rec.status,receipt.status,receipt.isCleared,future.status,future.isCleared],[0,'completed','reconciled',true,'reconciled',true]);
+  console.log(JSON.stringify({statement:rec.statementBalanceCents,record:rec.status,receipt:receipt.status,receiptAmount:10000,futureDate:future.date,futureEntryAccount:'no bank leg',future:future.status}));
+ }finally{await new Promise<void>(r=>server.close(()=>r()));for(const table of['reconciliations','transactions','chartAccounts','auditLogs','idempotencyKeys','workspaces'])await db.pool.query(`delete from public."${table}" where workspace_id=$1 or id=$1`,[ws]);await db.terminate();}
+});
