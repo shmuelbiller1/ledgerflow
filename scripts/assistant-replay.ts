@@ -184,6 +184,8 @@ async function main() {
   // the measured cost of a model that has no price row yet; the table's cost column stays "unknown" for it.
   let billedUsd = 0; let billedCalls = 0;
   const countingFetch: typeof fetch = async (input, init) => {
+    // a hard cap per run so a comparison cannot run up a bill (ASSISTANT_REPLAY_MAX_CALLS, default 150 model calls)
+    if (billedCalls >= Number(process.env.ASSISTANT_REPLAY_MAX_CALLS ?? 150)) throw new Error('replay call cap reached');
     const res = await fetch(input, init);
     try { const cost = (await res.clone().json() as { usage?: { cost?: number } }).usage?.cost; if (typeof cost === 'number') { billedUsd += cost; billedCalls++; } } catch { /* not JSON */ }
     return res;
@@ -206,7 +208,7 @@ async function main() {
   const currentOnly = process.argv.includes('--current-only');
   // --single-model: every model turn goes to ASSISTANT_REPLAY_MODEL (no two-model rule), so candidates compare like for like
   const single = process.argv.includes('--single-model');
-  if (single) runs.splice(0, runs.length, [`Model ${model} for every model turn (cache and tools by area on, no two-model rule)`, { ...CURRENT, label: 'single', modelRule: false }]);
+  if (single) runs.splice(0, runs.length, [`Model ${model} for every model turn (cache and tools by area on, no two-model rule)`, { ...CURRENT, label: 'single', modelRule: false, passes: process.argv.includes('--one-pass') ? 1 : 2 }]);
   for (const [title, mode] of runs) {
     if (currentOnly && mode !== CURRENT && !single) continue;
     const rows = await replay(mode, opts);
