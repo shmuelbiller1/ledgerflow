@@ -136,7 +136,16 @@ export function bookTool(name: string, args: Record<string, unknown>): unknown {
       const pl = month ? profitAndLoss(month, month) : profitAndLoss('2026-01', thisMonth);
       return { answer: { revenueCents: pl.revenueCents, expensesCents: pl.expensesCents, netProfitCents: pl.netProfitCents }, understood: { period: month ?? 'this year' } };
     }
-    case 'explain_number': return { totalCents: profitAndLoss('2026-01', thisMonth).revenueCents, lines: Object.entries(profitAndLoss('2026-01', thisMonth).revenue).map(([label, cents]) => ({ label, cents })) };
+    case 'explain_number': {
+      // the requested accounts over the requested period (whole months); balance accounts at the end date
+      const ids = Array.isArray(args.accountIds) ? args.accountIds as string[] : [];
+      const from = (s(args.startDate) || '2026-01-01').slice(0, 7), to = (s(args.endDate) || TODAY).slice(0, 7);
+      const pl = profitAndLoss(from, to);
+      const figures: Record<string, number> = { ...pl.revenue, ...pl.expenses, Cash: balances.acc_cash, Bank: balances.acc_bank };
+      const lines = ids.map(id => accounts.find(a => a.id === id)).filter(Boolean).map(a => ({ accountId: a!.id, label: a!.name, cents: figures[a!.name] ?? 0 }));
+      if (!lines.length) return { error: 'Name the accounts to explain (accountIds)' };
+      return { startDate: from, endDate: to, totalCents: lines.reduce((t, l) => t + l.cents, 0), lines };
+    }
     case 'calculate': { const v = safeCalc(s(args.expression)); return v === null ? { error: 'Only numbers and + - * / ( ) % are allowed' } : { expression: args.expression, amount: v, cents: Math.round(v * 100) }; }
     case 'remembered_choices': return { suggestions: [] };
     case 'list_proposals': return { proposals: [] };

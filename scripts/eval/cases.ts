@@ -18,6 +18,13 @@ export function mentions(answer: string, cents: number): boolean {
 }
 const proposals = (o: Outcome) => o.calls.filter(c => c.name.startsWith('propose_'));
 const argsText = (o: Outcome) => JSON.stringify(proposals(o).map(c => c.args)).toLowerCase();
+/** Every `...Cents` number in a proposal's arguments, at any depth: the schemas declare amounts in cents. */
+function centsValues(v: unknown, out: number[] = []): number[] {
+  if (Array.isArray(v)) v.forEach(x => centsValues(x, out));
+  else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { if (/cents$/i.test(k) && typeof x === 'number') out.push(x); else centsValues(x, out); }
+  return out;
+}
+const hasCents = (calls: Outcome['calls'], cents: number) => calls.some(c => centsValues(c.args).includes(cents));
 const asks = (o: Outcome) => /\?/.test(o.answer);
 const readTools = (o: Outcome) => o.calls.some(c => !c.name.startsWith('propose_') && c.name !== 'find_command');
 const ok = (pass: boolean, why: string) => ({ pass, why });
@@ -30,8 +37,8 @@ const chaseFirst = [...owedByCustomer()].sort((a, b) => b.overdueCents - a.overd
 
 export const CASES: EvalCase[] = [
   { id: 'payment', q: 'Record a payment of 500 from Acme Ltd for INV-1001.', check: o => {
-    const p = proposals(o).filter(c => /payment/.test(c.name)); const a = argsText(o);
-    return ok(p.length > 0 && /(^|\D)(500|50000)(\D|$)/.test(a) && /(inv-1001|inv_1001)/.test(a), p.length ? 'payment drafted; checked amount 500 and INV-1001' : 'no payment drafted');
+    const p = proposals(o).filter(c => /payment/.test(c.name));
+    return ok(p.length > 0 && hasCents(p, 50_000) && /(inv-1001|inv_1001)/.test(JSON.stringify(p.map(c => c.args)).toLowerCase()), p.length ? 'payment drafted; checked 50,000 cents ($500) and INV-1001' : 'no payment drafted');
   } },
   { id: 'invoice', q: 'Create an invoice for Acme Ltd for two hours of consulting.', check: o => {
     const p = proposals(o).filter(c => /invoice/.test(c.name)); const a = argsText(o);
@@ -40,7 +47,7 @@ export const CASES: EvalCase[] = [
   } },
   { id: 'bill', q: 'Make a bill from the electricity company for 320.', check: o => {
     const p = proposals(o).filter(c => /bill/.test(c.name)); const a = argsText(o);
-    return ok(p.length > 0 && /(ven_elec|city electric)/.test(a) && /(^|\D)(320|32000)(\D|$)/.test(a), p.length ? 'bill drafted; checked City Electric and 320' : 'no bill drafted');
+    return ok(p.length > 0 && /(ven_elec|city electric)/.test(a) && hasCents(p, 32_000), p.length ? 'bill drafted; checked City Electric and 32,000 cents ($320)' : 'no bill drafted');
   } },
   { id: 'profit-drop', q: 'Why is my profit lower than last month?', check: o => ok(
     proposals(o).length === 0 && mentions(o.answer, plLast.netProfitCents - plThis.netProfitCents) && /sales|consulting/i.test(o.answer),
@@ -54,7 +61,7 @@ export const CASES: EvalCase[] = [
   { id: 'move-project', q: 'Move all of last month\'s office costs to a new project.', check: o => ok(proposals(o).length === 0 && asks(o), 'no project named: must ask which project before drafting') },
   { id: 'recurring', q: 'Set up a monthly invoice for Beta Corp of 1,000.', check: o => {
     const a = argsText(o); const p = proposals(o);
-    if (p.length) return ok(/(beta|cus_beta)/.test(a) && /(^|\D)(1000|100000)(\D|$)/.test(a.replace(/,/g, '')) && /month/.test(a + p.map(c => c.name).join(' ')), 'drafted; checked Beta, 1,000 and monthly');
+    if (p.length) return ok(/(beta|cus_beta)/.test(a) && hasCents(p, 100_000) && /month/.test(a + p.map(c => c.name).join(' ')), 'drafted; checked Beta, 100,000 cents ($1,000) and monthly');
     return ok(asks(o), 'no draft: passes only if it asks a needed detail (start date, item)');
   } },
   { id: 'afford-hire', q: 'Can I afford to hire someone next quarter?', check: o => ok(

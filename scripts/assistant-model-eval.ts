@@ -42,13 +42,22 @@ function meteredFetch(spend: Spend, total: { calls: number }, cap: number): type
   };
 }
 
-const withTimeout = <T>(p: Promise<T>, ms: number) => Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`timed out after ${ms / 1000}s`)), ms))]);
 
-/** One question through the real turn loop; every tool call (name and arguments) is kept for grading. */
-async function runCase(client: ReturnType<typeof openAiCompatibleClient>, model: string, systemPrompt: string, q: string) {
+/**
+ * One question through the real turn loop; every tool call (name and arguments) is kept for grading.
+ * On timeout the in-flight request is aborted and later calls are refused, and the turn is awaited
+ * before the next case, so a timed-out turn never keeps spending in the background.
+ */
+export async function runCase(baseUrl: string, doFetch: typeof fetch, model: string, systemPrompt: string, q: string, timeoutMs = TURN_TIMEOUT_MS) {
   const commands = ownerCommands();
   const tools = assistantToolsFor(commands, q)[0].functionDeclarations as FunctionDeclaration[];
   const calls: Outcome['calls'] = [];
+  const stop = new AbortController();
+  const caseFetch: typeof fetch = async (input, init) => {
+    if (stop.signal.aborted) throw new Error('turn timed out');
+    return doFetch(input, { ...init, signal: stop.signal });
+  };
+  const client = openAiCompatibleClient({ baseUrl, fetchImpl: caseFetch });
   const callTool = async (name: string, args: Record<string, unknown>) => {
     calls.push({ name, args });
     if (name === 'find_command') return { matches: findAssistantCommands(commands, String(args.words ?? ''), typeof args.limit === 'number' ? args.limit : undefined) };
@@ -57,12 +66,15 @@ async function runCase(client: ReturnType<typeof openAiCompatibleClient>, model:
   };
   const discover = (tool: string, result: unknown) => tool === 'find_command'
     ? ((result as { matches?: Array<{ tool?: FunctionDeclaration }> }).matches ?? []).flatMap(m => (m.tool ? [m.tool] : [])) : [];
+  const timer = setTimeout(() => stop.abort(), timeoutMs);
   try {
-    const { answer, metric } = await withTimeout(runAssistantTurn({ client, model, systemPrompt, tools, question: q, callTool, discover, maxSteps: 6 }), TURN_TIMEOUT_MS);
-    return { outcome: { answer, calls } as Outcome, metric };
+    const { answer, metric } = await runAssistantTurn({ client, model, systemPrompt, tools, question: q, callTool, discover, maxSteps: 6 });
+    // an endpoint error, the call cap, a timeout or running out of steps comes back as ok: false, not a throw
+    const error = stop.signal.aborted ? `timed out after ${timeoutMs / 1000}s` : metric.ok ? undefined : 'no final answer (endpoint error, call cap or step limit)';
+    return { outcome: { answer, calls, ...(error ? { error } : {}) } as Outcome, metric };
   } catch (err) {
     return { outcome: { answer: '', calls, error: err instanceof Error ? err.message : String(err) } as Outcome, metric: null };
-  }
+  } finally { clearTimeout(timer); }
 }
 
 /** Renders each receipt to a PNG with the pre-installed browser. */
@@ -146,11 +158,11 @@ async function main() {
   const detail: string[] = [];
   for (const model of models) {
     const spend: Spend = { usd: 0, calls: 0 };
-    const client = openAiCompatibleClient({ baseUrl, fetchImpl: meteredFetch(spend, total, cap) });
+    const doFetch = meteredFetch(spend, total, cap);
     let correct = 0, finished = 0;
     detail.push('', `#### ${model}`, '', '| question | result | why |', '|---|---|---|');
     for (const c of CASES) {
-      const { outcome } = await runCase(client, model, systemPrompt, c.q);
+      const { outcome } = await runCase(baseUrl, doFetch, model, systemPrompt, c.q);
       const g = outcome.error ? { pass: false, why: outcome.error } : c.check(outcome);
       if (!outcome.error) finished++;
       if (g.pass) correct++;
