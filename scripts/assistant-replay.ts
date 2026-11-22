@@ -14,7 +14,8 @@ import fs from 'node:fs';
 import type { FunctionDeclaration } from '@google/genai';
 import { defaultAssistantTools, findAssistantCommands } from '../src/server/services/assistantCatalog';
 import { stepCommand, stepCommandNames } from '../src/server/commands/sandboxStepCommands';
-import { runAssistantTurn, turnMetric, type AssistantTurnMetric } from '../src/server/services/assistantTurn';
+import { type AssistantTurnMetric, type ModelClient } from '../src/server/services/assistantTurn';
+import { answerTurn } from '../src/server/services/assistantRouter';
 import { openAiCompatibleClient } from '../src/server/services/openAiCompatibleClient';
 
 /** `code` = the books can answer it exactly (Part 2 should answer without a model); `model` = needs the model. */
@@ -51,18 +52,19 @@ export const REPLAY_QUESTIONS: ReadonlyArray<{ q: string; kind: 'code' | 'model'
   { q: 'Summarise how the business did this year in plain words.', kind: 'model', area: 'reports' },
 ];
 
-/** Fixed test answers for each read tool, so a model run never touches real books. */
+/** Fixed test answers in the read tools' real shapes (sandboxTools.ts / the report routes), so a run never touches real books. */
 const FIXTURE: Record<string, unknown> = {
-  ask_books: { answerCents: 1_234_500, currency: 'USD', source: 'cash report (test data)' },
-  run_report: { report: 'test', totalCents: 4_200_000, currency: 'USD', source: 'test fixture' },
-  explain_number: { totalCents: 4_200_000, lines: [{ label: 'Sales', cents: 4_200_000, source: 'invoices (test)' }] },
-  get_record: { id: 'INV-1001', total: 1200, status: 'open', customer: 'Acme Ltd' },
-  search_records: { records: [{ id: 'cus_1', name: 'Acme Ltd' }] },
-  list_records: { records: [{ id: 'pay_1', amount: 500 }, { id: 'pay_2', amount: 750 }] },
-  calculate: { result: '1462.50' },
+  ask_books: { question: 'test', today: '2026-11-22', reading: { problem: null, understood: { accounts: ['Cash'], label: null, period: 'up to today' }, sense: 'net' }, answer: { totalCents: 1_234_500, answerCents: 1_234_500, sense: 'net' } },
+  run_report: { current: 300_000, '1-30': 120_000, '31-60': 50_000, '61-90': 0, '90+': 25_000, total: 495_000 },
+  explain_number: { totalCents: 4_200_000, lines: [{ label: 'Sales', cents: 4_200_000 }] },
+  get_record: { collection: 'invoices', record: { id: 'inv_1', number: 'INV-1001', total: 1200, status: 'open' } },
+  search_records: { text: 'test', matches: [{ collection: 'invoices', id: 'inv_1', matched: 'number', record: { id: 'inv_1', number: 'INV-1001', name: 'Acme Ltd' } }], scannedPerCollection: 500 },
+  list_records: { collection: 'payments', records: [{ id: 'pay_1', reference: 'PAY-1' }, { id: 'pay_2', reference: 'PAY-2' }], nextCursor: null },
+  calculate: { expression: 'test', cents: 146_250, amount: 1462.5 },
   list_proposals: { proposals: [] },
   preview_proposal: { proposal: null },
 };
+const REPLAY_CURRENCY = 'USD';
 
 const ownerCommands = () => stepCommandNames().map(stepCommand).filter(c => c.roles.some(r => r === 'owner'));
 
@@ -123,24 +125,23 @@ async function main() {
   lines.push(`Replay questions: ${REPLAY_QUESTIONS.length} (${REPLAY_QUESTIONS.filter(x => x.kind === 'code').length} the books can answer exactly, ${REPLAY_QUESTIONS.filter(x => x.kind === 'model').length} that need the model).`);
   const rows: Array<{ kind: string; metric: AssistantTurnMetric }> = [];
   const measured = Boolean(model && baseUrl);
-  if (measured) {
-    const client = openAiCompatibleClient({ baseUrl: baseUrl! });
-    for (const { q, kind } of REPLAY_QUESTIONS) {
-      const { metric } = await runAssistantTurn({ client, model: model!, systemPrompt, tools, question: q,
-        callTool: async (name, args) => replayTool(name, args), discover: replayDiscover });
-      rows.push({ kind, metric });
-    }
-    lines.push(`Model: ${model} via ${baseUrl}.`);
-  } else {
-    lines.push('No model configured (ASSISTANT_REPLAY_MODEL / ASSISTANT_REPLAY_BASE_URL): every question would go to the model today; token, time and cost columns need a model run.');
-    for (const { kind } of REPLAY_QUESTIONS) {
-      rows.push({ kind, metric: turnMetric({ path: 'model', traces: [], toolsOffered: tools.length, toolsCalled: [], answerMs: 0, totalMs: 0, ok: false }) });
-    }
+  // Without a model the router still answers what code can; the rest are recorded as not measured.
+  const noModel: ModelClient = { models: { generateContent: async () => { throw new Error('no model configured'); } } };
+  const client = measured ? openAiCompatibleClient({ baseUrl: baseUrl! }) : noModel;
+  for (const { q, kind } of REPLAY_QUESTIONS) {
+    const { metric } = await answerTurn({ client, model: model ?? 'none', systemPrompt, tools, question: q, currency: REPLAY_CURRENCY,
+      callTool: async (name, args) => replayTool(name, args), discover: replayDiscover });
+    rows.push({ kind, metric });
   }
+  const codeKind = REPLAY_QUESTIONS.filter(x => x.kind === 'code').length;
+  const codeAnswered = rows.filter(r => r.kind === 'code' && r.metric.path === 'code').length;
+  const modelKindOnCode = rows.filter(r => r.kind === 'model' && r.metric.path === 'code').length;
+  lines.push(`Answered without a model: ${codeAnswered} of ${codeKind} questions the books can answer; questions that need the model answered by code: ${modelKindOnCode} (must be 0).`);
+  lines.push(measured ? `Model: ${model} via ${baseUrl}.` : 'No model configured (ASSISTANT_REPLAY_MODEL / ASSISTANT_REPLAY_BASE_URL): model-path tokens, times and cost are not measured.');
   const table = summarise(rows);
   const header = '| path | turns | ok | model calls | median input tokens | median output tokens | median tools offered | median answer ms (no streaming yet) | median total ms | total cost (cents) |';
   const md = [header, '|---|---|---|---|---|---|---|---|---|---|',
-    ...table.map(r => measured
+    ...table.map(r => measured || r.path === 'code'
       ? `| ${r.path} | ${r.turns} | ${r.ok} | ${r.modelCalls} | ${r.medianInputTokens} | ${r.medianOutputTokens} | ${r.medianToolsOffered} | ${r.medianAnswerMs} | ${r.medianTotalMs} | ${r.totalCostCents === null ? 'unknown (no price row)' : r.totalCostCents.toFixed(4)} |`
       : `| ${r.path} | ${r.turns} | not measured | not measured | not measured | not measured | ${r.medianToolsOffered} | not measured | not measured | not measured |`)];
   const out = [...lines, '', ...md].join('\n');
