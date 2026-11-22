@@ -35,6 +35,10 @@ const MUST_GO_TO_MODEL = [
   'What were my net sales this month?',
   'What were my sales in Tel Aviv this month?', // an unknown place is ignored by ask_books
   'What is my profit this year?',
+  'What were my sales today?', // readPeriod does not read these: it would answer this year to date
+  'What were my sales this quarter?',
+  'What were my sales last week?',
+  'What were my sales in March?',
   '',
 ];
 
@@ -44,6 +48,9 @@ const MUST_NOT_GO_TO_MODEL: Array<[string, CodeRoute['tool']]> = [
   ['How much is in the bank account today?', 'ask_books'],
   ['What were my sales this month?', 'ask_books'],
   ['What did I spend last month?', 'ask_books'],
+  ['What were my sales in March 2026?', 'ask_books'],
+  ['What were my sales in Q1 2026?', 'ask_books'],
+  ['What was my revenue in 2025?', 'ask_books'],
   ['How much do customers owe in total?', 'run_report'],
   ['How much do I owe suppliers?', 'run_report'],
   ['Show invoice INV-1001.', 'search_records'],

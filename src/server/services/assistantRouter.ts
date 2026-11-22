@@ -35,6 +35,11 @@ const VAGUE = /\b(something|anything|stuff|things?|looks? off|weird|wrong)\b/i;
 const QUALIFIER = /\b(exclud\w*|includ\w*|except|without|minus|less|net|profit|gross|only|just|but|not|no|per|each|every|by|average|avg|mean|median|total of|compared?|versus|vs|than|growth|change|increase|decrease|trend|share|ratio|margin|from|to|in|at|between|since|until|before|after|for|of)\b|%|percent/i;
 
 const MAX_ROUTED_LENGTH = 120;
+/** The periods ask_books' readPeriod understands; removed before looking for any other time word. */
+const READ_PERIOD = new RegExp(String.raw`\b(this|last) (fiscal )?(year|month)\b|\byear to date\b|\bytd\b|\bq[1-4] (19|20)\d{2}\b|\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec) (19|20)\d{2}\b|\b(19|20)\d{2}\b`, 'g');
+/** A readable period, with the "in" that often comes before it ("sales in March 2026"). */
+const READ_PERIOD_WITH_IN = new RegExp(String.raw`\b(in )?(?:${READ_PERIOD.source})`, 'g');
+const UNREAD_PERIOD = /\b(today|yesterday|tomorrow|tonight|now|day|days|daily|week|weeks|weekly|fortnight|month|months|monthly|quarter|quarters|quarterly|q[1-4]|year|years|yearly|annual|next|previous|recent|recently|ago|so far|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b/;
 /** search_records' default match limit (sandboxTools.ts): a full page may have been cut short */
 const SEARCH_RESULT_CAP = 20;
 const INVOICE_NO = /\binvoice\s+(?:no\.?\s*|number\s*|#\s*)?([A-Za-z]{1,6}-?\d{1,10})\b/i;
@@ -89,11 +94,14 @@ export function routeQuestion(raw: string): RouteDecision {
       && !QUALIFIER.test(q.replace(/\btoday\b|\bnow\b|\bin the bank( account)?\b/g, ''))) {
     return { path: 'code', route: { tool: 'ask_books', args: { question }, template: 'balance' } };
   }
-  // a figure from accounts and a period ("what were my sales this month"):
+  // a figure from accounts and a period ("what were my sales this month"): only the periods ask_books
+  // reads (readPeriod in askBooks.ts). Any other time word ("today", "this quarter", "last week", "March"
+  // without a year) would silently become this year to date, so the model answers those.
   // ask_books reads it with plain matching and refuses what it cannot place, so its answer decides.
   if (/^(what('s| is| was| were| did)|how much)\b/.test(q) && /\b(sales|revenue|income|spen[dt]|expenses?|costs?)\b/.test(q)
       && !/\b(balance|cash|bank)\b/.test(q)
-      && !QUALIFIER.test(q.replace(/\b(this|last) (month|year|quarter|week)\b|\btoday\b|\bin the bank( account)?\b/g, ''))) {
+      && !UNREAD_PERIOD.test(q.replace(READ_PERIOD, ' '))
+      && !QUALIFIER.test(q.replace(READ_PERIOD_WITH_IN, ' ').replace(/\bin the bank( account)?\b/g, ' '))) {
     return { path: 'code', route: { tool: 'ask_books', args: { question }, template: 'figure' } };
   }
 
