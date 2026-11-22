@@ -123,6 +123,19 @@ test('records and calculations are worded with their source', () => {
     'Invoice INV-1 (status open). Source: invoices records.');
   assert.equal(wordCodeAnswer(records, { text: 'INV-1', matches: [match({ id: 'i10', number: 'INV-10' })] }, 'USD'), null, 'no exact number: the model looks further');
   assert.equal(wordCodeAnswer(records, { text: 'INV-1', matches: [] }, 'USD'), null, 'the scan is capped: never claim the invoice does not exist');
+  // "is invoice X paid?" answers yes or no first; no status on the record: the model answers
+  const routed = routeQuestion('Is invoice INV-1002 paid?');
+  assert.ok(routed.path === 'code' && routed.route.tool === 'search_records' && routed.route.asksPaid, 'a paid question is marked yes/no');
+  for (const q of ['Is invoice INV-1 partially paid?', 'Is invoice INV-1 not paid?', 'Was invoice INV-1 paid on time?', 'Was invoice INV-1 paid late?', 'Is invoice INV-1 paid or overdue?', 'Was invoice INV-1 paid by card?']) {
+    assert.equal(routeQuestion(q).path, 'model', `${q} is not a plain yes/no on the status`);
+  }
+  const paid = { ...records, asksPaid: true } as const;
+  assert.equal(wordCodeAnswer(paid, { text: 'INV-1', matches: [match({ id: 'i1', number: 'INV-1', status: 'paid', dueDate: '2026-11-30' })] }, 'USD'),
+    'Yes. Invoice INV-1 (status paid, due 2026-11-30). Source: invoices records.');
+  assert.equal(wordCodeAnswer(paid, { text: 'INV-1', matches: [match({ id: 'i1', number: 'INV-1', status: 'partially_paid' })] }, 'USD'),
+    'No. Invoice INV-1 (status partially_paid). Source: invoices records.');
+  assert.equal(wordCodeAnswer(paid, { text: 'INV-1', matches: [match({ id: 'i1', number: 'INV-1' })] }, 'USD'), null);
+  assert.equal(wordCodeAnswer(paid, { text: 'INV-1', matches: [match({ id: 'i1', number: 'INV-1', status: 'paid', writtenOffCents: 5000 })] }, 'USD'), null, 'written off is not paid: the model explains it');
   const full = Array.from({ length: 20 }, (_, i) => match({ id: `i${i}`, number: i === 0 ? 'INV-1' : `INV-1${i}` }));
   assert.equal(wordCodeAnswer(records, { text: 'INV-1', matches: full }, 'USD'), null, 'a full page may be cut short: not stated');
   const payments = { tool: 'list_records', args: { collection: 'payments', limit: 2, orderBy: { field: 'date', direction: 'desc' } }, template: 'records' } as const;
