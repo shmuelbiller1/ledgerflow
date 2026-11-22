@@ -54,7 +54,6 @@ describe('#914 through the server', { skip: !hasDb && 'needs LF_TEST_DATABASE_UR
     prevEnv = useLiveApiEnv('refusal-914');
     const [{ getDb }, { createApp }] = await Promise.all([import('../server/db/firestore'), import('../../server')]);
     db = getDb();
-    await db.pool.query(`delete from public."rateLimitEntries"`);
     for (const [uid, who] of [[ownerUid, 'owner'], [strangerUid, 'stranger']]) {
       await db.pool.query(`insert into auth.users (id, email, email_confirmed_at, raw_app_meta_data) values ($1::uuid, $2, now(), '{}'::jsonb)`, [uid, `${who}.914.${tag}@example.test`]);
     }
@@ -66,7 +65,6 @@ describe('#914 through the server', { skip: !hasDb && 'needs LF_TEST_DATABASE_UR
   after(async () => {
     await closeServer(server);
     if (db) {
-      await db.pool.query(`delete from public."rateLimitEntries"`);
       await db.pool.query(`delete from public.workspaces where id = $1`, [wsId]);
       await db.pool.query(`delete from public.users where id = any($1::text[])`, [[ownerUid, strangerUid]]);
       await db.pool.query(`delete from auth.users where id = any($1::uuid[])`, [[ownerUid, strangerUid]]);
