@@ -1,3 +1,4 @@
+import { isForbidden } from '../http/serverKit';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from "express";
 import type { DecodedIdToken } from "../auth/supabaseAuth";
@@ -201,7 +202,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       remember(cacheKey, bs);
       res.json(withProvenance(bs));
     } catch (error) {
-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
       sendError(res, "Internal Reporting Error", 500, errorMessage(error));
     }
@@ -249,7 +250,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
 
       res.json(aging);
     } catch (error) {
-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
       sendError(res, "Failed to generate aging report", 500, errorMessage(error));
     }
@@ -433,7 +434,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       const tb = computeTrialBalance(accounts, transactions, asOfDate);
       res.json(withProvenance(tb));
     } catch (error) {
-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
       sendError(res, "Trial Balance Failure", 500, errorMessage(error));
     }
@@ -454,7 +455,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       const openingCashCents = accounts.filter(isCashFlowCashAccount).reduce((sum, acc) => sum + openingDebitCents(acc) + (before[acc.id] || 0), 0);
       res.json(withProvenance({ ...cf, openingCashCents, closingCashCents: openingCashCents + cf.netChange }));
     } catch (error) {
-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
       sendError(res, "Failed to generate cash flow statement", 500, errorMessage(error));
     }
@@ -548,7 +549,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
 
       res.json(report);
     } catch (error) {
-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
       sendError(res, "Failed to generate budget vs actual report", 500, errorMessage(error));
     }
@@ -571,7 +572,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       const gl = computeGeneralLedger(accounts, transactions, startDate, endDate, accountId);
       res.json(withProvenance(gl));
     } catch (error) {
-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
       sendError(res, "Failed to generate General Ledger report", 500, errorMessage(error));
     }
@@ -597,7 +598,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       res.json(loaded.statement);
     } catch (error) {
       if (error instanceof StatementScopeError) return sendError(res, error.message, 400);
-      if (errorMessage(error) === "FORBIDDEN") return sendError(res, "Forbidden", 403);
+      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
       if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
       sendError(res, "Failed to generate Statement", 500, errorMessage(error));
     }

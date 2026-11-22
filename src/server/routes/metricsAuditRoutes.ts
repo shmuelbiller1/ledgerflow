@@ -1,3 +1,4 @@
+import { isForbidden } from '../http/serverKit';
 import type { ChartAccount, Transaction as LedgerTransaction } from "../../types";
 import { errorMessage, requestUser } from "../auth/requestUser";
 import { sendError, authorizeWorkspace, loadQueriedWorkspaceLedger } from "../http/serverKit";
@@ -170,7 +171,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
       });
 
     } catch (err) {
-      if (errorMessage(err) === "FORBIDDEN") return sendError(res, "Forbidden workspace access", 403);
+      if (isForbidden(errorMessage(err))) return sendError(res, "Forbidden workspace access", 403);
       sendError(res, errorMessage(err), 500);
     }
   });
@@ -230,7 +231,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
       });
 
     } catch (err) {
-      if (errorMessage(err) === "FORBIDDEN") return sendError(res, "Forbidden workspace access", 403);
+      if (isForbidden(errorMessage(err))) return sendError(res, "Forbidden workspace access", 403);
       sendError(res, errorMessage(err), 500);
     }
   });
