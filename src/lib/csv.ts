@@ -39,7 +39,12 @@ export function parseCsvChecked(input: string, delimiter = detectDelimiter(input
   return rows;
 }
 
-const MAX_CSV_CHARS = 5_000_000;
+/**
+ * Last-resort ceiling for any CSV this parser reads. Importers check their own, smaller documented limits first
+ * (12 M characters for bank, Xero and per-diem files) and say why; this only has to stay above every one of them,
+ * and above a full workspace export read back by readExportedRecords (bulk restores accept up to 50 MB).
+ */
+const MAX_CSV_CHARS = 50_000_000;
 
 function readCsv(input: string, delimiter: string): { rows: string[][]; unclosedQuote: boolean } {
   const text = input.replace(/^\uFEFF/, '');
