@@ -36,7 +36,7 @@ const QUALIFIER = /\b(exclud\w*|includ\w*|except|without|minus|less|net|profit|g
 
 const MAX_ROUTED_LENGTH = 120;
 /** The periods ask_books' readPeriod understands; removed before looking for any other time word. */
-const READ_PERIOD = new RegExp(String.raw`\b(this|last) (fiscal )?(year|month)\b|\byear to date\b|\bytd\b|\bq[1-4] (19|20)\d{2}\b|\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec) (19|20)\d{2}\b|\b(19|20)\d{2}\b`, 'g');
+const READ_PERIOD = new RegExp(String.raw`\b(this|last) (fiscal )?(year|month)\b|\byear to date\b|\bytd\b|\bq[1-4] (19|20)\d{2}\b|\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec) (19|20)\d{2}\b|\b(19|20)\d{2}\b`, 'g');
 /** A readable period, with the "in" that often comes before it ("sales in March 2026"). */
 const READ_PERIOD_WITH_IN = new RegExp(String.raw`\b(in )?(?:${READ_PERIOD.source})`, 'g');
 const UNREAD_PERIOD = /\b(today|yesterday|tomorrow|tonight|now|day|days|daily|week|weeks|weekly|fortnight|month|months|monthly|quarter|quarters|quarterly|q[1-4]|year|years|yearly|annual|next|previous|recent|recently|ago|so far|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b/;
@@ -63,7 +63,9 @@ export function routeQuestion(raw: string): RouteDecision {
   }
 
   const invoice = INVOICE_NO.exec(question);
-  if (invoice && /^(show|find|open|is|was|what('s| is)|status of)\b/i.test(q)) {
+  // The invoice template states number, status and due date only: amounts and other fields go to the model.
+  if (invoice && /^(show|find|open|is|was|what('s| is)|status of)\b/i.test(q)
+    && !/\b(amount|outstanding|owed?|owing|balance|total|left|remaining|paid how much|how much|tax|vat|lines?|items?|who|when was|sent|email)\b/.test(q)) {
     return { path: 'code', route: { tool: 'search_records', args: { text: invoice[1].toUpperCase(), collections: ['invoices'] }, template: 'records' } };
   }
 
@@ -101,6 +103,8 @@ export function routeQuestion(raw: string): RouteDecision {
   if (/^(what('s| is| was| were| did)|how much)\b/.test(q) && /\b(sales|revenue|income|spen[dt]|expenses?|costs?)\b/.test(q)
       && !/\b(balance|cash|bank)\b/.test(q)
       && !UNREAD_PERIOD.test(q.replace(READ_PERIOD, ' '))
+      // a leftover day or ISO/slash date would be read as the whole month or year
+      && !/\d/.test(q.replace(READ_PERIOD, ' '))
       && !QUALIFIER.test(q.replace(READ_PERIOD_WITH_IN, ' ').replace(/\bin the bank( account)?\b/g, ' '))) {
     return { path: 'code', route: { tool: 'ask_books', args: { question }, template: 'figure' } };
   }
