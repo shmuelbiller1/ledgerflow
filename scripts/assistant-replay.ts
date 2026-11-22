@@ -12,7 +12,7 @@
  */
 import fs from 'node:fs';
 import type { FunctionDeclaration } from '@google/genai';
-import { defaultAssistantTools } from '../src/server/services/assistantCatalog';
+import { defaultAssistantTools, findAssistantCommands } from '../src/server/services/assistantCatalog';
 import { stepCommand, stepCommandNames } from '../src/server/commands/sandboxStepCommands';
 import { runAssistantTurn, turnMetric, type AssistantTurnMetric } from '../src/server/services/assistantTurn';
 import { openAiCompatibleClient } from '../src/server/services/openAiCompatibleClient';
@@ -62,12 +62,30 @@ const FIXTURE: Record<string, unknown> = {
   calculate: { result: '1462.50' },
   list_proposals: { proposals: [] },
   preview_proposal: { proposal: null },
-  find_command: { commands: [{ name: 'payment.receive' }, { name: 'invoice.create' }] },
 };
 
+const ownerCommands = () => stepCommandNames().map(stepCommand).filter(c => c.roles.some(r => r === 'owner'));
+
 export function offeredTools(): FunctionDeclaration[] {
-  const commands = stepCommandNames().map(stepCommand).filter(c => c.roles.some(r => r === 'owner'));
-  return defaultAssistantTools(commands)[0].functionDeclarations as FunctionDeclaration[];
+  return defaultAssistantTools(ownerCommands())[0].functionDeclarations as FunctionDeclaration[];
+}
+
+/** find_command runs the real catalog search, as the sandbox route does; reads use the fixture. */
+export function replayTool(name: string, args: Record<string, unknown>): unknown {
+  if (name === 'find_command') {
+    const words = typeof args.words === 'string' ? args.words : '';
+    const limit = typeof args.limit === 'number' ? args.limit : undefined;
+    return { matches: findAssistantCommands(ownerCommands(), words, limit) };
+  }
+  if (name.startsWith('propose_')) return { drafted: true, note: 'test fixture: a proposal step would be drafted in the sandbox' };
+  return FIXTURE[name] ?? { error: 'not in the test fixture' };
+}
+
+/** Discovered commands' declarations come from the catalog's own search result (trusted server code). */
+export function replayDiscover(tool: string, result: unknown): FunctionDeclaration[] {
+  if (tool !== 'find_command') return [];
+  const matches = (result as { matches?: Array<{ tool?: FunctionDeclaration }> })?.matches ?? [];
+  return matches.flatMap(m => (m.tool ? [m.tool] : []));
 }
 
 function median(values: number[]): number {
@@ -109,7 +127,7 @@ async function main() {
     const client = openAiCompatibleClient({ baseUrl: baseUrl! });
     for (const { q, kind } of REPLAY_QUESTIONS) {
       const { metric } = await runAssistantTurn({ client, model: model!, systemPrompt, tools, question: q,
-        callTool: async name => FIXTURE[name] ?? { error: 'not in the test fixture' } });
+        callTool: async (name, args) => replayTool(name, args), discover: replayDiscover });
       rows.push({ kind, metric });
     }
     lines.push(`Model: ${model} via ${baseUrl}.`);

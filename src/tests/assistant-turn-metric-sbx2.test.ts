@@ -172,3 +172,13 @@ test('a command found with find_command becomes callable for the rest of the tur
   assert.deepEqual(offeredPerCall[0], ['find_command']);
   assert.deepEqual(offeredPerCall[1], ['find_command', 'propose_record_save'], 'the next model call is offered the discovered command');
 });
+
+test('the replay uses the real catalog search, and what it finds becomes callable (monthly invoice)', async () => {
+  const { replayTool, replayDiscover, offeredTools } = await import('../../scripts/assistant-replay');
+  const offered = new Set(offeredTools().map(t => t.name));
+  const found = replayTool('find_command', { words: 'recurring' });
+  const added = replayDiscover('find_command', found);
+  assert.ok(added.length > 0, 'the catalog finds a command for a recurring/monthly invoice');
+  assert.ok(added.some(d => !offered.has(d.name)), 'at least one found command was not in the first 25');
+  assert.deepEqual(replayDiscover('ask_books', found), [], 'only find_command results add tools');
+});
