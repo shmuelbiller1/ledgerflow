@@ -542,14 +542,14 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
             </tr>}
           columns={[
             {
-              header: <button type="button" data-grid-sort-header className="min-h-11" onClick={() => handleSort('code')}><div className="flex items-center gap-2"><span>{reportText('r.account-code', 'Account Code')}</span>{renderSortIcon('code')}</div></button>,
+              header: <><button type="button" className="min-h-11" onClick={() => handleSort('code')}><div className="flex items-center gap-2"><span>{reportText('r.account-code', 'Account Code')}</span>{renderSortIcon('code')}</div></button>{' '}<span className="hidden print:inline">{reportText('r.account-code', 'Account Code')}</span></>,
               headClassName: "px-5 py-3 text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors",
               cellProps: row => ({ className: row.kind === 'subtotal' ? 'px-5 py-2' : 'px-5 py-3 font-mono' }),
               cell: row => row.kind === 'subtotal' ? '' : <span className="font-mono text-[9px] font-bold text-[var(--muted)] bg-[var(--ink)] px-2 py-0.5 rounded border border-[var(--line)]">{row.member.code || '—'}</span>,
             },
             {
               rowHeader: true,
-              header: <button type="button" data-grid-sort-header className="min-h-11" onClick={() => handleSort('name')}><div className="flex items-center gap-2"><span>{reportText('r.account-name-classification', 'Account Name & Classification')}</span>{renderSortIcon('name')}</div></button>,
+              header: <><button type="button" className="min-h-11" onClick={() => handleSort('name')}><div className="flex items-center gap-2"><span>{reportText('r.account-name-classification', 'Account Name & Classification')}</span>{renderSortIcon('name')}</div></button>{' '}<span className="hidden print:inline">{reportText('r.account-name-classification', 'Account Name & Classification')}</span></>,
               headClassName: "px-5 py-3 text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-slate-800 transition-colors",
               cellProps: row => ({ className: row.kind === 'subtotal' ? 'px-5 py-2 text-start text-[9px] font-bold uppercase tracking-wider text-[var(--muted)]' : 'px-5 py-3 text-start' }),
               cell: row => {
@@ -576,7 +576,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
               },
             },
             {
-              header: <button type="button" data-grid-sort-header className="min-h-11" onClick={() => handleSort('debit')}><div className="flex items-center justify-end gap-2"><span>{reportText('r.debit-balance', 'Debit Balance')}</span>{renderSortIcon('debit')}</div></button>,
+              header: <><button type="button" className="min-h-11" onClick={() => handleSort('debit')}><div className="flex items-center justify-end gap-2"><span>{reportText('r.debit-balance', 'Debit Balance')}</span>{renderSortIcon('debit')}</div></button>{' '}<span className="hidden print:inline">{reportText('r.debit-balance', 'Debit Balance')}</span></>,
               headClassName: "px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-right cursor-pointer hover:bg-slate-800 transition-colors",
               cellProps: row => ({ className: row.kind === 'subtotal' ? 'px-5 py-2 text-right font-mono text-[10px] font-bold text-[var(--text)] tabular-nums' : 'px-5 py-3 text-right font-mono text-[var(--text)] font-bold tabular-nums' }),
               cell: row => {
@@ -587,7 +587,7 @@ export default function TrialBalanceView({ accounts, formatCurrency, onDrillDown
               },
             },
             {
-              header: <button type="button" data-grid-sort-header className="min-h-11" onClick={() => handleSort('credit')}><div className="flex items-center justify-end gap-2"><span>{reportText('r.credit-balance', 'Credit Balance')}</span>{renderSortIcon('credit')}</div></button>,
+              header: <><button type="button" className="min-h-11" onClick={() => handleSort('credit')}><div className="flex items-center justify-end gap-2"><span>{reportText('r.credit-balance', 'Credit Balance')}</span>{renderSortIcon('credit')}</div></button>{' '}<span className="hidden print:inline">{reportText('r.credit-balance', 'Credit Balance')}</span></>,
               headClassName: "px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-right cursor-pointer hover:bg-slate-800 transition-colors",
               cellProps: row => ({ className: row.kind === 'subtotal' ? 'px-5 py-2 text-right font-mono text-[10px] font-bold text-[var(--text)] tabular-nums' : 'px-5 py-3 text-right font-mono text-[var(--text)] font-bold tabular-nums' }),
               cell: row => {

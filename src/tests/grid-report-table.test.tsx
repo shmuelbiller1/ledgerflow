@@ -254,19 +254,20 @@ describe('the second review pass', () => {
 });
 
 describe('the final batch\'s hand-converted sortable headings', () => {
-  test('every sort-heading button outside the shared grid carries the print marker', () => {
-    // #1001 (Codex): the hand-converted trial balance and party aging draw their sortable column
-    // headings as buttons; `@media print { button { display: none } }` would remove the printed
-    // reports' column labels unless each button carries data-grid-sort-header, the marker the
-    // print rule re-enables (the shared grid does this for its own headings).
-    const marked = (file: string, expected: number) => {
+  test('the sortable headings print their labels as text, not as the hidden buttons', () => {
+    // #1001 (Codex + print-styles): the hand-converted trial balance and party aging draw their
+    // sortable column headings as buttons, and `@media print { button { display: none } }` would
+    // take the printed reports' column labels with them. The shared grid re-enables its own
+    // heading buttons via data-grid-sort-header, but print-styles.spec.ts pins ZERO buttons on
+    // paper for these screens — so each heading button carries a print-only twin of its label
+    // (the same hidden-print:inline pattern the trial balance totals use), and no marker.
+    const twins = (file: string, expected: number) => {
       const source = fs.readFileSync(path.join(process.cwd(), file), 'utf8');
-      const hits = [...source.matchAll(/<button type="button" data-grid-sort-header[^>]*onClick=\{\(\) => handleSort\(/g)].length;
-      const misses = [...source.matchAll(/<button type="button" (?!data-grid-sort-header)[^>]*onClick=\{\(\) => handleSort\(/g)].length;
-      assert.equal(hits, expected, `${file}: ${expected} sortable headings marked for print`);
-      assert.equal(misses, 0, `${file}: no sortable heading without the marker`);
+      const hits = [...source.matchAll(/className="hidden print:inline"/g)].length;
+      assert.equal(hits, expected, `${file}: ${expected} print-only heading labels`);
+      assert.ok(!source.includes('data-grid-sort-header'), `${file}: no re-enabled buttons on paper`);
     };
-    marked('src/components/ledger/TrialBalanceView.tsx', 4);
-    marked('src/components/reporting/PartyAgingReportView.tsx', 3);
+    twins('src/components/ledger/TrialBalanceView.tsx', 6); // 4 headings + the two total cells
+    twins('src/components/reporting/PartyAgingReportView.tsx', 3);
   });
 });
