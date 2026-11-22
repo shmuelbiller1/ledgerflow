@@ -39,7 +39,7 @@ const MAX_ROUTED_LENGTH = 120;
 const READ_PERIOD = new RegExp(String.raw`\b(this|last) (fiscal )?(year|month)\b|\byear to date\b|\bytd\b|\bq[1-4] (19|20)\d{2}\b|\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec) (19|20)\d{2}\b|\b(19|20)\d{2}\b`, 'g');
 /** A readable period, with the "in" that often comes before it ("sales in March 2026"). */
 const READ_PERIOD_WITH_IN = new RegExp(String.raw`\b(in )?(?:${READ_PERIOD.source})`, 'g');
-const UNREAD_PERIOD = /\b(today|yesterday|tomorrow|tonight|now|day|days|daily|week|weeks|weekly|fortnight|month|months|monthly|quarter|quarters|quarterly|q[1-4]|year|years|yearly|annual|next|previous|recent|recently|ago|so far|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b/;
+const UNREAD_PERIOD = /\b(today|yesterday|tomorrow|tonight|now|day|days|daily|week|weeks|weekly|weekend|weekends|fortnight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|on|as of|since|until|till|before|after|eod|eom|end of|month|months|monthly|quarter|quarters|quarterly|q[1-4]|year|years|yearly|annual|next|previous|recent|recently|ago|so far|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b/;
 /** search_records' default match limit (sandboxTools.ts): a full page may have been cut short */
 const SEARCH_RESULT_CAP = 20;
 const INVOICE_NO = /\binvoice\s+(?:no\.?\s*|number\s*|#\s*)?([A-Za-z]{1,6}-?\d{1,10})\b/i;
