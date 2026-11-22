@@ -62,6 +62,8 @@ New sessions pick it up. Until then, the replay runs without a model and records
 
 At either limit the person sees a polite message and the turn is refused; it is never moved to a cheaper model. A workspace can be given its own limits with `maxAssistantModelTurns` / `maxAssistantCents`, and workspaces with billing switched off have no limit. Tell me if you want other numbers; it is one line each in `src/lib/plans.ts`.
 
+**Assistant cache check (optional).** A cached answer is served only while the books are unchanged. That is checked by hashing the stored rows the read can use: about 13 ms for a report on a large workspace, and it grows with the books. A constant-time check would need a change counter that a database trigger bumps on every book write. The spec rules out a new clock for this, and every save in a workspace would wait on that one counter row. *Default I used:* no counter; the row hash stays. Say "add the counter" if you want it.
+
 **Receipts.** The receipt reader now returns a draft, and anything it cannot read exactly is listed as "check before recording" instead of being guessed. The Vault screen also no longer records a $0 entry when the total could not be read. Its confidence figure was shown 100× too large (for example "9500%"); that is fixed.
 
 ## Retried money requests from outside tools can post twice (#942, needs your decision; nothing changed yet)
