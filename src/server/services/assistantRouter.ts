@@ -149,12 +149,14 @@ export function wordCodeAnswer(route: CodeRoute, result: unknown, currency: stri
     }
     case 'balance': {
       // the result here is the explain report's (no start date), with the reading attached by answerTurn
-      const reading = r.reading as { problem?: string | null; sense?: 'spent' | 'earned' | 'net'; understood?: { accounts?: string[] } } | undefined;
-      if (typeof r.totalCents !== 'number' || !reading || reading.problem) return null;
+      const reading = r.reading as { problem?: string | null; sense?: 'spent' | 'earned' | 'net'; understood?: { accounts?: string[] }; filter?: { endDate?: string; label?: unknown } | null } | undefined;
+      if (typeof r.totalCents !== 'number' || !reading || reading.problem || reading.filter?.label) return null;
       const amount = money(answerCents(r.totalCents, reading.sense ?? 'net'), currency);
       if (!amount) return null;
       const accounts = reading.understood?.accounts?.join(', ') || 'the matching accounts';
-      return `${amount} — ${accounts}, balance to date including opening balances. Source: posted entries (explain this number).`;
+      // name the day the balance is at: "last year" means the end of last year, not today
+      const asOf = reading.filter?.endDate;
+      return `${amount} — ${accounts}, balance ${asOf ? `at ${asOf}` : 'to date'} including opening balances. Source: posted entries (explain this number).`;
     }
     case 'aging': {
       // the aging route returns minor units per bucket and a total (reportRoutes.ts /aging)
@@ -212,9 +214,11 @@ export async function answerTurn(input: AssistantTurnInput & { currency: string 
     try {
       result = await input.callTool(decision.route.tool, decision.route.args as unknown as Record<string, unknown>);
       if (decision.route.template === 'balance') {
-        const reading = (result as { reading?: { filter?: { accountIds?: string[]; endDate?: string } | null; problem?: string | null } })?.reading;
+        const reading = (result as { reading?: { filter?: { accountIds?: string[]; endDate?: string; label?: unknown } | null; problem?: string | null } })?.reading;
         const filter = reading?.filter;
-        if (!filter?.accountIds?.length || reading?.problem) result = undefined;
+        // a label narrows the balance, and the explain report leaves opening balances out when a label is
+        // set, so a labelled balance is not exact here: the model answers it
+        if (!filter?.accountIds?.length || reading?.problem || filter.label) result = undefined;
         else {
           toolsUsed.push('explain_number');
           const explained = await input.callTool('explain_number', { accountIds: filter.accountIds, ...(filter.endDate ? { endDate: filter.endDate } : {}) });

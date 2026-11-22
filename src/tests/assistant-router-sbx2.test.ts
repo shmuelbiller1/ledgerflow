@@ -165,7 +165,7 @@ test('a balance counts opening balances and earlier years: explain_number runs w
   });
   assert.equal(calls.length, 0);
   assert.deepEqual(toolCalls[1], ['explain_number', { accountIds: ['acc_cash'], endDate: '2026-11-22' }], 'no startDate: opening balances included');
-  assert.match(answer, /^1,000\.00 USD — Cash, balance to date including opening balances/);
+  assert.match(answer, /^1,000\.00 USD — Cash, balance at 2026-11-22 including opening balances/);
   assert.deepEqual(metric.toolsCalled, ['ask_books', 'explain_number']);
 });
 
@@ -211,4 +211,29 @@ test('a fallback turn counts the code tool it already ran, in its time and tools
   assert.equal(metric.path, 'model');
   assert.deepEqual(metric.toolsCalled.slice(0, 1), ['search_records']);
   assert.ok(metric.totalMs >= 7 + 7, 'includes the code tool time');
+});
+
+test('a labelled balance goes to the model (the explain report drops opening balances under a label)', async () => {
+  const { client, calls } = countingModel();
+  const ran: string[] = [];
+  const { metric } = await answerTurn({
+    client, model: 'gemini-2.5-flash', systemPrompt: 's', tools: [], currency: 'USD', now: clock(),
+    question: 'What is my Ocean cash balance?',
+    callTool: async name => { ran.push(name); return { reading: { filter: { accountIds: ['acc_cash'], endDate: '2026-11-22', label: { dimensionId: 'property', value: 'ocean' } }, problem: null, sense: 'net', understood: { accounts: ['Cash'] } } }; },
+  });
+  assert.deepEqual(ran, ['ask_books'], 'explain_number is not called with the label dropped');
+  assert.equal(calls.length, 1);
+  assert.equal(metric.path, 'model');
+});
+
+test('a balance for a past period names its date', async () => {
+  const { client } = countingModel();
+  const { answer } = await answerTurn({
+    client, model: 'gemini-2.5-flash', systemPrompt: 's', tools: [], currency: 'USD', now: clock(),
+    question: 'What is my cash balance last year?',
+    callTool: async name => name === 'ask_books'
+      ? { reading: { filter: { accountIds: ['acc_cash'], startDate: '2025-01-01', endDate: '2025-12-31' }, problem: null, sense: 'net', understood: { accounts: ['Cash'] } } }
+      : { totalCents: 25000 },
+  });
+  assert.match(answer, /balance at 2025-12-31/);
 });
