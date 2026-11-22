@@ -15,7 +15,7 @@ import { join } from 'node:path';
 const reportedDir = join(process.cwd(), 'src/components/reporting');
 const read = (file: string) => readFileSync(join(reportedDir, file), 'utf8');
 
-/** Files whose money cells are in the book's currency and use a currency-aware writer (`csvMoneyForBook` or `csvMoneyForCurrency`). */
+/** Files whose money cells are in the book's currency and use `csvMoneyForBook`, which falls back to two decimals for an unusable code. */
 const BOOK_CURRENCY_FILES = [
   'TopExpensesIncomeReportView.tsx',
   'IncomeBySourceReportView.tsx',
@@ -47,7 +47,7 @@ const PER_ROW_CURRENCY = ['GoodsNotBilledReportView.tsx'];
 test('every book-currency report writes CSV money with the book currency (#910)', () => {
   for (const file of BOOK_CURRENCY_FILES) {
     const source = read(file);
-    assert.match(source, /csvMoneyFor(?:Book|Currency)\(/, `${file} uses the book-currency writer`);
+    assert.match(source, /csvMoneyForBook\(/, `${file} uses the book-currency writer`);
     assert.doesNotMatch(source, /\bcsvMoney\(/, `${file} must not fall back to the two-decimal writer`);
   }
 });
