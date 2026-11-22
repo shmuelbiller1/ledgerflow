@@ -16,7 +16,7 @@
  * Read-only; amounts in the home currency. Pure.
  */
 import { taxReturnDocument, type TaxableDocument } from '../taxReturnDocs';
-import { COUNTED_SALES } from '../taxCodes';
+import { COUNTED_SALES, type TaxReturnBox } from '../taxCodes';
 import { convertMinorUnits } from '../currencyMinorUnits';
 import { exemptionOn } from '../taxExemption';
 import { placeState, registrationKey, registrationsOn, resolveSellerProfile, type TaxPlace, type TaxProfiles } from './profile';
@@ -53,6 +53,26 @@ export interface UsSalesTaxReturn {
 
 // the rate is per major unit: yen (0 digits) and dinars (3 digits) scale by their own minor units (#844)
 const toBase = (cents: number, rate: number | undefined, from: string | undefined) => (rate && rate > 0 ? convertMinorUnits(cents, rate, from, 'USD') : Math.round(cents));
+
+/**
+ * T-08: the nine boxes a US sales-tax return records when it is filed — the same figures and labels
+ * `tax.file` stores on the server (taxReturnService), so a filed copy and this function's boxes
+ * compare box for box. A state return collects tax on sales only: reverse charge, input tax and
+ * purchases are 0 in it. Pure.
+ */
+export function usSalesTaxReturnBoxes(returned: Pick<UsSalesTaxReturn, 'grossSalesCents' | 'exemptSalesCents' | 'taxCollectedCents'>): TaxReturnBox[] {
+  return [
+    { key: '1', label: 'Sales tax collected', cents: returned.taxCollectedCents },
+    { key: '2', label: 'Reverse charge', cents: 0 },
+    { key: '3', label: 'Total tax due', cents: returned.taxCollectedCents },
+    { key: '4', label: 'Input tax', cents: 0 },
+    { key: '5', label: 'Net tax payable', cents: returned.taxCollectedCents },
+    { key: '6', label: 'Gross sales', cents: returned.grossSalesCents },
+    { key: '7', label: 'Purchases', cents: 0 },
+    { key: '8', label: 'Zero-rated sales', cents: 0 },
+    { key: '9', label: 'Exempt sales', cents: returned.exemptSalesCents },
+  ];
+}
 
 export function usSalesTaxReturn(input: {
   registration: string;
