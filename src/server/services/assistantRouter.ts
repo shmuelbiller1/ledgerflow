@@ -67,7 +67,10 @@ export function routeQuestion(raw: string): RouteDecision {
   if (invoice && /^(show|find|open|is|was|what('s| is)|status of)\b/i.test(q)
     && !/\b(amount|outstanding|owed?|owing|balance|total|left|remaining|paid how much|how much|tax|vat|lines?|items?|who|when was|sent|email)\b/.test(q)) {
     // "is/was invoice X paid?" is a yes/no question: the answer leads with yes or no, not just the status
-    const asksPaid = /^(is|was)\b/.test(q) && /\bpaid\b/.test(q) ? { asksPaid: true as const } : {};
+    // Only the plain form gets a verdict; "partially paid", "not paid", "paid on time", "paid or overdue" go to the model.
+    const plainPaid = /^(is|was) (the )?invoice (no\.?\s*|number\s*|#\s*)?[a-z]{1,6}-?\d{1,10} (fully )?paid\??$/.test(q);
+    if (!plainPaid && /\bpaid\b/.test(q)) return { path: 'model', reason: 'no-exact-route' };
+    const asksPaid = plainPaid ? { asksPaid: true as const } : {};
     return { path: 'code', route: { tool: 'search_records', args: { text: invoice[1].toUpperCase(), collections: ['invoices'] }, template: 'records', ...asksPaid } };
   }
 
