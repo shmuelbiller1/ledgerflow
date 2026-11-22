@@ -385,8 +385,6 @@ export class Transaction {
 }
 
 export interface TransactionOptions { maxAttempts?: number; readOnly?: boolean }
-// A sandbox review re-runs every draft step in one serializable transaction; 8 attempts ran out under load.
-const SANDBOX_BATCH_RETRIES: TransactionOptions = { maxAttempts: 16 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -525,7 +523,7 @@ export class Firestore {
     assertOutsideCommandStage();
     if (this.sandbox) throw invalid('A sandbox batch must start on the server live handle');
     return this.serializable(runner => work(createSandboxBatch(this, runner, (db, state) => new Transaction(db, runner, state),
-      (db, active) => { if (active) db.scopedRunners.add(runner); else db.scopedRunners.delete(runner); })), SANDBOX_BATCH_RETRIES);
+      (db, active) => { if (active) db.scopedRunners.add(runner); else db.scopedRunners.delete(runner); })));
   }
 
   async runTransaction<R>(fn: (t: Transaction) => Promise<R>, options: TransactionOptions = {}): Promise<R> {
