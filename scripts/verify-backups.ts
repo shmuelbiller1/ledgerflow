@@ -184,7 +184,7 @@ export function evaluateSupabaseBackups(
       latestBackupAt,
       latestBackupAgeHours,
       completedBackupCount: completedTimestampsMs.length,
-      reason: `Latest verified backup is ${ageHours}h old, exceeding the ${maxAgeHours}h threshold.`,
+      reason: `Latest verified backup is ${ageHours.toFixed(2)}h old, exceeding the ${maxAgeHours}h threshold.`,
     };
   }
 
