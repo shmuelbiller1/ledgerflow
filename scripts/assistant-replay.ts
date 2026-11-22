@@ -6,17 +6,23 @@
  *   npx tsx scripts/assistant-replay.ts                 # without a model: fixed-prompt size and tools offered
  *   ASSISTANT_REPLAY_MODEL=gpt-6-luna \
  *   ASSISTANT_REPLAY_BASE_URL=https://api.arena.ai/v1 \
- *   npx tsx scripts/assistant-replay.ts --write          # with a model; --write saves docs/assistant-baseline.md
+ *   npx tsx scripts/assistant-replay.ts --write          # with a model; --write updates the Parts 4–6 section of docs/assistant-baseline.md
+ *
+ * Each run replays the questions twice and prints before/after tables: with each SBX-2 part switched
+ * back off, then as it is today (Parts 4–6).
  *
  * The key is never read here: the session's network proxy adds it for the configured host.
  */
 import fs from 'node:fs';
 import type { FunctionDeclaration } from '@google/genai';
-import { defaultAssistantTools, findAssistantCommands } from '../src/server/services/assistantCatalog';
+import { assistantToolsFor, defaultAssistantTools, findAssistantCommands } from '../src/server/services/assistantCatalog';
+import { memoryToolCache } from '../src/server/services/assistantReadCache';
+import { assistantModels, chooseModel } from '../src/server/services/assistantModels';
 import { stepCommand, stepCommandNames } from '../src/server/commands/sandboxStepCommands';
 import { type AssistantTurnMetric, type ModelClient } from '../src/server/services/assistantTurn';
-import { answerTurn } from '../src/server/services/assistantRouter';
+import { answerTurn, routeQuestion } from '../src/server/services/assistantRouter';
 import { openAiCompatibleClient } from '../src/server/services/openAiCompatibleClient';
+import { callCostCents } from '../src/lib/ai/modelPricing';
 
 /** `code` = the books can answer it exactly (Part 2 should answer without a model); `model` = needs the model. */
 export const REPLAY_QUESTIONS: ReadonlyArray<{ q: string; kind: 'code' | 'model'; area: string }> = [
@@ -103,10 +109,11 @@ function median(values: number[]): number {
   return s[Math.floor(s.length / 2)];
 }
 
-export function summarise(rows: Array<{ kind: string; metric: AssistantTurnMetric }>) {
-  const byPath = new Map<string, AssistantTurnMetric[]>();
-  for (const { metric } of rows) byPath.set(metric.path, [...(byPath.get(metric.path) ?? []), metric]);
-  return [...byPath].map(([path, ms]) => {
+export function summarise(rows: Array<{ kind: string; metric: AssistantTurnMetric; offeredBytes?: number }>) {
+  const byPath = new Map<string, Array<{ metric: AssistantTurnMetric; offeredBytes?: number }>>();
+  for (const row of rows) byPath.set(row.metric.path, [...(byPath.get(row.metric.path) ?? []), row]);
+  return [...byPath].map(([path, rs]) => {
+    const ms = rs.map(r => r.metric);
     const priced = ms.filter(m => m.costCents !== null);
     return {
       path, turns: ms.length, ok: ms.filter(m => m.ok).length,
@@ -114,6 +121,9 @@ export function summarise(rows: Array<{ kind: string; metric: AssistantTurnMetri
       medianInputTokens: median(ms.map(m => m.inputTokens)),
       medianOutputTokens: median(ms.map(m => m.outputTokens)),
       medianToolsOffered: median(ms.map(m => m.toolsOffered)),
+      medianOfferedTokens: median(rs.map(r => Math.ceil((r.offeredBytes ?? 0) / 4))),
+      toolCalls: ms.reduce((s, m) => s + m.toolsCalled.length, 0),
+      toolCacheHits: ms.reduce((s, m) => s + m.toolCacheHits, 0),
       medianAnswerMs: median(ms.map(m => m.answerMs)),
       medianTotalMs: median(ms.map(m => m.totalMs)),
       totalCostCents: priced.length === ms.length ? priced.reduce((s, m) => s + (m.costCents ?? 0), 0) : null,
@@ -121,40 +131,101 @@ export function summarise(rows: Array<{ kind: string; metric: AssistantTurnMetri
   });
 }
 
+/** How a run is set up: today's behaviour, or one part switched back to how it was before it landed. */
+export interface ReplayMode { label: string; areaTools: boolean; cache: boolean; modelRule: boolean; passes: number }
+export const CURRENT: ReplayMode = { label: 'after Parts 4–6', areaTools: true, cache: true, modelRule: true, passes: 2 };
+
+export async function replay(mode: ReplayMode, opts: { client: ModelClient; model: string; systemPrompt: string }) {
+  const commands = ownerCommands();
+  const fixed = offeredTools();
+  const cache = mode.cache ? memoryToolCache({ workspaceId: 'replay-test-books', sandboxId: 'replay' }) : undefined;
+  const models = assistantModels();
+  const rows: Array<{ kind: string; pass: number; metric: AssistantTurnMetric; offeredBytes: number; tier?: string; reason?: string }> = [];
+  for (let pass = 1; pass <= mode.passes; pass++) {
+    for (const { q, kind } of REPLAY_QUESTIONS) {
+      const tools = mode.areaTools ? assistantToolsFor(commands, q)[0].functionDeclarations as FunctionDeclaration[] : fixed;
+      // the same model rule the server's turn handler uses (assistantTurnHandler.ts), retry included
+      const modelRule = mode.modelRule ? { choose: (reason: string) => chooseModel(q, reason, commands, models), strong: models.strong } : undefined;
+      const { metric } = await answerTurn({ client: opts.client, model: opts.model, systemPrompt: opts.systemPrompt, tools, question: q,
+        currency: REPLAY_CURRENCY, callTool: async (name, args) => replayTool(name, args), discover: replayDiscover, ...(cache ? { cache } : {}),
+        ...(modelRule ? { modelRule } : {}) });
+      const offeredBytes = metric.path === 'model' ? Buffer.byteLength(opts.systemPrompt) + Buffer.byteLength(JSON.stringify(tools)) : 0;
+      // the rule's first pick, for the table (the metric holds the model that finally answered, which
+      // without a model run is always the strong retry)
+      const decision = routeQuestion(q);
+      const first = mode.modelRule ? chooseModel(q, decision.path === 'model' ? decision.reason : 'code-answer-incomplete', commands, models) : undefined;
+      rows.push({ kind, pass, metric, offeredBytes, ...(metric.path === 'model' && first ? { tier: first.tier, reason: first.reason } : {}) });
+    }
+  }
+  return rows;
+}
+
+const HEADER = '| path | turns | ok | model calls | median input tokens | median output tokens | median tools offered | median fixed prompt tokens (system + tools, bytes ÷ 4) | tool calls | tool calls from cache | median answer ms (no streaming yet) | median total ms | total cost (cents) |';
+
+export function table(rows: Awaited<ReturnType<typeof replay>>, measured: boolean): string {
+  return [HEADER, '|---|---|---|---|---|---|---|---|---|---|---|---|---|', ...summarise(rows).map(r => measured || r.path !== 'model'
+    ? `| ${r.path} | ${r.turns} | ${r.ok} | ${r.modelCalls} | ${r.medianInputTokens} | ${r.medianOutputTokens} | ${r.medianToolsOffered} | ${r.medianOfferedTokens} | ${r.toolCalls} | ${r.toolCacheHits} | ${r.medianAnswerMs} | ${r.medianTotalMs} | ${r.totalCostCents === null ? 'unknown (no price row)' : r.totalCostCents.toFixed(4)} |`
+    : `| ${r.path} | ${r.turns} | not measured | not measured | not measured | not measured | ${r.medianToolsOffered} | ${r.medianOfferedTokens} | ${r.toolCalls} | ${r.toolCacheHits} | not measured | not measured | not measured |`)].join('\n');
+}
+
 async function main() {
   const systemPrompt = fs.readFileSync('assistant/SYSTEM_PROMPT.md', 'utf8');
-  const tools = offeredTools();
-  const fixedBytes = Buffer.byteLength(systemPrompt) + Buffer.byteLength(JSON.stringify(tools));
   const model = process.env.ASSISTANT_REPLAY_MODEL;
   const baseUrl = process.env.ASSISTANT_REPLAY_BASE_URL;
-  const lines: string[] = [];
-  lines.push(`Fixed part of every request (system prompt + ${tools.length} tool definitions): ${fixedBytes} bytes, about ${Math.ceil(fixedBytes / 4)} tokens (bytes ÷ 4 estimate).`);
-  lines.push(`Replay questions: ${REPLAY_QUESTIONS.length} (${REPLAY_QUESTIONS.filter(x => x.kind === 'code').length} the books can answer exactly, ${REPLAY_QUESTIONS.filter(x => x.kind === 'model').length} that need the model).`);
-  const rows: Array<{ kind: string; metric: AssistantTurnMetric }> = [];
   const measured = Boolean(model && baseUrl);
   // Without a model the router still answers what code can; the rest are recorded as not measured.
   const noModel: ModelClient = { models: { generateContent: async () => { throw new Error('no model configured'); } } };
   const client = measured ? openAiCompatibleClient({ baseUrl: baseUrl! }) : noModel;
-  for (const { q, kind } of REPLAY_QUESTIONS) {
-    const { metric } = await answerTurn({ client, model: model ?? 'none', systemPrompt, tools, question: q, currency: REPLAY_CURRENCY,
-      callTool: async (name, args) => replayTool(name, args), discover: replayDiscover });
-    rows.push({ kind, metric });
-  }
+  const opts = { client, model: model ?? 'none', systemPrompt };
+  const out: string[] = [];
+  const say = (line = '') => out.push(line);
   const codeKind = REPLAY_QUESTIONS.filter(x => x.kind === 'code').length;
-  const codeAnswered = rows.filter(r => r.kind === 'code' && r.metric.path === 'code').length;
-  const modelKindOnCode = rows.filter(r => r.kind === 'model' && r.metric.path === 'code').length;
-  lines.push(`Answered without a model: ${codeAnswered} of ${codeKind} questions the books can answer; questions that need the model answered by code: ${modelKindOnCode} (must be 0).`);
-  lines.push(measured ? `Model: ${model} via ${baseUrl}.` : 'No model configured (ASSISTANT_REPLAY_MODEL / ASSISTANT_REPLAY_BASE_URL): model-path tokens, times and cost are not measured.');
-  const table = summarise(rows);
-  const header = '| path | turns | ok | model calls | median input tokens | median output tokens | median tools offered | median answer ms (no streaming yet) | median total ms | total cost (cents) |';
-  const md = [header, '|---|---|---|---|---|---|---|---|---|---|',
-    ...table.map(r => measured || r.path === 'code'
-      ? `| ${r.path} | ${r.turns} | ${r.ok} | ${r.modelCalls} | ${r.medianInputTokens} | ${r.medianOutputTokens} | ${r.medianToolsOffered} | ${r.medianAnswerMs} | ${r.medianTotalMs} | ${r.totalCostCents === null ? 'unknown (no price row)' : r.totalCostCents.toFixed(4)} |`
-      : `| ${r.path} | ${r.turns} | not measured | not measured | not measured | not measured | ${r.medianToolsOffered} | not measured | not measured | not measured |`)];
-  const out = [...lines, '', ...md].join('\n');
-  console.log(out);
+  say(`Replay questions: ${REPLAY_QUESTIONS.length} (${codeKind} the books can answer exactly, ${REPLAY_QUESTIONS.length - codeKind} that need the model), each asked twice (pass 2 = the same person asking again with the books unchanged).`);
+  say(measured ? `Model: ${model} via ${baseUrl}.` : 'No model configured (ASSISTANT_REPLAY_MODEL / ASSISTANT_REPLAY_BASE_URL): model-path tokens, times and cost are not measured; the fixed prompt size per model turn is.');
+  const runs: Array<[string, ReplayMode]> = [
+    ['Before Parts 4–6 (Part 2 router only: fixed 25 tools, no cache, one model)', { label: 'before', areaTools: false, cache: false, modelRule: false, passes: 2 }],
+    ['Part 4 only (cache on)', { label: 'part4', areaTools: false, cache: true, modelRule: false, passes: 2 }],
+    ['Part 5 only (tools by the question’s area)', { label: 'part5', areaTools: true, cache: false, modelRule: false, passes: 2 }],
+    ['After Parts 4–6 (today)', CURRENT],
+  ];
+  let current: Awaited<ReturnType<typeof replay>> = [];
+  for (const [title, mode] of runs) {
+    const rows = await replay(mode, opts);
+    if (mode === CURRENT) current = rows;
+    const noModelCall = rows.filter(r => r.kind === 'code' && r.metric.modelCalls === 0).length;
+    const wrong = rows.filter(r => r.kind === 'model' && r.metric.path !== 'model').length;
+    say(); say(`### ${title}`); say();
+    say(`Book questions answered without a model call: ${noModelCall} of ${rows.filter(r => r.kind === 'code').length} (both passes); questions that need the model answered without it: ${wrong} (must be 0).`);
+    say(); say(table(rows, measured));
+  }
+  const modelRows = current.filter(r => r.pass === 1 && r.metric.path === 'model');
+  const tiers = new Map<string, number>();
+  for (const r of modelRows) tiers.set(`${r.tier} (${r.reason})`, (tiers.get(`${r.tier} (${r.reason})`) ?? 0) + 1);
+  say(); say('### Part 6: which model the written rule picks first for the model turns (pass 1)'); say();
+  if (measured) say(`Retried on the strong model after the simple one failed: ${modelRows.filter(r => r.metric.modelReason === 'simple-model-failed').length}.`);
+  say('| model (rule) | turns |'); say('|---|---|');
+  for (const [k, n] of [...tiers].sort(([a], [b]) => a.localeCompare(b))) say(`| ${k} | ${n} |`);
+  // An estimate, labelled as one: the fixed prompt's input cost on the first model call of a turn, at
+  // the list price of the model that answers (no prompt-cache discount). Before: one model for every
+  // turn (the app's chat model, gemini-2.5-flash) with the fixed 25 tools.
+  const before = (await replay(runs[0][1], opts)).filter(r => r.pass === 1 && r.metric.path === 'model');
+  const today = new Date().toISOString().slice(0, 10);
+  const est = (rows: typeof before, modelOf: (r: (typeof before)[number]) => string) =>
+    rows.reduce((sum, r) => sum + (callCostCents(modelOf(r), today, Math.ceil(r.offeredBytes / 4), 0) ?? Number.NaN), 0);
+  const models = assistantModels();
+  const beforeCents = est(before, () => 'gemini-2.5-flash');
+  const afterCents = est(modelRows, r => (r.tier === 'strong' ? models.strong : models.simple));
+  const cachedCents = modelRows.reduce((sum, r) => sum + (callCostCents(r.tier === 'strong' ? models.strong : models.simple, today, Math.ceil(r.offeredBytes / 4), 0, Math.ceil(r.offeredBytes / 4)) ?? Number.NaN), 0);
+  say();
+  say(`Estimated input cost of the fixed prompt, first model call of each of the ${modelRows.length} model turns (pass 1), list prices on ${today}: before ${beforeCents.toFixed(3)} cents (all on gemini-2.5-flash, 25 fixed tools); after ${afterCents.toFixed(3)} cents (the rule's models, tools by area); after, when the provider's prompt cache serves the fixed prefix, ${cachedCents.toFixed(3)} cents. Measured cost needs a model run.`);
+  const text = out.join('\n');
+  console.log(text);
   if (process.argv.includes('--write')) {
-    fs.writeFileSync('docs/assistant-baseline.md', `# SBX-2 assistant baseline\n\nRun ${new Date().toISOString().slice(0, 10)} with \`scripts/assistant-replay.ts\` (test data only).\n\n${out}\n`);
+    const file = 'docs/assistant-baseline.md';
+    const marker = '## Parts 4–6 — before and after';
+    const prior = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '# SBX-2 assistant baseline\n';
+    const kept = prior.includes(marker) ? prior.slice(0, prior.indexOf(marker)) : `${prior.trimEnd()}\n\n`;
+    fs.writeFileSync(file, `${kept}${marker} (run ${new Date().toISOString().slice(0, 10)}, \`scripts/assistant-replay.ts --write\`, test data only)\n\n${text}\n`);
   }
 }
 

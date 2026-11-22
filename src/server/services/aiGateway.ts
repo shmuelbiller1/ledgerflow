@@ -15,7 +15,8 @@ export const AI_TASK_FIELDS: Record<string, readonly string[]> = {
   'analyze-trends': ['transactions', 'context'],
   'parse-query': ['query', 'context'],
   'parse-magic-entry': ['input', 'accounts', 'categories', 'patternContext'],
-  'parse-receipt': ['base64Data', 'mimeType', 'context'],
+  'parse-receipt': ['base64Data', 'mimeType', 'context', 'fallbackCurrency'],
+  'read-document': ['base64Data', 'mimeType', 'fallbackCurrency'],
   'parse-statement': ['content', 'mimeType', 'context'],
   'parse-personal-tax-profile': ['message'],
   'build-auto-rule': ['sentence', 'accounts', 'categories', 'projects'],
@@ -33,13 +34,15 @@ export interface AiCallTrace {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  /** Input tokens the provider served from its prompt cache (part of inputTokens) */
+  cachedInputTokens?: number;
   ms: number;
   /** US cents; absent when the model has no price row */
   costCents?: number;
   ok: boolean;
 }
 
-interface GenerateResult { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number } }
+interface GenerateResult { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; cachedContentTokenCount?: number } }
 interface ModelsLike { generateContent: (req: { model: string } & Record<string, unknown>) => Promise<unknown> }
 
 /** The client with each generateContent call measured and recorded in `traces`. */
@@ -53,8 +56,10 @@ export function tracedClient<T extends object>(client: T | null, traces: AiCallT
         const result = await inner.generateContent(req) as GenerateResult;
         const inputTokens = result?.usageMetadata?.promptTokenCount || 0;
         const outputTokens = result?.usageMetadata?.candidatesTokenCount || 0;
-        const cost = callCostCents(req.model, new Date().toISOString().slice(0, 10), inputTokens, outputTokens);
-        traces.push({ model: req.model, inputTokens, outputTokens, ms: Math.round(now() - started), ...(cost === undefined ? {} : { costCents: cost }), ok: true });
+        const cachedInputTokens = result?.usageMetadata?.cachedContentTokenCount || 0;
+        const cost = callCostCents(req.model, new Date().toISOString().slice(0, 10), inputTokens, outputTokens, cachedInputTokens);
+        traces.push({ model: req.model, inputTokens, outputTokens, ...(cachedInputTokens ? { cachedInputTokens } : {}),
+          ms: Math.round(now() - started), ...(cost === undefined ? {} : { costCents: cost }), ok: true });
         return result;
       } catch (err) {
         traces.push({ model: req.model, inputTokens: 0, outputTokens: 0, ms: Math.round(now() - started), ok: false });
