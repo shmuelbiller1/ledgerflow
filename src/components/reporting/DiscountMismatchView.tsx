@@ -6,7 +6,7 @@ import { collection, getDocs, query, where } from '../../lib/db/firestore';
 import { db } from '../../firebase';
 import { discountMismatches } from '../../lib/discountMismatch';
 import { formatCurrency } from '../../lib/utils';
-import { downloadCsv, csvMoney } from '../../lib/csvExport';
+import { downloadCsv, csvMoneyForBook } from '../../lib/csvExport';
 import { useUIStore } from '../../stores/useUIStore';
 import type { InventoryItem, Invoice } from '../../types';
 import type { PriceList } from '../../lib/priceLists';
@@ -42,7 +42,9 @@ function ScopedDiscountMismatch({startDate='',endDate=''}: Props) {
     } catch { if(current())setError('Could not refresh complete invoice and item history. Retry; no complete export is available.'); }
     finally {pending.current=false;if(current())setBusy(false);}
   }
-  const exportCsv=()=>downloadCsv('Current_price_mismatches.csv',['Date','Invoice','Customer','Item','Currency','Invoice unit price','Expected unit price','Difference per unit','Comparison source'],report.rows.map(row=>[row.date,row.number,row.customer,row.item,row.currency,csvMoney(row.actualCents),csvMoney(row.expectedCents),csvMoney(row.differenceCents),row.source]));
+  // #910 family: every comparable line is in the book currency (a foreign-currency line is excluded above)
+  const moneyCell = csvMoneyForBook(currency);
+  const exportCsv=()=>downloadCsv('Current_price_mismatches.csv',['Date','Invoice','Customer','Item','Currency','Invoice unit price','Expected unit price','Difference per unit','Comparison source'],report.rows.map(row=>[row.date,row.number,row.customer,row.item,row.currency,moneyCell(row.actualCents),moneyCell(row.expectedCents),moneyCell(row.differenceCents),row.source]));
   return <section aria-label={reportText('r.discount-mismatch-review', 'Discount mismatch review')} className="p-4 space-y-4 min-w-0"><h2>{reportText('r.discount-mismatch-review', 'Discount mismatch review')}</h2>
     <p>{reportText('r.issued-invoice-unit-prices-for', 'Issued invoice unit prices for')} {startDate} {reportText('r.through-2', 'through')} {endDate}{reportText('r.compared-with-the-customer-s-current-price-list', ', compared with the customer’s current price list or the item’s current catalogue price. The existing list-price helper supplies the expected rate. Difference = invoice unit price − expected unit price; negative means the invoice price is lower.')}</p>
     <p>{reportText('r.this-is-a-current-price-review-not-proof-of-the', 'This is a current-price review, not proof of the discount agreed on the invoice date. Historical lists, separate item discount rules and document-wide discounts are not stored here. Credits, opening balances, drafts, voids and foreign-currency lines are outside this comparison. No prices, amounts or postings are changed.')}</p>

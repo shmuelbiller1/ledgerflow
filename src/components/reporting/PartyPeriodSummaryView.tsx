@@ -9,7 +9,7 @@ import { partyPeriodSummary, type PartyPeriodRow } from '../../lib/partyPeriodSu
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { normalizeSearchText } from '../../lib/textNormalization';
 import { formatCurrency } from '../../lib/utils';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { csvMoneyForBook, downloadCsv } from '../../lib/csvExport';
 import { useReportText } from './useReportText';
 interface Props { startDate?: string; endDate?: string; compareStartDate?: string; compareEndDate?: string }
 const columnsFor = (reportText: ReturnType<typeof useReportText>): {key: keyof Omit<PartyPeriodRow,'id'|'name'>; label:string}[] => [{key:'openingCents',label:reportText('r.opening-2', 'Opening')},{key:'invoicedCents',label:reportText('r.invoiced-billed', 'Invoiced / billed')},{key:'paidCents',label:reportText('r.paid', 'Paid')},{key:'creditedCents',label:reportText('r.credited-net-refunds', 'Credited (net refunds)')},{key:'closingCents',label:reportText('r.closing', 'Closing')}];
@@ -18,6 +18,8 @@ function PartyPeriodSummaryView({kind,startDate='',endDate='',compareStartDate='
   const columns = columnsFor(reportText);
   const workspace = useAuthStore(state => state.currentWorkspaceId);
   const currency = useAuthStore(state => state.getCurrentWorkspace()?.currency);
+  // #910 family: every column is in the base currency (the note below says so), so are the file's decimals
+  const moneyCell = csvMoneyForBook(currency || 'USD');
   const customers=useLedgerStore(state=>state.customers),vendors=useLedgerStore(state=>state.vendors);
   const invoices=useLedgerStore(state=>state.invoices),bills=useLedgerStore(state=>state.bills);
   const payments=useLedgerStore(state=>state.payments),creditNotes=useLedgerStore(state=>state.creditNotes),vendorCredits=useLedgerStore(state=>state.vendorCredits);
@@ -36,7 +38,7 @@ function PartyPeriodSummaryView({kind,startDate='',endDate='',compareStartDate='
   const keys=kind==='customer'?(['customers','invoices','payments','creditNotes'] as const):(['vendors','bills','payments','vendorCredits'] as const);
   const partial=keys.some(key=>isCollectionCapped(truncated,key)||failed[key]);
   const title=kind==='customer'?'Customer period ledger summary':'Supplier period ledger summary';
-  const exportRows=()=>{if(partial||loading||!valid)return;downloadCsv(`${kind}_period_${startDate}_${endDate}.csv`,['Party',...columns.map(column=>column.label)],visible.map(row=>[row.name,...columns.map(column=>csvMoney(row[column.key]))]));};
+  const exportRows=()=>{if(partial||loading||!valid)return;downloadCsv(`${kind}_period_${startDate}_${endDate}.csv`,['Party',...columns.map(column=>column.label)],visible.map(row=>[row.name,...columns.map(column=>moneyCell(row[column.key]))]));};
   return <section className="space-y-4 p-4 min-w-0" aria-label={title}>
     <h2 className="text-lg font-semibold">{title}</h2>
     <p>{reportText('r.opening-is-the-existing-balance-at-the-end-of-th', 'Opening is the existing balance at the end of the day before')} {startDate}{reportText('r.movements-run-through', '. Movements run through')} {endDate}{reportText('r.inclusive-closing-opening-invoiced-billed-paid-c', ', inclusive. Closing = opening + invoiced/billed − paid − credits net of refunds. All amounts use the workspace base currency.')}</p>

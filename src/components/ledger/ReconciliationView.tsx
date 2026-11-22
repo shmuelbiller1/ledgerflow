@@ -6,7 +6,8 @@ import { CreateFromBankLine } from './CreateFromBankLine';
 import { ArrowLeftRight, Sparkles, Search, AlertCircle, ArrowRight, ShieldCheck, Zap, RefreshCw, Link as LinkIcon, X, Check, Loader2, Lock, History, Info, Layers, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency, resolveAccountName, formatDate } from '../../lib/utils';
-import { civilMonthDay } from '../../lib/calendarDate';
+import { bankLineAgeGroup, bankLineAgeLabels, oldestBankLinesFirst } from '../../lib/bankLineAge';
+import { civilMonthDay, getLocalDateISO } from '../../lib/calendarDate';
 import { cashLegForBankLine } from '../../lib/reconciliationSuggestions';
 import { lineAmount } from '../../lib/txFilters';
 
@@ -25,20 +26,26 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
  // Dialog contract (src/components/AGENTS.md): named title, initial focus, trapped Tab,
  // Escape to close, focus restored to the trigger.
  const batchDialog = useDialog<HTMLDivElement>(() => setShowAutoConfirm(false), showAutoConfirm);
+ const [bankOrder, setBankOrder] = useState<'needs-you' | 'age'>('needs-you');
+ const today = getLocalDateISO();
  const [bankLimit, setBankLimit] = useState(100);
  const [ledgerLimit, setLedgerLimit] = useState(100);
  // EU-C5: start from what is done; the lines that need the person come first
  const summary = useMemo(() => reconciliationSummary(matchedBankLines.length, unmatchedBankLines.map(b => b.id), optimizedMatches), [matchedBankLines.length, unmatchedBankLines, optimizedMatches]);
- const orderedBankFeed = useMemo(() => (viewMode === 'pending' ? needYouFirst(filteredBankFeed, optimizedMatches) : filteredBankFeed), [filteredBankFeed, optimizedMatches, viewMode]);
+ const orderedBankFeed = useMemo(() => (viewMode !== 'pending' ? filteredBankFeed : bankOrder === 'age' ? oldestBankLinesFirst(filteredBankFeed) : needYouFirst(filteredBankFeed, optimizedMatches)), [filteredBankFeed, optimizedMatches, viewMode, bankOrder]);
  const visibleBankFeed = useMemo(() => {
    if (orderedBankFeed.length <= bankLimit) return orderedBankFeed;
    const sliced = orderedBankFeed.slice(0, bankLimit);
    if (selectedBankId && !sliced.some(b => b.id === selectedBankId)) {
      const selected = orderedBankFeed.find(b => b.id === selectedBankId);
-     if (selected) sliced.push(selected);
+     if (selected) {
+       // Keep the selected row reachable without breaking chronological group order.
+       if (bankOrder === 'age') return oldestBankLinesFirst([...sliced, selected]);
+       sliced.push(selected);
+     }
    }
    return sliced;
- }, [orderedBankFeed, bankLimit, selectedBankId]);
+ }, [orderedBankFeed, bankLimit, selectedBankId, bankOrder]);
  const visibleLedgerEntries = useMemo(() => {
    if (filteredLedgerEntries.length <= ledgerLimit) return filteredLedgerEntries;
    const sliced = filteredLedgerEntries.slice(0, ledgerLimit);
@@ -181,13 +188,26 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                 <span className="text-[10px] font-mono font-bold bg-[var(--brass-soft)] text-[var(--brass)] px-2 py-0.5 rounded border border-[var(--brass-line)]">{filteredBankFeed.length} to review</span>
              </div>
              <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3">
-                {visibleBankFeed.map(btx => {
+                <label className="flex flex-col gap-1 text-xs text-[var(--muted)]">
+                  Review order
+                  <select aria-label="Bank line review order" value={bankOrder}
+                    onChange={e => { setBankOrder(e.target.value as 'needs-you' | 'age'); setBankLimit(100); }}
+                    className="min-h-11 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-[var(--text)]">
+                    <option value="needs-you">Needs you first</option>
+                    <option value="age">Age — oldest first</option>
+                  </select>
+                </label>
+                {bankOrder === 'age' && <p className="text-xs text-[var(--muted)]">Age is based on the statement date, not the import date. Only loaded lines matching the current filters are shown.</p>}
+                {visibleBankFeed.map((btx, index) => {
                   const matchedLedgerId = optimizedMatches.get(btx.id);
                   const isSelected = selectedBankId === btx.id;
 
                   return (
+                    <div key={btx.id} data-bank-line-id={btx.id}>
+                    {bankOrder === 'age' && (index === 0 || bankLineAgeGroup(visibleBankFeed[index - 1].date, today) !== bankLineAgeGroup(btx.date, today)) && (
+                      <h3 className="mb-2 text-sm font-semibold text-[var(--text)]">{bankLineAgeLabels[bankLineAgeGroup(btx.date, today)]}</h3>
+                    )}
                     <motion.div role="presentation"
-                      key={btx.id}
                       layout
                       onClick={() => setSelectedBankId(btx.id)}
                       className={cn(
@@ -235,6 +255,7 @@ export function ReconciliationView(model: ReturnType<typeof useReconciliationMod
                         </div>
                       </div>
                     </motion.div>
+                    </div>
                   );
                 })}
                 {filteredBankFeed.length > visibleBankFeed.length && (

@@ -10,7 +10,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { getFiscalYearBounds } from '../../lib/fiscalCalendar';
 import { PartyTransactionRow } from '../../server/reports/partyReports';
 import { toast } from 'sonner';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { csvMoneyForBook, downloadCsv } from '../../lib/csvExport';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useReportText } from './useReportText';
 
@@ -97,6 +97,8 @@ export function TransactionsByPartyView<P, D1, D2>({
   const payments = useLedgerStore(paymentStore);
   const docs2 = useLedgerStore(docStore2);
   const currency = useAuthStore((s) => s.getCurrentWorkspace()?.currency) || 'USD';
+  // #910 family: the rows are summed in the book currency, so the file's decimals come from it
+  const moneyCell = csvMoneyForBook(currency);
   useLedgerCollections(...collections);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -163,7 +165,7 @@ export function TransactionsByPartyView<P, D1, D2>({
       'Reference / Number',
       'Status',
       'Amount',
-    ], filteredRows.map((r) => [r.date, r.partyName, r.type, r.reference, r.status, csvMoney(r.amountCents)]));
+    ], filteredRows.map((r) => [r.date, r.partyName, r.type, r.reference, r.status, moneyCell(r.amountCents)]));
     toast.success(toastMessage);
   };
 

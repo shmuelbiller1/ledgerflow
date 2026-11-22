@@ -10,6 +10,7 @@ import DrillDownModal, { type ExplainRequest } from '../layout/DrillDownModal';
 import { rollUp } from '../../lib/labelTree';
 import { useReportText, fill } from './useReportText';
 import { useReportDates } from './useReportDates';
+import { LoadingState } from '../ui/LoadingState';
 
 type Section = 'income' | 'cogs' | 'expense';
 interface Column { value: string; income: number; cogs: number; grossProfit: number; expense: number; netIncome: number; accounts: Record<string, number> }
@@ -92,7 +93,7 @@ export default function LabelProfitReportView() {
         </div>
       )}
       {startDate > endDate && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{reportText('r.the-period-starts-after-it-ends', 'The period starts after it ends.')}</p>}
-      {key && !shown && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {key && !shown && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
       {report && report.columns.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-income-or-costs-in-this-period', 'No income or costs in this period.')}</p>}
       {report && report.columns.length > 0 && (

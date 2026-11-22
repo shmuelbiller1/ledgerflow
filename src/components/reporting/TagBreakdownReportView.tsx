@@ -1,13 +1,14 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { formatCurrency } from '../../lib/utils';
 import { useServerTagBreakdown } from '../../hooks/useServerTagBreakdown';
 import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { Tag, Hash } from 'lucide-react';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { EmptyState } from '../ui/EmptyState';
-import { csvMoney } from '../../lib/csvExport';
+import { csvMoneyForBook } from '../../lib/csvExport';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useReportText } from './useReportText';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 interface Props {
   selectedYear?: number;
@@ -21,6 +22,9 @@ export const TagBreakdownReportView: React.FC<Props> = ({
   endDate
 }) => {
   const reportText = useReportText();
+  // #910: the file is in the book's currency, so its decimals come from that currency (JPY yen, KWD fils)
+  const bookCurrency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  const moneyCell = useMemo(() => csvMoneyForBook(bookCurrency), [bookCurrency]);
   const start = startDate || (selectedYear ? `${selectedYear}-01-01` : undefined);
   const end = endDate || (selectedYear ? `${selectedYear}-12-31` : undefined);
 
@@ -77,7 +81,7 @@ export const TagBreakdownReportView: React.FC<Props> = ({
           filename: 'tag-breakdown.csv',
           label: reportText('r.export-csv', 'Export CSV'),
           headers: ['Tag', 'Tagged Items', 'Revenue Inflow', 'Expense Outflow', 'Net Financial Impact'],
-          mapRow: row => [row.tag, row.count, csvMoney(row.incomeCents), csvMoney(row.expenseCents), csvMoney(row.netCents)],
+          mapRow: row => [row.tag, row.count, moneyCell(row.incomeCents), moneyCell(row.expenseCents), moneyCell(row.netCents)],
         }}
         emptyState={<EmptyState title={reportText('r.no-tagged-transactions-in-this-period', 'No tagged transactions in this period')} description={reportText('r.try-a-wider-period-or-tag-some-transactions-firs', 'Try a wider period, or tag some transactions first.')} />}
         filteredEmptyState={<EmptyState title={reportText('r.no-tag-matches-your-search', 'No tag matches your search')} description={reportText('r.try-another-word', 'Try another word.')} />}
