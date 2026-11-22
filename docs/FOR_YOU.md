@@ -28,6 +28,14 @@ If I hear nothing, I'll build it with these defaults.
 
 Nothing a vendor sends would ever become a posted bill on its own; someone in your workspace reviews it first. *Default:* not started until you say you want it. Without your answers I'd have to guess at storage and access rules, and I won't guess at those.
 
+## Please apply one database migration: support tickets visible only to their author, owners/accountants and admins (#913, #916, PR #988 merged)
+
+PR #988 is merged, but the live database doesn't have its change yet. The Supabase approval prompt went unanswered twice, so I stopped calling it rather than block the session. Until it's applied, any member of a workspace (viewers included) can still read other people's support tickets and messages.
+
+To apply: in Supabase, SQL editor, run `supabase/migrations/20261122050000_support_ticket_visibility.sql`. It is idempotent. Or set the Supabase connector to "Always allow" and I'll apply it myself.
+
+Default used: owners and accountants keep seeing all of their workspace's tickets (they triage them); viewers and bookkeepers see only their own.
+
 ## Retried money requests from outside tools can post twice (#942, needs your decision; nothing changed yet)
 
 When an outside tool using an API key sends a transaction, a payment or an intercompany entry, and then sends it again (a timeout, a double click), the second copy is posted too, unless the tool included an `Idempotency-Key`. LedgerFlow's own screens always include one, so this only affects API integrations. The server can't simply ignore repeats with the same content: two identical entries can both be real (two coffees on the same day).
