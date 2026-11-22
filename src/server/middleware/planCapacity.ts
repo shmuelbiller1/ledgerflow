@@ -177,6 +177,73 @@ export interface WorkspaceUsage {
   paymentVolumeCents: { used: number; limit: number; platformFeeBps: number };
   seats: { used: number; limit: number };
   storageMb: { used: number; limit: number };
+  /** SBX-2 Part 7: the in-app assistant this month */
+  assistant: AssistantUsage;
+}
+
+/**
+ * SBX-2 Part 7: what the in-app assistant used this calendar month (UTC), from the per-turn metrics
+ * (services/assistantTurn.ts `recordAssistantTurn`; counts, tokens and cost only, never text).
+ * `modelTurns` and `costCents` are held against the plan; code and cache answers are shown but free.
+ * A turn whose model has no price row counts its tokens and adds to `unpricedTurns`, never a guessed cost.
+ */
+export interface AssistantUsage {
+  month: string;
+  turns: number;
+  modelTurns: number;
+  inputTokens: number;
+  outputTokens: number;
+  costCents: number;
+  unpricedTurns: number;
+  /** null when billing is not enforced for the workspace */
+  limits: { modelTurns: number; costCents: number } | null;
+}
+
+export async function assistantUsage(db: Firestore, workspaceId: string, ws?: Record<string, unknown>, now = new Date()): Promise<AssistantUsage | null> {
+  requireLiveDb(db, 'Assistant usage');
+  const workspace = ws ?? (await db.collection('workspaces').doc(workspaceId).get()).data();
+  if (!workspace) return null;
+  const month = now.toISOString().slice(0, 7);
+  const { rows } = await db.pool.query<{ turns: number; model_turns: number; input: string; output: string; cents: string | null; unpriced: number }>(
+    `select count(*)::int as turns,
+            count(*) filter (where (data->'assistantTurn'->>'modelCalls')::int > 0)::int as model_turns,
+            coalesce(sum((data->'assistantTurn'->>'inputTokens')::bigint), 0)::text as input,
+            coalesce(sum((data->'assistantTurn'->>'outputTokens')::bigint), 0)::text as output,
+            coalesce(sum((data->'assistantTurn'->>'costCents')::numeric), 0)::text as cents,
+            count(*) filter (where (data->'assistantTurn'->>'modelCalls')::int > 0 and data->'assistantTurn'->'costCents' = 'null'::jsonb)::int as unpriced
+       from ${db.tableSource('billingLedgerTraces')}
+      where workspace_id = $1 and data->>'algorithmName' = 'ASSISTANT_TURN' and left(data->>'timestamp', 7) = $2`,
+    [workspaceId, month]);
+  const row = rows[0];
+  const plan = String(workspace.plan || 'free').toLowerCase();
+  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+  return {
+    month,
+    turns: row?.turns ?? 0,
+    modelTurns: row?.model_turns ?? 0,
+    inputTokens: Number(row?.input ?? 0),
+    outputTokens: Number(row?.output ?? 0),
+    costCents: Number(row?.cents ?? 0),
+    unpricedTurns: row?.unpriced ?? 0,
+    limits: workspace.bypassBilling === true ? null : {
+      modelTurns: Number(workspace.maxAssistantModelTurns || 0) || limits.assistantModelTurnsPerMonth,
+      costCents: Number(workspace.maxAssistantCents || 0) || limits.assistantCentsPerMonth,
+    },
+  };
+}
+
+/** The polite refusal when this month's assistant allowance is used up, or null while there is room. */
+export function assistantLimitRefusal(usage: AssistantUsage): { code: 'ASSISTANT_LIMIT_REACHED'; message: string; usage: AssistantUsage } | null {
+  if (!usage.limits) return null;
+  const turnsOut = usage.modelTurns >= usage.limits.modelTurns;
+  const centsOut = usage.costCents >= usage.limits.costCents;
+  if (!turnsOut && !centsOut) return null;
+  const what = turnsOut ? `all ${usage.limits.modelTurns} assistant answers` : 'the assistant allowance';
+  return {
+    code: 'ASSISTANT_LIMIT_REACHED',
+    message: `This workspace has used ${what} included in its plan for ${usage.month}. Questions the books answer directly (balances, totals, an invoice by number) still work. To ask the assistant more this month, upgrade the plan in Settings → Billing & Plan; the allowance resets on the 1st.`,
+    usage,
+  };
 }
 
 /**
@@ -231,6 +298,7 @@ export async function workspaceUsage(db: Firestore, workspaceId: string): Promis
   ]);
 
   const rentalUnitsFromWs = Array.isArray(ws.rentalUnits) ? ws.rentalUnits.length : 0;
+  const assistant = (await assistantUsage(db, workspaceId, ws))!;
 
   return {
     plan,
@@ -264,5 +332,6 @@ export async function workspaceUsage(db: Firestore, workspaceId: string): Promis
       used: Number(ws.currentStorageMb) || 0,
       limit: Number(ws.maxStorageMb) || planFor(plan).limits.storageMb,
     },
+    assistant,
   };
 }
