@@ -88,6 +88,12 @@ export interface AssistantTurnInput {
   question: string;
   /** Runs one read tool. Its result goes back to the model; it is never stored in the metric. */
   callTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+  /**
+   * Turns a tool's result into extra tool definitions for the rest of the turn — `find_command`'s
+   * discovery. The definitions come from the caller's own command catalog (trusted server code),
+   * never from model text; they join both what the model is offered and what may run.
+   */
+  discover?: (tool: string, result: unknown) => FunctionDeclaration[];
   maxSteps?: number;
   now?: () => number;
 }
@@ -100,9 +106,10 @@ export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ ans
   const toolsCalled: string[] = [];
   // Only the offered tools run; any other name the model returns is refused and recorded as 'unknown',
   // so a made-up or injected name never reaches callTool or the stored metric.
-  const offered = new Set(input.tools.map(t => String(t.name)));
+  const declarations = [...input.tools];
+  const offered = new Set(declarations.map(t => String(t.name)));
   const contents: Content[] = [{ role: 'user', parts: [{ text: input.question }] }];
-  const config = { systemInstruction: input.systemPrompt, tools: [{ functionDeclarations: input.tools }] };
+  const config = { systemInstruction: input.systemPrompt, tools: [{ functionDeclarations: declarations }] };
   let answered: number | undefined;
   let answer = '';
   let ok = false;
@@ -125,8 +132,13 @@ export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ ans
         let response: Record<string, unknown>;
         if (!offered.has(name)) response = { error: 'This tool was not offered.' };
         else {
-          try { response = { result: await input.callTool(name, (call.args ?? {}) as Record<string, unknown>) }; }
-          catch (err) { response = { error: err instanceof Error ? err.message : 'tool failed' }; }
+          try {
+            const result = await input.callTool(name, (call.args ?? {}) as Record<string, unknown>);
+            response = { result };
+            for (const found of input.discover?.(name, result) ?? []) {
+              if (found.name && !offered.has(String(found.name))) { offered.add(String(found.name)); declarations.push(found); }
+            }
+          } catch (err) { response = { error: err instanceof Error ? err.message : 'tool failed' }; }
         }
         parts.push({ functionResponse: { name, response } });
       }

@@ -141,3 +141,33 @@ test('an empty or blocked reply is not counted as a successful turn', async () =
   assert.equal(metric.ok, false);
   assert.equal(metric.modelCalls, 1);
 });
+
+test('a command found with find_command becomes callable for the rest of the turn', async () => {
+  const replies = [
+    { functionCalls: [{ name: 'find_command', args: { words: 'recurring invoice' } }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 1 } },
+    { functionCalls: [{ name: 'propose_record_save', args: { kind: 'recurring' } }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 1 } },
+    { text: 'Drafted.', usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 1 } },
+  ];
+  const offeredPerCall: string[][] = [];
+  const client: ModelClient = { models: { generateContent: async req => {
+    const decls = ((req.config as { tools: Array<{ functionDeclarations: Array<{ name: string }> }> }).tools[0].functionDeclarations).map(d => d.name);
+    offeredPerCall.push([...decls]);
+    return replies.shift();
+  } } };
+  const ran: string[] = [];
+  const catalog = { propose_record_save: { name: 'propose_record_save', description: 'Draft a record save' } };
+  const { answer, metric } = await runAssistantTurn({
+    client, model: 'gemini-2.5-flash', systemPrompt: 's', question: 'Set up a monthly invoice', now: clock(),
+    tools: [{ name: 'find_command', description: 'f' }],
+    callTool: async name => { ran.push(name); return name === 'find_command' ? { commands: ['propose_record_save'] } : { drafted: true }; },
+    // the declarations come from the server catalog, looked up by the names the trusted tool returned
+    discover: (tool, result) => tool === 'find_command'
+      ? ((result as { commands: string[] }).commands).flatMap(n => (catalog as Record<string, { name: string; description: string }>)[n] ? [(catalog as Record<string, { name: string; description: string }>)[n]] : [])
+      : [],
+  });
+  assert.equal(answer, 'Drafted.');
+  assert.deepEqual(ran, ['find_command', 'propose_record_save'], 'the discovered command ran');
+  assert.deepEqual(metric.toolsCalled, ['find_command', 'propose_record_save']);
+  assert.deepEqual(offeredPerCall[0], ['find_command']);
+  assert.deepEqual(offeredPerCall[1], ['find_command', 'propose_record_save'], 'the next model call is offered the discovered command');
+});
