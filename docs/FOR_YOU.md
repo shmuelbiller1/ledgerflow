@@ -43,7 +43,7 @@ Claude Code cloud environment settings → Network secrets → add:
 
 New sessions pick it up. Until then, the replay runs without a model and records only the numbers that don't need one: the size of the fixed prompt and how many tools are offered per turn.
 
-Default used: models are measured on test data only. Sending real customers' books to Arena (a provider other than Google) stays off until you approve it here.
+**Approved by the owner (22 Nov):** AI providers other than Google may be used for the assistant, including sending book data to them (for example through Arena). The Arena key still has to be added as a network secret (above) before models can be tested.
 
 ## Retried money requests from outside tools can post twice (#942, needs your decision; nothing changed yet)
 
