@@ -146,7 +146,7 @@ rowClassName={({ depth }) => cn(
           "group hover:bg-[var(--ink)] transition-colors cursor-pointer border-b border-[var(--line)]",
           depth > 0 && "bg-[var(--ink)]/20"
         )}
-emptyRow={<tr>
+emptyRow={accounts.length === 0 ? <tr>
                 <td colSpan={6}>
                   <EmptyState
                     title="No accounts yet"
@@ -155,7 +155,7 @@ emptyRow={<tr>
                     onAction={onAddAccount}
                   />
                 </td>
-              </tr>}
+              </tr> : undefined}
 columns={[
 { header: "Code", headClassName: "p-4 font-bold text-[9px] text-[var(--muted)]", className: "p-4 font-mono text-xs text-[var(--muted)]", cellProps: ({ account, hasChildren }) => ({ "onClick": () => hasChildren && toggleExpand(account.id) }), cell: ({ account, depth, hasChildren, isExpanded }) => (<div className="flex items-center gap-2" style={{ paddingInlineStart: `${depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
               {hasChildren ? (

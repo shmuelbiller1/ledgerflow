@@ -235,16 +235,16 @@ footer={sortedAndFilteredRows.length > 0 && <><tr className="bg-slate-50 dark:bg
                   <td></td>
                 </tr></>}
 columns={[
-{ header: <button type="button" className="min-h-11" onClick={() => handleSort('partyName')}><span className="flex items-center gap-1">
+{ header: <button type="button" data-grid-sort-header className="min-h-11" onClick={() => handleSort('partyName')}><span className="flex items-center gap-1">
                     {isCustomer ? reportText('r.customer', 'Customer') : reportText('r.vendor', 'Vendor')}
                     <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-[var(--muted)]" />
                   </span></button>, headClassName: "p-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors", className: "p-4 font-semibold text-slate-900 dark:text-white flex items-center gap-2", cell: row => (<><Users aria-hidden="true" className="w-4 h-4 text-[var(--muted)]" />
                     {row.partyName}</>) },
-{ over: AGING_BUCKETS, head: b => (<button type="button" className="min-h-11" onClick={() => handleSort(b.key)}><span className="flex items-center justify-end gap-1">
+{ over: AGING_BUCKETS, head: b => (<button type="button" data-grid-sort-header className="min-h-11" onClick={() => handleSort(b.key)}><span className="flex items-center justify-end gap-1">
                       {bucketName(b.key, b.label)}
                       <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-[var(--muted)]" />
                     </span></button>), headClassName: "p-4 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors", className: "p-4 text-right font-mono text-slate-600 dark:text-slate-400", cell: (row, b) => (<bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{row.buckets[b.key] > 0 ? formatCurrency(row.buckets[b.key], currency) : '-'}</bdi>) },
-{ header: <button type="button" className="min-h-11" onClick={() => handleSort('total')}><span className="flex items-center justify-end gap-1">
+{ header: <button type="button" data-grid-sort-header className="min-h-11" onClick={() => handleSort('total')}><span className="flex items-center justify-end gap-1">
                     {reportText('r.total-outstanding', 'Total Outstanding')}
                     <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-[var(--muted)]" />
                   </span></button>, headClassName: "p-4 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors", className: "p-4 text-right font-mono font-bold text-slate-900 dark:text-white", cell: row => (<bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(row.total, currency)}</bdi>) },

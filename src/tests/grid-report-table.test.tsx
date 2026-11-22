@@ -252,3 +252,21 @@ describe('the second review pass', () => {
     );
   });
 });
+
+describe('the final batch\'s hand-converted sortable headings', () => {
+  test('every sort-heading button outside the shared grid carries the print marker', () => {
+    // #1001 (Codex): the hand-converted trial balance and party aging draw their sortable column
+    // headings as buttons; `@media print { button { display: none } }` would remove the printed
+    // reports' column labels unless each button carries data-grid-sort-header, the marker the
+    // print rule re-enables (the shared grid does this for its own headings).
+    const marked = (file: string, expected: number) => {
+      const source = fs.readFileSync(path.join(process.cwd(), file), 'utf8');
+      const hits = [...source.matchAll(/<button type="button" data-grid-sort-header[^>]*onClick=\{\(\) => handleSort\(/g)].length;
+      const misses = [...source.matchAll(/<button type="button" (?!data-grid-sort-header)[^>]*onClick=\{\(\) => handleSort\(/g)].length;
+      assert.equal(hits, expected, `${file}: ${expected} sortable headings marked for print`);
+      assert.equal(misses, 0, `${file}: no sortable heading without the marker`);
+    };
+    marked('src/components/ledger/TrialBalanceView.tsx', 4);
+    marked('src/components/reporting/PartyAgingReportView.tsx', 3);
+  });
+});
