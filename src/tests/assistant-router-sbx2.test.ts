@@ -135,6 +135,7 @@ test('records and calculations are worded with their source', () => {
   assert.equal(wordCodeAnswer(paid, { text: 'INV-1', matches: [match({ id: 'i1', number: 'INV-1', status: 'partially_paid' })] }, 'USD'),
     'No. Invoice INV-1 (status partially_paid). Source: invoices records.');
   assert.equal(wordCodeAnswer(paid, { text: 'INV-1', matches: [match({ id: 'i1', number: 'INV-1' })] }, 'USD'), null);
+  assert.equal(wordCodeAnswer(paid, { text: 'INV-1', matches: [match({ id: 'i1', number: 'INV-1', status: 'paid', writtenOffCents: 5000 })] }, 'USD'), null, 'written off is not paid: the model explains it');
   const full = Array.from({ length: 20 }, (_, i) => match({ id: `i${i}`, number: i === 0 ? 'INV-1' : `INV-1${i}` }));
   assert.equal(wordCodeAnswer(records, { text: 'INV-1', matches: full }, 'USD'), null, 'a full page may be cut short: not stated');
   const payments = { tool: 'list_records', args: { collection: 'payments', limit: 2, orderBy: { field: 'date', direction: 'desc' } }, template: 'records' } as const;

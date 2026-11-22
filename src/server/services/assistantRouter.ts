@@ -206,6 +206,8 @@ export function wordCodeAnswer(route: CodeRoute, result: unknown, currency: stri
           // one exact invoice with a known status, or the model answers
           const status = records.length === 1 && typeof records[0].status === 'string' ? records[0].status.trim().toLowerCase() : '';
           if (!status) return null;
+          // a bad-debt write-off also sets status 'paid' (badDebtService.writeOffInvoice): say nothing, the model explains it
+          if (Number(records[0].writtenOffCents) > 0) return null;
           const verdict = status === 'paid' ? 'Yes' : status === 'void' ? 'No — it was voided' : 'No';
           return `${verdict}. ${describeRecord(records[0], 'invoices')}. Source: invoices records.`;
         }
