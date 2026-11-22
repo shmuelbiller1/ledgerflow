@@ -184,7 +184,7 @@ export function sumEntries(entries: Transaction[], kinds: Iterable<string> = [])
   const byLabel: LabelCents = Object.create(null) as LabelCents;
   const labelLines: Record<string, Cents> = Object.create(null) as Record<string, Cents>;
   const kindList = [...kinds];
-  kindList.forEach(k => { byLabel[k] = createCents(); labelLines[k] = createCents(); });
+  kindList.forEach(k => { byLabel[k] = Object.create(null) as Record<string, Cents>; labelLines[k] = createCents(); });
   let count = 0;
   for (const tx of entries) {
     if (!isPostable(tx)) continue;
