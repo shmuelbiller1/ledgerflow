@@ -75,6 +75,8 @@ export async function giveAccess(
     }
     if (input.makeAdmin) {
       t.set(userRef, { role: "admin", updatedAt: now }, { merge: true });
+      // #943 (Gitar): the admins list follows the role, in the same transaction
+      t.set(db.collection("admins").doc(target.uid), { uid: target.uid, email: target.email, isAdmin: true, updatedAt: now }, { merge: true });
       await writeAuditLogStrict(actor.uid, actor.email, "ADMIN_USER_UPDATED",
         `Made ${target.email} a platform admin`, "system", userBefore, { ...userBefore, role: "admin" }, t);
     }

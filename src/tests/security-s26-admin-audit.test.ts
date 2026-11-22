@@ -108,4 +108,12 @@ describe('S-26: platform-admin audit completeness', { skip: !hasDb && 'needs LF_
     assert.equal(giveAccessRoutes.includes('writeAuditLogStrict'), true);
     assert.equal(grantAdmin.includes('writeServerAuditLog'), true);
   });
+
+  it('S-26 #943: the role route refuses an id that is not a user id, so admins/globalConfig is never touched', async () => {
+    const before = await db.collection('admins').doc('globalConfig').get();
+    const res = await api('PUT', '/api/v1/admin/users/globalConfig/role', adminToken, { role: 'client' });
+    assert.equal(res.status, 400);
+    const after = await db.collection('admins').doc('globalConfig').get();
+    assert.equal(after.exists, before.exists);
+  });
 });

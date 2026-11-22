@@ -20,6 +20,8 @@ import {
 import { requireSystemJobOrAdmin } from "../auth/systemJobAuth";
 import { registerGiveAccessRoutes } from "./giveAccessRoutes";
 
+const USER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** A system job trigger called by an admin (not the cron secret) leaves an actor row (#826). */
 async function auditManualTrigger(req: express.Request, action: string, details: string): Promise<void> {
   const user = (req as Partial<AuthenticatedRequest>).user;
@@ -220,6 +222,9 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
   app.put(["/api/v1/admin/users/:userId", "/api/v1/admin/users/:userId/role"], authenticate, requireAdmin, async (req: express.Request, res: express.Response) => {
     try {
       const { userId } = req.params as Record<string, string>;
+      // #943 (Gitar): a person's id is a Supabase user id; any other segment (e.g. `globalConfig`, which
+      // shares the admins collection) must never reach the users or admins rows
+      if (!USER_ID.test(userId)) return sendError(res, 'Invalid user id', 400);
       const { role } = req.body;
       const ALLOWED_ROLES = ['client', 'admin'];
       if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
