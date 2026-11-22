@@ -8,9 +8,11 @@ import test, { afterEach, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { toast } from 'sonner';
 import ReceivePaymentModal from '../components/sales/ReceivePaymentModal';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
+import { useUIStore } from '../stores/useUIStore';
 import type { Workspace } from '../types';
 import { makeBill, makeChartAccount, makeCustomer, makeInvoice, makeVendor } from './fixtures';
 
@@ -71,6 +73,36 @@ describe('Payment dialog', () => {
     render(<ReceivePaymentModal isOpen onClose={() => {}} defaultContactId="c1" defaultDocumentId="i2" />);
     await waitFor(() => assert.equal((screen.getByLabelText(/Amount/) as HTMLInputElement).value, '80.00'));
     assert.equal((screen.getByLabelText('Allocation amount for document INV-2') as HTMLInputElement).value, '80.00');
+  });
+
+  test('a changed invoice balance gets a Hebrew remedy without losing the payment draft', async (t) => {
+    const previousLanguage = useUIStore.getState().language;
+    useUIStore.setState({ language: 'he' });
+    t.after(() => useUIStore.setState({ language: previousLanguage }));
+    const calls = stubFetchWithBodies(400, {
+      status: 'error',
+      message: 'Overpayment not allowed: allocation of 8000 cents exceeds remaining balance of 6000 cents for document i2',
+    });
+    const failed = t.mock.method(toast, 'error', () => 'payment-refused');
+    const saved = t.mock.method(toast, 'success', () => 'payment-saved');
+    let closed = 0;
+    render(<ReceivePaymentModal isOpen onClose={() => { closed++; }} defaultContactId="c1" defaultDocumentId="i2" />);
+    const allocation = () => (screen.getByLabelText('Allocation amount for document INV-2') as HTMLInputElement).value;
+    await waitFor(() => assert.equal(allocation(), '80.00'));
+    await click('Record & Post Payment');
+    await waitFor(() => assert.equal(failed.mock.callCount(), 1));
+    assert.deepEqual(failed.mock.calls[0].arguments, [
+      'התשלום לא נרשם: הסכום שהוקצה גבוה מיתרת המסמך',
+      { description: 'יש לבדוק את היתרה העדכנית בחשבונית או בחשבון הספק ולהקטין את הסכום שהוקצה למסמך.' },
+    ]);
+    assert.equal(saved.mock.callCount(), 0);
+    assert.equal(closed, 0);
+    assert.equal(allocation(), '80.00');
+    const posts = calls.filter(call => call.url === '/api/v1/payments' && call.method === 'POST');
+    assert.equal(posts.length, 1);
+    assert.deepEqual((posts[0].body as Record<string, unknown>).allocations, [
+      { documentId: 'i2', documentType: 'invoice', amountCents: 8000 },
+    ]);
   });
 
   test('a vendor payment lists that vendor\'s bills; a refusal keeps the dialog open', async () => {
