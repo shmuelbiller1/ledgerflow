@@ -93,9 +93,24 @@ test('the aging answer uses the report\'s buckets and total; a different shape f
 
 test('records and calculations are worded with their source', () => {
   const records = { tool: 'search_records', args: { text: 'INV-1', collections: ['invoices'] }, template: 'records' } as const;
+  const match = (record: Record<string, unknown>) => ({ collection: 'invoices', id: String(record.id ?? 'x'), matched: 'number', record });
   // the real search_records shape: { text, matches: [{ collection, id, matched, record }] }
-  assert.equal(wordCodeAnswer(records, { text: 'INV-1', matches: [{ collection: 'invoices', id: 'i1', matched: 'number', record: { number: 'INV-1', status: 'open' } }] }, 'USD'), '1 found: INV-1. Source: invoices records.');
-  assert.equal(wordCodeAnswer(records, { text: 'INV-1', matches: [] }, 'USD'), 'No matching invoices found. Source: invoices records.');
+  assert.equal(wordCodeAnswer(records, { text: 'INV-1', matches: [match({ id: 'i1', number: 'INV-1', status: 'paid', dueDate: '2026-11-30' })] }, 'USD'),
+    'Invoice INV-1 (status paid, due 2026-11-30). Source: invoices records.', 'a status question gets the status');
+  // substring matches (INV-10, a memo mentioning INV-1) are not the invoice asked for
+  assert.equal(wordCodeAnswer(records, { text: 'INV-1', matches: [match({ id: 'i10', number: 'INV-10', status: 'open' }), match({ id: 'i1', number: 'INV-1', status: 'open' })] }, 'USD'),
+    'Invoice INV-1 (status open). Source: invoices records.');
+  assert.equal(wordCodeAnswer(records, { text: 'INV-1', matches: [match({ id: 'i10', number: 'INV-10' })] }, 'USD'), null, 'no exact number: the model looks further');
+  assert.equal(wordCodeAnswer(records, { text: 'INV-1', matches: [] }, 'USD'), null, 'the scan is capped: never claim the invoice does not exist');
+  const full = Array.from({ length: 20 }, (_, i) => match({ id: `i${i}`, number: i === 0 ? 'INV-1' : `INV-1${i}` }));
+  assert.equal(wordCodeAnswer(records, { text: 'INV-1', matches: full }, 'USD'), null, 'a full page may be cut short: not stated');
+  const payments = { tool: 'list_records', args: { collection: 'payments', limit: 2, orderBy: { field: 'date', direction: 'desc' } }, template: 'records' } as const;
+  const listed = String(wordCodeAnswer(payments, { collection: 'payments', records: [
+    { id: 'p1', date: '2026-11-20', amountCents: 50000, currency: 'USD', reference: 'CHQ-9' },
+    { id: 'p2', date: '2026-11-18', amountCents: 1500, currency: 'JPY' },
+  ] }, 'USD'));
+  assert.match(listed, /^Last 2 payments: 2026-11-20 .*500.* CHQ-9; 2026-11-18 .*1,?500/);
+  assert.equal(wordCodeAnswer(payments, { records: [{ id: 'p1', date: '2026-11-20' }] }, 'USD'), null, 'no amount: not stated');
   const calc = { tool: 'calculate', args: { expression: '1250 + 212.50' }, template: 'calculation' } as const;
   // the real calculate shape: { expression, cents, amount }
   assert.equal(wordCodeAnswer(calc, { expression: '1250 + 212.50', cents: 146250, amount: 1462.5 }, 'USD'), '1250 + 212.50 = 1,462.50. Source: calculate.');
@@ -154,4 +169,15 @@ test('routed arguments are valid input for the real read tools', async () => {
     const schema = schemas[d.route.tool];
     assert.ok(schema.safeParse(d.route.args).success, `${q}: ${JSON.stringify(d.route.args)}`);
   }
+});
+
+test('a fallback turn counts the code tool it already ran, in its time and tools', async () => {
+  let t = 0;
+  const now = () => (t += 7);
+  const client: ModelClient = { models: { generateContent: async () => ({ text: 'model answer', usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } }) } };
+  const { metric } = await answerTurn({ client, model: 'gemini-2.5-flash', systemPrompt: 's', tools: [], currency: 'USD', now,
+    question: 'Show invoice INV-404.', callTool: async () => ({ text: 'INV-404', matches: [] }) });
+  assert.equal(metric.path, 'model');
+  assert.deepEqual(metric.toolsCalled.slice(0, 1), ['search_records']);
+  assert.ok(metric.totalMs >= 7 + 7, 'includes the code tool time');
 });

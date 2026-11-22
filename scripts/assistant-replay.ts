@@ -59,7 +59,7 @@ const FIXTURE: Record<string, unknown> = {
   explain_number: { totalCents: 4_200_000, lines: [{ label: 'Sales', cents: 4_200_000 }] },
   get_record: { collection: 'invoices', record: { id: 'inv_1', number: 'INV-1001', total: 1200, status: 'open' } },
   search_records: { text: 'test', matches: [{ collection: 'invoices', id: 'inv_1', matched: 'number', record: { id: 'inv_1', number: 'INV-1001', name: 'Acme Ltd' } }], scannedPerCollection: 500 },
-  list_records: { collection: 'payments', records: [{ id: 'pay_1', reference: 'PAY-1' }, { id: 'pay_2', reference: 'PAY-2' }], nextCursor: null },
+  list_records: { collection: 'payments', records: [{ id: 'pay_1', date: '2026-11-20', amountCents: 50_000, currency: 'USD', reference: 'PAY-1' }, { id: 'pay_2', date: '2026-11-18', amountCents: 75_000, currency: 'USD', reference: 'PAY-2' }], nextCursor: null },
   calculate: { expression: 'test', cents: 146_250, amount: 1462.5 },
   list_proposals: { proposals: [] },
   preview_proposal: { proposal: null },
@@ -80,6 +80,13 @@ export function replayTool(name: string, args: Record<string, unknown>): unknown
     return { matches: findAssistantCommands(ownerCommands(), words, limit) };
   }
   if (name.startsWith('propose_')) return { drafted: true, note: 'test fixture: a proposal step would be drafted in the sandbox' };
+  if (name === 'search_records') {
+    // test books: the invoice or customer asked about exists, with the fields a lookup reads
+    const text = typeof args.text === 'string' ? args.text : '';
+    const invoice = /^[A-Z]{1,6}-?\d+$/.test(text);
+    const record = invoice ? { id: 'inv_t', number: text, status: 'open', dueDate: '2026-12-01' } : { id: 'cus_t', name: text };
+    return { text, matches: [{ collection: invoice ? 'invoices' : 'customers', id: record.id, matched: invoice ? 'number' : 'name', record }], scannedPerCollection: 500 };
+  }
   return FIXTURE[name] ?? { error: 'not in the test fixture' };
 }
 

@@ -10,6 +10,7 @@
  *   `ask_books` placed every word and returned a figure); otherwise the turn falls back to the model.
  */
 import { currencyDigits, minorToMajor } from '../../lib/currencyMinorUnits';
+import { formatMoney } from '../../lib/moneyFormat';
 import { runAssistantTurn, turnMetric, type AssistantTurnInput, type AssistantTurnMetric } from './assistantTurn';
 
 export type CodeRoute =
@@ -26,6 +27,8 @@ const MODEL_ONLY = /\b(create|record|make|add|set ?up|move|write ?off|fix|delete
 const VAGUE = /\b(something|anything|stuff|things?|looks? off|weird|wrong)\b/i;
 
 const MAX_ROUTED_LENGTH = 120;
+/** search_records' default match limit (sandboxTools.ts): a full page may have been cut short */
+const SEARCH_RESULT_CAP = 20;
 const INVOICE_NO = /\binvoice\s+(?:no\.?\s*|number\s*|#\s*)?([A-Za-z]{1,6}-?\d{1,10})\b/i;
 const PURE_ARITHMETIC = /^[\d\s.,+\-*/()]+$/;
 
@@ -93,6 +96,22 @@ function money(minor: number, currency: string | null): string | null {
   return `${value} ${currency}`;
 }
 
+/** One record in words, with the fields a lookup asks about; null when a payment's amount cannot be stated. */
+function describeRecord(x: Record<string, unknown>, collection: string, currency?: string | null): string | null {
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 80) : undefined);
+  if (collection === 'invoices') {
+    const parts = [str(x.status) && `status ${str(x.status)}`, str(x.dueDate) && `due ${str(x.dueDate)}`].filter(Boolean);
+    return `Invoice ${str(x.number) ?? str(x.invoiceNumber) ?? str(x.id) ?? '?'}${parts.length ? ` (${parts.join(', ')})` : ''}`;
+  }
+  if (collection === 'payments') {
+    // the same formatter the payment screens use for amountCents
+    const cur = str(x.currency) ?? currency ?? undefined;
+    if (typeof x.amountCents !== 'number' || !cur) return null;
+    return [str(x.date), formatMoney(x.amountCents, cur), str(x.reference)].filter(Boolean).join(' ');
+  }
+  return str(x.name) ?? str(x.number) ?? str(x.id) ?? '?';
+}
+
 /**
  * Words the tool's answer from a fixed template, or returns null when the answer is not complete
  * enough to state — the caller then asks the model instead. Nothing here calculates money: figures
@@ -123,15 +142,25 @@ export function wordCodeAnswer(route: CodeRoute, result: unknown, currency: stri
       return `${who} ${total} (${parts.join('; ')}). Source: aging report.`;
     }
     case 'records': {
-      // list_records returns `records`; search_records returns `matches[].record` (sandboxTools.ts)
-      const records = Array.isArray(r.records) ? r.records as Array<Record<string, unknown>>
+      // list_records returns `records`; search_records returns `matches[].record` (sandboxTools.ts).
+      // search_records matches substrings inside text fields and reads a capped number of records,
+      // so its result is never stated as exact: an invoice must match its number exactly, and an
+      // empty or full (possibly truncated) search goes to the model.
+      let records = Array.isArray(r.records) ? r.records as Array<Record<string, unknown>>
         : Array.isArray(r.matches) ? (r.matches as Array<{ record?: Record<string, unknown> }>).map(m => m.record ?? {}) : undefined;
       if (!records) return null;
-      const what = route.tool === 'list_records' ? route.args.collection : route.args.collections.join(', ');
-      if (!records.length) return `No matching ${what} found. Source: ${what} records.`;
-      const label = (x: Record<string, unknown>) => String(x.number ?? x.invoiceNumber ?? x.name ?? x.reference ?? x.id ?? '').slice(0, 80);
-      const listed = records.slice(0, 10).map(label).filter(Boolean);
-      return `${records.length} found: ${listed.join(', ')}${records.length > 10 ? ', …' : ''}. Source: ${what} records.`;
+      if (route.tool === 'search_records') {
+        if (records.length >= SEARCH_RESULT_CAP) return null;
+        if (route.args.collections.length === 1 && route.args.collections[0] === 'invoices') {
+          records = records.filter(x => String(x.number ?? x.invoiceNumber ?? '').toUpperCase() === route.args.text);
+        }
+        if (!records.length) return null;
+        return records.slice(0, 10).map(x => describeRecord(x, route.args.collections[0])).join('; ') + `. Source: ${route.args.collections.join(', ')} records.`;
+      }
+      if (!records.length) return 'No payments recorded yet. Source: payments records.';
+      const lines = records.map(x => describeRecord(x, 'payments', currency));
+      if (lines.some(l => l === null)) return null;
+      return `Last ${records.length} payments: ${lines.join('; ')}. Source: payments records.`;
     }
     case 'calculation': {
       // calculate returns { expression, cents, amount } (exact decimal arithmetic, sandboxTools.ts)
@@ -162,6 +191,12 @@ export async function answerTurn(input: AssistantTurnInput & { currency: string 
       return { answer, metric: turnMetric({ path: 'code', traces: [], toolsOffered: 0, toolsCalled: [decision.route.tool],
         answerMs: ended - started, totalMs: ended - started, ok: true }) };
     }
+    // fell back: the person also waited for the code tool, so its time and name count in this turn
+    const spent = now() - started;
+    const fallback = await runAssistantTurn(input);
+    return { answer: fallback.answer, metric: { ...fallback.metric,
+      toolsCalled: [decision.route.tool, ...fallback.metric.toolsCalled],
+      answerMs: Math.round(fallback.metric.answerMs + spent), totalMs: Math.round(fallback.metric.totalMs + spent) } };
   }
   return runAssistantTurn(input);
 }
