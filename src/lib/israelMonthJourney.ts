@@ -541,6 +541,7 @@ export function israelMonthJourney(given: IsraelMonthInput): IsraelMonth {
           creditNotes: input.creditNotes || [],
           vendorCredits: input.vendorCredits || [],
           startDate: from, endDate: to,
+          baseCurrency: input.currency,
         }),
         from: registration.from,
         ...(registration.filing ? { filing: registration.filing } : {}),

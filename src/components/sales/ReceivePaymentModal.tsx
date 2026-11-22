@@ -18,7 +18,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useSuggestedRate } from '../../hooks/useSuggestedRate';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import WithholdingField, { type Withholding } from '../purchases/WithholdingField';
-import { runCommand } from '../../lib/runCommand';
+import { runCommand, ServerCommandError, writeWasAccepted } from '../../lib/runCommand';
 
 const cn = (...classes: (string | false | null | undefined)[]) => classes.filter(Boolean).join(' ');
 
@@ -252,6 +252,18 @@ export default function ReceivePaymentModal({
       onClose();
     } catch (err) {
       console.error('Failed to post payment:', err);
+      // #939: a 2xx whose answer was cut off is a recorded payment. Saying "not recorded" invites a second one.
+      if (writeWasAccepted(err)) {
+        toast.info(`Payment of ${formatCurrency(paymentAmountCents, payCurrency)} recorded; the server's answer could not be read.`, { description: 'Check the payments list before entering it again.' });
+        onClose();
+        return;
+      }
+      // the request never got an answer at all: it may or may not have been recorded. Keep the form (and its
+      // operation id) so "try again" replays the same request instead of posting a new one.
+      if (!(err instanceof ServerCommandError)) {
+        toast.error('The payment may not have been recorded: the network connection dropped before the server answered.', { description: 'Check the payments list. If it is not there, press Record again: it will not be posted twice.' });
+        return;
+      }
       const described = describeError(err, 'create', uiLanguageNow());
       toast.error(`Payment not recorded: ${described.title.charAt(0).toLowerCase()}${described.title.slice(1)}`, { description: described.remedy });
     } finally {

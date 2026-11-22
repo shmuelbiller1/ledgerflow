@@ -1,3 +1,4 @@
+import ReportSchedule from '../reporting/ReportSchedule';
 import React, { useMemo, useRef, useState } from 'react';
 import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { X } from 'lucide-react';
@@ -20,8 +21,8 @@ interface PayrollImportDialogProps {
   onClose: () => void;
 }
 
-const field = 'w-full min-h-11 px-3 py-2 text-sm bg-white border border-neutral-300 rounded-lg text-neutral-900';
-const label = 'block text-xs font-semibold text-neutral-600 mb-1';
+const field = 'w-full min-h-11 px-3 py-2 text-sm bg-[var(--surface)] border border-[var(--line)] rounded-lg text-[var(--text)]';
+const label = 'block text-xs font-semibold text-[var(--muted)] mb-1';
 const accountLabel = (a: ChartAccount) => `${a.code ? `${a.code} - ` : ''}${a.name}`;
 
 /**
@@ -99,13 +100,13 @@ export default function PayrollImportDialog({ workspaceId, accounts, dimensions,
 
   return (
     <div {...dialogProps} className="fixed inset-0 z-[210] flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-neutral-200">
-        <div className="flex items-center justify-between p-5 border-b border-neutral-200">
+      <div className="bg-[var(--surface)] rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-[var(--line)]">
+        <div className="flex items-center justify-between p-5 border-b border-[var(--line)]">
           <div>
-            <h2 id={titleId} className="text-lg font-bold text-neutral-900">Import payroll from a provider</h2>
-            <p className="text-xs text-neutral-600">Records what your payroll provider ran: one entry per pay date. It does not run payroll.</p>
+            <h2 id={titleId} className="text-lg font-bold text-[var(--text)]">Import payroll from a provider</h2>
+            <p className="text-xs text-[var(--muted)]">Records what your payroll provider ran: one entry per pay date. It does not run payroll.</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close payroll import" className="min-h-11 min-w-11 p-1 rounded-lg text-neutral-500 hover:text-neutral-900">
+          <button type="button" onClick={onClose} aria-label="Close payroll import" className="min-h-11 min-w-11 p-1 rounded-lg text-[var(--muted)] hover:text-[var(--text)]">
             <X aria-hidden="true" className="w-5 h-5" />
           </button>
         </div>
@@ -127,13 +128,13 @@ export default function PayrollImportDialog({ workspaceId, accounts, dimensions,
                 <option value="">Do not split</option>
                 {dimensions.filter(d => !d.isWorld).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
-              <p className="text-xs text-neutral-600 mt-1">The file's department or location must name one of this label's values exactly.</p>
+              <p className="text-xs text-[var(--muted)] mt-1">The file's department or location must name one of this label's values exactly.</p>
             </div>
           </div>
 
           {csv && !read.problems.length && (
             <fieldset className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <legend className="text-sm font-semibold text-neutral-900 mb-2">Accounts</legend>
+              <legend className="text-sm font-semibold text-[var(--text)] mb-2">Accounts</legend>
               {needed.map(r => (
                 <div key={r.role}>
                   <label htmlFor={`payroll-import-${r.role}`} className={label}>{r.label}</label>
@@ -154,35 +155,45 @@ export default function PayrollImportDialog({ workspaceId, accounts, dimensions,
           )}
 
           {!problems.length && preview.payDates.map(p => (
-            <div key={p.payDate} className="border border-neutral-200 rounded-lg" data-testid="payroll-import-preview">
-              <div className="px-3 py-2 bg-neutral-50 text-sm font-semibold text-neutral-900 flex justify-between">
+            <div key={p.payDate} className="border border-[var(--line)] rounded-lg" data-testid="payroll-import-preview">
+              <div className="px-3 py-2 bg-[var(--panel)] text-sm font-semibold text-[var(--text)] flex justify-between">
                 <span>Pay date {p.payDate} · {p.totals.people} {p.totals.people === 1 ? 'person' : 'people'}</span>
                 <span className="tabular-nums">Cost {formatCurrency(p.totals.costCents, currency)}</span>
               </div>
-              <table className="w-full text-xs">
-                <caption className="sr-only">The entry for the pay date {p.payDate}</caption>
-                <thead><tr className="text-neutral-600"><th scope="col" className="text-left px-3 py-1">Account</th><th scope="col" className="text-right px-3 py-1">Debit</th><th scope="col" className="text-right px-3 py-1">Credit</th></tr></thead>
-                <tbody>
-                  {PAYROLL_ACCOUNT_ROLES.map(r => {
-                    const cents = p.lines.filter(l => l.role === r.role).reduce((s, l) => s + l.amountCents, 0);
-                    if (!cents) return null;
-                    const name = usable.find(a => a.id === chosen[r.role])?.name || r.label;
-                    return (
-                      <tr key={r.role} className="border-t border-neutral-100">
-                        <td className="px-3 py-1 text-neutral-900">{name}</td>
-                        <td className="px-3 py-1 text-right tabular-nums">{cents > 0 ? formatCurrency(cents, currency) : ''}</td>
-                        <td className="px-3 py-1 text-right tabular-nums">{cents < 0 ? formatCurrency(-cents, currency) : ''}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <ReportSchedule
+                caption={<>The entry for the pay date {p.payDate}</>}
+                captionClassName="sr-only"
+                tableClassName="w-full text-xs"
+                headRowClassName="text-[var(--muted)]"
+                bodyClassName=""
+                rowClassName="border-t border-[var(--line)]"
+                rows={PAYROLL_ACCOUNT_ROLES.map((r) => {
+                  const cents = p.lines.filter((l) => l.role === r.role).reduce((s, l) => s + l.amountCents, 0);
+                  const name = usable.find((a) => a.id === chosen[r.role])?.name || r.label;
+                  return { r, cents, name };
+                }).filter((row) => row.cents !== 0)}
+                rowKey={({ r }) => r.role}
+                rowHeaderClassName="font-normal text-start"
+                columns={[
+                  { header: 'Account', headClassName: 'text-left px-3 py-1', className: 'px-3 py-1 text-[var(--text)]', cell: ({ name }) => name },
+                  {
+                    header: 'Debit',
+                    headClassName: 'text-right px-3 py-1', className: 'px-3 py-1 text-right tabular-nums',
+                    cell: ({ cents }) => (cents > 0 ? formatCurrency(cents, currency) : ''),
+                  },
+                  {
+                    header: 'Credit',
+                    headClassName: 'text-right px-3 py-1', className: 'px-3 py-1 text-right tabular-nums',
+                    cell: ({ cents }) => (cents < 0 ? formatCurrency(-cents, currency) : ''),
+                  },
+                ]}
+              />
             </div>
           ))}
 
-          <p className="text-xs text-neutral-600">The same file is refused a second time. To correct an imported pay date, reverse its entry (Reverse &amp; Correct), then import the corrected file. Pay the net amount from the bank to the payroll clearing account.</p>
+          <p className="text-xs text-[var(--muted)]">The same file is refused a second time. To correct an imported pay date, reverse its entry (Reverse &amp; Correct), then import the corrected file. Pay the net amount from the bank to the payroll clearing account.</p>
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="min-h-11 px-4 py-2 text-sm rounded-lg text-neutral-800 hover:bg-neutral-100">Cancel</button>
+            <button type="button" onClick={onClose} className="min-h-11 px-4 py-2 text-sm rounded-lg text-[var(--text)] hover:bg-[var(--elevated)]">Cancel</button>
             <button type="submit" disabled={saving || !!problems.length || !preview.payDates.length} className="min-h-11 px-4 py-2 text-sm font-semibold rounded-lg bg-neutral-900 text-white disabled:opacity-50">
               {saving ? 'Recording…' : `Record ${preview.payDates.length || ''} ${preview.payDates.length === 1 ? 'entry' : 'entries'}`.replace(/\s+/g, ' ')}
             </button>

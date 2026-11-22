@@ -1,3 +1,4 @@
+import { isForbidden } from '../http/serverKit';
 import { errorMessage, requestUser } from "../auth/requestUser";
 import { apiLogsForWorkspace } from "../http/apiRequestLog";
 import { formatTzDate, sendError, authorizeWorkspace, authenticate, upload, uploadedFilePath } from "../http/serverKit";
@@ -28,7 +29,7 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
       res.json(filtered);
     } catch (err) {
       if (errorMessage(err) === "NOT_FOUND" || errorMessage(err).includes("NOT_FOUND")) return res.json([]);
-      if (errorMessage(err) === "FORBIDDEN") return sendError(res, "Forbidden workspace access", 403);
+      if (isForbidden(errorMessage(err))) return sendError(res, "Forbidden workspace access", 403);
       sendError(res, errorMessage(err), 500);
     }
   });

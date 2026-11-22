@@ -1,3 +1,4 @@
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import React, { useMemo, useState } from 'react';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useEntityOperations } from '../../hooks/useEntityOperations';
@@ -13,11 +14,9 @@ import {
   warrantyRecordsFromMetadata,
   warrantyStatus,
   type WarrantyCandidate,
-  type WarrantyRecord,
 } from '../../lib/warehouseRecords';
 import type { Customer, InventoryItem, Invoice } from '../../types';
 import InlineEdit from '../ui/InlineEdit';
-import ReportTableScroll from './ReportTableScroll';
 import { useReportText, fill } from './useReportText';
 
 const field = 'min-h-11 min-w-0 max-w-full border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
@@ -123,49 +122,82 @@ export default function WarrantyRegisterPanel() {
 
     {!candidates.length && !loading && <p className="text-sm text-[var(--muted)]">{reportText('r.no-serial-numbers-are-recorded-on-loaded-issued', 'No serial numbers are recorded on loaded issued invoice lines. Warranty reporting depends on serial capture when the invoice is prepared; no coverage is inferred here.')}</p>}
 
-    <ReportTableScroll>
-      <table className="w-full text-sm">
-        <caption>{reportText('r.items-by-customer-from-issued-invoice-serials-wa', 'Items by customer from issued invoice serials — warranty status as of')} {today}</caption>
-        <thead><tr>
-          <th scope="col" className="text-left py-2 px-2">{reportText('r.customer', 'Customer')}</th>
-          <th scope="col" className="text-left py-2 px-2">{reportText('r.invoice-2', 'Invoice')}</th>
-          <th scope="col" className="text-left py-2 px-2">{reportText('r.item', 'Item')}</th>
-          <th scope="col" className="text-left py-2 px-2">{reportText('r.serial', 'Serial')}</th>
-          <th scope="col" className="text-left py-2 px-2">{reportText('r.warranty-end-date', 'Warranty end date')}</th>
-          <th scope="col" className="text-left py-2 px-2">{reportText('r.status', 'Status')}</th>
-        </tr></thead>
-        <tbody>{rows.map(({ candidate, warranty, endDate }) => <WarrantyRow key={candidate.id}
-          candidate={candidate} warranty={warranty} endDate={endDate} today={today} canEdit={canEdit && !partial} onSave={saveEndDate} />)}</tbody>
-      </table>
+      <TanStackDataGrid
+        data={rows}
+        getRowId={({ candidate }) => candidate.id}
+        caption={`${reportText('r.items-by-customer-from-issued-invoice-serials-wa', 'Items by customer from issued invoice serials — warranty status as of')} ${today}`}
+        emptyState={<></>}
+        columnScope="warranty-register"
+        columnLabel={reportText('r.warranty-register', 'Warranty register')}
+        rowHeaderColumn="customer"
+        hidePaginationOnSinglePage
+        enableGlobalFilter={false}
+        columns={[
+          {
+            id: 'customer', header: reportText('r.customer', 'Customer'), accessorFn: ({ candidate }) => candidate.customerName,
+            cell: ({ row: { original: { candidate } } }) => <div className="text-left font-normal ">{candidate.customerName}</div>,
+          },
+          {
+            id: 'invoice', header: reportText('r.invoice-2', 'Invoice'), accessorFn: ({ candidate }) => candidate.invoiceNumber,
+            cell: ({ row: { original: { candidate } } }) => (
+              <>
+                {candidate.invoiceNumber}
+                <span className="block text-xs text-[var(--muted)]">{candidate.invoiceDate || reportText('r.date-not-recorded', 'date not recorded')}</span>
+              </>
+            ),
+          },
+          {
+            id: 'item', header: reportText('r.item', 'Item'), accessorFn: ({ candidate }) => candidate.itemName,
+            cell: ({ row: { original: { candidate } } }) => (
+              <>
+                {candidate.itemName}
+                <span className="block text-xs text-[var(--muted)]">{candidate.sku || reportText('r.no-sku', 'No SKU')}</span>
+              </>
+            ),
+          },
+          {
+            id: 'serial', header: reportText('r.serial', 'Serial'), accessorFn: ({ candidate }) => candidate.serial,
+            cell: ({ row: { original: { candidate } } }) => <bdi>{candidate.serial}</bdi>,
+          },
+          {
+            id: 'end', header: reportText('r.warranty-end-date', 'Warranty end date'), accessorFn: ({ endDate }) => endDate,
+            cell: ({ row: { original: { candidate, warranty, endDate } } }) => (
+              <>
+                {candidate.customerLoaded ? (
+                  <InlineEdit
+                    kind="date"
+                    label={fill(reportText('r.warranty-end-date-for-0-sold-to-1', 'Warranty end date for {0} sold to {1}'), {
+                      0: candidate.serial,
+                      1: candidate.customerName,
+                    })}
+                    value={endDate}
+                    placeholder={reportText('r.add-end-date', 'Add end date')}
+                    canEdit={canEdit && !partial}
+                    onSave={(next) => saveEndDate(candidate, next)}
+                  />
+                ) : (
+                  <span className="text-[var(--muted)]">{reportText('r.customer-record-not-loaded', 'Customer record not loaded')}</span>
+                )}
+                {warranty && (
+                  <span className="block text-xs text-[var(--muted)]">
+                    {reportText('r.updated', 'Updated')} {new Date(warranty.updatedAt).toLocaleDateString()} {reportText('r.by-2', 'by')}{' '}
+                    {warranty.updatedByName || warranty.updatedByUid}
+                  </span>
+                )}
+              </>
+            ),
+          },
+          {
+            id: 'status', header: reportText('r.status', 'Status'), accessorFn: ({ endDate }) => warrantyStatus(endDate, today),
+            cell: ({ row: { original: { endDate } } }) =>
+              warrantyStatus(endDate, today) === 'under warranty'
+                ? reportText('r.under-warranty', 'Under warranty')
+                : warrantyStatus(endDate, today) === 'expired'
+                  ? reportText('r.expired', 'Expired')
+                  : reportText('r.end-date-not-set', 'End date not set'),
+          },
+        ]}
+      />
       {candidates.length > 0 && !rows.length && <p className="p-3 text-sm text-[var(--muted)]">{reportText('r.no-serials-match-this-warranty-filter-and-search', 'No serials match this warranty filter and search.')}</p>}
-    </ReportTableScroll>
   </section>;
-}
-
-function WarrantyRow({
-  candidate, warranty, endDate, today, canEdit, onSave,
-}: {
-  candidate: WarrantyCandidate;
-  warranty: WarrantyRecord | null;
-  endDate: string;
-  today: string;
-  canEdit: boolean;
-  onSave: (candidate: WarrantyCandidate, next: string | number) => Promise<unknown>;
-}) {
-  const reportText = useReportText();
-  const status = warrantyStatus(endDate, today);
-  return <tr className="border-b border-[var(--line)]/50">
-    <th scope="row" className="text-left font-normal py-2 px-2">{candidate.customerName}</th>
-    <td className="py-2 px-2">{candidate.invoiceNumber}<span className="block text-xs text-[var(--muted)]">{candidate.invoiceDate || reportText('r.date-not-recorded', 'date not recorded')}</span></td>
-    <td className="py-2 px-2">{candidate.itemName}<span className="block text-xs text-[var(--muted)]">{candidate.sku || reportText('r.no-sku', 'No SKU')}</span></td>
-    <td className="py-2 px-2"><bdi>{candidate.serial}</bdi></td>
-    <td className="py-2 px-2 min-w-48">
-      {candidate.customerLoaded
-        ? <InlineEdit kind="date" label={fill(reportText('r.warranty-end-date-for-0-sold-to-1', 'Warranty end date for {0} sold to {1}'), { 0: candidate.serial, 1: candidate.customerName })} value={endDate}
-          placeholder={reportText('r.add-end-date', 'Add end date')} canEdit={canEdit} onSave={next => onSave(candidate, next)} />
-        : <span className="text-[var(--muted)]">{reportText('r.customer-record-not-loaded', 'Customer record not loaded')}</span>}
-      {warranty && <span className="block text-xs text-[var(--muted)]">{reportText('r.updated', 'Updated')} {new Date(warranty.updatedAt).toLocaleDateString()} {reportText('r.by-2', 'by')} {warranty.updatedByName || warranty.updatedByUid}</span>}
-    </td>
-    <td className="py-2 px-2">{status === 'under warranty' ? reportText('r.under-warranty', 'Under warranty') : status === 'expired' ? reportText('r.expired', 'Expired') : reportText('r.end-date-not-set', 'End date not set')}</td>
-  </tr>;
 }

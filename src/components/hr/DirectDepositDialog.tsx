@@ -1,3 +1,4 @@
+import ReportSchedule from '../reporting/ReportSchedule';
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
@@ -8,7 +9,7 @@ import { bankProblem, companyProblem, nachaFile, type BankAccountType, type Comp
 import type { Employee, PayRun } from '../../types';
 import { saveEmployee } from '../../lib/recordWrites';
 
-const field = 'px-2 py-1 border border-neutral-300 rounded text-xs';
+const field = 'px-2 py-1 border border-[var(--line)] rounded text-xs';
 const companyKey = (workspaceId: string) => `lf_ach_company:${workspaceId}`;
 function readCompany(workspaceId: string, name: string): CompanyBank {
   try {
@@ -74,54 +75,119 @@ export function DirectDepositDialog({ run, workspace, onClose }: { run: PayRun; 
 
   return (
     <div {...dialogProps} className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-5 space-y-4 text-xs text-left font-sans">
+      <div className="bg-[var(--surface)] rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-5 space-y-4 text-xs text-left font-sans">
         <div className="flex items-start justify-between gap-3">
-          <h2 id={titleId} className="text-base font-bold text-neutral-900">Direct deposit file: pay run of {formatDate(run.date)}</h2>
-          <button type="button" onClick={onClose} className="text-neutral-500 hover:underline">Close</button>
+          <h2 id={titleId} className="text-base font-bold text-[var(--text)]">Direct deposit file: pay run of {formatDate(run.date)}</h2>
+          <button type="button" onClick={onClose} className="text-[var(--muted)] hover:underline">Close</button>
         </div>
-        <p className="text-neutral-700">A NACHA (ACH) file of each person's net pay, to upload to your bank's online banking. The money arrives on the pay date if the bank gets the file in time; nothing is posted again.</p>
+        <p className="text-[var(--text)]">A NACHA (ACH) file of each person's net pay, to upload to your bank's online banking. The money arrives on the pay date if the bank gets the file in time; nothing is posted again.</p>
         <fieldset className="space-y-2">
-          <legend className="font-semibold text-neutral-900">Your bank (kept in this browser only)</legend>
+          <legend className="font-semibold text-[var(--text)]">Your bank (kept in this browser only)</legend>
           <div className="flex flex-wrap gap-2">
             <label className="flex flex-col gap-1">Company name<input value={company.companyName} onChange={e => setCo({ companyName: e.target.value })} className={field} /></label>
             <label className="flex flex-col gap-1">Company ID from your bank<input value={company.companyId} maxLength={10} onChange={e => setCo({ companyId: e.target.value })} className={field} /></label>
             <label className="flex flex-col gap-1">Your bank's routing number<input inputMode="numeric" value={company.routing} maxLength={9} onChange={e => setCo({ routing: e.target.value.replace(/\D/g, '') })} className={field} /></label>
             <label className="flex flex-col gap-1">Your bank's name<input value={company.bankName || ''} onChange={e => setCo({ bankName: e.target.value })} className={field} /></label>
           </div>
-          {companyIssue && <p role="status" className="text-amber-700">{companyIssue}</p>}
+          {companyIssue && <p role="status" className="text-amber-800 dark:text-amber-300">{companyIssue}</p>}
         </fieldset>
-        <table className="w-full">
-          <caption className="text-left font-semibold text-neutral-900 pb-1">Deposits ({ready.length} of {lines.length} ready)</caption>
-          <thead><tr className="border-b text-neutral-500"><th scope="col" className="text-left py-1">Person</th><th scope="col" className="text-left py-1">Account</th><th scope="col" className="text-right py-1">Net pay</th><th scope="col"><span className="sr-only">Change</span></th></tr></thead>
-          <tbody>
-            {lines.map(l => (
-              <React.Fragment key={l.employeeId}>
-                <tr className="border-b border-neutral-100">
-                  <th scope="row" className="text-left font-normal py-1"><bdi>{l.name}</bdi></th>
-                  <td className="py-1">{bankProblem(l.bank) ? <span className="text-amber-700">No bank account yet</span> : `${l.bank.bankAccountType} ${masked(l.bank.bankAccount)} at ${l.bank.bankRouting}`}</td>
-                  <td className="py-1 text-right font-mono">{formatCurrency(l.netCents, workspace.currency || 'USD')}</td>
-                  <td className="py-1 text-right"><button type="button" onClick={() => setEditing({ id: l.employeeId, bank: { bankAccountType: 'checking', ...l.bank } })} className="text-indigo-700 hover:underline">{bankProblem(l.bank) ? 'Add' : 'Change'}<span className="sr-only"> the bank account of {l.name}</span></button></td>
-                </tr>
-                {editing?.id === l.employeeId && (
-                  <tr><td colSpan={4} className="py-2 bg-neutral-50">
-                    <div className="flex flex-wrap items-end gap-2 px-2">
-                      <label className="flex flex-col gap-1">Routing number<input inputMode="numeric" maxLength={9} value={editing.bank.bankRouting || ''} onChange={e => setEditing({ ...editing, bank: { ...editing.bank, bankRouting: e.target.value.replace(/\D/g, '') } })} className={field} /></label>
-                      <label className="flex flex-col gap-1">Account number<input inputMode="numeric" maxLength={17} value={editing.bank.bankAccount || ''} onChange={e => setEditing({ ...editing, bank: { ...editing.bank, bankAccount: e.target.value.replace(/\D/g, '') } })} className={field} /></label>
-                      <label className="flex flex-col gap-1">Type
-                        <select value={editing.bank.bankAccountType || 'checking'} onChange={e => setEditing({ ...editing, bank: { ...editing.bank, bankAccountType: e.target.value as BankAccountType } })} className={field}>
-                          <option value="checking">Checking</option><option value="savings">Savings</option>
-                        </select>
-                      </label>
-                      <button type="button" disabled={busy} onClick={() => void saveBank()} className="px-2.5 py-1 rounded-md bg-neutral-900 text-white font-semibold disabled:opacity-50">Save account</button>
-                      <button type="button" onClick={() => setEditing(null)} className="text-neutral-600 hover:underline">Cancel</button>
-                    </div>
-                  </td></tr>
-                )}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
-        {ready.length < lines.length && <p className="text-amber-700">People without a bank account are left out of the file; pay them another way.</p>}
+        <ReportSchedule
+          caption={
+            <>
+              Deposits ({ready.length} of {lines.length} ready)
+            </>
+          }
+          captionClassName="text-left font-semibold text-[var(--text)] pb-1"
+          tableClassName="w-full"
+          headRowClassName="border-b text-[var(--muted)]"
+          bodyClassName=""
+          rowClassName="border-b border-[var(--line)]"
+          rows={lines}
+          rowKey={(l) => l.employeeId}
+          renderDetail={(l) =>
+            editing?.id === l.employeeId ? (
+              <div className="py-2 bg-[var(--panel)]">
+                <div className="flex flex-wrap items-end gap-2 px-2">
+                  <label className="flex flex-col gap-1">
+                    Routing number
+                    <input
+                      inputMode="numeric"
+                      maxLength={9}
+                      value={editing.bank.bankRouting || ''}
+                      onChange={(e) => setEditing({ ...editing, bank: { ...editing.bank, bankRouting: e.target.value.replace(/\D/g, '') } })}
+                      className={field}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    Account number
+                    <input
+                      inputMode="numeric"
+                      maxLength={17}
+                      value={editing.bank.bankAccount || ''}
+                      onChange={(e) => setEditing({ ...editing, bank: { ...editing.bank, bankAccount: e.target.value.replace(/\D/g, '') } })}
+                      className={field}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    Type
+                    <select
+                      value={editing.bank.bankAccountType || 'checking'}
+                      onChange={(e) => setEditing({ ...editing, bank: { ...editing.bank, bankAccountType: e.target.value as BankAccountType } })}
+                      className={field}
+                    >
+                      <option value="checking">Checking</option>
+                      <option value="savings">Savings</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void saveBank()}
+                    className="px-2.5 py-1 rounded-md bg-neutral-900 text-white font-semibold disabled:opacity-50"
+                  >
+                    Save account
+                  </button>
+                  <button type="button" onClick={() => setEditing(null)} className="text-[var(--muted)] hover:underline">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : null
+          }
+          columns={[
+            { header: 'Person', headClassName: 'text-left py-1', className: 'text-left font-normal py-1', cell: (l) => <bdi>{l.name}</bdi> },
+            {
+              header: 'Account',
+              headClassName: 'text-left py-1', className: 'py-1',
+              cell: (l) =>
+                bankProblem(l.bank) ? (
+                  <span className="text-amber-800 dark:text-amber-300">No bank account yet</span>
+                ) : (
+                  `${l.bank.bankAccountType} ${masked(l.bank.bankAccount)} at ${l.bank.bankRouting}`
+                ),
+            },
+            {
+              header: 'Net pay',
+              headClassName: 'text-right py-1', className: 'py-1 text-right font-mono',
+              cell: (l) => formatCurrency(l.netCents, workspace.currency || 'USD'),
+            },
+            {
+              header: <span className="sr-only">Change</span>,
+              headClassName: '', className: 'py-1 text-right',
+              cell: (l) => (
+                <button
+                  type="button"
+                  onClick={() => setEditing({ id: l.employeeId, bank: { bankAccountType: 'checking', ...l.bank } })}
+                  className="text-[var(--text)] underline"
+                >
+                  {bankProblem(l.bank) ? 'Add' : 'Change'}
+                  <span className="sr-only"> the bank account of {l.name}</span>
+                </button>
+              ),
+            },
+          ]}
+        />
+        {ready.length < lines.length && <p className="text-amber-800 dark:text-amber-300">People without a bank account are left out of the file; pay them another way.</p>}
         <button type="button" disabled={Boolean(companyIssue) || ready.length === 0} onClick={download} className="px-3 py-1.5 rounded-lg bg-neutral-900 text-white font-semibold disabled:opacity-50">Download the file</button>
       </div>
     </div>

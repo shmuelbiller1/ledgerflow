@@ -62,6 +62,8 @@ export const apiKeyProvisionCommand: CommandDefinition<typeof apiKeyProvisionInp
   allowPlatformAdmin: true,
   // only a signed-in person mints a key: an API key could otherwise mint itself a wider one
   peopleOnly: true,
+  // #941: minting a key is owner-sensitive, so a stolen long-lived session cannot do it
+  recentSignInSec: 30 * 60,
   async prepare(_ctx, input) {
     // The route's answer to a bad scope list, in its own wording and before any workspace work. These
     // checks live here rather than in the schema so the legacy message (not a Zod 400) is the answer;

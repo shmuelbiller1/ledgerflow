@@ -111,7 +111,7 @@ test('S-15: top-level email pseudonymisation preserves SHA-256 client & server a
   assert.match(String(maskedForDisplay[0].details?.description), /erased-[0-9a-f]{12}@redacted\.invalid/);
 });
 
-test('S-15 (Postgres): deleteAccount removes personal collections, blocks sole-owner shared books, and pseudonymises the auditLogs email (#944)', { skip: !hasTestDb }, async t => {
+test('S-15 (Postgres): deleteAccount removes personal collections, blocks sole-owner shared books, and pseudonymises the auditLogs email (#944)', { skip: !hasTestDb }, async () => {
   const prevDbUrl = process.env.DATABASE_URL;
   process.env.DATABASE_URL = process.env.LF_TEST_DATABASE_URL;
   const db = getDb();
@@ -160,6 +160,7 @@ test('S-15 (Postgres): deleteAccount removes personal collections, blocks sole-o
     await db.collection('recoveryCodes').doc(aliceUid).set({ uid: aliceUid, hashes: ['h1'], updatedAt: now });
     await db.collection('notifications').doc(`notif_${suffix}`).set({ id: `notif_${suffix}`, uid: aliceUid, workspaceId: soloWsId, message: 'hi', createdAt: now });
     await db.collection('loginAudits').doc(`login_${suffix}`).set({ id: `login_${suffix}`, uid: aliceUid, email: aliceEmail, event: 'login', timestamp: now });
+    await db.collection('auditLogs').doc(`audit_old_${suffix}`).set({ id: `audit_old_${suffix}`, workspaceId: soloWsId, uid: aliceUid, email: aliceEmail, action: 'INVOICE_CREATED', entityType: 'invoice', entityId: 'inv1', timestamp: now, details: {} });
 
     let deletedAuthUid = '';
     const result = await deleteAccount(db, { uid: aliceUid, email: aliceEmail }, async uid => {
@@ -174,14 +175,16 @@ test('S-15 (Postgres): deleteAccount removes personal collections, blocks sole-o
     assert.equal((await db.collection('notifications').doc(`notif_${suffix}`).get()).exists, false);
     assert.equal((await db.collection('loginAudits').doc(`login_${suffix}`).get()).exists, false);
 
-    // #944: the audit row must not keep the raw email. Everything above already holds and stays enforced;
-    // this last check is a known gap until #944 lands, so it is reported as a todo rather than failing CI.
-    t.todo('auditLogs still keeps the raw email until #944 is fixed');
+    // #944: neither the new audit rows nor earlier ones keep the raw email
     const auditSnap = await db.collection('auditLogs').where('workspaceId', '==', soloWsId).get();
     assert.equal(auditSnap.docs.length >= 1, true);
     const deletionAudit = auditSnap.docs.map(d => d.data()).find(d => d.action === 'WORKSPACE_DELETION_SCHEDULED');
     assert.ok(deletionAudit);
     assert.notEqual(deletionAudit.email, aliceEmail);
+    assert.match(String(deletionAudit.email), /^erased-[0-9a-f]{12}@redacted\.invalid$/);
+    const earlier = (await db.collection('auditLogs').doc(`audit_old_${suffix}`).get()).data();
+    assert.equal(earlier?.uid, aliceUid, 'who did it stays on the record');
+    assert.match(String(earlier?.email), /@redacted\.invalid$/);
   } finally {
     await db.pool.query(`delete from public."auditLogs" where workspace_id in ($1, $2)`, [soloWsId, sharedWsId]);
     await db.pool.query(`delete from public.workspaces where id in ($1, $2)`, [soloWsId, sharedWsId]);

@@ -11,9 +11,13 @@ import { WorkspaceSchema } from "../../schemas";
 import { getDb } from "../db/firestore";
 import type { DocumentData } from "../db/firestore";
 import { exportWorkspaceBackup } from "../services/workspaceRestoreService";
+import { memberSignInFacts } from "../services/memberSignInService";
+import { roleInWorkspace } from "../middleware/requireLedgerWriter";
 import { BRAND } from '../../config/brand';
 import { computeLedgerCloseAnchor, verifyAuditHashChain, type HashChainableAuditEntry } from '../../lib/auditHashChain';
 import { z } from 'zod';
+import { sanitizeCsvCell } from '../../lib/csv';
+import { currencyDigits, minorToMajor } from '../../lib/currencyMinorUnits';
 
 const AuditVerifyQuerySchema = z.object({
   asOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -88,13 +92,20 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
       const data = wsDoc.data() || {};
       const members: string[] = Array.isArray(data.members) ? data.members : [];
       const ownerUid = data.uid;
+      // S-21: owners and accountants (who run the access review) also get each person's last
+      // sign-in and whether they use two-step sign-in, straight from the auth provider.
+      const role = roleInWorkspace(data, authReq.user.uid);
+      const signIn = role === 'owner' || role === 'accountant'
+        ? await memberSignInFacts(db, [String(ownerUid || ''), ...members])
+        : undefined;
 
       res.json({
         status: "success",
         workspaceId,
         ownerUid,
         members,
-        total: members.length + 1
+        total: members.length + 1,
+        ...(signIn ? { signIn } : {}),
       });
     } catch (err) {
       handleApiError(res, err);
@@ -145,22 +156,31 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
       const todayIso = formatTzDate(new Date(), wsData?.settings?.timezone || wsData?.timezone);
 
       if (format === "csv") {
-        let csvContent = "Date,Amount,Description,Category,Type,Status,Reference\n";
+        // AF6-20261120-01 (Agent #6): the same rules as the shared writer the screens use.
+        // (1) A description, category or reference that begins with =, +, -, @ — also behind the
+        // whitespace a spreadsheet skips — is text, never a formula the reader's Excel runs
+        // (CWE-1236). This builder quoted the cell and doubled its quotes, which protects the CSV
+        // structure but not the spreadsheet.
+        // (2) An amount is written with the decimals of the currency it is stored in: `/ 100` then
+        // `toFixed(2)` wrote ¥100,000 (stored as 100000 minor units) as "1000.00" and KWD 12.345 as
+        // "12.35". The row's own currency wins; the workspace's currency is the fallback.
+        const bookCurrency = String(wsData?.currency || wsData?.settings?.currency || "USD").trim().toUpperCase();
         const accountsMap = new Map(accounts.map((a) => [a.id, a.name || a.code || a.id]));
+        const rows: Array<Array<string | number>> = [["Date", "Amount", "Description", "Category", "Type", "Status", "Reference"]];
         transactions.forEach((t) => {
           const categoryName = t.lines && t.lines.length > 0 ? (accountsMap.get(t.lines[0].accountId) || t.lines[0].accountName || 'Uncategorized') : 'Uncategorized';
-          const amountStr = ((t.totalAmountCents || 0) / 100).toFixed(2);
-          const row = [
-            t.date || '',
-            amountStr,
-            `"${(t.description || '').replace(/"/g, '""')}"`,
-            `"${String(categoryName).replace(/"/g, '""')}"`,
-            t.type || 'actual',
-            t.status || 'posted',
-            `"${(t.reference || '').replace(/"/g, '""')}"`
-          ];
-          csvContent += row.join(",") + "\n";
+          const rowCurrency = /^[A-Z]{3}$/.test(String(t.currency || "").toUpperCase()) ? String(t.currency).toUpperCase() : bookCurrency;
+          rows.push([
+            String(t.date || ''),
+            minorToMajor(Number(t.totalAmountCents || 0), rowCurrency).toFixed(currencyDigits(rowCurrency)),
+            String(t.description || ''),
+            String(categoryName),
+            String(t.type || 'actual'),
+            String(t.status || 'posted'),
+            String(t.reference || ''),
+          ]);
         });
+        const csvContent = rows.map((row) => row.map((cell) => sanitizeCsvCell(cell)).join(",")).join("\r\n") + "\r\n";
         res.setHeader("Content-Disposition", `attachment; filename="${BRAND.fileSlug}-transactions-${workspaceId}-${todayIso}.csv"`);
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         return res.send(csvContent);
@@ -185,6 +205,13 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
     try {
       const workspaceId = String(req.params.workspaceId);
       await authorizeWorkspace(req as AuthenticatedRequest, workspaceId);
+      // #941: replacing the books is a high-risk command; this older address holds it to the same
+      // two-step rule as /api/v1/commands/workspace.restorebackup (a person with aal2, never an API key)
+      const restorer = (req as AuthenticatedRequest).user as { aal?: string; developerWorkspaceId?: string } | undefined;
+      if (restorer?.developerWorkspaceId || restorer?.aal !== 'aal2') {
+        res.status(403).json({ status: 'error', code: 'TWO_STEP_REQUIRED', message: 'High-risk commands require a person signed in with two-step verification; API keys cannot confirm this step.' });
+        return;
+      }
       await executeCommand(req, res, {
         definition: workspaceRestoreBackupCommand, workspaceId, input: { backup: req.body }, legacyRoute: true,
         formatResponse(outcome) {

@@ -144,6 +144,12 @@ export const workspaceSettingsCommand: CommandDefinition<typeof workspaceSetting
           else merged[entryKey] = entry;
         }
         patch[key] = merged;
+      } else if (key === 'invoiceApproval') {
+        // G-19 (#893): the bill limit lives in this map too; a save of the invoice or PO rule that leaves it out
+        // keeps the stored one instead of resetting it to the default
+        const stored = (before.invoiceApproval as { billThresholdCents?: unknown } | undefined)?.billThresholdCents;
+        const sent = value as Record<string, unknown>;
+        patch[key] = 'billThresholdCents' in sent || stored === undefined ? sent : { ...sent, billThresholdCents: stored };
       } else {
         patch[key] = key === 'currency' ? String(value).toUpperCase() : value;
       }

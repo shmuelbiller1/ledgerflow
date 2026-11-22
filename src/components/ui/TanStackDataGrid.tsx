@@ -1,3 +1,4 @@
+import { useListText } from '../../lib/i18n/useListText';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useReactTable,
@@ -106,6 +107,8 @@ export interface TanStackDataGridProps<TData extends object> {
    */
   announceRow?: (row: TData) => string;
   mobileLayout?: 'cards' | 'table';
+  /** Content revealed by a row action. Follows the record through sort, filter, paging and phone cards. */
+  renderDetail?: (row: TData) => React.ReactNode;
   renderCard?: (row: TData) => React.ReactNode;
   hidePaginationOnSinglePage?: boolean;
 }
@@ -117,7 +120,7 @@ export function TanStackDataGrid<TData extends object>({
   columns,
   pageSize = 15,
   pageSizeOptions = [10, 15, 25, 50, 100],
-  searchPlaceholder = 'Search records...',
+  searchPlaceholder: prompt,
   searchLabel,
   enableGlobalFilter = true,
   searchValue,
@@ -135,7 +138,7 @@ export function TanStackDataGrid<TData extends object>({
   showSavedViews = false,
   columnScope,
   columnLabel,
-  columnNames,
+  columnNames: namedColumns,
   exportConfig,
   selectable = false,
   getRowId,
@@ -154,8 +157,12 @@ export function TanStackDataGrid<TData extends object>({
   totals,
   mobileLayout = 'cards',
   renderCard,
+  renderDetail,
   hidePaginationOnSinglePage = false,
 }: TanStackDataGridProps<TData>) {
+  const listText = useListText();
+  const searchPlaceholder = prompt ?? listText('Search records...');
+  const columnNames = namedColumns ?? (columnLabel ? columns.map(c => typeof c.header === 'string' ? c.header : c.id ?? '') : undefined);
   const [sorting, setSorting] = useState<SortingState>([]);
   /**
    * Pagination state, with the page size derived rather than copied: a screen that shows more rows ('Show
@@ -308,6 +315,7 @@ export function TanStackDataGrid<TData extends object>({
   const table = useGridTable({
     data,
     columns: allColumns,
+    getRowId: resolveRowId,
     state: {
       sorting,
       globalFilter: manualFilter ? '' : activeSearch,
@@ -373,7 +381,7 @@ export function TanStackDataGrid<TData extends object>({
       if (next === null) return;
       event.preventDefault();
       setActiveRowId(next);
-      node.querySelector(`[data-grid-row-keyboard="${next}"]`)?.scrollIntoView({ block: 'nearest' });
+      Array.from(node.querySelectorAll<HTMLElement>('[data-grid-row-keyboard]')).find(row => row.dataset.gridRowKeyboard === next)?.scrollIntoView({ block: 'nearest' });
     };
     node.addEventListener('keydown', onKeyDown);
     return () => node.removeEventListener('keydown', onKeyDown);
@@ -422,7 +430,7 @@ export function TanStackDataGrid<TData extends object>({
     <div className="space-y-4">
       {hasToolbar && (
         <div data-print-hide className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-0">
+          <div className={cn('flex flex-wrap items-center gap-3 min-w-0', showCards && enableGlobalFilter ? 'basis-full' : 'flex-1')}>
             {enableGlobalFilter && (
               <div className="relative flex-1 min-w-[200px] max-w-xs">
                 <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" size={15} />
@@ -445,6 +453,7 @@ export function TanStackDataGrid<TData extends object>({
               <ListColumnChooser
                 scope={columnScope}
                 label={columnLabel}
+                preferenceId={namedColumns ? undefined : JSON.stringify([columnScope, selectable, ...columns.map(c => c.id)])}
                 columns={columnNames}
                 lockedColumns={rowHeaderLocked}
               />
@@ -460,7 +469,7 @@ export function TanStackDataGrid<TData extends object>({
               </button>
             )}
             <span className="text-xs text-[var(--muted)] font-medium tabular-nums">
-              Showing {visibleRows.length} of {filteredRows.length} entries
+              {listText('Showing {shown} of {total} entries', { shown: visibleRows.length, total: filteredRows.length })}
             </span>
           </div>
         </div>
@@ -497,18 +506,18 @@ export function TanStackDataGrid<TData extends object>({
           {visibleRows.length === 0 ? (
             filteredEmptyState ?? (
               <div className="px-4 py-8 text-center text-xs text-[var(--muted)] font-medium rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
-                No records found matching query
+                {listText('No records found matching query')}
               </div>
             )
           ) : (
-            <div ref={gridRef} role="region" aria-label={caption} tabIndex={0} className="space-y-3 outline-none rounded-2xl">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
+            <div ref={gridRef} role="region" aria-label={caption} tabIndex={0} className="space-y-3 outline-none rounded-2xl focus-visible:ring-2 focus-visible:ring-indigo-500">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
             <div role="list" className="space-y-3">
               {visibleRows.map(row => {
                 const extra = getRowProps ? getRowProps(row.original) : {};
                 const rowId = resolveRowId(row.original as TData, row.index);
                 return (
                   <div
-                    key={row.id}
+                    key={rowId}
                     id={extra.id}
                     {...rowKeyboardProps(rowId)}
                     data-record-id={extra['data-record-id']}
@@ -516,6 +525,7 @@ export function TanStackDataGrid<TData extends object>({
                     role="listitem"
                     className={cn(
                       'p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-2xs space-y-2',
+                      activeRowVisible && activeRowId === rowId && 'ring-2 ring-inset ring-[var(--muted)]',
                       extra.className,
                     )}
                   >
@@ -523,7 +533,7 @@ export function TanStackDataGrid<TData extends object>({
                       renderCard(row.original)
                     ) : (
                       <div className="space-y-2">
-                        {row.getVisibleCells().map(cell => {
+                        {row.getVisibleCells().map((cell, column) => {
                           if (cell.column.id === '__select__') {
                             return (
                               <div key={cell.id} className="flex items-center justify-between">
@@ -534,7 +544,7 @@ export function TanStackDataGrid<TData extends object>({
                           const header = cell.column.columnDef.header;
                           const label = typeof header === 'string' ? header : cell.column.id;
                           return (
-                            <div key={cell.id} className="flex items-start justify-between gap-3 text-xs">
+                            <div key={cell.id} data-grid-card-column={column} className="flex items-start justify-between gap-3 text-xs">
                               <span className="text-[var(--muted)] font-semibold shrink-0">{label}</span>
                               <div className="text-right text-[var(--text)] min-w-0">
                                 {renderCellContent(cell)}
@@ -544,6 +554,7 @@ export function TanStackDataGrid<TData extends object>({
                         })}
                       </div>
                     )}
+                    {renderDetail?.(row.original)}
                   </div>
                 );
               })}
@@ -567,7 +578,7 @@ export function TanStackDataGrid<TData extends object>({
           tabIndex={0 /* NOSONAR: S6845 — this labelled scrolling region needs keyboard focus for scrolling */}
           className="lg:overflow-auto lg:max-h-[70vh] print:max-h-none print:overflow-visible border border-[var(--line)] rounded-2xl bg-[var(--surface)] shadow-2xs focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none"
         >
-          <table className="w-full text-start border-collapse">
+          <table data-list-table={columnScope} className="w-full text-start border-collapse">
             <caption className="sr-only">{caption}</caption>
             <thead className="sticky top-0 z-10">
               {table.getHeaderGroups().map(headerGroup => (
@@ -616,14 +627,15 @@ export function TanStackDataGrid<TData extends object>({
               {visibleRows.length === 0 ? (
                 <tr>
                   <td colSpan={allColumns.length} className="px-4 py-8 text-center text-xs text-[var(--muted)] font-medium">
-                    {filteredEmptyState ?? 'No records found matching query'}
+                    {filteredEmptyState ?? listText('No records found matching query')}
                   </td>
                 </tr>
               ) : (
                 visibleRows.map(row => {
                   const extra = getRowProps ? getRowProps(row.original) : {};
                   const rowId = resolveRowId(row.original as TData, row.index);
-                  return (
+                  const detail = renderDetail?.(row.original);
+                  const mainRow = (
                     <tr
                       key={row.id}
                       id={extra.id}
@@ -659,6 +671,12 @@ export function TanStackDataGrid<TData extends object>({
                       )}
                     </tr>
                   );
+                  return renderDetail ? (
+                    <React.Fragment key={row.id}>
+                      {mainRow}
+                      {detail && <tr><td colSpan={allColumns.length}>{detail}</td></tr>}
+                    </React.Fragment>
+                  ) : mainRow;
                 })
               )}
             </tbody>
@@ -673,7 +691,7 @@ export function TanStackDataGrid<TData extends object>({
           <div className="flex items-center gap-1">
             <button
               type="button"
-              aria-label="First page"
+              aria-label={listText('First page')}
               onClick={() => table.setPageIndex(0)}
               disabled={!table.getCanPreviousPage()}
               className="p-2 min-h-11 min-w-11 md:min-h-8 md:min-w-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30 rounded-lg hover:bg-[var(--elevated)] cursor-pointer"
@@ -682,7 +700,7 @@ export function TanStackDataGrid<TData extends object>({
             </button>
             <button
               type="button"
-              aria-label="Previous page"
+              aria-label={listText('Previous page')}
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
               className="p-2 min-h-11 min-w-11 md:min-h-8 md:min-w-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30 rounded-lg hover:bg-[var(--elevated)] cursor-pointer"
@@ -690,11 +708,11 @@ export function TanStackDataGrid<TData extends object>({
               <ChevronLeft aria-hidden="true" size={16} />
             </button>
             <span className="px-3 text-xs font-bold text-[var(--text)] tabular-nums">
-              Page {table.getState().pagination.pageIndex + 1} of {pageCount}
+              {listText('Page {page} of {total}', { page: table.getState().pagination.pageIndex + 1, total: pageCount })}
             </span>
             <button
               type="button"
-              aria-label="Next page"
+              aria-label={listText('Next page')}
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
               className="p-2 min-h-11 min-w-11 md:min-h-8 md:min-w-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30 rounded-lg hover:bg-[var(--elevated)] cursor-pointer"
@@ -703,7 +721,7 @@ export function TanStackDataGrid<TData extends object>({
             </button>
             <button
               type="button"
-              aria-label="Last page"
+              aria-label={listText('Last page')}
               onClick={() => table.setPageIndex(pageCount - 1)}
               disabled={!table.getCanNextPage()}
               className="p-2 min-h-11 min-w-11 md:min-h-8 md:min-w-8 flex items-center justify-center text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-30 rounded-lg hover:bg-[var(--elevated)] cursor-pointer"
@@ -713,14 +731,14 @@ export function TanStackDataGrid<TData extends object>({
           </div>
 
           <select
-            aria-label="Rows per page"
+            aria-label={listText('Rows per page')}
             value={table.getState().pagination.pageSize}
             onChange={e => table.setPageSize(Number(e.target.value))}
             className="px-2.5 py-1.5 bg-[var(--surface)] border border-[var(--line)] rounded-lg text-xs font-semibold text-[var(--text)] focus:outline-none"
           >
             {pageSizeOptions.map(size => (
               <option key={size} value={size}>
-                Show {size} rows
+                {listText('Show {size} rows', { size })}
               </option>
             ))}
           </select>

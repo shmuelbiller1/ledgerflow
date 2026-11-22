@@ -1,3 +1,4 @@
+import ReportSchedule from '../reporting/ReportSchedule';
 import React, { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -74,36 +75,58 @@ export default function StockCountDialog({ items, workspaceId, accounts, currenc
         </div>
         <form onSubmit={submit} className="p-5 space-y-4 overflow-y-auto">
           <input aria-label="Filter items to count" placeholder="Filter by name, SKU or category" value={filter} onChange={e => setFilter(e.target.value)} className={stockFieldClass} />
-          <table className="w-full text-sm">
-            <caption className="sr-only">Items to count</caption>
-            <thead>
-              <tr className="text-left text-xs text-[var(--muted)] border-b border-[var(--line)]">
-                <th scope="col" className="py-2">Item</th>
-                <th scope="col" className="py-2 text-right">On the books</th>
-                <th scope="col" className="py-2 text-right">Counted</th>
-                <th scope="col" className="py-2 text-right">Difference</th>
-                <th scope="col" className="py-2 text-right">Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map(item => {
-                const row = differences.find(r => r.item.id === item.id);
-                return (
-                  <tr key={item.id} className="border-b border-[var(--line)]/50">
-                    <td className="py-1.5 text-[var(--text)]">{item.name}{item.sku ? <span className="text-[var(--muted)]"> · {item.sku}</span> : null}</td>
-                    <td className="py-1.5 text-right tabular-nums">{item.quantityAtHand}</td>
-                    <td className="py-1.5 text-right">
-                      <input aria-label={`Counted quantity of ${item.name}`} type="number" min="0" step="any" value={counted[item.id] ?? ''}
-                        onChange={e => setCounted(c => ({ ...c, [item.id]: e.target.value }))}
-                        className="w-24 px-2 py-1 text-right bg-[var(--ink)] border border-[var(--line)] rounded-md tabular-nums" />
-                    </td>
-                    <td className="py-1.5 text-right tabular-nums">{row ? `${row.difference > 0 ? '+' : ''}${row.difference}` : ''}</td>
-                    <td className="py-1.5 text-right tabular-nums">{row ? formatCurrency(row.valueCents, currency) : ''}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <ReportSchedule
+            caption="Items to count"
+            captionClassName="sr-only"
+            tableClassName="w-full text-sm"
+            headRowClassName="text-left text-xs text-[var(--muted)] border-b border-[var(--line)]"
+            bodyClassName=""
+            rowClassName="border-b border-[var(--line)]/50"
+            rows={shown.map((item) => {
+              const row = differences.find((r) => r.item.id === item.id);
+              return { item, row };
+            })}
+            rowKey={({ item }) => item.id}
+            rowHeaderClassName="font-normal text-start"
+            columns={[
+              {
+                header: 'Item',
+                headClassName: 'py-2', className: 'py-1.5 text-[var(--text)]',
+                cell: ({ item }) => (
+                  <>
+                    {item.name}
+                    {item.sku ? <span className="text-[var(--muted)]"> · {item.sku}</span> : null}
+                  </>
+                ),
+              },
+              { header: 'On the books', headClassName: 'py-2 text-right', className: 'py-1.5 text-right tabular-nums', cell: ({ item }) => item.quantityAtHand },
+              {
+                header: 'Counted',
+                headClassName: 'py-2 text-right', className: 'py-1.5 text-right',
+                cell: ({ item }) => (
+                  <input
+                    aria-label={`Counted quantity of ${item.name}`}
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={counted[item.id] ?? ''}
+                    onChange={(e) => setCounted((c) => ({ ...c, [item.id]: e.target.value }))}
+                    className="w-24 px-2 py-1 text-right bg-[var(--ink)] border border-[var(--line)] rounded-md tabular-nums"
+                  />
+                ),
+              },
+              {
+                header: 'Difference',
+                headClassName: 'py-2 text-right', className: 'py-1.5 text-right tabular-nums',
+                cell: ({ row }) => (row ? `${row.difference > 0 ? '+' : ''}${row.difference}` : ''),
+              },
+              {
+                header: 'Value',
+                headClassName: 'py-2 text-right', className: 'py-1.5 text-right tabular-nums',
+                cell: ({ row }) => (row ? formatCurrency(row.valueCents, currency) : ''),
+              },
+            ]}
+          />
           <StockAccountFields
             inventoryChoices={inventoryChoices} offsetChoices={offsetChoices}
             inventoryAccountId={inventoryAccountId} offsetAccountId={offsetAccountId}
