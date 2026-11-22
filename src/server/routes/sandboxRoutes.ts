@@ -207,8 +207,9 @@ export async function runReadTool(live: Firestore, req: express.Request, res: ex
         return ok({ proposal: await storedSandboxProposal(live.pool, binding, true) });
       }
       case 'remembered_choices': {
-        const body = parse(rememberedChoicesInput, req.body);
-        return res.json({ suggestions: suggestFor(body.command, body.input, await listRemembered(live.pool, workspaceId)) });
+        // SBX-2 Part 3: not cached (CACHEABLE_TOOLS); remembered decisions are outside the books version
+        const body = parse(rememberedChoicesInput, input);
+        return ok({ suggestions: suggestFor(body.command, body.input, await listRemembered(live.pool, workspaceId)) });
       }
       case 'find_command': {
         const { words, limit } = parse(findCommandInput, input);
@@ -219,12 +220,13 @@ export async function runReadTool(live: Firestore, req: express.Request, res: ex
         const { report, source, params } = parse(runReportInput, input);
         const search = new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)]));
         search.set('workspaceId', workspaceId);
-        const routeTable = routers() as Record<string, unknown>;
-        const selectedRouter = routeTable[source];
-        if (typeof selectedRouter !== 'function') {
-          throw new CommandRefusal(`Unknown report source: ${source}`, 404, 'REPORT_SOURCE_NOT_FOUND');
-        }
-        return captured(selectedRouter as express.Router, req, res, 'GET', `/${report}?${search.toString()}`);
+        // chosen by comparison, never by looking up a caller-supplied name on an object
+        const bound = routers();
+        let selectedRouter: express.Router;
+        if (source === 'reports') selectedRouter = bound.reports;
+        else if (source === 'balances') selectedRouter = bound.balances;
+        else throw new CommandRefusal('Unknown report source', 404, 'REPORT_SOURCE_NOT_FOUND');
+        return captured(selectedRouter, req, res, 'GET', `/${report}?${search.toString()}`);
       }
       case 'explain_number': {
         const explain = parse(explainNumberInput, input);

@@ -1,4 +1,4 @@
-import { randomInt, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
 import { PLANS, planFor, type PlanLimits } from '../../lib/plans';
@@ -339,48 +339,43 @@ export async function workspaceUsage(db: Firestore, workspaceId: string): Promis
   };
 }
 
-const RESERVE_WAIT_MS = 5_000;
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 /**
  * Takes one model turn from this month's allowance before the model is called, so turns that arrive
- * together cannot all pass the check and overspend it. Under a per-workspace advisory lock (it holds
- * across server instances) it reads the usage, refuses at the limit, or stores a reservation row that
- * counts as a model turn at once; `recordAssistantTurn(..., id)` later replaces it with the real
- * metric. A waiting request does not hold a database connection between tries, so the lock holder can
- * always finish. The turn count is exact; the cents limit can be passed by the cost of the turns that
- * were already running when it was reached.
+ * together cannot all pass the check and overspend it. In one transaction holding a per-workspace
+ * advisory lock (it holds across server instances, and is released by commit or rollback) it reads the
+ * usage, refuses at the limit, or stores a reservation row that counts as a model turn at once;
+ * `recordAssistantTurn(..., id)` later replaces it with the real metric. The read and the write use
+ * the connection that holds the lock, so the holder never needs a second pool slot and waiters (who
+ * wait inside PostgreSQL, up to `lock_timeout`) cannot starve it. The turn count is exact; the cents
+ * limit can be passed by the cost of the turns that were already running when it was reached.
  */
 export async function reserveAssistantModelTurn(db: Firestore, workspaceId: string, uid: string, ws: Record<string, unknown>):
   Promise<{ id: string; usage: AssistantUsage | null } | { refusal: NonNullable<ReturnType<typeof assistantLimitRefusal>> }> {
   requireLiveDb(db, 'Assistant allowance');
-  const started = Date.now();
-  for (;;) {
-    const client = await db.pool.connect();
-    let held = false;
-    try {
-      const { rows } = await client.query<{ locked: boolean }>(`select pg_try_advisory_lock(hashtextextended($1, 0)) as locked`, [`assistant-allowance:${workspaceId}`]);
-      held = rows[0]?.locked === true;
-      if (held) {
-        // the read and the reservation run on the connection that holds the lock: reserving never needs
-        // a second pool slot (a pool of one, or many workspaces reserving at once, cannot starve it)
-        const usage = await assistantUsage(db, workspaceId, ws, new Date(), client);
-        const refusal = usage ? assistantLimitRefusal(usage) : null;
-        if (refusal) return { refusal };
-        const id = `trace-${randomUUID()}`;
-        const row = {
-          id, workspaceId, uid, algorithmName: 'ASSISTANT_TURN', timestamp: new Date().toISOString(), calls: [],
-          // counts as one model turn until the turn's own metric replaces it
-          assistantTurn: { reserved: true, path: 'model', modelCalls: 1, inputTokens: 0, outputTokens: 0, costCents: 0, ok: false },
-        };
-        await client.query(`insert into ${db.tableSource('billingLedgerTraces')} (id, data) values ($1, $2::jsonb)`, [id, JSON.stringify(row)]);
-        return { id, usage };
-      }
-    } finally {
-      if (held) await client.query(`select pg_advisory_unlock(hashtextextended($1, 0))`, [`assistant-allowance:${workspaceId}`]).catch(() => undefined);
-      client.release();
+  const client = await db.pool.connect();
+  try {
+    await client.query('begin');
+    await client.query(`set local lock_timeout = '5s'`);
+    await client.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [`assistant-allowance:${workspaceId}`]);
+    const usage = await assistantUsage(db, workspaceId, ws, new Date(), client);
+    const refusal = usage ? assistantLimitRefusal(usage) : null;
+    if (refusal) {
+      await client.query('rollback');
+      return { refusal };
     }
-    if (Date.now() - started > RESERVE_WAIT_MS) throw new Error('The assistant allowance could not be checked in time');
-    await sleep(randomInt(25, 75)); // spread the retries of requests that collided
+    const id = `trace-${randomUUID()}`;
+    const row = {
+      id, workspaceId, uid, algorithmName: 'ASSISTANT_TURN', timestamp: new Date().toISOString(), calls: [],
+      // counts as one model turn until the turn's own metric replaces it
+      assistantTurn: { reserved: true, path: 'model', modelCalls: 1, inputTokens: 0, outputTokens: 0, costCents: 0, ok: false },
+    };
+    await client.query(`insert into ${db.tableSource('billingLedgerTraces')} (id, data) values ($1, $2::jsonb)`, [id, JSON.stringify(row)]);
+    await client.query('commit');
+    return { id, usage };
+  } catch (err) {
+    await client.query('rollback').catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
   }
 }
