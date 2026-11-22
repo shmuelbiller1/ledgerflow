@@ -28,6 +28,7 @@ import { bookTool } from './eval/sampleBooks';
 import { CASES, RECEIPTS, gradeReceipt, type Outcome } from './eval/cases';
 
 const ownerCommands = () => stepCommandNames().map(stepCommand).filter(c => c.roles.some(r => r === 'owner'));
+const PROPOSAL_ID = 'sbx_eval_proposal';
 const TURN_TIMEOUT_MS = Number(process.env.ASSISTANT_EVAL_TURN_TIMEOUT_MS ?? 120_000);
 
 interface Spend { usd: number; calls: number }
@@ -52,6 +53,7 @@ export async function runCase(baseUrl: string, doFetch: typeof fetch, model: str
   const commands = ownerCommands();
   const tools = assistantToolsFor(commands, q)[0].functionDeclarations as FunctionDeclaration[];
   const calls: Outcome['calls'] = [];
+  const steps: Array<{ id: string; command: string; position: number; state: string; input: Record<string, unknown> }> = [];
   const stop = new AbortController();
   const caseFetch: typeof fetch = async (input, init) => {
     if (stop.signal.aborted) throw new Error('turn timed out');
@@ -61,7 +63,16 @@ export async function runCase(baseUrl: string, doFetch: typeof fetch, model: str
   const callTool = async (name: string, args: Record<string, unknown>) => {
     calls.push({ name, args });
     if (name === 'find_command') return { matches: findAssistantCommands(commands, String(args.words ?? ''), typeof args.limit === 'number' ? args.limit : undefined) };
-    if (name.startsWith('propose_')) return { drafted: true, note: 'drafted in the sandbox for the person to review' };
+    // drafted steps are kept for this case, so the review tools the system prompt requires see them
+    if (name.startsWith('propose_')) {
+      const step = { id: `step_${steps.length + 1}`, command: name.slice('propose_'.length).replace(/_/g, '.'), position: steps.length + 1, state: 'pending', input: args };
+      steps.push(step);
+      return { proposalId: PROPOSAL_ID, step: { id: step.id, command: step.command, state: step.state }, note: 'drafted in the sandbox for the person to review' };
+    }
+    if (name === 'list_proposals') return { proposals: steps.length ? [{ id: PROPOSAL_ID, steps: steps.map(({ input: _input, ...rest }) => rest) }] : [] };
+    if (name === 'preview_proposal') return args.proposalId === PROPOSAL_ID && steps.length
+      ? { proposal: { id: PROPOSAL_ID, steps: steps.map(st => ({ id: st.id, command: st.command, state: st.state, preview: { title: st.command, input: st.input } })) } }
+      : { error: 'No such proposal in this sandbox' };
     return bookTool(name, args);
   };
   const discover = (tool: string, result: unknown) => tool === 'find_command'

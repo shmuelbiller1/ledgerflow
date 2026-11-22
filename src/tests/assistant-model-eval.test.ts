@@ -58,3 +58,21 @@ test('SBX-2 Part 6 model test: a failed turn is an error, and a timed-out turn s
   await new Promise(resolve => setTimeout(resolve, 150));
   assert.equal(calls, after, 'no model calls after the case returned');
 });
+
+test('SBX-2 Part 6 model test: a drafted step can be listed and previewed, as the system prompt requires', async () => {
+  const replies = [
+    { tool_calls: [{ id: 'a', function: { name: 'propose_bill_create', arguments: '{"bill":{"vendorId":"ven_elec","totalCents":32000}}' } }] },
+    { tool_calls: [{ id: 'b', function: { name: 'preview_proposal', arguments: '{"proposalId":"sbx_eval_proposal"}' } }] },
+    { content: 'Drafted the bill for review.' },
+  ];
+  const seen: unknown[] = [];
+  const endpoint: typeof fetch = async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as { messages: Array<{ role: string; content: string }> };
+    seen.push(body.messages.filter(m => m.role === 'tool').map(m => JSON.parse(m.content)));
+    return Response.json({ choices: [{ message: { content: null, ...replies[seen.length - 1] } }], usage: {} });
+  };
+  const { outcome } = await runCase('https://model.test/v1', endpoint, 'm', 'sys', 'Make a bill from the electricity company for 320.');
+  assert.equal(outcome.error, undefined);
+  const preview = (seen[2] as Array<{ result?: { proposal?: { steps: Array<{ command: string }> } } }>).at(-1)?.result?.proposal;
+  assert.equal(preview?.steps[0].command, 'bill.create');
+});
