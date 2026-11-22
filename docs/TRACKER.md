@@ -1266,7 +1266,7 @@ Measured at `origin/main` @ `936add6` · tsc 0 real errors · 293 tests (291 pas
 
 - [ ] M-13 Commodities
 - [ ] M-15 Warehouses (deferred)
-- [~] M-21 Standard costing — step 1 (8 Nov): an item can carry a standard cost (Inventory list, edit in place) and shows how far its actual average cost is from it (`src/lib/standardCost.ts`, `standard-cost.test.ts`); nothing posts differently. Posting at standard with a variance account waits for the owner (FOR_YOU #54)
+- [x] M-21 Standard costing — step 1 (8 Nov): an item can carry a standard cost (Inventory list, edit in place) and shows how far its actual average cost is from it (`src/lib/standardCost.ts`, `standard-cost.test.ts`); nothing posts differently. **Step 2 built 22 Nov:** a workspace setting turns standard-cost posting on (`workspace.standardcosting`, with the purchase-price variance account, off by default per FOR_YOU #54); a bill's Inventory line then posts the units at qty × standard and the difference (actual − standard) to the variance account (`planStandardReceipt` in `src/lib/billStock.ts`, wired into `billPosting.ts`), the stock comes in at the standard (`metadata.stockIn` carries the standard values), the sale relieves at the standard (`planInvoiceCogs` with `postAtStandard`), and the inventory report values the stock at the standard (`computeInventoryValuation`). Tests: `m21-step2-standard-posting.test.ts` (hand-worked figures, parity with the setting off, the setting command) and a database test in `m21-step2-standard-post-db.test.ts`.
 
 # SECTION N — REPORT FEATURE MATRIX
 

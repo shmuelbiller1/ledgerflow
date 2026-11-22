@@ -21,6 +21,7 @@ import {
   workspaceOpeningBalancesCommand,
   workspaceRetentionCommand,
   workspaceSetupCompleteCommand,
+  workspaceStandardCostingCommand,
 } from './workspaceSettings';
 import { customerCreateCommand, customerUpdateCommand, warrantyUpdateCommand } from './customers';
 import { customerBalanceCommand, vendorBalanceCommand } from './contactBalances';
@@ -206,6 +207,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(workspaceOpeningBalancesCommand);
   registry.register(workspaceRetentionCommand);
   registry.register(workspaceSetupCompleteCommand);
+  registry.register(workspaceStandardCostingCommand);
   registry.register(workspaceInviteRevokeCommand);
   registry.register(workspaceCancelDeletionCommand);
   registry.register(periodCloseCommand);

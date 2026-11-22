@@ -70,8 +70,10 @@ function ValuationFigures({ asOfDate: pageAsOfDate }: { asOfDate?: string }) {
   // a cleared date means today; a date after today is not a valuation date (the books are not compared for it)
   const future = Boolean(asOfDate) && asOfDate > today;
   const valuationDate = asOfDate && !future ? asOfDate : today;
-  const report = useMemo(() => computeInventoryValuation(inventory || [], accounts || [], transactions || [], valuationDate),
-    [inventory, accounts, transactions, valuationDate]);
+  // M-21 step 2: a workspace posting at standard values the stock at the standard in this report too
+  const standardCosting = useAuthStore(s => Boolean(s.getCurrentWorkspace()?.standardCosting?.enabled));
+  const report = useMemo(() => computeInventoryValuation(inventory || [], accounts || [], transactions || [], valuationDate, standardCosting),
+    [inventory, accounts, transactions, valuationDate, standardCosting]);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   const unknownCap = useLedgerStore(s => s.isDataTruncated && !Object.values(s.truncatedCollections).some(Boolean));

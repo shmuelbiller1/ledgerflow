@@ -228,6 +228,7 @@ export const REGISTERED_COMMAND_NAMES: readonly string[] = [
   'workspace.scheduledeletion',
   'workspace.settings',
   'workspace.setupcomplete',
+  'workspace.standardcosting',
   'workspace.undoimport',
   'workspace.updaterole',
 ];

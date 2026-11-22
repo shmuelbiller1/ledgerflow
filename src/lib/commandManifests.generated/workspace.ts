@@ -25,8 +25,9 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema218 } from '../commandSchemas
 import { COMMAND_INPUT_SCHEMA as commandInputSchema219 } from '../commandSchemas.generated/workspace_scheduledeletion';
 import { COMMAND_INPUT_SCHEMA as commandInputSchema220 } from '../commandSchemas.generated/workspace_settings';
 import { COMMAND_INPUT_SCHEMA as commandInputSchema221 } from '../commandSchemas.generated/workspace_setupcomplete';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema222 } from '../commandSchemas.generated/workspace_undoimport';
-import { COMMAND_INPUT_SCHEMA as commandInputSchema223 } from '../commandSchemas.generated/workspace_updaterole';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema222 } from '../commandSchemas.generated/workspace_standardcosting';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema223 } from '../commandSchemas.generated/workspace_undoimport';
+import { COMMAND_INPUT_SCHEMA as commandInputSchema224 } from '../commandSchemas.generated/workspace_updaterole';
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const WORKSPACE_COMMAND_MANIFEST = [
@@ -842,6 +843,35 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     inputSchema: commandInputSchema221
   },
   {
+    "name": "workspace.standardcosting",
+    "area": "workspace",
+    "roles": COMMAND_SCHEMA_PARTS.part33,
+    "risk": "normal",
+    "description": {
+      "sentence": "Turn standard-cost posting on or off for the workspace and name the account the purchase-price variance posts to; do not use it to change an item cost or a posted entry.",
+      "example": {
+        "enabled": true,
+        "varianceAccountId": "acct_purchase_variance"
+      },
+      "refusals": [
+        {
+          "code": "INVALID_INPUT",
+          "when": "Standard costing is turned on without the variance account, or the account is not in the chart.",
+          "next": "Choose the purchase-price variance account in the chart of accounts and pass its id."
+        },
+        {
+          "code": "ROLE_REQUIRED",
+          "when": "The caller is not an owner or accountant.",
+          "next": "Ask a workspace owner or accountant to change the setting."
+        },
+        COMMAND_SCHEMA_PARTS.part189
+      ]
+    },
+    "runPath": "/api/v1/commands/workspace.standardcosting",
+    "previewPath": "/api/v1/commands/workspace.standardcosting/preview",
+    inputSchema: commandInputSchema222
+  },
+  {
     "name": "workspace.undoimport",
     "area": "workspace",
     "roles": COMMAND_SCHEMA_PARTS.part72,
@@ -871,7 +901,7 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.undoimport",
     "previewPath": "/api/v1/commands/workspace.undoimport/preview",
-    inputSchema: commandInputSchema222
+    inputSchema: commandInputSchema223
   },
   {
     "name": "workspace.updaterole",
@@ -904,6 +934,6 @@ export const WORKSPACE_COMMAND_MANIFEST = [
     },
     "runPath": "/api/v1/commands/workspace.updaterole",
     "previewPath": "/api/v1/commands/workspace.updaterole/preview",
-    inputSchema: commandInputSchema223
+    inputSchema: commandInputSchema224
   },
 ] as const;

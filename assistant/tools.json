@@ -11266,6 +11266,27 @@
       }
     },
     {
+      "name": "propose_workspace_standardcosting",
+      "description": "Propose workspace.standardcosting for review; never apply it to the live books. Turn standard-cost posting on or off for the workspace and name the account the purchase-price variance posts to; do not use it to change an item cost or a posted entry.\nExample input: {\"enabled\":true,\"varianceAccountId\":\"acct_purchase_variance\"}\nINVALID_INPUT: Standard costing is turned on without the variance account, or the account is not in the chart. Choose the purchase-price variance account in the chart of accounts and pass its id.\nROLE_REQUIRED: The caller is not an owner or accountant. Ask a workspace owner or accountant to change the setting.\nWORKSPACE_NOT_FOUND: The workspace no longer exists. Choose an existing workspace.",
+      "parametersJsonSchema": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "varianceAccountId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "propose_workspace_undoimport",
       "description": "Propose workspace.undoimport for review; never apply it to the live books. Remove the records an import created, keeping any that are already in use; do not use it to delete one record — use its own delete command.\nExample input: {\"batchId\":\"imp_0123456789abcdef\"}\nINVALID_INPUT: The batch id is not one of ours. Send the batch id the import answered with.\nNOT_FOUND: Nothing is left from that import, or it belongs to another workspace. Check the import in this workspace.\nFORBIDDEN: A bookkeeper undoes an accounts import. Ask an owner or accountant to undo the chart import.",
       "parametersJsonSchema": {

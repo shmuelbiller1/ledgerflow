@@ -222,6 +222,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "workspace.scheduledeletion": "CommandInput_workspace_scheduledeletion",
   "workspace.settings": "CommandInput_workspace_settings",
   "workspace.setupcomplete": "CommandInput_workspace_setupcomplete",
+  "workspace.standardcosting": "CommandInput_workspace_standardcosting",
   "workspace.undoimport": "CommandInput_workspace_undoimport",
   "workspace.updaterole": "CommandInput_workspace_updaterole"
 } as const;

@@ -44,3 +44,41 @@ export function billStockLines(splits: Array<{ itemId?: string; quantity?: numbe
   }
   return lines;
 }
+
+/**
+ * M-21 step 2: what a bill's receipt posts at standard. Each item line that carries a valid standard cost
+ * comes in at quantity × standard; a line without one keeps its actual value (landed cost included). The
+ * difference between what the lines posted to Inventory (the actual total) and the standard total is the
+ * purchase-price variance, which the posting sends to the workspace's variance account.
+ */
+import { validStandardCost } from './standardCost';
+import type { InventoryItem } from '../model/operations';
+
+export interface StandardReceiptPlan {
+  /** the stock-in lines with their standard values (actual where no standard applies) */
+  entries: BillStockLine[];
+  /** what the lines posted to Inventory as posted today (actual, landed cost included) */
+  actualTotalCents: number;
+  /** what they post to Inventory under standard costing */
+  standardTotalCents: number;
+  /** actual − standard: a debit when the stock cost more than planned (unfavourable) */
+  varianceCents: number;
+}
+
+/** The standard-cost plan for a receipt, or null when the workspace does not post at standard. */
+export function planStandardReceipt(
+  stockIn: BillStockLine[],
+  items: Array<Pick<InventoryItem, 'id' | 'standardCostCents'>>,
+  standardizing: boolean
+): StandardReceiptPlan | null {
+  if (!standardizing) return null;
+  const byId = new Map(items.map(i => [i.id, i]));
+  const entries = stockIn.map(line => {
+    const standard = validStandardCost(byId.get(line.itemId)?.standardCostCents);
+    const standardValueCents = standard !== null && line.quantity > 0 ? Math.round(line.quantity * standard) : line.valueCents;
+    return { ...line, valueCents: standardValueCents };
+  });
+  const actualTotalCents = stockIn.reduce((sum, l) => sum + l.valueCents, 0);
+  const standardTotalCents = entries.reduce((sum, l) => sum + l.valueCents, 0);
+  return { entries, actualTotalCents, standardTotalCents, varianceCents: actualTotalCents - standardTotalCents };
+}

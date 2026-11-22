@@ -57,10 +57,14 @@ export async function loadPostingContext(db: Firestore, input: {
   // the document's entries as they were before this request: everything except what it just wrote
   const before = entries.docs.map(d => ({ ...d.data(), id: d.id }) as Transaction).filter(tx => !postedIds.has(tx.id));
 
-  // the stock items an invoice sells, for its cost of goods
-  const itemIds = collection === 'invoices'
-    ? [...new Set(((document.items || []) as Array<{ itemId?: string }>).map(l => l.itemId).filter((id): id is string => Boolean(id)))]
-    : [];
+  // the stock items an invoice sells, for its cost of goods — and, for a bill, the items it buys, so a
+  // workspace posting at standard cost (M-21 step 2) can value the receipt at each item's standard
+  const docLines = collection === 'invoices'
+    ? (document.items || [])
+    : collection === 'bills'
+      ? (document.splits || [])
+      : [];
+  const itemIds = [...new Set((docLines as Array<{ itemId?: string }>).map(l => l.itemId).filter((id): id is string => Boolean(id)))];
   const inventory = (await Promise.all(itemIds.map(async id => {
     const snap = await db.collection('inventory').doc(id).get();
     const item = snap.data();

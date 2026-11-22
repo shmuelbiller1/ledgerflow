@@ -7,10 +7,19 @@
  * percentage of the standard, and for the stock on hand (actual − standard, × quantity). A positive
  * variance means the stock cost more than planned (unfavourable).
  *
- * Posting at standard (stock carried at standard, differences to a purchase-price variance account) changes
- * how money is booked and is the owner's decision (docs/FOR_YOU.md); it is not done here.
+ * Step 2 (this module's settings type): a workspace may turn on posting at standard — stock is received and
+ * relieved at the standard and the difference between actual and standard goes to a purchase-price variance
+ * account. It is the owner's decision (docs/FOR_YOU.md) and off by default; the report above keeps comparing
+ * actual against standard either way.
  */
 import type { InventoryItem } from '../model/operations';
+
+/** M-21 step 2, workspace setting: whether receipts and sales post at the item's standard cost. */
+export interface StandardCostingSettings {
+  enabled: boolean;
+  /** the account the purchase-price variance (actual − standard) posts to; required while enabled */
+  varianceAccountId: string;
+}
 
 export interface StandardCostRow {
   itemId: string;

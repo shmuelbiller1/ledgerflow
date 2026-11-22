@@ -4,8 +4,8 @@ import { Bill } from '../../types';
 import { calculateDocumentTax, cashPostedWithDocumentCents } from '../../lib/documentMath';
 import { TransactionTemplates } from '../../kernel/templates/TransactionTemplates';
 import { allocateCents } from '../../lib/Allocation';
-import { BILL_ACCRUAL_TYPE, billItemProblem, billStockLines } from '../../lib/billStock';
-import { getAccounts, getTransactions, getWorkspaces, inBaseCurrency, verifyLockDate, findAccount, resolveAccount, lineAccounts, postTxsServerApi, postingToday, documentMinorRate, taxLineStamp, liveDocumentPostings, reversalEntries } from './postingCore';
+import { BILL_ACCRUAL_TYPE, billItemProblem, billStockLines, planStandardReceipt } from '../../lib/billStock';
+import { getAccounts, getTransactions, getWorkspaces, inBaseCurrency, verifyLockDate, findAccount, resolveAccount, lineAccounts, loadInventory, postTxsServerApi, postingToday, documentMinorRate, taxLineStamp, liveDocumentPostings, reversalEntries } from './postingCore';
 import type { EntityMutation, LedgerPostContext } from './postingCore';
 
 /**
@@ -113,6 +113,14 @@ export async function postBillLedger(
   const weights = lineAccounts(splits, accounts, expenseAccount, a => !['cash', 'ar', 'ap'].includes(resolveAccountRole(a)));
   const stockIn = itemSplits.length && weights ? billStockLines(splits, allocateCents(amount - taxAmount, weights.map(w => w.weightCents))) : [];
 
+  // M-21 step 2: a workspace posting at standard receives the items at their standard cost. The lines below
+  // post Inventory at quantity × standard and the difference (actual − standard) to the variance account;
+  // without the setting, the receipt posts exactly as before (the moving average, no variance line).
+  const standardPlan = currentWs?.standardCosting?.enabled && stockIn.length
+    ? planStandardReceipt(stockIn, await loadInventory(billData, context), true)
+    : null;
+  const stockInLines = standardPlan?.entries ?? stockIn;
+
   const accrualLines = TransactionTemplates.buildBillLines({
     billNumber: String(billNum),
     vendorName: vendor,
@@ -128,6 +136,30 @@ export async function postBillLedger(
 
   // Reverse charge (T-03): the vendor charged no tax; the business owes it and reclaims it,
   // so the same amount goes to input tax (reclaimable) and to tax payable (due)
+  // the inventory lines post at the standard total; the balancing difference goes to the variance account
+  if (standardPlan && standardPlan.varianceCents !== 0) {
+    if (!inventoryAccount) throw new Error('Add an Inventory account (an asset) to the chart of accounts to buy stock on a bill');
+    const varianceAccount = accounts.find(a => a.id === currentWs?.standardCosting?.varianceAccountId);
+    if (!varianceAccount) {
+      throw new Error('The purchase-price variance account set in Workspace Settings is not in the chart of accounts.');
+    }
+    const inventoryLineIndexes = accrualLines.map((l, i) => (l.accountId === inventoryAccount.id ? i : -1)).filter(i => i >= 0);
+    const shares = allocateCents(standardPlan.standardTotalCents, inventoryLineIndexes.map(i => accrualLines[i].amountCents));
+    const rescaled = accrualLines.map((l, i) => {
+      const k = inventoryLineIndexes.indexOf(i);
+      return k >= 0 ? { ...l, amountCents: shares[k] } : l;
+    });
+    accrualLines.length = 0;
+    accrualLines.push(...rescaled);
+    accrualLines.push({
+      accountId: varianceAccount.id,
+      accountName: varianceAccount.name,
+      amountCents: standardPlan.varianceCents, // debit when the stock cost more than planned
+      description: `Purchase price variance on Bill ${billNum} (stock received at standard)`,
+      exchangeRate: rate
+    });
+  }
+
   if (selfAssessed > 0 && taxAccount) {
     const outputTaxAccount = findAccount(
       accounts,
@@ -156,7 +188,7 @@ export async function postBillLedger(
       billId,
       vendorId: billData.vendorId,
       type: BILL_ACCRUAL_TYPE,
-      ...(stockIn.length ? { stockIn } : {})
+      ...(stockInLines.length ? { stockIn: stockInLines } : {})
     },
     lines: accrualLines
   };

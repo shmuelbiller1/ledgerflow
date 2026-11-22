@@ -223,6 +223,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "workspace.scheduledeletion",
   "workspace.settings",
   "workspace.setupcomplete",
+  "workspace.standardcosting",
   "workspace.undoimport",
   "workspace.updaterole"
 ] as const;

@@ -202,6 +202,8 @@ export async function postInvoiceLedger(
     inventoryAccount: findAccount(accounts, mappings, ['inventory', 'stock', 'inventory asset'], a => resolveAccountRole(a) === 'inventory'),
     cogsAccount: findAccount(accounts, mappings, ['cogs', 'cost of goods sold', 'direct costs'], a => resolveAccountRole(a) === 'cogs'),
     items: await loadInventory(invoiceData, context),
+    // M-21 step 2: a workspace posting at standard relieves the stock at the item's standard
+    postAtStandard: Boolean(currentWs?.standardCosting?.enabled),
   });
   txsToPost.push(...cogs.entries);
   const wasPending = Boolean(invoiceData.metadata?.cogsPending);
