@@ -14,3 +14,7 @@ test('#945: every AI route runs auth before the brain limiter', () => {
   assert.match(read('src/server/routes/developerApiRoutes.ts'), /["'][^"']*\/classify-batch["'],\s*apiAuthenticate,\s*brainRateLimiter/);
   assert.match(read('src/server/routes/aiRoutes.ts'), /["']\/process["'],\s*requireAiUser,\s*brainRateLimiter/);
 });
+
+test('#945: a verified API key gets its own brain bucket, not its creator\'s', () => {
+  assert.match(read('src/server/middleware/rateLimiters.ts'), /usedApiKeyId\) return `api-key:\$\{user\.usedApiKeyId\}`/);
+});

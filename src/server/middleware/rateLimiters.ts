@@ -61,9 +61,12 @@ export const pdfGenerationLimiter = rateLimit({
  */
 export const brainRateLimiter = sharedRateLimitMiddleware(
   sharedBrainRateLimiter,
-  req => String((req as typeof req & { user?: { uid?: string; id?: string } }).user?.uid ||
-    (req as typeof req & { user?: { uid?: string; id?: string } }).user?.id ||
-    req.ip || req.socket.remoteAddress || 'unknown'),
+  req => {
+    const user = (req as typeof req & { user?: { uid?: string; id?: string; usedApiKeyId?: string } }).user;
+    // A verified API key gets its own bucket, not its creator's (Z-02 keeps keys independent).
+    if (typeof user?.usedApiKeyId === 'string' && user.usedApiKeyId) return `api-key:${user.usedApiKeyId}`;
+    return String(user?.uid || user?.id || req.ip || req.socket.remoteAddress || 'unknown');
+  },
 );
 
 /** Z-02: an API key's own limit a minute (set when the key is made; 120 unless chosen). */
