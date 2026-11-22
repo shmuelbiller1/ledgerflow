@@ -28,6 +28,10 @@ If I hear nothing, I'll build it with these defaults.
 
 Nothing a vendor sends would ever become a posted bill on its own; someone in your workspace reviews it first. *Default:* not started until you say you want it. Without your answers I'd have to guess at storage and access rules, and I won't guess at those.
 
+## Creating an API key now needs a sign-in from the last 30 minutes (#941, default used: 30 minutes)
+
+Before, any open session could create a workspace API key, even a session from days ago that was only refreshed. Now an owner whose last real sign-in is older than 30 minutes is told to sign out and sign in again, then try once more. A stolen, long-lived session can no longer mint keys. Tell me if you want a different window, or a sign-in prompt inside the API key screen instead of the message.
+
 ## Invoice and statement PDFs now print your VAT number and the customer's address (#890 — defaults used)
 
 - **Your VAT number:** the PDF prints the VAT number from Settings → Tax that was in force on the document's date. It comes from the "valid from/to" dates, so an invoice from before a number changed still shows the old number.

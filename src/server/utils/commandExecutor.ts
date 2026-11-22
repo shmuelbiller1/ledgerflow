@@ -156,6 +156,11 @@ function valueAtPath(value: unknown, path: string): unknown {
   return current;
 }
 
+/** #941: a sign-in time (seconds) no older than `windowSec`; a missing time is never recent. */
+export function signedInWithin(authTime: number | undefined, windowSec: number, nowMs = Date.now()): boolean {
+  return typeof authTime === 'number' && authTime > 0 && nowMs / 1000 - authTime <= windowSec;
+}
+
 export class CommandRefusal extends Error {
   constructor(message: string, readonly status: number, readonly code?: string, readonly details?: unknown) {
     super(message);
@@ -418,6 +423,9 @@ export async function runRegisteredCommand(
 
   if (command.risk === 'high' && !invocation.legacyRoute && (user.developerWorkspaceId || user.aal !== 'aal2')) {
     return { ok: false, status: 403, command: command.name, message: 'High-risk commands require a person signed in with two-step verification; API keys cannot confirm this step.', code: 'TWO_STEP_REQUIRED' };
+  }
+  if (command.recentSignInSec && !signedInWithin(user.auth_time, command.recentSignInSec)) {
+    return { ok: false, status: 403, command: command.name, message: 'For your security, sign out and sign in again, then try this once more.', code: 'RECENT_SIGN_IN_REQUIRED' };
   }
 
   let input: unknown;

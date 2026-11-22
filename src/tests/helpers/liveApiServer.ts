@@ -40,7 +40,12 @@ export interface TestJwtClaims {
 export function signTestJwt(claims: TestJwtClaims): Promise<string> {
   const secret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!);
   const payload: Record<string, unknown> = { email: claims.email, email_verified: true, aal: claims.aal || 'aal1', role: 'authenticated' };
-  if (claims.authTimeOffsetSec !== undefined) payload.auth_time = Math.floor(Date.now() / 1000) + claims.authTimeOffsetSec;
+  if (claims.authTimeOffsetSec !== undefined) {
+    const at = Math.floor(Date.now() / 1000) + claims.authTimeOffsetSec;
+    // Supabase's real shape: the sign-in method and its time, kept across refreshes
+    payload.auth_time = at;
+    payload.amr = [{ method: 'password', timestamp: at }];
+  }
   if (claims.appMetadata) payload.app_metadata = claims.appMetadata;
   if (claims.userMetadata) payload.user_metadata = claims.userMetadata;
   return new SignJWT(payload)
