@@ -140,13 +140,14 @@ describe('S-11: session hardening & API-key auth-route boundary', { skip: !hasDb
     assert.equal((legacyRes.json as { code?: string }).code, 'TWO_STEP_REQUIRED');
   });
 
-  it('S-11 #941: a stale two-hour-old aal1 session cannot provision workspace API keys', { todo: 'needs a real sign-in time (auth_time is the token issue time today); follow-up to #941' }, async () => {
+  it('S-11 #941: a stale two-hour-old aal1 session cannot provision workspace API keys', async () => {
     const provisioned = await api('POST', '/api/v1/keys/provision', tokenAal1Stale, {
       workspaceId: wsId,
       name: 'Stale Session Key',
       scopes: ['read:transactions', 'write:transactions'],
     });
-    assert.notEqual(provisioned.status, 201);
+    assert.equal(provisioned.status, 403);
+    assert.equal((provisioned.json as { code?: string }).code, 'RECENT_SIGN_IN_REQUIRED');
     assert.doesNotMatch(String((provisioned.json as { apiKey?: string }).apiKey || ''), /^lf_id_/);
   });
 });

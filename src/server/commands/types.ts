@@ -80,6 +80,8 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
    * provider key), and an API key that could mint keys would grant itself more than it was given.
    */
   peopleOnly?: boolean;
+  /** #941: refuse unless the person signed in (not just refreshed a token) within this many seconds. */
+  recentSignInSec?: number;
   /** Person-scoped workspace creation must not be performed (or replayed) by a workspace-scoped key. */
   denyWorkspaceApiKey?: boolean;
   /**
