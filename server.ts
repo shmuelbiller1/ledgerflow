@@ -46,7 +46,7 @@ import { loadServerEnv } from "./src/server/config/env.ts";
 import { createOriginCheck, resolvePort } from "./src/server/http/origins.ts";
 import { applySecurityMiddleware, applyJsonBodyParser } from "./src/server/http/securityMiddleware.ts";
 import { apiRequestLogger } from "./src/server/http/apiRequestLog.ts";
-import { publicInvoiceLimiter, pdfGenerationLimiter, brainRateLimiter, createAppRateLimiters } from "./src/server/middleware/rateLimiters.ts";
+import { publicInvoiceLimiter, pdfGenerationLimiter, createAppRateLimiters } from "./src/server/middleware/rateLimiters.ts";
 
 declare const __SERVERLESS_BUILD__: boolean | undefined;
 
@@ -77,7 +77,7 @@ async function buildApp(): Promise<{ app: express.Express; port: number }> {
 
   // Stripe receives its raw body first; other API traffic is checked before JSON parsing.
   app.use("/api/", limiter);
-  app.use("/api/v1/brain", brainRateLimiter);
+  // #945 (S-22): the brain limiter runs on each route after apiAuthenticate, so it limits per person, not per IP
   app.use("/api/v1/documents", pdfGenerationLimiter);
   // Only email callbacks bypass CSRF; their router verifies the provider credential.
   app.use(csrfProtection({ isAllowedOrigin, ignoredPaths: [/^\/api\/v1\/email-events\/?$/] }));

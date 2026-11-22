@@ -46,21 +46,25 @@ const TASK_WEIGHTS: Record<string, number> = {
   'parse-business-blueprint': 400
 };
 
-aiRouter.post("/process", brainRateLimiter, async (req: express.Request, res: express.Response) => {
-  // 1. Standard token validation FIRST (No guest/test bypass allowed)
-  // Ensures unauthenticated calls return 401 even before key check
+type VerifiedAiRequest = express.Request & { user?: Awaited<ReturnType<typeof verifyIdToken>> };
+
+/** 1. Standard token validation FIRST (no guest/test bypass): unauthenticated calls get 401 before any key check.
+ *  #945 (S-22): it runs before the rate limiter, so the limit is per person, not per shared IP address. */
+async function requireAiUser(req: express.Request, res: express.Response, next: express.NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ status: "error", message: "Unauthenticated: No token provided" });
   }
-
-  const token = authHeader.split("Bearer ")[1];
-  let decodedToken: Awaited<ReturnType<typeof verifyIdToken>>;
   try {
-    decodedToken = await verifyIdToken(token);
+    (req as VerifiedAiRequest).user = await verifyIdToken(authHeader.split("Bearer ")[1]);
   } catch {
     return res.status(401).json({ status: "error", message: "Unauthenticated: Invalid token" });
   }
+  next();
+}
+
+aiRouter.post("/process", requireAiUser, brainRateLimiter, async (req: express.Request, res: express.Response) => {
+  const decodedToken = (req as VerifiedAiRequest).user!;
 
   // 2. Ensure GEMINI_API_KEY is configured
   const apiKey = process.env.GEMINI_API_KEY;

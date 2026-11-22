@@ -56,7 +56,8 @@ export const pdfGenerationLimiter = rateLimit({
 
 /**
  * Rate limiter for AI Brain & Financial LLM reasoning endpoints (/api/v1/brain/*).
- * 20 requests per minute per IP.
+ * 20 requests per minute per signed-in user (IP only before auth). Mounted after
+ * the auth middleware on each route so users behind one IP do not share a bucket (#945).
  */
 export const brainRateLimiter = sharedRateLimitMiddleware(
   sharedBrainRateLimiter,
