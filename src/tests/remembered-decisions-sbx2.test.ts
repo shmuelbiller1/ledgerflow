@@ -70,6 +70,15 @@ describe('SBX-2 Part 3 remembered decisions (pure)', () => {
     assert.deepEqual(suggestFor('bill.create', { bill: { vendorId: 'v9', lines: [{ payee: 'Other' }] } }, rows).map(s => s.field), ['cashAccountId'], 'a line field is not offered at the document level');
   });
 
+  test('bill splits and invoice items are lines too', () => {
+    assert.deepEqual(decisionsIn({ bill: { vendorId: 'v1', splits: [{ accountId: 'a' }] } }).map(d => [d.subject, d.field, d.value]), [['vendorId:v1', 'accountId', 'a']]);
+    assert.deepEqual(decisionsIn({ invoice: { customerId: 'c1', items: [{ incomeAccountId: 'sales' }] } }).map(d => [d.subject, d.field, d.value]), [['customerId:c1', 'incomeAccountId', 'sales']]);
+    let rows: RememberedRow[] = [];
+    for (let i = 0; i < 5; i++) rows = fold(observe('bill.create', { bill: { vendorId: 'v1', splits: [{ accountId: 'a' }] } }, 'accepted'), rows);
+    assert.deepEqual(suggestFor('bill.create', { bill: { vendorId: 'v1', splits: [{ accountId: 'mine' }] } }, rows), [], 'a filled split is left alone');
+    assert.deepEqual(suggestFor('bill.create', { bill: { vendorId: 'v1', splits: [{}] } }, rows).map(s => s.value), ['a']);
+  });
+
   test('lines: a filled line is left alone, an empty line gets its own subject choice, and two line values are two choices', () => {
     let rows: RememberedRow[] = [];
     for (let i = 0; i < 5; i++) rows = fold(observe('bill.create', { vendorId: 'v1', lines: [{ accountId: 'a' }, { payee: 'Other', accountId: 'b' }] }, 'accepted'), rows);

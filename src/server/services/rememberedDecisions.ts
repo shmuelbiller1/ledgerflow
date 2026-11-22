@@ -44,6 +44,14 @@ function subjectOf(obj: Record<string, unknown>, fallback?: string): string | un
   return fallback;
 }
 
+/** The document's line arrays: `lines`, a bill's `splits`, an invoice's `items`. */
+const LINE_KEYS = ['lines', 'splits', 'items'] as const;
+function linesOf(obj: Record<string, unknown>): Record<string, unknown>[] {
+  return LINE_KEYS.flatMap(k => Array.isArray(obj[k]) ? obj[k] as unknown[] : [])
+    .filter((l): l is Record<string, unknown> => !!l && typeof l === 'object' && !Array.isArray(l));
+}
+const hasLines = (obj: Record<string, unknown>) => LINE_KEYS.some(k => Array.isArray(obj[k]));
+
 /**
  * Command inputs wrap the document in an envelope (`{ bill: {...}, postingDay }`, `{ invoice: {...} }`).
  * When the outer object names no subject and has no lines, use the one nested object that does.
@@ -51,9 +59,9 @@ function subjectOf(obj: Record<string, unknown>, fallback?: string): string | un
 function documentOf(input: unknown): Record<string, unknown> | undefined {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined;
   const outer = input as Record<string, unknown>;
-  if (subjectOf(outer) || Array.isArray(outer.lines)) return outer;
+  if (subjectOf(outer) || hasLines(outer)) return outer;
   const inner = Object.values(outer).filter((v): v is Record<string, unknown> =>
-    !!v && typeof v === 'object' && !Array.isArray(v) && (!!subjectOf(v as Record<string, unknown>) || Array.isArray((v as Record<string, unknown>).lines)));
+    !!v && typeof v === 'object' && !Array.isArray(v) && (!!subjectOf(v as Record<string, unknown>) || hasLines(v as Record<string, unknown>)));
   return inner.length === 1 ? inner[0] : outer;
 }
 
@@ -72,9 +80,7 @@ export function decisionsIn(input: unknown): Decision[] {
     }
   };
   take(root, rootSubject);
-  for (const line of Array.isArray(root.lines) ? root.lines : []) {
-    if (line && typeof line === 'object' && !Array.isArray(line)) take(line as Record<string, unknown>, subjectOf(line as Record<string, unknown>, rootSubject));
-  }
+  for (const line of linesOf(root)) take(line, subjectOf(line, rootSubject));
   return [...out.values()];
 }
 
@@ -110,11 +116,8 @@ export function suggestFor(command: string, input: unknown, rows: readonly Remem
   const root = documentOf(input) ?? {};
   const rootSubject = subjectOf(root);
   // the root and each line decide (a line without a subject uses the root's)
-  const lines = Array.isArray(root.lines) ? root.lines : [];
-  const targets: Array<[Record<string, unknown>, string | undefined]> = [[root, rootSubject]];
-  for (const line of lines) {
-    if (line && typeof line === 'object' && !Array.isArray(line)) targets.push([line as Record<string, unknown>, subjectOf(line as Record<string, unknown>, rootSubject)]);
-  }
+  const lines = linesOf(root);
+  const targets: Array<[Record<string, unknown>, string | undefined]> = [[root, rootSubject], ...lines.map(l => [l, subjectOf(l, rootSubject)] as [Record<string, unknown>, string | undefined])];
   const out = new Map<string, Suggestion>();
   for (const [obj, subject] of targets) {
     if (!subject) continue;
