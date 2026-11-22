@@ -202,6 +202,7 @@ export function sumEntries(entries: Transaction[], kinds: Iterable<string> = [])
       if (cents < 0) add(credits, line.accountId, -cents);
       for (const kind of kindList) {
         const value = getLineDimension(line, tx, kind) || UNASSIGNED;
+        if (isUnsafeObjectKey(value)) continue;
         if (!byLabel[kind][value]) byLabel[kind][value] = createCents();
         add(byLabel[kind][value], line.accountId, cents);
         add(labelLines[kind], value, 1);
