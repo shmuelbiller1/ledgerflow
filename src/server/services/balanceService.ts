@@ -148,7 +148,11 @@ export function resetPeriodBalancesReadyForTests(): void {
 }
 
 const createCents = (): Cents => Object.create(null) as Cents;
-const add = (map: Cents, key: string, cents: number) => { map[key] = (map[key] ?? 0) + cents; };
+const isUnsafeObjectKey = (key: string): boolean => key === '__proto__' || key === 'prototype' || key === 'constructor';
+const add = (map: Cents, key: string, cents: number) => {
+  if (isUnsafeObjectKey(key)) return;
+  map[key] = (map[key] ?? 0) + cents;
+};
 const prune = (map: Cents): Cents => Object.fromEntries(Object.entries(map).filter(([, v]) => v !== 0)) as Cents;
 const norm = (kind: string) => kind.normalize('NFC').toLowerCase().trim();
 
