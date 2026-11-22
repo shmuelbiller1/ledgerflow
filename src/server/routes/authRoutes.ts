@@ -72,7 +72,9 @@ export function registerAuthRoutes(app: express.Express, _ctx: ServerContext): v
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.issues.map(i => i.message).join(', ') });
       }
-      const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+      // req.ip honours `trust proxy` (one hop); the first X-Forwarded-For entry is whatever the
+      // caller typed, so it could fake the address in the security log and dodge the new-network alert.
+      const ip = req.ip || req.socket.remoteAddress || 'unknown';
       const userAgent = String(req.headers['user-agent'] || 'unknown').slice(0, 300);
       const id = await recordAuthEvent({ uid: user.uid, event: parsed.data.event, workspaceId: parsed.data.workspaceId, ip, userAgent, email: user.email, metadata: parsed.data.metadata });
       res.json({ success: true, id });
