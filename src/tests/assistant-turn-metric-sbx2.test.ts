@@ -82,3 +82,35 @@ test('a model failure ends the turn as not ok, with what was measured so far', a
   assert.equal(metric.ok, false);
   assert.equal(metric.modelCalls, 1);
 });
+
+test('the same loop runs on an OpenAI-compatible endpoint (Arena): tools, tool results and usage translate', async () => {
+  const { openAiCompatibleClient } = await import('../server/services/openAiCompatibleClient');
+  const bodies: Array<Record<string, unknown>> = [];
+  const replies = [
+    { choices: [{ message: { content: null, tool_calls: [{ id: 'x1', function: { name: 'ask_books', arguments: '{"question":"cash"}' } }] } }], usage: { prompt_tokens: 900, completion_tokens: 15 } },
+    { choices: [{ message: { content: 'Cash is 10.00.' } }], usage: { prompt_tokens: 950, completion_tokens: 8 } },
+  ];
+  const fetchImpl = (async (url: string, init: { body: string; headers: Record<string, string> }) => {
+    assert.equal(url, 'https://api.example.test/v1/chat/completions');
+    assert.match(init.headers.Authorization, /^Bearer /);
+    bodies.push(JSON.parse(init.body));
+    return { ok: true, status: 200, json: async () => replies.shift() };
+  }) as unknown as typeof fetch;
+  const client = openAiCompatibleClient({ baseUrl: 'https://api.example.test/v1/', fetchImpl });
+  const { answer, metric } = await runAssistantTurn({
+    client, model: 'gpt-6-luna', systemPrompt: 'SYS', question: 'How much cash?', now: clock(),
+    tools: [{ name: 'ask_books', description: 'a', parametersJsonSchema: { type: 'object' } } as never],
+    callTool: async (name, args) => ({ name, args, cents: 1000 }),
+  });
+  assert.equal(answer, 'Cash is 10.00.');
+  assert.deepEqual(metric.toolsCalled, ['ask_books']);
+  assert.equal(metric.inputTokens, 1850);
+  assert.equal(metric.outputTokens, 23);
+  assert.equal(metric.costCents, null, 'gpt-6-luna has no price row yet: unknown, not guessed');
+  const first = bodies[0] as { messages: Array<{ role: string; content: unknown }>; tools: Array<{ function: { name: string } }> };
+  assert.deepEqual(first.messages.map(m => m.role), ['system', 'user']);
+  assert.equal(first.tools[0].function.name, 'ask_books');
+  const second = bodies[1] as { messages: Array<{ role: string; tool_call_id?: string; tool_calls?: unknown[] }> };
+  assert.deepEqual(second.messages.map(m => m.role), ['system', 'user', 'assistant', 'tool']);
+  assert.equal(second.messages[3].tool_call_id, 'call_0');
+});
