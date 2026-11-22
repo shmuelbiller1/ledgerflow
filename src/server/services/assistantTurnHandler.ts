@@ -23,11 +23,11 @@ import { ASSISTANT_SYSTEM_PROMPT } from '../../../assistant/systemPrompt.generat
 import type { reviewSandbox } from '../commands/sandboxReview';
 import type { Firestore } from '../db/firestore';
 import { assistantLimitRefusal, assistantUsage } from '../middleware/planCapacity';
-import { assistantToolsFor, draftableCommands } from '../services/assistantCatalog';
-import { assistantModels, chooseModel, routedModelClient } from '../services/assistantModels';
-import { sandboxToolCache, type ToolCache } from '../services/assistantReadCache';
-import { answerTurn, routeQuestion } from '../services/assistantRouter';
-import { recordAssistantTurn, type ModelClient } from '../services/assistantTurn';
+import { assistantToolsFor, draftableCommands } from './assistantCatalog';
+import { assistantModels, chooseModel, routedModelClient } from './assistantModels';
+import { sandboxToolCache, type ToolCache } from './assistantReadCache';
+import { answerTurn, routeQuestion } from './assistantRouter';
+import { recordAssistantTurn, type ModelClient } from './assistantTurn';
 import { CommandRefusal } from '../utils/commandExecutor';
 import type { RequestUser } from '../auth/requestUser';
 

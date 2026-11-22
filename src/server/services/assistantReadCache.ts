@@ -22,7 +22,7 @@
  */
 import crypto from 'node:crypto';
 import type { Pool } from 'pg';
-import { quoteIdent } from '../db/pg/sql';
+import { booksVersion } from '../db/pg/booksVersion';
 
 /** The read tools whose results are cached. Each costs more than the books-version check. */
 export const CACHEABLE_TOOLS: ReadonlySet<string> = new Set(['ask_books', 'run_report', 'explain_number', 'search_records']);
@@ -89,48 +89,7 @@ export class ReadCache {
 
 export const assistantReadCache = new ReadCache();
 
-interface VersionTables { live: string[]; overlays: string[] }
-const tablesByPool = new WeakMap<Pool, Promise<VersionTables>>();
-
-/** The live book tables the sandbox may read and the overlay tables, from the database's own catalog. */
-function versionTables(pool: Pool): Promise<VersionTables> {
-  let found = tablesByPool.get(pool);
-  if (!found) {
-    found = (async () => {
-      const live = await pool.query<{ name: string }>(
-        `select table_name as name from public.lf_rules where sandbox.has_live_book_read(table_name) order by table_name collate "C"`);
-      const overlays = await pool.query<{ name: string }>(`
-        select c.relname as name from pg_catalog.pg_class c
-          join pg_catalog.pg_namespace n on n.oid = c.relnamespace
-          join pg_catalog.pg_attribute a on a.attrelid = c.oid and a.attname = 'sandbox_id' and not a.attisdropped
-         where n.nspname = 'sandbox' and c.relkind = 'r'
-         order by c.relname collate "C"`);
-      return { live: live.rows.map(r => r.name), overlays: overlays.rows.map(r => r.name) };
-    })();
-    found.catch(() => tablesByPool.delete(pool));
-    tablesByPool.set(pool, found);
-  }
-  return found;
-}
-
-const rowsPart = (label: string, from: string, where: string) =>
-  `select ${quoteLiteral(label)} || ':' || count(*) || ':' || coalesce(sum(hashtextextended(id::text || ':' || xmin::text, 0)::numeric), 0) as part from ${from} where ${where}`;
-const quoteLiteral = (s: string) => `'${s.replaceAll("'", "''")}'`;
-
-/**
- * The version of everything a sandbox read can see: changes when any live book row of the workspace,
- * any overlay row of the sandbox, or any of its steps changes. Uses the server's own (live) pool.
- */
-export async function booksVersion(pool: Pool, workspaceId: string, sandboxId: string): Promise<string> {
-  const { live, overlays } = await versionTables(pool);
-  const parts = [
-    ...live.map(t => rowsPart(`l:${t}`, `public.${quoteIdent(t)}`, t === 'workspaces' ? 'id = $1' : 'workspace_id = $1')),
-    ...overlays.map(t => rowsPart(`o:${t}`, `sandbox.${quoteIdent(t)}`, 'sandbox_id = $2::uuid')),
-  ];
-  const { rows } = await pool.query<{ version: string }>(
-    `select md5(string_agg(part, ',' order by part collate "C")) as version from (${parts.join(' union all ')}) v`, [workspaceId, sandboxId]);
-  return rows[0]?.version ?? '';
-}
+export { booksVersion };
 
 /** The tool cache for one sandbox: every read checks the books' version at that moment. */
 export function sandboxToolCache(pool: Pool, scope: { workspaceId: string; sandboxId: string },

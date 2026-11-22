@@ -16,7 +16,7 @@ import { sandboxToolCache, type ToolCache } from '../services/assistantReadCache
 import { CommandRefusal, errorOutcome } from '../utils/commandExecutor';
 import { createBalanceRouter } from './balanceRoutes';
 import { createReportRouter } from './reportRoutes';
-import { assistantTurnHandler, type TurnDependencies } from './assistantTurnRoute';
+import { assistantTurnHandler, type TurnDependencies } from '../services/assistantTurnHandler';
 import { brainRateLimiter } from '../middleware/rateLimiters';
 
 /**
