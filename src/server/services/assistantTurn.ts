@@ -113,7 +113,8 @@ export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ ans
       if (!calls.length) {
         answer = res.text ?? '';
         answered = now();
-        ok = true;
+        // An empty reply (e.g. a blocked response with only feedback) is not a successful answer.
+        ok = answer.trim().length > 0;
         break;
       }
       contents.push(res.candidates?.[0]?.content ?? { role: 'model', parts: calls.map(functionCall => ({ functionCall })) });

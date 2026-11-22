@@ -133,3 +133,11 @@ test('a tool the model was not offered is refused, not run, and recorded only as
   const sentBack = JSON.stringify(seen[1]);
   assert.match(sentBack, /This tool was not offered/);
 });
+
+test('an empty or blocked reply is not counted as a successful turn', async () => {
+  const client: ModelClient = { models: { generateContent: async () => ({ promptFeedback: { blockReason: 'SAFETY' }, usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 0 } }) } };
+  const { answer, metric } = await runAssistantTurn({ client, model: 'gemini-2.5-flash', systemPrompt: 's', question: 'q', tools: [], callTool: async () => ({}), now: clock() });
+  assert.equal(answer, '');
+  assert.equal(metric.ok, false);
+  assert.equal(metric.modelCalls, 1);
+});
