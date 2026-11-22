@@ -149,3 +149,32 @@ export function resetCspViolations(): void {
   total = 0;
   dropped = 0;
 }
+
+/**
+ * #943: removes the current batch in one synchronous step and returns it, so a clear records exactly
+ * what it removes; reports that arrive while that record is being written start a new batch.
+ */
+export function takeCspViolations(): CspViolationSummary {
+  const taken = cspViolationSummary();
+  resetCspViolations();
+  return taken;
+}
+
+/** Puts a taken batch back (its record could not be written), merged with anything received since. */
+export function restoreCspViolations(taken: CspViolationSummary): void {
+  total += taken.total;
+  dropped += taken.dropped;
+  for (const group of taken.groups) {
+    const key = `${group.directive}|${group.blockedSource}|${group.documentPath}`;
+    const seen = groups.get(key);
+    if (seen) {
+      seen.count += group.count;
+      if (group.firstSeen < seen.firstSeen) seen.firstSeen = group.firstSeen;
+      if (group.lastSeen > seen.lastSeen) seen.lastSeen = group.lastSeen;
+    } else if (groups.size < MAX_VIOLATION_GROUPS) {
+      groups.set(key, { ...group });
+    } else {
+      dropped += group.count;
+    }
+  }
+}

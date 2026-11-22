@@ -77,8 +77,7 @@ describe('S-26: platform-admin audit completeness', { skip: !hasDb && 'needs LF_
     restoreEnv(prevEnv);
   });
 
-  // #943: the secure outcome, todo until the fix lands (fixing the gap turns this green, not CI red)
-  it('S-26 #943: promotion keeps public.admins in step and a CSP reset writes an audit row', { todo: 'fixed by #943' }, async () => {
+  it('S-26 #943: promotion keeps public.admins in step and a CSP reset writes an audit row', async () => {
     const promote = await api('PUT', `/api/v1/admin/users/${targetUid}/role`, adminToken, { role: 'admin' });
     assert.equal(promote.status, 200);
 
@@ -99,7 +98,7 @@ describe('S-26: platform-admin audit completeness', { skip: !hasDb && 'needs LF_
     assert.equal(afterCount > beforeCount, true);
   });
 
-  it('S-26 #943: admin and give-access mutations use the strict audit writer', { todo: 'fixed by #943' }, () => {
+  it('S-26 #943: admin and give-access mutations use the strict audit writer', () => {
     const adminRoutes = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/adminRoutes.ts'), 'utf8');
     const giveAccessRoutes = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/giveAccessRoutes.ts'), 'utf8');
     const grantAdmin = fs.readFileSync(path.join(process.cwd(), 'scripts/grant-admin.ts'), 'utf8');
@@ -108,5 +107,13 @@ describe('S-26: platform-admin audit completeness', { skip: !hasDb && 'needs LF_
     assert.doesNotMatch(adminRoutes, /await writeAuditLog\(/);
     assert.equal(giveAccessRoutes.includes('writeAuditLogStrict'), true);
     assert.equal(grantAdmin.includes('writeServerAuditLog'), true);
+  });
+
+  it('S-26 #943: the role route refuses an id that is not a user id, so admins/globalConfig is never touched', async () => {
+    const before = await db.collection('admins').doc('globalConfig').get();
+    const res = await api('PUT', '/api/v1/admin/users/globalConfig/role', adminToken, { role: 'client' });
+    assert.equal(res.status, 400);
+    const after = await db.collection('admins').doc('globalConfig').get();
+    assert.equal(after.exists, before.exists);
   });
 });
