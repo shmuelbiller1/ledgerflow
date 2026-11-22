@@ -135,3 +135,16 @@ test('SBX-2 Part 6 model test: numeric sort, structured recurrence, and only val
   assert.match(toolReply, /Invalid input/);
   assert.ok(!byId('payment').check(outcome).pass);
 });
+
+test('SBX-2 Part 6 model test: aging side, ask_books account scope, and exact invoice quantity', () => {
+  const ap = bookTool('run_report', { report: 'aging', params: { type: 'ap' } }) as { type: string; total: number };
+  assert.deepEqual([ap.type, ap.total], ['ap', 95_000]);
+  assert.equal((bookTool('run_report', { report: 'aging', params: { type: 'ar' } }) as { type: string }).type, 'ar');
+  const office = bookTool('ask_books', { question: 'How much did I spend on office costs last month?' }) as { answer: { totalCents: number } };
+  assert.equal(office.answer.totalCents, 180_000);
+  assert.ok((bookTool('ask_books', { question: 'Tell me something interesting' }) as { problem?: string }).problem, 'unreadable questions are refused');
+  const inv = byId('invoice').check;
+  const draft = (quantity: number) => ({ answer: '', calls: [{ name: 'propose_invoice_create', args: { invoice: { customerId: 'cus_acme', items: [{ description: 'Consulting', quantity, unitPriceCents: 15000 }] } } }] });
+  assert.ok(inv(draft(2)).pass);
+  assert.ok(!inv(draft(2.5)).pass, '2.5 hours is not two hours');
+});

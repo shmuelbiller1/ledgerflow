@@ -173,17 +173,33 @@ export function bookTool(name: string, args: Record<string, unknown>): unknown {
     case 'run_report': {
       const report = s(args.report).toLowerCase();
       const params = (args.params ?? {}) as Record<string, string>;
-      if (/aging|ageing|receivable|payable/.test(report)) return { report, ...aging(/payable/.test(report) ? 'payables' : 'receivables'), byCustomer: /payable/.test(report) ? undefined : owedByCustomer() };
+      if (/aging|ageing|receivable|payable/.test(report)) {
+        // the real report picks the side from `params.type` ('ar' | 'ap'); the report's name only as a fallback
+        const ap = params.type ? params.type === 'ap' : /payable/.test(report);
+        return { report, type: ap ? 'ap' : 'ar', ...aging(ap ? 'payables' : 'receivables'), byCustomer: ap ? undefined : owedByCustomer() };
+      }
       if (/balance/.test(report)) return { report, endDate: params.endDate ?? TODAY, assets: { Cash: balances.acc_cash, Bank: balances.acc_bank, 'Accounts receivable': aging('receivables').total }, liabilities: { 'Accounts payable': aging('payables').total } };
       const from = (params.startDate ?? '2026-01-01').slice(0, 7), to = (params.endDate ?? TODAY).slice(0, 7);
       return { report: 'profit-and-loss', ...profitAndLoss(from, to), previousMonth: profitAndLoss(lastMonth, lastMonth), thisMonth: profitAndLoss(thisMonth, thisMonth) };
     }
     case 'ask_books': {
+      // like the real reader: a named account is answered for that account; otherwise the figure the
+      // question names; a question it cannot read unambiguously is refused, never answered with another figure
       const q = s(args.question).toLowerCase();
-      if (/cash|bank|balance/.test(q)) return { answer: { totalCents: balances.acc_cash + balances.acc_bank, accounts: { Cash: balances.acc_cash, Bank: balances.acc_bank } }, understood: { period: 'to date' } };
       const month = /last month/.test(q) ? lastMonth : /this month/.test(q) ? thisMonth : null;
       const pl = month ? profitAndLoss(month, month) : profitAndLoss('2026-01', thisMonth);
-      return { answer: { revenueCents: pl.revenueCents, expensesCents: pl.expensesCents, netProfitCents: pl.netProfitCents }, understood: { period: month ?? 'this year' } };
+      const period = month ?? 'this year';
+      const named = accounts.filter(a => q.includes(a.name.toLowerCase()));
+      if (named.length) {
+        const figures: Record<string, number> = { ...pl.revenue, ...pl.expenses, Cash: balances.acc_cash, Bank: balances.acc_bank };
+        const lines = named.map(a => ({ accountId: a.id, account: a.name, cents: figures[a.name] ?? 0 }));
+        return { answer: { totalCents: lines.reduce((t, l) => t + l.cents, 0), lines }, understood: { accounts: named.map(a => a.name), period } };
+      }
+      if (/cash|bank|balance/.test(q)) return { answer: { totalCents: balances.acc_cash + balances.acc_bank, accounts: { Cash: balances.acc_cash, Bank: balances.acc_bank } }, understood: { period: 'to date' } };
+      if (/profit|net income|net/.test(q)) return { answer: { netProfitCents: pl.netProfitCents }, understood: { period } };
+      if (/sales|revenue|income|earn/.test(q)) return { answer: { revenueCents: pl.revenueCents }, understood: { period } };
+      if (/spen[dt]|expense|cost/.test(q)) return { answer: { expensesCents: pl.expensesCents }, understood: { period } };
+      return { problem: 'No unambiguous reading of this question; name the accounts or the figure', answer: null };
     }
     case 'explain_number': {
       // the requested accounts over the requested period (whole months); balance accounts at the end date

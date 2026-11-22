@@ -25,6 +25,12 @@ function centsValues(v: unknown, out: number[] = []): number[] {
   else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { if (/cents$/i.test(k) && typeof x === 'number') out.push(x); else centsValues(x, out); }
   return out;
 }
+/** Numbers under keys matching `key`, at any depth. */
+function numbersAt(v: unknown, key: RegExp, out: number[] = []): number[] {
+  if (Array.isArray(v)) v.forEach(x => numbersAt(x, key, out));
+  else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { if (key.test(k) && typeof x === 'number') out.push(x); else numbersAt(x, key, out); }
+  return out;
+}
 const hasCents = (calls: Outcome['calls'], cents: number) => calls.some(c => centsValues(c.args).includes(cents));
 const asks = (o: Outcome) => /\?/.test(o.answer);
 const readTools = (o: Outcome) => o.calls.some(c => !c.name.startsWith('propose_') && c.name !== 'find_command');
@@ -58,7 +64,9 @@ export const CASES: EvalCase[] = [
   } },
   { id: 'invoice', q: 'Create an invoice for Acme Ltd for two hours of consulting.', check: o => {
     const p = proposals(o).filter(c => /invoice/.test(c.name)); const a = argsText(o);
-    if (p.length) return ok(/(acme|cus_acme)/.test(a) && /"quantity":2\b|"qty":2\b|"hours":2\b/.test(a.replace(/\s/g, '')), 'invoice drafted; checked Acme and quantity 2');
+    // the drafted quantities as numbers: every quantity must be exactly 2 (2.5 hours is not two hours)
+    const qty = p.flatMap(c => numbersAt(c.args, /^(quantity|qty|hours)$/i));
+    if (p.length) return ok(/(acme|cus_acme)/.test(a) && qty.length > 0 && qty.every(q => q === 2), 'invoice drafted; checked Acme and quantity exactly 2');
     return ok(asks(o) && /rate|price|hourly|how much/i.test(o.answer), 'no draft: passes only if it asks for the hourly rate');
   } },
   { id: 'bill', q: 'Make a bill from the electricity company for 320.', check: o => {
