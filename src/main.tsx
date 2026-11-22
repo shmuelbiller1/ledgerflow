@@ -9,7 +9,11 @@ import { initGlobalErrorTracking } from './lib/errorTracker';
 import { initPWAUpdateManager } from './lib/pwaUpdateManager';
 import { FallbackBoundary } from './components/FallbackBoundary';
 import { reloadForNewVersionUnlessUnsaved } from './lib/chunkReload';
+import { applyRobotsDirective } from './lib/privacyRobots';
 
+// AF6-20261120-02: a token in the path (/i/, /c/, /e/, /invite/) is a credential — those pages are
+// set to noindex before anything renders, so a link forwarded into a public place is not indexed.
+applyRobotsDirective(window.location.pathname);
 initGlobalErrorTracking();
 initPWAUpdateManager(registerSW);
 // Vite reports a screen file that could not be loaded (usually a new version went live): reload once,

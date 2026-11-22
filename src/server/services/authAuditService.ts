@@ -1,6 +1,7 @@
 import type { Firestore } from '../db/firestore';
 import { getDb, isWorkspaceMemberData } from '../db/firestore';
 import { writeServerAuditLog } from './auditLogService';
+import { notify } from './notificationService';
 
 export type AuthAuditEventType = 'login' | 'logout' | 'failed_login' | 'password_reset' | 'token_refresh';
 
@@ -42,7 +43,25 @@ export async function recordAuthEvent(
   };
 
   try {
+    // S-13: was this a sign-in from a network this person has not signed in from before?
+    // A failed check never stops the sign-in being recorded.
+    const newNetwork = eventData.event === 'login' && eventData.workspaceId
+      ? await isNewSignInNetwork(db, eventData.uid, auditRecord.ip).catch((err: unknown) => {
+        console.warn('[authAuditService] new-network check failed:', err instanceof Error ? err.message : err);
+        return false;
+      })
+      : false;
     await docRef.set(auditRecord);
+    if (newNetwork && eventData.workspaceId) {
+      await notify(db, {
+        workspaceId: eventData.workspaceId,
+        kind: 'security.new_sign_in',
+        title: 'New sign-in to your account',
+        message: `Your account signed in from a network not seen before (IP ${auditRecord.ip}). If this was not you, sign out all sessions in Settings → Security and change your password.`,
+        eventKey: `new-sign-in:${eventData.uid}:${auditRecord.ip}`,
+        onlyUids: [eventData.uid],
+      });
+    }
 
     if (eventData.event === 'login') {
       const targetWorkspaceIds = new Set<string>();
@@ -88,4 +107,19 @@ export async function recordAuthEvent(
     console.error('[authAuditService] Failed to record auth event:', err);
     return '';
   }
+}
+
+/**
+ * S-13: true when the person has signed in before, but never from this IP. The first sign-in
+ * ever is not "new" (nothing to compare with), and an unknown IP never alerts.
+ */
+export async function isNewSignInNetwork(db: Firestore, uid: string, ip: string): Promise<boolean> {
+  if (!ip || ip === 'unknown') return false;
+  // Two exact checks over the whole history (a recent-window check would call an old network new).
+  const logins = db.collection('loginAudits').where('uid', '==', uid).where('event', '==', 'login');
+  const [anyBefore, fromHere] = await Promise.all([
+    logins.limit(1).get(),
+    logins.where('ip', '==', ip).limit(1).get(),
+  ]);
+  return !anyBefore.empty && fromHere.empty;
 }

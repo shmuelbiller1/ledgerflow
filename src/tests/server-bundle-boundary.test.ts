@@ -87,8 +87,10 @@ describe('Server and serverless bundle boundary isolation', () => {
     const outputBytes = result.outputFiles[0]?.contents.byteLength ?? 0;
     // 3.5 MB was the budget set in #454; main sat at 3.43 MB when SBX-1 wired the sandbox service layer
     // (review, rebuild, step commands, read tools: ~64 KB) into server.ts and crossed it. The budget guards
-    // against a browser/UI graph leaking in (hundreds of KB), not against a server feature; 3.6 MB keeps that role.
-    assert.ok(outputBytes > 0 && outputBytes < 3_600_000, `Unexpected server source bundle size: ${outputBytes} B`);
+    // against a browser/UI graph leaking in (hundreds of KB), not against a server feature; 3.6 MB kept that role.
+    // 21 Nov (#980): main sat at 3,599,454 B (546 B under) when purchase-order approval moved onto the server
+    // (~4 KB); 3.7 MB keeps the same role, and the browser-module check above is what catches a UI leak.
+    assert.ok(outputBytes > 0 && outputBytes < 3_700_000, `Unexpected server source bundle size: ${outputBytes} B`);
   });
 
   test('Vercel serverless API source graph and minified self-contained bundle stay compact and isolated', () => {

@@ -1,3 +1,4 @@
+import { isForbidden } from '../http/serverKit';
 import { errorMessage } from '../auth/requestUser';
 import express from 'express';
 import type { DecodedIdToken } from '../auth/supabaseAuth';
@@ -98,7 +99,7 @@ export function requireWorkspaceRole(allowedRoles: string[]) {
       (authReq as AuthenticatedRequest & { userRole?: string }).userRole = userRole;
       next();
     } catch (err) {
-      if (errorMessage(err) === 'FORBIDDEN' || /Unauthorized|not a member/i.test(errorMessage(err) || '')) return sendError(res, 'Forbidden', 403);
+      if (isForbidden(errorMessage(err)) || /Unauthorized|not a member/i.test(errorMessage(err) || '')) return sendError(res, 'Forbidden', 403);
       if (errorMessage(err) === 'NOT_FOUND' || /Workspace not found/i.test(errorMessage(err) || '')) return sendError(res, 'Workspace not found', 404);
       sendError(res, 'Role Authorization Error', 500, errorMessage(err));
     }
@@ -351,7 +352,7 @@ workspaceRouter.get('/:workspaceId/roles', async (req, res) => {
       roles: data.roles || {}
     });
   } catch (err) {
-    if (errorMessage(err) === 'FORBIDDEN') return sendError(res, 'Forbidden', 403);
+    if (isForbidden(errorMessage(err))) return sendError(res, 'Forbidden', 403);
     sendError(res, 'Failed to fetch roles', 500, errorMessage(err));
   }
 });

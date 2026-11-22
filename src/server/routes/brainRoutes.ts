@@ -1,4 +1,5 @@
 import { trainClassifierWithWorkspaceData } from '../services/classifierTraining';
+import { brainRateLimiter } from "../middleware/rateLimiters";
 import type { Transaction as LedgerTransaction } from "../../types";
 import { errorMessage, requestUser } from "../auth/requestUser";
 import { sendError, authorizeWorkspace, getReportContext, resolveUserGeminiApiKey } from "../http/serverKit";
@@ -18,7 +19,7 @@ import { BRAND_NAME } from '../../config/brand';
 import { maskCardNumbers } from '../../lib/cardNumberMask';
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerBrainRoutes(app: express.Express, _ctx: ServerContext): void {
-  app.post("/api/v1/brain/analyze", apiAuthenticate, async (req: express.Request, res: express.Response) => {
+  app.post("/api/v1/brain/analyze", apiAuthenticate, brainRateLimiter, async (req: express.Request, res: express.Response) => {
     try {
       const workspaceId = (req.body.workspaceId as string) || requestUser(req).developerWorkspaceId;
       if (!workspaceId) return sendError(res, "Missing workspaceId parameters", 400);
@@ -206,7 +207,7 @@ You MUST output a valid JSON object matching this schema exactly:
     }
   });
 
-  app.post("/api/v1/brain/classify", apiAuthenticate, async (req: express.Request, res: express.Response) => {
+  app.post("/api/v1/brain/classify", apiAuthenticate, brainRateLimiter, async (req: express.Request, res: express.Response) => {
     try {
       const workspaceId = (req.body.workspaceId as string) || requestUser(req).developerWorkspaceId;
       if (!workspaceId) return sendError(res, "Missing workspaceId parameters", 400);

@@ -137,7 +137,27 @@ export function calculateWorkspaceCharges(wsData: WorkspaceBillingOverrides | nu
 /**
  * Standard API error response
  */
+/** #914: a guard's refusal ("FORBIDDEN…", "PAYMENT_REQUIRED…") is a 403/402, never a server fault. */
+const FORBIDDEN_MESSAGE = /^(?:FORBIDDEN|PERMISSION_DENIED)\b|^Unauthorized: (?:You are not a member of this workspace|API key is scoped strictly to workspace)/;
+export function isForbidden(message: string | undefined): boolean {
+  return typeof message === 'string' && FORBIDDEN_MESSAGE.test(message);
+}
+
+export function refusalStatus(message: string | undefined): 402 | 403 | undefined {
+  if (isForbidden(message)) return 403;
+  if (typeof message === 'string' && /^PAYMENT_REQUIRED\b/.test(message)) return 402;
+  return undefined;
+}
+
 export function sendError(res: express.Response, message: string, status: number = 500, details?: unknown) {
+  // routes often pass a generic headline and the thrown message as `details`: classify either
+  const refused = status >= 500 ? refusalStatus(message) ?? refusalStatus(typeof details === 'string' ? details : undefined) : undefined;
+  if (refused) {
+    // the guard's own wording stays in the log; the caller gets the status and a plain reason
+    console.warn("[API Refusal] %s: %s (Path: %s)", refused, logSafe(message), logSafe(res.req?.originalUrl || "unknown"), logSafeDetail(details));
+    res.status(refused).json({ status: "error", message: refused === 403 ? "Forbidden" : "Payment required: the workspace's compute credits are used up." });
+    return;
+  }
   console.error("[API Error] %s: %s (Path: %s)", status, logSafe(message), logSafe(res.req?.originalUrl || "unknown"), logSafeDetail(details));
   res.status(status).json({
     status: "error",

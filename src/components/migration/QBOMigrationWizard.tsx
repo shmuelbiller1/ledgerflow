@@ -365,6 +365,19 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
     if (step === 3) {
       setIsProcessing(true);
       try {
+        // #904 (src/lib/migrationImport.ts), loaded when an import runs: the app's first chunk has a size budget
+        const mi = await import('../../lib/migrationImport');
+        // #904: the whole file is checked before anything (accounts included) is written
+        const workspace = useAuthStore.getState().workspaces.find(w => w.id === currentWorkspaceId);
+        const problems = mi.migrationPreflight(parsedRows, workspace as never, user?.uid || '');
+        if (problems.length > 0) {
+          toast.error(mi.preflightMessage(problems));
+          setIsProcessing(false);
+          return;
+        }
+        // #904 (Gitar on #974): each entry's id comes from its own row, so a retry (also of a corrected file)
+        // keeps the ids of rows already saved; those are left out below and the server refuses them anyway
+        const rowIds = await mi.migrationRowIds(currentWorkspaceId, parsedRows);
         // 1. Create missing accounts in chartAccounts with type-based GAAP numbering
         const createdAccountMap: Record<string, string> = {};
         const updatedAccounts = [...accounts];
@@ -393,7 +406,10 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
         };
 
         for (const mapping of accountMappings) {
-          if (mapping.targetAccountId === '__create_new__') {
+          const reuse = mi.reusableAccountId(updatedAccounts, mapping);
+          if (reuse) {
+            createdAccountMap[mapping.qbAccount] = reuse;
+          } else if (mapping.targetAccountId === '__create_new__') {
             const newAccCode = getNextCode(mapping.detectedType);
             const newAcc: Omit<ChartAccount, 'id'> = {
               uid: user?.uid || 'system',
@@ -425,7 +441,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
         // 2. Prepare atomic double-entry transactions
         const txList: import("../../types").Transaction[] = [];
 
-        for (const row of parsedRows) {
+        for (const [rowIndex, row] of parsedRows.entries()) {
           const primaryAccId = createdAccountMap[row.account] || cashAccount?.id || updatedAccounts[0]?.id || '';
           const primaryAcc = updatedAccounts.find(a => a.id === primaryAccId);
           const primaryAccName = primaryAcc?.name || row.account;
@@ -469,7 +485,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
           ];
 
           const newTx: import("../../types").Transaction = {
-            id: `tx-qbo-${crypto.randomUUID()}`,
+            id: rowIds[rowIndex],
             uid: user?.uid || 'system',
             workspaceId: currentWorkspaceId,
             date: row.date,
@@ -482,7 +498,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
             lines,
             classId: row.class,
             locationId: row.location,
-            createdAt: new Date().toISOString(),
+            // #904: no client time in the body, so an unchanged retry is the same request (the server stamps createdAt)
             metadata: {
               importedFrom: 'quickbooks',
               originalRef: row.num
@@ -498,25 +514,36 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
           throw new Error('Authentication required to import ledger transactions.');
         }
         const BATCH_SIZE = 50;
-        const migrationRunKey = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : `qbo_${Date.now()}`;
 
-        for (let i = 0; i < txList.length; i += BATCH_SIZE) {
-          const chunk = txList.slice(i, i + BATCH_SIZE);
-          await runCommand({
-            path: '/api/v1/transactions/bulk',
-            method: 'POST',
-            // per chunk: a retried chunk is recorded once, not twice
-            headers: { 'Idempotency-Key': `${migrationRunKey}_chunk_${i}` },
-            body: {
-              transactions: chunk,
-              workspaceId: currentWorkspaceId
+        // rows already saved are left out; each chunk's key follows what it sends
+        const savedIds = new Set(useLedgerStore.getState().transactions.map(t => t.id));
+        // chunk by chunk on purpose (#904 resumable import): every chunk has a stable key, a retry resumes,
+        // and a refusal stops with an error, never a success message
+        const sendChunk = (entries: typeof txList, key: string) => runCommand({
+          path: '/api/v1/transactions/bulk',
+          method: 'POST',
+          headers: { 'Idempotency-Key': `qbo_${key}` },
+          body: { transactions: entries, workspaceId: currentWorkspaceId },
+        });
+        const alreadyThere = (e: unknown) => /already exists/i.test((e as Error)?.message || '');
+        let skipped = txList.filter(t => savedIds.has(t.id)).length;
+        for (const { key: chunkKey, chunk } of await mi.migrationChunks(currentWorkspaceId, txList, savedIds, BATCH_SIZE)) {
+          try {
+            await sendChunk(chunk, chunkKey);
+          } catch (err) {
+            if (!alreadyThere(err)) throw err;
+            // Codex on #974: this browser's list of entries is not the whole book, so a chunk can hold rows an
+            // earlier attempt saved; they are sent one at a time and only the ones already there are skipped
+            for (const entry of chunk) {
+              try { await sendChunk([entry], await mi.contentKey([currentWorkspaceId, [entry]])); }
+              catch (one) { if (!alreadyThere(one)) throw one; skipped += 1; }
             }
-          });
+          }
         }
 
-        toast.success(`Successfully migrated ${parsedRows.length} transactions into ${BRAND_NAME}!`);
+        // rows matching one already in the books are skipped, and said so (Codex on #974: never silently)
+        if (skipped > 0) toast.message?.(`${skipped} row(s) were already imported and were skipped. If they are separate transactions, change their memo or reference and import them again.`);
+        toast.success(`Successfully migrated ${parsedRows.length - skipped} transactions into ${BRAND_NAME}!`);
         setIsProcessing(false);
         onClose();
       } catch (err) {

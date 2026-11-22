@@ -13,6 +13,7 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { isRowNavKey, nextRowId, rowAnnouncement } from '../lib/rowKeyboardNav';
 import { TanStackDataGrid } from '../components/ui/TanStackDataGrid';
+import { useUIStore } from '../stores/useUIStore';
 import type { ColumnDef } from '@tanstack/react-table';
 
 const rows = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
@@ -87,6 +88,27 @@ describe('the shared grid is one keyboard region', () => {
 
   const region = () => screen.getByRole('region', { name: 'Invoice list' });
   const active = () => document.querySelector('[data-grid-active-row="true"]');
+
+  test('a Hebrew record keeps the default English controls; only the reader’s language choice switches them', () => {
+    const language = useUIStore.getState().language;
+    assert.equal(language, 'en', 'a fresh device does not infer its UI language from its books');
+    const record = { id: 'עובד-17', name: 'נועה / Noa' };
+    const view = render(<TanStackDataGrid data={[record]} columns={columns} columnScope="employees" columnLabel="Employees" />);
+    const unchangedRecord = () => {
+      assert.equal(view.getByText(record.name).closest('tr')?.getAttribute('data-grid-row-keyboard'), record.id);
+    };
+    try {
+      assert.equal(view.container.querySelector('summary')?.textContent, 'Columns');
+      assert.ok(view.getByRole('combobox', { name: 'Rows per page' }));
+      unchangedRecord();
+      act(() => useUIStore.getState().setLanguage('he'));
+      assert.equal(view.container.querySelector('summary')?.textContent, 'עמודות');
+      assert.ok(view.getByRole('combobox', { name: 'שורות לעמוד' }));
+      unchangedRecord();
+    } finally {
+      act(() => useUIStore.getState().setLanguage(language));
+    }
+  });
 
   test('the list is one tab stop and the rows are not tab stops of their own', () => {
     mount();

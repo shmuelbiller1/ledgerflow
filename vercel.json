@@ -45,7 +45,7 @@
         },
         {
           "key": "Content-Security-Policy-Report-Only",
-          "value": "default-src 'self'; script-src 'self' 'sha256-pbcrfYdl/Qk8ttS7Jz8pIVrMNlc6e/N1+bD2ZPXAtzw=' https://cdn.plaid.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; connect-src 'self' https://sbxxbbscuwmlkvcvkbxi.supabase.co wss://sbxxbbscuwmlkvcvkbxi.supabase.co https://*.plaid.com https://*.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; frame-src 'self' https://*.stripe.com https://cdn.plaid.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report"
+          "value": "default-src 'self'; script-src 'self' https://cdn.plaid.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; connect-src 'self' https://sbxxbbscuwmlkvcvkbxi.supabase.co wss://sbxxbbscuwmlkvcvkbxi.supabase.co https://*.plaid.com https://*.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; frame-src 'self' https://*.stripe.com https://cdn.plaid.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report"
         },
         {
           "key": "Strict-Transport-Security",
@@ -66,6 +66,42 @@
         {
           "key": "Referrer-Policy",
           "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    },
+    {
+      "source": "/i/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive, nosnippet, noimageindex"
+        }
+      ]
+    },
+    {
+      "source": "/c/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive, nosnippet, noimageindex"
+        }
+      ]
+    },
+    {
+      "source": "/e/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive, nosnippet, noimageindex"
+        }
+      ]
+    },
+    {
+      "source": "/invite/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive, nosnippet, noimageindex"
         }
       ]
     }

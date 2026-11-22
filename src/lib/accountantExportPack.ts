@@ -282,6 +282,7 @@ function taxSection(input: AccountantPackInput): { section: AccountantPackSectio
       vendorCredits: (input.vendorCredits || []) as unknown as TaxableDocument[],
       startDate: month.from,
       endDate: month.to,
+      baseCurrency: input.currency || undefined,
     });
     const box = (key: string) => taxReturn.boxes.find(b => b.key === key)?.cents ?? 0;
     const values = {

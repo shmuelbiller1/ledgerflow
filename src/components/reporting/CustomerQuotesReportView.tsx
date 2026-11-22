@@ -7,6 +7,7 @@
  * - Previews recurring estimate schedules and draft quotes due (recurringEstimateSchedule,
  *   estimateDraftsDue, ESTIMATE_FREQUENCIES).
  */
+import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import React, { useMemo, useState } from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -36,7 +37,6 @@ import {
 import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import type { Customer, Estimate, RecurringTransaction } from '../../types';
-import ReportTableScroll from './ReportTableScroll';
 import { fill, useReportText } from './useReportText';
 
 /** Code names, paths and URL shapes shown as-is: they are not words to translate (EU-G1). */
@@ -188,6 +188,7 @@ function CustomerQuotesContent() {
   );
 
   const exportCsv = () => {
+    if (loading || partial) return;
     downloadCsv(
       `customer-quotes-${today}.csv`,
       ['Quote #', 'Kind', 'Title', 'Customer', 'Date', 'Expiry Date', 'Amount', 'Currency', 'State', 'Portal Accept Link'],
@@ -218,7 +219,7 @@ function CustomerQuotesContent() {
         <button
           type="button"
           onClick={exportCsv}
-          disabled={quoteRows.length === 0}
+          disabled={!quoteRows.length || loading || partial}
           className="min-h-11 px-3 py-1.5 rounded border text-sm disabled:opacity-50"
         >
           {reportText('r.download-csv', 'Download CSV')}
@@ -269,64 +270,96 @@ function CustomerQuotesContent() {
       {quoteRows.length === 0 && !loading ? (
         <p className="text-sm text-[var(--muted)]">{reportText('r.no-open-or-signed-customer-quotes-match-the-sele', 'No open or signed customer quotes match the selected filter.')}</p>
       ) : (
-        <ReportTableScroll>
-          <table className="w-full min-w-[1100px] text-sm border-collapse">
-            <caption className="sr-only">{reportText('r.customer-quotes-and-proposals-as-of', 'Customer quotes and proposals as of')} {today}</caption>
-            <thead>
-              <tr className="border-b text-left">
-                <th scope="col" className="py-2 pr-3">{reportText('r.quote', 'Quote #')}</th>
-                <th scope="col" className="py-2 pr-3">{reportText('r.kind', 'Kind')}</th>
-                <th scope="col" className="py-2 pr-3">{reportText('r.title', 'Title')}</th>
-                <th scope="col" className="py-2 pr-3">{reportText('r.customer', 'Customer')}</th>
-                <th scope="col" className="py-2 pr-3">{reportText('r.date-2', 'Date')}</th>
-                <th scope="col" className="py-2 pr-3">{reportText('r.valid-until-2', 'Valid Until')}</th>
-                <th scope="col" className="py-2 pr-3 text-right">{reportText('r.amount', 'Amount')}</th>
-                <th scope="col" className="py-2 pr-3">{reportText('r.state', 'State')}</th>
-                <th scope="col" className="py-2">{reportText('r.portal-accept-link', 'Portal Accept Link')}</th>
-                <th scope="col" className="py-2">{reportText('r.follow-up', 'Follow-up')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {quoteRows.map(r => {
-                const cur = (r.currency || homeCurrency).toUpperCase();
-                return (
-                  <tr key={r.estimateId} className="border-b">
-                    <td className="py-2 pr-3 font-mono">{r.number}</td>
-                    <td className="py-2 pr-3 capitalize">{r.kind}</td>
-                    <td className="py-2 pr-3"><bdi>{r.title}</bdi></td>
-                    <td className="py-2 pr-3"><bdi>{r.customerName}</bdi></td>
-                    <td className="py-2 pr-3 tabular-nums">{r.date}</td>
-                    <td className="py-2 pr-3 tabular-nums">{r.expiryDate || '—'}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{formatCurrency(r.amountCents, cur)}</td>
-                    <td className="py-2 pr-3 capitalize">{r.state}</td>
-                    <td className="py-2 text-xs">
-                      {r.canAccept && r.signToken ? (
-                        <a
-                          href={`/e/${encodeURIComponent(r.signToken)}`}
-                          className="text-indigo-600 dark:text-indigo-400 hover:underline font-mono"
-                        >
-                          {`${CODE_NAMES.signPath}${r.signToken}`}
-                        </a>
-                      ) : (
-                        <span className="text-[var(--muted)]">{r.problem || reportText('r.send-estimate-to-generate-signing-link', 'Send estimate to generate signing link')}</span>
-                      )}
-                    </td>
-                    <td className="py-2 align-top min-w-72">{(r.state === 'open' || r.state === 'expired') ? <details>
+          <TanStackDataGrid
+            loading={loading}
+            data={quoteRows.map((r) => {
+              const cur = (r.currency || homeCurrency).toUpperCase();
+              return { r, cur };
+            })}
+            getRowId={({ r }) => r.estimateId}
+            caption={reportText('r.customer-quotes-and-proposals-as-of', 'Customer quotes and proposals as of') + ' ' + today}
+            columnScope="customer-quotes-report"
+            columnLabel={reportText('r.customer-quotes-and-proposals-as-of', 'Customer quotes and proposals as of') + ' ' + today}
+            rowHeaderColumn="quote"
+            hidePaginationOnSinglePage
+            enableGlobalFilter={false}
+            columns={[
+              {
+                id: 'quote', header: reportText('r.quote', 'Quote #'), accessorFn: ({ r }) => r.number,
+                cell: ({ row: { original: { r } } }) => <div className="font-mono">{r.number}</div>,
+              },
+              {
+                id: 'kind', header: reportText('r.kind', 'Kind'), accessorFn: ({ r }) => r.kind,
+                cell: ({ row: { original: { r } } }) => r.kind,
+              },
+              {
+                id: 'title', header: reportText('r.title', 'Title'), accessorFn: ({ r }) => r.title,
+                cell: ({ row: { original: { r } } }) => <bdi>{r.title}</bdi>,
+              },
+              {
+                id: 'customer', header: reportText('r.customer', 'Customer'), accessorFn: ({ r }) => r.customerName,
+                cell: ({ row: { original: { r } } }) => <bdi>{r.customerName}</bdi>,
+              },
+              {
+                id: 'date', header: reportText('r.date-2', 'Date'), accessorFn: ({ r }) => r.date,
+                cell: ({ row: { original: { r } } }) => <div className="tabular-nums">{r.date}</div>,
+              },
+              {
+                id: 'expiry', header: reportText('r.valid-until-2', 'Valid Until'), accessorFn: ({ r }) => r.expiryDate,
+                cell: ({ row: { original: { r } } }) => <div className="tabular-nums">{r.expiryDate || '—'}</div>,
+              },
+              {
+                id: 'amount', header: reportText('r.amount', 'Amount'), accessorFn: ({ r }) => r.amountCents,
+                cell: ({ row: { original: { r, cur } } }) => <div className="text-right tabular-nums">{formatCurrency(r.amountCents, cur)}</div>,
+              },
+              {
+                id: 'state', header: reportText('r.state', 'State'), accessorFn: ({ r }) => r.state,
+                cell: ({ row: { original: { r } } }) => r.state,
+              },
+              {
+                id: 'link',
+                header: reportText('r.portal-accept-link', 'Portal Accept Link'),
+                cell: ({ row: { original: { r } } }) =>
+                  r.canAccept && r.signToken ? (
+                    <a href={`/e/${encodeURIComponent(r.signToken)}`} className="text-indigo-600 dark:text-indigo-400 hover:underline font-mono">
+                      {`${CODE_NAMES.signPath}${r.signToken}`}
+                    </a>
+                  ) : (
+                    <span className="text-[var(--muted)]">{r.problem || reportText('r.send-estimate-to-generate-signing-link', 'Send estimate to generate signing link')}</span>
+                  ),
+              },
+              {
+                id: 'followUp',
+                header: reportText('r.follow-up', 'Follow-up'),
+                cell: ({ row: { original: { r } } }) =>
+                  r.state === 'open' || r.state === 'expired' ? (
+                    <details>
                       <summary className="min-h-11 cursor-pointer">{reportText('r.follow-up-draft', 'Follow-up draft')}</summary>
-                      <p className="text-sm text-[var(--muted)]">{reportText('r.select-and-copy-this-draft-then-review-it-before', 'Select and copy this draft, then review it before sending through your usual channel. Nothing is sent or saved here.')}</p>
-                      <label className="block">{reportText('r.draft-for', 'Draft for')} <bdi>{r.number}</bdi>
-                        <textarea aria-label={fill(reportText('r.follow-up-draft-for-0', 'Follow-up draft for {0}'), { 0: r.number })} dir="auto" readOnly rows={6}
-                          onFocus={event => event.currentTarget.select()}
+                      <p className="text-sm text-[var(--muted)]">
+                        {reportText(
+                          'r.select-and-copy-this-draft-then-review-it-before',
+                          'Select and copy this draft, then review it before sending through your usual channel. Nothing is sent or saved here.',
+                        )}
+                      </p>
+                      <label className="block">
+                        {reportText('r.draft-for', 'Draft for')} <bdi>{r.number}</bdi>
+                        <textarea
+                          aria-label={fill(reportText('r.follow-up-draft-for-0', 'Follow-up draft for {0}'), { 0: r.number })}
+                          dir="auto"
+                          readOnly
+                          rows={6}
+                          onFocus={(event) => event.currentTarget.select()}
                           className="block min-h-11 w-64 max-w-full border rounded p-2 bg-[var(--panel)] text-[var(--text)]"
-                          value={`Hello ${r.customerName},\n\nFollowing up on quote ${r.number}.${r.state === 'expired' ? ` Its recorded validity ended${r.expiryDate ? ` on ${r.expiryDate}` : ''}; please contact us for an updated quote before accepting.` : r.expiryDate ? ` Its recorded validity runs through ${r.expiryDate}.` : ''}\n\nWould you like to discuss next steps?`} />
+                          value={`Hello ${r.customerName},\n\nFollowing up on quote ${r.number}.${r.state === 'expired' ? ` Its recorded validity ended${r.expiryDate ? ` on ${r.expiryDate}` : ''}; please contact us for an updated quote before accepting.` : r.expiryDate ? ` Its recorded validity runs through ${r.expiryDate}.` : ''}\n\nWould you like to discuss next steps?`}
+                        />
                       </label>
-                    </details> : reportText('r.no-follow-up-draft-for-this-state', 'No follow-up draft for this state')}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </ReportTableScroll>
+                    </details>
+                  ) : (
+                    reportText('r.no-follow-up-draft-for-this-state', 'No follow-up draft for this state')
+                  ),
+              },
+            ]}
+          />
       )}
 
       {selectedEstimate && activeProposal && propTotals && (
