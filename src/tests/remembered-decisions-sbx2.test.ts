@@ -60,6 +60,15 @@ describe('SBX-2 Part 3 remembered decisions (pure)', () => {
     assert.deepEqual(suggestFor('bill.create', { payee: 'Someone else' }, rows), []);
   });
 
+  test('real command envelopes ({ bill: {...} }) are read, and a root field the draft fills is left alone', () => {
+    const step = { bill: { vendorId: 'v9', cashAccountId: 'bank1', lines: [{ accountId: 'a' }] }, postingDay: '2026-11-01' };
+    assert.deepEqual(decisionsIn(step).map(d => [d.subject, d.field, d.value]), [['vendorId:v9', 'cashAccountId', 'bank1'], ['vendorId:v9', 'accountId', 'a']]);
+    let rows: RememberedRow[] = [];
+    for (let i = 0; i < 5; i++) rows = fold(observe('bill.create', step, 'accepted'), rows);
+    assert.deepEqual(suggestFor('bill.create', { bill: { vendorId: 'v9', lines: [{}] } }, rows).map(s => s.field).sort(), ['accountId', 'cashAccountId']);
+    assert.deepEqual(suggestFor('bill.create', { bill: { vendorId: 'v9', cashAccountId: 'mine', lines: [{ accountId: 'x' }] } }, rows), []);
+  });
+
   test('lines: a filled line is left alone, an empty line gets its own subject choice, and two line values are two choices', () => {
     let rows: RememberedRow[] = [];
     for (let i = 0; i < 5; i++) rows = fold(observe('bill.create', { vendorId: 'v1', lines: [{ accountId: 'a' }, { payee: 'Other', accountId: 'b' }] }, 'accepted'), rows);

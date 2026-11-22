@@ -40,10 +40,23 @@ function subjectOf(obj: Record<string, unknown>, fallback?: string): string | un
   return fallback;
 }
 
+/**
+ * Command inputs wrap the document in an envelope (`{ bill: {...}, postingDay }`, `{ invoice: {...} }`).
+ * When the outer object names no subject and has no lines, use the one nested object that does.
+ */
+function documentOf(input: unknown): Record<string, unknown> | undefined {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined;
+  const outer = input as Record<string, unknown>;
+  if (subjectOf(outer) || Array.isArray(outer.lines)) return outer;
+  const inner = Object.values(outer).filter((v): v is Record<string, unknown> =>
+    !!v && typeof v === 'object' && !Array.isArray(v) && (!!subjectOf(v as Record<string, unknown>) || Array.isArray((v as Record<string, unknown>).lines)));
+  return inner.length === 1 ? inner[0] : outer;
+}
+
 /** The (subject, field, value) choices in one step's input: top level, then each line, which may name its own subject. */
 export function decisionsIn(input: unknown): Decision[] {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) return [];
-  const root = input as Record<string, unknown>;
+  const root = documentOf(input);
+  if (!root) return [];
   const rootSubject = subjectOf(root);
   const out = new Map<string, Decision>();
   const take = (obj: Record<string, unknown>, subject: string | undefined) => {
@@ -90,11 +103,11 @@ export function suggestionFrom(row: RememberedRow): Suggestion | undefined {
 export function suggestFor(command: string, input: unknown, rows: readonly RememberedRow[]): Suggestion[] {
   // the same walk as decisionsIn: the root and each line, each with its own subject (a line falls
   // back to the root's), and a field the object being checked already fills is left alone
-  const root = (input && typeof input === 'object' && !Array.isArray(input) ? input : {}) as Record<string, unknown>;
+  const root = documentOf(input) ?? {};
   const rootSubject = subjectOf(root);
-  // with lines, each line decides (a line without a subject uses the root's); the root alone only for a draft without lines
+  // the root and each line decide (a line without a subject uses the root's)
   const lines = Array.isArray(root.lines) ? root.lines : [];
-  const targets: Array<[Record<string, unknown>, string | undefined]> = lines.length ? [] : [[root, rootSubject]];
+  const targets: Array<[Record<string, unknown>, string | undefined]> = [[root, rootSubject]];
   for (const line of lines) {
     if (line && typeof line === 'object' && !Array.isArray(line)) targets.push([line as Record<string, unknown>, subjectOf(line as Record<string, unknown>, rootSubject)]);
   }
@@ -102,7 +115,10 @@ export function suggestFor(command: string, input: unknown, rows: readonly Remem
   for (const [obj, subject] of targets) {
     if (!subject) continue;
     for (const r of rows) {
-      if (r.command !== command || r.subject !== subject || text(obj[r.field])) continue;
+      // filled on the line or on the document itself (a cash account is set once, on the root)
+      if (r.command !== command || r.subject !== subject || text(obj[r.field]) || text(root[r.field])) continue;
+      // on a draft with lines, the root offers only document-level fields (no line carries them)
+      if (obj === root && lines.some(l => l && typeof l === 'object' && r.field in (l as Record<string, unknown>))) continue;
       const offered = suggestionFrom(r);
       if (offered) out.set(`${r.subject}\u0000${r.field}`, offered);
     }

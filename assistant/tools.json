@@ -449,6 +449,32 @@
       }
     },
     {
+      "name": "remembered_choices",
+      "description": "Before proposing a step, get choices this workspace made the same way at least 95% of the time over 5+ cases. Offer them as \"from your earlier choice\" with the case count; never apply them without the person.",
+      "parametersJsonSchema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "input": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "command",
+          "input"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "find_command",
       "description": "Find additional commands that can be proposed here by their name or purpose. Discovery does not run a command.",
       "parametersJsonSchema": {

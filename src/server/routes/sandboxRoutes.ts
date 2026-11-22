@@ -9,7 +9,7 @@ import { listOpenSandboxes, ownsOpenSandbox } from '../db/pg/sandboxReviewStore'
 import { roleInWorkspace } from '../middleware/requireLedgerWriter';
 import { answerCents, calculate, explainNumberInput, getRecord, listRecords, readBooksQuestion, runReportInput, searchRecords } from '../services/sandboxTools';
 import { defaultAssistantTools, draftableCommands, findAssistantCommands } from '../services/assistantCatalog';
-import { ASSISTANT_READ_TOOL_NAMES, findCommandInput, listProposalsInput, previewProposalInput } from '../services/assistantToolDefinitions';
+import { ASSISTANT_READ_TOOL_NAMES, findCommandInput, listProposalsInput, previewProposalInput, rememberedChoicesInput } from '../services/assistantToolDefinitions';
 import { forgetRemembered, listRemembered, suggestFor, suggestionFrom } from '../services/rememberedDecisions';
 import { storedSandboxProposal } from '../services/storedSandboxProposal';
 import { CommandRefusal, errorOutcome } from '../utils/commandExecutor';
@@ -139,12 +139,6 @@ function toolRoutes(router: express.Router, live: Firestore) {
     res.json(await getRecord(books, workspaceId, { collection: param(req, 'collection'), id: param(req, 'recordId') }));
   }));
 
-  // Remembered choices for one draft step: suggestions only, never applied to the step.
-  router.post('/:sandboxId/remembered/suggest', guarded(async (req, res) => {
-    const { workspaceId } = await readableSandbox(live, req);
-    const body = parse(z.object({ command: z.string().min(1).max(200), input: z.record(z.string(), z.unknown()) }).strict(), req.body);
-    res.json({ suggestions: suggestFor(body.command, body.input, await listRemembered(live.pool, workspaceId)) });
-  }));
   router.get('/:sandboxId/tools', guarded(async (req, res) => {
     const { user, workspace } = await readableSandbox(live, req);
     const commands = draftableCommands(workspace, user, assistantClaims(req)?.role);
@@ -173,6 +167,10 @@ function toolRoutes(router: express.Router, live: Firestore) {
         const { proposalId } = parse(previewProposalInput, req.body);
         if (proposalId !== sandboxId) throw new CommandRefusal('This proposal belongs to another sandbox', 403, 'ASSISTANT_SANDBOX_MISMATCH');
         return res.json({ proposal: await storedSandboxProposal(live.pool, binding, true) });
+      }
+      case 'remembered_choices': {
+        const body = parse(rememberedChoicesInput, req.body);
+        return res.json({ suggestions: suggestFor(body.command, body.input, await listRemembered(live.pool, workspaceId)) });
       }
       case 'find_command': {
         const { words, limit } = parse(findCommandInput, req.body);
