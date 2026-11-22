@@ -9,6 +9,7 @@ import { BRAND_NAME } from '../../config/brand';
 import { runCommand } from '../../lib/runCommand';
 import { RowTable } from '../ui/RowTable';
 import { useReportText, fill } from './useReportText';
+import { LoadingState } from '../ui/LoadingState';
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
 /**
@@ -58,7 +59,7 @@ export default function ImportAcceptanceView() {
         <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.as-of-2', 'As of')}<input type="date" value={asOf} onChange={e => setAsOf(e.target.value)} className={field} /></label>
       </div>
       {source && source.data.lines.length === 0 && <p role="alert" className="text-sm text-rose-600">{source.data.problems[0] || reportText('r.the-file-has-no-account-lines', 'The file has no account lines')}</p>}
-      {key && !shown && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {key && !shown && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
       {!source && !key && <ReportEmptyState title={reportText('r.no-source-trial-balance-yet', 'No source trial balance yet')}
         description={reportText('r.export-a-trial-balance-csv-from-the-old-system-f', 'Export a trial balance CSV from the old system for the move date, choose that date here, then upload the file. The comparison is read-only and does not change the books.')} />}

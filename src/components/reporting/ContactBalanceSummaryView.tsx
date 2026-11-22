@@ -8,7 +8,7 @@ import { useServerOperationalReport, collectionStamp } from '../../hooks/useServ
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { csvMoneyForBook, downloadCsv } from '../../lib/csvExport';
 import {
   computeContactBalanceSummary, computeCustomerBalanceSummary, computeVendorBalanceSummary, ContactBalanceSummaryRow,
 } from '../../server/reports/partyReports';
@@ -30,6 +30,8 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
   const truncated = useLedgerStore(s => s.truncatedCollections);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  // #910 family: both sides are computed in the book currency, so the file's decimals come from it
+  const moneyCell = csvMoneyForBook(currency);
   useLedgerCollections('bills', 'creditNotes', 'customers', 'invoices', 'payments', 'vendorCredits', 'vendors');
   const [searchTerm, setSearchTerm] = useState('');
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
@@ -61,7 +63,7 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
   const exportCsv = () => {
     downloadCsv(`contact_balance_summary_${asOfDate}.csv`,
       ['Contact', 'Email', 'Is', 'They owe you', 'You owe them', 'Net'],
-      shown.map(r => [r.name, r.email || '', role(r), csvMoney(r.receivableCents), csvMoney(r.payableCents), csvMoney(r.netCents)]));
+      shown.map(r => [r.name, r.email || '', role(r), moneyCell(r.receivableCents), moneyCell(r.payableCents), moneyCell(r.netCents)]));
     toast.success('Contact Balance Summary exported to CSV');
   };
 

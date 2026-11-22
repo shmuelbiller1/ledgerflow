@@ -10,6 +10,7 @@ import { backorders, ordersReadyToRelease, releasableLines, shortages, type Back
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { useReportText } from './useReportText';
 import ReportSchedule from './ReportSchedule';
+import { LoadingState } from '../ui/LoadingState';
 
 const inputs = ['estimates', 'transactions', 'inventory'] as const;
 const qty = (n: number) => String(Math.round(n * 100) / 100);
@@ -29,7 +30,7 @@ function BackorderSchedules({ workspace, guest }: { workspace: string; guest: bo
   if (currentBook && health.failedKeys.length) return <ScreenDataNotice {...health} onRetry={health.retry} />;
   if (orders.error) return <div><p role="alert">{reportText('r.could-not-read-purchase-orders', 'Could not read purchase orders.')} {orders.error.message}</p>
     <button type="button" className="min-h-11 underline" onClick={orders.refetch}>{reportText('r.retry', 'Retry')}</button></div>;
-  if (!currentBook || !health.ready || orders.loading) return <p role="status">{reportText('r.loading', 'Loading…')}</p>;
+  if (!currentBook || !health.ready || orders.loading) return <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />;
   if (partial || orders.truncated) return <p role="alert">{reportText('r.backorders-incomplete', 'Order or stock history is incomplete. Stock coverage and quantities still to buy cannot be confirmed.')}</p>;
   const own = <T extends { workspaceId?: string }>(records: T[]) => records.filter(row => row.workspaceId === workspace);
   const rows = backorders(own(estimates), own(transactions), own(inventory), own(orders.data));

@@ -7,7 +7,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency } from '../../lib/utils';
 import { getFiscalYearBounds } from '../../lib/fiscalCalendar';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { csvMoneyForBook, downloadCsv } from '../../lib/csvExport';
 import type { ReferenceRow } from '../../server/reports/referenceReport';
 import { useServerTransactionsByReference } from '../../hooks/useServerTransactionsByReference';
 import { RangeReportSourceNote } from './RangeReportSourceNote';
@@ -21,6 +21,8 @@ export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate
   const reportText = useReportText();
   const openRecord = useUIStore(s => s.openRecord);
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  // #910 family: summary amounts are in the book currency, so the file's decimals come from it
+  const moneyCell = csvMoneyForBook(currency);
   const periodKey = JSON.stringify([pageStartDate, pageEndDate]);
   const [startDate, setStartDate] = usePageSyncedState(periodKey, pageStartDate || undefined, () => getFiscalYearBounds().startDate);
   const [endDate, setEndDate] = usePageSyncedState(periodKey, pageEndDate || undefined, () => getFiscalYearBounds().endDate);
@@ -40,7 +42,7 @@ export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate
     downloadCsv(`transactions_by_reference_${startDate}_${endDate}${incomplete ? '_INCOMPLETE' : ''}.csv`,
       ['Reference', 'Date', 'Description', 'From', 'Amount'],
       [...(incomplete ? [['INCOMPLETE: only the entries loaded in this browser; the server could not be asked', '', '', '', '']] : []),
-        ...shown.map(r => [r.reference, r.date, r.description, r.source, csvMoney(r.amountCents)])]);
+        ...shown.map(r => [r.reference, r.date, r.description, r.source, moneyCell(r.amountCents)])]);
     if (incomplete) toast.warning('Exported, marked incomplete: only the entries loaded in this browser');
     else toast.success('Transactions by Reference exported to CSV');
   };

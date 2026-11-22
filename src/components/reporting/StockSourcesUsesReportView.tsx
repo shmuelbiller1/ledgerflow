@@ -3,12 +3,13 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { csvMoneyForBook, downloadCsv } from '../../lib/csvExport';
 import { resolveDimensionLabel } from '../../lib/dimensionUtils';
 import type { ItemDetails } from '../../lib/stockMoves';
 import { stockSourcesUses, stockSourcesUsesCsv, type FlowLine, type ItemSourcesUses } from '../../lib/stockSourcesUses';
 import { runCommand } from '../../lib/runCommand';
 import { useReportText } from './useReportText';
+import { LoadingState } from '../ui/LoadingState';
 
 /** Code names, form numbers, paths and identifiers shown as-is: they are not words to translate (EU-G1). */
 const CODE_NAMES = { c0: '0' } as const;
@@ -35,6 +36,8 @@ export default function StockSourcesUsesReportView() {
   const [endDate, setEndDate] = useState(getLocalDateISO());
   const [result, setResult] = useState<{ key: string; items?: ItemDetails[]; error?: string } | null>(null);
   const currency = workspace?.currency || 'USD';
+  // #910 family: stock values are in the book currency, so the file's decimals come from it
+  const moneyCell = csvMoneyForBook(currency);
   const key = workspace && startDate && endDate && startDate <= endDate ? new URLSearchParams({ workspaceId: workspace.id, startDate, endDate }).toString() : '';
 
   useEffect(() => {
@@ -60,7 +63,7 @@ export default function StockSourcesUsesReportView() {
 
   const exportCsv = () => {
     if (!rows) return;
-    const [headers, ...data] = stockSourcesUsesCsv(rows, csvMoney);
+    const [headers, ...data] = stockSourcesUsesCsv(rows, moneyCell);
     downloadCsv(`stock-sources-uses-${startDate}-to-${endDate}.csv`, headers, data);
   };
 
@@ -73,7 +76,7 @@ export default function StockSourcesUsesReportView() {
         <button type="button" onClick={exportCsv} disabled={!rows || rows.length === 0} className="min-h-11 rounded-lg border border-[var(--line)] px-3 py-2 font-semibold text-[var(--text)] disabled:opacity-50">{reportText('r.export-csv', 'Export CSV')}</button>
       </div>
       {startDate > endDate && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{reportText('r.the-period-starts-after-it-ends', 'The period starts after it ends.')}</p>}
-      {key && !shown && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {key && !shown && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
       {rows && rows.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-stock-and-no-movements-in-this-period', 'No stock and no movements in this period.')}</p>}
       {rows?.map(r => <ItemFlow key={r.itemId} row={r} currency={currency} />)}

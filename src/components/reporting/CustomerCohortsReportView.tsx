@@ -6,7 +6,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { customerCohortReport } from '../../lib/customerCohortReport';
 import { validCustomReportPeriod } from '../../lib/reportCustomPeriod';
 import { formatCurrency } from '../../lib/utils';
-import { downloadCsv, csvMoney } from '../../lib/csvExport';
+import { downloadCsv, csvMoneyForBook } from '../../lib/csvExport';
 import ReportTableScroll from './ReportTableScroll';
 import { useReportText } from './useReportText';
 
@@ -17,6 +17,8 @@ export default function CustomerCohortsReportView({ endDate = '' }: { endDate?: 
   const failed = useDataNeedsStore(s => s.failed);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency);
+  // #910 family: cohort invoiced amounts are in the book currency, so the file's decimals come from it
+  const moneyCell = csvMoneyForBook(currency || 'USD');
   const { loading } = useLedgerCollections('invoices');
   const [windowMonths, setWindowMonths] = useState(12);
   const [ageMonths, setAgeMonths] = useState(12);
@@ -37,7 +39,7 @@ export default function CustomerCohortsReportView({ endDate = '' }: { endDate?: 
     if (!report || partial) return;
     downloadCsv(`customer_cohorts_${endDate}.csv`, headers, report.rows.map(row =>
       [row.cohort, row.customers, ...row.months.map(cell => cell.activeCustomers === null ? '' : mode === 'customers'
-        ? cell.activeCustomers : mode === 'percent' ? cell.activePercent : csvMoney(cell.invoicedCents))]));
+        ? cell.activeCustomers : mode === 'percent' ? cell.activePercent : moneyCell(cell.invoicedCents ?? 0))]));
   };
   return <section aria-label={reportText('r.customer-cohorts', 'Customer cohorts')} className="p-4 space-y-4 min-w-0">
     <h2 className="text-lg font-semibold">{reportText('r.customer-cohorts', 'Customer cohorts')}</h2>

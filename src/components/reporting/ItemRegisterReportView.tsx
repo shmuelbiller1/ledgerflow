@@ -9,6 +9,7 @@ import { formatCurrency, formatDate, getLocalDateISO } from '../../lib/utils';
 import { purchaseRegister, registerTotals, salesRegister } from '../../lib/itemRegister';
 import { RowTable } from '../ui/RowTable';
 import { useReportText } from './useReportText';
+import { LoadingState } from '../ui/LoadingState';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 const qty = (n: number) => String(Math.round(n * 1e6) / 1e6);
@@ -58,7 +59,7 @@ export default function ItemRegisterReportView() {
         <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.from', 'From')}<input type="date" value={from} onChange={e => setFrom(e.target.value)} className={field} /></label>
         <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.to', 'To')}<input type="date" value={to} onChange={e => setTo(e.target.value)} className={field} /></label>
       </div>
-      {loading && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {loading && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       {!loading && rows.length === 0 && <p className="text-sm text-[var(--muted)]">{side === 'sales' ? reportText('r.no-invoice-stock-lines', 'No invoice lines with a stock item in this period.') : reportText('r.no-bill-stock-lines', 'No bill lines with a stock item in this period.')}</p>}
       {rows.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">

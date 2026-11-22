@@ -32,6 +32,19 @@ Nothing a vendor sends would ever become a posted bill on its own; someone in yo
 
 Applied with your approval and checked in the live database. Tickets and their messages are now readable only by the person who filed them, the workspace's owners and accountants, and platform admins. The browser can no longer change a ticket's status. Nothing left for you to do.
 
+## SBX-2: add your Arena API key so the assistant's speed and cost can be measured (needs you, 2 minutes)
+
+SBX-2 Part 1 replays 30 test questions, using test data only, to measure the assistant's speed and cost. It needs a model key. The secure key form couldn't be used in my session because the session is too long, so please add it yourself:
+
+Claude Code cloud environment settings → Network secrets → add:
+- host `api.arena.ai`
+- type Bearer token (`Authorization: Bearer`)
+- your Arena key
+
+New sessions pick it up. Until then, the replay runs without a model and records only the numbers that don't need one: the size of the fixed prompt and how many tools are offered per turn.
+
+Default used: models are measured on test data only. Sending real customers' books to Arena (a provider other than Google) stays off until you approve it here.
+
 ## Retried money requests from outside tools can post twice (#942, needs your decision; nothing changed yet)
 
 When an outside tool using an API key sends a transaction, a payment or an intercompany entry, and then sends it again (a timeout, a double click), the second copy is posted too, unless the tool included an `Idempotency-Key`. LedgerFlow's own screens always include one, so this only affects API integrations. The server can't simply ignore repeats with the same content: two identical entries can both be real (two coffees on the same day).
@@ -1055,3 +1068,42 @@ and verify the recorded versions. It revokes the sandbox role's live reads of pr
 tables and keeps the ledger test-fixture override out of the sandbox. It does not grant a new login
 or enable any assistant route. This was tested on disposable PostgreSQL; no live database change or
 application-login role verification was done here.
+
+## AI #7 — 19 Nov 2026: two decisions on PR #946, and what I did meanwhile
+
+### 1. The export decimals (#910, #940) — ready to merge, your call
+
+Twelve report CSVs and the Goods not billed report wrote money at a fixed two decimals whatever the book's
+currency: a ¥12,345 line came out as `123.45` (100× low) and a KWD `12.345` as `1234.50` (100× high), while the
+screen above showed the right number. The PR writes each money cell with the book's own scale (and, for Goods not
+billed, each purchase order's own currency). Screen and file now agree; nothing else in the money path moved.
+
+CI on the last commit that changes code (`4746619`): 26 checks pass, none failing, none pending. The branch head
+(`761298f`) is a markdown findings register; this repo's workflows path-filter docs-only commits, so the head
+carries only Gitar (approved) and SonarCloud (passed). If you would rather merge a head that has the whole suite
+attached, say the word and I will push a no-op commit to re-run it — I did not do it unprompted because that would
+make the branch look tested at a commit that is not the one I tested.
+
+**Default I used:** left the head as the documentation commit, and recorded the per-commit evidence map in the PR
+body and in a comment, so the merge decision can be made from facts rather than from a green tick that belongs to an
+older commit.
+
+### 2. SonarCloud reports 0.0 % coverage on new code — it is not missing tests
+
+The gate passes, but the number is an artefact: this repo's unit suite runs on `node:test`, which the scanner's
+coverage path does not ingest, so every new test file shows as uncovered. The tests exist and are green in CI
+(`Unit tests 1–4/4` plus both timezone shards), and each one has a reverted-control result in the PR.
+
+**Default I used:** left the workflow alone (a coverage upload is a CI change, and I do not touch CI configuration
+to make a number look better). If you want the number to mean something, it needs an `lcov` upload step from an
+`c8`/`nyc` run — worth its own small PR from your side.
+
+### 3. Smaller items, already in the queue and not blocking
+
+- **#924 second half** (open, AI #1): `splitRules` accepts any map of percentages — no range, no sum-to-100 check.
+  I fixed only what the user sees (a −20 % tranche no longer paints as a full bar). No payout reads those numbers
+  today, so it stays Low until a partner-distribution feature does.
+- **F-5** stays `[~]`: the thirteen report screens now hold their shape while loading; the dashboard, settings and
+  document screens still carry their own loading text. Next batch, not this one.
+- **#834 / A-229** `report-speed-12m.test.tsx` fails only in a cold sandbox (2,750 ms vs a 1,500 ms budget, with and
+  without my patch) — **do not raise the budget** on that evidence; it is module-import timing, not report speed.
