@@ -40,7 +40,7 @@ const MUST_GO_TO_MODEL = [
 
 /** Pinned: these MUST be answered by code, through the named tool. */
 const MUST_NOT_GO_TO_MODEL: Array<[string, CodeRoute['tool']]> = [
-  ['What is my cash balance?', 'ask_books'],
+  ['What is my cash balance?', 'ask_books'], // template 'balance': accounts from ask_books, figure to date
   ['How much is in the bank account today?', 'ask_books'],
   ['What were my sales this month?', 'ask_books'],
   ['What did I spend last month?', 'ask_books'],
@@ -138,14 +138,35 @@ test('an exact question is answered by code with no model call; the metric says 
   const { client, calls } = countingModel();
   const { answer, metric } = await answerTurn({
     client, model: 'gemini-2.5-flash', systemPrompt: 's', tools: [], currency: 'USD', now: clock(),
-    question: 'What is my cash balance?',
-    callTool: async () => ({ reading: { problem: null, understood: { accounts: ['Cash'], period: 'today' } }, answer: { answerCents: 50000 } }),
+    question: 'What were my sales this month?',
+    callTool: async () => ({ reading: { problem: null, understood: { accounts: ['Sales'], period: 'this month' } }, answer: { answerCents: 50000 } }),
   });
   assert.equal(calls.length, 0, 'no model call');
-  assert.match(answer, /^500\.00 USD — Cash/);
+  assert.match(answer, /^500\.00 USD — Sales/);
   assert.equal(metric.path, 'code');
   assert.equal(metric.costCents, 0);
   assert.deepEqual(metric.toolsCalled, ['ask_books']);
+});
+
+test('a balance counts opening balances and earlier years: explain_number runs with no start date', async () => {
+  const { client, calls } = countingModel();
+  const toolCalls: Array<[string, Record<string, unknown>]> = [];
+  const { answer, metric } = await answerTurn({
+    client, model: 'gemini-2.5-flash', systemPrompt: 's', tools: [], currency: 'USD', now: clock(),
+    question: 'What is my cash balance?',
+    callTool: async (name, args) => {
+      toolCalls.push([name, args]);
+      if (name === 'ask_books') {
+        // ask_books' own figure covers this fiscal year only (it always sets a start date)
+        return { reading: { filter: { accountIds: ['acc_cash'], startDate: '2026-01-01', endDate: '2026-11-22' }, problem: null, sense: 'net', understood: { accounts: ['Cash'], period: 'this year' } }, answer: { answerCents: 0 } };
+      }
+      return { totalCents: 100000 }; // a 1,000.00 opening balance, no entries this year
+    },
+  });
+  assert.equal(calls.length, 0);
+  assert.deepEqual(toolCalls[1], ['explain_number', { accountIds: ['acc_cash'], endDate: '2026-11-22' }], 'no startDate: opening balances included');
+  assert.match(answer, /^1,000\.00 USD — Cash, balance to date including opening balances/);
+  assert.deepEqual(metric.toolsCalled, ['ask_books', 'explain_number']);
 });
 
 test('when the tool cannot place the question, the model answers instead (not sure → model)', async () => {

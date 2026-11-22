@@ -54,9 +54,9 @@ export const REPLAY_QUESTIONS: ReadonlyArray<{ q: string; kind: 'code' | 'model'
 
 /** Fixed test answers in the read tools' real shapes (sandboxTools.ts / the report routes), so a run never touches real books. */
 const FIXTURE: Record<string, unknown> = {
-  ask_books: { question: 'test', today: '2026-11-22', reading: { problem: null, understood: { accounts: ['Cash'], label: null, period: 'up to today' }, sense: 'net' }, answer: { totalCents: 1_234_500, answerCents: 1_234_500, sense: 'net' } },
+  ask_books: { question: 'test', today: '2026-11-22', reading: { filter: { accountIds: ['acc_cash'], startDate: '2026-01-01', endDate: '2026-11-22' }, problem: null, understood: { accounts: ['Cash'], label: null, period: 'this year' }, sense: 'net' }, answer: { totalCents: 1_234_500, answerCents: 1_234_500, sense: 'net' } },
   run_report: { current: 300_000, '1-30': 120_000, '31-60': 50_000, '61-90': 0, '90+': 25_000, total: 495_000 },
-  explain_number: { totalCents: 4_200_000, lines: [{ label: 'Sales', cents: 4_200_000 }] },
+  explain_number: { totalCents: 1_334_500, lines: [{ label: 'Opening balance', cents: 100_000 }, { label: 'Cash', cents: 1_234_500 }] },
   get_record: { collection: 'invoices', record: { id: 'inv_1', number: 'INV-1001', total: 1200, status: 'open' } },
   search_records: { text: 'test', matches: [{ collection: 'invoices', id: 'inv_1', matched: 'number', record: { id: 'inv_1', number: 'INV-1001', name: 'Acme Ltd' } }], scannedPerCollection: 500 },
   list_records: { collection: 'payments', records: [{ id: 'pay_1', date: '2026-11-20', amountCents: 50_000, currency: 'USD', reference: 'PAY-1' }, { id: 'pay_2', date: '2026-11-18', amountCents: 75_000, currency: 'USD', reference: 'PAY-2' }], nextCursor: null },

@@ -14,7 +14,7 @@ No model configured (ASSISTANT_REPLAY_MODEL / ASSISTANT_REPLAY_BASE_URL): every 
 
 ## Part 2 — after the router (run 2026-11-22, test data only)
 
-Before: 0 of 18 book questions answered without a model. After: see below. The pinned list of questions that must go to the model (`src/tests/assistant-router-sbx2.test.ts`) still goes to the model. Invoice lookups match the number exactly, and an empty or capped search goes to the model.
+Before: 0 of 18 book questions answered without a model. After: see below. The pinned list of questions that must go to the model (`src/tests/assistant-router-sbx2.test.ts`) still goes to the model. Invoice lookups match the number exactly, an empty or capped search goes to the model, figure questions with a qualifier (excluding, net, per, in <place>…) go to the model, and a balance is read to date including opening balances.
 
 Fixed part of every request (system prompt + 25 tool definitions): 50787 bytes, about 12697 tokens (bytes ÷ 4 estimate).
 Replay questions: 30 (18 the books can answer exactly, 12 that need the model).

@@ -11,10 +11,12 @@
  */
 import { currencyDigits, minorToMajor } from '../../lib/currencyMinorUnits';
 import { formatMoney } from '../../lib/moneyFormat';
+import { answerCents } from '../../lib/askBooks';
 import { runAssistantTurn, turnMetric, type AssistantTurnInput, type AssistantTurnMetric } from './assistantTurn';
 
 export type CodeRoute =
   | { tool: 'ask_books'; args: { question: string }; template: 'figure' }
+  | { tool: 'ask_books'; args: { question: string }; template: 'balance' }
   | { tool: 'run_report'; args: { report: 'aging'; params: { type: 'ar' | 'ap' } }; template: 'aging' }
   | { tool: 'search_records'; args: { text: string; collections: ReadonlyArray<'invoices' | 'customers' | 'vendors'> }; template: 'records' }
   | { tool: 'list_records'; args: { collection: 'payments'; limit: number; orderBy: { field: 'date'; direction: 'desc' } }; template: 'records' }
@@ -81,9 +83,16 @@ export function routeQuestion(raw: string): RouteDecision {
     return { path: 'code', route: { tool: 'list_records', args: { collection: 'payments', limit, orderBy: { field: 'date', direction: 'desc' } }, template: 'records' } };
   }
 
-  // a figure from accounts and a period ("what is my cash balance", "what were my sales this month"):
+  // a balance ("what is my cash balance", "how much is in the bank"): the accounts come from ask_books,
+  // the figure from the explain report with no start date, so opening balances and earlier years count
+  if (/^(what('s| is)|how much)\b/.test(q) && /\b(balance|in the bank)\b/.test(q) && /\b(cash|bank)\b/.test(q)
+      && !QUALIFIER.test(q.replace(/\btoday\b|\bnow\b|\bin the bank( account)?\b/g, ''))) {
+    return { path: 'code', route: { tool: 'ask_books', args: { question }, template: 'balance' } };
+  }
+  // a figure from accounts and a period ("what were my sales this month"):
   // ask_books reads it with plain matching and refuses what it cannot place, so its answer decides.
-  if (/^(what('s| is| was| were| did)|how much)\b/.test(q) && /\b(balance|cash|bank|sales|revenue|income|spen[dt]|expenses?|costs?)\b/.test(q)
+  if (/^(what('s| is| was| were| did)|how much)\b/.test(q) && /\b(sales|revenue|income|spen[dt]|expenses?|costs?)\b/.test(q)
+      && !/\b(balance|cash|bank)\b/.test(q)
       && !QUALIFIER.test(q.replace(/\b(this|last) (month|year|quarter|week)\b|\btoday\b|\bin the bank( account)?\b/g, ''))) {
     return { path: 'code', route: { tool: 'ask_books', args: { question }, template: 'figure' } };
   }
@@ -138,6 +147,15 @@ export function wordCodeAnswer(route: CodeRoute, result: unknown, currency: stri
       const period = reading?.understood?.period || 'the period asked';
       return `${amount} — ${accounts}, ${period}. Source: posted entries (explain this number).`;
     }
+    case 'balance': {
+      // the result here is the explain report's (no start date), with the reading attached by answerTurn
+      const reading = r.reading as { problem?: string | null; sense?: 'spent' | 'earned' | 'net'; understood?: { accounts?: string[] } } | undefined;
+      if (typeof r.totalCents !== 'number' || !reading || reading.problem) return null;
+      const amount = money(answerCents(r.totalCents, reading.sense ?? 'net'), currency);
+      if (!amount) return null;
+      const accounts = reading.understood?.accounts?.join(', ') || 'the matching accounts';
+      return `${amount} — ${accounts}, balance to date including opening balances. Source: posted entries (explain this number).`;
+    }
     case 'aging': {
       // the aging route returns minor units per bucket and a total (reportRoutes.ts /aging)
       const buckets = ['current', '1-30', '31-60', '61-90', '90+'] as const;
@@ -190,19 +208,31 @@ export async function answerTurn(input: AssistantTurnInput & { currency: string 
   const decision = routeQuestion(input.question);
   if (decision.path === 'code') {
     let result: unknown;
-    try { result = await input.callTool(decision.route.tool, decision.route.args as unknown as Record<string, unknown>); }
-    catch { result = undefined; }
+    const toolsUsed: string[] = [decision.route.tool];
+    try {
+      result = await input.callTool(decision.route.tool, decision.route.args as unknown as Record<string, unknown>);
+      if (decision.route.template === 'balance') {
+        const reading = (result as { reading?: { filter?: { accountIds?: string[]; endDate?: string } | null; problem?: string | null } })?.reading;
+        const filter = reading?.filter;
+        if (!filter?.accountIds?.length || reading?.problem) result = undefined;
+        else {
+          toolsUsed.push('explain_number');
+          const explained = await input.callTool('explain_number', { accountIds: filter.accountIds, ...(filter.endDate ? { endDate: filter.endDate } : {}) });
+          result = explained && typeof explained === 'object' ? { ...(explained as object), reading } : undefined;
+        }
+      }
+    } catch { result = undefined; }
     const answer = wordCodeAnswer(decision.route, result, input.currency);
     if (answer) {
       const ended = now();
-      return { answer, metric: turnMetric({ path: 'code', traces: [], toolsOffered: 0, toolsCalled: [decision.route.tool],
+      return { answer, metric: turnMetric({ path: 'code', traces: [], toolsOffered: 0, toolsCalled: toolsUsed,
         answerMs: ended - started, totalMs: ended - started, ok: true }) };
     }
     // fell back: the person also waited for the code tool, so its time and name count in this turn
     const spent = now() - started;
     const fallback = await runAssistantTurn(input);
     return { answer: fallback.answer, metric: { ...fallback.metric,
-      toolsCalled: [decision.route.tool, ...fallback.metric.toolsCalled],
+      toolsCalled: [...toolsUsed, ...fallback.metric.toolsCalled],
       answerMs: Math.round(fallback.metric.answerMs + spent), totalMs: Math.round(fallback.metric.totalMs + spent) } };
   }
   return runAssistantTurn(input);
