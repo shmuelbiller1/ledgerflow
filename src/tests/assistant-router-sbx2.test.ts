@@ -6,6 +6,7 @@ import type { ModelClient } from '../server/services/assistantTurn';
 
 /** Pinned: these MUST go to the model (actions, judgement, why, vague, several questions, unknown). */
 const MUST_GO_TO_MODEL = [
+  'What is my cash balance yesterday?', 'What is my cash balance last week?', 'What was my bank balance on 2026-03-15?', 'What is my cash balance this quarter?',
   'What is the outstanding amount on invoice INV-1001?', 'What is the total of invoice INV-1001?', 'What were my sales in sept 2026?',
   'What were my sales on 15 March 2026?', 'What were my sales on 2026-03-15?', 'What were my expenses on 3/15/2026?',
   'Record a payment of 500 from Acme Ltd for INV-1001.',

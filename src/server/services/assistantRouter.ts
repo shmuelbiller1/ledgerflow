@@ -93,7 +93,10 @@ export function routeQuestion(raw: string): RouteDecision {
   // a balance ("what is my cash balance", "how much is in the bank"): the accounts come from ask_books,
   // the figure from the explain report with no start date, so opening balances and earlier years count
   if (/^(what('s| is)|how much)\b/.test(q) && /\b(balance|in the bank)\b/.test(q) && /\b(cash|bank)\b/.test(q)
-      && !QUALIFIER.test(q.replace(/\btoday\b|\bnow\b|\bin the bank( account)?\b/g, ''))) {
+      && !QUALIFIER.test(q.replace(/\btoday\b|\bnow\b|\bin the bank( account)?\b/g, ''))
+      // today/now or a period ask_books reads (the balance at its end); any other date goes to the model
+      && !UNREAD_PERIOD.test(q.replace(/\btoday\b|\bnow\b/g, ' ').replace(READ_PERIOD, ' '))
+      && !/\d/.test(q.replace(READ_PERIOD, ' '))) {
     return { path: 'code', route: { tool: 'ask_books', args: { question }, template: 'balance' } };
   }
   // a figure from accounts and a period ("what were my sales this month"): only the periods ask_books
