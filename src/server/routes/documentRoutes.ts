@@ -1,3 +1,4 @@
+import { isForbidden } from '../http/serverKit';
 import { takeCopyMark } from '../services/copyMarkService';
 import type { TaxProfiles } from '../../lib/tax/profile';
 import { errorMessage, requestUser } from '../auth/requestUser';
@@ -116,7 +117,7 @@ export async function handleZipRequest(req: express.Request, res: express.Respon
     return res.send(zipStore(files));
   } catch (err) {
     if (err instanceof z.ZodError) return res.status(400).json({ status: 'error', message: err.issues[0]?.message || 'Invalid request' });
-    if (errorMessage(err) === 'FORBIDDEN' || /not a member/i.test(errorMessage(err))) return res.status(403).json({ status: 'error', message: 'Forbidden' });
+    if (isForbidden(errorMessage(err)) || /not a member/i.test(errorMessage(err))) return res.status(403).json({ status: 'error', message: 'Forbidden' });
     return res.status(500).json({ status: 'error', message: errorMessage(err) || 'Failed to build the zip' });
   }
 }
@@ -190,7 +191,7 @@ export async function handlePdfRequest(req: express.Request, res: express.Respon
     res.setHeader('Content-Disposition', `inline; filename="${type}_${id}.pdf"`);
     return res.send(pdfBuffer);
   } catch (err) {
-    if (errorMessage(err) === 'FORBIDDEN' || /not a member/i.test(errorMessage(err))) return res.status(403).json({ status: 'error', message: 'Forbidden' });
+    if (isForbidden(errorMessage(err)) || /not a member/i.test(errorMessage(err))) return res.status(403).json({ status: 'error', message: 'Forbidden' });
     console.error('PDF Generation Error:', err);
     return res.status(500).json({ status: 'error', message: errorMessage(err) || 'Failed to generate PDF' });
   }

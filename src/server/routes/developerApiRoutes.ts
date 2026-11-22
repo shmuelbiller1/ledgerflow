@@ -1,3 +1,4 @@
+import { isForbidden } from '../http/serverKit';
 import { trainClassifierWithWorkspaceData } from '../services/classifierTraining';
 import type { ChartAccount, Transaction as LedgerTransaction } from "../../types";
 import { errorMessage, requestUser } from "../auth/requestUser";
@@ -121,7 +122,7 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
         accounts
       });
     } catch (err) {
-      if (errorMessage(err) === "FORBIDDEN") return sendError(res, "Forbidden workspace access", 403);
+      if (isForbidden(errorMessage(err))) return sendError(res, "Forbidden workspace access", 403);
       if (errorMessage(err) === "NOT_FOUND" || errorMessage(err).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
       sendError(res, errorMessage(err), 500);
     }
