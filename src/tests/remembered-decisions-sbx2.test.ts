@@ -105,7 +105,9 @@ describe('SBX-2 Part 3 remembered decisions (PostgreSQL)', { skip: !url && 'LF_T
     assert.deepEqual(rows.map(r => [r.field, r.cases, r.choices]), [['accountId', 5, { 'acc-1': 5 }], ['taxCode', 5, { VAT20: 5 }]]);
     assert.deepEqual(await listRemembered(live.pool, b), [], 'another workspace sees nothing');
     assert.equal(suggestFor('bill.create', { payee: 'Ocean Supplies' }, await listRemembered(live.pool, b)).length, 0);
-    const stored = JSON.stringify((await live.pool.query('select * from assistant."rememberedDecisions" where workspace_id = $1', [a])).rows);
+    // only what the step could have put there: the random workspace id and the timestamp could contain "1234" by chance
+    const stored = JSON.stringify((await live.pool.query('select * from assistant."rememberedDecisions" where workspace_id = $1', [a])).rows
+      .map(({ workspace_id: _ws, updated_at: _u, ...row }) => row));
     assert.ok(!stored.includes('secret memo') && !stored.includes('1234'), 'no memo or amount is stored');
     assert.equal(await forgetRemembered(live.pool, a, { command: 'bill.create', subject: 'payee:ocean supplies', field: 'taxCode' }), 1);
     assert.deepEqual((await listRemembered(live.pool, a)).map(r => r.field), ['accountId']);
