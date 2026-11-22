@@ -34,6 +34,8 @@ export interface TestJwtClaims {
   authTimeOffsetSec?: number;
   appMetadata?: Record<string, unknown>;
   userMetadata?: Record<string, unknown>;
+  /** Supabase's `session_id` claim: which auth.sessions row this token belongs to */
+  sessionId?: string;
 }
 
 /** A Supabase-shaped access token signed with the suite's SUPABASE_JWT_SECRET. */
@@ -48,6 +50,7 @@ export function signTestJwt(claims: TestJwtClaims): Promise<string> {
   }
   if (claims.appMetadata) payload.app_metadata = claims.appMetadata;
   if (claims.userMetadata) payload.user_metadata = claims.userMetadata;
+  if (claims.sessionId) payload.session_id = claims.sessionId;
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(claims.uid)

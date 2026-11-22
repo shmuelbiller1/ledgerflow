@@ -9,14 +9,35 @@ import { authAdmin } from "../auth/supabaseAuth";
 import { recordAuthEvent } from "../services/authAuditService";
 import { writeServerAuditLog } from "../services/auditLogService";
 import { authRateLimiter } from "../middleware/rateLimiters";
+import { listAuthSessions, revokeAuthSession } from "../services/authSessionService";
+import type { RequestUser } from "../auth/requestUser";
+
+/** S-28: sessions belong to a person; API keys and assistant tokens have none to manage. */
+function isPersonSignIn(user: RequestUser): boolean {
+  return !user.usedApiKeyId && !user.developerWorkspaceId && !user.assistantSandboxId;
+}
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerAuthRoutes(app: express.Express, _ctx: ServerContext): void {
-  // Session revocation
+  // Session revocation: every device, or (S-28) one device when the body names `sessionId`
+  const RevokeSessionsBody = z.object({ sessionId: z.string().uuid().optional() }).strict();
   app.post("/api/v1/auth/revoke-sessions", authRateLimiter, apiAuthenticate, async (req, res) => {
     try {
       const user = requestUser(req);
       const db = getDb();
+      const parsed = RevokeSessionsBody.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ error: 'sessionId must be a session id from GET /api/v1/auth/sessions.' });
+      const { sessionId } = parsed.data;
+      if (sessionId) {
+        if (!isPersonSignIn(user)) return res.status(403).json({ error: 'Sessions can only be signed out by the person, not by an API key.' });
+        if (!(await revokeAuthSession(db, user.uid, sessionId))) return res.status(404).json({ error: 'No such session.' });
+        const ownedBooks = await db.collection("workspaces").where("uid", "==", user.uid).limit(10).get();
+        await Promise.all(ownedBooks.docs.map(ws => writeServerAuditLog({
+          workspaceId: ws.id, uid: user.uid, email: user.email, action: "SESSION_REVOKED", entityType: "auth",
+          entityId: sessionId, details: { description: "Signed out one device", sessionId },
+        }, { db })));
+        return res.json({ success: true, sessionId, current: user.session_id === sessionId, message: 'That device is signed out.' });
+      }
       await authAdmin.revokeRefreshTokens(user.uid);
       const owned = await db.collection("workspaces").where("uid", "==", user.uid).limit(10).get();
       await Promise.all(
@@ -39,6 +60,19 @@ export function registerAuthRoutes(app: express.Express, _ctx: ServerContext): v
     } catch (error) {
       console.error('Failed to revoke sessions:', error);
       res.status(500).json({ error: errorMessage(error) || 'Failed to revoke sessions' });
+    }
+  });
+
+  // S-28: the signed-in person's own sessions (devices), newest activity first; `current` marks this one
+  app.get("/api/v1/auth/sessions", apiAuthenticate, async (req, res) => {
+    try {
+      const user = requestUser(req);
+      if (!isPersonSignIn(user)) return res.status(403).json({ error: 'Sessions can only be listed by the person, not by an API key.' });
+      const sessions = await listAuthSessions(getDb(), user.uid, typeof user.session_id === 'string' ? user.session_id : undefined);
+      res.json({ status: 'success', sessions });
+    } catch (error) {
+      console.error('Failed to list sessions:', error);
+      res.status(500).json({ error: 'Failed to list sessions' });
     }
   });
 
