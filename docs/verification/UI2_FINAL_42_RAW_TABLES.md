@@ -70,7 +70,7 @@ grouped and footered tables declaratively.
   `party-*`, `stock-sources-uses`, `import-acceptance`, `profitability-by` and
   `sample-year-benchmark` money figures above are asserted in the app's own format on screen.
 
-## Six findings the new coverage surfaced (all fixed here, all pre-existing on the base commit)
+## Seven findings the new coverage surfaced (all fixed here, all pre-existing on the base commit)
 
 1. `CustomFieldsSettings` — the remove column's header cell was empty (base and branch); it now
    reads a screen-reader-only "Actions" without changing a pixel.
@@ -84,7 +84,11 @@ grouped and footered tables declaratively.
 5. `StatementImporter`'s preview scroll and `DimensionsSettings`' per-label value tables scrolled
    without being keyboard-focusable at phone width; both now carry the repo's established
    region + tabIndex pattern.
-6. `RowTable` rendered a guarded footer (`footer={cond && <tr>…}`) as an empty `<tfoot>` when the
+6. `RulesSettingsView`'s group enable switch said "Enable group X" while showing "On"/"Off" on
+   screen (found by the review pass: the audit raced the store hydration that decided whether the
+   buttons existed, which is why it surfaced only on CI); the name now leads with the state word,
+   and the screen's audit waits for a rule row first.
+7. `RowTable` rendered a guarded footer (`footer={cond && <tr>…}`) as an empty `<tfoot>` when the
    condition was false; a false footer now renders nothing, like an omitted one — this was the
    party-report-layout SIGKILL: an empty tfoot with column reordering recursed forever.
 
