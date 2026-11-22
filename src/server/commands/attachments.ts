@@ -59,6 +59,14 @@ export const documentSaveCommand: CommandDefinition<typeof documentSaveInput, Do
   async handler(ctx: CommandContext, tx, input: SaveInput) {
     const now = new Date().toISOString();
     const { id, ...fields } = input;
+    // #912: evidence can only point at a real entry of these books
+    const linkTarget = typeof fields.linkedTransactionId === 'string' ? fields.linkedTransactionId.trim() : '';
+    if (linkTarget) {
+      const entry = await tx.get(ctx.db.collection('transactions').doc(linkTarget));
+      if (!entry.exists || (entry.data() as Record<string, unknown> | undefined)?.workspaceId !== ctx.workspaceId) {
+        throw Object.assign(new HttpError('That journal entry is not in this workspace.', 409), { code: 'LINK_TARGET_NOT_FOUND' });
+      }
+    }
     if (!id) {
       const ref = ctx.db.collection('documents').doc();
       const rowId = (ref as unknown as { id: string }).id;
@@ -77,6 +85,11 @@ export const documentSaveCommand: CommandDefinition<typeof documentSaveInput, Do
     const existing = snapshot.data() as Record<string, unknown> | undefined;
     if (!snapshot.exists || existing?.workspaceId !== ctx.workspaceId) {
       throw Object.assign(new HttpError('This document is not in the selected workspace.', 404), { code: 'NOT_FOUND' });
+    }
+    // #912: moving someone else's evidence to another entry is an owner's or accountant's decision
+    const relinks = 'linkedTransactionId' in fields && (fields.linkedTransactionId ?? null) !== (existing.linkedTransactionId ?? null);
+    if (relinks && existing.uid !== ctx.actor && ctx.role !== 'owner' && ctx.role !== 'accountant') {
+      throw Object.assign(new HttpError('Only an owner or accountant can move another member\'s document to a different entry.', 403), { code: 'ROLE_REQUIRED' });
     }
     tx.update(ref, { ...fields, updatedAt: now });
     return { id, created: false };
