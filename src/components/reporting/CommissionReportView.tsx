@@ -7,6 +7,7 @@ import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { commissionLines } from '../../lib/salesReps';
 import { useReportText } from './useReportText';
+import { LoadingState } from '../ui/LoadingState';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
@@ -43,7 +44,7 @@ export default function CommissionReportView() {
         <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.from', 'From')}<input type="date" value={from} onChange={e => setFrom(e.target.value)} className={field} /></label>
         <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.to', 'To')}<input type="date" value={to} onChange={e => setTo(e.target.value)} className={field} /></label>
       </div>
-      {loading && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {loading && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       {reps.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-sales-reps-yet-add-them-with-their-commission', 'No sales reps yet: add them, with their commission and customers, in Settings → Sales reps.')}</p>}
       {reps.map(rep => {
         const mine = lines.filter(l => l.repId === rep.id);

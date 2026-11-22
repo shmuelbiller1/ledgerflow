@@ -6,10 +6,11 @@ import { useCollection } from '../../hooks/useCollection';
 import type { PurchaseOrder } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { ageInDays, billedNotReceived, deliveredNotInvoiced, orderedNotReceived, receivedNotBilled, totalsByCurrency } from '../../lib/unbilledGoods';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { csvMoneyForBook, downloadCsv } from '../../lib/csvExport';
 import { getLocalDateISO } from '../../lib/utils';
 import { RowTable } from '../ui/RowTable';
 import { useReportText } from './useReportText';
+import { LoadingState } from '../ui/LoadingState';
 
 const qty = (n: number) => String(Math.round(n * 100) / 100);
 const th = 'font-semibold py-1 px-2';
@@ -35,6 +36,9 @@ export default function GoodsNotBilledReportView() {
   const ordered = orderedNotReceived(purchaseOrders || []);
   const today = getLocalDateISO();
   const exportList = (name: string, headers: string[], rows: Array<Array<string | number>>) => downloadCsv(`${name}_${today}.csv`, headers, rows);
+  // #940: each row keeps the document's own currency (shown in its own column), so each amount is
+  // written with that currency's decimals — not the book's, and not two decimals for every row.
+  const moneyForRow = (currency?: string) => csvMoneyForBook(currency || home);
   const totals = (rows: Array<{ currency?: string; valueCents: number }>) => totalsByCurrency(rows, home).map(t => formatCurrency(t.cents, t.currency)).join(' + ');
 
   return (
@@ -43,7 +47,7 @@ export default function GoodsNotBilledReportView() {
         <h2 id="goods-not-billed-title" className="text-lg font-bold text-[var(--text)]">{reportText('r.goods-not-yet-billed', 'Goods not yet billed')}</h2>
         <p className="text-sm text-[var(--muted)]">{reportText('r.goods-that-left-or-came-in-before-their-invoice', 'Goods that left or came in before their invoice or bill, at each order\'s price.')}</p>
       </div>
-      {(loading || loadingOrders) && <p className="text-sm text-[var(--muted)]">{reportText('r.loading', 'Loading…')}</p>}
+      {(loading || loadingOrders) && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
         <RowTable
           rowClassName="border-b border-[var(--line)]/50"
@@ -88,7 +92,7 @@ export default function GoodsNotBilledReportView() {
           ]}
         />
         <button type="button" onClick={() => exportList('received_not_billed', ['Purchase order', 'Vendor', 'Line', 'Received', 'Not yet billed', 'Value', 'Currency', 'Age (days)'],
-          bought.map(r => [r.number, r.vendorName, r.description, r.received, r.units, csvMoney(r.valueCents), r.currency || home, ageInDays(r.issueDate, today) ?? '']))}
+          bought.map(r => [r.number, r.vendorName, r.description, r.received, r.units, moneyForRow(r.currency)(r.valueCents), r.currency || home, ageInDays(r.issueDate, today) ?? '']))}
           disabled={bought.length === 0} className="mt-2 min-h-[44px] px-3 py-2 rounded border border-[var(--line)] text-xs text-[var(--text)] disabled:opacity-50">{reportText('r.export-csv', 'Export CSV')}</button>
       </div>
       <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
@@ -114,7 +118,7 @@ export default function GoodsNotBilledReportView() {
           ]}
         />
         <button type="button" onClick={() => exportList('ordered_not_received', ['Purchase order', 'Vendor', 'Line', 'Ordered', 'Received', 'Still to come', 'Value', 'Currency', 'Age (days)'],
-          ordered.map(r => [r.number, r.vendorName, r.description, r.ordered, r.received, r.units, csvMoney(r.valueCents), r.currency || home, ageInDays(r.issueDate, today) ?? '']))}
+          ordered.map(r => [r.number, r.vendorName, r.description, r.ordered, r.received, r.units, moneyForRow(r.currency)(r.valueCents), r.currency || home, ageInDays(r.issueDate, today) ?? '']))}
           disabled={ordered.length === 0} className="mt-2 min-h-[44px] px-3 py-2 rounded border border-[var(--line)] text-xs text-[var(--text)] disabled:opacity-50">{reportText('r.export-csv', 'Export CSV')}</button>
       </div>
       <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
@@ -139,7 +143,7 @@ export default function GoodsNotBilledReportView() {
           ]}
         />
         <button type="button" onClick={() => exportList('billed_not_received', ['Purchase order', 'Vendor', 'Line', 'Billed', 'Received', 'Still to come', 'Value', 'Currency'],
-          prepaid.map(r => [r.number, r.vendorName, r.description, r.billed, r.received, r.units, csvMoney(r.valueCents), r.currency || home]))}
+          prepaid.map(r => [r.number, r.vendorName, r.description, r.billed, r.received, r.units, moneyForRow(r.currency)(r.valueCents), r.currency || home]))}
           disabled={prepaid.length === 0} className="mt-2 min-h-[44px] px-3 py-2 rounded border border-[var(--line)] text-xs text-[var(--text)] disabled:opacity-50">{reportText('r.export-csv', 'Export CSV')}</button>
       </div>
     </section>

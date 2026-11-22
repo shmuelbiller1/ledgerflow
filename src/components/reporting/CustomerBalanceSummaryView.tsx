@@ -9,7 +9,7 @@ import { filterPartyBalanceRows, partyBalanceCell, partyNameCell, partyOpenCount
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { computeCustomerBalanceSummary, CustomerBalanceSummaryRow } from '../../server/reports/partyReports';
 import { toast } from 'sonner';
-import { csvMoney, downloadCsv } from '../../lib/csvExport';
+import { csvMoneyForBook, downloadCsv } from '../../lib/csvExport';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { useReportText } from './useReportText';
 
@@ -22,6 +22,8 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
   const truncated = useLedgerStore(s => s.truncatedCollections);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const currency = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  // #910 family: the summary is computed in the book currency, so the file's decimals come from it
+  const moneyCell = csvMoneyForBook(currency);
   useLedgerCollections('creditNotes', 'customers', 'invoices', 'payments');
   const [searchTerm, setSearchTerm] = useState('');
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
@@ -60,7 +62,7 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
   const handleExportCSV = () => {
     downloadCsv(`customer_balance_summary_${getLocalDateISO()}.csv`,
       ['Customer Name', 'Email', 'Phone', 'Open Invoices', 'Total Invoiced', 'Total Paid', 'Balance Due'],
-      filteredRows.map(r => [r.name, r.email || '', r.phone || '', r.openInvoicesCount, csvMoney(r.totalInvoicedCents), csvMoney(r.totalPaidCents), csvMoney(r.balanceCents)]));
+      filteredRows.map(r => [r.name, r.email || '', r.phone || '', r.openInvoicesCount, moneyCell(r.totalInvoicedCents), moneyCell(r.totalPaidCents), moneyCell(r.balanceCents)]));
     toast.success('Customer Balance Summary exported to CSV');
   };
 
