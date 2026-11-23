@@ -71,10 +71,13 @@ export async function postBillLedger(
   // M-21 step 2: the carrying value the bill's original receipt posted at, so a repost keeps the basis
   // its unchanged lines were booked on (the item's standard can change once the stock sold down to zero)
   const priorAccrual = priorPostings.find(t => t.metadata?.type === BILL_ACCRUAL_TYPE);
-  const originalReceipt = new Map<string, { quantity: number; valueCents: number }>();
-  for (const row of (priorAccrual?.metadata?.stockIn as Array<{ itemId: string; quantity: number; valueCents: number }> | undefined) || []) {
+  const originalReceipt = new Map<string | number, { quantity: number; valueCents: number }>();
+  for (const row of (priorAccrual?.metadata?.stockIn as Array<{ itemId: string; quantity: number; valueCents: number; line?: number }> | undefined) || []) {
     if (typeof row.itemId === 'string' && Number.isFinite(row.quantity) && Number.isFinite(row.valueCents)) {
-      originalReceipt.set(row.itemId, { quantity: row.quantity, valueCents: row.valueCents });
+      // keyed by the bill line the units came in on, so repeated items on separate lines keep their
+      // own basis (a row without a line index falls back to the item)
+      const key = Number.isSafeInteger(row.line) && Number(row.line) >= 0 ? Number(row.line) : `item:${row.itemId}`;
+      originalReceipt.set(key, { quantity: row.quantity, valueCents: row.valueCents });
     }
   }
 

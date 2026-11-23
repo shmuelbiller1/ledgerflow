@@ -56,7 +56,7 @@ describe('Schema drift & index consistency guard (database rules)', () => {
       'customerGroups',
       // R-4: a short note per report and period (migration 20261110010000_report_notes)
       'reportNotes',
-      // M-21 standard costing: the setting (enabled + variance account), server-written (migration 20261123090000)
+      // M-21 standard costing: the setting (enabled + variance account), server-written (migration 20261123100000)
       'standardCosting'
     ];
     for (const key of expectedWorkspaceKeys) {

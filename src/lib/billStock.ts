@@ -79,19 +79,29 @@ export function planStandardReceipt(
    * and repricing the replacement at the new standard would leave Inventory out of step. Lines whose
    * quantity changed take the item's current standard.
    */
-  originalReceipt?: Map<string, { quantity: number; valueCents: number }>
+  originalReceipt?: Map<string | number, { quantity: number; valueCents: number }>
 ): StandardReceiptPlan | null {
   if (!standardizing) return null;
   const byId = new Map(items.map(i => [i.id, i]));
   const entries = stockIn.map(line => {
-    const original = originalReceipt?.get(line.itemId);
-    const carriesOriginalBasis = original !== undefined && original.quantity === line.quantity;
-    const standard = carriesOriginalBasis
-      ? original!.valueCents
-      : validStandardCost(byId.get(line.itemId)?.standardCostCents);
-    const standardValueCents = carriesOriginalBasis
-      ? original!.valueCents
-      : standard !== null && line.quantity > 0 ? Math.round(line.quantity * standard) : line.valueCents;
+    // the original receipt's row for this bill line (keyed by the line's index, so repeated items on
+    // separate lines keep their own basis)
+    const original = originalReceipt?.get(line.line !== undefined ? line.line : `item:${line.itemId}`);
+    const originalQty = original !== undefined && Number.isFinite(original.quantity) && original.quantity > 0 ? original.quantity : 0;
+    const atOriginal = originalQty > 0 ? Math.min(line.quantity, originalQty) : 0;
+    const extra = line.quantity - atOriginal;
+    let standardValueCents: number;
+    if (originalQty > 0) {
+      // the units the original receipt covered keep its carrying basis (pro-rated when the line shrank);
+      // units a later edit added take the item's current standard
+      const originalUnit = original!.valueCents / originalQty;
+      const currentStandard = validStandardCost(byId.get(line.itemId)?.standardCostCents);
+      const extraBasis = extra > 0 ? (currentStandard ?? originalUnit) : 0;
+      standardValueCents = Math.round(atOriginal * originalUnit) + Math.round(extra * extraBasis);
+    } else {
+      const standard = validStandardCost(byId.get(line.itemId)?.standardCostCents);
+      standardValueCents = standard !== null && line.quantity > 0 ? Math.round(line.quantity * standard) : line.valueCents;
+    }
     return {
       ...line,
       valueCents: standardValueCents,

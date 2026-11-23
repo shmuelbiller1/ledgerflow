@@ -97,14 +97,17 @@ export function planInvoiceCogs(input: InvoiceCogsInput): InvoiceCogsPlan {
     // a line is costed when either its historical units or its current-basis units carry a cost
     if (!Number.isFinite(quantity) || quantity <= 0) return [];
     if (atHistorical <= 0 && (!Number.isFinite(currentUnitCost) || currentUnitCost <= 0)) return [];
-    return [{ line, itemId: line.itemId, lineId: line.id, quantity, costCents, atHistorical, standard: standard !== null, standardCost: standard }];
+    // a recorded standard only exists for lines that already had a cost-of-goods entry; a fresh sale has
+    // no historical basis, and its whole quantity is at the current standard (no standardQty marker)
+    const hasHistoricalBasis = recorded !== undefined && recordedStandard !== null;
+    return [{ line, itemId: line.itemId, lineId: line.id, quantity, costCents, atHistorical, hasHistoricalBasis, standard: standard !== null, standardCost: standard }];
   }).filter(c => c.costCents > 0);
 
   if (costed.length === 0) return { entries: [] };
   if (!inventoryAccount || !cogsAccount) return { entries: [], pendingReason: COGS_ACCOUNTS_MISSING };
 
   const now = new Date().toISOString();
-  const entries = costed.map(({ line, itemId, lineId, quantity, costCents, atHistorical, standardCost }): CogsEntry => {
+  const entries = costed.map(({ line, itemId, lineId, quantity, costCents, atHistorical, hasHistoricalBasis, standardCost }): CogsEntry => {
     const name = itemById.get(itemId)?.name || line.description || 'item';
     return {
       uid,
@@ -117,7 +120,7 @@ export function planInvoiceCogs(input: InvoiceCogsInput): InvoiceCogsPlan {
       status: 'completed',
       type: 'actual',
       createdAt: now,
-      metadata: { invoiceId, type: INVOICE_COGS_TYPE, cogsForInvoiceId: invoiceId, cogsForLineId: lineId, inventoryItemId: itemId, quantity, ...(standardCost !== null ? { standard: true, standardCostCents: standardCost, ...(atHistorical < quantity ? { standardQty: atHistorical } : {}) } : {}), ...(line.dimensions?.location ? { locationId: line.dimensions.location } : {}), ...(invoice.customerId ? { customerId: invoice.customerId } : {}) },
+      metadata: { invoiceId, type: INVOICE_COGS_TYPE, cogsForInvoiceId: invoiceId, cogsForLineId: lineId, inventoryItemId: itemId, quantity, ...(standardCost !== null ? { standard: true, standardCostCents: standardCost, ...(hasHistoricalBasis && atHistorical < quantity ? { standardQty: atHistorical } : {}) } : {}), ...(line.dimensions?.location ? { locationId: line.dimensions.location } : {}), ...(invoice.customerId ? { customerId: invoice.customerId } : {}) },
       lines: [
         // the invoice line's labels (BF-09) go with its cost, so margin by project or location adds up
         { accountId: cogsAccount.id, accountName: cogsAccount.name, amountCents: costCents, debitCents: costCents, creditCents: 0, description: `Cost of ${name}`, ...(line.dimensions ? { dimensions: line.dimensions } : {}) },

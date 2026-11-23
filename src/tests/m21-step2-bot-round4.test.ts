@@ -36,7 +36,7 @@ describe('M-21 step 2 bot round 4: a reposted bill keeps its original receipt ba
       lines: [],
       metadata: {
         billId: 'bill_r4_1', type: BILL_ACCRUAL_TYPE,
-        stockIn: [{ itemId: 'chair', quantity: 10, valueCents: 4000, actualValueCents: 5000 }],
+        stockIn: [{ itemId: 'chair', quantity: 10, valueCents: 4000, actualValueCents: 5000, line: 0 }],
       },
     } as Transaction;
     const stock: InventoryItem[] = billItems().map(i => ({ ...i, standardCostCents: 600 }));
@@ -57,6 +57,78 @@ describe('M-21 step 2 bot round 4: a reposted bill keeps its original receipt ba
     assert.equal(lineOf('acc_inv'), 4000, 'the receipt posts the original 400 carrying basis, not the new 600 standard');
     assert.equal(lineOf('acc_ppv'), 1000, 'the variance is the actual 5,000 − the original 4,000 basis');
     assert.equal(entryTotal(accrual!), 0, 'the entry balances');
+  });
+
+  test('units added by a later edit take the current standard, the original units keep the old basis', async () => {
+    // the bill was received at a 400 standard (10 units); the standard changed to 600 and the line grew
+    // to 11 units: the replacement posts the original 10 at 400 and the added unit at 600
+    const priorAccrual = {
+      id: 'tx_prior_accrual_grown', uid: OWNER, workspaceId: WS, date: '2026-11-01', status: 'completed' as const,
+      description: 'Bill B-R4G - Supplier', currency: 'USD', type: 'actual', totalAmountCents: 5000,
+      lines: [],
+      metadata: {
+        billId: 'bill_r4_grown', type: BILL_ACCRUAL_TYPE,
+        stockIn: [{ itemId: 'chair', quantity: 10, valueCents: 4000, actualValueCents: 5000, line: 0 }],
+      },
+    } as Transaction;
+    const stock: InventoryItem[] = billItems().map(i => ({ ...i, standardCostCents: 600 }));
+    const captured: LedgerPostContext['capture'] = [];
+    const context: LedgerPostContext = {
+      ...contextFor({ enabled: true, varianceAccountId: 'acc_ppv' }, captured, stock),
+      transactions: [priorAccrual],
+    };
+    await postBillLedger('bill_r4_grown', {
+      id: 'bill_r4_grown', workspaceId: WS, uid: OWNER, number: 'B-R4G', vendorId: 'v1', vendorName: 'Supplier',
+      date: '2026-11-10', dueDate: '2026-12-10', status: 'pending' as const, currency: 'USD',
+      amountCents: 5500, splits: [{ amountCents: 5500, accountId: 'acc_inv', description: 'Chair', itemId: 'chair', quantity: 11 }],
+    } as never, WS, OWNER, undefined, context);
+
+    const accrual = captured[0].txs.find(t => t.metadata?.type === BILL_ACCRUAL_TYPE);
+    assert.ok(accrual, 'the bill posted its accrual entry');
+    const lineOf = (id: string) => (accrual!.lines || []).filter(l => l.accountId === id).reduce((s, l) => s + l.amountCents, 0);
+    assert.equal(lineOf('acc_inv'), 4600, 'the original 10 keep 400, the added unit takes the 600 standard');
+    assert.equal(lineOf('acc_ppv'), 900, 'variance is the actual 5,500 − the 4,600 carrying value');
+    assert.equal(entryTotal(accrual!), 0, 'the entry balances');
+  });
+
+  test('repeated item lines keep their own receipt basis', async () => {
+    // two lines of the same item, received at different actual values before the item had a standard:
+    // each line's replacement must keep its own carrying value, not the last row's
+    const priorAccrual = {
+      id: 'tx_prior_accrual_two', uid: OWNER, workspaceId: WS, date: '2026-11-01', status: 'completed' as const,
+      description: 'Bill B-R4T - Supplier', currency: 'USD', type: 'actual', totalAmountCents: 11000,
+      lines: [],
+      metadata: {
+        billId: 'bill_r4_two', type: BILL_ACCRUAL_TYPE,
+        stockIn: [
+          { itemId: 'chair', quantity: 10, valueCents: 5000, actualValueCents: 5000, line: 0 },
+          { itemId: 'chair', quantity: 10, valueCents: 6000, actualValueCents: 6000, line: 1 },
+        ],
+      },
+    } as Transaction;
+    const stock: InventoryItem[] = billItems().map(i => ({ ...i, standardCostCents: 400 }));
+    const captured: LedgerPostContext['capture'] = [];
+    const context: LedgerPostContext = {
+      ...contextFor({ enabled: true, varianceAccountId: 'acc_ppv' }, captured, stock),
+      transactions: [priorAccrual],
+    };
+    await postBillLedger('bill_r4_two', {
+      id: 'bill_r4_two', workspaceId: WS, uid: OWNER, number: 'B-R4T', vendorId: 'v1', vendorName: 'Supplier',
+      date: '2026-11-10', dueDate: '2026-12-10', status: 'pending' as const, currency: 'USD',
+      amountCents: 11000,
+      splits: [
+        { amountCents: 5000, accountId: 'acc_inv', description: 'Chair (first lot)', itemId: 'chair', quantity: 10 },
+        { amountCents: 6000, accountId: 'acc_inv', description: 'Chair (second lot)', itemId: 'chair', quantity: 10 },
+      ],
+    } as never, WS, OWNER, undefined, context);
+
+    const accrual = captured[0].txs.find(t => t.metadata?.type === BILL_ACCRUAL_TYPE);
+    assert.ok(accrual, 'the bill posted its accrual entry');
+    const inv = (accrual!.lines || []).filter(l => l.accountId === 'acc_inv');
+    // the two lines share a label, so they post as one Inventory line — but its value is the sum of the
+    // two lines' own bases (5,000 + 6,000), not two repriced lots at the current 400 standard (8,000)
+    assert.equal(inv.length, 1, 'the lines share a label group');
+    assert.equal(inv.reduce((s, l) => s + l.amountCents, 0), 11000, 'each line keeps its own 5,000 / 6,000 basis');
   });
 });
 
@@ -104,5 +176,20 @@ describe('M-21 step 2 bot round 4: historical standards cover only the original 
     // the unchanged line still posts entirely at the historical basis, with no split marker
     assert.equal(plan.entries[0].totalAmountCents, 4000, '10 × 400');
     assert.equal(plan.entries[0].metadata.standardQty, undefined);
+  });
+
+  test('a fresh sale records no standardQty, so a repost still uses the recorded standard', () => {
+    // a sale posted with no prior cost-of-goods entry has no historical basis: the whole quantity is at
+    // the current standard and the entry must not carry a zero standardQty (which would make a repost
+    // reprice every unit at the item's then-current standard)
+    const fresh = planInvoiceCogs({
+      invoiceId: 'inv_fresh', invoice: fx.invoice(), date: '2026-11-01', uid: OWNER, workspaceId: WS, baseCurrency: 'USD',
+      inventoryAccount: accounts()[5], cogsAccount: accounts()[5],
+      items: fx.returnItems().map(i => ({ ...i, standardCostCents: 400 })),
+      postAtStandard: true,
+    });
+    assert.equal(fresh.entries[0].totalAmountCents, 4000);
+    assert.equal(fresh.entries[0].metadata.standardCostCents, 400);
+    assert.equal(fresh.entries[0].metadata.standardQty, undefined, 'a fresh sale carries no historical split');
   });
 });
