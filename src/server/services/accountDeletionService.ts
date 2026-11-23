@@ -129,6 +129,27 @@ export async function deleteAccount(db: Firestore, user: { uid: string; email?: 
     }
     if (Object.keys(update).length) await d.ref.update(update);
   }
+  // #944: support messages they wrote and error reports from their sessions keep the uid (so the thread and the
+  // report still make sense) but not their email; the user agent, which can identify a device, goes too
+  // (messages name their author as `authorUid`; older rows may also carry `authorEmail`, and the oldest `uid`/`email`)
+  const messages = new Map<string, { ref: { update: (v: Record<string, unknown>) => Promise<unknown> }; data: Record<string, unknown> }>();
+  for (const field of ['authorUid', 'uid']) {
+    for (const d of (await db.collection('supportMessages').where(field, '==', user.uid).get()).docs) messages.set(d.id, { ref: d.ref, data: d.data() || {} });
+  }
+  for (const { ref, data } of messages.values()) {
+    const update: Record<string, string> = {};
+    for (const field of ['authorEmail', 'email']) {
+      if (typeof data[field] === 'string' && data[field] && data[field] !== erasedEmail) update[field] = erasedEmail;
+    }
+    if (Object.keys(update).length) await ref.update(update);
+  }
+  for (const d of (await db.collection('errorLogs').where('userId', '==', user.uid).get()).docs) {
+    const data = d.data() || {};
+    const update: Record<string, unknown> = {};
+    if (typeof data.userEmail === 'string' && data.userEmail && data.userEmail !== erasedEmail) update.userEmail = erasedEmail;
+    if (data.userAgent !== undefined) update.userAgent = null;
+    if (Object.keys(update).length) await d.ref.update(update);
+  }
   await deleteSignIn(user.uid);
   return { scheduledForDeletion: plan.scheduleDeletion.map(w => w.id), left: plan.leave.map(w => w.id) };
 }
