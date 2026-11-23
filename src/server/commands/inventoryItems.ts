@@ -118,13 +118,14 @@ function stockedCostRefusal(existing: ItemRow | undefined, nextCost: unknown): H
 
 /** M-21 step 2: with standard-cost posting on, the standard is what existing stock is carried at in the
  * books, so changing it while stock is on hand would revalue the stock silently. Refuse it, like a unit-cost
- * change, and point at the revaluation path. */
+ * change. The standard is changed only when the stock is gone (sold down or counted to zero), since a
+ * revaluation changes the actual cost, not the standard. */
 function stockedStandardRefusal(ctx: CommandContext, existing: ItemRow | undefined, nextStandard: unknown): HttpError | null {
   if (nextStandard === undefined || Number(existing?.quantityAtHand || 0) === 0) return null;
   if (!(ctx.workspace as { standardCosting?: { enabled?: boolean } })?.standardCosting?.enabled) return null;
   if (Number(nextStandard) === Number(existing?.standardCostCents ?? Number.NaN)) return null;
   return Object.assign(new HttpError(
-    'Standard-cost posting is on and this item has stock, so its standard changes through a revaluation (inventory.revalue), which posts the difference.', 409,
+    'Standard-cost posting is on and this item has stock, so its standard cannot be changed here. Sell the stock down or count it to zero first, then set the standard.', 409,
   ), { code: 'CONFLICT' });
 }
 

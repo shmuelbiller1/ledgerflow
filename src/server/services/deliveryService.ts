@@ -173,6 +173,9 @@ export async function deliverOrderInTransaction(db: Firestore, t: DbTransaction,
         metadata: {
           type: DELIVERY_COGS_TYPE, orderId: order.id, orderLine: l.position, deliveryId: input.deliveryId,
           customerId: order.customerId || null, inventoryItemId: line.itemId, quantity: l.quantity,
+          // M-21 step 2: when the delivery relieved stock at the standard, mark the entry so the cost
+          // replay leaves it alone (it carries COGS at the standard, not the moving average)
+          ...(standard !== null ? { standard: true } : {}),
           ...(input.locationId ? { locationId: input.locationId } : {}), ...(input.note ? { note: input.note } : {}),
         },
         lines: [

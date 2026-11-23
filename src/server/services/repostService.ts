@@ -162,15 +162,35 @@ export function replay(moves: Move[], entries: Map<string, Entry>, fromDate: str
     const meta = (entry?.metadata || {}) as Record<string, unknown>;
     if (entry && m.kind === 'sale') {
       saleUnit.set(`${text(meta.invoiceId)}|${text(meta.cogsForLineId)}`, cost);
+      // M-21 step 2: a sale posted at the standard carries its COGS at quantity × standard, not the moving
+      // average; a backdated receipt must not reprice it. Leave standard-posted sales alone (no correction),
+      // and value their returns at the standard too (set below from the move's own standard value).
+      if (meta.standard === true) {
+        if (day >= fromDate && !refuse) refuse = `a sale on ${day} was posted at the standard cost: the cost replay does not reprice standard-posted entries, so it cannot correct them. Revalue the stock or undo the backdated change instead.`;
+        qty = after;
+        continue;
+      }
       if (day >= fromDate) {
         if (after < 0) notCorrected.push({ transactionId: entry.id, date: day, reason: 'sold below zero: count the stock' });
         else valued.push({ entry, move: m, of: 'sale', date: day, cents: Math.round(-q * cost) });
       }
     } else if (entry && m.kind === 'return' && day >= fromDate) {
       const unit = meta.type === SALES_RETURN_TYPE ? saleUnit.get(`${text(meta.invoiceId)}|${text(meta.returnForLineId)}`) : undefined;
+      if (meta.standard === true) {
+        // M-21 step 2: a return of a standard-posted sale comes back at the standard, not the average
+        if (!refuse) refuse = `a return on ${day} was posted at the standard cost: the cost replay does not reprice standard-posted entries, so it cannot correct them. Revalue the stock or undo the backdated change instead.`;
+        qty = after;
+        continue;
+      }
       if (unit === undefined) notCorrected.push({ transactionId: entry.id, date: day, reason: 'a return whose sale is not in the replay' });
       else valued.push({ entry, move: m, of: 'return', date: day, cents: Math.round(q * unit) });
     } else if (ADJUST_KINDS.includes(m.kind) && q !== 0 && day >= fromDate) {
+      if (meta.standard === true) {
+        // M-21 step 2: an adjustment posted at the standard is left alone, like a standard-posted sale
+        if (!refuse) refuse = `its ${m.kind} on ${day} was posted at the standard cost: the cost replay does not reprice standard-posted entries, so it cannot correct them. Revalue the stock or undo the backdated change instead.`;
+        qty = after;
+        continue;
+      }
       if (!entry) { if (!refuse) refuse = `its ${m.kind} on ${day} has no entry in the books to correct`; }
       else valued.push({ entry, move: m, of: 'adjustment', date: day, cents: Math.round(Math.abs(q) * cost) });
     }

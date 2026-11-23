@@ -49,3 +49,22 @@ test('M-21 step 2: a receipt without an actual value replays its average at the 
   const result = replay(moves as never, new Map(), '2026-01-01');
   assert.equal(result.cost, 5000, 'the average is the value the stock came in at');
 });
+
+test('M-21 step 2: a sale posted at the standard is not repriced by the replay', () => {
+  // a backdated receipt under standard costing must not move a sale that was already posted at the standard:
+  // the sale carries COGS at quantity × standard, not the moving average, so the replay refuses it
+  const saleEntry = {
+    id: 'sale_std', workspaceId: 'ws', uid: 'o', date: '2026-11-10', totalAmountCents: 20000, currency: 'USD',
+    status: 'completed', type: 'actual', createdAt: '2026-11-10',
+    metadata: { type: 'invoice-cogs-auto', invoiceId: 'inv1', cogsForLineId: 'l1', standard: true },
+  } as unknown as Transaction;
+  const entries = new Map<string, Transaction & { id: string }>([['sale_std', saleEntry as Transaction & { id: string }]]);
+  const moves = [
+    move('purchase', 10, 40000, 50000),
+    move('sale', -4, -16000, undefined, 'sale_std'), // posted at the standard: 4 × 4,000
+  ];
+  const result = replay(moves as never, entries, '2026-01-01');
+  assert.equal(result.cost, 5000, 'the average still keeps the actual basis for reporting');
+  assert.equal(result.valued.find(v => v.of === 'sale'), undefined, 'the standard-posted sale is not corrected');
+  assert.match(result.refuse || '', /standard cost/, 'the replay refuses to reprice the standard-posted sale');
+});

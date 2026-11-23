@@ -17,3 +17,12 @@ export interface StandardCostingSettings {
 export function validStandardCost(value: unknown): number | null {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null;
 }
+
+/**
+ * M-21 step 2: whether a workspace row posts its stock at the item's standard cost. The stock-write paths
+ * (adjust, count, revalue, landed cost) that were not converted to the standard basis refuse standard items
+ * while this is on, until they post the standard value and the variance.
+ */
+export function isStandardizing(workspace: Record<string, unknown> | undefined | null): boolean {
+  return Boolean((workspace as { standardCosting?: { enabled?: boolean } } | undefined)?.standardCosting?.enabled);
+}

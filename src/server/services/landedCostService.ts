@@ -35,6 +35,7 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { formatTzDate } from '../../lib/calendarDate';
 import { spreadCents, type SpreadBasis } from '../../lib/landedCostPreview';
 import { datedMoves, type StockMove } from '../../lib/stockMoves';
+import { isStandardizing } from '../../lib/standardCostSettings';
 import { calculateDocumentTax } from '../../lib/documentMath';
 import { allocateCents } from '../../lib/Allocation';
 import type { ChartAccount } from '../../types';
@@ -245,6 +246,13 @@ export async function landInTransaction(db: Firestore, t: DbTransaction, input: 
   const ws = (await t.get(db.collection('workspaces').doc(workspaceId))).data() || {};
   const currency = String(ws.currency || 'USD');
   const today = formatTzDate(new Date(), text(ws.timezone) || 'UTC');
+  // M-21 step 2: a landed cost raises Inventory and the item's actual cost with no variance line. Under
+  // standard-cost posting the books carry the stock at the standard, so a landed cost would put Inventory out
+  // of step with the standard-valued stock. It was not converted to the standard basis, so it is refused while
+  // the setting is on.
+  if (isStandardizing(ws as Record<string, unknown>)) {
+    throw new LandedCostError(409, 'This workspace posts at the standard cost. Landed cost posts Inventory at the actual cost with no variance line, which is not supported while standard-cost posting is on: turn it off, or land the cost before enabling it.');
+  }
   const { id: entryId, live } = await allocationEntryId(db, t, landedCostBaseId(workspaceId, input.charge));
   if (live) {
     const m = (live.metadata || {}) as Doc;
