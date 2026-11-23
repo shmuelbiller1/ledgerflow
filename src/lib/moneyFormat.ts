@@ -169,26 +169,34 @@ export function isAmountText(val: string, opts: { complete?: boolean; locale?: s
   return /^[-+]?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?\s*[-+]?\s*(?:\d+(?:[, ']\d{0,3})*)?(?:\.\d*)?\s*(?:[A-Za-z]{1,3}\s*)?\p{Sc}?$/u.test(inner); // NOSONAR: S8786 — bounded input money parser; trailing quantifiers all optional
 }
 
-export function parseAmountToCents(val: string | number | undefined | null, opts: { locale?: string } = {}): number {
+/**
+ * MU-01: the scaling is the minor-unit exponent of `opts.currency` (BM-04: whole yen, three-decimal
+ * dinars), not a fixed 100 — a typed "1000000" in a JPY workspace is ¥1,000,000 = 1,000,000 minor units,
+ * and "1000.125" in a KWD workspace is 1,000,125 fils. Without a currency the books' two-decimal
+ * convention stays (cents).
+ */
+export function parseAmountToCents(val: string | number | undefined | null, opts: { locale?: string; currency?: string } = {}): number {
   if (val === undefined || val === null || val === '') return 0;
+  const divisor = 10 ** currencyDigits(opts.currency);
   if (typeof val === 'number') {
     if (!Number.isFinite(val)) return 0;
-    return new Decimal(val).mul(100).round().toNumber();
+    return new Decimal(val).mul(divisor).round().toNumber();
   }
   const text = decimalCommaAsPoint(plainAmountText(val), { locale: opts.locale });
   if (!/\d/.test(text)) return 0;
   if (/\d[\s\p{L}\p{Sc}]*[+*/×÷=][\s\p{L}\p{Sc}(]*\d/u.test(text)) throw new Error(`"${text}" is not an amount`);
   const cleanStr = text.replace(/[^0-9.-]/g, '');
   if (!isPlainDecimal(cleanStr)) throw new Error(`"${text}" is not an amount`);
-  const cents = new Decimal(cleanStr).mul(100).round().toNumber();
-  return text.startsWith('(') ? -Math.abs(cents) : cents;
+  const minorUnits = new Decimal(cleanStr).mul(divisor).round().toNumber();
+  return text.startsWith('(') ? -Math.abs(minorUnits) : minorUnits;
 }
 
 /**
- * Typed amount text as cents, or null when it is blank or not a finished amount ('1.2.3', '1,2', '(100').
+ * Typed amount text as minor units, or null when it is blank or not a finished amount ('1.2.3', '1,2', '(100').
  * For screens that read an amount while drawing or before saving: never throws, never turns a typo into 0.
+ * `opts.currency` scales by the currency's minor-unit exponent (MU-01); without it, cents.
  */
-export function readAmountCents(val: string | null | undefined, opts: { locale?: string } = {}): number | null {
+export function readAmountCents(val: string | null | undefined, opts: { locale?: string; currency?: string } = {}): number | null {
   if (val == null || !String(val).trim() || !isAmountText(String(val), { complete: true, locale: opts.locale })) return null;
   const letters = plainAmountText(String(val)).replace(/[A-Za-z]{1,3}(?=\s*\p{Sc})/gu, '').match(/[A-Za-z]+/g) || [];
   if (letters.some(w => w.length !== 3)) return null;

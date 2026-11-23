@@ -106,23 +106,46 @@ export function assistantToolsFor(commands: readonly AnyCommandDefinition[], que
 }
 
 const wordsIn = (text: string): string[] => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
-// Ignore common connectors, not domain words. Require every remaining search term to match.
-const filler = new Set(['a', 'an', 'the', 'to', 'for', 'of', 'with', 'and', 'in', 'how', 'i', 'can']);
+// Ignore common connectors, not domain words.
+const filler = new Set(['a', 'an', 'the', 'to', 'for', 'of', 'with', 'and', 'or', 'in', 'on', 'how', 'i', 'can', 'all', 'my', 'from', 'into', 'new', 'set', 'up', 'please', 'existing']);
+/** Words people and models use for the same change as a command's own name. */
+const synonyms: Record<string, string[]> = {
+  move: ['recategorize', 'change'], reclassify: ['recategorize', 'change'], reassign: ['change'], assign: ['change'],
+  project: ['dimension', 'label'], projects: ['dimension', 'label'], tag: ['label'], transactions: ['entries'],
+  monthly: ['recurring'], repeat: ['recurring'], repeating: ['recurring'], schedule: ['recurring'],
+  cancel: ['void'], remove: ['delete'],
+};
 
-export function findAssistantCommands(commands: readonly AnyCommandDefinition[], words: string, limit = 5) {
+/**
+ * Commands whose name and description match every search word, best first. Models write long searches
+ * ("assign or move office costs to project; reclassify"), so when nothing matches every word of a search
+ * of three words or more, commands matching at least half of them (or three) are ranked instead;
+ * `strict` turns that fallback off (the model rule reads a command's risk from the closest exact match).
+ */
+export function findAssistantCommands(commands: readonly AnyCommandDefinition[], words: string, limit = 5, options: { strict?: boolean } = {}) {
   const terms = [...new Set(wordsIn(words).filter(word => !filler.has(word)))];
   if (!terms.length) return [];
-  return commands.map(command => {
+  const scored = commands.map(command => {
     const name = wordsIn(command.name);
     const description = wordsIn(command.describe.sentence);
-    const score = terms.map(term => {
-      const stem = term.length > 4 ? term.replace(/s$/, '') : term;
-      if (name.includes(term)) return 8;
+    const score = terms.map(term => Math.max(...[term, ...(synonyms[term] ?? [])].map(t => {
+      const stem = t.length > 4 ? t.replace(/s$/, '') : t;
+      if (name.includes(t)) return 8;
       if (name.some(word => word.startsWith(stem))) return 4;
       if (description.some(word => word.startsWith(stem))) return 1;
       return 0;
-    });
-    return { command, score: score.includes(0) ? 0 : score.reduce<number>((sum, n) => sum + n, 0) };
-  }).filter(hit => hit.score > 0).sort((a, b) => b.score - a.score || byCodeUnit(a.command.name, b.command.name))
+    })));
+    const matched = score.filter(n => n > 0).length;
+    return { command, matched, score, total: 0 };
+  });
+  // a rare word says more than a common one: "recurring" is in few commands, "invoice" and "customer" in many,
+  // so each term's points are weighted by how few commands it matches (ties between equal matches are broken by this)
+  const weight = terms.map((_, i) => Math.log(commands.length + 1) - Math.log(scored.filter(hit => hit.score[i] > 0).length + 1));
+  for (const hit of scored) hit.total = hit.score.reduce((sum, n, i) => sum + n * weight[i], 0);
+  const rank = (hits: typeof scored) => hits.sort((a, b) => b.matched - a.matched || b.total - a.total || byCodeUnit(a.command.name, b.command.name));
+  const exact = scored.filter(hit => hit.matched === terms.length);
+  const loose = !exact.length && !options.strict && terms.length >= 3
+    ? scored.filter(hit => hit.matched >= Math.min(3, Math.ceil(terms.length / 2))) : [];
+  return rank(exact.length ? exact : loose)
     .slice(0, limit).map(({ command }) => ({ command: command.name, tool: declaration(command) }));
 }

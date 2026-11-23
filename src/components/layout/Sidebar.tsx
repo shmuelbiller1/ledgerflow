@@ -63,6 +63,7 @@ const Sidebar = React.memo(({
   const uiStore = useUIStore();
   const { isInstallable, promptInstall } = usePWAInstall();
   const user = useAuthStore(s => s.user);
+  const isGuest = useAuthStore(s => s.isGuest);
   useAuthStore(s => s.userProfile);
   const isAdmin = useAuthStore(s => s.isAdmin);
   const realProjects = useLedgerStore(s => s.projects);
@@ -78,7 +79,8 @@ const Sidebar = React.memo(({
   // sorts: which buttons exist is still decided here, by the same permission and module checks.
   const dailyOrder = useButtonOrder('sidebar.daily', DAILY_TOOL_IDS);
   const recommendedOrder = useButtonOrder('sidebar.recommended', ADVANCED_TOOL_IDS);
-  const dailyTabs = dailyOrder.orderedIds.flatMap(id => { const tab = APP_TABS.find(t => t.id === id); return tab && isTabVisible(tab, visibility) ? [tab] : []; });
+  // The sandbox assistant requires a signed-in person; the sample company can still find its sign-in explanation through All tools.
+  const dailyTabs = dailyOrder.orderedIds.flatMap(id => { const tab = APP_TABS.find(t => t.id === id); return tab && !(id === 'copilot' && (isGuest || !user || user.isAnonymous)) && isTabVisible(tab, visibility) ? [tab] : []; });
   const recommendations = uiStore.isProMode ? recommendedOrder.orderedIds.flatMap(id => { const tab = APP_TABS.find(t => t.id === id); return tab && isTabVisible(tab, visibility) ? [tab] : []; }) : [];
   const dailyLabel = (id: string) => DAILY_TOOL_LABELS[id]?.[uiStore.language] || DAILY_TOOL_LABELS[id]?.en || id;
   const toolLabel = (id: string) => { const tab = APP_TABS.find(t => t.id === id); return tab?.label[uiStore.language] || tab?.label.en || id; };

@@ -279,17 +279,58 @@ export function computeCashFlow(accounts: ChartAccount[], transactions: Transact
       return;
     }
 
-    lines.forEach((line: TransactionLine) => {
-      const acc = byId.get(line.accountId);
-      if (!acc || isCashFlowCashAccount(acc)) return;
-      const delta = -lineAmount(line, tx); // a credit elsewhere is money in
-      if (delta === 0) return;
-      const section = cashFlow[cashFlowSection(acc)];
-      section.total += delta;
-      if (delta > 0) section.inflow += delta;
-      else section.outflow += -delta;
-      if (section !== cashFlow.operating) section.items.push({ name: tx.description, amount: delta });
-    });
+    // RP-04: only the cash legs of an entry are cash flows. A partly financed acquisition pays
+    // $2,000 cash and owes $8,000 on a loan: the statement shows the $2,000 investing outflow and
+    // leaves the $8,000 noncash financing out of the cash sections (it is a separate disclosure).
+    // The noncash legs classify the entry: when every noncash leg agrees on a section the cash
+    // movement goes there; when they disagree each section carries its own signed share (below).
+    const cashLines = lines.filter(isCash);
+    const cashDelta = cashLines.reduce((sum, line) => sum + lineAmount(line, tx), 0);
+    if (cashDelta === 0) return;
+    const nonCashLines = lines.filter(l => !isCash(l));
+    const sectionLines = nonCashLines.map(l => byId.get(l.accountId)).filter((a): a is ChartAccount => Boolean(a));
+    const sections = new Set(sectionLines.map(a => cashFlowSection(a)));
+    type SectionKey = 'operating' | 'investing' | 'financing';
+    const assign = (sectionKey: SectionKey, amount: number) => {
+      if (amount === 0) return;
+      const section = cashFlow[sectionKey];
+      section.total += amount;
+      if (amount > 0) section.inflow += amount;
+      else section.outflow += -amount;
+      if (section !== cashFlow.operating) section.items.push({ name: tx.description, amount });
+    };
+    if (sections.size === 0) return;
+    if (sections.size === 1) {
+      assign([...sections][0] as SectionKey, cashDelta);
+      return;
+    }
+    // counterparts in several sections: each section's cash flow is the signed opposite of its own
+    // noncash legs, so a loan received net of a fee is +100 financing and -10 operating (not a
+    // proportional split of the net 90 that turns the fee into an inflow), and equipment bought with a
+    // bank fee is -100 investing and -10 operating. A financing leg running against the cash (a loan
+    // that funded part of an acquisition) is noncash financing: it is netted into the investing outflow
+    // it paid for, so only the cash actually paid shows (RP-04), and no financing inflow is invented.
+    const flows = new Map<SectionKey, number>();
+    for (const l of nonCashLines) {
+      const a = byId.get(l.accountId);
+      if (!a) continue;
+      const sec = cashFlowSection(a) as SectionKey;
+      flows.set(sec, (flows.get(sec) || 0) - lineAmount(l, tx));
+    }
+    const financing = flows.get('financing') || 0;
+    if (flows.has('investing') && financing !== 0 && Math.sign(financing) !== Math.sign(cashDelta)) {
+      flows.set('investing', (flows.get('investing') || 0) + financing);
+      flows.delete('financing');
+    }
+    // the parts add up to the change in cash exactly; whatever difference (lines on unknown accounts, an
+    // unbalanced entry) stays with the largest part
+    const parts = [...flows.entries()];
+    const drift = cashDelta - parts.reduce((sum, [, v]) => sum + v, 0);
+    if (drift !== 0 && parts.length > 0) {
+      const largest = parts.reduce((best, p, i) => (Math.abs(p[1]) > Math.abs(parts[best][1]) ? i : best), 0);
+      parts[largest] = [parts[largest][0], parts[largest][1] + drift];
+    }
+    for (const [sec, amount] of parts) assign(sec, amount);
   });
 
   cashFlow.netChange = cashFlow.operating.total + cashFlow.investing.total + cashFlow.financing.total;

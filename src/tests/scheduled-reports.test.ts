@@ -39,16 +39,28 @@ describe('Periods and schedules', () => {
     const period = lastFinishedPeriod('monthly', '2026-10-01');
     const table = profitAndLossTable({
       income: { total: 150000, accounts: { s: { name: 'Sales <web>', code: '4000', balance: 150000 }, z: { name: 'Idle', balance: 0 } } },
+      cogs: { total: 30000, accounts: { c: { name: 'Cost of goods', code: '5000', balance: 30000 } } },
       expense: { total: 40000, accounts: { r: { name: 'Rent', code: '6000', balance: 40000 } } },
+      grossProfit: 120000,
       netIncome: 110000,
     }, period);
     assert.equal(table.title, 'Profit and loss, 2026-09');
-    assert.deepEqual(table.rows.map(r => r.cells), [['Income', ''], ['4000 Sales <web>', 150000], ['Total income', 150000], ['Expenses', ''], ['6000 Rent', 40000], ['Total expenses', 40000], ['Net profit', 110000]], 'an account at zero is left out');
+    // RP-03: the table carries cost of goods sold and gross profit, so income - COGS - expenses
+    // reconciles to the net profit it shows
+    assert.deepEqual(table.rows.map(r => r.cells), [
+      ['Income', ''], ['4000 Sales <web>', 150000], ['Total income', 150000],
+      ['Cost of goods sold', ''], ['5000 Cost of goods', 30000], ['Total cost of goods sold', 30000],
+      ['Gross profit', 120000],
+      ['Operating expenses', ''], ['6000 Rent', 40000], ['Total operating expenses', 40000],
+      ['Net profit', 110000],
+    ], 'an account at zero is left out');
     const html = reportEmailHtml(table, { workspaceName: 'Acme & Co', currency: 'USD', format: c => `$${(c / 100).toFixed(2)}` });
     assert.match(html, /Sales &lt;web&gt;/);
     assert.match(html, /Acme &amp; Co · amounts in USD/);
     assert.match(html, /\$1100\.00/);
-    assert.equal(reportCsv(table).split('\r\n')[7], '"Net profit","1100.00"');
+    const csvLines = reportCsv(table).split('\r\n');
+    assert.equal(csvLines[7], '"Gross profit","1200.00"');
+    assert.equal(csvLines[11], '"Net profit","1100.00"');
     const aging = agingTable([{ partyName: 'Acme', buckets: { current: 500, d1_30: 250 }, total: 750 }, { partyName: 'Beta', buckets: { d90plus: 100 }, total: 100 }], [{ key: 'current', label: 'Current' }, { key: 'd1_30', label: '1–30 days' }, { key: 'd90plus', label: 'Over 90 days' }], period);
     assert.deepEqual(aging.rows.at(-1)?.cells, ['Total', 500, 250, 100, 850]);
   });

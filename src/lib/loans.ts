@@ -117,9 +117,13 @@ export function loanProblem(draft: LoanDraft, accounts: ChartAccount[]): string 
   return null;
 }
 
-/** A reference for a new loan, unique enough to find its entries again. */
+/**
+ * A reference for a new loan, unique enough to find its entries again (LN-01): the `loan-` prefix the
+ * ids carry is stripped first, and the whole id is used — the old 8-character slice let the prefix
+ * consume half the budget and left only 4 hex digits (65,536 values, colliding around 300 loans).
+ */
 export function newLoanReference(id: string): string {
-  return `LOAN-${id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`;
+  return `LOAN-${id.replace(/^loan-/i, '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}`;
 }
 
 /** "6.5% a year", "0% a year" — how the rate reads, for screens and sentences. */
@@ -142,7 +146,7 @@ function line(account: ChartAccount, amountCents: number, description?: string):
 
 /** The entry that records the money arriving: the bank is debited, the liability credited. */
 export function createLoanDisbursementEntry(input: {
-  loan: Pick<Loan, 'lender' | 'principalCents' | 'reference' | 'currency' | 'workspaceId' | 'uid' | 'startDate'>;
+  loan: Pick<Loan, 'lender' | 'principalCents' | 'reference' | 'currency' | 'workspaceId' | 'uid' | 'startDate' | 'id'>;
   bank: ChartAccount;
   liability: ChartAccount;
 }): Partial<Transaction> {
@@ -159,6 +163,8 @@ export function createLoanDisbursementEntry(input: {
     exchangeRate: 1,
     type: 'actual',
     status: 'completed',
+    // LN-01: the loan's immutable id is what matches the entry to the loan, not the reference
+    metadata: { ...(input.loan.id ? { loanId: input.loan.id } : {}) },
     lines: [
       line(input.bank, amount),
       // the description goes on the liability line, never on the bank line (the categoriser learns
@@ -170,7 +176,7 @@ export function createLoanDisbursementEntry(input: {
 
 /** One balanced entry for one installment: principal, interest and the money leaving the bank. */
 export function createLoanPaymentEntry(input: {
-  loan: Pick<Loan, 'lender' | 'reference' | 'currency' | 'workspaceId' | 'uid' | 'termMonths' | 'liabilityAccountId'>;
+  loan: Pick<Loan, 'lender' | 'reference' | 'currency' | 'workspaceId' | 'uid' | 'termMonths' | 'liabilityAccountId' | 'id'>;
   installment: LoanInstallment;
   date: string;
   bank: ChartAccount;
@@ -196,8 +202,9 @@ export function createLoanPaymentEntry(input: {
     type: 'actual',
     status: 'completed',
     lines,
-    // which installment this entry pays, so a payment posted but not yet noted on the loan still counts
-    metadata: { [LOAN_INSTALLMENT_KEY]: installment.number },
+    // which installment this entry pays, so a payment posted but not yet noted on the loan still counts.
+    // LN-01: the loan's immutable id goes with it, so the entry matches its loan even when references collide
+    metadata: { [LOAN_INSTALLMENT_KEY]: installment.number, ...(input.loan.id ? { loanId: input.loan.id } : {}) },
   };
 }
 
@@ -208,16 +215,29 @@ export const LOAN_INSTALLMENT_KEY = 'loanInstallment';
  * Posting the entry and noting it on the loan are two saves; when the second fails, the ledger
  * still shows the payment, so the screen never offers (and posts) that installment again.
  */
-export function recordedInstallments(loan: Pick<Loan, 'reference' | 'payments'>, transactions: Transaction[]): Array<{ installment: number }> {
+export function recordedInstallments(loan: Pick<Loan, 'id' | 'reference' | 'payments'>, transactions: Transaction[]): Array<{ installment: number }> {
   const recorded = (loan.payments || []).map(p => ({ installment: p.installment }));
   const seen = new Set(recorded.map(p => p.installment));
   for (const tx of transactions || []) {
     const n = tx.metadata?.[LOAN_INSTALLMENT_KEY];
-    if (tx.reference !== loan.reference || !isPostable(tx) || typeof n !== 'number' || seen.has(n)) continue;
+    if (!isPostable(tx) || typeof n !== 'number' || seen.has(n)) continue;
+    if (!entryBelongsToLoan(loan, tx)) continue;
     seen.add(n);
     recorded.push({ installment: n });
   }
   return recorded;
+}
+
+/**
+ * LN-01: does this ledger entry belong to this loan? Entries carry the loan's immutable id in
+ * `metadata.loanId`; the reference only matches entries that carry no loanId (entries made before
+ * this fix, or by hand), so a colliding reference cannot pull in another loan's entries.
+ */
+export function entryBelongsToLoan(loan: Pick<Loan, 'id' | 'reference'>, tx: { metadata?: Record<string, unknown>; reference?: string }): boolean {
+  if (!isPostable(tx as never)) return false;
+  const metaLoanId = typeof tx.metadata?.loanId === 'string' ? tx.metadata.loanId : undefined;
+  if (metaLoanId !== undefined) return metaLoanId === loan.id;
+  return tx.reference === loan.reference;
 }
 
 /**
@@ -226,10 +246,10 @@ export function recordedInstallments(loan: Pick<Loan, 'reference' | 'payments'>,
  * Entries made by hand without the loan's reference are visible in the account, not here — which
  * is exactly why the screen shows both numbers side by side.
  */
-export function loanLedgerCents(loan: Pick<Loan, 'reference' | 'liabilityAccountId'>, transactions: Transaction[]): number {
+export function loanLedgerCents(loan: Pick<Loan, 'id' | 'reference' | 'liabilityAccountId'>, transactions: Transaction[]): number {
   let sum = 0;
   for (const tx of transactions || []) {
-    if (!isPostable(tx) || tx.reference !== loan.reference) continue;
+    if (!entryBelongsToLoan(loan, tx)) continue;
     for (const transactionLine of tx.lines || []) {
       if (transactionLine.accountId === loan.liabilityAccountId) sum += lineAmount(transactionLine, tx);
     }

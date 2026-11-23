@@ -42,7 +42,7 @@ describe('The rules', () => {
   test('only lines whose goods left stock; sold, already back and what can still come back', () => {
     const ledger = [...cogsOf(invoice()), back('r1', 2), back('r2', 1), { ...back('r2x', 1), metadata: { isReversal: true, reversesTxId: 'r2' } } as unknown as Transaction];
     assert.deepEqual(returnableLines(invoice(), ledger), [{
-      invoiceLineId: 'l1', itemId: 'chair', description: 'Chair', sold: 5, returned: 2, returnable: 3, unitCostCents: 400, unitPriceCents: 9000,
+      invoiceLineId: 'l1', itemId: 'chair', description: 'Chair', sold: 5, returned: 2, returnable: 3, unitCostCents: 400, saleTotalCents: 2000, returnedCents: 800, unitPriceCents: 9000,
     }]);
     assert.equal(returnableLines(invoice(), ledger, 'cn-r1')[0].returnable, 5, 'a credit note being edited doesn\'t count its own returns');
     assert.deepEqual(returnableLines(invoice(), []), [], 'nothing left stock: nothing to return');

@@ -18,7 +18,7 @@
 import { computeGeneralLedger, computeTrialBalance } from '../server/reports/computeReports';
 import { computePartyAging } from './aging';
 import type { PartyAgingRow } from './aging';
-import { csvMoney, toCsv } from './csvExport';
+import { csvMoneyForBook, toCsv } from './csvExport';
 import type { CsvValue } from './csvExport';
 import { buildTaxReturn } from './taxReturnDocs';
 import type { TaxableDocument } from './taxReturnDocs';
@@ -139,6 +139,7 @@ function moneyHeader(currency: string): string {
 }
 
 function trialBalanceSection(input: AccountantPackInput): { section: AccountantPackSection; totalDebit: number; totalCredit: number; isBalanced: boolean } {
+  const money = csvMoneyForBook(input.currency);
   const currency = moneyHeader(input.currency);
   const balance = computeTrialBalance(input.accounts, input.transactions, input.endDate);
   const keep = (row: { debit: number; credit: number; netSigned: number }) =>
@@ -158,8 +159,8 @@ function trialBalanceSection(input: AccountantPackInput): { section: AccountantP
       fileName: 'trial-balance.csv',
       headers: ['Account code', 'Account name', 'Type', `Debit (${currency})`, `Credit (${currency})`, `Balance in account direction (${currency})`],
       rows: [
-        ...rows.map(row => [row.code || '', row.name, row.type, csvMoney(row.debit), csvMoney(row.credit), csvMoney(row.netSigned)]),
-        ['', 'Total', '', csvMoney(totalDebit), csvMoney(totalCredit), ''],
+        ...rows.map(row => [row.code || '', row.name, row.type, money(row.debit), money(row.credit), money(row.netSigned)]),
+        ['', 'Total', '', money(totalDebit), money(totalCredit), ''],
       ],
       notes: [
         `As of ${input.endDate}; posted entries only (draft, void and parked entries are left out).`,
@@ -171,6 +172,7 @@ function trialBalanceSection(input: AccountantPackInput): { section: AccountantP
 }
 
 function generalLedgerSection(input: AccountantPackInput): { section: AccountantPackSection; rows: number } {
+  const money = csvMoneyForBook(input.currency);
   const currency = moneyHeader(input.currency);
   const ledger = computeGeneralLedger(input.accounts, input.transactions, input.startDate, input.endDate);
   const rows: CsvValue[][] = [];
@@ -179,17 +181,17 @@ function generalLedgerSection(input: AccountantPackInput): { section: Accountant
     const name = account.accountName;
     const moved = account.openingBalanceCents !== 0 || account.entries.length > 0 || account.periodDebitsCents !== 0 || account.periodCreditsCents !== 0;
     if (!moved) continue;
-    rows.push([code, name, '', 'Opening balance', '', '', '', '', '', csvMoney(account.openingBalanceCents)]);
+    rows.push([code, name, '', 'Opening balance', '', '', '', '', '', money(account.openingBalanceCents)]);
     for (const entry of account.entries) {
       rows.push([
         code, name, entry.date, 'Entry', entry.transactionId || '', entry.description || '', entry.reference || '',
-        entry.debitCents ? csvMoney(entry.debitCents) : '', entry.creditCents ? csvMoney(entry.creditCents) : '',
-        csvMoney(entry.runningBalanceCents),
+        entry.debitCents ? money(entry.debitCents) : '', entry.creditCents ? money(entry.creditCents) : '',
+        money(entry.runningBalanceCents),
       ]);
     }
     rows.push([
       code, name, '', `Account total ${input.startDate} to ${input.endDate}`, '', '', '', '', '',
-      csvMoney(account.endingBalanceCents),
+      money(account.endingBalanceCents),
     ]);
     if (rows.length > ACCOUNTANT_PACK_MAX_LEDGER_ROWS) {
       throw new Error(`This period has more than ${ACCOUNTANT_PACK_MAX_LEDGER_ROWS.toLocaleString('en-US')} ledger lines. Narrow the period and prepare the pack again.`);
@@ -212,11 +214,11 @@ function generalLedgerSection(input: AccountantPackInput): { section: Accountant
   };
 }
 
-function agingRows(rows: PartyAgingRow[]): CsvValue[][] {
+function agingRows(rows: PartyAgingRow[], money: (cents: number) => string): CsvValue[][] {
   return rows.map(row => [
     row.partyName,
-    csvMoney(row.buckets.current), csvMoney(row.buckets.d1_30), csvMoney(row.buckets.d31_60),
-    csvMoney(row.buckets.d61_90), csvMoney(row.buckets.d90plus), csvMoney(row.total),
+    money(row.buckets.current), money(row.buckets.d1_30), money(row.buckets.d31_60),
+    money(row.buckets.d61_90), money(row.buckets.d90plus), money(row.total),
   ]);
 }
 
@@ -225,6 +227,7 @@ function agingSection(
   input: AccountantPackInput,
 ): { section: AccountantPackSection; total: number } {
   const currency = moneyHeader(input.currency);
+  const money = csvMoneyForBook(input.currency);
   const side = key === 'receivables' ? 'customer' : 'vendor';
   const parties = side === 'customer' ? input.customers : input.vendors;
   const documents = side === 'customer' ? input.invoices : input.bills;
@@ -251,14 +254,14 @@ function agingSection(
         `Not yet due (${currency})`, `1–30 days (${currency})`, `31–60 days (${currency})`,
         `61–90 days (${currency})`, `Over 90 days (${currency})`, `Total (${currency})`,
       ],
-      rows: [...agingRows(rows), [
+      rows: [...agingRows(rows, money), [
         'Total',
-        csvMoney(rows.reduce((sum, row) => sum + row.buckets.current, 0)),
-        csvMoney(rows.reduce((sum, row) => sum + row.buckets.d1_30, 0)),
-        csvMoney(rows.reduce((sum, row) => sum + row.buckets.d31_60, 0)),
-        csvMoney(rows.reduce((sum, row) => sum + row.buckets.d61_90, 0)),
-        csvMoney(rows.reduce((sum, row) => sum + row.buckets.d90plus, 0)),
-        csvMoney(buckets),
+        money(rows.reduce((sum, row) => sum + row.buckets.current, 0)),
+        money(rows.reduce((sum, row) => sum + row.buckets.d1_30, 0)),
+        money(rows.reduce((sum, row) => sum + row.buckets.d31_60, 0)),
+        money(rows.reduce((sum, row) => sum + row.buckets.d61_90, 0)),
+        money(rows.reduce((sum, row) => sum + row.buckets.d90plus, 0)),
+        money(buckets),
       ]],
       notes: [
         `What is still open on ${input.asOfDate}, in the home currency: this is the current position, not the balance at ${input.endDate}.`,
@@ -270,6 +273,7 @@ function agingSection(
 }
 
 function taxSection(input: AccountantPackInput): { section: AccountantPackSection; total: number } {
+  const money = csvMoneyForBook(input.currency);
   const currency = moneyHeader(input.currency);
   const months = packMonths(input.startDate, input.endDate);
   const rows: CsvValue[][] = [];
@@ -299,14 +303,14 @@ function taxSection(input: AccountantPackInput): { section: AccountantPackSectio
     totals.purchases += values.purchases;
     rows.push([
       month.month, month.from, month.to, String(values.documents),
-      csvMoney(values.output), csvMoney(values.reverse), csvMoney(values.due), csvMoney(values.reclaimable), csvMoney(values.net),
-      csvMoney(values.sales), csvMoney(values.purchases),
+      money(values.output), money(values.reverse), money(values.due), money(values.reclaimable), money(values.net),
+      money(values.sales), money(values.purchases),
     ]);
   }
   rows.push([
     'Total', input.startDate, input.endDate, String(totals.documents),
-    csvMoney(totals.output), csvMoney(totals.reverse), csvMoney(totals.due), csvMoney(totals.reclaimable), csvMoney(totals.net),
-    csvMoney(totals.sales), csvMoney(totals.purchases),
+    money(totals.output), money(totals.reverse), money(totals.due), money(totals.reclaimable), money(totals.net),
+    money(totals.sales), money(totals.purchases),
   ]);
   return {
     total: totals.net,
@@ -380,7 +384,7 @@ export function sectionCsv(section: AccountantPackSection): string {
 
 /** The README that travels with the CSVs: who, when, what is included and what is not. */
 export function packReadme(pack: AccountantPack): string {
-  const money = (cents: number) => csvMoney(cents);
+  const money = (cents: number) => csvMoneyForBook(pack.currency)(cents);
   const lines = [
     `Accountant export pack — ${pack.workspaceName}`,
     '',

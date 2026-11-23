@@ -27,7 +27,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "taxInclusive": COMMAND_SCHEMA_PARTS.part27,
         "taxVersion": COMMAND_SCHEMA_PARTS.part44,
         "taxTreatment": COMMAND_SCHEMA_PARTS.part171,
-        "returnedGoods": COMMAND_SCHEMA_PARTS.part271
+        "returnedGoods": COMMAND_SCHEMA_PARTS.part272
       },
       "required": [
         "vendorId",

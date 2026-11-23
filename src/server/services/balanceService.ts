@@ -147,18 +147,16 @@ export function resetPeriodBalancesReadyForTests(): void {
   warned = false;
 }
 
-/** Numeric dictionaries never discard stored IDs, including names with object-prototype meanings. */
-const createCents = (): Cents => Object.create(null) as Cents;
-const add = (map: Cents, key: string, cents: number) => {
-  const previous = Object.hasOwn(map, key) ? map[key] : 0;
-  // Define an own data property: unlike computed assignment, this cannot invoke __proto__ setters.
-  Object.defineProperty(map, key, { value: previous + cents, enumerable: true, writable: true, configurable: true });
-};
-const cloneCents = (source?: Cents): Cents => Object.assign(createCents(), source || {});
-const ownValue = <T>(source: Record<string, T> | undefined, key: string): T | undefined =>
-  source && Object.hasOwn(source, key) ? source[key] : undefined;
+// Sums are accumulated in Maps (account ids and label values are data, never object keys while
+// summing), then copied into null-prototype records: no key — "__proto__" included — can reach
+// Object.prototype (CodeQL js/prototype-polluting-assignment)
+type CentsMap = Map<string, number>;
+const add = (map: CentsMap, key: string, cents: number) => { map.set(key, (map.get(key) ?? 0) + cents); };
+const toCents = (map: CentsMap): Cents => Object.assign(Object.create(null) as Cents, Object.fromEntries(map));
 const prune = (map: Cents): Cents => Object.fromEntries(Object.entries(map).filter(([, v]) => v !== 0)) as Cents;
 const norm = (kind: string) => kind.normalize('NFC').toLowerCase().trim();
+const ownValue = <T>(source: Record<string, T> | undefined, key: string): T | undefined =>
+  source && Object.hasOwn(source, key) ? source[key] : undefined;
 
 /** The label kinds an entry's lines can carry a value for (what getLineDimension reads), plus "category". */
 export function labelKinds(entries: Transaction[]): Set<string> {
@@ -185,14 +183,13 @@ export function labelKinds(entries: Transaction[]): Set<string> {
 export interface Sums { accounts: Cents; byLabel: LabelCents; count: number; debits: Cents; credits: Cents; lines: Cents; labelLines: Record<string, Cents> }
 
 export function sumEntries(entries: Transaction[], kinds: Iterable<string> = []): Sums {
-  const accounts: Cents = createCents();
-  const debits: Cents = createCents();
-  const credits: Cents = createCents();
-  const lines: Cents = createCents();
-  const byLabel: LabelCents = Object.create(null) as LabelCents;
-  const labelLines: Record<string, Cents> = Object.create(null) as Record<string, Cents>;
+  const accounts: CentsMap = new Map();
+  const debits: CentsMap = new Map();
+  const credits: CentsMap = new Map();
+  const lines: CentsMap = new Map();
   const kindList = [...kinds];
-  kindList.forEach(k => { byLabel[k] = Object.create(null) as Record<string, Cents>; labelLines[k] = createCents(); });
+  const byLabel = new Map<string, Map<string, CentsMap>>(kindList.map(k => [k, new Map()]));
+  const labelLines = new Map<string, CentsMap>(kindList.map(k => [k, new Map()]));
   let count = 0;
   for (const tx of entries) {
     if (!isPostable(tx)) continue;
@@ -206,13 +203,20 @@ export function sumEntries(entries: Transaction[], kinds: Iterable<string> = [])
       if (cents < 0) add(credits, line.accountId, -cents);
       for (const kind of kindList) {
         const value = getLineDimension(line, tx, kind) || UNASSIGNED;
-        if (!byLabel[kind][value]) byLabel[kind][value] = createCents();
-        add(byLabel[kind][value], line.accountId, cents);
-        add(labelLines[kind], value, 1);
+        const values = byLabel.get(kind)!;
+        let perValue = values.get(value);
+        if (!perValue) { perValue = new Map(); values.set(value, perValue); }
+        add(perValue, line.accountId, cents);
+        add(labelLines.get(kind)!, value, 1);
       }
     }
   }
-  return { accounts, byLabel, count, debits, credits, lines, labelLines };
+  const labelOut = Object.create(null) as LabelCents;
+  for (const [kind, values] of byLabel) {
+    labelOut[kind] = Object.assign(Object.create(null) as Record<string, Cents>, Object.fromEntries([...values].map(([v, m]) => [v, toCents(m)])));
+  }
+  const labelLinesOut = Object.assign(Object.create(null) as Record<string, Cents>, Object.fromEntries([...labelLines].map(([k, m]) => [k, toCents(m)])));
+  return { accounts: toCents(accounts), byLabel: labelOut, count, debits: toCents(debits), credits: toCents(credits), lines: toCents(lines), labelLines: labelLinesOut };
 }
 
 function checksumOf(entries: Entry[]): string {
@@ -224,7 +228,7 @@ function checksumOf(entries: Entry[]): string {
 export function snapshotFromEntries(workspaceId: string, asOf: string, accounts: ChartAccount[], entries: Entry[], builtBy: string): PeriodBalances {
   const mine = entries.filter(e => { const d = transactionDate(e); return d !== '' && d <= asOf; });
   const sums = sumEntries(mine, labelKinds(mine.filter(isPostable)));
-  // Object.fromEntries preserves even "__proto__" as an own data property (not a setter).
+  // Object.fromEntries preserves exact label identities, even "__proto__" and "constructor".
   const byLabel = Object.fromEntries(Object.entries(sums.byLabel).map(([kind, values]) => [
     kind, Object.fromEntries(Object.entries(values).map(([v, c]) => [v, prune(c)]).filter(([, c]) => Object.keys(c).length > 0)),
   ])) as LabelCents;
@@ -284,11 +288,13 @@ export async function freshSnapshot(db: Firestore, workspaceId: string, date: st
   return fresh[0] || null;
 }
 
-const plus = (base: Cents | undefined, more: Cents): Cents => {
-  const total = cloneCents(base);
-  Object.entries(more).forEach(([k, c]) => add(total, k, c));
-  return total;
+/** The key-by-key sum of the records given (summed in a Map, so no key can reach a prototype). */
+const sumOf = (...parts: Array<Cents | undefined>): Cents => {
+  const total: CentsMap = new Map();
+  for (const part of parts) Object.entries(part || {}).forEach(([k, c]) => add(total, k, c));
+  return toCents(total);
 };
+const plus = (base: Cents | undefined, more: Cents): Cents => sumOf(base, more);
 
 /** Every account's balance (and, on request, by label) at the end of `date`. */
 export async function balancesAsOf(db: Firestore, workspaceId: string, date: string, options: { byLabel?: boolean } = {}): Promise<BalancesAsOf> {
@@ -307,8 +313,7 @@ export async function balancesAsOf(db: Firestore, workspaceId: string, date: str
   });
   const kinds = options.byLabel ? new Set([...labelKinds(entries.filter(isPostable)), ...Object.keys(snapshot?.byLabel || {})]) : [];
   const sums = sumEntries(entries, kinds);
-  const total = cloneCents(snapshot?.accounts);
-  Object.entries(sums.accounts).forEach(([id, c]) => add(total, id, c));
+  const total = sumOf(snapshot?.accounts, sums.accounts);
   const result: BalancesAsOf = {
     workspaceId, date, accounts: prune(total),
     retainedEarnings: (snapshot?.retainedEarnings || 0) + calculateNetIncome(entries, accounts, '1970-01-01', date).netIncome,
@@ -327,14 +332,15 @@ export async function balancesAsOf(db: Firestore, workspaceId: string, date: str
     for (const kind of kinds) {
       // a kind no entry of the snapshot carried: every one of its lines was "Unassigned"
       const base = snapshot ? (ownValue(snapshot.byLabel, kind) ?? { [UNASSIGNED]: snapshot.accounts }) : {};
-      const merged: Record<string, Cents> = Object.create(null) as Record<string, Cents>;
+      const merged = new Map<string, CentsMap>();
       for (const [value, cents] of [...Object.entries(base), ...Object.entries(sums.byLabel[kind] || {})]) {
-        const into = merged[value] ||= createCents();
-        Object.entries(cents).forEach(([id, c]) => add(into, id, c));
+        let into = merged.get(value);
+        if (!into) { into = new Map(); merged.set(value, into); }
+        for (const [id, c] of Object.entries(cents)) add(into, id, c);
       }
-      byLabel[kind] = Object.fromEntries(Object.entries(merged).map(([v, c]) => [v, prune(c)]).filter(([, c]) => Object.keys(c).length > 0));
+      byLabel[kind] = Object.fromEntries([...merged].map(([v, c]) => [v, prune(toCents(c))] as const).filter(([, c]) => Object.keys(c).length > 0));
     }
-    result.byLabel = Object.fromEntries(Object.entries(byLabel)) as LabelCents;
+    result.byLabel = byLabel;
     if (gross) {
       const labelLines: Record<string, Cents> = Object.create(null) as Record<string, Cents>;
       for (const kind of kinds) {
@@ -342,7 +348,7 @@ export async function balancesAsOf(db: Firestore, workspaceId: string, date: str
         const base = snapshot ? (ownValue(snapshot.labelLines, kind) ?? { [UNASSIGNED]: Object.values(snapshot.lines || {}).reduce((a, b) => a + b, 0) }) : {};
         labelLines[kind] = prune(plus(base, sums.labelLines[kind] || {}));
       }
-      result.labelLines = Object.fromEntries(Object.entries(labelLines)) as Record<string, Cents>;
+      result.labelLines = labelLines;
     }
   }
   return result;

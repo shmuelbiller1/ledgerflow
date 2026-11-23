@@ -3,6 +3,9 @@
  * records (not fixed replies), so a model's figures can be checked against the books. Test data only.
  * Amounts are in cents; "today" is fixed so answers never drift.
  */
+import { answerCents, readQuestion } from '../../src/lib/askBooks';
+import type { ChartAccount } from '../../src/types';
+
 export const TODAY = '2026-11-22';
 export const CURRENCY = 'USD';
 
@@ -185,23 +188,19 @@ export function bookTool(name: string, args: Record<string, unknown>): unknown {
       return { report: 'profit-and-loss', ...profitAndLoss(from, to), previousMonth: profitAndLoss(lastMonth, lastMonth), thisMonth: profitAndLoss(thisMonth, thisMonth) };
     }
     case 'ask_books': {
-      // like the real reader: a named account is answered for that account; otherwise the figure the
-      // question names; a question it cannot read unambiguously is refused, never answered with another figure
-      const q = s(args.question).toLowerCase();
-      const month = /last month/.test(q) ? lastMonth : /this month/.test(q) ? thisMonth : null;
-      const pl = month ? profitAndLoss(month, month) : profitAndLoss('2026-01', thisMonth);
-      const period = month ?? 'this year';
-      const named = accounts.filter(a => q.includes(a.name.toLowerCase()));
-      if (named.length) {
-        const figures: Record<string, number> = { ...pl.revenue, ...pl.expenses, Cash: balances.acc_cash, Bank: balances.acc_bank };
-        const lines = named.map(a => ({ accountId: a.id, account: a.name, cents: figures[a.name] ?? 0 }));
-        return { answer: { totalCents: lines.reduce((t, l) => t + l.cents, 0), lines }, understood: { accounts: named.map(a => a.name), period } };
-      }
-      if (/cash|bank|balance/.test(q)) return { answer: { totalCents: balances.acc_cash + balances.acc_bank, accounts: { Cash: balances.acc_cash, Bank: balances.acc_bank } }, understood: { period: 'to date' } };
-      if (/profit|net income|net/.test(q)) return { answer: { netProfitCents: pl.netProfitCents }, understood: { period } };
-      if (/sales|revenue|income|earn/.test(q)) return { answer: { revenueCents: pl.revenueCents }, understood: { period } };
-      if (/spen[dt]|expense|cost/.test(q)) return { answer: { expensesCents: pl.expensesCents }, understood: { period } };
-      return { problem: 'No unambiguous reading of this question; name the accounts or the figure', answer: null };
+      // the real reader (src/lib/askBooks.ts), so the test is no easier or harder than the site: it reads the
+      // accounts and the period; the figure comes from these books for that filter, as explain_number does
+      const reading = readQuestion(s(args.question), {
+        accounts: accounts.map(a => ({ ...a, type: a.type === 'revenue' ? 'income' : a.type })) as unknown as ChartAccount[],
+        today: TODAY, fiscalYearStartMonth: 1,
+      });
+      if (!reading.filter) return { question: s(args.question), today: TODAY, reading, answer: null };
+      const pl = profitAndLoss(reading.filter.startDate.slice(0, 7), reading.filter.endDate.slice(0, 7));
+      const figures: Record<string, number> = { ...pl.revenue, ...pl.expenses, Cash: balances.acc_cash, Bank: balances.acc_bank };
+      const lines = reading.filter.accountIds.map(id => accounts.find(a => a.id === id)).filter(Boolean)
+        .map(a => ({ accountId: a!.id, account: a!.name, cents: (figures[a!.name] ?? 0) * (a!.type === 'revenue' ? -1 : 1) }));
+      const totalCents = lines.reduce((t, l) => t + l.cents, 0);
+      return { question: s(args.question), today: TODAY, reading, answer: { totalCents, lines, answerCents: answerCents(totalCents, reading.sense), sense: reading.sense } };
     }
     case 'explain_number': {
       // the requested accounts over the requested period (whole months); balance accounts at the end date
@@ -209,11 +208,15 @@ export function bookTool(name: string, args: Record<string, unknown>): unknown {
       const from = (s(args.startDate) || '2026-01-01').slice(0, 7), to = (s(args.endDate) || TODAY).slice(0, 7);
       const pl = profitAndLoss(from, to);
       const figures: Record<string, number> = { ...pl.revenue, ...pl.expenses, Cash: balances.acc_cash, Bank: balances.acc_bank };
-      const lines = ids.map(id => accounts.find(a => a.id === id)).filter(Boolean).map(a => ({ accountId: a!.id, label: a!.name, cents: figures[a!.name] ?? 0 }));
+      const lines = ids.map(id => accounts.find(a => a.id === id)).filter(Boolean).map(a => ({ accountId: a!.id, label: a!.name, cents: (figures[a!.name] ?? 0) * (a!.type === 'revenue' ? -1 : 1) }));
       if (!lines.length) return { error: 'Name the accounts to explain (accountIds)' };
       return { startDate: from, endDate: to, totalCents: lines.reduce((t, l) => t + l.cents, 0), lines };
     }
-    case 'calculate': { const v = safeCalc(s(args.expression)); return v === null ? { error: 'Only numbers and + - * / ( ) % are allowed' } : { expression: args.expression, amount: v, cents: Math.round(v * 100) }; }
+    case 'calculate': {
+      const one = (e: string) => { const v = safeCalc(e); return v === null ? { expression: e, error: 'Only numbers and + - * / ( ) % are allowed' } : { expression: e, amount: v, cents: Math.round(v * 100) }; };
+      if (Array.isArray(args.expressions)) return { results: args.expressions.slice(0, 20).map(e => one(s(e))) };
+      const r = one(s(args.expression)); return 'error' in r ? { error: r.error } : r;
+    }
     case 'remembered_choices': return { suggestions: [] };
     case 'list_proposals': return { proposals: [] };
     case 'preview_proposal': return { proposal: null };

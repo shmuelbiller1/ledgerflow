@@ -6,6 +6,7 @@ import { TransactionValidator } from '../../kernel/validation/TransactionValidat
 import type { ValidationContext } from '../../kernel/validation/TransactionValidator';
 import { stockMovesReady, writeStockMoves } from './stockMoveService';
 import { revaluationValueCents } from '../../lib/inventoryAccounts';
+import { isStandardizing, validStandardCost } from '../../lib/standardCostSettings';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { isCashAccount } from '../../lib/txFilters';
 import { formatTzDate } from '../../lib/calendarDate';
@@ -141,6 +142,13 @@ export async function revalueStockInTransaction(db: Firestore, t: DbTransaction,
     const item = snap.exists ? snap.data() || {} : null;
     // another workspace's item answers like a missing one
     if (!item || item.workspaceId !== workspaceId) throw new StockRevaluationError(404, `Item ${input.itemId} not found`);
+    // M-21 step 2: a revaluation changes unitCostCents (the actual average), not the standard. Under
+    // standard-cost posting the books carry the stock at the standard, so a revaluation would put the
+    // Inventory account out of step with the standard-valued stock. Refuse standard items while it is on.
+    const wsRow = (await t.get(db.collection('workspaces').doc(workspaceId))).data() as Record<string, unknown> | undefined;
+    if (isStandardizing(wsRow) && validStandardCost(item.standardCostCents) !== null) {
+      throw new StockRevaluationError(409, `${item.name || input.itemId} is valued at its standard cost and this workspace posts at the standard. A revaluation changes the item's actual cost, not its standard, which would leave Inventory out of step with the standard-valued stock: turn standard-cost posting off, or change the item's standard to none.`);
+    }
     const name = String(item.name || input.itemId);
     const quantity = Number(item.quantityAtHand) || 0;
     if (quantity <= 0) throw new StockRevaluationError(400, `${name} has no stock on hand: change its cost on the item itself, nothing is revalued`);
@@ -178,7 +186,8 @@ export async function revalueStockInTransaction(db: Firestore, t: DbTransaction,
     }, { workspaceId, user: input.user, wsData: input.wsData }, undefined, t);
     const transactionId = tx.id;
     await ledgerWrite(t, entryRef, { ...tx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-    t.update(itemRef, { unitCostCents: input.newUnitCostCents, updatedAt: FieldValue.serverTimestamp() });
+    // INV-02: keep the micro-cent precision field in sync so unitCostMicroCentsOf() does not fall back to a stale value
+    t.update(itemRef, { unitCostCents: input.newUnitCostCents, unitCostMicroCents: Math.round(input.newUnitCostCents * 1_000_000), updatedAt: FieldValue.serverTimestamp() });
     // W-02: the history keeps the change of value (no units move), so a past valuation includes it on its date
     writeStockMoves(db, t, [{
       workspaceId, itemId: input.itemId, itemName: name, date, kind: 'revaluation',

@@ -45,18 +45,56 @@ New sessions pick it up. Until then, the replay runs without a model and records
 
 **Approved by the owner (22 Nov):** AI providers other than Google may be used for the assistant, including sending book data to them (for example through Arena). The Arena key still has to be added as a network secret (above) before models can be tested.
 
-## SBX-2 Part 6: model comparison result and a recommendation (needs your decision)
+## SBX-2 Part 6: graded model comparison and a recommendation (needs your decision)
 
-I replayed the 30 test questions through Arena on six models (table in `docs/assistant-baseline.md`; test data only). Cost is what Arena billed.
+Run 22 Nov on Arena with the graded test (`scripts/assistant-model-eval.ts`, 12 questions that need a model, a sample company's books, one model per run; full table and per-question results in `docs/assistant-model-eval.md`). Cost is what Arena billed. The earlier ungraded table in `docs/assistant-baseline.md` only counted "finished within 6 steps" and is superseded by this one.
 
-- **GPT-6 Luna** answered 38 of 42 model turns for about 8¢ per 100 model turns. Best price for what it did.
-- **GPT-6.1 Terra** answered 41 of 42, but costs about 62¢ per 100 model turns.
-- **Gemini 3.8 Flash** answered 1 of 21 and cost about $1.37 per 100: it kept calling tools until the step limit. GLM 5.3 answered 7 of 21 at about $2.17 per 100. MiniMax and DeepSeek mostly ran out of steps.
-- *Limits:* "answered" is not "right". The test books are thin, and I did not grade the wording. Please don't read this as final.
+| model | correct (of 12) | billed | cost per correct answer |
+|---|---|---|---|
+| GPT-6.1 Terra | 9 → 7 on the newer test | 11.9¢ → 11.4¢ | 1.3¢ → 1.6¢ |
+| GPT-6 Luna | 5 → 5 on the newer test | 1.3¢ → 1.2¢ | 0.27¢ → 0.23¢ |
+| GLM 5.3 | 4 | 33.0¢ | 8.3¢ |
+| Gemini 3.8 Flash | 1 | 19.3¢ | 19.3¢ |
+| MiniMax M3.1 Flash | 0 | at least 3.5¢ | — |
+| DeepSeek V4.1 Flash | 0 | at least 4.9¢ | — |
 
-*Recommendation:* simple turns on GPT-6 Luna, strong turns on GPT-6.1 Terra, same written rule as now (`assistantModels.ts`). *Not done:* neither has a price row, and the code ignores an unpriced model, so nothing changed: the app still uses the Gemini defaults. I won't write a price from memory. Please send me the prices Arena charges for these two, or tell me to read them from Arena's pricing page, and I will add the rows.
+Receipts (4 generated images, 4 fields each): Luna, Terra and Gemini 3.8 Flash each read 15 of 16 fields right, for 0.03¢, 0.25¢ and 0.77¢.
 
-*Spend:* the per-100 costs above are lower bounds (see the note in `docs/assistant-baseline.md`). My comparison runs cost about $8.6 of your Arena balance, more than I should have used, mostly from runs repeated after timeouts. The script now stops at 150 model calls per run.
+*Rerun 23 Nov on the newest test (audit branch a3dcb8c: polite requests count as asking, every turn saved in full to `docs/eval/runs/`), GPT-6 Luna and GPT-6.1 Terra only, one run per question, old instructions against the new `assistant/SYSTEM_PROMPT.md`:*
+
+| model | old instructions | new instructions | billed (new) |
+|---|---|---|---|
+| GPT-6.1 Terra | 11 of 12 | **12 of 12** | 14.1¢ |
+| GPT-6 Luna | 6 of 12 | 8 of 12 | 1.6¢ |
+
+Luna still misses payment, profit drop, affordability and the year summary on the new instructions: it reads the books but stops before stating the figure or asks the wrong question. Terra's scores moved between test versions (9, then 7, now 11 and 12), so the grading had been changing as much as the model. The other four models in the table above are from the first test version and were not rerun.
+
+*Rerun 23 Nov (later), newest test and instructions (today's date, financial year and currency are now given to the model; #1017 and #1018), one run per question, every turn saved in `docs/eval/runs/2026-11-23-04-16.json`:*
+
+| model | correct (of 12) | billed | time for the 12 | notes |
+|---|---|---|---|---|
+| GPT-6.1 Terra | 12 | 15.2¢ | 123 s | no misses |
+| GPT-6 Luna | 10 | 1.5¢ | 137 s | missed the project move and affordability (step limit) |
+| Gemini 4 Carbon | 8 | at least 74.8¢ | 589 s | 4 misses, all step limit or timeout; about 5 times Terra's cost |
+
+Gemini 4 Carbon is the new model you asked for. It kept reading records until it ran out of steps (fix the books, something looks off, affordability, write-offs) and was by far the slowest and most expensive, so it is not a candidate on this test. Luna's score rose from 8 to 10 of 12 since the earlier run, partly luck and partly the newer instructions.
+
+*Rerun 23 Nov with the final tool-free step (the audit branch change, db7f1d4, not in `main` when this ran: a turn that runs out of steps gets one last call without tools and answers with what it found), Luna and Terra only, one run per question, every turn in `docs/eval/runs/2026-11-23-04-28.json`:*
+
+| model | correct (of 12) | billed | answered every question |
+|---|---|---|---|
+| GPT-6.1 Terra | 12 | 15.3¢ | yes |
+| GPT-6 Luna | 11 | 2.0¢ | yes |
+
+No turn ended without an answer any more. Luna's one miss was the consulting invoice: it searched, then drafted nothing and did not ask for the hourly rate. Receipts unchanged (15 of 16 fields for both).
+
+*Claude Sonnet 5.5 (23 Nov, Arena id `claude-sonnet-5-5`; Arena's API has no separate "High" model and the test sends no reasoning level, so this is its default setting), same test and final tool-free step, one run per question, every turn in `docs/eval/runs/2026-11-23-05-12.json`:* 10 of 12 correct, every question answered, 123 s, billed **96.7¢**, about 6 times Terra's 15.3¢ for fewer right answers. It missed "record a payment" (answered without asking which account received the money) and "move costs to a project" (did not ask which project). Receipts 15 of 16 fields for 0.57¢. Not a candidate on cost or score.
+
+*Recommendation (based on the 23 Nov runs, newest test and instructions; with the final tool-free step Luna reached 11 of 12):* GPT-6.1 Terra is the only model that got everything right (12 of 12 in both runs), so use it for the strong turns. GPT-6 Luna got 10 of 12 at about a tenth of Terra's cost (1.5¢ against 15.2¢) and missed only multi-step questions by running out of steps (project move, affordability), which the written rule already sends to the strong model, so it is a reasonable candidate for simple turns and for reading receipts (15 of 16 fields, same as Terra). Both now pass "record a payment" and "make a bill"; the earlier failures on those two (every model except GLM) were before the newer test and instructions. Gemini 3.8 Flash, our current strong model, got 1 of 12 on the first test version and Gemini 4 Carbon 8 of 12 at about five times Terra's cost, so neither is a candidate. This is one run per question on test data, and Terra's score moved between runs (9, 7, 11, 12), so treat it as indicative.
+
+*Not done:* none of these models has a price row, and the code ignores an unpriced model, so the app still uses the Gemini defaults. I won't write a price from memory. Please send me Arena's prices for Terra and Luna, or tell me to read them from Arena's pricing page, and I will add the rows. The test is one small run on test data, not final.
+
+*Spend:* about 70¢ for this run (376 calls, capped at 900). My earlier ungraded runs cost about $8 of your balance, mostly from runs repeated after timeouts and from early runs where the two-model rule swapped in Gemini; those are why the Gemini line on your usage page is large.
 
 ## SBX-2 Parts 4–7: defaults used for the assistant's models and plan limits (nothing needed unless you disagree)
 
@@ -1141,3 +1179,17 @@ to make a number look better). If you want the number to mean something, it need
   document screens still carry their own loading text. Next batch, not this one.
 - **#834 / A-229** `report-speed-12m.test.tsx` fails only in a cold sandbox (2,750 ms vs a 1,500 ms budget, with and
   without my patch) — **do not raise the budget** on that evidence; it is module-import timing, not report speed.
+
+## 23 Nov — #945: two parts need your decision (everything else in #945 is built)
+
+Built already: sign-in-history rate limits, AI limits checked after sign-in, the session list with
+"sign out this device", last sign-in and MFA per member in Access Review, and the new-network alert.
+
+1. **Recording failed sign-ins.** Sign-in goes straight to Supabase, so a wrong password never reaches
+   our server. Recording it would need a route that works *without* signing in, and then anyone could
+   fill another person's security log with fake failures. **Default used: not built.** Better option
+   if you want it: turn on Supabase's own auth logs / its "Send email on suspicious sign-in" setting
+   (Supabase dashboard → Authentication), which sees real failures.
+2. **New-country alert.** Needs a source that turns an IP address into a country (a paid lookup service,
+   or Vercel's `x-vercel-ip-country` header). **Default used: the new-network alert stays; no country alert.**
+   Say "use the Vercel header" and I'll add it (free, no new service).

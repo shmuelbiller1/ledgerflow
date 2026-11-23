@@ -5,7 +5,7 @@
  */
 import { invoices, owedByCustomer, profitAndLoss, balances } from './sampleBooks';
 
-export interface Outcome { answer: string; calls: Array<{ name: string; args: Record<string, unknown>; ok?: boolean }>; error?: string }
+export interface Outcome { answer: string; calls: Array<{ name: string; args: Record<string, unknown>; ok?: boolean; refusal?: string; result?: unknown }>; error?: string }
 export interface EvalCase { id: string; q: string; check: (o: Outcome) => { pass: boolean; why: string } }
 
 const dollars = (cents: number) => cents / 100;
@@ -32,7 +32,48 @@ function numbersAt(v: unknown, key: RegExp, out: number[] = []): number[] {
   return out;
 }
 const hasCents = (calls: Outcome['calls'], cents: number) => calls.some(c => centsValues(c.args).includes(cents));
-const asks = (o: Outcome) => /\?/.test(o.answer);
+/** A question sentence (one ending in "?") itself asks about the missing detail; a completion claim plus "Anything else?" does not. */
+export function asksAbout(o: Outcome, detail: RegExp): boolean {
+  const sentences = o.answer.split(/(?<=[.!?])\s+/);
+  // what the reply asks for: question sentences, plus any polite request and the list that follows it
+  // ("please provide: - the bill date - the due date"), which is how models usually ask for several details
+  const questions = [...sentences.filter(q => q.trim().endsWith('?')), ...requestParts(o.answer)];
+  // an affirmative completion claim ("Payment recorded.", "I've posted it"); a word used to describe a field
+  // ("recorded cents", "posted amounts") is not one; a negated claim ("nothing has been done yet") is fine
+  // a request's own words ("please provide: … whether to save it as a draft") are a question, not a claim
+  const parts = requestParts(o.answer);
+  const statements = parts.reduce((text, part) => text.replace(part, ' '), o.answer).split(/(?<=[.!?])\s+/);
+  // …but a first-person or finished claim inside a request still counts ("let me know the rate; I've saved it",
+  // "please confirm:\n- Invoice saved as INV-001")
+  // (checked per line, negations allowed: "- Nothing saved yet" is fine; a field like "- Amount recorded on it" is not a claim)
+  const hiddenClaim = parts.some(p => p.split(/[;\n]/).some(seg => !/\b(not|n't|nothing|no|yet|until|before|once|after)\b/i.test(seg)
+    && /\b(i|we|i've|we've|i have|we have|already|successfully)\b[^.!?\n]*\b(recorded|created|posted|drafted|entered|saved)\b|^\s*[-*\u2022]?\s*(the )?(invoice|bill|payment|entry|draft|step|it)\s+(was |is |has been )?(recorded|created|posted|saved)\b/i.test(seg)));
+  const claims = statements.filter(t => !t.trim().endsWith('?')
+    && /\b(recorded|created|posted|drafted|entered|saved|done)\b(?!\s+(cents|amounts?|totals?|balances?|values?|figures?|dates?)\b)/i.test(t)
+    && !/\b(not|n't|nothing|no|yet|until|before|once|after)\b/i.test(t));
+  return questions.some(q => detail.test(q)) && claims.length === 0 && !hiddenClaim;
+}
+/**
+ * Each polite request: from its phrase to the end of that sentence, plus a list attached to it
+ * ("please provide:\n- the bill date"). A later statement ("I will use today's date") is not part of it,
+ * and a generic closing offer ("let me know if you need anything else") asks for nothing.
+ */
+export function requestParts(answer: string): string[] {
+  const re = /\b(please (provide|confirm|tell me|share|let me know|send|specify)|can you (tell me|confirm|provide|share)|could you (tell me|confirm|provide|share)|i need (to know|you to|the|your)|let me know)\b/gi;
+  const closingOffer = /\b(anything else|any (other |further |more )?questions|further (help|assistance)|if you need (anything|help|more|further)|if (there is|there's) anything)\b/i;
+  const parts: string[] = [];
+  for (const m of answer.matchAll(re)) {
+    const rest = answer.slice(m.index);
+    const end = rest.search(/[.!?](?=\s|$)|\n/);
+    let part = end < 0 ? rest : rest.slice(0, end + 1);
+    const list = rest.slice(part.length).match(/^(\s*([-*\u2022]|\d+[.)])\s[^\n]*(\n|$))+/);
+    if (list) part += list[0];
+    if (!closingOffer.test(part)) parts.push(part);
+  }
+  return parts;
+}
+/** The reply asks the person something: a question mark, or a polite request for details. */
+const asks = (o: Outcome) => /\?/.test(o.answer) || requestParts(o.answer).length > 0;
 const readTools = (o: Outcome) => o.calls.some(c => !c.name.startsWith('propose_') && c.name !== 'find_command');
 const ok = (pass: boolean, why: string) => ({ pass, why });
 
@@ -57,21 +98,37 @@ export function recommended(answer: string): string | null {
   return pick.size === 1 ? [...pick][0] : null;
 }
 
+/** What the model did, for the report's "why" column when a case fails: refused draft, question, or plain answer. */
+export function whatHappened(o: Outcome): string {
+  const refused = o.calls.filter(c => c.name.startsWith('propose_') && c.ok === false);
+  const excerpt = (t: string) => t.replace(/\s+/g, ' ').trim().slice(0, 140);
+  const parts: string[] = [];
+  if (refused.length) parts.push(`draft refused ${refused.length}× (${refused.map(c => `${c.name}: ${c.refusal ?? 'invalid input'}`).slice(-1)[0]})`);
+  if (proposals(o).length) parts.push(`drafted: ${proposals(o).map(c => c.name).join(', ')}`);
+  if (!o.answer.trim()) parts.push('no reply text');
+  else parts.push(`${asks(o) ? 'asked' : 'answered'}: "${excerpt(o.answer)}"`);
+  return parts.join('; ');
+}
+
 export const CASES: EvalCase[] = [
   { id: 'payment', q: 'Record a payment of 500 from Acme Ltd for INV-1001.', check: o => {
     const p = proposals(o).filter(c => /payment/.test(c.name));
-    return ok(p.length > 0 && hasCents(p, 50_000) && /(inv-1001|inv_1001)/.test(JSON.stringify(p.map(c => c.args)).toLowerCase()), p.length ? 'payment drafted; checked 50,000 cents ($500) and INV-1001' : 'no payment drafted');
+    if (p.length) return ok(hasCents(p, 50_000) && /(inv-1001|inv_1001)/.test(JSON.stringify(p.map(c => c.args)).toLowerCase()), 'payment drafted; checked 50,000 cents ($500) and INV-1001');
+    // the books have both Cash and Bank, and the request names neither: asking which account received it is right
+    return ok(proposals(o).length === 0 && asksAbout(o, /\b(which|what|whether)\b[^?]*\b(cash|bank|account|deposit)|\b(bank|cash)\b[^.?\n]*\bor\b[^.?\n]*\b(bank|cash)\b/i), 'no draft: passes only if it drafts nothing and a question asks which account received the money');
   } },
   { id: 'invoice', q: 'Create an invoice for Acme Ltd for two hours of consulting.', check: o => {
     const p = proposals(o).filter(c => /invoice/.test(c.name)); const a = argsText(o);
     // the drafted quantities as numbers: every quantity must be exactly 2 (2.5 hours is not two hours)
     const qty = p.flatMap(c => numbersAt(c.args, /^(quantity|qty|hours)$/i));
     if (p.length) return ok(/(acme|cus_acme)/.test(a) && qty.length > 0 && qty.every(q => q === 2), 'invoice drafted; checked Acme and quantity exactly 2');
-    return ok(asks(o) && /rate|price|hourly|how much/i.test(o.answer), 'no draft: passes only if it asks for the hourly rate');
+    return ok(proposals(o).length === 0 && asksAbout(o, /rate|price|hourly|how much|cost per hour/i), 'no draft: passes only if it drafts nothing and asks for the hourly rate');
   } },
   { id: 'bill', q: 'Make a bill from the electricity company for 320.', check: o => {
     const p = proposals(o).filter(c => /bill/.test(c.name)); const a = argsText(o);
-    return ok(p.length > 0 && /(ven_elec|city electric)/.test(a) && hasCents(p, 32_000), p.length ? 'bill drafted; checked City Electric and 32,000 cents ($320)' : 'no bill drafted');
+    if (p.length) return ok(/(ven_elec|city electric)/.test(a) && hasCents(p, 32_000), 'bill drafted; checked City Electric and 32,000 cents ($320)');
+    // a bill needs its number and dates, which the request does not give: asking for them is right
+    return ok(proposals(o).length === 0 && asksAbout(o, /\b(bill number|invoice number|number|date|due date|when)\b/i), 'no draft: passes only if it drafts nothing and a question asks for the bill number or dates');
   } },
   { id: 'profit-drop', q: 'Why is my profit lower than last month?', check: o => ok(
     proposals(o).length === 0 && mentions(o.answer, plLast.netProfitCents - plThis.netProfitCents) && /sales|consulting/i.test(o.answer),

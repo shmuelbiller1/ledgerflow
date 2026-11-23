@@ -1,6 +1,5 @@
 import { runCommand } from '../../lib/runCommand';
 import { resolveAccountRole } from '../../lib/accountUtils';
-import { convertMinorUnits } from '../../lib/currencyMinorUnits';
 import { isPostable, lineAmount } from '../../lib/txFilters';
 import { collection, doc } from '../../lib/db/firestore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -197,10 +196,12 @@ export function createReconcileActions(ctx: ActionContext, posting: PostingHelpe
 
           let score = 0;
           
-          // Amount Match (respecting ISO-4217 minor-unit exponents and split/fee-netted cash lines)
-          const tTotal = Math.abs(convertMinorUnits(Math.abs(tx.totalAmountCents || 0), tx.exchangeRate || 1, tx.currency || home, home));
+          // Amount Match (respecting ISO-4217 minor-unit exponents and split/fee-netted cash lines).
+          // BR-04: only the cash leg that really moved in this bank can match the line — the journal's
+          // header total is not the bank movement (a split entry's total can clear $100 at the bank
+          // while only $20 of it moved there), so it is never an amount match.
           const expectedBankAbs = Math.abs(cashDelta);
-          if (Math.abs(bl.amountCents) === expectedBankAbs || Math.abs(bl.amountCents) === tTotal) {
+          if (Math.abs(bl.amountCents) === expectedBankAbs) {
             score += 65;
           }
 

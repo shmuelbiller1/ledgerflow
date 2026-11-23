@@ -3,35 +3,5 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema32 } from '../commandSchemas.
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const BILLING_COMMAND_MANIFEST = [
-  {
-    "name": "billing.recordcompute",
-    "area": "billing",
-    "roles": COMMAND_SCHEMA_PARTS.part88,
-    "allowPlatformAdmin": true,
-    "risk": "normal",
-    "description": {
-      "sentence": "Record usage for one already completed computation; do not use this to call an AI provider, change the plan, or post a ledger entry.",
-      "example": {
-        "algorithmName": "LABEL_SUGGESTIONS",
-        "complexityFormat": "O(n)",
-        "weightScore": 25,
-        "executionTimeMs": 80
-      },
-      "refusals": [
-        {
-          "code": "NOT_A_MEMBER",
-          "when": "The caller does not belong to the target workspace.",
-          "next": "Use a workspace you belong to."
-        },
-        {
-          "code": "INVALID_INPUT",
-          "when": "The computation has no name or a usage number is malformed.",
-          "next": "Supply the computation name and measured weight and time."
-        }
-      ]
-    },
-    "runPath": "/api/v1/commands/billing.recordcompute",
-    "previewPath": "/api/v1/commands/billing.recordcompute/preview",
-    inputSchema: commandInputSchema32
-  },
+{"name":"billing.recordcompute","area":"billing","roles":COMMAND_SCHEMA_PARTS.part88,"allowPlatformAdmin":true,"risk":"normal","description":{ "sentence": "Record usage for one already completed computation; do not use this to call an AI provider, change the plan, or post a ledger entry.", "example": { "algorithmName": "LABEL_SUGGESTIONS", "complexityFormat": "O(n)", "weightScore": 25, "executionTimeMs": 80 }, "refusals": [{ "code": "NOT_A_MEMBER", "when": "The caller does not belong to the target workspace.", "next": "Use a workspace you belong to." }, { "code": "INVALID_INPUT", "when": "The computation has no name or a usage number is malformed.", "next": "Supply the computation name and measured weight and time." }] },"runPath":"/api/v1/commands/billing.recordcompute","previewPath":"/api/v1/commands/billing.recordcompute/preview",inputSchema:commandInputSchema32},
 ] as const;

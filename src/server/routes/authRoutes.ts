@@ -8,7 +8,7 @@ import { AccountDeletionBlocked, deleteAccount } from "../services/accountDeleti
 import { authAdmin } from "../auth/supabaseAuth";
 import { recordAuthEvent } from "../services/authAuditService";
 import { writeServerAuditLog } from "../services/auditLogService";
-import { authRateLimiter } from "../middleware/rateLimiters";
+import { authAuditRateLimiter, authRateLimiter } from "../middleware/rateLimiters";
 import { listAuthSessions, revokeAuthSession } from "../services/authSessionService";
 import type { RequestUser } from "../auth/requestUser";
 
@@ -99,7 +99,8 @@ export function registerAuthRoutes(app: express.Express, _ctx: ServerContext): v
     metadata: z.record(z.string(), z.union([z.string().max(200), z.number(), z.boolean()])).optional()
       .refine(m => !m || Object.keys(m).length <= 20, 'Too many metadata fields'),
   }).strict();
-  app.post("/api/v1/auth/audit", apiAuthenticate, async (req, res) => {
+  // #945 (S-22): the sign-in history routes are limited per person (authAuditRateLimiter), after sign-in
+  app.post("/api/v1/auth/audit", apiAuthenticate, authAuditRateLimiter, async (req, res) => {
     try {
       const user = requestUser(req);
       const parsed = AuthAuditBody.safeParse(req.body || {});
@@ -118,7 +119,7 @@ export function registerAuthRoutes(app: express.Express, _ctx: ServerContext): v
   });
 
   // Self-read endpoint for the signed-in user's own authentication security log (F-09c)
-  app.get("/api/v1/auth/login-audits", apiAuthenticate, async (req, res) => {
+  app.get("/api/v1/auth/login-audits", apiAuthenticate, authAuditRateLimiter, async (req, res) => {
     try {
       const user = requestUser(req);
       const rawLimit = Number(req.query.limit || 25);

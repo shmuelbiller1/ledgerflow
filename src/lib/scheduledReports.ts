@@ -5,7 +5,7 @@
  * (`scheduledReportsSent`, written by the server only). Figures come from the existing report code.
  */
 import { addToDateISO } from './calendarDate';
-import { csvMoney, toCsv } from './csvExport';
+import { csvMoneyForBook, toCsv } from './csvExport';
 import { isEmailShape } from './textShape';
 
 import { BRAND_NAME } from '../config/brand';
@@ -123,13 +123,15 @@ type AccountLines = Record<string, { name: string; code?: string; balance: numbe
 const byCode = (a: { code?: string; name: string }, b: { code?: string; name: string }) => (a.code || '').localeCompare(b.code || '', undefined, { numeric: true }) || a.name.localeCompare(b.name);
 const lines = (accounts: AccountLines) => Object.values(accounts).filter(a => a.balance !== 0).sort(byCode).map(a => ({ cells: [[a.code, a.name].filter(Boolean).join(' '), a.balance] }));
 
-export function profitAndLossTable(pl: { income: { total: number; accounts: AccountLines }; expense: { total: number; accounts: AccountLines }; netIncome: number }, period: ReportPeriod): ReportTable {
+export function profitAndLossTable(pl: { income: { total: number; accounts: AccountLines }; cogs: { total: number; accounts: AccountLines }; expense: { total: number; accounts: AccountLines }; grossProfit: number; netIncome: number }, period: ReportPeriod): ReportTable {
   return {
     title: `Profit and loss, ${period.label}`,
     headers: ['Account', 'Amount'],
     rows: [
       { cells: ['Income', ''], strong: true }, ...lines(pl.income.accounts), { cells: ['Total income', pl.income.total], strong: true },
-      { cells: ['Expenses', ''], strong: true }, ...lines(pl.expense.accounts), { cells: ['Total expenses', pl.expense.total], strong: true },
+      { cells: ['Cost of goods sold', ''], strong: true }, ...lines(pl.cogs.accounts), { cells: ['Total cost of goods sold', pl.cogs.total], strong: true },
+      { cells: ['Gross profit', pl.grossProfit], strong: true },
+      { cells: ['Operating expenses', ''], strong: true }, ...lines(pl.expense.accounts), { cells: ['Total operating expenses', pl.expense.total], strong: true },
       { cells: ['Net profit', pl.netIncome], strong: true },
     ],
   };
@@ -180,6 +182,12 @@ function reportSection(table: ReportTable, meta: { workspaceName: string; curren
     + `<table style="border-collapse:collapse;font-family:sans-serif;font-size:14px"><thead><tr>${table.headers.map((h, i) => `<th style="padding:4px 10px;${i > 0 ? 'text-align:right;' : 'text-align:left;'}">${escape(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
-export function reportCsv(table: ReportTable): string {
-  return toCsv(table.headers, table.rows.map(r => r.cells.map(v => (typeof v === 'number' ? csvMoney(v) : v))));
+/**
+ * The report table as CSV text. A report's figures are in the book's currency (#910): when
+ * `currency` is given, money cells use that currency's minor-unit scale (JPY writes whole yen,
+ * KWD three decimals); without it the two-decimal writer is used.
+ */
+export function reportCsv(table: ReportTable, currency?: string | null): string {
+  const money = csvMoneyForBook(currency);
+  return toCsv(table.headers, table.rows.map(r => r.cells.map(v => (typeof v === 'number' ? money(v) : v))));
 }

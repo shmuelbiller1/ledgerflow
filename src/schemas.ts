@@ -16,7 +16,12 @@ export const TransactionLineSchema = z.object({
   // BUG-07: explicit settled home units must survive server validation; dropping
   // them silently recalculates manually settled FX journals on metadata-only edits.
   baseAmountCents: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).optional(),
-  exchangeRate: z.number().positive().finite().default(1),
+  // CL-01: a missing line rate must stay missing so every reader (lineAmount,
+  // settleHomeCurrency, the ledger-integrity DB trigger) inherits the entry's
+  // header rate. Defaulting to 1 here silently converted foreign entries 1:1
+  // (¥1M @ 0.0067 stored as $10,000 instead of $6,700). An explicit 1 still
+  // means "this line is already in the books' currency".
+  exchangeRate: z.number().positive().finite().optional(),
   description: z.string().max(500).optional(),
   class: z.string().optional(),
   location: z.string().optional(),

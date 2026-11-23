@@ -57,6 +57,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "employee.update",
   "entrylink.create",
   "entrylink.remove",
+  "estimate.dropship",
   "estimate.save",
   "estimate.signlink",
   "estimate.status",
@@ -222,6 +223,7 @@ export const REGISTERED_COMMAND_NAMES = [
   "workspace.scheduledeletion",
   "workspace.settings",
   "workspace.setupcomplete",
+  "workspace.standardcosting",
   "workspace.undoimport",
   "workspace.updaterole"
 ] as const;

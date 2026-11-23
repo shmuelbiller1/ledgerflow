@@ -16,6 +16,7 @@
  * (`propose_…` → the same `add` intent the assistant token uses). Nothing here accepts a step or
  * writes to the real books. The stored metric holds no question, answer, amounts or names.
  */
+import { assistantFacts, todayIn } from './assistantFacts';
 import type express from 'express';
 import type { FunctionDeclaration } from '@google/genai';
 import { z } from 'zod';
@@ -24,6 +25,8 @@ import type { reviewSandbox } from '../commands/sandboxReview';
 import type { Firestore } from '../db/firestore';
 import { assistantLimitRefusal, assistantUsage, reserveAssistantModelTurn } from '../middleware/planCapacity';
 import { assistantToolsFor, draftableCommands } from './assistantCatalog';
+import { geminiReadTools } from './assistantToolDefinitions';
+import { redactLiveReport } from './sandboxTools';
 import { assistantModels, chooseModel, routedModelClient } from './assistantModels';
 import { sandboxToolCache, type ToolCache } from './assistantReadCache';
 import { answerTurn, routeQuestion } from './assistantRouter';
@@ -36,8 +39,10 @@ export const assistantTurnBody = z.object({ question: z.string().trim().min(1).m
 /** What the sandbox router hands over: its own sandbox check and read-tool runner (no second copy). */
 export interface TurnHelpers<Sandbox extends { workspaceId: string; sandboxId: string; workspace: Record<string, unknown>; user: RequestUser }> {
   readableSandbox: (live: Firestore, req: express.Request) => Promise<Sandbox>;
+  /** A server-selected live-books mode, never a client-supplied permission. */
+  readOnly?: boolean;
   runReadTool: (live: Firestore, req: express.Request, res: express.Response, sandbox: Sandbox, tool: string,
-    input: Record<string, unknown>, cache?: ToolCache) => Promise<{ status: number; body: unknown; cached: boolean }>;
+    input: Record<string, unknown>, cache?: ToolCache, policy?: 'sandbox' | 'live-assistant') => Promise<{ status: number; body: unknown; cached: boolean }>;
   /**
    * The only way a turn changes anything: the SBX-1 review service's `add` intent, which drafts a step
    * into the sandbox overlay (never a real row). Passed in at the route so the drafting door is visible
@@ -64,6 +69,35 @@ const blockedClient: ModelClient = { models: { generateContent: async () => { th
 /** The route's own cache layer is the turn's (so hits show in the metric); the tool runner does not cache again. */
 const passThrough: ToolCache = { read: async (_tool, _args, run) => ({ value: (await run()).value, hit: false }) };
 
+const LIVE_READ_TOOLS = new Set(['list_records', 'get_record', 'search_records', 'calculate', 'run_report', 'explain_number', 'ask_books']);
+// Member-readable collections only; this must be reviewed when adding a new collection.
+const LIVE_COLLECTIONS = new Set(['bills', 'budgets', 'chartAccounts', 'creditNotes', 'customers', 'dimensionNodes', 'documents', 'estimates', 'fixedAssets', 'inventory', 'invoices', 'journalEntries', 'loans', 'paymentAllocations', 'payments', 'periods', 'projects', 'purchaseOrders', 'reconciliations', 'recurring', 'stockMoves', 'taxRates', 'transactions', 'vendorCredits', 'vendors']);
+const DEFAULT_LIVE_SEARCH = ['customers', 'vendors', 'invoices', 'bills', 'payments', 'transactions', 'chartAccounts', 'inventory', 'projects', 'documents'];
+// Live report routers also have cross-workspace endpoints. Explicitly admit only reviewed, single-book readers.
+const LIVE_REPORTS = new Set(['profit-and-loss', 'pl', 'balance-sheet', 'aging', 'inventory-details', 'stock-aging', 'explain', 'by-label', 'balance-sheet-by-label', 'trial-balance', 'cash-flow', 'budget-vs-actual', 'general-ledger', 'statement']);
+const LIVE_BALANCES = new Set(['closed-through', 'activity', 'top-lines', 'sales-by-item', 'asset-register', 'expense-by-category', 'income-by-source', 'monthly-averages', 'tag-breakdown', 'depreciation-ledger', 'profitability', 'sales-trends', 'registration-threshold', 'spread-waterfall', 'customer-lifetime-value', 'entry-query', 'entry-years']);
+function liveReadAllowed(name: string, args: Record<string, unknown>): boolean {
+  if (!LIVE_READ_TOOLS.has(name)) return false;
+  if ((name === 'get_record' || name === 'list_records') && (typeof args.collection !== 'string' || !LIVE_COLLECTIONS.has(args.collection))) return false;
+  if (name === 'search_records' && args.collections !== undefined && (!Array.isArray(args.collections) || !args.collections.every(c => typeof c === 'string' && LIVE_COLLECTIONS.has(c)))) return false;
+  if (name === 'run_report') {
+    const reports = args.source === 'balances' ? LIVE_BALANCES : args.source === 'reports' || args.source === undefined ? LIVE_REPORTS : null;
+    return typeof args.report === 'string' && !!reports?.has(args.report);
+  }
+  return true;
+}
+
+/** Keep the offered schema aligned with the server-side collection check. Never trust it as authorization. */
+function liveToolDeclaration(tool: FunctionDeclaration): FunctionDeclaration {
+  const result = structuredClone(tool);
+  result.description = `${tool.description?.replaceAll('current sandbox books', 'live books')} Employee records are unavailable. Record fields, filters and search are restricted; direct record reads omit banking and tax identifiers.`;
+  const schema = result.parametersJsonSchema as { properties?: Record<string, { enum?: string[]; items?: { enum?: string[] } }> } | undefined;
+  const properties = schema?.properties;
+  if (properties?.collection?.enum) properties.collection.enum = properties.collection.enum.filter(c => LIVE_COLLECTIONS.has(c));
+  if (properties?.collections?.items?.enum) properties.collections.items.enum = properties.collections.items.enum.filter(c => LIVE_COLLECTIONS.has(c));
+  return result;
+}
+
 const PROPOSE = /^propose_([a-z][a-z0-9]*)_([a-z][a-z0-9]*)$/;
 
 export function assistantTurnHandler<Sandbox extends { workspaceId: string; sandboxId: string; workspace: Record<string, unknown>; user: RequestUser }>(
@@ -75,7 +109,7 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
     const { question } = parsed.data;
     const sandbox = await helpers.readableSandbox(live, req);
     const { workspaceId, workspace, user } = sandbox;
-    const commands = draftableCommands(workspace, user);
+    const commands = helpers.readOnly ? [] : draftableCommands(workspace, user);
 
     const usage = await assistantUsage(live, workspaceId, workspace);
     const refusal = usage ? assistantLimitRefusal(usage) : null;
@@ -86,9 +120,13 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
       return res.status(503).json({ status: 'error', code: 'ASSISTANT_MODEL_UNAVAILABLE', message: 'The assistant model is not configured. Questions the books answer directly still work.' });
     }
     const models = assistantModels();
-    const tools = assistantToolsFor(commands, question)[0].functionDeclarations as FunctionDeclaration[];
+    const tools = (helpers.readOnly
+      ? geminiReadTools.filter(tool => LIVE_READ_TOOLS.has(String(tool.name))).map(liveToolDeclaration)
+      : assistantToolsFor(commands, question)[0].functionDeclarations) as FunctionDeclaration[];
 
     const callTool = async (name: string, args: Record<string, unknown>): Promise<unknown> => {
+      // Defense in depth: even an unexpected model response cannot reach proposals or unlisted tools.
+      if (helpers.readOnly && !liveReadAllowed(name, args)) return { error: 'This is a read-only assistant; this tool is not available.' };
       const proposal = PROPOSE.exec(name);
       if (proposal) {
         // the same drafting intent the assistant token has: the step lands in the sandbox, never the books
@@ -96,12 +134,15 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
         const step = review.steps.at(-1);
         return { drafted: true, proposalId: review.id, step: step ? { id: step.id, command: step.command, state: step.state, preview: step.preview } : null };
       }
-      const { status, body } = await helpers.runReadTool(live, req, res, sandbox, name, args, passThrough);
+      // the model never sets "today": the books tool counts "this year" and "last month" from the workspace's own date
+      const { today: _madeUp, ...readArgs } = args;
+      const safeArgs = helpers.readOnly && name === 'search_records' && args.collections === undefined ? { ...args, collections: DEFAULT_LIVE_SEARCH } : args;
+      const { status, body } = await helpers.runReadTool(live, req, res, sandbox, name, name === 'ask_books' ? readArgs : safeArgs, passThrough, helpers.readOnly ? 'live-assistant' : 'sandbox');
       if (status !== 200) return { error: (body as { message?: string } | undefined)?.message ?? 'The tool refused this request' };
-      return body;
+      return helpers.readOnly ? redactLiveReport(body) : body;
     };
     const discover = (tool: string, result: unknown): FunctionDeclaration[] => {
-      if (tool !== 'find_command') return [];
+      if (helpers.readOnly || tool !== 'find_command') return [];
       const matches = (result as { matches?: Array<{ tool?: FunctionDeclaration }> })?.matches ?? [];
       return matches.flatMap(match => (match.tool ? [match.tool] : []));
     };
@@ -126,9 +167,12 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
     const { answer, metric } = await answerTurn({
       client: metered ?? blockedClient,
       model: models.simple,
-      systemPrompt: ASSISTANT_SYSTEM_PROMPT,
+      systemPrompt: helpers.readOnly ? `${ASSISTANT_SYSTEM_PROMPT}\n\nThis turn is read-only on the live books. You cannot create, review or modify drafts. Never claim you did. If a change is requested, explain that a writer must do it.` : ASSISTANT_SYSTEM_PROMPT,
       tools, question, callTool, discover,
-      cache: sandboxToolCache(live.pool, sandbox, 'turn', { timeZone: workspace.timezone }),
+      facts: assistantFacts({ today: todayIn(typeof workspace.timezone === 'string' ? workspace.timezone : null), timeZone: typeof workspace.timezone === 'string' ? workspace.timezone : null, currency: typeof workspace.currency === 'string' ? workspace.currency : null,
+        fiscalYearStartMonth: typeof workspace.fiscalYearStartMonth === 'number' ? workspace.fiscalYearStartMonth : null,
+        fiscalYearStartDay: typeof workspace.fiscalYearStartDay === 'number' ? workspace.fiscalYearStartDay : null }),
+      cache: helpers.readOnly ? passThrough : sandboxToolCache(live.pool, sandbox, 'turn', { timeZone: workspace.timezone }),
       currency: typeof workspace.currency === 'string' ? workspace.currency : null,
       modelRule: { choose: reason => chooseModel(question, reason, commands, models), strong: models.strong },
     });

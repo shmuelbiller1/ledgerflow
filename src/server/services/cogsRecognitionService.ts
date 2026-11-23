@@ -10,6 +10,7 @@ import { FieldValue } from '../db/firestore';
 import type { Firestore, Transaction } from '../db/firestore';
 import { validateWorkspaceAccounts } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
+import { isStandardizing, validStandardCost } from '../../lib/standardCostSettings';
 import { ledgerCreate } from './ledgerDoor';
 import { stockMovesReady, writeStockMoves } from './stockMoveService';
 import { writeServerAuditLog } from './auditLogService';
@@ -66,6 +67,13 @@ export async function prepareCogs(db: Firestore, input: CogsInput): Promise<Cogs
   }
   if (typeof itemData.unitCostCents !== 'number' || itemData.unitCostCents <= 0) {
     throw new CogsError(400, `Inventory item ${input.itemId} has no valid unitCostCents configured.`);
+  }
+  // M-21 step 2: while the workspace posts at the standard, the stock is carried at quantity × standard in
+  // the books, so recognizing COGS at the item's actual cost (unitCostCents) would leave Inventory out of
+  // step. This manual path was not converted to the standard basis, so it is refused for standard items.
+  const ws = (await db.collection('workspaces').doc(input.workspaceId).get()).data() as Record<string, unknown> | undefined;
+  if (isStandardizing(ws) && validStandardCost(itemData.standardCostCents) !== null) {
+    throw new CogsError(409, `${itemData.name || input.itemId} is valued at its standard cost and this workspace posts at the standard. Recognizing cost of goods by hand posts at the standard carrying basis (with the variance to the variance account), which is not supported yet: turn standard-cost posting off, or change the item's standard to none.`);
   }
   // #76: Decimal for COGS precision
   const totalCogsCents = new Decimal(itemData.unitCostCents).mul(input.quantitySold).round().toNumber();

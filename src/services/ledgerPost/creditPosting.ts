@@ -3,6 +3,7 @@ import { planReturnEntries, returnableLines, returnProblem } from '../../lib/sal
 import { isIncomeAccount, resolveAccountRole } from '../../lib/accountUtils';
 import { CreditNote, VendorCredit } from '../../types';
 import { getAccounts, getTransactions, getWorkspaces, inBaseCurrency, verifyLockDate, resolveAccount, postTxsServerApi, findAccount, getInvoices, postingToday, documentMinorRate, liveDocumentPostings, reversalEntries } from './postingCore';
+import { validStandardCost } from '../../lib/standardCostSettings';
 import type { EntityMutation, LedgerPostContext, PostableTransaction } from './postingCore';
 
 /**
@@ -118,6 +119,43 @@ export async function postCreditNoteLedger(
     const lines = returnableLines(invoice, getTransactions(context), creditNoteId);
     const problem = returnProblem(goods, lines);
     if (problem) throw new Error(problem);
+    // M-21 step 2: under standard-cost posting a sale relieved stock at the standard it had then. If the
+    // item's standard has changed since (it could be, once the stock sold down to zero), bringing the
+    // units back at the old sale cost and relieving them again at the new standard leaves Inventory out of
+    // step. A sale that predates the standard costs the same mismatch, so the check applies to every sale
+    // whose carrying value differs from the current standard — not only to sales posted at a standard.
+    // The check also applies when the workspace has since turned standard-cost posting off: the return
+    // would restore the units at the sale's recorded cost while a resale relieves them at the item's
+    // actual cost, leaving Inventory out of step with the active basis. Refuse the incompatible return
+    // before it changes stock.
+    {
+      const itemsById = new Map((context?.inventory || []).map(i => [i.id, i]));
+      for (const g of goods) {
+        const line = lines.find(l => l.invoiceLineId === g.invoiceLineId);
+        if (!line) continue;
+        // the check is about a basis mismatch, which only exists for sales relieved at a standard: when
+        // the workspace posts at standard (whatever the sale's basis), or when this sale itself was
+        // posted at a standard while the workspace has since turned the setting off. A plain actual-cost
+        // sale in a moving-average workspace has no basis to mismatch — its cost is whatever the average
+        // was — so the return posts at the sale cost as before.
+        if (!currentWs?.standardCosting?.enabled && !line.saleStandard) continue;
+        // an item the context did not load (the sample-workspace path) is not a changed basis:
+        // without the item there is nothing to compare against, so the return posts as before
+        const item = itemsById.get(g.itemId);
+        // the basis the units would be relieved at now: the standard while the workspace posts at
+        // standard, the item's actual unit cost once it no longer does
+        const currentStandard = item ? validStandardCost(item.standardCostCents) : null;
+        const activeBasis = currentWs?.standardCosting?.enabled ? currentStandard : (item ? validStandardCost(item.unitCostCents) : null);
+        // M-21 step 2: compare what the sold units would cost at the active basis against what the sale
+        // actually cost (a one-cent allowance for the sale total's own rounding). Comparing the rounded
+        // per-unit cost instead would refuse valid returns of fractional quantities, where the rounding
+        // alone makes the per-unit figure differ from the standard.
+        if (activeBasis !== null && line.saleTotalCents !== undefined && Math.abs(Math.round(line.sold * activeBasis) - line.saleTotalCents) > 1) {
+          const basis = currentWs?.standardCosting?.enabled ? 'standard cost' : 'carrying cost';
+          throw new Error(`The ${basis} of ${line.description || g.itemId} changed since it was sold, so returning it at the sale's cost would leave Inventory out of step. Revalue the stock before recording this return.`);
+        }
+      }
+    }
     const inventoryAccount = findAccount(accounts, mappings, ['inventory', 'stock', 'inventory asset'], a => resolveAccountRole(a) === 'inventory');
     const cogsAccount = findAccount(accounts, mappings, ['cogs', 'cost of goods sold', 'direct costs'], a => resolveAccountRole(a) === 'cogs');
     if (!inventoryAccount || !cogsAccount) throw new Error('Returned goods need an Inventory account and a Cost of Goods Sold account in the chart of accounts.');
@@ -213,6 +251,24 @@ export async function postVendorCreditLedger(
   if (goodsTotal > amount - vcTax) throw new Error('The goods sent back are worth more than the credit (before tax): raise the credit, or send back fewer');
   const inventoryAccount = goods.length ? findAccount(accounts, mappings, ['inventory', 'stock', 'inventory asset'], a => resolveAccountRole(a) === 'inventory') : null;
   if (goods.length && !inventoryAccount) throw new Error('Add an Inventory account (an asset) to the chart of accounts to send stock back to a vendor');
+  // M-21 step 2: with standard-cost posting on, the stock came in at its standard, so what goes back comes
+  // off Inventory at the standard carrying value and the difference reverses the variance the receipt booked
+  const standardizing = Boolean(currentWs?.standardCosting?.enabled);
+  const itemsById = new Map((context?.inventory || []).map(i => [i.id, i]));
+  const carriedValues = goods.map(g => {
+    if (!standardizing) return roundCents(g.valueCents * rate);
+    const standard = validStandardCost(itemsById.get(g.itemId)?.standardCostCents);
+    return standard !== null ? roundCents(g.quantity * standard) : roundCents(g.valueCents * rate);
+  });
+  const carriedTotal = carriedValues.reduce((s, c) => s + c, 0);
+  let varianceAccount: { id: string; name: string } | null = null;
+  let varianceCents = 0;
+  if (standardizing && goods.length) {
+    const found = accounts.find(a => a.id === currentWs?.standardCosting?.varianceAccountId);
+    if (!found) throw new Error('The purchase-price variance account set in Workspace Settings is not in the chart of accounts.');
+    varianceAccount = found;
+    varianceCents = carriedTotal - goodsTotal; // the receipt's variance (actual − standard) goes back
+  }
   const rebate = amount - vcTax - goodsTotal;
 
   const vcTx = {
@@ -232,12 +288,15 @@ export async function postVendorCreditLedger(
       type: 'vendor-credit-issuance',
       // DIM-2 phase 2: each line sent back names the bill line it came in on (and the bill, under its own key so the
       // entry is never mistaken for the bill's own)
-      ...(goods.length ? { stockOut: goods.map((g, i) => ({ itemId: g.itemId, quantity: g.quantity, valueCents: goodsBase[i], ...(Number.isSafeInteger(g.billLine) ? { billLine: g.billLine } : {}) })) } : {}),
+      // M-21 step 2: stockOut carries the standard value the books relieve at, and — only when it differs —
+      // the actual value the return's stock move must use to keep the moving-average basis (the receipt's actual cost)
+      ...(goods.length ? { stockOut: goods.map((g, i) => ({ itemId: g.itemId, quantity: g.quantity, valueCents: carriedValues[i], ...(carriedValues[i] !== goodsBase[i] ? { actualValueCents: goodsBase[i] } : {}), ...(Number.isSafeInteger(g.billLine) ? { billLine: g.billLine } : {}) })) } : {}),
       ...(goods.length && vendorCreditData.billId ? { returnsFromBillId: vendorCreditData.billId } : {}),
     },
     lines: [
       { accountId: apAccount.id, accountName: apAccount.name, amountCents: amount, debitCents: amount, creditCents: 0, description: 'Accounts Payable Reduction' },
-      ...(goodsTotal > 0 && inventoryAccount ? [{ accountId: inventoryAccount.id, accountName: inventoryAccount.name, amountCents: -goodsTotal, debitCents: 0, creditCents: goodsTotal, description: 'Stock sent back to the vendor' }] : []),
+      ...(carriedTotal > 0 && inventoryAccount ? [{ accountId: inventoryAccount.id, accountName: inventoryAccount.name, amountCents: -carriedTotal, debitCents: 0, creditCents: carriedTotal, description: 'Stock sent back to the vendor' }] : []),
+      ...(varianceAccount && varianceCents !== 0 ? [{ accountId: varianceAccount.id, accountName: varianceAccount.name, amountCents: varianceCents, description: 'Purchase price variance reversed on stock sent back to the vendor', exchangeRate: rate }] : []),
       ...(rebate !== 0 ? [{ accountId: expenseAccount.id, accountName: expenseAccount.name, amountCents: -rebate, debitCents: 0, creditCents: rebate, description: 'Purchase Rebate / Expense Discount' }] : []),
       ...(vcTax > 0 && vcTaxAccount ? [{ accountId: vcTaxAccount.id, accountName: vcTaxAccount.name, amountCents: -vcTax, debitCents: 0, creditCents: vcTax, description: 'Input tax reversed by the credit' }] : [])
     ]

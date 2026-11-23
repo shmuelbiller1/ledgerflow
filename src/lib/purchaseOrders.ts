@@ -5,6 +5,10 @@
 import type { Bill, PurchaseOrder, PurchaseOrderItem } from '../types';
 import { formatCurrency } from './utils';
 
+// numbering lives in its own module: the server numbers a drop-ship order without reaching this file's
+// browser imports (W-08)
+export { nextPoNumber } from './purchaseOrderNumbering';
+
 /** What the bill should say: the received quantities when anything was received, else what was ordered. */
 export function billLinesFromOrder(po: PurchaseOrder): NonNullable<Bill['splits']> {
   const anyReceived = po.items.some(i => (i.receivedQuantity || 0) > 0);
@@ -21,16 +25,6 @@ export function billLinesFromOrder(po: PurchaseOrder): NonNullable<Bill['splits'
       };
     })
     .filter(line => line.amountCents !== 0);
-}
-
-/** PO-<year>-<nnn>, one more than the highest number used this year. */
-export function nextPoNumber(existing: Pick<PurchaseOrder, 'poNumber'>[], year: string): string {
-  const prefix = `PO-${year}-`;
-  const highest = existing.reduce((max, po) => {
-    const n = po.poNumber?.startsWith(prefix) ? Number(po.poNumber.slice(prefix.length)) : 0;
-    return Number.isFinite(n) && n > max ? n : max;
-  }, 0);
-  return `${prefix}${String(highest + 1).padStart(3, '0')}`;
 }
 
 /** Closed orders: nothing on them changes any more. */

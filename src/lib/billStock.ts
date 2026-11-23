@@ -15,8 +15,10 @@ export const BILL_ACCRUAL_TYPE = 'bill-accrual';
 export interface BillStockLine {
   itemId: string;
   quantity: number;
-  /** what the line posted to Inventory, whole cents in the workspace's currency */
+  /** what the line posts to Inventory, whole cents */
   valueCents: number;
+  /** M-21 step 2: the line's actual cost, kept for the moving-average basis */
+  actualValueCents?: number;
   /** its place among the bill's lines */
   line: number;
 }
@@ -43,4 +45,83 @@ export function billStockLines(splits: Array<{ itemId?: string; quantity?: numbe
     allocateCents(landed, lines.map(l => (byValue ? Math.max(0, l.valueCents) : l.quantity))).forEach((extra, i) => { lines[i].valueCents += extra; });
   }
   return lines;
+}
+
+/**
+ * M-21 step 2: what a bill's receipt posts at standard. Each item line that carries a valid standard cost
+ * comes in at quantity × standard; a line without one keeps its actual value (landed cost included). The
+ * difference between what the lines posted to Inventory (the actual total) and the standard total is the
+ * purchase-price variance, which the posting sends to the workspace's variance account.
+ */
+import { validStandardCost } from './standardCostSettings';
+import type { InventoryItem } from '../model/operations';
+
+export interface StandardReceiptPlan {
+  /** the stock-in lines with their standard values (actual where no standard applies) */
+  entries: BillStockLine[];
+  /** what the lines posted to Inventory as posted today (actual, landed cost included) */
+  actualTotalCents: number;
+  /** what they post to Inventory under standard costing */
+  standardTotalCents: number;
+  /** actual − standard: a debit when the stock cost more than planned (unfavourable) */
+  varianceCents: number;
+}
+
+/** The standard-cost plan for a receipt, or null when the workspace does not post at standard. */
+export function planStandardReceipt(
+  stockIn: BillStockLine[],
+  items: Array<Pick<InventoryItem, 'id' | 'standardCostCents'>>,
+  standardizing: boolean,
+  /**
+   * M-21 step 2: the carrying value each item's original receipt posted at (itemId → the quantity and
+   * value of the units already in the books). A bill being reposted keeps the basis its original receipt
+   * used for unchanged lines — an item's standard can legally change once its stock sold down to zero,
+   * and repricing the replacement at the new standard would leave Inventory out of step. Lines whose
+   * quantity changed take the item's current standard.
+   */
+  originalReceipt?: Map<string | number, { itemId: string; quantity: number; valueCents: number; actualValueCents?: number }>
+): StandardReceiptPlan | null {
+  // the plan is the receipt's carrying basis; without the setting it is only in play to preserve the
+  // basis a booked receipt used (an item's standard can legally change once its stock sold down to zero)
+  if (!standardizing && (!originalReceipt || originalReceipt.size === 0)) return null;
+  const byId = new Map(items.map(i => [i.id, i]));
+  const actualUnitOf = (line: BillStockLine): number => {
+    const row = originalReceipt?.get(line.line !== undefined ? line.line : `item:${line.itemId}`);
+    if (row && typeof row.actualValueCents === 'number' && row.quantity > 0) return row.actualValueCents / row.quantity;
+    return row ? row.valueCents / row.quantity : 0;
+  };
+  const entries = stockIn.map(line => {
+    // the original receipt's row for this bill line (keyed by the line's index, so repeated items on
+    // separate lines keep their own basis); the item must match too, or a line re-pointed at a different
+    // item would inherit the previous item's carrying value
+    const original = originalReceipt?.get(line.line !== undefined ? line.line : `item:${line.itemId}`);
+    const originalQty = original !== undefined && original.itemId === line.itemId && Number.isFinite(original.quantity) && original.quantity > 0 ? original.quantity : 0;
+    const atOriginal = originalQty > 0 ? Math.min(line.quantity, originalQty) : 0;
+    const extra = line.quantity - atOriginal;
+    let standardValueCents: number;
+    if (originalQty > 0) {
+      // the units the original receipt covered keep its carrying basis (pro-rated when the line shrank);
+      // units a later edit added take the item's current standard when the workspace posts at standard,
+      // or their actual cost once it no longer does
+      const originalUnit = original!.valueCents / originalQty;
+      const currentStandard = validStandardCost(byId.get(line.itemId)?.standardCostCents);
+      const addedBasis = extra > 0 ? (standardizing ? (currentStandard ?? originalUnit) : actualUnitOf(line)) : 0;
+      standardValueCents = Math.round(atOriginal * originalUnit) + Math.round(extra * addedBasis);
+    } else if (standardizing) {
+      const standard = validStandardCost(byId.get(line.itemId)?.standardCostCents);
+      standardValueCents = standard !== null && line.quantity > 0 ? Math.round(line.quantity * standard) : line.valueCents;
+    } else {
+      // the workspace is not posting at standard: a line the original receipt has no basis for posts at
+      // its actual value (the plan is only in play here to preserve the booked basis of the old receipt)
+      standardValueCents = line.valueCents;
+    }
+    return {
+      ...line,
+      valueCents: standardValueCents,
+      ...(standardValueCents !== line.valueCents ? { actualValueCents: line.valueCents } : {}),
+    };
+  });
+  const actualTotalCents = stockIn.reduce((sum, l) => sum + l.valueCents, 0);
+  const standardTotalCents = entries.reduce((sum, l) => sum + l.valueCents, 0);
+  return { entries, actualTotalCents, standardTotalCents, varianceCents: actualTotalCents - standardTotalCents };
 }

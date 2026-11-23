@@ -180,6 +180,8 @@ export interface Invoice {
     accountId: string;
     taxRate?: number;
     unitCostCents?: number;
+    /** INV-02: a line-level cost snapshot at micro-cent precision, when the cost was carried exactly */
+    unitCostMicroCents?: number;
     /** BF-09: the line's labels (Project, Location…), posted with its revenue */
     dimensions?: Record<string, string>;
     /** A-33/A-67: serials recorded at sale for traceability and warranty reporting. */
@@ -290,6 +292,9 @@ export interface Estimate {
   lines: Array<{
     /** the stock item this line sells (BF-08): the order is then invoiced by quantity */
     itemId?: string;
+    /** W-08: the units are bought from a vendor and shipped straight to the customer. The line keeps its
+     * item for pricing, but the invoice made from it carries no item, so posting moves no stock. */
+    dropShip?: boolean;
     description: string;
     quantity: number;
     unitPriceCents: number;
@@ -468,6 +473,8 @@ export interface PurchaseOrder {
   receipts?: GoodsReceipt[];
   /** The bill created from this order (BE-11). */
   billId?: string;
+  /** W-08: the sales order this drop-ship order was placed for (`estimate.dropship`), and that it is one. */
+  metadata?: EntityMetadata;
   createdAt: string;
   updatedAt?: string;
 }

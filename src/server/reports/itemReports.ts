@@ -4,6 +4,7 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { INVOICE_IS_ISSUED } from './computeReports';
 import { toBaseCents } from './partyReports';
 import { isOpeningBalanceDocument } from '../../lib/partyOpeningBalance';
+import { validStandardCost } from '../../lib/standardCostSettings';
 
 /** Invoice lines that have no inventory item are grouped under this key. */
 export const NO_ITEM_KEY = '__no_item__';
@@ -251,14 +252,19 @@ export interface InventoryValuation {
  * For historical stock-movement reconstruction as of an earlier date, see `src/lib/inventoryAsOf.ts`.
  */
 export function computeInventoryValuation(
-  items: Pick<InventoryItem, 'id' | 'name' | 'sku' | 'unitCostCents' | 'quantityAtHand' | 'reorderPoint' | 'category'>[],
+  items: Pick<InventoryItem, 'id' | 'name' | 'sku' | 'unitCostCents' | 'quantityAtHand' | 'reorderPoint' | 'category' | 'standardCostCents'>[],
   accounts: ChartAccount[],
   transactions: Transaction[],
-  asOfDate?: string
+  asOfDate?: string,
+  /** M-21 step 2: value the stock at each item's standard cost (the books post it that way then) */
+  standardCosting?: boolean
 ): InventoryValuation {
   const valued = items.map(item => {
     const quantity = Number(item.quantityAtHand) || 0;
-    const unitCostCents = Math.round(Number(item.unitCostCents) || 0);
+    // M-21 step 2: with standard-cost posting on, the stock is carried at the standard (what the receipts
+    // and the sales relief posted); without it, the moving average, exactly as before
+    const standard = standardCosting ? validStandardCost(item.standardCostCents) : null;
+    const unitCostCents = Math.round(standard ?? (Number(item.unitCostCents) || 0));
     return {
       itemId: item.id,
       name: item.name || item.id,

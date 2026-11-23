@@ -15,9 +15,10 @@ const reads = {
   get_record: [getRecordInput, 'Read one record from the current sandbox books by collection and exact ID.'],
   list_records: [listRecordsInput, 'List records in the current sandbox books with the supplied filters, fields and paging.'],
   run_report: [runReportInput, 'Run the real report or balance reader on the current sandbox books. Use the user’s period, basis and label filters.'],
-  ask_books: [askBooksInput, 'Read a question about the books as a report filter, and cite its evidence. Ask for clarification when there is no unambiguous reading.'],
+  // `today` is left out: the server uses today in the workspace's time zone, never a date the model makes up
+  ask_books: [askBooksInput.omit({ today: true }), 'Read a question about the books as a report filter, and cite its evidence. Ask for clarification when there is no unambiguous reading.'],
   explain_number: [explainNumberInput, 'Find the evidence for a total in the current sandbox books; use the source links and do not invent amounts.'],
-  calculate: [calculateInput, 'Calculate with the exact numbers provided by books tools or the person.'],
+  calculate: [calculateInput, 'Calculate with the exact numbers provided by books tools or the person. Put several calculations in `expressions` to do them in one call.'],
   list_proposals: [listProposalsInput, 'List the proposal bound to this token and the states of its steps. Other sandboxes are not visible.'],
   preview_proposal: [previewProposalInput, 'Read the last stored preview of this proposal, without refreshing, accepting or changing it.'],
   remembered_choices: [rememberedChoicesInput, 'Before proposing a step, get choices this workspace made the same way at least 95% of the time over 5+ cases. Offer them as "from your earlier choice" with the case count; never apply them without the person.'],

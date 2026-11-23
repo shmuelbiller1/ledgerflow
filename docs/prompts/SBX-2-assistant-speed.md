@@ -98,6 +98,22 @@ Do not change posting, tax, or report math, and do not let any speed-up write to
   graders without a key.
 - **Output:** the before/after table in `docs/assistant-baseline.md`, and a short recommendation in
   `docs/FOR_YOU.md` (cheap model, strong model, the written rule for switching, cost per 100 questions).
+- **First graded run (22 Nov, #1011):** Terra 9/12 (11.9¢), Luna 5/12 (1.3¢), GLM 4, Gemini Flash 1,
+  MiniMax 0, DeepSeek 0. Terra failed only the three draft questions (payment, invoice, bill); Luna also
+  failed the "why / afford / summarise" questions. #1012 makes the report say *what* happened on a
+  failure (draft refused with the field, asked, or answered) and accepts a fair question for a missing
+  payment account or bill number/date.
+- **Next (owner's idea, 22 Nov): better instructions and context before changing models.** Rerun after
+  #1012 to get the reasons, then change `assistant/SYSTEM_PROMPT.md` and the request context, and rerun
+  Terra + Luna (about 13¢) to compare:
+  1. A short "facts about these books" block per request: accounts with ids and types, the default
+     cash/bank account, top customers and vendors, the numbering pattern, so drafts need fewer lookups.
+  2. Tell it to call `remembered_choices` (Part 3) before drafting, and to offer what it returns.
+  3. Worked examples for the hard question types: why did X change (run both periods, compare, name the
+     biggest changes with figures), can I afford Y (cash + monthly profit), summarise the year.
+  4. Drafting rules: what each draft needs (a payment's cash account, a bill's number and dates), and
+     ask for whatever is missing instead of guessing.
+  Goal: Luna close to Terra on the graded test, so the cheap model can take most turns.
 - **Blocked until:** the Arena key is saved (a new session's key form works; this one's did not).
 
 ## Part 7 — Plans and limits

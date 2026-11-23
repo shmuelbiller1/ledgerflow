@@ -10,3 +10,9 @@ test('a call is priced from the dated row; an unknown model is not guessed', () 
   assert.equal(callCostCents('gemini-2.5-flash', '2026-10-11', 1000, 500), 0.155);
   assert.equal(callCostCents('some-new-model', '2026-10-11', 1000, 1000), undefined);
 });
+
+test('Luna and Terra standard rates include cached input from 23 November 2026', () => {
+  assert.equal(callCostCents('gpt-6-luna', '2026-11-22', 1, 1), undefined);
+  assert.equal(callCostCents('gpt-6-luna', '2026-11-23', 1_000_000, 1_000_000, 500_000), 55.5);
+  assert.equal(callCostCents('gpt-6.1-terra', '2026-11-23', 1_000_000, 1_000_000, 500_000), 552.5);
+});

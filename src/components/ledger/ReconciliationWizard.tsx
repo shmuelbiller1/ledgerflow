@@ -69,7 +69,10 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
     if (lastReconciliation && typeof lastReconciliation.statementBalanceCents === 'number') {
       return lastReconciliation.statementBalanceCents;
     }
-    return account?.openingBalanceCents || account?.balanceCents || 0;
+    // BR-03: a recorded zero opening balance is a real zero, not an absent one — only fall back to
+    // the current balance when no opening was recorded at all.
+    if (account && typeof account.openingBalanceCents === 'number') return account.openingBalanceCents;
+    return account?.balanceCents || 0;
   }, [lastReconciliation, account]);
 
   const safeParseCents = (val: string): number => {
@@ -86,17 +89,18 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
     }
   };
 
-  const filteredTransactions = useMemo(() => {
+  // BR-01: the transactions eligible for this account and statement date, with no search filter —
+  // the search only hides rows from the screen, it must never change what the reconciliation adds up.
+  const eligibleTransactions = useMemo(() => {
     if (!selectedAccount || !account) return [];
-    return (transactions || []).filter(t => 
+    return (transactions || []).filter(t =>
       isPostable(t) &&
       t.status !== 'reconciled' &&
       !t.reconciled &&
       !t.isReconciled &&
       !t.clearedAt &&
       isTransactionInDateRange(t, undefined, statementDate) &&
-      t.lines?.some(l => l.accountId === account.id || l.accountName === account.name) && 
-      (t.description.toLowerCase().includes(searchTerm.toLowerCase()) || t.totalAmountCents.toString().includes(searchTerm))
+      t.lines?.some(l => l.accountId === account.id || l.accountName === account.name)
     ).map(t => {
       const matchLine = t.lines?.find(l => l.accountId === account.id || l.accountName === account.name);
       return {
@@ -105,10 +109,20 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
         relevantAmountCents: matchLine ? lineAmount(matchLine, t) : 0
       };
     });
-  }, [selectedAccount, account, statementDate, searchTerm, transactions]);
+  }, [selectedAccount, account, statementDate, transactions]);
+
+  const filteredTransactions = useMemo(() => {
+    if (!searchTerm.trim()) return eligibleTransactions;
+    return eligibleTransactions.filter(t =>
+      t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.totalAmountCents.toString().includes(searchTerm)
+    );
+  }, [eligibleTransactions, searchTerm]);
 
   const stats = useMemo(() => {
-    const cleared = filteredTransactions
+    // BR-01: the cleared total is added up from every eligible selected transaction, not from the
+    // rows the search happens to show — a hidden selection must not make the difference zero.
+    const cleared = eligibleTransactions
       .filter(t => reconciledIds.includes(t.id))
       .reduce((sum, t) => sum + t.relevantAmountCents, 0);
     
@@ -117,7 +131,7 @@ export default function ReconciliationWizard({ isOpen, onClose, accounts, onComp
     const difference = targetBalance - currentBalance;
 
     return { cleared, beginningBalance, targetBalance, currentBalance, difference };
-  }, [filteredTransactions, reconciledIds, beginningBalance, endingBalance]);
+  }, [eligibleTransactions, reconciledIds, beginningBalance, endingBalance]);
 
   const handleToggle = (id: string) => {
     setReconciledIds(prev => 

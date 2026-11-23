@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import type { Firestore } from '../db/firestore';
 import { computeBalanceSheet, computeProfitAndLoss } from '../reports/computeReports';
 import { AGING_BUCKETS, computePartyAging } from '../../lib/aging';
+import { documentVoidDates } from '../reports/documentVoidDates';
+import { loadAgingSettlements } from '../reports/agingSettlements';
 import { formatMoney as formatCurrency, type MoneyDisplaySettings } from '../../lib/moneyFormat';
 import { addToDateISO, formatTzDate } from '../../lib/calendarDate';
 import {
@@ -46,18 +48,25 @@ export async function reportEmail(db: Firestore, workspace: { id: string; name?:
   const currency = workspace.currency || 'USD';
   const html = reportEmailHtml(parts.map(p => p.table), { workspaceName: workspace.name || 'Your books', currency, format: cents => formatCurrency(cents, currency, workspace.moneyDisplay) });
   const title = parts.length > 1 ? `Report pack ${period.startDate} – ${period.endDate}` : parts[0].table.title;
-  const attachments = parts.map(p => ({ filename: `${p.kind}-${period.endDate}.csv`, content: Buffer.from(`\uFEFF${reportCsv(p.table)}`, 'utf8'), contentType: 'text/csv' }));
+  // RP-02: the attachment is in the book's currency, so money cells use its minor-unit scale
+  const attachments = parts.map(p => ({ filename: `${p.kind}-${period.endDate}.csv`, content: Buffer.from(`\uFEFF${reportCsv(p.table, currency)}`, 'utf8'), contentType: 'text/csv' }));
   return { subject: `${title} · ${workspace.name || `${BRAND_NAME}`}`, html, attachments };
 }
 
 export async function buildReport(db: Firestore, workspaceId: string, schedule: { report: Exclude<ScheduledReport['report'], 'report-pack'> }, period: ReportPeriod, baseCurrency = 'USD'): Promise<ReportTable> {
   const dayAfter = addToDateISO(period.endDate, { days: 1 });
   if (schedule.report === 'receivables-aging') {
-    const [customers, invoices] = await Promise.all([
+    const [customers, invoices, settlements, voidDates] = await Promise.all([
       workspaceRows<Customer>(db, 'customers', workspaceId),
       workspaceRows<Invoice>(db, 'invoices', workspaceId, dayAfter),
+      // RP-01: the snapshot is reconstructed from dated settlement events (the payment ledger, plus
+      // payments recorded before it), not from the documents' current state: a payment made after the
+      // report date, or a later void, must not change the historic aging (the aging applies the cutoff)
+      loadAgingSettlements(db, workspaceId, 'invoice', baseCurrency),
+      // a void counts from the date its reversal was posted, not before
+      documentVoidDates(db, workspaceId, 'invoice'),
     ]);
-    return agingTable(computePartyAging(customers, invoices, 'customer', period.endDate, baseCurrency), [...AGING_BUCKETS], period);
+    return agingTable(computePartyAging(customers, invoices, 'customer', period.endDate, baseCurrency, settlements, voidDates), [...AGING_BUCKETS], period);
   }
   const [accounts, entries] = await Promise.all([
     workspaceRows<ChartAccount>(db, 'chartAccounts', workspaceId),

@@ -24,6 +24,8 @@ export interface StockMove {
   unitCostCents: number;
   /** the value that moved, signed like the quantity (whole cents) */
   valueCents: number;
+  /** M-21 step 2: a receipt's actual cost, beside the standard value it posted at (the average-cost basis) */
+  actualValueCents?: number;
   transactionId?: string | null;
   documentType?: 'invoice' | 'credit-note' | 'adjustment' | 'import' | 'delivery' | 'bill' | 'vendor-credit';
   documentId?: string;
@@ -165,7 +167,7 @@ export interface ItemDetails {
   itemId: string;
   itemName: string;
   opening: { quantity: number; valueCents: number };
-  moves: Array<Pick<StockMove, 'date' | 'kind' | 'quantity' | 'quantityAfter' | 'valueCents' | 'unitCostCents' | 'transactionId' | 'documentType' | 'documentId' | 'locationId' | 'documentLine' | 'vendorId' | 'sourceBillId' | 'customerId' | 'documentLineId' | 'labels' | 'purpose'> & { key: string; /** the day the move was written (its createdAt), when kept: the history's real start */ writtenOn?: string }>;
+  moves: Array<Pick<StockMove, 'date' | 'kind' | 'quantity' | 'quantityAfter' | 'valueCents' | 'unitCostCents' | 'transactionId' | 'documentType' | 'documentId' | 'locationId' | 'documentLine' | 'vendorId' | 'sourceBillId' | 'customerId' | 'documentLineId' | 'labels' | 'purpose'> & { key: string; /** the day the move was written (its createdAt), when kept: the history's real start */ writtenOn?: string; /** M-21 step 2: a receipt's actual cost, beside the standard value it posted at */ actualValueCents?: number }>;
   received: number;
   issued: number;
   closing: { quantity: number; valueCents: number };
@@ -195,6 +197,7 @@ export function itemDetails(moves: StockMove[], startDate: string, endDate: stri
       opening,
       moves: within.map((m, i) => ({
         key: m.id || `${m.seq}-${i}`, date: String(m.date).slice(0, 10), kind: m.kind, quantity: m.quantity, quantityAfter: m.quantityAfter, valueCents: m.valueCents, unitCostCents: m.unitCostCents,
+        ...(m.actualValueCents !== undefined ? { actualValueCents: m.actualValueCents } : {}),
         ...(m.transactionId ? { transactionId: m.transactionId } : {}), ...(m.documentType ? { documentType: m.documentType } : {}), ...(m.documentId ? { documentId: m.documentId } : {}),
         ...(m.locationId ? { locationId: m.locationId } : {}),
         // DIM-2 phases 2-3: where the units came from and went, when the move keeps it
@@ -210,12 +213,16 @@ export function itemDetails(moves: StockMove[], startDate: string, endDate: stri
   return out.sort((a, b) => a.itemName.localeCompare(b.itemName));
 }
 
-/** J-08: what was bought of each item in the period (purchases on bills or on Inventory, less those undone). */
+/** J-08: what was bought of each item in the period (purchases on bills or on Inventory, less those undone).
+ * M-21 step 2: the purchase cost is what the receipt actually cost — under standard-cost posting the
+ * carrying value is the standard, so the actual value (the average-cost basis) carries the totals. */
 export function purchasesByItem(items: ItemDetails[]): Array<{ itemId: string; itemName: string; quantity: number; valueCents: number; averageCents: number }> {
   return items.map(item => {
     const bought = item.moves.filter(m => m.kind === 'purchase' || m.kind === 'purchase-reversal');
     const quantity = round6(bought.reduce((s, m) => s + m.quantity, 0));
-    const valueCents = bought.reduce((s, m) => s + m.valueCents, 0);
+    // the actual cost when the move carries one (a standard-cost receipt posts its value at the
+    // standard and keeps the actual cost beside it); otherwise the move's value as before
+    const valueCents = bought.reduce((s, m) => s + (m.actualValueCents ?? m.valueCents), 0);
     return { itemId: item.itemId, itemName: item.itemName, quantity, valueCents, averageCents: quantity > 0 ? Math.round(valueCents / quantity) : 0 };
   }).filter(p => p.quantity !== 0 || p.valueCents !== 0);
 }

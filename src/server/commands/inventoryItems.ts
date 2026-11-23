@@ -116,6 +116,19 @@ function stockedCostRefusal(existing: ItemRow | undefined, nextCost: unknown): H
   ), { code: 'CONFLICT' });
 }
 
+/** M-21 step 2: with standard-cost posting on, the standard is what existing stock is carried at in the
+ * books, so changing it while stock is on hand would revalue the stock silently. Refuse it, like a unit-cost
+ * change. The standard is changed only when the stock is gone (sold down or counted to zero), since a
+ * revaluation changes the actual cost, not the standard. */
+function stockedStandardRefusal(ctx: CommandContext, existing: ItemRow | undefined, nextStandard: unknown): HttpError | null {
+  if (nextStandard === undefined || Number(existing?.quantityAtHand || 0) === 0) return null;
+  if (!(ctx.workspace as { standardCosting?: { enabled?: boolean } })?.standardCosting?.enabled) return null;
+  if (Number(nextStandard) === Number(existing?.standardCostCents ?? Number.NaN)) return null;
+  return Object.assign(new HttpError(
+    'Standard-cost posting is on and this item has stock, so its standard cannot be changed here. Sell the stock down or count it to zero first, then set the standard.', 409,
+  ), { code: 'CONFLICT' });
+}
+
 function cardPatch(input: SaveInput, existing?: ItemRow): Record<string, unknown> {
   const { id: _id, documentDefaults, ...rest } = input;
   const patch: Record<string, unknown> = { ...rest };
@@ -164,6 +177,8 @@ export const inventoryItemSaveCommand: CommandDefinition<typeof inventoryItemSav
     }
     const costRefusal = stockedCostRefusal(existing, input.unitCostCents);
     if (costRefusal) throw costRefusal;
+    const standardRefusal = stockedStandardRefusal(ctx, existing, input.standardCostCents);
+    if (standardRefusal) throw standardRefusal;
     const patch = cardPatch(input, existing);
     tx.update(ref, { ...patch, updatedAt: now });
     return { id: input.id, created: false, fields: Object.keys(patch) };
@@ -222,6 +237,8 @@ export const inventoryItemFieldCommand: CommandDefinition<typeof inventoryItemFi
     }
     const costRefusal = input.field === 'unitCostCents' ? stockedCostRefusal(existing, input.value) : null;
     if (costRefusal) throw costRefusal;
+    const standardRefusal = input.field === 'standardCostCents' ? stockedStandardRefusal(ctx, existing, input.value) : null;
+    if (standardRefusal) throw standardRefusal;
     tx.update(ref, { [input.field]: input.value, updatedAt: new Date().toISOString() });
     return { id: input.id, created: false, fields: [input.field] };
   },

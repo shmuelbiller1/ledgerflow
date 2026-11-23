@@ -1,4 +1,3 @@
-import { isForbidden } from '../http/serverKit';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from "express";
 import type { DecodedIdToken } from "../auth/supabaseAuth";
@@ -7,7 +6,7 @@ import { z } from "zod";
 import { getDb } from "../db/firestore";
 import { isOpenBill, isOpenInvoice, isPostable, lineAmount } from "../../lib/txFilters";
 import { ReportRangeSchema, WorkspaceIdSchema } from "../../schemas";
-import { getDateInTimezoneISO } from "../../lib/calendarDate";
+import { addDaysYMD, getDateInTimezoneISO } from "../../lib/calendarDate";
 import crypto from "crypto";
 import {
   computeProfitAndLoss,
@@ -94,6 +93,36 @@ function sendError(res: express.Response, message: string, status: number = 500,
   });
 }
 
+/** Standard error mapping shared by all report routes: membership → 403, missing → 404, else 500. */
+function reportError(res: express.Response, error: unknown, fallbackMessage = "Internal Reporting Error") {
+  const msg = errorMessage(error);
+  if (/not a member|Unauthorized|FORBIDDEN/i.test(msg)) return sendError(res, "Forbidden", 403);
+  if (msg === "NOT_FOUND" || msg.includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
+  sendError(res, fallbackMessage, 500, msg);
+}
+
+/** Load and annotate payments with advance-application rows for cash-basis reporting. */
+async function loadCashBasisPayments(db: ReturnType<typeof getDb>, workspaceId: string): Promise<CashBasisPayment[]> {
+  const payments = (await db.collection('payments').where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as CashBasisPayment);
+  // RP-07: the allocation ledger's advance_application rows date when an unapplied advance was
+  // applied to a document; the cash basis dates that document's share with the application, not
+  // with the original payment date, so disjoint monthly reports add up to their union.
+  const advanceRows = (await db.collection('paymentAllocations').where('workspaceId', '==', workspaceId).where('kind', '==', 'advance_application').get())
+    .docs.map(d => d.data() as { sourceId?: string; documentId?: string; documentType?: 'invoice' | 'bill'; date?: string });
+  const applicationsByPayment = new Map<string, CashBasisPayment['applications']>();
+  for (const r of advanceRows) {
+    if (!r.sourceId || !r.documentId || !r.date) continue;
+    const list = applicationsByPayment.get(r.sourceId) ?? [];
+    list.push({ documentId: r.documentId, documentType: r.documentType || 'invoice', date: r.date });
+    applicationsByPayment.set(r.sourceId, list);
+  }
+  for (const p of payments) {
+    const applications = applicationsByPayment.get(p.id);
+    if (applications) p.applications = applications;
+  }
+  return payments;
+}
+
 /** The public mount always uses the live handle; an authorized server caller can bind scoped books. */
 export function createReportRouter(live = getDb(), db = live): express.Router {
   const scope = reportReadScope(live, db);
@@ -118,7 +147,10 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       txQuery = txQuery.where("date", ">=", startDate);
     }
     if (endDate) {
-      txQuery = txQuery.where("date", "<=", endDate);
+      // RP-06: the end bound is exclusive of the day after it, so a timestamped entry dated on the
+      // end date ('2026-05-31T12:00:00Z' sorts after the date-only '2026-05-31') is not dropped,
+      // matching the day semantics of transactionDate/isTransactionInDateRange below.
+      txQuery = txQuery.where("date", "<", addDaysYMD(endDate, 1));
     }
 
     const transactions: LedgerTransaction[] = [];
@@ -150,10 +182,10 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       // older than the period, so the whole history up to the end is read, with the payments
       if (req.query.basis === 'cash') {
         const { accounts, transactions } = await getReportContext(authReq, workspaceId, undefined, endDate || undefined);
-        const payments = (await db.collection('payments').where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as CashBasisPayment);
+        const payments = await loadCashBasisPayments(db, workspaceId);
         // BM-04 (#651): the books' currency, so a payment in ¥ (no decimals) or KWD (three) is converted with
         // the minor-unit shift; the same rate-only conversion made cash-basis revenue 100x too small.
-        const { entries, leftOut } = cashBasisEntries(accounts, transactions, payments, String((plWsData as { currency?: string } | undefined)?.currency || 'USD'));
+        const { entries, leftOut } = cashBasisEntries(accounts, transactions, payments, String((plWsData as { currency?: string } | undefined)?.currency || 'USD'), endDate);
         const pl = { ...computeProfitAndLoss(accounts, entries, startDate, endDate), basis: 'cash', leftOut };
         remember(cacheKey, pl);
         return res.json(withProvenance(pl));
@@ -163,9 +195,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       remember(cacheKey, pl);
       res.json(withProvenance(pl));
     } catch (error) {
-      if (/not a member|Unauthorized|FORBIDDEN/i.test(errorMessage(error))) return sendError(res, "Forbidden", 403);
-      if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
-      sendError(res, "Internal Reporting Error", 500, errorMessage(error));
+      reportError(res, error);
     }
   });
 
@@ -193,7 +223,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       const { accounts, transactions } = await getReportContext(authReq, workspaceId, undefined, endDate);
       // N-08: on cash basis, without trade receivables and payables (cashBasis.ts)
       if (cash) {
-        const payments = (await db.collection('payments').where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as CashBasisPayment);
+        const payments = await loadCashBasisPayments(db, workspaceId);
         const cashBs = cashBasisBalanceSheet(accounts, transactions, payments, endDate || undefined, String((bsWsData as { currency?: string } | undefined)?.currency || 'USD'));
         remember(cacheKey, cashBs);
         return res.json(withProvenance(cashBs));
@@ -202,9 +232,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       remember(cacheKey, bs);
       res.json(withProvenance(bs));
     } catch (error) {
-      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
-      if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
-      sendError(res, "Internal Reporting Error", 500, errorMessage(error));
+      reportError(res, error);
     }
   });
 
@@ -250,9 +278,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
 
       res.json(aging);
     } catch (error) {
-      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
-      if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
-      sendError(res, "Failed to generate aging report", 500, errorMessage(error));
+      reportError(res, error, 'Failed to generate aging report');
     }
   });
 
@@ -434,9 +460,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       const tb = computeTrialBalance(accounts, transactions, asOfDate);
       res.json(withProvenance(tb));
     } catch (error) {
-      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
-      if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
-      sendError(res, "Trial Balance Failure", 500, errorMessage(error));
+      reportError(res, error, 'Trial Balance Failure');
     }
   });
 
@@ -455,9 +479,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       const openingCashCents = accounts.filter(isCashFlowCashAccount).reduce((sum, acc) => sum + openingDebitCents(acc) + (before[acc.id] || 0), 0);
       res.json(withProvenance({ ...cf, openingCashCents, closingCashCents: openingCashCents + cf.netChange }));
     } catch (error) {
-      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
-      if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
-      sendError(res, "Failed to generate cash flow statement", 500, errorMessage(error));
+      reportError(res, error, 'Failed to generate cash flow statement');
     }
   });
 
@@ -549,9 +571,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
 
       res.json(report);
     } catch (error) {
-      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
-      if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
-      sendError(res, "Failed to generate budget vs actual report", 500, errorMessage(error));
+      reportError(res, error, 'Failed to generate budget vs actual report');
     }
   });
 
@@ -572,9 +592,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       const gl = computeGeneralLedger(accounts, transactions, startDate, endDate, accountId);
       res.json(withProvenance(gl));
     } catch (error) {
-      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
-      if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
-      sendError(res, "Failed to generate General Ledger report", 500, errorMessage(error));
+      reportError(res, error, 'Failed to generate General Ledger report');
     }
   });
 
@@ -598,9 +616,7 @@ export function createReportRouter(live = getDb(), db = live): express.Router {
       res.json(loaded.statement);
     } catch (error) {
       if (error instanceof StatementScopeError) return sendError(res, error.message, 400);
-      if (isForbidden(errorMessage(error))) return sendError(res, "Forbidden", 403);
-      if (errorMessage(error) === "NOT_FOUND" || errorMessage(error).includes("NOT_FOUND")) return sendError(res, "Workspace not found", 404);
-      sendError(res, "Failed to generate Statement", 500, errorMessage(error));
+      reportError(res, error, "Failed to generate Statement");
     }
   });
   return reportRouter;

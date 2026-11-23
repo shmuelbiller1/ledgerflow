@@ -5,7 +5,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "entryId": COMMAND_SCHEMA_PARTS.part104,
-    "entry": COMMAND_SCHEMA_PARTS.part236
+    "entry": COMMAND_SCHEMA_PARTS.part237
   },
   "required": [
     "entryId",

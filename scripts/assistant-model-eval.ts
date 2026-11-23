@@ -3,6 +3,7 @@
  *
  *   ASSISTANT_EVAL_BASE_URL=https://api.arena.ai/v1 \
  *   ASSISTANT_EVAL_MODELS=gpt-6-luna,gpt-6.1-terra \
+ *   ASSISTANT_EVAL_ROUTED=gpt-6-luna,gpt-6.1-terra \
  *   ASSISTANT_EVAL_OCR_MODELS=gpt-6-luna,gpt-6.1-terra \
  *   npx tsx scripts/assistant-model-eval.ts --write
  *
@@ -11,11 +12,19 @@
  * For each model, every question that needs a model (scripts/eval/cases.ts) runs through the real turn
  * loop with the real per-question tool set, answered from a sample company (scripts/eval/sampleBooks.ts),
  * one model for every turn (no fallback to another model, so each model is billed and judged alone).
+ * ASSISTANT_EVAL_ROUTED adds a separate run through the live code router, tier selection and retry.
  * Each outcome is GRADED: the right step drafted, the right figure stated, or a question asked instead
  * of a guess. Then each OCR model reads generated receipt images and is scored field by field.
  *
  * Cost: the endpoint's own billed cost (`usage.cost`) is summed per model. A hard cap stops the run
- * (ASSISTANT_EVAL_MAX_CALLS, default 400 model calls in total). Test data only; the key is never read
+ * (ASSISTANT_EVAL_MAX_CALLS, default 400 model calls in total). ASSISTANT_EVAL_REPEATS=3 runs each question
+ * three times per model and reports the total, so one lucky or unlucky answer does not decide the comparison.
+ * ASSISTANT_EVAL_PROMPTS=scripts/eval/prompts/before-2026-11-23.md,assistant/SYSTEM_PROMPT.md compares instructions in
+ * the same run: every model is graded once per prompt file (default: assistant/SYSTEM_PROMPT.md only).
+ * With --write, every turn is also saved in full to docs/eval/runs/<date-time>.json: model, prompt, question,
+ * run number, grade and reason, the answer, each tool call with its arguments and the result the model saw,
+ * time taken, model calls, billed cost and the turn's metric (tokens, steps), for deeper comparison.
+ * Only the newest 3 runs are kept, in the report and in docs/eval/runs; older ones are in git history. Test data only; the key is never read
  * here: the session's network proxy adds it for the configured host.
  */
 import fs from 'node:fs';
@@ -24,9 +33,12 @@ import { assistantToolsFor, findAssistantCommands } from '../src/server/services
 import { proposedToolName } from '../src/server/services/assistantToolDefinitions';
 import { stepCommand, stepCommandNames } from '../src/server/commands/sandboxStepCommands';
 import { runAssistantTurn } from '../src/server/services/assistantTurn';
+import { answerTurn } from '../src/server/services/assistantRouter';
+import { chooseModel } from '../src/server/services/assistantModels';
 import { openAiCompatibleClient } from '../src/server/services/openAiCompatibleClient';
-import { bookTool } from './eval/sampleBooks';
-import { CASES, RECEIPTS, gradeReceipt, type Outcome } from './eval/cases';
+import { bookTool, TODAY } from './eval/sampleBooks';
+import { assistantFacts } from '../src/server/services/assistantFacts';
+import { CASES, RECEIPTS, gradeReceipt, whatHappened, type Outcome } from './eval/cases';
 
 const ownerCommands = () => stepCommandNames().map(stepCommand).filter(c => c.roles.some(r => r === 'owner'));
 const PROPOSAL_ID = 'sbx_eval_proposal';
@@ -46,12 +58,20 @@ export function meteredFetch(spend: Spend, total: { calls: number }, cap: number
 }
 
 
+/** The facts the live assistant sends with each question, for the sample company; ASSISTANT_EVAL_FACTS=off leaves them out. */
+/** How many runs the report and docs/eval/runs keep; older runs are still in git history. */
+const KEEP_RUNS = 3;
+
+const EVAL_FACTS = process.env.ASSISTANT_EVAL_FACTS === 'off' ? undefined : assistantFacts({ today: TODAY, currency: 'USD', fiscalYearStartMonth: 1 });
+
 /**
  * One question through the real turn loop; every tool call (name and arguments) is kept for grading.
  * On timeout the in-flight request is aborted and later calls are refused, and the turn is awaited
  * before the next case, so a timed-out turn never keeps spending in the background.
  */
-export async function runCase(baseUrl: string, doFetch: typeof fetch, model: string, systemPrompt: string, q: string, timeoutMs = TURN_TIMEOUT_MS) {
+export interface RoutedModels { simple: string; strong: string }
+
+export async function runCase(baseUrl: string, doFetch: typeof fetch, model: string, systemPrompt: string, q: string, timeoutMs = TURN_TIMEOUT_MS, routed?: RoutedModels) {
   const commands = ownerCommands();
   const tools = assistantToolsFor(commands, q)[0].functionDeclarations as FunctionDeclaration[];
   const calls: Outcome['calls'] = [];
@@ -63,6 +83,11 @@ export async function runCase(baseUrl: string, doFetch: typeof fetch, model: str
   };
   const client = openAiCompatibleClient({ baseUrl, fetchImpl: caseFetch });
   const callTool = async (name: string, args: Record<string, unknown>) => {
+    const result = await answerTool(name, args);
+    calls[calls.length - 1].result = result;
+    return result;
+  };
+  const answerTool = async (name: string, args: Record<string, unknown>) => {
     calls.push({ name, args });
     if (name === 'find_command') return { matches: findAssistantCommands(commands, String(args.words ?? ''), typeof args.limit === 'number' ? args.limit : undefined) };
     // drafted steps are kept for this case, so the review tools the system prompt requires see them
@@ -73,6 +98,9 @@ export async function runCase(baseUrl: string, doFetch: typeof fetch, model: str
       const parsed = command?.input.safeParse(args);
       if (!command || !parsed?.success) {
         calls[calls.length - 1].ok = false;
+        // the first schema issue, for the report (field path and message only; no values)
+        const issue = parsed?.error?.issues?.[0];
+        calls[calls.length - 1].refusal = command ? `${issue?.path?.join('.') || 'input'}: ${issue?.message ?? 'invalid'}` : 'unknown command';
         return { error: command ? 'Invalid input for this command' : 'Unknown command', issues: parsed?.error?.issues?.slice(0, 5) ?? [] };
       }
       const step = { id: `step_${steps.length + 1}`, command: name.slice('propose_'.length).replace(/_/g, '.'), position: steps.length + 1, state: 'pending', input: args };
@@ -89,7 +117,12 @@ export async function runCase(baseUrl: string, doFetch: typeof fetch, model: str
     ? ((result as { matches?: Array<{ tool?: FunctionDeclaration }> }).matches ?? []).flatMap(m => (m.tool ? [m.tool] : [])) : [];
   const timer = setTimeout(() => stop.abort(), timeoutMs);
   try {
-    const { answer, metric } = await runAssistantTurn({ client, model, systemPrompt, tools, question: q, callTool, discover, maxSteps: 6 });
+    const input = { client, model, systemPrompt, tools, question: q, callTool, discover, maxSteps: 6, ...(EVAL_FACTS ? { facts: EVAL_FACTS } : {}) };
+    // Use the site's code-answer, incomplete-answer fallback, tier choice and retry as one unit.
+    const { answer, metric } = routed
+      ? await answerTurn({ ...input, currency: 'USD', modelRule: { strong: routed.strong,
+        choose: reason => chooseModel(q, reason, commands, { ...routed, ocr: routed.simple }) } })
+      : await runAssistantTurn(input);
     // an endpoint error, the call cap, a timeout or running out of steps comes back as ok: false, not a throw
     const error = stop.signal.aborted ? `timed out after ${timeoutMs / 1000}s` : metric.ok ? undefined : 'no final answer (endpoint error, call cap or step limit)';
     return { outcome: { answer, calls, ...(error ? { error } : {}) } as Outcome, metric };
@@ -159,41 +192,75 @@ async function main() {
   const baseUrl = process.env.ASSISTANT_EVAL_BASE_URL;
   const models = (process.env.ASSISTANT_EVAL_MODELS ?? '').split(',').map(s => s.trim()).filter(Boolean);
   const ocrModels = (process.env.ASSISTANT_EVAL_OCR_MODELS ?? '').split(',').map(s => s.trim()).filter(Boolean);
-  if (!baseUrl || (!models.length && !ocrModels.length)) {
+  const routedEnv = process.env.ASSISTANT_EVAL_ROUTED;
+  const pair = routedEnv?.split(',').map(s => s.trim());
+  if (routedEnv !== undefined && (pair?.length !== 2 || pair.some(s => !s))) {
+    console.error('ASSISTANT_EVAL_ROUTED must be two nonempty model IDs: simple,strong.');
+    process.exitCode = 2; return;
+  }
+  const routed = pair ? { simple: pair[0], strong: pair[1] } : undefined;
+  if (!baseUrl || (!models.length && !ocrModels.length && !routed)) {
     console.error('Set ASSISTANT_EVAL_BASE_URL and ASSISTANT_EVAL_MODELS (and optionally ASSISTANT_EVAL_OCR_MODELS); see the top of this file.');
     process.exitCode = 2; return;
   }
   const cap = Number(process.env.ASSISTANT_EVAL_MAX_CALLS ?? 400);
+  // ASSISTANT_EVAL_REPEATS: run each question this many times per model and report the total (default 1)
+  const repeats = Math.max(1, Math.min(10, Number(process.env.ASSISTANT_EVAL_REPEATS ?? 1) || 1));
   const total = { calls: 0 };
-  const systemPrompt = fs.readFileSync('assistant/SYSTEM_PROMPT.md', 'utf8');
+  const promptFiles = (process.env.ASSISTANT_EVAL_PROMPTS ?? 'assistant/SYSTEM_PROMPT.md').split(',').map(s => s.trim()).filter(Boolean);
+  const prompts = promptFiles.map(file => ({ name: file.split('/').pop()!.replace(/\.md$/, ''), text: fs.readFileSync(file, 'utf8') }));
+  const shortModel = (model: string) => model.replace(/^gpt-[0-9.]+-/, '');
+  const runs = prompts.flatMap(prompt => [
+    ...models.map(model => ({ model, prompt, routed: undefined as RoutedModels | undefined, name: model })),
+    ...(routed ? [{ model: routed.simple, prompt, routed, name: `routed (${shortModel(routed.simple)} -> ${shortModel(routed.strong)})` }] : []),
+  ]);
   const out: string[] = [];
   const say = (l = '') => { out.push(l); console.log(l); };
   const date = new Date().toISOString().slice(0, 10);
 
   say(`## Model comparison (${date}, via ${new URL(baseUrl).host})`);
   say();
-  say(`Graded on ${CASES.length} questions that need a model, against a sample company's books (scripts/eval). One model per run, no fallback. "Correct" means the right step drafted, the right figure stated, or a question asked instead of a guess. Cost is what the endpoint billed.`);
+  say(`Graded on ${CASES.length} questions against a sample company's books (scripts/eval). Individual models run without routing or fallback; the routed row uses the live code/model router and retry. Tier shares count the final answering tier, including failures; code is separate. "Correct" means the right step drafted, the right figure stated, or a question asked instead of a guess. Cost is what the endpoint billed.`);
   say();
-  say('| model | correct | finished (no error/timeout) | model calls | billed cost | cost per correct answer |');
-  say('|---|---|---|---|---|---|');
+  say('| model | correct | final tier share (simple / strong / code) | finished (no error/timeout) | model calls | billed cost | cost per correct answer |');
+  say('|---|---|---|---|---|---|---|');
   const detail: string[] = [];
-  for (const model of models) {
+  const log: unknown[] = [];
+  for (const { model, prompt, routed: routeModels, name } of runs) {
+    const systemPrompt = prompt.text;
+    const label = prompts.length > 1 ? `${name} (${prompt.name})` : name;
     const spend: Spend = { usd: 0, calls: 0, priced: 0 };
     const doFetch = meteredFetch(spend, total, cap);
     let correct = 0, finished = 0;
-    detail.push('', `#### ${model}`, '', '| question | result | why |', '|---|---|---|');
+    const tiers = { simple: 0, strong: 0, code: 0 };
+    detail.push('', `#### ${label}`, '', `| question | result${repeats > 1 ? ` (of ${repeats})` : ''} | why (first wrong run) |`, '|---|---|---|');
     for (const c of CASES) {
-      const { outcome } = await runCase(baseUrl, doFetch, model, systemPrompt, c.q);
-      const g = outcome.error ? { pass: false, why: outcome.error } : c.check(outcome);
-      if (!outcome.error) finished++;
-      if (g.pass) correct++;
-      detail.push(`| ${c.q} | ${g.pass ? 'correct' : 'wrong'} | ${g.why.replaceAll('|', '/')} |`);
+      // each question runs `repeats` times: models answer differently run to run, so one run is luck
+      let right = 0, why = '';
+      for (let r = 0; r < repeats; r++) {
+        const before = { usd: spend.usd, calls: spend.calls, priced: spend.priced }, started = Date.now();
+        const { outcome, metric } = await runCase(baseUrl, doFetch, model, systemPrompt, c.q, TURN_TIMEOUT_MS, routeModels);
+        const tier = routeModels ? (metric?.modelTier ?? (metric?.path === 'code' || metric?.path === 'cache' ? 'code' : undefined)) : undefined;
+        if (tier) tiers[tier]++;
+        const g = outcome.error ? { pass: false, why: outcome.error } : c.check(outcome);
+        log.push({ model: metric?.model ?? (tier === 'code' ? null : model), configuration: name, tier: tier ?? (routeModels ? 'unknown' : 'single'), reason: metric?.modelReason ?? (tier === 'code' ? 'code' : routeModels ? 'unknown' : 'single-model'), prompt: prompt.name, case: c.id, question: c.q, run: r + 1, pass: g.pass, why: g.why, answer: outcome.answer,
+          error: outcome.error, calls: outcome.calls, ms: Date.now() - started, modelCalls: spend.calls - before.calls,
+          billedCents: spend.priced - before.priced === spend.calls - before.calls ? Math.round((spend.usd - before.usd) * 1e6) / 1e4 : null, metric });
+        if (!outcome.error) finished++;
+        if (g.pass) right++;
+        else if (!why) why = g.why + (outcome.error ? '' : ` — ${whatHappened(outcome)}`);
+      }
+      correct += right;
+      const result = repeats > 1 ? `${right} / ${repeats}` : right ? 'correct' : 'wrong';
+      detail.push(`| ${c.q} | ${result} | ${(why || 'correct every run').replaceAll('|', '/').replace(/\n/g, ' ')} |`);
     }
     const cents = spend.usd * 100;
     // only a fully priced run is a measured cost; otherwise say how much is missing
     const known = spend.priced === spend.calls;
     const billed = known ? `${cents.toFixed(2)}¢` : `unknown (${spend.calls - spend.priced} of ${spend.calls} calls without a billed cost; ≥${cents.toFixed(2)}¢)`;
-    say(`| ${model} | ${correct} / ${CASES.length} | ${finished} / ${CASES.length} | ${spend.calls} | ${billed} | ${known && correct ? (cents / correct).toFixed(2) + '¢' : '—'} |`);
+    const asked = CASES.length * repeats;
+    const share = routeModels ? (['simple', 'strong', 'code'] as const).map(t => `${tiers[t]}/${asked} (${(tiers[t] * 100 / asked).toFixed(1)}%)`).join(' / ') : '—';
+    say(`| ${label} | ${correct} / ${asked}${repeats > 1 ? ` (${(correct / repeats).toFixed(1)} of ${CASES.length} on average)` : ''} | ${share} | ${finished} / ${asked} | ${spend.calls} | ${billed} | ${known && correct ? (cents / correct).toFixed(2) + '¢' : '—'} |`);
   }
   if (ocrModels.length) {
     say(); say('### Receipts (OCR)'); say();
@@ -218,8 +285,16 @@ async function main() {
     const file = 'docs/assistant-model-eval.md';
     const head = '# Assistant model comparison (SBX-2 Part 6)\n\nGenerated by `scripts/assistant-model-eval.ts`; the newest run is on top. Rerun the same command to update it.\n\n';
     const prev = fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(head, '') : '';
-    fs.writeFileSync(file, head + out.join('\n') + '\n\n' + prev);
-    console.log(`\nWrote ${file}.`);
+    // keep the newest KEEP_RUNS runs: older ones stay in git history, so the file and the folder do not grow forever
+    const older = prev.split(/(?=^## Model comparison )/m).filter(r => r.trim()).slice(0, KEEP_RUNS - 1);
+    fs.writeFileSync(file, head + out.join('\n') + '\n\n' + older.join(''));
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    const runFile = `docs/eval/runs/${stamp}.json`;
+    fs.mkdirSync('docs/eval/runs', { recursive: true });
+    fs.writeFileSync(runFile, JSON.stringify({ date: new Date().toISOString(), endpoint: new URL(baseUrl).host, repeats, prompts: promptFiles, turns: log }, null, 1));
+    const saved = fs.readdirSync('docs/eval/runs').filter(f => /^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}\.json$/.test(f)).sort();
+    for (const old of saved.slice(0, -KEEP_RUNS)) fs.unlinkSync(`docs/eval/runs/${old}`);
+    console.log(`\nWrote ${file} and every turn in full to ${runFile}.`);
   }
 }
 

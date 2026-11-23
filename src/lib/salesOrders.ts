@@ -26,6 +26,8 @@ export interface OrderLineProgress {
   position: number;
   description: string;
   itemId?: string;
+  /** W-08: the units are bought and shipped straight to the customer; the invoice carries no item */
+  dropShip?: boolean;
   quantity: number;
   unitPriceCents: number;
   amountCents: number;
@@ -134,6 +136,7 @@ export function orderLineProgress(est: Estimate, progress: OrderProgress): Order
       position,
       description: line.description || '',
       ...(line.itemId ? { itemId: line.itemId } : {}),
+      ...(line.dropShip ? { dropShip: true } : {}),
       quantity,
       unitPriceCents: Math.round(Number(line.unitPriceCents) || amountCents / quantity),
       amountCents,
@@ -173,13 +176,14 @@ export function orderPartInvoice(est: Estimate, progress: OrderProgress, cents: 
   const { id: _id, uid: _uid, workspaceId: _ws, ...base } = convertEstimateToInvoice(est);
   const metadata = { convertedFromEstimateId: est.id, convertedFromEstimateNumber: est.number || est.id, salesOrderPart: number };
   if (part?.mode === 'quantities') {
-    // by quantity (BF-08): each line keeps its item, its units and its price
+    // by quantity (BF-08): each line keeps its item, its units and its price — except a drop-ship line
+    // (W-08): its units never come into stock, so the invoice carries no item and posts no cost
     const items = orderLineProgress(est, progress).flatMap(line => {
       const quantity = part.quantities[line.position] ?? 0;
       if (!(quantity > 0)) return [];
       return [{
         id: `${est.id}-${number}-${line.position}`,
-        ...(line.itemId ? { itemId: line.itemId } : {}),
+        ...(line.itemId && !line.dropShip ? { itemId: line.itemId } : {}),
         description: line.description,
         quantity,
         rateCents: line.unitPriceCents,

@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import crypto from 'crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import { COGS_ACCOUNTS_MISSING, planInvoiceCogs } from '../services/invoiceCogs';
+import { COGS_ACCOUNTS_MISSING, COGS_COST_UNKNOWN, planInvoiceCogs } from '../services/invoiceCogs';
 import type { InvoiceCogsInput } from '../services/invoiceCogs';
 import { makeInvoice } from './fixtures';
 import type { Invoice } from '../types';
@@ -53,7 +53,16 @@ describe('Invoice cost of goods sold entries', () => {
       line({ id: 'b', itemId: 'item-w', quantity: 0 }),                   // nothing sold
       line({ id: 'c', itemId: 'item-unknown', quantity: 2 }),             // no cost known
     ] });
-    assert.deepEqual(planInvoiceCogs(baseInput(invoice)), { entries: [] });
+    // INV-01: the unknown cost still posts nothing, but the invoice is flagged for review
+    assert.deepEqual(planInvoiceCogs(baseInput(invoice)), { entries: [], pendingReason: COGS_COST_UNKNOWN });
+  });
+
+  test('a known zero cost ships the units with a zero-value entry', () => {
+    const invoice = makeInvoice({ id: 'INV3b', items: [line({ id: 'c', itemId: 'item-free', quantity: 2 })] });
+    const plan = planInvoiceCogs(baseInput(invoice, { items: [{ id: 'item-free', name: 'Freebie', unitCostCents: 0 }] }));
+    assert.equal(plan.entries.length, 1);
+    assert.equal(plan.entries[0].totalAmountCents, 0);
+    assert.equal(plan.pendingReason, undefined);
   });
 
   test("the item's cost is used when the line has none", () => {
