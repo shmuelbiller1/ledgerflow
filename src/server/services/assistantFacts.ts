@@ -3,6 +3,8 @@
  * (not in the fixed system prompt, which stays byte-identical so it is cached). Without them models
  * guessed today's date, asked which year "this year" means, and quoted amounts in cents.
  */
+import { currencyDigits } from '../../lib/currencyMinorUnits';
+
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -21,6 +23,13 @@ export function todayIn(timeZone: string | null | undefined, now = new Date()): 
   catch { return now.toISOString().slice(0, 10); }
 }
 
+/** How stored amounts relate to normal money, by the currency's own minor units (JPY has none, KWD has three). */
+function minorUnits(currency: string | null): string {
+  const digits = currencyDigits(currency ?? undefined);
+  const example = digits === 0 ? '120000 is 120,000' : `120000 is ${(120000 / 10 ** digits).toLocaleString('en-US', { minimumFractionDigits: digits })}`;
+  return `- Amounts in fields ending in "Cents" are stored in the currency's minor units (${currency ?? 'books currency'}: ${example}). A record with its own currency uses that currency's minor units. Show the person normal amounts in the record's currency, never minor units.`;
+}
+
 export function assistantFacts(input: AssistantFactsInput): string {
   const [y, m, d] = input.today.split('-').map(Number);
   const day = DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
@@ -34,6 +43,6 @@ export function assistantFacts(input: AssistantFactsInput): string {
     `- Today is ${day} ${input.today}${input.timeZone ? ` (${input.timeZone})` : ''}. "This month" is ${MONTHS[m - 1]} ${y}; "last month" is ${MONTHS[lastMonth.m - 1]} ${lastMonth.y}.`,
     `- The financial year starts in ${MONTHS[start - 1]}: "this year" means ${fyStart} to today unless the person says otherwise.`,
     currency ? `- The books are kept in ${currency}.` : '- The books\' currency is not set: say amounts without a currency symbol.',
-    `- Amounts in fields ending in "Cents" are minor units: 120000 cents is 1,200.00. Show the person normal amounts${currency ? ` in ${currency}` : ''}, never cents.`,
+    minorUnits(currency),
   ].join('\n');
 }
