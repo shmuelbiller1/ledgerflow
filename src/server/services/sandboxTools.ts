@@ -188,7 +188,11 @@ function calculateOne(expression: string) {
 
 export function calculate(raw: unknown) {
   const input = calculateInput.parse(raw);
-  if (input.expressions) return { results: input.expressions.map(calculateOne) };
+  // each sum stands alone: a bad one is reported on its own entry, the others still answer
+  if (input.expressions) return { results: input.expressions.map(expression => {
+    try { return calculateOne(expression); }
+    catch (err) { return { expression, error: err instanceof Error ? err.message : 'That expression could not be calculated' }; }
+  }) };
   return calculateOne(input.expression!);
 }
 

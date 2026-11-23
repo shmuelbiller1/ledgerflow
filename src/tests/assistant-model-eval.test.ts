@@ -184,6 +184,18 @@ test('SBX-2 Part 6 model test: a polite request with a list counts as asking (re
   assert.ok(byId('payment').check({ answer: luna, calls: [] }).pass);
   assert.ok(!byId('payment').check({ answer: 'I have recorded the payment. Was it to Bank or Cash?', calls: [] }).pass);
   assert.ok(!byId('payment').check({ answer: 'Payment recorded successfully. Which account received it, Cash or Bank?', calls: [] }).pass);
+  // a real Luna reply (23 Nov 04:28): "saved as a draft" is part of the request, not a claim that it was saved
+  const lunaInvoice = 'I found **Acme Ltd** (customer record `cus_acme`). To draft the invoice, please provide:\n\n- The consulting rate per hour\n- The invoice date\n- Whether you want it saved as a **draft** or issued (sent) invoice';
+  assert.ok(byId('invoice').check({ answer: lunaInvoice, calls: [] }).pass);
+  assert.ok(!byId('invoice').check({ answer: 'Invoice saved. Please provide the hourly rate.', calls: [] }).pass);
+  assert.ok(!byId('invoice').check({ answer: 'Let me know the hourly rate; I\'ve saved it as a draft.', calls: [] }).pass);
+  assert.ok(!byId('invoice').check({ answer: 'Please confirm the hourly rate:\n- Invoice saved as INV-001', calls: [] }).pass);
+  assert.ok(!byId('invoice').check({ answer: 'Please provide the hourly rate; I created the invoice as INV-001.', calls: [] }).pass);
+  assert.ok(!byId('invoice').check({ answer: 'Please provide the hourly rate. We recorded it already.', calls: [] }).pass);
+  // a negated or descriptive line inside a request is not a claim
+  assert.ok(byId('invoice').check({ answer: 'Please confirm the hourly rate; I have not saved anything yet.', calls: [] }).pass);
+  assert.ok(byId('invoice').check({ answer: 'Please provide:\n- The hourly rate\n- No invoice created yet', calls: [] }).pass);
+  assert.ok(byId('invoice').check({ answer: 'Please provide:\n- The hourly rate\n- Amount recorded on the timesheet', calls: [] }).pass);
   // a generic closing offer is not a clarifying question
   for (const id of ['fix-books', 'move-project', 'recurring']) assert.ok(!byId(id).check({ answer: 'Please let me know if you need anything else.', calls: [] }).pass, id);
   // a later statement announcing a guess does not supply the detail the request asked for
