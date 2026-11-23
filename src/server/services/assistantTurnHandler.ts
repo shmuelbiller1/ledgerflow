@@ -26,6 +26,7 @@ import type { Firestore } from '../db/firestore';
 import { assistantLimitRefusal, assistantUsage, reserveAssistantModelTurn } from '../middleware/planCapacity';
 import { assistantToolsFor, draftableCommands } from './assistantCatalog';
 import { geminiReadTools } from './assistantToolDefinitions';
+import { redactLiveReport } from './sandboxTools';
 import { assistantModels, chooseModel, routedModelClient } from './assistantModels';
 import { sandboxToolCache, type ToolCache } from './assistantReadCache';
 import { answerTurn, routeQuestion } from './assistantRouter';
@@ -41,7 +42,7 @@ export interface TurnHelpers<Sandbox extends { workspaceId: string; sandboxId: s
   /** A server-selected live-books mode, never a client-supplied permission. */
   readOnly?: boolean;
   runReadTool: (live: Firestore, req: express.Request, res: express.Response, sandbox: Sandbox, tool: string,
-    input: Record<string, unknown>, cache?: ToolCache) => Promise<{ status: number; body: unknown; cached: boolean }>;
+    input: Record<string, unknown>, cache?: ToolCache, policy?: 'sandbox' | 'live-assistant') => Promise<{ status: number; body: unknown; cached: boolean }>;
   /**
    * The only way a turn changes anything: the SBX-1 review service's `add` intent, which drafts a step
    * into the sandbox overlay (never a real row). Passed in at the route so the drafting door is visible
@@ -70,7 +71,7 @@ const passThrough: ToolCache = { read: async (_tool, _args, run) => ({ value: (a
 
 const LIVE_READ_TOOLS = new Set(['list_records', 'get_record', 'search_records', 'calculate', 'run_report', 'explain_number', 'ask_books']);
 // Member-readable collections only; this must be reviewed when adding a new collection.
-const LIVE_COLLECTIONS = new Set(['bills', 'budgets', 'chartAccounts', 'creditNotes', 'customers', 'dimensionNodes', 'documents', 'employees', 'estimates', 'fixedAssets', 'inventory', 'invoices', 'journalEntries', 'loans', 'paymentAllocations', 'payments', 'periods', 'projects', 'purchaseOrders', 'reconciliations', 'recurring', 'stockMoves', 'taxRates', 'transactions', 'vendorCredits', 'vendors']);
+const LIVE_COLLECTIONS = new Set(['bills', 'budgets', 'chartAccounts', 'creditNotes', 'customers', 'dimensionNodes', 'documents', 'estimates', 'fixedAssets', 'inventory', 'invoices', 'journalEntries', 'loans', 'paymentAllocations', 'payments', 'periods', 'projects', 'purchaseOrders', 'reconciliations', 'recurring', 'stockMoves', 'taxRates', 'transactions', 'vendorCredits', 'vendors']);
 const DEFAULT_LIVE_SEARCH = ['customers', 'vendors', 'invoices', 'bills', 'payments', 'transactions', 'chartAccounts', 'inventory', 'projects', 'documents'];
 // Live report routers also have cross-workspace endpoints. Explicitly admit only reviewed, single-book readers.
 const LIVE_REPORTS = new Set(['profit-and-loss', 'pl', 'balance-sheet', 'aging', 'inventory-details', 'stock-aging', 'explain', 'by-label', 'balance-sheet-by-label', 'trial-balance', 'cash-flow', 'budget-vs-actual', 'general-ledger', 'statement']);
@@ -84,6 +85,17 @@ function liveReadAllowed(name: string, args: Record<string, unknown>): boolean {
     return typeof args.report === 'string' && !!reports?.has(args.report);
   }
   return true;
+}
+
+/** Keep the offered schema aligned with the server-side collection check. Never trust it as authorization. */
+function liveToolDeclaration(tool: FunctionDeclaration): FunctionDeclaration {
+  const result = structuredClone(tool);
+  result.description = `${tool.description?.replaceAll('current sandbox books', 'live books')} Employee records are unavailable. Record fields, filters and search are restricted; direct record reads omit banking and tax identifiers.`;
+  const schema = result.parametersJsonSchema as { properties?: Record<string, { enum?: string[]; items?: { enum?: string[] } }> } | undefined;
+  const properties = schema?.properties;
+  if (properties?.collection?.enum) properties.collection.enum = properties.collection.enum.filter(c => LIVE_COLLECTIONS.has(c));
+  if (properties?.collections?.items?.enum) properties.collections.items.enum = properties.collections.items.enum.filter(c => LIVE_COLLECTIONS.has(c));
+  return result;
 }
 
 const PROPOSE = /^propose_([a-z][a-z0-9]*)_([a-z][a-z0-9]*)$/;
@@ -109,7 +121,7 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
     }
     const models = assistantModels();
     const tools = (helpers.readOnly
-      ? geminiReadTools.filter(tool => LIVE_READ_TOOLS.has(String(tool.name))).map(tool => ({ ...tool, description: tool.description?.replaceAll('current sandbox books', 'live books') }))
+      ? geminiReadTools.filter(tool => LIVE_READ_TOOLS.has(String(tool.name))).map(liveToolDeclaration)
       : assistantToolsFor(commands, question)[0].functionDeclarations) as FunctionDeclaration[];
 
     const callTool = async (name: string, args: Record<string, unknown>): Promise<unknown> => {
@@ -125,9 +137,9 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
       // the model never sets "today": the books tool counts "this year" and "last month" from the workspace's own date
       const { today: _madeUp, ...readArgs } = args;
       const safeArgs = helpers.readOnly && name === 'search_records' && args.collections === undefined ? { ...args, collections: DEFAULT_LIVE_SEARCH } : args;
-      const { status, body } = await helpers.runReadTool(live, req, res, sandbox, name, name === 'ask_books' ? readArgs : safeArgs, passThrough);
+      const { status, body } = await helpers.runReadTool(live, req, res, sandbox, name, name === 'ask_books' ? readArgs : safeArgs, passThrough, helpers.readOnly ? 'live-assistant' : 'sandbox');
       if (status !== 200) return { error: (body as { message?: string } | undefined)?.message ?? 'The tool refused this request' };
-      return body;
+      return helpers.readOnly ? redactLiveReport(body) : body;
     };
     const discover = (tool: string, result: unknown): FunctionDeclaration[] => {
       if (helpers.readOnly || tool !== 'find_command') return [];

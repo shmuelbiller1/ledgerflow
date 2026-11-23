@@ -88,7 +88,7 @@ test('a viewer can ask about live books without starting a draft', async ({ page
   });
   await page.getByRole('button', { name: 'AI assistant' }).click();
   const panel = page.getByRole('dialog', { name: 'Floating AI assistant' });
-  await expect(panel.getByText(/Viewers can read but cannot create drafts/)).toBeVisible();
+  await expect(panel.getByText(/Employee records are unavailable/)).toBeVisible();
   await expect(panel.getByRole('button', { name: 'Start assistant' })).toHaveCount(0);
   await panel.getByLabel('Your question').fill('Find customer Acme');
   await panel.getByRole('button', { name: 'Send question' }).click();

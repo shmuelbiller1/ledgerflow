@@ -127,7 +127,7 @@ test('a viewer asks read-only questions without opening a sandbox', async () => 
     return Response.json({ status: 'success', answer: 'Live books answer', path: 'code' });
   }) as typeof fetch;
   render(<Copilot />);
-  assert.ok(screen.getByText(/Viewers can read but cannot create drafts/));
+  assert.ok(screen.getByText(/Employee records are unavailable/));
   assert.equal(screen.queryByRole('button', { name: 'Start assistant' }), null);
   assert.equal(screen.queryByRole('button', { name: 'Assistant drafts' }), null);
   fireEvent.change(screen.getByLabelText('Your question'), { target: { value: 'Find customer Acme' } });

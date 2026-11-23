@@ -368,7 +368,7 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     const owner = `${workspaceId}-owner`;
     t.after(async () => {
       await live.pool.query('delete from sandbox.sandboxes where workspace_id = $1', [workspaceId]);
-      for (const table of ['customers', 'vendors', 'billingLedgerTraces', 'auditLogs', 'chartAccounts']) await live.pool.query(`delete from public.${quoteIdent(table)} where workspace_id = $1`, [workspaceId]);
+      for (const table of ['customers', 'vendors', 'employees', 'billingLedgerTraces', 'auditLogs', 'chartAccounts']) await live.pool.query(`delete from public.${quoteIdent(table)} where workspace_id = $1`, [workspaceId]);
       await live.doc(`workspaces/${workspaceId}`).delete();
     });
     await live.doc(`workspaces/${workspaceId}`).create({ uid: owner, name: 'SBX-2 test', members: [owner], currency: 'USD', timezone: 'UTC', fiscalYearStartMonth: 1, ...workspace });
@@ -576,6 +576,50 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     assert.deepEqual(sandboxes.json.sandboxes, []);
     await live.doc(`workspaces/${a.workspaceId}`).update({ members: [a.owner] });
     assert.equal((await viewerCall('POST', '/assistant/turn', { question: 'Find the customer Acme Ltd.' })).status, 403);
+  });
+
+  test('live assistant blocks employee reads and exposes only safe vendor fields to the model', async t => {
+    const a = await setup(t);
+    const viewer = `${a.workspaceId}-viewer`;
+    await live.doc(`workspaces/${a.workspaceId}`).update({ members: [a.owner, viewer], roles: { [viewer]: 'viewer' } });
+    const employeeId = `${a.workspaceId}-employee`;
+    const vendorId = `${a.workspaceId}-vendor`;
+    await live.doc(`employees/${employeeId}`).create({ workspaceId: a.workspaceId, name: 'Employee Alpha', bankRouting: 'ROUTING-PRIVATE', bankAccount: 'EMPLOYEE-ACCOUNT-PRIVATE', salaryCents: 99887766 });
+    await live.doc(`vendors/${vendorId}`).create({ workspaceId: a.workspaceId, name: 'Vendor Alpha', status: 'active', bankDetails: { accountNumber: 'VENDOR-ACCOUNT-PRIVATE', routingCode: 'VENDOR-ROUTING-PRIVATE' }, taxId: 'TAX-PRIVATE', taxNumber: 'TAX-NUMBER-PRIVATE', businessNumber: 'BUSINESS-NUMBER-PRIVATE', notes: 'HIDDEN-SEARCH-PRIVATE', custom: { account: 'CUSTOM-PRIVATE' } });
+    await live.doc(`customers/${a.workspaceId}-acme`).update({ bankAccount: 'CUSTOMER-ACCOUNT-PRIVATE', contactTaxId: 'CONTACT-TAX-PRIVATE', metadata: { bankRouting: 'NESTED-PRIVATE' } });
+    modelRequests.length = 0;
+    modelReplies = [
+      { functionCalls: [
+        { name: 'get_record', args: { collection: 'employees', id: employeeId } },
+        { name: 'list_records', args: { collection: 'employees' } },
+        { name: 'search_records', args: { text: 'Alpha', collections: ['employees', 'vendors'] } },
+        { name: 'get_record', args: { collection: 'vendors', id: vendorId } },
+        { name: 'list_records', args: { collection: 'vendors' } },
+        { name: 'search_records', args: { text: 'Alpha', collections: ['vendors'] } },
+        { name: 'search_records', args: { text: 'HIDDEN-SEARCH-PRIVATE', collections: ['vendors'] } },
+        { name: 'list_records', args: { collection: 'vendors', orderBy: { field: 'taxId', direction: 'asc' } } },
+        { name: 'list_records', args: { collection: 'vendors', where: [{ field: 'bankDetails.accountNumber', op: '==', value: 'VENDOR-ACCOUNT-PRIVATE' }] } },
+        { name: 'get_record', args: { collection: 'customers', id: `${a.workspaceId}-acme` } },
+      ] },
+      { text: 'Vendor Alpha is active; employee details are unavailable.' },
+    ];
+    const res = await fetch(`${base}/api/v1/workspaces/${a.workspaceId}/sandboxes/assistant/turn`, { method: 'POST', headers: { 'x-test-uid': viewer, 'content-type': 'application/json' }, body: JSON.stringify({ question: 'Please review these records.' }) });
+    assert.equal(res.status, 200, await res.text());
+    const config = modelRequests[0].config as { tools: Array<{ functionDeclarations: Array<{ name: string; parametersJsonSchema: unknown }> }> };
+    for (const tool of config.tools[0].functionDeclarations.filter(t => ['get_record', 'list_records', 'search_records'].includes(t.name))) {
+      assert.doesNotMatch(JSON.stringify(tool.parametersJsonSchema), /employees/);
+    }
+    const parts = (modelRequests[1].contents as Array<{ parts: Array<{ functionResponse?: { name: string; response: unknown } }> }>).at(-1)!.parts;
+    const results = parts.map(part => part.functionResponse!.response);
+    assert.match(JSON.stringify(results.slice(0, 3)), /not available/);
+    for (const result of results.slice(3, 6)) {
+      assert.match(JSON.stringify(result), /Vendor Alpha/);
+      assert.doesNotMatch(JSON.stringify(result), /VENDOR-ACCOUNT-PRIVATE|VENDOR-ROUTING-PRIVATE|TAX-PRIVATE|TAX-NUMBER-PRIVATE|BUSINESS-NUMBER-PRIVATE|CUSTOM-PRIVATE|HIDDEN-SEARCH-PRIVATE/);
+    }
+    assert.deepEqual(((results[6] as { result: { matches: unknown[] } }).result.matches), [], 'private notes are not searched');
+    assert.match(JSON.stringify(results[7]), /not available/);
+    assert.match(JSON.stringify(results[8]), /not available/);
+    assert.doesNotMatch(JSON.stringify(results[9]), /CUSTOMER-ACCOUNT-PRIVATE|CONTACT-TAX-PRIVATE|NESTED-PRIVATE/);
   });
 
   test('the model drafts through propose_… into the sandbox only; the real books are unchanged', async t => {

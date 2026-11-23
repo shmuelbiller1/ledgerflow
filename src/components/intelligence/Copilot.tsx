@@ -138,7 +138,7 @@ function AssistantChat({ workspaceId, preservePage, canOpenDraft }: { workspaceI
   return <section data-assistant-exclude className={preservePage ? 'mx-auto w-full max-w-4xl space-y-3 p-3' : 'mx-auto w-full max-w-4xl space-y-5 p-4 md:p-8'} aria-labelledby={`${id}-title`}>
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div><h1 id={`${id}-title`} className={preservePage ? 'sr-only' : 'flex items-center gap-2 text-2xl font-bold text-[var(--text)]'}><Sparkles aria-hidden="true" /> AI assistant</h1>
-        <p className={`${preservePage ? '' : 'mt-2 '}text-sm text-[var(--muted)]`}>{canOpenDraft ? 'Ask about your books or request a draft. Review any draft before it changes your books.' : 'Ask about the live books. Viewers can read but cannot create drafts or change the books.'}</p></div>
+        <p className={`${preservePage ? '' : 'mt-2 '}text-sm text-[var(--muted)]`}>{canOpenDraft ? 'Ask about your books or request a draft. Review any draft before it changes your books.' : 'Ask about the live books. Viewers cannot create drafts or change the books. Employee records are unavailable; other record details are limited.'}</p></div>
       {canOpenDraft && (preservePage ? <a href="#sandbox-review" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] px-4 text-sm font-semibold">Assistant drafts (new tab)</a> : <button type="button" onClick={openReview} className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold">Assistant drafts</button>)}
     </div>
     <p className="text-sm text-[var(--muted)]">Each question is handled independently; the assistant does not remember earlier messages. Check AI answers before acting.</p>
