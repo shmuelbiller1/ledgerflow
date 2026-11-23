@@ -22,7 +22,7 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
     if (width < 1024) { await tabTo(page, opener); await page.keyboard.press('Enter'); }
     const nav = page.getByRole('navigation', { name: 'Main navigation', exact: true });
     const daily = nav.getByRole('navigation', { name: 'Daily tools', exact: true });
-    const labels = he ? ['סקירה', 'לסקירה', 'עוזר בינה מלאכותית', 'מכירות', 'רכישות', 'בנק', 'דוחות', 'הגדרות'] : ['Overview', 'To review', 'AI assistant', 'Sales', 'Purchases', 'Bank', 'Reports', 'Settings'];
+    const labels = he ? ['סקירה', 'לסקירה', 'מכירות', 'רכישות', 'בנק', 'דוחות', 'הגדרות'] : ['Overview', 'To review', 'Sales', 'Purchases', 'Bank', 'Reports', 'Settings'];
     await expect(daily.getByRole('button')).toHaveCount(labels.length);
     for (const label of labels) {
       const button = daily.getByRole('button', { name: label, exact: true });
@@ -39,10 +39,10 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
     expect(scan.violations.filter(v => ['serious', 'critical'].includes(v.impact || ''))).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`sidebar-${width}-${theme}.png`) });
     // The existing page IDs and labels remain usable by pointer, keyboard and page pins.
-    const sales = nav.getByRole('button', { name: labels[3], exact: true });
+    const sales = nav.getByRole('button', { name: labels[2], exact: true });
     await tabTo(page, sales, width < 1024); await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/#sales$/);
-    await expect(page.locator('#main-content').getByRole('heading', { name: labels[3], exact: true })).toBeVisible();
+    await expect(page.locator('#main-content').getByRole('heading', { name: labels[2], exact: true })).toBeVisible();
     if (width < 1024) {
       await expect(nav).toBeHidden();
       await expect(page.locator('#main-content')).toBeFocused();
@@ -60,8 +60,8 @@ for (const width of [390, 1280]) for (const theme of ['light', 'dark']) {
         const { useUIStore } = await import(/* @vite-ignore */ modulePath) as typeof import('../src/stores/useUIStore');
         useUIStore.getState().setSidebarOpen(false);
       });
-      const reports = nav.getByRole('button', { name: labels[6], exact: true });
-      await expect(reports).toHaveAttribute('title', labels[6]);
+      const reports = nav.getByRole('button', { name: labels[5], exact: true });
+      await expect(reports).toHaveAttribute('title', labels[5]);
       await tabTo(page, reports); await page.keyboard.press('Enter'); await expect(page).toHaveURL(/#reports$/);
       await expect(reports).toHaveAttribute('aria-current', 'page');
     }
