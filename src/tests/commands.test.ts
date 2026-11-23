@@ -764,7 +764,7 @@ test('payment command fingerprints match the legacy route before preparation, in
   const typed = paymentReceiveInput.parse({ amountCents: 5000, cashAccountId: 'cash', paymentTypeId: 'cash-type', allocations: [] });
   const typedHash = paymentReceiveCommand.idempotencyHash?.(context, typed, undefined, request);
   const { workspaceId: _typedWorkspaceId, sendRemittance: _typedSendRemittance, paymentTypeId, ...typedRest } = typed;
-  assert.equal(typedHash, paymentRequestHash({ ...typedRest, paymentTypeId, paymentDate: null, workspaceId, uid: owner.uid }));
+  assert.equal(typedHash, paymentRequestHash({ ...typedRest, paymentTypeId, paymentDate: context.effectiveDate, workspaceId, uid: owner.uid }));
 });
 
 test('payment.receive replays an operation using the same workspace-local effective date as its stored fingerprint', async () => {

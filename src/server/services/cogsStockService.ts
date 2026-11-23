@@ -65,8 +65,15 @@ const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
  */
 export function unitCostMicroCentsOf(item: { unitCostCents?: unknown; unitCostMicroCents?: unknown } | null | undefined): number {
   const exact = item?.unitCostMicroCents;
-  if (typeof exact === 'number' && Number.isFinite(exact)) return exact;
-  return Math.round(Number(item?.unitCostCents) || 0) * 1_000_000;
+  const cents = Math.round(Number(item?.unitCostCents) || 0);
+  if (typeof exact === 'number' && Number.isFinite(exact)) {
+    // INV-02 P1: a revaluation that updated unitCostCents without syncing unitCostMicroCents
+    // leaves the stored micro-cent figure stale. Detect the inconsistency and prefer the
+    // rounded cent value the revaluation wrote, rather than the stale micro-cent figure.
+    if (Math.round(exact / 1_000_000) !== cents) return cents * 1_000_000;
+    return exact;
+  }
+  return cents * 1_000_000;
 }
 
 /**

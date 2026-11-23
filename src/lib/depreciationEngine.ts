@@ -66,8 +66,9 @@ function monthlyAmounts(asset: FixedAsset): number[] {
 /** A capitalized addition's own schedule: the month it was capitalized to the end of the original life. */
 function additionMonthlyAmounts(asset: FixedAsset, addition: { date: string; amountCents: number }): Array<{ monthIndex: number; amountCents: number }> {
   const amount = Math.max(0, addition.amountCents || 0);
-  if (!amount || !asset.purchaseDate) return [];
-  const lifeEnd = monthIndex(asset.purchaseDate) + lifeMonths(asset); // the original schedule's last month
+  const startDate = asset.placedInService?.startedOn || asset.purchaseDate;
+  if (!amount || !startDate) return [];
+  const lifeEnd = monthIndex(startDate) + lifeMonths(asset); // the original schedule's last month
   const start = monthIndex(addition.date);
   const remaining = lifeEnd - start + 1; // months from the addition's month to the life end, inclusive
   if (remaining <= 0) {
@@ -99,10 +100,13 @@ function costAdditionsOf(asset: FixedAsset): Array<{ date: string; amountCents: 
     .filter((a): a is { date: string; amountCents: number } => !!a && typeof a.date === 'string' && typeof a.amountCents === 'number' && a.amountCents > 0);
 }
 
-/** The original schedule's month amounts keyed by their month index (month 1 = month after purchase). */
+/** The original schedule's month amounts keyed by their month index (month 1 = month after purchase, or after placed-in-service). */
 function originalSchedule(asset: FixedAsset): Array<{ monthIndex: number; amountCents: number }> {
-  if (!asset.purchaseDate) return [];
-  const start = monthIndex(asset.purchaseDate);
+  // X-09: an asset built before being placed in service depreciates from the placed-in-service date,
+  // not the purchase date (IAS 16 ¶27: the asset is ready for use when placed in service).
+  const startDate = asset.placedInService?.startedOn || asset.purchaseDate;
+  if (!startDate) return [];
+  const start = monthIndex(startDate);
   return monthlyAmounts(asset).map((amount, i) => ({ monthIndex: start + i + 1, amountCents: amount }));
 }
 
