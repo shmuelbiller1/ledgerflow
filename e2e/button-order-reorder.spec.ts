@@ -157,16 +157,37 @@ test('phone touch swipe scrolls the sidebar; a long press then drag reorders wit
     await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBeGreaterThan(initialScroll);
     expect(await captured(page, 'tab')).toEqual([], 'a swipe beginning on a tool scrolls instead of activating it');
 
+    // Wait for touch momentum to stop before measuring coordinates. Resetting scrollTop while
+    // Chromium is still running the swipe animation lets that animation move the targets again.
+    await scroller.evaluate(element => new Promise<void>((resolve, reject) => {
+      let last = element.scrollTop;
+      let unchangedSince = performance.now();
+      const deadline = unchangedSince + 4000;
+      const check = (now: number) => {
+        if (element.scrollTop !== last) { last = element.scrollTop; unchangedSince = now; }
+        if (now - unchangedSince >= 200) return resolve();
+        if (now >= deadline) return reject(new Error('Sidebar swipe did not settle'));
+        requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    }));
     // Reset to a known visual state, then hold on Reports before dragging it above Sales.
-    await scroller.evaluate(element => { element.scrollTop = 0; });
+    // Put both buttons fully inside the list, away from the 44px edge-scroll zone.
+    // Otherwise simply holding Reports near the bottom intentionally scrolls the list.
+    await scroller.evaluate(element => { element.scrollTop = 48; });
     await daily.locator('[data-reorder-item="reports"]').scrollIntoViewIfNeeded();
     const from = await center(daily.locator('[data-reorder-item="reports"]'));
     const target = await center(daily.locator('[data-reorder-item="sales"]'));
     const scrollBeforeHold = await scroller.evaluate(element => element.scrollTop);
+    const holdBox = await scroller.boundingBox();
+    if (!holdBox) throw new Error('Expected the phone sidebar list to be visible');
+    expect(from.y).toBeLessThan(holdBox.y + holdBox.height - 44);
+    expect(target.y - target.box.height * 0.35).toBeGreaterThan(holdBox.y + 44);
     await touch('touchStart', from.x, from.y);
     await page.waitForTimeout(450); // use the hook's real 350ms long-press threshold
     await touch('touchMove', target.x, target.y - target.box.height * 0.35);
     await expect(daily.locator('[data-reorder-item="reports"]')).toHaveAttribute('data-reorder-dragging', 'true');
+    await expect(daily.locator('[data-reorder-item="sales"]')).toHaveAttribute('data-reorder-drop', 'before');
     await touch('touchEnd');
     await expect(daily.locator('[data-reorder-item]')).toHaveText(['Overview', 'To review', 'AI assistant', 'Reports', 'Sales', 'Purchases', 'Bank', 'Settings']);
     expect(await scroller.evaluate(element => element.scrollTop)).toBe(scrollBeforeHold);

@@ -334,6 +334,7 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
   let server: ReturnType<import('express').Express['listen']>;
   let modelReplies: Array<Record<string, unknown>> = [];
   const modelCalls: string[] = [];
+  const modelRequests: Array<Record<string, unknown>> = [];
   before(async () => {
     process.env.SESSION_SECRET ||= 'test-session-secret-for-assistant-tokens-0001';
     live = new Firestore({ connectionString: url, max: 4 });
@@ -349,6 +350,7 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
       turnRateLimit: (_req, _res, next) => next(),
       modelClient: () => ({ models: { generateContent: async req => {
         modelCalls.push(req.model);
+        modelRequests.push(req);
         return modelReplies.shift() ?? { text: 'A model answer.', usageMetadata: { promptTokenCount: 2000, candidatesTokenCount: 50 } };
       } } }),
     }));
@@ -545,6 +547,22 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     const found = await viewerCall('POST', '/assistant/turn', { question: 'Find the customer Acme Ltd.' });
     assert.equal(found.status, 200, JSON.stringify(found.json));
     assert.match(String(found.json.answer), /Acme/);
+    const aging = await viewerCall('POST', '/assistant/turn', { question: 'How much do customers owe me in total?' });
+    assert.equal(aging.status, 200, JSON.stringify(aging.json));
+    assert.ok(aging.json.answer, 'live aging report is usable by a viewer');
+    const other = await setup(t);
+    await live.doc(`customers/${other.workspaceId}-acme`).update({ name: 'Confidential Other Customer' });
+    modelRequests.length = 0;
+    modelReplies = [
+      { functionCalls: [{ name: 'get_record', args: { collection: 'customers', id: `${other.workspaceId}-acme` } },
+        { name: 'run_report', args: { report: 'group-summary', params: { groupId: 'foreign' } } }] },
+      { text: 'Those records are not accessible here.' },
+    ];
+    const foreign = await viewerCall('POST', '/assistant/turn', { question: 'Please check these records.' });
+    assert.equal(foreign.status, 200, JSON.stringify(foreign.json));
+    const followedUp = JSON.stringify(modelRequests[1].contents);
+    assert.doesNotMatch(followedUp, /Confidential Other Customer/);
+    assert.match(followedUp, /read-only assistant; this tool is not available/);
     modelReplies = [
       { functionCalls: [{ name: 'propose_customer_create', args: { customer: { name: 'Forbidden Draft' } } }] },
       { text: 'I cannot create a draft in read-only mode.' },

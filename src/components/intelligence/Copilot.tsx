@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
-import { Sparkles } from 'lucide-react';
+import { Check, ChevronDown, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { runCommand } from '../../lib/runCommand';
@@ -88,7 +88,6 @@ function AssistantChat({ workspaceId, preservePage, canOpenDraft }: { workspaceI
       selectedSandbox.current = result.sandbox.id;
       setSandboxId(result.sandbox.id);
       setMessages([]);
-      setQuestion('');
       setListTick(t => t + 1);
     } catch (err) {
       setError(`${err instanceof Error ? err.message : 'Could not open a draft.'} Check Assistant drafts before trying again.`);
@@ -136,14 +135,17 @@ function AssistantChat({ workspaceId, preservePage, canOpenDraft }: { workspaceI
     }
     navigate('sandbox-review');
   };
-  return <section data-assistant-exclude className="mx-auto w-full max-w-4xl space-y-5 p-4 md:p-8" aria-labelledby={`${id}-title`}>
+  return <section data-assistant-exclude className={preservePage ? 'mx-auto w-full max-w-4xl space-y-3 p-3' : 'mx-auto w-full max-w-4xl space-y-5 p-4 md:p-8'} aria-labelledby={`${id}-title`}>
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><h1 id={`${id}-title`} className="flex items-center gap-2 text-2xl font-bold text-[var(--text)]"><Sparkles aria-hidden="true" /> AI assistant</h1>
-        <p className="mt-2 text-sm text-[var(--muted)]">{canOpenDraft ? 'Ask about your books or request a draft. Review any draft before it changes your books.' : 'Ask about the live books. Viewers can read but cannot create drafts or change the books.'}</p></div>
+      <div><h1 id={`${id}-title`} className={preservePage ? 'sr-only' : 'flex items-center gap-2 text-2xl font-bold text-[var(--text)]'}><Sparkles aria-hidden="true" /> AI assistant</h1>
+        <p className={`${preservePage ? '' : 'mt-2 '}text-sm text-[var(--muted)]`}>{canOpenDraft ? 'Ask about your books or request a draft. Review any draft before it changes your books.' : 'Ask about the live books. Viewers can read but cannot create drafts or change the books.'}</p></div>
       {canOpenDraft && (preservePage ? <a href="#sandbox-review" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] px-4 text-sm font-semibold">Assistant drafts (new tab)</a> : <button type="button" onClick={openReview} className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold">Assistant drafts</button>)}
     </div>
-    {preservePage && <p className="text-sm text-[var(--muted)]">{canOpenDraft && 'Drafts open in a new tab so this page stays open. Check the workspace and choose the matching draft ID there. '}The assistant cannot see page content unless you choose to share text below. It does not read form values. For a page shortcut, try “open sales” or “open reports”; it opens in a new tab.</p>}
-    <p className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3 text-sm text-[var(--muted)]">Each question is handled independently; the assistant does not remember earlier messages. Include the details again in follow-up questions. AI answers can be wrong—check them before acting.</p>
+    <p className="text-sm text-[var(--muted)]">Each question is handled independently; the assistant does not remember earlier messages. Check AI answers before acting.</p>
+    {preservePage && <details className="group text-sm text-[var(--muted)]">
+      <summary className="flex min-h-11 cursor-pointer items-center gap-2 font-semibold text-[var(--text)]"><ChevronDown aria-hidden="true" size={16} className="transition-transform group-open:rotate-180" />How this assistant works</summary>
+      <p>{canOpenDraft && 'Drafts open in a new tab so this page stays open. Check the workspace and choose the matching draft ID there. '}The assistant cannot see page content unless you choose to share text below. It does not read form values. For a page shortcut, try “open sales” or “open reports”; it opens in a new tab.</p>
+    </details>}
     {error && <p role="alert" className="rounded-lg border border-rose-300 bg-[var(--surface)] p-3 text-sm text-rose-700 dark:text-rose-400">{error}</p>}
     {canOpenDraft && (sandboxes === null ? (error ? <button type="button" onClick={() => { setError(''); setListTick(t => t + 1); }} className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold">Retry loading assistant</button> : <p role="status">Loading assistant…</p>) : <div className="flex flex-wrap items-end gap-3">
       {sandboxes.length > 0 && <div className="flex-1 min-w-0"><label htmlFor={`${id}-sandbox`} className="block text-sm font-semibold">Draft workspace</label>
@@ -162,8 +164,13 @@ function AssistantChat({ workspaceId, preservePage, canOpenDraft }: { workspaceI
       {busy && <p role="status" className="text-sm text-[var(--muted)]">Working…</p>}
     </div>
     <form onSubmit={event => void ask(event)} className="space-y-2">
+      <label htmlFor={`${id}-question`} className="text-sm font-semibold">Your question</label>
+      <textarea id={`${id}-question`} value={question} onChange={e => setQuestion(e.target.value)} maxLength={2000} rows={3} disabled={busy || (!preservePage && canOpenDraft && !sandboxId)} placeholder={canOpenDraft ? 'Ask about your books, or describe a draft…' : 'Ask about your books…'} className="w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3 text-[var(--text)] disabled:opacity-50" />
       {preservePage && <div className="space-y-2 rounded-lg border border-[var(--line)] p-3">
-        <label className="flex min-h-11 items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={sharePage} onChange={e => { setSharePage(e.target.checked); if (!e.target.checked) setPageText(null); }} /> Share page text with the assistant</label>
+        <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold"><span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center">
+          <input type="checkbox" className="peer absolute inset-0 m-0 h-11 w-11 cursor-pointer opacity-0" checked={sharePage} onChange={e => { setSharePage(e.target.checked); if (!e.target.checked) setPageText(null); }} />
+          <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded border border-[var(--muted)] bg-[var(--surface)] peer-checked:border-indigo-700 peer-checked:bg-indigo-700 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--brass)]">{sharePage && <Check size={14} className="text-white" />}</span>
+        </span>Share page text with the assistant</label>
         {sharePage && <>
           <p className="text-sm text-[var(--muted)]">Optional: capture up to {PAGE_TEXT_LIMIT} characters of visible page text, then review or edit it before sending. Capture again if the page changes. Text is sent with your question and may be processed by the AI provider. Form values are not captured. Remove anything sensitive; masking is not guaranteed.</p>
           <button type="button" onClick={() => capture(false)} className="min-h-11 rounded-lg border border-[var(--line)] px-3 text-sm font-semibold">Capture page text</button>
@@ -174,8 +181,6 @@ function AssistantChat({ workspaceId, preservePage, canOpenDraft }: { workspaceI
           </>}
         </>}
       </div>}
-      <label htmlFor={`${id}-question`} className="text-sm font-semibold">Your question</label>
-      <textarea id={`${id}-question`} value={question} onChange={e => setQuestion(e.target.value)} maxLength={2000} rows={3} disabled={busy || (!preservePage && canOpenDraft && !sandboxId)} placeholder={canOpenDraft ? 'Ask about your books, or describe a draft…' : 'Ask about your books…'} className="w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3 text-[var(--text)] disabled:opacity-50" />
       <button type="submit" disabled={busy || (!preservePage && canOpenDraft && !sandboxId) || !question.trim()} className="min-h-11 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white disabled:opacity-50">Send question</button>
     </form>
   </section>;

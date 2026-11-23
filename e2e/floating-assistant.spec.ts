@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import { mountJourney } from './support/journeyFixture';
 
 for (const width of [390, 1280]) test(`floating assistant preserves page work and can be moved and resized ${width}px`, async ({ page }) => {
@@ -96,4 +97,41 @@ test('a viewer can ask about live books without starting a draft', async ({ page
   expect(requests[0].url).toContain('/viewer-books/sandboxes/assistant/turn');
   expect(requests[0].body).toEqual({ question: 'Find customer Acme' });
   expect(errors).toEqual([]);
+});
+
+for (const width of [390, 1280]) test(`question is visible on opening and survives starting a draft at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 850 });
+  let opened = false;
+  const draft = { id: 'draft-1', createdAt: '2026-11-23T00:00:00Z', expiresAt: '2026-11-24T00:00:00Z', pendingSteps: 0 };
+  await mountJourney(page, { workspaceId: 'assistant-ready', ledger: {}, mounts: [{ module: '/src/components/intelligence/FloatingAssistant.tsx' }],
+    api: ({ url, method }) => {
+      if (url.endsWith('/sandboxes') && method === 'GET') return { json: { sandboxes: opened ? [draft] : [] } };
+      if (url.endsWith('/sandboxes') && method === 'POST') { opened = true; return { json: { sandbox: draft } }; }
+      return null;
+    },
+  });
+  await page.getByRole('button', { name: 'AI assistant' }).click();
+  const panel = page.getByRole('dialog', { name: 'Floating AI assistant' });
+  await expect(panel.getByRole('button', { name: 'Start assistant' })).toBeVisible();
+  const box = await panel.boundingBox();
+  const field = await panel.getByLabel('Your question').boundingBox();
+  expect(field!.y).toBeGreaterThanOrEqual(box!.y);
+  expect(field!.y + field!.height).toBeLessThanOrEqual(box!.y + box!.height);
+  await panel.getByLabel('Your question').fill('Draft an invoice for Acme');
+  await panel.getByRole('button', { name: 'Start assistant' }).click();
+  await expect(panel.getByLabel('Draft workspace')).toBeVisible();
+  await expect(panel.getByLabel('Your question')).toHaveValue('Draft an invoice for Acme');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+for (const theme of ['light', 'dark'] as const) test(`floating assistant accessibility in ${theme} mode`, async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 850 });
+  await mountJourney(page, { workspaceId: 'assistant-a11y', ledger: {}, mounts: [{ module: '/src/components/intelligence/FloatingAssistant.tsx' }],
+    api: ({ url }) => url.endsWith('/sandboxes') ? { json: { sandboxes: [] } } : null,
+  });
+  await page.evaluate(theme => { document.documentElement.classList.remove('light', 'dark'); document.documentElement.classList.add(theme); }, theme);
+  await page.getByRole('button', { name: 'AI assistant' }).click();
+  await page.getByRole('button', { name: 'Start assistant' }).waitFor();
+  const result = await new AxeBuilder({ page }).include('#floating-assistant').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(result.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) }))).toEqual([]);
 });

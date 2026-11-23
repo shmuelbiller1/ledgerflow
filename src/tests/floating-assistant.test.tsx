@@ -107,3 +107,22 @@ test('the assistant hides while a modal owns the page and returns with its conve
   const restored = screen.getByRole('dialog', { name: 'Floating AI assistant' });
   assert.equal((within(restored).getByLabelText('Your question') as HTMLTextAreaElement).value, 'My question');
 });
+
+test('starting a draft keeps a question already typed in the floating assistant', async () => {
+  setComponentWorkspace('owner');
+  let opened = false;
+  globalThis.fetch = (async (input, init) => {
+    const path = String(input);
+    const draft = { id: 'new-draft', createdAt: '2026-11-23T00:00:00Z', expiresAt: '2026-11-24T00:00:00Z', pendingSteps: 0 };
+    if (path.endsWith('/sandboxes') && init?.method === 'POST') { opened = true; return Response.json({ sandbox: draft }); }
+    return Response.json({ sandboxes: opened ? [draft] : [] });
+  }) as typeof fetch;
+  render(<FloatingAssistant />);
+  fireEvent.click(screen.getByRole('button', { name: 'AI assistant' }));
+  const panel = screen.getByRole('dialog', { name: 'Floating AI assistant' });
+  const start = await within(panel).findByRole('button', { name: 'Start assistant' });
+  fireEvent.change(within(panel).getByLabelText('Your question'), { target: { value: 'Draft an invoice for Acme' } });
+  fireEvent.click(start);
+  await within(panel).findByLabelText('Draft workspace');
+  assert.equal((within(panel).getByLabelText('Your question') as HTMLTextAreaElement).value, 'Draft an invoice for Acme');
+});
