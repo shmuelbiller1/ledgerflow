@@ -23,8 +23,8 @@ import { workspaceStandardCostingCommand } from '../server/commands/workspaceSet
 import { inventoryCogsCommand } from '../server/commands/inventoryStock';
 import { INVOICE_COGS_TYPE } from '../services/invoiceCogs';
 import type { LedgerPostContext } from '../services/ledgerPost/postingCore';
-import type { CreditNote, InventoryItem, Invoice, Transaction } from '../types';
-import { commandHarness, owner } from './helpers/commandTestUtils';
+import type { Invoice, Transaction } from '../types';
+import { commandHarness } from './helpers/commandTestUtils';
 import { m21BotFixtures } from './helpers/m21BotFixtures';
 
 const fx = m21BotFixtures('ws-m21-r3');

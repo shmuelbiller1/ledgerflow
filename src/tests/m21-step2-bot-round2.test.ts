@@ -20,7 +20,7 @@ import { postBillLedger } from '../services/ledgerPost/billPosting';
 import { postCreditNoteLedger } from '../services/ledgerPost/creditPosting';
 import { returnableLines } from '../lib/salesReturns';
 import type { LedgerPostContext } from '../services/ledgerPost/postingCore';
-import type { CreditNote, InventoryItem, Transaction } from '../types';
+import type { InventoryItem, Transaction } from '../types';
 import { m21BotFixtures } from './helpers/m21BotFixtures';
 
 const fx = m21BotFixtures('ws-m21-r2');
