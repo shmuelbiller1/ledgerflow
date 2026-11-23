@@ -45,7 +45,9 @@ export function asksAbout(o: Outcome, detail: RegExp): boolean {
   const statements = parts.reduce((text, part) => text.replace(part, ' '), o.answer).split(/(?<=[.!?])\s+/);
   // …but a first-person or finished claim inside a request still counts ("let me know the rate; I've saved it",
   // "please confirm:\n- Invoice saved as INV-001")
-  const hiddenClaim = parts.some(p => /\b(i've|i have|already|successfully)\b[^.!?\n]*\b(recorded|created|posted|drafted|entered|saved)\b|^\s*[-*\u2022]?\s*\w+\s+(recorded|created|posted|saved)\b/im.test(p));
+  // (checked per line, negations allowed: "- Nothing saved yet" is fine; a field like "- Amount recorded on it" is not a claim)
+  const hiddenClaim = parts.some(p => p.split(/[;\n]/).some(seg => !/\b(not|n't|nothing|no|yet|until|before|once|after)\b/i.test(seg)
+    && /\b(i've|i have|already|successfully)\b[^.!?\n]*\b(recorded|created|posted|drafted|entered|saved)\b|^\s*[-*\u2022]?\s*(the )?(invoice|bill|payment|entry|draft|step|it)\s+(was |is |has been )?(recorded|created|posted|saved)\b/i.test(seg)));
   const claims = statements.filter(t => !t.trim().endsWith('?')
     && /\b(recorded|created|posted|drafted|entered|saved|done)\b(?!\s+(cents|amounts?|totals?|balances?|values?|figures?|dates?)\b)/i.test(t)
     && !/\b(not|n't|nothing|no|yet|until|before|once|after)\b/i.test(t));
