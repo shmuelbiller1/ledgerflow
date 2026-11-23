@@ -155,6 +155,8 @@ const add = (map: CentsMap, key: string, cents: number) => { map.set(key, (map.g
 const toCents = (map: CentsMap): Cents => Object.assign(Object.create(null) as Cents, Object.fromEntries(map));
 const prune = (map: Cents): Cents => Object.fromEntries(Object.entries(map).filter(([, v]) => v !== 0)) as Cents;
 const norm = (kind: string) => kind.normalize('NFC').toLowerCase().trim();
+const ownValue = <T>(source: Record<string, T> | undefined, key: string): T | undefined =>
+  source && Object.hasOwn(source, key) ? source[key] : undefined;
 
 /** The label kinds an entry's lines can carry a value for (what getLineDimension reads), plus "category". */
 export function labelKinds(entries: Transaction[]): Set<string> {
@@ -226,10 +228,10 @@ function checksumOf(entries: Entry[]): string {
 export function snapshotFromEntries(workspaceId: string, asOf: string, accounts: ChartAccount[], entries: Entry[], builtBy: string): PeriodBalances {
   const mine = entries.filter(e => { const d = transactionDate(e); return d !== '' && d <= asOf; });
   const sums = sumEntries(mine, labelKinds(mine.filter(isPostable)));
-  const byLabel: LabelCents = {};
-  for (const [kind, values] of Object.entries(sums.byLabel)) {
-    byLabel[kind] = Object.fromEntries(Object.entries(values).map(([v, c]) => [v, prune(c)]).filter(([, c]) => Object.keys(c).length > 0));
-  }
+  // Object.fromEntries preserves exact label identities, even "__proto__" and "constructor".
+  const byLabel = Object.fromEntries(Object.entries(sums.byLabel).map(([kind, values]) => [
+    kind, Object.fromEntries(Object.entries(values).map(([v, c]) => [v, prune(c)]).filter(([, c]) => Object.keys(c).length > 0)),
+  ])) as LabelCents;
   return {
     workspaceId, asOf, accounts: prune(sums.accounts), byLabel,
     retainedEarnings: calculateNetIncome(mine, accounts, '1970-01-01', asOf).netIncome,
@@ -326,10 +328,10 @@ export async function balancesAsOf(db: Firestore, workspaceId: string, date: str
     result.lines = prune(plus(snapshot?.lines, sums.lines));
   }
   if (options.byLabel) {
-    const byLabel: LabelCents = {};
+    const byLabel: LabelCents = Object.create(null) as LabelCents;
     for (const kind of kinds) {
       // a kind no entry of the snapshot carried: every one of its lines was "Unassigned"
-      const base = snapshot ? (snapshot.byLabel?.[kind] || { [UNASSIGNED]: snapshot.accounts }) : {};
+      const base = snapshot ? (ownValue(snapshot.byLabel, kind) ?? { [UNASSIGNED]: snapshot.accounts }) : {};
       const merged = new Map<string, CentsMap>();
       for (const [value, cents] of [...Object.entries(base), ...Object.entries(sums.byLabel[kind] || {})]) {
         let into = merged.get(value);
@@ -340,10 +342,10 @@ export async function balancesAsOf(db: Firestore, workspaceId: string, date: str
     }
     result.byLabel = byLabel;
     if (gross) {
-      const labelLines: Record<string, Cents> = {};
+      const labelLines: Record<string, Cents> = Object.create(null) as Record<string, Cents>;
       for (const kind of kinds) {
         // as above: a kind the snapshot did not carry had every line "Unassigned"
-        const base = snapshot ? (snapshot.labelLines?.[kind] || { [UNASSIGNED]: Object.values(snapshot.lines || {}).reduce((a, b) => a + b, 0) }) : {};
+        const base = snapshot ? (ownValue(snapshot.labelLines, kind) ?? { [UNASSIGNED]: Object.values(snapshot.lines || {}).reduce((a, b) => a + b, 0) }) : {};
         labelLines[kind] = prune(plus(base, sums.labelLines[kind] || {}));
       }
       result.labelLines = labelLines;
