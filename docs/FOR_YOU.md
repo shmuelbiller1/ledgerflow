@@ -1179,3 +1179,17 @@ to make a number look better). If you want the number to mean something, it need
   document screens still carry their own loading text. Next batch, not this one.
 - **#834 / A-229** `report-speed-12m.test.tsx` fails only in a cold sandbox (2,750 ms vs a 1,500 ms budget, with and
   without my patch) — **do not raise the budget** on that evidence; it is module-import timing, not report speed.
+
+## 23 Nov — #945: two parts need your decision (everything else in #945 is built)
+
+Built already: sign-in-history rate limits, AI limits checked after sign-in, the session list with
+"sign out this device", last sign-in and MFA per member in Access Review, and the new-network alert.
+
+1. **Recording failed sign-ins.** Sign-in goes straight to Supabase, so a wrong password never reaches
+   our server. Recording it would need a route that works *without* signing in, and then anyone could
+   fill another person's security log with fake failures. **Default used: not built.** Better option
+   if you want it: turn on Supabase's own auth logs / its "Send email on suspicious sign-in" setting
+   (Supabase dashboard → Authentication), which sees real failures.
+2. **New-country alert.** Needs a source that turns an IP address into a country (a paid lookup service,
+   or Vercel's `x-vercel-ip-country` header). **Default used: the new-network alert stays; no country alert.**
+   Say "use the Vercel header" and I'll add it (free, no new service).
