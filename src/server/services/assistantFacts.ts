@@ -4,6 +4,7 @@
  * guessed today's date, asked which year "this year" means, and quoted amounts in cents.
  */
 import { currencyDigits } from '../../lib/currencyMinorUnits';
+import { getFiscalYearBounds } from '../../lib/fiscalCalendar';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -15,6 +16,8 @@ export interface AssistantFactsInput {
   currency?: string | null;
   /** 1–12; January when not set. */
   fiscalYearStartMonth?: number | null;
+  /** 1–28; the 1st when not set. */
+  fiscalYearStartDay?: number | null;
 }
 
 /** Today's date in a time zone as YYYY-MM-DD (UTC when the zone is missing or unknown). */
@@ -34,14 +37,14 @@ export function assistantFacts(input: AssistantFactsInput): string {
   const [y, m, d] = input.today.split('-').map(Number);
   const day = DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
   const lastMonth = m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 };
-  const start = input.fiscalYearStartMonth && input.fiscalYearStartMonth >= 1 && input.fiscalYearStartMonth <= 12 ? Math.trunc(input.fiscalYearStartMonth) : 1;
-  const fyYear = m >= start ? y : y - 1;
-  const fyStart = `${fyYear}-${String(start).padStart(2, '0')}-01`;
+  // the same bounds the rest of the app uses (start month and day)
+  const fyStart = getFiscalYearBounds(input.today, input.fiscalYearStartMonth ?? 1, input.fiscalYearStartDay ?? 1).startDate;
+  const startMonth = Number(fyStart.slice(5, 7)), startDay = Number(fyStart.slice(8, 10));
   const currency = input.currency && /^[A-Z]{3}$/.test(input.currency) ? input.currency : null;
   return [
     'Facts for this turn (from the application, not from the person):',
     `- Today is ${day} ${input.today}${input.timeZone ? ` (${input.timeZone})` : ''}. "This month" is ${MONTHS[m - 1]} ${y}; "last month" is ${MONTHS[lastMonth.m - 1]} ${lastMonth.y}.`,
-    `- The financial year starts in ${MONTHS[start - 1]}: "this year" means ${fyStart} to today unless the person says otherwise.`,
+    `- The financial year starts on ${MONTHS[startMonth - 1]} ${startDay}: "this year" means ${fyStart} to today unless the person says otherwise.`,
     currency ? `- The books are kept in ${currency}.` : '- The books\' currency is not set: say amounts without a currency symbol.',
     minorUnits(currency),
   ].join('\n');

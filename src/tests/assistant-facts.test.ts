@@ -14,7 +14,7 @@ test('SBX-2 Part 6: the facts block states today, last month, this financial yea
 
 test('SBX-2 Part 6: January rolls back a year; a financial year starting in April', () => {
   assert.match(assistantFacts({ today: '2027-01-10' }), /"last month" is December 2026/);
-  assert.match(assistantFacts({ today: '2026-03-05', fiscalYearStartMonth: 4 }), /starts in April: "this year" means 2025-04-01/);
+  assert.match(assistantFacts({ today: '2026-03-05', fiscalYearStartMonth: 4 }), /starts on April 1: "this year" means 2025-04-01/);
   assert.match(assistantFacts({ today: '2026-04-01', fiscalYearStartMonth: 4 }), /2026-04-01 to today/);
   assert.match(assistantFacts({ today: '2026-04-01', currency: 'nope' }), /currency is not set/);
 });
@@ -29,4 +29,9 @@ test('SBX-2 Part 6: today follows the workspace time zone; an unknown zone falls
 test('SBX-2 Part 6: minor units follow the currency (JPY none, KWD three)', () => {
   assert.match(assistantFacts({ today: '2026-11-23', currency: 'JPY' }), /JPY: 120000 is 120,000\)/);
   assert.match(assistantFacts({ today: '2026-11-23', currency: 'KWD' }), /KWD: 120000 is 120\.000\)/);
+});
+
+test('SBX-2 Part 6: a financial year starting mid-month uses the start day (same bounds as the rest of the app)', () => {
+  assert.match(assistantFacts({ today: '2026-07-05', fiscalYearStartMonth: 7, fiscalYearStartDay: 15 }), /starts on July 15: "this year" means 2025-07-15 to today/);
+  assert.match(assistantFacts({ today: '2026-07-20', fiscalYearStartMonth: 7, fiscalYearStartDay: 15 }), /"this year" means 2026-07-15 to today/);
 });
