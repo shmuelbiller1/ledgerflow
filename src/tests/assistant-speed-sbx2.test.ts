@@ -350,7 +350,7 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
       turnRateLimit: (_req, _res, next) => next(),
       modelClient: () => ({ models: { generateContent: async req => {
         modelCalls.push(req.model);
-        modelRequests.push(req);
+        modelRequests.push(structuredClone(req));
         return modelReplies.shift() ?? { text: 'A model answer.', usageMetadata: { promptTokenCount: 2000, candidatesTokenCount: 50 } };
       } } }),
     }));
@@ -659,6 +659,27 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
       assert.match(output, /not available/);
       assert.match(output, /not offered/);
     }
+  });
+
+  test('writer model cannot rediscover or invoke payroll commands through find_command', async t => {
+    const a = await setup(t);
+    modelRequests.length = 0;
+    modelReplies = [
+      { functionCalls: [{ name: 'find_command', args: { words: 'payroll' } }] },
+      { functionCalls: [{ name: 'propose_payroll_run', args: {} }, { name: 'propose_employee_update', args: {} }] },
+      { text: 'Payroll actions are not available here.' },
+    ];
+    const result = await a.turn('Please find and run payroll.');
+    assert.equal(result.status, 200, JSON.stringify(result.json));
+    const second = modelRequests[1];
+    const parts = (second.contents as Array<{ parts: Array<{ functionResponse?: { response: unknown } }> }>).at(-1)!.parts;
+    assert.doesNotMatch(JSON.stringify(parts), /propose_payroll_|propose_employee_/);
+    const offered = JSON.stringify((second.config as { tools: unknown }).tools);
+    assert.doesNotMatch(offered, /propose_payroll_|propose_employee_/);
+    const third = (modelRequests[2].contents as Array<{ parts: Array<{ functionResponse?: { response: unknown } }> }>).at(-1)!.parts;
+    assert.match(JSON.stringify(third), /This tool was not offered/);
+    const review = await a.call('GET', `/${a.sandboxId}`);
+    assert.deepEqual(review.json.steps, []);
   });
 
   test('the model drafts through propose_… into the sandbox only; the real books are unchanged', async t => {

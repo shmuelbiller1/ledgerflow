@@ -24,8 +24,8 @@ import { ASSISTANT_SYSTEM_PROMPT } from '../../../assistant/systemPrompt.generat
 import type { reviewSandbox } from '../commands/sandboxReview';
 import type { Firestore } from '../db/firestore';
 import { assistantLimitRefusal, assistantUsage, reserveAssistantModelTurn } from '../middleware/planCapacity';
-import { assistantToolsFor, draftableCommands } from './assistantCatalog';
-import { geminiReadTools } from './assistantToolDefinitions';
+import { assistantToolsFor, draftableCommands, findAssistantCommands } from './assistantCatalog';
+import { findCommandInput, geminiReadTools } from './assistantToolDefinitions';
 import { assistantModels, chooseModel, routedModelClient } from './assistantModels';
 import { sandboxToolCache, type ToolCache } from './assistantReadCache';
 import { answerTurn, routeQuestion } from './assistantRouter';
@@ -87,9 +87,9 @@ function liveReadAllowed(name: string, args: Record<string, unknown>): boolean {
 }
 
 /** Keep the offered schema aligned with the server-side collection check. Never trust it as authorization. */
-function liveToolDeclaration(tool: FunctionDeclaration): FunctionDeclaration {
+function liveToolDeclaration(tool: FunctionDeclaration, live: boolean): FunctionDeclaration {
   const result = structuredClone(tool);
-  result.description = `${tool.description} Employee records are unavailable. Record fields, filters and search are restricted; direct record reads omit banking and tax identifiers. Reports are limited to aging summaries.`;
+  result.description = `${live ? tool.description?.replaceAll('current sandbox books', 'live books') : tool.description} Employee records are unavailable. Record fields, filters and search are restricted; direct record reads omit banking and tax identifiers. Reports are limited to aging summaries.`;
   const schema = result.parametersJsonSchema as { properties?: Record<string, { enum?: string[]; items?: { enum?: string[] } }> } | undefined;
   const properties = schema?.properties;
   if (properties?.collection?.enum) properties.collection.enum = properties.collection.enum.filter(c => LIVE_COLLECTIONS.has(c));
@@ -138,16 +138,21 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
     }
     const models = assistantModels();
     const tools = (helpers.readOnly
-      ? geminiReadTools.filter(tool => LIVE_READ_TOOLS.has(String(tool.name))).map(liveToolDeclaration)
+      ? geminiReadTools.filter(tool => LIVE_READ_TOOLS.has(String(tool.name))).map(tool => liveToolDeclaration(tool, true))
       : assistantToolsFor(commands, question)[0].functionDeclarations
         .filter(tool => !['list_proposals', 'preview_proposal', 'remembered_choices'].includes(String(tool.name)))
-        .map(tool => LIVE_READ_TOOLS.has(String(tool.name)) ? liveToolDeclaration(tool) : tool)) as FunctionDeclaration[];
+        .map(tool => LIVE_READ_TOOLS.has(String(tool.name)) ? liveToolDeclaration(tool, false) : tool)) as FunctionDeclaration[];
 
     const callTool = async (name: string, args: Record<string, unknown>): Promise<unknown> => {
       // Defense in depth: even an unexpected model response cannot reach proposals or unlisted tools.
-      if ((helpers.readOnly || LIVE_READ_TOOLS.has(name)) && !liveReadAllowed(name, args)) return { error: 'This is a read-only assistant; this tool is not available.' };
+      if ((helpers.readOnly || LIVE_READ_TOOLS.has(name)) && !liveReadAllowed(name, args)) return { error: helpers.readOnly ? 'This is a read-only assistant; this tool is not available.' : 'This tool is not available to the assistant.' };
+      if (name === 'find_command' && !helpers.readOnly) {
+        const parsed = findCommandInput.safeParse(args);
+        return parsed.success ? { matches: findAssistantCommands(commands, parsed.data.words, parsed.data.limit) } : { error: 'Invalid command search.' };
+      }
       const proposal = PROPOSE.exec(name);
       if (proposal) {
+        if (!commands.some(command => command.name === `${proposal[1]}.${proposal[2]}`)) return { error: 'This command is not available to the assistant.' };
         // the same drafting intent the assistant token has: the step lands in the sandbox, never the books
         try {
           const review = await helpers.draftStep(req, { workspaceId, sandboxId: sandbox.sandboxId }, `${proposal[1]}.${proposal[2]}`, args);
@@ -173,7 +178,7 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
     const discover = (tool: string, result: unknown): FunctionDeclaration[] => {
       if (helpers.readOnly || tool !== 'find_command') return [];
       const matches = (result as { matches?: Array<{ tool?: FunctionDeclaration }> })?.matches ?? [];
-      return matches.flatMap(match => (match.tool ? [match.tool] : []));
+      return matches.flatMap(match => match.tool && commands.some(command => String(match.tool!.name) === `propose_${command.name.replaceAll('.', '_')}`) ? [match.tool] : []);
     };
 
     // The first model call of the turn (a model question, or a code answer that fell short) first takes
