@@ -130,10 +130,12 @@ export async function postBillLedger(
   // post Inventory at quantity × standard and the difference (actual − standard) to the variance account;
   // without the setting, the receipt posts exactly as before (the moving average, no variance line).
   // M-21 step 2: the plan is also applied when the workspace is no longer posting at standard but the
-  // bill has a booked receipt basis — the repost must keep the value the stock was already carried at,
-  // or the reversal/replacement pair moves Inventory with no quantity movement
+  // bill has a booked receipt basis and a variance account to book the difference to — the repost must
+  // keep the value the stock was already carried at, or the reversal/replacement pair moves Inventory
+  // with no quantity movement. Without a variance account the receipt posts at its actual value as before.
   const standardizing = Boolean(currentWs?.standardCosting?.enabled);
-  const standardPlan = (standardizing || originalReceipt.size > 0) && stockIn.length
+  const varianceAccountId = currentWs?.standardCosting?.varianceAccountId;
+  const standardPlan = (standardizing || (originalReceipt.size > 0 && varianceAccountId)) && stockIn.length
     ? planStandardReceipt(stockIn, await loadInventory(billData, context), standardizing, originalReceipt)
     : null;
   const stockInLines = standardPlan?.entries ?? stockIn;
