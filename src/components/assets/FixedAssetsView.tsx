@@ -94,7 +94,7 @@ export const FixedAssetsView: React.FC = () => {
   const chart = useMemo(() => (accounts || []).filter(a => !a.isArchived), [accounts]);
   const assetAccounts = chart.filter(a => String(a.type).toLowerCase() === 'asset');
   const expenseAccounts = chart.filter(a => ['expense', 'cost_of_goods'].includes(String(a.type).toLowerCase()));
-  const fromBills = useMemo(() => assetCandidates(bills || [], chart, list), [bills, chart, list]);
+  const fromBills = useMemo(() => assetCandidates(bills || [], chart, list, workspace?.currency || 'USD'), [bills, chart, list, workspace]);
   const pickBillLine = (key: string) => {
     const c = fromBills.find(x => `${x.billId}#${x.line}` === key);
     if (!c) { setForm(f => ({ ...f, source: '' })); return; }

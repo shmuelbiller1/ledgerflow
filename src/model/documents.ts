@@ -180,6 +180,8 @@ export interface Invoice {
     accountId: string;
     taxRate?: number;
     unitCostCents?: number;
+    /** INV-02: a line-level cost snapshot at micro-cent precision, when the cost was carried exactly */
+    unitCostMicroCents?: number;
     /** BF-09: the line's labels (Project, Location…), posted with its revenue */
     dimensions?: Record<string, string>;
     /** A-33/A-67: serials recorded at sale for traceability and warranty reporting. */

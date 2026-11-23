@@ -8,8 +8,9 @@
  *     `POST /api/v1/transactions/intercompany/post` replay without double-posting, and a
  *     changed payload with the same key refuses with 409.
  *  3. Without `Idempotency-Key`, `POST /api/v1/transactions`, `POST /api/v1/payments`,
- *     and `POST /api/v1/transactions/intercompany/post` STILL allow headerless retries to
- *     double-post duplicate ledger entries (reported to AI #1 for follow-up).
+ *     and `POST /api/v1/transactions/intercompany/post` replay headerless retries without
+ *     double-posting: the command executor derives an implicit content-scoped operation id
+ *     (ID-01, audit PR #1002; was todo #942) so an identical retry finds the stored result.
  */
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -218,8 +219,10 @@ describe('S-5: money-posting idempotency matrix', { skip: !hasDb && 'needs LF_TE
     assert.equal((p2.json as { data?: { replayed?: boolean } }).data?.replayed, true);
   });
 
-  // #942: the secure outcome, todo until the fix lands (fixing the gap turns this green, not CI red)
-  it('S-5 #942: a headerless retry on /transactions, /payments or /transactions/intercompany/post does not post twice', { todo: 'fixed by #942' }, async () => {
+  // #942 / ID-01: the secure outcome. The command executor derives an implicit content-scoped
+  // operation id for headerless requests, so an identical retry replays the stored result
+  // instead of posting the money a second time.
+  it('S-5 #942: a headerless retry on /transactions, /payments or /transactions/intercompany/post does not post twice', async () => {
     const beforeTx = (await db.collection('transactions').where('workspaceId', '==', wsA).get()).docs.length;
 
     const bareTx = {

@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import { depreciationThrough } from '../../lib/depreciationEngine';
-import { disposalGainLoss, partialDisposalInput, portionOf, portionProblem } from '../../lib/assetDisposal';
+import { disposalGainLoss, partialDisposalInput, portionOf, portionProblem, retainedCostAdditions } from '../../lib/assetDisposal';
 import { isCashAccount } from '../../lib/txFilters';
 import { formatCurrency, isAmountText, parseAmountToCents } from '../../lib/utils';
 import type { ChartAccount, FixedAsset } from '../../types';
@@ -54,7 +54,7 @@ export default function DisposeAssetDialog({ asset, accounts, workspaceId, today
   const percent = Number(percentText);
   const partProblem = howMuch === 'part' ? (percentText.trim() ? portionProblem(percent) : 'Enter the share sold or scrapped') : null;
   const share = howMuch === 'part' && !partProblem ? portionOf(asset, percent) : null;
-  const remaining = share && validDate ? Math.min(depreciation, depreciationThrough({ ...asset, purchasePriceCents: share.remainingCostCents, salvageValueCents: share.remainingSalvageCents }, date.slice(0, 7))) : 0;
+  const remaining = share && validDate ? Math.min(depreciation, depreciationThrough({ ...asset, purchasePriceCents: share.remainingCostCents, salvageValueCents: share.remainingSalvageCents, costAdditions: retainedCostAdditions(asset.costAdditions, percent) }, date.slice(0, 7))) : 0;
   const shareCost = share ? share.costPartCents : asset.purchasePriceCents || 0;
   const shareDepreciation = share ? depreciation - remaining : depreciation;
   const book = shareCost - shareDepreciation;

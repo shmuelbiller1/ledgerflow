@@ -264,6 +264,9 @@ export async function reconcileInTransaction(
 
   // STEP 2: validate in memory and prepare every write
   const writes: Array<() => void> = [];
+  // BR-05: one entry clears one bank line. A second line matched to the same entry in this batch (or
+  // one already matched to it) would clear twice the bank activity against one movement, so it is refused.
+  const matchedEntryOwners = new Map<string, string>();
 
   for (const op of operations) {
     if (op.type === 'updateBankLine') {
@@ -304,6 +307,18 @@ export async function reconcileInTransaction(
         }
         const refusal = cashMovementRefusal(lineSnap.data() || {}, entryLines, accMap, entryData);
         if (refusal) throw new ReconcileError(400, refusal);
+        // BR-05: the entry may clear only this one line — not another line in this batch, and not one
+        // that is already matched to it
+        // the ownership is per cash movement — the entry's leg in this line's account — so the two
+        // sides of a transfer between two bank accounts each clear their own line, while a second line
+        // in the same account against the same entry is still refused
+        const lineAccount = typeof storedLine.accountId === 'string' && storedLine.accountId ? storedLine.accountId : '*';
+        const movementKey = `${matchedId}|${lineAccount}`;
+        const previousOwner = matchedEntryOwners.get(movementKey);
+        if (previousOwner && previousOwner !== op.id) {
+          throw new ReconcileError(400, `Entry ${matchedId} is already matched to bank line ${previousOwner}; one entry clears one bank line`);
+        }
+        matchedEntryOwners.set(movementKey, op.id);
       }
       // undoing a match on a line the bank later changed or withdrew: the bank's version is what goes
       // back to To review, since the next sync will not send that change again (CodeRabbit on #439)
@@ -402,40 +417,6 @@ export async function reconcileInTransaction(
 }
 
 /** The audit line the batch leaves, and the entry id it names. */
-export function reconcileAudit(input: ReconcileInput, actor: { uid: string; email?: string }) {
-  return {
-    action: 'reconcile',
-    entityType: 'reconciliation',
-    entityId: input.operations[0]?.id || 'batch',
-    description: `User ${actor.email || actor.uid} executed reconciliation batch (${input.operations.length} operations)`,
-  };
-}
-
-// --------------------------------------------------------------------------- clearing entries
-
-export class ClearEntriesError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-    this.name = 'ClearEntriesError';
-  }
-}
-
-export const CLEAR_MAX_ENTRIES = 500;
-
-export interface ClearEntriesInput {
-  workspaceId: string;
-  transactionIds: string[];
-  clearanceDate?: string;
-  /** `false` undoes a clearing (CA-04). */
-  cleared?: boolean;
-}
-
-export interface ClearEntriesPrepared {
-  workspace: DocumentData;
-  undo: boolean;
-}
-
-/** The refusals a person sees before anything is written: batch size, membership, role, date shape. */
 export async function prepareClearEntries(
   db: Firestore,
   input: { workspaceId: string; transactionIds: string[]; clearanceDate?: string; cleared?: boolean; uid: string; admin?: boolean },
@@ -511,33 +492,6 @@ export async function clearEntriesInTransaction(
   return { clearedCount: transactionIds.length, undo };
 }
 
-export function clearEntriesAudit(input: ClearEntriesInput, result: { clearedCount: number; undo: boolean }) {
-  return {
-    action: result.undo ? 'TRANSACTIONS_UNCLEARED' : 'TRANSACTIONS_CLEARED',
-    entityType: 'transaction',
-    entityId: String(input.transactionIds[0]),
-    description: `${result.undo ? 'Uncleared' : 'Cleared'} ${result.clearedCount} transaction(s)`,
-    details: {
-      count: result.clearedCount,
-      ...(typeof input.clearanceDate === 'string' ? { clearanceDate: input.clearanceDate } : {}),
-    },
-  };
-}
-
-// --------------------------------------------------------------------------- one bank line
-
-export class UpdateBankLineError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-    this.name = 'UpdateBankLineError';
-  }
-}
-
-export interface UpdateBankLinePrepared {
-  workspace: DocumentData;
-}
-
-/** PATCH /transactions/bank-lines/:id: membership, then the line's own workspace, before the parse. */
 export async function prepareUpdateBankLine(
   db: Firestore,
   input: { workspaceId: string; id: string; uid: string; admin?: boolean },
@@ -610,40 +564,6 @@ export async function updateBankLineInTransaction(
   return { id: input.id, data: validatedData };
 }
 
-export function updateBankLineAudit(input: { id: string; data: Record<string, unknown> }, result: { data: Record<string, unknown> }) {
-  return {
-    action: 'BANK_LINE_UPDATED',
-    entityType: 'bank_line',
-    entityId: input.id,
-    description: `Updated bank line ${input.id}`,
-    details: { fields: Object.keys(result.data) },
-  };
-}
-
-// --------------------------------------------------------------------------- completing a reconciliation
-
-export class CompleteReconciliationError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-    this.name = 'CompleteReconciliationError';
-  }
-}
-
-export interface CompleteReconciliationInput {
-  workspaceId: string;
-  accountId: string;
-  statementDate: string;
-  statementBalanceCents: number;
-  reconciledTransactionIds: string[];
-}
-
-export interface CompleteReconciliationPrepared {
-  workspace: DocumentData;
-  reconciliationId: string;
-  uniqueTxIds: string[];
-  completedAt: string;
-}
-
 export async function prepareCompleteReconciliation(
   db: Firestore,
   input: CompleteReconciliationInput & { uid: string; admin?: boolean },
@@ -661,11 +581,44 @@ export async function prepareCompleteReconciliation(
     // a closed statement period answered 409 on the legacy route
     throw new CompleteReconciliationError(/period locked/i.test(String((error as Error).message)) ? 409 : 400, (error as Error).message);
   }
+  // BR-02: the account must be a cash account, and the statement starts from the last statement's
+  // ending balance (or the account's recorded opening balance for a first reconciliation — a recorded
+  // zero is a real zero, not an absent one).
+  const accountSnap = await db.collection('chartAccounts').doc(input.accountId).get();
+  if (!accountSnap.exists || accountSnap.data()?.workspaceId !== input.workspaceId) {
+    throw new CompleteReconciliationError(404, `Account ${input.accountId} not found in workspace`);
+  }
+  const accountData = accountSnap.data() || {};
+  if (resolveAccountRole(accountData as ChartAccount) !== 'cash') {
+    throw new CompleteReconciliationError(400, `Account ${input.accountId} is not a bank or cash account; only cash accounts are reconciled`);
+  }
+  const priorDocs = (await db.collection('reconciliations')
+    .where('workspaceId', '==', input.workspaceId)
+    .where('accountId', '==', input.accountId)
+    .where('status', '==', 'completed')
+    .get()).docs;
+  // the last statement before this one: the most recent statementDate not after the statement date
+  let priorRec: { statementDate?: string; statementBalanceCents?: number } | undefined;
+  for (const doc of priorDocs) {
+    const data = doc.data() as { statementDate?: string; statementBalanceCents?: number } | undefined;
+    const date = String(data?.statementDate || '');
+    if (!data || date > input.statementDate) continue;
+    if (!priorRec || date > String(priorRec.statementDate || '')) priorRec = data;
+  }
+  // the same beginning balance the reconciliation wizard shows (ReconciliationWizard beginningBalance):
+  // the last statement's balance, else a recorded opening balance (BR-03: a recorded zero is a real zero),
+  // else the account's stored balance — so a statement the wizard shows as balanced can be completed
+  const storedBalance = Number((accountData as { balanceCents?: unknown }).balanceCents);
+  const beginningBalanceCents = typeof priorRec?.statementBalanceCents === 'number'
+    ? priorRec.statementBalanceCents
+    : typeof accountData.openingBalanceCents === 'number' ? accountData.openingBalanceCents
+      : Number.isFinite(storedBalance) ? Math.round(storedBalance) : 0;
   return {
     workspace: wsDoc.data() || {},
     reconciliationId: db.collection('reconciliations').doc().id,
     uniqueTxIds: [...new Set(input.reconciledTransactionIds)],
     completedAt: new Date().toISOString(),
+    beginningBalanceCents,
   };
 }
 
@@ -677,7 +630,7 @@ export async function completeReconciliationInTransaction(
   actor: { uid: string },
 ): Promise<{ reconciliationId: string; completedAt: string; reconciledCount: number }> {
   const { workspaceId, accountId, statementDate, statementBalanceCents } = input;
-  const { reconciliationId, uniqueTxIds, completedAt } = prepared;
+  const { reconciliationId, uniqueTxIds, completedAt, beginningBalanceCents } = prepared;
 
   const accountSnap = await t.get(db.collection('chartAccounts').doc(accountId));
   if (!accountSnap.exists || accountSnap.data()?.workspaceId !== workspaceId) {
@@ -697,6 +650,38 @@ export async function completeReconciliationInTransaction(
     if (txData.status === 'void' || txData.status === 'draft') {
       throw new CompleteReconciliationError(400, `Cannot reconcile ${txData.status} transaction ${uniqueTxIds[i]}`);
     }
+  }
+
+  // BR-02: the server recomputes the agreement itself — the selected entries must be cash movements
+  // in this account dated on or before the statement date, and the statement balance must be the
+  // beginning balance plus exactly the money those entries moved in the account. The UI's zero
+  // difference is not trusted.
+  const accountData = accountSnap.data() || {};
+  const accMap = new Map([[accountId, accountData]]);
+  if (resolveAccountRole(accountData as ChartAccount) !== 'cash') {
+    throw new CompleteReconciliationError(400, `Account ${accountId} is not a bank or cash account`);
+  }
+  let selectedCents = 0;
+  for (let i = 0; i < txSnaps.length; i++) {
+    const snap = txSnaps[i];
+    const txData = snap.data() as Transaction;
+    const txDate = String(txData.date || '').slice(0, 10);
+    if (txDate > statementDate.slice(0, 10)) {
+      throw new CompleteReconciliationError(400, `Transaction ${uniqueTxIds[i]} is dated ${txDate}, after the statement date ${statementDate}: it cannot clear this statement`);
+    }
+    const refusal = cashMovementRefusal({ accountId, amountCents: 0 }, txData.lines, accMap, txData);
+    if (refusal) {
+      throw new CompleteReconciliationError(400, `Transaction ${uniqueTxIds[i]} cannot clear account ${accountId}: ${refusal}`);
+    }
+    // the money this entry moved in the account (its leg here, signed)
+    const legs = new Map<string, number>();
+    for (const l of (txData.lines || []) as Array<{ accountId?: string }>) {
+      if (l?.accountId === accountId) legs.set(accountId, (legs.get(accountId) || 0) + (lineAmount(l as never, txData) || 0));
+    }
+    selectedCents += legs.get(accountId) || 0;
+  }
+  if (beginningBalanceCents + selectedCents !== statementBalanceCents) {
+    throw new CompleteReconciliationError(400, `The statement balance ${statementBalanceCents} does not agree with the beginning balance ${beginningBalanceCents} plus the selected entries ${selectedCents} in account ${accountId}`);
   }
 
   const recRef = db.collection('reconciliations').doc(reconciliationId);
@@ -730,17 +715,11 @@ export async function completeReconciliationInTransaction(
   return { reconciliationId, completedAt, reconciledCount: uniqueTxIds.length };
 }
 
-export function completeReconciliationAudit(input: CompleteReconciliationInput, result: { reconciliationId: string; reconciledCount: number }) {
-  return {
-    action: 'RECONCILIATION_COMPLETED',
-    entityType: 'reconciliation',
-    entityId: result.reconciliationId,
-    description: `Completed bank reconciliation for account ${input.accountId} as of ${input.statementDate}`,
-    details: {
-      accountId: input.accountId,
-      statementDate: input.statementDate,
-      statementBalanceCents: input.statementBalanceCents,
-      reconciledCount: result.reconciledCount,
-    },
-  };
-}
+
+// Re-exported for callers that import from reconciliationWriteService
+export { reconcileAudit, clearEntriesAudit, updateBankLineAudit, completeReconciliationAudit, CLEAR_MAX_ENTRIES, ClearEntriesError, UpdateBankLineError, CompleteReconciliationError } from './reconciliationAudit';
+export type { ClearEntriesInput, ClearEntriesPrepared, UpdateBankLinePrepared, CompleteReconciliationInput, CompleteReconciliationPrepared } from './reconciliationAudit';
+
+// Import for use within this file
+import { ClearEntriesError, UpdateBankLineError, CompleteReconciliationError, CLEAR_MAX_ENTRIES } from './reconciliationAudit';
+import type { ClearEntriesInput, ClearEntriesPrepared, UpdateBankLinePrepared, CompleteReconciliationInput, CompleteReconciliationPrepared } from './reconciliationAudit';

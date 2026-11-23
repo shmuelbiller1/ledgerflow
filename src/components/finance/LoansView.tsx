@@ -24,7 +24,6 @@ import { useEntityOperations } from '../../hooks/useEntityOperations';
 import { recordLoanPayment } from '../../lib/recordWrites';
 import { secureId } from '../../lib/secureId';
 import { addToDateISO, cn, formatCurrency, getLocalDateISO, readAmountCents } from '../../lib/utils';
-import { isPostable } from '../../lib/txFilters';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
@@ -34,6 +33,7 @@ import type { LoanInstallment, LoanSchedule } from '../../lib/loanSchedule';
 import {
   createLoanDisbursementEntry,
   createLoanPaymentEntry,
+  entryBelongsToLoan,
   formatLoanRate,
   loanBankChoices,
   loanInterestChoices,
@@ -74,10 +74,10 @@ function emptyForm(): LoanForm {
   };
 }
 
-function asDraft(form: LoanForm): LoanDraft {
+function asDraft(form: LoanForm, currency?: string): LoanDraft {
   return {
     lender: form.lender,
-    principalCents: form.principal.trim() ? readAmountCents(form.principal) ?? Number.NaN : 0,
+    principalCents: form.principal.trim() ? readAmountCents(form.principal, { currency }) ?? Number.NaN : 0,
     annualRate: form.ratePercent.trim() ? Number(form.ratePercent) / 100 : Number.NaN,
     termMonths: Number(form.termMonths),
     startDate: form.startDate,
@@ -184,7 +184,7 @@ export default function LoansView() {
   };
 
   const saveLoan = async () => {
-    const draft = asDraft(form);
+    const draft = asDraft(form, currency);
     const problem = loanProblem(draft, chart);
     if (problem) { setRefused(problem); return; }
     setBusy(true);
@@ -394,7 +394,7 @@ export default function LoansView() {
         <section className="space-y-4" aria-label="Loans">
           {rows.map(loan => {
             const info = schedules.get(loan.id);
-            const posted = ledger.some(t => t.reference === loan.reference && isPostable(t));
+            const posted = ledger.some(t => entryBelongsToLoan(loan, t));
             const ledgerOwed = loanLedgerCents(loan, ledger);
             // noted on the loan or found in the ledger: a payment is never offered twice
             const recorded = recordedInstallments(loan, ledger);

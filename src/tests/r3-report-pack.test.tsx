@@ -19,7 +19,7 @@ describe('R-3: the report pack', () => {
     assert.deepEqual(scheduleParts('balance-sheet'), ['balance-sheet']);
     assert.equal(scheduleProblem({ report: 'report-pack', frequency: 'monthly', recipients: ['a@b.co'] }), null);
     const period = lastFinishedPeriod('monthly', '2026-10-01');
-    const pl = profitAndLossTable({ income: { total: 100, accounts: {} }, expense: { total: 0, accounts: {} }, netIncome: 100 }, period);
+    const pl = profitAndLossTable({ income: { total: 100, accounts: {} }, cogs: { total: 0, accounts: {} }, expense: { total: 0, accounts: {} }, grossProfit: 100, netIncome: 100 }, period);
     const aging = agingTable([], [{ key: 'current', label: 'Current' }], period);
     const html = reportEmailHtml([pl, aging], { workspaceName: 'Acme', currency: 'USD', format: c => String(c) });
     assert.match(html, /Profit and loss, 2026-09/);

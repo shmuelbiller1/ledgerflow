@@ -33,7 +33,7 @@ import { DELIVERY_COGS_TYPE } from '../../lib/deliveries';
 import { SALES_RETURN_TYPE } from '../../lib/salesReturns';
 import { compareMoves, type StockMove } from '../../lib/stockMoves';
 import type { Transaction } from '../../types';
-import { movingAverageCents } from './cogsStockService';
+import { movingAverageCents, unitCostMicroCentsOf } from './cogsStockService';
 import { ledgerWrite } from './ledgerDoor';
 import { stockMovesReady, writeStockMoves } from './stockMoveService';
 import { writeServerAuditLog } from './auditLogService';
@@ -128,6 +128,8 @@ export function replay(moves: Move[], entries: Map<string, Entry>, fromDate: str
   const byDate = [...moves].sort(compareMoves);
   const undoneLanded = new Set(moves.filter(m => m.kind === 'landed-cost' && m.correctsTxId).map(m => String(m.correctsTxId)));
   let qty = 0;
+  // INV-02: the replay's average runs in micro-cent precision like the posting (the item's
+  // unitCostMicroCents carries a fractional average a cent-rounded replay would lose)
   let cost = 0;
   const saleUnit = new Map<string, number>();
   const valued: Array<{ entry: Entry; move: Move; of: RepostCorrection['of']; date: string; cents: number }> = [];
@@ -140,7 +142,7 @@ export function replay(moves: Move[], entries: Map<string, Entry>, fromDate: str
     if (m.kind === 'revaluation') {
       // its entry revalued the quantity of that day at the old average: both may now be wrong
       if (day >= fromDate && !refuse) refuse = `it was revalued on ${day}, after the change: revalue it again instead`;
-      cost = Math.round(Number(m.unitCostCents) || 0);
+      cost = Math.round(Number(m.unitCostCents) || 0) * 1_000_000;
       continue;
     }
     if (m.kind === 'landed-cost') {
@@ -150,14 +152,14 @@ export function replay(moves: Move[], entries: Map<string, Entry>, fromDate: str
       if (undoneLanded.has(String(m.transactionId || '')) || m.correctsTxId) continue;
       const value = Number(m.valueCents) || 0;
       if (day >= fromDate && !refuse) refuse = `a landed cost was posted on ${day}, after the change: undo it (Landed cost → Undo) and land it again`;
-      else if (qty > 0) cost = movingAverageCents(qty, cost, value, qty);
+      else if (qty > 0) cost = movingAverageCents(qty, cost, value * 1_000_000, qty);
       else if (value !== 0 && !refuse) refuse = `a landed cost on ${day} has no stock on hand to go to in the replay: undo it and land it again`;
       continue;
     }
     const after = round6(qty + q);
     // M-21 step 2: a receipt under standard-cost posting carries its actual cost beside the standard value
     // it posted at; the replay's average keeps the actual basis (the books carry the stock at the standard)
-    if (BASIS_KINDS.includes(m.kind) && after > 0) cost = movingAverageCents(qty, cost, Number(m.actualValueCents ?? m.valueCents) || 0, after);
+    if (BASIS_KINDS.includes(m.kind) && after > 0) cost = movingAverageCents(qty, cost, (Number(m.actualValueCents ?? m.valueCents) || 0) * 1_000_000, after);
     const entry = m.transactionId ? entries.get(m.transactionId) : undefined;
     const meta = (entry?.metadata || {}) as Record<string, unknown>;
     if (entry && m.kind === 'sale') {
@@ -172,7 +174,7 @@ export function replay(moves: Move[], entries: Map<string, Entry>, fromDate: str
       }
       if (day >= fromDate) {
         if (after < 0) notCorrected.push({ transactionId: entry.id, date: day, reason: 'sold below zero: count the stock' });
-        else valued.push({ entry, move: m, of: 'sale', date: day, cents: Math.round(-q * cost) });
+        else valued.push({ entry, move: m, of: 'sale', date: day, cents: Math.round(-q * cost / 1_000_000) });
       }
     } else if (entry && m.kind === 'return' && day >= fromDate) {
       const unit = meta.type === SALES_RETURN_TYPE ? saleUnit.get(`${text(meta.invoiceId)}|${text(meta.returnForLineId)}`) : undefined;
@@ -183,7 +185,7 @@ export function replay(moves: Move[], entries: Map<string, Entry>, fromDate: str
         continue;
       }
       if (unit === undefined) notCorrected.push({ transactionId: entry.id, date: day, reason: 'a return whose sale is not in the replay' });
-      else valued.push({ entry, move: m, of: 'return', date: day, cents: Math.round(q * unit) });
+      else valued.push({ entry, move: m, of: 'return', date: day, cents: Math.round(q * unit / 1_000_000) });
     } else if (ADJUST_KINDS.includes(m.kind) && q !== 0 && day >= fromDate) {
       if (meta.standard === true) {
         // M-21 step 2: an adjustment posted at the standard is left alone, like a standard-posted sale
@@ -192,11 +194,12 @@ export function replay(moves: Move[], entries: Map<string, Entry>, fromDate: str
         continue;
       }
       if (!entry) { if (!refuse) refuse = `its ${m.kind} on ${day} has no entry in the books to correct`; }
-      else valued.push({ entry, move: m, of: 'adjustment', date: day, cents: Math.round(Math.abs(q) * cost) });
+      else valued.push({ entry, move: m, of: 'adjustment', date: day, cents: Math.round(Math.abs(q) * cost / 1_000_000) });
     }
     qty = after;
   }
-  return { valued, notCorrected, cost, qty, refuse };
+  // `cost` stays in whole cents for callers and reports; the exact micro-cent average rides beside it
+  return { valued, notCorrected, cost: Math.round(cost / 1_000_000), costMicroCents: cost, qty, refuse };
 }
 
 /** Reads, replays and (unless a dry run or refused) writes one key, in the transaction `t`. */
@@ -271,7 +274,7 @@ async function repostStockCost(db: Firestore, t: DbTransaction, input: RepostRun
     return result;
   }
   result.notCorrected = replayed.notCorrected;
-  result.state.after = { unitCostCents: replayed.cost, quantityAtHand: quantity, inventoryValueCents: Math.round(quantity * replayed.cost) };
+  result.state.after = { unitCostCents: replayed.cost, quantityAtHand: quantity, inventoryValueCents: Math.round(quantity * replayed.costMicroCents / 1_000_000) };
   const today = formatTzDate(new Date(), text(ws.timezone) || 'UTC');
   for (const v of replayed.valued) {
     const prior = correctedBy.get(v.entry.id) || { cents: 0, count: 0 };
@@ -349,7 +352,7 @@ async function repostStockCost(db: Firestore, t: DbTransaction, input: RepostRun
   }
   writeStockMoves(db, t, writtenMoves);
   result.posted = prepared.length;
-  if (replayed.cost !== oldCost) t.update(db.collection('inventory').doc(itemId), { unitCostCents: replayed.cost, updatedAt: FieldValue.serverTimestamp() });
+  if (replayed.cost !== oldCost || replayed.costMicroCents !== unitCostMicroCentsOf(item)) t.update(db.collection('inventory').doc(itemId), { unitCostCents: replayed.cost, unitCostMicroCents: replayed.costMicroCents, updatedAt: FieldValue.serverTimestamp() });
   t.set(queueRef, { status: 'clean', blockedBy: null, ...stamp() }, { merge: true });
   await writeServerAuditLog({
     workspaceId, uid: user.uid, email: user.email, action: 'repost', entityType: STOCK_COST_KIND, entityId: itemId,

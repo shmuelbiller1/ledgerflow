@@ -87,6 +87,10 @@ async function prepareDeliveryAccounts(
   const inventoryAcc = accounts.get(input.inventoryAccountId);
   const cogsAcc = accounts.get(input.cogsAccountId);
   if (!inventoryAcc || !cogsAcc || input.inventoryAccountId === input.cogsAccountId) throw new DeliveryError(400, 'Choose the Inventory and Cost of Goods Sold accounts of this workspace');
+  // DL-01: the accounts must be the right kind — stock leaves Inventory (an asset) and the cost
+  // lands in Cost of Goods Sold (an expense)
+  if (inventoryAcc.type !== 'asset') throw new DeliveryError(400, `The Inventory account ${inventoryAcc.name} must be an asset account`);
+  if (cogsAcc.type !== 'expense' && cogsAcc.type !== 'cost_of_goods') throw new DeliveryError(400, `The Cost of Goods Sold account ${cogsAcc.name} must be an expense or cost_of_goods account`);
   return { inventoryAcc: { id: inventoryAcc.id, name: inventoryAcc.name }, cogsAcc: { id: cogsAcc.id, name: cogsAcc.name } };
 }
 
@@ -180,7 +184,9 @@ export async function deliverOrderInTransaction(db: Firestore, t: DbTransaction,
         },
         lines: [
           { accountId: cogsAcc.id, accountName: cogsAcc.name, amountCents: costCents, debitCents: costCents, creditCents: 0, description: `Cost of ${name}`, ...(input.locationId ? { dimensions: { location: input.locationId } } : {}) },
-          { accountId: inventoryAcc.id, accountName: inventoryAcc.name, amountCents: -costCents, debitCents: 0, creditCents: costCents, description: `Inventory out: ${name}` },
+          // DL-01: the Inventory credit carries the same location label as the COGS debit, so
+          // Balance Sheet by Location stays balanced within the location
+          { accountId: inventoryAcc.id, accountName: inventoryAcc.name, amountCents: -costCents, debitCents: 0, creditCents: costCents, description: `Inventory out: ${name}`, ...(input.locationId ? { dimensions: { location: input.locationId } } : {}) },
         ],
       } as unknown as Transaction, { workspaceId: input.workspaceId, user: { uid: input.uid }, wsData: workspace }, undefined, t));
     }
@@ -213,6 +219,10 @@ export async function undoDeliveryInTransaction(db: Firestore, t: DbTransaction,
     const entries = await orderEntries(db, t, input.workspaceId, input.orderId);
     const delivery = orderDeliveries(entries, input.orderId).find(d => d.deliveryId === input.deliveryId);
     if (!delivery) throw new DeliveryError(404, 'That delivery is not on this order, or it was undone already');
+    // DL-01: a reversal cannot be dated earlier than the delivery it reverses
+    if (String(input.date) < String(delivery.date)) {
+      throw new DeliveryError(400, `A delivery undone on ${input.date} cannot be dated before the delivery it reverses (${delivery.date})`);
+    }
     // goods already came back from this order: undoing a whole delivery would put them back twice
     if (liveDeliveryEntries(entries, input.orderId, DELIVERY_RETURN_TYPE).length > 0) {
       throw new DeliveryError(409, 'Goods from this order already came back, so a delivery can no longer be undone whole: record what else came back instead.');

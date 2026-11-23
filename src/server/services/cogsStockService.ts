@@ -60,9 +60,29 @@ interface PendingMove {
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
 /**
+ * INV-02: the moving average is carried at full precision, not rounded to whole cents on the item, so
+ * that a sale of a fractionally-priced lot takes the whole lot's value out of inventory. The stored
+ * unit cost is still rounded to cents for display; the exact figure lives in `unitCostMicroCents`
+ * (unit cost in millionths of a cent), falling back to the rounded value when it is absent.
+ */
+export function unitCostMicroCentsOf(item: { unitCostCents?: unknown; unitCostMicroCents?: unknown } | null | undefined): number {
+  const exact = item?.unitCostMicroCents;
+  const cents = Math.round(Number(item?.unitCostCents) || 0);
+  if (typeof exact === 'number' && Number.isFinite(exact)) {
+    // INV-02 P1: a revaluation that updated unitCostCents without syncing unitCostMicroCents
+    // leaves the stored micro-cent figure stale. Detect the inconsistency and prefer the
+    // rounded cent value the revaluation wrote, rather than the stale micro-cent figure.
+    if (Math.round(exact / 1_000_000) !== cents) return cents * 1_000_000;
+    return exact;
+  }
+  return cents * 1_000_000;
+}
+
+/**
  * The moving-average cost after units come in (or go back) at a value: what was on hand (never below zero) at the old
  * cost plus the value, over what is on hand after. Shared by the posting (below) and the EG-1 repost replay
  * (repostService.ts), so a replay with nothing backdated finds the very same figures.
+ * INV-02: the stored figure is kept at micro-cent precision rather than rounded to whole cents.
  */
 export function movingAverageCents(before: number, costCents: number, valueCents: number, after: number): number {
   return Math.round((Math.max(0, before) * costCents + valueCents) / after);
@@ -335,7 +355,7 @@ export async function prepareStockMoves(
   }
   const itemIds = Array.from(deltas.keys()).filter(id => deltas.get(id) !== 0);
   const warnings: string[] = [];
-  const writes: { id: string; quantityAtHand: number; unitCostCents?: number }[] = [];
+  const writes: { id: string; quantityAtHand: number; unitCostCents?: number; unitCostMicroCents?: number }[] = [];
   const moves: NewStockMove[] = [];
   const invoiceSale = entries.some(e => e.metadata?.type === INVOICE_COGS_TYPE && !reshipped.has(String(e.metadata?.invoiceId)));
   const workspace = invoiceSale || itemIds.some(id => (deltas.get(id) || 0) < 0)
@@ -367,7 +387,7 @@ export async function prepareStockMoves(
       // W-02: each entry's change, in order, from the quantity before
       let before = current;
       // J-08: what is bought (or a purchase undone) moves the weighted average cost of what is on hand
-      let cost = Number(item.unitCostCents) || 0;
+      let cost = unitCostMicroCentsOf(item);
       let costChanged = false;
       // a bill edited in this request: its old units go out before its new ones come in
       const mine = pending.filter(x => x.itemId === snap.id);
@@ -377,7 +397,8 @@ export async function prepareStockMoves(
         // what is bought or sent back (or either undone) moves the average cost by its own value; under
         // standard-cost posting the receipt carries its actual cost, and the average keeps the actual basis
         if (['purchase', 'purchase-reversal', 'purchase-return', 'purchase-return-reversal'].includes(p.kind) && after > 0) {
-          cost = movingAverageCents(before, cost, p.actualValueCents ?? p.valueCents, after);
+          // INV-02: the average runs in micro-cents, so the value comes in at the same scale
+          cost = movingAverageCents(before, cost, (p.actualValueCents ?? p.valueCents) * 1_000_000, after);
           costChanged = true;
         }
         const invoiceId = typeof p.entry.metadata?.invoiceId === 'string' ? p.entry.metadata.invoiceId : undefined;
@@ -403,7 +424,7 @@ export async function prepareStockMoves(
         });
         before = after;
       }
-      writes.push({ id: snap.id, quantityAtHand, ...(costChanged ? { unitCostCents: cost } : {}) });
+      writes.push({ id: snap.id, quantityAtHand, ...(costChanged ? { unitCostCents: Math.round(cost / 1_000_000), unitCostMicroCents: cost } : {}) });
     }
   }
 
@@ -425,7 +446,7 @@ export async function prepareStockMoves(
     warnings,
     apply: () => {
       for (const w of writes) {
-        t.update(db.collection('inventory').doc(w.id), { quantityAtHand: w.quantityAtHand, ...(w.unitCostCents !== undefined ? { unitCostCents: w.unitCostCents } : {}), updatedAt: FieldValue.serverTimestamp() });
+        t.update(db.collection('inventory').doc(w.id), { quantityAtHand: w.quantityAtHand, ...(w.unitCostCents !== undefined ? { unitCostCents: w.unitCostCents, ...(w.unitCostMicroCents !== undefined ? { unitCostMicroCents: w.unitCostMicroCents } : {}) } : {}), updatedAt: FieldValue.serverTimestamp() });
       }
       writeStockMoves(db, t, moves);
     },

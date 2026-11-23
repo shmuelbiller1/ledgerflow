@@ -214,7 +214,9 @@ test('updating one bank line answers its id and fields, and refuses another work
 test('completing a reconciliation keeps its record, marks the entries and answers the count', async () => {
   const db = new MemoryDb();
   seed(db);
-  db.seed(`transactions/${WS}_tx1`, { workspaceId: WS, uid: OWNER, date: '2026-10-02', status: 'completed', totalAmountCents: 5000, lines: [] });
+  // BR-02: the entry clears the bank account, and the statement balance is the beginning balance
+  // plus exactly the money it moved there
+  db.seed(`transactions/${WS}_tx1`, { workspaceId: WS, uid: OWNER, date: '2026-10-02', status: 'completed', totalAmountCents: 125000, lines: [{ accountId: BANK, amountCents: 125000 }, { accountId: SALES, amountCents: -125000 }] });
 
   const done = await invoke(db, completeReconciliationCommand, ACCOUNTANT, {
     workspaceId: WS, accountId: BANK, statementDate: '2026-10-31', statementBalanceCents: 125000, reconciledTransactionIds: [`${WS}_tx1`],
@@ -228,7 +230,7 @@ test('completing a reconciliation keeps its record, marks the entries and answer
   assert.equal(done.audits, 1, 'one audit line for the completed reconciliation');
 
   // a draft or void entry cannot be reconciled, and a closed statement date is the legacy 409
-  db.seed(`transactions/${WS}_draft`, { workspaceId: WS, uid: OWNER, date: '2026-10-02', status: 'draft', totalAmountCents: 5000, lines: [] });
+  db.seed(`transactions/${WS}_draft`, { workspaceId: WS, uid: OWNER, date: '2026-10-02', status: 'draft', totalAmountCents: 125000, lines: [{ accountId: BANK, amountCents: 125000 }, { accountId: SALES, amountCents: -125000 }] });
   const draft = await invoke(db, completeReconciliationCommand, OWNER, {
     workspaceId: WS, accountId: BANK, statementDate: '2026-10-31', statementBalanceCents: 125000, reconciledTransactionIds: [`${WS}_draft`],
   });
@@ -277,7 +279,7 @@ test('a platform admin keeps the legacy bypass on clear, patch and complete', as
   const db = new MemoryDb();
   seed(db);
   // an admin who is not a member of this workspace: the legacy routes let them through
-  db.seed(`transactions/${WS}_tx1`, { workspaceId: WS, uid: OWNER, date: '2026-10-02', status: 'completed', totalAmountCents: 5000, lines: [] });
+  db.seed(`transactions/${WS}_tx1`, { workspaceId: WS, uid: OWNER, date: '2026-10-02', status: 'completed', totalAmountCents: 1000, lines: [{ accountId: BANK, amountCents: 1000 }, { accountId: SALES, amountCents: -1000 }] });
   db.seed(`bankLines/${WS}_line`, { workspaceId: WS, date: '2026-10-20', status: 'pending', amountCents: 1000 });
 
   const cleared = await invoke(db, clearEntriesCommand, ADMIN, { workspaceId: WS, transactionIds: [`${WS}_tx1`] }, { admin: true });

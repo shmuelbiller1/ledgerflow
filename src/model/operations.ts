@@ -50,6 +50,10 @@ export interface InventoryItem {
   description?: string;
   unitPriceCents: number;
   unitCostCents: number;
+  /** INV-02: the moving-average cost at micro-cent precision (millionths of a cent); carries the
+   *  fractional average a whole-cent `unitCostCents` would round away. Absent on items that never
+   *  had a fractional purchase: `unitCostCents` is then the exact cost. */
+  unitCostMicroCents?: number;
   /** M-21: what one unit is expected to cost (a reference; stock is still valued at unitCostCents) */
   standardCostCents?: number;
   quantityAtHand: number;
@@ -87,7 +91,7 @@ export interface PartialDisposal {
   gainLossCents: number;
   transactionId: string;
   /** what the asset carried before, to undo it */
-  before: { purchasePriceCents: number; salvageValueCents: number; accumulatedDepreciationCents: number; depreciatedThrough: string | null };
+  before: { purchasePriceCents: number; salvageValueCents: number; accumulatedDepreciationCents: number; depreciatedThrough: string | null; originalCostAdditions?: Array<{ date: string; amountCents: number; note?: string }> };
 }
 
 export interface AssetTransfer {

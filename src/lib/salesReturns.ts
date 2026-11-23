@@ -31,6 +31,8 @@ export interface ReturnableLine {
   unitCostCents: number;
   /** the sale's total cost of goods, in home-currency cents (unitCostCents is rounded from it) */
   saleTotalCents?: number;
+  /** the cost of goods already restored by earlier returns of this line, in home-currency cents */
+  returnedCents?: number;
   /** M-21 step 2: the sale was posted at the item's standard cost (not the moving average) */
   saleStandard?: boolean;
   /** the price per unit on the invoice, in the invoice's currency */
@@ -61,14 +63,16 @@ export function returnableLines(invoice: Pick<Invoice, 'id' | 'items'>, ledger: 
     if (!sale) return [];
     const sold = Number(sale.metadata?.quantity) || 0;
     if (sold <= 0) return [];
-    const returned = round6(entries
-      .filter(t => t.metadata?.type === SALES_RETURN_TYPE && t.metadata?.returnForLineId === line.id && t.metadata?.creditNoteId !== exceptCreditNoteId)
-      .reduce((s, t) => s + (Number(t.metadata?.quantity) || 0), 0));
+    const earlierReturns = entries
+      .filter(t => t.metadata?.type === SALES_RETURN_TYPE && t.metadata?.returnForLineId === line.id && t.metadata?.creditNoteId !== exceptCreditNoteId);
+    const returned = round6(earlierReturns.reduce((s, t) => s + (Number(t.metadata?.quantity) || 0), 0));
+    const returnedCents = earlierReturns.reduce((s, t) => s + Math.abs(Number(t.totalAmountCents) || 0), 0);
     return [{
       invoiceLineId: line.id, itemId: line.itemId, description: line.description || '',
       sold, returned, returnable: Math.max(0, round6(sold - returned)),
       unitCostCents: Math.round(Math.abs(Number(sale.totalAmountCents) || 0) / sold),
       saleTotalCents: Math.abs(Number(sale.totalAmountCents) || 0),
+      returnedCents,
       unitPriceCents: Number(line.rateCents) || 0,
       ...(sale.metadata?.standard === true ? { saleStandard: true } : {}),
       ...(typeof sale.metadata?.locationId === 'string' && sale.metadata.locationId ? { locationId: sale.metadata.locationId } : {}),
@@ -98,11 +102,23 @@ export function planReturnEntries(input: {
   cogsAccount: { id: string; name: string };
 }): Array<Omit<Transaction, 'id'>> {
   const { creditNote, lines } = input;
+  // what this credit note has already brought back per line (one note may list a line more than once)
+  const progress = new Map<string, { quantity: number; cents: number }>();
   return (creditNote.returnedGoods || []).flatMap(g => {
     const line = lines.find(l => l.invoiceLineId === g.invoiceLineId);
     if (!line || !(g.quantity > 0)) return [];
-    const cents = Math.round(g.quantity * line.unitCostCents);
-    if (cents <= 0) return [];
+    // the sale's recorded cost is allocated exactly: the returns of a line restore the cumulative share
+    // of its total cost less what earlier returns already restored, so the cent remainders land on the
+    // last return and a full return gives back exactly what the sale took (never a re-rounded unit cost
+    // times the quantity, which loses or adds cents on fractionally priced lots)
+    const before = progress.get(line.invoiceLineId) ?? { quantity: line.returned, cents: line.returnedCents ?? Math.round(line.returned * line.unitCostCents) };
+    const quantityAfter = round6(before.quantity + g.quantity);
+    const total = line.saleTotalCents ?? Math.round(line.sold * line.unitCostCents);
+    const cumulative = line.sold > 0 && quantityAfter >= line.sold ? total : Math.round(total * quantityAfter / Math.max(line.sold, quantityAfter));
+    const cents = Math.max(0, cumulative - before.cents);
+    progress.set(line.invoiceLineId, { quantity: quantityAfter, cents: before.cents + cents });
+    // a zero-cost return still brings its units back to stock: the entry carries the quantity at zero
+    // value, as the zero-cost sale that shipped them did
     const name = line.description || 'item';
     const entryLines: TransactionLine[] = [
       { accountId: input.inventoryAccount.id, accountName: input.inventoryAccount.name, amountCents: cents, debitCents: cents, creditCents: 0, description: `Returned to stock: ${name}` },

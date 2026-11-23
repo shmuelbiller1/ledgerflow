@@ -30,6 +30,7 @@
  * edited books, and the balance sheet's cache key changes, so no cached answer of the old books is served.
  */
 import './helpers/dom';
+import { addDaysYMD } from '../lib/calendarDate';
 import '../services/ledgerPost/postingKit';
 import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -95,9 +96,9 @@ describe('L-123 step 2: the server reports read balancesAsOf', { skip: !url && '
   };
   const accountsOf = async (ws: string) => (await db.collection('chartAccounts').where('workspaceId', '==', ws).get()).docs.map(d => ({ id: d.id, ...d.data() }) as ChartAccount);
   const entriesOf = async (ws: string) => (await db.collection('transactions').where('workspaceId', '==', ws).get()).docs.map(d => ({ ...d.data(), id: d.id }) as Transaction);
-  /** the old getReportContext query: every entry dated (as stored) between the dates */
+  /** the getReportContext query: every entry dated (as stored) before the day after the end date (RP-06) */
   const oldQuery = async (ws: string, start: string | undefined, end: string) => {
-    let q = db.collection('transactions').where('workspaceId', '==', ws).where('date', '<=', end);
+    let q = db.collection('transactions').where('workspaceId', '==', ws).where('date', '<', addDaysYMD(end, 1));
     if (start) q = q.where('date', '>=', start);
     return (await q.get()).docs.map(d => ({ ...d.data(), id: d.id }) as Transaction);
   };
@@ -276,7 +277,7 @@ describe('L-123 step 2: the server reports read balancesAsOf', { skip: !url && '
       assert.deepEqual([a.sheet.assets[id('cash')], a.sheet.netIncome, a.notLabelled.sheet.assets[id('cash')], a.notLabelled.lines, a.notLabelled.openings], [30_000, 30_000, 89_000, 8, 2]);
       const cf = await json('cash-flow', { startDate: '2026-01-01', endDate: '2026-03-31' });
       assert.deepEqual([cf.openingCashCents, cf.netChange, cf.closingCashCents], [122_000, 5_000, 127_000]);
-      assert.equal((await json('balance-sheet', { endDate: '2025-12-31' })).assets[id('cash')], 123_000, 'the clock-time entry of 31 December is left out, as before');
+      assert.equal((await json('balance-sheet', { endDate: '2025-12-31' })).assets[id('cash')], 122_000, 'RP-06: the clock-time entry of 31 December is included (the end bound is the day after, exclusive)');
     });
 
     test('byte-identical with and without the snapshot, by project too', async () => {

@@ -4,7 +4,7 @@ import type { PeriodLockSettings } from '../../lib/periodLock';
 import crypto from 'crypto';
 import { CLOSE_ITEM_IDS } from '../../lib/closeChecklist';
 import { closeStepsProblem, STEP_PREFIX, type CloseStep } from '../../lib/closeSteps';
-import { addToDateISO, formatTzDate } from '../../lib/calendarDate';
+import { addDaysYMD, addToDateISO, formatTzDate } from '../../lib/calendarDate';
 import { dayNumber } from '../../lib/fiscalCalendar';
 import { writeServerAuditLog } from './auditLogService';
 import { rebuildSnapshots } from './balanceService';
@@ -141,10 +141,16 @@ export async function closePeriod(db: Firestore, input: Actor & { month: string;
     if (closedThrough >= end) throw new PeriodCloseError(409, `${input.month} is already ${input.mode === 'hard' ? 'hard-' : ''}closed (through ${closedThrough})`);
 
     // Drafts dated in the months this close covers would be stuck: refuse, and list them.
+    // PC-01: a document's date may carry a time (a draft saved with a timestamp on the last day of
+    // the month); comparing whole strings lets such a draft sort after the date-only end and escape
+    // the guard. Compare on day boundaries instead: anything dated before the day after `end` is in
+    // the period, and anything dated on or before `closedThrough` was already covered by an earlier
+    // close (the posting lock itself truncates a date to its day).
     const drafts: Array<{ collection: string; id: string; date: string; label: string }> = [];
+    const endExclusive = addDaysYMD(end, 1);
     for (const collection of DRAFT_COLLECTIONS) {
-      let q = db.collection(collection).where('workspaceId', '==', input.workspaceId).where('status', '==', 'draft').where('date', '<=', end);
-      if (closedThrough) q = q.where('date', '>', closedThrough);
+      let q = db.collection(collection).where('workspaceId', '==', input.workspaceId).where('status', '==', 'draft').where('date', '<', endExclusive);
+      if (closedThrough) q = q.where('date', '>=', addDaysYMD(closedThrough, 1));
       const snap = await t.get(q.limit(25));
       snap.docs.forEach(d => drafts.push({ collection, id: d.id, date: String(d.get('date') || ''), label: String(d.get('number') || d.get('description') || d.get('reference') || d.id) }));
     }

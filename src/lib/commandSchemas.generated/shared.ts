@@ -731,7 +731,7 @@ const schemaPart287 = {
   "accountName": schemaPart24,
   "amountCents": schemaPart155,
   "baseAmountCents": schemaPart155,
-  "exchangeRate": schemaPart113,
+  "exchangeRate": schemaPart77,
   "description": schemaPart64,
   "class": schemaPart24,
   "location": schemaPart24,

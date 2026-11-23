@@ -53,7 +53,7 @@ type PreparedPayment = {
 
 function requestFingerprint(ctx: Omit<CommandContext, 'prepared' | 'afterCommit'>, input: PaymentInput): Record<string, unknown> {
   const { workspaceId: _bodyWorkspaceId, sendRemittance: _sendRemittance, paymentTypeId, ...rest } = input;
-  return { ...rest, paymentTypeId, paymentDate: rest.paymentDate || null, workspaceId: ctx.workspaceId, uid: ctx.actor };
+  return { ...rest, paymentTypeId, paymentDate: rest.paymentDate || ctx.effectiveDate || null, workspaceId: ctx.workspaceId, uid: ctx.actor };
 }
 
 async function preparePayment(ctx: Omit<CommandContext, 'prepared' | 'afterCommit'>, input: PaymentInput): Promise<PreparedPayment> {
@@ -143,6 +143,8 @@ export const paymentReceiveCommand: CommandDefinition<typeof paymentReceiveInput
   },
   operationType: 'PAYMENT_CREATE',
   legacyKey: (workspaceId, operationId) => `${workspaceId}:PAYMENT_CREATE:${operationId}`,
+  // ID-01 (audit PR #1002): a headerless retry of the same payment replays instead of posting twice
+  implicitIdempotency: true,
   prepare: preparePayment,
   idempotencyHash(ctx, input) {
     const { workspaceId: _bodyWorkspaceId, sendRemittance: _sendRemittance, paymentTypeId, ...rest } = input;

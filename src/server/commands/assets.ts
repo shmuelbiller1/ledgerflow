@@ -256,6 +256,7 @@ type CostInput = z.output<typeof assetCostAdditionInput>;
 type AssetRow = Record<string, unknown> & {
   id?: string;
   name?: string;
+  status?: string;
   purchasePriceCents?: number;
   costAdditions?: Array<{ date: string; amountCents: number; note?: string }>;
 };
@@ -271,6 +272,10 @@ export const assetCostAdditionCommand: CommandDefinition<typeof assetCostAdditio
     const existing = snapshot.data() as AssetRow | undefined;
     if (!snapshot.exists || existing?.workspaceId !== ctx.workspaceId) {
       throw Object.assign(new HttpError('This asset is not in the selected workspace.', 404), { code: 'NOT_FOUND' });
+    }
+    // FA-01: a disposed asset has no remaining life to depreciate a new cost over
+    if (existing.status === 'disposed') {
+      throw Object.assign(new HttpError('This asset has been disposed of; a cost cannot be capitalized on it.', 409), { code: 'CONFLICT' });
     }
     const costAdditions = [
       ...(Array.isArray(existing.costAdditions) ? existing.costAdditions : []),

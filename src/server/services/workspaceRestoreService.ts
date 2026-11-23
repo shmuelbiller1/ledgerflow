@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { DocumentData, Firestore, Transaction } from '../db/firestore';
+import { transactionRunner } from '../db/pg/commandStage';
 import { BRAND_NAME } from '../../config/brand';
 import { writeServerAuditLog } from './auditLogService';
 import { checkLedgerEntry } from './ledgerDoor';
@@ -11,7 +12,6 @@ import { InvoiceSchema, BillSchema, ProjectSchema, CreditNoteSchema, VendorCredi
 const DERIVED_RESTORE_TABLES = [
   'periodBalances',
   'stockClosings',
-  'repostQueue',
 ] as const;
 
 function backupHmacSecret(): string {
@@ -84,6 +84,9 @@ export const RESTORE_COLLECTIONS: RestoreTable[] = [
   { key: 'periods', coll: 'periods' },
   // W-02: the stock history goes with the quantities (an older backup without it clears it)
   { key: 'stockMoves', coll: 'stockMoves' },
+  // BK-01: the repost queue is pending work, not a stale cache: a backup taken after a backdated
+  // purchase but before its cost repost must carry the queue so the restore can finish the repost.
+  { key: 'repostQueue', coll: 'repostQueue' },
   // The EG-2 payment ledger and the close history are records, not caches: a backup carries them and a
   // restore writes them back with the payments they belong to (an older backup without them clears them,
   // so no allocation row outlives the payments it points at).
@@ -344,6 +347,14 @@ export async function restoreWorkspaceBackup(db: Firestore, workspaceId: string,
       const missing = (attachmentList as Array<{ id: string; fileSha256?: unknown }>)
         .filter(a => !sums.has(a.id) || (typeof a.fileSha256 === 'string' && sums.get(a.id) !== a.fileSha256)).map(a => a.id);
       attachments = { listed: attachmentList.length, present: attachmentList.length - missing.length, missing };
+    }
+    // BK-01: restoring stock moves writes them back exactly as the backup carried them — each move
+    // keeps its own dbSeq (the same-day chronological order the export was taken in) and the insert
+    // triggers do not re-dirty the repost queue (the backup is one consistent, already-reposted
+    // moment; the derived caches were cleared just above). The triggers honor this restore-only
+    // marker, which is dropped when the transaction commits, so it affects this restore only.
+    if (Array.isArray(backup.stockMoves)) {
+      await t[transactionRunner]().query('create temp table lf_restore_stock_moves_active(ok int) on commit drop');
     }
     for (const docs of existing) docs.forEach(doc => t.delete(doc.ref));
     for (const doc of staleDerivedDocs) t.delete(doc.ref);

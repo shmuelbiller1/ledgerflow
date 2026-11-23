@@ -182,6 +182,8 @@ class MemoryTransaction {
     return new MemorySnapshot(this.db.read(path), path.split('/').at(-1) || '', source);
   }
   async getAll(...refs: unknown[]): Promise<unknown[]> { return Promise.all(refs.map(ref => this.get(ref))); }
+  /** The in-memory database has no SQL; restore's temp-table marker (Postgres-only) is a no-op here. */
+  async runLocalSql(): Promise<void> {}
   set(ref: unknown, data: Record<string, unknown>): this { this.stage('set', ref, data); return this; }
   create(ref: unknown, data: Record<string, unknown>): this { this.stage('create', ref, data); return this; }
   update(ref: unknown, data: Record<string, unknown>): this { this.stage('update', ref, data); return this; }

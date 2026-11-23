@@ -187,7 +187,9 @@ describe('loan record and entries', () => {
   test('recording the money arriving: debit the bank, credit the liability, one balanced entry', () => {
     const entry = createLoanDisbursementEntry({ loan, bank, liability: loanAccount });
     assert.equal(entry.totalAmountCents, 120_000);
-    assert.equal(entry.reference, 'LOAN-LOAN1');
+    // LN-01: the loan- prefix is stripped and the reference keeps full entropy
+    assert.equal(entry.reference, 'LOAN-1');
+    assert.equal(entry.metadata?.loanId, loan.id);
     assert.equal(entry.date, '2026-01-31');
     assert.equal(entry.description, 'Loan from Northwind Bank');
     assert.deepEqual(entry.lines?.map(l => [l.accountId, l.amountCents]), [['bank', 120_000], ['loan', -120_000]]);
@@ -221,7 +223,8 @@ describe('loan record and entries', () => {
     // A draft is not in the books, and another loan's entries are none of this loan's business.
     const withDraft = [...posted, asTransaction('t-3', createLoanPaymentEntry({ loan, installment: schedule.installments[2], date: '2026-04-28', bank, liability: loanAccount, interest: interestAccount }), 'draft')];
     assert.equal(loanLedgerCents(loan, withDraft), 40_398);
-    const otherLoan = { ...loan, reference: 'LOAN-OTHER123' };
+    // LN-01: a different loan has a different id; its entries (even with a colliding reference) are none of this loan's business
+    const otherLoan = { ...loan, id: 'loan-other', reference: loan.reference };
     assert.equal(loanLedgerCents(otherLoan, posted), 0);
     // After the last payment the ledger says nothing is owed and the schedule agrees.
     const settled = [...posted, asTransaction('t-3', createLoanPaymentEntry({ loan, installment: schedule.installments[2], date: '2026-04-28', bank, liability: loanAccount, interest: interestAccount }))];
@@ -235,10 +238,10 @@ describe('loan record and entries', () => {
       ...createLoanPaymentEntry({ loan, installment: schedule.installments[n - 1], date: '2026-02-28', bank, liability: loanAccount, interest: interestAccount }),
       id, workspaceId: 'ws-1', status,
     } as Partial<Transaction>);
-    assert.deepEqual(entry('t-1', 1).metadata, { loanInstallment: 1 });
+    assert.deepEqual(entry('t-1', 1).metadata, { loanInstallment: 1, loanId: loan.id });
     // payment 1 noted on the loan; payment 2 posted, but noting it on the loan failed
     const noted = { ...loan, payments: [{ installment: 1, date: '2026-02-28' }] };
-    const ledger = [entry('t-1', 1), entry('t-2', 2), entry('t-3', 3, 'draft'), { ...entry('t-x', 3), reference: 'LOAN-OTHER123' }];
+    const ledger = [entry('t-1', 1), entry('t-2', 2), entry('t-3', 3, 'draft'), { ...entry('t-x', 3), metadata: { loanInstallment: 3, loanId: 'loan-other' } }];
     const recorded = recordedInstallments(noted, ledger);
     assert.deepEqual(recorded.map(r => r.installment), [1, 2], 'a draft and another loan\'s entry do not count');
     assert.equal(nextInstallment(schedule, recorded)?.number, 3);
@@ -246,7 +249,9 @@ describe('loan record and entries', () => {
   });
 
   test('the reference and the rate read the way a person writes them', () => {
-    assert.equal(newLoanReference('abc-def-1234'), 'LOAN-ABCDEF12');
+    // LN-01: the whole id is used, not an 8-character slice
+    assert.equal(newLoanReference('abc-def-1234'), 'LOAN-ABCDEF1234');
+    assert.equal(newLoanReference('loan-abcd1111-1111-4111-8111-111111111111'), 'LOAN-ABCD1111111141118111111111111111');
     assert.equal(formatLoanRate(0.065), '6.5% a year');
     assert.equal(formatLoanRate(0.06), '6% a year');
     assert.equal(formatLoanRate(0.0525), '5.25% a year');

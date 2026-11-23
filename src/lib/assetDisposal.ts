@@ -82,6 +82,16 @@ export function portionOf(asset: { purchasePriceCents?: number; salvageValueCent
 }
 
 /**
+ * FA-01 + X-04: the share of each capitalized addition that stays with the asset after a share of it
+ * leaves. Additions are components of the cost, so they shrink with it — the engine then schedules the
+ * retained basis, not the full additions on a smaller asset.
+ */
+export function retainedCostAdditions<A extends { amountCents: number }>(additions: A[] | undefined, percentLeaving: number): A[] {
+  const kept = 100 - percentLeaving;
+  return (Array.isArray(additions) ? additions : []).map(a => ({ ...a, amountCents: Math.round(Number(a.amountCents) * kept / 100) }));
+}
+
+/**
  * The entry for a share, in the terms `disposalLines` takes: the catch-up for the whole asset, then
  * `accumulatedPartCents` (the share's accumulated depreciation, catch-up included) and the share's cost
  * leave. Gain or loss = proceeds + accumulatedPartCents − costPartCents.

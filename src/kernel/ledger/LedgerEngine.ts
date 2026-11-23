@@ -1,6 +1,6 @@
 import { normalizeSearchText } from '../../lib/textNormalization';
 import { ChartAccount, Transaction, JournalEntry } from '../../types';
-import { isPostable } from '../../lib/txFilters';
+import { isPostable, lineAmount } from '../../lib/txFilters';
 import { allocateCents } from '../../lib/Allocation';
 import { resolveAccountRole } from '../../lib/accountUtils';
 
@@ -285,14 +285,18 @@ export class LedgerEngine {
             const rate = (typeof line.exchangeRate === 'number' && line.exchangeRate > 0 && Number.isFinite(line.exchangeRate))
               ? line.exchangeRate
               : ((typeof tx.exchangeRate === 'number' && tx.exchangeRate > 0 && Number.isFinite(tx.exchangeRate)) ? tx.exchangeRate : 1);
-            
-            // #90: Enforce Number.isSafeInteger after FX conversion - fail closed on overflow
-            const rawConverted = Math.round(rawAmount * rate);
-            if (!Number.isSafeInteger(rawConverted)) {
-              throw new Error(`Monetary overflow: Converted FX amount ${rawConverted} exceeds safe integer bounds for transaction ${tx.id || 'unknown'}.`);
+
+            // CL-02: read the same settled home amount the server statements read —
+            // lineAmount prefers baseAmountCents (server-settled) and otherwise applies
+            // line rates, the header-rate fallback and the 10^(home digits − entry
+            // digits) minor-unit shift for JPY/KWD-style currencies. The old
+            // `rawAmount × rate` ignored both and disagreed with the server by 100×
+            // on ¥1M @ 0.0067 ($67 vs $6,700).
+            const settled = lineAmount(line, tx);
+            if (!Number.isSafeInteger(settled)) {
+              throw new Error(`Monetary overflow: Converted FX amount ${settled} exceeds safe integer bounds for transaction ${tx.id || 'unknown'}.`);
             }
-            const amount = rawConverted;
-            return { line, amount, rawAmount, rate };
+            return { line, amount: settled, rawAmount, rate };
           });
 
           // Post FX rounding difference to an explicit rounding account

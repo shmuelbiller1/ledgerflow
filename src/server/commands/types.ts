@@ -118,6 +118,15 @@ export interface CommandDefinition<Schema extends z.ZodType = z.ZodType, Result 
   legacyKey?(workspaceId: string, operationId: string): string;
   /** Preserve the old request fingerprint when a route is adopted; defaults to requestPayloadHash(req.body). */
   idempotencyHash?(ctx: Omit<CommandContext, 'prepared' | 'afterCommit'>, input: z.output<Schema>, prepared: Prepared | undefined, req: import('express').Request): string | undefined;
+  /**
+   * ID-01 (audit PR #1002): when the caller sends no `Idempotency-Key`, derive an implicit
+   * content-scoped operation id from the request fingerprint, so a headerless retry of the same
+   * content replays the stored result instead of posting the money a second time. Opt-in: only
+   * money-creating commands (which post new ledger rows) opt in, because for update-style
+   * commands an identical payload can be a fresh intention against changed state, and replaying
+   * an old success would mask the guards that decide on the current state.
+   */
+  implicitIdempotency?: boolean;
 }
 
 export type AnyCommandDefinition = CommandDefinition<z.ZodType, unknown, unknown, CommandAuditResult>;

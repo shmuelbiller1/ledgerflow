@@ -21,6 +21,7 @@ import { allocateInTransaction } from './numberingService';
 import { advanceAccount } from '../../lib/advancePayments';
 import type { DocumentData, DocumentReference, Firestore, Transaction } from '../db/firestore';
 import { ALLOCATION_OPERATIONS, allocationLedgerReady, assertApplicationDate, liveStoredRowsOf, liveStoredRowsOfSource, recordAllocation, splitAllocations, type AllocationSide } from './allocationLedger';
+import { buildOffsetLines, buildRetainageAccounts, computeRetainageSplit, assertPaymentAllocation } from './paymentOffsetLines';
 import { allocateCents, spreadLabels, type LineAccountWeight } from '../../kernel/templates/TransactionTemplates';
 
 export interface CreatePaymentPayload {
@@ -289,6 +290,8 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
     const allocDocs: Array<{ partyId: string | null; dueCents: number }> = [];
     const ledgerReady = allocations.length > 0 && await allocationLedgerReady(db, tx);
     const clearedByAlloc: number[] = [];
+    let seenDocumentType: 'invoice' | 'bill' | undefined;
+    const retainageSplits: { tradePartDoc: number; retainagePartDoc: number; documentType: 'invoice' | 'bill' }[] = [];
 
     for (const alloc of allocations) {
       totalAllocatedCents += alloc.amountCents;
@@ -305,9 +308,9 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
         throw new Error(`Document ${alloc.documentId} not found`);
       }
 
-      if (docData.status === 'void' || docData.status === 'draft') {
-        throw new Error(`Cannot record a payment against a ${docData.status} document`);
-      }
+      if (docData.status === 'void' || docData.status === 'draft' || docData.status === 'cancelled' || docData.status === 'rejected') throw new Error(`Cannot record a payment against a ${docData.status} document`);
+      if (!seenDocumentType) seenDocumentType = alloc.documentType;
+      assertPaymentAllocation({ seenDocumentType, customerId, vendorId, documentType: alloc.documentType, docCustomerId: docData.customerId as string, docVendorId: docData.vendorId as string });
       // G-19 (#893): a bill over the approval limit is approved before it is paid, whichever path pays it
       if (alloc.documentType === 'bill' && billAwaitsApproval(docData, wsData)) {
         throw new Error(BILL_PAID_BEFORE_APPROVAL);
@@ -334,6 +337,8 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
 
       const newPaid = currentPaid + alloc.amountCents;
       clearedByAlloc.push(await documentClearing(db, tx, workspaceId, docData, alloc, docCurrency, baseCurrency, paymentRate, ledgerReady));
+      const split = computeRetainageSplit(docData, alloc.amountCents, alloc.documentType);
+      retainageSplits.push({ ...split, documentType: alloc.documentType });
 
       const newStatus = newPaid > 0 ? settledStatus(docData, newPaid) : docData.status;
 
@@ -461,6 +466,9 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
     // the unmatched part goes to the deposits/prepayments account when there is one (BE-12)
     const advanceBaseCents = advance ? unmatchedBaseCents : 0;
     const offsetBaseCents = baseAmountCents - advanceBaseCents;
+    const retainageAccounts = retainageSplits.some(r => r.retainagePartDoc > 0)
+      ? await buildRetainageAccounts(retainageSplits, await chartAccounts(), { tradeAccountId: resolvedOffsetAccountId, mappings: wsData.defaultAccountMappings || {} })
+      : [];
     let fxAccount: { id: string; name?: string } | undefined;
     if (realizedFxCents !== 0) {
       fxAccount = paymentFxAccount(await chartAccounts(), settlementRate === paymentRate);
@@ -520,13 +528,7 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
           amountCents: -withheld,
           description: `Tax withheld at source for Payment ${paymentId}`
         }] : []),
-        // (no line when all of it waits as a deposit/prepayment)
-        ...(offsetBaseCents !== 0 || !advance ? [{
-          accountId: resolvedOffsetAccountId,
-          amountCents: isReceipt ? -offsetBaseCents : offsetBaseCents,
-          description: `Offset ${isReceipt ? 'Credit' : 'Debit'} for Payment ${paymentId}`,
-          ...rateOn(bookedRate),
-        }] : []),
+        ...buildOffsetLines({ isReceipt, paymentId, offsetAccountId: resolvedOffsetAccountId, offsetBaseCents, hasAdvance: !!advance, retainageSplits, retainageAccounts, clearedBaseByAlloc: clearedByAlloc, rateOn, bookedRate }),
         ...(advance && advanceBaseCents > 0 ? [{
           accountId: advance.id,
           amountCents: isReceipt ? -advanceBaseCents : advanceBaseCents,
