@@ -76,4 +76,3 @@ export function assertPaymentAllocation(opts: { seenDocumentType: 'invoice' | 'b
     throw new Error(`This payment identifies a different vendor than the bill it settles (${docPartyId})`);
 }
 
-// no-op
