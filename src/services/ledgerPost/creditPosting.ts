@@ -133,6 +133,12 @@ export async function postCreditNoteLedger(
       for (const g of goods) {
         const line = lines.find(l => l.invoiceLineId === g.invoiceLineId);
         if (!line) continue;
+        // the check is about a basis mismatch, which only exists for sales relieved at a standard: when
+        // the workspace posts at standard (whatever the sale's basis), or when this sale itself was
+        // posted at a standard while the workspace has since turned the setting off. A plain actual-cost
+        // sale in a moving-average workspace has no basis to mismatch — its cost is whatever the average
+        // was — so the return posts at the sale cost as before.
+        if (!currentWs?.standardCosting?.enabled && !line.saleStandard) continue;
         // an item the context did not load (the sample-workspace path) is not a changed basis:
         // without the item there is nothing to compare against, so the return posts as before
         const item = itemsById.get(g.itemId);
