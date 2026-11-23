@@ -152,15 +152,35 @@ export async function postBillLedger(
       const key = labelKey(weights?.[entry.line]?.dimensions);
       standardByLabels.set(key, (standardByLabels.get(key) || 0) + entry.valueCents);
     }
+    // M-21 step 2: the replacement posts each Inventory label group at its receipt's standard, but keeps
+    // the non-receipt portion of the group: an ordinary split assigned to Inventory (no item, no landed
+    // cost) is neither in the standard plan nor in the variance, so dropping it would leave the entry
+    // unbalanced. A landed-cost line with no item of its own posts through the receipt (its cost is in the
+    // standard plan and the variance), so its own Inventory line is dropped instead.
+    const ordinaryByLabels = new Map<string, number>();
+    const landedOnlyLabels = new Set<string>();
+    for (const [i, sp] of splits.entries()) {
+      if (sp.itemId) continue;
+      const key = labelKey(weights?.[i]?.dimensions);
+      if (sp.landedCost) landedOnlyLabels.add(key);
+      // the account the line actually posts to (by id or by name, as lineAccounts resolves it)
+      else if (weights?.[i]?.account.id === inventoryAccount.id) ordinaryByLabels.set(key, (ordinaryByLabels.get(key) || 0) + (Number(sp.amountCents) || 0));
+    }
     const rebuilt: typeof accrualLines = [];
     for (const line of accrualLines) {
       if (line.accountId !== inventoryAccount.id) {
         rebuilt.push(line);
         continue;
       }
-      const amount = standardByLabels.get(labelKey(line.dimensions));
-      if (amount === undefined || amount === 0) continue; // landed-only lines: their cost is in the variance
-      rebuilt.push({ ...line, amountCents: amount });
+      const key = labelKey(line.dimensions);
+      if (standardByLabels.has(key)) {
+        const amount = (standardByLabels.get(key) || 0) + (ordinaryByLabels.get(key) || 0);
+        if (amount === 0) continue; // landed-only lines: their cost is in the variance
+        rebuilt.push({ ...line, amountCents: amount });
+        continue;
+      }
+      if (landedOnlyLabels.has(key)) continue; // landed-only: cost is in the variance
+      rebuilt.push(line); // an ordinary Inventory split with no receipt behind it, as it was
     }
     accrualLines.length = 0;
     accrualLines.push(...rebuilt);

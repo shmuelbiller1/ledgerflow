@@ -119,6 +119,21 @@ export async function postCreditNoteLedger(
     const lines = returnableLines(invoice, getTransactions(context), creditNoteId);
     const problem = returnProblem(goods, lines);
     if (problem) throw new Error(problem);
+    // M-21 step 2: under standard-cost posting a sale relieved stock at the standard it had then. If the
+    // item's standard has changed since (it could be, once the stock sold down to zero), bringing the
+    // units back at the old sale cost and relieving them again at the new standard leaves Inventory out of
+    // step. Refuse the incompatible return before it changes stock.
+    if (currentWs?.standardCosting?.enabled) {
+      const itemsById = new Map((context?.inventory || []).map(i => [i.id, i]));
+      for (const g of goods) {
+        const line = lines.find(l => l.invoiceLineId === g.invoiceLineId);
+        if (!line || line.saleStandard !== true) continue;
+        const currentStandard = validStandardCost(itemsById.get(g.itemId)?.standardCostCents);
+        if (currentStandard === null || currentStandard !== line.unitCostCents) {
+          throw new Error(`The standard cost of ${line.description || g.itemId} changed since it was sold, so returning it at the sale's cost would leave Inventory out of step with the standard. Revalue the stock or turn standard-cost posting off before recording this return.`);
+        }
+      }
+    }
     const inventoryAccount = findAccount(accounts, mappings, ['inventory', 'stock', 'inventory asset'], a => resolveAccountRole(a) === 'inventory');
     const cogsAccount = findAccount(accounts, mappings, ['cogs', 'cost of goods sold', 'direct costs'], a => resolveAccountRole(a) === 'cogs');
     if (!inventoryAccount || !cogsAccount) throw new Error('Returned goods need an Inventory account and a Cost of Goods Sold account in the chart of accounts.');
