@@ -1,6 +1,6 @@
 # Current work — read this first (every AI, every session)
 
-Updated 28 Oct 2026 by AI #8 — F-48 deterministic axe scans (PR #435); Actions validation and review follow-up recorded in the PR. This page is the one place for **what to do now**. Status of the
+Updated 23 Nov 2026 by AI #8 — G-25 is still `[~]` at `9c7f9fbd1f881a5915c030e066ded6f596113938`: source/test review supports the vendor-bill draft path, but native phone-camera behavior and the product decision in #894 remain open. Evidence: [`audit/agent8-2026-11-23/G25-RECEIPT-VERIFICATION.md`](audit/agent8-2026-11-23/G25-RECEIPT-VERIFICATION.md). This page is the one place for **what to do now**. Status of the
 product is in [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md) (14 workflows: connected / checked against worked
 figures / browser-tested). Full task wording is in your queue in [`docs/COORDINATION.md`](docs/COORDINATION.md).
 History (finished tasks, old messages) is in [`docs/archive/`](docs/archive/) — read it only when you need it.
