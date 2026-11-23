@@ -161,7 +161,8 @@ test('S-15 (Postgres): deleteAccount removes personal collections, blocks sole-o
     await db.collection('notifications').doc(`notif_${suffix}`).set({ id: `notif_${suffix}`, uid: aliceUid, workspaceId: soloWsId, message: 'hi', createdAt: now });
     await db.collection('loginAudits').doc(`login_${suffix}`).set({ id: `login_${suffix}`, uid: aliceUid, email: aliceEmail, event: 'login', timestamp: now });
     await db.collection('auditLogs').doc(`audit_old_${suffix}`).set({ id: `audit_old_${suffix}`, workspaceId: soloWsId, uid: aliceUid, email: aliceEmail, action: 'INVOICE_CREATED', entityType: 'invoice', entityId: 'inv1', timestamp: now, details: {} });
-    await db.collection('supportMessages').doc(`msg_${suffix}`).set({ id: `msg_${suffix}`, workspaceId: soloWsId, ticketId: `t_${suffix}`, uid: aliceUid, email: aliceEmail, body: 'help', createdAt: now });
+    // the real message shape (messageRow in src/server/commands/support.ts) plus the older authorEmail field
+    await db.collection('supportMessages').doc(`msg_${suffix}`).set({ id: `msg_${suffix}`, workspaceId: soloWsId, ticketId: `t_${suffix}`, authorUid: aliceUid, authorRole: 'user', authorEmail: aliceEmail, body: 'help', createdAt: now });
     await db.collection('errorLogs').doc(`err_${suffix}`).set({ id: `err_${suffix}`, workspaceId: soloWsId, userId: aliceUid, userEmail: aliceEmail, userAgent: 'Mozilla/5.0 Alice laptop', message: 'boom', createdAt: now });
 
     let deletedAuthUid = '';
@@ -189,8 +190,8 @@ test('S-15 (Postgres): deleteAccount removes personal collections, blocks sole-o
     assert.match(String(earlier?.email), /@redacted\.invalid$/);
     // #944: the support thread and the error report keep who (uid), not the email or the device
     const message = (await db.collection('supportMessages').doc(`msg_${suffix}`).get()).data();
-    assert.equal(message?.uid, aliceUid);
-    assert.match(String(message?.email), /@redacted\.invalid$/);
+    assert.equal(message?.authorUid, aliceUid);
+    assert.match(String(message?.authorEmail), /@redacted\.invalid$/);
     const report = (await db.collection('errorLogs').doc(`err_${suffix}`).get()).data();
     assert.equal(report?.userId, aliceUid);
     assert.match(String(report?.userEmail), /@redacted\.invalid$/);

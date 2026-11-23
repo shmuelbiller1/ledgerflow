@@ -131,9 +131,17 @@ export async function deleteAccount(db: Firestore, user: { uid: string; email?: 
   }
   // #944: support messages they wrote and error reports from their sessions keep the uid (so the thread and the
   // report still make sense) but not their email; the user agent, which can identify a device, goes too
-  for (const d of (await db.collection('supportMessages').where('uid', '==', user.uid).get()).docs) {
-    const data = d.data() || {};
-    if (typeof data.email === 'string' && data.email && data.email !== erasedEmail) await d.ref.update({ email: erasedEmail });
+  // (messages name their author as `authorUid`; older rows may also carry `authorEmail`, and the oldest `uid`/`email`)
+  const messages = new Map<string, { ref: { update: (v: Record<string, unknown>) => Promise<unknown> }; data: Record<string, unknown> }>();
+  for (const field of ['authorUid', 'uid']) {
+    for (const d of (await db.collection('supportMessages').where(field, '==', user.uid).get()).docs) messages.set(d.id, { ref: d.ref, data: d.data() || {} });
+  }
+  for (const { ref, data } of messages.values()) {
+    const update: Record<string, string> = {};
+    for (const field of ['authorEmail', 'email']) {
+      if (typeof data[field] === 'string' && data[field] && data[field] !== erasedEmail) update[field] = erasedEmail;
+    }
+    if (Object.keys(update).length) await ref.update(update);
   }
   for (const d of (await db.collection('errorLogs').where('userId', '==', user.uid).get()).docs) {
     const data = d.data() || {};
