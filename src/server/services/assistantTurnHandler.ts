@@ -97,7 +97,9 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
         const step = review.steps.at(-1);
         return { drafted: true, proposalId: review.id, step: step ? { id: step.id, command: step.command, state: step.state, preview: step.preview } : null };
       }
-      const { status, body } = await helpers.runReadTool(live, req, res, sandbox, name, args, passThrough);
+      // the model never sets "today": the books tool counts "this year" and "last month" from the workspace's own date
+      const { today: _madeUp, ...readArgs } = args;
+      const { status, body } = await helpers.runReadTool(live, req, res, sandbox, name, name === 'ask_books' ? readArgs : args, passThrough);
       if (status !== 200) return { error: (body as { message?: string } | undefined)?.message ?? 'The tool refused this request' };
       return body;
     };

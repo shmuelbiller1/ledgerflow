@@ -1,3 +1,4 @@
+import { todayIn } from './assistantFacts';
 import { z } from 'zod';
 import { evaluateAmountExpression } from '../../lib/amountExpression';
 import { answerCents, readQuestion, type AskReading } from '../../lib/askBooks';
@@ -79,13 +80,15 @@ export const searchRecordsInput = z.object({
 
 export const calculateInput = z.object({
   /** +, -, *, / and parentheses over decimal amounts, e.g. "(1250.50 + 99) * 0.17" */
-  expression: z.string().trim().min(1).max(500),
-}).strict();
+  expression: z.string().trim().min(1).max(500).optional(),
+  /** several calculations in one call, e.g. ["4600 - 4200", "600 - 300"]; answered in the same order */
+  expressions: z.array(z.string().trim().min(1).max(500)).min(1).max(20).optional(),
+}).strict().refine(v => (v.expression === undefined) !== (v.expressions === undefined), 'Give expression or expressions, not both');
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const askBooksInput = z.object({
   question: z.string().trim().min(1).max(500),
-  /** the day "this year" and "last month" are counted from; defaults to today (UTC) */
+  /** the day "this year" and "last month" are counted from; defaults to today in the workspace time zone. Not offered to the model. */
   today: day.optional(),
 }).strict();
 
@@ -176,18 +179,23 @@ export async function searchRecords(db: Firestore, workspaceId: string, raw: unk
   return { text: input.text, matches, scannedPerCollection: SEARCH_SCAN };
 }
 
+function calculateOne(expression: string) {
+  let cents: number;
+  try { cents = evaluateAmountExpression(expression); }
+  catch (err) { refuse(err instanceof Error ? err.message : 'That expression could not be calculated', 400, 'INVALID_EXPRESSION'); }
+  return { expression, cents, amount: cents / 100 };
+}
+
 export function calculate(raw: unknown) {
   const input = calculateInput.parse(raw);
-  let cents: number;
-  try { cents = evaluateAmountExpression(input.expression); }
-  catch (err) { refuse(err instanceof Error ? err.message : 'That expression could not be calculated', 400, 'INVALID_EXPRESSION'); }
-  return { expression: input.expression, cents, amount: cents / 100 };
+  if (input.expressions) return { results: input.expressions.map(calculateOne) };
+  return calculateOne(input.expression!);
 }
 
 /** What `ask_books` understood; the figure itself comes from the explain report on the same handle. */
 export async function readBooksQuestion(db: Firestore, workspaceId: string, workspace: Record<string, unknown>, raw: unknown): Promise<{ question: string; reading: AskReading; today: string }> {
   const input = askBooksInput.parse(raw);
-  const today = input.today ?? new Date().toISOString().slice(0, 10);
+  const today = input.today ?? todayIn(typeof workspace.timezone === 'string' ? workspace.timezone : null);
   const [accounts, nodes] = await Promise.all([
     db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get(),
     db.collection('dimensionNodes').where('workspaceId', '==', workspaceId).get(),
