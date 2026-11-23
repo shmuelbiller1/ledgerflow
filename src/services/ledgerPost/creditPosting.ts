@@ -132,7 +132,11 @@ export async function postCreditNoteLedger(
         // without the item there is no standard to compare against, so the return posts as before
         const item = itemsById.get(g.itemId);
         const currentStandard = item ? validStandardCost(item.standardCostCents) : null;
-        if (currentStandard !== null && currentStandard !== line.unitCostCents) {
+        // M-21 step 2: compare what the sold units would cost at the current standard against what the
+        // sale actually cost (a one-cent allowance for the sale total's own rounding). Comparing the
+        // rounded per-unit cost instead would refuse valid returns of fractional quantities, where the
+        // rounding alone makes the per-unit figure differ from the standard.
+        if (currentStandard !== null && line.saleTotalCents !== undefined && Math.abs(Math.round(line.sold * currentStandard) - line.saleTotalCents) > 1) {
           throw new Error(`The standard cost of ${line.description || g.itemId} changed since it was sold, so returning it at the sale's cost would leave Inventory out of step with the standard. Revalue the stock or turn standard-cost posting off before recording this return.`);
         }
       }

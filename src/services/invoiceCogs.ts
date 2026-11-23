@@ -27,6 +27,8 @@ export interface CogsEntry {
     quantity: number;
     /** M-21 step 2: the cost was the item's standard, not its moving average */
     standard?: boolean;
+    /** M-21 step 2: the standard the cost was posted at (so a repost keeps the original basis) */
+    standardCostCents?: number;
     /** W-01: the invoice line's Location label, where the units left from */
     locationId?: string;
     /** DIM-2 phase 3: the customer the units went to */
@@ -54,6 +56,10 @@ export interface InvoiceCogsInput {
   items: Pick<InventoryItem, 'id' | 'name' | 'unitCostCents' | 'standardCostCents'>[];
   /** M-21 step 2: the workspace posts at standard, so the cost of goods relieves stock at the item's standard */
   postAtStandard?: boolean;
+  /** M-21 step 2: the standard each existing sale line was already posted at (lineId → cents), so an
+   * edit/repost of an unchanged sale line keeps its original carrying basis instead of repricing it at
+   * the item's current standard */
+  originalStandards?: Map<string, number>;
 }
 
 /**
@@ -70,18 +76,20 @@ export function planInvoiceCogs(input: InvoiceCogsInput): InvoiceCogsPlan {
     if (!line.itemId || !line.id) return [];
     const quantity = Number(line.quantity);
     // M-21 step 2: with the workspace posting at standard, the cost of goods is quantity × the item's
-    // standard; without it (or with no standard), the moving average as before
-    const standard = input.postAtStandard ? validStandardCost(itemById.get(line.itemId)?.standardCostCents) : null;
+    // standard; without it (or with no standard), the moving average as before. An existing sale line
+    // being reposted keeps the standard it was already posted at, so a standard change does not reprice it.
+    const recorded = input.originalStandards?.get(line.id);
+    const standard = input.postAtStandard ? validStandardCost(recorded ?? itemById.get(line.itemId)?.standardCostCents) : null;
     const unitCost = standard ?? line.unitCostCents ?? itemById.get(line.itemId)?.unitCostCents ?? 0;
     if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitCost) || unitCost <= 0) return [];
-    return [{ line, itemId: line.itemId, lineId: line.id, quantity, costCents: Math.round(quantity * unitCost), standard: standard !== null }];
+    return [{ line, itemId: line.itemId, lineId: line.id, quantity, costCents: Math.round(quantity * unitCost), standard: standard !== null, standardCost: standard }];
   }).filter(c => c.costCents > 0);
 
   if (costed.length === 0) return { entries: [] };
   if (!inventoryAccount || !cogsAccount) return { entries: [], pendingReason: COGS_ACCOUNTS_MISSING };
 
   const now = new Date().toISOString();
-  const entries = costed.map(({ line, itemId, lineId, quantity, costCents, standard }): CogsEntry => {
+  const entries = costed.map(({ line, itemId, lineId, quantity, costCents, standardCost }): CogsEntry => {
     const name = itemById.get(itemId)?.name || line.description || 'item';
     return {
       uid,
@@ -94,7 +102,7 @@ export function planInvoiceCogs(input: InvoiceCogsInput): InvoiceCogsPlan {
       status: 'completed',
       type: 'actual',
       createdAt: now,
-      metadata: { invoiceId, type: INVOICE_COGS_TYPE, cogsForInvoiceId: invoiceId, cogsForLineId: lineId, inventoryItemId: itemId, quantity, ...(standard ? { standard: true } : {}), ...(line.dimensions?.location ? { locationId: line.dimensions.location } : {}), ...(invoice.customerId ? { customerId: invoice.customerId } : {}) },
+      metadata: { invoiceId, type: INVOICE_COGS_TYPE, cogsForInvoiceId: invoiceId, cogsForLineId: lineId, inventoryItemId: itemId, quantity, ...(standardCost !== null ? { standard: true, standardCostCents: standardCost } : {}), ...(line.dimensions?.location ? { locationId: line.dimensions.location } : {}), ...(invoice.customerId ? { customerId: invoice.customerId } : {}) },
       lines: [
         // the invoice line's labels (BF-09) go with its cost, so margin by project or location adds up
         { accountId: cogsAccount.id, accountName: cogsAccount.name, amountCents: costCents, debitCents: costCents, creditCents: 0, description: `Cost of ${name}`, ...(line.dimensions ? { dimensions: line.dimensions } : {}) },

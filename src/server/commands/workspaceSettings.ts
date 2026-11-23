@@ -309,7 +309,9 @@ export const workspaceStandardCostingCommand: CommandDefinition<typeof workspace
         .filter(item => {
           const onHand = Number(item.quantityAtHand) || 0;
           const standard = validStandardCost(item.standardCostCents);
-          return onHand > 0 && standard !== null && Math.round(Number(item.unitCostCents) || 0) !== standard;
+          // M-21 step 2: any nonzero stock (including negative, from selling below zero) must be
+          // reconciled before the carrying basis changes, or the transition leaves Inventory out of step
+          return onHand !== 0 && standard !== null && Math.round(Number(item.unitCostCents) || 0) !== standard;
         });
       if (drifted.length > 0) {
         const turning = input.enabled ? 'on' : 'off';

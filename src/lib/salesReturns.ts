@@ -29,6 +29,8 @@ export interface ReturnableLine {
   returnable: number;
   /** the cost per unit when it left stock, in home-currency cents */
   unitCostCents: number;
+  /** the sale's total cost of goods, in home-currency cents (unitCostCents is rounded from it) */
+  saleTotalCents?: number;
   /** M-21 step 2: the sale was posted at the item's standard cost (not the moving average) */
   saleStandard?: boolean;
   /** the price per unit on the invoice, in the invoice's currency */
@@ -66,6 +68,7 @@ export function returnableLines(invoice: Pick<Invoice, 'id' | 'items'>, ledger: 
       invoiceLineId: line.id, itemId: line.itemId, description: line.description || '',
       sold, returned, returnable: Math.max(0, round6(sold - returned)),
       unitCostCents: Math.round(Math.abs(Number(sale.totalAmountCents) || 0) / sold),
+      saleTotalCents: Math.abs(Number(sale.totalAmountCents) || 0),
       unitPriceCents: Number(line.rateCents) || 0,
       ...(sale.metadata?.standard === true ? { saleStandard: true } : {}),
       ...(typeof sale.metadata?.locationId === 'string' && sale.metadata.locationId ? { locationId: sale.metadata.locationId } : {}),

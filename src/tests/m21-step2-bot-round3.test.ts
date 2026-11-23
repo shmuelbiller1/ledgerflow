@@ -15,9 +15,12 @@
 import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
 import { planReturnEntries } from '../lib/salesReturns';
+import { planInvoiceCogs } from '../services/invoiceCogs';
 import { postBillLedger } from '../services/ledgerPost/billPosting';
 import { postCreditNoteLedger } from '../services/ledgerPost/creditPosting';
 import { estimateDropshipCommand, estimateStatusCommand } from '../server/commands/estimates';
+import { workspaceStandardCostingCommand } from '../server/commands/workspaceSettings';
+import { inventoryCogsCommand } from '../server/commands/inventoryStock';
 import { INVOICE_COGS_TYPE } from '../services/invoiceCogs';
 import type { LedgerPostContext } from '../services/ledgerPost/postingCore';
 import type { ChartAccount, CreditNote, InventoryItem, Invoice, Transaction, Workspace } from '../types';
@@ -202,5 +205,95 @@ describe('M-21 step 2 bot round 3: drop-ship refuses a declined order', () => {
     } finally {
       await harness.close();
     }
+  });
+});
+
+describe('M-21 step 2 bot round 3: the carrying-basis transition and manual COGS', () => {
+  test('enabling standard costing is refused with negative stock on hand', async () => {
+    // selling below zero leaves quantity -10 at cost 500 with a 400 standard: the drift check must
+    // include negative stock, or the transition leaves Inventory out of step
+    const harness = await commandHarness({
+      commands: [workspaceStandardCostingCommand],
+      workspaceId: WS,
+      seed(db) {
+        db.seed(`workspaces/${WS}`, { uid: OWNER, members: [OWNER], currency: 'USD' });
+        db.seed(`chartAccounts/acc_ppv`, { uid: OWNER, workspaceId: WS, name: 'Purchase Price Variance', code: '5200', type: 'expense', category: 'Expense' });
+        db.seed(`inventory/neg`, { uid: OWNER, workspaceId: WS, name: 'Neg', sku: 'NG', itemType: 'stock', quantityAtHand: -10, unitCostCents: 500, standardCostCents: 400 });
+      },
+    });
+    try {
+      const response = await harness.run(OWNER, 'workspace.standardcosting', { enabled: true, varianceAccountId: 'acc_ppv' });
+      assert.equal(response.status, 409, 'negative stock is not reconciled');
+      const body = await response.json() as { message?: string };
+      assert.match(String(body.message || ''), /standard/i);
+    } finally { await harness.close(); }
+  });
+
+  test('inventory.cogs is refused for a standard item while standard costing is on', async () => {
+    const harness = await commandHarness({
+      commands: [inventoryCogsCommand],
+      workspaceId: WS,
+      seed(db) {
+        db.seed(`workspaces/${WS}`, { uid: OWNER, members: [OWNER], currency: 'USD', standardCosting: { enabled: true, varianceAccountId: 'acc_ppv' } });
+        db.seed(`chartAccounts/acc_inv`, { uid: OWNER, workspaceId: WS, name: 'Inventory', code: '1300', type: 'asset', category: 'Inventory' });
+        db.seed(`chartAccounts/acc_cogs`, { uid: OWNER, workspaceId: WS, name: 'Cost of Goods Sold', code: '5000', type: 'expense', category: 'Expense' });
+        db.seed(`inventory/std`, { uid: OWNER, workspaceId: WS, name: 'Std', sku: 'ST', itemType: 'stock', quantityAtHand: 10, unitCostCents: 500, standardCostCents: 400 });
+      },
+    });
+    try {
+      const response = await harness.run(OWNER, 'inventory.cogs', { itemId: 'std', quantitySold: 2, inventoryAccountId: 'acc_inv', cogsAccountId: 'acc_cogs' });
+      assert.equal(response.status, 409, 'the manual COGS path does not post at the standard');
+      const body = await response.json() as { message?: string };
+      assert.match(String(body.message || ''), /standard cost/i);
+    } finally { await harness.close(); }
+  });
+});
+
+describe('M-21 step 2 bot round 3: rounding-safe return guard and repost basis', () => {
+  test('a fractional-quantity standard return is not refused for rounding alone', async () => {
+    // 0.3 units at a 335 standard post 101 cents, which rounds to 337 per unit — the per-unit figure
+    // differs from the standard, but the sale total matches the current standard, so the return posts
+    const sale = {
+      id: 'tx_frac', uid: OWNER, workspaceId: WS, date: '2026-11-01', status: 'completed' as const,
+      description: 'Cost of goods sold: Chair', currency: 'USD', type: 'actual', totalAmountCents: 101,
+      lines: [],
+      metadata: { type: INVOICE_COGS_TYPE, invoiceId: 'inv_frac', cogsForLineId: 'l1', inventoryItemId: 'chair', quantity: 0.3, standard: true },
+    } as Transaction;
+    const invoice = {
+      id: 'inv_frac', number: 'INV-FRAC', workspaceId: WS, uid: OWNER, status: 'approved' as const, currency: 'USD',
+      date: '2026-11-01', dueDate: '2026-12-01', amountCents: 101, customerId: 'c1',
+      items: [{ id: 'l1', itemId: 'chair', description: 'Chair', quantity: 0.3, rateCents: 9000, amountCents: 101, accountId: '', unitCostCents: 337 }],
+    } as Invoice;
+    const fracItems = returnItems().map(i => ({ ...i, standardCostCents: 335 }));
+    const captured: LedgerPostContext['capture'] = [];
+    const context: LedgerPostContext = {
+      ...contextFor({ enabled: true, varianceAccountId: 'acc_ppv' }, captured, fracItems),
+      transactions: [sale],
+      invoices: [invoice],
+    };
+    const fracNote = { ...creditNote('cn_frac', 'CN-FRAC'), invoiceId: 'inv_frac', returnedGoods: [{ invoiceLineId: 'l1', itemId: 'chair', quantity: 0.3 }] };
+    await postCreditNoteLedger('cn_frac', fracNote as never, WS, OWNER, undefined, context);
+    const goods = captured[0].txs.find(t => t.metadata?.type === 'credit-return-auto');
+    assert.ok(goods, 'the fractional-quantity return is not refused for rounding alone');
+  });
+
+  test('planInvoiceCogs keeps the original standard when reposting an existing sale', () => {
+    // the item's standard changed to 600, but the sale line was already posted at 400: the repost
+    // must keep 400, not reprice at 600
+    const inv = invoice();
+    const atOldStandard = planInvoiceCogs({
+      invoiceId: 'inv_1', invoice: inv, date: '2026-11-01', uid: OWNER, workspaceId: WS, baseCurrency: 'USD',
+      inventoryAccount: accounts()[5], cogsAccount: accounts()[5], items: returnItems(),
+      postAtStandard: true, originalStandards: new Map([['l1', 400]]),
+    });
+    assert.equal(atOldStandard.entries[0].totalAmountCents, 4000, 'the repost keeps the 400 basis');
+    assert.equal(atOldStandard.entries[0].metadata.standardCostCents, 400);
+    // without the recorded original, the current standard is used (the item's 400 here)
+    const atCurrent = planInvoiceCogs({
+      invoiceId: 'inv_1', invoice: inv, date: '2026-11-01', uid: OWNER, workspaceId: WS, baseCurrency: 'USD',
+      inventoryAccount: accounts()[5], cogsAccount: accounts()[5], items: returnItems(),
+      postAtStandard: true,
+    });
+    assert.equal(atCurrent.entries[0].metadata.standardCostCents, 400, 'the sale records the standard it posted at');
   });
 });

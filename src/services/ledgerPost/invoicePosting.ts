@@ -196,6 +196,16 @@ export async function postInvoiceLedger(
   // deliveries ship the goods (BF-08 step 2) an invoice books none, unless it already shipped its
   // goods before the workspace switched (an edit keeps that).
   const shipsGoods = goodsLeaveWith(currentWs) === 'invoice' || existingTxs.some(t => t.metadata?.type === INVOICE_COGS_TYPE);
+  // M-21 step 2: the standard each existing sale line was already posted at. Reposting an invoice
+  // reverses its old cost-of-goods entries and rebuilds them; a line whose standard has since changed
+  // must keep the basis it was posted at, or the repost would reprice it and leave Inventory out of step.
+  const originalStandards = new Map<string, number>();
+  for (const tx of existingTxs) {
+    const meta = tx.metadata as { type?: string; cogsForLineId?: string; standardCostCents?: number } | undefined;
+    if (meta?.type === INVOICE_COGS_TYPE && typeof meta.cogsForLineId === 'string' && typeof meta.standardCostCents === 'number') {
+      originalStandards.set(meta.cogsForLineId, meta.standardCostCents);
+    }
+  }
   const cogs = !shipsGoods ? { entries: [], pendingReason: undefined } : planInvoiceCogs({
     invoiceId, invoice: invoiceData, date: invoiceDate, uid, workspaceId,
     baseCurrency: currentWs?.currency || 'USD',
@@ -204,6 +214,7 @@ export async function postInvoiceLedger(
     items: await loadInventory(invoiceData, context),
     // M-21 step 2: a workspace posting at standard relieves the stock at the item's standard
     postAtStandard: Boolean(currentWs?.standardCosting?.enabled),
+    originalStandards,
   });
   txsToPost.push(...cogs.entries);
   const wasPending = Boolean(invoiceData.metadata?.cogsPending);
