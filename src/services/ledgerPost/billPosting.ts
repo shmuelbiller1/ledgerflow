@@ -157,6 +157,11 @@ export async function postBillLedger(
     // cost) is neither in the standard plan nor in the variance, so dropping it would leave the entry
     // unbalanced. A landed-cost line with no item of its own posts through the receipt (its cost is in the
     // standard plan and the variance), so its own Inventory line is dropped instead.
+    // Each ordinary split's share is its part of the same allocation the accrual lines and the receipt
+    // plan use (books' minor units, net of tax) — not its raw document amount, which is in the document's
+    // currency and would be wrong on a foreign-currency bill or when the total minus tax differs from the
+    // sum of the splits.
+    const parts = weights ? allocateCents(amount - taxAmount, weights.map(w => w.weightCents)) : [];
     const ordinaryByLabels = new Map<string, number>();
     const landedOnlyLabels = new Set<string>();
     for (const [i, sp] of splits.entries()) {
@@ -164,7 +169,7 @@ export async function postBillLedger(
       const key = labelKey(weights?.[i]?.dimensions);
       if (sp.landedCost) landedOnlyLabels.add(key);
       // the account the line actually posts to (by id or by name, as lineAccounts resolves it)
-      else if (weights?.[i]?.account.id === inventoryAccount.id) ordinaryByLabels.set(key, (ordinaryByLabels.get(key) || 0) + (Number(sp.amountCents) || 0));
+      else if (weights?.[i]?.account.id === inventoryAccount.id) ordinaryByLabels.set(key, (ordinaryByLabels.get(key) || 0) + (parts[i] || 0));
     }
     const rebuilt: typeof accrualLines = [];
     for (const line of accrualLines) {
@@ -179,7 +184,12 @@ export async function postBillLedger(
         rebuilt.push({ ...line, amountCents: amount });
         continue;
       }
-      if (landedOnlyLabels.has(key)) continue; // landed-only: cost is in the variance
+      if (landedOnlyLabels.has(key)) {
+        // landed-only: cost is in the variance; keep only an ordinary split sharing the label
+        const ordinary = ordinaryByLabels.get(key) || 0;
+        if (ordinary !== 0) rebuilt.push({ ...line, amountCents: ordinary });
+        continue;
+      }
       rebuilt.push(line); // an ordinary Inventory split with no receipt behind it, as it was
     }
     accrualLines.length = 0;

@@ -63,7 +63,7 @@ export async function loadPostingContext(db: Firestore, input: {
     ? (document.items || [])
     : collection === 'bills'
       ? (document.splits || [])
-      : collection === 'vendorCredits'
+      : collection === 'vendorCredits' || collection === 'creditNotes'
         ? (document.returnedGoods || [])
         : [];
   const itemIds = [...new Set((docLines as Array<{ itemId?: string }>).map(l => l.itemId).filter((id): id is string => Boolean(id)))];

@@ -128,8 +128,11 @@ export async function postCreditNoteLedger(
       for (const g of goods) {
         const line = lines.find(l => l.invoiceLineId === g.invoiceLineId);
         if (!line || line.saleStandard !== true) continue;
-        const currentStandard = validStandardCost(itemsById.get(g.itemId)?.standardCostCents);
-        if (currentStandard === null || currentStandard !== line.unitCostCents) {
+        // an item the context did not load (the sample-workspace path) is not a changed standard:
+        // without the item there is no standard to compare against, so the return posts as before
+        const item = itemsById.get(g.itemId);
+        const currentStandard = item ? validStandardCost(item.standardCostCents) : null;
+        if (currentStandard !== null && currentStandard !== line.unitCostCents) {
           throw new Error(`The standard cost of ${line.description || g.itemId} changed since it was sold, so returning it at the sale's cost would leave Inventory out of step with the standard. Revalue the stock or turn standard-cost posting off before recording this return.`);
         }
       }

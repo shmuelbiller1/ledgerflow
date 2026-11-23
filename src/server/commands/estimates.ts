@@ -290,7 +290,9 @@ export const estimateDropshipCommand: CommandDefinition<typeof estimateDropshipI
   async handler(ctx: CommandContext, tx, input: DropshipInput) {
     const now = new Date().toISOString();
     const est = await dropshipOrder(ctx, input);
-    if (!est?.orderedAt) commandError('Only accepted orders drop-ship.', 409, 'CONFLICT');
+    // the order must be accepted now: a declined (or converted) order keeps its acceptance date, but it is
+    // closed — fulfilment actions are suppressed for it, and placing a drop-ship PO would buy for a dead order
+    if (String(est.status || '') !== 'accepted' || !est?.orderedAt) commandError('Only accepted orders drop-ship.', 409, 'CONFLICT');
     const dropLines = (est.lines || []).filter(l => l.dropShip);
     if (dropLines.length === 0) commandError('No drop-ship lines to buy.', 400, 'INVALID_INPUT');
     if (dropLines.some(l => !(Number(l.quantity) > 0) || !(Number(l.amountCents) > 0))) commandError('Drop-ship lines need quantity and amount.', 400, 'INVALID_INPUT');

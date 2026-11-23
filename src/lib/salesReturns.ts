@@ -109,7 +109,7 @@ export function planReturnEntries(input: {
       uid: input.uid, workspaceId: input.workspaceId, date: creditNote.date,
       description: `Goods returned: ${name} × ${g.quantity} (Credit note ${creditNote.number || creditNote.id})`,
       totalAmountCents: cents, currency: input.baseCurrency, exchangeRate: 1, status: 'completed', type: 'actual', createdAt: new Date().toISOString(),
-      metadata: { type: SALES_RETURN_TYPE, creditNoteId: creditNote.id, invoiceId: creditNote.invoiceId, returnForLineId: g.invoiceLineId, inventoryItemId: g.itemId, quantity: g.quantity, ...(line.locationId ? { locationId: line.locationId } : {}), ...(creditNote.customerId ? { customerId: creditNote.customerId } : {}) },
+      metadata: { type: SALES_RETURN_TYPE, creditNoteId: creditNote.id, invoiceId: creditNote.invoiceId, returnForLineId: g.invoiceLineId, inventoryItemId: g.itemId, quantity: g.quantity, ...(line.saleStandard ? { standard: true } : {}), ...(line.locationId ? { locationId: line.locationId } : {}), ...(creditNote.customerId ? { customerId: creditNote.customerId } : {}) },
       lines: entryLines,
     } as Omit<Transaction, 'id'>];
   });
