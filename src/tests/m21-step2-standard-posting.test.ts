@@ -239,6 +239,22 @@ describe('M-21 step 2: the workspace setting', () => {
     assert.equal(ok.status, 200);
   });
 
+  test('turning it off is refused while stock is on hand at a cost other than its standard', async () => {
+    // the setting is on and the stock was received under it; switching it off would leave the carrying
+    // basis (the standard) behind the actual cost the books now hold, so the transition is refused (409)
+    await harness.run(OWNER, 'workspace.standardcosting', { enabled: true, varianceAccountId: 'acc_ppv' });
+    harness.db.seed(`inventory/drifted`, {
+      uid: OWNER, workspaceId: WS, name: 'Drifted', sku: 'DR', itemType: 'stock',
+      quantityAtHand: 10, unitCostCents: 500, standardCostCents: 400,
+    });
+    const refused = await harness.run(OWNER, 'workspace.standardcosting', { enabled: false });
+    assert.equal(refused.status, 409);
+    // with the stock's cost matching its standard, turning the setting off is allowed
+    harness.db.seed(`inventory/drifted`, { uid: OWNER, workspaceId: WS, name: 'Drifted', sku: 'DR', itemType: 'stock', quantityAtHand: 10, unitCostCents: 400, standardCostCents: 400 });
+    const ok = await harness.run(OWNER, 'workspace.standardcosting', { enabled: false });
+    assert.equal(ok.status, 200);
+  });
+
   test('a viewer cannot change it', async () => {
     const denied = await harness.run('viewer-1', 'workspace.standardcosting', { enabled: false });
     assert.equal(denied.status, 403);

@@ -155,7 +155,9 @@ export function replay(moves: Move[], entries: Map<string, Entry>, fromDate: str
       continue;
     }
     const after = round6(qty + q);
-    if (BASIS_KINDS.includes(m.kind) && after > 0) cost = movingAverageCents(qty, cost, Number(m.valueCents) || 0, after);
+    // M-21 step 2: a receipt under standard-cost posting carries its actual cost beside the standard value
+    // it posted at; the replay's average keeps the actual basis (the books carry the stock at the standard)
+    if (BASIS_KINDS.includes(m.kind) && after > 0) cost = movingAverageCents(qty, cost, Number(m.actualValueCents ?? m.valueCents) || 0, after);
     const entry = m.transactionId ? entries.get(m.transactionId) : undefined;
     const meta = (entry?.metadata || {}) as Record<string, unknown>;
     if (entry && m.kind === 'sale') {

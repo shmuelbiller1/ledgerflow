@@ -297,21 +297,23 @@ export const workspaceStandardCostingCommand: CommandDefinition<typeof workspace
       if (!varianceSnap.exists || variance?.workspaceId !== ctx.workspaceId) {
         throw Object.assign(new HttpError('The purchase-price variance account is not in this workspace chart of accounts.', 400), { code: 'INVALID_INPUT' });
       }
-      // M-21 step 2: turning the posting on switches the books to carrying stock at the standard. Stock already
-      // on hand at a different cost would then be relieved at the standard while it is still carried at its own
-      // cost, leaving Inventory with a balance and no stock — so the transition is refused until it is reconciled.
-      if (!before?.enabled) {
-        const stock = await tx.get(ctx.db.collection('inventory').where('workspaceId', '==', ctx.workspaceId));
-        const drifted = (stock as unknown as { docs: Array<{ data(): Record<string, unknown> | undefined }> }).docs
-          .map(d => d.data() || {})
-          .filter(item => {
-            const onHand = Number(item.quantityAtHand) || 0;
-            const standard = validStandardCost(item.standardCostCents);
-            return onHand > 0 && standard !== null && Math.round(Number(item.unitCostCents) || 0) !== standard;
-          });
-        if (drifted.length > 0) {
-          throw Object.assign(new HttpError(`${drifted.length} item(s) hold stock at a cost other than their standard. Reconcile them (sell the stock down or adjust it on Inventory) before turning standard-cost posting on.`, 409), { code: 'CONFLICT' });
-        }
+    }
+    // M-21 step 2: switching the carrying basis (on or off) with stock on hand whose cost differs from its
+    // standard leaves Inventory and the stock out of step — on, the stock would be relieved at the standard
+    // while still carried at its own cost; off, the sale would relieve at the actual cost while the books
+    // carry it at the standard. The transition is refused until the stock is reconciled either way.
+    if (before?.enabled !== input.enabled) {
+      const stock = await tx.get(ctx.db.collection('inventory').where('workspaceId', '==', ctx.workspaceId));
+      const drifted = (stock as unknown as { docs: Array<{ data(): Record<string, unknown> | undefined }> }).docs
+        .map(d => d.data() || {})
+        .filter(item => {
+          const onHand = Number(item.quantityAtHand) || 0;
+          const standard = validStandardCost(item.standardCostCents);
+          return onHand > 0 && standard !== null && Math.round(Number(item.unitCostCents) || 0) !== standard;
+        });
+      if (drifted.length > 0) {
+        const turning = input.enabled ? 'on' : 'off';
+        throw Object.assign(new HttpError(`${drifted.length} item(s) hold stock at a cost other than their standard. Reconcile them (sell the stock down or adjust it on Inventory) before turning standard-cost posting ${turning}.`, 409), { code: 'CONFLICT' });
       }
     }
     const standardCosting = { enabled: input.enabled, varianceAccountId: input.varianceAccountId || before?.varianceAccountId || '' };

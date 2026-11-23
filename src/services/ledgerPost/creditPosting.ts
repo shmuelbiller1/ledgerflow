@@ -251,7 +251,9 @@ export async function postVendorCreditLedger(
       type: 'vendor-credit-issuance',
       // DIM-2 phase 2: each line sent back names the bill line it came in on (and the bill, under its own key so the
       // entry is never mistaken for the bill's own)
-      ...(goods.length ? { stockOut: goods.map((g, i) => ({ itemId: g.itemId, quantity: g.quantity, valueCents: carriedValues[i], ...(Number.isSafeInteger(g.billLine) ? { billLine: g.billLine } : {}) })) } : {}),
+      // M-21 step 2: stockOut carries the standard value the books relieve at, and the actual value the
+      // return's stock move must use to keep the moving-average basis (the receipt's actual cost)
+      ...(goods.length ? { stockOut: goods.map((g, i) => ({ itemId: g.itemId, quantity: g.quantity, valueCents: carriedValues[i], actualValueCents: goodsBase[i], ...(Number.isSafeInteger(g.billLine) ? { billLine: g.billLine } : {}) })) } : {}),
       ...(goods.length && vendorCreditData.billId ? { returnsFromBillId: vendorCreditData.billId } : {}),
     },
     lines: [

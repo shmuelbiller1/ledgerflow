@@ -22,6 +22,14 @@ import { isOrder, orderProgress } from '../../lib/salesOrders';
 import { DELIVERY_COGS_TYPE, DELIVERY_RETURN_TYPE, deliveredByLine, deliveredUnitCost, deliveryEntryId, deliveryLines, deliveryProblem, goodsLeaveWith, liveDeliveryEntries, orderDeliveries, returnProblem, type GoodsLeaveWith } from '../../lib/deliveries';
 import type { Estimate, Invoice, Transaction } from '../../types';
 import { prepareStockMoves } from './cogsStockService';
+import { validStandardCost } from '../../lib/standardCostSettings';
+
+/** M-21 step 2: the standard to relieve stock at on a delivery, or null to use the item's actual cost. */
+function ctx_workspace_standard(workspace: Record<string, unknown> | undefined, item: Record<string, unknown> | undefined): number | null {
+  const sc = workspace?.standardCosting as { enabled?: boolean } | undefined;
+  if (!sc?.enabled) return null;
+  return validStandardCost(item?.standardCostCents);
+}
 import { writeServerAuditLog } from './auditLogService';
 
 export class DeliveryError extends Error {
@@ -143,7 +151,10 @@ export async function deliverOrderInTransaction(db: Firestore, t: DbTransaction,
       const line = lines.find(x => x.position === l.position)!;
       const item = items[n].exists ? items[n].data() : undefined;
       if (!item || item.workspaceId !== input.workspaceId) throw new DeliveryError(404, `${line.description || 'An item'} is not in this workspace's stock`);
-      const unitCost = Number(item.unitCostCents) || 0;
+      // M-21 step 2: with standard-cost posting on, stock is carried at the standard, so the delivery
+      // relieves it at the standard (the receipt's actual cost stays the item's cost basis)
+      const standard = ctx_workspace_standard(workspace, item);
+      const unitCost = standard !== null ? standard : (Number(item.unitCostCents) || 0);
       const costCents = Math.round(l.quantity * unitCost);
       if (costCents <= 0) throw new DeliveryError(400, `${item.name || line.description} has no cost: set its unit cost on Inventory first`);
       const name = String(item.name || line.description || 'item');

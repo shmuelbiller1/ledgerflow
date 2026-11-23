@@ -24,6 +24,8 @@ export interface StockMove {
   unitCostCents: number;
   /** the value that moved, signed like the quantity (whole cents) */
   valueCents: number;
+  /** M-21 step 2: a receipt's actual cost, beside the standard value it posted at (the average-cost basis) */
+  actualValueCents?: number;
   transactionId?: string | null;
   documentType?: 'invoice' | 'credit-note' | 'adjustment' | 'import' | 'delivery' | 'bill' | 'vendor-credit';
   documentId?: string;

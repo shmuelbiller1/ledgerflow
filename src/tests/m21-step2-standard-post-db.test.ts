@@ -184,6 +184,13 @@ describe('M-21 step 2: posting at standard against the database', { skip: !url &
     // the units leave stock at the standard value
     assert.deepEqual((vc!.metadata?.stockOut as Array<{ itemId: string; quantity: number; valueCents: number }>)
       .map(l => [l.itemId, l.quantity, l.valueCents]), [[chair, 5, 20000]]);
+    // Codex review (F4): the stock move also carries the actual receipt basis (5 × 5,000), beside the
+    // standard value it relieves Inventory at, so the average-cost basis is unaffected by the return
+    const vcMove = (await all<import('../lib/stockMoves').StockMove & { id: string }>('stockMoves'))
+      .find(m => m.transactionId === vcId && m.kind === 'purchase-return');
+    assert.ok(vcMove, 'the return moved stock');
+    assert.equal(vcMove!.valueCents, -20000, 'the stock move relieves at the standard carrying value');
+    assert.equal(vcMove!.actualValueCents, -25000, 'the stock move carries the actual receipt basis');
     const chairItem = await item(chair);
     assert.equal(chairItem.quantityAtHand, onHandBefore - 5);
   });

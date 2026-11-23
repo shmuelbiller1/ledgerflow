@@ -122,7 +122,7 @@ function billStockIn(tx: LedgerEntry): Array<{ itemId: string; quantity: number;
  * BF-07: the stock a vendor credit sends back (`metadata.stockOut` on its entry, src/lib/vendorReturns.ts):
  * each takes units out at the value its line took off Inventory.
  */
-function vendorReturnOut(tx: LedgerEntry): Array<{ itemId: string; quantity: number; valueCents: number; line?: number }> {
+function vendorReturnOut(tx: LedgerEntry): Array<{ itemId: string; quantity: number; valueCents: number; actualValueCents?: number; line?: number }> {
   const lines = tx.metadata?.stockOut;
   if (lines === undefined) return [];
   if (tx.metadata?.type !== 'vendor-credit-issuance' || !Array.isArray(lines) || lines.length > 500) {
@@ -135,8 +135,11 @@ function vendorReturnOut(tx: LedgerEntry): Array<{ itemId: string; quantity: num
     if (typeof l.itemId !== 'string' || !l.itemId || !Number.isFinite(quantity) || quantity <= 0 || !Number.isSafeInteger(valueCents) || valueCents < 0) {
       throw new LedgerPostingError(400, 'Each line sent back to a vendor needs the item, a positive quantity and its value in whole cents.');
     }
+    // M-21 step 2: the actual value the return's stock move uses (the receipt's actual cost basis), kept
+    // beside the standard value the books relieve Inventory at
+    const actualValueCents = Number(l.actualValueCents);
     // DIM-2 phase 2: the line of the bill the units go back from
-    return { itemId: l.itemId, quantity, valueCents, ...(Number.isSafeInteger(l.billLine) && Number(l.billLine) >= 0 ? { line: Number(l.billLine) } : {}) };
+    return { itemId: l.itemId, quantity, valueCents, ...(Number.isSafeInteger(actualValueCents) && actualValueCents >= 0 ? { actualValueCents } : {}), ...(Number.isSafeInteger(l.billLine) && Number(l.billLine) >= 0 ? { line: Number(l.billLine) } : {}) };
   });
 }
 
@@ -261,7 +264,7 @@ export async function prepareStockMoves(
     // BF-07: stock sent back to a vendor comes back in when the credit is undone
     for (const line of vendorReturnOut(original)) {
       add(line.itemId, line.quantity);
-      pending.push({ itemId: line.itemId, quantity: line.quantity, kind: 'purchase-return-reversal', entry: reversalOf.get(target) || original, valueCents: line.valueCents, location: original.metadata?.locationId as string | undefined, line: line.line, source: original });
+      pending.push({ itemId: line.itemId, quantity: line.quantity, kind: 'purchase-return-reversal', entry: reversalOf.get(target) || original, valueCents: line.valueCents, actualValueCents: line.actualValueCents, location: original.metadata?.locationId as string | undefined, line: line.line, source: original });
     }
     const effect = stockEffect(original);
     if (!effect) return;
@@ -273,7 +276,7 @@ export async function prepareStockMoves(
   for (const tx of entries) {
     for (const line of vendorReturnOut(tx)) {
       add(line.itemId, -line.quantity);
-      pending.push({ itemId: line.itemId, quantity: -line.quantity, kind: 'purchase-return', entry: tx, valueCents: -line.valueCents, location: tx.metadata?.locationId as string | undefined, line: line.line, source: tx });
+      pending.push({ itemId: line.itemId, quantity: -line.quantity, kind: 'purchase-return', entry: tx, valueCents: -line.valueCents, actualValueCents: line.actualValueCents !== undefined ? -line.actualValueCents : undefined, location: tx.metadata?.locationId as string | undefined, line: line.line, source: tx });
     }
     for (const line of billStockIn(tx)) {
       add(line.itemId, line.quantity);
@@ -385,6 +388,7 @@ export async function prepareStockMoves(
           workspaceId, itemId: snap.id, itemName: String(item.name || ''), date: String(p.entry.date || '').slice(0, 10), kind: p.kind,
           quantity: p.quantity, quantityBefore: before, quantityAfter: after,
           unitCostCents: Math.round(Math.abs(p.valueCents) / Math.abs(p.quantity)), valueCents: p.valueCents,
+          ...(p.actualValueCents !== undefined ? { actualValueCents: p.actualValueCents } : {}),
           transactionId: p.entry.id, ...document,
           // W-01: where the units left from or came back to (a reversal is where its original was)
           ...(typeof p.location === 'string' && p.location ? { locationId: p.location } : {}),
