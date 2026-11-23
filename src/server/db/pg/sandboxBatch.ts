@@ -26,6 +26,8 @@ export function createSandboxBatch(live: Firestore, runner: Runner, transaction:
       try {
         const result = await work({ runner, stage: (options, call) => stage(db, options, tx => call(db, tx)) });
         await runner.query('set local role none');
+        // Only the overlay reads need index scans (#976); later live stages plan normally.
+        await runner.query('set local enable_seqscan to default');
         await runner.query("select set_config('lf.sandbox_id', '', true)");
         return result;
       } finally {
