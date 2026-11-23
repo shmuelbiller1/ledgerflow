@@ -3,35 +3,5 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema103 } from '../commandSchemas
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const NOTIFICATION_COMMAND_MANIFEST = [
-  {
-    "name": "notification.read",
-    "area": "notification",
-    "roles": COMMAND_SCHEMA_PARTS.part5,
-    "scope": "person",
-    "risk": "normal",
-    "description": {
-      "sentence": "Mark some of your own notifications as read, so the list stops showing them as new; do not use it to delete one or to touch someone else’s.",
-      "example": {
-        "ids": [
-          "note_1",
-          "note_2"
-        ]
-      },
-      "refusals": [
-        {
-          "code": "INVALID_INPUT",
-          "when": "No ids, or more than 200 at once.",
-          "next": "Send between one and two hundred notification ids."
-        },
-        {
-          "code": "UNAUTHENTICATED",
-          "when": "The request has no signed-in person.",
-          "next": "Sign in and try again."
-        }
-      ]
-    },
-    "runPath": "/api/v1/commands/notification.read",
-    "previewPath": "/api/v1/commands/notification.read/preview",
-    inputSchema: commandInputSchema103
-  },
+{"name":"notification.read","area":"notification","roles":COMMAND_SCHEMA_PARTS.part5,"scope":"person","risk":"normal","description":{ "sentence": "Mark some of your own notifications as read, so the list stops showing them as new; do not use it to delete one or to touch someone else’s.", "example": { "ids": ["note_1", "note_2"] }, "refusals": [{ "code": "INVALID_INPUT", "when": "No ids, or more than 200 at once.", "next": "Send between one and two hundred notification ids." }, { "code": "UNAUTHENTICATED", "when": "The request has no signed-in person.", "next": "Sign in and try again." }] },"runPath":"/api/v1/commands/notification.read","previewPath":"/api/v1/commands/notification.read/preview",inputSchema:commandInputSchema103},
 ] as const;

@@ -3,41 +3,5 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema39 } from '../commandSchemas.
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const CONSOLIDATION_COMMAND_MANIFEST = [
-  {
-    "name": "consolidation.verify",
-    "area": "consolidation",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "allowPlatformAdmin": true,
-    "risk": "normal",
-    "description": {
-      "sentence": "Verify and audit intercompany eliminations and close status across authorized entity books; use it to check the figures, not to post elimination entries or close a period.",
-      "example": {
-        "entityWorkspaceIds": [
-          "ws_subsidiary"
-        ],
-        "asOfDate": "2026-10-31",
-        "reportingCurrency": "USD"
-      },
-      "refusals": [
-        {
-          "code": "ROLE_REQUIRED",
-          "when": "The caller cannot write in one of the requested books.",
-          "next": "Ask for an appropriate role there or leave that book out."
-        },
-        {
-          "code": "WORKSPACE_SCOPE",
-          "when": "A scoped key asks for more than its own book.",
-          "next": "Use a person with access to all the books."
-        },
-        {
-          "code": "INVALID_INPUT",
-          "when": "No entities were supplied or a date or exchange rate is invalid.",
-          "next": "Supply the entities and check the date and exchange rates."
-        }
-      ]
-    },
-    "runPath": "/api/v1/commands/consolidation.verify",
-    "previewPath": "/api/v1/commands/consolidation.verify/preview",
-    inputSchema: commandInputSchema39
-  },
+{"name":"consolidation.verify","area":"consolidation","roles":COMMAND_SCHEMA_PARTS.part72,"allowPlatformAdmin":true,"risk":"normal","description":{ "sentence": "Verify and audit intercompany eliminations and close status across authorized entity books; use it to check the figures, not to post elimination entries or close a period.", "example": { "entityWorkspaceIds": ["ws_subsidiary"], "asOfDate": "2026-10-31", "reportingCurrency": "USD" }, "refusals": [{ "code": "ROLE_REQUIRED", "when": "The caller cannot write in one of the requested books.", "next": "Ask for an appropriate role there or leave that book out." }, { "code": "WORKSPACE_SCOPE", "when": "A scoped key asks for more than its own book.", "next": "Use a person with access to all the books." }, { "code": "INVALID_INPUT", "when": "No entities were supplied or a date or exchange rate is invalid.", "next": "Supply the entities and check the date and exchange rates." }] },"runPath":"/api/v1/commands/consolidation.verify","previewPath":"/api/v1/commands/consolidation.verify/preview",inputSchema:commandInputSchema39},
 ] as const;

@@ -4,63 +4,6 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema41 } from '../commandSchemas.
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const CONTACT_COMMAND_MANIFEST = [
-  {
-    "name": "contact.delete",
-    "area": "contact",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "risk": "normal",
-    "description": {
-      "sentence": "Delete a customer or vendor that nothing refers to; do not use it to remove one that has documents — merge it into another instead.",
-      "example": {
-        "side": "vendor",
-        "id": "ven_1"
-      },
-      "refusals": [
-        {
-          "code": "CONFLICT",
-          "when": "A document, payment or balance still refers to the contact.",
-          "next": "Merge it into another contact, or remove what refers to it first."
-        },
-        {
-          "code": "NOT_FOUND",
-          "when": "No such customer or vendor in this workspace.",
-          "next": "Reload the list."
-        },
-        COMMAND_SCHEMA_PARTS.part182
-      ]
-    },
-    "runPath": "/api/v1/commands/contact.delete",
-    "previewPath": "/api/v1/commands/contact.delete/preview",
-    inputSchema: commandInputSchema40
-  },
-  {
-    "name": "contact.merge",
-    "area": "contact",
-    "roles": COMMAND_SCHEMA_PARTS.part33,
-    "risk": "high",
-    "description": {
-      "sentence": "Merge two duplicate customers or vendors into the one to keep, moving their documents and balance; do not use it to correct a name — edit the contact.",
-      "example": {
-        "side": "customer",
-        "keepId": "cus_1",
-        "mergeId": "cus_2"
-      },
-      "refusals": [
-        {
-          "code": "INVALID_INPUT",
-          "when": "The side is not customer or vendor, or an id is missing.",
-          "next": "Name the side and both ids."
-        },
-        {
-          "code": "CONFLICT",
-          "when": "The two are the same record, or one is referred to by something a merge cannot move.",
-          "next": "Pick the record to keep and try again."
-        },
-        COMMAND_SCHEMA_PARTS.part188
-      ]
-    },
-    "runPath": "/api/v1/commands/contact.merge",
-    "previewPath": "/api/v1/commands/contact.merge/preview",
-    inputSchema: commandInputSchema41
-  },
+{"name":"contact.delete","area":"contact","roles":COMMAND_SCHEMA_PARTS.part72,"risk":"normal","description":{ "sentence": "Delete a customer or vendor that nothing refers to; do not use it to remove one that has documents — merge it into another instead.", "example": { "side": "vendor", "id": "ven_1" }, "refusals": [{ "code": "CONFLICT", "when": "A document, payment or balance still refers to the contact.", "next": "Merge it into another contact, or remove what refers to it first." }, { "code": "NOT_FOUND", "when": "No such customer or vendor in this workspace.", "next": "Reload the list." }, COMMAND_SCHEMA_PARTS.part182] },"runPath":"/api/v1/commands/contact.delete","previewPath":"/api/v1/commands/contact.delete/preview",inputSchema:commandInputSchema40},
+{"name":"contact.merge","area":"contact","roles":COMMAND_SCHEMA_PARTS.part33,"risk":"high","description":{ "sentence": "Merge two duplicate customers or vendors into the one to keep, moving their documents and balance; do not use it to correct a name — edit the contact.", "example": { "side": "customer", "keepId": "cus_1", "mergeId": "cus_2" }, "refusals": [{ "code": "INVALID_INPUT", "when": "The side is not customer or vendor, or an id is missing.", "next": "Name the side and both ids." }, { "code": "CONFLICT", "when": "The two are the same record, or one is referred to by something a merge cannot move.", "next": "Pick the record to keep and try again." }, COMMAND_SCHEMA_PARTS.part189] },"runPath":"/api/v1/commands/contact.merge","previewPath":"/api/v1/commands/contact.merge/preview",inputSchema:commandInputSchema41},
 ] as const;

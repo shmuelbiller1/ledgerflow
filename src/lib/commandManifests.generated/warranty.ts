@@ -3,41 +3,5 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema193 } from '../commandSchemas
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const WARRANTY_COMMAND_MANIFEST = [
-  {
-    "name": "warranty.update",
-    "area": "warranty",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "risk": "normal",
-    "description": {
-      "sentence": "Set the warranty end date for a serial on an issued invoice and preserve who changed it; do not use this command to change inventory, invoices, or posted amounts.",
-      "example": {
-        "candidate": {
-          "id": "w_example",
-          "workspaceId": "workspace_123",
-          "customerId": "customer_123",
-          "invoiceId": "invoice_123",
-          "invoiceLineId": "line_1",
-          "itemId": "item_1",
-          "serial": "SN-100"
-        },
-        "endDate": "2028-01-15"
-      },
-      "refusals": [
-        {
-          "code": "INVALID_INPUT",
-          "when": "The selected serial or warranty end date is invalid.",
-          "next": "Choose an issued invoice serial and enter a real calendar date."
-        },
-        {
-          "code": "CONFLICT",
-          "when": "The customer, invoice line, or serial changed before the update.",
-          "next": "Reload the warranty register and select the current serial row."
-        },
-        COMMAND_SCHEMA_PARTS.part230
-      ]
-    },
-    "runPath": "/api/v1/commands/warranty.update",
-    "previewPath": "/api/v1/commands/warranty.update/preview",
-    inputSchema: commandInputSchema193
-  },
+{"name":"warranty.update","area":"warranty","roles":COMMAND_SCHEMA_PARTS.part72,"risk":"normal","description":{ "sentence": "Set the warranty end date for a serial on an issued invoice and preserve who changed it; do not use this command to change inventory, invoices, or posted amounts.", "example": { "candidate": { "id": "w_example", "workspaceId": "workspace_123", "customerId": "customer_123", "invoiceId": "invoice_123", "invoiceLineId": "line_1", "itemId": "item_1", "serial": "SN-100" }, "endDate": "2028-01-15" }, "refusals": [{ "code": "INVALID_INPUT", "when": "The selected serial or warranty end date is invalid.", "next": "Choose an issued invoice serial and enter a real calendar date." }, { "code": "CONFLICT", "when": "The customer, invoice line, or serial changed before the update.", "next": "Reload the warranty register and select the current serial row." }, COMMAND_SCHEMA_PARTS.part231] },"runPath":"/api/v1/commands/warranty.update","previewPath":"/api/v1/commands/warranty.update/preview",inputSchema:commandInputSchema193},
 ] as const;

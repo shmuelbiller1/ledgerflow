@@ -32,6 +32,7 @@ const lines = (dropShip: boolean[]) => [
 const estimateRow = (dropShip: boolean[], ordered = true): Record<string, unknown> => ({
   id: EST_ID, uid: owner.uid, workspaceId: WS, number: 'EST-1001', customerId: 'cust_1', customerName: 'Acme',
   amountCents: 80000, date: '2026-11-01', expiryDate: '2026-12-01', status: ordered ? 'accepted' : 'draft',
+  currency: 'EUR',
   ...(ordered ? { orderedAt: '2026-11-02T09:00:00.000Z', orderedBy: owner.uid } : {}),
   lines: lines(dropShip), createdAt: '2026-11-01T00:00:00.000Z',
 });
@@ -69,6 +70,7 @@ describe('W-08: the drop-ship purchase order', () => {
     assert.equal(po.vendorName, 'Drop Shipper');
     assert.equal(po.status, 'draft');
     assert.equal(po.totalAmountCents, 50000);
+    assert.equal(po.currency, 'EUR', 'the order keeps the quote currency');
     assert.deepEqual(po.metadata, { estimateId: EST_ID, estimateNumber: 'EST-1001', dropShip: true });
     const items = po.items as Array<Record<string, unknown>>;
     assert.equal(items.length, 1);

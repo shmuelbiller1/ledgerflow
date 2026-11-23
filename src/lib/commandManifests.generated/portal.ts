@@ -4,32 +4,6 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema130 } from '../commandSchemas
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const PORTAL_COMMAND_MANIFEST = [
-  {
-    "name": "portal.linkcreate",
-    "area": "portal",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "risk": "normal",
-    "description": {
-      "sentence": "Mint the private link a customer uses to see their own invoices and balance; do not send it to anyone but that customer — it is a way into their account.",
-      "example": COMMAND_SCHEMA_PARTS.part34,
-      "refusals": COMMAND_SCHEMA_PARTS.part251
-    },
-    "runPath": "/api/v1/commands/portal.linkcreate",
-    "previewPath": "/api/v1/commands/portal.linkcreate/preview",
-    inputSchema: commandInputSchema129
-  },
-  {
-    "name": "portal.linkrevoke",
-    "area": "portal",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "risk": "normal",
-    "description": {
-      "sentence": "Turn off a customer's portal link so it stops working; do not use it to hide an invoice — void or correct the invoice instead.",
-      "example": COMMAND_SCHEMA_PARTS.part34,
-      "refusals": COMMAND_SCHEMA_PARTS.part251
-    },
-    "runPath": "/api/v1/commands/portal.linkrevoke",
-    "previewPath": "/api/v1/commands/portal.linkrevoke/preview",
-    inputSchema: commandInputSchema130
-  },
+{"name":"portal.linkcreate","area":"portal","roles":COMMAND_SCHEMA_PARTS.part72,"risk":"normal","description":{ "sentence": "Mint the private link a customer uses to see their own invoices and balance; do not send it to anyone but that customer — it is a way into their account.", "example": COMMAND_SCHEMA_PARTS.part34, "refusals": COMMAND_SCHEMA_PARTS.part252 },"runPath":"/api/v1/commands/portal.linkcreate","previewPath":"/api/v1/commands/portal.linkcreate/preview",inputSchema:commandInputSchema129},
+{"name":"portal.linkrevoke","area":"portal","roles":COMMAND_SCHEMA_PARTS.part72,"risk":"normal","description":{ "sentence": "Turn off a customer's portal link so it stops working; do not use it to hide an invoice — void or correct the invoice instead.", "example": COMMAND_SCHEMA_PARTS.part34, "refusals": COMMAND_SCHEMA_PARTS.part252 },"runPath":"/api/v1/commands/portal.linkrevoke","previewPath":"/api/v1/commands/portal.linkrevoke/preview",inputSchema:commandInputSchema130},
 ] as const;

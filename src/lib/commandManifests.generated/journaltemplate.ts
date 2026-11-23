@@ -4,62 +4,6 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema100 } from '../commandSchemas
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const JOURNALTEMPLATE_COMMAND_MANIFEST = [
-  {
-    "name": "journaltemplate.remove",
-    "area": "journaltemplate",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "risk": "normal",
-    "description": {
-      "sentence": "Remove a saved journal template; nothing in the books changes, because a template only filled the form.",
-      "example": {
-        "templateId": "jt_1a2b3c4d5e6f7a8b"
-      },
-      "refusals": [
-        {
-          "code": "NOT_FOUND",
-          "when": "The template is not in this workspace, or was already removed.",
-          "next": "Reload the template list."
-        },
-        COMMAND_SCHEMA_PARTS.part182
-      ]
-    },
-    "runPath": "/api/v1/commands/journaltemplate.remove",
-    "previewPath": "/api/v1/commands/journaltemplate.remove/preview",
-    inputSchema: commandInputSchema99
-  },
-  {
-    "name": "journaltemplate.save",
-    "area": "journaltemplate",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "risk": "normal",
-    "description": {
-      "sentence": "Save a journal-entry template under a name, replacing one of the same name; do not use it to post — a template only fills the form.",
-      "example": {
-        "name": "Monthly depreciation",
-        "lines": [
-          {
-            "accountId": "acc_exp",
-            "debitCents": 10000,
-            "creditCents": 0
-          },
-          {
-            "accountId": "acc_acc",
-            "debitCents": 0,
-            "creditCents": 10000
-          }
-        ]
-      },
-      "refusals": [
-        {
-          "code": "INVALID_INPUT",
-          "when": "The lines do not balance, there are fewer than two, or an account is not in this workspace.",
-          "next": "Balance the lines and use this workspace's accounts."
-        },
-        COMMAND_SCHEMA_PARTS.part182
-      ]
-    },
-    "runPath": "/api/v1/commands/journaltemplate.save",
-    "previewPath": "/api/v1/commands/journaltemplate.save/preview",
-    inputSchema: commandInputSchema100
-  },
+{"name":"journaltemplate.remove","area":"journaltemplate","roles":COMMAND_SCHEMA_PARTS.part72,"risk":"normal","description":{ "sentence": "Remove a saved journal template; nothing in the books changes, because a template only filled the form.", "example": { "templateId": "jt_1a2b3c4d5e6f7a8b" }, "refusals": [{ "code": "NOT_FOUND", "when": "The template is not in this workspace, or was already removed.", "next": "Reload the template list." }, COMMAND_SCHEMA_PARTS.part182] },"runPath":"/api/v1/commands/journaltemplate.remove","previewPath":"/api/v1/commands/journaltemplate.remove/preview",inputSchema:commandInputSchema99},
+{"name":"journaltemplate.save","area":"journaltemplate","roles":COMMAND_SCHEMA_PARTS.part72,"risk":"normal","description":{ "sentence": "Save a journal-entry template under a name, replacing one of the same name; do not use it to post — a template only fills the form.", "example": { "name": "Monthly depreciation", "lines": [{ "accountId": "acc_exp", "debitCents": 10000, "creditCents": 0 }, { "accountId": "acc_acc", "debitCents": 0, "creditCents": 10000 }] }, "refusals": [{ "code": "INVALID_INPUT", "when": "The lines do not balance, there are fewer than two, or an account is not in this workspace.", "next": "Balance the lines and use this workspace's accounts." }, COMMAND_SCHEMA_PARTS.part182] },"runPath":"/api/v1/commands/journaltemplate.save","previewPath":"/api/v1/commands/journaltemplate.save/preview",inputSchema:commandInputSchema100},
 ] as const;

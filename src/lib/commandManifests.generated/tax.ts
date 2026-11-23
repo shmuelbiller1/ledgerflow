@@ -3,34 +3,5 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema175 } from '../commandSchemas
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const TAX_COMMAND_MANIFEST = [
-  {
-    "name": "tax.file",
-    "area": "tax",
-    "roles": COMMAND_SCHEMA_PARTS.part33,
-    "risk": "normal",
-    "description": {
-      "sentence": "Compute and keep the tax return for a period you name; do not use it to correct a return already filed — file a later one that covers the correction.",
-      "example": {
-        "startDate": "2026-01-01",
-        "endDate": "2026-03-31",
-        "reference": "Q1 2026"
-      },
-      "refusals": [
-        {
-          "code": "INVALID_INPUT",
-          "when": "A date is not YYYY-MM-DD, the period is backwards, or the registration is not shaped like `vat:XX:123`.",
-          "next": "Send both dates and, if you mean one registration, its full id."
-        },
-        {
-          "code": "NOT_FOUND",
-          "when": "The registration is not one this workspace holds for that period.",
-          "next": "Check the registration id on the tax profile, or leave it out to file for the whole workspace."
-        },
-        COMMAND_SCHEMA_PARTS.part188
-      ]
-    },
-    "runPath": "/api/v1/commands/tax.file",
-    "previewPath": "/api/v1/commands/tax.file/preview",
-    inputSchema: commandInputSchema175
-  },
+{"name":"tax.file","area":"tax","roles":COMMAND_SCHEMA_PARTS.part33,"risk":"normal","description":{ "sentence": "Compute and keep the tax return for a period you name; do not use it to correct a return already filed — file a later one that covers the correction.", "example": { "startDate": "2026-01-01", "endDate": "2026-03-31", "reference": "Q1 2026" }, "refusals": [{ "code": "INVALID_INPUT", "when": "A date is not YYYY-MM-DD, the period is backwards, or the registration is not shaped like `vat:XX:123`.", "next": "Send both dates and, if you mean one registration, its full id." }, { "code": "NOT_FOUND", "when": "The registration is not one this workspace holds for that period.", "next": "Check the registration id on the tax profile, or leave it out to file for the whole workspace." }, COMMAND_SCHEMA_PARTS.part189] },"runPath":"/api/v1/commands/tax.file","previewPath":"/api/v1/commands/tax.file/preview",inputSchema:commandInputSchema175},
 ] as const;

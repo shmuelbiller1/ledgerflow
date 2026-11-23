@@ -3,28 +3,5 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema171 } from '../commandSchemas
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const TAG_COMMAND_MANIFEST = [
-  {
-    "name": "tag.change",
-    "area": "tag",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "risk": "normal",
-    "description": {
-      "sentence": "Rename a tag across the workspace, merge it into an existing name, or remove it from every row; do not use it to change what a row is — only the label it carries.",
-      "example": {
-        "from": "Travel",
-        "to": "Travel & meals"
-      },
-      "refusals": [
-        {
-          "code": "INVALID_INPUT",
-          "when": "The old name is blank, the new name is longer than 50 characters, or the body has an extra field.",
-          "next": "Send just `from` and `to` (null removes the tag)."
-        },
-        COMMAND_SCHEMA_PARTS.part182
-      ]
-    },
-    "runPath": "/api/v1/commands/tag.change",
-    "previewPath": "/api/v1/commands/tag.change/preview",
-    inputSchema: commandInputSchema171
-  },
+{"name":"tag.change","area":"tag","roles":COMMAND_SCHEMA_PARTS.part72,"risk":"normal","description":{ "sentence": "Rename a tag across the workspace, merge it into an existing name, or remove it from every row; do not use it to change what a row is — only the label it carries.", "example": { "from": "Travel", "to": "Travel & meals" }, "refusals": [{ "code": "INVALID_INPUT", "when": "The old name is blank, the new name is longer than 50 characters, or the body has an extra field.", "next": "Send just `from` and `to` (null removes the tag)." }, COMMAND_SCHEMA_PARTS.part182] },"runPath":"/api/v1/commands/tag.change","previewPath":"/api/v1/commands/tag.change/preview",inputSchema:commandInputSchema171},
 ] as const;

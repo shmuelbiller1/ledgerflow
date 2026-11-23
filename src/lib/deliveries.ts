@@ -124,7 +124,8 @@ export interface DeliveryLine {
 
 export function deliveryLines(order: Pick<Estimate, 'lines'>, delivered: Map<number, number>): DeliveryLine[] {
   return (order.lines || []).flatMap((line, position) => {
-    if (!line.itemId) return [];
+    // W-08: drop-ship lines are bought by the vendor and shipped direct; they are not deliverable
+    if (line.dropShip || !line.itemId) return [];
     const ordered = Number(line.quantity) || 0;
     const done = delivered.get(position) || 0;
     return [{ position, description: line.description || '', itemId: line.itemId, ordered, delivered: done, left: Math.max(0, round2(ordered - done)) }];

@@ -4,46 +4,6 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema150 } from '../commandSchemas
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const REPORTSCHEDULE_COMMAND_MANIFEST = [
-  {
-    "name": "reportschedule.preview",
-    "area": "reportschedule",
-    "roles": COMMAND_SCHEMA_PARTS.part33,
-    "risk": "normal",
-    "description": {
-      "sentence": "Show the report email a schedule would send, before it is saved; nothing is sent.",
-      "example": {
-        "report": "pl",
-        "frequency": "monthly"
-      },
-      "refusals": [
-        COMMAND_SCHEMA_PARTS.part188
-      ]
-    },
-    "runPath": "/api/v1/commands/reportschedule.preview",
-    "previewPath": "/api/v1/commands/reportschedule.preview/preview",
-    inputSchema: commandInputSchema149
-  },
-  {
-    "name": "reportschedule.send",
-    "area": "reportschedule",
-    "roles": COMMAND_SCHEMA_PARTS.part33,
-    "risk": "normal",
-    "description": {
-      "sentence": "Send a scheduled report now, in addition to its own time; do not use it to re-send one that already went — check the schedule first.",
-      "example": {
-        "scheduleId": "sched_1"
-      },
-      "refusals": [
-        {
-          "code": "NOT_FOUND",
-          "when": "No schedule with that id in this workspace.",
-          "next": "Reload the schedules."
-        },
-        COMMAND_SCHEMA_PARTS.part188
-      ]
-    },
-    "runPath": "/api/v1/commands/reportschedule.send",
-    "previewPath": "/api/v1/commands/reportschedule.send/preview",
-    inputSchema: commandInputSchema150
-  },
+{"name":"reportschedule.preview","area":"reportschedule","roles":COMMAND_SCHEMA_PARTS.part33,"risk":"normal","description":{ "sentence": "Show the report email a schedule would send, before it is saved; nothing is sent.", "example": { "report": "pl", "frequency": "monthly" }, "refusals": [COMMAND_SCHEMA_PARTS.part189] },"runPath":"/api/v1/commands/reportschedule.preview","previewPath":"/api/v1/commands/reportschedule.preview/preview",inputSchema:commandInputSchema149},
+{"name":"reportschedule.send","area":"reportschedule","roles":COMMAND_SCHEMA_PARTS.part33,"risk":"normal","description":{ "sentence": "Send a scheduled report now, in addition to its own time; do not use it to re-send one that already went — check the schedule first.", "example": { "scheduleId": "sched_1" }, "refusals": [{ "code": "NOT_FOUND", "when": "No schedule with that id in this workspace.", "next": "Reload the schedules." }, COMMAND_SCHEMA_PARTS.part189] },"runPath":"/api/v1/commands/reportschedule.send","previewPath":"/api/v1/commands/reportschedule.send/preview",inputSchema:commandInputSchema150},
 ] as const;

@@ -3790,7 +3790,7 @@
     },
     {
       "name": "propose_estimate_dropship",
-      "description": "Propose estimate.dropship for review; never apply it to the live books. Place one vendor purchase order for the drop-ship lines of a sales order; the units ship to the customer and never come into stock.\nExample input: {\"id\":\"est_1\",\"vendorId\":\"vendor_1\"}\nCONFLICT: The quote is not an accepted order, or a drop-ship purchase order for it already exists. Accept the quote first, or use the existing purchase order.\nINVALID_INPUT: The order has no drop-ship lines, or one of them has no quantity or amount. Mark the lines to drop-ship on the order, with quantities and prices.\nNOT_FOUND: The order or the vendor is not in the selected workspace. Reload and choose ones in this workspace.\nROLE_REQUIRED: The caller is a viewer. Ask an owner, accountant or bookkeeper to place the order.",
+      "description": "Propose estimate.dropship for review; never apply it to the live books. Place one vendor purchase order for a sales order drop-ship lines; the units ship direct, never entering stock.\nExample input: {\"id\":\"est_1\",\"vendorId\":\"vendor_1\"}\nCONFLICT: Not an accepted order, or a drop-ship order exists. Accept it first, or use the existing one.\nINVALID_INPUT: No drop-ship lines, or a line lacks quantity or amount. Mark lines to drop-ship, with prices.\nNOT_FOUND: The order or vendor is not in this workspace. Choose ones here.\nROLE_REQUIRED: The caller is a viewer. Ask an owner, accountant or bookkeeper.",
       "parametersJsonSchema": {
         "type": "object",
         "properties": {
@@ -3803,14 +3803,6 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 200
-          },
-          "expectedDeliveryDate": {
-            "type": "string",
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
-          },
-          "notes": {
-            "type": "string",
-            "maxLength": 400
           }
         },
         "required": [
@@ -11267,7 +11259,7 @@
     },
     {
       "name": "propose_workspace_standardcosting",
-      "description": "Propose workspace.standardcosting for review; never apply it to the live books. Turn standard-cost posting on or off for the workspace and name the account the purchase-price variance posts to; do not use it to change an item cost or a posted entry.\nExample input: {\"enabled\":true,\"varianceAccountId\":\"acct_purchase_variance\"}\nINVALID_INPUT: Standard costing is turned on without the variance account, or the account is not in the chart. Choose the purchase-price variance account in the chart of accounts and pass its id.\nROLE_REQUIRED: The caller is not an owner or accountant. Ask a workspace owner or accountant to change the setting.\nWORKSPACE_NOT_FOUND: The workspace no longer exists. Choose an existing workspace.",
+      "description": "Propose workspace.standardcosting for review; never apply it to the live books. Turn standard-cost posting on or off for the workspace and name the account the variance posts to.\nExample input: {\"enabled\":true,\"varianceAccountId\":\"acct_purchase_variance\"}\nINVALID_INPUT: Turned on without the variance account, or the account is not in the chart. Choose the variance account and pass its id.\nCONFLICT: Stock is on hand at a cost other than its standard. Reconcile the stock before turning standard costing on.\nROLE_REQUIRED: The caller is not an owner or accountant. Ask an owner or accountant to change it.\nWORKSPACE_NOT_FOUND: The workspace no longer exists. Choose an existing workspace.",
       "parametersJsonSchema": {
         "type": "object",
         "properties": {
