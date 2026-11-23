@@ -39,7 +39,7 @@ const SEARCH_FIELDS = ['name', 'number', 'invoiceNumber', 'billNumber', 'referen
 const LIVE_RECORD_FIELDS = new Set([
   'id', 'name', 'number', 'invoiceNumber', 'billNumber', 'sku', 'code', 'status', 'type', 'category',
   'customerName', 'vendorName', 'currency', 'date', 'issueDate', 'dueDate', 'createdAt',
-  'amountCents', 'balanceCents', 'totalAmountCents', 'taxAmountCents', 'quantity',
+  'amountCents', 'balanceCents', 'totalAmountCents', 'taxAmountCents', 'writtenOffCents', 'quantity',
 ]);
 const LIVE_SEARCH_FIELDS = SEARCH_FIELDS.filter(field => LIVE_RECORD_FIELDS.has(field));
 const LIVE_SENSITIVE_KEY = /^(?:bankdetails|bankrouting|bankaccount|bankaccountnumber|routingcode|routingnumber|accountnumber|iban|swift|swiftcode|bic|taxid|taxnumber|vatnumber|ein|businessnumber|contacttaxid|salarycents|hourlyratecents|pretaxdeductionscents|deductions)$/i;

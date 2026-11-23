@@ -368,7 +368,7 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     const owner = `${workspaceId}-owner`;
     t.after(async () => {
       await live.pool.query('delete from sandbox.sandboxes where workspace_id = $1', [workspaceId]);
-      for (const table of ['customers', 'vendors', 'employees', 'billingLedgerTraces', 'auditLogs', 'chartAccounts']) await live.pool.query(`delete from public.${quoteIdent(table)} where workspace_id = $1`, [workspaceId]);
+      for (const table of ['customers', 'vendors', 'employees', 'invoices', 'billingLedgerTraces', 'auditLogs', 'chartAccounts']) await live.pool.query(`delete from public.${quoteIdent(table)} where workspace_id = $1`, [workspaceId]);
       await live.doc(`workspaces/${workspaceId}`).delete();
     });
     await live.doc(`workspaces/${workspaceId}`).create({ uid: owner, name: 'SBX-2 test', members: [owner], currency: 'USD', timezone: 'UTC', fiscalYearStartMonth: 1, ...workspace });
@@ -576,6 +576,19 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     assert.deepEqual(sandboxes.json.sandboxes, []);
     await live.doc(`workspaces/${a.workspaceId}`).update({ members: [a.owner] });
     assert.equal((await viewerCall('POST', '/assistant/turn', { question: 'Find the customer Acme Ltd.' })).status, 403);
+  });
+
+  test('live invoice lookup does not call a written-off invoice paid', async t => {
+    const a = await setup(t);
+    const viewer = `${a.workspaceId}-viewer`;
+    await live.doc(`workspaces/${a.workspaceId}`).update({ members: [a.owner, viewer], roles: { [viewer]: 'viewer' } });
+    await live.doc(`invoices/${a.workspaceId}-invoice`).create({ workspaceId: a.workspaceId, number: 'INV-123', status: 'paid', writtenOffCents: 5000 });
+    modelReplies = [{ text: 'This invoice was written off; check the details.' }];
+    const res = await fetch(`${base}/api/v1/workspaces/${a.workspaceId}/sandboxes/assistant/turn`, { method: 'POST', headers: { 'x-test-uid': viewer, 'content-type': 'application/json' }, body: JSON.stringify({ question: 'Is invoice INV-123 paid?' }) });
+    const body = await res.json() as Record<string, unknown>;
+    assert.equal(res.status, 200, JSON.stringify(body));
+    assert.equal(body.path, 'model', 'written-off invoice must not receive a deterministic paid verdict');
+    assert.doesNotMatch(String(body.answer), /^Yes\b/);
   });
 
   test('live assistant blocks employee reads and exposes only safe vendor fields to the model', async t => {
