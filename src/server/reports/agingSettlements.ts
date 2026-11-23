@@ -28,7 +28,7 @@ export function agingSettlementEvents(
   const events: SettlementEvent[] = [];
   const inLedger = new Set<string>();
   for (const r of ledgerRows) {
-    if (typeof r.sourceId === 'string' && r.sourceId) inLedger.add(r.sourceId);
+    if (typeof r.sourceId === 'string' && r.sourceId) inLedger.add(`${r.sourceId}|${String(r.documentId)}`);
     if (r.documentType !== documentType || typeof r.date !== 'string') continue;
     events.push({
       documentId: String(r.documentId), documentType, date: r.date,
@@ -38,7 +38,6 @@ export function agingSettlementEvents(
     });
   }
   for (const p of payments) {
-    if (inLedger.has(p.id)) continue;
     const paidOn = String(p.paymentDate || p.date || '').slice(0, 10);
     if (!paidOn) continue;
     const rate = typeof p.exchangeRate === 'number' && p.exchangeRate > 0 ? p.exchangeRate : 1;
@@ -46,6 +45,7 @@ export function agingSettlementEvents(
     const voided = p.status === 'void';
     const voidOn = String(p.voidDate || p.voidedAt || '').slice(0, 10) || paidOn;
     for (const a of Array.isArray(p.allocations) ? p.allocations : []) {
+      if (inLedger.has(`${p.id}|${String(a.documentId)}`)) continue;
       const cents = Number(a.amountCents) || 0;
       if (a.documentType !== documentType || typeof a.documentId !== 'string' || cents <= 0) continue;
       const base = convertMinorUnits(cents, rate, currency, baseCurrency);

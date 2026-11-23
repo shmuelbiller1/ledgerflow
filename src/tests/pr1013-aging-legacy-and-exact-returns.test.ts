@@ -42,6 +42,21 @@ describe('aging with history from before the payment ledger', () => {
     const partly = invoice({ status: 'partially_paid', amountCents: 20000, amountPaidCents: 10000, settledByRecordsCents: 10000 });
     assert.equal(outstandingAsOfCents(partly, events, '2026-03-01', 'USD'), 10000);
   });
+
+  test('a ledger row for one allocation does not suppress other legacy allocations', () => {
+    const rows = [{ documentId: 'inv1', documentType: 'invoice', date: '2026-02-10', baseClearedCents: 10000, kind: 'payment', sourceId: 'pay1' }];
+    const payment = {
+      id: 'pay1', paymentDate: '2026-02-10', allocations: [
+        { documentId: 'inv1', documentType: 'invoice', amountCents: 10000 },
+        { documentId: 'inv2', documentType: 'invoice', amountCents: 5000 },
+      ],
+    };
+    const events = agingSettlementEvents(rows, [payment], 'invoice', 'USD');
+    assert.deepEqual(events.map(({ documentId, amountCents }) => ({ documentId, amountCents })), [
+      { documentId: 'inv1', amountCents: 10000 },
+      { documentId: 'inv2', amountCents: 5000 },
+    ]);
+  });
 });
 
 describe('returns restore the exact sale cost', () => {
