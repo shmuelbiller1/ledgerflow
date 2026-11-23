@@ -30,7 +30,7 @@ export default function FloatingAssistant() {
   useEffect(() => { window.addEventListener('resize', keepInView); return () => window.removeEventListener('resize', keepInView); }, [keepInView]);
   const open = () => { setMounted(true); setOpened(true); };
   const close = () => { setOpened(false); requestAnimationFrame(() => launcher.current?.focus()); };
-  const { dialogProps, titleId } = useDialog<HTMLElement>(close, opened && !modalOpen, { modal: false });
+  const { dialogProps, titleId } = useDialog<HTMLElement>(close, opened, { modal: false });
   const resize = (delta: number) => setBox(current => clampBox({ ...current, width: current.width + delta, height: current.height + delta }));
   return <>
     <button ref={launcher} hidden={opened || modalOpen} type="button" onClick={open} aria-expanded={opened} aria-controls="floating-assistant" className="fixed bottom-20 end-4 z-[80] min-h-11 rounded-full bg-indigo-700 px-4 py-3 text-sm font-semibold text-white shadow-lg hover:bg-indigo-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700 print:hidden"><span className="inline-flex items-center gap-2"><Sparkles aria-hidden="true" size={18} /> AI assistant</span></button>

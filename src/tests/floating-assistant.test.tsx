@@ -96,12 +96,14 @@ test('the assistant hides while a modal owns the page and returns with its conve
   const assistant = screen.getByRole('dialog', { name: 'Floating AI assistant' });
   await within(assistant).findByRole('button', { name: 'Start assistant' });
   fireEvent.change(within(assistant).getByLabelText('Your question'), { target: { value: 'My question' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Open invoice modal' }));
+  const opener = screen.getByRole('button', { name: 'Open invoice modal' });
+  opener.focus(); fireEvent.click(opener);
   assert.ok(screen.getByRole('dialog', { name: 'Editing invoice' }));
   assert.equal(screen.queryByRole('dialog', { name: 'Floating AI assistant' }), null);
   assert.equal(screen.queryByRole('button', { name: 'AI assistant' }), null);
   fireEvent.keyDown(screen.getByLabelText('Invoice field'), { key: 'Escape' });
   assert.equal(screen.queryByRole('dialog', { name: 'Editing invoice' }), null);
+  assert.ok(document.activeElement === opener, 'closing the modal returns focus to its page control');
   const restored = screen.getByRole('dialog', { name: 'Floating AI assistant' });
   assert.equal((within(restored).getByLabelText('Your question') as HTMLTextAreaElement).value, 'My question');
 });
