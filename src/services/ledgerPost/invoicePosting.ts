@@ -199,14 +199,20 @@ export async function postInvoiceLedger(
   // M-21 step 2: the standard each existing sale line was already posted at. Reposting an invoice
   // reverses its old cost-of-goods entries and rebuilds them; a line whose standard has since changed
   // must keep the basis it was posted at, or the repost would reprice it and leave Inventory out of step.
-  const originalStandards = new Map<string, { standardCostCents: number; quantity: number }>();
+  const originalStandards = new Map<string, Array<{ standardCostCents: number; quantity: number }>>();
   for (const tx of existingTxs) {
-    const meta = tx.metadata as { type?: string; cogsForLineId?: string; standardCostCents?: number; quantity?: number; standardQty?: number } | undefined;
-    if (meta?.type === INVOICE_COGS_TYPE && typeof meta.cogsForLineId === 'string' && typeof meta.standardCostCents === 'number') {
-      // the units the recorded standard applies to: the original sale's quantity, or the split recorded
-      // when a later edit added units at the then-current standard
-      const appliesTo = typeof meta.standardQty === 'number' ? meta.standardQty : Number(meta.quantity) || 0;
-      originalStandards.set(meta.cogsForLineId, { standardCostCents: meta.standardCostCents, quantity: appliesTo });
+    const meta = tx.metadata as { type?: string; cogsForLineId?: string; standardCostCents?: number; quantity?: number; standardQty?: number; standards?: Array<{ standardCostCents?: number; quantity?: number }> } | undefined;
+    if (meta?.type === INVOICE_COGS_TYPE && typeof meta.cogsForLineId === 'string') {
+      // the accumulated basis of the line, as recorded by its most recent cost-of-goods entry: the
+      // cohort list when present, or the single standard the entry posted at (the units it applies to
+      // are the split recorded when a later edit added units at the then-current standard)
+      const cohorts = Array.isArray(meta.standards)
+        ? meta.standards.filter(c => typeof c?.standardCostCents === 'number' && Number.isFinite(c?.quantity) && (c?.quantity as number) > 0)
+          .map(c => ({ standardCostCents: c.standardCostCents as number, quantity: c.quantity as number }))
+        : (typeof meta.standardCostCents === 'number'
+          ? [{ standardCostCents: meta.standardCostCents, quantity: typeof meta.standardQty === 'number' ? meta.standardQty : Number(meta.quantity) || 0 }]
+          : []);
+      if (cohorts.length > 0) originalStandards.set(meta.cogsForLineId, cohorts);
     }
   }
   const cogs = !shipsGoods ? { entries: [], pendingReason: undefined } : planInvoiceCogs({

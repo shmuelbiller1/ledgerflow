@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
 import { planInvoiceCogs } from '../services/invoiceCogs';
 import { postBillLedger } from '../services/ledgerPost/billPosting';
-import { BILL_ACCRUAL_TYPE } from '../lib/billStock';
+import { BILL_ACCRUAL_TYPE, planStandardReceipt } from '../lib/billStock';
 import { deliveryReturnStandardProblem } from '../server/services/deliveryService';
 import type { LedgerPostContext } from '../services/ledgerPost/postingCore';
 import type { InventoryItem, Transaction } from '../types';
@@ -91,6 +91,19 @@ describe('M-21 step 2 bot round 4: a reposted bill keeps its original receipt ba
     assert.equal(entryTotal(accrual!), 0, 'the entry balances');
   });
 
+  test('a line re-pointed at a different item does not reuse the previous item basis', async () => {
+    // the bill line's index matches an original receipt row, but the item changed: the old basis must
+    // not carry over — the replacement posts at the new item's standard
+    const plan = planStandardReceipt(
+      [{ itemId: 'table', quantity: 10, valueCents: 5000, line: 0 }],
+      [{ id: 'table', standardCostCents: 600 }],
+      true,
+      new Map([[0, { itemId: 'chair', quantity: 10, valueCents: 4000 }]]),
+    );
+    assert.ok(plan);
+    assert.equal(plan.entries[0].valueCents, 6000, "10 × the table's 600 standard, not the chair's 400");
+  });
+
   test('repeated item lines keep their own receipt basis', async () => {
     // two lines of the same item, received at different actual values before the item had a standard:
     // each line's replacement must keep its own carrying value, not the last row's
@@ -158,7 +171,7 @@ describe('M-21 step 2 bot round 4: historical standards cover only the original 
       inventoryAccount: accounts()[5], cogsAccount: accounts()[5],
       items: fx.returnItems().map(i => ({ ...i, standardCostCents: 600 })),
       postAtStandard: true,
-      originalStandards: new Map([['l1', { standardCostCents: 400, quantity: 10 }]]),
+      originalStandards: new Map([['l1', [{ standardCostCents: 400, quantity: 10 }]]]),
     });
     // fx.invoice() sells 10 units: grow the line to 15 for the added-units case
     const grown = planInvoiceCogs({
@@ -168,7 +181,7 @@ describe('M-21 step 2 bot round 4: historical standards cover only the original 
       inventoryAccount: accounts()[5], cogsAccount: accounts()[5],
       items: fx.returnItems().map(i => ({ ...i, standardCostCents: 600 })),
       postAtStandard: true,
-      originalStandards: new Map([['l1', { standardCostCents: 400, quantity: 10 }]]),
+      originalStandards: new Map([['l1', [{ standardCostCents: 400, quantity: 10 }]]]),
     });
     assert.equal(grown.entries[0].totalAmountCents, 7000, '10 × 400 + 5 × 600');
     assert.equal(grown.entries[0].metadata.standardCostCents, 400, 'the entry records the historical basis');
@@ -191,5 +204,42 @@ describe('M-21 step 2 bot round 4: historical standards cover only the original 
     assert.equal(fresh.entries[0].totalAmountCents, 4000);
     assert.equal(fresh.entries[0].metadata.standardCostCents, 400);
     assert.equal(fresh.entries[0].metadata.standardQty, undefined, 'a fresh sale carries no historical split');
+  });
+
+  test('a sale amended twice keeps every cohort it was already posted at', () => {
+    // 10 units sold at a 400 standard, the standard changed to 600 and 5 units were added, then the
+    // standard changed to 800 and the sale is reposted: the original 10 stay at 400, the 5 added units
+    // stay at 600 — only genuinely new units would take the 800 standard
+    const plan = planInvoiceCogs({
+      invoiceId: 'inv_amended', invoice: { ...fx.invoice(), items: [{ ...fx.invoice().items![0], quantity: 15 }] },
+      date: '2026-11-01', uid: OWNER, workspaceId: WS, baseCurrency: 'USD',
+      inventoryAccount: accounts()[5], cogsAccount: accounts()[5],
+      items: fx.returnItems().map(i => ({ ...i, standardCostCents: 800 })),
+      postAtStandard: true,
+      originalStandards: new Map([['l1', [
+        { standardCostCents: 400, quantity: 10 },
+        { standardCostCents: 600, quantity: 5 },
+      ]]]),
+    });
+    assert.equal(plan.entries[0].totalAmountCents, 7000, '10 × 400 + 5 × 600, nothing repriced at 800');
+    assert.deepEqual(plan.entries[0].metadata.standards, [
+      { standardCostCents: 400, quantity: 10 },
+      { standardCostCents: 600, quantity: 5 },
+    ], 'the entry records every cohort for the next repost');
+  });
+
+  test('a sale keeps its recorded standard basis after standard costing is disabled', () => {
+    // the workspace turns standard costing off after the stock sold down; saving the unchanged sale
+    // must not reprice it at the moving average — the recorded basis stays until the stock is revalued
+    const plan = planInvoiceCogs({
+      invoiceId: 'inv_disabled', invoice: fx.invoice(), date: '2026-11-01', uid: OWNER, workspaceId: WS,
+      baseCurrency: 'USD',
+      inventoryAccount: accounts()[5], cogsAccount: accounts()[5],
+      items: fx.returnItems().map(i => ({ ...i, unitCostCents: 500 })),
+      postAtStandard: false,
+      originalStandards: new Map([['l1', [{ standardCostCents: 400, quantity: 10 }]]]),
+    });
+    assert.equal(plan.entries[0].totalAmountCents, 4000, 'the recorded 400 basis, not the 500 moving average');
+    assert.equal(plan.entries[0].metadata.standardCostCents, 400);
   });
 });

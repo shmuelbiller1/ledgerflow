@@ -79,15 +79,16 @@ export function planStandardReceipt(
    * and repricing the replacement at the new standard would leave Inventory out of step. Lines whose
    * quantity changed take the item's current standard.
    */
-  originalReceipt?: Map<string | number, { quantity: number; valueCents: number }>
+  originalReceipt?: Map<string | number, { itemId: string; quantity: number; valueCents: number }>
 ): StandardReceiptPlan | null {
   if (!standardizing) return null;
   const byId = new Map(items.map(i => [i.id, i]));
   const entries = stockIn.map(line => {
     // the original receipt's row for this bill line (keyed by the line's index, so repeated items on
-    // separate lines keep their own basis)
+    // separate lines keep their own basis); the item must match too, or a line re-pointed at a different
+    // item would inherit the previous item's carrying value
     const original = originalReceipt?.get(line.line !== undefined ? line.line : `item:${line.itemId}`);
-    const originalQty = original !== undefined && Number.isFinite(original.quantity) && original.quantity > 0 ? original.quantity : 0;
+    const originalQty = original !== undefined && original.itemId === line.itemId && Number.isFinite(original.quantity) && original.quantity > 0 ? original.quantity : 0;
     const atOriginal = originalQty > 0 ? Math.min(line.quantity, originalQty) : 0;
     const extra = line.quantity - atOriginal;
     let standardValueCents: number;

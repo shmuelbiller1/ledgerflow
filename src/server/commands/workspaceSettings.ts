@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { HttpError } from '../auth/requestUser';
 import { formatTzDate } from '../../lib/calendarDate';
 import { validStandardCost } from '../../lib/standardCostSettings';
+import { resolveAccountRole } from '../../lib/accountUtils';
 import { MODULES, modulesProblem, type Modules } from '../../lib/modules';
 import { RetentionSettingsSchema, retentionFor } from '../../lib/retention';
 import { allocateInTransaction, formatDocumentNumber, NUMBERED_TYPES, resolveSeries, type NumberedType } from '../services/numberingService';
@@ -296,6 +297,12 @@ export const workspaceStandardCostingCommand: CommandDefinition<typeof workspace
       const variance = varianceSnap.data() as { workspaceId?: string } | undefined;
       if (!varianceSnap.exists || variance?.workspaceId !== ctx.workspaceId) {
         throw Object.assign(new HttpError('The purchase-price variance account is not in this workspace chart of accounts.', 400), { code: 'INVALID_INPUT' });
+      }
+      // M-21 step 2: the variance is the difference between what a receipt cost and its standard, booked
+      // beside Inventory; booking it to Inventory itself would fold the difference into the stock value
+      // (the receipt would debit Inventory twice and the stock metadata would carry only the standard)
+      if (resolveAccountRole(variance as Parameters<typeof resolveAccountRole>[0]) === 'inventory') {
+        throw Object.assign(new HttpError('The purchase-price variance account cannot be the Inventory account.', 400), { code: 'INVALID_INPUT' });
       }
     }
     // M-21 step 2: switching the carrying basis (on or off) with stock on hand whose cost differs from its
