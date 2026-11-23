@@ -159,6 +159,7 @@ test('phone touch swipe scrolls the sidebar; a long press then drag reorders wit
 
     // Reset to a known visual state, then hold on Reports before dragging it above Sales.
     await scroller.evaluate(element => { element.scrollTop = 0; });
+    await daily.locator('[data-reorder-item="reports"]').scrollIntoViewIfNeeded();
     const from = await center(daily.locator('[data-reorder-item="reports"]'));
     const target = await center(daily.locator('[data-reorder-item="sales"]'));
     const scrollBeforeHold = await scroller.evaluate(element => element.scrollTop);
