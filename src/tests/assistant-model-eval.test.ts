@@ -201,3 +201,15 @@ test('SBX-2 Part 6 model test: a polite request with a list counts as asking (re
   // a later statement announcing a guess does not supply the detail the request asked for
   assert.ok(!byId('bill').check({ answer: 'Please confirm the supplier. I will use the current date.', calls: [] }).pass);
 });
+
+test('SBX-2 Part 6: the test books use the real question reader (src/lib/askBooks.ts)', () => {
+  const ask = (question: string) => bookTool('ask_books', { question }) as { answer: { lines?: Array<{ account: string; cents: number }> } | null; problem?: string; understood?: { period: string } };
+  // "October 2026" is that month (a real Luna question got the whole year before)
+  const october = ask('What were Office costs in October 2026?');
+  assert.match(String(october.understood?.period), /2026-10-01/);
+  assert.deepEqual(october.answer?.lines?.map(l => [l.account, l.cents]), [['Office costs', 180000]]);
+  // whole words: "current" is not the Rent account
+  assert.deepEqual(ask('What is the current Cash balance?').answer?.lines?.map(l => l.account), ['Cash']);
+  // the same reading as the site, exclusions included: the real reader does not read "excluding", so neither does the test
+  assert.deepEqual(ask('Office costs excluding Rent in October 2026').answer?.lines?.map(l => l.account).sort(), ['Office costs', 'Rent']);
+});
