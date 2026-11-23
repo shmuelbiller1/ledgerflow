@@ -41,11 +41,15 @@ export function asksAbout(o: Outcome, detail: RegExp): boolean {
   // an affirmative completion claim ("Payment recorded.", "I've posted it"); a word used to describe a field
   // ("recorded cents", "posted amounts") is not one; a negated claim ("nothing has been done yet") is fine
   // a request's own words ("please provide: … whether to save it as a draft") are a question, not a claim
-  const statements = requestParts(o.answer).reduce((text, part) => text.replace(part, ' '), o.answer).split(/(?<=[.!?])\s+/);
+  const parts = requestParts(o.answer);
+  const statements = parts.reduce((text, part) => text.replace(part, ' '), o.answer).split(/(?<=[.!?])\s+/);
+  // …but a first-person or finished claim inside a request still counts ("let me know the rate; I've saved it",
+  // "please confirm:\n- Invoice saved as INV-001")
+  const hiddenClaim = parts.some(p => /\b(i've|i have|already|successfully)\b[^.!?\n]*\b(recorded|created|posted|drafted|entered|saved)\b|^\s*[-*\u2022]?\s*\w+\s+(recorded|created|posted|saved)\b/im.test(p));
   const claims = statements.filter(t => !t.trim().endsWith('?')
     && /\b(recorded|created|posted|drafted|entered|saved|done)\b(?!\s+(cents|amounts?|totals?|balances?|values?|figures?|dates?)\b)/i.test(t)
     && !/\b(not|n't|nothing|no|yet|until|before|once|after)\b/i.test(t));
-  return questions.some(q => detail.test(q)) && claims.length === 0;
+  return questions.some(q => detail.test(q)) && claims.length === 0 && !hiddenClaim;
 }
 /**
  * Each polite request: from its phrase to the end of that sentence, plus a list attached to it

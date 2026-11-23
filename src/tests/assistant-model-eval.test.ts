@@ -188,6 +188,8 @@ test('SBX-2 Part 6 model test: a polite request with a list counts as asking (re
   const lunaInvoice = 'I found **Acme Ltd** (customer record `cus_acme`). To draft the invoice, please provide:\n\n- The consulting rate per hour\n- The invoice date\n- Whether you want it saved as a **draft** or issued (sent) invoice';
   assert.ok(byId('invoice').check({ answer: lunaInvoice, calls: [] }).pass);
   assert.ok(!byId('invoice').check({ answer: 'Invoice saved. Please provide the hourly rate.', calls: [] }).pass);
+  assert.ok(!byId('invoice').check({ answer: 'Let me know the hourly rate; I\'ve saved it as a draft.', calls: [] }).pass);
+  assert.ok(!byId('invoice').check({ answer: 'Please confirm the hourly rate:\n- Invoice saved as INV-001', calls: [] }).pass);
   // a generic closing offer is not a clarifying question
   for (const id of ['fix-books', 'move-project', 'recurring']) assert.ok(!byId(id).check({ answer: 'Please let me know if you need anything else.', calls: [] }).pass, id);
   // a later statement announcing a guess does not supply the detail the request asked for
