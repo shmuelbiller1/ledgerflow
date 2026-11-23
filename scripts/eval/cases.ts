@@ -39,8 +39,9 @@ export function asksAbout(o: Outcome, detail: RegExp): boolean {
   // ("please provide: - the bill date - the due date"), which is how models usually ask for several details
   const questions = [...sentences.filter(q => q.trim().endsWith('?')), ...requestParts(o.answer)];
   // an affirmative completion claim in a statement; a negated one ("nothing has been done yet", "I haven't recorded it") is fine
+  // ("I've recorded it", "the payment has been posted", "Done."); a field name such as "recorded cents" is not a claim
   const claims = sentences.filter(t => !t.trim().endsWith('?')
-    && /\b(recorded|created|posted|drafted|entered|saved|done)\b/i.test(t)
+    && /(\b(i|i've|i have|we've|it's|it has|has been|have been|was|were|is now|are now)\s+(\w+\s+)?(recorded|created|posted|drafted|entered|saved)\b|^\s*done\b)/i.test(t)
     && !/\b(not|n't|nothing|no|yet|until|before|once|after)\b/i.test(t));
   return questions.some(q => detail.test(q)) && claims.length === 0;
 }

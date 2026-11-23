@@ -1,0 +1,26 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { assistantFacts, todayIn } from '../server/services/assistantFacts';
+
+test('SBX-2 Part 6: the facts block states today, last month, this financial year and the currency', () => {
+  const f = assistantFacts({ today: '2026-11-23', timeZone: 'Asia/Jerusalem', currency: 'USD', fiscalYearStartMonth: 1 });
+  assert.match(f, /Monday 2026-11-23 \(Asia\/Jerusalem\)/);
+  assert.match(f, /"last month" is October 2026/);
+  assert.match(f, /"this year" means 2026-01-01 to today/);
+  assert.match(f, /kept in USD/);
+  assert.match(f, /never cents/);
+});
+
+test('SBX-2 Part 6: January rolls back a year; a financial year starting in April', () => {
+  assert.match(assistantFacts({ today: '2027-01-10' }), /"last month" is December 2026/);
+  assert.match(assistantFacts({ today: '2026-03-05', fiscalYearStartMonth: 4 }), /starts in April: "this year" means 2025-04-01/);
+  assert.match(assistantFacts({ today: '2026-04-01', fiscalYearStartMonth: 4 }), /2026-04-01 to today/);
+  assert.match(assistantFacts({ today: '2026-04-01', currency: 'nope' }), /currency is not set/);
+});
+
+test('SBX-2 Part 6: today follows the workspace time zone; an unknown zone falls back to UTC', () => {
+  const late = new Date('2026-11-22T23:30:00Z');
+  assert.equal(todayIn('Asia/Jerusalem', late), '2026-11-23');
+  assert.equal(todayIn('America/Los_Angeles', late), '2026-11-22');
+  assert.equal(todayIn('Not/AZone', late), '2026-11-22');
+});

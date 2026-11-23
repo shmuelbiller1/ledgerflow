@@ -98,6 +98,8 @@ export interface AssistantTurnInput {
   systemPrompt: string;
   tools: FunctionDeclaration[];
   question: string;
+  /** Facts the application states for this turn (today, currency, financial year), put before the question. */
+  facts?: string;
   /** Runs one read tool. Its result goes back to the model; it is never stored in the metric. */
   callTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
   /**
@@ -133,7 +135,7 @@ export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ ans
   // so a made-up or injected name never reaches callTool or the stored metric.
   const declarations = [...input.tools];
   const offered = new Set(declarations.map(t => String(t.name)));
-  const contents: Content[] = [{ role: 'user', parts: [{ text: input.question }] }];
+  const contents: Content[] = [{ role: 'user', parts: [{ text: input.facts ? `${input.facts}\n\nQuestion: ${input.question}` : input.question }] }];
   const config = { systemInstruction: input.systemPrompt, tools: [{ functionDeclarations: declarations }] };
   let answered: number | undefined;
   let answer = '';
