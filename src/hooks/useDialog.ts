@@ -95,11 +95,13 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () =>
     // Escape with focus outside the dialog (drifted focus, see the note above): the node's own
     // listener never sees that event, so the topmost open dialog answers it here instead.
     const entry: OpenDialog = { node, seq: ++dialogSeq };
-    openDialogs.push(entry);
+    if (modal) openDialogs.push(entry);
+    else node.dataset.nonModalDialog = '';
     const onDocumentKeyDown = (e: KeyboardEvent) => {
       if (!modal || e.key !== 'Escape' || e.defaultPrevented) return;
       if (topmostDialog() !== entry) return;
       if (e.target instanceof Node && node.contains(e.target)) return;
+      if (e.target instanceof Element && e.target.closest('[data-non-modal-dialog]')) return;
       e.stopPropagation();
       closeRef.current();
     };
@@ -110,6 +112,7 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () =>
       document.removeEventListener('keydown', onDocumentKeyDown, true);
       const at = openDialogs.indexOf(entry);
       if (at >= 0) openDialogs.splice(at, 1);
+      if (!modal) delete node.dataset.nonModalDialog;
       if (previous && previous.isConnected) previous.focus();
     };
   }, [open, modal]);
