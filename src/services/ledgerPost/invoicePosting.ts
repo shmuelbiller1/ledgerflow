@@ -199,10 +199,10 @@ export async function postInvoiceLedger(
   // M-21 step 2: the standard each existing sale line was already posted at. Reposting an invoice
   // reverses its old cost-of-goods entries and rebuilds them; a line whose standard has since changed
   // must keep the basis it was posted at, or the repost would reprice it and leave Inventory out of step.
-  const originalStandards = new Map<string, Array<{ standardCostCents: number; quantity: number }>>();
+  const originalStandards = new Map<string, { itemId: string; cohorts: Array<{ standardCostCents: number; quantity: number }> }>();
   for (const tx of existingTxs) {
-    const meta = tx.metadata as { type?: string; cogsForLineId?: string; standardCostCents?: number; quantity?: number; standardQty?: number; standards?: Array<{ standardCostCents?: number; quantity?: number }> } | undefined;
-    if (meta?.type === INVOICE_COGS_TYPE && typeof meta.cogsForLineId === 'string') {
+    const meta = tx.metadata as { type?: string; cogsForLineId?: string; inventoryItemId?: string; standardCostCents?: number; quantity?: number; standardQty?: number; standards?: Array<{ standardCostCents?: number; quantity?: number }> } | undefined;
+    if (meta?.type === INVOICE_COGS_TYPE && typeof meta.cogsForLineId === 'string' && typeof meta.inventoryItemId === 'string') {
       // the accumulated basis of the line, as recorded by its most recent cost-of-goods entry: the
       // cohort list when present, or the single standard the entry posted at (the units it applies to
       // are the split recorded when a later edit added units at the then-current standard)
@@ -212,7 +212,7 @@ export async function postInvoiceLedger(
         : (typeof meta.standardCostCents === 'number'
           ? [{ standardCostCents: meta.standardCostCents, quantity: typeof meta.standardQty === 'number' ? meta.standardQty : Number(meta.quantity) || 0 }]
           : []);
-      if (cohorts.length > 0) originalStandards.set(meta.cogsForLineId, cohorts);
+      if (cohorts.length > 0) originalStandards.set(meta.cogsForLineId, { itemId: meta.inventoryItemId, cohorts });
     }
   }
   const cogs = !shipsGoods ? { entries: [], pendingReason: undefined } : planInvoiceCogs({

@@ -143,6 +143,40 @@ describe('M-21 step 2 bot round 4: a reposted bill keeps its original receipt ba
     assert.equal(inv.length, 1, 'the lines share a label group');
     assert.equal(inv.reduce((s, l) => s + l.amountCents, 0), 11000, 'each line keeps its own 5,000 / 6,000 basis');
   });
+
+  test('a bill keeps its booked receipt basis after standard costing is disabled', async () => {
+    // the bill was received at a 400 standard and the stock sold down; standard costing is then turned
+    // off. Saving the unchanged bill must keep the booked 400 basis (the stock is still carried at it),
+    // not reprice the receipt at the 500 moving average
+    const priorAccrual = {
+      id: 'tx_prior_accrual_off', uid: OWNER, workspaceId: WS, date: '2026-11-01', status: 'completed' as const,
+      description: 'Bill B-R4OFF - Supplier', currency: 'USD', type: 'actual', totalAmountCents: 4000,
+      lines: [],
+      metadata: {
+        billId: 'bill_r4_off', type: BILL_ACCRUAL_TYPE,
+        stockIn: [{ itemId: 'chair', quantity: 10, valueCents: 4000, actualValueCents: 5000, line: 0 }],
+      },
+    } as Transaction;
+    const stock: InventoryItem[] = billItems().map(i => ({ ...i, standardCostCents: 400, unitCostCents: 500 }));
+    const captured: LedgerPostContext['capture'] = [];
+    // the workspace has standard costing off, but the bill has a booked receipt basis
+    const context: LedgerPostContext = {
+      ...contextFor({ enabled: false, varianceAccountId: 'acc_ppv' }, captured, stock),
+      transactions: [priorAccrual],
+    };
+    await postBillLedger('bill_r4_off', {
+      id: 'bill_r4_off', workspaceId: WS, uid: OWNER, number: 'B-R4OFF', vendorId: 'v1', vendorName: 'Supplier',
+      date: '2026-11-10', dueDate: '2026-12-10', status: 'pending' as const, currency: 'USD',
+      amountCents: 5000, splits: [{ amountCents: 5000, accountId: 'acc_inv', description: 'Chair', itemId: 'chair', quantity: 10 }],
+    } as never, WS, OWNER, undefined, context);
+
+    const accrual = captured[0].txs.find(t => t.metadata?.type === BILL_ACCRUAL_TYPE);
+    assert.ok(accrual, 'the bill posted its accrual entry');
+    const lineOf = (id: string) => (accrual!.lines || []).filter(l => l.accountId === id).reduce((s, l) => s + l.amountCents, 0);
+    assert.equal(lineOf('acc_inv'), 4000, 'the receipt posts the booked 400 basis, not the 500 moving average');
+    assert.equal(lineOf('acc_ppv'), 1000, 'the variance is the actual 5,000 − the 4,000 carrying value');
+    assert.equal(entryTotal(accrual!), 0, 'the entry balances');
+  });
 });
 
 describe('M-21 step 2 bot round 4: delivery returns check the current standard', () => {
@@ -171,7 +205,7 @@ describe('M-21 step 2 bot round 4: historical standards cover only the original 
       inventoryAccount: accounts()[5], cogsAccount: accounts()[5],
       items: fx.returnItems().map(i => ({ ...i, standardCostCents: 600 })),
       postAtStandard: true,
-      originalStandards: new Map([['l1', [{ standardCostCents: 400, quantity: 10 }]]]),
+      originalStandards: new Map([['l1', { itemId: 'chair', cohorts: [{ standardCostCents: 400, quantity: 10 }] }]]),
     });
     // fx.invoice() sells 10 units: grow the line to 15 for the added-units case
     const grown = planInvoiceCogs({
@@ -181,7 +215,7 @@ describe('M-21 step 2 bot round 4: historical standards cover only the original 
       inventoryAccount: accounts()[5], cogsAccount: accounts()[5],
       items: fx.returnItems().map(i => ({ ...i, standardCostCents: 600 })),
       postAtStandard: true,
-      originalStandards: new Map([['l1', [{ standardCostCents: 400, quantity: 10 }]]]),
+      originalStandards: new Map([['l1', { itemId: 'chair', cohorts: [{ standardCostCents: 400, quantity: 10 }] }]]),
     });
     assert.equal(grown.entries[0].totalAmountCents, 7000, '10 × 400 + 5 × 600');
     assert.equal(grown.entries[0].metadata.standardCostCents, 400, 'the entry records the historical basis');
@@ -216,16 +250,63 @@ describe('M-21 step 2 bot round 4: historical standards cover only the original 
       inventoryAccount: accounts()[5], cogsAccount: accounts()[5],
       items: fx.returnItems().map(i => ({ ...i, standardCostCents: 800 })),
       postAtStandard: true,
-      originalStandards: new Map([['l1', [
+      originalStandards: new Map([['l1', { itemId: 'chair', cohorts: [
         { standardCostCents: 400, quantity: 10 },
         { standardCostCents: 600, quantity: 5 },
-      ]]]),
+      ] }]]),
     });
     assert.equal(plan.entries[0].totalAmountCents, 7000, '10 × 400 + 5 × 600, nothing repriced at 800');
     assert.deepEqual(plan.entries[0].metadata.standards, [
       { standardCostCents: 400, quantity: 10 },
       { standardCostCents: 600, quantity: 5 },
     ], 'the entry records every cohort for the next repost');
+  });
+
+  test('the cohort list records the units priced at the current standard too', () => {
+    // a line amended from 10 to 15 units across a standard change records the full basis: the historical
+    // cohort plus the cohort the 5 added units were just priced at, so the next repost does not reprice
+    // them at the latest standard
+    const plan = planInvoiceCogs({
+      invoiceId: 'inv_cohort', invoice: { ...fx.invoice(), items: [{ ...fx.invoice().items![0], quantity: 15 }] },
+      date: '2026-11-01', uid: OWNER, workspaceId: WS, baseCurrency: 'USD',
+      inventoryAccount: accounts()[5], cogsAccount: accounts()[5],
+      items: fx.returnItems().map(i => ({ ...i, standardCostCents: 600 })),
+      postAtStandard: true,
+      originalStandards: new Map([['l1', { itemId: 'chair', cohorts: [{ standardCostCents: 400, quantity: 10 }] }]]),
+    });
+    assert.equal(plan.entries[0].totalAmountCents, 7000, '10 × 400 + 5 × 600');
+    assert.deepEqual(plan.entries[0].metadata.standards, [
+      { standardCostCents: 400, quantity: 10 },
+      { standardCostCents: 600, quantity: 5 },
+    ], 'the entry records the historical cohort and the current-standard cohort');
+    // the next repost, built from the first entry's metadata, keeps both cohorts
+    const repost = planInvoiceCogs({
+      invoiceId: 'inv_cohort', invoice: { ...fx.invoice(), items: [{ ...fx.invoice().items![0], quantity: 15 }] },
+      date: '2026-11-01', uid: OWNER, workspaceId: WS, baseCurrency: 'USD',
+      inventoryAccount: accounts()[5], cogsAccount: accounts()[5],
+      items: fx.returnItems().map(i => ({ ...i, standardCostCents: 800 })),
+      postAtStandard: true,
+      originalStandards: new Map([['l1', {
+        itemId: plan.entries[0].metadata.inventoryItemId as string,
+        cohorts: plan.entries[0].metadata.standards as Array<{ standardCostCents: number; quantity: number }>,
+      }]]),
+    });
+    assert.equal(repost.entries[0].totalAmountCents, 7000, 'still 10 × 400 + 5 × 600, nothing at 800');
+  });
+
+  test('a line re-pointed at a different item does not reuse the historical cost cohorts', () => {
+    // the line id and the recorded basis exist, but the item changed: the cohorts belong to the old
+    // item and must not carry over to the replacement item's sale
+    const plan = planInvoiceCogs({
+      invoiceId: 'inv_replaced', invoice: fx.invoice(), date: '2026-11-01', uid: OWNER, workspaceId: WS,
+      baseCurrency: 'USD',
+      inventoryAccount: accounts()[5], cogsAccount: accounts()[5],
+      items: fx.returnItems().map(i => ({ ...i, standardCostCents: 600 })),
+      postAtStandard: true,
+      originalStandards: new Map([['l1', { itemId: 'table', cohorts: [{ standardCostCents: 400, quantity: 10 }] }]]),
+    });
+    assert.equal(plan.entries[0].totalAmountCents, 6000, "10 × the item's 600 standard, not the other item's 400");
+    assert.equal(plan.entries[0].metadata.standardCostCents, 600);
   });
 
   test('a sale keeps its recorded standard basis after standard costing is disabled', () => {
@@ -237,7 +318,7 @@ describe('M-21 step 2 bot round 4: historical standards cover only the original 
       inventoryAccount: accounts()[5], cogsAccount: accounts()[5],
       items: fx.returnItems().map(i => ({ ...i, unitCostCents: 500 })),
       postAtStandard: false,
-      originalStandards: new Map([['l1', [{ standardCostCents: 400, quantity: 10 }]]]),
+      originalStandards: new Map([['l1', { itemId: 'chair', cohorts: [{ standardCostCents: 400, quantity: 10 }] }]]),
     });
     assert.equal(plan.entries[0].totalAmountCents, 4000, 'the recorded 400 basis, not the 500 moving average');
     assert.equal(plan.entries[0].metadata.standardCostCents, 400);

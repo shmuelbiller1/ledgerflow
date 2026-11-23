@@ -43,6 +43,18 @@ describe('The calculation', () => {
     assert.equal(items[0].moves[0].transactionId, 't-sale');
     assert.deepEqual(purchasesByItem(items), [{ itemId: 'i1', itemName: 'Chair', quantity: 5, valueCents: 6000, averageCents: 1200 }], 'J-08: what was bought, per item');
   });
+
+  test('a standard-cost purchase summarizes at its actual cost', () => {
+    // under standard-cost posting a receipt's move carries the standard value plus the actual cost;
+    // the purchases total must be the actual cost, not the standard carrying value
+    const moves = [
+      move('i1', '001', '2026-01-05', 'opening', 10, 0, 10000),
+      move('i1', '002', '2026-02-10', 'purchase', 10, 0, 4000, { actualValueCents: 5000 }),
+    ];
+    const items = itemDetails(moves, '2026-02-01', '2026-02-28');
+    assert.equal(items[0].moves[0].actualValueCents, 5000, 'the move carries its actual cost beside the standard value');
+    assert.deepEqual(purchasesByItem(items), [{ itemId: 'i1', itemName: 'Chair', quantity: 10, valueCents: 5000, averageCents: 500 }], 'the purchases summary uses the actual cost (500 per unit), not the 400 standard');
+  });
 });
 
 describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'LF_TEST_DATABASE_URL not set' }, () => {

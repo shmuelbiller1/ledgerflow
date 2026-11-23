@@ -64,9 +64,10 @@ export interface InvoiceCogsInput {
   /** M-21 step 2: the workspace posts at standard, so the cost of goods relieves stock at the item's standard */
   postAtStandard?: boolean;
   /** M-21 step 2: the historical basis each existing sale line was already posted at (lineId → the
-   * cohorts of standard-and-quantity, oldest first), so an edit/repost of an unchanged sale line keeps
-   * its original carrying basis instead of repricing it at the item's current standard */
-  originalStandards?: Map<string, Array<{ standardCostCents: number; quantity: number }>>;
+   * item it was posted for plus the cohorts of standard-and-quantity, oldest first), so an edit/repost
+   * of an unchanged sale line keeps its original carrying basis instead of repricing it at the item's
+   * current standard — and a line re-pointed at a different item does not inherit that basis */
+  originalStandards?: Map<string, { itemId: string; cohorts: Array<{ standardCostCents: number; quantity: number }> }>;
 }
 
 /**
@@ -88,7 +89,10 @@ export function planInvoiceCogs(input: InvoiceCogsInput): InvoiceCogsPlan {
     // valued at its own standard (consumed oldest first), and only units a later edit added are valued
     // at the item's current standard — so amending a sale after a standard change does not reprice the
     // units it was already posted for, and a second amendment keeps the basis of the first as well.
-    const cohorts = input.originalStandards?.get(line.id);
+    const recordedEntry = input.originalStandards?.get(line.id);
+    // the recorded basis is only the line's own: a line whose item was replaced keeps the new item's
+    // basis and never inherits the previous item's carrying value
+    const cohorts = recordedEntry && recordedEntry.itemId === line.itemId ? recordedEntry.cohorts : undefined;
     let remaining = quantity;
     let historicalCost = 0;
     const atHistoricalCohorts: Array<{ standardCostCents: number; quantity: number }> = [];
@@ -112,8 +116,13 @@ export function planInvoiceCogs(input: InvoiceCogsInput): InvoiceCogsPlan {
     if (atHistorical <= 0 && (!Number.isFinite(currentUnitCost) || currentUnitCost <= 0)) return [];
     // a recorded basis only exists for lines that already had a cost-of-goods entry; a fresh sale has
     // no historical basis, and its whole quantity is at the current standard (no cohort markers)
-    const hasHistoricalBasis = cohorts !== undefined && cohorts.length > 0;
-    return [{ line, itemId: line.itemId, lineId: line.id, quantity, costCents, atHistorical, hasHistoricalBasis, cohorts: atHistoricalCohorts, standard: standard !== null, standardCost: standard }];
+    const hasHistoricalBasis = recordedEntry !== undefined && cohorts !== undefined && cohorts.length > 0;
+    // the cohorts the entry records are the whole basis the next repost sees: the historical ones plus
+    // the cohort the units added by this posting were just priced at (the current standard)
+    const recordedCohorts = atCurrent > 0 && currentBasis !== null
+      ? [...atHistoricalCohorts, { standardCostCents: currentBasis, quantity: atCurrent }]
+      : atHistoricalCohorts;
+    return [{ line, itemId: line.itemId, lineId: line.id, quantity, costCents, atHistorical, hasHistoricalBasis, cohorts: recordedCohorts, standard: standard !== null, standardCost: standard }];
   }).filter(c => c.costCents > 0);
 
   if (costed.length === 0) return { entries: [] };

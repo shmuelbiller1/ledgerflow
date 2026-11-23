@@ -129,8 +129,12 @@ export async function postBillLedger(
   // M-21 step 2: a workspace posting at standard receives the items at their standard cost. The lines below
   // post Inventory at quantity × standard and the difference (actual − standard) to the variance account;
   // without the setting, the receipt posts exactly as before (the moving average, no variance line).
-  const standardPlan = currentWs?.standardCosting?.enabled && stockIn.length
-    ? planStandardReceipt(stockIn, await loadInventory(billData, context), true, originalReceipt)
+  // M-21 step 2: the plan is also applied when the workspace is no longer posting at standard but the
+  // bill has a booked receipt basis — the repost must keep the value the stock was already carried at,
+  // or the reversal/replacement pair moves Inventory with no quantity movement
+  const standardizing = Boolean(currentWs?.standardCosting?.enabled);
+  const standardPlan = (standardizing || originalReceipt.size > 0) && stockIn.length
+    ? planStandardReceipt(stockIn, await loadInventory(billData, context), standardizing, originalReceipt)
     : null;
   const stockInLines = standardPlan?.entries ?? stockIn;
 

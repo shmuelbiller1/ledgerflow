@@ -81,7 +81,9 @@ export function planStandardReceipt(
    */
   originalReceipt?: Map<string | number, { itemId: string; quantity: number; valueCents: number }>
 ): StandardReceiptPlan | null {
-  if (!standardizing) return null;
+  // the plan is the receipt's carrying basis; without the setting it is only in play to preserve the
+  // basis a booked receipt used (an item's standard can legally change once its stock sold down to zero)
+  if (!standardizing && (!originalReceipt || originalReceipt.size === 0)) return null;
   const byId = new Map(items.map(i => [i.id, i]));
   const entries = stockIn.map(line => {
     // the original receipt's row for this bill line (keyed by the line's index, so repeated items on
@@ -99,9 +101,13 @@ export function planStandardReceipt(
       const currentStandard = validStandardCost(byId.get(line.itemId)?.standardCostCents);
       const extraBasis = extra > 0 ? (currentStandard ?? originalUnit) : 0;
       standardValueCents = Math.round(atOriginal * originalUnit) + Math.round(extra * extraBasis);
-    } else {
+    } else if (standardizing) {
       const standard = validStandardCost(byId.get(line.itemId)?.standardCostCents);
       standardValueCents = standard !== null && line.quantity > 0 ? Math.round(line.quantity * standard) : line.valueCents;
+    } else {
+      // the workspace is not posting at standard: a line the original receipt has no basis for posts at
+      // its actual value (the plan is only in play here to preserve the booked basis of the old receipt)
+      standardValueCents = line.valueCents;
     }
     return {
       ...line,
