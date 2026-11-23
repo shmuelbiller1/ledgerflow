@@ -2,7 +2,7 @@ import type { Firestore } from '../db/firestore';
 import type { SettlementEvent } from '../../lib/aging';
 import { convertMinorUnits } from '../../lib/currencyMinorUnits';
 
-interface LedgerRow { documentId?: unknown; documentType?: unknown; date?: unknown; baseClearedCents?: unknown; kind?: unknown; sourceId?: unknown }
+interface LedgerRow { documentId?: unknown; documentType?: unknown; date?: unknown; amountCents?: unknown; baseClearedCents?: unknown; kind?: unknown; sourceType?: unknown; sourceId?: unknown }
 interface PaymentRecord {
   id: string; status?: unknown; paymentDate?: unknown; date?: unknown; voidDate?: unknown; voidedAt?: unknown;
   currency?: unknown; exchangeRate?: unknown;
@@ -17,7 +17,9 @@ interface PaymentRecord {
  * recorded before that has no ledger row, but its record still says what it settled and when, so it is
  * turned into dated events here: each allocation on the payment date (in base cents, at the payment's
  * rate and minor-unit scale), and — when the payment was voided — the same amounts reversed on the void
- * date. A payment that has ledger rows (its id is a row's sourceId) is never counted twice.
+ * date. What the ledger already holds is never counted twice, and is matched per payment AND document by
+ * amount: a pre-ledger payment whose leftover was later applied through the ledger (one row for that
+ * payment, possibly on the same document) keeps a dated event for the part the ledger does not hold.
  */
 export function agingSettlementEvents(
   ledgerRows: LedgerRow[],
@@ -26,9 +28,16 @@ export function agingSettlementEvents(
   baseCurrency: string,
 ): SettlementEvent[] {
   const events: SettlementEvent[] = [];
-  const inLedger = new Set<string>();
+  // the document-currency amount each payment has settled on each document through the ledger (its
+  // settlements, not their reversals: a voided ledger row still accounts for that part of the payment)
+  const inLedger = new Map<string, number>();
+  const pair = (paymentId: string, documentId: string) => `${paymentId}|${documentId}`;
   for (const r of ledgerRows) {
-    if (typeof r.sourceId === 'string' && r.sourceId) inLedger.add(r.sourceId);
+    const fromPayment = r.sourceType === undefined || r.sourceType === 'payment';
+    if (fromPayment && typeof r.sourceId === 'string' && r.sourceId && r.documentType === documentType && r.kind !== 'reversal') {
+      const amount = Number(r.amountCents) || 0;
+      if (amount > 0) inLedger.set(pair(r.sourceId, String(r.documentId)), (inLedger.get(pair(r.sourceId, String(r.documentId))) ?? 0) + amount);
+    }
     if (r.documentType !== documentType || typeof r.date !== 'string') continue;
     events.push({
       documentId: String(r.documentId), documentType, date: r.date,
@@ -38,19 +47,25 @@ export function agingSettlementEvents(
     });
   }
   for (const p of payments) {
-    if (inLedger.has(p.id)) continue;
     const paidOn = String(p.paymentDate || p.date || '').slice(0, 10);
     if (!paidOn) continue;
     const rate = typeof p.exchangeRate === 'number' && p.exchangeRate > 0 ? p.exchangeRate : 1;
     const currency = typeof p.currency === 'string' && p.currency ? p.currency : baseCurrency;
     const voided = p.status === 'void';
     const voidOn = String(p.voidDate || p.voidedAt || '').slice(0, 10) || paidOn;
+    // the payment's allocations, per document, less what the ledger holds of them
+    const legacy = new Map<string, number>();
     for (const a of Array.isArray(p.allocations) ? p.allocations : []) {
       const cents = Number(a.amountCents) || 0;
       if (a.documentType !== documentType || typeof a.documentId !== 'string' || cents <= 0) continue;
+      legacy.set(a.documentId, (legacy.get(a.documentId) ?? 0) + cents);
+    }
+    for (const [documentId, allocated] of legacy) {
+      const cents = allocated - (inLedger.get(pair(p.id, documentId)) ?? 0);
+      if (cents <= 0) continue;
       const base = convertMinorUnits(cents, rate, currency, baseCurrency);
-      events.push({ documentId: a.documentId, documentType, date: paidOn, amountCents: base, kind: 'payment' });
-      if (voided) events.push({ documentId: a.documentId, documentType, date: voidOn, amountCents: -base, kind: 'reversal' });
+      events.push({ documentId, documentType, date: paidOn, amountCents: base, kind: 'payment' });
+      if (voided) events.push({ documentId, documentType, date: voidOn, amountCents: -base, kind: 'reversal' });
     }
   }
   return events;
