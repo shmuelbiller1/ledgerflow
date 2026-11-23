@@ -61,7 +61,7 @@ test('a skipped recurring invoice generation burns no invoice number', { skip: !
     const third = await processRecurring(db, '2026-06-10');
     assert.equal(third.processedCount, 1, JSON.stringify(third));
     const all = (await db.collection('invoices').where('workspaceId', '==', ws).get()).docs.map(d => d.data());
-    assert.deepEqual(all.map(i => i.number).sort(), [firstNumber, firstNumber.replace('0001', '0002')].sort(), 'the numbers stay sequential with no gap');
+    assert.deepEqual(all.map(i => i.number).sort((a, b) => a.localeCompare(b)), [firstNumber, firstNumber.replace('0001', '0002')].sort((a, b) => a.localeCompare(b)), 'the numbers stay sequential with no gap');
 
     console.log(JSON.stringify({ firstNumber, skippedBurned: series.nextNumber, invoices: all.map(i => i.number) }));
   } finally {

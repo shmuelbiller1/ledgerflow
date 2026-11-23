@@ -18,7 +18,7 @@ const url = process.env.LF_TEST_DATABASE_URL;
 const valid = !!url && new URL(url).hostname === '127.0.0.1' && new URL(url).port === '55439' && new URL(url).pathname === '/lf_test';
 
 describe('audit GC-03 follow-ups: linked, per-buyer intercompany eliminations', { skip: !valid && 'dedicated local audit database required' }, () => {
-  const setup = async (tag: string, extra: (j: (ws: string, id: string, date: string, debit: string, credit: string, cents: number, metadata?: Record<string, unknown>) => Promise<void>, parent: string, sub: string) => Promise<void>) => {
+  const setup = async (tag: string, extra: (j: (ws: string, id: string, date: string, debit: string, credit: string, cents: number, metadata?: Record<string, unknown>) => Promise<void>, parent: string, sub: string) => Promise<void>, fx?: { parentCurrency: string; purchaseCents: number; query: string }) => {
     process.env.DATABASE_URL = url;
     const express = (await import('express')).default;
     const { getDb } = await import('../server/db/firestore');
@@ -44,7 +44,7 @@ describe('audit GC-03 follow-ups: linked, per-buyer intercompany eliminations', 
     };
     try {
       for (const ws of [parent, sub]) {
-        await db.collection('workspaces').doc(ws).set({ uid, members: [uid], name: ws, currency: 'USD' });
+        await db.collection('workspaces').doc(ws).set({ uid, members: [uid], name: ws, currency: ws === parent && fx ? fx.parentCurrency : 'USD' });
         for (const [name, type] of [['cash', 'asset'], ['inventory', 'asset'], ['capital', 'equity'], ['sales', 'income'], ['cogs', 'cost_of_goods'], ['investment', 'asset']]) {
           await db.collection('chartAccounts').doc(`${ws}_${name}`).set({ workspaceId: ws, name, type, code: name, ...(name === 'cash' ? { category: 'Cash' } : {}) });
         }
@@ -57,7 +57,7 @@ describe('audit GC-03 follow-ups: linked, per-buyer intercompany eliminations', 
       await j(parent, 'buy', '2025-02-01', 'investment', 'cash', 10000);
       await j(sub, 'sale', '2026-03-01', 'cash', 'sales', 15000, { isIntercompany: true, targetWorkspaceId: parent, targetTxId: `${parent}_purchase` });
       await j(sub, 'cost', '2026-03-01', 'cogs', 'inventory', 10000);
-      await j(parent, 'purchase', '2026-03-01', 'inventory', 'cash', 15000, { isIntercompany: true, sourceWorkspaceId: sub, sourceTxId: `${sub}_sale` });
+      await j(parent, 'purchase', '2026-03-01', 'inventory', 'cash', fx ? fx.purchaseCents : 15000, { isIntercompany: true, sourceWorkspaceId: sub, sourceTxId: `${sub}_sale` });
       await extra(j, parent, sub);
       const call = async (path: string, body?: unknown) => {
         const res = await fetch(`${base}${path}`, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
@@ -66,7 +66,7 @@ describe('audit GC-03 follow-ups: linked, per-buyer intercompany eliminations', 
         return data;
       };
       const group = await call('/api/v1/account/groups', { name: 'Synthetic stock group', workspaceIds: [parent, sub], parentId: parent, ownership: { [sub]: 100 }, investments: { [sub]: `${parent}_investment` }, acquired: { [sub]: '2025-02-01' } });
-      const report = await call(`/api/v1/reports/group-summary?groupId=${group.group.id}&startDate=2026-01-01&endDate=2026-12-31`);
+      const report = await call(`/api/v1/reports/group-summary?groupId=${group.group.id}&startDate=2026-01-01&endDate=2026-12-31${fx ? fx.query : ''}`);
       return report.total;
     } finally {
       await cleanup();
@@ -95,5 +95,17 @@ describe('audit GC-03 follow-ups: linked, per-buyer intercompany eliminations', 
     console.log(JSON.stringify({ income: t.income, cogs: t.cogs, netIncome: t.netIncome, assets: t.totalAssets, eliminated: t.eliminated }));
     assert.equal(t.eliminated.unrealizedProfit, 5000, `the parent still holds all it bought: ${JSON.stringify(t.eliminated)}`);
     assert.deepEqual([t.income, t.cogs, t.netIncome], [8000, 6000, 2000], `only the external sale is the group's: ${JSON.stringify(t)}`);
+  });
+
+  test('a buyer keeping other books than the seller: the goods part is taken in one currency', async () => {
+    // Codex on #1013: a USD 150 sale costing USD 100, booked by a EUR parent as EUR 135 of inventory
+    // (0.9 EUR per USD). All the goods are unsold, so all $50 of the profit is unrealized — dividing
+    // EUR 135 by USD 150 directly would call only 90% of the sale goods and leave $5 in the total.
+    const rate = 1 / 0.9;
+    const rates = encodeURIComponent(JSON.stringify({ EUR: { closing: rate, average: rate, historical: rate } }));
+    const t = await setup(crypto.randomBytes(5).toString('hex'), async () => {}, { parentCurrency: 'EUR', purchaseCents: 13500, query: `&reportCurrency=USD&rates=${rates}` });
+    console.log(JSON.stringify({ income: t.income, cogs: t.cogs, netIncome: t.netIncome, eliminated: t.eliminated }));
+    assert.equal(t.eliminated.unrealizedProfit, 5000, `the whole $50 is unrealized: ${JSON.stringify(t.eliminated)}`);
+    assert.equal(t.cogs, 0, `no negative cost of goods is left behind: ${JSON.stringify(t)}`);
   });
 });

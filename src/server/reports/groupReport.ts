@@ -470,7 +470,12 @@ export async function groupSummary(db: Firestore, input: { uid: string; groupId:
       const profit = added.reduce((sum, seller) => sum + seller.icSales
         .filter(x => x.buyer === buyer.workspaceId && counts(x.date) && (inventoryOf.get(x.pairId) || 0) > 0)
         .reduce((ss, x) => {
-          const goodsPart = Math.min(1, (inventoryOf.get(x.pairId) || 0) / x.incomeCents);
+          // the buyer's inventory is in its own currency and minor units, the seller's income in the
+          // seller's: both are translated to the report's at the same (average) rate before dividing,
+          // so the goods part is a true fraction whatever currencies the two companies keep
+          const inventoryReport = toReport(buyer, inventoryOf.get(x.pairId) || 0, 'average');
+          const incomeReport = toReport(seller, x.incomeCents, 'average');
+          const goodsPart = incomeReport > 0 ? Math.min(1, inventoryReport / incomeReport) : 0;
           return ss + toReport(seller, Math.round((x.incomeCents - x.cogsCents) * goodsPart), 'average');
         }, 0), 0);
       total += Math.round(profit * held);

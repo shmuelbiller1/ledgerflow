@@ -166,7 +166,7 @@ export function cashBasisEntries(accounts: ChartAccount[], transactions: Transac
     }
     for (const [key, dates] of appsByDoc) {
       const indexes = allocations.map((x, i) => (docKey(x) === key ? i : -1)).filter(i => i >= 0);
-      const sorted = [...dates].sort();
+      const sorted = [...dates].sort((a, b) => a.localeCompare(b));
       const tail = indexes.slice(Math.max(0, indexes.length - sorted.length));
       const offset = sorted.length - tail.length;
       tail.forEach((allocationIndex, n) => applicationDateOf.set(allocationIndex, sorted[offset + n]));
