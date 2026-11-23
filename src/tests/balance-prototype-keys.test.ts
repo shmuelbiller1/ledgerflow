@@ -106,9 +106,9 @@ test('year-end snapshot and live replay equal a full recompute, including new la
   ]));
   const saved = snapshotFromEntries('ws-1', '2025-12-31', accounts, [old], 'tester');
   assert.ok(own(saved.byLabel, 'constructor'));
-  assert.ok(own(saved.byLabel.constructor, '__proto__'));
-  assert.equal(saved.byLabel.constructor['__proto__']['__proto__'], 125);
-  assert.equal(saved.labelLines.constructor['__proto__'], 2);
+  assert.ok(own(saved.byLabel['constructor'], '__proto__'));
+  assert.equal(saved.byLabel['constructor']['__proto__']['__proto__'], 125);
+  assert.equal(saved.labelLines?.['constructor']['__proto__'], 2);
   assert.ok(labelKinds([recent]).has('__proto__'));
   const dbSnapshot = fakeDb([old, recent], [asJson(saved)]);
   const dbRecompute = fakeDb([old, recent], []);
@@ -124,7 +124,7 @@ test('year-end snapshot and live replay equal a full recompute, including new la
     assert.equal(fromSnapshot.accounts['__proto__'], 125);
     assert.equal(fromSnapshot.accounts.prototype, 275);
     assert.equal(fromSnapshot.accounts.cash, -400);
-    assert.equal(fromSnapshot.byLabel?.project?.constructor?.['__proto__'], 125);
+    assert.equal(fromSnapshot.byLabel?.project?.['constructor']?.['__proto__'], 125);
     assert.equal(fromSnapshot.byLabel?.project?.['__proto__']?.prototype, 275);
     assert.equal(fromSnapshot.byLabel?.['__proto__']?.Unassigned?.['__proto__'], 125);
     assert.equal(fromSnapshot.byLabel?.['__proto__']?.prototype?.prototype, 275);
