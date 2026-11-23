@@ -188,10 +188,18 @@ export function bookTool(name: string, args: Record<string, unknown>): unknown {
       // like the real reader: a named account is answered for that account; otherwise the figure the
       // question names; a question it cannot read unambiguously is refused, never answered with another figure
       const q = s(args.question).toLowerCase();
-      const month = /last month/.test(q) ? lastMonth : /this month/.test(q) ? thisMonth : null;
+      // periods the way the real reader (src/lib/askBooks.ts) reads them: last/this month, or a named month
+      const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+      const namedMonths = [...q.matchAll(new RegExp(`\\b(${MONTHS.join('|')}) (\\d{4})\\b`, 'g'))].map(m => `${m[2]}-${String(MONTHS.indexOf(m[1]) + 1).padStart(2, '0')}`);
+      const months = [...new Set([...(/\blast month\b/.test(q) ? [lastMonth] : []), ...(/\bthis month\b/.test(q) ? [thisMonth] : []), ...namedMonths])];
+      // two periods in one question (a comparison) is not one figure: refused, as the real reader does
+      if (months.length > 1) return { problem: 'This reads as two periods; ask for one period at a time, or run the report for each', answer: null };
+      const month = months[0] ?? null;
       const pl = month ? profitAndLoss(month, month) : profitAndLoss('2026-01', thisMonth);
       const period = month ?? 'this year';
-      const named = accounts.filter(a => q.includes(a.name.toLowerCase()));
+      // whole words only ("current" is not the Rent account), and never an account the question excludes
+      const excluded = (name: string) => new RegExp(`\\b(excluding|except|not|without|other than)\\b[^.?]*\\b${name}\\b`).test(q);
+      const named = accounts.filter(a => new RegExp(`\\b${a.name.toLowerCase()}\\b`).test(q) && !excluded(a.name.toLowerCase()));
       if (named.length) {
         const figures: Record<string, number> = { ...pl.revenue, ...pl.expenses, Cash: balances.acc_cash, Bank: balances.acc_bank };
         const lines = named.map(a => ({ accountId: a.id, account: a.name, cents: figures[a.name] ?? 0 }));

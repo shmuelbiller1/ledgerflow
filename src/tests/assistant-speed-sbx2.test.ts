@@ -65,6 +65,8 @@ describe('Part 5: about 25 tools by the question’s area, and find_command for 
     const hits = (words: string) => findAssistantCommands(owners, words, 8).map(hit => hit.command);
     assert.ok(hits('assign or move transactions expenses office costs to project; reclassify project dimension').includes('journal.batchupdate'), 'labels and dimensions on many entries');
     assert.ok(hits('create recurring monthly invoice recurring invoice schedule').includes('record.save'), 'a recurring rule is an ordinary record');
+    // a real Luna search (23 Nov 04:28) that ranked warranty.update first: "set up" and "customer" say nothing about the command
+    assert.equal(hits('set up monthly recurring invoice for customer')[0], 'record.save');
     assert.deepEqual(hits('zebra unicorn'), []);
   });
 

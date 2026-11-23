@@ -201,3 +201,15 @@ test('SBX-2 Part 6 model test: a polite request with a list counts as asking (re
   // a later statement announcing a guess does not supply the detail the request asked for
   assert.ok(!byId('bill').check({ answer: 'Please confirm the supplier. I will use the current date.', calls: [] }).pass);
 });
+
+test('SBX-2 Part 6: the test books read questions like the real reader (whole words, named months, exclusions)', () => {
+  const ask = (question: string) => bookTool('ask_books', { question }) as { answer: { lines?: Array<{ account: string; cents: number }> } | null; problem?: string; understood?: { period: string } };
+  // "October 2026" is that month, and "excluding rent" leaves Rent out (a real Luna question returned the year's office costs plus Rent)
+  const october = ask('For October 1–31, 2026, what are the office costs, excluding rent? October 2026 only.');
+  assert.equal(october.understood?.period, '2026-10');
+  assert.deepEqual(october.answer?.lines?.map(l => [l.account, l.cents]), [['Office costs', 180000]]);
+  // "current" is not the Rent account
+  assert.deepEqual(ask('What is the current cash on hand?').answer?.lines?.map(l => l.account), ['Cash']);
+  // two periods in one question are refused, not answered with one of them
+  assert.ok(ask('Compare profit for October 2026 and November 2026').problem);
+});

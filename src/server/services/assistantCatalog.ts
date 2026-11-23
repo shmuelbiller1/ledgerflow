@@ -107,7 +107,7 @@ export function assistantToolsFor(commands: readonly AnyCommandDefinition[], que
 
 const wordsIn = (text: string): string[] => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 // Ignore common connectors, not domain words.
-const filler = new Set(['a', 'an', 'the', 'to', 'for', 'of', 'with', 'and', 'or', 'in', 'on', 'how', 'i', 'can', 'all', 'my', 'from', 'into', 'new']);
+const filler = new Set(['a', 'an', 'the', 'to', 'for', 'of', 'with', 'and', 'or', 'in', 'on', 'how', 'i', 'can', 'all', 'my', 'from', 'into', 'new', 'set', 'up', 'please', 'customer', 'existing']);
 /** Words people and models use for the same change as a command's own name. */
 const synonyms: Record<string, string[]> = {
   move: ['recategorize', 'change'], reclassify: ['recategorize', 'change'], reassign: ['change'], assign: ['change'],
@@ -119,7 +119,7 @@ const synonyms: Record<string, string[]> = {
 /**
  * Commands whose name and description match every search word, best first. Models write long searches
  * ("assign or move office costs to project; reclassify"), so when nothing matches every word of a search
- * of four words or more, commands matching at least half of them (or three) are ranked instead;
+ * of three words or more, commands matching at least half of them (or three) are ranked instead;
  * `strict` turns that fallback off (the model rule reads a command's risk from the closest exact match).
  */
 export function findAssistantCommands(commands: readonly AnyCommandDefinition[], words: string, limit = 5, options: { strict?: boolean } = {}) {
@@ -140,7 +140,7 @@ export function findAssistantCommands(commands: readonly AnyCommandDefinition[],
   });
   const rank = (hits: typeof scored) => hits.sort((a, b) => b.matched - a.matched || b.score - a.score || byCodeUnit(a.command.name, b.command.name));
   const exact = scored.filter(hit => hit.matched === terms.length);
-  const loose = !exact.length && !options.strict && terms.length >= 4
+  const loose = !exact.length && !options.strict && terms.length >= 3
     ? scored.filter(hit => hit.matched >= Math.min(3, Math.ceil(terms.length / 2))) : [];
   return rank(exact.length ? exact : loose)
     .slice(0, limit).map(({ command }) => ({ command: command.name, tool: declaration(command) }));
