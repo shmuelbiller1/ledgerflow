@@ -308,7 +308,6 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
         throw new Error(`Document ${alloc.documentId} not found`);
       }
 
-      // PM-03: cancelled/rejected docs carry no accrual.
       if (docData.status === 'void' || docData.status === 'draft' || docData.status === 'cancelled' || docData.status === 'rejected') throw new Error(`Cannot record a payment against a ${docData.status} document`);
       if (!seenDocumentType) seenDocumentType = alloc.documentType;
       assertPaymentAllocation({ seenDocumentType, customerId, vendorId, documentType: alloc.documentType, docCustomerId: docData.customerId as string, docVendorId: docData.vendorId as string });
@@ -529,7 +528,6 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
           amountCents: -withheld,
           description: `Tax withheld at source for Payment ${paymentId}`
         }] : []),
-        // (no line when all waits as deposit/prepayment); PM-04: one line per cleared control account.
         ...buildOffsetLines({ isReceipt, paymentId, offsetAccountId: resolvedOffsetAccountId, offsetBaseCents, hasAdvance: !!advance, retainageSplits, retainageAccounts, rateOn, bookedRate }),
         ...(advance && advanceBaseCents > 0 ? [{
           accountId: advance.id,
