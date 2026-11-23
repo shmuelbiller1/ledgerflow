@@ -11,7 +11,8 @@ interface ModuleSubNavProps {
 
 export default function ModuleSubNav({ activeTab, onTabChange }: ModuleSubNavProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  useAuthStore(s => s.user);
+  const user = useAuthStore(s => s.user);
+  const isGuest = useAuthStore(s => s.isGuest);
   useAuthStore(s => s.userProfile);
   const isOwner = useAuthStore(s => s.isAdmin);
   const isProMode = useUIStore(s => s.isProMode);
@@ -42,7 +43,8 @@ export default function ModuleSubNav({ activeTab, onTabChange }: ModuleSubNavPro
   const currentTabDef = APP_TABS.find(t => t.id === activeTab);
   if (!currentTabDef || !currentTabDef.groupId) return null;
   
-  const groupTabs = APP_TABS.filter(t => t.groupId === currentTabDef.groupId && (isTabVisible(t, { isOwner, isProMode, developerMode, modules, businessType }) || (t.id === activeTab && isTabVisible(t, { isOwner, isProMode, developerMode, modules, showAll: true }))));
+  // The assistant's sandbox requires a signed-in person; keep its active page visible when opened from All tools.
+  const groupTabs = APP_TABS.filter(t => t.groupId === currentTabDef.groupId && (t.id !== 'copilot' || t.id === activeTab || (!isGuest && user && !user.isAnonymous)) && (isTabVisible(t, { isOwner, isProMode, developerMode, modules, businessType }) || (t.id === activeTab && isTabVisible(t, { isOwner, isProMode, developerMode, modules, showAll: true }))));
   
   if (groupTabs.length <= 1) return null;
 

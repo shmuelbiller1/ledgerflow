@@ -33,6 +33,40 @@ const HIDDEN_KEY = /(secret|token|hash|password|passcode|otp|apikey|signature|pa
 /** The text fields `search_records` matches, in the order they are shown. */
 const SEARCH_FIELDS = ['name', 'number', 'invoiceNumber', 'billNumber', 'reference', 'description', 'memo', 'notes', 'email', 'title', 'customerName', 'vendorName', 'entityName', 'payee', 'sku', 'code'];
 
+// A deliberately small scalar projection for the live, read-only assistant. It is not a
+// general-purpose field-level permission system. Unknown/custom fields and nested objects never
+// reach the model; add fields only after reviewing their meaning for every admitted collection.
+const LIVE_RECORD_FIELDS = new Set([
+  'id', 'name', 'number', 'invoiceNumber', 'billNumber', 'sku', 'code', 'status', 'type', 'category',
+  'customerName', 'vendorName', 'currency', 'date', 'issueDate', 'dueDate', 'createdAt',
+  'amountCents', 'balanceCents', 'totalAmountCents', 'taxAmountCents', 'writtenOffCents', 'quantity',
+]);
+const LIVE_SEARCH_FIELDS = SEARCH_FIELDS.filter(field => LIVE_RECORD_FIELDS.has(field));
+const LIVE_SENSITIVE_KEY = /^(?:bankdetails|bankrouting|bankaccount|bankaccountnumber|routingcode|routingnumber|accountnumber|iban|swift|swiftcode|bic|taxid|taxnumber|vatnumber|ein|businessnumber|contacttaxid|salarycents|hourlyratecents|pretaxdeductionscents|deductions)$/i;
+const isLiveSensitive = (key: string) => HIDDEN_KEY.test(key) || LIVE_SENSITIVE_KEY.test(key.replace(/[^a-z0-9]/gi, ''));
+
+/** Extra best-effort protection for report responses; arbitrary user-authored text is not classified. */
+export function redactLiveReport(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactLiveReport);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .filter(([key]) => !isLiveSensitive(key)).map(([key, inner]) => [key, redactLiveReport(inner)]));
+  return value;
+}
+
+type ReadPolicy = 'sandbox' | 'live-assistant';
+function liveScalar(value: unknown): boolean {
+  return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
+function liveRecord(record: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(record).filter(([key, value]) => LIVE_RECORD_FIELDS.has(key) && liveScalar(value)));
+}
+function liveCollection(collection: string) {
+  if (collection === 'employees') refuse('Employee records are not available in the read-only assistant');
+}
+function liveField(field: string) {
+  if (!LIVE_RECORD_FIELDS.has(field)) refuse('That field is not available in the read-only assistant');
+}
+
 const MAX_LIMIT = 100;
 const SEARCH_SCAN = 500;
 
@@ -128,8 +162,14 @@ function fieldValue(record: Record<string, unknown>, path: string): unknown {
   return path.split('.').reduce<unknown>((value, part) => (value && typeof value === 'object' ? (value as Record<string, unknown>)[part] : undefined), record);
 }
 
-export async function listRecords(db: Firestore, workspaceId: string, raw: unknown) {
+export async function listRecords(db: Firestore, workspaceId: string, raw: unknown, policy: ReadPolicy = 'sandbox') {
   const input = listRecordsInput.parse(raw);
+  if (policy === 'live-assistant') {
+    liveCollection(input.collection);
+    for (const filter of input.where ?? []) liveField(filter.field);
+    if (input.orderBy) liveField(input.orderBy.field);
+    for (const field of input.fields ?? []) liveField(field);
+  }
   let query: Query = db.collection(input.collection).where('workspaceId', '==', workspaceId);
   for (const filter of input.where ?? []) {
     if (filter.field === 'workspaceId') continue;
@@ -144,25 +184,32 @@ export async function listRecords(db: Firestore, workspaceId: string, raw: unkno
   const snap = await query.limit(input.limit + 1).get();
   const rows = snap.docs.slice(0, input.limit).map(doc => ({ ...doc.data(), id: doc.id }) as Record<string, unknown>);
   const last = rows.at(-1);
+  const cursorValue = last && orderField !== 'id' ? fieldValue(last, orderField) ?? null : null;
+  // Cursors are only base64-encoded, not secret: never put a nested value into one.
+  if (policy === 'live-assistant' && snap.docs.length > input.limit && !liveScalar(cursorValue)) {
+    refuse('Cannot page by a non-scalar field in the read-only assistant');
+  }
   const nextCursor = snap.docs.length > input.limit && last
-    ? encodeCursor(orderField === 'id' ? [last.id] : [fieldValue(last, orderField) ?? null, last.id]) : null;
+    ? encodeCursor(orderField === 'id' ? [last.id] : [cursorValue, last.id]) : null;
   const fields = parseFields(input.fields?.join(','));
-  return { collection: input.collection, records: pickFields(redact(rows), fields), nextCursor, ...(total !== undefined ? { total } : {}) };
+  return { collection: input.collection, records: pickFields(policy === 'live-assistant' ? rows.map(liveRecord) : redact(rows), fields), nextCursor, ...(total !== undefined ? { total } : {}) };
 }
 
-export async function getRecord(db: Firestore, workspaceId: string, raw: unknown) {
+export async function getRecord(db: Firestore, workspaceId: string, raw: unknown, policy: ReadPolicy = 'sandbox') {
   const input = getRecordInput.parse(raw);
+  if (policy === 'live-assistant') liveCollection(input.collection);
   if (input.id.includes('/')) refuse('An id cannot contain a slash');
   const doc = await db.collection(input.collection).doc(input.id).get();
   const data = doc.data();
   if (!doc.exists || data?.workspaceId !== workspaceId) refuse('No such record in these books', 404, 'NOT_FOUND');
-  return { collection: input.collection, record: redact({ ...data, id: doc.id }) };
+  return { collection: input.collection, record: policy === 'live-assistant' ? liveRecord({ ...data, id: doc.id }) : redact({ ...data, id: doc.id }) };
 }
 
 const norm = (s: unknown) => (typeof s === 'string' ? s.normalize('NFC').toLocaleLowerCase() : typeof s === 'number' ? String(s) : '');
 
-export async function searchRecords(db: Firestore, workspaceId: string, raw: unknown) {
+export async function searchRecords(db: Firestore, workspaceId: string, raw: unknown, policy: ReadPolicy = 'sandbox') {
   const input = searchRecordsInput.parse(raw);
+  if (policy === 'live-assistant') input.collections.forEach(liveCollection);
   const needle = norm(input.text);
   const matches: Array<{ collection: string; id: string; matched: string; record: Record<string, unknown> }> = [];
   for (const collection of input.collections) {
@@ -170,9 +217,9 @@ export async function searchRecords(db: Firestore, workspaceId: string, raw: unk
     const snap = await db.collection(collection).where('workspaceId', '==', workspaceId).limit(SEARCH_SCAN).get();
     for (const doc of snap.docs) {
       const data = doc.data() as Record<string, unknown>;
-      const field = SEARCH_FIELDS.find(name => norm(data[name]).includes(needle)) ?? (doc.id.toLowerCase().includes(needle) ? 'id' : undefined);
+      const field = (policy === 'live-assistant' ? LIVE_SEARCH_FIELDS : SEARCH_FIELDS).find(name => norm(data[name]).includes(needle)) ?? (doc.id.toLowerCase().includes(needle) ? 'id' : undefined);
       if (!field) continue;
-      matches.push({ collection, id: doc.id, matched: field, record: redact({ ...data, id: doc.id }) });
+      matches.push({ collection, id: doc.id, matched: field, record: policy === 'live-assistant' ? liveRecord({ ...data, id: doc.id }) : redact({ ...data, id: doc.id }) });
       if (matches.length >= input.limit) break;
     }
   }

@@ -16,7 +16,7 @@ import ModuleSubNav from '../components/layout/ModuleSubNav';
 const base = { isOwner: true, isProMode: false, developerMode: true };
 beforeEach(() => { setComponentWorkspace('owner'); useAuthStore.setState({ isAdmin: true }); useUIStore.setState({ isProMode: false, developerMode: true, language: 'en' }); });
 afterEach(cleanup);
-for (const preset of BUSINESS_PRESETS) test(`${preset.name}: seven daily tools, Pro recommendations, every screen discoverable`, () => {
+for (const preset of BUSINESS_PRESETS) test(`${preset.name}: daily tools, Pro recommendations, every screen discoverable`, () => {
   const visible = APP_TABS.filter(t => isTabVisible(t, { ...base, businessType: preset.id }));
   assert.deepEqual(visible.map(t => t.id), APP_TABS.filter(t => DAILY_TOOL_IDS.some(id => id === t.id)).map(t => t.id));
   const index = pageIndex('en', { developerMode: true });

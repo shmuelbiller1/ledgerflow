@@ -113,7 +113,8 @@ test('inline label create-only keeps the first writer, returns the conflict, and
   assert.equal((await label.get()).exists, false);
   // Force both real transactions to read the unclaimed slot and queue the write before either can
   // commit. Merely sending concurrent requests can give a false positive if one arrives late.
-  let contenders = 0;
+  // Serializable transactions may retry the handler under load; count distinct writers, not attempts.
+  const contenders = new Set<string>();
   let compete!: () => void;
   const bothReady = new Promise<void>((resolve, reject) => {
     compete = resolve;
@@ -123,14 +124,16 @@ test('inline label create-only keeps the first writer, returns the conflict, and
     ...dimensionNodeCommand,
     async handler(ctx, tx, input) {
       const saved = await dimensionNodeCommand.handler(ctx, tx, input);
-      if (++contenders === 2) compete();
+      assert.ok(input.node);
+      contenders.add(input.node.description);
+      if (contenders.size === 2) compete();
       await bothReady;
       return saved;
     },
   };
   const values = ['First description', 'Second description'];
   const results = await Promise.all(values.map((text, i) => runRegisteredCommand(...invoke(actor, text, `race-${i}`, undefined, raced))));
-  assert.equal(contenders, 2);
+  assert.deepEqual([...contenders].sort(), [...values].sort(), 'both distinct writers reached the barrier');
   const win = results.findIndex(result => result.ok);
   assert.notEqual(win, -1, JSON.stringify(results));
   const loser = results[1 - win];

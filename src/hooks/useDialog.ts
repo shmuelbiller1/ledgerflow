@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useSyncExternalStore } from 'react';
 
 const FOCUSABLE = 'summary:not([tabindex="-1"]), a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const FIELD = 'input:not([disabled]):not([type="hidden"]):not([type="file"]), select:not([disabled]), textarea:not([disabled])';
@@ -20,6 +20,16 @@ function visible(el: HTMLElement): boolean {
 interface OpenDialog { node: HTMLElement; seq: number }
 const openDialogs: OpenDialog[] = [];
 let dialogSeq = 0;
+const modalListeners = new Set<() => void>();
+const notifyModals = () => modalListeners.forEach(listener => listener());
+/** A companion can stay mounted but hide while any modal owns the page. */
+export function useModalDialogOpen() {
+  return useSyncExternalStore(
+    listener => { modalListeners.add(listener); return () => { modalListeners.delete(listener); }; },
+    () => openDialogs.length > 0,
+    () => false,
+  );
+}
 
 /**
  * The topmost open dialog: the one with no other open dialog inside it, and among separate ones
@@ -45,7 +55,10 @@ function topmostDialog(): OpenDialog | undefined {
  *
  * `onClose` may ask first (unsaved changes); it is called as it is at the time of the key press.
  */
-export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () => void, open = true) {
+export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () => void, open = true, options?: { modal?: boolean }) {
+  // A non-modal companion can stay open while the person works in the page. It still shares
+  // focus entry/return and Escape handling, but must not trap Tab or claim the page is inert.
+  const modal = options?.modal !== false;
   const ref = useRef<T>(null);
   const titleId = useId();
   const closeRef = useRef(onClose);
@@ -71,7 +84,7 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () =>
         closeRef.current();
         return;
       }
-      if (e.key !== 'Tab') return;
+      if (e.key !== 'Tab' || !modal) return;
       const items = focusables();
       if (items.length === 0) {
         e.preventDefault();
@@ -92,11 +105,13 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () =>
     // Escape with focus outside the dialog (drifted focus, see the note above): the node's own
     // listener never sees that event, so the topmost open dialog answers it here instead.
     const entry: OpenDialog = { node, seq: ++dialogSeq };
-    openDialogs.push(entry);
+    if (modal) { openDialogs.push(entry); notifyModals(); }
+    else node.dataset.nonModalDialog = '';
     const onDocumentKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (!modal || e.key !== 'Escape' || e.defaultPrevented) return;
       if (topmostDialog() !== entry) return;
       if (e.target instanceof Node && node.contains(e.target)) return;
+      if (e.target instanceof Element && e.target.closest('[data-non-modal-dialog]')) return;
       e.stopPropagation();
       closeRef.current();
     };
@@ -106,13 +121,14 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () =>
       node.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keydown', onDocumentKeyDown, true);
       const at = openDialogs.indexOf(entry);
-      if (at >= 0) openDialogs.splice(at, 1);
-      if (previous && previous.isConnected) previous.focus();
+      if (at >= 0) { openDialogs.splice(at, 1); notifyModals(); }
+      if (!modal) delete node.dataset.nonModalDialog;
+      if (modal && previous && previous.isConnected) previous.focus();
     };
-  }, [open]);
+  }, [open, modal]);
 
   return {
     titleId,
-    dialogProps: { ref, role: 'dialog' as const, 'aria-modal': true as const, 'aria-labelledby': titleId, tabIndex: -1 },
+    dialogProps: { ref, role: 'dialog' as const, ...(modal ? { 'aria-modal': true as const } : {}), 'aria-labelledby': titleId, tabIndex: -1 },
   };
 }

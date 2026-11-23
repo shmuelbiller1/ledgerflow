@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlaskConical, Check, X, RotateCcw, AlertTriangle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { runCommand, ServerCommandError } from '../../lib/runCommand';
@@ -79,6 +79,7 @@ export default function SandboxReviewView() {
 
   // Reads are effects keyed by what they read (and a tick for an explicit refresh); the answers land
   // asynchronously, so a stale answer for an earlier sandbox is dropped by `on`.
+  const restoreWarningShown = useRef(false);
   const [listTick, setListTick] = useState(0);
   const [reviewTick, setReviewTick] = useState(0);
   const refreshList = useCallback(() => setListTick(t => t + 1), []);
@@ -91,7 +92,19 @@ export default function SandboxReviewView() {
       .then(body => {
         if (!on) return;
         setOpen(body.sandboxes);
-        setSandboxId(current => current && body.sandboxes.some(s => s.id === current) ? current : (body.sandboxes[0]?.id || ''));
+        let requested = '';
+        try {
+          const key = `lf_assistant_review_${workspaceId}`;
+          requested = sessionStorage.getItem(key) || '';
+          sessionStorage.removeItem(key);
+        } catch {
+          if (!restoreWarningShown.current) {
+            restoreWarningShown.current = true;
+            toast.error('A requested draft selection cannot be restored. Please choose a draft from the list.');
+          }
+        }
+        setSandboxId(current => requested && body.sandboxes.some(s => s.id === requested) ? requested
+          : current && body.sandboxes.some(s => s.id === current) ? current : (body.sandboxes[0]?.id || ''));
       })
       .catch(err => { if (on) setError(message(err)); });
     return () => { on = false; };
@@ -175,7 +188,7 @@ export default function SandboxReviewView() {
             <>
               <label className="sr-only" htmlFor="sandbox-pick">Sandbox</label>
               <select id="sandbox-pick" className="px-2 py-1.5 text-sm border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]" value={sandboxId} onChange={e => setSandboxId(e.target.value)}>
-                {open.map(s => <option key={s.id} value={s.id}>{new Date(s.createdAt).toLocaleString()} · {s.pendingSteps} pending</option>)}
+                {open.map(s => <option key={s.id} value={s.id}>{new Date(s.createdAt).toLocaleString()} · {s.pendingSteps} pending · {s.id}</option>)}
               </select>
             </>
           )}

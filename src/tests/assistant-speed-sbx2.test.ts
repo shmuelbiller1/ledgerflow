@@ -334,6 +334,7 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
   let server: ReturnType<import('express').Express['listen']>;
   let modelReplies: Array<Record<string, unknown>> = [];
   const modelCalls: string[] = [];
+  const modelRequests: Array<Record<string, unknown>> = [];
   before(async () => {
     process.env.SESSION_SECRET ||= 'test-session-secret-for-assistant-tokens-0001';
     live = new Firestore({ connectionString: url, max: 4 });
@@ -349,6 +350,7 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
       turnRateLimit: (_req, _res, next) => next(),
       modelClient: () => ({ models: { generateContent: async req => {
         modelCalls.push(req.model);
+        modelRequests.push(req);
         return modelReplies.shift() ?? { text: 'A model answer.', usageMetadata: { promptTokenCount: 2000, candidatesTokenCount: 50 } };
       } } }),
     }));
@@ -366,7 +368,7 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     const owner = `${workspaceId}-owner`;
     t.after(async () => {
       await live.pool.query('delete from sandbox.sandboxes where workspace_id = $1', [workspaceId]);
-      for (const table of ['customers', 'vendors', 'billingLedgerTraces', 'auditLogs', 'chartAccounts']) await live.pool.query(`delete from public.${quoteIdent(table)} where workspace_id = $1`, [workspaceId]);
+      for (const table of ['customers', 'vendors', 'employees', 'invoices', 'billingLedgerTraces', 'auditLogs', 'chartAccounts']) await live.pool.query(`delete from public.${quoteIdent(table)} where workspace_id = $1`, [workspaceId]);
       await live.doc(`workspaces/${workspaceId}`).delete();
     });
     await live.doc(`workspaces/${workspaceId}`).create({ uid: owner, name: 'SBX-2 test', members: [owner], currency: 'USD', timezone: 'UTC', fiscalYearStartMonth: 1, ...workspace });
@@ -531,6 +533,106 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     const direct = await a.tool('search_records', { text: 'Acme Ltd', collections: ['customers'] });
     assert.equal(direct.status, 200, JSON.stringify(direct.json));
     assert.equal((direct.json.matches as unknown[]).length, 1);
+  });
+
+  test('a viewer reads live books without a sandbox and cannot get drafts, including after demotion', async t => {
+    const a = await setup(t);
+    const viewer = `${a.workspaceId}-viewer`;
+    await live.doc(`workspaces/${a.workspaceId}`).update({ members: [a.owner, viewer], roles: { [viewer]: 'viewer' } });
+    const viewerCall = async (method: string, path: string, body?: unknown) => {
+      const res = await fetch(`${base}/api/v1/workspaces/${a.workspaceId}/sandboxes${path}`, { method, headers: { 'x-test-uid': viewer, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+      return { status: res.status, json: await res.json() as Record<string, unknown> };
+    };
+    assert.equal((await viewerCall('POST', '', {})).status, 403, 'viewer cannot open a draft');
+    const found = await viewerCall('POST', '/assistant/turn', { question: 'Find the customer Acme Ltd.' });
+    assert.equal(found.status, 200, JSON.stringify(found.json));
+    assert.match(String(found.json.answer), /Acme/);
+    const aging = await viewerCall('POST', '/assistant/turn', { question: 'How much do customers owe me in total?' });
+    assert.equal(aging.status, 200, JSON.stringify(aging.json));
+    assert.ok(aging.json.answer, 'live aging report is usable by a viewer');
+    const other = await setup(t);
+    await live.doc(`customers/${other.workspaceId}-acme`).update({ name: 'Confidential Other Customer' });
+    modelRequests.length = 0;
+    modelReplies = [
+      { functionCalls: [{ name: 'get_record', args: { collection: 'customers', id: `${other.workspaceId}-acme` } },
+        { name: 'run_report', args: { report: 'group-summary', params: { groupId: 'foreign' } } }] },
+      { text: 'Those records are not accessible here.' },
+    ];
+    const foreign = await viewerCall('POST', '/assistant/turn', { question: 'Please check these records.' });
+    assert.equal(foreign.status, 200, JSON.stringify(foreign.json));
+    const followedUp = JSON.stringify(modelRequests[1].contents);
+    assert.doesNotMatch(followedUp, /Confidential Other Customer/);
+    assert.match(followedUp, /read-only assistant; this tool is not available/);
+    modelReplies = [
+      { functionCalls: [{ name: 'propose_customer_create', args: { customer: { name: 'Forbidden Draft' } } }] },
+      { text: 'I cannot create a draft in read-only mode.' },
+    ];
+    const response = await viewerCall('POST', '/assistant/turn', { question: 'Create a customer named Forbidden Draft.' });
+    assert.equal(response.status, 200, JSON.stringify(response.json));
+    const count = (await live.collection('customers').where('workspaceId', '==', a.workspaceId).count().get()).data().count;
+    assert.equal(count, 1);
+    assert.equal((await viewerCall('POST', `/${a.sandboxId}/steps`, { command: 'customer.create', input: { customer: { name: 'Forbidden Draft' } } })).status, 403);
+    const sandboxes = await viewerCall('GET', '');
+    assert.deepEqual(sandboxes.json.sandboxes, []);
+    await live.doc(`workspaces/${a.workspaceId}`).update({ members: [a.owner] });
+    assert.equal((await viewerCall('POST', '/assistant/turn', { question: 'Find the customer Acme Ltd.' })).status, 403);
+  });
+
+  test('live invoice lookup does not call a written-off invoice paid', async t => {
+    const a = await setup(t);
+    const viewer = `${a.workspaceId}-viewer`;
+    await live.doc(`workspaces/${a.workspaceId}`).update({ members: [a.owner, viewer], roles: { [viewer]: 'viewer' } });
+    await live.doc(`invoices/${a.workspaceId}-invoice`).create({ workspaceId: a.workspaceId, number: 'INV-123', status: 'paid', writtenOffCents: 5000 });
+    modelReplies = [{ text: 'This invoice was written off; check the details.' }];
+    const res = await fetch(`${base}/api/v1/workspaces/${a.workspaceId}/sandboxes/assistant/turn`, { method: 'POST', headers: { 'x-test-uid': viewer, 'content-type': 'application/json' }, body: JSON.stringify({ question: 'Is invoice INV-123 paid?' }) });
+    const body = await res.json() as Record<string, unknown>;
+    assert.equal(res.status, 200, JSON.stringify(body));
+    assert.equal(body.path, 'model', 'written-off invoice must not receive a deterministic paid verdict');
+    assert.doesNotMatch(String(body.answer), /^Yes\b/);
+  });
+
+  test('live assistant blocks employee reads and exposes only safe vendor fields to the model', async t => {
+    const a = await setup(t);
+    const viewer = `${a.workspaceId}-viewer`;
+    await live.doc(`workspaces/${a.workspaceId}`).update({ members: [a.owner, viewer], roles: { [viewer]: 'viewer' } });
+    const employeeId = `${a.workspaceId}-employee`;
+    const vendorId = `${a.workspaceId}-vendor`;
+    await live.doc(`employees/${employeeId}`).create({ workspaceId: a.workspaceId, name: 'Employee Alpha', bankRouting: 'ROUTING-PRIVATE', bankAccount: 'EMPLOYEE-ACCOUNT-PRIVATE', salaryCents: 99887766 });
+    await live.doc(`vendors/${vendorId}`).create({ workspaceId: a.workspaceId, name: 'Vendor Alpha', status: 'active', bankDetails: { accountNumber: 'VENDOR-ACCOUNT-PRIVATE', routingCode: 'VENDOR-ROUTING-PRIVATE' }, taxId: 'TAX-PRIVATE', taxNumber: 'TAX-NUMBER-PRIVATE', businessNumber: 'BUSINESS-NUMBER-PRIVATE', notes: 'HIDDEN-SEARCH-PRIVATE', custom: { account: 'CUSTOM-PRIVATE' } });
+    await live.doc(`customers/${a.workspaceId}-acme`).update({ bankAccount: 'CUSTOMER-ACCOUNT-PRIVATE', contactTaxId: 'CONTACT-TAX-PRIVATE', metadata: { bankRouting: 'NESTED-PRIVATE' } });
+    modelRequests.length = 0;
+    modelReplies = [
+      { functionCalls: [
+        { name: 'get_record', args: { collection: 'employees', id: employeeId } },
+        { name: 'list_records', args: { collection: 'employees' } },
+        { name: 'search_records', args: { text: 'Alpha', collections: ['employees', 'vendors'] } },
+        { name: 'get_record', args: { collection: 'vendors', id: vendorId } },
+        { name: 'list_records', args: { collection: 'vendors' } },
+        { name: 'search_records', args: { text: 'Alpha', collections: ['vendors'] } },
+        { name: 'search_records', args: { text: 'HIDDEN-SEARCH-PRIVATE', collections: ['vendors'] } },
+        { name: 'list_records', args: { collection: 'vendors', orderBy: { field: 'taxId', direction: 'asc' } } },
+        { name: 'list_records', args: { collection: 'vendors', where: [{ field: 'bankDetails.accountNumber', op: '==', value: 'VENDOR-ACCOUNT-PRIVATE' }] } },
+        { name: 'get_record', args: { collection: 'customers', id: `${a.workspaceId}-acme` } },
+      ] },
+      { text: 'Vendor Alpha is active; employee details are unavailable.' },
+    ];
+    const res = await fetch(`${base}/api/v1/workspaces/${a.workspaceId}/sandboxes/assistant/turn`, { method: 'POST', headers: { 'x-test-uid': viewer, 'content-type': 'application/json' }, body: JSON.stringify({ question: 'Please review these records.' }) });
+    assert.equal(res.status, 200, await res.text());
+    const config = modelRequests[0].config as { tools: Array<{ functionDeclarations: Array<{ name: string; parametersJsonSchema: unknown }> }> };
+    for (const tool of config.tools[0].functionDeclarations.filter(t => ['get_record', 'list_records', 'search_records'].includes(t.name))) {
+      assert.doesNotMatch(JSON.stringify(tool.parametersJsonSchema), /employees/);
+    }
+    const parts = (modelRequests[1].contents as Array<{ parts: Array<{ functionResponse?: { name: string; response: unknown } }> }>).at(-1)!.parts;
+    const results = parts.map(part => part.functionResponse!.response);
+    assert.match(JSON.stringify(results.slice(0, 3)), /not available/);
+    for (const result of results.slice(3, 6)) {
+      assert.match(JSON.stringify(result), /Vendor Alpha/);
+      assert.doesNotMatch(JSON.stringify(result), /VENDOR-ACCOUNT-PRIVATE|VENDOR-ROUTING-PRIVATE|TAX-PRIVATE|TAX-NUMBER-PRIVATE|BUSINESS-NUMBER-PRIVATE|CUSTOM-PRIVATE|HIDDEN-SEARCH-PRIVATE/);
+    }
+    assert.deepEqual(((results[6] as { result: { matches: unknown[] } }).result.matches), [], 'private notes are not searched');
+    assert.match(JSON.stringify(results[7]), /not available/);
+    assert.match(JSON.stringify(results[8]), /not available/);
+    assert.doesNotMatch(JSON.stringify(results[9]), /CUSTOMER-ACCOUNT-PRIVATE|CONTACT-TAX-PRIVATE|NESTED-PRIVATE/);
   });
 
   test('the model drafts through propose_… into the sandbox only; the real books are unchanged', async t => {
