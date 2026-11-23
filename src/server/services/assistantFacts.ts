@@ -7,7 +7,6 @@ import { currencyDigits } from '../../lib/currencyMinorUnits';
 import { getFiscalYearBounds } from '../../lib/fiscalCalendar';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export interface AssistantFactsInput {
   /** Today in the workspace's time zone, YYYY-MM-DD. */
@@ -22,8 +21,8 @@ export interface AssistantFactsInput {
 
 /** Today's date in a time zone as YYYY-MM-DD (UTC when the zone is missing or unknown). */
 export function todayIn(timeZone: string | null | undefined, now = new Date()): string {
-  try { return new Intl.DateTimeFormat('en-CA', { timeZone: timeZone || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now); }
-  catch { return now.toISOString().slice(0, 10); }
+  const format = (zone: string) => new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+  try { return format(timeZone || 'UTC'); } catch { return format('UTC'); }
 }
 
 /** How stored amounts relate to normal money, by the currency's own minor units (JPY has none, KWD has three). */
@@ -34,8 +33,8 @@ function minorUnits(currency: string | null): string {
 }
 
 export function assistantFacts(input: AssistantFactsInput): string {
-  const [y, m, d] = input.today.split('-').map(Number);
-  const day = DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  const [y, m] = input.today.split('-').map(Number);
+  const day = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${input.today}T12:00:00Z`));
   const lastMonth = m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 };
   // the same bounds the rest of the app uses (start month and day)
   const fyStart = getFiscalYearBounds(input.today, input.fiscalYearStartMonth ?? 1, input.fiscalYearStartDay ?? 1).startDate;
