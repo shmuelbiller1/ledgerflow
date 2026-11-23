@@ -8,6 +8,71 @@ Graded on 12 questions that need a model, against a sample company's books (scri
 
 | model | correct | finished (no error/timeout) | model calls | billed cost | cost per correct answer |
 |---|---|---|---|---|---|
+| gpt-6-luna | 10 / 12 | 10 / 12 | 48 | 1.52¢ | 0.15¢ |
+| gpt-6.1-terra | 12 / 12 | 12 / 12 | 40 | 15.15¢ | 1.26¢ |
+| gemini-4-carbon | 8 / 12 | 8 / 12 | 62 | unknown (1 of 62 calls without a billed cost; ≥74.78¢) | — |
+
+### Per question
+
+#### gpt-6-luna
+
+| question | result | why (first wrong run) |
+|---|---|---|
+| Record a payment of 500 from Acme Ltd for INV-1001. | correct | correct every run |
+| Create an invoice for Acme Ltd for two hours of consulting. | correct | correct every run |
+| Make a bill from the electricity company for 320. | correct | correct every run |
+| Why is my profit lower than last month? | correct | correct every run |
+| Should I chase Acme or Beta first? | correct | correct every run |
+| Fix the books. | correct | correct every run |
+| Something looks off with my numbers, can you check? | correct | correct every run |
+| Move all of last month's office costs to a new project. | wrong | no final answer (endpoint error, call cap or step limit) |
+| Set up a monthly invoice for Beta Corp of 1,000. | correct | correct every run |
+| Can I afford to hire someone next quarter? | wrong | no final answer (endpoint error, call cap or step limit) |
+| Write off the small balances customers will never pay. | correct | correct every run |
+| Summarise how the business did this year in plain words. | correct | correct every run |
+
+#### gpt-6.1-terra
+
+| question | result | why (first wrong run) |
+|---|---|---|
+| Record a payment of 500 from Acme Ltd for INV-1001. | correct | correct every run |
+| Create an invoice for Acme Ltd for two hours of consulting. | correct | correct every run |
+| Make a bill from the electricity company for 320. | correct | correct every run |
+| Why is my profit lower than last month? | correct | correct every run |
+| Should I chase Acme or Beta first? | correct | correct every run |
+| Fix the books. | correct | correct every run |
+| Something looks off with my numbers, can you check? | correct | correct every run |
+| Move all of last month's office costs to a new project. | correct | correct every run |
+| Set up a monthly invoice for Beta Corp of 1,000. | correct | correct every run |
+| Can I afford to hire someone next quarter? | correct | correct every run |
+| Write off the small balances customers will never pay. | correct | correct every run |
+| Summarise how the business did this year in plain words. | correct | correct every run |
+
+#### gemini-4-carbon
+
+| question | result | why (first wrong run) |
+|---|---|---|
+| Record a payment of 500 from Acme Ltd for INV-1001. | correct | correct every run |
+| Create an invoice for Acme Ltd for two hours of consulting. | correct | correct every run |
+| Make a bill from the electricity company for 320. | correct | correct every run |
+| Why is my profit lower than last month? | correct | correct every run |
+| Should I chase Acme or Beta first? | correct | correct every run |
+| Fix the books. | wrong | no final answer (endpoint error, call cap or step limit) |
+| Something looks off with my numbers, can you check? | wrong | timed out after 120s |
+| Move all of last month's office costs to a new project. | correct | correct every run |
+| Set up a monthly invoice for Beta Corp of 1,000. | correct | correct every run |
+| Can I afford to hire someone next quarter? | wrong | no final answer (endpoint error, call cap or step limit) |
+| Write off the small balances customers will never pay. | wrong | no final answer (endpoint error, call cap or step limit) |
+| Summarise how the business did this year in plain words. | correct | correct every run |
+
+Model calls in this run: 150 (cap 400).
+
+## Model comparison (2026-11-23, via api.arena.ai)
+
+Graded on 12 questions that need a model, against a sample company's books (scripts/eval). One model per run, no fallback. "Correct" means the right step drafted, the right figure stated, or a question asked instead of a guess. Cost is what the endpoint billed.
+
+| model | correct | finished (no error/timeout) | model calls | billed cost | cost per correct answer |
+|---|---|---|---|---|---|
 | gpt-6-luna (before-2026-11-23) | 6 / 12 | 11 / 12 | 34 | 1.10¢ | 0.18¢ |
 | gpt-6.1-terra (before-2026-11-23) | 11 / 12 | 12 / 12 | 38 | 11.25¢ | 1.02¢ |
 | gpt-6-luna (SYSTEM_PROMPT) | 8 / 12 | 12 / 12 | 43 | 1.59¢ | 0.20¢ |
