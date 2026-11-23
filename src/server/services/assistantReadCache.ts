@@ -130,7 +130,7 @@ export function tablesRead(tool: string, args: Record<string, unknown>): readonl
  * keeps each caller's stored shape apart: the HTTP tool route keeps `{ status, body }`, the assistant
  * turn keeps the tool's result, and one must never be served to the other.
  */
-export function sandboxToolCache(pool: Pool, scope: { workspaceId: string; sandboxId: string }, namespace: 'http' | 'turn',
+export function sandboxToolCache(pool: Pool, scope: { workspaceId: string; sandboxId: string }, namespace: 'http' | 'turn' | 'turn-private-v1',
   options: { cache?: ReadCache; today?: () => string; timeZone?: unknown } = {}): ToolCache {
   const cache = options.cache ?? assistantReadCache;
   const today = options.today ?? (() => cacheDay(new Date(), options.timeZone));

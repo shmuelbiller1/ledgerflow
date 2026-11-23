@@ -26,7 +26,6 @@ import type { Firestore } from '../db/firestore';
 import { assistantLimitRefusal, assistantUsage, reserveAssistantModelTurn } from '../middleware/planCapacity';
 import { assistantToolsFor, draftableCommands } from './assistantCatalog';
 import { geminiReadTools } from './assistantToolDefinitions';
-import { redactLiveReport } from './sandboxTools';
 import { assistantModels, chooseModel, routedModelClient } from './assistantModels';
 import { sandboxToolCache, type ToolCache } from './assistantReadCache';
 import { answerTurn, routeQuestion } from './assistantRouter';
@@ -74,8 +73,8 @@ const LIVE_READ_TOOLS = new Set(['list_records', 'get_record', 'search_records',
 const LIVE_COLLECTIONS = new Set(['bills', 'budgets', 'chartAccounts', 'creditNotes', 'customers', 'dimensionNodes', 'documents', 'estimates', 'fixedAssets', 'inventory', 'invoices', 'journalEntries', 'loans', 'paymentAllocations', 'payments', 'periods', 'projects', 'purchaseOrders', 'reconciliations', 'recurring', 'stockMoves', 'taxRates', 'transactions', 'vendorCredits', 'vendors']);
 const DEFAULT_LIVE_SEARCH = ['customers', 'vendors', 'invoices', 'bills', 'payments', 'transactions', 'chartAccounts', 'inventory', 'projects', 'documents'];
 // Live report routers also have cross-workspace endpoints. Explicitly admit only reviewed, single-book readers.
-const LIVE_REPORTS = new Set(['profit-and-loss', 'pl', 'balance-sheet', 'aging', 'inventory-details', 'stock-aging', 'explain', 'by-label', 'balance-sheet-by-label', 'trial-balance', 'cash-flow', 'budget-vs-actual', 'general-ledger', 'statement']);
-const LIVE_BALANCES = new Set(['closed-through', 'activity', 'top-lines', 'sales-by-item', 'asset-register', 'expense-by-category', 'income-by-source', 'monthly-averages', 'tag-breakdown', 'depreciation-ledger', 'profitability', 'sales-trends', 'registration-threshold', 'spread-waterfall', 'customer-lifetime-value', 'entry-query', 'entry-years']);
+const LIVE_REPORTS = new Set(['aging']);
+const LIVE_BALANCES = new Set<string>();
 function liveReadAllowed(name: string, args: Record<string, unknown>): boolean {
   if (!LIVE_READ_TOOLS.has(name)) return false;
   if ((name === 'get_record' || name === 'list_records') && (typeof args.collection !== 'string' || !LIVE_COLLECTIONS.has(args.collection))) return false;
@@ -90,12 +89,27 @@ function liveReadAllowed(name: string, args: Record<string, unknown>): boolean {
 /** Keep the offered schema aligned with the server-side collection check. Never trust it as authorization. */
 function liveToolDeclaration(tool: FunctionDeclaration): FunctionDeclaration {
   const result = structuredClone(tool);
-  result.description = `${tool.description?.replaceAll('current sandbox books', 'live books')} Employee records are unavailable. Record fields, filters and search are restricted; direct record reads omit banking and tax identifiers.`;
+  result.description = `${tool.description} Employee records are unavailable. Record fields, filters and search are restricted; direct record reads omit banking and tax identifiers. Reports are limited to aging summaries.`;
   const schema = result.parametersJsonSchema as { properties?: Record<string, { enum?: string[]; items?: { enum?: string[] } }> } | undefined;
   const properties = schema?.properties;
   if (properties?.collection?.enum) properties.collection.enum = properties.collection.enum.filter(c => LIVE_COLLECTIONS.has(c));
   if (properties?.collections?.items?.enum) properties.collections.items.enum = properties.collections.items.enum.filter(c => LIVE_COLLECTIONS.has(c));
   return result;
+}
+
+/** Only aggregate fields from reports reach the model; report line text can contain secrets. */
+function privateToolResult(name: string, body: unknown): unknown {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return body;
+  const data = body as Record<string, unknown>;
+  if (name === 'run_report') return Object.fromEntries(['current', '1-30', '31-60', '61-90', '90+', 'total']
+    .filter(key => typeof data[key] === 'number').map(key => [key, data[key]]));
+  if (name === 'explain_number') return typeof data.totalCents === 'number' ? { totalCents: data.totalCents } : {};
+  if (name === 'ask_books') {
+    const answer = data.answer && typeof data.answer === 'object' ? data.answer as Record<string, unknown> : null;
+    return { question: data.question, today: data.today, reading: data.reading,
+      answer: answer && typeof answer.answerCents === 'number' ? { answerCents: answer.answerCents } : null };
+  }
+  return body;
 }
 
 const PROPOSE = /^propose_([a-z][a-z0-9]*)_([a-z][a-z0-9]*)$/;
@@ -109,7 +123,10 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
     const { question } = parsed.data;
     const sandbox = await helpers.readableSandbox(live, req);
     const { workspaceId, workspace, user } = sandbox;
-    const commands = helpers.readOnly ? [] : draftableCommands(workspace, user);
+    // Payroll proposals can replay sensitive employee data. Keep them out of provider turns until
+    // their command inputs, previews and errors have a reviewed privacy contract.
+    const commands = helpers.readOnly ? [] : draftableCommands(workspace, user)
+      .filter(command => !/^(employee|payroll)\./.test(command.name));
 
     const usage = await assistantUsage(live, workspaceId, workspace);
     const refusal = usage ? assistantLimitRefusal(usage) : null;
@@ -122,24 +139,36 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
     const models = assistantModels();
     const tools = (helpers.readOnly
       ? geminiReadTools.filter(tool => LIVE_READ_TOOLS.has(String(tool.name))).map(liveToolDeclaration)
-      : assistantToolsFor(commands, question)[0].functionDeclarations) as FunctionDeclaration[];
+      : assistantToolsFor(commands, question)[0].functionDeclarations
+        .filter(tool => !['list_proposals', 'preview_proposal', 'remembered_choices'].includes(String(tool.name)))
+        .map(tool => LIVE_READ_TOOLS.has(String(tool.name)) ? liveToolDeclaration(tool) : tool)) as FunctionDeclaration[];
 
     const callTool = async (name: string, args: Record<string, unknown>): Promise<unknown> => {
       // Defense in depth: even an unexpected model response cannot reach proposals or unlisted tools.
-      if (helpers.readOnly && !liveReadAllowed(name, args)) return { error: 'This is a read-only assistant; this tool is not available.' };
+      if ((helpers.readOnly || LIVE_READ_TOOLS.has(name)) && !liveReadAllowed(name, args)) return { error: 'This is a read-only assistant; this tool is not available.' };
       const proposal = PROPOSE.exec(name);
       if (proposal) {
         // the same drafting intent the assistant token has: the step lands in the sandbox, never the books
-        const review = await helpers.draftStep(req, { workspaceId, sandboxId: sandbox.sandboxId }, `${proposal[1]}.${proposal[2]}`, args);
-        const step = review.steps.at(-1);
-        return { drafted: true, proposalId: review.id, step: step ? { id: step.id, command: step.command, state: step.state, preview: step.preview } : null };
+        try {
+          const review = await helpers.draftStep(req, { workspaceId, sandboxId: sandbox.sandboxId }, `${proposal[1]}.${proposal[2]}`, args);
+          const step = review.steps.at(-1);
+          return { drafted: true, proposalId: review.id, step: step ? { id: step.id, command: step.command, state: step.state } : null };
+        } catch {
+          // Command errors can contain record text or preview details. Show details to the person
+          // through review, never hand an unclassified server exception to the provider.
+          return { error: 'The draft could not be created. Review the draft workspace for details.' };
+        }
       }
       // the model never sets "today": the books tool counts "this year" and "last month" from the workspace's own date
       const { today: _madeUp, ...readArgs } = args;
-      const safeArgs = helpers.readOnly && name === 'search_records' && args.collections === undefined ? { ...args, collections: DEFAULT_LIVE_SEARCH } : args;
-      const { status, body } = await helpers.runReadTool(live, req, res, sandbox, name, name === 'ask_books' ? readArgs : safeArgs, passThrough, helpers.readOnly ? 'live-assistant' : 'sandbox');
-      if (status !== 200) return { error: (body as { message?: string } | undefined)?.message ?? 'The tool refused this request' };
-      return helpers.readOnly ? redactLiveReport(body) : body;
+      const safeArgs = name === 'search_records' && args.collections === undefined ? { ...args, collections: DEFAULT_LIVE_SEARCH } : args;
+      try {
+        const { status, body } = await helpers.runReadTool(live, req, res, sandbox, name, name === 'ask_books' ? readArgs : safeArgs, passThrough, 'live-assistant');
+        if (status !== 200) return { error: 'The tool refused this request.' };
+        return privateToolResult(name, body);
+      } catch {
+        return { error: 'The tool refused this request.' };
+      }
     };
     const discover = (tool: string, result: unknown): FunctionDeclaration[] => {
       if (helpers.readOnly || tool !== 'find_command') return [];
@@ -172,7 +201,7 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
       facts: assistantFacts({ today: todayIn(typeof workspace.timezone === 'string' ? workspace.timezone : null), timeZone: typeof workspace.timezone === 'string' ? workspace.timezone : null, currency: typeof workspace.currency === 'string' ? workspace.currency : null,
         fiscalYearStartMonth: typeof workspace.fiscalYearStartMonth === 'number' ? workspace.fiscalYearStartMonth : null,
         fiscalYearStartDay: typeof workspace.fiscalYearStartDay === 'number' ? workspace.fiscalYearStartDay : null }),
-      cache: helpers.readOnly ? passThrough : sandboxToolCache(live.pool, sandbox, 'turn', { timeZone: workspace.timezone }),
+      cache: helpers.readOnly ? passThrough : sandboxToolCache(live.pool, sandbox, 'turn-private-v1', { timeZone: workspace.timezone }),
       currency: typeof workspace.currency === 'string' ? workspace.currency : null,
       modelRule: { choose: reason => chooseModel(question, reason, commands, models), strong: models.strong },
     });
