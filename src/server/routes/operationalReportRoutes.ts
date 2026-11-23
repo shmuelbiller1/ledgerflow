@@ -8,6 +8,7 @@ import type { ReportReadScope } from '../reports/readScope';
 import { WorkspaceIdSchema } from '../../schemas';
 import { computePartyAging } from '../../lib/aging';
 import { documentVoidDates } from '../reports/documentVoidDates';
+import { loadAgingSettlements } from '../reports/agingSettlements';
 import {
   computeContactBalanceSummary,
   computeCustomerBalanceSummary,
@@ -71,19 +72,9 @@ export function createOperationalReportRouter({ db, authorize }: ReportReadScope
       const [parties, documents, settlements, voidDates] = await Promise.all([
         streamWorkspaceCollection<Customer | Vendor>(db, side === 'customer' ? 'customers' : 'vendors', workspaceId),
         streamWorkspaceCollection<Invoice | Bill>(db, side === 'customer' ? 'invoices' : 'bills', workspaceId),
-        // RP-01: reconstruct the balance as of asOfDate from dated settlement events; documents
-        // issued after the cutoff and settlements dated after it are left out of the snapshot
-        streamWorkspaceCollection<Record<string, unknown>>(db, 'paymentAllocations', workspaceId)
-          .then(rows => rows
-            .filter(r => r.documentType === documentType && typeof r.date === 'string' && r.date.slice(0, 10) <= asOfDate)
-            .map(r => ({
-              documentId: String(r.documentId), documentType: documentType as 'invoice' | 'bill',
-              date: String(r.date), // RP-01: baseClearedCents is the amount cleared from the control account; baseSettledCents
-// is the cash settlement value, which differs when a foreign document is paid at a different
-// rate. The aging snapshot must deduct what the control account actually cleared.
-amountCents: Number(r.baseClearedCents) || 0,
-              kind: r.kind === undefined ? undefined : String(r.kind),
-            }))),
+        // RP-01: reconstruct the balance as of asOfDate from dated settlement events (the payment ledger,
+        // plus payments recorded before it, from their own records); the aging applies the cutoff
+        loadAgingSettlements(db, workspaceId, documentType, baseCurrency),
         // a void counts from the date its reversal was posted, not before
         documentVoidDates(db, workspaceId, documentType),
       ]);

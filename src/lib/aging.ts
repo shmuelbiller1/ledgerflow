@@ -104,10 +104,17 @@ export function outstandingAsOfCents(
   }
   const issued = String(doc.date || '').slice(0, 10);
   if (issued && issued > day) return 0;
-  const settled = settlements
-    .filter(e => e.documentId === doc.id && e.documentType === (sideOf(doc) === 'customer' ? 'invoice' : 'bill')
-      && String(e.date).slice(0, 10) <= day && e.kind !== 'deposit')
-    .reduce((sum, e) => sum + (Number(e.amountCents) || 0), 0);
+  const own = settlements.filter(e => e.documentId === doc.id && e.documentType === (sideOf(doc) === 'customer' ? 'invoice' : 'bill') && e.kind !== 'deposit');
+  const settled = own.filter(e => String(e.date).slice(0, 10) <= day).reduce((sum, e) => sum + (Number(e.amountCents) || 0), 0);
+  // history no dated event covers (a settlement from before the payment ledger, e.g. an old credit
+  // application): the document's own counters say it was settled by records, so it still is — from the
+  // day the document was last paid or changed — rather than coming back as owed. A cent or two per
+  // event is foreign-rate rounding between the counters and the cleared amounts, not missing history.
+  const recordsPart = Math.max(0, (Number(doc.amountPaidCents) || 0) - cashPostedWithDocumentCents(doc));
+  const allTime = own.reduce((sum, e) => sum + (Number(e.amountCents) || 0), 0);
+  const undated = UNPOSTED.has(status) ? 0 : toBaseCents(recordsPart, doc.exchangeRate, doc.currency, baseCurrency) - allTime;
+  const undatedOn = String(doc.paymentDate || doc.paidAt || (doc as { updatedAt?: unknown }).updatedAt || doc.date || '').slice(0, 10);
+  const undatedSettled = undated > own.length + 2 && (!undatedOn || undatedOn <= day) ? undated : 0;
   // the settlement posted with the document itself ("Mark as paid"), dated with its payment
   const paidOn = String(doc.paymentDate || doc.paidAt || '').slice(0, 10);
   const postedWithDocument = UNPOSTED.has(status) ? 0 : cashPostedWithDocumentCents(doc);
@@ -116,7 +123,7 @@ export function outstandingAsOfCents(
     : 0;
   const due = Math.max(0, toBaseCents(doc.amountCents || 0, doc.exchangeRate, doc.currency, baseCurrency)
     - toBaseCents(depositAppliedCents(doc), doc.exchangeRate, doc.currency, baseCurrency));
-  return Math.max(0, due - settled - documentSettled);
+  return Math.max(0, due - settled - documentSettled - undatedSettled);
 }
 
 function sideOf(doc: Invoice | Bill): 'customer' | 'vendor' {

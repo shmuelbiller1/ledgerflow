@@ -4,6 +4,7 @@ import type { Firestore } from '../db/firestore';
 import { computeBalanceSheet, computeProfitAndLoss } from '../reports/computeReports';
 import { AGING_BUCKETS, computePartyAging } from '../../lib/aging';
 import { documentVoidDates } from '../reports/documentVoidDates';
+import { loadAgingSettlements } from '../reports/agingSettlements';
 import { formatMoney as formatCurrency, type MoneyDisplaySettings } from '../../lib/moneyFormat';
 import { addToDateISO, formatTzDate } from '../../lib/calendarDate';
 import {
@@ -58,19 +59,10 @@ export async function buildReport(db: Firestore, workspaceId: string, schedule: 
     const [customers, invoices, settlements, voidDates] = await Promise.all([
       workspaceRows<Customer>(db, 'customers', workspaceId),
       workspaceRows<Invoice>(db, 'invoices', workspaceId, dayAfter),
-      // RP-01: the snapshot is reconstructed from dated settlement events through the period end,
-      // not from the documents' current state (a payment made after the report date, or a later
-      // void, must not change the historic aging)
-      workspaceRows<Record<string, unknown>>(db, 'paymentAllocations', workspaceId, dayAfter)
-        .then(rows => rows
-          .filter(r => r.documentType === 'invoice' && typeof r.date === 'string' && r.date.slice(0, 10) <= period.endDate)
-          .map(r => ({
-            documentId: String(r.documentId), documentType: 'invoice' as const,
-            date: String(r.date), // RP-01: baseClearedCents is the amount cleared from the control account, not the cash
-// settlement value (which differs for foreign documents paid at a different rate).
-amountCents: Number(r.baseClearedCents) || 0,
-            kind: r.kind === undefined ? undefined : String(r.kind),
-          }))),
+      // RP-01: the snapshot is reconstructed from dated settlement events (the payment ledger, plus
+      // payments recorded before it), not from the documents' current state: a payment made after the
+      // report date, or a later void, must not change the historic aging (the aging applies the cutoff)
+      loadAgingSettlements(db, workspaceId, 'invoice', baseCurrency),
       // a void counts from the date its reversal was posted, not before
       documentVoidDates(db, workspaceId, 'invoice'),
     ]);

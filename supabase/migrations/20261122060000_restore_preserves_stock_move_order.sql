@@ -5,7 +5,8 @@
 --     dbSeq existed to preserve (compareMoves: date, then dbSeq);
 --   * lf_repost_mark re-dirtied the item's repostQueue row even though the backup was taken after a
 --     clean repost (the restore clears the derived caches first, then the inserts dirtied them again).
--- A restore-only marker makes both triggers keep the restored rows exactly as the backup had them:
+-- A restore-only marker makes both triggers keep the restored rows exactly as the backup had them
+-- (the sequence is advanced past every restored dbSeq, so later inserts still sort after them):
 -- the restore transaction creates the temporary table pg_temp.lf_restore_stock_moves_active (dropped
 -- at commit), the triggers check for it, and nothing else changes. Temporary tables are session-
 -- scoped, so the marker is visible only to the restoring transaction itself.
@@ -13,10 +14,25 @@
 create or replace function public.lf_stock_move_db_seq() returns trigger
 language plpgsql security definer set search_path = public
 as $$
+declare
+  restored bigint;
+  current_value bigint;
+  called boolean;
 begin
-  -- restoring a backup: the row carries its own dbSeq; keep the backup's same-day order
+  -- restoring a backup: the row carries its own dbSeq; keep the backup's same-day order, and move the
+  -- sequence past it, so a move written after the restore (onto a rebuilt database whose sequence is
+  -- behind the backup) still sorts after the restored moves of its day (compareMoves: date, then dbSeq).
+  -- setval only ever moves the sequence forward here; a row from an older backup without a dbSeq gets
+  -- a fresh one, as any insert does.
   if to_regclass('pg_temp.lf_restore_stock_moves_active') is not null then
-    return new;
+    if coalesce(new.data->>'dbSeq', '') ~ '^[0-9]{1,18}$' then
+      restored := (new.data->>'dbSeq')::bigint;
+      select last_value, is_called into current_value, called from public."stockMoves_db_seq"; -- NOSONAR: plsql:QuotedIdentifiersCheck — quoted identifier matches mixed-case schema sequence name
+      if restored > current_value or (restored = current_value and not called) then
+        perform setval('public."stockMoves_db_seq"', restored, true);
+      end if;
+      return new;
+    end if;
   end if;
   new.data := new.data || jsonb_build_object('dbSeq', nextval('public."stockMoves_db_seq"'));
   return new;

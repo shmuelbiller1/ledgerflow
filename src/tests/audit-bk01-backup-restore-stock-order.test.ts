@@ -94,3 +94,34 @@ test('Backup/restore keeps same-day stockMoves dbSeq order and leaves repostQueu
     await db.terminate();
   }
 });
+
+test('a restore moves the stock sequence past the restored dbSeq, so later moves sort after them', { skip: !valid && 'dedicated local audit database required' }, async () => {
+  // Codex on #1013: restoring onto a rebuilt database whose sequence is behind the backup must not let a
+  // new same-day sale take a dbSeq below its restored purchase (compareMoves: date, then dbSeq)
+  process.env.DATABASE_URL = url;
+  const { getDb } = await import('../server/db/firestore');
+  const db = getDb();
+  const ws = `ws_bk01_seq_${crypto.randomBytes(4).toString('hex')}`;
+  const client = await db.pool.connect();
+  try {
+    const { rows: [{ last_value: before }] } = await client.query<{ last_value: string }>('select last_value from public."stockMoves_db_seq"');
+    const restored = Number(before) + 1000;
+    const row = (id: string, extra: Record<string, unknown>) => JSON.stringify({ workspaceId: ws, itemId: 'item', date: '2026-03-10', seq: '1', quantity: 1, ...extra, id });
+    await client.query('begin');
+    await client.query('create temp table lf_restore_stock_moves_active(ok int) on commit drop');
+    await client.query('insert into public."stockMoves" (id, data) values ($1, $2::jsonb)', [`${ws}_restored`, row(`${ws}_restored`, { kind: 'purchase', dbSeq: restored })]);
+    // a row from an older backup without a dbSeq still gets one
+    await client.query('insert into public."stockMoves" (id, data) values ($1, $2::jsonb)', [`${ws}_old`, row(`${ws}_old`, { kind: 'purchase' })]);
+    await client.query('commit');
+    await client.query('insert into public."stockMoves" (id, data) values ($1, $2::jsonb)', [`${ws}_new`, row(`${ws}_new`, { kind: 'sale', quantity: -1 })]);
+    const seqOf = async (id: string) => Number((await client.query<{ s: string }>(`select data->>'dbSeq' as s from public."stockMoves" where id=$1`, [id])).rows[0]?.s);
+    assert.equal(await seqOf(`${ws}_restored`), restored, 'the restored row keeps its own dbSeq');
+    assert.ok(Number.isFinite(await seqOf(`${ws}_old`)), 'a restored row without a dbSeq is given one');
+    assert.ok(await seqOf(`${ws}_new`) > restored, `a move written after the restore sorts after the restored ones (${await seqOf(`${ws}_new`)} > ${restored})`);
+  } finally {
+    await client.query('rollback').catch(() => {});
+    await client.query('delete from public."stockMoves" where workspace_id=$1', [ws]).catch(() => {});
+    client.release();
+    await db.terminate();
+  }
+});
