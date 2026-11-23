@@ -19,15 +19,20 @@ export function buildOffsetLines(opts: {
   const { isReceipt, paymentId, offsetAccountId, offsetBaseCents, hasAdvance, retainageSplits, retainageAccounts, rateOn, bookedRate } = opts;
   const desc = `Offset ${isReceipt ? 'Credit' : 'Debit'} for Payment ${paymentId}`;
   if (retainageSplits.some(r => r.retainagePartDoc > 0)) {
-    return retainageSplits.flatMap((split, i) => {
+    const allocatedCents = retainageSplits.reduce((sum, s) => sum + s.tradePartDoc + s.retainagePartDoc, 0) * Number(bookedRate?.rate ?? 1);
+    const unapplied = offsetBaseCents - allocatedCents;
+    const lines = retainageSplits.flatMap((split, i) => {
       const accs = retainageAccounts[i] || {};
       const rate = Number(bookedRate?.rate ?? 1);
-      const lines = [
+      return [
         { accountId: accs.trade?.accountId ?? offsetAccountId, amountCents: split.tradePartDoc * rate },
         { accountId: accs.retainage?.accountId ?? accs.trade?.accountId ?? offsetAccountId, amountCents: split.retainagePartDoc * rate },
       ];
-      return lines.filter(l => l.amountCents).map(l => ({ accountId: l.accountId, amountCents: isReceipt ? -l.amountCents : l.amountCents, description: desc, ...rateOn(bookedRate) }));
     });
+    if (!hasAdvance && unapplied > 0) {
+      lines.push({ accountId: offsetAccountId, amountCents: unapplied });
+    }
+    return lines.filter(l => l.amountCents).map(l => ({ accountId: l.accountId, amountCents: isReceipt ? -l.amountCents : l.amountCents, description: desc, ...rateOn(bookedRate) }));
   }
   return offsetBaseCents !== 0 || !hasAdvance ? [{ accountId: offsetAccountId, amountCents: isReceipt ? -offsetBaseCents : offsetBaseCents, description: desc, ...rateOn(bookedRate) }] : [];
 }
@@ -42,7 +47,9 @@ export async function buildRetainageAccounts(
     if (split.retainagePartDoc <= 0) { out.push({}); continue; }
     const isReceipt = split.documentType === 'invoice';
     // the trade account: the first asset (ar) or liability (ap) account that is not the retainage account
-    const retAcc = chart.find(a => /retainage/i.test(a.name));
+    const retAcc = chart.find(a => /retainage/i.test(a.name) && (isReceipt
+      ? (a.name || '').toLowerCase().includes('receivable')
+      : (a.name || '').toLowerCase().includes('payable')));
     const tradeAcc = chart.find(a => a.id !== retAcc?.id && (isReceipt
       ? (a.name || '').toLowerCase().includes('receivable')
       : (a.name || '').toLowerCase().includes('payable')));

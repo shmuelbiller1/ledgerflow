@@ -329,7 +329,8 @@ async function repostStockCost(db: Firestore, t: DbTransaction, input: RepostRun
   }
   writeStockMoves(db, t, writtenMoves);
   result.posted = prepared.length;
-  if (Math.round(replayed.cost / 1_000_000) !== oldCost) t.update(db.collection('inventory').doc(itemId), { unitCostCents: Math.round(replayed.cost / 1_000_000), unitCostMicroCents: replayed.cost, updatedAt: FieldValue.serverTimestamp() });
+  const newCostCents = Math.round(replayed.cost / 1_000_000);
+  if (newCostCents !== oldCost || replayed.cost !== oldCost * 1_000_000) t.update(db.collection('inventory').doc(itemId), { unitCostCents: newCostCents, unitCostMicroCents: replayed.cost, updatedAt: FieldValue.serverTimestamp() });
   t.set(queueRef, { status: 'clean', blockedBy: null, ...stamp() }, { merge: true });
   await writeServerAuditLog({
     workspaceId, uid: user.uid, email: user.email, action: 'repost', entityType: STOCK_COST_KIND, entityId: itemId,

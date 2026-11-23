@@ -255,7 +255,7 @@ async function memberFigures(db: Firestore, workspaceId: string, startDate: stri
   const from = boughtOn && boughtOn >= startDate ? addDaysYMD(boughtOn, 1) : startDate;
   const profitSinceBought = !then ? 0 : from === startDate ? pl.netIncome : from <= endDate ? computeProfitAndLoss(accounts, transactions, from, endDate).netIncome : 0;
   // CB-26: the income and costs of its dealings in force with the other companies of the group
-  const within = computeProfitAndLoss(accounts, intercompany.filter(tx => inForce(tx) && group.has(otherCompany(tx))), startDate, endDate);
+  const within = computeProfitAndLoss(accounts, intercompany.filter(tx => inForce(tx) && group.has(otherCompany(tx))), from, endDate);
   // GC-03: the profit on the inventory this company sold to the other companies of the group, and the
   // part of it the buyers still hold at the end of the period (unrealized profit, IFRS 10 B86(c)).
   // The sellers' cost of goods on those sales is usually a journal of its own, not posted as
@@ -266,7 +266,7 @@ async function memberFigures(db: Firestore, workspaceId: string, startDate: stri
     acc.type === 'cost_of_goods' || acc.category === 'COGS' || acc.category === 'Direct Costs' || resolveAccountRole(acc) === 'cogs';
   const isInventoryAccount = (acc: ChartAccount) => resolveAccountRole(acc) === 'inventory';
   const icCogsOnSales = transactions
-    .filter(tx => !tx.metadata?.isIntercompany && saleDates.has(String(tx.date || '').slice(0, 10)))
+    .filter(tx => !tx.metadata?.isIntercompany && tx.status !== 'draft' && tx.status !== 'pending' && saleDates.has(String(tx.date || '').slice(0, 10)) && (!from || tx.date >= from))
     .reduce((sum, tx) => sum + (tx.lines || []).reduce((ss, l) => {
       const acc = accounts.find(a => a.id === l.accountId);
       return acc && isCogsAccount(acc) ? ss + lineAmount(l, tx) : ss;
