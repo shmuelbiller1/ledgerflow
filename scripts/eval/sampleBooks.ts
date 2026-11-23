@@ -3,7 +3,7 @@
  * records (not fixed replies), so a model's figures can be checked against the books. Test data only.
  * Amounts are in cents; "today" is fixed so answers never drift.
  */
-import { readQuestion } from '../../src/lib/askBooks';
+import { answerCents, readQuestion } from '../../src/lib/askBooks';
 import type { ChartAccount } from '../../src/types';
 
 export const TODAY = '2026-11-22';
@@ -194,12 +194,13 @@ export function bookTool(name: string, args: Record<string, unknown>): unknown {
         accounts: accounts.map(a => ({ ...a, type: a.type === 'revenue' ? 'income' : a.type })) as unknown as ChartAccount[],
         today: TODAY, fiscalYearStartMonth: 1,
       });
-      if (!reading.filter) return { problem: reading.problem, answer: null, understood: reading.understood };
+      if (!reading.filter) return { question: s(args.question), today: TODAY, reading, answer: null };
       const pl = profitAndLoss(reading.filter.startDate.slice(0, 7), reading.filter.endDate.slice(0, 7));
       const figures: Record<string, number> = { ...pl.revenue, ...pl.expenses, Cash: balances.acc_cash, Bank: balances.acc_bank };
       const lines = reading.filter.accountIds.map(id => accounts.find(a => a.id === id)).filter(Boolean)
-        .map(a => ({ accountId: a!.id, account: a!.name, cents: figures[a!.name] ?? 0 }));
-      return { answer: { totalCents: lines.reduce((t, l) => t + l.cents, 0), lines }, understood: reading.understood, ...(reading.problem ? { problem: reading.problem } : {}) };
+        .map(a => ({ accountId: a!.id, account: a!.name, cents: (figures[a!.name] ?? 0) * (a!.type === 'revenue' ? -1 : 1) }));
+      const totalCents = lines.reduce((t, l) => t + l.cents, 0);
+      return { question: s(args.question), today: TODAY, reading, answer: { totalCents, lines, answerCents: answerCents(totalCents, reading.sense), sense: reading.sense } };
     }
     case 'explain_number': {
       // the requested accounts over the requested period (whole months); balance accounts at the end date
@@ -207,7 +208,7 @@ export function bookTool(name: string, args: Record<string, unknown>): unknown {
       const from = (s(args.startDate) || '2026-01-01').slice(0, 7), to = (s(args.endDate) || TODAY).slice(0, 7);
       const pl = profitAndLoss(from, to);
       const figures: Record<string, number> = { ...pl.revenue, ...pl.expenses, Cash: balances.acc_cash, Bank: balances.acc_bank };
-      const lines = ids.map(id => accounts.find(a => a.id === id)).filter(Boolean).map(a => ({ accountId: a!.id, label: a!.name, cents: figures[a!.name] ?? 0 }));
+      const lines = ids.map(id => accounts.find(a => a.id === id)).filter(Boolean).map(a => ({ accountId: a!.id, label: a!.name, cents: (figures[a!.name] ?? 0) * (a!.type === 'revenue' ? -1 : 1) }));
       if (!lines.length) return { error: 'Name the accounts to explain (accountIds)' };
       return { startDate: from, endDate: to, totalCents: lines.reduce((t, l) => t + l.cents, 0), lines };
     }

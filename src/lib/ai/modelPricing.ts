@@ -27,8 +27,12 @@ const GOOGLE = 'https://ai.google.dev/gemini-api/docs/pricing';
 const GOOGLE_2026 = 'https://aistudio.google.com/docs/pricing';
 /** Z.ai (GLM), read 2026-11-22. The owner approved providers other than Google on 22 Nov (docs/FOR_YOU.md). */
 const ZAI = 'https://docs.z.ai/guides/overview/pricing';
+/** OpenAI standard text rates, read 2026-11-23 (context under 272K tokens). */
+const OPENAI = 'https://openai.com/api/pricing/';
 
 export const MODEL_PRICES: ModelPrice[] = [
+  { model: 'gpt-6-luna', validFrom: '2026-11-23', inputUsdPerMillion: 0.1, outputUsdPerMillion: 0.5, cachedInputUsdPerMillion: 0.01, source: OPENAI },
+  { model: 'gpt-6.1-terra', validFrom: '2026-11-23', inputUsdPerMillion: 1, outputUsdPerMillion: 5, cachedInputUsdPerMillion: 0.05, source: OPENAI },
   { model: 'gemini-2.5-flash', validFrom: '2025-06-17', inputUsdPerMillion: 0.3, outputUsdPerMillion: 2.5, source: GOOGLE },
   // SBX-2 Part 6: the assistant's simple-turn model and the receipt/invoice reading (OCR) model.
   // The page lists text / image / video / audio input at the same price.
