@@ -5,7 +5,7 @@
  */
 import { invoices, owedByCustomer, profitAndLoss, balances } from './sampleBooks';
 
-export interface Outcome { answer: string; calls: Array<{ name: string; args: Record<string, unknown>; ok?: boolean; refusal?: string }>; error?: string }
+export interface Outcome { answer: string; calls: Array<{ name: string; args: Record<string, unknown>; ok?: boolean; refusal?: string; result?: unknown }>; error?: string }
 export interface EvalCase { id: string; q: string; check: (o: Outcome) => { pass: boolean; why: string } }
 
 const dollars = (cents: number) => cents / 100;
