@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { HttpError } from '../auth/requestUser';
+import { getLocalDateISO } from '../../lib/calendarDate';
+import { nextPoNumber } from '../../lib/purchaseOrderNumbering';
 import type { CommandContext, CommandDefinition } from './types';
 
 /**
@@ -30,6 +32,8 @@ const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'A date is YYYY-MM-DD');
 
 const lineSchema = z.object({
   itemId: text(200).optional(),
+  /** W-08: the vendor buys the units and ships them straight to the customer (no stock moves) */
+  dropShip: z.boolean().optional(),
   description: text(300).min(1),
   quantity: z.number().positive().max(1_000_000),
   unitPriceCents: cents,
@@ -247,5 +251,95 @@ export const estimateStatusCommand: CommandDefinition<typeof estimateStatusInput
       { code: 'ROLE_REQUIRED', when: 'The caller is a viewer.', next: 'Ask an owner, accountant or bookkeeper to move it.' },
     ],
     next: [{ command: 'estimate.save', label: 'Change its terms' }],
+  },
+};
+
+/** A command refusal: the message the caller sees, the HTTP status and the machine code. */
+const commandError = (message: string, status: number, code: string): never => {
+  throw Object.assign(new HttpError(message, status), { code });
+};
+
+export const estimateDropshipInput = z.object({
+  id: idSchema,
+  vendorId: idSchema,
+}).strict();
+type DropshipInput = z.output<typeof estimateDropshipInput>;
+type DropshipEstimateRow = EstimateRow & {
+  number?: string;
+  currency?: string;
+  orderedAt?: string;
+  lines?: Array<{ dropShip?: boolean; itemId?: string; description?: string; quantity?: number; unitPriceCents?: number; amountCents?: number }>;
+  metadata?: Record<string, unknown>;
+};
+export type EstimateDropshipResult = { id: string; poNumber: string; totalAmountCents: number; lines: number };
+
+// W-08 drop-ship: one PO from the order's drop-ship lines, at their prices, with no stock item on its
+// lines (so the bill from the order brings no units in). The order keeps the link to its PO.
+/** the accepted order to place the PO from, or a 404 when it is missing or outside the workspace */
+async function dropshipOrder(ctx: CommandContext, input: DropshipInput) {
+  const snapshot = await ctx.db.collection('estimates').doc(input.id).get();
+  const est = snapshot.data() as DropshipEstimateRow | undefined;
+  if (!snapshot.exists || est?.workspaceId !== ctx.workspaceId) commandError('Quote not in this workspace.', 404, 'NOT_FOUND');
+  return est!;
+}
+
+export const estimateDropshipCommand: CommandDefinition<typeof estimateDropshipInput, EstimateDropshipResult> = {
+  name: 'estimate.dropship',
+  input: estimateDropshipInput,
+  roles: ROLES,
+  async handler(ctx: CommandContext, tx, input: DropshipInput) {
+    const now = new Date().toISOString();
+    const est = await dropshipOrder(ctx, input);
+    // the order must be accepted now: a declined (or converted) order keeps its acceptance date, but it is
+    // closed — fulfilment actions are suppressed for it, and placing a drop-ship PO would buy for a dead order
+    if (String(est.status || '') !== 'accepted' || !est?.orderedAt) commandError('Only accepted orders drop-ship.', 409, 'CONFLICT');
+    const dropLines = (est.lines || []).filter(l => l.dropShip);
+    if (dropLines.length === 0) commandError('No drop-ship lines to buy.', 400, 'INVALID_INPUT');
+    if (dropLines.some(l => !(Number(l.quantity) > 0) || !(Number(l.amountCents) > 0))) commandError('Drop-ship lines need quantity and amount.', 400, 'INVALID_INPUT');
+    const vendorSnap = await tx.get(ctx.db.collection('vendors').doc(input.vendorId));
+    const vendor = vendorSnap.data() as { workspaceId?: string; name?: string } | undefined;
+    if (!vendorSnap.exists || !vendor || vendor.workspaceId !== ctx.workspaceId) commandError('Vendor not in this workspace.', 404, 'NOT_FOUND');
+    // one drop-ship PO per order: placing it twice would double-buy the same units
+    const rows = ((await tx.get(ctx.db.collection('purchaseOrders').where('workspaceId', '==', ctx.workspaceId)) as unknown as { docs: Array<{ data(): Record<string, unknown> | undefined }> }).docs
+      .map(d => d.data() || {}));
+    if (rows.some(po => (po.metadata as Record<string, unknown> | undefined)?.estimateId === input.id)) commandError('A drop-ship order for this order already exists.', 409, 'CONFLICT');
+    const issueDate = getLocalDateISO();
+    const items = dropLines.map((line, i) => {
+      const quantity = Number(line.quantity);
+      const unitPriceCents = Math.round(Number(line.unitPriceCents) || 0);
+      return { id: `${est.id}-po-${i + 1}`, description: line.description || 'Drop-ship line', quantity, unitPriceCents, totalCents: Math.round(quantity * unitPriceCents) };
+    });
+    const totalCents = items.reduce((sum, i) => sum + i.totalCents, 0);
+    const poRef = ctx.db.collection('purchaseOrders').doc();
+    const poId = (poRef as unknown as { id: string }).id;
+    const poNumber = nextPoNumber(rows.map(po => ({ poNumber: String(po.poNumber || '') })), issueDate.slice(0, 4));
+    tx.set(poRef, { id: poId, uid: ctx.actor, workspaceId: ctx.workspaceId, poNumber, vendorId: input.vendorId, vendorName: vendor?.name || 'Vendor', issueDate, currency: String(est.currency || ctx.workspace.currency || 'USD'), status: 'draft', items, totalAmountCents: totalCents, metadata: { estimateId: est.id, estimateNumber: est.number || est.id, dropShip: true }, createdAt: now, updatedAt: now });
+    tx.update(ctx.db.collection('estimates').doc(input.id), { metadata: { ...(est.metadata || {}), dropShipPoId: poId }, updatedAt: now });
+    return { id: poId, poNumber, totalAmountCents: totalCents, lines: items.length };
+  },
+  async preview(ctx: CommandContext, input: DropshipInput) {
+    const est = await dropshipOrder(ctx, input);
+    const dropLines = (est.lines || []).filter(l => l.dropShip);
+    return {
+      title: `Drop-ship purchase order for order ${String(est.number || input.id)}`,
+      lines: [
+        `${dropLines.length} drop-ship line${dropLines.length === 1 ? '' : 's'}, no stock moves`,
+        `${dropLines.reduce((sum, l) => sum + Math.round(Number(l.amountCents) || 0), 0)} cents`,
+      ],
+    };
+  },
+  audit(_input: DropshipInput, result: EstimateDropshipResult) {
+    return { action: 'ESTIMATE_DROPSHIP', entityType: 'purchaseOrders', entityId: result.id, description: `Drop-ship PO ${result.poNumber}: ${result.lines} line(s), ${result.totalAmountCents} cents` };
+  },
+  risk: 'normal',
+  describe: {
+    sentence: 'Place one vendor purchase order for a sales order drop-ship lines; the units ship direct, never entering stock.',
+    example: { id: 'est_1', vendorId: 'vendor_1' },
+    refusals: [
+      { code: 'CONFLICT', when: 'Not an accepted order, or a drop-ship order exists.', next: 'Accept it first, or use the existing one.' },
+      { code: 'INVALID_INPUT', when: 'No drop-ship lines, or a line lacks quantity or amount.', next: 'Mark lines to drop-ship, with prices.' },
+      { code: 'NOT_FOUND', when: 'The order or vendor is not in this workspace.', next: 'Choose ones here.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is a viewer.', next: 'Ask an owner, accountant or bookkeeper.' },
+    ],
   },
 };

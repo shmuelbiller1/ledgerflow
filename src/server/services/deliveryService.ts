@@ -20,8 +20,16 @@ import { workspaceRole } from '../../lib/periodLock';
 import { isPostable } from '../../lib/txFilters';
 import { isOrder, orderProgress } from '../../lib/salesOrders';
 import { DELIVERY_COGS_TYPE, DELIVERY_RETURN_TYPE, deliveredByLine, deliveredUnitCost, deliveryEntryId, deliveryLines, deliveryProblem, goodsLeaveWith, liveDeliveryEntries, orderDeliveries, returnProblem, type GoodsLeaveWith } from '../../lib/deliveries';
-import type { Estimate, Invoice, Transaction } from '../../types';
+import type { Estimate, InventoryItem, Invoice, Transaction } from '../../types';
 import { prepareStockMoves } from './cogsStockService';
+import { validStandardCost } from '../../lib/standardCostSettings';
+
+/** M-21 step 2: the standard to relieve stock at on a delivery, or null to use the item's actual cost. */
+function ctx_workspace_standard(workspace: Record<string, unknown> | undefined, item: Record<string, unknown> | undefined): number | null {
+  const sc = workspace?.standardCosting as { enabled?: boolean } | undefined;
+  if (!sc?.enabled) return null;
+  return validStandardCost(item?.standardCostCents);
+}
 import { writeServerAuditLog } from './auditLogService';
 
 export class DeliveryError extends Error {
@@ -143,7 +151,10 @@ export async function deliverOrderInTransaction(db: Firestore, t: DbTransaction,
       const line = lines.find(x => x.position === l.position)!;
       const item = items[n].exists ? items[n].data() : undefined;
       if (!item || item.workspaceId !== input.workspaceId) throw new DeliveryError(404, `${line.description || 'An item'} is not in this workspace's stock`);
-      const unitCost = Number(item.unitCostCents) || 0;
+      // M-21 step 2: with standard-cost posting on, stock is carried at the standard, so the delivery
+      // relieves it at the standard (the receipt's actual cost stays the item's cost basis)
+      const standard = ctx_workspace_standard(workspace, item);
+      const unitCost = standard !== null ? standard : (Number(item.unitCostCents) || 0);
       const costCents = Math.round(l.quantity * unitCost);
       if (costCents <= 0) throw new DeliveryError(400, `${item.name || line.description} has no cost: set its unit cost on Inventory first`);
       const name = String(item.name || line.description || 'item');
@@ -162,6 +173,9 @@ export async function deliverOrderInTransaction(db: Firestore, t: DbTransaction,
         metadata: {
           type: DELIVERY_COGS_TYPE, orderId: order.id, orderLine: l.position, deliveryId: input.deliveryId,
           customerId: order.customerId || null, inventoryItemId: line.itemId, quantity: l.quantity,
+          // M-21 step 2: when the delivery relieved stock at the standard, mark the entry so the cost
+          // replay leaves it alone (it carries COGS at the standard, not the moving average)
+          ...(standard !== null ? { standard: true } : {}),
           ...(input.locationId ? { locationId: input.locationId } : {}), ...(input.note ? { note: input.note } : {}),
         },
         lines: [
@@ -256,6 +270,28 @@ export async function returnDelivered(db: Firestore, input: ReturnDeliveredInput
   return db.runTransaction(t => returnDeliveredInTransaction(db, t, input, prepared));
 }
 
+/**
+ * M-21 step 2: the refusal for a delivery return whose restoring value does not match the item's current
+ * standard. Under standard-cost posting the deliveries relieved stock at the standard, so restoring the
+ * units at the delivery's booked cost leaves Inventory out of step when the standard has since changed —
+ * a one-cent allowance covers the delivery's own rounding of fractional quantities.
+ */
+export function deliveryReturnStandardProblem(
+  standardCosting: { enabled?: boolean } | undefined,
+  standardCostCents: unknown,
+  quantity: number,
+  costCents: number,
+  name: string
+): string | null {
+  if (!standardCosting?.enabled) return null;
+  const standard = validStandardCost(standardCostCents);
+  if (standard === null) return null;
+  if (Math.abs(Math.round(quantity * standard) - costCents) > 1) {
+    return `The standard cost of ${name} changed since it was delivered, so returning it at the delivery's cost would leave Inventory out of step with the standard. Revalue the stock or turn standard-cost posting off before recording this return.`;
+  }
+  return null;
+}
+
 /** The write, inside a transaction the caller owns. */
 export async function returnDeliveredInTransaction(db: Firestore, t: DbTransaction, input: ReturnDeliveredInput, prepared: DeliveryAccounts) {
   const { inventoryAcc, cogsAcc } = prepared;
@@ -278,11 +314,20 @@ export async function returnDeliveredInTransaction(db: Firestore, t: DbTransacti
     if (problem) throw new DeliveryError(400, problem);
     const unitCost = deliveredUnitCost(entries, input.orderId);
     const now = new Date().toISOString();
+    // M-21 step 2: under standard-cost posting the deliveries relieve stock at the standard, so a return
+    // restoring the units at the delivery's booked cost would leave Inventory out of step when the item's
+    // standard has since changed. Check the restoring value against the current standard before posting.
+    const itemIds = Array.from(new Set(sending.map(l => lines.find(x => x.position === l.position)!.itemId)));
+    const itemDocs = itemIds.length ? (await t.getAll(...itemIds.map(id => db.collection('inventory').doc(id)))).filter(snap => snap.exists) : [];
+    const itemsById = new Map(itemDocs.map(snap => [snap.id, snap.data() as InventoryItem]));
+    const standardCosting = workspace.standardCosting as { enabled?: boolean } | undefined;
     const posted: Transaction[] = [];
     for (const l of sending) {
       const line = lines.find(x => x.position === l.position)!;
       const costCents = Math.round(l.quantity * (unitCost.get(l.position) || 0));
       if (costCents <= 0) throw new DeliveryError(400, `${line.description || 'An item'}: its delivery booked no cost to take back`);
+      const problem = deliveryReturnStandardProblem(standardCosting, (itemsById.get(line.itemId) as { standardCostCents?: unknown } | undefined)?.standardCostCents, l.quantity, costCents, line.description || 'the item');
+      if (problem) throw new DeliveryError(409, problem);
       const name = line.description || 'item';
       posted.push(await TransactionValidator.validateAndPrepare({
         id: `${input.returnId}_${l.position}`, workspaceId: input.workspaceId, uid: input.uid, date: input.date,

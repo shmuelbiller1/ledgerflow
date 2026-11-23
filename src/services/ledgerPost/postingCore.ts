@@ -1,4 +1,4 @@
-import { ChartAccount, Transaction, TransactionLine, Workspace, Invoice, InventoryItem } from '../../types';
+import { ChartAccount, Transaction, TransactionLine, Workspace, Invoice, Bill, InventoryItem } from '../../types';
 import type { LineAccountWeight } from '../../kernel/templates/TransactionTemplates';
 import { isLockedDate } from '../../lib/periodLock';
 import { rateUsedFor, rateUsedId, type RateUsed } from '../../lib/rateUsed';
@@ -62,7 +62,7 @@ export interface PostingHost {
   workspaces(): Workspace[];
   lockDate(): string | null;
   lockException(): unknown;
-  loadInventory(invoiceData: Partial<Invoice>): Promise<InventoryItem[]>;
+  loadInventory(documentData: Partial<Invoice> | Partial<Bill>): Promise<InventoryItem[]>;
   today(): string;
   uid(): string | undefined;
   send(txs: PostableTransaction[], workspaceId: string, entityMutation?: EntityMutation, context?: LedgerPostContext): Promise<void>;
@@ -168,12 +168,13 @@ function lockException(context?: LedgerPostContext): unknown {
 }
 
 /**
- * The items an invoice sells, for cost of goods sold: the caller's list, else what the host has
- * loaded (plus any item on the invoice not loaded yet; postingKit.ts reads those from the database).
+ * The stock items a document names, for cost of goods sold (an invoice) or for receiving at standard cost
+ * (a bill, M-21 step 2): the caller's list, else what the host has loaded (plus any item on the document not
+ * loaded yet; postingKit.ts reads those from the database).
  */
-export async function loadInventory(invoiceData: Partial<Invoice>, context?: LedgerPostContext): Promise<InventoryItem[]> {
+export async function loadInventory(documentData: Partial<Invoice> | Partial<Bill>, context?: LedgerPostContext): Promise<InventoryItem[]> {
   if (context?.inventory) return context.inventory;
-  return host ? host.loadInventory(invoiceData) : [];
+  return host ? host.loadInventory(documentData) : [];
 }
 
 /**

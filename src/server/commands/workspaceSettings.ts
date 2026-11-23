@@ -1,5 +1,8 @@
 import { z } from 'zod';
+import { HttpError } from '../auth/requestUser';
 import { formatTzDate } from '../../lib/calendarDate';
+import { validStandardCost } from '../../lib/standardCostSettings';
+import { resolveAccountRole } from '../../lib/accountUtils';
 import { MODULES, modulesProblem, type Modules } from '../../lib/modules';
 import { RetentionSettingsSchema, retentionFor } from '../../lib/retention';
 import { allocateInTransaction, formatDocumentNumber, NUMBERED_TYPES, resolveSeries, type NumberedType } from '../services/numberingService';
@@ -266,3 +269,104 @@ export const workspaceNextNumberCommand: CommandDefinition<typeof workspaceNextN
   },
 };
 
+
+export const workspaceStandardCostingInput = z.object({
+  enabled: z.boolean(),
+  /** the account the purchase-price variance posts to; required when turning standard costing on */
+  varianceAccountId: z.string().trim().min(1).max(200).optional(),
+}).strict().refine(input => !input.enabled || Boolean(input.varianceAccountId), {
+  message: 'Turning standard costing on needs the purchase-price variance account.',
+});
+type WorkspaceStandardCostingInput = z.output<typeof workspaceStandardCostingInput>;
+export type StandardCostingResult = { before: { enabled: boolean; varianceAccountId: string } | null; standardCosting: { enabled: boolean; varianceAccountId: string } };
+
+/**
+ * M-21 step 2, workspace setting: post receipts and sales at the item's standard cost. While it is on, a bill
+ * with item lines debits Inventory at quantity × standard and posts the difference (actual − standard) to the
+ * variance account, and an invoice relieves stock at the standard. Off by default: the books keep valuing stock
+ * at the moving average and the standard-cost report stays a comparison (docs/FOR_YOU.md #54).
+ */
+export const workspaceStandardCostingCommand: CommandDefinition<typeof workspaceStandardCostingInput, StandardCostingResult> = {
+  name: 'workspace.standardcosting',
+  input: workspaceStandardCostingInput,
+  roles: ['owner', 'accountant'],
+  async handler(ctx, tx, input: WorkspaceStandardCostingInput) {
+    const before = (ctx.workspace.standardCosting as { enabled: boolean; varianceAccountId: string } | undefined) || null;
+    if (input.enabled) {
+      const varianceSnap = await tx.get(ctx.db.collection('chartAccounts').doc(input.varianceAccountId || ''));
+      const variance = varianceSnap.data() as { workspaceId?: string } | undefined;
+      if (!varianceSnap.exists || variance?.workspaceId !== ctx.workspaceId) {
+        throw Object.assign(new HttpError('The purchase-price variance account is not in this workspace chart of accounts.', 400), { code: 'INVALID_INPUT' });
+      }
+      // M-21 step 2: the variance is the difference between what a receipt cost and its standard, booked
+      // beside Inventory; booking it to Inventory itself would fold the difference into the stock value
+      // (the receipt would debit Inventory twice and the stock metadata would carry only the standard)
+      if (resolveAccountRole(variance as Parameters<typeof resolveAccountRole>[0]) === 'inventory') {
+        throw Object.assign(new HttpError('The purchase-price variance account cannot be the Inventory account.', 400), { code: 'INVALID_INPUT' });
+      }
+    }
+    // M-21 step 2: switching the carrying basis (on or off) with stock on hand whose cost differs from its
+    // standard leaves Inventory and the stock out of step — on, the stock would be relieved at the standard
+    // while still carried at its own cost; off, the sale would relieve at the actual cost while the books
+    // carry it at the standard. The transition is refused until the stock is reconciled either way.
+    if (before?.enabled !== input.enabled) {
+      const stock = await tx.get(ctx.db.collection('inventory').where('workspaceId', '==', ctx.workspaceId));
+      const drifted = (stock as unknown as { docs: Array<{ data(): Record<string, unknown> | undefined }> }).docs
+        .map(d => d.data() || {})
+        .filter(item => {
+          const onHand = Number(item.quantityAtHand) || 0;
+          const standard = validStandardCost(item.standardCostCents);
+          // M-21 step 2: all nonzero stock (including negative, from selling below zero) must be
+          // reconciled before the carrying basis changes, or the transition leaves Inventory out of step
+          return onHand !== 0 && standard !== null && Math.round(Number(item.unitCostCents) || 0) !== standard;
+        });
+      if (drifted.length > 0) {
+        const turning = input.enabled ? 'on' : 'off';
+        throw Object.assign(new HttpError(`${drifted.length} item(s) hold stock at a cost other than their standard. Reconcile them (sell the stock down or adjust it on Inventory) before turning standard-cost posting ${turning}.`, 409), { code: 'CONFLICT' });
+      }
+    }
+    const standardCosting = { enabled: input.enabled, varianceAccountId: input.varianceAccountId || before?.varianceAccountId || '' };
+    tx.update(ctx.db.collection('workspaces').doc(ctx.workspaceId), { standardCosting });
+    return { before, standardCosting };
+  },
+  async preview(ctx, input: WorkspaceStandardCostingInput) {
+    const current = ctx.workspace.standardCosting as { enabled: boolean; varianceAccountId: string } | undefined;
+    const next = { enabled: input.enabled, varianceAccountId: input.varianceAccountId || current?.varianceAccountId || '' };
+    return {
+      title: 'Change standard-cost posting',
+      lines: [
+        `Standard-cost posting: ${current?.enabled ? 'on' : 'off'} → ${next.enabled ? 'on' : 'off'}`,
+        ...(next.enabled ? [`Purchase-price variance account: ${next.varianceAccountId}`] : []),
+      ],
+    };
+  },
+  audit(input: WorkspaceStandardCostingInput, result: StandardCostingResult) {
+    const was = result.before?.enabled ? 'on' : 'off';
+    const now = result.standardCosting.enabled ? 'on' : 'off';
+    return {
+      action: result.before?.enabled ? 'STANDARD_COSTING_UPDATED' : 'STANDARD_COSTING_SET',
+      entityType: 'workspaces',
+      entityId: result.standardCosting.enabled ? `standard-costing:${result.standardCosting.varianceAccountId}` : 'standard-costing',
+      description: `Standard-cost posting ${was} → ${now}${input.enabled && result.standardCosting.varianceAccountId ? ` (variance account ${result.standardCosting.varianceAccountId})` : ''}`,
+    };
+  },
+  inverse(_input: WorkspaceStandardCostingInput, result: StandardCostingResult) {
+    return {
+      command: 'workspace.standardcosting',
+      input: result.before
+        ? { enabled: result.before.enabled, varianceAccountId: result.before.varianceAccountId }
+        : { enabled: false },
+    };
+  },
+  risk: 'normal',
+  describe: {
+    sentence: 'Turn standard-cost posting on or off for the workspace and name the account the variance posts to.',
+    example: { enabled: true, varianceAccountId: 'acct_purchase_variance' },
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'Turned on without the variance account, or the account is not in the chart.', next: 'Choose the variance account and pass its id.' },
+      { code: 'CONFLICT', when: 'Stock is on hand at a cost other than its standard.', next: 'Reconcile the stock before turning standard costing on.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is not an owner or accountant.', next: 'Ask an owner or accountant to change it.' },
+      { code: 'WORKSPACE_NOT_FOUND', when: 'The workspace no longer exists.', next: 'Choose an existing workspace.' },
+    ],
+  },
+};

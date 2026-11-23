@@ -4,7 +4,7 @@ export const COMMAND_INPUT_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "node": COMMAND_SCHEMA_PARTS.part279,
+    "node": COMMAND_SCHEMA_PARTS.part280,
     "createOnly": {
       "description": "Refuse an existing label instead of replacing it.",
       "type": "boolean"

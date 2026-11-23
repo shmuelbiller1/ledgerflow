@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { showBudgetWarnings } from '../../lib/budgetWarnings';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { Transaction, Invoice, InventoryItem } from '../../types';
+import { Transaction, Invoice, Bill, InventoryItem } from '../../types';
 import { postingToday, registerPostingHost } from './postingCore';
 import { getLocalDateISO } from '../../lib/utils';
 import type { EntityMutation, LedgerPostContext, PostableTransaction } from './postingCore';
@@ -17,14 +17,15 @@ import { runCommand, ServerCommandError, type CommandBody } from '../../lib/runC
 export * from './postingCore';
 
 /**
- * The items an invoice sells, for cost of goods sold: the loaded inventory, plus any item on the
- * invoice that isn't loaded yet (inventory loads only once a screen needs it:
- * src/lib/ledgerCollections.ts), read from the database.
+ * The stock items a document names, for cost of goods sold (an invoice) or for receiving at standard cost
+ * (a bill, M-21 step 2): the loaded inventory, plus any item on the document that isn't loaded yet
+ * (inventory loads only once a screen needs it: src/lib/ledgerCollections.ts), read from the database.
  */
-async function loadInventoryFromStore(invoiceData: Partial<Invoice>): Promise<InventoryItem[]> {
+async function loadInventoryFromStore(documentData: Partial<Invoice> | Partial<Bill>): Promise<InventoryItem[]> {
   const loaded = useLedgerStore.getState().inventory || [];
   const known = new Set(loaded.map(i => i.id));
-  const missing = [...new Set((invoiceData.items || []).map(l => l.itemId).filter((id): id is string => Boolean(id) && !known.has(id as string)))];
+  const named = [...((documentData as Partial<Invoice>).items || []), ...((documentData as Partial<Bill>).splits || [])];
+  const missing = [...new Set(named.map(l => l.itemId).filter((id): id is string => Boolean(id) && !known.has(id as string)))];
   if (!missing.length) return loaded;
   const fetched = await Promise.all(missing.map(async id => {
     const snap = await getDoc(doc(db, 'inventory', id)).catch(() => null);

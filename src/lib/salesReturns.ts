@@ -29,6 +29,10 @@ export interface ReturnableLine {
   returnable: number;
   /** the cost per unit when it left stock, in home-currency cents */
   unitCostCents: number;
+  /** the sale's total cost of goods, in home-currency cents (unitCostCents is rounded from it) */
+  saleTotalCents?: number;
+  /** M-21 step 2: the sale was posted at the item's standard cost (not the moving average) */
+  saleStandard?: boolean;
   /** the price per unit on the invoice, in the invoice's currency */
   unitPriceCents: number;
   /** W-01: where the units left from; they come back there */
@@ -64,7 +68,9 @@ export function returnableLines(invoice: Pick<Invoice, 'id' | 'items'>, ledger: 
       invoiceLineId: line.id, itemId: line.itemId, description: line.description || '',
       sold, returned, returnable: Math.max(0, round6(sold - returned)),
       unitCostCents: Math.round(Math.abs(Number(sale.totalAmountCents) || 0) / sold),
+      saleTotalCents: Math.abs(Number(sale.totalAmountCents) || 0),
       unitPriceCents: Number(line.rateCents) || 0,
+      ...(sale.metadata?.standard === true ? { saleStandard: true } : {}),
       ...(typeof sale.metadata?.locationId === 'string' && sale.metadata.locationId ? { locationId: sale.metadata.locationId } : {}),
     }];
   });
@@ -106,7 +112,7 @@ export function planReturnEntries(input: {
       uid: input.uid, workspaceId: input.workspaceId, date: creditNote.date,
       description: `Goods returned: ${name} × ${g.quantity} (Credit note ${creditNote.number || creditNote.id})`,
       totalAmountCents: cents, currency: input.baseCurrency, exchangeRate: 1, status: 'completed', type: 'actual', createdAt: new Date().toISOString(),
-      metadata: { type: SALES_RETURN_TYPE, creditNoteId: creditNote.id, invoiceId: creditNote.invoiceId, returnForLineId: g.invoiceLineId, inventoryItemId: g.itemId, quantity: g.quantity, ...(line.locationId ? { locationId: line.locationId } : {}), ...(creditNote.customerId ? { customerId: creditNote.customerId } : {}) },
+      metadata: { type: SALES_RETURN_TYPE, creditNoteId: creditNote.id, invoiceId: creditNote.invoiceId, returnForLineId: g.invoiceLineId, inventoryItemId: g.itemId, quantity: g.quantity, ...(line.saleStandard ? { standard: true } : {}), ...(line.locationId ? { locationId: line.locationId } : {}), ...(creditNote.customerId ? { customerId: creditNote.customerId } : {}) },
       lines: entryLines,
     } as Omit<Transaction, 'id'>];
   });

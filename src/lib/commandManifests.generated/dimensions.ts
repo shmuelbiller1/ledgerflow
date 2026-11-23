@@ -3,28 +3,5 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema48 } from '../commandSchemas.
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const DIMENSIONS_COMMAND_MANIFEST = [
-  {
-    "name": "dimensions.migrate",
-    "area": "dimensions",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "allowPlatformAdmin": true,
-    "risk": "normal",
-    "description": {
-      "sentence": "Rewrite the entries that name a dimension value as text so they name its dimension node instead; it is a one-way tidy-up of existing data and posts nothing.",
-      "example": {
-        "workspaceId": "ws_123"
-      },
-      "refusals": [
-        COMMAND_SCHEMA_PARTS.part228,
-        {
-          "code": "PERIOD_LOCKED",
-          "when": "An entry it would rewrite is dated in a closed period.",
-          "next": "Ask an owner to reopen the period, or reopen it and run the migration again."
-        }
-      ]
-    },
-    "runPath": "/api/v1/commands/dimensions.migrate",
-    "previewPath": "/api/v1/commands/dimensions.migrate/preview",
-    inputSchema: commandInputSchema48
-  },
+{"name":"dimensions.migrate","area":"dimensions","roles":COMMAND_SCHEMA_PARTS.part72,"allowPlatformAdmin":true,"risk":"normal","description":{ "sentence": "Rewrite the entries that name a dimension value as text so they name its dimension node instead; it is a one-way tidy-up of existing data and posts nothing.", "example": { "workspaceId": "ws_123" }, "refusals": [COMMAND_SCHEMA_PARTS.part229, { "code": "PERIOD_LOCKED", "when": "An entry it would rewrite is dated in a closed period.", "next": "Ask an owner to reopen the period, or reopen it and run the migration again." }] },"runPath":"/api/v1/commands/dimensions.migrate","previewPath":"/api/v1/commands/dimensions.migrate/preview",inputSchema:commandInputSchema48},
 ] as const;

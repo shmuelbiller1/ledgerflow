@@ -5,58 +5,7 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema44 } from '../commandSchemas.
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const CREDITNOTE_COMMAND_MANIFEST = [
-  {
-    "name": "creditnote.create",
-    "area": "creditnote",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "risk": "normal",
-    "description": {
-      "sentence": "Create a credit note and let the server build its ledger entries from the saved document; do not use this command to record a payment or edit an existing credit note.",
-      "example": {
-        "creditNote": {
-          "customerId": "customer_123",
-          "customerName": "Acme",
-          "number": "CN-1001",
-          "invoiceId": "invoice_123",
-          "date": "2026-11-15",
-          "status": "open",
-          "amountCents": 11000,
-          "remainingCents": 11000,
-          "currency": "USD"
-        }
-      },
-      "refusals": COMMAND_SCHEMA_PARTS.part283
-    },
-    "runPath": "/api/v1/commands/creditnote.create",
-    "previewPath": "/api/v1/commands/creditnote.create/preview",
-    inputSchema: commandInputSchema42
-  },
-  {
-    "name": "creditnote.delete",
-    "area": "creditnote",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "risk": "normal",
-    "description": {
-      "sentence": "Delete a credit note and let the server reverse its live ledger entries; do not use this command to void or write off a document.",
-      "example": COMMAND_SCHEMA_PARTS.part31,
-      "refusals": COMMAND_SCHEMA_PARTS.part283
-    },
-    "runPath": "/api/v1/commands/creditnote.delete",
-    "previewPath": "/api/v1/commands/creditnote.delete/preview",
-    inputSchema: commandInputSchema43
-  },
-  {
-    "name": "creditnote.update",
-    "area": "creditnote",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "risk": "normal",
-    "description": {
-      "sentence": "Update an existing credit note and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.",
-      "example": COMMAND_SCHEMA_PARTS.part98,
-      "refusals": COMMAND_SCHEMA_PARTS.part283
-    },
-    "runPath": "/api/v1/commands/creditnote.update",
-    "previewPath": "/api/v1/commands/creditnote.update/preview",
-    inputSchema: commandInputSchema44
-  },
+{"name":"creditnote.create","area":"creditnote","roles":COMMAND_SCHEMA_PARTS.part72,"risk":"normal","description":{ "sentence": "Create a credit note and let the server build its ledger entries from the saved document; do not use this command to record a payment or edit an existing credit note.", "example": { "creditNote": { "customerId": "customer_123", "customerName": "Acme", "number": "CN-1001", "invoiceId": "invoice_123", "date": "2026-11-15", "status": "open", "amountCents": 11000, "remainingCents": 11000, "currency": "USD" } }, "refusals": COMMAND_SCHEMA_PARTS.part284 },"runPath":"/api/v1/commands/creditnote.create","previewPath":"/api/v1/commands/creditnote.create/preview",inputSchema:commandInputSchema42},
+{"name":"creditnote.delete","area":"creditnote","roles":COMMAND_SCHEMA_PARTS.part72,"risk":"normal","description":{ "sentence": "Delete a credit note and let the server reverse its live ledger entries; do not use this command to void or write off a document.", "example": COMMAND_SCHEMA_PARTS.part31, "refusals": COMMAND_SCHEMA_PARTS.part284 },"runPath":"/api/v1/commands/creditnote.delete","previewPath":"/api/v1/commands/creditnote.delete/preview",inputSchema:commandInputSchema43},
+{"name":"creditnote.update","area":"creditnote","roles":COMMAND_SCHEMA_PARTS.part72,"risk":"normal","description":{ "sentence": "Update an existing credit note and let the server rebuild or preserve its ledger entries; do not use this command to apply or refund a credit.", "example": COMMAND_SCHEMA_PARTS.part98, "refusals": COMMAND_SCHEMA_PARTS.part284 },"runPath":"/api/v1/commands/creditnote.update","previewPath":"/api/v1/commands/creditnote.update/preview",inputSchema:commandInputSchema44},
 ] as const;

@@ -142,6 +142,26 @@ test('#839: with stock on hand the cost is not changed on the card, by the form 
   assert.equal((await runField({ id: 'item_2', field: 'unitCostCents', value: 700 }, db)).ok, true);
 });
 
+test('M-21 step 2: with standard-cost posting on, the standard is not changed on the card with stock on hand', async () => {
+  const db = new MemoryDb();
+  // the workspace has standard-cost posting on
+  seedWorkspace(db, workspaceId, { standardCosting: { enabled: true, varianceAccountId: 'acc_ppv' } });
+  db.seed('inventory/item_1', { id: 'item_1', workspaceId, name: 'Chair', quantityAtHand: 10, unitCostCents: 5000, standardCostCents: 4000 });
+  for (const outcome of [
+    await runSave({ id: 'item_1', standardCostCents: 6000 }, db),
+    await runField({ id: 'item_1', field: 'standardCostCents', value: 6000 }, db),
+  ]) {
+    assert.equal(outcome.ok, false);
+    assert.equal((outcome as unknown as { code?: string }).code, 'CONFLICT');
+  }
+  assert.equal(db.read('inventory/item_1')?.standardCostCents, 4000, 'the stock keeps the standard the books have');
+  // the same standard, or a price, still saves
+  assert.equal((await runSave({ id: 'item_1', standardCostCents: 4000, unitPriceCents: 2500 }, db)).ok, true);
+  // without stock the standard is the card's to set
+  db.seed('inventory/item_2', { id: 'item_2', workspaceId, name: 'Desk', quantityAtHand: 0, unitCostCents: 500, standardCostCents: 400 });
+  assert.equal((await runField({ id: 'item_2', field: 'standardCostCents', value: 700 }, db)).ok, true);
+});
+
 test('#839: the bin levels are the reorder band the screen sends, never a stock quantity', async () => {
   const db = new MemoryDb();
   seedWorkspace(db);
