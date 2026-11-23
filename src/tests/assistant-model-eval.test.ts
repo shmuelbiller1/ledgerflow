@@ -190,6 +190,8 @@ test('SBX-2 Part 6 model test: a polite request with a list counts as asking (re
   assert.ok(!byId('invoice').check({ answer: 'Invoice saved. Please provide the hourly rate.', calls: [] }).pass);
   assert.ok(!byId('invoice').check({ answer: 'Let me know the hourly rate; I\'ve saved it as a draft.', calls: [] }).pass);
   assert.ok(!byId('invoice').check({ answer: 'Please confirm the hourly rate:\n- Invoice saved as INV-001', calls: [] }).pass);
+  assert.ok(!byId('invoice').check({ answer: 'Please provide the hourly rate; I created the invoice as INV-001.', calls: [] }).pass);
+  assert.ok(!byId('invoice').check({ answer: 'Please provide the hourly rate. We recorded it already.', calls: [] }).pass);
   // a negated or descriptive line inside a request is not a claim
   assert.ok(byId('invoice').check({ answer: 'Please confirm the hourly rate; I have not saved anything yet.', calls: [] }).pass);
   assert.ok(byId('invoice').check({ answer: 'Please provide:\n- The hourly rate\n- No invoice created yet', calls: [] }).pass);
