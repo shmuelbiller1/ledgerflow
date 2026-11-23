@@ -13,9 +13,9 @@
  *   parity: the same bill posted against a workspace row without the setting posts Inventory 125,000, no variance
  */
 import './helpers/dom';
-import test, { after, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'crypto';
+import test, { after, before, describe } from 'node:test';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { postBillLedger } from '../services/ledgerPost/billPosting';
@@ -33,14 +33,14 @@ describe('M-21 step 2: posting at standard against the database', { skip: !url &
   const OWNER = 'owner-1';
   const [chair, table] = [`${ws}_chair`, `${ws}_table`];
   const ITEMS: Array<[string, string]> = [[chair, 'Chair'], [table, 'Table']];
+  const acct: Record<string, ChartAccount> = {};
   let server: Server;
   let base = '';
   let db: import('../server/db/pgFirestore').Firestore;
-  const realFetch = globalThis.fetch;
-  const acct: Record<string, ChartAccount> = {};
+  const nativeFetch = globalThis.fetch;
   const today = '2026-11-10';
   const send = async (method: string, path: string, body?: unknown, uid = OWNER) => {
-    const res = await realFetch(`${base}${path}`, { method, headers: { 'content-type': 'application/json', 'x-test-uid': uid }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const res = await nativeFetch(`${base}${path}`, { method, headers: { 'content-type': 'application/json', 'x-test-uid': uid }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     return { status: res.status, body: await res.json().catch(() => ({})) as Json };
   };
   const all = async <T>(collection: string) => (await db.collection(collection).where('workspaceId', '==', ws).get()).docs.map(d => ({ ...d.data(), id: d.id }) as T);
@@ -65,11 +65,11 @@ describe('M-21 step 2: posting at standard against the database', { skip: !url &
   ];
 
   before(async () => {
+    const { getDb } = await import('../server/db/firestore');
     process.env.DATABASE_URL = url;
     const express = (await import('express')).default;
-    const { workspaceRouter } = await import('../server/routes/workspaceRoutes');
     const { transactionRouter } = await import('../server/routes/transactionRoutes');
-    const { getDb } = await import('../server/db/firestore');
+    const { workspaceRouter } = await import('../server/routes/workspaceRoutes');
     db = getDb();
     await db.collection('workspaces').doc(ws).set({ uid: OWNER, name: 'Standard Co', currency: 'USD', timezone: 'UTC', members: [OWNER, 'acct', 'book', 'view'], roles: { acct: 'accountant', book: 'bookkeeper', view: 'viewer' } });
     const app = express();
@@ -80,22 +80,26 @@ describe('M-21 step 2: posting at standard against the database', { skip: !url &
     app.use('/api/v1/documents', (await import('../server/routes/documentPostRoutes')).documentPostRouter);
     server = app.listen(0);
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    // relative paths go to the test server, with the owner's uid header; absolute ones pass through
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const target = String(input);
-      if (!target.startsWith('/')) return realFetch(input, init);
-      return realFetch(`${base}${target}`, { ...init, headers: { ...(init?.headers as Record<string, string> || {}), 'x-test-uid': OWNER } });
+      if (target.startsWith('/')) {
+        return nativeFetch(`${base}${target}`, { ...init, headers: { ...((init?.headers ?? {}) as Record<string, string>), 'x-test-uid': OWNER } });
+      }
+      return nativeFetch(input, init);
     }) as typeof fetch;
-    const accounts = await send('POST', `/api/v1/workspaces/${ws}/import-records`, { kind: 'accounts', rows: [
-      { name: 'Checking', code: '1000', type: 'Bank' },
-      { name: 'Accounts Receivable', code: '1100', type: 'Accounts receivable' },
-      { name: 'Inventory', code: '1300', type: 'Inventory' },
-      { name: 'Accounts Payable', code: '2000', type: 'Accounts payable' },
-      { name: 'Sales', code: '4000', type: 'Income' },
-      { name: 'Cost of goods sold', code: '5000', type: 'Cost of goods sold' },
-      { name: 'Purchase Price Variance', code: '5200', type: 'Expense' },
-      { name: 'Operating Expense', code: '6000', type: 'Expense' },
-      { name: 'Opening Balance Equity', code: '3900', type: 'Equity' },
-    ] });
+    const ACCOUNT_ROWS: Array<[string, string, string]> = [
+      ['Checking', '1000', 'Bank'],
+      ['Accounts Receivable', '1100', 'Accounts receivable'],
+      ['Inventory', '1300', 'Inventory'],
+      ['Accounts Payable', '2000', 'Accounts payable'],
+      ['Sales', '4000', 'Income'],
+      ['Cost of goods sold', '5000', 'Cost of goods sold'],
+      ['Purchase Price Variance', '5200', 'Expense'],
+      ['Operating Expense', '6000', 'Expense'],
+      ['Opening Balance Equity', '3900', 'Equity'],
+    ];
+    const accounts = await send('POST', `/api/v1/workspaces/${ws}/import-records`, { kind: 'accounts', rows: ACCOUNT_ROWS.map(([name, code, type]) => ({ name, code, type })) });
     assert.equal(accounts.status, 200, JSON.stringify(accounts.body));
     for (const a of await all<ChartAccount>('chartAccounts')) acct[String(a.code)] = a;
     standardCosting.varianceAccountId = acct['5200'].id;
@@ -111,14 +115,15 @@ describe('M-21 step 2: posting at standard against the database', { skip: !url &
   });
 
   after(async () => {
-    globalThis.fetch = realFetch;
+    globalThis.fetch = nativeFetch;
     server?.close();
-    for (const tbl of ['transactions', 'bills', 'invoices', 'inventory', 'stockMoves', 'chartAccounts', 'auditLogs', 'idempotencyKeys', 'workspaces']) {
+    const TABLES = ['transactions', 'bills', 'invoices', 'inventory', 'stockMoves', 'chartAccounts', 'auditLogs', 'idempotencyKeys', 'workspaces'];
+    for (const tbl of TABLES) {
       await db.pool.query(`delete from public."${tbl}" where workspace_id = $1 or id = $1`, [ws]).catch(() => {});
     }
     const { getSupabase } = await import('../lib/db/client');
-    getSupabase().realtime.disconnect();
     await getSupabase().auth.dispose();
+    getSupabase().realtime.disconnect();
     await db.terminate();
   });
 

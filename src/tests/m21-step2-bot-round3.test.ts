@@ -23,56 +23,12 @@ import { workspaceStandardCostingCommand } from '../server/commands/workspaceSet
 import { inventoryCogsCommand } from '../server/commands/inventoryStock';
 import { INVOICE_COGS_TYPE } from '../services/invoiceCogs';
 import type { LedgerPostContext } from '../services/ledgerPost/postingCore';
-import type { ChartAccount, CreditNote, InventoryItem, Invoice, Transaction, Workspace } from '../types';
+import type { CreditNote, InventoryItem, Invoice, Transaction } from '../types';
 import { commandHarness, owner } from './helpers/commandTestUtils';
+import { m21BotFixtures } from './helpers/m21BotFixtures';
 
-const WS = 'ws-m21-r3';
-const OWNER = owner.uid;
-
-const accounts = (): ChartAccount[] => ([
-  { id: 'acc_inv', uid: OWNER, workspaceId: WS, name: 'Inventory', code: '1300', type: 'asset', category: 'Inventory', balanceCents: 0 },
-  { id: 'acc_exp', uid: OWNER, workspaceId: WS, name: 'Operating Expense', code: '6000', type: 'expense', category: 'Expense', balanceCents: 0 },
-  { id: 'acc_ap', uid: OWNER, workspaceId: WS, name: 'Accounts Payable', code: '2000', type: 'liability', category: 'Payables', balanceCents: 0 },
-  { id: 'acc_cash', uid: OWNER, workspaceId: WS, name: 'Cash', code: '1000', type: 'asset', category: 'Cash', balanceCents: 0 },
-  { id: 'acc_ppv', uid: OWNER, workspaceId: WS, name: 'Purchase Price Variance', code: '5200', type: 'expense', category: 'Expense', balanceCents: 0 },
-  { id: 'acc_ar', uid: OWNER, workspaceId: WS, name: 'Accounts Receivable', code: '1100', type: 'asset', category: 'Receivables', balanceCents: 0 },
-  { id: 'acc_cogs', uid: OWNER, workspaceId: WS, name: 'Cost of Goods Sold', code: '5000', type: 'expense', category: 'Expense', balanceCents: 0 },
-  { id: 'acc_sr', uid: OWNER, workspaceId: WS, name: 'Sales Returns', code: '4000', type: 'income', category: 'Revenue', balanceCents: 0 },
-]);
-
-const returnItems = (): InventoryItem[] => ([
-  { id: 'chair', uid: OWNER, workspaceId: WS, name: 'Chair', sku: 'CH-1', quantityAtHand: 0, unitCostCents: 0, unitPriceCents: 30000, reorderPoint: 0, standardCostCents: 400, createdAt: '2026-01-01T00:00:00.000Z' },
-]);
-
-const contextFor = (standardCosting?: { enabled: boolean; varianceAccountId: string }, captured: LedgerPostContext['capture'] = [], stock: InventoryItem[] = returnItems()): LedgerPostContext => ({
-  accounts: accounts(),
-  transactions: [] as Transaction[],
-  workspaces: [{ id: WS, uid: OWNER, name: 'Standard Co', currency: 'USD', ...(standardCosting ? { standardCosting } : {}) } as Workspace],
-  inventory: stock,
-  capture: captured,
-});
-
-const saleEntry = (unitCost: number, quantity: number, standard = true): Transaction => ({
-  id: 'tx_sale', uid: OWNER, workspaceId: WS, date: '2026-11-01', status: 'completed' as const,
-  description: 'Cost of goods sold: Chair', currency: 'USD', type: 'actual',
-  totalAmountCents: unitCost * quantity,
-  lines: [],
-  metadata: { type: INVOICE_COGS_TYPE, invoiceId: 'inv_1', cogsForLineId: 'l1', inventoryItemId: 'chair', quantity, standard },
-} as Transaction);
-
-const invoice = (): Invoice => ({
-  id: 'inv_1', number: 'INV-1', workspaceId: WS, uid: OWNER, status: 'approved' as const, currency: 'USD',
-  date: '2026-11-01', dueDate: '2026-12-01', amountCents: 90000, customerId: 'c1',
-  items: [{ id: 'l1', itemId: 'chair', description: 'Chair', quantity: 10, rateCents: 9000, amountCents: 90000, accountId: '', unitCostCents: 4000 }],
-} as Invoice);
-
-const creditNote = (id: string, number: string): Partial<CreditNote> => ({
-  id, workspaceId: WS, uid: OWNER, number, invoiceId: 'inv_1', customerId: 'c1',
-  date: '2026-11-20', status: 'open' as const, currency: 'USD', amountCents: 90000,
-  returnedGoods: [{ invoiceLineId: 'l1', itemId: 'chair', quantity: 10 }],
-});
-
-const entryTotal = (entry: { lines: Array<{ amountCents: number }> }) => entry.lines.reduce((s, l) => s + l.amountCents, 0);
+const fx = m21BotFixtures('ws-m21-r3');
+const { WS, OWNER, accounts, returnItems, contextFor, saleEntry, invoice, creditNote, entryTotal } = fx;
 
 describe('M-21 step 2 bot round 3: the return guard with an unloaded item', () => {
   test('a return of a standard sale is not refused when the context carries no inventory', async () => {
@@ -114,7 +70,7 @@ describe('M-21 step 2 bot round 3: ordinary Inventory splits at their allocated 
       { amountCents: 100, accountId: 'acc_inv', description: 'Chair', itemId: 'chair', quantity: 1 },
       { amountCents: 50, accountId: 'acc_inv', description: 'Assembly labour' },
     ];
-    const billItems: InventoryItem[] = [{ id: 'chair', uid: OWNER, workspaceId: WS, name: 'Chair', sku: 'CH-1', quantityAtHand: 0, unitCostCents: 0, unitPriceCents: 30000, reorderPoint: 0, standardCostCents: 80, createdAt: '2026-01-01T00:00:00.000Z' }];
+    const billItems = fx.billItems();
     const captured: LedgerPostContext['capture'] = [];
     await postBillLedger('bill_r3_1', {
       id: 'bill_r3_1', workspaceId: WS, uid: OWNER, number: 'B-R3', vendorId: 'v1', vendorName: 'Supplier',
@@ -139,7 +95,7 @@ describe('M-21 step 2 bot round 3: ordinary Inventory splits at their allocated 
       { amountCents: 20, accountId: 'acc_inv', description: 'Freight', dimensions: { project: 'B' }, landedCost: true },
       { amountCents: 50, accountId: 'acc_inv', description: 'Assembly labour', dimensions: { project: 'B' } },
     ];
-    const billItems: InventoryItem[] = [{ id: 'chair', uid: OWNER, workspaceId: WS, name: 'Chair', sku: 'CH-1', quantityAtHand: 0, unitCostCents: 0, unitPriceCents: 30000, reorderPoint: 0, standardCostCents: 80, createdAt: '2026-01-01T00:00:00.000Z' }];
+    const billItems = fx.billItems();
     const captured: LedgerPostContext['capture'] = [];
     await postBillLedger('bill_r3_2', {
       id: 'bill_r3_2', workspaceId: WS, uid: OWNER, number: 'B-R3B', vendorId: 'v1', vendorName: 'Supplier',

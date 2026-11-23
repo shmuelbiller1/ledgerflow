@@ -19,42 +19,12 @@ import { planInvoiceCogs } from '../services/invoiceCogs';
 import { postBillLedger } from '../services/ledgerPost/billPosting';
 import { postCreditNoteLedger } from '../services/ledgerPost/creditPosting';
 import { returnableLines } from '../lib/salesReturns';
-import { INVOICE_COGS_TYPE } from '../services/invoiceCogs';
 import type { LedgerPostContext } from '../services/ledgerPost/postingCore';
-import type { ChartAccount, CreditNote, InventoryItem, Invoice, Transaction, Workspace } from '../types';
-import { owner } from './helpers/commandTestUtils';
+import type { CreditNote, InventoryItem, Transaction } from '../types';
+import { m21BotFixtures } from './helpers/m21BotFixtures';
 
-const WS = 'ws-m21-r2';
-const OWNER = owner.uid;
-
-const accounts = (): ChartAccount[] => ([
-  { id: 'acc_inv', uid: OWNER, workspaceId: WS, name: 'Inventory', code: '1300', type: 'asset', category: 'Inventory', balanceCents: 0 },
-  { id: 'acc_exp', uid: OWNER, workspaceId: WS, name: 'Operating Expense', code: '6000', type: 'expense', category: 'Expense', balanceCents: 0 },
-  { id: 'acc_ap', uid: OWNER, workspaceId: WS, name: 'Accounts Payable', code: '2000', type: 'liability', category: 'Payables', balanceCents: 0 },
-  { id: 'acc_cash', uid: OWNER, workspaceId: WS, name: 'Cash', code: '1000', type: 'asset', category: 'Cash', balanceCents: 0 },
-  { id: 'acc_ppv', uid: OWNER, workspaceId: WS, name: 'Purchase Price Variance', code: '5200', type: 'expense', category: 'Expense', balanceCents: 0 },
-  { id: 'acc_ar', uid: OWNER, workspaceId: WS, name: 'Accounts Receivable', code: '1100', type: 'asset', category: 'Receivables', balanceCents: 0 },
-  { id: 'acc_cogs', uid: OWNER, workspaceId: WS, name: 'Cost of Goods Sold', code: '5000', type: 'expense', category: 'Expense', balanceCents: 0 },
-  { id: 'acc_sr', uid: OWNER, workspaceId: WS, name: 'Sales Returns', code: '4000', type: 'income', category: 'Revenue', balanceCents: 0 },
-]);
-
-/** a 1-unit receipt whose standard (80) is below its actual cost (100), for the bill tests */
-const billItems = (): InventoryItem[] => ([
-  { id: 'chair', uid: OWNER, workspaceId: WS, name: 'Chair', sku: 'CH-1', quantityAtHand: 0, unitCostCents: 0, unitPriceCents: 30000, reorderPoint: 0, standardCostCents: 80, createdAt: '2026-01-01T00:00:00.000Z' },
-]);
-
-/** an item sold at a 400 standard, the sale cost the returns are checked against */
-const returnItems = (): InventoryItem[] => ([
-  { id: 'chair', uid: OWNER, workspaceId: WS, name: 'Chair', sku: 'CH-1', quantityAtHand: 0, unitCostCents: 0, unitPriceCents: 30000, reorderPoint: 0, standardCostCents: 400, createdAt: '2026-01-01T00:00:00.000Z' },
-]);
-
-const contextFor = (standardCosting?: { enabled: boolean; varianceAccountId: string }, captured: LedgerPostContext['capture'] = [], stock: InventoryItem[] = returnItems()): LedgerPostContext => ({
-  accounts: accounts(),
-  transactions: [] as Transaction[],
-  workspaces: [{ id: WS, uid: OWNER, name: 'Standard Co', currency: 'USD', ...(standardCosting ? { standardCosting } : {}) } as Workspace],
-  inventory: stock,
-  capture: captured,
-});
+const fx = m21BotFixtures('ws-m21-r2');
+const { WS, OWNER, accounts, billItems, returnItems, contextFor, entryTotal } = fx;
 
 /** post a bill with the given splits under standard-cost posting and return the captured entry */
 const postBill = async (splits: Array<Record<string, unknown>>, id: string, number: string, captured: NonNullable<LedgerPostContext['capture']>, stock = billItems()) => {
@@ -65,8 +35,6 @@ const postBill = async (splits: Array<Record<string, unknown>>, id: string, numb
   } as never, WS, OWNER, undefined, contextFor({ enabled: true, varianceAccountId: 'acc_ppv' }, captured, stock));
   return captured[0].txs[0];
 };
-
-const entryTotal = (entry: { lines: Array<{ amountCents: number }> }) => entry.lines.reduce((s, l) => s + l.amountCents, 0);
 
 describe('M-21 step 2 bot round 2: Inventory splits that are not stock receipts', () => {
   test('an ordinary Inventory split beside a receipt is kept, and the entry balances', async () => {
@@ -126,28 +94,7 @@ describe('M-21 step 2 bot round 2: Inventory splits that are not stock receipts'
 });
 
 describe('M-21 step 2 bot round 2: returns when the standard has changed', () => {
-  const saleEntry = (unitCost: number, quantity: number, standard = true): Transaction => ({
-    id: 'tx_sale', uid: OWNER, workspaceId: WS, date: '2026-11-01', status: 'completed' as const,
-    description: 'Cost of goods sold: Chair', currency: 'USD', type: 'actual',
-    totalAmountCents: unitCost * quantity,
-    lines: [],
-    metadata: {
-      type: INVOICE_COGS_TYPE, invoiceId: 'inv_1', cogsForLineId: 'l1', inventoryItemId: 'chair',
-      quantity, standard,
-    },
-  } as Transaction);
-
-  const invoice = (): Invoice => ({
-    id: 'inv_1', number: 'INV-1', workspaceId: WS, uid: OWNER, status: 'approved' as const, currency: 'USD',
-    date: '2026-11-01', dueDate: '2026-12-01', amountCents: 90000, customerId: 'c1',
-    items: [{ id: 'l1', itemId: 'chair', description: 'Chair', quantity: 10, rateCents: 9000, amountCents: 90000, accountId: '', unitCostCents: 4000 }],
-  } as Invoice);
-
-  const creditNote = (id: string, number: string): Partial<CreditNote> => ({
-    id, workspaceId: WS, uid: OWNER, number, invoiceId: 'inv_1', customerId: 'c1',
-    date: '2026-11-20', status: 'open' as const, currency: 'USD', amountCents: 90000,
-    returnedGoods: [{ invoiceLineId: 'l1', itemId: 'chair', quantity: 10 }],
-  });
+  const { saleEntry, invoice, creditNote } = fx;
 
   /** the posting context for a return: the sale in the ledger, the credited invoice, standard on */
   const returnContext = (txs: Transaction[], captured: NonNullable<LedgerPostContext['capture']>, stock: InventoryItem[] = returnItems()): LedgerPostContext => ({

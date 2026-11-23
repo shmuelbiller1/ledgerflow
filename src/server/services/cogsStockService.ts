@@ -94,6 +94,17 @@ function returnMove(tx: { metadata?: Record<string, unknown> }): { itemId: strin
  * J-08: the item lines of a bill (`metadata.stockIn` on its entry, src/lib/billStock.ts): each brings
  * units in at the value its line posted to Inventory.
  */
+/**
+ * M-21 step 2: the actual cost, kept beside the standard value the books posted it at. Emitted only
+ * when the value is a safe, non-negative whole number of cents; `negated` flips the sign for the
+ * moves that undo a receipt or a return.
+ */
+function actualValueField(value: unknown, negated = false): { actualValueCents: number } | Record<string, never> {
+  const cents = Number(value);
+  if (!Number.isSafeInteger(cents) || cents < 0) return {};
+  return { actualValueCents: negated ? -cents : cents };
+}
+
 function billStockIn(tx: LedgerEntry): Array<{ itemId: string; quantity: number; valueCents: number; actualValueCents?: number; line?: number }> {
   const lines = tx.metadata?.stockIn;
   if (lines === undefined) return [];
@@ -107,12 +118,10 @@ function billStockIn(tx: LedgerEntry): Array<{ itemId: string; quantity: number;
     if (typeof l.itemId !== 'string' || !l.itemId || !Number.isFinite(quantity) || quantity <= 0 || !Number.isSafeInteger(valueCents) || valueCents < 0) {
       throw new LedgerPostingError(400, 'Each item line of a bill needs the item, a positive quantity and its value in whole cents.');
     }
-    // M-21 step 2: the actual cost, kept beside the standard value the books posted it at
-    const actualValueCents = Number(l.actualValueCents);
     // DIM-2 phase 2: the bill's own line (src/lib/billStock.ts keeps its index), when it is a whole number
     return {
       itemId: l.itemId, quantity, valueCents,
-      ...(Number.isSafeInteger(actualValueCents) && actualValueCents >= 0 ? { actualValueCents } : {}),
+      ...actualValueField(l.actualValueCents),
       ...(Number.isSafeInteger(l.line) && Number(l.line) >= 0 ? { line: Number(l.line) } : {}),
     };
   });
@@ -135,11 +144,8 @@ function vendorReturnOut(tx: LedgerEntry): Array<{ itemId: string; quantity: num
     if (typeof l.itemId !== 'string' || !l.itemId || !Number.isFinite(quantity) || quantity <= 0 || !Number.isSafeInteger(valueCents) || valueCents < 0) {
       throw new LedgerPostingError(400, 'Each line sent back to a vendor needs the item, a positive quantity and its value in whole cents.');
     }
-    // M-21 step 2: the actual value the return's stock move uses (the receipt's actual cost basis), kept
-    // beside the standard value the books relieve Inventory at
-    const actualValueCents = Number(l.actualValueCents);
     // DIM-2 phase 2: the line of the bill the units go back from
-    return { itemId: l.itemId, quantity, valueCents, ...(Number.isSafeInteger(actualValueCents) && actualValueCents >= 0 ? { actualValueCents } : {}), ...(Number.isSafeInteger(l.billLine) && Number(l.billLine) >= 0 ? { line: Number(l.billLine) } : {}) };
+    return { itemId: l.itemId, quantity, valueCents, ...actualValueField(l.actualValueCents), ...(Number.isSafeInteger(l.billLine) && Number(l.billLine) >= 0 ? { line: Number(l.billLine) } : {}) };
   });
 }
 
@@ -259,12 +265,12 @@ export async function prepareStockMoves(
     // J-08: a bill's item lines go back out with it
     for (const line of billStockIn(original)) {
       add(line.itemId, -line.quantity);
-      pending.push({ itemId: line.itemId, quantity: -line.quantity, kind: 'purchase-reversal', entry: reversalOf.get(target) || original, valueCents: -line.valueCents, actualValueCents: line.actualValueCents !== undefined ? -line.actualValueCents : undefined, location: original.metadata?.locationId as string | undefined, line: line.line, source: original });
+      pending.push({ itemId: line.itemId, quantity: -line.quantity, kind: 'purchase-reversal', entry: reversalOf.get(target) || original, valueCents: -line.valueCents, ...actualValueField(line.actualValueCents, true), location: original.metadata?.locationId as string | undefined, line: line.line, source: original });
     }
     // BF-07: stock sent back to a vendor comes back in when the credit is undone
     for (const line of vendorReturnOut(original)) {
       add(line.itemId, line.quantity);
-      pending.push({ itemId: line.itemId, quantity: line.quantity, kind: 'purchase-return-reversal', entry: reversalOf.get(target) || original, valueCents: line.valueCents, actualValueCents: line.actualValueCents, location: original.metadata?.locationId as string | undefined, line: line.line, source: original });
+      pending.push({ itemId: line.itemId, quantity: line.quantity, kind: 'purchase-return-reversal', entry: reversalOf.get(target) || original, valueCents: line.valueCents, ...actualValueField(line.actualValueCents), location: original.metadata?.locationId as string | undefined, line: line.line, source: original });
     }
     const effect = stockEffect(original);
     if (!effect) return;
@@ -276,11 +282,11 @@ export async function prepareStockMoves(
   for (const tx of entries) {
     for (const line of vendorReturnOut(tx)) {
       add(line.itemId, -line.quantity);
-      pending.push({ itemId: line.itemId, quantity: -line.quantity, kind: 'purchase-return', entry: tx, valueCents: -line.valueCents, actualValueCents: line.actualValueCents !== undefined ? -line.actualValueCents : undefined, location: tx.metadata?.locationId as string | undefined, line: line.line, source: tx });
+      pending.push({ itemId: line.itemId, quantity: -line.quantity, kind: 'purchase-return', entry: tx, valueCents: -line.valueCents, ...actualValueField(line.actualValueCents, true), location: tx.metadata?.locationId as string | undefined, line: line.line, source: tx });
     }
     for (const line of billStockIn(tx)) {
       add(line.itemId, line.quantity);
-      pending.push({ itemId: line.itemId, quantity: line.quantity, kind: 'purchase', entry: tx, valueCents: line.valueCents, actualValueCents: line.actualValueCents, location: tx.metadata?.locationId as string | undefined, line: line.line, source: tx });
+      pending.push({ itemId: line.itemId, quantity: line.quantity, kind: 'purchase', entry: tx, valueCents: line.valueCents, ...actualValueField(line.actualValueCents), location: tx.metadata?.locationId as string | undefined, line: line.line, source: tx });
     }
     const effect = stockEffect(tx);
     if (!effect) continue;
