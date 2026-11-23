@@ -140,7 +140,7 @@ export function findAssistantCommands(commands: readonly AnyCommandDefinition[],
   });
   // a rare word says more than a common one: "recurring" is in few commands, "invoice" and "customer" in many,
   // so each term's points are weighted by how few commands it matches (ties between equal matches are broken by this)
-  const weight = terms.map((_, i) => Math.log((commands.length + 1) / (1 + scored.filter(hit => hit.score[i] > 0).length)));
+  const weight = terms.map((_, i) => Math.log(commands.length + 1) - Math.log(scored.filter(hit => hit.score[i] > 0).length + 1));
   for (const hit of scored) hit.total = hit.score.reduce((sum, n, i) => sum + n * weight[i], 0);
   const rank = (hits: typeof scored) => hits.sort((a, b) => b.matched - a.matched || b.total - a.total || byCodeUnit(a.command.name, b.command.name));
   const exact = scored.filter(hit => hit.matched === terms.length);
