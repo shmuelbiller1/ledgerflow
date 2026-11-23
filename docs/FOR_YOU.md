@@ -69,7 +69,26 @@ Receipts (4 generated images, 4 fields each): Luna, Terra and Gemini 3.8 Flash e
 
 Luna still misses payment, profit drop, affordability and the year summary on the new instructions: it reads the books but stops before stating the figure or asks the wrong question. Terra's scores moved between test versions (9, then 7, now 11 and 12), so the grading had been changing as much as the model. The other four models in the table above are from the first test version and were not rerun.
 
-*Recommendation:* GPT-6.1 Terra is the only model that is reliably right (12 of 12 on the newest test and instructions), so use it for the strong turns. Luna is cheap but wrong on 7 of 12, so I would not use it for simple turns that can draft a step; it may do for reading receipts (same score as Terra at about a tenth of the price). Every model except GLM 5.3 (which passed both) failed "record a payment" and "make a bill", which draft a step; Terra and Luna ended without drafting one. That may be the test or the tool set rather than the models, and I have not looked into it. Gemini 3.8 Flash, our current strong model, got 1 of 12 here.
+*Rerun 23 Nov (later), newest test and instructions (today's date, financial year and currency are now given to the model; #1017 and #1018), one run per question, every turn saved in `docs/eval/runs/2026-11-23-04-16.json`:*
+
+| model | correct (of 12) | billed | time for the 12 | notes |
+|---|---|---|---|---|
+| GPT-6.1 Terra | 12 | 15.2¢ | 123 s | no misses |
+| GPT-6 Luna | 10 | 1.5¢ | 137 s | missed the project move and affordability (step limit) |
+| Gemini 4 Carbon | 8 | at least 74.8¢ | 589 s | 4 misses, all step limit or timeout; about 5 times Terra's cost |
+
+Gemini 4 Carbon is the new model you asked for. It kept reading records until it ran out of steps (fix the books, something looks off, affordability, write-offs) and was by far the slowest and most expensive, so it is not a candidate on this test. Luna's score rose from 8 to 10 of 12 since the earlier run, partly luck and partly the newer instructions.
+
+*Rerun 23 Nov with the final tool-free step (the audit branch change, db7f1d4, not in `main` when this ran: a turn that runs out of steps gets one last call without tools and answers with what it found), Luna and Terra only, one run per question, every turn in `docs/eval/runs/2026-11-23-04-28.json`:*
+
+| model | correct (of 12) | billed | answered every question |
+|---|---|---|---|
+| GPT-6.1 Terra | 12 | 15.3¢ | yes |
+| GPT-6 Luna | 11 | 2.0¢ | yes |
+
+No turn ended without an answer any more. Luna's one miss was the consulting invoice: it searched, then drafted nothing and did not ask for the hourly rate. Receipts unchanged (15 of 16 fields for both).
+
+*Recommendation (based on the 23 Nov runs, newest test and instructions; with the final tool-free step Luna reached 11 of 12):* GPT-6.1 Terra is the only model that got everything right (12 of 12 in both runs), so use it for the strong turns. GPT-6 Luna got 10 of 12 at about a tenth of Terra's cost (1.5¢ against 15.2¢) and missed only multi-step questions by running out of steps (project move, affordability), which the written rule already sends to the strong model, so it is a reasonable candidate for simple turns and for reading receipts (15 of 16 fields, same as Terra). Both now pass "record a payment" and "make a bill"; the earlier failures on those two (every model except GLM) were before the newer test and instructions. Gemini 3.8 Flash, our current strong model, got 1 of 12 on the first test version and Gemini 4 Carbon 8 of 12 at about five times Terra's cost, so neither is a candidate. This is one run per question on test data, and Terra's score moved between runs (9, 7, 11, 12), so treat it as indicative.
 
 *Not done:* none of these models has a price row, and the code ignores an unpriced model, so the app still uses the Gemini defaults. I won't write a price from memory. Please send me Arena's prices for Terra and Luna, or tell me to read them from Arena's pricing page, and I will add the rows. The test is one small run on test data, not final.
 
