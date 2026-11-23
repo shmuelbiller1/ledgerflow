@@ -119,7 +119,6 @@ describe('A-259: hover-only row actions also appear for keyboard focus', () => {
   // palette's "Jump" hint (the palette row itself is the visible, focusable button).
   const DECORATIVE = new Map<string, number>([
     ['src/components/forensics/Vault.tsx', 1],
-    ['src/components/intelligence/Copilot.tsx', 1],
     ['src/components/ledger/CashFlowView.tsx', 1],
     // the P&L's drill icon: one shared row now prints it for the income and the expense sections
     ['src/components/ledger/ProfitAndLossAccountRows.tsx', 1],

@@ -91,7 +91,14 @@ export default function SandboxReviewView() {
       .then(body => {
         if (!on) return;
         setOpen(body.sandboxes);
-        setSandboxId(current => current && body.sandboxes.some(s => s.id === current) ? current : (body.sandboxes[0]?.id || ''));
+        let requested = '';
+        try {
+          const key = `lf_assistant_review_${workspaceId}`;
+          requested = sessionStorage.getItem(key) || '';
+          sessionStorage.removeItem(key);
+        } catch { /* use the normal picker */ }
+        setSandboxId(current => requested && body.sandboxes.some(s => s.id === requested) ? requested
+          : current && body.sandboxes.some(s => s.id === current) ? current : (body.sandboxes[0]?.id || ''));
       })
       .catch(err => { if (on) setError(message(err)); });
     return () => { on = false; };

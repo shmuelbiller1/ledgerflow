@@ -36,7 +36,7 @@ const mountSidebar = async (page: Page, workspaceId: string) => {
     ] });
   });
   const daily = page.getByRole('navigation', { name: 'Daily tools', exact: true });
-  await expect(daily.locator('[data-reorder-item]')).toHaveCount(7);
+  await expect(daily.locator('[data-reorder-item]')).toHaveCount(8);
   return { ...handle, daily };
 };
 
@@ -67,11 +67,11 @@ test('sidebar tool order uses real pointer input, survives reload, stays workspa
   });
   const { daily, errors } = await mountSidebar(page, 'order-workspace-a');
   const standard = await labels(daily);
-  expect(standard).toEqual(['Overview', 'To review', 'Sales', 'Purchases', 'Bank', 'Reports', 'Settings']);
+  expect(standard).toEqual(['Overview', 'To review', 'AI assistant', 'Sales', 'Purchases', 'Bank', 'Reports', 'Settings']);
 
   // Drag Reports before Sales through the real browser's pointer lifecycle; the drop must not activate it.
   await dragMouse(page, daily.locator('[data-reorder-item="reports"]'), daily.locator('[data-reorder-item="sales"]'));
-  const workspaceAOrder = ['Overview', 'To review', 'Reports', 'Sales', 'Purchases', 'Bank', 'Settings'];
+  const workspaceAOrder = ['Overview', 'To review', 'AI assistant', 'Reports', 'Sales', 'Purchases', 'Bank', 'Settings'];
   await expect(daily.locator('[data-reorder-item]')).toHaveText(workspaceAOrder);
   expect(await captured(page, 'tab')).toEqual([]);
 
@@ -107,7 +107,7 @@ test('sidebar tool order uses real pointer input, survives reload, stays workspa
   });
   await expect(reloaded.daily.locator('[data-reorder-item]')).toHaveText(standard);
   await dragMouse(page, reloaded.daily.locator('[data-reorder-item="settings"]'), reloaded.daily.locator('[data-reorder-item="dashboard"]'));
-  const workspaceBOrder = ['Settings', 'Overview', 'To review', 'Sales', 'Purchases', 'Bank', 'Reports'];
+  const workspaceBOrder = ['Settings', 'Overview', 'To review', 'AI assistant', 'Sales', 'Purchases', 'Bank', 'Reports'];
   await expect(reloaded.daily.locator('[data-reorder-item]')).toHaveText(workspaceBOrder);
 
   await page.evaluate(async () => {
@@ -167,7 +167,7 @@ test('phone touch swipe scrolls the sidebar; a long press then drag reorders wit
     await touch('touchMove', target.x, target.y - target.box.height * 0.35);
     await expect(daily.locator('[data-reorder-item="reports"]')).toHaveAttribute('data-reorder-dragging', 'true');
     await touch('touchEnd');
-    await expect(daily.locator('[data-reorder-item]')).toHaveText(['Overview', 'To review', 'Reports', 'Sales', 'Purchases', 'Bank', 'Settings']);
+    await expect(daily.locator('[data-reorder-item]')).toHaveText(['Overview', 'To review', 'AI assistant', 'Reports', 'Sales', 'Purchases', 'Bank', 'Settings']);
     expect(await scroller.evaluate(element => element.scrollTop)).toBe(scrollBeforeHold);
     expect(errors).toEqual([]);
     await cdp.detach();
