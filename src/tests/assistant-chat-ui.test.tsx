@@ -118,3 +118,12 @@ test('matching settings still send workspace-scoped commands without a model sel
   assert.match(calls[1].url, /autorule.reset$/);
   assert.deepEqual(calls[1].body, { workspaceId: 'component-workspace', input: {} });
 });
+
+test('a viewer is told that starting a new assistant draft requires a writer role', async () => {
+  setComponentWorkspace('viewer');
+  globalThis.fetch = (async () => Response.json({ sandboxes: [] })) as typeof fetch;
+  render(<Copilot />);
+  const start = await screen.findByRole('button', { name: 'Start assistant' });
+  assert.equal((start as HTMLButtonElement).disabled, true);
+  assert.ok(screen.getByText(/Viewers cannot start one yet/));
+});

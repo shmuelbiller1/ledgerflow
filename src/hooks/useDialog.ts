@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useSyncExternalStore } from 'react';
 
 const FOCUSABLE = 'summary:not([tabindex="-1"]), a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const FIELD = 'input:not([disabled]):not([type="hidden"]):not([type="file"]), select:not([disabled]), textarea:not([disabled])';
@@ -20,6 +20,16 @@ function visible(el: HTMLElement): boolean {
 interface OpenDialog { node: HTMLElement; seq: number }
 const openDialogs: OpenDialog[] = [];
 let dialogSeq = 0;
+const modalListeners = new Set<() => void>();
+const notifyModals = () => modalListeners.forEach(listener => listener());
+/** A companion can stay mounted but hide while any modal owns the page. */
+export function useModalDialogOpen() {
+  return useSyncExternalStore(
+    listener => { modalListeners.add(listener); return () => { modalListeners.delete(listener); }; },
+    () => openDialogs.length > 0,
+    () => false,
+  );
+}
 
 /**
  * The topmost open dialog: the one with no other open dialog inside it, and among separate ones
@@ -95,7 +105,7 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () =>
     // Escape with focus outside the dialog (drifted focus, see the note above): the node's own
     // listener never sees that event, so the topmost open dialog answers it here instead.
     const entry: OpenDialog = { node, seq: ++dialogSeq };
-    if (modal) openDialogs.push(entry);
+    if (modal) { openDialogs.push(entry); notifyModals(); }
     else node.dataset.nonModalDialog = '';
     const onDocumentKeyDown = (e: KeyboardEvent) => {
       if (!modal || e.key !== 'Escape' || e.defaultPrevented) return;
@@ -111,9 +121,9 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () =>
       node.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keydown', onDocumentKeyDown, true);
       const at = openDialogs.indexOf(entry);
-      if (at >= 0) openDialogs.splice(at, 1);
+      if (at >= 0) { openDialogs.splice(at, 1); notifyModals(); }
       if (!modal) delete node.dataset.nonModalDialog;
-      if (previous && previous.isConnected) previous.focus();
+      if (modal && previous && previous.isConnected) previous.focus();
     };
   }, [open, modal]);
 

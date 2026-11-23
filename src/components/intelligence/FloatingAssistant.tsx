@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2, Move, Sparkles, X } from 'lucide-react';
 import Copilot from './Copilot';
-import { useDialog } from '../../hooks/useDialog';
+import { useDialog, useModalDialogOpen } from '../../hooks/useDialog';
 
 interface Box { x: number; y: number; width: number; height: number }
 const margin = 8;
@@ -22,6 +22,7 @@ function initialBox(): Box {
 export default function FloatingAssistant() {
   const [opened, setOpened] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const modalOpen = useModalDialogOpen();
   const [box, setBox] = useState<Box>(initialBox);
   const launcher = useRef<HTMLButtonElement>(null);
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
@@ -29,11 +30,11 @@ export default function FloatingAssistant() {
   useEffect(() => { window.addEventListener('resize', keepInView); return () => window.removeEventListener('resize', keepInView); }, [keepInView]);
   const open = () => { setMounted(true); setOpened(true); };
   const close = () => { setOpened(false); requestAnimationFrame(() => launcher.current?.focus()); };
-  const { dialogProps, titleId } = useDialog<HTMLElement>(close, opened, { modal: false });
+  const { dialogProps, titleId } = useDialog<HTMLElement>(close, opened && !modalOpen, { modal: false });
   const resize = (delta: number) => setBox(current => clampBox({ ...current, width: current.width + delta, height: current.height + delta }));
   return <>
-    <button ref={launcher} hidden={opened} type="button" onClick={open} aria-expanded={opened} aria-controls="floating-assistant" className="fixed bottom-20 end-4 z-[80] min-h-11 rounded-full bg-indigo-700 px-4 py-3 text-sm font-semibold text-white shadow-lg hover:bg-indigo-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700 print:hidden"><span className="inline-flex items-center gap-2"><Sparkles aria-hidden="true" size={18} /> AI assistant</span></button>
-    {mounted && <aside {...dialogProps} id="floating-assistant" hidden={!opened} style={{ left: box.x, top: box.y, width: box.width, height: box.height }} className="fixed z-[80] flex flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--text)] shadow-2xl print:hidden">
+    <button ref={launcher} hidden={opened || modalOpen} type="button" onClick={open} aria-expanded={opened} aria-controls="floating-assistant" className="fixed bottom-20 end-4 z-[80] min-h-11 rounded-full bg-indigo-700 px-4 py-3 text-sm font-semibold text-white shadow-lg hover:bg-indigo-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700 print:hidden"><span className="inline-flex items-center gap-2"><Sparkles aria-hidden="true" size={18} /> AI assistant</span></button>
+    {mounted && <aside {...dialogProps} id="floating-assistant" hidden={!opened || modalOpen} style={{ left: box.x, top: box.y, width: box.width, height: box.height }} className="fixed z-[80] flex flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--text)] shadow-2xl print:hidden">
       <div className="flex shrink-0 items-center gap-1 border-b border-[var(--line)] bg-[var(--panel)] p-1">
         <button type="button" title="Drag to move, or use arrow keys" aria-label="Move assistant; use arrow keys" className="flex min-h-11 min-w-11 flex-1 cursor-move touch-none items-center gap-2 rounded px-2 text-start text-sm font-bold focus-visible:outline-2 focus-visible:outline-indigo-700"
           onPointerDown={event => { if (event.button !== 0) return; event.currentTarget.setPointerCapture(event.pointerId); drag.current = { x: event.clientX, y: event.clientY, left: box.x, top: box.y }; }}

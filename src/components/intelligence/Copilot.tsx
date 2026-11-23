@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { runCommand } from '../../lib/runCommand';
 import { maskCardNumbers } from '../../lib/cardNumberMask';
+import { useCurrentRole } from '../../hooks/useCurrentRole';
 
 interface Sandbox { id: string; createdAt: string; expiresAt: string; pendingSteps: number }
 interface Message { id: number; role: 'user' | 'assistant'; text: string; source?: string; page?: string }
@@ -29,12 +30,13 @@ export default function Copilot({ preservePage = false }: { preservePage?: boole
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const user = useAuthStore(s => s.user);
   const guest = useAuthStore(s => s.isGuest);
+  const canOpenDraft = useCurrentRole() !== 'viewer';
   // A new component instance drops messages and in-flight results on person/workspace changes.
   if (!workspaceId || !user || guest || user.isAnonymous) return <section className="p-6"><h1 className="text-2xl font-bold">AI assistant</h1><p className="mt-3">Sign in and select a workspace to use the assistant.</p></section>;
-  return <AssistantChat key={`${user.uid}:${workspaceId}`} workspaceId={workspaceId} preservePage={preservePage} />;
+  return <AssistantChat key={`${user.uid}:${workspaceId}`} workspaceId={workspaceId} preservePage={preservePage} canOpenDraft={canOpenDraft} />;
 }
 
-function AssistantChat({ workspaceId, preservePage }: { workspaceId: string; preservePage: boolean }) {
+function AssistantChat({ workspaceId, preservePage, canOpenDraft }: { workspaceId: string; preservePage: boolean; canOpenDraft: boolean }) {
   const id = useId();
   const [sandboxes, setSandboxes] = useState<Sandbox[] | null>(null);
   const [sandboxId, setSandboxId] = useState('');
@@ -65,7 +67,7 @@ function AssistantChat({ workspaceId, preservePage }: { workspaceId: string; pre
   }, [base, listTick]);
 
   const start = async () => {
-    if (sending.current) return;
+    if (sending.current || !canOpenDraft) return;
     sending.current = true; setBusy(true); setError('');
     try {
       const result = await runCommand<{ sandbox: { id: string } }>({ path: base, method: 'POST', body: {} });
@@ -131,8 +133,9 @@ function AssistantChat({ workspaceId, preservePage }: { workspaceId: string; pre
         <select id={`${id}-sandbox`} value={sandboxId} disabled={busy} onChange={e => { selectedSandbox.current = e.target.value; setSandboxId(e.target.value); setMessages([]); }} className="mt-1 min-h-11 w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
           {sandboxes.map(s => <option key={s.id} value={s.id}>{new Date(s.createdAt).toLocaleString()} · {s.pendingSteps} pending · {s.id}</option>)}
         </select></div>}
-      <button type="button" onClick={() => void start()} disabled={busy || sandboxes.length >= 3} className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold disabled:opacity-50">{sandboxes.length ? 'Open another draft' : 'Start assistant'}</button>
+      <button type="button" onClick={() => void start()} disabled={busy || !canOpenDraft || sandboxes.length >= 3} className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold disabled:opacity-50">{sandboxes.length ? 'Open another draft' : 'Start assistant'}</button>
       <button type="button" onClick={() => { setError(''); setListTick(t => t + 1); }} disabled={busy} className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold disabled:opacity-50">Refresh drafts</button>
+      {!canOpenDraft && <p className="text-sm text-[var(--muted)]">Starting a new assistant draft requires an owner, accountant, or bookkeeper. Viewers cannot start one yet.</p>}
       {sandboxes.length >= 3 && <p className="text-sm text-[var(--muted)]">You have three open drafts. Review or close one before opening another.</p>}
     </div>}
     <div aria-live="polite" aria-relevant="additions" className="space-y-3">

@@ -61,7 +61,7 @@ test('Escape minimizes the non-modal assistant and returns focus to its launcher
   move.focus();
   fireEvent.keyDown(move, { key: 'Escape' });
   await waitFor(() => assert.equal(screen.queryByRole('dialog', { name: 'Floating AI assistant' }), null));
-  await waitFor(() => assert.equal(document.activeElement, launcher));
+  await waitFor(() => assert.ok(document.activeElement === launcher, 'focus returned to launcher'));
 });
 
 test('draft list can be refreshed after a draft is closed in the other tab', async () => {
@@ -79,7 +79,7 @@ test('draft list can be refreshed after a draft is closed in the other tab', asy
   assert.equal((within(panel).getByLabelText('Draft workspace') as HTMLSelectElement).value, 'draft-2');
 });
 
-test('Escape in the non-modal assistant does not close an unrelated modal, and Escape outside closes the modal', async () => {
+test('the assistant hides while a modal owns the page and returns with its conversation intact', async () => {
   setComponentWorkspace('owner');
   globalThis.fetch = (async () => Response.json({ sandboxes: [] })) as typeof fetch;
   const { useDialog } = await import('../hooks/useDialog');
@@ -88,19 +88,20 @@ test('Escape in the non-modal assistant does not close an unrelated modal, and E
     return <div {...dialogProps}><h2 id={titleId}>Editing invoice</h2><input aria-label="Invoice field" /></div>;
   }
   function Screen() {
-    const [modal, setModal] = React.useState(true);
-    return <><button type="button">Outside</button>{modal && <Modal close={() => setModal(false)} />}<FloatingAssistant /></>;
+    const [modal, setModal] = React.useState(false);
+    return <><button type="button" onClick={() => setModal(true)}>Open invoice modal</button>{modal && <Modal close={() => setModal(false)} />}<FloatingAssistant /></>;
   }
   render(<Screen />);
   fireEvent.click(screen.getByRole('button', { name: 'AI assistant' }));
   const assistant = screen.getByRole('dialog', { name: 'Floating AI assistant' });
-  const move = within(assistant).getByRole('button', { name: /Move assistant/ });
-  move.focus(); fireEvent.keyDown(move, { key: 'Escape' });
+  await within(assistant).findByRole('button', { name: 'Start assistant' });
+  fireEvent.change(within(assistant).getByLabelText('Your question'), { target: { value: 'My question' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Open invoice modal' }));
   assert.ok(screen.getByRole('dialog', { name: 'Editing invoice' }));
   assert.equal(screen.queryByRole('dialog', { name: 'Floating AI assistant' }), null);
-  fireEvent.click(screen.getByRole('button', { name: 'AI assistant' }));
-  const outside = screen.getByRole('button', { name: 'Outside' });
-  outside.focus(); fireEvent.keyDown(outside, { key: 'Escape' });
+  assert.equal(screen.queryByRole('button', { name: 'AI assistant' }), null);
+  fireEvent.keyDown(screen.getByLabelText('Invoice field'), { key: 'Escape' });
   assert.equal(screen.queryByRole('dialog', { name: 'Editing invoice' }), null);
-  assert.ok(screen.getByRole('dialog', { name: 'Floating AI assistant' }));
+  const restored = screen.getByRole('dialog', { name: 'Floating AI assistant' });
+  assert.equal((within(restored).getByLabelText('Your question') as HTMLTextAreaElement).value, 'My question');
 });
