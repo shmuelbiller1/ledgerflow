@@ -94,6 +94,18 @@ export async function readableSandbox(live: Firestore, req: express.Request) {
   return { ...scope, user, workspace, books };
 }
 
+/** Live books for a signed-in member: no sandbox binding or model-controlled scope. */
+export async function readableLiveBooks(live: Firestore, req: express.Request): Promise<ReadableSandbox> {
+  const workspaceId = param(req, 'workspaceId');
+  const user = requestUser(req);
+  if (!user?.uid) throw new CommandRefusal('Sign in required', 401, 'UNAUTHENTICATED');
+  if (user.usedApiKeyId || user.developerWorkspaceId || user.assistantSandboxId) throw new CommandRefusal('Only a signed-in person can ask about these books', 403, 'PERSON_ONLY');
+  const workspace = (await live.collection('workspaces').doc(workspaceId).get()).data();
+  if (!workspace || !isWorkspaceMemberData(workspace, { uid: user.uid }, workspaceId)) throw new CommandRefusal('You are not a member of these books', 403, 'FORBIDDEN');
+  if (workspace.requireTwoStep === true && user.aal !== 'aal2') throw new CommandRefusal('Sign in with two-step verification for these books', 403, 'TWO_STEP_REQUIRED');
+  return { workspaceId, sandboxId: '', workspace, user: { ...user, admin: false }, books: live };
+}
+
 /** Sends `req` through a router bound to the sandbox handle, at `url`, and answers with its response. */
 function dispatch(router: express.Router, req: express.Request, res: express.Response, method: string, url: string, body?: unknown) {
   req.method = method;
@@ -337,6 +349,12 @@ export function createSandboxPersonRouter(live: Firestore = getDb(), options: Sa
     const { workspaceId, sandboxId } = await readableSandbox(live, req);
     res.json({ assistant: await tokenFor(live, req, workspaceId, sandboxId) });
   }));
+  // Server-owned read-only mode uses live readers, never a sandbox or draft capability.
+  router.post('/assistant/turn', options.turnRateLimit ?? brainRateLimiter,
+    guarded(assistantTurnHandler(live, {
+      readableSandbox: readableLiveBooks, runReadTool, readOnly: true,
+      draftStep: async () => { throw new CommandRefusal('Read-only assistant cannot create drafts', 403, 'ROLE_REQUIRED'); },
+    }, options)));
   // SBX-2: one assistant turn on the server (the router, read cache, area tools, model rule and plan limit)
   router.post('/:sandboxId/assistant/turn', options.turnRateLimit ?? brainRateLimiter,
     guarded(assistantTurnHandler(live, {

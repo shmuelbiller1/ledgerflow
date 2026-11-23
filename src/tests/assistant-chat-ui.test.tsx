@@ -119,11 +119,21 @@ test('matching settings still send workspace-scoped commands without a model sel
   assert.deepEqual(calls[1].body, { workspaceId: 'component-workspace', input: {} });
 });
 
-test('a viewer is told that starting a new assistant draft requires a writer role', async () => {
+test('a viewer asks read-only questions without opening a sandbox', async () => {
   setComponentWorkspace('viewer');
-  globalThis.fetch = (async () => Response.json({ sandboxes: [] })) as typeof fetch;
+  const calls: Array<{ path: string; body: unknown }> = [];
+  globalThis.fetch = (async (input, init) => {
+    calls.push({ path: String(input), body: JSON.parse(String(init?.body)) });
+    return Response.json({ status: 'success', answer: 'Live books answer', path: 'code' });
+  }) as typeof fetch;
   render(<Copilot />);
-  const start = await screen.findByRole('button', { name: 'Start assistant' });
-  assert.equal((start as HTMLButtonElement).disabled, true);
-  assert.ok(screen.getByText(/Viewers cannot start one yet/));
+  assert.ok(screen.getByText(/Viewers can read but cannot create drafts/));
+  assert.equal(screen.queryByRole('button', { name: 'Start assistant' }), null);
+  assert.equal(screen.queryByRole('button', { name: 'Assistant drafts' }), null);
+  fireEvent.change(screen.getByLabelText('Your question'), { target: { value: 'Find customer Acme' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send question' }));
+  await screen.findByText('Live books answer');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, '/api/v1/workspaces/component-workspace/sandboxes/assistant/turn');
+  assert.deepEqual(calls[0].body, { question: 'Find customer Acme' });
 });

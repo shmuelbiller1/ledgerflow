@@ -78,3 +78,22 @@ test('page context is optional, reviewable and never captures the form value', a
   expect(body.question).toContain('Invoice INV-123, Acme owes 100');
   expect(body.question).not.toContain('unsaved secret');
 });
+
+test('a viewer can ask about live books without starting a draft', async ({ page }) => {
+  const { requests, errors } = await mountJourney(page, {
+    workspaceId: 'viewer-books', ownerUid: 'another-owner', role: 'viewer', ledger: {},
+    mounts: [{ module: '/src/components/intelligence/FloatingAssistant.tsx' }],
+    api: ({ url }) => url.endsWith('/sandboxes/assistant/turn') ? { json: { status: 'success', answer: 'Acme is a customer.', path: 'code' } } : null,
+  });
+  await page.getByRole('button', { name: 'AI assistant' }).click();
+  const panel = page.getByRole('dialog', { name: 'Floating AI assistant' });
+  await expect(panel.getByText(/Viewers can read but cannot create drafts/)).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Start assistant' })).toHaveCount(0);
+  await panel.getByLabel('Your question').fill('Find customer Acme');
+  await panel.getByRole('button', { name: 'Send question' }).click();
+  await expect(panel.getByText('Acme is a customer.')).toBeVisible();
+  expect(requests).toHaveLength(1);
+  expect(requests[0].url).toContain('/viewer-books/sandboxes/assistant/turn');
+  expect(requests[0].body).toEqual({ question: 'Find customer Acme' });
+  expect(errors).toEqual([]);
+});

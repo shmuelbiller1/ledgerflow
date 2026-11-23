@@ -533,6 +533,33 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     assert.equal((direct.json.matches as unknown[]).length, 1);
   });
 
+  test('a viewer reads live books without a sandbox and cannot get drafts, including after demotion', async t => {
+    const a = await setup(t);
+    const viewer = `${a.workspaceId}-viewer`;
+    await live.doc(`workspaces/${a.workspaceId}`).update({ members: [a.owner, viewer], roles: { [viewer]: 'viewer' } });
+    const viewerCall = async (method: string, path: string, body?: unknown) => {
+      const res = await fetch(`${base}/api/v1/workspaces/${a.workspaceId}/sandboxes${path}`, { method, headers: { 'x-test-uid': viewer, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+      return { status: res.status, json: await res.json() as Record<string, unknown> };
+    };
+    assert.equal((await viewerCall('POST', '', {})).status, 403, 'viewer cannot open a draft');
+    const found = await viewerCall('POST', '/assistant/turn', { question: 'Find the customer Acme Ltd.' });
+    assert.equal(found.status, 200, JSON.stringify(found.json));
+    assert.match(String(found.json.answer), /Acme/);
+    modelReplies = [
+      { functionCalls: [{ name: 'propose_customer_create', args: { customer: { name: 'Forbidden Draft' } } }] },
+      { text: 'I cannot create a draft in read-only mode.' },
+    ];
+    const response = await viewerCall('POST', '/assistant/turn', { question: 'Create a customer named Forbidden Draft.' });
+    assert.equal(response.status, 200, JSON.stringify(response.json));
+    const count = (await live.collection('customers').where('workspaceId', '==', a.workspaceId).count().get()).data().count;
+    assert.equal(count, 1);
+    assert.equal((await viewerCall('POST', `/${a.sandboxId}/steps`, { command: 'customer.create', input: { customer: { name: 'Forbidden Draft' } } })).status, 403);
+    const sandboxes = await viewerCall('GET', '');
+    assert.deepEqual(sandboxes.json.sandboxes, []);
+    await live.doc(`workspaces/${a.workspaceId}`).update({ members: [a.owner] });
+    assert.equal((await viewerCall('POST', '/assistant/turn', { question: 'Find the customer Acme Ltd.' })).status, 403);
+  });
+
   test('the model drafts through propose_… into the sandbox only; the real books are unchanged', async t => {
     const a = await setup(t);
     modelReplies = [
