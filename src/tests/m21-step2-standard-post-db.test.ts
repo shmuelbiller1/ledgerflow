@@ -187,7 +187,7 @@ describe('M-21 step 2: posting at standard against the database', { skip: !url &
     // Codex review (F4): the stock move also carries the actual receipt basis (5 × 5,000), beside the
     // standard value it relieves Inventory at, so the average-cost basis is unaffected by the return
     const vcMove = (await all<import('../lib/stockMoves').StockMove & { id: string }>('stockMoves'))
-      .find(m => m.transactionId === vcId && m.kind === 'purchase-return');
+      .find(m => m.kind === 'purchase-return' && m.itemId === chair);
     assert.ok(vcMove, 'the return moved stock');
     assert.equal(vcMove!.valueCents, -20000, 'the stock move relieves at the standard carrying value');
     assert.equal(vcMove!.actualValueCents, -25000, 'the stock move carries the actual receipt basis');
