@@ -7,6 +7,8 @@
  *   Bill B-1 (11-10): 10 chairs @ 5,000 = 50,000 (chair standard 4,000) and 5 tables @ 15,000 = 75,000 (no standard)
  *   the receipt: Inventory 115,000 (10 × 4,000 + 75,000), variance 10,000 debited to PPV (5200), A/P 125,000
  *   metadata.stockIn carries 40,000 / 75,000, so the stock comes in at the standard: chairs 10 units at 4,000
+ *   (the item's average cost keeps the actual basis — 5,000 — so the variance report still compares actual
+ *   against standard; only the books' carrying value is the standard)
  *   the invoice of 4 chairs: cost of goods 4 × 4,000 = 16,000 (the standard, not 4 × 5,000), stock down to 6
  *   parity: the same bill posted against a workspace row without the setting posts Inventory 125,000, no variance
  */
@@ -17,6 +19,7 @@ import crypto from 'crypto';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { postBillLedger } from '../services/ledgerPost/billPosting';
+import { postVendorCreditLedger } from '../services/ledgerPost/creditPosting';
 import { postInvoiceLedger } from '../services/ledgerPost/invoicePosting';
 import type { LedgerPostContext } from '../services/ledgerPost/postingKit';
 import type { ChartAccount, InventoryItem, Transaction, Workspace } from '../types';
@@ -132,10 +135,10 @@ describe('M-21 step 2: posting at standard against the database', { skip: !url &
     assert.deepEqual((accrual!.metadata?.stockIn as Array<{ itemId: string; quantity: number; valueCents: number }>)
       .map(l => [l.itemId, l.quantity, l.valueCents]), [[chair, 10, 40000], [table, 5, 75000]]);
 
-    // the stock came in at the standard
+    // the stock came in at the standard (the carrying value); the item's average cost keeps the actual basis
     const chairItem = await item(chair);
     assert.equal(chairItem.quantityAtHand, 10);
-    assert.equal(chairItem.unitCostCents, 4000);
+    assert.equal(chairItem.unitCostCents, 5000, 'the average keeps the actual cost, the books carry the standard');
   });
 
   test('a sale relieves the stock at the standard', async () => {
@@ -153,11 +156,47 @@ describe('M-21 step 2: posting at standard against the database', { skip: !url &
     assert.equal(cogs!.metadata?.standard, true);
     const chairItem = await item(chair);
     assert.equal(chairItem.quantityAtHand, 6);
-    assert.equal(chairItem.unitCostCents, 4000, 'the average stays at the standard');
+    assert.equal(chairItem.unitCostCents, 5000, 'a sale does not move the average-cost basis');
+  });
+
+  test('goods returned to the vendor come off Inventory at the standard, reversing the variance', async () => {
+    // Codex review: the receipt debited Inventory at the standard (4,000) and debited PPV for the
+    // difference; a return must credit Inventory at the standard and reverse that variance, not take the
+    // full actual value (5,000) off Inventory again.
+    await postBill(`${ws}_bill03`, goods());
+    const onHandBefore = (await item(chair)).quantityAtHand;
+    const vcId = `${ws}_vc01`;
+    const vcData = {
+      id: vcId, workspaceId: ws, uid: OWNER, vendorId: 'v', vendorName: 'Supplier', number: 'VC-1',
+      billId: `${ws}_bill03`, amountCents: 25000, remainingCents: 25000, date: today, status: 'open' as const,
+      currency: 'USD', returnedGoods: [{ billLine: 0, itemId: chair, quantity: 5, valueCents: 25000 }],
+    };
+    await db.collection('vendorCredits').doc(vcId).set(vcData);
+    await postVendorCreditLedger(vcId, vcData as never, ws, OWNER, { collection: 'vendorCredits', docId: vcId, action: 'create', data: vcData }, await context(true));
+
+    const vc = (await all<Transaction>('transactions')).find(t => t.metadata?.vendorCreditId === vcId);
+    assert.ok(vc, 'the credit posted its entry');
+    const lineOf = (code: string) => (vc!.lines || []).filter(l => l.accountId === acct[code].id).reduce((s, l) => s + Number(l.amountCents), 0);
+    assert.equal(lineOf('1300'), -20000, 'Inventory comes off at the standard carrying value (5 × 4,000)');
+    assert.equal(lineOf('5200'), -5000, 'the receipt variance for the returned units is reversed');
+    assert.equal(lineOf('2000'), 25000);
+    assert.equal((vc!.lines || []).reduce((s, l) => s + Number(l.amountCents), 0), 0, 'the entry balances');
+    // the units leave stock at the standard value
+    assert.deepEqual((vc!.metadata?.stockOut as Array<{ itemId: string; quantity: number; valueCents: number }>)
+      .map(l => [l.itemId, l.quantity, l.valueCents]), [[chair, 5, 20000]]);
+    const chairItem = await item(chair);
+    assert.equal(chairItem.quantityAtHand, onHandBefore - 5);
   });
 
   test('parity: without the setting the same bill posts as before', async () => {
-    await postBill(`${ws}_bill02`, goods(), false);
+    // the server re-posts the bill with a context read from the database, so the setting itself is turned
+    // off on the workspace row for this post (and put back after)
+    await db.collection('workspaces').doc(ws).update({ standardCosting: { enabled: false, varianceAccountId: '' } });
+    try {
+      await postBill(`${ws}_bill02`, goods(), false);
+    } finally {
+      await db.collection('workspaces').doc(ws).update({ standardCosting });
+    }
     const entries = await all<Transaction>('transactions');
     const accrual = entries.find(t => t.metadata?.billId === `${ws}_bill02` && t.metadata?.type === 'bill-accrual');
     assert.ok(accrual);

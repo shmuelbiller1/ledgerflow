@@ -4,7 +4,7 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { INVOICE_IS_ISSUED } from './computeReports';
 import { toBaseCents } from './partyReports';
 import { isOpeningBalanceDocument } from '../../lib/partyOpeningBalance';
-import { validStandardCost } from '../../lib/standardCost';
+import { validStandardCost } from '../../lib/standardCostSettings';
 
 /** Invoice lines that have no inventory item are grouped under this key. */
 export const NO_ITEM_KEY = '__no_item__';

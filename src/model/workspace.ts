@@ -102,7 +102,7 @@ export interface Workspace {
   goodsLeaveWith?: 'invoice' | 'delivery';
   /** M-21 step 2: post receipts and sales at the item's standard cost, differences to a variance account
    * (src/lib/standardCost.ts; server only, owners and accountants). Off by default. */
-  standardCosting?: import('../lib/standardCost').StandardCostingSettings;
+  standardCosting?: import('../lib/standardCostSettings').StandardCostingSettings;
   /** BB-07: which modules are on (src/lib/modules.ts; written by the server only, owners and accountants) */
   modules?: Record<string, boolean>;
   /** Y-30: everyone in the workspace must use two-step login (set by owners, through the server). */

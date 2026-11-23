@@ -15,8 +15,10 @@ export const BILL_ACCRUAL_TYPE = 'bill-accrual';
 export interface BillStockLine {
   itemId: string;
   quantity: number;
-  /** what the line posted to Inventory, whole cents in the workspace's currency */
+  /** what the line posts to Inventory, whole cents */
   valueCents: number;
+  /** M-21 step 2: the line's actual cost, kept for the moving-average basis */
+  actualValueCents?: number;
   /** its place among the bill's lines */
   line: number;
 }
@@ -51,7 +53,7 @@ export function billStockLines(splits: Array<{ itemId?: string; quantity?: numbe
  * difference between what the lines posted to Inventory (the actual total) and the standard total is the
  * purchase-price variance, which the posting sends to the workspace's variance account.
  */
-import { validStandardCost } from './standardCost';
+import { validStandardCost } from './standardCostSettings';
 import type { InventoryItem } from '../model/operations';
 
 export interface StandardReceiptPlan {
@@ -76,7 +78,11 @@ export function planStandardReceipt(
   const entries = stockIn.map(line => {
     const standard = validStandardCost(byId.get(line.itemId)?.standardCostCents);
     const standardValueCents = standard !== null && line.quantity > 0 ? Math.round(line.quantity * standard) : line.valueCents;
-    return { ...line, valueCents: standardValueCents };
+    return {
+      ...line,
+      valueCents: standardValueCents,
+      ...(standardValueCents !== line.valueCents ? { actualValueCents: line.valueCents } : {}),
+    };
   });
   const actualTotalCents = stockIn.reduce((sum, l) => sum + l.valueCents, 0);
   const standardTotalCents = entries.reduce((sum, l) => sum + l.valueCents, 0);

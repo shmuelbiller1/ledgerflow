@@ -49,6 +49,8 @@ interface PendingMove {
   kind: 'sale' | 'sale-reversal' | 'return' | 'return-reversal' | 'purchase' | 'purchase-reversal' | 'purchase-return' | 'purchase-return-reversal';
   entry: LedgerEntry;
   valueCents: number;
+  /** M-21 step 2: a receipt's actual cost, beside the standard value it posted at */
+  actualValueCents?: number;
   location?: string;
   /** DIM-2 phase 2: the document line the units came in on or went back from, and the entry that names them */
   line?: number;
@@ -92,7 +94,7 @@ function returnMove(tx: { metadata?: Record<string, unknown> }): { itemId: strin
  * J-08: the item lines of a bill (`metadata.stockIn` on its entry, src/lib/billStock.ts): each brings
  * units in at the value its line posted to Inventory.
  */
-function billStockIn(tx: LedgerEntry): Array<{ itemId: string; quantity: number; valueCents: number; line?: number }> {
+function billStockIn(tx: LedgerEntry): Array<{ itemId: string; quantity: number; valueCents: number; actualValueCents?: number; line?: number }> {
   const lines = tx.metadata?.stockIn;
   if (lines === undefined) return [];
   if (tx.metadata?.type !== BILL_ACCRUAL_TYPE || !Array.isArray(lines) || lines.length > 500) {
@@ -105,8 +107,14 @@ function billStockIn(tx: LedgerEntry): Array<{ itemId: string; quantity: number;
     if (typeof l.itemId !== 'string' || !l.itemId || !Number.isFinite(quantity) || quantity <= 0 || !Number.isSafeInteger(valueCents) || valueCents < 0) {
       throw new LedgerPostingError(400, 'Each item line of a bill needs the item, a positive quantity and its value in whole cents.');
     }
+    // M-21 step 2: the actual cost, kept beside the standard value the books posted it at
+    const actualValueCents = Number(l.actualValueCents);
     // DIM-2 phase 2: the bill's own line (src/lib/billStock.ts keeps its index), when it is a whole number
-    return { itemId: l.itemId, quantity, valueCents, ...(Number.isSafeInteger(l.line) && Number(l.line) >= 0 ? { line: Number(l.line) } : {}) };
+    return {
+      itemId: l.itemId, quantity, valueCents,
+      ...(Number.isSafeInteger(actualValueCents) && actualValueCents >= 0 ? { actualValueCents } : {}),
+      ...(Number.isSafeInteger(l.line) && Number(l.line) >= 0 ? { line: Number(l.line) } : {}),
+    };
   });
 }
 
@@ -248,7 +256,7 @@ export async function prepareStockMoves(
     // J-08: a bill's item lines go back out with it
     for (const line of billStockIn(original)) {
       add(line.itemId, -line.quantity);
-      pending.push({ itemId: line.itemId, quantity: -line.quantity, kind: 'purchase-reversal', entry: reversalOf.get(target) || original, valueCents: -line.valueCents, location: original.metadata?.locationId as string | undefined, line: line.line, source: original });
+      pending.push({ itemId: line.itemId, quantity: -line.quantity, kind: 'purchase-reversal', entry: reversalOf.get(target) || original, valueCents: -line.valueCents, actualValueCents: line.actualValueCents !== undefined ? -line.actualValueCents : undefined, location: original.metadata?.locationId as string | undefined, line: line.line, source: original });
     }
     // BF-07: stock sent back to a vendor comes back in when the credit is undone
     for (const line of vendorReturnOut(original)) {
@@ -269,7 +277,7 @@ export async function prepareStockMoves(
     }
     for (const line of billStockIn(tx)) {
       add(line.itemId, line.quantity);
-      pending.push({ itemId: line.itemId, quantity: line.quantity, kind: 'purchase', entry: tx, valueCents: line.valueCents, location: tx.metadata?.locationId as string | undefined, line: line.line, source: tx });
+      pending.push({ itemId: line.itemId, quantity: line.quantity, kind: 'purchase', entry: tx, valueCents: line.valueCents, actualValueCents: line.actualValueCents, location: tx.metadata?.locationId as string | undefined, line: line.line, source: tx });
     }
     const effect = stockEffect(tx);
     if (!effect) continue;
@@ -357,9 +365,10 @@ export async function prepareStockMoves(
       const undoFirst = (k: string) => k === 'purchase-reversal' || k === 'purchase-return-reversal';
       for (const p of [...mine.filter(x => undoFirst(x.kind)), ...mine.filter(x => !undoFirst(x.kind))]) {
         const after = round6(before + p.quantity);
-        // what is bought or sent back (or either undone) moves the average cost by its own value
+        // what is bought or sent back (or either undone) moves the average cost by its own value; under
+        // standard-cost posting the receipt carries its actual cost, and the average keeps the actual basis
         if (['purchase', 'purchase-reversal', 'purchase-return', 'purchase-return-reversal'].includes(p.kind) && after > 0) {
-          cost = movingAverageCents(before, cost, p.valueCents, after);
+          cost = movingAverageCents(before, cost, p.actualValueCents ?? p.valueCents, after);
           costChanged = true;
         }
         const invoiceId = typeof p.entry.metadata?.invoiceId === 'string' ? p.entry.metadata.invoiceId : undefined;

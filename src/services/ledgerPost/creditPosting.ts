@@ -3,6 +3,7 @@ import { planReturnEntries, returnableLines, returnProblem } from '../../lib/sal
 import { isIncomeAccount, resolveAccountRole } from '../../lib/accountUtils';
 import { CreditNote, VendorCredit } from '../../types';
 import { getAccounts, getTransactions, getWorkspaces, inBaseCurrency, verifyLockDate, resolveAccount, postTxsServerApi, findAccount, getInvoices, postingToday, documentMinorRate, liveDocumentPostings, reversalEntries } from './postingCore';
+import { validStandardCost } from '../../lib/standardCostSettings';
 import type { EntityMutation, LedgerPostContext, PostableTransaction } from './postingCore';
 
 /**
@@ -213,6 +214,24 @@ export async function postVendorCreditLedger(
   if (goodsTotal > amount - vcTax) throw new Error('The goods sent back are worth more than the credit (before tax): raise the credit, or send back fewer');
   const inventoryAccount = goods.length ? findAccount(accounts, mappings, ['inventory', 'stock', 'inventory asset'], a => resolveAccountRole(a) === 'inventory') : null;
   if (goods.length && !inventoryAccount) throw new Error('Add an Inventory account (an asset) to the chart of accounts to send stock back to a vendor');
+  // M-21 step 2: with standard-cost posting on, the stock came in at its standard, so what goes back comes
+  // off Inventory at the standard carrying value and the difference reverses the variance the receipt booked
+  const standardizing = Boolean(currentWs?.standardCosting?.enabled);
+  const itemsById = new Map((context?.inventory || []).map(i => [i.id, i]));
+  const carriedValues = goods.map(g => {
+    if (!standardizing) return roundCents(g.valueCents * rate);
+    const standard = validStandardCost(itemsById.get(g.itemId)?.standardCostCents);
+    return standard !== null ? roundCents(g.quantity * standard) : roundCents(g.valueCents * rate);
+  });
+  const carriedTotal = carriedValues.reduce((s, c) => s + c, 0);
+  let varianceAccount: { id: string; name: string } | null = null;
+  let varianceCents = 0;
+  if (standardizing && goods.length) {
+    const found = accounts.find(a => a.id === currentWs?.standardCosting?.varianceAccountId);
+    if (!found) throw new Error('The purchase-price variance account set in Workspace Settings is not in the chart of accounts.');
+    varianceAccount = found;
+    varianceCents = carriedTotal - goodsTotal; // the receipt's variance (actual − standard) goes back
+  }
   const rebate = amount - vcTax - goodsTotal;
 
   const vcTx = {
@@ -232,12 +251,13 @@ export async function postVendorCreditLedger(
       type: 'vendor-credit-issuance',
       // DIM-2 phase 2: each line sent back names the bill line it came in on (and the bill, under its own key so the
       // entry is never mistaken for the bill's own)
-      ...(goods.length ? { stockOut: goods.map((g, i) => ({ itemId: g.itemId, quantity: g.quantity, valueCents: goodsBase[i], ...(Number.isSafeInteger(g.billLine) ? { billLine: g.billLine } : {}) })) } : {}),
+      ...(goods.length ? { stockOut: goods.map((g, i) => ({ itemId: g.itemId, quantity: g.quantity, valueCents: carriedValues[i], ...(Number.isSafeInteger(g.billLine) ? { billLine: g.billLine } : {}) })) } : {}),
       ...(goods.length && vendorCreditData.billId ? { returnsFromBillId: vendorCreditData.billId } : {}),
     },
     lines: [
       { accountId: apAccount.id, accountName: apAccount.name, amountCents: amount, debitCents: amount, creditCents: 0, description: 'Accounts Payable Reduction' },
-      ...(goodsTotal > 0 && inventoryAccount ? [{ accountId: inventoryAccount.id, accountName: inventoryAccount.name, amountCents: -goodsTotal, debitCents: 0, creditCents: goodsTotal, description: 'Stock sent back to the vendor' }] : []),
+      ...(carriedTotal > 0 && inventoryAccount ? [{ accountId: inventoryAccount.id, accountName: inventoryAccount.name, amountCents: -carriedTotal, debitCents: 0, creditCents: carriedTotal, description: 'Stock sent back to the vendor' }] : []),
+      ...(varianceAccount && varianceCents !== 0 ? [{ accountId: varianceAccount.id, accountName: varianceAccount.name, amountCents: varianceCents, description: 'Purchase price variance reversed on stock sent back to the vendor', exchangeRate: rate }] : []),
       ...(rebate !== 0 ? [{ accountId: expenseAccount.id, accountName: expenseAccount.name, amountCents: -rebate, debitCents: 0, creditCents: rebate, description: 'Purchase Rebate / Expense Discount' }] : []),
       ...(vcTax > 0 && vcTaxAccount ? [{ accountId: vcTaxAccount.id, accountName: vcTaxAccount.name, amountCents: -vcTax, debitCents: 0, creditCents: vcTax, description: 'Input tax reversed by the credit' }] : [])
     ]

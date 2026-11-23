@@ -136,6 +136,51 @@ describe('M-21 step 2: receiving at standard', () => {
     assert.equal(atAverage.entries[0].totalAmountCents, 20000, 'the moving average, as before');
   });
 
+  test('each labelled line posts its own standard value, not a share of the standard total', async () => {
+    // Codex review: two lines with different standards, one per project label. Rescaling the standard
+    // total over the actual amounts would give each line 90 (100:100 of 180); each line keeps its own.
+    const captured: LedgerPostContext['capture'] = [];
+    const labelled = [
+      { id: 'x', uid: OWNER, workspaceId: WS, name: 'Widget X', sku: 'X', quantityAtHand: 0, unitCostCents: 0, unitPriceCents: 0, reorderPoint: 0, standardCostCents: 80, createdAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'y', uid: OWNER, workspaceId: WS, name: 'Widget Y', sku: 'Y', quantityAtHand: 0, unitCostCents: 0, unitPriceCents: 0, reorderPoint: 0, standardCostCents: 100, createdAt: '2026-01-01T00:00:00.000Z' },
+    ];
+    const splits = [
+      { amountCents: 100, accountId: 'acc_inv', description: 'X for project A', itemId: 'x', quantity: 1, dimensions: { project: 'A' } },
+      { amountCents: 100, accountId: 'acc_inv', description: 'Y for project B', itemId: 'y', quantity: 1, dimensions: { project: 'B' } },
+    ];
+    await postBillLedger('bill_m21_labels', { ...billData(splits), id: 'bill_m21_labels', number: 'B-L' } as never, WS, OWNER, undefined, contextFor({ enabled: true, varianceAccountId: 'acc_ppv' }, captured, labelled));
+    const [entry] = captured[0].txs;
+    const inv = entry.lines.filter(l => l.accountId === 'acc_inv');
+    assert.equal(inv.length, 2, 'one Inventory line per label');
+    const byProject = Object.fromEntries(inv.map(l => [String(l.dimensions?.project), l.amountCents]));
+    assert.equal(byProject['A'], 80, 'project A posts its own standard');
+    assert.equal(byProject['B'], 100, 'project B posts its own standard');
+    const ppv = entry.lines.filter(l => l.accountId === 'acc_ppv');
+    assert.equal(ppv[0].amountCents, 20, 'variance is actual − standard (200 − 180)');
+    assert.equal(entry.lines.reduce((s, l) => s + l.amountCents, 0), 0, 'the entry balances');
+  });
+
+  test('a zero standard is not a standard: the line posts and reports at its actual cost', () => {
+    const zeroStandard = [{ id: 'free', uid: OWNER, workspaceId: WS, name: 'Freebie', sku: 'F', quantityAtHand: 0, unitCostCents: 0, unitPriceCents: 0, reorderPoint: 0, standardCostCents: 0, createdAt: '2026-01-01T00:00:00.000Z' }];
+    const plan = planStandardReceipt([{ itemId: 'free', quantity: 10, valueCents: 5000, line: 0 }], zeroStandard, true);
+    assert.equal(plan!.entries[0].valueCents, 5000, 'the receipt posts the actual value');
+    // and a sale of it relieves stock at the moving average, not at zero (Codex review: a zero standard
+    // used to drop the whole cost-of-goods entry and the quantity movement)
+    const invoice = { id: 'inv_free', number: 'INV-F', items: [{ id: 'l1', itemId: 'free', description: 'Freebie', quantity: 4, rateCents: 0, amountCents: 0, accountId: '', unitCostCents: 500 }] };
+    const cogs = planInvoiceCogs({
+      invoiceId: 'inv_free', invoice, date: '2026-11-11', uid: OWNER, workspaceId: WS, baseCurrency: 'USD',
+      inventoryAccount: accounts()[0], cogsAccount: accounts()[1], items: zeroStandard, postAtStandard: true,
+    });
+    assert.equal(cogs.entries.length, 1, 'the cost of goods is posted at the actual cost');
+    assert.equal(cogs.entries[0].totalAmountCents, 2000);
+  });
+
+  test('the receipt keeps the actual cost beside the standard value it posts at', () => {
+    const plan = planStandardReceipt([{ itemId: 'chair', quantity: 10, valueCents: 50000, line: 0 }], items(), true);
+    assert.equal(plan!.entries[0].valueCents, 40000, 'the books carry the standard');
+    assert.equal(plan!.entries[0].actualValueCents, 50000, 'the actual basis is kept for the average cost and the variance report');
+  });
+
   test('the inventory report values the stock at the standard and agrees with the books', () => {
     const asPosted = [{ id: 'tx_1', workspaceId: WS, date: '2026-11-10', status: 'completed' as const, totalAmountCents: 125000, lines: [
       { accountId: 'acc_inv', amountCents: 115000 },
@@ -178,6 +223,20 @@ describe('M-21 step 2: the workspace setting', () => {
     assert.equal(missing.status, 400);
     const notInChart = await harness.run(OWNER, 'workspace.standardcosting', { enabled: true, varianceAccountId: 'acc_nope' });
     assert.equal(notInChart.status, 400);
+  });
+
+  test('turning it on is refused while stock is on hand at a cost other than its standard', async () => {
+    await harness.run(OWNER, 'workspace.standardcosting', { enabled: false });
+    harness.db.seed(`inventory/drifted`, {
+      uid: OWNER, workspaceId: WS, name: 'Drifted', sku: 'DR', itemType: 'stock',
+      quantityAtHand: 10, unitCostCents: 500, standardCostCents: 400,
+    });
+    const refused = await harness.run(OWNER, 'workspace.standardcosting', { enabled: true, varianceAccountId: 'acc_ppv' });
+    assert.equal(refused.status, 409);
+    // reconciling the stock (its cost now matches the standard) lets the transition through
+    harness.db.seed(`inventory/drifted`, { uid: OWNER, workspaceId: WS, name: 'Drifted', sku: 'DR', itemType: 'stock', quantityAtHand: 10, unitCostCents: 400, standardCostCents: 400 });
+    const ok = await harness.run(OWNER, 'workspace.standardcosting', { enabled: true, varianceAccountId: 'acc_ppv' });
+    assert.equal(ok.status, 200);
   });
 
   test('a viewer cannot change it', async () => {

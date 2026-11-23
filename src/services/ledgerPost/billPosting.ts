@@ -2,7 +2,7 @@ import { resolveAccountRole } from '../../lib/accountUtils';
 import { roundCents } from '../../lib/cents';
 import { Bill } from '../../types';
 import { calculateDocumentTax, cashPostedWithDocumentCents } from '../../lib/documentMath';
-import { TransactionTemplates } from '../../kernel/templates/TransactionTemplates';
+import { TransactionTemplates, labelKey } from '../../kernel/templates/TransactionTemplates';
 import { allocateCents } from '../../lib/Allocation';
 import { BILL_ACCRUAL_TYPE, billItemProblem, billStockLines, planStandardReceipt } from '../../lib/billStock';
 import { getAccounts, getTransactions, getWorkspaces, inBaseCurrency, verifyLockDate, findAccount, resolveAccount, lineAccounts, loadInventory, postTxsServerApi, postingToday, documentMinorRate, taxLineStamp, liveDocumentPostings, reversalEntries } from './postingCore';
@@ -136,21 +136,34 @@ export async function postBillLedger(
 
   // Reverse charge (T-03): the vendor charged no tax; the business owes it and reclaims it,
   // so the same amount goes to input tax (reclaimable) and to tax payable (due)
-  // the inventory lines post at the standard total; the balancing difference goes to the variance account
+  // M-21: each Inventory line posts its own standard value (quantity × standard, labels kept), not a
+  // share of the standard total; the difference between what the lines cost and what they post is one
+  // variance line, so a bill with differently labelled lines keeps each label's own standard value.
   if (standardPlan && standardPlan.varianceCents !== 0) {
     if (!inventoryAccount) throw new Error('Add an Inventory account (an asset) to the chart of accounts to buy stock on a bill');
     const varianceAccount = accounts.find(a => a.id === currentWs?.standardCosting?.varianceAccountId);
     if (!varianceAccount) {
       throw new Error('The purchase-price variance account set in Workspace Settings is not in the chart of accounts.');
     }
-    const inventoryLineIndexes = accrualLines.map((l, i) => (l.accountId === inventoryAccount.id ? i : -1)).filter(i => i >= 0);
-    const shares = allocateCents(standardPlan.standardTotalCents, inventoryLineIndexes.map(i => accrualLines[i].amountCents));
-    const rescaled = accrualLines.map((l, i) => {
-      const k = inventoryLineIndexes.indexOf(i);
-      return k >= 0 ? { ...l, amountCents: shares[k] } : l;
-    });
+    // what each label group of the receipt posts to Inventory under standard costing
+    const standardByLabels = new Map<string, number>();
+    for (const entry of standardPlan.entries) {
+      if (entry.line === undefined) continue;
+      const key = labelKey(weights?.[entry.line]?.dimensions);
+      standardByLabels.set(key, (standardByLabels.get(key) || 0) + entry.valueCents);
+    }
+    const rebuilt: typeof accrualLines = [];
+    for (const line of accrualLines) {
+      if (line.accountId !== inventoryAccount.id) {
+        rebuilt.push(line);
+        continue;
+      }
+      const amount = standardByLabels.get(labelKey(line.dimensions));
+      if (amount === undefined || amount === 0) continue; // landed-only lines: their cost is in the variance
+      rebuilt.push({ ...line, amountCents: amount });
+    }
     accrualLines.length = 0;
-    accrualLines.push(...rescaled);
+    accrualLines.push(...rebuilt);
     accrualLines.push({
       accountId: varianceAccount.id,
       accountName: varianceAccount.name,

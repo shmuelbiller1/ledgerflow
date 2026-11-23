@@ -7,19 +7,17 @@
  * percentage of the standard, and for the stock on hand (actual − standard, × quantity). A positive
  * variance means the stock cost more than planned (unfavourable).
  *
- * Step 2 (this module's settings type): a workspace may turn on posting at standard — stock is received and
- * relieved at the standard and the difference between actual and standard goes to a purchase-price variance
- * account. It is the owner's decision (docs/FOR_YOU.md) and off by default; the report above keeps comparing
- * actual against standard either way.
+ * Step 2: a workspace may turn on posting at standard — stock is received and relieved at the standard and
+ * the difference between actual and standard goes to a purchase-price variance account. It is the owner's
+ * decision (docs/FOR_YOU.md) and off by default; the report above keeps comparing actual against standard either
+ * way. The setting and the validator live in src/lib/standardCostSettings.ts (the server needs them without
+ * this report's code) and are re-exported here.
  */
 import type { InventoryItem } from '../model/operations';
 
-/** M-21 step 2, workspace setting: whether receipts and sales post at the item's standard cost. */
-export interface StandardCostingSettings {
-  enabled: boolean;
-  /** the account the purchase-price variance (actual − standard) posts to; required while enabled */
-  varianceAccountId: string;
-}
+import { validStandardCost } from './standardCostSettings';
+export { validStandardCost } from './standardCostSettings';
+export type { StandardCostingSettings } from './standardCostSettings';
 
 export interface StandardCostRow {
   itemId: string;
@@ -43,11 +41,6 @@ export interface StandardCostReport {
 }
 
 type ItemLike = Pick<InventoryItem, 'id' | 'name' | 'quantityAtHand' | 'unitCostCents'> & Partial<Pick<InventoryItem, 'itemType' | 'bundleParts' | 'standardCostCents'>>;
-
-/** A standard cost as stored: whole cents, zero or more; anything else means "none". */
-export function validStandardCost(value: unknown): number | null {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
-}
 
 /** Stock items only (services and bundles keep no stock of their own); largest variance first. */
 export function standardCostReport(items: ItemLike[]): StandardCostReport {

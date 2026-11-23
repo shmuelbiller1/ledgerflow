@@ -1,4 +1,4 @@
-import { validStandardCost } from '../lib/standardCost';
+import { validStandardCost } from '../lib/standardCostSettings';
 import type { ChartAccount, InventoryItem, Invoice, TransactionLine } from '../types';
 
 /** metadata.type of the cost-of-goods-sold entry posted for one invoice line. */

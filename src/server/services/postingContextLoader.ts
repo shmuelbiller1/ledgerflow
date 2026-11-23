@@ -63,7 +63,9 @@ export async function loadPostingContext(db: Firestore, input: {
     ? (document.items || [])
     : collection === 'bills'
       ? (document.splits || [])
-      : [];
+      : collection === 'vendorCredits'
+        ? (document.returnedGoods || [])
+        : [];
   const itemIds = [...new Set((docLines as Array<{ itemId?: string }>).map(l => l.itemId).filter((id): id is string => Boolean(id)))];
   const inventory = (await Promise.all(itemIds.map(async id => {
     const snap = await db.collection('inventory').doc(id).get();

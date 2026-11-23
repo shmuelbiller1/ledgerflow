@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { HttpError } from '../auth/requestUser';
 import { formatTzDate } from '../../lib/calendarDate';
+import { validStandardCost } from '../../lib/standardCostSettings';
 import { MODULES, modulesProblem, type Modules } from '../../lib/modules';
 import { RetentionSettingsSchema, retentionFor } from '../../lib/retention';
 import { allocateInTransaction, formatDocumentNumber, NUMBERED_TYPES, resolveSeries, type NumberedType } from '../services/numberingService';
@@ -291,11 +292,26 @@ export const workspaceStandardCostingCommand: CommandDefinition<typeof workspace
   async handler(ctx, tx, input: WorkspaceStandardCostingInput) {
     const before = (ctx.workspace.standardCosting as { enabled: boolean; varianceAccountId: string } | undefined) || null;
     if (input.enabled) {
-      const accounts = await tx.get(ctx.db.collection('chartAccounts').where('workspaceId', '==', ctx.workspaceId));
-      const rows = (accounts as unknown as { docs: Array<{ data(): Record<string, unknown> | undefined }> }).docs.map(d => d.data() || {});
-      const variance = rows.find(a => a.id === input.varianceAccountId);
-      if (!variance) {
+      const varianceSnap = await tx.get(ctx.db.collection('chartAccounts').doc(input.varianceAccountId || ''));
+      const variance = varianceSnap.data() as { workspaceId?: string } | undefined;
+      if (!varianceSnap.exists || variance?.workspaceId !== ctx.workspaceId) {
         throw Object.assign(new HttpError('The purchase-price variance account is not in this workspace chart of accounts.', 400), { code: 'INVALID_INPUT' });
+      }
+      // M-21 step 2: turning the posting on switches the books to carrying stock at the standard. Stock already
+      // on hand at a different cost would then be relieved at the standard while it is still carried at its own
+      // cost, leaving Inventory with a balance and no stock — so the transition is refused until it is reconciled.
+      if (!before?.enabled) {
+        const stock = await tx.get(ctx.db.collection('inventory').where('workspaceId', '==', ctx.workspaceId));
+        const drifted = (stock as unknown as { docs: Array<{ data(): Record<string, unknown> | undefined }> }).docs
+          .map(d => d.data() || {})
+          .filter(item => {
+            const onHand = Number(item.quantityAtHand) || 0;
+            const standard = validStandardCost(item.standardCostCents);
+            return onHand > 0 && standard !== null && Math.round(Number(item.unitCostCents) || 0) !== standard;
+          });
+        if (drifted.length > 0) {
+          throw Object.assign(new HttpError(`${drifted.length} item(s) hold stock at a cost other than their standard. Reconcile them (sell the stock down or adjust it on Inventory) before turning standard-cost posting on.`, 409), { code: 'CONFLICT' });
+        }
       }
     }
     const standardCosting = { enabled: input.enabled, varianceAccountId: input.varianceAccountId || before?.varianceAccountId || '' };
@@ -314,11 +330,13 @@ export const workspaceStandardCostingCommand: CommandDefinition<typeof workspace
     };
   },
   audit(input: WorkspaceStandardCostingInput, result: StandardCostingResult) {
+    const was = result.before?.enabled ? 'on' : 'off';
+    const now = result.standardCosting.enabled ? 'on' : 'off';
     return {
       action: result.before?.enabled ? 'STANDARD_COSTING_UPDATED' : 'STANDARD_COSTING_SET',
       entityType: 'workspaces',
       entityId: result.standardCosting.enabled ? `standard-costing:${result.standardCosting.varianceAccountId}` : 'standard-costing',
-      description: `Standard-cost posting ${result.before?.enabled ? 'changed' : 'set'}: ${result.before?.enabled ? `${result.before.enabled ? 'on' : 'off'} → ` : ''}${result.standardCosting.enabled ? 'on' : 'off'}${input.enabled && result.standardCosting.varianceAccountId ? ` (variance account ${result.standardCosting.varianceAccountId})` : ''}`,
+      description: `Standard-cost posting ${was} → ${now}${input.enabled && result.standardCosting.varianceAccountId ? ` (variance account ${result.standardCosting.varianceAccountId})` : ''}`,
     };
   },
   inverse(_input: WorkspaceStandardCostingInput, result: StandardCostingResult) {
@@ -331,11 +349,12 @@ export const workspaceStandardCostingCommand: CommandDefinition<typeof workspace
   },
   risk: 'normal',
   describe: {
-    sentence: 'Turn standard-cost posting on or off for the workspace and name the account the purchase-price variance posts to; do not use it to change an item cost or a posted entry.',
+    sentence: 'Turn standard-cost posting on or off for the workspace and name the account the variance posts to.',
     example: { enabled: true, varianceAccountId: 'acct_purchase_variance' },
     refusals: [
-      { code: 'INVALID_INPUT', when: 'Standard costing is turned on without the variance account, or the account is not in the chart.', next: 'Choose the purchase-price variance account in the chart of accounts and pass its id.' },
-      { code: 'ROLE_REQUIRED', when: 'The caller is not an owner or accountant.', next: 'Ask a workspace owner or accountant to change the setting.' },
+      { code: 'INVALID_INPUT', when: 'Turned on without the variance account, or the account is not in the chart.', next: 'Choose the variance account and pass its id.' },
+      { code: 'CONFLICT', when: 'Stock is on hand at a cost other than its standard.', next: 'Reconcile the stock before turning standard costing on.' },
+      { code: 'ROLE_REQUIRED', when: 'The caller is not an owner or accountant.', next: 'Ask an owner or accountant to change it.' },
       { code: 'WORKSPACE_NOT_FOUND', when: 'The workspace no longer exists.', next: 'Choose an existing workspace.' },
     ],
   },
