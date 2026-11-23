@@ -44,14 +44,22 @@ export function asksAbout(o: Outcome, detail: RegExp): boolean {
     && !/\b(not|n't|nothing|no|yet|until|before|once|after)\b/i.test(t));
   return questions.some(q => detail.test(q)) && claims.length === 0;
 }
-/** Text from each polite request phrase to the end of its paragraph (a following bullet list included). */
+/**
+ * Each polite request: from its phrase to the end of that sentence, plus a list attached to it
+ * ("please provide:\n- the bill date"). A later statement ("I will use today's date") is not part of it,
+ * and a generic closing offer ("let me know if you need anything else") asks for nothing.
+ */
 export function requestParts(answer: string): string[] {
   const re = /\b(please (provide|confirm|tell me|share|let me know|send|specify)|can you (tell me|confirm|provide|share)|could you (tell me|confirm|provide|share)|i need (to know|you to|the|your)|let me know)\b/gi;
+  const closingOffer = /\b(anything else|any (other |further |more )?questions|further (help|assistance)|if you need (anything|help|more|further)|if (there is|there's) anything)\b/i;
   const parts: string[] = [];
   for (const m of answer.matchAll(re)) {
     const rest = answer.slice(m.index);
-    const end = rest.search(/\n\s*\n(?!\s*[-*•\d])/);
-    parts.push(end < 0 ? rest : rest.slice(0, end));
+    const end = rest.search(/[.!?](?=\s|$)|\n/);
+    let part = end < 0 ? rest : rest.slice(0, end + 1);
+    const list = rest.slice(part.length).match(/^(\s*([-*\u2022]|\d+[.)])\s[^\n]*(\n|$))+/);
+    if (list) part += list[0];
+    if (!closingOffer.test(part)) parts.push(part);
   }
   return parts;
 }

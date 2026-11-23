@@ -179,4 +179,8 @@ test('SBX-2 Part 6 model test: a polite request with a list counts as asking (re
   assert.ok(byId('bill').check({ answer: bill, calls: [] }).pass);
   // a request for something else does not count
   assert.ok(!byId('payment').check({ answer: 'Payment noted. Please let me know if you need anything else.', calls: [] }).pass);
+  // a generic closing offer is not a clarifying question
+  for (const id of ['fix-books', 'move-project', 'recurring']) assert.ok(!byId(id).check({ answer: 'Please let me know if you need anything else.', calls: [] }).pass, id);
+  // a later statement announcing a guess does not supply the detail the request asked for
+  assert.ok(!byId('bill').check({ answer: 'Please confirm the supplier. I will use the current date.', calls: [] }).pass);
 });
