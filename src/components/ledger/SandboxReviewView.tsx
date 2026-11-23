@@ -188,7 +188,7 @@ export default function SandboxReviewView() {
             <>
               <label className="sr-only" htmlFor="sandbox-pick">Sandbox</label>
               <select id="sandbox-pick" className="px-2 py-1.5 text-sm border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]" value={sandboxId} onChange={e => setSandboxId(e.target.value)}>
-                {open.map(s => <option key={s.id} value={s.id}>{new Date(s.createdAt).toLocaleString()} · {s.pendingSteps} pending</option>)}
+                {open.map(s => <option key={s.id} value={s.id}>{new Date(s.createdAt).toLocaleString()} · {s.pendingSteps} pending · {s.id}</option>)}
               </select>
             </>
           )}

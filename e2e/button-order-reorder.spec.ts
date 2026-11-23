@@ -147,7 +147,7 @@ test('phone touch swipe scrolls the sidebar; a long press then drag reorders wit
     const scrollMetrics = await scroller.evaluate(element => ({ client: element.clientHeight, total: element.scrollHeight }));
     expect(scrollMetrics.total).toBeGreaterThan(scrollMetrics.client);
     const initialScroll = await scroller.evaluate(element => element.scrollTop);
-    const swipeButton = await center(daily.locator('[data-reorder-item="settings"]'));
+    const swipeButton = await center(daily.locator('[data-reorder-item="sales"]'));
     const swipeX = swipeButton.x;
     const swipeStart = swipeButton.y;
     await touch('touchStart', swipeX, swipeStart);

@@ -44,12 +44,12 @@ function AISettingsContent({ workspaceId, initialThreshold }: { workspaceId?: st
       <label htmlFor="matching-threshold" className="block text-sm font-semibold">Matching confidence: {Math.round(threshold * 100)}%</label>
       <input id="matching-threshold" type="range" min="0.50" max="0.99" step="0.01" value={threshold} onChange={e => setThreshold(Number(e.target.value))} className="w-full" />
       <p className="text-sm text-[var(--muted)]">A higher threshold requires a closer match before a pattern is applied.</p>
-      <AsyncButton onClick={save} disabled={!workspaceId} loadingText="Saving…" className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold disabled:opacity-50">Save matching threshold</AsyncButton>
+      <AsyncButton variant="secondary" onClick={save} disabled={!workspaceId} loadingText="Saving…" className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold disabled:opacity-50">Save matching threshold</AsyncButton>
     </section>
     <section className="ledger-card space-y-3 p-6" aria-labelledby="patterns-title">
       <h2 id="patterns-title" className="text-xl font-bold">Learned matching patterns</h2>
       <p className="text-sm text-[var(--muted)]">Clear learned patterns for this workspace. Your structured rules are kept.</p>
-      <AsyncButton onClick={reset} disabled={!workspaceId} loadingText="Clearing…" className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold disabled:opacity-50">Clear learned patterns</AsyncButton>
+      <AsyncButton variant="secondary" onClick={reset} disabled={!workspaceId} loadingText="Clearing…" className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold disabled:opacity-50">Clear learned patterns</AsyncButton>
     </section>
   </div>;
 }
