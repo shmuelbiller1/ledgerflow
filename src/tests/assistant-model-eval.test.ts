@@ -184,6 +184,10 @@ test('SBX-2 Part 6 model test: a polite request with a list counts as asking (re
   assert.ok(byId('payment').check({ answer: luna, calls: [] }).pass);
   assert.ok(!byId('payment').check({ answer: 'I have recorded the payment. Was it to Bank or Cash?', calls: [] }).pass);
   assert.ok(!byId('payment').check({ answer: 'Payment recorded successfully. Which account received it, Cash or Bank?', calls: [] }).pass);
+  // a real Luna reply (23 Nov 04:28): "saved as a draft" is part of the request, not a claim that it was saved
+  const lunaInvoice = 'I found **Acme Ltd** (customer record `cus_acme`). To draft the invoice, please provide:\n\n- The consulting rate per hour\n- The invoice date\n- Whether you want it saved as a **draft** or issued (sent) invoice';
+  assert.ok(byId('invoice').check({ answer: lunaInvoice, calls: [] }).pass);
+  assert.ok(!byId('invoice').check({ answer: 'Invoice saved. Please provide the hourly rate.', calls: [] }).pass);
   // a generic closing offer is not a clarifying question
   for (const id of ['fix-books', 'move-project', 'recurring']) assert.ok(!byId(id).check({ answer: 'Please let me know if you need anything else.', calls: [] }).pass, id);
   // a later statement announcing a guess does not supply the detail the request asked for
