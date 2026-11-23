@@ -176,9 +176,13 @@ export const READ_ONLY_ROUTE_EXCEPTIONS: readonly PostRouteException[] = [
   },
 ];
 
-/** Provider operations, not read-only: session starts with no books write, and the payout
+/** Provider operations, not read-only: session starts, metered model tasks, and the payout
  * protocol whose local journal must follow the processor outcome, one vendor at a time. */
 export const PROVIDER_ROUTE_EXCEPTIONS: readonly PostRouteException[] = [
+  {
+    file: 'src/server/routes/sandboxRoutes.ts', route: '/assistant/turn',
+    why: 'A member asks about live books in server-enforced read-only mode. A model call reserves and records plan usage, but never drafts or changes book records. Each retry is a new metered provider call; a command cannot make it atomic with the provider. See assistant-viewer-readonly.test.ts and assistant-speed-sbx2.test.ts.',
+  },
   {
     file: 'src/server/routes/billingRoutes.ts', route: '/checkout',
     why: 'Opens a Stripe-hosted checkout session with a provider idempotency key. It does not upgrade a plan or grant credits; verification/webhook writes are separate.',

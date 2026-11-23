@@ -35,6 +35,7 @@ import { BRAND_NAME } from '../../config/brand';
 const CommandPalette = createRetryableLazy(() => import('../../components/layout/CommandPalette'));
 const ShortcutOverlay = createRetryableLazy(() => import('../../components/layout/ShortcutOverlay'));
 const DiagnosticConsole = createRetryableLazy(() => import('../../components/intelligence/DiagnosticConsole'));
+const FloatingAssistant = createRetryableLazy(() => import('../../components/intelligence/FloatingAssistant'));
 
 /** Authenticated and guest workspace shell hosting navigation, views, and global overlays. */
 export function RootLayout() {
@@ -49,6 +50,7 @@ export function RootLayout() {
   // #102: every dialog (statement importer, migration, entry tools) starts fresh on a book switch, so
   // rows parsed or read for one workspace can never be imported into another
   const dialogScope = useAuthStore(state => `${state.user?.uid ?? ''}:${state.currentWorkspaceId ?? ''}`);
+  const canUseAssistant = useAuthStore(state => !!state.user && !state.user.isAnonymous && !state.isGuest && !!state.currentWorkspaceId);
   const workspaces = useAuthStore(state => state.workspaces);
   const currentWorkspaceId = useAuthStore(state => state.currentWorkspaceId);
   const projects = useLedgerStore(state => state.projects);
@@ -182,6 +184,8 @@ export function RootLayout() {
 
       </div>
       
+      {/* Non-modal: keeps the current page mounted while the person asks for help. */}
+      {canUseAssistant && <LazyOverlayBoundary key={dialogScope} label="AI assistant"><FloatingAssistant /></LazyOverlayBoundary>}
       {/* Overlays & Global Components */}
       <BottomNav activeTab={activeTab as unknown as string} onTabChange={setActiveTab as unknown as (tabId: string) => void} />
       {isCommandPaletteOpen && (

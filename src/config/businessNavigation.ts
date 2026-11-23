@@ -1,5 +1,5 @@
 /** Presentation only. Never permissions, module settings, or route availability. */
-export const DAILY_TOOL_IDS = ['dashboard', 'inbox', 'sales', 'purchases', 'banking', 'reports', 'settings'] as const;
+export const DAILY_TOOL_IDS = ['dashboard', 'inbox', 'copilot', 'sales', 'purchases', 'banking', 'reports', 'settings'] as const;
 const RELEVANT: Record<string, string[]> = {
   inventory: ['retail', 'manufacturing', 'manufacturing_multi', 'construction', 'agriculture', 'hospitality', 'subscription_box', 'import_export', 'franchise'],
   projects: ['service', 'creative', 'software_agency', 'construction', 'realestate', 'nonprofit'],
@@ -17,6 +17,7 @@ export function navigationFor(id: string): { isAdvanced: boolean; businessTypes:
 
 export const DAILY_TOOL_LABELS: Record<string, Record<string, string>> = {
   dashboard: { en: 'Overview', he: 'סקירה' }, inbox: { en: 'To review', he: 'לסקירה' },
+  copilot: { en: 'AI assistant', he: 'עוזר בינה מלאכותית' },
   sales: { en: 'Sales', he: 'מכירות' }, purchases: { en: 'Purchases', he: 'רכישות' },
   banking: { en: 'Bank', he: 'בנק' }, reports: { en: 'Reports', he: 'דוחות' }, settings: { en: 'Settings', he: 'הגדרות' },
 };

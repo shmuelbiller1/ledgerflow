@@ -119,3 +119,25 @@ describe('Assistant drafts (SBX-1 review screen)', () => {
     assert.ok(screen.getByText('Accepted'));
   });
 });
+
+test('the assistant opens the selected draft, not another open sandbox', async () => {
+  setComponentWorkspace('owner');
+  const other = '55555555-5555-4555-8555-555555555555';
+  sessionStorage.setItem('lf_assistant_review_component-workspace', other);
+  const calls = stubServer({
+    'GET /workspaces/component-workspace/sandboxes': () => ({ body: { sandboxes: [
+      { id: SANDBOX, createdAt: '2026-11-18T10:00:00Z', expiresAt: '2026-11-25T10:00:00Z', pendingSteps: 1 },
+      { id: other, createdAt: '2026-11-19T10:00:00Z', expiresAt: '2026-11-26T10:00:00Z', pendingSteps: 1 },
+    ] } }),
+    [`GET /workspaces/component-workspace/sandboxes/${other}`]: () => ({ body: { ...review([step(S1, 1, 'customer.create', 'Selected draft')]), id: other } }),
+    [`POST /workspaces/component-workspace/sandboxes/${other}/tools/run_report`]: () => ({ body: trialBalance }),
+  });
+  try {
+    render(<SandboxReviewView />);
+    await screen.findByText('Selected draft');
+    assert.equal((screen.getByLabelText('Sandbox') as HTMLSelectElement).value, other);
+    assert.equal(sessionStorage.getItem('lf_assistant_review_component-workspace'), null);
+    assert.ok(calls.some(c => c.url.endsWith(`/sandboxes/${other}`)));
+    assert.equal(calls.some(c => c.method === 'GET' && c.url.endsWith(`/sandboxes/${SANDBOX}`)), false);
+  } finally { cleanup(); sessionStorage.clear(); }
+});
