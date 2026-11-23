@@ -15,7 +15,8 @@
  * of a guess. Then each OCR model reads generated receipt images and is scored field by field.
  *
  * Cost: the endpoint's own billed cost (`usage.cost`) is summed per model. A hard cap stops the run
- * (ASSISTANT_EVAL_MAX_CALLS, default 400 model calls in total). Test data only; the key is never read
+ * (ASSISTANT_EVAL_MAX_CALLS, default 400 model calls in total). ASSISTANT_EVAL_REPEATS=3 runs each question
+ * three times per model and reports the total, so one lucky or unlucky answer does not decide the comparison. Test data only; the key is never read
  * here: the session's network proxy adds it for the configured host.
  */
 import fs from 'node:fs';
@@ -167,6 +168,8 @@ async function main() {
     process.exitCode = 2; return;
   }
   const cap = Number(process.env.ASSISTANT_EVAL_MAX_CALLS ?? 400);
+  // ASSISTANT_EVAL_REPEATS: run each question this many times per model and report the total (default 1)
+  const repeats = Math.max(1, Math.min(10, Number(process.env.ASSISTANT_EVAL_REPEATS ?? 1) || 1));
   const total = { calls: 0 };
   const systemPrompt = fs.readFileSync('assistant/SYSTEM_PROMPT.md', 'utf8');
   const out: string[] = [];
@@ -184,20 +187,27 @@ async function main() {
     const spend: Spend = { usd: 0, calls: 0, priced: 0 };
     const doFetch = meteredFetch(spend, total, cap);
     let correct = 0, finished = 0;
-    detail.push('', `#### ${model}`, '', '| question | result | why |', '|---|---|---|');
+    detail.push('', `#### ${model}`, '', `| question | result${repeats > 1 ? ` (of ${repeats})` : ''} | why (first wrong run) |`, '|---|---|---|');
     for (const c of CASES) {
-      const { outcome } = await runCase(baseUrl, doFetch, model, systemPrompt, c.q);
-      const g = outcome.error ? { pass: false, why: outcome.error } : c.check(outcome);
-      if (!outcome.error) finished++;
-      if (g.pass) correct++;
-      const seen = g.pass || outcome.error ? '' : ` — ${whatHappened(outcome)}`;
-      detail.push(`| ${c.q} | ${g.pass ? 'correct' : 'wrong'} | ${(g.why + seen).replaceAll('|', '/').replace(/\n/g, ' ')} |`);
+      // each question runs `repeats` times: models answer differently run to run, so one run is luck
+      let right = 0, why = '';
+      for (let r = 0; r < repeats; r++) {
+        const { outcome } = await runCase(baseUrl, doFetch, model, systemPrompt, c.q);
+        const g = outcome.error ? { pass: false, why: outcome.error } : c.check(outcome);
+        if (!outcome.error) finished++;
+        if (g.pass) right++;
+        else if (!why) why = g.why + (outcome.error ? '' : ` — ${whatHappened(outcome)}`);
+      }
+      correct += right;
+      const result = repeats > 1 ? `${right} / ${repeats}` : right ? 'correct' : 'wrong';
+      detail.push(`| ${c.q} | ${result} | ${(why || 'correct every run').replaceAll('|', '/').replace(/\n/g, ' ')} |`);
     }
     const cents = spend.usd * 100;
     // only a fully priced run is a measured cost; otherwise say how much is missing
     const known = spend.priced === spend.calls;
     const billed = known ? `${cents.toFixed(2)}¢` : `unknown (${spend.calls - spend.priced} of ${spend.calls} calls without a billed cost; ≥${cents.toFixed(2)}¢)`;
-    say(`| ${model} | ${correct} / ${CASES.length} | ${finished} / ${CASES.length} | ${spend.calls} | ${billed} | ${known && correct ? (cents / correct).toFixed(2) + '¢' : '—'} |`);
+    const runs = CASES.length * repeats;
+    say(`| ${model} | ${correct} / ${runs}${repeats > 1 ? ` (${(correct / repeats).toFixed(1)} of ${CASES.length} on average)` : ''} | ${finished} / ${runs} | ${spend.calls} | ${billed} | ${known && correct ? (cents / correct).toFixed(2) + '¢' : '—'} |`);
   }
   if (ocrModels.length) {
     say(); say('### Receipts (OCR)'); say();

@@ -169,3 +169,18 @@ test('SBX-2 Part 6 model test: a fair question about missing details passes, and
   assert.match(seen, /draft refused 1× \(propose_bill_create: bill.date: Required\)/);
   assert.match(seen, /answered: "I could not draft it."/);
 });
+
+test('SBX-2 Part 6 model test: a polite request with a list counts as asking (real Terra replies)', () => {
+  const pay = 'I found **INV-1001** for Acme Ltd. Before I draft the payment, please confirm:\n- The payment date\n- Whether it was received into **Bank** or **Cash**';
+  assert.ok(byId('payment').check({ answer: pay, calls: [] }).pass);
+  const inv = 'I found Acme Ltd’s customer record. To prepare the invoice draft for two hours of consulting, please provide:\n- The hourly rate and currency';
+  assert.ok(byId('invoice').check({ answer: inv, calls: [] }).pass);
+  const bill = 'I found **City Electric Co** in your vendors. Is that the right company? To draft the bill, please provide the bill date, due date, currency';
+  assert.ok(byId('bill').check({ answer: bill, calls: [] }).pass);
+  // a request for something else does not count
+  assert.ok(!byId('payment').check({ answer: 'Payment noted. Please let me know if you need anything else.', calls: [] }).pass);
+  // a generic closing offer is not a clarifying question
+  for (const id of ['fix-books', 'move-project', 'recurring']) assert.ok(!byId(id).check({ answer: 'Please let me know if you need anything else.', calls: [] }).pass, id);
+  // a later statement announcing a guess does not supply the detail the request asked for
+  assert.ok(!byId('bill').check({ answer: 'Please confirm the supplier. I will use the current date.', calls: [] }).pass);
+});
