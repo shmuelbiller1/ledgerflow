@@ -71,13 +71,16 @@ export async function postBillLedger(
   // M-21 step 2: the carrying value the bill's original receipt posted at, so a repost keeps the basis
   // its unchanged lines were booked on (the item's standard can change once the stock sold down to zero)
   const priorAccrual = priorPostings.find(t => t.metadata?.type === BILL_ACCRUAL_TYPE);
-  const originalReceipt = new Map<string | number, { itemId: string; quantity: number; valueCents: number }>();
-  for (const row of (priorAccrual?.metadata?.stockIn as Array<{ itemId: string; quantity: number; valueCents: number; line?: number }> | undefined) || []) {
+  const originalReceipt = new Map<string | number, { itemId: string; quantity: number; valueCents: number; actualValueCents?: number }>();
+  for (const row of (priorAccrual?.metadata?.stockIn as Array<{ itemId: string; quantity: number; valueCents: number; actualValueCents?: number; line?: number }> | undefined) || []) {
     if (typeof row.itemId === 'string' && Number.isFinite(row.quantity) && Number.isFinite(row.valueCents)) {
       // keyed by the bill line the units came in on, so repeated items on separate lines keep their
       // own basis (a row without a line index falls back to the item)
       const key = Number.isSafeInteger(row.line) && Number(row.line) >= 0 ? Number(row.line) : `item:${row.itemId}`;
-      originalReceipt.set(key, { itemId: row.itemId, quantity: row.quantity, valueCents: row.valueCents });
+      originalReceipt.set(key, {
+        itemId: row.itemId, quantity: row.quantity, valueCents: row.valueCents,
+        ...(typeof row.actualValueCents === 'number' ? { actualValueCents: row.actualValueCents } : {}),
+      });
     }
   }
 
@@ -130,12 +133,14 @@ export async function postBillLedger(
   // post Inventory at quantity × standard and the difference (actual − standard) to the variance account;
   // without the setting, the receipt posts exactly as before (the moving average, no variance line).
   // M-21 step 2: the plan is also applied when the workspace is no longer posting at standard but the
-  // bill has a booked receipt basis and a variance account to book the difference to — the repost must
-  // keep the value the stock was already carried at, or the reversal/replacement pair moves Inventory
-  // with no quantity movement. Without a variance account the receipt posts at its actual value as before.
+  // bill's original receipt was booked at a standard (its stock-in rows carry the actual value beside
+  // the carrying value) — the repost must keep the value the stock was already carried at, or the
+  // reversal/replacement pair moves Inventory with no quantity movement. Receipts that were never
+  // standard-valued keep their plain actual-cost posting.
   const standardizing = Boolean(currentWs?.standardCosting?.enabled);
-  const varianceAccountId = currentWs?.standardCosting?.varianceAccountId;
-  const standardPlan = (standardizing || (originalReceipt.size > 0 && varianceAccountId)) && stockIn.length
+  const priorRows = (priorAccrual?.metadata?.stockIn as Array<{ itemId?: string; quantity?: number; valueCents?: number; actualValueCents?: number; line?: number }> | undefined) || [];
+  const bookedAtStandard = priorRows.some(r => typeof r.actualValueCents === 'number');
+  const standardPlan = (standardizing || bookedAtStandard) && stockIn.length
     ? planStandardReceipt(stockIn, await loadInventory(billData, context), standardizing, originalReceipt)
     : null;
   const stockInLines = standardPlan?.entries ?? stockIn;
@@ -157,16 +162,21 @@ export async function postBillLedger(
   // so the same amount goes to input tax (reclaimable) and to tax payable (due)
   // M-21: each Inventory line posts its own standard value (quantity × standard, labels kept), not a
   // share of the standard total; the difference between what the lines cost and what they post is one
-  // variance line, so a bill with differently labelled lines keeps each label's own standard value.
-  if (standardPlan && standardPlan.varianceCents !== 0) {
+  // variance line, so a bill with differently labelled lines keeps each label's own standard value. The
+  // label groups are rebuilt whenever any line's standard value differs from its actual cost, even when
+  // the variances cancel to a net zero (the groups still carry different values); the variance account
+  // line is only posted when the net variance is non-zero.
+  const planRevalues = standardPlan && (standardPlan.varianceCents !== 0 || standardPlan.entries.some(e => e.actualValueCents !== undefined));
+  if (planRevalues && standardPlan) {
+    const plan = standardPlan;
     if (!inventoryAccount) throw new Error('Add an Inventory account (an asset) to the chart of accounts to buy stock on a bill');
     const varianceAccount = accounts.find(a => a.id === currentWs?.standardCosting?.varianceAccountId);
-    if (!varianceAccount) {
+    if (plan.varianceCents !== 0 && !varianceAccount) {
       throw new Error('The purchase-price variance account set in Workspace Settings is not in the chart of accounts.');
     }
     // what each label group of the receipt posts to Inventory under standard costing
     const standardByLabels = new Map<string, number>();
-    for (const entry of standardPlan.entries) {
+    for (const entry of plan.entries) {
       if (entry.line === undefined) continue;
       const key = labelKey(weights?.[entry.line]?.dimensions);
       standardByLabels.set(key, (standardByLabels.get(key) || 0) + entry.valueCents);
@@ -213,13 +223,15 @@ export async function postBillLedger(
     }
     accrualLines.length = 0;
     accrualLines.push(...rebuilt);
-    accrualLines.push({
-      accountId: varianceAccount.id,
-      accountName: varianceAccount.name,
-      amountCents: standardPlan.varianceCents, // debit when the stock cost more than planned
-      description: `Purchase price variance on Bill ${billNum} (stock received at standard)`,
-      exchangeRate: rate
-    });
+    if (plan.varianceCents !== 0) {
+      accrualLines.push({
+        accountId: varianceAccount!.id,
+        accountName: varianceAccount!.name,
+        amountCents: plan.varianceCents, // debit when the stock cost more than planned
+        description: `Purchase price variance on Bill ${billNum} (stock received at standard)`,
+        exchangeRate: rate
+      });
+    }
   }
 
   if (selfAssessed > 0 && taxAccount) {

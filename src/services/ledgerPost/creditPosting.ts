@@ -124,22 +124,29 @@ export async function postCreditNoteLedger(
     // units back at the old sale cost and relieving them again at the new standard leaves Inventory out of
     // step. A sale that predates the standard costs the same mismatch, so the check applies to every sale
     // whose carrying value differs from the current standard — not only to sales posted at a standard.
-    // Refuse the incompatible return before it changes stock.
-    if (currentWs?.standardCosting?.enabled) {
+    // The check also applies when the workspace has since turned standard-cost posting off: the return
+    // would restore the units at the sale's recorded cost while a resale relieves them at the item's
+    // actual cost, leaving Inventory out of step with the active basis. Refuse the incompatible return
+    // before it changes stock.
+    {
       const itemsById = new Map((context?.inventory || []).map(i => [i.id, i]));
       for (const g of goods) {
         const line = lines.find(l => l.invoiceLineId === g.invoiceLineId);
         if (!line) continue;
-        // an item the context did not load (the sample-workspace path) is not a changed standard:
-        // without the item there is no standard to compare against, so the return posts as before
+        // an item the context did not load (the sample-workspace path) is not a changed basis:
+        // without the item there is nothing to compare against, so the return posts as before
         const item = itemsById.get(g.itemId);
+        // the basis the units would be relieved at now: the standard while the workspace posts at
+        // standard, the item's actual unit cost once it no longer does
         const currentStandard = item ? validStandardCost(item.standardCostCents) : null;
-        // M-21 step 2: compare what the sold units would cost at the current standard against what the
-        // sale actually cost (a one-cent allowance for the sale total's own rounding). Comparing the
-        // rounded per-unit cost instead would refuse valid returns of fractional quantities, where the
-        // rounding alone makes the per-unit figure differ from the standard.
-        if (currentStandard !== null && line.saleTotalCents !== undefined && Math.abs(Math.round(line.sold * currentStandard) - line.saleTotalCents) > 1) {
-          throw new Error(`The standard cost of ${line.description || g.itemId} changed since it was sold, so returning it at the sale's cost would leave Inventory out of step with the standard. Revalue the stock or turn standard-cost posting off before recording this return.`);
+        const activeBasis = currentWs?.standardCosting?.enabled ? currentStandard : (item ? validStandardCost(item.unitCostCents) : null);
+        // M-21 step 2: compare what the sold units would cost at the active basis against what the sale
+        // actually cost (a one-cent allowance for the sale total's own rounding). Comparing the rounded
+        // per-unit cost instead would refuse valid returns of fractional quantities, where the rounding
+        // alone makes the per-unit figure differ from the standard.
+        if (activeBasis !== null && line.saleTotalCents !== undefined && Math.abs(Math.round(line.sold * activeBasis) - line.saleTotalCents) > 1) {
+          const basis = currentWs?.standardCosting?.enabled ? 'standard cost' : 'carrying cost';
+          throw new Error(`The ${basis} of ${line.description || g.itemId} changed since it was sold, so returning it at the sale's cost would leave Inventory out of step. Revalue the stock before recording this return.`);
         }
       }
     }

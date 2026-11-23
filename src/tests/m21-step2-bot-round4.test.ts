@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
 import { planInvoiceCogs } from '../services/invoiceCogs';
 import { postBillLedger } from '../services/ledgerPost/billPosting';
+import { postCreditNoteLedger } from '../services/ledgerPost/creditPosting';
 import { BILL_ACCRUAL_TYPE, planStandardReceipt } from '../lib/billStock';
 import { deliveryReturnStandardProblem } from '../server/services/deliveryService';
 import type { LedgerPostContext } from '../services/ledgerPost/postingCore';
@@ -177,6 +178,69 @@ describe('M-21 step 2 bot round 4: a reposted bill keeps its original receipt ba
     assert.equal(lineOf('acc_ppv'), 1000, 'the variance is the actual 5,000 − the 4,000 carrying value');
     assert.equal(entryTotal(accrual!), 0, 'the entry balances');
   });
+
+  test('an ordinary actual-cost bill edit in a non-standard workspace posts its actual value', async () => {
+    // a bill that was never standard-valued (no actual value beside its carrying value) edited in a
+    // workspace without standard costing posts at its actual cost and never touches a variance account
+    const priorAccrual = {
+      id: 'tx_prior_actual', uid: OWNER, workspaceId: WS, date: '2026-11-01', status: 'completed' as const,
+      description: 'Bill B-R4ACT - Supplier', currency: 'USD', type: 'actual', totalAmountCents: 5000,
+      lines: [],
+      metadata: {
+        billId: 'bill_r4_act', type: BILL_ACCRUAL_TYPE,
+        stockIn: [{ itemId: 'chair', quantity: 10, valueCents: 5000, line: 0 }],
+      },
+    } as Transaction;
+    const stock: InventoryItem[] = billItems().map(i => ({ ...i, standardCostCents: 400, unitCostCents: 500 }));
+    const captured: LedgerPostContext['capture'] = [];
+    const context: LedgerPostContext = {
+      ...contextFor({ enabled: false, varianceAccountId: 'acc_ppv' }, captured, stock),
+      transactions: [priorAccrual],
+    };
+    await postBillLedger('bill_r4_act', {
+      id: 'bill_r4_act', workspaceId: WS, uid: OWNER, number: 'B-R4ACT', vendorId: 'v1', vendorName: 'Supplier',
+      date: '2026-11-10', dueDate: '2026-12-10', status: 'pending' as const, currency: 'USD',
+      amountCents: 6000, splits: [{ amountCents: 6000, accountId: 'acc_inv', description: 'Chair', itemId: 'chair', quantity: 10 }],
+    } as never, WS, OWNER, undefined, context);
+
+    const accrual = captured[0].txs.find(t => t.metadata?.type === BILL_ACCRUAL_TYPE);
+    assert.ok(accrual, 'the bill posted its accrual entry');
+    const lineOf = (id: string) => (accrual!.lines || []).filter(l => l.accountId === id).reduce((s, l) => s + l.amountCents, 0);
+    assert.equal(lineOf('acc_inv'), 6000, 'the edited bill posts its actual 6,000');
+    assert.equal(lineOf('acc_ppv'), 0, 'no variance line: the receipt was never standard-valued');
+  });
+
+  test('added units on a standard-booked receipt take their actual cost when standard costing is off', async () => {
+    // the receipt was booked at a 400 standard (actual 500); with the setting off the bill grows to
+    // 11 units: the original 10 keep the booked basis, the added unit takes its actual cost
+    const priorAccrual = {
+      id: 'tx_prior_grown_off', uid: OWNER, workspaceId: WS, date: '2026-11-01', status: 'completed' as const,
+      description: 'Bill B-R4GOFF - Supplier', currency: 'USD', type: 'actual', totalAmountCents: 4000,
+      lines: [],
+      metadata: {
+        billId: 'bill_r4_goff', type: BILL_ACCRUAL_TYPE,
+        stockIn: [{ itemId: 'chair', quantity: 10, valueCents: 4000, actualValueCents: 5000, line: 0 }],
+      },
+    } as Transaction;
+    const stock: InventoryItem[] = billItems().map(i => ({ ...i, standardCostCents: 400, unitCostCents: 500 }));
+    const captured: LedgerPostContext['capture'] = [];
+    const context: LedgerPostContext = {
+      ...contextFor({ enabled: false, varianceAccountId: 'acc_ppv' }, captured, stock),
+      transactions: [priorAccrual],
+    };
+    await postBillLedger('bill_r4_goff', {
+      id: 'bill_r4_goff', workspaceId: WS, uid: OWNER, number: 'B-R4GOFF', vendorId: 'v1', vendorName: 'Supplier',
+      date: '2026-11-10', dueDate: '2026-12-10', status: 'pending' as const, currency: 'USD',
+      amountCents: 5500, splits: [{ amountCents: 5500, accountId: 'acc_inv', description: 'Chair', itemId: 'chair', quantity: 11 }],
+    } as never, WS, OWNER, undefined, context);
+
+    const accrual = captured[0].txs.find(t => t.metadata?.type === BILL_ACCRUAL_TYPE);
+    assert.ok(accrual, 'the bill posted its accrual entry');
+    const lineOf = (id: string) => (accrual!.lines || []).filter(l => l.accountId === id).reduce((s, l) => s + l.amountCents, 0);
+    assert.equal(lineOf('acc_inv'), 4500, '10 × 400 booked basis + 1 × 500 actual for the added unit');
+    assert.equal(lineOf('acc_ppv'), 1000, 'the variance is the actual 5,500 − the 4,500 carrying value');
+    assert.equal(entryTotal(accrual!), 0, 'the entry balances');
+  });
 });
 
 describe('M-21 step 2 bot round 4: delivery returns check the current standard', () => {
@@ -322,5 +386,39 @@ describe('M-21 step 2 bot round 4: historical standards cover only the original 
     });
     assert.equal(plan.entries[0].totalAmountCents, 4000, 'the recorded 400 basis, not the 500 moving average');
     assert.equal(plan.entries[0].metadata.standardCostCents, 400);
+  });
+});
+
+describe('M-21 step 2 bot round 5: returns and receipts after standard costing turns off', () => {
+  test('a return of stock sold at a standard is refused when the setting is off and the carrying basis changed', async () => {
+    // the sale posted at a 400 standard; with standard costing off the units are relieved at their 500
+    // actual cost, so bringing them back at the 4,000 sale cost would leave Inventory out of step
+    const captured: LedgerPostContext['capture'] = [];
+    const stock: InventoryItem[] = fx.returnItems().map(i => ({ ...i, standardCostCents: 400, unitCostCents: 500 }));
+    const context: LedgerPostContext = {
+      ...contextFor({ enabled: false, varianceAccountId: 'acc_ppv' }, captured, stock),
+      transactions: [fx.saleEntry(400, 10, true)],
+      invoices: [fx.invoice()],
+    };
+    await assert.rejects(
+      postCreditNoteLedger('cn_r5', fx.creditNote('cn_r5', 'CN-R5') as never, WS, OWNER, undefined, context),
+      (err: Error) => /carrying cost of Chair changed since it was sold/.test(err.message),
+    );
+  });
+
+  test('a return whose sale cost equals the active actual basis is not refused when the setting is off', async () => {
+    // the sale cost agrees with what the units would cost at the active actual basis, so the return
+    // posts as before even with standard costing off
+    const captured: LedgerPostContext['capture'] = [];
+    const stock: InventoryItem[] = fx.returnItems().map(i => ({ ...i, standardCostCents: 400, unitCostCents: 500 }));
+    const context: LedgerPostContext = {
+      ...contextFor({ enabled: false, varianceAccountId: 'acc_ppv' }, captured, stock),
+      transactions: [fx.saleEntry(500, 10, true)],
+      invoices: [fx.invoice()],
+    };
+    await postCreditNoteLedger('cn_r5b', fx.creditNote('cn_r5b', 'CN-R5B') as never, WS, OWNER, undefined, context);
+    const goods = captured[0].txs.find(t => t.metadata?.type === 'credit-return-auto');
+    assert.ok(goods, 'the returned-goods entry is posted');
+    assert.equal(goods!.totalAmountCents, 5000, 'Inventory comes back at the sale cost');
   });
 });
