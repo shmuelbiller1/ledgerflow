@@ -124,6 +124,9 @@ export async function cachedToolCall(input: Pick<AssistantTurnInput, 'callTool' 
   });
 }
 
+/** Sent when the turn is out of steps: answer from what the tools returned, without more calls. */
+export const FINAL_STEP = 'You have used all your steps. Do not call any more tools. Answer the question now from what the tools returned above, and say briefly what you could not check.';
+
 export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ answer: string; metric: AssistantTurnMetric }> {
   const now = input.now ?? (() => performance.now());
   const started = now();
@@ -171,6 +174,16 @@ export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ ans
         parts.push({ functionResponse: { name, response } });
       }
       contents.push({ role: 'user', parts });
+    }
+    // Out of steps with no answer: one last call that may not use tools, so the person gets what was
+    // found instead of nothing (every miss in the 23 Nov model runs was a turn that ran out of steps).
+    if (answered === undefined && contents.length > 1) {
+      contents.push({ role: 'user', parts: [{ text: FINAL_STEP }] });
+      const res = await client.models.generateContent({ model: input.model, contents,
+        config: { ...config, toolConfig: { functionCallingConfig: { mode: 'NONE' } } } }) as GenerateResponse;
+      answer = (res.functionCalls?.length ? '' : res.text) ?? '';
+      answered = now();
+      ok = answer.trim().length > 0;
     }
   } catch {
     ok = false;
