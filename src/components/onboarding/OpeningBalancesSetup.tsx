@@ -27,9 +27,9 @@ export default function OpeningBalancesSetup({ onClose }: { onClose: () => void 
   const [posted, setPosted] = useState<number | null>(null);
   const eligible = useMemo(() => openingBalanceAccounts(accounts), [accounts]);
   const equity = accounts.find(a => isOpeningBalanceEquity(a) && !a.isArchived);
-  const balances = eligible.map(a => ({ accountId: a.id, amountCents: TruthEngine.parseAmountToCentsOrZero(amounts[a.id] || '0') }));
-  const preview = (() => { try { return equity ? openingEntry(accounts, balances, equity) : null; } catch { return null; } })();
   const currency = workspace?.currency || 'USD';
+  const balances = eligible.map(a => ({ accountId: a.id, amountCents: TruthEngine.parseAmountToCentsOrZero(amounts[a.id] || '0', currency) }));
+  const preview = (() => { try { return equity ? openingEntry(accounts, balances, equity) : null; } catch { return null; } })();
   const money = (cents: number) => formatCurrency(cents, currency);
   if (!workspace || (role !== 'owner' && role !== 'accountant')) return null;
   const recordBalances = async () => {

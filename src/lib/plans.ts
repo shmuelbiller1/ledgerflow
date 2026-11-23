@@ -27,6 +27,13 @@ export interface PlanLimits {
   ownerAdvisorIncluded: boolean;
   seats: number;
   storageMb: number;
+  /**
+   * SBX-2 Part 7: the in-app assistant per calendar month (UTC). Turns that call a model count; answers
+   * the books give exactly without a model (code and cache) do not. The spend cap is in US cents of model
+   * cost (src/lib/ai/modelPricing.ts). Defaults until the owner sets them (docs/FOR_YOU.md).
+   */
+  assistantModelTurnsPerMonth: number;
+  assistantCentsPerMonth: number;
 }
 
 export interface PlanAddOnPricing {
@@ -67,6 +74,8 @@ export const PLANS: Plan[] = [
       ownerAdvisorIncluded: false,
       seats: 1,
       storageMb: 500,
+      assistantModelTurnsPerMonth: 50,
+      assistantCentsPerMonth: 25,
     },
     features: [
       'Unlimited ledger entries & bank rules',
@@ -88,6 +97,8 @@ export const PLANS: Plan[] = [
       ownerAdvisorIncluded: false,
       seats: 5,
       storageMb: 5000,
+      assistantModelTurnsPerMonth: 1_000,
+      assistantCentsPerMonth: 500,
     },
     features: [
       'Unlimited entries & calibrated auto-posting',
@@ -109,6 +120,8 @@ export const PLANS: Plan[] = [
       ownerAdvisorIncluded: true,
       seats: 25,
       storageMb: 25000,
+      assistantModelTurnsPerMonth: 5_000,
+      assistantCentsPerMonth: 2_500,
     },
     features: [
       'Unlimited entries · 3 companies ($39/extra)',
@@ -130,6 +143,8 @@ export const PLANS: Plan[] = [
       ownerAdvisorIncluded: true,
       seats: 1000,
       storageMb: 100000,
+      assistantModelTurnsPerMonth: 25_000,
+      assistantCentsPerMonth: 12_500,
     },
     features: [
       'Up to 50 consolidated companies & NCI eliminations',

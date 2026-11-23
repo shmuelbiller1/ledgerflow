@@ -178,7 +178,8 @@ export async function revalueStockInTransaction(db: Firestore, t: DbTransaction,
     }, { workspaceId, user: input.user, wsData: input.wsData }, undefined, t);
     const transactionId = tx.id;
     await ledgerWrite(t, entryRef, { ...tx, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
-    t.update(itemRef, { unitCostCents: input.newUnitCostCents, updatedAt: FieldValue.serverTimestamp() });
+    // INV-02: keep the micro-cent precision field in sync so unitCostMicroCentsOf() does not fall back to a stale value
+    t.update(itemRef, { unitCostCents: input.newUnitCostCents, unitCostMicroCents: Math.round(input.newUnitCostCents * 1_000_000), updatedAt: FieldValue.serverTimestamp() });
     // W-02: the history keeps the change of value (no units move), so a past valuation includes it on its date
     writeStockMoves(db, t, [{
       workspaceId, itemId: input.itemId, itemName: name, date, kind: 'revaluation',

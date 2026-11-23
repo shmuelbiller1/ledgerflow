@@ -170,7 +170,10 @@ class AIService {
     }
   }
 
-  async parseReceipt(file: File, userApiKey?: string, heuristicCache?: Record<string, unknown>, labels: string[] = []) {
+  async parseReceipt(file: File, userApiKey?: string, heuristicCache?: Record<string, unknown>, labels: string[] = [], fallbackCurrency?: string) {
+    // a receipt that shows only a symbol ("$") is read in the books' currency, and flagged for review
+    const state = useAuthStore.getState();
+    const booksCurrency = fallbackCurrency ?? state.workspaces.find(w => w.id === state.currentWorkspaceId)?.currency;
     const base64Data = await new Promise<string>((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
@@ -181,7 +184,8 @@ class AIService {
       const receipt = await this.callBackend<ParsedReceiptData>('parse-receipt', {
         base64Data,
         mimeType: file.type,
-        context: labels.join(', ') + (heuristicCache ? JSON.stringify(heuristicCache) : '')
+        context: labels.join(', ') + (heuristicCache ? JSON.stringify(heuristicCache) : ''),
+        ...(booksCurrency ? { fallbackCurrency: booksCurrency } : {}),
       });
       return scrubAiPayloadCards(receipt);
     } catch {

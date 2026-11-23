@@ -101,10 +101,18 @@ test('A-270: A/R aging — keyboard to the row, Enter opens the detail, Escape r
   await expect(drawer).toHaveCount(0);
   await expect(arrow).toBeFocused();
 
-  // 5. the rows are in the real tab order: Tab from the search box lands on the first row, and Tab
-  //    again walks to the next row rather than into nothing
+  // 5. the rows are in the real tab order: Tab from the search box walks the sortable column
+  //    headings (real buttons since the raw tables left the report — one per sortable column),
+  //    then lands on the first row, and Tab again walks to the next row rather than into nothing
   const search = page.getByLabel('Search by customer');
   await search.focus();
+  const headings = page.locator('[data-print-root] thead th button');
+  const headingCount = await headings.count();
+  expect(headingCount).toBeGreaterThan(0);
+  for (let i = 0; i < headingCount; i++) {
+    await page.keyboard.press('Tab');
+    await expect(headings.nth(i)).toBeFocused();
+  }
   await page.keyboard.press('Tab');
   await expect(rows.first()).toBeFocused();
   await page.keyboard.press('Tab');

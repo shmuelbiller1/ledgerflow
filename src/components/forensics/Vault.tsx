@@ -63,7 +63,7 @@ export default function Vault() {
   const [loadVersion, setLoadVersion] = useState(0);
   const [selectedDoc, setSelectedDoc] = useState<CloudDocument | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [extractedData, setExtractedData] = useState<(import("../../lib/receiptIngestion").ParsedReceiptData & { merchant?: string; description?: string; category?: string; confidence: number }) | null>(null);
+  const [extractedData, setExtractedData] = useState<(Omit<import("../../lib/receiptIngestion").ParsedReceiptData, 'totalAmountCents'> & { totalAmountCents?: number; merchant?: string; description?: string; category?: string; confidence: number; needsReview?: string[] }) | null>(null);
   const selectDoc = (doc: CloudDocument | null) => {
     setSelectedDoc(doc);
     setExtractedData(null);
@@ -191,9 +191,14 @@ export default function Vault() {
       
       const parsedData = await aiService.parseReceipt(file);
       
-      if (parsedData && parsedData.totalAmountCents !== undefined) {
-        setExtractedData(parsedData as typeof parsedData & { confidence: number });
-        toast.success('Document analysis complete', { id: toastId });
+      // SBX-2 Part 6: the reader returns a draft; anything it could not read exactly is left empty and
+      // listed in needsReview rather than guessed, and nothing is recorded until the person does it.
+      const draft = parsedData as (typeof parsedData & { status?: string; needsReview?: string[]; confidence?: number }) | null;
+      if (draft && (draft.totalAmountCents !== undefined || draft.status === 'draft')) {
+        setExtractedData({ ...draft, confidence: draft.confidence ?? 0 });
+        const unclear = draft.needsReview ?? [];
+        if (unclear.length) toast.warning(`Draft ready. Check before recording: ${unclear.join(', ')}`, { id: toastId });
+        else toast.success('Document analysis complete', { id: toastId });
       } else {
         throw new Error("Could not extract meaningful ledger data from document.");
       }
@@ -211,6 +216,11 @@ export default function Vault() {
     if (!selectedDoc || !extractedData) return;
     if (selectedDoc.linkedTransactionId) {
       toast.info('This document is already linked to a ledger entry.');
+      return;
+    }
+
+    if (extractedData.totalAmountCents === undefined) {
+      toast.error('The total could not be read exactly. Enter the receipt by hand with its total.');
       return;
     }
 
@@ -683,13 +693,16 @@ export default function Vault() {
                            </div>
                            <div>
                               <p className="text-[9px] font-black text-emerald-800/50 uppercase tracking-widest mb-1">Total Amount</p>
-                              <p className="text-sm font-bold font-mono text-emerald-900 tabular-nums">{formatCurrency(extractedData.totalAmountCents || 0)}</p>
+                              <p className="text-sm font-bold font-mono text-emerald-900 tabular-nums">{extractedData.totalAmountCents === undefined ? 'Not readable' : formatCurrency(extractedData.totalAmountCents)}</p>
                            </div>
                            <div>
                               <p className="text-[9px] font-black text-emerald-800/50 uppercase tracking-widest mb-1">Confidence</p>
-                              <p className="text-sm font-bold text-emerald-900">{Math.round(extractedData.confidence * 100)}%</p>
+                              <p className="text-sm font-bold text-emerald-900">{Math.round(extractedData.confidence)}%</p>
                            </div>
                         </div>
+                        {!!extractedData.needsReview?.length && (
+                          <p className="mt-4 text-xs font-bold text-amber-700" role="status">Check before recording: {extractedData.needsReview.join(', ')}</p>
+                        )}
                         <button 
                           onClick={handleInjectTransaction}
                           className="w-full mt-6 h-12 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 shadow-sm"

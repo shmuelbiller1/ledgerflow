@@ -181,6 +181,8 @@ async function prepareIntercompany(ctx: Parameters<NonNullable<CommandDefinition
 
 export const journalIntercompanyCommand: CommandDefinition<typeof intercompanyInput, IntercompanyResult, IntercompanyPrepared> = {
   name: 'journal.intercompany', input: intercompanyInput, roles: ['owner', 'accountant', 'bookkeeper'], allowPlatformAdmin: true,
+  // ID-01 (audit PR #1002): a headerless retry of the same transfer replays instead of posting twice
+  implicitIdempotency: true,
   async authorizeInput(ctx, input) {
     if (input.sourceWorkspaceId !== ctx.workspaceId) throw new HttpError('Workspace mismatch', 403);
     await authorizeTarget(ctx, input.targetWorkspaceId);

@@ -211,7 +211,9 @@ export function registerTransactionCrudRoutes(transactionRouter: express.Router)
       }, { db, tx: t });
 
       return validatedTx;
-    }, () => (budgetWarnings.length > 0 ? { budgetWarnings } : {}));
+    }, () => (budgetWarnings.length > 0 ? { budgetWarnings } : {}),
+      // ID-01 (audit PR #1002): a headerless retry of the same journal must replay, not post twice
+      { implicitIdempotency: true });
   });
 
   /**

@@ -111,6 +111,10 @@ export async function purgePendingWorkspaces(db: Firestore, only?: string[]): Pr
           }
         }
 
+        // SBX-2 remembered decisions live outside the collections (assistant schema, no foreign key)
+        const pool = (db as { pool?: { query: (sql: string, params: unknown[]) => Promise<unknown> } }).pool;
+        if (pool) await pool.query('delete from assistant."rememberedDecisions" where workspace_id = $1', [workspaceId]);
+
         // 3. Write permanent purge audit log before deleting workspace document
         await writeServerAuditLog({
           workspaceId,

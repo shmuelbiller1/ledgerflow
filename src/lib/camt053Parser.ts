@@ -1,11 +1,11 @@
 import { bankStatementDate } from './bankStatementDate';
+import { currencyDigits } from './currencyMinorUnits';
 import type { ParsedBankLine } from './mt940Parser';
 
 export interface Camt053ParsedLine extends ParsedBankLine {
   currency?: string;
 }
 
-const MAX_SAFE_MAJOR = Math.floor((Number.MAX_SAFE_INTEGER - 100) / 100);
 const isTagWord = (ch: string | undefined) => ch !== undefined && /[A-Za-z0-9_-]/.test(ch);
 
 /** ASCII-only lowercasing preserves exact character indices against the original string. */
@@ -121,24 +121,40 @@ function extractEntryDateText(entryXml: string): string | null {
   return firstLeafText(entryXml, 'Dt') ?? firstLeafText(entryXml, 'DtTm');
 }
 
-function parseAmountToCents(raw: string): number {
+/**
+ * MU-01: the value is in the major units of the entry's currency (`Ccy=`); the minor units are
+ * scaled by the currency's ISO 4217 exponent (whole yen for JPY, fils for KWD), not a fixed 100.
+ * A fraction with more digits than the currency has rounds half-up (an ISO 20022 Amt carries up
+ * to three fractional digits); without a currency the two-decimal books' convention stays.
+ */
+function parseAmountToCents(raw: string, currency?: string): number {
   const trimmed = raw.trim();
   const match = /^(\d{1,16})(?:[.,](\d{1,3}))?$/.exec(trimmed);
   if (!match) {
     throw new Error(`CAMT.053 entry has an invalid amount ("${trimmed.slice(0, 40)}").`);
   }
+  const digits = currencyDigits(currency);
   const whole = Number.parseInt(match[1], 10);
-  if (!Number.isSafeInteger(whole) || whole > MAX_SAFE_MAJOR) {
+  const maxWhole = Math.floor((Number.MAX_SAFE_INTEGER - 10 ** digits) / 10 ** digits);
+  if (!Number.isSafeInteger(whole) || whole > maxWhole) {
     throw new Error('CAMT.053 entry has an out-of-range amount.');
   }
-  const fracPadded = (match[2] ?? '').padEnd(3, '0');
-  const cents = whole * 100
-    + Number.parseInt(fracPadded.slice(0, 2), 10)
-    + (Number.parseInt(fracPadded[2], 10) >= 5 ? 1 : 0);
-  if (!Number.isSafeInteger(cents)) {
+  const frac = match[2] ?? '';
+  const shift = digits - frac.length;
+  let minorUnits = whole * 10 ** digits;
+  if (frac.length > 0) {
+    if (shift >= 0) {
+      minorUnits += Number(frac) * 10 ** shift;
+    } else {
+      // more fraction digits than the currency has: keep the first `digits`, round half-up on the rest
+      minorUnits += Number(frac.slice(0, digits)) || 0;
+      if (Number(frac.slice(digits, digits + 1)) >= 5) minorUnits += 1;
+    }
+  }
+  if (!Number.isSafeInteger(minorUnits)) {
     throw new Error('CAMT.053 entry has an out-of-range amount.');
   }
-  return cents;
+  return minorUnits;
 }
 
 export function parseCamt053Statement(content: string): Camt053ParsedLine[] {
@@ -165,8 +181,8 @@ export function parseCamt053Statement(content: string): Camt053ParsedLine[] {
       throw new Error(`CAMT.053 entry has an invalid calendar date ("${ymdMatch[0]}" is not a real calendar day).`);
     }
 
-    const rawCents = parseAmountToCents(amt.value);
     const currency = /\bCcy="([A-Za-z]{3})"/i.exec(amt.attributes)?.[1]?.toUpperCase();
+    const rawCents = parseAmountToCents(amt.value, currency);
     const rawInd = firstLeafText(entryXml, 'CdtDbtInd');
     const ind = rawInd ? rawInd.trim().toUpperCase() : 'DBIT';
     if (ind !== 'CRDT' && ind !== 'DBIT') {

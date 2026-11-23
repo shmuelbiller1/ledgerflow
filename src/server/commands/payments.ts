@@ -143,6 +143,8 @@ export const paymentReceiveCommand: CommandDefinition<typeof paymentReceiveInput
   },
   operationType: 'PAYMENT_CREATE',
   legacyKey: (workspaceId, operationId) => `${workspaceId}:PAYMENT_CREATE:${operationId}`,
+  // ID-01 (audit PR #1002): a headerless retry of the same payment replays instead of posting twice
+  implicitIdempotency: true,
   prepare: preparePayment,
   idempotencyHash(ctx, input) {
     const { workspaceId: _bodyWorkspaceId, sendRemittance: _sendRemittance, paymentTypeId, ...rest } = input;

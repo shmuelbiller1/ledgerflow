@@ -1,5 +1,5 @@
 import type { Bill, Invoice } from '../types';
-import { calculateAmountDue } from './documentMath';
+import { calculateAmountDue, depositAppliedCents } from './documentMath';
 import { isOpenBill, isOpenInvoice } from './txFilters';
 import { toBaseCents } from '../server/reports/partyReports';
 
@@ -50,24 +50,86 @@ export function outstandingBaseCents(doc: Invoice | Bill, side: 'customer' | 've
   return Math.max(0, toBaseCents(calculateAmountDue(doc), doc.exchangeRate, doc.currency, baseCurrency));
 }
 
+/**
+ * RP-01: one dated settlement event against a document, in cents of the base currency. The
+ * `paymentAllocations` ledger records payments, credit applications, write-offs and their
+ * reversals; a reversal row carries the negative amount dated with the reversal. Filtered to a
+ * cutoff, these events reconstruct what had actually settled by that date, so a payment dated
+ * after the report date does not shrink a historic snapshot (and a later void only unwinds it
+ * from the void date onward).
+ */
+export interface SettlementEvent {
+  documentId: string;
+  documentType: 'invoice' | 'bill';
+  /** YYYY-MM-DD or an ISO timestamp; compared on its day part. */
+  date: string;
+  /** Base-currency cents, signed: a reversal is negative. */
+  amountCents: number;
+  kind?: string;
+}
+
+/** Statuses that mean a document can never be owed, whatever its settlements. */
+const NEVER_OUTSTANDING = new Set(['draft', 'void', 'cancelled', 'rejected']);
+
+/**
+ * RP-01: what was still owed on a document at a cutoff, from dated settlement events:
+ * the document's amount less its deposit, less every settlement event dated on or before the
+ * cutoff (reversals net out; events after the cutoff are ignored, so later payments and voids
+ * leave the snapshot alone). 0 when the document is void/draft/cancelled, was issued after the
+ * cutoff, or nothing is left.
+ */
+export function outstandingAsOfCents(
+  doc: Invoice | Bill,
+  settlements: SettlementEvent[],
+  cutoff: string,
+  baseCurrency: string = 'USD',
+): number {
+  if (NEVER_OUTSTANDING.has(String(doc.status || ''))) return 0;
+  const issued = String(doc.date || '').slice(0, 10);
+  if (issued && issued > String(cutoff).slice(0, 10)) return 0;
+  const day = String(cutoff).slice(0, 10);
+  const settled = settlements
+    .filter(e => e.documentId === doc.id && e.documentType === (sideOf(doc) === 'customer' ? 'invoice' : 'bill')
+      && String(e.date).slice(0, 10) <= day && e.kind !== 'deposit')
+    .reduce((sum, e) => sum + (Number(e.amountCents) || 0), 0);
+  const due = Math.max(0, toBaseCents(doc.amountCents || 0, doc.exchangeRate, doc.currency, baseCurrency)
+    - toBaseCents(depositAppliedCents(doc), doc.exchangeRate, doc.currency, baseCurrency));
+  return Math.max(0, due - settled);
+}
+
+function sideOf(doc: Invoice | Bill): 'customer' | 'vendor' {
+  return 'customerId' in doc ? 'customer' : 'vendor';
+}
+
 export const emptyAging = (): AgingTotals => ({ current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 });
 
 export interface PartyAgingRow { partyId: string; partyName: string; buckets: AgingTotals; total: number }
 
-/** One row per customer (or vendor) that owes (or is owed) something, sorted by name. */
+/**
+ * One row per customer (or vendor) that owes (or is owed) something, sorted by name.
+ *
+ * RP-01: `settlements` reconstructs what was owed at `today` from dated settlement events
+ * (payments, credits, write-offs and their reversals). When it is passed, a document's
+ * outstanding amount is what had settled by `today` — a payment made after the report date, or
+ * a later void, cannot change the snapshot; documents issued after `today` are not in it. When
+ * it is omitted (the current-state aging screens), behavior is unchanged.
+ */
 export function computePartyAging(
   parties: Array<{ id: string; name: string }>,
   documents: Array<Invoice | Bill>,
   side: 'customer' | 'vendor',
   today: string,
   baseCurrency: string = 'USD',
+  settlements?: SettlementEvent[],
 ): PartyAgingRow[] {
   const partyOf = (d: Invoice | Bill) => (side === 'customer' ? (d as Invoice).customerId : (d as Bill).vendorId);
   const rows = new Map<string, PartyAgingRow>();
   for (const party of parties) rows.set(party.id, { partyId: party.id, partyName: party.name, buckets: emptyAging(), total: 0 });
   for (const doc of documents) {
     const row = rows.get(partyOf(doc) || '');
-    const owed = outstandingBaseCents(doc, side, baseCurrency);
+    const owed = settlements
+      ? outstandingAsOfCents(doc, settlements, today, baseCurrency)
+      : outstandingBaseCents(doc, side, baseCurrency);
     if (!row || owed <= 0) continue;
     row.buckets[agingBucket(daysOverdue(doc, today))] += owed;
     row.total += owed;

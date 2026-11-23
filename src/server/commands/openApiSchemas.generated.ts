@@ -16,6 +16,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "asset.undispose": "CommandInput_asset_undispose",
   "asset.undoplaceservice": "CommandInput_asset_undoplaceservice",
   "asset.undotransfer": "CommandInput_asset_undotransfer",
+  "assistant.forgetremembered": "CommandInput_assistant_forgetremembered",
   "audit.deep": "CommandInput_audit_deep",
   "auditlog.append": "CommandInput_auditlog_append",
   "autorule.create": "CommandInput_autorule_create",

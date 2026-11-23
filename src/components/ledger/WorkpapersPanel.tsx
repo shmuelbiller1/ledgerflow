@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 /**
  * BD-04 workpapers (AI #3, A-6): on Month-End Close, per account and month — the balance at
  * month end, a note, files and a "reviewed by … on …" mark. Read-only on money: the balances
@@ -19,8 +20,7 @@ import {
   markWorkpaperReviewed,
   setWorkpaperNote,
   workpaperLabel,
-  workpaperMonthProblem,
-  type WorkpaperRow } from '../../lib/workpapers';
+  workpaperMonthProblem } from '../../lib/workpapers';
 import type { ChartAccount } from '../../types';
 import InlineEdit from '../ui/InlineEdit';
 import AttachmentsPanel from '../common/AttachmentsPanel';
@@ -125,46 +125,32 @@ export default function WorkpapersPanel({ month, currency }: { month: string; cu
       ) : (
         // a table that scrolls sideways can be reached and scrolled with the keyboard
         <div className="overflow-x-auto rounded-xl border border-[var(--line)]" tabIndex={0} role="region" aria-label={`Workpapers of ${monthLabel(month)}`}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-          <table className="w-full border-collapse text-sm">
-            <caption className="sr-only">
-              Workpapers of {monthLabel(month)}: each account's balance at {endDate}, its note, its files and its review mark
-            </caption>
-            <thead className="bg-[var(--ink)]">
-              <tr>
-                <th scope="col" className="p-3 text-left">Account</th>
-                <th scope="col" className="p-3 text-right whitespace-nowrap">Balance at {endDate}</th>
-                <th scope="col" className="p-3 text-left">Note</th>
-                <th scope="col" className="p-3 text-left">Files</th>
-                <th scope="col" className="p-3 text-left">Reviewed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row: WorkpaperRow) => {
-                const account = byId.get(row.accountId);
-                if (!account) return null;
-                return (
-                  <tr key={row.accountId} className="border-t border-[var(--line)] align-top">
-                    <th scope="row" className="p-3 text-left">
-                      <span className="block font-medium"><bdi>{row.name}</bdi></span>
-                      <span className="block text-xs font-normal text-[var(--muted)]">{row.code}</span>
-                    </th>
-                    <td className="p-3 text-right whitespace-nowrap tabular-nums">{formatCurrency(row.balanceCents, currency)}</td>
-                    <td className="p-3 min-w-[16rem]">
-                      <InlineEdit
+          <RowTable
+caption={<>Workpapers of {monthLabel(month)}: each account's balance at {endDate}, its note, its files and its review mark</>}
+captionClassName={"sr-only"}
+tableClassName={"w-full border-collapse text-sm"}
+headRowClassName={"bg-[var(--ink)]"}
+bodyClassName={''}
+rows={rows.flatMap((row) => { const account = byId.get(row.accountId);
+                if (!account) return [];
+return [{ row, account }]; })}
+rowKey={({ row }) => row.accountId}
+rowHeaderClassName={''}
+rowClassName={"border-t border-[var(--line)] align-top"}
+columns={[
+{ header: "Account", headClassName: "p-3 text-left", className: "p-3 text-left", cell: ({ row }) => (<><span className="block font-medium"><bdi>{row.name}</bdi></span>
+                      <span className="block text-xs font-normal text-[var(--muted)]">{row.code}</span></>) },
+{ header: <>Balance at {endDate}</>, headClassName: "p-3 text-right whitespace-nowrap", className: "p-3 text-right whitespace-nowrap tabular-nums", cell: ({ row }) => (formatCurrency(row.balanceCents, currency)) },
+{ header: "Note", headClassName: "p-3 text-left", className: "p-3 min-w-[16rem]", cell: ({ row, account }) => (<InlineEdit
                         kind="textarea"
                         value={row.note}
                         label={`Note on ${row.name} for ${month}`}
                         placeholder="Add a note"
                         canEdit={canWrite}
                         onSave={saveNote(account)}
-                      />
-                    </td>
-                    <td className="p-3 min-w-[14rem]">
-                      {/* one name per account (screen readers tell the file lists apart), and only this month's files */}
-                      <AttachmentsPanel target={{ collection: 'chartAccounts', id: row.accountId, label: `${label}: ${row.name}`, scope: label }} />
-                    </td>
-                    <td className="p-3">
-                      {row.reviewedBy ? (
+                      />) },
+{ header: "Files", headClassName: "p-3 text-left", className: "p-3 min-w-[14rem]", cell: ({ row }) => (<AttachmentsPanel target={{ collection: 'chartAccounts', id: row.accountId, label: `${label}: ${row.name}`, scope: label }} />) },
+{ header: "Reviewed", headClassName: "p-3 text-left", className: "p-3", cell: ({ row, account }) => (row.reviewedBy ? (
                         <div className="space-y-1">
                           <p className="flex items-center gap-1.5 text-[var(--pos)]">
                             <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
@@ -184,13 +170,9 @@ export default function WorkpapersPanel({ month, currency }: { month: string; cu
                         </button>
                       ) : (
                         <span className="text-[var(--faint)]">—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      )) }
+]}
+/>
         </div>
       )}
 

@@ -18,6 +18,7 @@ test('the selection is the unit tests that name a document, not the ones that me
   // (and only this list), so a silently dropped test cannot hide behind a green run.
   assert.deepEqual(selected, [
     'src/tests/ai8-onboarding-help.test.tsx',
+    'src/tests/assistant-model-eval.test.ts',
     'src/tests/capabilities-guard.test.ts',
     'src/tests/help-pages-coverage.test.ts',
     'src/tests/release-gate-table.test.ts',

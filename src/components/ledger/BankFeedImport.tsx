@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import { runCommand } from '../../lib/runCommand';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useState, useCallback } from 'react';
@@ -388,22 +389,19 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
               </div>
 
               <div className="border border-[var(--line)] rounded-[32px] overflow-hidden bg-[var(--surface)]/50">
-                <table className="w-full text-left text-sm border-collapse">
-                  <caption className="sr-only">Imported bank lines</caption>
-                  <thead>
-                    <tr className="bg-[var(--ink)]/50 border-b border-[var(--line)]">
-                      <th scope="col" className="px-6 py-4 w-12"><span className="sr-only">Actions</span></th>
-                      <th scope="col" className="px-4 py-4 font-black text-[var(--muted)] uppercase tracking-widest text-[9px]">Date</th>
-                      <th scope="col" className="px-4 py-4 font-black text-[var(--muted)] uppercase tracking-widest text-[9px]">Description</th>
-                      <th scope="col" className="px-4 py-4 font-black text-[var(--muted)] uppercase tracking-widest text-[9px]">Amount</th>
-                      <th scope="col" className="px-4 py-4 font-black text-[var(--muted)] uppercase tracking-widest text-[9px]">Suggested category</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-ledger-line/50">
-                    {mappedTransactions.map((tx, idx) => (
-                      <tr key={tx.id} className={cn("hover:bg-[var(--ink)]/30 transition-all group", !selectedIndices.has(idx) && "opacity-30")}>
-                        <td className="px-6 py-4">
-                          <button aria-label={`${selectedIndices.has(idx) ? "Deselect" : "Select"} bank statement row ${idx + 1}`}
+                <RowTable
+caption={"Imported bank lines"}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-left text-sm border-collapse"}
+headRowClassName={''}
+headerRowClassName={"bg-[var(--ink)]/50 border-b border-[var(--line)]"}
+bodyClassName={"divide-y divide-ledger-line/50"}
+rows={mappedTransactions.map((tx, idx) => ({ tx, idx }))}
+rowKey={({ tx }) => tx.id}
+rowHeaderClassName={'font-normal text-start'}
+rowClassName={({ idx }) => cn("hover:bg-[var(--ink)]/30 transition-all group", !selectedIndices.has(idx) && "opacity-30")}
+columns={[
+{ header: <span className="sr-only">Actions</span>, headClassName: "px-6 py-4 w-12", className: "px-6 py-4", cell: ({ idx }) => (<button aria-label={`${selectedIndices.has(idx) ? "Deselect" : "Select"} bank statement row ${idx + 1}`}
                             onClick={() => {
                               const next = new Set(selectedIndices);
                               if (next.has(idx)) next.delete(idx);
@@ -416,15 +414,11 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
                             )}
                           >
                             {selectedIndices.has(idx) && <Check aria-hidden="true" size={14} />}
-                          </button>
-                        </td>
-                        <td className="px-4 py-4 text-[11px] font-mono font-bold text-[var(--muted)]">{tx.date}</td>
-                        <td className="px-4 py-4 font-black text-[var(--text)] italic uppercase tracking-tight text-xs">{tx.description}</td>
-                        <td className="px-4 py-4 font-mono font-black text-[var(--text)] text-sm tabular-nums">
-                          {formatCurrency(tx.amountCents)}
-                        </td>
-                        <td className="px-4 py-4">
-                          {isMapping ? (
+                          </button>) },
+{ header: "Date", headClassName: "px-4 py-4 font-black text-[var(--muted)] uppercase tracking-widest text-[9px]", className: "px-4 py-4 text-[11px] font-mono font-bold text-[var(--muted)]", cell: ({ tx }) => (tx.date) },
+{ header: "Description", rowHeader: true, headClassName: "px-4 py-4 font-black text-[var(--muted)] uppercase tracking-widest text-[9px]", className: "px-4 py-4 font-black text-[var(--text)] italic uppercase tracking-tight text-xs", cell: ({ tx }) => (tx.description) },
+{ header: "Amount", headClassName: "px-4 py-4 font-black text-[var(--muted)] uppercase tracking-widest text-[9px]", className: "px-4 py-4 font-mono font-black text-[var(--text)] text-sm tabular-nums", cell: ({ tx }) => (formatCurrency(tx.amountCents)) },
+{ header: "Suggested category", headClassName: "px-4 py-4 font-black text-[var(--muted)] uppercase tracking-widest text-[9px]", className: "px-4 py-4", cell: ({ tx }) => (isMapping ? (
                             <div className="h-2 w-24 bg-[var(--ink)] animate-pulse rounded-full" />
                           ) : (
                             <div className="flex flex-col gap-0.5">
@@ -446,12 +440,9 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
                                 </span>
                               )}
                             </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          )) }
+]}
+/>
               </div>
             </div>
           )}

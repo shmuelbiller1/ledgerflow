@@ -1,3 +1,4 @@
+import { forgetRememberedCommand } from '../services/rememberedDecisions';
 import { workspaceBudgetControlCommand } from './budgetControl';
 import { journalIntercompanyCommand } from './journalIntercompany';
 import { journalEditCommand, journalDeleteCommand } from './journalEdit';
@@ -299,6 +300,7 @@ export function createDefaultCommandRegistry(): CommandRegistry {
   registry.register(workspaceImportRecordsCommand);
   registry.register(workspaceUndoImportCommand);
   registry.register(workspaceUpdateRoleCommand);
+  registry.register(forgetRememberedCommand);
   registry.register(workspaceInviteCommand);
   registry.register(workspaceScheduleDeletionCommand);
   registry.register(apiKeyProvisionCommand);

@@ -48,32 +48,65 @@ export interface InvoiceCogsInput {
   baseCurrency: string;
   inventoryAccount?: Pick<ChartAccount, 'id' | 'name'>;
   cogsAccount?: Pick<ChartAccount, 'id' | 'name'>;
-  items: Pick<InventoryItem, 'id' | 'name' | 'unitCostCents'>[];
+  items: Pick<InventoryItem, 'id' | 'name' | 'unitCostCents' | 'unitCostMicroCents'>[];
 }
 
+/** INV-01: the cost of a line that sells a known-cost item and computes to zero (a genuine free or gift). */
+export const COGS_ZERO_COST =
+  'The item is on this invoice at no cost, so no cost of goods was posted; the stock was still shipped.';
+
+/** INV-01: the cost of a line is not on the invoice yet and not known on the item either. */
+export const COGS_COST_UNKNOWN =
+  'The cost of goods sold could not be determined: the item has no cost recorded. Add the item cost on Inventory, save the invoice again, or post the cost of goods manually.';
+
 /**
- * The cost-of-goods-sold entries for an invoice: one per line that sells an inventory item
- * with a known unit cost (DR Cost of Goods Sold, CR Inventory, quantity × unit cost in the base
- * currency; the invoice's exchange rate does not apply to inventory cost). The server lowers the
- * item's stock when it records the entry and raises it back when the entry is reversed.
+ * The cost-of-goods-sold entries for an invoice: one per line that sells an inventory item with a
+ * known unit cost (DR Cost of Goods Sold, CR Inventory, quantity × unit cost in the base currency;
+ * the invoice's exchange rate does not apply to inventory cost). The server lowers the item's stock
+ * when it records the entry and raises it back when the entry is reversed.
+ *
+ * A zero cost and an unknown cost are not the same (INV-01): a line that sells an item whose cost is
+ * genuinely zero (or waived on the line) still ships stock, so it gets a zero-value entry that moves
+ * it out — without accounts nothing moves and the invoice is flagged. When the cost is unknown, no
+ * entry is posted and the invoice is flagged for review; the caller ships the stock separately.
  * Missing accounts never block the invoice: nothing is posted and `pendingReason` says why.
  */
 export function planInvoiceCogs(input: InvoiceCogsInput): InvoiceCogsPlan {
   const { invoiceId, invoice, date, uid, workspaceId, baseCurrency, inventoryAccount, cogsAccount } = input;
   const itemById = new Map(input.items.map(i => [i.id, i]));
-  const costed = (invoice.items || []).flatMap(line => {
+  const lines = (invoice.items || []).flatMap(line => {
     if (!line.itemId || !line.id) return [];
     const quantity = Number(line.quantity);
-    const unitCost = line.unitCostCents ?? itemById.get(line.itemId)?.unitCostCents ?? 0;
-    if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitCost) || unitCost <= 0) return [];
-    return [{ line, itemId: line.itemId, lineId: line.id, quantity, costCents: Math.round(quantity * unitCost) }];
-  }).filter(c => c.costCents > 0);
+    if (!Number.isFinite(quantity) || quantity <= 0) return [];
+    const explicit = line.unitCostCents;
+    const itemCost = itemById.get(line.itemId)?.unitCostCents;
+    const costKnown = Number.isFinite(explicit) || Number.isFinite(itemCost);
+    // INV-02: the exact average (unitCostMicroCents, in millionths of a cent) is what the cost is
+    // computed from, so a fractional average does not round away cents across a whole lot
+    const microOf = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : undefined);
+    // INV-02: an explicit line cost (unitCostCents or unitCostMicroCents) takes precedence over the
+    // item's average — convert it to micro-cents before falling back to either item cost field.
+    const microCents = microOf(line.unitCostMicroCents)
+      ?? (Number.isFinite(explicit) ? Math.round((explicit as number) * 1_000_000) : undefined)
+      ?? microOf(itemById.get(line.itemId)?.unitCostMicroCents);
+    const unitCostMicro = microCents ?? Math.round((explicit ?? itemCost ?? 0) * 1_000_000);
+    return [{ line, itemId: line.itemId, lineId: line.id, quantity, costKnown, costCents: Math.round((quantity * unitCostMicro) / 1_000_000) }];
+  });
 
-  if (costed.length === 0) return { entries: [] };
-  if (!inventoryAccount || !cogsAccount) return { entries: [], pendingReason: COGS_ACCOUNTS_MISSING };
+  // a line ships stock when its cost is known (zero-cost items still leave the shelf); an unknown
+  // cost ships nothing and flags the invoice for review
+  const shippable = lines.filter(c => c.costKnown);
+  const pendingReason = lines.some(c => !c.costKnown) ? COGS_COST_UNKNOWN : undefined;
+
+  // missing accounts never block the invoice: nothing posts and the reason says why (only when the
+  // invoice actually sells stock — a service-only invoice has nothing that needs them)
+  if (!inventoryAccount || !cogsAccount) {
+    return { entries: [], ...(lines.length > 0 ? { pendingReason: COGS_ACCOUNTS_MISSING } : {}) };
+  }
+  if (shippable.length === 0) return { entries: [], pendingReason };
 
   const now = new Date().toISOString();
-  const entries = costed.map(({ line, itemId, lineId, quantity, costCents }): CogsEntry => {
+  const entries = shippable.map(({ line, itemId, lineId, quantity, costCents }): CogsEntry => {
     const name = itemById.get(itemId)?.name || line.description || 'item';
     return {
       uid,

@@ -31,6 +31,14 @@ export interface CashBasisPayment {
   status?: string;
   paymentDate?: string;
   date?: string;
+  /** RP-05: the effective date of a void; a payment is settled as of the report end only while its void (if any) is after it */
+  voidDate?: string;
+  /**
+   * RP-07: advance applications made from this payment, as the allocation ledger records them
+   * ({ documentId, documentType, date }): the application is dated, and the cash-basis share of the
+   * document's posting belongs to the application date, not to the original payment date.
+   */
+  applications?: Array<{ documentId: string; documentType: 'invoice' | 'bill'; date: string }>;
   /** Books' major units per payment-currency major unit; matches p.currency and the document's booked rate. */
   exchangeRate?: number;
   /** BM-04: the payment's own currency (¥ has no decimals, KWD three); missing legacy data is the books' currency */
@@ -61,7 +69,7 @@ export function shareOfLines<L extends { amountCents: number }>(lines: L[], shar
   return out;
 }
 
-export function cashBasisEntries(accounts: ChartAccount[], transactions: Transaction[], payments: CashBasisPayment[], baseCurrency = 'USD'): CashBasisEntries {
+export function cashBasisEntries(accounts: ChartAccount[], transactions: Transaction[], payments: CashBasisPayment[], baseCurrency = 'USD', asOf?: string): CashBasisEntries {
   const byId = new Map(accounts.map(a => [a.id, a]));
   const role = (id: string) => { const a = byId.get(id); return a ? resolveAccountRole(a) : 'unknown'; };
   const notTrade = (id: string) => NOT_TRADE.test(String(byId.get(id)?.name || ''));
@@ -94,6 +102,11 @@ export function cashBasisEntries(accounts: ChartAccount[], transactions: Transac
       if (cash > 0) entries.push({ ...tx, id: `${tx.id}:cash`, exchangeRate: 1, lines: [...lines.filter(isCash), ...shareOfLines(lines.filter(l => !onArAp(l) && !isCash(l)), cash / (cash + owed))] } as Transaction);
       continue;
     }
+    // RP-08: an accrual-only deferral schedule (revenue spread, prepaid recognition) is not a cash
+    // movement. The cash-basis engine's rule is that a document counts when it is paid; the
+    // schedule's installments move no cash and must not silently override it, so they are excluded
+    // from the cash-basis entries (the payment-dated share above is the recognition).
+    if (meta.spreadOfInvoiceId || meta.spreadOfBillId) continue;
     const lines = tx.lines || [];
     if (lines.some(onArAp) && !lines.some(isCash) && meta.type !== 'payment-application') {
       // on receivables or payables without cash: not income or a cost until paid, which is not tracked
@@ -105,14 +118,48 @@ export function cashBasisEntries(accounts: ChartAccount[], transactions: Transac
     entries.push(tx);
   }
 
+  // RP-05: a payment settled a document as of the report end only while no void of it was
+  // effective by then. The route passes the report end: a void dated after it (a later
+  // reversal) must not rewrite the earlier cash-basis period, while a payment voided within
+  // the period is not settled there. Without asOf the current status alone decides.
+  const cutoff = asOf ? String(asOf).slice(0, 10) : undefined;
+  const settledBy = (p: CashBasisPayment) => {
+    if (p.status !== 'void') return true;
+    if (!cutoff) return false;
+    const voided = String(p.voidDate || '').slice(0, 10);
+    return voided && voided > cutoff;
+  };
+
+  // RP-05: a payment voided on or before the cutoff is a dated settlement event in the opposite
+  // direction (the settlement is unwound from its void date on). Its share of the document's
+  // posting is brought in negated on the void date; the reversing journal the void service also
+  // writes stays out (it is a reversal), so the period of the void carries exactly the unwind.
+  const voidedBy = (p: CashBasisPayment) => {
+    if (p.status !== 'void') return false;
+    if (!cutoff) return false;
+    const voided = String(p.voidDate || '').slice(0, 10);
+    return Boolean(voided) && voided <= cutoff;
+  };
+
   // each payment applied to a document brings in its share of that document's posting
   for (const p of payments) {
-    if (p.status === 'void') continue;
-    const date = String(p.paymentDate || p.date || '').slice(0, 10);
+    if (!settledBy(p) && !voidedBy(p)) continue;
+    // RP-05: a payment voided by the cutoff is a dated settlement in the opposite direction: its
+    // share is brought in negated, dated with the void (so it lands in the void's period), and the
+    // payment-posting journal the void service wrote stays out as a reversal. The original positive
+    // settlement is ALSO emitted, dated with the payment, so the original period carries its share
+    // and the void period carries the unwind — the two are additive and sum to zero over both.
+    const voided = voidedBy(p);
     const rate = typeof p.exchangeRate === 'number' && p.exchangeRate > 0 ? p.exchangeRate : 1;
     for (const a of p.allocations || []) {
       const accrual = accruals.get(`${a.documentType}:${a.documentId}`);
-      if (!accrual || !date || !(a.amountCents > 0)) continue;
+      if (!accrual || !(a.amountCents > 0)) continue;
+      // RP-07: an advance applied to this document later is dated with the application, not with
+      // the original payment. The February report then leaves the March invoice's revenue to March,
+      // and the disjoint monthly figures add up to their union.
+      const application = (p.applications || []).find(x => x.documentId === a.documentId && x.documentType === a.documentType);
+      const paidDate = String(p.paymentDate || p.date || '').slice(0, 10);
+      const settledDate = application ? String(application.date).slice(0, 10) : paidDate;
       const lines = (accrual.lines || []).map(l => ({ ...l, amountCents: lineAmount(l, accrual), baseAmountCents: undefined, exchangeRate: 1 }));
       const owed = owedOn(lines, a.documentType);
       if (owed === 0) continue;
@@ -122,10 +169,23 @@ export function cashBasisEntries(accounts: ChartAccount[], transactions: Transac
       // invoice at 0.0067 recognised 670 of 67,000 (1% of its revenue).
       const paidBaseCents = convertMinorUnits(a.amountCents, rate, p.currency || baseCurrency, baseCurrency);
       const share = Math.min(1, paidBaseCents / owed);
+      // the original settlement (positive), dated with the payment
+      const settledLines = shareOfLines(lines.filter(l => !onArAp(l) && !isCash(l)), share);
       entries.push({
-        ...accrual, id: `${accrual.id}:paid:${p.id}`, date, exchangeRate: 1,
-        description: `${accrual.description || ''} (paid ${date})`, lines: shareOfLines(lines.filter(l => !onArAp(l) && !isCash(l)), share),
+        ...accrual, id: `${accrual.id}:paid:${p.id}`, date: settledDate, exchangeRate: 1,
+        description: `${accrual.description || ''} (paid ${settledDate})`, lines: settledLines,
       } as Transaction);
+      // the void reversal (negated), dated with the void
+      if (voided) {
+        const voidDate = String(p.voidDate || '').slice(0, 10);
+        if (voidDate) {
+          const voidLines = shareOfLines(lines.filter(l => !onArAp(l) && !isCash(l)), -share);
+          entries.push({
+            ...accrual, id: `${accrual.id}:voided:${p.id}`, date: voidDate, exchangeRate: 1,
+            description: `${accrual.description || ''} (voided)`, lines: voidLines,
+          } as Transaction);
+        }
+      }
     }
   }
   return { entries, leftOut };

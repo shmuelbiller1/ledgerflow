@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 
 import { Activity, Database, AlertOctagon, Loader2, RefreshCw, Sliders, Calculator } from 'lucide-react';
 
@@ -362,83 +363,50 @@ export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterMode
               </div>
 
               <div role="region" aria-label="Scrollable workspace ledger matrix" tabIndex={0} className="overflow-x-auto custom-scrollbar">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-                <table className="w-full text-left text-xs">
-                  <caption className="sr-only">Workspaces</caption>
-                  <thead>
-                    <tr className="border-b border-[var(--line)] text-[var(--muted)] text-[10px] font-medium uppercase tracking-wider bg-[var(--ink)]/50">
-                      <th scope="col" className="py-4 px-4">Workspace Identity / Name</th>
-                      <th scope="col" className="py-4 px-4 text-center">Plan</th>
-                      <th scope="col" className="py-4 px-4 text-right">Max Seats</th>
-                      <th scope="col" className="py-4 px-4 text-right">Compute Bal</th>
-                      <th scope="col" className="py-4 px-4 text-right">Quota ($)</th>
-                      <th scope="col" className="py-4 px-4 text-right">Used ($)</th>
-                      <th scope="col" className="py-4 px-4 text-right">Cost/User</th>
-                      <th scope="col" className="py-4 px-4 text-right">Tx Rows</th>
-                      <th scope="col" className="py-4 px-4 text-right">AI Requests</th>
-                      <th scope="col" className="py-4 px-4 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-ledger-line font-medium text-[var(--text)]">
-                    {telemetry.tenants.length === 0 ? (
-                      <tr>
-                        <td colSpan={10} className="py-8 text-center text-[var(--muted)] font-bold uppercase tracking-widest text-[10px]">
-                          No workspaces detected on server
-                        </td>
-                      </tr>
-                    ) : (
-                      [...telemetry.tenants].sort((a, b) => b.requestCount - a.requestCount).map((tenant) => {
-                        const isSpiking = tenant.requestCount > 500;
+                <RowTable
+caption={"Workspaces"}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-left text-xs"}
+headRowClassName={''}
+headerRowClassName={"border-b border-[var(--line)] text-[var(--muted)] text-[10px] font-medium uppercase tracking-wider bg-[var(--ink)]/50"}
+bodyClassName={"divide-y divide-ledger-line font-medium text-[var(--text)]"}
+rows={[...telemetry.tenants].sort((a, b) => b.requestCount - a.requestCount).map((tenant) => { const isSpiking = tenant.requestCount > 500;
                         const usedDollars = ((tenant.apiQuotaTotalCentsUsed || 0) / 100).toFixed(2);
                         const activeUsers = tenant.activeUserCount || 1;
                         const costPerUser = (((tenant.apiQuotaTotalCentsUsed || 0) / 100) / activeUsers).toFixed(2);
-                        return (
-                          <tr
-                            key={tenant.id}
-                            onClick={() => startEditing(tenant)}
-                            className="hover:bg-[#0047AB]/5 cursor-pointer transition-colors group"
-                            title="Click to view and edit limits as systems administrator"
-                          >
-                            <td className="py-4 px-4">
-                              <div className="font-mono text-xs text-slate-600 font-bold tracking-tight group-hover:text-[#0047AB]">
+return { tenant, isSpiking, usedDollars, activeUsers, costPerUser }; })}
+rowKey={({ tenant }) => tenant.id}
+rowHeaderClassName={'font-normal text-start'}
+rowClassName={"hover:bg-[#0047AB]/5 cursor-pointer transition-colors group"}
+rowProps={({ tenant }) => ({ "onClick": () => startEditing(tenant), "title": "Click to view and edit limits as systems administrator" })}
+emptyRow={<tr>
+                        <td colSpan={10} className="py-8 text-center text-[var(--muted)] font-bold uppercase tracking-widest text-[10px]">
+                          No workspaces detected on server
+                        </td>
+                      </tr>}
+columns={[
+{ header: "Workspace Identity / Name", headClassName: "py-4 px-4", className: "py-4 px-4", cell: ({ tenant }) => (<><div className="font-mono text-xs text-slate-600 font-bold tracking-tight group-hover:text-[#0047AB]">
                                 {tenant.id}
                               </div>
                               <div className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-widest mt-0.5 truncate max-w-[200px]">
                                 {tenant.name || "Default Workspace"}
-                              </div>
-                            </td>
-                            <td className="py-4 px-4 text-center">
-                              <span className={cn(
+                              </div></>) },
+{ header: "Plan", headClassName: "py-4 px-4 text-center", className: "py-4 px-4 text-center", cell: ({ tenant }) => (<span className={cn(
                                 "text-[9px] px-2 py-0.5 rounded-md font-medium uppercase tracking-wider border",
                                 tenant.plan === 'enterprise' ? "bg-purple-50 text-purple-700 border-purple-200" :
                                 tenant.plan === 'growth' ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                                 "bg-[var(--ink)] text-slate-600 border-[var(--line)]"
                               )}>
                                 {tenant.plan || 'sandbox'}
-                              </span>
-                            </td>
-                            <td className="py-4 px-4 text-right font-mono text-xs font-bold">
-                              {tenant.maxSeats || 3}
-                            </td>
-                            <td className="py-4 px-4 text-right font-mono text-xs text-indigo-650 font-bold">
-                              {(tenant.computeCreditBalance || 0).toLocaleString()}
-                            </td>
-                            <td className="py-4 px-4 text-right font-mono text-xs text-emerald-650 font-bold">
-                              {formatPlatformUsdQuota(tenant.apiQuotaMonthlyLimitCents || 0)}
-                            </td>
-                            <td className="py-4 px-4 text-right font-mono text-xs text-rose-650 font-bold">
-                              ${usedDollars}
-                            </td>
-                            <td className="py-4 px-4 text-right font-mono text-xs text-purple-650 font-bold">
-                              ${costPerUser}
-                            </td>
-                            <td className="py-4 px-4 text-right font-mono text-xs text-[var(--muted)]">
-                              {(tenant.txCount || 0).toLocaleString()}
-                            </td>
-                            <td className="py-4 px-4 text-right font-mono text-xs text-indigo-600">
-                              {(tenant.requestCount || 0).toLocaleString()}
-                            </td>
-                            <td className="py-4 px-4 text-center">
-                              {isSpiking ? (
+                              </span>) },
+{ header: "Max Seats", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs font-bold", cell: ({ tenant }) => (tenant.maxSeats || 3) },
+{ header: "Compute Bal", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-indigo-650 font-bold", cell: ({ tenant }) => ((tenant.computeCreditBalance || 0).toLocaleString()) },
+{ header: "Quota ($)", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-emerald-650 font-bold", cell: ({ tenant }) => (formatPlatformUsdQuota(tenant.apiQuotaMonthlyLimitCents || 0)) },
+{ header: "Used ($)", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-rose-650 font-bold", cell: ({ usedDollars }) => (<>${usedDollars}</>) },
+{ header: "Cost/User", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-purple-650 font-bold", cell: ({ costPerUser }) => (<>${costPerUser}</>) },
+{ header: "Tx Rows", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-[var(--muted)]", cell: ({ tenant }) => ((tenant.txCount || 0).toLocaleString()) },
+{ header: "AI Requests", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-indigo-600", cell: ({ tenant }) => ((tenant.requestCount || 0).toLocaleString()) },
+{ header: "Status", headClassName: "py-4 px-4 text-center", className: "py-4 px-4 text-center", cell: ({ tenant, isSpiking }) => (isSpiking ? (
                                 <span className="bg-rose-50 border border-rose-200 text-rose-700 px-2 py-0.5 rounded-lg text-[9px] font-medium uppercase tracking-wider inline-flex items-center gap-1 shadow-3xs">
                                   Spiking
                                 </span>
@@ -450,14 +418,9 @@ export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterMode
                                 <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-lg text-[9px] font-medium uppercase tracking-wider group-hover:bg-[#0047AB] group-hover:text-white group-hover:border-[#0047AB] transition-all">
                                   OPTIMAL
                                 </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                              )) }
+]}
+/>
               </div>
             </div>
           </div>);

@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import { fill, useReportText } from './useReportText';
 import { useDialog } from '../../hooks/useDialog';
 import React, { useState, useMemo } from 'react';
@@ -204,89 +205,54 @@ export default function PartyAgingReportView({ side }: PartyAgingReportViewProps
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <caption className="sr-only">{isCustomer ? reportText('r.receivables-aging-by-customer', 'Receivables aging by customer') : reportText('r.payables-aging-by-vendor', 'Payables aging by vendor')}</caption>
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
-                <th scope="col" className="p-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleSort('partyName')}>
-                  <span className="flex items-center gap-1">
-                    {isCustomer ? reportText('r.customer', 'Customer') : reportText('r.vendor', 'Vendor')}
-                    <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-[var(--muted)]" />
-                  </span>
-                </th>
-                {AGING_BUCKETS.map(b => (
-                  <th key={b.key} scope="col" className="p-4 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleSort(b.key)}>
-                    <span className="flex items-center justify-end gap-1">
-                      {bucketName(b.key, b.label)}
-                      <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-[var(--muted)]" />
-                    </span>
-                  </th>
-                ))}
-                <th scope="col" className="p-4 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleSort('total')}>
-                  <span className="flex items-center justify-end gap-1">
-                    {reportText('r.total-outstanding', 'Total Outstanding')}
-                    <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-[var(--muted)]" />
-                  </span>
-                </th>
-                <th scope="col" className="p-4 w-10"><span className="sr-only">{reportText('r.actions', 'Actions')}</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
-              {sortedAndFilteredRows.map(row => (
-                <tr
-                  key={row.partyId}
-                  id={rowId(row.partyId)}
-                  onClick={e => openDrillDown(row.partyId, e.currentTarget)}
-                  onKeyDown={e => {
+          <RowTable
+caption={isCustomer ? reportText('r.receivables-aging-by-customer', 'Receivables aging by customer') : reportText('r.payables-aging-by-vendor', 'Payables aging by vendor')}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-left border-collapse"}
+headRowClassName={''}
+headerRowClassName={"bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider"}
+bodyClassName={"divide-y divide-slate-100 dark:divide-slate-800 text-sm"}
+rows={sortedAndFilteredRows}
+rowKey={row => row.partyId}
+rowHeaderClassName={'font-normal text-start'}
+rowClassName={"hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors group focus-visible:outline-2 focus-visible:outline-offset-[-2px]"}
+rowProps={row => ({ "id": rowId(row.partyId), "onClick": e => openDrillDown(row.partyId, e.currentTarget), "onKeyDown": e => {
                     if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
                     e.preventDefault();
                     openDrillDown(row.partyId, e.currentTarget);
-                  }}
-                  tabIndex={0}
-                  aria-label={fill(isCustomer ? reportText('r.open-customer-aging', 'Open the customer aging detail for {name}') : reportText('r.open-vendor-aging', 'Open the vendor aging detail for {name}'), { name: row.partyName })}
-                  className="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors group focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
-                >
-                  <td className="p-4 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Users aria-hidden="true" className="w-4 h-4 text-[var(--muted)]" />
-                    {row.partyName}
-                  </td>
-                  {AGING_BUCKETS.map(b => (
-                    <td key={b.key} className="p-4 text-right font-mono text-slate-600 dark:text-slate-400">
-                      <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{row.buckets[b.key] > 0 ? formatCurrency(row.buckets[b.key], currency) : '-'}</bdi>
-                    </td>
-                  ))}
-                  <td className="p-4 text-right font-mono font-bold text-slate-900 dark:text-white">
-                    <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(row.total, currency)}</bdi>
-                  </td>
-                  <td className="p-4 text-right">
-                    <button type="button" aria-label={fill(reportText('r.open-name', 'Open {name}'), { name: row.partyName })} onClick={e => { e.stopPropagation(); openDrillDown(row.partyId, e.currentTarget); }} className="min-h-11 min-w-11 inline-flex items-center justify-center p-1 rounded-md">
-                      <ChevronRight aria-hidden="true" className="w-4 h-4 text-slate-500 group-hover:text-slate-700 dark:group-hover:text-white transition-colors" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-
-              {sortedAndFilteredRows.length === 0 && (
-                <tr>
+                  }, "tabIndex": 0, "aria-label": fill(isCustomer ? reportText('r.open-customer-aging', 'Open the customer aging detail for {name}') : reportText('r.open-vendor-aging', 'Open the vendor aging detail for {name}'), { name: row.partyName }) })}
+emptyRow={<tr>
                   <td data-report-empty-state colSpan={AGING_BUCKETS.length + 3} className="p-8 text-center text-[var(--muted)] dark:text-slate-400">
                     {partial
                       ? (isCustomer ? reportText('r.partial-invoices', 'Loaded invoice history is incomplete. Clear the search, then load full invoice history before treating this report as empty; an open document may be outside the loaded records.') : reportText('r.partial-bills', 'Loaded bill history is incomplete. Clear the search, then load full bill history before treating this report as empty; an open document may be outside the loaded records.'))
                       : (isCustomer ? reportText('r.empty-receivables', 'No outstanding receivables found matching criteria. Clear the search to see every party, or record an open customer invoice in Sales; this report reads saved documents.') : reportText('r.empty-payables', 'No outstanding payables found matching criteria. Clear the search to see every party, or record an open vendor bill in Purchases; this report reads saved documents.'))}
                   </td>
-                </tr>
-              )}
-            </tbody>
-            {sortedAndFilteredRows.length > 0 && (
-              <tfoot>
-                <tr className="bg-slate-50 dark:bg-slate-800/30 font-bold text-slate-900 dark:text-white border-t border-slate-200 dark:border-slate-800">
+                </tr>}
+footer={sortedAndFilteredRows.length > 0 && <><tr className="bg-slate-50 dark:bg-slate-800/30 font-bold text-slate-900 dark:text-white border-t border-slate-200 dark:border-slate-800">
                   <td className="p-4">{reportText('r.grand-total', 'Grand Total')}</td>
                   {AGING_BUCKETS.map(b => <td key={b.key} className="p-4 text-right font-mono"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(bucketTotals[b.key], currency)}</bdi></td>)}
                   <td className="p-4 text-right font-mono text-lg"><bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(grandTotal, currency)}</bdi></td>
                   <td></td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
+                </tr></>}
+columns={[
+{ header: <><button type="button" className="min-h-11" onClick={() => handleSort('partyName')}><span className="flex items-center gap-1">
+                    {isCustomer ? reportText('r.customer', 'Customer') : reportText('r.vendor', 'Vendor')}
+                    <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-[var(--muted)]" />
+                  </span></button>{' '}<span className="hidden print:inline">{isCustomer ? reportText('r.customer', 'Customer') : reportText('r.vendor', 'Vendor')}</span></>, headClassName: "p-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors", className: "p-4 font-semibold text-slate-900 dark:text-white flex items-center gap-2", cell: row => (<><Users aria-hidden="true" className="w-4 h-4 text-[var(--muted)]" />
+                    {row.partyName}</>) },
+{ over: AGING_BUCKETS, head: b => (<><button type="button" className="min-h-11" onClick={() => handleSort(b.key)}><span className="flex items-center justify-end gap-1">
+                      {bucketName(b.key, b.label)}
+                      <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-[var(--muted)]" />
+                    </span></button>{' '}<span className="hidden print:inline">{bucketName(b.key, b.label)}</span></>), headClassName: "p-4 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors", className: "p-4 text-right font-mono text-slate-600 dark:text-slate-400", cell: (row, b) => (<bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{row.buckets[b.key] > 0 ? formatCurrency(row.buckets[b.key], currency) : '-'}</bdi>) },
+{ header: <><button type="button" className="min-h-11" onClick={() => handleSort('total')}><span className="flex items-center justify-end gap-1">
+                    {reportText('r.total-outstanding', 'Total Outstanding')}
+                    <ArrowUpDown aria-hidden="true" className="w-3 h-3 text-[var(--muted)]" />
+                  </span></button>{' '}<span className="hidden print:inline">{reportText('r.total-outstanding', 'Total Outstanding')}</span></>, headClassName: "p-4 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors", className: "p-4 text-right font-mono font-bold text-slate-900 dark:text-white", cell: row => (<bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatCurrency(row.total, currency)}</bdi>) },
+{ header: <span className="sr-only">{reportText('r.actions', 'Actions')}</span>, headClassName: "p-4 w-10", className: "p-4 text-right", cell: row => (<button type="button" aria-label={fill(reportText('r.open-name', 'Open {name}'), { name: row.partyName })} onClick={e => { e.stopPropagation(); openDrillDown(row.partyId, e.currentTarget); }} className="min-h-11 min-w-11 inline-flex items-center justify-center p-1 rounded-md">
+                      <ChevronRight aria-hidden="true" className="w-4 h-4 text-slate-500 group-hover:text-slate-700 dark:group-hover:text-white transition-colors" />
+                    </button>) }
+]}
+/>
         </div>
       </div>
 

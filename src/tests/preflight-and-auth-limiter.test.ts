@@ -34,6 +34,9 @@ test('F-05: authRateLimiter is mounted on sensitive auth mutation routes', () =>
   const authRoutes = fs.readFileSync(path.resolve(process.cwd(), 'src/server/routes/authRoutes.ts'), 'utf8');
   assert.match(authRoutes, /app\.post\(["']\/api\/v1\/auth\/revoke-sessions["'],\s*authRateLimiter,\s*apiAuthenticate/);
   assert.match(authRoutes, /app\.delete\(["']\/api\/v1\/auth\/delete-account["'],\s*authRateLimiter,\s*apiAuthenticate/);
+  // #945 (S-22): the sign-in history routes are limited per person after sign-in, not by the strict per-IP limiter
+  assert.match(authRoutes, /app\.post\(["']\/api\/v1\/auth\/audit["'],\s*apiAuthenticate,\s*authAuditRateLimiter/);
+  assert.match(authRoutes, /app\.get\(["']\/api\/v1\/auth\/login-audits["'],\s*apiAuthenticate,\s*authAuditRateLimiter/);
 });
 
 test('M-7: Working Capital & Invoice Aging algorithm surfaces contractual late-fee benchmark from paymentTerms.calculateLateFee', () => {

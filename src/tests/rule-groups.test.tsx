@@ -205,15 +205,15 @@ describe('Rules settings group interactions', () => {
 
   it('keeps paused individual switches and shows group-off state after reload', async () => {
     const view = render(<RulesSettings />);
-    fireEvent.click(screen.getByRole('button', { name: 'Enable group תוכנה / SaaS' }));
-    await waitFor(() => assert.equal(screen.getByRole('button', { name: 'Enable group תוכנה / SaaS' }).getAttribute('aria-pressed'), 'false'));
+    fireEvent.click(screen.getByRole('button', { name: /Enable group תוכנה \/ SaaS/ }));
+    await waitFor(() => assert.equal(screen.getByRole('button', { name: /Enable group תוכנה \/ SaaS/ }).getAttribute('aria-pressed'), 'false'));
     assert.equal((screen.getByRole('checkbox', { name: 'Enable rule paused' }) as HTMLInputElement).checked, false);
     view.unmount();
     useLedgerStore.setState({ autoRules: JSON.parse(JSON.stringify(durable)) as AutoRule[] });
     render(<RulesSettings />);
-    assert.equal(screen.getByRole('button', { name: 'Enable group תוכנה / SaaS' }).textContent?.trim(), 'Off');
-    fireEvent.click(screen.getByRole('button', { name: 'Enable group תוכנה / SaaS' }));
-    await waitFor(() => assert.equal(screen.getByRole('button', { name: 'Enable group תוכנה / SaaS' }).textContent?.trim(), 'On'));
+    assert.equal(screen.getByRole('button', { name: /Enable group תוכנה \/ SaaS/ }).textContent?.trim(), 'Off');
+    fireEvent.click(screen.getByRole('button', { name: /Enable group תוכנה \/ SaaS/ }));
+    await waitFor(() => assert.equal(screen.getByRole('button', { name: /Enable group תוכנה \/ SaaS/ }).textContent?.trim(), 'On'));
     assert.equal((screen.getByRole('checkbox', { name: 'Enable rule paused' }) as HTMLInputElement).checked, false);
   });
 
@@ -275,7 +275,7 @@ describe('Rules settings group interactions', () => {
     setComponentWorkspace('viewer');
     render(<RulesSettings />);
     assert.equal(screen.queryByRole('button', { name: inlineEditName('Edit Priority of first') }), null);
-    assert.equal((screen.getByRole('button', { name: 'Enable group תוכנה / SaaS' }) as HTMLButtonElement).disabled, true);
+    assert.equal((screen.getByRole('button', { name: /Enable group תוכנה \/ SaaS/ }) as HTMLButtonElement).disabled, true);
     fireEvent.click(screen.getByRole('button', { name: 'Create Rule' }));
     assert.equal(Boolean(screen.queryByRole('dialog')), false);
     assert.equal(writes.length, 0);

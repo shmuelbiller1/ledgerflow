@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 import React, { useState, useMemo, useRef } from 'react';
 import { useDialog } from '../../hooks/useDialog';
 import { NumericAlgorithmInput } from './NumericAlgorithmInput';
@@ -384,46 +385,31 @@ export default function ToolSandbox({ toolId, onClose }: ToolSandboxProps) {
                        <button type="button" aria-label="Move results left" className="min-h-11 min-w-11 px-3 border border-white/20 rounded text-slate-200" onClick={() => scrollResultsRef.current?.scrollBy({left: -240, behavior: 'smooth'})}>←</button>
                        <button type="button" aria-label="Move results right" className="min-h-11 min-w-11 px-3 border border-white/20 rounded text-slate-200" onClick={() => scrollResultsRef.current?.scrollBy({left: 240, behavior: 'smooth'})}>→</button>
                      </div>
-                     <table className="w-full text-left text-xs text-slate-300">
-                       <caption className="sr-only">Tool results</caption>
-                       <thead className="border-b border-white/10 text-[10px] uppercase font-bold text-[var(--muted)]">
-                         <tr>
-                           {tableColumns.map(col => (
-                             <th scope="col" key={col.key} className="py-2.5 px-3 whitespace-nowrap">
-                               {col.label}
-                             </th>
-                           ))}
-                         </tr>
-                       </thead>
-                       <tbody className="divide-y divide-white/5 font-mono">
-                         {withStableKeys(results.rows, row => JSON.stringify(
+                     <RowTable
+caption={"Tool results"}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-left text-xs text-slate-300"}
+headRowClassName={"border-b border-white/10 text-[10px] uppercase font-bold text-[var(--muted)]"}
+bodyClassName={"divide-y divide-white/5 font-mono"}
+rows={withStableKeys(results.rows, row => JSON.stringify(
                            row.id != null ? ['id', row.id] : tableColumns.map(col => [col.key, String(row[col.key] ?? '')])
-                         )).map(({ item: row, key }) => (
-                           <tr key={key} className="hover:bg-white/5 transition-colors">
-                             {tableColumns.map(col => {
+                         ))}
+rowKey={({ key }) => key}
+rowHeaderClassName={'font-normal text-start'}
+rowClassName={"hover:bg-white/5 transition-colors"}
+columns={[
+...tableColumns.map(col => ({ key: col.key, header: col.label, headClassName: "py-2.5 px-3 whitespace-nowrap", className: "py-2.5 px-3 whitespace-nowrap " + (['amount', 'grossSales', 'taxableSales', 'taxCollected', 'taxDue', 'budget', 'actual', 'variance', 'balance', 'debit', 'credit', 'gross', 'net', 'taxes', 'employerBurden', 'liability'].includes(col.key) ? "font-bold text-white" : ""), cell: ({ item: row }: { item: Record<string, unknown> }) => {
                                const val = row[col.key];
                                const isFlagType = col.key === 'type';
-                               const isAmountOrVariance = ['amount', 'grossSales', 'taxableSales', 'taxCollected', 'taxDue', 'budget', 'actual', 'variance', 'balance', 'debit', 'credit', 'gross', 'net', 'taxes', 'employerBurden', 'liability'].includes(col.key);
-                               
-                               return (
-                                 <td 
-                                   key={col.key} 
-                                   className={"py-2.5 px-3 whitespace-nowrap " + (isAmountOrVariance ? "font-bold text-white" : "")}
-                                 >
-                                   {isFlagType ? (
+return (isFlagType ? (
                                      <span className={val === 'Exact' ? 'text-rose-400 font-bold' : 'text-amber-400 font-medium'}>
                                        {(val as React.ReactNode) || 'Flagged'}
                                      </span>
                                    ) : (
                                      val !== undefined && val !== null ? String(val) : '-'
-                                   )}
-                                 </td>
-                               );
-                             })}
-                           </tr>
-                         ))}
-                       </tbody>
-                     </table>
+                                   )); } }))
+]}
+/>
                    </div>
                  </div>
                )}

@@ -4,7 +4,7 @@ import { StatementChangeReview } from './StatementChangeReview';
 import type { ReportLabelFilterValue } from '../../lib/reportLabelScope';
 import ExportTemplateControls from '../reporting/ExportTemplateControls';
 import { useReportDates } from '../reporting/useReportDates';
-import React, { useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import type { ChartAccount, Transaction } from "../../types";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { useStatementColumns } from "../../hooks/useStatementColumns";
@@ -35,6 +35,7 @@ import {
   visibleGroupRows,
 } from "../../lib/accountGroups";
 import { movePeriod, readPeriodLayout, savePeriodLayout, validPeriodLayout, visiblePeriods, type ReportPeriodLayout } from "../../lib/reportPeriodLayout";
+import { GroupedRowTable } from "../ui/RowTable";
 import { AccountGroupToggle } from "./AccountGroupControls";
 
 interface StatementColumnsProps {
@@ -299,196 +300,83 @@ export function StatementColumns(props: StatementColumnsProps) {
             </p>
           )}
           <div role="region" aria-label={`${title} period table`} tabIndex={0} className="max-w-full overflow-x-auto rounded-xl border border-[var(--line)]">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
-            <table className="w-full border-collapse text-sm tabular-nums">
-              <caption className="sr-only">
-                {title} by {mode} with {showPercent ? "percentages and " : ""}
-                {compare ? "comparison variance" : "amounts"}
-              </caption>
-              <thead className="bg-[var(--ink)]">
-                <tr>
-                  <th scope="col" rowSpan={2} className="p-3 text-start">
-                    <button
-                      type="button"
-                      onClick={() => onSort("name")}
-                      className="min-h-11"
-                      aria-label="Sort accounts by name"
-                    >
-                      Account
-                    </button>
-                  </th>
-                  <th scope="col" rowSpan={2} className="p-3 text-start">
-                    <button
-                      type="button"
-                      onClick={() => onSort("code")}
-                      className="min-h-11"
-                      aria-label="Sort accounts by code"
-                    >
-                      Code
-                    </button>
-                  </th>
-                  {displayedColumns.map((column) => (
-                    <th
-                      scope="colgroup"
-                      colSpan={cellsPerColumn}
-                      key={column.period.id}
-                      className="p-3 text-center whitespace-nowrap"
-                    >
-                      {column.period.label}
+            <GroupedRowTable
+              caption={<>{title} by {mode} with {showPercent ? "percentages and " : ""}{compare ? "comparison variance" : "amounts"}</>}
+              captionClassName="sr-only"
+              tableClassName="w-full border-collapse text-sm tabular-nums"
+              headClassName="bg-[var(--ink)]"
+              head={[
+                { cells: [
+                  { scope: 'col', rowSpan: 2, className: "p-3 text-start", content: (
+                    <button type="button" onClick={() => onSort("name")} className="min-h-11" aria-label="Sort accounts by name">Account</button>
+                  ) },
+                  { scope: 'col', rowSpan: 2, className: "p-3 text-start", content: (
+                    <button type="button" onClick={() => onSort("code")} className="min-h-11" aria-label="Sort accounts by code">Code</button>
+                  ) },
+                  ...displayedColumns.map(column => ({ key: column.period.id, scope: 'colgroup' as const, colSpan: cellsPerColumn, className: "p-3 text-center whitespace-nowrap", content: (<>
+                    {column.period.label}
+                    <span className="block text-xs font-normal">
+                      {/* H-8: the column headings write the reader's layout too */}
+                      {kind === "bs" ? reportDates.dateText(column.period.endDate) : reportDates.periodText(column.period.startDate, column.period.endDate)}
+                    </span>
+                    {compare && column.previousPeriod && (
                       <span className="block text-xs font-normal">
-                        {/* H-8: the column headings write the reader's layout too */}
-                        {kind === "bs"
-                          ? reportDates.dateText(column.period.endDate)
-                          : reportDates.periodText(column.period.startDate, column.period.endDate)}
+                        vs {kind === "bs" ? reportDates.dateText(column.previousPeriod.endDate) : reportDates.periodText(column.previousPeriod.startDate, column.previousPeriod.endDate)}
                       </span>
-                      {compare && column.previousPeriod && (
-                        <span className="block text-xs font-normal">
-                          vs{" "}
-                          {kind === "bs"
-                            ? reportDates.dateText(column.previousPeriod.endDate)
-                            : reportDates.periodText(column.previousPeriod.startDate, column.previousPeriod.endDate)}
-                        </span>
-                      )}
-                    </th>
-                  ))}
-                </tr>
-                <tr>
-                  {displayedColumns.map((column) => (
-                    <React.Fragment key={column.period.id}>
-                      <th scope="col" className="p-3 text-right">
-                        {column.period.id === columns[0]?.period.id ? (
-                          <button
-                            type="button"
-                            onClick={() => onSort("balance")}
-                            className="min-h-11"
-                            aria-label="Sort accounts by first period amount"
-                          >
-                            Amount
-                          </button>
-                        ) : (
-                          "Amount"
-                        )}
-                      </th>
-                      {showPercent && (
-                        <th
-                          scope="col"
-                          className="p-3 text-right whitespace-nowrap"
-                        >
-                          % of total
-                        </th>
-                      )}
-                      {compare && (
-                        <>
-                          <th scope="col" className="p-3 text-right">
-                            {compareLabel}
-                          </th>
-                          <th scope="col" className="p-3 text-right">
-                            Variance
-                          </th>
-                          <th
-                            scope="col"
-                            className="p-3 text-right whitespace-nowrap"
-                          >
-                            Variance %
-                          </th>
-                        </>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRows.map((row) => {
-                  // K-14: the group a row can hide, when it is a parent account
-                  const groupId = row.group ? row.accountId : undefined;
-                  return (
-                  <tr
-                    key={row.id}
-                    className={`border-t border-[var(--line)] ${row.total || row.heading ? "font-semibold bg-[var(--ink)]" : ""} ${row.subtotal ? "font-semibold" : ""}`}
-                  >
-                    <th scope="row" className="p-3 text-start whitespace-nowrap">
-                      <span
-                        className="inline-flex items-center gap-1"
-                        style={{
-                          paddingInlineStart: `${(row.depth || 0) * ACCOUNT_GROUP_INDENT_PX}px`,
-                        }}
-                      >
-                        {groupId ? (
-                          <AccountGroupToggle
-                            label={row.label}
-                            expanded={!collapsedGroups.has(groupId)}
-                            onToggle={() =>
-                              setCollapsedGroups((collapsed) =>
-                                toggleAccountGroup(collapsed, groupId),
-                              )
-                            }
-                          />
-                        ) : null}
-                        {row.label}
-                      </span>
-                    </th>
-                    <td className="p-3">{row.code}</td>
-                    {figures.map((column) => {
-                      const amount = column.current.values[row.id] || 0;
-                      const previous = column.previous?.values[row.id] || 0;
-                      const variance = column.previous
-                        ? reportVariance(amount, previous)
-                        : null;
-                      return (
-                        <React.Fragment key={column.period.id}>
-                          <td className="p-3 text-right whitespace-nowrap">
-                            <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{!row.heading &&
-                              (row.accountId ? (
-                                <button
-                                  type="button"
-                                  onClick={() => drillDown(row, column.period)}
-                                  className="min-h-11 underline decoration-dotted"
-                                  aria-label={`${row.label}, ${column.period.label}, open ledger`}
-                                >
-                                  <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatMoney(amount)}</bdi>
-                                </button>
-                              ) : (
-                                formatMoney(amount)
-                              ))}</bdi>
-                          </td>
-                          {showPercent && (
-                            <td className="p-3 text-right whitespace-nowrap">
-                              {!row.heading &&
-                                reportPercent(
-                                  percentageOfTotal(
-                                    amount,
-                                    column.current.denominator,
-                                  ),
-                                )}
-                            </td>
-                          )}
-                          {compare && (
-                            <>
-                              <td className="p-3 text-right whitespace-nowrap">
-                                <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{!row.heading &&
-                                  (column.previous
-                                    ? formatMoney(previous)
-                                    : "—")}</bdi>
-                              </td>
-                              <td className="p-3 text-right whitespace-nowrap">
-                                <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{!row.heading &&
-                                  (variance
-                                    ? formatMoney(variance.amount)
-                                    : "—")}</bdi>
-                              </td>
-                              <td className="p-3 text-right whitespace-nowrap">
-                                {!row.heading &&
-                                  reportPercent(variance?.percent ?? null)}
-                              </td>
-                            </>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    )}
+                  </>) })),
+                ] },
+                { cells: displayedColumns.flatMap(column => [
+                  { key: `${column.period.id}-amount`, scope: 'col' as const, className: "p-3 text-right", content: column.period.id === columns[0]?.period.id ? (
+                    <button type="button" onClick={() => onSort("balance")} className="min-h-11" aria-label="Sort accounts by first period amount">Amount</button>
+                  ) : "Amount" },
+                  showPercent && { key: `${column.period.id}-percent`, scope: 'col' as const, className: "p-3 text-right whitespace-nowrap", content: '% of total' },
+                  compare && [
+                    { key: `${column.period.id}-previous`, scope: 'col' as const, className: "p-3 text-right", content: compareLabel },
+                    { key: `${column.period.id}-variance`, scope: 'col' as const, className: "p-3 text-right", content: 'Variance' },
+                    { key: `${column.period.id}-variance-percent`, scope: 'col' as const, className: "p-3 text-right whitespace-nowrap", content: 'Variance %' },
+                  ],
+                ]) },
+              ]}
+              groups={[{ rows: visibleRows.map(row => {
+                // K-14: the group a row can hide, when it is a parent account
+                const groupId = row.group ? row.accountId : undefined;
+                return { key: row.id, className: `border-t border-[var(--line)] ${row.total || row.heading ? "font-semibold bg-[var(--ink)]" : ""} ${row.subtotal ? "font-semibold" : ""}`, cells: [
+                  { scope: 'row', className: "p-3 text-start whitespace-nowrap", content: (
+                    <span className="inline-flex items-center gap-1" style={{ paddingInlineStart: `${(row.depth || 0) * ACCOUNT_GROUP_INDENT_PX}px` }}>
+                      {groupId ? (
+                        <AccountGroupToggle label={row.label} expanded={!collapsedGroups.has(groupId)} onToggle={() => setCollapsedGroups((collapsed) => toggleAccountGroup(collapsed, groupId))} />
+                      ) : null}
+                      {row.label}
+                    </span>
+                  ) },
+                  { className: "p-3", content: row.code },
+                  ...figures.flatMap(column => {
+                    const amount = column.current.values[row.id] || 0;
+                    const previous = column.previous?.values[row.id] || 0;
+                    const variance = column.previous ? reportVariance(amount, previous) : null;
+                    return [
+                      { key: column.period.id, className: "p-3 text-right whitespace-nowrap", content: (
+                        <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{!row.heading &&
+                          (row.accountId ? (
+                            <button type="button" onClick={() => drillDown(row, column.period)} className="min-h-11 underline decoration-dotted" aria-label={`${row.label}, ${column.period.label}, open ledger`}>
+                              <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{formatMoney(amount)}</bdi>
+                            </button>
+                          ) : (
+                            formatMoney(amount)
+                          ))}</bdi>
+                      ) },
+                      showPercent && { key: `${column.period.id}-percent`, className: "p-3 text-right whitespace-nowrap", content: !row.heading && reportPercent(percentageOfTotal(amount, column.current.denominator)) },
+                      compare && [
+                        { key: `${column.period.id}-previous`, className: "p-3 text-right whitespace-nowrap", content: <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{!row.heading && (column.previous ? formatMoney(previous) : "—")}</bdi> },
+                        { key: `${column.period.id}-variance`, className: "p-3 text-right whitespace-nowrap", content: <bdi dir="auto" style={{ unicodeBidi: 'isolate' }}>{!row.heading && (variance ? formatMoney(variance.amount) : "—")}</bdi> },
+                        { key: `${column.period.id}-variance-percent`, className: "p-3 text-right whitespace-nowrap", content: !row.heading && reportPercent(variance?.percent ?? null) },
+                      ],
+                    ];
+                  }),
+                ] };
+              }) }]}
+            />
           </div>
           {mode === 'total' && compare && compareLabel !== 'Budget' && columns[0]?.previousData && columns[0].previousPeriod && (
             <StatementChangeReview key={JSON.stringify([userId, workspaceId, periods, previousPeriods, props.labelFilter])}

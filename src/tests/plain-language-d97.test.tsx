@@ -146,6 +146,21 @@ describe('D-97 plain language on the first-hour screens', () => {
     }
     assert.equal(document.body.textContent?.includes('Node ID'), false);
     assert.equal(document.body.textContent?.includes('Topology Type'), false);
+
+    // #1001 (Gitar): a search that matches nothing leaves the table empty — the workspace still has
+    // accounts, so the "No accounts yet" empty state (and its "add your first account" button)
+    // belongs to a chart with no accounts, not to a search with no hits
+    rerender(
+      <ChartOfAccountsView
+        accounts={[makeChartAccount({ id: 'sales', name: 'Sales', type: 'revenue', category: 'Revenue', balanceCents: 50000 })]}
+        searchTerm="nothing matches this"
+        formatCurrency={(cents) => `$${(cents / 100).toFixed(2)}`}
+        onDrillDown={() => {}}
+        onDeleteAccount={() => {}}
+      />
+    );
+    assert.equal(screen.queryByText('No accounts yet'), null);
+    assert.equal(screen.queryByText('Add your first account'), null);
   });
 
   test('template selector explains chart templates in plain language', () => {

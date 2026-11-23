@@ -20,7 +20,6 @@ import { assertPostingOpen } from '../../lib/periodLock';
 import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedgerWriter';
 import { getAbsoluteTotal, settleHomeCurrency } from '../../lib/txFilters';
 import { ledgerWrite } from './ledgerDoor';
-import { allocateNextNumber } from '../routes/workspaceRoutes';
 import { allocateInTransaction } from './numberingService';
 import { notify } from './notificationService';
 import { logger } from '../utils/logger';
@@ -82,8 +81,8 @@ async function generateInvoice(db: Firestore, rule: RecurringTransaction, date: 
   const items = Array.isArray(t.items) && t.items.length
     ? t.items
     : [{ id: `${rule.id}-line`, description: String(legacy.description || rule.description || ''), quantity: 1, rateCents: amountCents, amountCents, accountId: '' }];
-  const number = await allocateNextNumber(db, rule.workspaceId, 'invoice');
   const invoiceRef = db.collection('invoices').doc();
+  let number = '';
   const invoice: Partial<Invoice> & DocumentData = {
     ...t,
     id: invoiceRef.id,
@@ -109,7 +108,10 @@ async function generateInvoice(db: Firestore, rule: RecurringTransaction, date: 
     const again = await tx.get(db.collection('invoices').where('workspaceId', '==', rule.workspaceId).where('recurrenceOccurrenceKey', '==', key).limit(1));
     if (!ruleSnap.exists || !ruleSnap.data()?.isActive) throw new RecurringSkip(`Schedule ${rule.id} is paused`);
     if (!again.empty) throw new RecurringSkip(`Occurrence ${key} already generated`);
-    tx.set(invoiceRef, invoice);
+    // RC-01: the number is taken in the same transaction as the write, so a skipped or paused
+    // occurrence burns no invoice number (it is never allocated outside the serializable block)
+    number = await allocateInTransaction(db, tx, rule.workspaceId, 'invoice');
+    tx.set(invoiceRef, { ...invoice, number });
     tx.update(db.collection('recurring').doc(rule.id), {
       nextOccurrence, lastOccurrence: date, generatedCount: (Number(ruleSnap.data()?.generatedCount) || 0) + 1,
       lastErrorCode: FieldValue.delete(), lastErrorAt: FieldValue.delete(), updatedAt: new Date().toISOString(),

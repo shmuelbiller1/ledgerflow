@@ -90,7 +90,9 @@ describe('Server and serverless bundle boundary isolation', () => {
     // against a browser/UI graph leaking in (hundreds of KB), not against a server feature; 3.6 MB kept that role.
     // 21 Nov (#980): main sat at 3,599,454 B (546 B under) when purchase-order approval moved onto the server
     // (~4 KB); 3.7 MB keeps the same role, and the browser-module check above is what catches a UI leak.
-    assert.ok(outputBytes > 0 && outputBytes < 3_700_000, `Unexpected server source bundle size: ${outputBytes} B`);
+    // 23 Nov (#1026): main reached 3,700,329 B after the assistant facts/final step (#1024) and the
+    // account-deletion scrub + audit rate limiter (#1025), all server code; the UI-leak check above passes.
+    assert.ok(outputBytes > 0 && outputBytes < 3_800_000, `Unexpected server source bundle size: ${outputBytes} B`);
   });
 
   test('Vercel serverless API source graph and minified self-contained bundle stay compact and isolated', () => {

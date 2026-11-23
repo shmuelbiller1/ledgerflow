@@ -35,7 +35,9 @@
  * the parent bought the company is given, what it paid above its share of the company's book value
  * (the company's equity at the end of that day) is goodwill: it stays in the total assets and equity
  * and is said. Paid below the book value is said too, and nothing is added. An account holding several
- * companies has goodwill only when the day each was bought is given.
+ * companies has goodwill only when the day each was bought is given. This figure is a book-value
+ * estimate only: it does not measure the identifiable net assets at acquisition-date fair value, so it
+ * is not the statutory goodwill of a business combination under IFRS 3 (see GC-02).
  *
  * Associates (Z-16, the equity method): a company the parent owns 20% to 50% of is shown side by side
  * but not added to the total. Instead the parent's investment in it (left in the total) grows by the
@@ -50,8 +52,9 @@ import { addDaysYMD } from '../../lib/fiscalCalendar';
 import { groupAccountLines, type GroupAccountLine, type LineAccount, type LineSection } from './groupAccounts';
 import { computeBalanceSheet, computeProfitAndLoss } from './computeReports';
 import type { ChartAccount, Transaction } from '../../types';
-import { isPostable } from '../../lib/txFilters';
+import { isPostable, lineAmount } from '../../lib/txFilters';
 import { convertMinorUnits, minorUnitRate } from '../../lib/currencyMinorUnits';
+import { resolveAccountRole } from '../../lib/accountUtils';
 
 export class GroupReportError extends Error {
   constructor(readonly status: number, message: string) {
@@ -149,6 +152,9 @@ export interface Eliminated {
   goodwill?: number;
   /** what it paid below that share (said only) */
   belowBookValue?: number;
+  /** GC-03: the profit on inventory the companies sold to each other and the buyers still hold at
+   * the end of the period, taken out of the total assets, equity and net income */
+  unrealizedProfit?: number;
 }
 
 /** An account holding what a company owes or is owed by the others in its group. */
@@ -218,7 +224,8 @@ export function matchIntercompany(members: Array<{ workspaceId: string; name: st
 const FIGURES: Array<keyof GroupFigures> = ['income', 'cogs', 'grossProfit', 'expense', 'netIncome', 'totalAssets', 'totalLiabilities', 'totalEquity'];
 
 type ReadMember = Omit<GroupMember, 'share'> & { equityWhenBought: number | null; profitSinceBought: number; earlierProfit: number; equityAccounts: number; intercompany: Transaction[]; owedBy: number; owedTo: number; withinGroup: { income: number; cogs: number; expense: number }; assetBalances: Record<string, number>;
-  chart: LineAccount[]; sections: Record<LineSection, Record<string, number>> };
+  chart: LineAccount[]; sections: Record<LineSection, Record<string, number>>;
+  icCogsOnSales: number; icProfitOnSales: number; inventoryFromGroup: number; inventoryOnHand: number };
 
 /** The other company of an intercompany entry. */
 const otherCompany = (tx: Transaction) => String(tx.metadata?.targetWorkspaceId || tx.metadata?.sourceWorkspaceId || '');
@@ -228,8 +235,19 @@ async function memberFigures(db: Firestore, workspaceId: string, startDate: stri
   const accounts = (await db.collection('chartAccounts').where('workspaceId', '==', workspaceId).get()).docs.map(d => ({ ...d.data(), id: d.id }) as ChartAccount);
   const transactions = (await db.collection('transactions').where('workspaceId', '==', workspaceId).where('date', '<=', endDate).get()).docs
     .map(d => ({ ...d.data(), id: d.id }) as Transaction);
-  const pl = computeProfitAndLoss(accounts, transactions, startDate, endDate);
-  const bs = computeBalanceSheet(accounts, transactions, endDate);
+  // GC-01: a controlled subsidiary joins the group on the day control is obtained, not from the
+  // beginning of the period. A company with a known acquisition date counts from the day after it,
+  // and its balance sheet is included only once the acquisition is on or before the end date;
+  // before that it is outside the consolidated group entirely. A company with no acquisition date
+  // was never bought in this group and is included in full.
+  const acquiredOn = boughtOn ? String(boughtOn).slice(0, 10) : undefined;
+  // excluded = a known acquisition that is after the period end (the company is not yet owned)
+  const excluded = Boolean(acquiredOn) && acquiredOn! > endDate;
+  // excluded: the acquisition is after the period end — no profit of that company is the group's
+  const plStart = excluded ? addDaysYMD(endDate, 1) : (Boolean(acquiredOn) && acquiredOn! >= startDate ? addDaysYMD(acquiredOn!, 1) : startDate);
+  const pl = computeProfitAndLoss(accounts, transactions, plStart, endDate);
+  const emptyBs = { totalAssets: 0, totalLiabilities: 0, totalEquity: 0, netIncome: 0, isBalanced: true, assets: {} as Record<string, number>, liabilities: {} as Record<string, number>, equity: {} as Record<string, number> };
+  const bs = excluded ? emptyBs : computeBalanceSheet(accounts, transactions, endDate);
   const intercompany = transactions.filter(tx => tx.metadata?.isIntercompany === true);
   // Z-16: its equity at the end of the day the parent bought it (its book value then)
   const then = boughtOn && boughtOn <= endDate ? computeBalanceSheet(accounts, transactions, boughtOn) : null;
@@ -238,6 +256,28 @@ async function memberFigures(db: Firestore, workspaceId: string, startDate: stri
   const profitSinceBought = !then ? 0 : from === startDate ? pl.netIncome : from <= endDate ? computeProfitAndLoss(accounts, transactions, from, endDate).netIncome : 0;
   // CB-26: the income and costs of its dealings in force with the other companies of the group
   const within = computeProfitAndLoss(accounts, intercompany.filter(tx => inForce(tx) && group.has(otherCompany(tx))), startDate, endDate);
+  // GC-03: the profit on the inventory this company sold to the other companies of the group, and the
+  // part of it the buyers still hold at the end of the period (unrealized profit, IFRS 10 B86(c)).
+  // The sellers' cost of goods on those sales is usually a journal of its own, not posted as
+  // intercompany itself, so it is found on the days of the intercompany sales.
+  const icSales = intercompany.filter(tx => inForce(tx) && group.has(otherCompany(tx)));
+  const saleDates = new Set(icSales.map(tx => String(tx.date || '').slice(0, 10)));
+  const isCogsAccount = (acc: ChartAccount) =>
+    acc.type === 'cost_of_goods' || acc.category === 'COGS' || acc.category === 'Direct Costs' || resolveAccountRole(acc) === 'cogs';
+  const isInventoryAccount = (acc: ChartAccount) => resolveAccountRole(acc) === 'inventory';
+  const icCogsOnSales = transactions
+    .filter(tx => !tx.metadata?.isIntercompany && saleDates.has(String(tx.date || '').slice(0, 10)))
+    .reduce((sum, tx) => sum + (tx.lines || []).reduce((ss, l) => {
+      const acc = accounts.find(a => a.id === l.accountId);
+      return acc && isCogsAccount(acc) ? ss + lineAmount(l, tx) : ss;
+    }, 0), 0);
+  const icProfitOnSales = within.income.total - icCogsOnSales;
+  // what the company bought from the other companies of the group as inventory, and what it still holds
+  const inventoryFromGroup = icSales.reduce((sum, tx) => sum + (tx.lines || []).reduce((ss, l) => {
+    const acc = accounts.find(a => a.id === l.accountId);
+    return acc && isInventoryAccount(acc) ? ss + lineAmount(l, tx) : ss;
+  }, 0), 0);
+  const inventoryOnHand = accounts.filter(isInventoryAccount).reduce((sum, a) => sum + (bs.assets[a.id] || 0), 0);
   return {
     workspaceId,
     name: String(ws.name || workspaceId),
@@ -270,6 +310,7 @@ async function memberFigures(db: Firestore, workspaceId: string, startDate: stri
     // CB-26: balances with the other companies (assets: owed to it; liabilities: it owes)
     owedBy: accounts.filter(a => a.type === 'asset' && isIntercompanyAccount(a)).reduce((s, a) => s + (bs.assets[a.id] || 0), 0),
     owedTo: accounts.filter(a => a.type === 'liability' && isIntercompanyAccount(a)).reduce((s, a) => s + (bs.liabilities[a.id] || 0), 0),
+    icCogsOnSales, icProfitOnSales, inventoryFromGroup, inventoryOnHand,
   };
 }
 
@@ -362,6 +403,20 @@ export async function groupSummary(db: Firestore, input: { uid: string; groupId:
   // sales and costs between the companies, at the average rate when translated
   const within = (f: 'income' | 'cogs' | 'expense') => added.reduce((s, m) => s + toReport(m, m.withinGroup[f], 'average'), 0);
   const [income, cogs, expense] = [within('income'), within('cogs'), within('expense')];
+  // GC-03: the sellers' cost of goods on the intercompany sales (usually a journal of its own, not
+  // posted as intercompany), and the profit on inventory the buyers still hold at the end of the
+  // period — unrealized profit, taken out of the total assets, equity and net income (IFRS 10 B86(c)).
+  // The fraction of the group's purchased inventory still on hand is the part of the sale profit
+  // that has not been realized yet; inventory bought from outside the group is assumed sold first.
+  const icCogsOnSales = added.reduce((s, m) => s + toReport(m, m.icCogsOnSales, 'average'), 0);
+  const icProfitOnSales = added.reduce((s, m) => s + toReport(m, m.icProfitOnSales, 'average'), 0);
+  const inventoryFromGroup = added.reduce((s, m) => s + toReport(m, m.inventoryFromGroup, 'closing'), 0);
+  const inventoryOnHand = added.reduce((s, m) => s + toReport(m, m.inventoryOnHand, 'closing'), 0);
+  const unrealizedProfit = inventoryFromGroup > 0 ? Math.round(icProfitOnSales * Math.min(1, inventoryOnHand / inventoryFromGroup)) : 0;
+  // P1 fix: the seller's COGS on intercompany sales is the group's real external cost once the
+  // buyer has sold or expensed the goods. Only the COGS on goods still in inventory at period end
+  // is unrealized and must be eliminated — scale it by the same inventory fraction as the profit.
+  const icCogsToEliminate = inventoryFromGroup > 0 ? Math.round(icCogsOnSales * Math.min(1, inventoryOnHand / inventoryFromGroup)) : 0;
   // Z-16: the parent's investment in the companies it owns, from its own balance sheet
   const parentRead = read.find(m => m.workspaceId === structure.parentId);
   let investment = 0;
@@ -390,8 +445,9 @@ export async function groupSummary(db: Firestore, input: { uid: string; groupId:
     }
   }
   const eliminated: Eliminated = {
-    assets: owedBy, liabilities: owedTo, difference: owedBy - owedTo, income, cogs, expense, profitDifference: income - cogs - expense, investment,
+    assets: owedBy, liabilities: owedTo, difference: owedBy - owedTo, income, cogs: cogs + icCogsToEliminate, expense, profitDifference: income - cogs - icCogsToEliminate - expense, investment,
     ...(anyBought ? { goodwill, belowBookValue } : {}),
+    ...(unrealizedProfit ? { unrealizedProfit } : {}),
   };
   const sum = (all: Array<GroupFigures & { cta: number }>, currency: string) => {
     const figures = all.filter((_, i) => !members[i].associate);
@@ -411,10 +467,11 @@ export async function groupSummary(db: Firestore, input: { uid: string; groupId:
     const picked = (associates || { profit: 0, equity: 0 }) as Associates;
     // net income stays the companies' own: what the two sides disagree on stays in it, and is said
     return {
-      currency, ...t, income: t.income - income, cogs: t.cogs - cogs, grossProfit: t.grossProfit - income + cogs, expense: t.expense - expense,
-      netIncome: t.netIncome + picked.profit,
-      totalAssets: t.totalAssets - owedBy - investment + goodwill + picked.equity, totalLiabilities: t.totalLiabilities - owedTo,
-      totalEquity: t.totalEquity - eliminated.difference - investment + goodwill + picked.equity, eliminated, ...otherOwners, ...(associates ? { associates: picked } : {}),
+      currency, ...t, income: t.income - income, cogs: t.cogs - cogs - icCogsToEliminate, grossProfit: t.grossProfit - income + cogs + icCogsToEliminate, expense: t.expense - expense,
+      // GC-03: the profit on inventory still inside the group is not the group's: it leaves net income
+      netIncome: t.netIncome + picked.profit - unrealizedProfit,
+      totalAssets: t.totalAssets - owedBy - investment + goodwill + picked.equity - unrealizedProfit, totalLiabilities: t.totalLiabilities - owedTo,
+      totalEquity: t.totalEquity - eliminated.difference - investment + goodwill + picked.equity - unrealizedProfit, eliminated, ...otherOwners, ...(associates ? { associates: picked } : {}),
     };
   };
   const total = members.length === 0 ? null

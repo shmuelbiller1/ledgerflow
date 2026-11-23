@@ -66,11 +66,25 @@ export function createOperationalReportRouter({ db, authorize }: ReportReadScope
     try {
       const { data: workspace } = await authorize(workspaceId, requestUser(req));
       const baseCurrency = String(workspace.currency || 'USD');
-      const [parties, documents] = await Promise.all([
+      const documentType = side === 'customer' ? 'invoice' : 'bill';
+      const [parties, documents, settlements] = await Promise.all([
         streamWorkspaceCollection<Customer | Vendor>(db, side === 'customer' ? 'customers' : 'vendors', workspaceId),
         streamWorkspaceCollection<Invoice | Bill>(db, side === 'customer' ? 'invoices' : 'bills', workspaceId),
+        // RP-01: reconstruct the balance as of asOfDate from dated settlement events; documents
+        // issued after the cutoff and settlements dated after it are left out of the snapshot
+        streamWorkspaceCollection<Record<string, unknown>>(db, 'paymentAllocations', workspaceId)
+          .then(rows => rows
+            .filter(r => r.documentType === documentType && typeof r.date === 'string' && r.date.slice(0, 10) <= asOfDate)
+            .map(r => ({
+              documentId: String(r.documentId), documentType: documentType as 'invoice' | 'bill',
+              date: String(r.date), // RP-01: baseClearedCents is the amount cleared from the control account; baseSettledCents
+// is the cash settlement value, which differs when a foreign document is paid at a different
+// rate. The aging snapshot must deduct what the control account actually cleared.
+amountCents: Number(r.baseClearedCents) || 0,
+              kind: r.kind === undefined ? undefined : String(r.kind),
+            }))),
       ]);
-      const rows = computePartyAging(parties, documents, side, asOfDate, baseCurrency);
+      const rows = computePartyAging(parties, documents, side, asOfDate, baseCurrency, settlements);
       return res.json({ rows, provenance: serverProvenance() });
     } catch (error) {
       return handleCommonError(res, error, 'Failed to generate party aging report');

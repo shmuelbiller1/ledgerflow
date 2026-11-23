@@ -1,3 +1,4 @@
+import { RowTable } from '../ui/RowTable';
 // Keep form helpers reachable for the structural component guard.
 import { Field as _Field } from '../common/Field';
 import React, { useState } from 'react';
@@ -10,7 +11,6 @@ import { toast } from 'sonner';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { suggestionsFrom } from '../../lib/inlineEdit';
 import { ACCOUNT_GROUP_INDENT_PX, accountGroupLayout, accountParentProblem, allowedParentAccounts, rowsInsideExpandedGroups } from '../../lib/accountGroups';
-import type { AccountGroupLayoutRow } from '../../lib/accountGroups';
 import InlineEdit from '../ui/InlineEdit';
 import MergeAccountDialog from './MergeAccountDialog';
 import { AccountGroupToggle } from './AccountGroupControls';
@@ -94,20 +94,70 @@ export default function ChartOfAccountsView({ accounts, searchTerm, formatCurren
     ];
   };
 
-  const renderRow = (row: AccountGroupLayoutRow<ChartAccount>) => {
-    const account = row.member;
+  const filteredFlat = listed.filter(a => 
+    a.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    a.code.includes(searchTerm)
+  ).sort((a, b) => a.code.localeCompare(b.code));
+
+  return (
+    <div className="bg-[var(--surface)] rounded-xl border border-[var(--line)]/85 shadow-3xs overflow-hidden">
+      {(archivedCount > 0 || listed.length > 0) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 m-3">
+          <div>
+            {archivedCount > 0 && (
+              <button type="button" aria-pressed={showArchived} onClick={() => setShowArchived(v => !v)}
+                className="option-state inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--line)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)]">
+                <Archive aria-hidden="true" size={13} /> {showArchived ? 'Hide archived accounts' : `Show archived accounts (${archivedCount})`}
+              </button>
+            )}
+          </div>
+          {listed.length > 0 && (
+            <button
+              type="button"
+              onClick={() => downloadCsv(
+                'chart-of-accounts.csv',
+                ['Code', 'Name', 'Type', 'Category', 'Description', 'Currency', 'Balance'],
+                listed.map(a => [a.code, a.name, a.type, a.category || '', a.description || '', a.currency || '', csvMoney(a.balanceCents || 0)]),
+              )}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--text)] hover:border-[var(--brass-line)]"
+            >
+              <Download aria-hidden="true" size={13} /> Export CSV
+            </button>
+          )}
+        </div>
+      )}
+      <div className="overflow-x-auto" role="region" aria-label="Chart of accounts table" tabIndex={0}>{/* NOSONAR: S6845 — focusable scroll region lets keyboard users pan the wide table on narrow screens */}
+        <RowTable
+caption={"Chart of accounts"}
+captionClassName={"sr-only"}
+tableClassName={"w-full border-collapse text-start text-xs min-w-[750px]"}
+headRowClassName={''}
+headerRowClassName={"border-b border-[var(--line)] bg-[var(--ink)]/70 text-[var(--muted)] font-bold uppercase tracking-wider"}
+bodyClassName={"divide-y divide-slate-100"}
+rows={(searchTerm === '' ? rows : accountGroupLayout(filteredFlat.map(account => ({...account,parentId:undefined})), byCode)).map((row) => { const account = row.member;
     const depth = row.depth;
     const hasChildren = row.hasChildren;
     const isExpanded = expandedIds.has(account.id);
     const parent = accounts.find(a => a.id === account.parentId);
-
-    return (
-      <tr key={account.id} className={cn(
+return { row, account, depth, hasChildren, isExpanded, parent }; })}
+rowKey={({ account }) => account.id}
+rowHeaderClassName={'font-normal text-start'}
+rowClassName={({ depth }) => cn(
           "group hover:bg-[var(--ink)] transition-colors cursor-pointer border-b border-[var(--line)]",
           depth > 0 && "bg-[var(--ink)]/20"
-        )}>
-          <td className="p-4 font-mono text-xs text-[var(--muted)]" onClick={() => hasChildren && toggleExpand(account.id)}>
-            <div className="flex items-center gap-2" style={{ paddingInlineStart: `${depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
+        )}
+emptyRow={accounts.length === 0 ? <tr>
+                <td colSpan={6}>
+                  <EmptyState
+                    title="No accounts yet"
+                    description="Choose a chart of accounts to get started, or add your first account."
+                    actionLabel={onAddAccount ? 'Add your first account' : undefined}
+                    onAction={onAddAccount}
+                  />
+                </td>
+              </tr> : undefined}
+columns={[
+{ header: "Code", headClassName: "p-4 font-bold text-[9px] text-[var(--muted)]", className: "p-4 font-mono text-xs text-[var(--muted)]", cellProps: ({ account, hasChildren }) => ({ "onClick": () => hasChildren && toggleExpand(account.id) }), cell: ({ account, depth, hasChildren, isExpanded }) => (<div className="flex items-center gap-2" style={{ paddingInlineStart: `${depth * ACCOUNT_GROUP_INDENT_PX}px` }}>
               {hasChildren ? (
                 <AccountGroupToggle label={account.name} expanded={isExpanded}
                   onToggle={(event) => { event.stopPropagation(); toggleExpand(account.id); }} />
@@ -117,18 +167,14 @@ export default function ChartOfAccountsView({ accounts, searchTerm, formatCurren
               <InlineEdit value={account.code} label={`Code of ${account.name}`} canEdit={canEdit && !account.isSystem}
                 validate={v => !String(v) ? 'An account needs a code' : codes.has(String(v)) && codes.get(String(v)) !== account.id ? `${v} is already used` : null}
                 onSave={v => saveAccountField(account, 'code', v)} />
-            </div>
-          </td>
-          <td className="p-4" onClick={() => onDrillDown(account.name)}>
-            <InlineEdit value={account.name} label={`Name of ${account.name}`} canEdit={canEdit}
+            </div>) },
+{ header: "Account name", rowHeader: true, headClassName: "p-4 font-bold text-[9px] text-[var(--muted)]", className: "p-4", cellProps: ({ account }) => ({ "onClick": () => onDrillDown(account.name) }), cell: ({ account }) => (<><InlineEdit value={account.name} label={`Name of ${account.name}`} canEdit={canEdit}
               validate={v => String(v) ? null : 'An account needs a name'} onSave={v => saveAccountField(account, 'name', v)}
               className="font-bold text-[var(--text)] uppercase tracking-tight text-xs block" />
             {account.isArchived && <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-[var(--ink)] text-[var(--muted)] border border-[var(--line)]">Archived</span>}
             <InlineEdit value={account.description} label={`Description of ${account.name}`} placeholder={canEdit ? 'Add description' : undefined} canEdit={canEdit}
-              onSave={v => saveAccountField(account, 'description', v)} className="text-[10px] text-[var(--muted)] mt-0.5 truncate max-w-md block" />
-          </td>
-          <td className="p-4">
-            <span className={cn(
+              onSave={v => saveAccountField(account, 'description', v)} className="text-[10px] text-[var(--muted)] mt-0.5 truncate max-w-md block" /></>) },
+{ header: "Type", headClassName: "p-4 font-bold text-[9px] text-[var(--muted)]", className: "p-4", cell: ({ account }) => (<span className={cn(
               "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border",
               account.type === 'asset' ? "bg-blue-50 border-blue-100 text-blue-700" :
               account.type === 'liability' ? "bg-amber-50 border-amber-100 text-amber-700" :
@@ -136,10 +182,8 @@ export default function ChartOfAccountsView({ accounts, searchTerm, formatCurren
               isIncomeAccount(account) ? "bg-emerald-50 border-emerald-100 text-emerald-700" : "bg-rose-50 border-rose-100 text-rose-700"
             )}>
               {account.type}
-            </span>
-          </td>
-          <td className="p-4 text-[var(--muted)] text-[10px] font-medium">
-            <InlineEdit value={account.category} label={`Category of ${account.name}`} placeholder="Uncategorized" canEdit={canEdit}
+            </span>) },
+{ header: "Category", headClassName: "p-4 font-bold text-[9px] text-[var(--muted)]", className: "p-4 text-[var(--muted)] text-[10px] font-medium", cell: ({ account, parent }) => (<><InlineEdit value={account.category} label={`Category of ${account.name}`} placeholder="Uncategorized" canEdit={canEdit}
               suggestions={categories} onSave={v => saveAccountField(account, 'category', v)} />
             {/* K-14: which account this one sits inside, chosen in place; a viewer reads it */}
             <div className="flex items-center gap-1.5 mt-1">
@@ -149,16 +193,12 @@ export default function ChartOfAccountsView({ accounts, searchTerm, formatCurren
                 options={parentOptions(account)}
                 validate={value => accountParentProblem(accounts, account, String(value))}
                 onSave={value => saveAccountParent(account, String(value) || null)} />
-            </div>
-          </td>
-          <td className={cn(
+            </div></>) },
+{ header: "Balance", headClassName: "p-4 font-bold text-[9px] text-[var(--muted)] text-right", cellProps: ({ account }) => ({ "className": cn(
             "p-4 text-right font-bold font-mono text-xs tabular-nums",
             account.balanceCents < 0 ? "text-rose-600" : "text-[var(--text)]"
-          )}>
-            {formatCurrency(account.balanceCents)}
-          </td>
-          <td className="p-4 text-right relative">
-            {canEdit && <button aria-label={`Account options for ${account.name}`}
+          ) }), cell: ({ account }) => (formatCurrency(account.balanceCents)) },
+{ header: <span className="sr-only">Actions</span>, headClassName: "p-4 w-10", className: "p-4 text-right relative", cell: ({ account }) => (<>{canEdit && <button aria-label={`Account options for ${account.name}`}
               onClick={(e) => {
                 e.stopPropagation();
                 setShowOptionsId(showOptionsId === account.id ? null : account.id);
@@ -207,76 +247,9 @@ export default function ChartOfAccountsView({ accounts, searchTerm, formatCurren
                   </motion.div>
                 </>
               )}
-            </AnimatePresence>
-          </td>
-      </tr>
-    );
-  };
-
-  const filteredFlat = listed.filter(a => 
-    a.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    a.code.includes(searchTerm)
-  ).sort((a, b) => a.code.localeCompare(b.code));
-
-  return (
-    <div className="bg-[var(--surface)] rounded-xl border border-[var(--line)]/85 shadow-3xs overflow-hidden">
-      {(archivedCount > 0 || listed.length > 0) && (
-        <div className="flex flex-wrap items-center justify-between gap-2 m-3">
-          <div>
-            {archivedCount > 0 && (
-              <button type="button" aria-pressed={showArchived} onClick={() => setShowArchived(v => !v)}
-                className="option-state inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--line)] text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)]">
-                <Archive aria-hidden="true" size={13} /> {showArchived ? 'Hide archived accounts' : `Show archived accounts (${archivedCount})`}
-              </button>
-            )}
-          </div>
-          {listed.length > 0 && (
-            <button
-              type="button"
-              onClick={() => downloadCsv(
-                'chart-of-accounts.csv',
-                ['Code', 'Name', 'Type', 'Category', 'Description', 'Currency', 'Balance'],
-                listed.map(a => [a.code, a.name, a.type, a.category || '', a.description || '', a.currency || '', csvMoney(a.balanceCents || 0)]),
-              )}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--text)] hover:border-[var(--brass-line)]"
-            >
-              <Download aria-hidden="true" size={13} /> Export CSV
-            </button>
-          )}
-        </div>
-      )}
-      <div className="overflow-x-auto" role="region" aria-label="Chart of accounts table" tabIndex={0}>{/* NOSONAR: S6845 — focusable scroll region lets keyboard users pan the wide table on narrow screens */}
-        <table className="w-full border-collapse text-start text-xs min-w-[750px]">
-          <caption className="sr-only">Chart of accounts</caption>
-          <thead>
-            <tr className="border-b border-[var(--line)] bg-[var(--ink)]/70 text-[var(--muted)] font-bold uppercase tracking-wider">
-              <th scope="col" className="p-4 font-bold text-[9px] text-[var(--muted)]">Code</th>
-              <th scope="col" className="p-4 font-bold text-[9px] text-[var(--muted)]">Account name</th>
-              <th scope="col" className="p-4 font-bold text-[9px] text-[var(--muted)]">Type</th>
-              <th scope="col" className="p-4 font-bold text-[9px] text-[var(--muted)]">Category</th>
-              <th scope="col" className="p-4 font-bold text-[9px] text-[var(--muted)] text-right">Balance</th>
-              <th scope="col" className="p-4 w-10"><span className="sr-only">Actions</span></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {searchTerm === ''
-              ? rows.map(row => renderRow(row))
-              // a search lists the accounts it found, never a half-open group
-              : accountGroupLayout(filteredFlat.map(account => ({ ...account, parentId: undefined })), byCode).map(row => renderRow(row))}
-            {accounts.length === 0 && (
-              <tr>
-                <td colSpan={6}>
-                  <EmptyState
-                    title="No accounts yet"
-                    description="Choose a chart of accounts to get started, or add your first account."
-                    actionLabel={onAddAccount ? 'Add your first account' : undefined}
-                    onAction={onAddAccount}
-                  />
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </AnimatePresence></>) }
+]}
+/>
       </div>
       {merging && <MergeAccountDialog account={merging} accounts={accounts} onClose={() => setMerging(null)} />}
     </div>

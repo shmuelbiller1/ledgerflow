@@ -645,34 +645,27 @@ function WorkspaceImportSettings({ workspaceId, userId, canImportAccounts }: { w
                     {refused > 0 && <> <strong className="text-[var(--neg)]">{refused}</strong> of these {previewRows.length > 1 ? `${previewRows.length} shown` : 'shown'} will be refused.</>}
                   </p>
                   <div className="overflow-auto border border-[var(--line)] rounded-xl max-h-96">
-                    <table className="w-full text-xs">
-                      <caption className="sr-only">First rows to import</caption>
-                      <thead className="bg-[var(--panel)] text-[var(--muted)]">
-                        <tr>
-                          <th scope="col" className="text-left px-3 py-2">Row</th>
-                          {shownFields.map(f => <th scope="col" key={f.key} className="text-left px-3 py-2">{f.label}</th>)}
-                          <th scope="col" className="text-left px-3 py-2">Result</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {previewRows.map(row => (
-                          <tr key={row.row} className={cn('border-t border-[var(--line)]', row.problems.length > 0 && 'bg-[var(--neg-soft,var(--panel))]')}>
-                            <td className="px-3 py-1.5 font-mono">{row.row}</td>
-                            {shownFields.map(f => {
-                              const value = row.values[f.key];
+                    <RowTable
+caption={"First rows to import"}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-xs"}
+headRowClassName={"bg-[var(--panel)] text-[var(--muted)]"}
+bodyClassName={''}
+rows={previewRows}
+rowKey={row => row.row}
+rowHeaderColumn={false}
+rowClassName={row => cn('border-t border-[var(--line)]', row.problems.length > 0 && 'bg-[var(--neg-soft,var(--panel))]')}
+columns={[
+{ header: "Row", headClassName: "text-left px-3 py-2", className: "px-3 py-1.5 font-mono", cell: row => (row.row) },
+{ over: shownFields, head: f => (f.label), headClassName: "text-left px-3 py-2", className: "px-3 py-1.5 text-[var(--text)]", cell: (row, f) => { const value = row.values[f.key];
                               const shown = f.type === 'money' && typeof value === 'number' ? formatCurrency(value) : value === undefined ? '' : String(value);
-                              return <td key={f.key} className="px-3 py-1.5 text-[var(--text)]">{shown}</td>;
-                            })}
-                            <td className="px-3 py-1.5">
-                              {row.problems.length > 0 && <span className="inline-flex items-start gap-1 text-[var(--neg)]"><AlertCircle size={12} className="mt-0.5 shrink-0" aria-hidden="true" />Will be refused: {row.problems.join('; ')}</span>}
+return (shown); } },
+{ header: "Result", headClassName: "text-left px-3 py-2", className: "px-3 py-1.5", cell: row => (<>{row.problems.length > 0 && <span className="inline-flex items-start gap-1 text-[var(--neg)]"><AlertCircle size={12} className="mt-0.5 shrink-0" aria-hidden="true" />Will be refused: {row.problems.join('; ')}</span>}
                               {row.problems.length === 0 && (skippedByRow.has(row.row)
                                 ? <span className="text-[var(--muted)]">Skipped in check: {skippedByRow.get(row.row)}</span>
-                                : <span className="inline-flex items-center gap-1 text-[var(--pos)]"><CheckCircle2 size={12} aria-hidden="true" />{check ? 'Ready to import' : 'Passed file checks'}</span>)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                                : <span className="inline-flex items-center gap-1 text-[var(--pos)]"><CheckCircle2 size={12} aria-hidden="true" />{check ? 'Ready to import' : 'Passed file checks'}</span>)}</>) }
+]}
+/>
                   </div>
                 </div>
               );
@@ -713,27 +706,28 @@ function WorkspaceImportSettings({ workspaceId, userId, canImportAccounts }: { w
             <h3 id="import-count-proof-title" className="text-sm font-bold text-[var(--text)]">Import count comparison</h3>
             <p className="text-xs text-[var(--muted)]">Compares submitted spreadsheet records with the server response for this import. It does not check the trial balance, cash, receivables, payables, taxes or saved ledger amounts.</p>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <caption className="sr-only">Source record counts and server-reported import counts</caption>
-                <thead><tr className="border-b border-[var(--line)]">
-                  <th scope="col" className="py-2 text-left">Measurement</th>
-                  <th scope="col" className="py-2 text-right">Count</th>
-                </tr></thead>
-                <tbody className="text-[var(--text)]">
-                  {([
+              <RowTable
+caption={"Source record counts and server-reported import counts"}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-sm"}
+headRowClassName={''}
+headerRowClassName={"border-b border-[var(--line)]"}
+bodyClassName={"text-[var(--text)]"}
+rows={([
                     ['Source data rows', countProof?.sourceRows],
                     ['Validated rows submitted', countProof?.preparedRows],
                     ['Reported as created', countProof?.created],
                     ['Reported as existing (skipped)', countProof?.skipped],
                     ['Submitted rows not accounted for', countProof?.unexplained],
-                  ] as Array<[string, number | undefined]>).map(([label, value]) => (
-                    <tr key={label} className="border-b border-[var(--line)]">
-                      <th scope="row" className="py-2 text-left font-normal">{label}</th>
-                      <td className="py-2 text-right tabular-nums font-mono">{value === undefined ? 'Not available' : value}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                  ] as Array<[string, number | undefined]>)}
+rowKey={([label, _value]) => label}
+rowHeaderClassName={''}
+rowClassName={"border-b border-[var(--line)]"}
+columns={[
+{ header: "Measurement", headClassName: "py-2 text-left", className: "py-2 text-left font-normal", cell: ([label, _value]) => (label) },
+{ header: "Count", headClassName: "py-2 text-right", className: "py-2 text-right tabular-nums font-mono", cell: ([_label, value]) => (value === undefined ? 'Not available' : value) }
+]}
+/>
             </div>
             <p className="text-xs font-semibold text-[var(--text)]" role="status">
               {countProof?.status === 'counts-explained' ? 'Counts explained by the server response — financial reconciliation not verified.' :

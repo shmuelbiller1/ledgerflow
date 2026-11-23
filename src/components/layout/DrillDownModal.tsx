@@ -136,23 +136,18 @@ export default function DrillDownModal({ isOpen, onClose, accountName, transacti
 
             <div className="flex-1 overflow-auto p-4 md:p-8 custom-scrollbar">
               {explained ? <Explained request={explained} formatCurrency={formatCurrency} onOpen={onClose} onFail={failExplain} /> : <>
-              <table className="w-full text-left border-separate border-spacing-y-2">
-                <caption className="sr-only">Entries behind this amount</caption>
-                {explain?.accountIds?.length ? (
+              <>{explain?.accountIds?.length ? (
                   <p className="text-xs text-[var(--muted)] pb-2">
                     {explain.label ? `${explain.label} · ` : ''}the lines of the {explain.accountIds.length === 1 ? 'account' : `${explain.accountIds.length} accounts`} this figure is made of, from the entries this screen loaded.
                   </p>
-                ) : null}
-                <thead>
-                  <tr className="micro-label text-[var(--muted)]">
-                    <th scope="col" className="pb-4 pl-4 font-black">Date</th>
-                    <th scope="col" className="pb-4 font-black">Description</th>
-                    <th scope="col" className="pb-4 text-right pr-4 font-black">Impact</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions.slice(0, displayLimit).map((tx) => {
-                    // A statement total is made of several accounts, so the fallback list adds up the
+                ) : null}<RowTable
+caption={"Entries behind this amount"}
+captionClassName={"sr-only"}
+tableClassName={"w-full text-left border-separate border-spacing-y-2"}
+headRowClassName={''}
+headerRowClassName={"micro-label text-[var(--muted)]"}
+bodyClassName={''}
+rows={transactions.slice(0, displayLimit).map((tx) => { // A statement total is made of several accounts, so the fallback list adds up the
                     // lines of those accounts (the caller passes them); a single account's drill-down
                     // keeps matching by its name or id.
                     const amount = explain?.accountIds?.length
@@ -161,28 +156,11 @@ export default function DrillDownModal({ isOpen, onClose, accountName, transacti
                         const matchedLine = tx.lines?.find(l => l.accountName === accountName || l.accountId === accountName);
                         return matchedLine ? matchedLine.amountCents : tx.totalAmountCents;
                       })();
-
-                    return (
-                      <tr key={tx.id} className="group hover:bg-[var(--ink)] transition-all rounded-[32px] overflow-hidden">
-                        <td className="py-4 pl-4 text-xs font-black text-[var(--muted)] font-mono rounded-l-2xl border-y border-l border-[var(--line)] group-hover:border-slate-300">
-                          {tx.date ? formatDate(tx.date) : 'N/A'}
-                        </td>
-                        <td className="py-4 text-sm font-bold text-[var(--text)] border-y border-[var(--line)] group-hover:border-slate-300">
-                           <div className="flex flex-col">
-                             <span>{tx.description}</span>
-                             {tx.payee && <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider">{tx.payee}</span>}
-                           </div>
-                        </td>
-                        <td className={cn(
-                          "py-4 text-right pr-4 font-black font-mono border-y border-r border-[var(--line)] group-hover:border-slate-300 rounded-r-2xl tabular-nums",
-                          amount >= 0 ? "text-emerald-600" : "text-rose-600"
-                        )}>
-                          {amount >= 0 ? '+' : ''}{formatCurrency(amount)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {transactions.length > displayLimit && (
+return { tx, amount }; })}
+rowKey={({ tx }) => tx.id}
+rowHeaderClassName={'font-normal text-start'}
+rowClassName={"group hover:bg-[var(--ink)] transition-all rounded-[32px] overflow-hidden"}
+bodyEnd={transactions.length > displayLimit && (
                     <tr>
                       <td colSpan={3} className="py-6 text-center border border-dashed border-[var(--line)] rounded-[32px]">
                         <button 
@@ -194,8 +172,18 @@ export default function DrillDownModal({ isOpen, onClose, accountName, transacti
                       </td>
                     </tr>
                   )}
-                </tbody>
-              </table>
+columns={[
+{ header: "Date", headClassName: "pb-4 pl-4 font-black", className: "py-4 pl-4 text-xs font-black text-[var(--muted)] font-mono rounded-l-2xl border-y border-l border-[var(--line)] group-hover:border-slate-300", cell: ({ tx }) => (tx.date ? formatDate(tx.date) : 'N/A') },
+{ header: "Description", rowHeader: true, headClassName: "pb-4 font-black", className: "py-4 text-sm font-bold text-[var(--text)] border-y border-[var(--line)] group-hover:border-slate-300", cell: ({ tx }) => (<div className="flex flex-col">
+                             <span>{tx.description}</span>
+                             {tx.payee && <span className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider">{tx.payee}</span>}
+                           </div>) },
+{ header: "Impact", headClassName: "pb-4 text-right pr-4 font-black", cellProps: ({ amount }) => ({ "className": cn(
+                          "py-4 text-right pr-4 font-black font-mono border-y border-r border-[var(--line)] group-hover:border-slate-300 rounded-r-2xl tabular-nums",
+                          amount >= 0 ? "text-emerald-600" : "text-rose-600"
+                        ) }), cell: ({ amount }) => (<>{amount >= 0 ? '+' : ''}{formatCurrency(amount)}</>) }
+]}
+/></>
 
               {transactions.length === 0 && (
                 <div className="py-20 text-center space-y-4">

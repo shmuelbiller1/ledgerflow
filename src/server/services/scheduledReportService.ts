@@ -46,18 +46,32 @@ export async function reportEmail(db: Firestore, workspace: { id: string; name?:
   const currency = workspace.currency || 'USD';
   const html = reportEmailHtml(parts.map(p => p.table), { workspaceName: workspace.name || 'Your books', currency, format: cents => formatCurrency(cents, currency, workspace.moneyDisplay) });
   const title = parts.length > 1 ? `Report pack ${period.startDate} – ${period.endDate}` : parts[0].table.title;
-  const attachments = parts.map(p => ({ filename: `${p.kind}-${period.endDate}.csv`, content: Buffer.from(`\uFEFF${reportCsv(p.table)}`, 'utf8'), contentType: 'text/csv' }));
+  // RP-02: the attachment is in the book's currency, so money cells use its minor-unit scale
+  const attachments = parts.map(p => ({ filename: `${p.kind}-${period.endDate}.csv`, content: Buffer.from(`\uFEFF${reportCsv(p.table, currency)}`, 'utf8'), contentType: 'text/csv' }));
   return { subject: `${title} · ${workspace.name || `${BRAND_NAME}`}`, html, attachments };
 }
 
 export async function buildReport(db: Firestore, workspaceId: string, schedule: { report: Exclude<ScheduledReport['report'], 'report-pack'> }, period: ReportPeriod, baseCurrency = 'USD'): Promise<ReportTable> {
   const dayAfter = addToDateISO(period.endDate, { days: 1 });
   if (schedule.report === 'receivables-aging') {
-    const [customers, invoices] = await Promise.all([
+    const [customers, invoices, settlements] = await Promise.all([
       workspaceRows<Customer>(db, 'customers', workspaceId),
       workspaceRows<Invoice>(db, 'invoices', workspaceId, dayAfter),
+      // RP-01: the snapshot is reconstructed from dated settlement events through the period end,
+      // not from the documents' current state (a payment made after the report date, or a later
+      // void, must not change the historic aging)
+      workspaceRows<Record<string, unknown>>(db, 'paymentAllocations', workspaceId, dayAfter)
+        .then(rows => rows
+          .filter(r => r.documentType === 'invoice' && typeof r.date === 'string' && r.date.slice(0, 10) <= period.endDate)
+          .map(r => ({
+            documentId: String(r.documentId), documentType: 'invoice' as const,
+            date: String(r.date), // RP-01: baseClearedCents is the amount cleared from the control account, not the cash
+// settlement value (which differs for foreign documents paid at a different rate).
+amountCents: Number(r.baseClearedCents) || 0,
+            kind: r.kind === undefined ? undefined : String(r.kind),
+          }))),
     ]);
-    return agingTable(computePartyAging(customers, invoices, 'customer', period.endDate, baseCurrency), [...AGING_BUCKETS], period);
+    return agingTable(computePartyAging(customers, invoices, 'customer', period.endDate, baseCurrency, settlements), [...AGING_BUCKETS], period);
   }
   const [accounts, entries] = await Promise.all([
     workspaceRows<ChartAccount>(db, 'chartAccounts', workspaceId),

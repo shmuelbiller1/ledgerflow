@@ -10,14 +10,16 @@
 import type { Content, FunctionDeclaration } from '@google/genai';
 import type { ModelClient } from './assistantTurn';
 
+type ChatPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
 type ChatMessage =
-  | { role: 'system' | 'user'; content: string }
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string | ChatPart[] }
   | { role: 'assistant'; content: string | null; tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }> }
   | { role: 'tool'; tool_call_id: string; content: string };
 
 interface ChatReply {
   choices?: Array<{ message?: { content?: string | null; tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }> } }>;
-  usage?: { prompt_tokens?: number; completion_tokens?: number };
+  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
 }
 
 /** Gemini `contents` → OpenAI `messages`. Tool call ids are made from position, which is stable within a turn. */
@@ -37,6 +39,12 @@ export function toChatMessages(systemPrompt: string, contents: Content[]): ChatM
       }) });
     } else if (responses.length) {
       for (const p of responses) messages.push({ role: 'tool', tool_call_id: pending.shift() ?? `call_${callNo++}`, content: JSON.stringify(p.functionResponse!.response ?? {}) });
+    } else if (content.role !== 'model' && parts.some(p => p.inlineData)) {
+      // an image (receipt reading): sent as a data URL part beside the text, never dropped
+      messages.push({ role: 'user', content: parts.flatMap((p): ChatPart[] => {
+        if (p.inlineData?.data) return [{ type: 'image_url', image_url: { url: `data:${p.inlineData.mimeType ?? 'application/octet-stream'};base64,${p.inlineData.data}` } }];
+        return p.text ? [{ type: 'text', text: p.text }] : [];
+      }) });
     } else {
       messages.push({ role: content.role === 'model' ? 'assistant' : 'user', content: parts.map(p => p.text ?? '').join('') } as ChatMessage);
     }
@@ -54,12 +62,18 @@ export function toChatTools(declarations: FunctionDeclaration[]) {
 export function openAiCompatibleClient(options: { baseUrl: string; apiKey?: string; fetchImpl?: typeof fetch }): ModelClient {
   const doFetch = options.fetchImpl ?? fetch;
   return { models: { async generateContent(req) {
-    const config = (req.config ?? {}) as { systemInstruction?: string; tools?: Array<{ functionDeclarations?: FunctionDeclaration[] }> };
+    const config = (req.config ?? {}) as { systemInstruction?: string; tools?: Array<{ functionDeclarations?: FunctionDeclaration[] }>; responseMimeType?: string; responseJsonSchema?: unknown; toolConfig?: { functionCallingConfig?: { mode?: string } } };
     const declarations = (config.tools ?? []).flatMap(t => t.functionDeclarations ?? []);
     const body = {
       model: req.model,
       messages: toChatMessages(String(config.systemInstruction ?? ''), (req.contents ?? []) as Content[]),
       ...(declarations.length ? { tools: toChatTools(declarations) } : {}),
+      // Gemini's "no function calls" setting: the tools stay (the history refers to them), none may be called
+      ...(declarations.length && config.toolConfig?.functionCallingConfig?.mode === 'NONE' ? { tool_choice: 'none' } : {}),
+      // a JSON reply was asked for (receipt reading): the schema when given, else JSON mode
+      ...(config.responseMimeType === 'application/json'
+        ? { response_format: config.responseJsonSchema ? { type: 'json_schema', json_schema: { name: 'reply', schema: config.responseJsonSchema } } : { type: 'json_object' } }
+        : {}),
     };
     const res = await doFetch(`${options.baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
@@ -78,7 +92,8 @@ export function openAiCompatibleClient(options: { baseUrl: string; apiKey?: stri
     return {
       text: message.content ?? '',
       ...(functionCalls.length ? { functionCalls, candidates: [{ content: { role: 'model', parts: functionCalls.map(functionCall => ({ functionCall })) } }] } : {}),
-      usageMetadata: { promptTokenCount: reply.usage?.prompt_tokens ?? 0, candidatesTokenCount: reply.usage?.completion_tokens ?? 0 },
+      usageMetadata: { promptTokenCount: reply.usage?.prompt_tokens ?? 0, candidatesTokenCount: reply.usage?.completion_tokens ?? 0,
+        cachedContentTokenCount: reply.usage?.prompt_tokens_details?.cached_tokens ?? 0 },
     };
   } } };
 }

@@ -42,7 +42,7 @@ import {
 import type { Cursor, DocRow, QuerySpec, Runner } from './pg/sql';
 import { buildCreate, buildDelete, buildSet, buildUpdate, liveWriteSql, sandboxWriteSql, type WriteOp } from './pg/writes';
 import { enterSandbox, tableSource, validateSandboxId } from './pg/sandbox';
-import { assertOutsideCommandStage, commandStageId, commandStageReader, recordCommandReads, stageWrites } from './pg/commandStage';
+import { assertOutsideCommandStage, commandStageId, commandStageReader, recordCommandReads, stageWrites, transactionRunner } from './pg/commandStage';
 import { createSandboxBatch, sandboxBatch, type SandboxBatch } from './pg/sandboxBatch';
 
 export { FieldPath, FieldValue, FirestoreError, Timestamp, autoId } from './pg/values';
@@ -311,6 +311,7 @@ export class Transaction {
     return this;
   }
   [stageWrites]() { assertOutsideCommandStage(); return this.ops.map(op => op.ref); }
+  [transactionRunner](): Runner { return this.runner; }
 
   set<T>(ref: DocumentReference<T>, data: DocumentData, options?: SetOptions): Transaction {
     return this.buffer(buildSet(ref, data, options));

@@ -58,7 +58,9 @@ async function executeLegacyCommand<T>(
   operationType: string,
   action: (ctx: CommandContext, t: FirestoreTransaction) => Promise<T>,
   /** EG-4: fields added to a successful answer beside `data` (e.g. budgetWarnings), read after the action ran */
-  extra: () => Record<string, unknown> = () => ({})
+  extra: () => Record<string, unknown> = () => ({}),
+  /** ID-01: money-creating legacy routes opt in to an implicit content-scoped operation id */
+  options: { implicitIdempotency?: boolean } = {},
 ) {
   if (!workspaceId || typeof workspaceId !== 'string' || !workspaceId.trim()) {
     return res.status(400).json({
@@ -69,18 +71,24 @@ async function executeLegacyCommand<T>(
 
   const user = requestUser(req);
   const rawOperationId = extractCanonicalOperationId(req);
+  // ID-01: an opted-in route gives a request with no explicit id an implicit, content-derived one,
+  // so a headerless retry of the same content replays the stored result instead of executing the
+  // money movement a second time. The record carries the actor: a different user repeating the same
+  // content is refused (409), never replayed.
+  const operationId = rawOperationId || (options.implicitIdempotency ? `implicit_${requestPayloadHash(req.body)}` : undefined);
 
   const ctx: CommandContext = {
     actor: user?.uid || 'anonymous',
     workspaceId: workspaceId.trim(),
     operationType,
-    operationId: rawOperationId
+    operationId
   };
 
   const db = getDb();
 
-  if (!rawOperationId) {
-    // No operation ID provided: execute within a single Firestore transaction
+  if (!operationId) {
+    // No operation ID and the route did not opt into an implicit one: execute within a single
+    // Firestore transaction, exactly as before ID-01.
     try {
       const result = await db.runTransaction(async (t) => {
         return await action(ctx, t);
@@ -107,7 +115,7 @@ async function executeLegacyCommand<T>(
   }
 
   // Canonical namespaced key: workspaceId:operationType:operationId
-  const scopedKey = deriveScopedOperationKey(ctx.workspaceId, operationType, rawOperationId);
+  const scopedKey = deriveScopedOperationKey(ctx.workspaceId, operationType, operationId);
 
   try {
     const result = await executeIdempotent(scopedKey, { ...ctx, payloadHash: requestPayloadHash(req.body) }, async (t) => {
@@ -436,11 +444,16 @@ export async function runRegisteredCommand(
   if (explicitOperationId && !OPERATION_ID_SHAPE.test(explicitOperationId)) {
     return { ok: false, status: 400, command: command.name, message: 'Invalid operation ID', code: 'INVALID_OPERATION_ID' };
   }
-  const operationId = explicitOperationId || safeDerivedOperationId(command.defaultOperationId?.(input));
+  const derivedOperationId = explicitOperationId ? undefined : safeDerivedOperationId(command.defaultOperationId?.(input));
+  // ID-01: when neither an explicit nor a command-derived id exists, an implicit content-derived
+  // id is attached below, once the record's payload hash is known.
+  let operationId = explicitOperationId || derivedOperationId;
   // #824: a derived id stands for the thing posted (a contract's period, a lease), not for one person's request,
   // so its record carries no actor, as the old route's did: a teammate repeating the same contract and period
-  // gets the replay rather than an "already used by another user" refusal.
-  const idempotencyActor = explicitOperationId ? user.uid : '';
+  // gets the replay rather than an "already used by another user" refusal. An implicit id (ID-01) is bound to
+  // the request content, so its record does carry the actor: a different user repeating the same content is
+  // refused, never replayed.
+  const idempotencyActor = derivedOperationId ? '' : user.uid;
 
   const operationType = command.operationType || command.name;
   const initialContext = {
@@ -461,11 +474,28 @@ export async function runRegisteredCommand(
   } catch (error) {
     return errorOutcome(error, command.name);
   }
+  // ID-01: a money-creating command that opts in (command.implicitIdempotency) gives a request
+  // with neither an explicit nor a command-derived id an implicit, content-derived one, so a
+  // headerless retry of the same content replays the stored result instead of executing the
+  // money movement again. The key is derived from the very hash the record stores (the command's
+  // own idempotency hash when it has one), so a retry always finds its record regardless of how
+  // the command fingerprints its input. Commands that do not opt in keep the old behavior: no
+  // key, no replay lookup, one execution per request.
   let payloadHash: string | undefined;
-  if (operationId) {
+  if (operationId || command.implicitIdempotency) {
     try {
       const hashContext = { ...initialContext, ...(date ? { effectiveDate: date } : {}) };
       payloadHash = command.idempotencyHash?.(hashContext, input, undefined, req) ?? requestPayloadHash(req.body);
+      if (!operationId && command.implicitIdempotency) {
+        operationId = `implicit_${payloadHash}`;
+        initialContext.operationId = operationId;
+      }
+    } catch (error) {
+      return errorOutcome(error, command.name);
+    }
+  }
+  if (operationId) {
+    try {
       const scopedKey = deriveScopedOperationKey(workspaceId, operationType, operationId);
       const previous = await db.collection('idempotencyKeys').doc(scopedKey).get();
       const record = previous.data();
@@ -632,6 +662,7 @@ export function executeCommand<T>(
   operationType: string,
   action: (ctx: CommandContext, t: FirestoreTransaction) => Promise<T>,
   extra?: () => Record<string, unknown>,
+  options?: { implicitIdempotency?: boolean },
 ): Promise<unknown>;
 export async function executeCommand<T>(
   req: Request,
@@ -640,11 +671,12 @@ export async function executeCommand<T>(
   operationTypeOrDependencies?: string | CommandRunnerDependencies,
   action?: (ctx: CommandContext, t: FirestoreTransaction) => Promise<T>,
   extra?: () => Record<string, unknown>,
+  options?: { implicitIdempotency?: boolean },
 ): Promise<unknown> {
   if (typeof invocationOrWorkspaceId === 'string') {
     return executeLegacyCommand(req, res, invocationOrWorkspaceId, String(operationTypeOrDependencies || ''), action || (async () => {
       throw new HttpError('A legacy command action is required', 500);
-    }), extra);
+    }), extra, options);
   }
 
   const dependencies = typeof operationTypeOrDependencies === 'object' ? operationTypeOrDependencies : undefined;

@@ -98,7 +98,7 @@ test('the same loop runs on an OpenAI-compatible endpoint (Arena): tools, tool r
   }) as unknown as typeof fetch;
   const client = openAiCompatibleClient({ baseUrl: 'https://api.example.test/v1/', fetchImpl });
   const { answer, metric } = await runAssistantTurn({
-    client, model: 'gpt-6-luna', systemPrompt: 'SYS', question: 'How much cash?', now: clock(),
+    client, model: 'unpriced-test-model', systemPrompt: 'SYS', question: 'How much cash?', now: clock(),
     tools: [{ name: 'ask_books', description: 'a', parametersJsonSchema: { type: 'object' } } as never],
     callTool: async (name, args) => ({ name, args, cents: 1000 }),
   });
@@ -106,7 +106,7 @@ test('the same loop runs on an OpenAI-compatible endpoint (Arena): tools, tool r
   assert.deepEqual(metric.toolsCalled, ['ask_books']);
   assert.equal(metric.inputTokens, 1850);
   assert.equal(metric.outputTokens, 23);
-  assert.equal(metric.costCents, null, 'gpt-6-luna has no price row yet: unknown, not guessed');
+  assert.equal(metric.costCents, null, 'an unpriced model remains unknown, not guessed');
   const first = bodies[0] as { messages: Array<{ role: string; content: unknown }>; tools: Array<{ function: { name: string } }> };
   assert.deepEqual(first.messages.map(m => m.role), ['system', 'user']);
   assert.equal(first.tools[0].function.name, 'ask_books');

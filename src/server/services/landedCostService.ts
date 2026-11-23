@@ -375,7 +375,7 @@ export async function landInTransaction(db: Firestore, t: DbTransaction, input: 
   }).filter(m => m.valueCents !== 0));
   for (const itemId of itemIds) {
     const after = lines.find(l => l.itemId === itemId)?.unitCostAfterCents;
-    if (after !== undefined && after !== Math.round(Number(items.get(itemId)?.unitCostCents) || 0)) t.update(db.collection('inventory').doc(itemId), { unitCostCents: after, updatedAt: FieldValue.serverTimestamp() });
+    if (after !== undefined && after !== Math.round(Number(items.get(itemId)?.unitCostCents) || 0)) t.update(db.collection('inventory').doc(itemId), { unitCostCents: after, unitCostMicroCents: Math.round(after * 1_000_000), updatedAt: FieldValue.serverTimestamp() });
   }
   await writeServerAuditLog({
     workspaceId, uid: user.uid, email: user.email, action: 'landed-cost', entityType: 'transaction', entityId: entryId,
@@ -469,7 +469,7 @@ export async function undoLandedCostInTransaction(db: Firestore, t: DbTransactio
       const item = items.get(itemId) || {};
       const was = Number.isSafeInteger(costBefore[itemId]) ? costBefore[itemId]
         : movingAverageCents(Number(item.quantityAtHand) || 0, Math.round(Number(item.unitCostCents) || 0), -(back.get(itemId) || 0), Number(item.quantityAtHand) || 1);
-      if (was !== Math.round(Number(item.unitCostCents) || 0)) t.update(db.collection('inventory').doc(itemId), { unitCostCents: was, updatedAt: FieldValue.serverTimestamp() });
+      if (was !== Math.round(Number(item.unitCostCents) || 0)) t.update(db.collection('inventory').doc(itemId), { unitCostCents: was, unitCostMicroCents: Math.round(was * 1_000_000), updatedAt: FieldValue.serverTimestamp() });
     }
     await writeServerAuditLog({
       workspaceId, uid: user.uid, email: user.email, action: 'landed-cost-undo', entityType: 'transaction', entityId: entryId,

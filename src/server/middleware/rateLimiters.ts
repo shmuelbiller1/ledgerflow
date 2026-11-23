@@ -100,6 +100,21 @@ export const apiKeyRateLimiter = rateLimit({
 });
 
 /**
+ * #945 (S-22): the sign-in history routes (the app records every sign-in, sign-out and token refresh, and
+ * lists past sign-ins). They run after apiAuthenticate and count per person, not per IP, and far looser
+ * than authRateLimiter (5 per 15 minutes per IP, meant for revoking sessions and deleting the account), so
+ * several people behind one office address are never refused for ordinary use.
+ */
+export const authAuditRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 30,
+  keyGenerator: (req) => `auth-audit:${String((req as unknown as { user?: { uid?: string } }).user?.uid || 'anonymous')}`,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { status: 'error', code: 'RATE_LIMIT_EXCEEDED', message: 'Too many sign-in history requests this minute. Please wait and try again.' },
+});
+
+/**
  * The app-wide limiters (F-01, moved from server.ts). A new set per app, so each app (and each
  * test) counts on its own.
  */
