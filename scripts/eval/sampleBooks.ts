@@ -213,7 +213,11 @@ export function bookTool(name: string, args: Record<string, unknown>): unknown {
       if (!lines.length) return { error: 'Name the accounts to explain (accountIds)' };
       return { startDate: from, endDate: to, totalCents: lines.reduce((t, l) => t + l.cents, 0), lines };
     }
-    case 'calculate': { const v = safeCalc(s(args.expression)); return v === null ? { error: 'Only numbers and + - * / ( ) % are allowed' } : { expression: args.expression, amount: v, cents: Math.round(v * 100) }; }
+    case 'calculate': {
+      const one = (e: string) => { const v = safeCalc(e); return v === null ? { expression: e, error: 'Only numbers and + - * / ( ) % are allowed' } : { expression: e, amount: v, cents: Math.round(v * 100) }; };
+      if (Array.isArray(args.expressions)) return { results: args.expressions.slice(0, 20).map(e => one(s(e))) };
+      const r = one(s(args.expression)); return 'error' in r ? { error: r.error } : r;
+    }
     case 'remembered_choices': return { suggestions: [] };
     case 'list_proposals': return { proposals: [] };
     case 'preview_proposal': return { proposal: null };

@@ -80,7 +80,7 @@ export function chooseModel(question: string, routerReason: string, commands: re
   const strong = (reason: string): ModelChoice => ({ tier: 'strong', model: models.strong, reason });
   const text = question.trim().replace(/\s+/g, ' ');
   if (routerReason === 'vague' || routerReason === 'several-questions' || VAGUE.test(text)) return strong('ambiguous');
-  const [closest] = findAssistantCommands(commands, text, 1);
+  const [closest] = findAssistantCommands(commands, text, 1, { strict: true });
   const closestRisk = closest ? commands.find(command => command.name === closest.command)?.risk : undefined;
   if (HIGH_RISK.test(text) || closestRisk === 'high') return strong('high-risk');
   if ((text.match(ACTIONS) ?? []).length >= 2 || CHAIN.test(text) || ANALYSIS.test(text)) return strong('several-steps');
