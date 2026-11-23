@@ -56,7 +56,7 @@ async function repostBill(opts: {
   const stock: InventoryItem[] = billItems().map(i => ({ ...i, standardCostCents, ...(unitCostCents !== undefined ? { unitCostCents } : {}) }));
   const captured: LedgerPostContext['capture'] = [];
   const context: LedgerPostContext = {
-    ...contextFor({ enabled: standardizing, varianceAccountId }, captured, stock),
+    ...contextFor({ enabled: standardizing, varianceAccountId: varianceAccountId || 'acc_ppv' }, captured, stock),
     transactions: [priorAccrual],
   };
   await postBillLedger(billId, {
@@ -66,7 +66,7 @@ async function repostBill(opts: {
     splits: (splits ?? [{ amountCents, description: 'Chair', quantity }])
       .map(sp => ({ ...sp, accountId: 'acc_inv', itemId: 'chair' })),
   } as never, WS, OWNER, undefined, context);
-  const accrual = captured[0].txs.find(t => t.metadata?.type === BILL_ACCRUAL_TYPE);
+  const accrual = captured[0].txs.find(t => t.metadata?.type === BILL_ACCRUAL_TYPE) as Transaction | undefined;
   assert.ok(accrual, 'the bill posted its accrual entry');
   return accrual!;
 }
