@@ -92,7 +92,7 @@ export function getLineDimension(
   let rawVal = 'Unassigned';
 
   // 1. Check line.dimensions map
-  if (line.dimensions && line.dimensions[normDim]) {
+  if (line.dimensions && Object.hasOwn(line.dimensions, normDim) && line.dimensions[normDim]) {
     rawVal = line.dimensions[normDim];
   } else if (normDim === 'class' && line.class) {
     rawVal = line.class;
@@ -121,7 +121,7 @@ export function getLineDimension(
 
     if (rawVal === 'Unassigned') {
       // 4. Transaction-level dimensions & legacy aliases
-      if (tx?.dimensions && tx.dimensions[normDim]) {
+      if (tx?.dimensions && Object.hasOwn(tx.dimensions, normDim) && tx.dimensions[normDim]) {
         rawVal = tx.dimensions[normDim];
       } else if (tx) {
         if (normDim === 'project' && tx.projectId) rawVal = tx.projectId;

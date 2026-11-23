@@ -50,11 +50,14 @@ export const grossOf = (opening: BalancesAsOf): OpeningGross => ({ debits: openi
 /** The by-label opening of one value and of the lines with no value (a kind no entry carried: every line has none). */
 export function labelOpeningOf(opening: BalancesAsOf, dimensionId: string, value: string): LabelOpening {
   const kind = dimensionId.normalize('NFC').toLowerCase().trim();
-  const values = opening.byLabel?.[kind];
-  const lines = opening.labelLines?.[kind];
+  const values = opening.byLabel && Object.hasOwn(opening.byLabel, kind) ? opening.byLabel[kind] : undefined;
+  const lines = opening.labelLines && Object.hasOwn(opening.labelLines, kind) ? opening.labelLines[kind] : undefined;
   const allLines = Object.values(opening.lines || {}).reduce((a, b) => a + b, 0);
-  const unlabelled = { cents: values ? (values[UNASSIGNED] || {}) : opening.accounts, lines: lines ? (lines[UNASSIGNED] || 0) : (values ? 0 : allLines) };
+  const unlabelled = {
+    cents: values ? (Object.hasOwn(values, UNASSIGNED) ? values[UNASSIGNED] : {}) : opening.accounts,
+    lines: lines ? (Object.hasOwn(lines, UNASSIGNED) ? lines[UNASSIGNED] : 0) : (values ? 0 : allLines),
+  };
   // asked for "Unassigned" itself: those lines are the value's (getLineDimension answers "Unassigned"), none are left over
   if (value === UNASSIGNED) return { value: unlabelled.cents as OpeningCents, notLabelled: {}, notLabelledLines: 0 };
-  return { value: (values?.[value] || {}) as OpeningCents, notLabelled: unlabelled.cents, notLabelledLines: unlabelled.lines };
+  return { value: (values && Object.hasOwn(values, value) ? values[value] : {}) as OpeningCents, notLabelled: unlabelled.cents, notLabelledLines: unlabelled.lines };
 }
