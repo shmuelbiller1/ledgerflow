@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlaskConical, Check, X, RotateCcw, AlertTriangle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { runCommand, ServerCommandError } from '../../lib/runCommand';
@@ -79,6 +79,7 @@ export default function SandboxReviewView() {
 
   // Reads are effects keyed by what they read (and a tick for an explicit refresh); the answers land
   // asynchronously, so a stale answer for an earlier sandbox is dropped by `on`.
+  const restoreWarningShown = useRef(false);
   const [listTick, setListTick] = useState(0);
   const [reviewTick, setReviewTick] = useState(0);
   const refreshList = useCallback(() => setListTick(t => t + 1), []);
@@ -96,7 +97,12 @@ export default function SandboxReviewView() {
           const key = `lf_assistant_review_${workspaceId}`;
           requested = sessionStorage.getItem(key) || '';
           sessionStorage.removeItem(key);
-        } catch { toast.error('Could not restore the selected draft. Please select it from the list.'); }
+        } catch {
+          if (!restoreWarningShown.current) {
+            restoreWarningShown.current = true;
+            toast.error('A requested draft selection cannot be restored. Please choose a draft from the list.');
+          }
+        }
         setSandboxId(current => requested && body.sandboxes.some(s => s.id === requested) ? requested
           : current && body.sandboxes.some(s => s.id === current) ? current : (body.sandboxes[0]?.id || ''));
       })
