@@ -12,7 +12,7 @@ interface Message { id: number; role: 'user' | 'assistant'; text: string; source
 /** The review screen validates the requested id against this person's open sandboxes. */
 const reviewSelectionKey = (workspaceId: string) => `lf_assistant_review_${workspaceId}`;
 function rememberAssistantDraft(workspaceId: string, sandboxId: string) {
-  try { sessionStorage.setItem(reviewSelectionKey(workspaceId), sandboxId); } catch { /* review still opens with its normal picker */ }
+  try { sessionStorage.setItem(reviewSelectionKey(workspaceId), sandboxId); return true; } catch { return false; }
 }
 
 export default function Copilot() {
@@ -85,7 +85,10 @@ function AssistantChat({ workspaceId }: { workspaceId: string }) {
   };
 
   const openReview = () => {
-    if (sandboxId) rememberAssistantDraft(workspaceId, sandboxId);
+    if (sandboxId && !rememberAssistantDraft(workspaceId, sandboxId)) {
+      setError('Could not select this draft automatically. Open Assistant drafts from All tools and select the draft there.');
+      return;
+    }
     navigate('sandbox-review');
   };
   return <section className="mx-auto w-full max-w-4xl space-y-5 p-4 md:p-8" aria-labelledby="assistant-title">

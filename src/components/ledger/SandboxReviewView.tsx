@@ -96,7 +96,7 @@ export default function SandboxReviewView() {
           const key = `lf_assistant_review_${workspaceId}`;
           requested = sessionStorage.getItem(key) || '';
           sessionStorage.removeItem(key);
-        } catch { /* use the normal picker */ }
+        } catch { toast.error('Could not restore the selected draft. Please select it from the list.'); }
         setSandboxId(current => requested && body.sandboxes.some(s => s.id === requested) ? requested
           : current && body.sandboxes.some(s => s.id === current) ? current : (body.sandboxes[0]?.id || ''));
       })
