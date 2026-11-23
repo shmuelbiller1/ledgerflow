@@ -6,6 +6,7 @@ import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
+import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { runDataChecks } from '../../lib/dataChecks';
 import { needsAttention } from '../../lib/needsAttention';
 import { getLocalDateISO } from '../../lib/utils';
@@ -32,6 +33,7 @@ export default function NeedsAttentionCard() {
   const inventory = useLedgerStore(s => s.inventory);
   const bankLines = useLedgerStore(s => s.bankLines);
   const payRuns = useLedgerStore(s => s.payRuns);
+  const viewer = useCurrentRole() === 'viewer';
   const { loading } = useLedgerCollections('bankLines', 'bills', 'inventory', 'invoices', 'payRuns', 'recurring');
   const { data: purchaseOrders } = useCollection<PurchaseOrder>('purchaseOrders', { where: [{ field: 'status', op: '==', value: 'pending_approval' }], limit: 200 });
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
@@ -87,7 +89,7 @@ export default function NeedsAttentionCard() {
     <section aria-labelledby="needs-attention-title" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
       <h2 id="needs-attention-title" className="text-sm font-bold text-[var(--text)]">Needs attention</h2>
       {rows.length === 0 ? (
-        <p className="mt-1 text-sm text-[var(--muted)]">Nothing waiting: the bank is matched and connected, nothing waits for approval and the books have no problems.</p>
+        <p className="mt-1 text-sm text-[var(--muted)]">{viewer ? 'Nothing found in the items visible to you. Payroll approvals are restricted.' : 'Nothing waiting: the bank is matched and connected, nothing waits for approval and the books have no problems.'}</p>
       ) : (
         <ul className="mt-2 divide-y divide-[var(--line)]">
           {rows.map(row => (

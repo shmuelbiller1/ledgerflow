@@ -368,8 +368,8 @@ begin
     if pg_temp.try_as('u-out', format('insert into public.%I (id, data) values (%L, %L::jsonb)', t, 'iso-o-' || t, doc)) then
       raise exception 'FAIL %: outsider added a document', t;
     end if;
-    if pg_temp.count_rows('u-view', format('select count(*) from public.%I where id = %L', t, 'iso-' || t)) <> 1 then
-      raise exception 'FAIL %: viewer cannot read', t;
+    if pg_temp.count_rows('u-view', format('select count(*) from public.%I where id = %L', t, 'iso-' || t)) <> (case when t = 'employees' then 0 else 1 end) then
+      raise exception 'FAIL %: viewer read policy', t;
     end if;
     if pg_temp.count_rows('u-out', format('select count(*) from public.%I where id = %L', t, 'iso-' || t)) <> 0 then
       raise exception 'FAIL %: outsider can read', t;
@@ -382,6 +382,16 @@ begin
     end if;
   end loop;
 end $$;
+
+-- Employee ownership is the explicit timesheet link, not the row creator's uid.
+insert into public.employees (id, data) values
+  ('employee-own', '{"workspaceId":"ws1","uid":"u-owner","timeUid":"u-view","salaryCents":123456,"bankAccount":"private"}'),
+  ('employee-created', '{"workspaceId":"ws1","uid":"u-view","timeUid":"another","salaryCents":654321}'),
+  ('employee-other-book', '{"workspaceId":"ws2","timeUid":"u-view","salaryCents":111111}');
+select pg_temp.expect_count('viewer reads only their linked employee', 'u-view', $$select count(*) from public.employees where id='employee-own'$$, 1);
+select pg_temp.expect_count('creator is not employee ownership', 'u-view', $$select count(*) from public.employees where id='employee-created'$$, 0);
+select pg_temp.expect_count('employee link does not grant another workspace', 'u-view', $$select count(*) from public.employees where id='employee-other-book'$$, 0);
+select pg_temp.expect_count('writer reads employee roster', 'u-book', $$select count(*) from public.employees where id in ('employee-own','employee-created')$$, 2);
 
 -- Automation rules are read by workspace members but mutated only by registered commands.
 select set_config('request.jwt.claims', '', true);
@@ -450,7 +460,7 @@ begin
       raise exception 'FAIL %: writer moved an existing record into another workspace', t;
     end if;
     -- A refused call is not enough: prove the durable record still belongs to ws1.
-    if pg_temp.count_rows('u-view', format(
+    if pg_temp.count_rows(case when t = 'employees' then 'u-book' else 'u-view' end, format(
       'select count(*) from public.%I where id = %L and data->>''workspaceId'' = %L',
       t, 'iso-' || t, 'ws1')) <> 1 then
       raise exception 'FAIL %: cross-workspace move changed the durable workspaceId', t;
@@ -641,7 +651,8 @@ select pg_temp.expect_denied('bookkeeper adds a stock move from the browser', 'u
 -- pay runs (U-02, U-10): posted, approved and undone only by the server; members read
 select set_config('request.jwt.claims', '', true);
 insert into "payRuns" (id, data) values ('pr1', '{"workspaceId":"ws1","date":"2026-02-15","status":"awaiting_approval"}');
-select pg_temp.expect_count('viewer reads pay runs', 'u-view', $$select count(*) from "payRuns"$$, 1);
+select pg_temp.expect_count('viewer cannot read pay runs', 'u-view', $$select count(*) from "payRuns"$$, 0);
+select pg_temp.expect_count('writer can read pay runs', 'u-book', $$select count(*) from "payRuns"$$, 1);
 select pg_temp.expect_count('outsider reads pay runs', 'u-out', $$select count(*) from "payRuns"$$, 0);
 select pg_temp.expect_denied('owner approves a pay run from the browser', 'u-owner', $stmt$select lf_update('payRuns','pr1','{"status":"processed"}'::jsonb)$stmt$);
 select pg_temp.expect_denied('owner cannot move a pay run to another workspace', 'u-owner',

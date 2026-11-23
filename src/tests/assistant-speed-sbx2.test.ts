@@ -350,7 +350,7 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
       turnRateLimit: (_req, _res, next) => next(),
       modelClient: () => ({ models: { generateContent: async req => {
         modelCalls.push(req.model);
-        modelRequests.push(req);
+        modelRequests.push(structuredClone(req));
         return modelReplies.shift() ?? { text: 'A model answer.', usageMetadata: { promptTokenCount: 2000, candidatesTokenCount: 50 } };
       } } }),
     }));
@@ -630,9 +630,56 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
       assert.doesNotMatch(JSON.stringify(result), /VENDOR-ACCOUNT-PRIVATE|VENDOR-ROUTING-PRIVATE|TAX-PRIVATE|TAX-NUMBER-PRIVATE|BUSINESS-NUMBER-PRIVATE|CUSTOM-PRIVATE|HIDDEN-SEARCH-PRIVATE/);
     }
     assert.deepEqual(((results[6] as { result: { matches: unknown[] } }).result.matches), [], 'private notes are not searched');
-    assert.match(JSON.stringify(results[7]), /not available/);
-    assert.match(JSON.stringify(results[8]), /not available/);
+    assert.match(JSON.stringify(results[7]), /refused/);
+    assert.match(JSON.stringify(results[8]), /refused/);
     assert.doesNotMatch(JSON.stringify(results[9]), /CUSTOMER-ACCOUNT-PRIVATE|CONTACT-TAX-PRIVATE|NESTED-PRIVATE/);
+  });
+
+  test('writer assistant tool results and cache do not expose employee or vendor private data', async t => {
+    const a = await setup(t);
+    const vendorId = `${a.workspaceId}-vendor`;
+    await live.doc(`vendors/${vendorId}`).create({ workspaceId: a.workspaceId, name: 'Vendor Alpha', bankDetails: { accountNumber: 'PRIVATE-BANK' }, taxId: 'PRIVATE-TAX', notes: 'PRIVATE-NOTE' });
+    await live.doc(`employees/${a.workspaceId}-employee`).create({ workspaceId: a.workspaceId, name: 'Employee Alpha', salaryCents: 88119977, bankAccount: 'PRIVATE-PAY' });
+    const request = { functionCalls: [
+      { name: 'get_record', args: { collection: 'employees', id: `${a.workspaceId}-employee` } },
+      { name: 'get_record', args: { collection: 'vendors', id: vendorId } },
+      { name: 'search_records', args: { text: 'Vendor Alpha', collections: ['vendors'] } },
+      { name: 'run_report', args: { report: 'general-ledger' } },
+      { name: 'preview_proposal', args: { proposalId: a.sandboxId } },
+    ] };
+    for (let n = 0; n < 2; n++) {
+      modelRequests.length = 0;
+      modelReplies = [request, { text: 'Some restricted details are unavailable.' }];
+      const result = await a.turn('Explain this vendor and employee.');
+      assert.equal(result.status, 200, JSON.stringify(result.json));
+      const parts = (modelRequests[1].contents as Array<{ parts: Array<{ functionResponse?: { response: unknown } }> }>).at(-1)!.parts;
+      const output = JSON.stringify(parts.map(part => part.functionResponse?.response));
+      assert.match(output, /Vendor Alpha/);
+      assert.doesNotMatch(output, /PRIVATE-BANK|PRIVATE-TAX|PRIVATE-NOTE|PRIVATE-PAY|88119977/);
+      assert.match(output, /not available/);
+      assert.match(output, /not offered/);
+    }
+  });
+
+  test('writer model cannot rediscover or invoke payroll commands through find_command', async t => {
+    const a = await setup(t);
+    modelRequests.length = 0;
+    modelReplies = [
+      { functionCalls: [{ name: 'find_command', args: { words: 'payroll' } }] },
+      { functionCalls: [{ name: 'propose_payroll_run', args: {} }, { name: 'propose_employee_update', args: {} }] },
+      { text: 'Payroll actions are not available here.' },
+    ];
+    const result = await a.turn('Please find and run payroll.');
+    assert.equal(result.status, 200, JSON.stringify(result.json));
+    const second = modelRequests[1];
+    const parts = (second.contents as Array<{ parts: Array<{ functionResponse?: { response: unknown } }> }>).at(-1)!.parts;
+    assert.doesNotMatch(JSON.stringify(parts), /propose_payroll_|propose_employee_/);
+    const offered = JSON.stringify((second.config as { tools: unknown }).tools);
+    assert.doesNotMatch(offered, /propose_payroll_|propose_employee_/);
+    const third = (modelRequests[2].contents as Array<{ parts: Array<{ functionResponse?: { response: unknown } }> }>).at(-1)!.parts;
+    assert.match(JSON.stringify(third), /This tool was not offered/);
+    const review = await a.call('GET', `/${a.sandboxId}`);
+    assert.deepEqual(review.json.steps, []);
   });
 
   test('the model drafts through propose_… into the sandbox only; the real books are unchanged', async t => {
