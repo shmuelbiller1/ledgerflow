@@ -62,6 +62,7 @@ export const REGISTERED_COMMAND_NAMES: readonly string[] = [
   'employee.update',
   'entrylink.create',
   'entrylink.remove',
+  'estimate.dropship',
   'estimate.save',
   'estimate.signlink',
   'estimate.status',
@@ -227,6 +228,7 @@ export const REGISTERED_COMMAND_NAMES: readonly string[] = [
   'workspace.scheduledeletion',
   'workspace.settings',
   'workspace.setupcomplete',
+  'workspace.standardcosting',
   'workspace.undoimport',
   'workspace.updaterole',
 ];

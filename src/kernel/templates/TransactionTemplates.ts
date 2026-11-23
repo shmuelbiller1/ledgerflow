@@ -13,7 +13,7 @@ export interface LineAccountWeight {
   dimensions?: Record<string, string>;
 }
 
-const labelKey = (dimensions?: Record<string, string>) =>
+export const labelKey = (dimensions?: Record<string, string>) =>
   dimensions && Object.keys(dimensions).length > 0 ? JSON.stringify(Object.entries(dimensions).sort(([a], [b]) => a.localeCompare(b))) : '';
 
 /**

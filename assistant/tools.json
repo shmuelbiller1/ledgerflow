@@ -3792,6 +3792,30 @@
       }
     },
     {
+      "name": "propose_estimate_dropship",
+      "description": "Propose estimate.dropship for review; never apply it to the live books. Place one vendor purchase order for a sales order drop-ship lines; the units ship direct, never entering stock.\nExample input: {\"id\":\"est_1\",\"vendorId\":\"vendor_1\"}\nCONFLICT: Not an accepted order, or a drop-ship order exists. Accept it first, or use the existing one.\nINVALID_INPUT: No drop-ship lines, or a line lacks quantity or amount. Mark lines to drop-ship, with prices.\nNOT_FOUND: The order or vendor is not in this workspace. Choose ones here.\nROLE_REQUIRED: The caller is a viewer. Ask an owner, accountant or bookkeeper.",
+      "parametersJsonSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "vendorId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "id",
+          "vendorId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "propose_estimate_save",
       "description": "Propose estimate.save for review; never apply it to the live books. Write a quote or change its terms, lines and milestone schedule while it is still a quote; do not use it to invoice it, which invoice.create does.\nExample input: {\"number\":\"EST-1042\",\"customerId\":\"cust_1\",\"customerName\":\"Acme\",\"date\":\"2026-11-16\",\"expiryDate\":\"2026-12-16\",\"amountCents\":250000,\"currency\":\"USD\"}\nINVALID_INPUT: A line, a milestone (>20, adding past 100%) or a date is not one the screen could have produced, or a new quote has no number. Send the number the series gave it, whole cents, and dates as YYYY-MM-DD.\nCONFLICT: The quote is already accepted, declined or converted and the change touches its lines or total. Write a new quote; an accepted order's terms are what the customer agreed to.\nNOT_FOUND: The quote is not in the selected workspace. Reload the quotes and choose one in this workspace.\nROLE_REQUIRED: The caller is a viewer. Ask an owner, accountant or bookkeeper to write the quote.",
       "parametersJsonSchema": {
@@ -3858,6 +3882,9 @@
                 "itemId": {
                   "type": "string",
                   "maxLength": 200
+                },
+                "dropShip": {
+                  "type": "boolean"
                 },
                 "description": {
                   "type": "string",
@@ -11228,6 +11255,27 @@
       "parametersJsonSchema": {
         "type": "object",
         "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "propose_workspace_standardcosting",
+      "description": "Propose workspace.standardcosting for review; never apply it to the live books. Turn standard-cost posting on or off for the workspace and name the account the variance posts to.\nExample input: {\"enabled\":true,\"varianceAccountId\":\"acct_purchase_variance\"}\nINVALID_INPUT: Turned on without the variance account, or the account is not in the chart. Choose the variance account and pass its id.\nCONFLICT: Stock is on hand at a cost other than its standard. Reconcile the stock before turning standard costing on.\nROLE_REQUIRED: The caller is not an owner or accountant. Ask an owner or accountant to change it.\nWORKSPACE_NOT_FOUND: The workspace no longer exists. Choose an existing workspace.",
+      "parametersJsonSchema": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "varianceAccountId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "enabled"
+        ],
         "additionalProperties": false
       }
     },

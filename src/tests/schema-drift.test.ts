@@ -55,7 +55,9 @@ describe('Schema drift & index consistency guard (database rules)', () => {
       // the workspace's customer groups (CC-11, migration 20261102030000_customer_groups)
       'customerGroups',
       // R-4: a short note per report and period (migration 20261110010000_report_notes)
-      'reportNotes'
+      'reportNotes',
+      // M-21 standard costing: the setting (enabled + variance account), server-written (migration 20261123100000)
+      'standardCosting'
     ];
     for (const key of expectedWorkspaceKeys) {
       assert.ok(allowed.includes(key), `workspaces allowed fields missing '${key}'`);

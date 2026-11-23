@@ -196,12 +196,34 @@ export async function postInvoiceLedger(
   // deliveries ship the goods (BF-08 step 2) an invoice books none, unless it already shipped its
   // goods before the workspace switched (an edit keeps that).
   const shipsGoods = goodsLeaveWith(currentWs) === 'invoice' || existingTxs.some(t => t.metadata?.type === INVOICE_COGS_TYPE);
+  // M-21 step 2: the standard each existing sale line was already posted at. Reposting an invoice
+  // reverses its old cost-of-goods entries and rebuilds them; a line whose standard has since changed
+  // must keep the basis it was posted at, or the repost would reprice it and leave Inventory out of step.
+  const originalStandards = new Map<string, { itemId: string; cohorts: Array<{ standardCostCents: number; quantity: number }> }>();
+  for (const tx of existingTxs) {
+    const meta = tx.metadata as { type?: string; cogsForLineId?: string; inventoryItemId?: string; standardCostCents?: number; quantity?: number; standardQty?: number; standards?: Array<{ standardCostCents?: number; quantity?: number }> } | undefined;
+    if (meta?.type === INVOICE_COGS_TYPE && typeof meta.cogsForLineId === 'string' && typeof meta.inventoryItemId === 'string') {
+      // the accumulated basis of the line, as recorded by its most recent cost-of-goods entry: the
+      // cohort list when present, or the single standard the entry posted at (the units it applies to
+      // are the split recorded when a later edit added units at the then-current standard)
+      const cohorts = Array.isArray(meta.standards)
+        ? meta.standards.filter(c => typeof c?.standardCostCents === 'number' && Number.isFinite(c?.quantity) && (c?.quantity as number) > 0)
+          .map(c => ({ standardCostCents: c.standardCostCents as number, quantity: c.quantity as number }))
+        : (typeof meta.standardCostCents === 'number'
+          ? [{ standardCostCents: meta.standardCostCents, quantity: typeof meta.standardQty === 'number' ? meta.standardQty : Number(meta.quantity) || 0 }]
+          : []);
+      if (cohorts.length > 0) originalStandards.set(meta.cogsForLineId, { itemId: meta.inventoryItemId, cohorts });
+    }
+  }
   const cogs = !shipsGoods ? { entries: [], pendingReason: undefined } : planInvoiceCogs({
     invoiceId, invoice: invoiceData, date: invoiceDate, uid, workspaceId,
     baseCurrency: currentWs?.currency || 'USD',
     inventoryAccount: findAccount(accounts, mappings, ['inventory', 'stock', 'inventory asset'], a => resolveAccountRole(a) === 'inventory'),
     cogsAccount: findAccount(accounts, mappings, ['cogs', 'cost of goods sold', 'direct costs'], a => resolveAccountRole(a) === 'cogs'),
     items: await loadInventory(invoiceData, context),
+    // M-21 step 2: a workspace posting at standard relieves the stock at the item's standard
+    postAtStandard: Boolean(currentWs?.standardCosting?.enabled),
+    originalStandards,
   });
   txsToPost.push(...cogs.entries);
   const wasPending = Boolean(invoiceData.metadata?.cogsPending);

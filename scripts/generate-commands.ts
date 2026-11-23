@@ -168,12 +168,14 @@ export function renderCommandArtifacts(): Record<string, string> {
   const schemaImportsByArea = new Map<string, string[]>();
   definitions.forEach((definition, index) => {
     const { inputSchema: _inputSchema, ...entry } = definition;
+    // compact entries: the manifests are bundled into the server build un-minified, so the
+    // pretty-printed form costs bundle bytes for no readability gain (the source is generated).
     const fields = Object.entries(entry).map(([key, value]) =>
-      `    ${safeJson(key)}: ${renderLiteral(value, fragments, 'shared', undefined, 2)}`,
+      `${safeJson(key)}:${renderCompactLiteral(value, fragments, 'shared')}`,
     );
-    fields.push(`    inputSchema: commandInputSchema${index}`);
+    fields.push(`inputSchema:commandInputSchema${index}`);
     const entries = manifestEntriesByArea.get(entry.area) || [];
-    entries.push(`  {\n${fields.join(',\n')}\n  }`);
+    entries.push(`{${fields.join(',')}}`);
     manifestEntriesByArea.set(entry.area, entries);
 
     const imports = schemaImportsByArea.get(entry.area) || [];

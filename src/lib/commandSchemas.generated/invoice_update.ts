@@ -17,7 +17,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "settledByRecordsCents": COMMAND_SCHEMA_PARTS.part134,
         "currency": COMMAND_SCHEMA_PARTS.part51,
         "exchangeRate": COMMAND_SCHEMA_PARTS.part77,
-        "status": COMMAND_SCHEMA_PARTS.part217,
+        "status": COMMAND_SCHEMA_PARTS.part218,
         "date": COMMAND_SCHEMA_PARTS.part24,
         "dueDate": COMMAND_SCHEMA_PARTS.part24,
         "paymentToken": COMMAND_SCHEMA_PARTS.part24,
@@ -31,7 +31,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "isLocked": COMMAND_SCHEMA_PARTS.part27,
         "lockedAt": COMMAND_SCHEMA_PARTS.part24,
         "reversalEventId": COMMAND_SCHEMA_PARTS.part24,
-        "type": COMMAND_SCHEMA_PARTS.part190,
+        "type": COMMAND_SCHEMA_PARTS.part191,
         "recurringInterval": COMMAND_SCHEMA_PARTS.part126,
         "paymentTerms": COMMAND_SCHEMA_PARTS.part54,
         "progressPercentage": COMMAND_SCHEMA_PARTS.part85,
@@ -39,7 +39,7 @@ export const COMMAND_INPUT_SCHEMA = {
         "paymentDate": COMMAND_SCHEMA_PARTS.part24,
         "paidAt": COMMAND_SCHEMA_PARTS.part24,
         "posted": COMMAND_SCHEMA_PARTS.part27,
-        "approval": COMMAND_SCHEMA_PARTS.part277,
+        "approval": COMMAND_SCHEMA_PARTS.part278,
         "discountCents": COMMAND_SCHEMA_PARTS.part134,
         "retainageCents": COMMAND_SCHEMA_PARTS.part134,
         "depositCents": COMMAND_SCHEMA_PARTS.part134,
@@ -50,12 +50,12 @@ export const COMMAND_INPUT_SCHEMA = {
         "lineSumCents": COMMAND_SCHEMA_PARTS.part155,
         "taxCodeId": COMMAND_SCHEMA_PARTS.part60,
         "taxTreatment": COMMAND_SCHEMA_PARTS.part171,
-        "taxBreakdown": COMMAND_SCHEMA_PARTS.part262,
+        "taxBreakdown": COMMAND_SCHEMA_PARTS.part263,
         "pricesIncludeTax": COMMAND_SCHEMA_PARTS.part27
       }
     },
     "postingDay": COMMAND_SCHEMA_PARTS.part24,
-    "creditLimitOverride": COMMAND_SCHEMA_PARTS.part219
+    "creditLimitOverride": COMMAND_SCHEMA_PARTS.part220
   },
   "required": COMMAND_SCHEMA_PARTS.part14,
   "additionalProperties": false

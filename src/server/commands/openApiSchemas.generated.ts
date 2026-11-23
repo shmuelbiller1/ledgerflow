@@ -56,6 +56,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "employee.update": "CommandInput_employee_update",
   "entrylink.create": "CommandInput_entrylink_create",
   "entrylink.remove": "CommandInput_entrylink_remove",
+  "estimate.dropship": "CommandInput_estimate_dropship",
   "estimate.save": "CommandInput_estimate_save",
   "estimate.signlink": "CommandInput_estimate_signlink",
   "estimate.status": "CommandInput_estimate_status",
@@ -221,6 +222,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "workspace.scheduledeletion": "CommandInput_workspace_scheduledeletion",
   "workspace.settings": "CommandInput_workspace_settings",
   "workspace.setupcomplete": "CommandInput_workspace_setupcomplete",
+  "workspace.standardcosting": "CommandInput_workspace_standardcosting",
   "workspace.undoimport": "CommandInput_workspace_undoimport",
   "workspace.updaterole": "CommandInput_workspace_updaterole"
 } as const;

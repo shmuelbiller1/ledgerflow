@@ -7,6 +7,7 @@ import { TransactionValidator } from '../../kernel/validation/TransactionValidat
 import type { ValidationContext } from '../../kernel/validation/TransactionValidator';
 import { stockMovesReady, writeStockMoves } from './stockMoveService';
 import { stockByLocation, type StockMove } from '../../lib/stockMoves';
+import { isStandardizing, validStandardCost } from '../../lib/standardCostSettings';
 
 type WorkspaceData = ValidationContext['wsData'] & { currency?: string };
 
@@ -92,6 +93,12 @@ export async function adjustStock(db: Firestore, input: StockAdjustmentInput): P
 export async function adjustStockInTransaction(db: Firestore, t: Transaction, input: StockAdjustmentInput, prepared: StockAdjustmentAccounts): Promise<StockAdjustmentResult> {
   const { workspaceId, date, kind } = input;
   const { inventoryAcc, offsetAcc, currency, historyKept } = prepared;
+  // M-21 step 2: while the workspace posts at the standard, the stock is carried at quantity × standard in the
+  // books, so an adjust/count/manual-purchase that posts Inventory at the item's actual cost (unitCostCents)
+  // would leave the account out of step with the standard-valued stock. These paths were not converted to the
+  // standard basis, so they are refused for standard items until they are.
+  const ws = (await t.get(db.collection('workspaces').doc(workspaceId))).data() as Record<string, unknown> | undefined;
+  const standardizing = isStandardizing(ws);
   {
     const refs = input.changes.map(c => db.collection('inventory').doc(c.itemId));
     const snaps = await Promise.all(refs.map(r => t.get(r)));
@@ -111,6 +118,10 @@ export async function adjustStockInTransaction(db: Firestore, t: Transaction, in
       const item = snap.exists ? snap.data() || {} : null;
       // another workspace's item answers like a missing one
       if (!item || item.workspaceId !== workspaceId) throw new StockAdjustmentError(404, `Item ${change.itemId} not found`);
+      // M-21 step 2: refuse standard items while the workspace posts at the standard (see above)
+      if (standardizing && validStandardCost(item.standardCostCents) !== null) {
+        throw new StockAdjustmentError(409, `${item.name || change.itemId} is valued at its standard cost and this workspace posts at the standard. Stock counts, adjustments and manual purchases post at the standard carrying basis (with the variance to the variance account), which is not supported yet: turn standard-cost posting off, or change the item's standard to none.`);
+      }
       const before = new Decimal(Number(item.quantityAtHand) || 0);
       const countedFrom = kind === 'count' && input.locationId ? new Decimal(atLocation.get(change.itemId) || 0) : before;
       const delta = kind === 'count' ? new Decimal(Number(change.counted)).minus(countedFrom) : new Decimal(Number(change.quantityChange) || 0);

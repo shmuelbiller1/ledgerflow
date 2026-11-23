@@ -25,14 +25,13 @@ test('services, bundles and negative stock', () => {
     item('short', { standardCostCents: 1000, quantityAtHand: -3 }),
     item('free', { standardCostCents: 0, unitCostCents: 50 }),
   ]);
-  assert.deepEqual(r.rows.map(x => x.itemId), ['free', 'short']);
+  assert.deepEqual(r.rows.map(x => x.itemId), ['short']);
   assert.equal(r.rows.find(x => x.itemId === 'short')!.varianceValueCents, 0, 'negative stock counts as 0 units');
-  assert.equal(r.rows.find(x => x.itemId === 'free')!.variancePct, null);
-  assert.equal(r.withoutStandard, 0);
+  assert.equal(r.withoutStandard, 1, 'a zero standard is not a standard: the item posts and reports at actual');
 });
 
-test('only whole, non-negative cents are a standard cost', () => {
-  assert.equal(validStandardCost(0), 0);
+test('only whole, positive cents are a standard cost', () => {
+  assert.equal(validStandardCost(0), null);
   assert.equal(validStandardCost(1999), 1999);
   for (const bad of [-1, 1.5, '100', null, undefined, NaN]) assert.equal(validStandardCost(bad), null);
   assert.equal(formatVariancePct(0.125), '+12.5 %');

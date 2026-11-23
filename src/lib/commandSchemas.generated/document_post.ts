@@ -15,7 +15,7 @@ export const COMMAND_INPUT_SCHEMA = {
     },
     "data": COMMAND_SCHEMA_PARTS.part158,
     "postingDay": COMMAND_SCHEMA_PARTS.part51,
-    "creditLimitOverride": COMMAND_SCHEMA_PARTS.part219,
+    "creditLimitOverride": COMMAND_SCHEMA_PARTS.part220,
     "collection": {
       "type": "string",
       "enum": [

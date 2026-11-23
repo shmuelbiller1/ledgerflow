@@ -3,35 +3,5 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema17 } from '../commandSchemas.
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const AUDIT_COMMAND_MANIFEST = [
-  {
-    "name": "audit.deep",
-    "area": "audit",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "allowPlatformAdmin": true,
-    "risk": "normal",
-    "description": {
-      "sentence": "Queue a metered deep audit of receivables, customer concentration, inventory margins and valuation; use it for an asynchronous analysis, not to post an entry.",
-      "example": COMMAND_SCHEMA_PARTS.part1,
-      "refusals": [
-        {
-          "code": "ROLE_REQUIRED",
-          "when": "The caller cannot write in the workspace.",
-          "next": "Ask a workspace writer to run it."
-        },
-        {
-          "code": "PAYMENT_REQUIRED",
-          "when": "The developer API credit balance is exhausted.",
-          "next": "Restore the balance before queuing this metered job."
-        },
-        {
-          "code": "QUOTA_EXCEEDED",
-          "when": "The developer API spending limit was reached.",
-          "next": "Ask an administrator to review the workspace budget for compute jobs."
-        }
-      ]
-    },
-    "runPath": "/api/v1/commands/audit.deep",
-    "previewPath": "/api/v1/commands/audit.deep/preview",
-    inputSchema: commandInputSchema17
-  },
+{"name":"audit.deep","area":"audit","roles":COMMAND_SCHEMA_PARTS.part72,"allowPlatformAdmin":true,"risk":"normal","description":{ "sentence": "Queue a metered deep audit of receivables, customer concentration, inventory margins and valuation; use it for an asynchronous analysis, not to post an entry.", "example": COMMAND_SCHEMA_PARTS.part1, "refusals": [{ "code": "ROLE_REQUIRED", "when": "The caller cannot write in the workspace.", "next": "Ask a workspace writer to run it." }, { "code": "PAYMENT_REQUIRED", "when": "The developer API credit balance is exhausted.", "next": "Restore the balance before queuing this metered job." }, { "code": "QUOTA_EXCEEDED", "when": "The developer API spending limit was reached.", "next": "Ask an administrator to review the workspace budget for compute jobs." }] },"runPath":"/api/v1/commands/audit.deep","previewPath":"/api/v1/commands/audit.deep/preview",inputSchema:commandInputSchema17},
 ] as const;

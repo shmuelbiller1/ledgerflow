@@ -3,31 +3,5 @@ import { COMMAND_INPUT_SCHEMA as commandInputSchema26 } from '../commandSchemas.
 import { COMMAND_SCHEMA_PARTS } from '../commandSchemas.generated/shared';
 
 export const BANK_COMMAND_MANIFEST = [
-  {
-    "name": "bank.reconnect",
-    "area": "bank",
-    "roles": COMMAND_SCHEMA_PARTS.part72,
-    "risk": "normal",
-    "description": {
-      "sentence": "Mark an existing connection active after signing in again through Plaid; this does not connect a new bank, store another token or sync any transactions.",
-      "example": {
-        "bankId": "bank_1"
-      },
-      "refusals": [
-        {
-          "code": "NOT_FOUND",
-          "when": "The connection is missing or not in this workspace.",
-          "next": "Reload the workspace’s bank connections."
-        },
-        {
-          "code": "PERSON_ONLY",
-          "when": "An API key tries to reconnect a feed.",
-          "next": "Sign in and finish the connection update through Plaid."
-        }
-      ]
-    },
-    "runPath": "/api/v1/commands/bank.reconnect",
-    "previewPath": "/api/v1/commands/bank.reconnect/preview",
-    inputSchema: commandInputSchema26
-  },
+{"name":"bank.reconnect","area":"bank","roles":COMMAND_SCHEMA_PARTS.part72,"risk":"normal","description":{ "sentence": "Mark an existing connection active after signing in again through Plaid; this does not connect a new bank, store another token or sync any transactions.", "example": { "bankId": "bank_1" }, "refusals": [{ "code": "NOT_FOUND", "when": "The connection is missing or not in this workspace.", "next": "Reload the workspace’s bank connections." }, { "code": "PERSON_ONLY", "when": "An API key tries to reconnect a feed.", "next": "Sign in and finish the connection update through Plaid." }] },"runPath":"/api/v1/commands/bank.reconnect","previewPath":"/api/v1/commands/bank.reconnect/preview",inputSchema:commandInputSchema26},
 ] as const;

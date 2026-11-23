@@ -49,6 +49,8 @@ interface PendingMove {
   kind: 'sale' | 'sale-reversal' | 'return' | 'return-reversal' | 'purchase' | 'purchase-reversal' | 'purchase-return' | 'purchase-return-reversal';
   entry: LedgerEntry;
   valueCents: number;
+  /** M-21 step 2: a receipt's actual cost, beside the standard value it posted at */
+  actualValueCents?: number;
   location?: string;
   /** DIM-2 phase 2: the document line the units came in on or went back from, and the entry that names them */
   line?: number;
@@ -112,7 +114,18 @@ function returnMove(tx: { metadata?: Record<string, unknown> }): { itemId: strin
  * J-08: the item lines of a bill (`metadata.stockIn` on its entry, src/lib/billStock.ts): each brings
  * units in at the value its line posted to Inventory.
  */
-function billStockIn(tx: LedgerEntry): Array<{ itemId: string; quantity: number; valueCents: number; line?: number }> {
+/**
+ * M-21 step 2: the actual cost, kept beside the standard value the books posted it at. Emitted only
+ * when the value is a safe, non-negative whole number of cents; `negated` flips the sign for the
+ * moves that undo a receipt or a return.
+ */
+function actualValueField(value: unknown, negated = false): { actualValueCents: number } | Record<string, never> {
+  const cents = Number(value);
+  if (!Number.isSafeInteger(cents) || cents < 0) return {};
+  return { actualValueCents: negated ? -cents : cents };
+}
+
+function billStockIn(tx: LedgerEntry): Array<{ itemId: string; quantity: number; valueCents: number; actualValueCents?: number; line?: number }> {
   const lines = tx.metadata?.stockIn;
   if (lines === undefined) return [];
   if (tx.metadata?.type !== BILL_ACCRUAL_TYPE || !Array.isArray(lines) || lines.length > 500) {
@@ -126,7 +139,11 @@ function billStockIn(tx: LedgerEntry): Array<{ itemId: string; quantity: number;
       throw new LedgerPostingError(400, 'Each item line of a bill needs the item, a positive quantity and its value in whole cents.');
     }
     // DIM-2 phase 2: the bill's own line (src/lib/billStock.ts keeps its index), when it is a whole number
-    return { itemId: l.itemId, quantity, valueCents, ...(Number.isSafeInteger(l.line) && Number(l.line) >= 0 ? { line: Number(l.line) } : {}) };
+    return {
+      itemId: l.itemId, quantity, valueCents,
+      ...actualValueField(l.actualValueCents),
+      ...(Number.isSafeInteger(l.line) && Number(l.line) >= 0 ? { line: Number(l.line) } : {}),
+    };
   });
 }
 
@@ -134,7 +151,7 @@ function billStockIn(tx: LedgerEntry): Array<{ itemId: string; quantity: number;
  * BF-07: the stock a vendor credit sends back (`metadata.stockOut` on its entry, src/lib/vendorReturns.ts):
  * each takes units out at the value its line took off Inventory.
  */
-function vendorReturnOut(tx: LedgerEntry): Array<{ itemId: string; quantity: number; valueCents: number; line?: number }> {
+function vendorReturnOut(tx: LedgerEntry): Array<{ itemId: string; quantity: number; valueCents: number; actualValueCents?: number; line?: number }> {
   const lines = tx.metadata?.stockOut;
   if (lines === undefined) return [];
   if (tx.metadata?.type !== 'vendor-credit-issuance' || !Array.isArray(lines) || lines.length > 500) {
@@ -148,7 +165,7 @@ function vendorReturnOut(tx: LedgerEntry): Array<{ itemId: string; quantity: num
       throw new LedgerPostingError(400, 'Each line sent back to a vendor needs the item, a positive quantity and its value in whole cents.');
     }
     // DIM-2 phase 2: the line of the bill the units go back from
-    return { itemId: l.itemId, quantity, valueCents, ...(Number.isSafeInteger(l.billLine) && Number(l.billLine) >= 0 ? { line: Number(l.billLine) } : {}) };
+    return { itemId: l.itemId, quantity, valueCents, ...actualValueField(l.actualValueCents), ...(Number.isSafeInteger(l.billLine) && Number(l.billLine) >= 0 ? { line: Number(l.billLine) } : {}) };
   });
 }
 
@@ -268,12 +285,12 @@ export async function prepareStockMoves(
     // J-08: a bill's item lines go back out with it
     for (const line of billStockIn(original)) {
       add(line.itemId, -line.quantity);
-      pending.push({ itemId: line.itemId, quantity: -line.quantity, kind: 'purchase-reversal', entry: reversalOf.get(target) || original, valueCents: -line.valueCents, location: original.metadata?.locationId as string | undefined, line: line.line, source: original });
+      pending.push({ itemId: line.itemId, quantity: -line.quantity, kind: 'purchase-reversal', entry: reversalOf.get(target) || original, valueCents: -line.valueCents, ...actualValueField(line.actualValueCents, true), location: original.metadata?.locationId as string | undefined, line: line.line, source: original });
     }
     // BF-07: stock sent back to a vendor comes back in when the credit is undone
     for (const line of vendorReturnOut(original)) {
       add(line.itemId, line.quantity);
-      pending.push({ itemId: line.itemId, quantity: line.quantity, kind: 'purchase-return-reversal', entry: reversalOf.get(target) || original, valueCents: line.valueCents, location: original.metadata?.locationId as string | undefined, line: line.line, source: original });
+      pending.push({ itemId: line.itemId, quantity: line.quantity, kind: 'purchase-return-reversal', entry: reversalOf.get(target) || original, valueCents: line.valueCents, ...actualValueField(line.actualValueCents), location: original.metadata?.locationId as string | undefined, line: line.line, source: original });
     }
     const effect = stockEffect(original);
     if (!effect) return;
@@ -285,11 +302,11 @@ export async function prepareStockMoves(
   for (const tx of entries) {
     for (const line of vendorReturnOut(tx)) {
       add(line.itemId, -line.quantity);
-      pending.push({ itemId: line.itemId, quantity: -line.quantity, kind: 'purchase-return', entry: tx, valueCents: -line.valueCents, location: tx.metadata?.locationId as string | undefined, line: line.line, source: tx });
+      pending.push({ itemId: line.itemId, quantity: -line.quantity, kind: 'purchase-return', entry: tx, valueCents: -line.valueCents, ...actualValueField(line.actualValueCents, true), location: tx.metadata?.locationId as string | undefined, line: line.line, source: tx });
     }
     for (const line of billStockIn(tx)) {
       add(line.itemId, line.quantity);
-      pending.push({ itemId: line.itemId, quantity: line.quantity, kind: 'purchase', entry: tx, valueCents: line.valueCents, location: tx.metadata?.locationId as string | undefined, line: line.line, source: tx });
+      pending.push({ itemId: line.itemId, quantity: line.quantity, kind: 'purchase', entry: tx, valueCents: line.valueCents, ...actualValueField(line.actualValueCents), location: tx.metadata?.locationId as string | undefined, line: line.line, source: tx });
     }
     const effect = stockEffect(tx);
     if (!effect) continue;
@@ -377,9 +394,10 @@ export async function prepareStockMoves(
       const undoFirst = (k: string) => k === 'purchase-reversal' || k === 'purchase-return-reversal';
       for (const p of [...mine.filter(x => undoFirst(x.kind)), ...mine.filter(x => !undoFirst(x.kind))]) {
         const after = round6(before + p.quantity);
-        // what is bought or sent back (or either undone) moves the average cost by its own value
+        // what is bought or sent back (or either undone) moves the average cost by its own value; under
+        // standard-cost posting the receipt carries its actual cost, and the average keeps the actual basis
         if (['purchase', 'purchase-reversal', 'purchase-return', 'purchase-return-reversal'].includes(p.kind) && after > 0) {
-          cost = movingAverageCents(before, cost, p.valueCents * 1_000_000, after);
+          cost = movingAverageCents(before, cost, p.actualValueCents ?? p.valueCents, after);
           costChanged = true;
         }
         const invoiceId = typeof p.entry.metadata?.invoiceId === 'string' ? p.entry.metadata.invoiceId : undefined;
@@ -396,6 +414,7 @@ export async function prepareStockMoves(
           workspaceId, itemId: snap.id, itemName: String(item.name || ''), date: String(p.entry.date || '').slice(0, 10), kind: p.kind,
           quantity: p.quantity, quantityBefore: before, quantityAfter: after,
           unitCostCents: Math.round(Math.abs(p.valueCents) / Math.abs(p.quantity)), valueCents: p.valueCents,
+          ...(p.actualValueCents !== undefined ? { actualValueCents: p.actualValueCents } : {}),
           transactionId: p.entry.id, ...document,
           // W-01: where the units left from or came back to (a reversal is where its original was)
           ...(typeof p.location === 'string' && p.location ? { locationId: p.location } : {}),
@@ -404,7 +423,6 @@ export async function prepareStockMoves(
         });
         before = after;
       }
-      // INV-02: the average is kept at micro-cent precision; the cent figure is for display only
       writes.push({ id: snap.id, quantityAtHand, ...(costChanged ? { unitCostCents: Math.round(cost / 1_000_000), unitCostMicroCents: cost } : {}) });
     }
   }
