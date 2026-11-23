@@ -107,7 +107,7 @@ export function assistantToolsFor(commands: readonly AnyCommandDefinition[], que
 
 const wordsIn = (text: string): string[] => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 // Ignore common connectors, not domain words.
-const filler = new Set(['a', 'an', 'the', 'to', 'for', 'of', 'with', 'and', 'or', 'in', 'on', 'how', 'i', 'can', 'all', 'my', 'from', 'into', 'new', 'set', 'up', 'please', 'customer', 'existing']);
+const filler = new Set(['a', 'an', 'the', 'to', 'for', 'of', 'with', 'and', 'or', 'in', 'on', 'how', 'i', 'can', 'all', 'my', 'from', 'into', 'new', 'set', 'up', 'please', 'existing']);
 /** Words people and models use for the same change as a command's own name. */
 const synonyms: Record<string, string[]> = {
   move: ['recategorize', 'change'], reclassify: ['recategorize', 'change'], reassign: ['change'], assign: ['change'],
@@ -136,9 +136,13 @@ export function findAssistantCommands(commands: readonly AnyCommandDefinition[],
       return 0;
     })));
     const matched = score.filter(n => n > 0).length;
-    return { command, matched, score: score.reduce<number>((sum, n) => sum + n, 0) };
+    return { command, matched, score, total: 0 };
   });
-  const rank = (hits: typeof scored) => hits.sort((a, b) => b.matched - a.matched || b.score - a.score || byCodeUnit(a.command.name, b.command.name));
+  // a rare word says more than a common one: "recurring" is in few commands, "invoice" and "customer" in many,
+  // so each term's points are weighted by how few commands it matches (ties between equal matches are broken by this)
+  const weight = terms.map((_, i) => Math.log((commands.length + 1) / (1 + scored.filter(hit => hit.score[i] > 0).length)));
+  for (const hit of scored) hit.total = hit.score.reduce((sum, n, i) => sum + n * weight[i], 0);
+  const rank = (hits: typeof scored) => hits.sort((a, b) => b.matched - a.matched || b.total - a.total || byCodeUnit(a.command.name, b.command.name));
   const exact = scored.filter(hit => hit.matched === terms.length);
   const loose = !exact.length && !options.strict && terms.length >= 3
     ? scored.filter(hit => hit.matched >= Math.min(3, Math.ceil(terms.length / 2))) : [];
