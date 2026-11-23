@@ -122,12 +122,14 @@ export async function postCreditNoteLedger(
     // M-21 step 2: under standard-cost posting a sale relieved stock at the standard it had then. If the
     // item's standard has changed since (it could be, once the stock sold down to zero), bringing the
     // units back at the old sale cost and relieving them again at the new standard leaves Inventory out of
-    // step. Refuse the incompatible return before it changes stock.
+    // step. A sale that predates the standard costs the same mismatch, so the check applies to every sale
+    // whose carrying value differs from the current standard — not only to sales posted at a standard.
+    // Refuse the incompatible return before it changes stock.
     if (currentWs?.standardCosting?.enabled) {
       const itemsById = new Map((context?.inventory || []).map(i => [i.id, i]));
       for (const g of goods) {
         const line = lines.find(l => l.invoiceLineId === g.invoiceLineId);
-        if (!line || line.saleStandard !== true) continue;
+        if (!line) continue;
         // an item the context did not load (the sample-workspace path) is not a changed standard:
         // without the item there is no standard to compare against, so the return posts as before
         const item = itemsById.get(g.itemId);

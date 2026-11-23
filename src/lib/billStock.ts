@@ -71,13 +71,27 @@ export interface StandardReceiptPlan {
 export function planStandardReceipt(
   stockIn: BillStockLine[],
   items: Array<Pick<InventoryItem, 'id' | 'standardCostCents'>>,
-  standardizing: boolean
+  standardizing: boolean,
+  /**
+   * M-21 step 2: the carrying value each item's original receipt posted at (itemId → the quantity and
+   * value of the units already in the books). A bill being reposted keeps the basis its original receipt
+   * used for unchanged lines — an item's standard can legally change once its stock sold down to zero,
+   * and repricing the replacement at the new standard would leave Inventory out of step. Lines whose
+   * quantity changed take the item's current standard.
+   */
+  originalReceipt?: Map<string, { quantity: number; valueCents: number }>
 ): StandardReceiptPlan | null {
   if (!standardizing) return null;
   const byId = new Map(items.map(i => [i.id, i]));
   const entries = stockIn.map(line => {
-    const standard = validStandardCost(byId.get(line.itemId)?.standardCostCents);
-    const standardValueCents = standard !== null && line.quantity > 0 ? Math.round(line.quantity * standard) : line.valueCents;
+    const original = originalReceipt?.get(line.itemId);
+    const carriesOriginalBasis = original !== undefined && original.quantity === line.quantity;
+    const standard = carriesOriginalBasis
+      ? original!.valueCents
+      : validStandardCost(byId.get(line.itemId)?.standardCostCents);
+    const standardValueCents = carriesOriginalBasis
+      ? original!.valueCents
+      : standard !== null && line.quantity > 0 ? Math.round(line.quantity * standard) : line.valueCents;
     return {
       ...line,
       valueCents: standardValueCents,

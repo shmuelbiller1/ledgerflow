@@ -240,7 +240,7 @@ describe('M-21 step 2 bot round 3: rounding-safe return guard and repost basis',
     const atOldStandard = planInvoiceCogs({
       invoiceId: 'inv_1', invoice: inv, date: '2026-11-01', uid: OWNER, workspaceId: WS, baseCurrency: 'USD',
       inventoryAccount: accounts()[5], cogsAccount: accounts()[5], items: returnItems(),
-      postAtStandard: true, originalStandards: new Map([['l1', 400]]),
+      postAtStandard: true, originalStandards: new Map([['l1', { standardCostCents: 400, quantity: 10 }]]),
     });
     assert.equal(atOldStandard.entries[0].totalAmountCents, 4000, 'the repost keeps the 400 basis');
     assert.equal(atOldStandard.entries[0].metadata.standardCostCents, 400);

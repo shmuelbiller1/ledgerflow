@@ -199,11 +199,14 @@ export async function postInvoiceLedger(
   // M-21 step 2: the standard each existing sale line was already posted at. Reposting an invoice
   // reverses its old cost-of-goods entries and rebuilds them; a line whose standard has since changed
   // must keep the basis it was posted at, or the repost would reprice it and leave Inventory out of step.
-  const originalStandards = new Map<string, number>();
+  const originalStandards = new Map<string, { standardCostCents: number; quantity: number }>();
   for (const tx of existingTxs) {
-    const meta = tx.metadata as { type?: string; cogsForLineId?: string; standardCostCents?: number } | undefined;
+    const meta = tx.metadata as { type?: string; cogsForLineId?: string; standardCostCents?: number; quantity?: number; standardQty?: number } | undefined;
     if (meta?.type === INVOICE_COGS_TYPE && typeof meta.cogsForLineId === 'string' && typeof meta.standardCostCents === 'number') {
-      originalStandards.set(meta.cogsForLineId, meta.standardCostCents);
+      // the units the recorded standard applies to: the original sale's quantity, or the split recorded
+      // when a later edit added units at the then-current standard
+      const appliesTo = typeof meta.standardQty === 'number' ? meta.standardQty : Number(meta.quantity) || 0;
+      originalStandards.set(meta.cogsForLineId, { standardCostCents: meta.standardCostCents, quantity: appliesTo });
     }
   }
   const cogs = !shipsGoods ? { entries: [], pendingReason: undefined } : planInvoiceCogs({

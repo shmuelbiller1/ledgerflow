@@ -62,11 +62,21 @@ export async function postBillLedger(
 
   // 1. Reversing entries for the standing postings (a posting already reversed is left alone)
   const today = postingToday(context);
-  const txsToPost = reversalEntries(liveDocumentPostings(getTransactions(context), t => t.metadata?.billId === billId), {
+  const priorPostings = liveDocumentPostings(getTransactions(context), t => t.metadata?.billId === billId);
+  const txsToPost = reversalEntries(priorPostings, {
     uid, workspaceId, today, context,
     describe: () => `Reversal of prior bill posting (Bill ${billData.number || billId})`,
     metadata: () => ({ billId, type: 'bill-reversal' })
   });
+  // M-21 step 2: the carrying value the bill's original receipt posted at, so a repost keeps the basis
+  // its unchanged lines were booked on (the item's standard can change once the stock sold down to zero)
+  const priorAccrual = priorPostings.find(t => t.metadata?.type === BILL_ACCRUAL_TYPE);
+  const originalReceipt = new Map<string, { quantity: number; valueCents: number }>();
+  for (const row of (priorAccrual?.metadata?.stockIn as Array<{ itemId: string; quantity: number; valueCents: number }> | undefined) || []) {
+    if (typeof row.itemId === 'string' && Number.isFinite(row.quantity) && Number.isFinite(row.valueCents)) {
+      originalReceipt.set(row.itemId, { quantity: row.quantity, valueCents: row.valueCents });
+    }
+  }
 
   const status = billData.status || 'pending';
   if (status === 'draft' || status === 'rejected' || status === 'void' || status === 'cancelled') {
@@ -117,7 +127,7 @@ export async function postBillLedger(
   // post Inventory at quantity × standard and the difference (actual − standard) to the variance account;
   // without the setting, the receipt posts exactly as before (the moving average, no variance line).
   const standardPlan = currentWs?.standardCosting?.enabled && stockIn.length
-    ? planStandardReceipt(stockIn, await loadInventory(billData, context), true)
+    ? planStandardReceipt(stockIn, await loadInventory(billData, context), true, originalReceipt)
     : null;
   const stockInLines = standardPlan?.entries ?? stockIn;
 

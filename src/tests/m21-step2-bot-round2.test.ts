@@ -135,12 +135,26 @@ describe('M-21 step 2 bot round 2: returns when the standard has changed', () =>
     assert.equal(entryTotal(goods!), 0, 'the entry balances');
   });
 
-  test('a return of stock sold at the moving average is not refused', async () => {
+  test('a return of stock sold at a cost that differs from the current standard is refused', async () => {
+    // the sale predates the standard: it booked the moving average (500), but a resale would relieve at
+    // the current standard (400), so restoring at the sale cost would leave Inventory out of step
     const captured: LedgerPostContext['capture'] = [];
-    await postCreditNoteLedger('cn_3', creditNote('cn_3', 'CN-3') as never, WS, OWNER, undefined, returnContext([saleEntry(500, 10, false)], captured));
+    await assert.rejects(
+      postCreditNoteLedger('cn_3', creditNote('cn_3', 'CN-3') as never, WS, OWNER, undefined, returnContext([saleEntry(500, 10, false)], captured)),
+      (err: Error) => /standard cost of Chair changed since it was sold/.test(err.message)
+    );
+    assert.equal(captured.length, 0, 'nothing is posted');
+  });
+
+  test('a return of stock sold at a cost equal to the current standard still posts', async () => {
+    // the sale's cost (500) is the item's current standard, so the return restores at what a resale relieves
+    const sale = fx.saleEntry(500, 10, false);
+    const stock = returnItems().map(i => ({ ...i, standardCostCents: 500 }));
+    const captured: LedgerPostContext['capture'] = [];
+    await postCreditNoteLedger('cn_4', creditNote('cn_4', 'CN-4') as never, WS, OWNER, undefined, returnContext([sale], captured, stock));
     const goods = captured[0].txs.find(t => t.metadata?.type === 'credit-return-auto');
     assert.ok(goods, 'the returned-goods entry is posted');
-    assert.equal(goods!.totalAmountCents, 5000, 'Inventory comes back at the moving average');
+    assert.equal(goods!.totalAmountCents, 5000, 'Inventory comes back at the sale cost, which is the standard');
   });
 
   test('the invoice-cogs plan still relieves a standard sale at the item standard', () => {
