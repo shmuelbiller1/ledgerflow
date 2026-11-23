@@ -33,7 +33,7 @@ import { DELIVERY_COGS_TYPE } from '../../lib/deliveries';
 import { SALES_RETURN_TYPE } from '../../lib/salesReturns';
 import { compareMoves, type StockMove } from '../../lib/stockMoves';
 import type { Transaction } from '../../types';
-import { movingAverageCents } from './cogsStockService';
+import { movingAverageCents, unitCostMicroCentsOf } from './cogsStockService';
 import { ledgerWrite } from './ledgerDoor';
 import { stockMovesReady, writeStockMoves } from './stockMoveService';
 import { writeServerAuditLog } from './auditLogService';
@@ -198,7 +198,8 @@ export function replay(moves: Move[], entries: Map<string, Entry>, fromDate: str
     }
     qty = after;
   }
-  return { valued, notCorrected, cost, qty, refuse };
+  // `cost` stays in whole cents for callers and reports; the exact micro-cent average rides beside it
+  return { valued, notCorrected, cost: Math.round(cost / 1_000_000), costMicroCents: cost, qty, refuse };
 }
 
 /** Reads, replays and (unless a dry run or refused) writes one key, in the transaction `t`. */
@@ -273,7 +274,7 @@ async function repostStockCost(db: Firestore, t: DbTransaction, input: RepostRun
     return result;
   }
   result.notCorrected = replayed.notCorrected;
-  result.state.after = { unitCostCents: Math.round(replayed.cost / 1_000_000), quantityAtHand: quantity, inventoryValueCents: Math.round(quantity * replayed.cost / 1_000_000) };
+  result.state.after = { unitCostCents: replayed.cost, quantityAtHand: quantity, inventoryValueCents: Math.round(quantity * replayed.costMicroCents / 1_000_000) };
   const today = formatTzDate(new Date(), text(ws.timezone) || 'UTC');
   for (const v of replayed.valued) {
     const prior = correctedBy.get(v.entry.id) || { cents: 0, count: 0 };
@@ -346,13 +347,12 @@ async function repostStockCost(db: Firestore, t: DbTransaction, input: RepostRun
         : text(meta.deliveryId) ? { documentType: 'delivery' as const, documentId: text(meta.deliveryId) } : {};
     writtenMoves.push({
       workspaceId, itemId, itemName: result.name, date: c.date, kind: 'cost-repost' as const, quantity: 0, quantityBefore: quantity, quantityAfter: quantity,
-      unitCostCents: Math.round(replayed.cost / 1_000_000), valueCents: c.direction * c.deltaCents, transactionId: c.entryId, correctsTxId: c.correctsTxId, ...doc, uid: user.uid,
+      unitCostCents: replayed.cost, valueCents: c.direction * c.deltaCents, transactionId: c.entryId, correctsTxId: c.correctsTxId, ...doc, uid: user.uid,
     });
   }
   writeStockMoves(db, t, writtenMoves);
   result.posted = prepared.length;
-  const newCostCents = Math.round(replayed.cost / 1_000_000);
-  if (newCostCents !== oldCost || replayed.cost !== oldCost * 1_000_000) t.update(db.collection('inventory').doc(itemId), { unitCostCents: newCostCents, unitCostMicroCents: replayed.cost, updatedAt: FieldValue.serverTimestamp() });
+  if (replayed.cost !== oldCost || replayed.costMicroCents !== unitCostMicroCentsOf(item)) t.update(db.collection('inventory').doc(itemId), { unitCostCents: replayed.cost, unitCostMicroCents: replayed.costMicroCents, updatedAt: FieldValue.serverTimestamp() });
   t.set(queueRef, { status: 'clean', blockedBy: null, ...stamp() }, { merge: true });
   await writeServerAuditLog({
     workspaceId, uid: user.uid, email: user.email, action: 'repost', entityType: STOCK_COST_KIND, entityId: itemId,

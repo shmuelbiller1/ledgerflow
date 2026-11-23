@@ -23,9 +23,11 @@ describe('audit RP-05: a later payment void leaves the prior cash-basis period a
       // $100 invoice posted 2026-02-01, paid 2026-02-10
       await call(`/api/v1/documents/invoices/${id('invoice')}/post`, {
         workspaceId: ws, action: 'create',
-        number: 'INV-1', customerId: 'alice', customerName: 'Alice', date: '2026-02-01', dueDate: '2026-03-01',
-        status: 'sent', currency: 'USD', amountCents: 10000, amountPaidCents: 0,
-        items: [{ id: 'l1', description: 'Service', quantity: 1, rateCents: 10000, amountCents: 10000, accountId: id('sales') }],
+        data: {
+          id: id('invoice'), workspaceId: ws, number: 'INV-1', customerId: 'alice', customerName: 'Alice', date: '2026-02-01', dueDate: '2026-03-01',
+          status: 'sent', currency: 'USD', amountCents: 10000, amountPaidCents: 0,
+          items: [{ id: 'l1', description: 'Service', quantity: 1, rateCents: 10000, amountCents: 10000, accountId: id('sales') }],
+        },
       });
       const pay = await call('/api/v1/payments', {
         workspaceId: ws, paymentDate: '2026-02-10', cashAccountId: id('cash'), customerId: 'alice',
@@ -35,7 +37,8 @@ describe('audit RP-05: a later payment void leaves the prior cash-basis period a
       assert.equal(feb.income.total, 10000, 'February carries the $100 receipt');
 
       // void the payment effective 2026-03-10
-      await call(`/api/v1/payments/${pay.paymentId}/void`, { workspaceId: ws, voidDate: '2026-03-10' });
+      const paymentId = (pay as { data?: { paymentId?: string }; paymentId?: string }).data?.paymentId || (pay as { paymentId?: string }).paymentId;
+      await call(`/api/v1/payments/${paymentId}/void`, { workspaceId: ws, date: '2026-03-10', reason: 'Synthetic later void' });
       const febAfter = await report('2026-02-01', '2026-02-28', 2);
       assert.equal(febAfter.income.total, 10000, 'the March void does not rewrite February');
       const mar = await report('2026-03-01', '2026-03-31', 2);

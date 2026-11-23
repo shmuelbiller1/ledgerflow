@@ -337,7 +337,7 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
 
       const newPaid = currentPaid + alloc.amountCents;
       clearedByAlloc.push(await documentClearing(db, tx, workspaceId, docData, alloc, docCurrency, baseCurrency, paymentRate, ledgerReady));
-      const split = computeRetainageSplit(docData, alloc.amountCents);
+      const split = computeRetainageSplit(docData, alloc.amountCents, alloc.documentType);
       retainageSplits.push({ ...split, documentType: alloc.documentType });
 
       const newStatus = newPaid > 0 ? settledStatus(docData, newPaid) : docData.status;
@@ -467,7 +467,7 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
     const advanceBaseCents = advance ? unmatchedBaseCents : 0;
     const offsetBaseCents = baseAmountCents - advanceBaseCents;
     const retainageAccounts = retainageSplits.some(r => r.retainagePartDoc > 0)
-      ? await buildRetainageAccounts(retainageSplits, await chartAccounts())
+      ? await buildRetainageAccounts(retainageSplits, await chartAccounts(), { tradeAccountId: resolvedOffsetAccountId, mappings: wsData.defaultAccountMappings || {} })
       : [];
     let fxAccount: { id: string; name?: string } | undefined;
     if (realizedFxCents !== 0) {
@@ -528,7 +528,7 @@ export async function createPaymentInTransaction(rawDb: unknown, rawTx: unknown,
           amountCents: -withheld,
           description: `Tax withheld at source for Payment ${paymentId}`
         }] : []),
-        ...buildOffsetLines({ isReceipt, paymentId, offsetAccountId: resolvedOffsetAccountId, offsetBaseCents, hasAdvance: !!advance, retainageSplits, retainageAccounts, rateOn, bookedRate }),
+        ...buildOffsetLines({ isReceipt, paymentId, offsetAccountId: resolvedOffsetAccountId, offsetBaseCents, hasAdvance: !!advance, retainageSplits, retainageAccounts, clearedBaseByAlloc: clearedByAlloc, rateOn, bookedRate }),
         ...(advance && advanceBaseCents > 0 ? [{
           accountId: advance.id,
           amountCents: isReceipt ? -advanceBaseCents : advanceBaseCents,

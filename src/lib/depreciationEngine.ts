@@ -66,10 +66,15 @@ function monthlyAmounts(asset: FixedAsset): number[] {
 /** A capitalized addition's own schedule: the month it was capitalized to the end of the original life. */
 function additionMonthlyAmounts(asset: FixedAsset, addition: { date: string; amountCents: number }): Array<{ monthIndex: number; amountCents: number }> {
   const amount = Math.max(0, addition.amountCents || 0);
-  const startDate = asset.placedInService?.startedOn || asset.purchaseDate;
+  // X-09: placing a built asset in service moves its purchaseDate to the in-service day, so the
+  // original life always runs from purchaseDate (placedInService.startedOn is when building began)
+  const startDate = asset.purchaseDate;
   if (!amount || !startDate) return [];
   const lifeEnd = monthIndex(startDate) + lifeMonths(asset); // the original schedule's last month
-  const start = monthIndex(addition.date);
+  // a cost capitalized before the asset was in service (a construction cost dated before purchaseDate,
+  // which placing in service moves to the commissioning day) starts with the original schedule's first
+  // month, never while the asset is still being built (IAS 16 ¶55)
+  const start = String(addition.date || '').slice(0, 10) < String(startDate).slice(0, 10) ? monthIndex(startDate) + 1 : monthIndex(addition.date);
   const remaining = lifeEnd - start + 1; // months from the addition's month to the life end, inclusive
   if (remaining <= 0) {
     // the original life has run out: the addition is expensed in the month it was capitalized
@@ -102,9 +107,10 @@ function costAdditionsOf(asset: FixedAsset): Array<{ date: string; amountCents: 
 
 /** The original schedule's month amounts keyed by their month index (month 1 = month after purchase, or after placed-in-service). */
 function originalSchedule(asset: FixedAsset): Array<{ monthIndex: number; amountCents: number }> {
-  // X-09: an asset built before being placed in service depreciates from the placed-in-service date,
-  // not the purchase date (IAS 16 ¶27: the asset is ready for use when placed in service).
-  const startDate = asset.placedInService?.startedOn || asset.purchaseDate;
+  // X-09: an asset built before being placed in service depreciates from the day it was placed in
+  // service (IAS 16 ¶55) — placeInServiceService sets purchaseDate to that day; placedInService.startedOn
+  // records when building began and must not start the schedule
+  const startDate = asset.purchaseDate;
   if (!startDate) return [];
   const start = monthIndex(startDate);
   return monthlyAmounts(asset).map((amount, i) => ({ monthIndex: start + i + 1, amountCents: amount }));

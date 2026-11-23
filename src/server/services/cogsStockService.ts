@@ -397,7 +397,8 @@ export async function prepareStockMoves(
         // what is bought or sent back (or either undone) moves the average cost by its own value; under
         // standard-cost posting the receipt carries its actual cost, and the average keeps the actual basis
         if (['purchase', 'purchase-reversal', 'purchase-return', 'purchase-return-reversal'].includes(p.kind) && after > 0) {
-          cost = movingAverageCents(before, cost, p.actualValueCents ?? p.valueCents, after);
+          // INV-02: the average runs in micro-cents, so the value comes in at the same scale
+          cost = movingAverageCents(before, cost, (p.actualValueCents ?? p.valueCents) * 1_000_000, after);
           costChanged = true;
         }
         const invoiceId = typeof p.entry.metadata?.invoiceId === 'string' ? p.entry.metadata.invoiceId : undefined;

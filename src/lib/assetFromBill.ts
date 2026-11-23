@@ -7,7 +7,9 @@
 import type { Bill, ChartAccount, FixedAsset } from '../types';
 import { isCashAccount } from './txFilters';
 import { allocateCents } from '../kernel/templates/TransactionTemplates';
-import { convertMinorUnits } from './currencyMinorUnits';
+import { minorUnitRate } from './currencyMinorUnits';
+import { roundCents } from './cents';
+import { calculateDocumentTax } from './documentMath';
 
 export interface AssetCandidate {
   billId: string;
@@ -37,15 +39,17 @@ export function isFixedAssetAccount(account: ChartAccount | undefined): boolean 
  */
 function billLineCostCents(bill: Bill, line: { amountCents: number }, index: number, baseCurrency?: string): number {
   const splits = bill.splits || [];
-  const taxCents = bill.taxAmountCents || 0;
-  // the bill's gross expense the posting splits across the line accounts (buildBillLines): the bill
-  // total (the splits' sum when the bill carries no top-level total) less the recoverable tax
+  // the bill total (the splits' sum when the bill carries no top-level total) and its recoverable tax
   const totalCents = (bill.amountCents || 0) > 0 ? bill.amountCents : splits.reduce((sum, s) => sum + (s.amountCents || 0), 0);
-  const grossExpenseCents = totalCents - taxCents;
-  const share = allocateCents(grossExpenseCents, splits.map(s => s.amountCents))[index];
-  const rate = bill.exchangeRate || 1;
-  const billCurrency = String(bill.currency || baseCurrency || 'USD');
-  return convertMinorUnits(share, rate, billCurrency, baseCurrency);
+  const taxCents = calculateDocumentTax(bill);
+  // the same order as the bill posting (billPosting.ts + buildBillLines): the total and the tax are
+  // converted to the books' minor units first, then the net is allocated across the lines — so the
+  // assets made from one bill add up to exactly what the bill debited (two EUR 100.01 lines at 1.5
+  // post USD 300.03 together, not 150.02 each)
+  const rate = minorUnitRate(bill.exchangeRate || 1, String(bill.currency || baseCurrency || 'USD'), baseCurrency);
+  const totalBase = roundCents(totalCents * rate);
+  const taxBase = roundCents(taxCents * rate);
+  return allocateCents(totalBase - taxBase, splits.map(s => s.amountCents))[index];
 }
 
 export function assetCandidates(bills: Bill[], accounts: ChartAccount[], assets: Array<Pick<FixedAsset, 'sourceBillId' | 'sourceBillLine'>>, baseCurrency?: string): AssetCandidate[] {

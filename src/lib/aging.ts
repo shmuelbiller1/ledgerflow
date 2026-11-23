@@ -1,5 +1,5 @@
 import type { Bill, Invoice } from '../types';
-import { calculateAmountDue, depositAppliedCents } from './documentMath';
+import { calculateAmountDue, cashPostedWithDocumentCents, depositAppliedCents } from './documentMath';
 import { isOpenBill, isOpenInvoice } from './txFilters';
 import { toBaseCents } from '../server/reports/partyReports';
 
@@ -69,32 +69,54 @@ export interface SettlementEvent {
 }
 
 /** Statuses that mean a document can never be owed, whatever its settlements. */
-const NEVER_OUTSTANDING = new Set(['draft', 'void', 'cancelled', 'rejected']);
+const NEVER_OUTSTANDING = new Set(['draft', 'rejected']);
+/** Statuses that take a posted document off the books — from the date their reversal was posted. */
+const UNPOSTED = new Set(['void', 'cancelled']);
 
 /**
  * RP-01: what was still owed on a document at a cutoff, from dated settlement events:
  * the document's amount less its deposit, less every settlement event dated on or before the
  * cutoff (reversals net out; events after the cutoff are ignored, so later payments and voids
- * leave the snapshot alone). 0 when the document is void/draft/cancelled, was issued after the
- * cutoff, or nothing is left.
+ * leave the snapshot alone). 0 when the document is draft/rejected, was issued after the cutoff,
+ * or nothing is left.
+ *
+ * A void is applied from its effective date: `voidDates` maps a document id to the date its posting
+ * was reversed (the void's reversal entry), so a January invoice voided in February is still owed
+ * on January 31. A void with no known reversal date takes the document off every snapshot.
+ *
+ * A document marked paid in its own editor posts its cash without a `paymentAllocations` row
+ * (cashPostedWithDocumentCents); that settlement counts from its payment date too, and never twice
+ * (the amount already excludes what payment records settled).
  */
 export function outstandingAsOfCents(
   doc: Invoice | Bill,
   settlements: SettlementEvent[],
   cutoff: string,
   baseCurrency: string = 'USD',
+  voidDates?: ReadonlyMap<string, string>,
 ): number {
-  if (NEVER_OUTSTANDING.has(String(doc.status || ''))) return 0;
-  const issued = String(doc.date || '').slice(0, 10);
-  if (issued && issued > String(cutoff).slice(0, 10)) return 0;
+  const status = String(doc.status || '');
   const day = String(cutoff).slice(0, 10);
+  if (NEVER_OUTSTANDING.has(status)) return 0;
+  if (UNPOSTED.has(status)) {
+    const voided = voidDates?.get(doc.id)?.slice(0, 10);
+    if (!voided || voided <= day) return 0;
+  }
+  const issued = String(doc.date || '').slice(0, 10);
+  if (issued && issued > day) return 0;
   const settled = settlements
     .filter(e => e.documentId === doc.id && e.documentType === (sideOf(doc) === 'customer' ? 'invoice' : 'bill')
       && String(e.date).slice(0, 10) <= day && e.kind !== 'deposit')
     .reduce((sum, e) => sum + (Number(e.amountCents) || 0), 0);
+  // the settlement posted with the document itself ("Mark as paid"), dated with its payment
+  const paidOn = String(doc.paymentDate || doc.paidAt || '').slice(0, 10);
+  const postedWithDocument = UNPOSTED.has(status) ? 0 : cashPostedWithDocumentCents(doc);
+  const documentSettled = postedWithDocument > 0 && (!paidOn || paidOn <= day)
+    ? toBaseCents(postedWithDocument, doc.exchangeRate, doc.currency, baseCurrency)
+    : 0;
   const due = Math.max(0, toBaseCents(doc.amountCents || 0, doc.exchangeRate, doc.currency, baseCurrency)
     - toBaseCents(depositAppliedCents(doc), doc.exchangeRate, doc.currency, baseCurrency));
-  return Math.max(0, due - settled);
+  return Math.max(0, due - settled - documentSettled);
 }
 
 function sideOf(doc: Invoice | Bill): 'customer' | 'vendor' {
@@ -121,6 +143,7 @@ export function computePartyAging(
   today: string,
   baseCurrency: string = 'USD',
   settlements?: SettlementEvent[],
+  voidDates?: ReadonlyMap<string, string>,
 ): PartyAgingRow[] {
   const partyOf = (d: Invoice | Bill) => (side === 'customer' ? (d as Invoice).customerId : (d as Bill).vendorId);
   const rows = new Map<string, PartyAgingRow>();
@@ -128,7 +151,7 @@ export function computePartyAging(
   for (const doc of documents) {
     const row = rows.get(partyOf(doc) || '');
     const owed = settlements
-      ? outstandingAsOfCents(doc, settlements, today, baseCurrency)
+      ? outstandingAsOfCents(doc, settlements, today, baseCurrency, voidDates)
       : outstandingBaseCents(doc, side, baseCurrency);
     if (!row || owed <= 0) continue;
     row.buckets[agingBucket(daysOverdue(doc, today))] += owed;

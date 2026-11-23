@@ -151,15 +151,34 @@ export function cashBasisEntries(accounts: ChartAccount[], transactions: Transac
     // and the void period carries the unwind — the two are additive and sum to zero over both.
     const voided = voidedBy(p);
     const rate = typeof p.exchangeRate === 'number' && p.exchangeRate > 0 ? p.exchangeRate : 1;
-    for (const a of p.allocations || []) {
+    // RP-07: each advance application is its own dated event. applyUnappliedPayment appends every
+    // installment to payment.allocations in the order it happened, so a document's last K allocations
+    // are its K applications, matched oldest-first to the application rows by date — a $100 advance
+    // applied as $50 in March and $50 in April is dated March and April, not March twice.
+    const allocations = p.allocations || [];
+    const applicationDateOf = new Map<number, string>();
+    const docKey = (x: { documentType: string; documentId: string }) => `${x.documentType}:${x.documentId}`;
+    const appsByDoc = new Map<string, string[]>();
+    for (const x of p.applications || []) {
+      const list = appsByDoc.get(docKey(x)) ?? [];
+      list.push(String(x.date).slice(0, 10));
+      appsByDoc.set(docKey(x), list);
+    }
+    for (const [key, dates] of appsByDoc) {
+      const indexes = allocations.map((x, i) => (docKey(x) === key ? i : -1)).filter(i => i >= 0);
+      const sorted = [...dates].sort();
+      const tail = indexes.slice(Math.max(0, indexes.length - sorted.length));
+      const offset = sorted.length - tail.length;
+      tail.forEach((allocationIndex, n) => applicationDateOf.set(allocationIndex, sorted[offset + n]));
+    }
+    for (const [allocationIndex, a] of allocations.entries()) {
       const accrual = accruals.get(`${a.documentType}:${a.documentId}`);
       if (!accrual || !(a.amountCents > 0)) continue;
       // RP-07: an advance applied to this document later is dated with the application, not with
       // the original payment. The February report then leaves the March invoice's revenue to March,
       // and the disjoint monthly figures add up to their union.
-      const application = (p.applications || []).find(x => x.documentId === a.documentId && x.documentType === a.documentType);
       const paidDate = String(p.paymentDate || p.date || '').slice(0, 10);
-      const settledDate = application ? String(application.date).slice(0, 10) : paidDate;
+      const settledDate = applicationDateOf.get(allocationIndex) ?? paidDate;
       const lines = (accrual.lines || []).map(l => ({ ...l, amountCents: lineAmount(l, accrual), baseAmountCents: undefined, exchangeRate: 1 }));
       const owed = owedOn(lines, a.documentType);
       if (owed === 0) continue;
@@ -179,7 +198,9 @@ export function cashBasisEntries(accounts: ChartAccount[], transactions: Transac
       if (voided) {
         const voidDate = String(p.voidDate || '').slice(0, 10);
         if (voidDate) {
-          const voidLines = shareOfLines(lines.filter(l => !onArAp(l) && !isCash(l)), -share);
+          // the exact negation of the settlement lines: re-allocating a negative share would round
+          // half-cent ties the other way and leave a cent behind after the void
+          const voidLines = settledLines.map(l => ({ ...l, amountCents: -l.amountCents }));
           entries.push({
             ...accrual, id: `${accrual.id}:voided:${p.id}`, date: voidDate, exchangeRate: 1,
             description: `${accrual.description || ''} (voided)`, lines: voidLines,

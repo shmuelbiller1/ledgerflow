@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import type { Firestore } from '../db/firestore';
 import { computeBalanceSheet, computeProfitAndLoss } from '../reports/computeReports';
 import { AGING_BUCKETS, computePartyAging } from '../../lib/aging';
+import { documentVoidDates } from '../reports/documentVoidDates';
 import { formatMoney as formatCurrency, type MoneyDisplaySettings } from '../../lib/moneyFormat';
 import { addToDateISO, formatTzDate } from '../../lib/calendarDate';
 import {
@@ -54,7 +55,7 @@ export async function reportEmail(db: Firestore, workspace: { id: string; name?:
 export async function buildReport(db: Firestore, workspaceId: string, schedule: { report: Exclude<ScheduledReport['report'], 'report-pack'> }, period: ReportPeriod, baseCurrency = 'USD'): Promise<ReportTable> {
   const dayAfter = addToDateISO(period.endDate, { days: 1 });
   if (schedule.report === 'receivables-aging') {
-    const [customers, invoices, settlements] = await Promise.all([
+    const [customers, invoices, settlements, voidDates] = await Promise.all([
       workspaceRows<Customer>(db, 'customers', workspaceId),
       workspaceRows<Invoice>(db, 'invoices', workspaceId, dayAfter),
       // RP-01: the snapshot is reconstructed from dated settlement events through the period end,
@@ -70,8 +71,10 @@ export async function buildReport(db: Firestore, workspaceId: string, schedule: 
 amountCents: Number(r.baseClearedCents) || 0,
             kind: r.kind === undefined ? undefined : String(r.kind),
           }))),
+      // a void counts from the date its reversal was posted, not before
+      documentVoidDates(db, workspaceId, 'invoice'),
     ]);
-    return agingTable(computePartyAging(customers, invoices, 'customer', period.endDate, baseCurrency, settlements), [...AGING_BUCKETS], period);
+    return agingTable(computePartyAging(customers, invoices, 'customer', period.endDate, baseCurrency, settlements, voidDates), [...AGING_BUCKETS], period);
   }
   const [accounts, entries] = await Promise.all([
     workspaceRows<ChartAccount>(db, 'chartAccounts', workspaceId),

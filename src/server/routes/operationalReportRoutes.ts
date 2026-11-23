@@ -7,6 +7,7 @@ import type { DocumentData, Firestore } from '../db/firestore';
 import type { ReportReadScope } from '../reports/readScope';
 import { WorkspaceIdSchema } from '../../schemas';
 import { computePartyAging } from '../../lib/aging';
+import { documentVoidDates } from '../reports/documentVoidDates';
 import {
   computeContactBalanceSummary,
   computeCustomerBalanceSummary,
@@ -67,7 +68,7 @@ export function createOperationalReportRouter({ db, authorize }: ReportReadScope
       const { data: workspace } = await authorize(workspaceId, requestUser(req));
       const baseCurrency = String(workspace.currency || 'USD');
       const documentType = side === 'customer' ? 'invoice' : 'bill';
-      const [parties, documents, settlements] = await Promise.all([
+      const [parties, documents, settlements, voidDates] = await Promise.all([
         streamWorkspaceCollection<Customer | Vendor>(db, side === 'customer' ? 'customers' : 'vendors', workspaceId),
         streamWorkspaceCollection<Invoice | Bill>(db, side === 'customer' ? 'invoices' : 'bills', workspaceId),
         // RP-01: reconstruct the balance as of asOfDate from dated settlement events; documents
@@ -83,8 +84,10 @@ export function createOperationalReportRouter({ db, authorize }: ReportReadScope
 amountCents: Number(r.baseClearedCents) || 0,
               kind: r.kind === undefined ? undefined : String(r.kind),
             }))),
+        // a void counts from the date its reversal was posted, not before
+        documentVoidDates(db, workspaceId, documentType),
       ]);
-      const rows = computePartyAging(parties, documents, side, asOfDate, baseCurrency, settlements);
+      const rows = computePartyAging(parties, documents, side, asOfDate, baseCurrency, settlements, voidDates);
       return res.json({ rows, provenance: serverProvenance() });
     } catch (error) {
       return handleCommonError(res, error, 'Failed to generate party aging report');

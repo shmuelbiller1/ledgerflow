@@ -309,11 +309,16 @@ export async function reconcileInTransaction(
         if (refusal) throw new ReconcileError(400, refusal);
         // BR-05: the entry may clear only this one line — not another line in this batch, and not one
         // that is already matched to it
-        const previousOwner = matchedEntryOwners.get(matchedId);
+        // the ownership is per cash movement — the entry's leg in this line's account — so the two
+        // sides of a transfer between two bank accounts each clear their own line, while a second line
+        // in the same account against the same entry is still refused
+        const lineAccount = typeof storedLine.accountId === 'string' && storedLine.accountId ? storedLine.accountId : '*';
+        const movementKey = `${matchedId}|${lineAccount}`;
+        const previousOwner = matchedEntryOwners.get(movementKey);
         if (previousOwner && previousOwner !== op.id) {
           throw new ReconcileError(400, `Entry ${matchedId} is already matched to bank line ${previousOwner}; one entry clears one bank line`);
         }
-        matchedEntryOwners.set(matchedId, op.id);
+        matchedEntryOwners.set(movementKey, op.id);
       }
       // undoing a match on a line the bank later changed or withdrew: the bank's version is what goes
       // back to To review, since the next sync will not send that change again (CodeRabbit on #439)
@@ -600,9 +605,14 @@ export async function prepareCompleteReconciliation(
     if (!data || date > input.statementDate) continue;
     if (!priorRec || date > String(priorRec.statementDate || '')) priorRec = data;
   }
+  // the same beginning balance the reconciliation wizard shows (ReconciliationWizard beginningBalance):
+  // the last statement's balance, else a recorded opening balance (BR-03: a recorded zero is a real zero),
+  // else the account's stored balance — so a statement the wizard shows as balanced can be completed
+  const storedBalance = Number((accountData as { balanceCents?: unknown }).balanceCents);
   const beginningBalanceCents = typeof priorRec?.statementBalanceCents === 'number'
     ? priorRec.statementBalanceCents
-    : (typeof accountData.openingBalanceCents === 'number' ? accountData.openingBalanceCents : 0);
+    : typeof accountData.openingBalanceCents === 'number' ? accountData.openingBalanceCents
+      : Number.isFinite(storedBalance) ? Math.round(storedBalance) : 0;
   return {
     workspace: wsDoc.data() || {},
     reconciliationId: db.collection('reconciliations').doc().id,

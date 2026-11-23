@@ -1,4 +1,5 @@
 import { isIncomeAccount, resolveAccountRole } from '../../lib/accountUtils';
+import { RETAINAGE_RECEIVABLE_KEYS, isRetainageReceivableAccount } from '../../lib/retainageAccount';
 import { roundCents } from '../../lib/cents';
 import { Invoice } from '../../types';
 import { calculateDocumentTax, cashPostedWithDocumentCents, depositAppliedCents } from '../../lib/documentMath';
@@ -117,8 +118,8 @@ export async function postInvoiceLedger(
   const retainageAccount = retainageAmount > 0 ? resolveAccount(
     accounts,
     mappings,
-    ['retainage', 'retention'],
-    a => a.type === 'asset' && a.category === 'Receivables' && (a.name.toLowerCase().includes('retainage') || a.name.toLowerCase().includes('retention')),
+    RETAINAGE_RECEIVABLE_KEYS,
+    isRetainageReceivableAccount,
     'Retainage Receivable'
   ) : null;
   

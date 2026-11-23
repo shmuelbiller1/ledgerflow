@@ -16,6 +16,8 @@ import {
   extractCanonicalOperationId,
   deriveScopedOperationKey,
   assertSameRequest,
+  implicitKeyExpired,
+  IMPLICIT_REPLAY_WINDOW_MS,
 } from './idempotency';
 import { logSafe, logSafeDetail } from './logSafe';
 import { ZodError, type ZodType } from 'zod';
@@ -118,7 +120,8 @@ async function executeLegacyCommand<T>(
   const scopedKey = deriveScopedOperationKey(ctx.workspaceId, operationType, operationId);
 
   try {
-    const result = await executeIdempotent(scopedKey, { ...ctx, payloadHash: requestPayloadHash(req.body) }, async (t) => {
+    const implicit = !rawOperationId;
+    const result = await executeIdempotent(scopedKey, { ...ctx, payloadHash: requestPayloadHash(req.body), ...(implicit ? { replayWindowMs: IMPLICIT_REPLAY_WINDOW_MS } : {}) }, async (t) => {
       return await action(ctx, t);
     });
     return res.json({ status: 'success', data: result, ...extra() });
@@ -482,11 +485,15 @@ export async function runRegisteredCommand(
   // the command fingerprints its input. Commands that do not opt in keep the old behavior: no
   // key, no replay lookup, one execution per request.
   let payloadHash: string | undefined;
+  // ID-01 (Gitar): an implicit key replays only within its retry window — the same content later is a
+  // genuine second event (two identical installments the same day) and executes again
+  let implicitKey = false;
   if (operationId || command.implicitIdempotency) {
     try {
       const hashContext = { ...initialContext, ...(date ? { effectiveDate: date } : {}) };
       payloadHash = command.idempotencyHash?.(hashContext, input, undefined, req) ?? requestPayloadHash(req.body);
       if (!operationId && command.implicitIdempotency) {
+        implicitKey = true;
         operationId = `implicit_${payloadHash}`;
         initialContext.operationId = operationId;
       }
@@ -499,7 +506,7 @@ export async function runRegisteredCommand(
       const scopedKey = deriveScopedOperationKey(workspaceId, operationType, operationId);
       const previous = await db.collection('idempotencyKeys').doc(scopedKey).get();
       const record = previous.data();
-      if (record?.status === 'success') {
+      if (record?.status === 'success' && !implicitKeyExpired(record, implicitKey ? IMPLICIT_REPLAY_WINDOW_MS : undefined)) {
         assertSameRequest(record, idempotencyActor, payloadHash);
         return { ok: true, status: 200, command: command.name, data: record.result, replayed: true };
       }
@@ -564,6 +571,7 @@ export async function runRegisteredCommand(
         payloadHash,
         db,
         ...(command.legacyKey ? { legacyKey: command.legacyKey(workspaceId, operationId) } : {}),
+        ...(implicitKey ? { replayWindowMs: IMPLICIT_REPLAY_WINDOW_MS } : {}),
       }, handlerInTransaction, () => {
         afterCommitCallbacks.length = 0;
         didRunHandler = false;

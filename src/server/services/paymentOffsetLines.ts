@@ -1,6 +1,8 @@
 /** PM-04: the offset lines a payment's transaction posts. Without allocations (or without any
  *  retainage), the whole offset goes to the single resolved control account, exactly as before. */
 import type { RateUsed } from '../../lib/rateUsed';
+import type { ChartAccount } from '../../types';
+import { findRetainageReceivable } from '../../lib/retainageAccount';
 
 interface RetainageSplit { tradePartDoc: number; retainagePartDoc: number; documentType: 'invoice' | 'bill' }
 interface RetainageAccount { trade?: { accountId: string; name: string }; retainage?: { accountId: string; name: string } }
@@ -13,54 +15,66 @@ export function buildOffsetLines(opts: {
   hasAdvance: boolean;
   retainageSplits: RetainageSplit[];
   retainageAccounts: RetainageAccount[];
+  /** each allocation's cleared amount in the books' cents (documentClearing: rate, currency exponent and
+   * the final-settlement rounding already applied), in the same order as `retainageSplits` */
+  clearedBaseByAlloc?: number[];
   rateOn: (r: RateUsed | null) => { rateUsedId?: string };
   bookedRate: RateUsed | null;
 }): Array<{ accountId: string; amountCents: number; description?: string; rateUsedId?: string }> {
-  const { isReceipt, paymentId, offsetAccountId, offsetBaseCents, hasAdvance, retainageSplits, retainageAccounts, rateOn, bookedRate } = opts;
+  const { isReceipt, paymentId, offsetAccountId, offsetBaseCents, hasAdvance, retainageSplits, retainageAccounts, clearedBaseByAlloc, rateOn, bookedRate } = opts;
   const desc = `Offset ${isReceipt ? 'Credit' : 'Debit'} for Payment ${paymentId}`;
+  const signed = (l: { accountId: string; amountCents: number }) => ({ accountId: l.accountId, amountCents: isReceipt ? -l.amountCents : l.amountCents, description: desc, ...rateOn(bookedRate) });
   if (retainageSplits.some(r => r.retainagePartDoc > 0)) {
-    return retainageSplits.flatMap((split, i) => {
+    // each document's cleared base amount is divided between its trade and retainage control accounts
+    // in the proportion of the document-currency parts, so the lines add up to exactly what clears
+    // (never document minor units × a major-unit rate)
+    const lines: Array<{ accountId: string; amountCents: number }> = [];
+    let allocated = 0;
+    retainageSplits.forEach((split, i) => {
       const accs = retainageAccounts[i] || {};
-      const rate = Number(bookedRate?.rate ?? 1);
-      const lines = [
-        { accountId: accs.trade?.accountId ?? offsetAccountId, amountCents: split.tradePartDoc * rate },
-        { accountId: accs.retainage?.accountId ?? accs.trade?.accountId ?? offsetAccountId, amountCents: split.retainagePartDoc * rate },
-      ];
-      return lines.filter(l => l.amountCents).map(l => ({ accountId: l.accountId, amountCents: isReceipt ? -l.amountCents : l.amountCents, description: desc, ...rateOn(bookedRate) }));
+      const cleared = clearedBaseByAlloc?.[i] ?? Math.round((split.tradePartDoc + split.retainagePartDoc) * Number(bookedRate?.rate ?? 1));
+      const docTotal = split.tradePartDoc + split.retainagePartDoc;
+      const tradePart = docTotal > 0 ? Math.round(cleared * split.tradePartDoc / docTotal) : cleared;
+      allocated += cleared;
+      lines.push(
+        { accountId: accs.trade?.accountId ?? offsetAccountId, amountCents: tradePart },
+        { accountId: accs.retainage?.accountId ?? accs.trade?.accountId ?? offsetAccountId, amountCents: cleared - tradePart },
+      );
     });
+    // what the allocations do not cover (an unmatched part with no advance account) still offsets on
+    // the resolved control account, as it does without retainage
+    const rest = offsetBaseCents - allocated;
+    if (rest !== 0) lines.push({ accountId: offsetAccountId, amountCents: rest });
+    return lines.filter(l => l.amountCents).map(signed);
   }
-  return offsetBaseCents !== 0 || !hasAdvance ? [{ accountId: offsetAccountId, amountCents: isReceipt ? -offsetBaseCents : offsetBaseCents, description: desc, ...rateOn(bookedRate) }] : [];
+  return offsetBaseCents !== 0 || !hasAdvance ? [signed({ accountId: offsetAccountId, amountCents: offsetBaseCents })] : [];
 }
 
-/** PM-04: for each allocation's retainage split, find the trade and retainage control accounts. */
+/**
+ * PM-04: for each allocation's retainage split, the trade and retainage control accounts the document
+ * was posted to: the trade part clears the receivable the payment already settles (`tradeAccountId`, the
+ * document's own A/R), the retained part clears the Retainage Receivable resolved exactly as invoice
+ * posting resolves it (workspace mapping first, then an asset Receivables account named for retainage) —
+ * never by a name-only search that could land on Retainage Payable.
+ */
 export async function buildRetainageAccounts(
   splits: Array<{ retainagePartDoc: number; documentType: 'invoice' | 'bill' }>,
-  chart: Array<{ id: string; name: string }>,
+  chart: ChartAccount[],
+  opts: { tradeAccountId?: string; mappings?: Record<string, string> } = {},
 ): Promise<Array<{ trade?: { accountId: string; name: string }; retainage?: { accountId: string; name: string } }>> {
-  const out: Array<{ trade?: { accountId: string; name: string }; retainage?: { accountId: string; name: string } }> = [];
-  for (const split of splits) {
-    if (split.retainagePartDoc <= 0) { out.push({}); continue; }
-    const isReceipt = split.documentType === 'invoice';
-    // the retainage account: first try the one matching the document's side (receivable for
-    // invoices, payable for bills), then fall back to any account with retainage in its name.
-    const retAcc = chart.find(a => /retainage/i.test(a.name) && (isReceipt
-      ? (a.name || '').toLowerCase().includes('receivable')
-      : (a.name || '').toLowerCase().includes('payable')))
-      || chart.find(a => /retainage/i.test(a.name));
-    // the trade account: the first asset (ar) or liability (ap) account that is not the retainage account
-    const tradeAcc = chart.find(a => a.id !== retAcc?.id && (isReceipt
-      ? (a.name || '').toLowerCase().includes('receivable')
-      : (a.name || '').toLowerCase().includes('payable')));
-    out.push({
-      trade: tradeAcc ? { accountId: tradeAcc.id, name: tradeAcc.name } : undefined,
-      retainage: retAcc ? { accountId: retAcc.id, name: retAcc.name } : undefined,
-    });
-  }
-  return out;
+  const tradeAcc = opts.tradeAccountId ? chart.find(a => a.id === opts.tradeAccountId) : undefined;
+  const trade = tradeAcc ? { accountId: tradeAcc.id, name: tradeAcc.name } : undefined;
+  const retAcc = findRetainageReceivable(chart, opts.mappings);
+  const retainage = retAcc ? { accountId: retAcc.id, name: retAcc.name } : undefined;
+  // only invoices post a retained part (bill posting credits the whole bill to A/P)
+  return splits.map(split => (split.retainagePartDoc > 0 && split.documentType === 'invoice' ? { trade, retainage } : {}));
 }
 
 /** PM-04: split an allocation between the trade and retainage control accounts. */
-export function computeRetainageSplit(docData: { retainageCents?: number; amountCents?: number; amountPaidCents?: number }, allocAmountCents: number): { tradePartDoc: number; retainagePartDoc: number } {
+export function computeRetainageSplit(docData: { retainageCents?: number; amountCents?: number; amountPaidCents?: number }, allocAmountCents: number, documentType: 'invoice' | 'bill' = 'invoice'): { tradePartDoc: number; retainagePartDoc: number } {
+  // bill posting credits the whole bill to ordinary A/P (no retainage line), so paying a bill clears A/P
+  // in full: splitting part of it to Retainage Payable would leave A/P open on a fully paid bill
+  if (documentType === 'bill') return { tradePartDoc: allocAmountCents, retainagePartDoc: 0 };
   const retainageDocCents = Math.max(0, Number(docData.retainageCents) || 0);
   const tradeDocCents = Math.max(0, (Number(docData.amountCents) || 0) - retainageDocCents);
   const tradeOutstandingDoc = Math.max(0, tradeDocCents - (Number(docData.amountPaidCents) || 0));

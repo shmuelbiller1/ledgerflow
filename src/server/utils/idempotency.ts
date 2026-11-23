@@ -86,6 +86,20 @@ export function extractCanonicalOperationId(req: { headers?: Record<string, unkn
  * @param transactionHandler Callback receiving the active Firestore transaction
  * @param onTransactionAttempt Reset attempt-local state before every transaction callback, including replays
  */
+/**
+ * ID-01: how long a headerless (implicit, content-derived) operation id replays its stored result. A
+ * retry of the same request arrives within seconds; the same content much later is a genuine second
+ * event (two identical $50 installments, two identical expense journals) and must post, not replay.
+ */
+export const IMPLICIT_REPLAY_WINDOW_MS = 10 * 60 * 1000;
+
+/** Whether a stored success record is past an implicit key's replay window (never, without a window). */
+export function implicitKeyExpired(record: { createdAt?: unknown; updatedAt?: unknown } | undefined, windowMs?: number, now = Date.now()): boolean {
+  if (!windowMs || !record) return false;
+  const at = new Date(String(record.updatedAt || record.createdAt || '')).getTime();
+  return Number.isFinite(at) && now - at >= windowMs;
+}
+
 export async function executeIdempotent<T>(
   scopedOperationId: string,
   metadata: {
@@ -95,6 +109,9 @@ export async function executeIdempotent<T>(
     payloadHash?: string;
     legacyKey?: string;
     db?: ReturnType<typeof getDb>;
+    /** ID-01: an implicit (content-derived) key only replays within this window; after it, the same
+     * content is a new business event (a second identical installment) and executes again */
+    replayWindowMs?: number;
   },
   transactionHandler: (t: FirestoreTransaction) => Promise<T>,
   onTransactionAttempt?: () => void,
@@ -109,7 +126,7 @@ export async function executeIdempotent<T>(
 
     if (doc.exists) {
       const data = doc.data() as IdempotencyRecord;
-      if (data.status === 'success') {
+      if (data.status === 'success' && !implicitKeyExpired(data, metadata.replayWindowMs)) {
         assertSameRequest(data, metadata.actor, metadata.payloadHash);
         return data.result as T;
       }
@@ -143,7 +160,7 @@ export async function executeIdempotent<T>(
       workspaceId: metadata.workspaceId,
       operationType: metadata.operationType,
       ...(metadata.payloadHash ? { payloadHash: metadata.payloadHash } : {}),
-      createdAt: doc.exists ? (doc.data()?.createdAt || new Date().toISOString()) : new Date().toISOString(),
+      createdAt: doc.exists && !implicitKeyExpired(doc.data() as IdempotencyRecord, metadata.replayWindowMs) ? (doc.data()?.createdAt || new Date().toISOString()) : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       status: 'success',
       result: result !== undefined ? result : null,

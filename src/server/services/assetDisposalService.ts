@@ -4,7 +4,7 @@ import { FieldValue } from '../db/firestore';
 import { TransactionValidator } from '../../kernel/validation/TransactionValidator';
 import { depreciationThrough } from '../../lib/depreciationEngine';
 import { postingLock, lockMessage, workspaceRole } from '../../lib/periodLock';
-import { disposalGainLoss, disposalLines, disposalProblem, partialDisposalInput, portionOf, portionProblem, type DisposalAccounts } from '../../lib/assetDisposal';
+import { disposalGainLoss, disposalLines, disposalProblem, partialDisposalInput, portionOf, portionProblem, retainedCostAdditions, type DisposalAccounts } from '../../lib/assetDisposal';
 import { formatMoney as formatCurrency } from '../../lib/moneyFormat';
 import { formatTzDate } from '../../lib/calendarDate';
 import type { ChartAccount, FixedAsset, PartialDisposal } from '../../types';
@@ -70,7 +70,11 @@ export async function disposeAsset(db: Firestore, input: DisposeInput) {
     const target = Math.max(posted, depreciationThrough(asset, month));
     // X-04: the share leaving; what stays has accumulated what the engine says the smaller asset has by now
     const share = partial ? portionOf(asset, Number(input.portionPercent)) : null;
-    const remainingDepreciation = share ? Math.min(target, depreciationThrough({ ...asset, purchasePriceCents: share.remainingCostCents, salvageValueCents: share.remainingSalvageCents }, month)) : 0;
+    // FA-01 + X-04: each capitalized addition is a component of the cost, so the share that stays keeps
+    // the same share of every addition — in the depreciation the smaller asset has by now as well as in
+    // what is saved for it — otherwise the engine would schedule the full additions on a smaller basis
+    const scaledAdditions = retainedCostAdditions(asset.costAdditions, Number(input.portionPercent));
+    const remainingDepreciation = share ? Math.min(target, depreciationThrough({ ...asset, purchasePriceCents: share.remainingCostCents, salvageValueCents: share.remainingSalvageCents, costAdditions: scaledAdditions }, month)) : 0;
     const amounts = share
       ? partialDisposalInput(share.costPartCents, target - remainingDepreciation, target - posted, input.proceedsCents)
       : { costCents: asset.purchasePriceCents || 0, postedDepreciationCents: posted, catchUpCents: target - posted, proceedsCents: input.proceedsCents };
@@ -123,11 +127,7 @@ export async function disposeAsset(db: Firestore, input: DisposeInput) {
         accumulatedCents: target - remainingDepreciation, proceedsCents: input.proceedsCents, gainLossCents: gainLoss, transactionId: ledgerTx.id,
         before: { purchasePriceCents: asset.purchasePriceCents || 0, salvageValueCents: asset.salvageValueCents || 0, accumulatedDepreciationCents: posted, depreciatedThrough: asset.depreciatedThrough || null, originalCostAdditions: (Array.isArray(asset.costAdditions) ? asset.costAdditions : []) },
       };
-      // P1 fix: scale each capitalized addition to the retained share, so the depreciation
-      // engine schedules the remaining basis rather than the full original addition amounts.
-      const remainingPercent = 100 - Number(input.portionPercent);
-      const scaledAdditions = (Array.isArray(asset.costAdditions) ? asset.costAdditions : [])
-        .map(addition => ({ ...addition, amountCents: Math.round(Number(addition.amountCents) * remainingPercent / 100) }));
+      // the retained share of each capitalized addition (above) is saved with the smaller asset
       t.update(assetRef, {
         purchasePriceCents: share.remainingCostCents, salvageValueCents: share.remainingSalvageCents,
         accumulatedDepreciationCents: remainingDepreciation, depreciatedThrough: month,
@@ -189,8 +189,8 @@ export async function undoDisposal(db: Firestore, input: Actor & { assetId: stri
       }
       if (shareEntry && shareEntry.status !== 'void') t.update(shareTx, { status: 'void', voidedReason: 'Partial disposal undone', voidedAt: now, updatedAt: now });
       // restore the original cost additions too, so undo undoes the scaled additions
-      const restoredAdditions = last.before.originalCostAdditions;
-      t.update(assetRef, { ...last.before, ...(restoredAdditions ? { costAdditions: restoredAdditions } : {}), partialDisposals: shares.slice(0, -1), updatedAt: now });
+      const { originalCostAdditions: restoredAdditions, ...restored } = last.before;
+      t.update(assetRef, { ...restored, ...(restoredAdditions ? { costAdditions: restoredAdditions } : {}), partialDisposals: shares.slice(0, -1), updatedAt: now });
       await writeServerAuditLog({
         workspaceId: input.workspaceId, uid: input.uid, email: input.email, action: 'ASSET_PARTIAL_DISPOSAL_UNDONE', entityType: 'assets', entityId: input.assetId,
         details: { description: `Undid the sale of ${last.percent}% of ${String(asset.name || input.assetId)}; its entry is void`, transactionId: last.transactionId },

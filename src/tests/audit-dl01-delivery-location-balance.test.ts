@@ -96,7 +96,7 @@ test('deliverOrder balances the location and undoDelivery refuses pre-delivery d
         orderId: id('ord1'), deliveryId: id('del2'), date: '2026-03-22',
         lines: [{ position: 0, quantity: 2 }], inventoryAccountId: id('inv'), cogsAccountId: id('eq'),
       }),
-      /Cost of Goods Sold account .* must be an expense account/,
+      /Cost of Goods Sold account .* must be an expense (or cost_of_goods )?account/,
     );
     await assert.rejects(
       deliverOrder(db, {
