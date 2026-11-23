@@ -129,6 +129,19 @@ export async function deleteAccount(db: Firestore, user: { uid: string; email?: 
     }
     if (Object.keys(update).length) await d.ref.update(update);
   }
+  // #944: support messages they wrote and error reports from their sessions keep the uid (so the thread and the
+  // report still make sense) but not their email; the user agent, which can identify a device, goes too
+  for (const d of (await db.collection('supportMessages').where('uid', '==', user.uid).get()).docs) {
+    const data = d.data() || {};
+    if (typeof data.email === 'string' && data.email && data.email !== erasedEmail) await d.ref.update({ email: erasedEmail });
+  }
+  for (const d of (await db.collection('errorLogs').where('userId', '==', user.uid).get()).docs) {
+    const data = d.data() || {};
+    const update: Record<string, unknown> = {};
+    if (typeof data.userEmail === 'string' && data.userEmail && data.userEmail !== erasedEmail) update.userEmail = erasedEmail;
+    if (data.userAgent !== undefined) update.userAgent = null;
+    if (Object.keys(update).length) await d.ref.update(update);
+  }
   await deleteSignIn(user.uid);
   return { scheduledForDeletion: plan.scheduleDeletion.map(w => w.id), left: plan.leave.map(w => w.id) };
 }

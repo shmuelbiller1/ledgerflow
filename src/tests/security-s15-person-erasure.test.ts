@@ -161,6 +161,8 @@ test('S-15 (Postgres): deleteAccount removes personal collections, blocks sole-o
     await db.collection('notifications').doc(`notif_${suffix}`).set({ id: `notif_${suffix}`, uid: aliceUid, workspaceId: soloWsId, message: 'hi', createdAt: now });
     await db.collection('loginAudits').doc(`login_${suffix}`).set({ id: `login_${suffix}`, uid: aliceUid, email: aliceEmail, event: 'login', timestamp: now });
     await db.collection('auditLogs').doc(`audit_old_${suffix}`).set({ id: `audit_old_${suffix}`, workspaceId: soloWsId, uid: aliceUid, email: aliceEmail, action: 'INVOICE_CREATED', entityType: 'invoice', entityId: 'inv1', timestamp: now, details: {} });
+    await db.collection('supportMessages').doc(`msg_${suffix}`).set({ id: `msg_${suffix}`, workspaceId: soloWsId, ticketId: `t_${suffix}`, uid: aliceUid, email: aliceEmail, body: 'help', createdAt: now });
+    await db.collection('errorLogs').doc(`err_${suffix}`).set({ id: `err_${suffix}`, workspaceId: soloWsId, userId: aliceUid, userEmail: aliceEmail, userAgent: 'Mozilla/5.0 Alice laptop', message: 'boom', createdAt: now });
 
     let deletedAuthUid = '';
     const result = await deleteAccount(db, { uid: aliceUid, email: aliceEmail }, async uid => {
@@ -185,8 +187,18 @@ test('S-15 (Postgres): deleteAccount removes personal collections, blocks sole-o
     const earlier = (await db.collection('auditLogs').doc(`audit_old_${suffix}`).get()).data();
     assert.equal(earlier?.uid, aliceUid, 'who did it stays on the record');
     assert.match(String(earlier?.email), /@redacted\.invalid$/);
+    // #944: the support thread and the error report keep who (uid), not the email or the device
+    const message = (await db.collection('supportMessages').doc(`msg_${suffix}`).get()).data();
+    assert.equal(message?.uid, aliceUid);
+    assert.match(String(message?.email), /@redacted\.invalid$/);
+    const report = (await db.collection('errorLogs').doc(`err_${suffix}`).get()).data();
+    assert.equal(report?.userId, aliceUid);
+    assert.match(String(report?.userEmail), /@redacted\.invalid$/);
+    assert.equal(report?.userAgent ?? null, null);
   } finally {
     await db.pool.query(`delete from public."auditLogs" where workspace_id in ($1, $2)`, [soloWsId, sharedWsId]);
+    await db.pool.query(`delete from public."supportMessages" where id = $1`, [`msg_${suffix}`]);
+    await db.pool.query(`delete from public."errorLogs" where id = $1`, [`err_${suffix}`]);
     await db.pool.query(`delete from public.workspaces where id in ($1, $2)`, [soloWsId, sharedWsId]);
     await db.pool.query(`delete from public.users where id = $1`, [aliceUid]);
     await db.pool.query(`delete from auth.users where id in ($1::uuid, $2::uuid)`, [aliceUid, bobUid]);
