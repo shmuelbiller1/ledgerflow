@@ -31,7 +31,8 @@ import { proposedToolName } from '../src/server/services/assistantToolDefinition
 import { stepCommand, stepCommandNames } from '../src/server/commands/sandboxStepCommands';
 import { runAssistantTurn } from '../src/server/services/assistantTurn';
 import { openAiCompatibleClient } from '../src/server/services/openAiCompatibleClient';
-import { bookTool } from './eval/sampleBooks';
+import { bookTool, TODAY } from './eval/sampleBooks';
+import { assistantFacts } from '../src/server/services/assistantFacts';
 import { CASES, RECEIPTS, gradeReceipt, whatHappened, type Outcome } from './eval/cases';
 
 const ownerCommands = () => stepCommandNames().map(stepCommand).filter(c => c.roles.some(r => r === 'owner'));
@@ -51,6 +52,9 @@ export function meteredFetch(spend: Spend, total: { calls: number }, cap: number
   };
 }
 
+
+/** The facts the live assistant sends with each question, for the sample company; ASSISTANT_EVAL_FACTS=off leaves them out. */
+const EVAL_FACTS = process.env.ASSISTANT_EVAL_FACTS === 'off' ? undefined : assistantFacts({ today: TODAY, currency: 'USD', fiscalYearStartMonth: 1 });
 
 /**
  * One question through the real turn loop; every tool call (name and arguments) is kept for grading.
@@ -103,7 +107,7 @@ export async function runCase(baseUrl: string, doFetch: typeof fetch, model: str
     ? ((result as { matches?: Array<{ tool?: FunctionDeclaration }> }).matches ?? []).flatMap(m => (m.tool ? [m.tool] : [])) : [];
   const timer = setTimeout(() => stop.abort(), timeoutMs);
   try {
-    const { answer, metric } = await runAssistantTurn({ client, model, systemPrompt, tools, question: q, callTool, discover, maxSteps: 6 });
+    const { answer, metric } = await runAssistantTurn({ client, model, systemPrompt, tools, question: q, callTool, discover, maxSteps: 6, ...(EVAL_FACTS ? { facts: EVAL_FACTS } : {}) });
     // an endpoint error, the call cap, a timeout or running out of steps comes back as ok: false, not a throw
     const error = stop.signal.aborted ? `timed out after ${timeoutMs / 1000}s` : metric.ok ? undefined : 'no final answer (endpoint error, call cap or step limit)';
     return { outcome: { answer, calls, ...(error ? { error } : {}) } as Outcome, metric };

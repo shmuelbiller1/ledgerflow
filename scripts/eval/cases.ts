@@ -38,9 +38,10 @@ export function asksAbout(o: Outcome, detail: RegExp): boolean {
   // what the reply asks for: question sentences, plus any polite request and the list that follows it
   // ("please provide: - the bill date - the due date"), which is how models usually ask for several details
   const questions = [...sentences.filter(q => q.trim().endsWith('?')), ...requestParts(o.answer)];
-  // an affirmative completion claim in a statement; a negated one ("nothing has been done yet", "I haven't recorded it") is fine
+  // an affirmative completion claim ("Payment recorded.", "I've posted it"); a word used to describe a field
+  // ("recorded cents", "posted amounts") is not one; a negated claim ("nothing has been done yet") is fine
   const claims = sentences.filter(t => !t.trim().endsWith('?')
-    && /\b(recorded|created|posted|drafted|entered|saved|done)\b/i.test(t)
+    && /\b(recorded|created|posted|drafted|entered|saved|done)\b(?!\s+(cents|amounts?|totals?|balances?|values?|figures?|dates?)\b)/i.test(t)
     && !/\b(not|n't|nothing|no|yet|until|before|once|after)\b/i.test(t));
   return questions.some(q => detail.test(q)) && claims.length === 0;
 }
