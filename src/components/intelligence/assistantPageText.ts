@@ -9,10 +9,28 @@ export function capturePageText(root: HTMLElement, selection?: Range): string {
   const parts: string[] = [];
   let size = 0;
   let visited = 0;
+  // Start at the selection, not the top of a potentially huge ledger table.
   let node: Node | null;
-  while ((node = walk.nextNode()) && visited++ < 5000 && size < PAGE_TEXT_LIMIT) {
-    if (selection && !selection.intersectsNode(node)) continue;
-    const parent = node.parentElement;
+  if (selection) {
+    const start = selection.startContainer;
+    if (start.nodeType === Node.TEXT_NODE) node = start;
+    else {
+      node = start.childNodes[selection.startOffset] || null;
+      if (!node) {
+        let cursor: Node | null = start;
+        while (cursor && cursor !== root && !cursor.nextSibling) cursor = cursor.parentNode;
+        node = cursor && cursor !== root ? cursor.nextSibling : null;
+      }
+    }
+    if (!node || !root.contains(node)) return '';
+    walk.currentNode = node;
+    if (node.nodeType !== Node.TEXT_NODE) node = walk.nextNode();
+  } else node = walk.nextNode();
+  while (node && visited++ < 5000 && size < PAGE_TEXT_LIMIT) {
+    const current = node;
+    node = walk.nextNode();
+    if (selection && !selection.intersectsNode(current)) continue;
+    const parent = current.parentElement;
     if (!parent || parent.closest(EXCLUDED) || !parent.getClientRects().length) continue;
     let visible = true;
     for (let element: HTMLElement | null = parent; element && root.contains(element); element = element.parentElement) {
@@ -20,9 +38,9 @@ export function capturePageText(root: HTMLElement, selection?: Range): string {
       if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse' || style.opacity === '0') { visible = false; break; }
     }
     if (!visible) continue;
-    const raw = node.textContent || '';
-    const start = selection?.startContainer === node ? selection.startOffset : 0;
-    const end = selection?.endContainer === node ? selection.endOffset : raw.length;
+    const raw = current.textContent || '';
+    const start = selection?.startContainer === current ? selection.startOffset : 0;
+    const end = selection?.endContainer === current ? selection.endOffset : raw.length;
     const text = raw.slice(start, end).replace(/\s+/g, ' ').trim();
     if (!text) continue;
     parts.push(text);

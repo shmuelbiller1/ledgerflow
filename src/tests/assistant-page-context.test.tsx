@@ -41,6 +41,17 @@ test('highlighted text is limited to the page and excludes private material', ()
   selected.removeAllRanges(); root.remove();
 });
 
+test('highlighting late in a large page does not hit the traversal limit before the selection', () => {
+  pretendVisible();
+  const root = document.createElement('main');
+  root.innerHTML = '<span>earlier</span>'.repeat(6000) + '<p>selected at the end</p>';
+  document.body.append(root);
+  const range = document.createRange(); range.selectNodeContents(root.lastChild!);
+  const selected = window.getSelection()!; selected.removeAllRanges(); selected.addRange(range);
+  assert.equal(captureSelectedPageText(root), 'selected at the end');
+  selected.removeAllRanges(); root.remove();
+});
+
 test('page text is opt-in, editable, sent only after review, and cleared on navigation', async () => {
   pretendVisible(); setComponentWorkspace('owner');
   useUIStore.setState({ activeTab: 'dashboard' });
