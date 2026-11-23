@@ -15,7 +15,7 @@ for (const width of [390, 1280]) test(`floating assistant preserves page work an
   const invoice = page.getByLabel('Unsaved invoice note');
   await invoice.fill('A draft that stays here');
   await page.getByRole('button', { name: 'AI assistant' }).click();
-  const panel = page.getByRole('complementary', { name: 'Floating AI assistant' });
+  const panel = page.getByRole('dialog', { name: 'Floating AI assistant' });
   await expect(panel.getByRole('button', { name: 'Start assistant' })).toBeVisible();
   await panel.getByLabel('Your question').fill('open sales');
   await panel.getByRole('button', { name: 'Send question' }).click();

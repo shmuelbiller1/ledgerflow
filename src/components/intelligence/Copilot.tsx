@@ -38,6 +38,8 @@ function AssistantChat({ workspaceId, preservePage }: { workspaceId: string; pre
   const id = useId();
   const [sandboxes, setSandboxes] = useState<Sandbox[] | null>(null);
   const [sandboxId, setSandboxId] = useState('');
+  const selectedSandbox = useRef(sandboxId);
+  useEffect(() => { selectedSandbox.current = sandboxId; }, [sandboxId]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [question, setQuestion] = useState('');
   const [busy, setBusy] = useState(false);
@@ -54,7 +56,10 @@ function AssistantChat({ workspaceId, preservePage }: { workspaceId: string; pre
       if (!current) return;
       if (!Array.isArray(data?.sandboxes)) throw new Error('Could not read the available drafts.');
       setSandboxes(data.sandboxes);
-      setSandboxId(id => data.sandboxes.some(s => s.id === id) ? id : data.sandboxes[0]?.id || '');
+      const id = selectedSandbox.current;
+      const next = data.sandboxes.some(s => s.id === id) ? id : data.sandboxes[0]?.id || '';
+      if (id && id !== next) setMessages([]);
+      setSandboxId(next);
     }).catch(err => { if (current) setError(err instanceof Error ? err.message : 'Could not load the assistant.'); });
     return () => { current = false; };
   }, [base, listTick]);
@@ -65,6 +70,7 @@ function AssistantChat({ workspaceId, preservePage }: { workspaceId: string; pre
     try {
       const result = await runCommand<{ sandbox: { id: string } }>({ path: base, method: 'POST', body: {} });
       if (!result.sandbox?.id) throw new Error('The draft was opened but its ID was not returned. Check Assistant drafts before trying again.');
+      selectedSandbox.current = result.sandbox.id;
       setSandboxId(result.sandbox.id);
       setMessages([]);
       setQuestion('');
@@ -122,10 +128,11 @@ function AssistantChat({ workspaceId, preservePage }: { workspaceId: string; pre
     {error && <p role="alert" className="rounded-lg border border-rose-300 bg-[var(--surface)] p-3 text-sm text-rose-700 dark:text-rose-400">{error}</p>}
     {sandboxes === null ? (error ? <button type="button" onClick={() => { setError(''); setListTick(t => t + 1); }} className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold">Retry loading assistant</button> : <p role="status">Loading assistant…</p>) : <div className="flex flex-wrap items-end gap-3">
       {sandboxes.length > 0 && <div className="flex-1 min-w-0"><label htmlFor={`${id}-sandbox`} className="block text-sm font-semibold">Draft workspace</label>
-        <select id={`${id}-sandbox`} value={sandboxId} disabled={busy} onChange={e => { setSandboxId(e.target.value); setMessages([]); }} className="mt-1 min-h-11 w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
+        <select id={`${id}-sandbox`} value={sandboxId} disabled={busy} onChange={e => { selectedSandbox.current = e.target.value; setSandboxId(e.target.value); setMessages([]); }} className="mt-1 min-h-11 w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm">
           {sandboxes.map(s => <option key={s.id} value={s.id}>{new Date(s.createdAt).toLocaleString()} · {s.pendingSteps} pending · {s.id}</option>)}
         </select></div>}
       <button type="button" onClick={() => void start()} disabled={busy || sandboxes.length >= 3} className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold disabled:opacity-50">{sandboxes.length ? 'Open another draft' : 'Start assistant'}</button>
+      <button type="button" onClick={() => { setError(''); setListTick(t => t + 1); }} disabled={busy} className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold disabled:opacity-50">Refresh drafts</button>
       {sandboxes.length >= 3 && <p className="text-sm text-[var(--muted)]">You have three open drafts. Review or close one before opening another.</p>}
     </div>}
     <div aria-live="polite" aria-relevant="additions" className="space-y-3">

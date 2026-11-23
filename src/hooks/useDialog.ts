@@ -45,7 +45,10 @@ function topmostDialog(): OpenDialog | undefined {
  *
  * `onClose` may ask first (unsaved changes); it is called as it is at the time of the key press.
  */
-export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () => void, open = true) {
+export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () => void, open = true, options?: { modal?: boolean }) {
+  // A non-modal companion can stay open while the person works in the page. It still shares
+  // focus entry/return and Escape handling, but must not trap Tab or claim the page is inert.
+  const modal = options?.modal !== false;
   const ref = useRef<T>(null);
   const titleId = useId();
   const closeRef = useRef(onClose);
@@ -71,7 +74,7 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () =>
         closeRef.current();
         return;
       }
-      if (e.key !== 'Tab') return;
+      if (e.key !== 'Tab' || !modal) return;
       const items = focusables();
       if (items.length === 0) {
         e.preventDefault();
@@ -94,7 +97,7 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () =>
     const entry: OpenDialog = { node, seq: ++dialogSeq };
     openDialogs.push(entry);
     const onDocumentKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (!modal || e.key !== 'Escape' || e.defaultPrevented) return;
       if (topmostDialog() !== entry) return;
       if (e.target instanceof Node && node.contains(e.target)) return;
       e.stopPropagation();
@@ -109,10 +112,10 @@ export function useDialog<T extends HTMLElement = HTMLDivElement>(onClose: () =>
       if (at >= 0) openDialogs.splice(at, 1);
       if (previous && previous.isConnected) previous.focus();
     };
-  }, [open]);
+  }, [open, modal]);
 
   return {
     titleId,
-    dialogProps: { ref, role: 'dialog' as const, 'aria-modal': true as const, 'aria-labelledby': titleId, tabIndex: -1 },
+    dialogProps: { ref, role: 'dialog' as const, ...(modal ? { 'aria-modal': true as const } : {}), 'aria-labelledby': titleId, tabIndex: -1 },
   };
 }
