@@ -79,6 +79,15 @@ Luna still misses payment, profit drop, affordability and the year summary on th
 
 Gemini 4 Carbon is the new model you asked for. It kept reading records until it ran out of steps (fix the books, something looks off, affordability, write-offs) and was by far the slowest and most expensive, so it is not a candidate on this test. Luna's score rose from 8 to 10 of 12 since the earlier run, partly luck and partly the newer instructions.
 
+*Rerun 23 Nov with the final tool-free step (the audit branch change, db7f1d4, not in  when this ran: a turn that runs out of steps gets one last call without tools and answers with what it found), Luna and Terra only, one run per question, every turn in :*
+
+| model | correct (of 12) | billed | answered every question |
+|---|---|---|---|
+| GPT-6.1 Terra | 12 | 15.3¢ | yes |
+| GPT-6 Luna | 11 | 2.0¢ | yes |
+
+No turn ended without an answer any more. Luna's one miss was the consulting invoice: it searched, then drafted nothing and did not ask for the hourly rate. Receipts unchanged (15 of 16 fields for both).
+
 *Recommendation (based on the latest run, 23 Nov, newest test and instructions):* GPT-6.1 Terra is the only model that got everything right (12 of 12), so use it for the strong turns. GPT-6 Luna got 10 of 12 at about a tenth of Terra's cost (1.5¢ against 15.2¢) and missed only multi-step questions by running out of steps (project move, affordability), which the written rule already sends to the strong model, so it is a reasonable candidate for simple turns and for reading receipts (15 of 16 fields, same as Terra). Both now pass "record a payment" and "make a bill"; the earlier failures on those two (every model except GLM) were before the newer test and instructions. Gemini 3.8 Flash, our current strong model, got 1 of 12 on the first test version and Gemini 4 Carbon 8 of 12 at about five times Terra's cost, so neither is a candidate. This is one run per question on test data, and Terra's score moved between runs (9, 7, 11, 12), so treat it as indicative.
 
 *Not done:* none of these models has a price row, and the code ignores an unpriced model, so the app still uses the Gemini defaults. I won't write a price from memory. Please send me Arena's prices for Terra and Luna, or tell me to read them from Arena's pricing page, and I will add the rows. The test is one small run on test data, not final.
