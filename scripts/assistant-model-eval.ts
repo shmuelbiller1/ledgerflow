@@ -16,7 +16,9 @@
  *
  * Cost: the endpoint's own billed cost (`usage.cost`) is summed per model. A hard cap stops the run
  * (ASSISTANT_EVAL_MAX_CALLS, default 400 model calls in total). ASSISTANT_EVAL_REPEATS=3 runs each question
- * three times per model and reports the total, so one lucky or unlucky answer does not decide the comparison. Test data only; the key is never read
+ * three times per model and reports the total, so one lucky or unlucky answer does not decide the comparison.
+ * ASSISTANT_EVAL_PROMPTS=scripts/eval/prompts/before-2026-11-23.md,assistant/SYSTEM_PROMPT.md compares instructions in
+ * the same run: every model is graded once per prompt file (default: assistant/SYSTEM_PROMPT.md only). Test data only; the key is never read
  * here: the session's network proxy adds it for the configured host.
  */
 import fs from 'node:fs';
@@ -171,7 +173,9 @@ async function main() {
   // ASSISTANT_EVAL_REPEATS: run each question this many times per model and report the total (default 1)
   const repeats = Math.max(1, Math.min(10, Number(process.env.ASSISTANT_EVAL_REPEATS ?? 1) || 1));
   const total = { calls: 0 };
-  const systemPrompt = fs.readFileSync('assistant/SYSTEM_PROMPT.md', 'utf8');
+  const promptFiles = (process.env.ASSISTANT_EVAL_PROMPTS ?? 'assistant/SYSTEM_PROMPT.md').split(',').map(s => s.trim()).filter(Boolean);
+  const prompts = promptFiles.map(file => ({ name: file.split('/').pop()!.replace(/\.md$/, ''), text: fs.readFileSync(file, 'utf8') }));
+  const runs = prompts.flatMap(p => models.map(model => ({ model, prompt: p })));
   const out: string[] = [];
   const say = (l = '') => { out.push(l); console.log(l); };
   const date = new Date().toISOString().slice(0, 10);
@@ -183,11 +187,13 @@ async function main() {
   say('| model | correct | finished (no error/timeout) | model calls | billed cost | cost per correct answer |');
   say('|---|---|---|---|---|---|');
   const detail: string[] = [];
-  for (const model of models) {
+  for (const { model, prompt } of runs) {
+    const systemPrompt = prompt.text;
+    const label = prompts.length > 1 ? `${model} (${prompt.name})` : model;
     const spend: Spend = { usd: 0, calls: 0, priced: 0 };
     const doFetch = meteredFetch(spend, total, cap);
     let correct = 0, finished = 0;
-    detail.push('', `#### ${model}`, '', `| question | result${repeats > 1 ? ` (of ${repeats})` : ''} | why (first wrong run) |`, '|---|---|---|');
+    detail.push('', `#### ${label}`, '', `| question | result${repeats > 1 ? ` (of ${repeats})` : ''} | why (first wrong run) |`, '|---|---|---|');
     for (const c of CASES) {
       // each question runs `repeats` times: models answer differently run to run, so one run is luck
       let right = 0, why = '';
@@ -206,8 +212,8 @@ async function main() {
     // only a fully priced run is a measured cost; otherwise say how much is missing
     const known = spend.priced === spend.calls;
     const billed = known ? `${cents.toFixed(2)}¢` : `unknown (${spend.calls - spend.priced} of ${spend.calls} calls without a billed cost; ≥${cents.toFixed(2)}¢)`;
-    const runs = CASES.length * repeats;
-    say(`| ${model} | ${correct} / ${runs}${repeats > 1 ? ` (${(correct / repeats).toFixed(1)} of ${CASES.length} on average)` : ''} | ${finished} / ${runs} | ${spend.calls} | ${billed} | ${known && correct ? (cents / correct).toFixed(2) + '¢' : '—'} |`);
+    const asked = CASES.length * repeats;
+    say(`| ${label} | ${correct} / ${asked}${repeats > 1 ? ` (${(correct / repeats).toFixed(1)} of ${CASES.length} on average)` : ''} | ${finished} / ${asked} | ${spend.calls} | ${billed} | ${known && correct ? (cents / correct).toFixed(2) + '¢' : '—'} |`);
   }
   if (ocrModels.length) {
     say(); say('### Receipts (OCR)'); say();
