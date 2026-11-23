@@ -51,6 +51,23 @@ Each table is a replay of the same 30 questions, asked twice. The first three sw
 - **Not changed:** 9 of 18 book questions are answered by code per pass, as after Part 2 (18 of 36 over both passes). None of the questions that need the model is answered without it.
 
 
+## Part 6 — model comparison on Arena (run 2026-11-22, test data only)
+
+Same 30 questions, `scripts/assistant-replay.ts --single-model`: the candidate answers every model turn (21 per pass), with the cache and tools-by-area on and no two-model rule. "Answered" = the model produced a final answer within the 6-step limit; **it does not grade whether the answer was right**, and the test books are thin (many reads return little), so models that keep searching run out of steps. Cost is what Arena billed for the run (`usage.cost`), not a price-row estimate; none of these models has a price row yet.
+
+| model | passes | model turns | answered | model calls | median input tokens | median output tokens | billed (cents) | cents per 100 model turns |
+|---|---|---|---|---|---|---|---|---|
+| gpt-6-luna | 2 | 42 | 38 | 165 | 14,159 | 558 | 3.31 | 7.9 |
+| gpt-6.1-terra | 2 | 42 | 41 | 151 | 12,377 | 370 | 25.91 | 61.7 |
+| minimax-m3p1-flash | 2 | 42 | 0 | 252 | 23,065 | 1,301 | 7.00 | 16.7 |
+| deepseek-v4p1-flash-1017 | 2 | 42 | 5 | 247 | 22,618 | 1,725 | 14.92 | 35.5 |
+| gemini-3.8-flash | 1 | 21 | 1 | 126 | 12,094 | 400 | 28.78 | 137.0 |
+| glm-5p3 | 1 | 21 | 7 | 118 | 18,787 | 2,532 | 45.53 | 216.8 |
+
+**The billed column undercounts.** Arena's usage page for 16–22 Nov (read by the owner on 22 Nov after all runs, about 29.4M tokens) shows these totals per model, which include earlier runs that timed out or hit the step limit and are not in the table above: Gemini 3.8 Flash about 9.8M tokens / $5.21, MiniMax about 6.6M / $0.21, GLM 5.3 about 4.3M / $2.13, GPT-6 Luna about 3.8M / $0.11, GPT-6.1 Terra about 3.1M / $0.84, DeepSeek about 1.7M / $0.15 (percentages of the page's totals, rounded). The first runs used the two-model rule, which replaced the candidate with Gemini names; the simple one is not on Arena, so those turns were retried on Gemini 3.8 Flash. That is probably most of the Gemini spend (not verified). The ranking by price is the same either way; the cents-per-100 figures are lower bounds.
+
+Gemini 3.8 Flash and GLM 5.3 were first run twice over and timed out (the run was lost but Arena still billed it), so they were re-run once, capped at 150 calls. The first four ran earlier with a tool-result fixture that was less specific for reports. Treat the comparison as indicative, not final.
+
 ## Parts 4–6 — before and after (run 2026-11-22, `scripts/assistant-replay.ts --write`, test data only)
 
 Replay questions: 30 (18 the books can answer exactly, 12 that need the model), each asked twice (pass 2 = the same person asking again with the books unchanged).

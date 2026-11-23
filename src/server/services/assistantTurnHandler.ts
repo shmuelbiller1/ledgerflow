@@ -16,6 +16,7 @@
  * (`propose_…` → the same `add` intent the assistant token uses). Nothing here accepts a step or
  * writes to the real books. The stored metric holds no question, answer, amounts or names.
  */
+import { assistantFacts, todayIn } from './assistantFacts';
 import type express from 'express';
 import type { FunctionDeclaration } from '@google/genai';
 import { z } from 'zod';
@@ -96,7 +97,9 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
         const step = review.steps.at(-1);
         return { drafted: true, proposalId: review.id, step: step ? { id: step.id, command: step.command, state: step.state, preview: step.preview } : null };
       }
-      const { status, body } = await helpers.runReadTool(live, req, res, sandbox, name, args, passThrough);
+      // the model never sets "today": the books tool counts "this year" and "last month" from the workspace's own date
+      const { today: _madeUp, ...readArgs } = args;
+      const { status, body } = await helpers.runReadTool(live, req, res, sandbox, name, name === 'ask_books' ? readArgs : args, passThrough);
       if (status !== 200) return { error: (body as { message?: string } | undefined)?.message ?? 'The tool refused this request' };
       return body;
     };
@@ -128,6 +131,9 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
       model: models.simple,
       systemPrompt: ASSISTANT_SYSTEM_PROMPT,
       tools, question, callTool, discover,
+      facts: assistantFacts({ today: todayIn(typeof workspace.timezone === 'string' ? workspace.timezone : null), timeZone: typeof workspace.timezone === 'string' ? workspace.timezone : null, currency: typeof workspace.currency === 'string' ? workspace.currency : null,
+        fiscalYearStartMonth: typeof workspace.fiscalYearStartMonth === 'number' ? workspace.fiscalYearStartMonth : null,
+        fiscalYearStartDay: typeof workspace.fiscalYearStartDay === 'number' ? workspace.fiscalYearStartDay : null }),
       cache: sandboxToolCache(live.pool, sandbox, 'turn', { timeZone: workspace.timezone }),
       currency: typeof workspace.currency === 'string' ? workspace.currency : null,
       modelRule: { choose: reason => chooseModel(question, reason, commands, models), strong: models.strong },

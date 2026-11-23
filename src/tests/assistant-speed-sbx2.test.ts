@@ -60,6 +60,24 @@ describe('Part 5: about 25 tools by the question’s area, and find_command for 
     assert.ok(names(assistantToolsFor(owners, 'Reverse the accrual journal')).includes('propose_journal_reverse'));
   });
 
+  test('find_command ranks by matched words: a long model search still finds the command', () => {
+    // real searches from the 23 Nov model run that found nothing when every word had to match
+    const hits = (words: string) => findAssistantCommands(owners, words, 8).map(hit => hit.command);
+    assert.ok(hits('assign or move transactions expenses office costs to project; reclassify project dimension').includes('journal.batchupdate'), 'labels and dimensions on many entries');
+    assert.ok(hits('create recurring monthly invoice recurring invoice schedule').includes('record.save'), 'a recurring rule is an ordinary record');
+    // a real Luna search (23 Nov 04:28) that ranked warranty.update first: "set up" says nothing about the command
+    assert.equal(hits('set up monthly recurring invoice for customer')[0], 'record.save');
+    // "customer" is a domain word: it still finds the customer commands
+    assert.equal(hits('customer update')[0], 'customer.update');
+    assert.deepEqual(hits('zebra unicorn'), []);
+  });
+
+  test('ask_books does not offer the model a "today" field; calculate offers several expressions', () => {
+    const decl = (name: string) => geminiReadTools.find(t => t.name === name) as unknown as { parametersJsonSchema?: { properties?: Record<string, unknown> } };
+    assert.ok(!('today' in (decl('ask_books').parametersJsonSchema?.properties ?? {})));
+    assert.ok('expressions' in (decl('calculate').parametersJsonSchema?.properties ?? {}));
+  });
+
   test('a read-only or vague question is offered only the read tools and find_command', () => {
     for (const q of ['What is my cash balance?', 'Fix the books.', 'Can I afford to hire someone next quarter?']) {
       assert.deepEqual(questionAreas(q), [], q);

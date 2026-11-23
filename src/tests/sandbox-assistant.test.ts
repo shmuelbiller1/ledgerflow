@@ -174,6 +174,13 @@ describe('SBX-1 assistant token, read tools and routes (PostgreSQL)', { skip: !u
     const calc = await f.tool('calculate', { expression: '(125.00 + 30) * 0.17' });
     assert.deepEqual(calc.json, { expression: '(125.00 + 30) * 0.17', cents: 2635, amount: 26.35 });
     assert.equal((await f.tool('calculate', { expression: 'process.exit()' })).status, 400);
+    // several sums in one call, answered in order (one model step instead of one per sum)
+    const many = await f.tool('calculate', { expressions: ['4600 - 4200', '600 - 300'] });
+    assert.deepEqual(many.json, { results: [{ expression: '4600 - 4200', cents: 40_000, amount: 400 }, { expression: '600 - 300', cents: 30_000, amount: 300 }] });
+    assert.equal((await f.tool('calculate', { expression: '1+1', expressions: ['2+2'] })).status, 400);
+    const mixed = (await f.tool('calculate', { expressions: ['2 + 2', 'process.exit()'] })).json.results as Array<{ cents?: number; error?: string }>;
+    assert.equal(mixed[0].cents, 400);
+    assert.ok(mixed[1].error, 'a bad sum is reported on its own entry');
     const catalogue = await f.assistant('GET', '/commands');
     assert.equal(catalogue.status, 200);
     const catalogued = (catalogue.json.commands as Array<{ name: string; risk: string; metered?: boolean; sentence: string }>);

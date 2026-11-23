@@ -62,12 +62,14 @@ export function toChatTools(declarations: FunctionDeclaration[]) {
 export function openAiCompatibleClient(options: { baseUrl: string; apiKey?: string; fetchImpl?: typeof fetch }): ModelClient {
   const doFetch = options.fetchImpl ?? fetch;
   return { models: { async generateContent(req) {
-    const config = (req.config ?? {}) as { systemInstruction?: string; tools?: Array<{ functionDeclarations?: FunctionDeclaration[] }>; responseMimeType?: string; responseJsonSchema?: unknown };
+    const config = (req.config ?? {}) as { systemInstruction?: string; tools?: Array<{ functionDeclarations?: FunctionDeclaration[] }>; responseMimeType?: string; responseJsonSchema?: unknown; toolConfig?: { functionCallingConfig?: { mode?: string } } };
     const declarations = (config.tools ?? []).flatMap(t => t.functionDeclarations ?? []);
     const body = {
       model: req.model,
       messages: toChatMessages(String(config.systemInstruction ?? ''), (req.contents ?? []) as Content[]),
       ...(declarations.length ? { tools: toChatTools(declarations) } : {}),
+      // Gemini's "no function calls" setting: the tools stay (the history refers to them), none may be called
+      ...(declarations.length && config.toolConfig?.functionCallingConfig?.mode === 'NONE' ? { tool_choice: 'none' } : {}),
       // a JSON reply was asked for (receipt reading): the schema when given, else JSON mode
       ...(config.responseMimeType === 'application/json'
         ? { response_format: config.responseJsonSchema ? { type: 'json_schema', json_schema: { name: 'reply', schema: config.responseJsonSchema } } : { type: 'json_object' } }
