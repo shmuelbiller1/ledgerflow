@@ -204,4 +204,31 @@ describe('J-11 the QuickBooks picker (#903)', () => {
     assert.ok(!hasText('Old one'), 'the superseded read changes nothing');
     assert.equal(continueButton().disabled, false);
   });
+
+  test('a rejected drop supersedes an in-flight read; its rows never land late (PR #1036 review)', async () => {
+    cleanup();
+    globalThis.FileReader = DeferredFileReader as unknown as typeof FileReader;
+    render(<QBOMigrationWizard isOpen onClose={() => {}} />);
+
+    // a slow read of a valid pick is in flight…
+    pickFile(csvFile('first.csv', QB_CSV_TWO));
+    await waitFor(() => assert.equal(DeferredFileReader.instances.length, 1, 'the pick reached the reader'));
+
+    // …then the person drops a legacy .xls, which is refused. The refusal must be the last word.
+    fireEvent.change(pickerInput(), {
+      target: { files: [new FileCtor(['not-a-zip'], 'old-format.xls', { type: 'application/vnd.ms-excel' })] },
+    });
+    const alert = await screen.findByRole('alert');
+    assert.match(alert.textContent || '', /cannot be read here/, 'the refusal names the file-type problem');
+
+    // the superseded read lands late anyway (complete() fires even after abort): it must change nothing
+    DeferredFileReader.instances[0].complete(QB_CSV_TWO);
+    await waitFor(() => {
+      assert.ok(!hasText('Old one'), 'the late read never resurrects its rows');
+      assert.ok(!hasText('Old two'));
+    });
+    assert.ok(screen.queryByRole('alert'), 'the refusal stays visible');
+    assert.ok(hasText(/cannot be read here/), 'the refusal is not overwritten');
+    assert.equal(continueButton().disabled, true, 'nothing stale becomes actionable');
+  });
 });

@@ -68,8 +68,14 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
   const { addEntity } = useEntityOperations();
 
   // J-11 (#903): a refused read clears every earlier result and says what to do next, in the dialog.
+  // A failure — including a rejected drop — also supersedes whatever read is in flight: the file
+  // generation is bumped and the reader aborted so a slow read cannot land afterwards and resurrect
+  // its rows under the new file's name (edge case found in PR #1036 review).
   const failRead = (message: string, seq?: number) => {
     if (seq !== undefined && seq !== readSeqRef.current) return;
+    readSeqRef.current += 1;
+    activeReaderRef.current?.abort();
+    activeReaderRef.current = null;
     setParsedRows([]);
     setAccountMappings([]);
     setReadError(message);
