@@ -2,7 +2,7 @@ import { errorMessage, requestUser, type RequestUser } from '../auth/requestUser
 import { planFor } from '../../lib/plans';
 import express from "express";
 import { getDb, validateWorkspaceMember, FieldValue } from "../db/firestore.ts";
-import { checkoutIdempotencyKey, checkoutParamsFingerprint, getStripe, isIdempotencyInFlight } from "../services/stripeService.ts";
+import { checkoutIdempotencyKey, checkoutSessionClaimId, checkoutParamsFingerprint, getStripe, isIdempotencyInFlight } from "../services/stripeService.ts";
 import { getTrustedAppUrl } from "../utils/urlHelper.ts";
 import { roleInWorkspace } from "../middleware/requireLedgerWriter.ts";
 import { getShardedCounterValue } from "../services/shardedCounterService.ts";
@@ -135,34 +135,31 @@ billingRouter.post("/verify-session", async (req: express.Request, res: express.
 
     if (session.payment_status === 'paid' && session.metadata?.workspaceId === workspaceId) {
       const db = getDb();
-      const eventRef = db.collection('stripeProcessedEvents').doc(`session_${session.id}`);
-      const alreadyClaimed = await db.runTransaction(async (t) => {
-        const snap = await t.get(eventRef);
-        if (snap.exists) return true;
-        t.set(eventRef, {
-          sessionId: session.id,
-          workspaceId,
-          claimedAt: FieldValue.serverTimestamp()
-        });
-        return false;
-      });
-
+      // AUP-15: one claim per checkout session, shared with the webhook (stripeWebhookRoutes.ts) and written
+      // in the same transaction as the grant, so whichever arrives first grants once and the other only
+      // confirms, and a failure between claim and grant cannot leave a claim with nothing granted.
       const targetPlan = planFor(session.metadata?.plan).id;
       const creditsToGrant = targetPlan === 'enterprise' ? 10000000 : 1000000;
+      const alreadyClaimed = await db.runTransaction(async (t) => {
+        const claimRef = db.collection('stripeProcessedEvents').doc(checkoutSessionClaimId(session.id));
+        if ((await t.get(claimRef)).exists) return true;
+        t.set(claimRef, { sessionId: session.id, workspaceId, source: 'verify-session', claimedAt: FieldValue.serverTimestamp() });
+        t.set(db.collection("workspaces").doc(workspaceId), {
+          plan: targetPlan,
+          billingCycle: "monthly",
+          computeCreditBalance: FieldValue.increment(creditsToGrant),
+          computeLimit: creditsToGrant,
+          stripeCustomerId: session.customer || null,
+          stripeSubscriptionId: session.subscription || null,
+          lastUpgradedAt: new Date().toISOString()
+        }, { merge: true });
+        return false;
+      });
 
       if (alreadyClaimed) {
         return res.json({ status: "success", plan: targetPlan, message: "Session already verified" });
       }
 
-      await db.collection("workspaces").doc(workspaceId).set({
-        plan: targetPlan,
-        billingCycle: "monthly",
-        computeCreditBalance: FieldValue.increment(creditsToGrant),
-        computeLimit: creditsToGrant, 
-        stripeCustomerId: session.customer || null,
-        stripeSubscriptionId: session.subscription || null,
-        lastUpgradedAt: new Date().toISOString()
-      }, { merge: true });
       await writeServerAuditLog({
         workspaceId,
         uid: requestUser(req).uid,
