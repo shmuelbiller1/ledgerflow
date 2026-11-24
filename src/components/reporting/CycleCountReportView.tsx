@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useUIStore } from '../../stores/useUIStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { resolveDimensionLabel } from '../../lib/dimensionUtils';
 import {
@@ -17,6 +18,8 @@ import { downloadCsv } from '../../lib/csvExport';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import WarehouseOperationsReportView from './WarehouseOperationsReportView';
 import InventoryWorkflowTabs from './InventoryWorkflowTabs';
+import ReportEmptyState from './ReportEmptyState';
+import { CappedCollectionsNote } from '../common/LoadedEntriesOnlyNote';
 import { fill, useReportText } from './useReportText';
 
 const field = 'min-h-11 border rounded px-3 bg-[var(--panel)] text-[var(--text)]';
@@ -50,6 +53,7 @@ export default function CycleCountReportView({ endDate = '', loadMoves = loadWor
   const [scanInput, setScanInput] = useState('');
   const [scanMessage, setScanMessage] = useState('');
   const [activeWorkflow, setActiveWorkflow] = useState<'cycle-count' | 'warehouse'>('cycle-count');
+  const goToPage = useUIStore(s => s.goToPage);
   const keystrokeTimes = useRef<number[]>([]);
 
   const currency = workspace?.currency || 'USD';
@@ -129,6 +133,8 @@ export default function CycleCountReportView({ endDate = '', loadMoves = loadWor
     {activeWorkflow === 'warehouse' ? <WarehouseOperationsReportView embedded={embedded} /> : <section aria-label={reportText('r.inventory-cycle-count', 'Inventory cycle count')} className="p-4 space-y-4 min-w-0">
     <h2>{reportText('r.inventory-cycle-count', 'Inventory cycle count')}</h2>
     <p className="text-sm text-[var(--muted)]">{reportText('r.a-count-sheet-for-one-place-the-ledger-s-expecte', 'A count sheet for one place: the ledger\'s expected quantity, what was counted, and the variance in units and at each item\'s own cost.')} {COUNT_POSTING_NOTE}</p>
+    {/* R-11 / #926: when the item list is capped in this browser a sheet could leave stock out, so say so */}
+    <CappedCollectionsNote testId="cycle-count-capped" keys={['inventory']} what={reportText('r.this-count-sheet', 'this count sheet')} />
     <p className="text-sm text-[var(--muted)]">{reportText('r.a-row-left-blank-is-never-read-as-zero-it-is-lis', 'A row left blank is never read as zero — it is listed as not counted. A row whose stock history does not explain its quantity is marked, so a difference is not blamed on the count before the history is checked. Expected quantities come from the stock-moves ledger (per Location); an item with no history uses its own quantity on hand and says so.')}</p>
     {readProblem && <p role="status" className="text-sm text-[var(--warning,#b45309)]">{reportText('r.the-stock-moves-ledger-could-not-be-read', 'The stock-moves ledger could not be read (')}{readProblem}{reportText('r.expected-quantities-fall-back-to-each-item-s-own', '); expected quantities fall back to each item\'s own quantity on hand.')}</p>}
 
@@ -152,7 +158,19 @@ export default function CycleCountReportView({ endDate = '', loadMoves = loadWor
       <button type="button" onClick={begin} disabled={!canCount} className="min-h-11 px-4 rounded bg-[var(--text)] text-[var(--surface)] disabled:opacity-50">{reportText('r.open-the-count-sheet', 'Open the count sheet')}</button>
     </div>
 
-    {!sheet && <p className="text-sm text-[var(--muted)]">{loading ? reportText('r.loading-items', 'Loading items…') : moves === null && !readProblem ? reportText('r.reading-the-stock-moves-ledger', 'Reading the stock-moves ledger…') : reportText('r.open-a-count-sheet-to-enter-counted-quantities', 'Open a count sheet to enter counted quantities.')}</p>}
+    {!sheet && (loading || (moves === null && !readProblem)
+      ? <p role="status" className="text-sm text-[var(--muted)]">{loading ? reportText('r.loading-items', 'Loading items…') : reportText('r.reading-the-stock-moves-ledger', 'Reading the stock-moves ledger…')}</p>
+      : items.length === 0
+        ? <ReportEmptyState
+            title={reportText('r.no-items-loaded-yet', 'No items loaded yet')}
+            description={reportText('r.add-items-in-inventory-then-open-a-count-sheet', 'Add items in Inventory, then open a count sheet for the place you are counting.')}
+            actionLabel={reportText('r.open-inventory', 'Open Inventory')}
+            onAction={() => goToPage({ tab: 'inventory' })}
+          />
+        : <ReportEmptyState
+            title={reportText('r.open-a-count-sheet-to-enter-counted-quantities', 'Open a count sheet to enter counted quantities.')}
+            description={reportText('r.pick-a-place-and-a-count-date-above-then-open-the-s', 'Pick a place and a count date above, then open the sheet. Nothing is posted from this screen.')}
+          />)}
 
     {sheet && variance && <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">

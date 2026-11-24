@@ -277,11 +277,11 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
             entity: activeEntity,
             paymentsWithoutScope: scoped.paymentsWithoutScope,
             paymentsWithoutScopeCents: scoped.paymentsWithoutScopeCents,
-            formattedMissing: scoped.paymentsWithoutScopeCents ? formatCurrency(scoped.paymentsWithoutScopeCents) : undefined,
+            formattedMissing: scoped.paymentsWithoutScopeCents ? formatCurrency(scoped.paymentsWithoutScopeCents, homeCurrency) : undefined,
             allocatedElsewhereCents: scoped.allocatedElsewhereCents,
-            formattedElsewhere: scoped.allocatedElsewhereCents ? formatCurrency(scoped.allocatedElsewhereCents) : undefined,
+            formattedElsewhere: scoped.allocatedElsewhereCents ? formatCurrency(scoped.allocatedElsewhereCents, homeCurrency) : undefined,
             unappliedCents: scoped.unappliedCents,
-            formattedUnapplied: scoped.unappliedCents ? formatCurrency(scoped.unappliedCents) : undefined,
+            formattedUnapplied: scoped.unappliedCents ? formatCurrency(scoped.unappliedCents, homeCurrency) : undefined,
             mixedLabelDocuments: scoped.mixedLabelDocuments,
           })}
         </p>
@@ -324,21 +324,21 @@ export default function StatementView({ startDate: pageStartDate, endDate: pageE
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
               <span className="text-xs text-[var(--muted)] uppercase font-semibold">{reportText('r.opening-balance', 'Opening Balance')}</span>
               <div className="text-lg font-bold font-mono text-slate-900 dark:text-white mt-1">
-                {formatCurrency(statementData.openingBalanceCents)}
+                {formatCurrency(statementData.openingBalanceCents, homeCurrency)}
               </div>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
               <span className="text-xs text-[var(--muted)] uppercase font-semibold">{reportText('r.total-period-billed', 'Total Period Billed')}</span>
               <div className="text-lg font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-1">
-                {formatCurrency(statementData.entries.reduce((sum, e) => sum + (e.debitCents || 0), 0))}
+                {formatCurrency(statementData.entries.reduce((sum, e) => sum + (e.debitCents || 0), 0), homeCurrency)}
               </div>
             </div>
 
             <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20">
               <span className="text-xs text-purple-600 dark:text-purple-400 uppercase font-bold">{reportText('r.ending-outstanding-balance', 'Ending Outstanding Balance')}</span>
               <div className="text-xl font-bold font-mono text-purple-700 dark:text-purple-300 mt-1">
-                {formatCurrency(statementData.endingBalanceCents)}
+                {formatCurrency(statementData.endingBalanceCents, homeCurrency)}
               </div>
             </div>
           </div>
@@ -362,16 +362,16 @@ bodyStart={<tr className="bg-slate-50/50 dark:bg-slate-900/30 font-semibold">
                   <td className="py-2.5 px-4 text-[var(--muted)]">{statementData.startDate}</td>
                   <td className="py-2.5 px-4 font-sans italic text-[var(--muted)]" colSpan={4}>{reportText('r.opening-balance-brought-forward', 'Opening Balance Brought Forward')}</td>
                   <td className="py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white">
-                    {formatCurrency(statementData.openingBalanceCents)}
+                    {formatCurrency(statementData.openingBalanceCents, homeCurrency)}
                   </td>
                 </tr>}
 columns={[
 { header: reportText('r.date-2', 'Date'), headClassName: "py-3 px-4", className: "py-2.5 px-4 text-slate-600 dark:text-slate-400", cell: entry => (entry.date) },
 { header: reportText('r.transaction-type', 'Transaction Type'), headClassName: "py-3 px-4", className: "py-2.5 px-4 font-sans font-medium text-slate-900 dark:text-white", cell: entry => (entry.type) },
 { header: reportText('r.reference-no', 'Reference / #'), headClassName: "py-3 px-4", className: "py-2.5 px-4 text-[var(--muted)]", cell: entry => (<>#{entry.reference}</>) },
-{ header: reportText('r.amount-billed', 'Amount Billed'), headClassName: "py-3 px-4 text-right", className: "py-2.5 px-4 text-right text-slate-900 dark:text-white", cell: entry => (entry.debitCents > 0 ? formatCurrency(entry.debitCents) : '-') },
-{ header: reportText('r.amount-paid', 'Amount Paid'), headClassName: "py-3 px-4 text-right", className: "py-2.5 px-4 text-right text-emerald-700 dark:text-emerald-400", cell: entry => (entry.creditCents > 0 ? formatCurrency(entry.creditCents) : '-') },
-{ header: reportText('r.running-balance', 'Running Balance'), headClassName: "py-3 px-4 text-right", className: "py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white", cell: entry => (formatCurrency(entry.runningBalanceCents)) }
+{ header: reportText('r.amount-billed', 'Amount Billed'), headClassName: "py-3 px-4 text-right", className: "py-2.5 px-4 text-right text-slate-900 dark:text-white", cell: entry => (entry.debitCents > 0 ? formatCurrency(entry.debitCents, homeCurrency) : '-') },
+{ header: reportText('r.amount-paid', 'Amount Paid'), headClassName: "py-3 px-4 text-right", className: "py-2.5 px-4 text-right text-emerald-700 dark:text-emerald-400", cell: entry => (entry.creditCents > 0 ? formatCurrency(entry.creditCents, homeCurrency) : '-') },
+{ header: reportText('r.running-balance', 'Running Balance'), headClassName: "py-3 px-4 text-right", className: "py-2.5 px-4 text-right font-bold text-slate-900 dark:text-white", cell: entry => (formatCurrency(entry.runningBalanceCents, homeCurrency)) }
 ]}
 />
           </div>

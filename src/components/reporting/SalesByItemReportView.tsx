@@ -7,6 +7,8 @@ import { useServerSalesByItem } from '../../hooks/useServerSalesByItem';
 import ReportSkeleton from './ReportSkeleton';
 import { ScreenDataNotice } from '../ui/ScreenDataNotice';
 import { useReportText } from './useReportText';
+import { useBookCurrency } from '../../hooks/useBookCurrency';
+import ReportEmptyState from './ReportEmptyState';
 
 interface Props {
   selectedYear?: number;
@@ -18,6 +20,9 @@ const pct = (value: number | null) => (value === null ? '—' : `${value.toFixed
 
 export const SalesByItemReportView: React.FC<Props> = ({ selectedYear, startDate, endDate }) => {
   const reportText = useReportText();
+  // R-11 / #926: sales, cost and margin are in the book currency; the amounts follow it, not a default
+  const bookCurrency = useBookCurrency();
+  const money = (cents: number) => formatCurrency(cents, bookCurrency);
   const title = reportText('r.sales-by-item-profit-margin', 'Sales by Item & Profit Margin');
 
   const { startDate: from, endDate: to } = startDate || endDate ? { startDate, endDate } : yearRange(selectedYear);
@@ -31,7 +36,10 @@ export const SalesByItemReportView: React.FC<Props> = ({ selectedYear, startDate
       <h2 className="text-lg font-bold">{title}</h2>
       {failed ? <ScreenDataNotice failedKeys={failed.failedKeys} message={failed.message} onRetry={failed.retry} />
         : !report ? <ReportSkeleton rows={3} label={reportText('r.loading-report-records', 'Loading report records…')} />
-        : <p role="status">{reportText('r.no-matches-in-subset', 'No matching records were loaded. This report is incomplete; the full period may contain activity.')}</p>}
+        : <ReportEmptyState
+            title={reportText('r.no-matches-in-subset', 'No matching records were loaded. This report is incomplete; the full period may contain activity.')}
+            description={reportText('r.retry-the-full-report-above-before-concluding-that', 'Retry the full report above before concluding that nothing was sold in the period.')}
+          />}
       {retry}
     </section>;
   }
@@ -55,11 +63,11 @@ export const SalesByItemReportView: React.FC<Props> = ({ selectedYear, startDate
         <div className="flex flex-wrap items-center gap-4 bg-[var(--panel)] p-3 rounded-xl border border-[var(--line)]">
           <div>
             <div className="text-[10px] text-[var(--muted)] uppercase font-bold">{reportText('r.sales', 'Sales')}</div>
-            <div className="text-sm font-mono font-bold text-[var(--pos)]">{formatCurrency(totals.salesCents)}</div>
+            <div className="text-sm font-mono font-bold text-[var(--pos)]">{money(totals.salesCents)}</div>
           </div>
           <div>
             <div className="text-[10px] text-[var(--muted)] uppercase font-bold">{reportText('r.gross-profit', 'Gross profit')}</div>
-            <div className="text-sm font-mono font-bold">{formatCurrency(totals.marginCents)}</div>
+            <div className="text-sm font-mono font-bold">{money(totals.marginCents)}</div>
           </div>
           <div>
             <div className="text-[10px] text-[var(--muted)] uppercase font-bold">{reportText('r.margin-2', 'Margin')}</div>
@@ -70,7 +78,12 @@ export const SalesByItemReportView: React.FC<Props> = ({ selectedYear, startDate
 
       {rows.length === 0 ? (
         <div className="text-center py-12 bg-[var(--panel)] rounded-lg border border-[var(--line)] text-[var(--muted)] text-xs">
-          {reportText('r.no-invoice-lines-found-for-the-selected-period', 'No invoice lines found for the selected period.')}
+          <ReportEmptyState
+            title={reportText('r.no-invoice-lines-found-for-the-selected-period', 'No invoice lines found for the selected period.')}
+            description={source === 'server'
+              ? reportText('r.every-invoice-in-this-period-was-read-and-none-ca', 'Every invoice in this period was read and none carries an item line. Choose another period, or sell an item on an invoice.')
+              : reportText('r.check-the-period-or-issue-an-invoice-with-an-item-line', 'Check the period, or issue an invoice with an item line; this list is read from issued invoices.')}
+          />
         </div>
       ) : (
         <ReportSchedule rows={rows} rowKey={row => row.key} caption={reportText('r.sales-by-item', 'Sales by item')}
@@ -78,15 +91,15 @@ export const SalesByItemReportView: React.FC<Props> = ({ selectedYear, startDate
             { header: reportText('r.item-sku', 'Item / SKU'), cell: row => <><bdi>{row.itemId ? row.name : reportText('r.no-item', 'No item')}</bdi>
               {row.sku && <div className="text-xs text-[var(--muted)]">{reportText('r.sku', 'SKU:')} <bdi>{row.sku}</bdi></div>}</> },
             { header: reportText('r.qty-sold', 'Qty sold'), align: 'right', cell: row => row.quantity },
-            { header: reportText('r.sales', 'Sales'), align: 'right', cell: row => formatCurrency(row.salesCents) },
-            { header: reportText('r.cost', 'Cost'), align: 'right', cell: row => <>{formatCurrency(row.costCents)}{row.costIsEstimate && <> <span title={reportText('r.cost-of-goods-sold-not-posted-yet-quantity-unit', 'Cost of goods sold not posted yet: quantity × unit cost')}>{reportText('r.est', '(est.)')}</span></>}</> },
-            { header: reportText('r.gross-profit', 'Gross profit'), align: 'right', cell: row => <span className={row.marginCents < 0 ? 'text-[var(--neg)]' : undefined}>{formatCurrency(row.marginCents)}</span> },
+            { header: reportText('r.sales', 'Sales'), align: 'right', cell: row => money(row.salesCents) },
+            { header: reportText('r.cost', 'Cost'), align: 'right', cell: row => <>{money(row.costCents)}{row.costIsEstimate && <> <span title={reportText('r.cost-of-goods-sold-not-posted-yet-quantity-unit', 'Cost of goods sold not posted yet: quantity × unit cost')}>{reportText('r.est', '(est.)')}</span></>}</> },
+            { header: reportText('r.gross-profit', 'Gross profit'), align: 'right', cell: row => <span className={row.marginCents < 0 ? 'text-[var(--neg)]' : undefined}>{money(row.marginCents)}</span> },
             { header: reportText('r.margin-2', 'Margin'), align: 'right', cell: row => pct(row.marginPct) },
           ]}
           footer={<tr>
-            <th scope="row">{reportText('r.total', 'Total')}</th><td>{totals.quantity}</td><td>{formatCurrency(totals.salesCents)}</td>
-            <td>{formatCurrency(totals.costCents)}{totals.costIsEstimate && <> {reportText('r.est', '(est.)')}</>}</td>
-            <td>{formatCurrency(totals.marginCents)}</td><td>{pct(totals.marginPct)}</td>
+            <th scope="row">{reportText('r.total', 'Total')}</th><td>{totals.quantity}</td><td>{money(totals.salesCents)}</td>
+            <td>{money(totals.costCents)}{totals.costIsEstimate && <> {reportText('r.est', '(est.)')}</>}</td>
+            <td>{money(totals.marginCents)}</td><td>{pct(totals.marginPct)}</td>
           </tr>} />
       )}
       {totals.costIsEstimate && (

@@ -11,6 +11,7 @@ import { getLocalDateISO } from '../../lib/utils';
 import { RowTable } from '../ui/RowTable';
 import { useReportText } from './useReportText';
 import { LoadingState } from '../ui/LoadingState';
+import { CappedCollectionsNote } from '../common/LoadedEntriesOnlyNote';
 
 const qty = (n: number) => String(Math.round(n * 100) / 100);
 const th = 'font-semibold py-1 px-2';
@@ -25,8 +26,9 @@ export default function GoodsNotBilledReportView() {
   const reportText = useReportText();
   const { loading } = useLedgerCollections('estimates', 'invoices', 'transactions', 'bills');
   const bills = useLedgerStore(s => s.bills);
-  const { data: purchaseOrders, loading: loadingOrders } = useCollection<PurchaseOrder>('purchaseOrders', { limit: 1000 });
+  const { data: purchaseOrders, loading: loadingOrders, truncated: ordersCapped } = useCollection<PurchaseOrder>('purchaseOrders', { limit: 1000 });
   const home = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
+  const truncated = useLedgerStore(s => s.truncatedCollections);
   const estimates = useLedgerStore(s => s.estimates);
   const invoices = useLedgerStore(s => s.invoices);
   const transactions = useLedgerStore(s => s.transactions);
@@ -48,6 +50,16 @@ export default function GoodsNotBilledReportView() {
         <p className="text-sm text-[var(--muted)]">{reportText('r.goods-that-left-or-came-in-before-their-invoice', 'Goods that left or came in before their invoice or bill, at each order\'s price.')}</p>
       </div>
       {(loading || loadingOrders) && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
+      {/* R-11 / #926: the four sections are built from the loaded documents and from at most
+          1,000 purchase orders, so a short list must not read as the whole picture. */}
+      <CappedCollectionsNote
+        testId="goods-not-billed-capped"
+        keys={(['bills', 'estimates', 'invoices', 'transactions'] as const).filter(key => truncated[key])}
+        what={reportText('r.these-four-lists', 'these four lists')}
+      />
+      {ordersCapped && <p role="note" data-testid="goods-not-billed-orders-capped" className="text-xs text-[var(--muted)]">
+        {reportText('r.only-the-first-1000-purchase-orders-are-read-so-a', 'Only the first 1,000 purchase orders are read, so “received not billed”, “ordered not received” and “billed not received” may be incomplete.')}
+      </p>}
       <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
         <RowTable
           rowClassName="border-b border-[var(--line)]/50"

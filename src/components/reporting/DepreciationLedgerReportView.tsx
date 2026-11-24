@@ -6,6 +6,9 @@ import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { RowTable } from '../ui/RowTable';
 import { useReportText } from './useReportText';
 import { LoadingState } from '../ui/LoadingState';
+import { useBookCurrency } from '../../hooks/useBookCurrency';
+import ReportEmptyState from './ReportEmptyState';
+import { CappedCollectionsNote } from '../common/LoadedEntriesOnlyNote';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 
@@ -16,6 +19,7 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
  */
 export default function DepreciationLedgerReportView() {
   const reportText = useReportText();
+  const bookCurrency = useBookCurrency();
   const { loading } = useLedgerCollections('assets', 'transactions');
   const [from, setFrom] = useState(`${getLocalDateISO().slice(0, 4)}-01-01`);
   const [to, setTo] = useState(getLocalDateISO());
@@ -23,7 +27,8 @@ export default function DepreciationLedgerReportView() {
   const ledger = useServerDepreciationLedger(from, to, from <= to);
   const rows = ledger?.rows || [];
   const sum = (k: 'costCents' | 'openingCents' | 'periodCents' | 'closingCents' | 'bookValueCents') => rows.reduce((s, r) => s + r[k], 0);
-  const money = (cents: number) => formatCurrency(cents);
+  // R-11 / #926: the ledger is in the book currency; the amounts follow it instead of a default
+  const money = (cents: number) => formatCurrency(cents, bookCurrency);
 
   return (
     <section aria-labelledby="depreciation-ledger-title" className="space-y-4">
@@ -33,9 +38,13 @@ export default function DepreciationLedgerReportView() {
         <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.to', 'To')}<input type="date" value={to} onChange={e => setTo(e.target.value)} className={field} /></label>
       </div>
       {ledger && <RangeReportSourceNote source={ledger.source} testId="depreciation-ledger-source" what={reportText('r.these-figures', 'these figures')} />}
+      <CappedCollectionsNote testId="depreciation-ledger-capped" keys={['assets', 'transactions']} what={reportText('r.this-ledger', 'this ledger')} />
       {from > to && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{reportText('r.the-period-starts-after-it-ends', 'The period starts after it ends.')}</p>}
       {loading && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
-      {!loading && from <= to && rows.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-fixed-assets-in-this-period', 'No fixed assets in this period.')}</p>}
+      {!loading && from <= to && rows.length === 0 && <ReportEmptyState
+        title={reportText('r.no-fixed-assets-in-this-period', 'No fixed assets in this period.')}
+        description={reportText('r.add-a-fixed-asset-in-fixed-assets-and-its-mon', 'Add a fixed asset in Fixed Assets; its monthly depreciation runs then appear here for the period you choose.')}
+      />}
       {rows.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
           <RowTable

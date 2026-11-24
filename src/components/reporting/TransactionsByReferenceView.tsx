@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import { useUIStore } from '../../stores/useUIStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useLedgerStore } from '../../stores/useLedgerStore';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
 import { formatCurrency } from '../../lib/utils';
 import { getFiscalYearBounds } from '../../lib/fiscalCalendar';
@@ -27,6 +28,12 @@ export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate
   const [startDate, setStartDate] = usePageSyncedState(periodKey, pageStartDate || undefined, () => getFiscalYearBounds().startDate);
   const [endDate, setEndDate] = usePageSyncedState(periodKey, pageEndDate || undefined, () => getFiscalYearBounds().endDate);
   const [searchTerm, setSearchTerm] = useState('');
+  const truncated = useLedgerStore(s => s.truncatedCollections);
+  // L-123 step 5b: what the list was built from, so a capped list is named rather than implied
+  const capped = useMemo(
+    () => (['bills', 'invoices', 'transactions'] as const).filter(key => truncated[key]),
+    [truncated],
+  );
 
   // L-123 step 5b: the server's list when the loaded entries, invoices or bills are short
   const { report, source } = useServerTransactionsByReference(startDate, endDate);
@@ -86,6 +93,9 @@ export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate
         emptyMessage={reportText('r.no-entries-with-a-reference-in-this-period', 'No entries with a reference in this period.')}
         sumKeys={['amountCents']}
         getRowId={(r) => r.transactionId}
+        cappedCollections={capped}
+        cappedWhat={reportText('r.these-references', 'these references')}
+        cappedTestId="transactions-by-reference-capped"
       />
       <RangeReportSourceNote source={source} testId="transactions-by-reference-source" what={reportText('r.these-references', 'these references')} reads="every entry and every invoice and bill number" />
       <p className="text-xs text-[var(--muted)]" role="status">

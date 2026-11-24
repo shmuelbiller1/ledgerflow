@@ -11,6 +11,7 @@ import { exportGroupSummaryCsv } from '../../lib/groupSummaryExport';
 import { ratesKey, type WorkspaceGroup } from '../../lib/workspaceGroups';
 import { averageFromTimeframe, parseRates, rateFromQuote, type TranslationRates } from '../../lib/translationRates';
 import { useReportText, fill as fillText } from './useReportText';
+import ReportEmptyState from './ReportEmptyState';
 
 interface Figures { income: number; cogs: number; grossProfit: number; expense: number; netIncome: number; totalAssets: number; totalLiabilities: number; totalEquity: number }
 interface Member extends Figures { workspaceId: string; name: string; currency: string; isBalanced: boolean; share?: number; associate?: boolean; translated?: Figures & { cta: number } }
@@ -193,7 +194,12 @@ export default function GroupSummaryReportView() {
         )}
       </div>
       {groups !== null && groups.length === 0 && !error && (
-        <p className="text-sm text-[var(--muted)]">{reportText('r.you-have-no-groups-of-books-yet-settings-groups', 'You have no groups of books yet (Settings → Groups of books). This workspace can be shown on its own, in another currency too.')}</p>
+        <ReportEmptyState
+          title={reportText('r.you-have-no-groups-of-books-yet-settings-groups', 'You have no groups of books yet (Settings → Groups of books). This workspace can be shown on its own, in another currency too.')}
+          description={reportText('r.a-group-adds-up-companies-you-can-already-see-a', 'A group adds up the companies you can already see; the group total takes out what they owe each other.')}
+          actionLabel={reportText('r.open-settings-groups-of-books', 'Open Settings → Groups of books')}
+          onAction={() => goToPage({ tab: 'settings', sub: 'groups' })}
+        />
       )}
       {groups !== null && (
         <div className="flex flex-wrap items-end gap-3 text-sm">

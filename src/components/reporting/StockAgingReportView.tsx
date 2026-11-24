@@ -8,6 +8,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { AGE_BUCKETS, type StockAge } from '../../lib/stockMoves';
 import { useReportText, fill } from './useReportText';
 import { LoadingState } from '../ui/LoadingState';
+import ReportEmptyState from './ReportEmptyState';
 
 const field = 'min-h-11 px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 const qty = (n: number) => (n ? String(Math.round(n * 1e6) / 1e6) : '');
@@ -43,7 +44,10 @@ export default function StockAgingReportView() {
         <p role="alert">{reportText('r.the-stock-history-could-not-be-read', 'The stock history could not be read:')} {error || reportText('r.missing-report-rows', 'The response did not contain report rows.')}</p>
         <button type="button" className="min-h-11 rounded border px-3" onClick={retry}>{reportText('r.retry', 'Retry')}</button>
       </div>}
-      {items && items.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-stock-on-hand-that-day', 'No stock on hand that day.')}</p>}
+      {items && items.length === 0 && <ReportEmptyState
+        title={reportText('r.no-stock-on-hand-that-day', 'No stock on hand that day.')}
+        description={reportText('r.the-stock-history-was-read-for-that-day-and-noth', 'The stock history was read for that day and nothing was on hand. Choose another date, or receive stock in Inventory.')}
+      />}
       {items && items.length > 0 && <ReportSchedule rows={items} rowKey={row => row.itemId}
         caption={reportText('r.units-on-hand-by-how-long-ago-they-came-in-the-l', 'Units on hand by how long ago they came in, the latest units taken to be the ones still there; the oldest stock first.')}
         columns={[

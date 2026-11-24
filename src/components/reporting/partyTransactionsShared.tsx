@@ -58,6 +58,8 @@ export interface TransactionsByPartyConfig<P, D1, D2> {
   ) => PartyTransactionRow[];
   /** Tailwind colour classes per transaction type string. */
   typeColors: Record<string, string>;
+  /** R-11: what the rows make, for the capped-lists sentence, e.g. "these customer transactions". */
+  cappedWhat?: string;
 }
 
 export function TransactionsByPartyView<P, D1, D2>({
@@ -90,6 +92,7 @@ export function TransactionsByPartyView<P, D1, D2>({
     collections,
     computeFn,
     typeColors,
+    cappedWhat = 'this list of transactions',
   } = config;
 
   const parties = useLedgerStore(partyStore);
@@ -99,7 +102,13 @@ export function TransactionsByPartyView<P, D1, D2>({
   const currency = useAuthStore((s) => s.getCurrentWorkspace()?.currency) || 'USD';
   // #910 family: the rows are summed in the book currency, so the file's decimals come from it
   const moneyCell = csvMoneyForBook(currency);
+  const truncatedCollections = useLedgerStore(s => s.truncatedCollections);
   useLedgerCollections(...collections);
+  // R-11 / #926: the lists this list is built from, named when one of them was capped in this browser
+  const capped = useMemo(
+    () => collections.filter(key => truncatedCollections[key]),
+    [collections, truncatedCollections],
+  );
   const [searchTerm, setSearchTerm] = useState('');
 
   const [startDate, setStartDate] = usePageSyncedState(
@@ -220,7 +229,7 @@ export function TransactionsByPartyView<P, D1, D2>({
         <span className={`font-bold ${
           item.amountCents < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-900 dark:text-white'
         }`}>
-          {formatCurrency(item.amountCents)}
+          {formatCurrency(item.amountCents, currency)}
         </span>
       ),
     },
@@ -248,6 +257,9 @@ export function TransactionsByPartyView<P, D1, D2>({
       data={filteredRows}
       emptyMessage={emptyMessage}
       getRowId={(item) => item.id}
+      cappedCollections={capped}
+      cappedWhat={cappedWhat}
+      cappedTestId="transactions-by-party-capped"
     />
   );
 }

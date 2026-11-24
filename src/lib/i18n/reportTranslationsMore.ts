@@ -6,6 +6,45 @@ import { FIFTH_REPORT_STRINGS } from './reportTranslationsMore4';
 import { REPORT_STRINGS_5 } from './reportTranslationsMore5';
 import { REPORT_STRINGS_6 } from './reportTranslationsMore6';
 
+
+/** R-11 (#926 tail): the empty, capped and next-step sentences the report family gained. */
+export const R11_REPORT_STRINGS: ScreenStringEntry[] = [
+  { key: "r.a-group-adds-up-companies-you-can-already-see-a", en: "A group adds up the companies you can already see; the group total takes out what they owe each other.", he: "קבוצה מחברת את החברות שאתם כבר רואים; סכום הקבוצה מחסיר את מה שהן חייבות זו לזו." },
+  { key: "r.add-a-fixed-asset-in-fixed-assets-and-its-mon", en: "Add a fixed asset in Fixed Assets; its monthly depreciation runs then appear here for the period you choose.", he: "הוסיפו רכוש קבוע ברכוש קבוע; ריצות הפחת החודשיות שלו יופיעו כאן לתקופה שתבחרו." },
+  { key: "r.add-items-in-inventory-then-open-a-count-sheet", en: "Add items in Inventory, then open a count sheet for the place you are counting.", he: "הוסיפו פריטים במלאי, ואז פתחו גיליון ספירה למקום שאתם סופרים." },
+  { key: "r.add-items-in-inventory-then-the-lines-that-moved", en: "Add items in Inventory; the invoice and bill lines that moved them then appear here.", he: "הוסיפו פריטים במלאי; שורות החשבונית והדרישה שהניעו אותם יופיעו כאן." },
+  { key: "r.an-account-budget-names-one-chart-account-and-an-amo", en: "An account budget names one chart account and an amount; category and project budgets are compared on their own screens.", he: "תקציב חשבון מגדיר חשבון אחד וסכום; תקציבי קטגוריה ופרויקט מושווים במסכים שלהם." },
+  { key: "r.check-the-period-or-issue-an-invoice-with-an-item-line", en: "Check the period, or issue an invoice with an item line; this list is read from issued invoices.", he: "בדקו את התקופה, או הפיקו חשבונית עם שורת פריט; הרשימה נקראת מחשבוניות שהופקו." },
+  { key: "r.choose-another-month-or-record-a-vendor-payment", en: "Choose another month, or record a vendor payment through its existing payment editor.", he: "בחרו חודש אחר, או רשמו תשלום לספק דרך עורך התשלומים הקיים." },
+  { key: "r.choose-another-period-or-pick-a-single-item-above", en: "Choose another period, or pick a single item above to see only its lines.", he: "בחרו תקופה אחרת, או בחרו פריט בודד למעלה כדי לראות רק את השורות שלו." },
+  { key: "r.choose-another-period-or-receive-stock-in-inventor", en: "Choose another period, or receive stock in Inventory; every movement of the period is listed here.", he: "בחרו תקופה אחרת, או קלטו מלאי במסך המלאי; כל תנועה בתקופה מופיעה כאן." },
+  { key: "r.choose-another-period-or-receive-stock-in-inventor-2", en: "Choose another period, or receive stock in Inventory; what came in and what went out of the period is listed here.", he: "בחרו תקופה אחרת, או קלטו מלאי במסך המלאי; מה שנכנס ומה שיצא בתקופה מופיע כאן." },
+  { key: "r.every-invoice-in-this-period-was-read-and-none-ca", en: "Every invoice in this period was read and none carries an item line. Choose another period, or sell an item on an invoice.", he: "כל החשבוניות בתקופה נקראו ואף אחת אינה נושאת שורת פריט. בחרו תקופה אחרת, או מכרו פריט בחשבונית." },
+  { key: "r.no-items-loaded-yet", en: "No items loaded yet", he: "עדיין לא נטענו פריטים" },
+  { key: "r.no-items-loaded-yet-2", en: "No items loaded yet", he: "עדיין לא נטענו פריטים" },
+  { key: "r.no-payments-loaded-yet", en: "No payments loaded yet", he: "עדיין לא נטענו תשלומים" },
+  { key: "r.only-the-first-1000-purchase-orders-are-read-so-a", en: "Only the first 1,000 purchase orders are read, so “received not billed”, “ordered not received” and “billed not received” may be incomplete.", he: "נקראות רק 1,000 הזמנות הרכש הראשונות, ולכן „התקבל ולא חויב”, „הוזמן ולא התקבל” ו„חויב ולא התקבל” עשויים להיות חסרים." },
+  { key: "r.open-planning-budgets", en: "Open Planning → Budgets", he: "פתחו תכנון ← תקציבים" },
+  { key: "r.open-settings-groups-of-books", en: "Open Settings → Groups of books", he: "פתחו הגדרות ← קבוצות ספרים" },
+  { key: "r.pick-a-place-and-a-count-date-above-then-open-the-s", en: "Pick a place and a count date above, then open the sheet. Nothing is posted from this screen.", he: "בחרו מקום ותאריך ספירה למעלה, ואז פתחו את הגיליון. שום דבר לא נרשם מהמסך הזה." },
+  { key: "r.pick-another-budget-above-or-fix-the-account-on-the", en: "Pick another budget above, or fix the account on that budget in Planning → Budgets.", he: "בחרו תקציב אחר למעלה, או תקנו את החשבון בתכנון ← תקציבים." },
+  { key: "r.refresh-complete-history-before-concluding-that-none", en: "Refresh complete history before concluding that none are recorded.", he: "רעננו היסטוריה מלאה לפני שמסיקים שלא נרשמו תשלומים." },
+  { key: "r.retry-the-full-report-above-before-concluding-that", en: "Retry the full report above before concluding that nothing was sold in the period.", he: "נסו שוב את הדוח המלא למעלה לפני שמסיקים שלא נמכר דבר בתקופה." },
+  { key: "r.the-stock-history-was-read-for-that-day-and-noth", en: "The stock history was read for that day and nothing was on hand. Choose another date, or receive stock in Inventory.", he: "היסטוריית המלאי נקראה לאותו יום ולא היה מלאי ביד. בחרו תאריך אחר, או קלטו מלאי במסך המלאי." },
+  { key: "r.these-four-lists", en: "these four lists", he: "ארבע הרשימות האלה" },
+  { key: "r.this-contact-balance-summary", en: "this contact balance summary", he: "סיכום יתרות אנשי הקשר הזה" },
+  { key: "r.this-count-sheet", en: "this count sheet", he: "גיליון הספירה הזה" },
+  { key: "r.this-customer-balance-summary", en: "this customer balance summary", he: "סיכום יתרות הלקוחות הזה" },
+  { key: "r.this-ledger", en: "this ledger", he: "ספר התנועות הזה" },
+  { key: "r.this-report-reads-recorded-vendor-payments-recor", en: "This report reads the vendor payments in this browser: record or import a vendor payment and it appears here.", he: "הדוח קורא את תשלומי הספקים בדפדפן הזה: רשמו או יבאו תשלום לספק והוא יופיע כאן." },
+  { key: "r.this-statement-splits-the-balance-sheet-by-one-labe", en: "This statement splits the balance sheet by one label at a time; with no labels it has nothing to split.", he: "הדוח מפצל את המאזן לפי תווית אחת בכל פעם; בלי תוויות אין מה לפצל." },
+  { key: "r.this-vendor-balance-summary", en: "this vendor balance summary", he: "סיכום יתרות הספקים הזה" },
+  { key: "r.choose-another-period-or-tag-lines-with-this-label", en: "Choose another period, or put this label on the lines that carry the income and costs.", he: "בחרו תקופה אחרת, או שימו את התווית הזו על השורות שנושאות את ההכנסות והעלויות." },
+  { key: "r.this-report-reads-issued-invoices-cost-of-good", en: "This report reads issued invoices, cost of goods sold and posted entries: choose another period, sell something, or group by another dimension.", he: "הדוח קורא חשבוניות שהופקו, עלות מכר ופקודות שנרשמו: בחרו תקופה אחרת, מכרו משהו, או קבצו לפי מימד אחר." },
+  { key: "r.this-report-shows-profit-and-loss-by-one-label-a", en: "This report shows profit and loss by one label at a time; with no labels it has nothing to group.", he: "הדוח מציג רווח והפסד לפי תווית אחת בכל פעם; בלי תוויות אין מה לקבץ." },
+  { key: "r.no-item-on-hand-has-been-idle-for-that-long-ch", en: "No item on hand has been idle for that long: choose a shorter idle period, or widen the search.", he: "אין פריט במלאי שהיה ללא תנועה כל כך הרבה זמן: בחרו תקופת חוסר תנועה קצרה יותר, או הרחיבו את החיפוש." },
+];
+
 export const MORE_REPORT_STRINGS: ScreenStringEntry[] = [
     { key: 'r.charged-on', en: ', charged on', he: ', מחושב על' },
     { key: 'r.of-which', en: 'of which', he: 'מתוכם' },
@@ -590,4 +629,5 @@ export const MORE_REPORT_STRINGS: ScreenStringEntry[] = [
   ...FIFTH_REPORT_STRINGS,
   ...REPORT_STRINGS_5,
   ...REPORT_STRINGS_6,
+  ...R11_REPORT_STRINGS,
 ];

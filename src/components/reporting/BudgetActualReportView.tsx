@@ -3,6 +3,7 @@ import { budgetLabel } from '../../lib/budgetByLabel';
 import { useMemo, useRef, useState } from 'react';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useUIStore } from '../../stores/useUIStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import { useServerOperationalReport, collectionStamp } from '../../hooks/useServerOperationalReport';
@@ -16,10 +17,12 @@ import { Labelled } from '../ui/Labelled';
 import DrillDownModal, { type ExplainRequest } from '../layout/DrillDownModal';
 import { isDebitNatureType } from '../../lib/accountUtils';
 import { RowTable } from '../ui/RowTable';
+import ReportEmptyState from './ReportEmptyState';
 
 type History = { key: string; budgets: SavedBudget[]; accounts: ChartAccount[]; transactions: Transaction[] };
 export default function BudgetActualReportView({ selectedYear = new Date().getFullYear(), startDate, endDate }: { selectedYear?: number; startDate?: string; endDate?: string }) {
   const reportText = useReportText();
+  const goToPage = useUIStore(s => s.goToPage);
   useLedgerCollections('budgets');
   const cachedBudgets = useLedgerStore(s => s.budgets);
   const cachedAccounts = useLedgerStore(s => s.accounts);
@@ -77,7 +80,19 @@ export default function BudgetActualReportView({ selectedYear = new Date().getFu
     </div>
     {!current && !activeServer && <p role="status">{guest ? reportText('r.guest-sample-figures-use-the-loaded-demonstratio', 'Guest sample: figures use the loaded demonstration records.') : reportText('r.provisional-loaded-records-may-be-incomplete-loa', 'Provisional: loaded records may be incomplete. Load full history before relying on these figures.')}</p>}
     {error?.key === key && <p role="alert">{error.message}</p>}
-    {!budget ? <p>{reportText('r.no-saved-account-budgets-define-an-account-targe', 'No saved account budgets. Define an account target in Planning → Budgets.')}</p> : !report ? <p>{reportText('r.choose-a-budget-with-one-unambiguous-chart-accou', 'Choose a budget with one unambiguous chart account.')}</p> : <div className="overflow-x-auto" role="region" aria-label={reportText('r.budget-vs-actual-figures', 'Budget vs actual figures')} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<RowTable
+    {!budget
+      ? <ReportEmptyState
+          title={reportText('r.no-saved-account-budgets-define-an-account-targe', 'No saved account budgets. Define an account target in Planning → Budgets.')}
+          description={reportText('r.an-account-budget-names-one-chart-account-and-an-amo', 'An account budget names one chart account and an amount; category and project budgets are compared on their own screens.')}
+          actionLabel={reportText('r.open-planning-budgets', 'Open Planning → Budgets')}
+          onAction={() => goToPage({ tab: 'reports', sub: 'budgets' })}
+        />
+      : !report
+        ? <ReportEmptyState
+            title={reportText('r.choose-a-budget-with-one-unambiguous-chart-accou', 'Choose a budget with one unambiguous chart account.')}
+            description={reportText('r.pick-another-budget-above-or-fix-the-account-on-the', 'Pick another budget above, or fix the account on that budget in Planning → Budgets.')}
+          />
+        : <div className="overflow-x-auto" role="region" aria-label={reportText('r.budget-vs-actual-figures', 'Budget vs actual figures')} tabIndex={0}>{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}<RowTable
       caption={(<>{report.account.code} · {report.account.name}</>)}
       rows={report.columns}
       rowKey={column => column.period.id}

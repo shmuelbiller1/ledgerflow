@@ -32,6 +32,7 @@ export const TransactionsByVendorView: React.FC<{ startDate?: string; endDate?: 
       paymentStore: (s) => s.payments,
       collections: ['bills', 'payments', 'vendorCredits', 'vendors'],
       computeFn: computeTransactionsByVendor,
+      cappedWhat: 'these vendor transactions',
       typeColors: {
         Bill: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
         'Vendor Credit': 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',

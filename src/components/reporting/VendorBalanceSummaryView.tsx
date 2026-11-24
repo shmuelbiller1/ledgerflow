@@ -27,7 +27,11 @@ export const VendorBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOf
   useLedgerCollections('bills', 'payments', 'vendorCredits', 'vendors');
   const [searchTerm, setSearchTerm] = useState('');
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
-  const isTruncated = Boolean(truncated.vendors || truncated.bills || truncated.payments || truncated.vendorCredits);
+  const capped = useMemo(
+    () => (['bills', 'payments', 'vendorCredits', 'vendors'] as const).filter(key => truncated[key]),
+    [truncated],
+  );
+  const isTruncated = capped.length > 0;
   const serverRows = useServerOperationalReport<VendorBalanceSummaryRow[]>(
     isTruncated && Boolean(workspaceId),
     workspaceId ? `/api/v1/reports/party-balances?${new URLSearchParams({ workspaceId, asOfDate })}` : '',
@@ -100,6 +104,9 @@ export const VendorBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asOf
       emptyMessage={reportText('r.no-vendor-records-found-matching-search-filter', 'No vendor records found matching search filter.')}
       sumKeys={['totalBilledCents', 'totalPaidCents', 'balanceCents']}
       getRowId={(item) => item.vendorId}
+      cappedCollections={capped}
+      cappedWhat={reportText('r.this-vendor-balance-summary', 'this vendor balance summary')}
+      cappedTestId="vendor-balance-summary-capped"
     />
   );
 };

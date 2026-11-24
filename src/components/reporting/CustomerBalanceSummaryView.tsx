@@ -27,7 +27,11 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
   useLedgerCollections('creditNotes', 'customers', 'invoices', 'payments');
   const [searchTerm, setSearchTerm] = useState('');
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
-  const isTruncated = Boolean(truncated.customers || truncated.invoices || truncated.payments || truncated.creditNotes);
+  const capped = useMemo(
+    () => (['creditNotes', 'customers', 'invoices', 'payments'] as const).filter(key => truncated[key]),
+    [truncated],
+  );
+  const isTruncated = capped.length > 0;
   const serverRows = useServerOperationalReport<CustomerBalanceSummaryRow[]>(
     isTruncated && Boolean(workspaceId),
     workspaceId ? `/api/v1/reports/party-balances?${new URLSearchParams({ workspaceId, asOfDate })}` : '',
@@ -100,6 +104,9 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
       emptyMessage={reportText('r.no-customer-records-match', 'No customer records found matching search filter.')}
       sumKeys={['totalInvoicedCents', 'totalPaidCents', 'balanceCents']}
       getRowId={(item) => item.customerId}
+      cappedCollections={capped}
+      cappedWhat={reportText('r.this-customer-balance-summary', 'this customer balance summary')}
+      cappedTestId="customer-balance-summary-capped"
     />
   );
 };
