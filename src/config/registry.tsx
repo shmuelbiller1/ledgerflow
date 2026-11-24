@@ -539,7 +539,7 @@ export const REPORT_TABS_REGISTRY = withScreenHelp([
   { id: 'commissions', label: { en: 'Sales Commission', he: 'עמלות מכירה' }, componentName: 'CommissionReportView', icon: UserCheck },
   { id: 'backorders', label: { en: 'Backorders', he: 'הזמנות ממתינות למלאי' }, componentName: 'BackordersReportView', icon: Package },
   { id: 'form-856', label: { en: 'Withholding Report (Form 856)', he: 'דוח ניכוי במקור (טופס 856)' }, componentName: 'Form856ReportView', icon: Receipt },
-  { id: 'uniform-structure', label: { en: 'Uniform Structure (research)', he: 'מבנה אחיד (מחקר)' }, componentName: 'UniformStructureReportView', icon: FileText },
+  { id: 'uniform-structure', label: { en: 'Uniform Structure File (BKMVDATA + INI)', he: 'קובץ אחיד (BKMVDATA + INI)' }, componentName: 'UniformStructureReportView', icon: FileText },
   { id: 'inventory-details', label: { en: 'Inventory Item Details', he: 'פירוט תנועות מלאי' }, componentName: 'InventoryDetailsReportView', icon: Package },
   { id: 'stock-sources-uses', label: { en: 'Stock Sources and Uses', he: 'מקורות ושימושי מלאי' }, componentName: 'StockSourcesUsesReportView', icon: Package },
   { id: 'expiring-lots', label: { en: 'Expiring Lots', he: 'אצוות שפג תוקפן' }, componentName: 'ExpiringLotsReportView', icon: Package },
