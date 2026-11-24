@@ -103,3 +103,33 @@ test('#924 UI bar clamp: ProjectsView clamps splitRules percentage bar widths to
   const bars = Array.from(document.querySelectorAll('div.h-1.w-full > div.bg-\\[var\\(--brass\\)\\]'));
   assert.deepEqual(bars.map(el => (el as HTMLElement).style.width), ['0%', '100%', '40%']);
 });
+
+test('#924 R-10 screen half: the project list shows the share set that is off, and names the bad line', () => {
+  stubFetch(200);
+  const ws = setComponentWorkspace('owner');
+  markComponentCollectionsLoaded('projects', 'transactions', 'vendors');
+  useLedgerStore.setState({
+    projects: [
+      {
+        id: 'proj-split', workspaceId: ws.id, name: 'Depot Split', status: 'active', budgetCents: 100000, spentCents: 0,
+        splitRules: [
+          { partnerId: 'p1', partnerName: 'Dana', percentage: 60 },
+          { partnerId: 'p2', partnerName: 'Avi', percentage: 120 },
+        ],
+      },
+    ],
+    transactions: [],
+    vendors: [],
+  } as never);
+
+  render(<Projects />);
+  fireEvent.click(screen.getByRole('button', { name: /List/i }));
+  fireEvent.click(screen.getByText('Depot Split'));
+  fireEvent.click(screen.getAllByText('Allocated')[0]);
+
+  // the set as a whole: it is still reported, and the line that is out of range says why beside its bar
+  const total = document.querySelector('[data-testid="split-rules-total"]');
+  assert.ok(total, 'the share set is reported');
+  const alerts = Array.from(document.querySelectorAll('[role="alert"]')).map(el => el.textContent || '');
+  assert.ok(alerts.some(text => /Line 2 \(Avi\) is 120%/.test(text)), `alerts: ${alerts.join(' | ')}`);
+});
