@@ -5,7 +5,7 @@ import { formatCurrency } from '../../lib/utils';
 import type { QBOMigrationWizardModel } from './QBOMigrationWizard';
 
 import { BRAND_NAME } from '../../config/brand';
-export function QBOMigrationWizardView({ onClose, withOccurrenceKeys, overlayDialogProps, overlayTitleId, step, setStep, isProcessing, file, parsedRows, accountMappings, setAccountMappings, accounts, getRootProps, getInputProps, isDragActive, handleLoadSampleQBO, metrics, handleNext }: QBOMigrationWizardModel) {
+export function QBOMigrationWizardView({ onClose, withOccurrenceKeys, overlayDialogProps, overlayTitleId, step, setStep, isProcessing, file, readError, isReading, parsedRows, accountMappings, setAccountMappings, accounts, getRootProps, getInputProps, isDragActive, handleLoadSampleQBO, metrics, handleNext }: QBOMigrationWizardModel) {
   return (
     <div {...overlayDialogProps} className="fixed inset-0 z-[600] flex items-center justify-center p-4">
       <motion.div 
@@ -92,10 +92,29 @@ export function QBOMigrationWizardView({ onClose, withOccurrenceKeys, overlayDia
                   </h3>
                   <p className="text-xs text-[var(--muted)]">Supports .csv and .xlsx exports. An older .xls export must be saved as .xlsx first.</p>
                   
-                  {file && (
+                  {file && !readError && (
                     <div className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 text-emerald-600 rounded-full text-xs font-bold border border-emerald-500/20">
-                      <CheckCircle2 aria-hidden="true" size={14} />
-                      {parsedRows.length} transactions parsed ready for mapping
+                      {isReading ? (
+                        <>
+                          <Loader2 aria-hidden="true" size={14} className="animate-spin" />
+                          Reading {file.name}…
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 aria-hidden="true" size={14} />
+                          {parsedRows.length} transactions parsed ready for mapping
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {/* J-11 (#903): a refused file is refused in words, in the dialog — with what to do
+                      next — and nothing read from an earlier file is left actionable. */}
+                  {readError && (
+                    <div role="alert" className="mt-4 mx-auto max-w-xl text-left px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                      <p className="text-xs font-bold text-[var(--neg)]">{readError}</p>
+                      <p className="text-xs text-[var(--muted)] mt-1">
+                        Nothing from an earlier file is being used. Choose the export file again — or use <strong>Try with Sample Export</strong> to see a file that works.
+                      </p>
                     </div>
                   )}
                 </div>
