@@ -13,6 +13,10 @@ import type { BrandingProfiles } from '../../../lib/entityBranding';
 import { registerUnsavedWorkGuard } from '../../../lib/pwaUpdateManager';
 import { runCommand, ServerCommandError } from '../../../lib/runCommand';
 
+// Server write and PDF label resolution are not wired yet. Drafts must not be submitted.
+// Enable only with an authenticated write contract AND PDF integration, tested end to end.
+const PROFILE_WRITES_AVAILABLE = false;
+
 const field = 'min-h-11 w-full rounded border border-[var(--line)] bg-[var(--surface)] px-2';
 const areaField = 'w-full px-3 py-2 rounded-lg border border-[var(--line)] bg-[var(--panel)] text-sm text-[var(--text)]';
 
@@ -32,7 +36,9 @@ function Scoped() {
   const order = dimensions.map(d => d.id);
   const role = useCurrentRole();
   const isGuest = useAuthStore(s => s.isGuest);
-  const canEdit = !isGuest && (role === 'owner' || role === 'accountant');
+  const hasEditRole = !isGuest && (role === 'owner' || role === 'accountant');
+  const canEdit = hasEditRole;
+  const canSave = PROFILE_WRITES_AVAILABLE && hasEditRole;
 
   const profiles: BrandingProfiles = workspace?.brandingProfiles || {};
   const workspaceBranding: WorkspaceBranding = workspace?.branding || {};
@@ -99,7 +105,7 @@ function Scoped() {
   };
 
   async function save() {
-    if (!workspace || !uid || !editing || pending.current || !canEdit || !current()) return;
+    if (!workspace || !uid || !editing || pending.current || !canSave || !current()) return;
     const submitted = structuredClone(editing);
     const candidate: BrandingProfiles = submitted.target === 'books' ? {} : { labels: { [submitted.target]: submitted.draft } };
     const problem = brandingProfilesProblem(candidate as BrandingProfiles);
@@ -208,7 +214,7 @@ function Scoped() {
         <Palette aria-hidden="true" className="w-5 h-5 text-[var(--brass)] mt-1" />
         <div>
           <h2 className="text-lg font-bold text-[var(--text)]">Branding per label</h2>
-          <p className="text-xs text-[var(--muted)]">Logo, colour, address and footer for each label value. Child labels inherit their parent&apos;s branding until they set their own — like tax profiles. The server picks this branding when it makes a PDF for that label (AI#1).</p>
+          <p className="text-xs text-[var(--muted)]">Preview existing logo, colour, address and footer overrides for each label value, including inherited values. Label-specific branding is not yet applied to PDFs; PDFs use the books&apos; branding.</p>
         </div>
       </div>
       {truncated && <p role="status" className="text-xs text-[var(--muted)]">The loaded label catalogue is incomplete. Existing profiles are listed; enter an exact label:value key to edit another.</p>}
@@ -258,7 +264,8 @@ function Scoped() {
           <button type="button" onClick={addLabel} className="min-h-11 border rounded px-3 text-sm">Edit label branding</button>
         </div>
       )}
-      {!canEdit && <p role="status" className="text-xs text-[var(--muted)]">Only owners and accountants can change branding.</p>}
+      <p role="status" className="text-xs text-[var(--muted)]">Label branding cannot be saved or applied to PDFs yet. Any edits here are only a local draft. To change PDF branding, use Settings → Branding &amp; PDFs.</p>
+      {!hasEditRole && <p role="status" className="text-xs text-[var(--muted)]">Only owners and accountants can change branding.</p>}
 
       {editing && (
         <form onSubmit={e => { e.preventDefault(); void save(); }} aria-label="Edit branding profile" className="rounded border p-3 space-y-4 bg-[var(--surface)]">
@@ -293,7 +300,7 @@ function Scoped() {
               <label htmlFor="branding-footer" className="block text-xs font-semibold mb-1 text-[var(--text)]">Footer on every page</label>
               <textarea id="branding-footer" rows={3} maxLength={300} value={editing.draft.footer || ''} onChange={e => change({ ...editing.draft, footer: e.target.value })} className={areaField} placeholder="Leave empty to inherit" />
             </div>
-            <button type="submit" className="min-h-11 border rounded px-3 text-sm font-semibold bg-[var(--brass)] text-[var(--ink)]">{busy ? 'Saving…' : 'Save branding'}</button>
+            <button type="submit" disabled={!canSave} className="min-h-11 border rounded px-3 text-sm font-semibold bg-[var(--brass)] text-[var(--ink)] disabled:opacity-50">{busy ? 'Saving…' : 'Save branding'}</button>
           </fieldset>
           <button type="button" disabled={busy} onClick={() => { setEditing(null); setError(''); }} className="min-h-11 border rounded px-3 text-sm">Cancel</button>
         </form>

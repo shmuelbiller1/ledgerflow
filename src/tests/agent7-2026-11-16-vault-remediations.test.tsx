@@ -20,6 +20,7 @@ import { makeChartAccount } from './fixtures';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { getSupabase } from '../lib/db/client';
+import { toast } from 'sonner';
 
 const realFetch = globalThis.fetch;
 const realConfirm = window.confirm;
@@ -56,7 +57,7 @@ const docRow = (id: string, name: string, createdAt: string, extra: Record<strin
  */
 function stubVaultFetch(
   rows: Array<ReturnType<typeof docRow>>,
-  opts: { deleteStatus?: number; deleteBody?: unknown } = {},
+  opts: { deleteStatus?: number; deleteBody?: unknown; documentStatus?: number } = {},
 ) {
   const calls: FetchCall[] = [];
   const store = [...rows];
@@ -69,7 +70,7 @@ function stubVaultFetch(
     const json = (payload: unknown, status = 200) =>
       new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } });
     if (url === 'https://example.test/receipt.png') {
-      return new Response(new Blob(['fake-image'], { type: 'image/png' }), { status: 200 });
+      return new Response(new Blob(['fake-image'], { type: 'image/png' }), { status: opts.documentStatus ?? 200 });
     }
     if (url.includes('/rest/v1/documents') && method === 'GET') return json(store);
     if (url.includes('/attachments/') && method === 'DELETE') {
@@ -160,6 +161,19 @@ describe('A7C-05: Vault receipt injection is idempotent and workspace-currency a
     await openReceipt();
     assert.equal(screen.queryByRole('button', { name: 'Inject & Sync Ledger' }), null);
     assert.equal((screen.getByRole('button', { name: /Already Synced/ }) as HTMLButtonElement).disabled, true);
+  });
+
+  test('a failed document download is not sent to the OCR backend as an image', async t => {
+    const error = t.mock.method(toast, 'error');
+    const calls = stubVaultFetch([docRow('doc1', 'receipt.png', '2026-11-10T09:00:00.000Z')], { documentStatus: 404 });
+    render(<Vault />);
+    await waitFor(() => assert.ok(screen.queryAllByText('receipt.png').length > 0));
+    await openReceipt();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Deep OCR Scan/ })); });
+    await waitFor(() => assert.ok(error.mock.calls.some(call => JSON.stringify(call.arguments).includes('HTTP 404'))));
+    assert.ok(calls.some(c => c.url === 'https://example.test/receipt.png'));
+    assert.equal(calls.some(c => c.url.includes('/api/ai/process')), false);
+    assert.equal(screen.queryByRole('button', { name: 'Inject & Sync Ledger' }), null);
   });
 
   test('an already-linked document offers no inject', async () => {

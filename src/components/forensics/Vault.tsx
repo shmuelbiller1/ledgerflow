@@ -179,11 +179,12 @@ export default function Vault() {
       // #915: the row is writable by every member, so only a stored data: file or an https link is read.
       const sourceUrl = safeEmbeddedDocumentUrl(selectedDoc.fileUrl);
       if (!sourceUrl) {
-        toast.error('This file address is not a PDF, image or https link, so it cannot be scanned.');
+        toast.error('This file address is not a PDF, image or https link, so it cannot be scanned.', { id: toastId });
         return;
       }
       // Create a temporary File object from the blob URL
       const response = await fetch(sourceUrl);
+      if (!response.ok) throw new Error(`The document could not be fetched (HTTP ${response.status}).`);
       const blob = await response.blob();
       const file = new window.File([blob], selectedDoc.name, { type: selectedDoc.mimeType });
 

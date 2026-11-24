@@ -118,78 +118,13 @@ fetch(url, options)
                </div>);
 }
 
-export function ApiHubDocPostTransaction({ model }: { model: ReturnType<typeof useApiHubModel> }) {
- const { currentWorkspace, docLang } = model;
- return (<div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                 <div>
-                    <h2 className="text-2xl font-bold font-display mb-2 flex items-center gap-2">
-                      Create Transaction
-                      <span className="text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded-full tracking-widest uppercase">POST</span>
-                    </h2>
-                    <p className="text-[var(--muted)]">
-                       Injects a new structural double-entry transaction. This endpoint guarantees atomic integrity—if the ledger lines do not sum exactly to zero, the transaction is rejected instantly.
-                    </p>
-                 </div>
-
-                 <div className="bg-[#1A1B26] text-[#A9B1D6] rounded-xl p-5 overflow-x-auto border border-[#292E42]">
-<pre className="font-mono text-[13px] leading-relaxed">
-{docLang === 'curl' ? `curl -X POST "https://api.ledgerflow.io/api/v1/transactions" \\
-  -H "Authorization: Bearer <YOUR_API_KEY>" \\
-  -H "Idempotency-Key: req_123456789" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "workspaceId": "${currentWorkspace?.id || 'ws_123'}",
-    "date": "2026-05-28",
-    "description": "AWS Hosting",
-    "payee": "Amazon Web Services",
-    "amountCents": 145000
-  }'` :
- docLang === 'python' ? `import requests
-import uuid
-
-url = "https://api.ledgerflow.io/api/v1/transactions"
-headers = {
-    "Authorization": "Bearer <YOUR_API_KEY>",
-    "Idempotency-Key": str(uuid.uuid4()),
-    "Content-Type": "application/json"
-}
-payload = {
-    "workspaceId": "${currentWorkspace?.id || 'ws_123'}",
-    "date": "2026-05-28",
-    "description": "AWS Hosting",
-    "amountCents": 145000
-}
-
-response = requests.post(url, headers=headers, json=payload)
-print(response.json())` :
-`const fetch = require('node-fetch');
-const crypto = require('crypto');
-
-const url = "https://api.ledgerflow.io/api/v1/transactions";
-const payload = {
-  workspaceId: "${currentWorkspace?.id || 'ws_123'}",
-  date: "2026-05-28",
-  description: "AWS Hosting",
-  amountCents: 145000
-};
-
-fetch(url, {
-  method: 'POST',
-  headers: {
-    'Authorization': 'Bearer <YOUR_API_KEY>',
-    'Idempotency-Key': crypto.randomUUID(),
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify(payload)
-}).then(res => res.json()).then(data => console.info(data));`}
-</pre>
-                 </div>
-
-                 <p className="text-xs text-[var(--muted)] bg-slate-900/10 p-4 rounded-xl border border-indigo-600/20">
-                   <strong>💡 Auto-Balancing:</strong> The example above uses <code className="bg-[var(--surface)]/50 px-1 py-0.5 rounded ml-1">amountCents</code> instead of strict <code className="bg-[var(--surface)]/50 px-1 py-0.5 rounded ml-1">lines</code>.
-                   The {BRAND_NAME} engine will intuitively pair your default operational expense and liquid asset accounts to balance the entry automatically. To specify multi-line distribution, pass an array of <code className="bg-[var(--surface)]/50 px-1 py-0.5 rounded ml-1">lines</code>.
-                 </p>
-               </div>);
+export function ApiHubDocPostTransaction(_props: { model: ReturnType<typeof useApiHubModel> }) {
+ return (<div className="space-y-6">
+   <h2 className="text-2xl font-bold">Create a journal transaction</h2>
+   <p className="text-[var(--muted)]">POST /api/v1/transactions expects a transaction object with at least two balanced lines. Replace the workspace and account IDs with real IDs in your books. This request creates an entry; it is not a dry run. The server checks permissions, account validity and period locks.</p>
+   <pre className="bg-[var(--ink)]/50 text-xs p-4 rounded-xl overflow-x-auto">{JSON.stringify({ transaction: { workspaceId: 'YOUR_WORKSPACE_ID', date: '2026-05-28', description: 'Example journal', type: 'journal', currency: 'USD', lines: [ { accountId: 'YOUR_DEBIT_ACCOUNT_ID', amountCents: 145000 }, { accountId: 'YOUR_CREDIT_ACCOUNT_ID', amountCents: -145000 } ] } }, null, 2)}</pre>
+   <p className="text-xs text-[var(--muted)]">Send the JSON in a POST request with Authorization: Bearer YOUR_API_KEY, Content-Type: application/json, and an Idempotency-Key header reused when retrying the same operation. Account IDs, currency and date must match your own workspace.</p>
+ </div>);
 }
 
 export function ApiHubDocPostBrain({ model }: { model: ReturnType<typeof useApiHubModel> }) {
@@ -371,7 +306,8 @@ export function ApiHubDocGetMetrics({ model }: { model: ReturnType<typeof useApi
  return (<div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                  <div>
                     <h2 className="text-2xl font-bold font-display mb-2 flex items-center gap-2">Fetch Core Analytics</h2>
-                    <p className="text-[var(--muted)]">Aggregates all double-entry ledger lines to compute your core financial footprint in real-time. Calculate your Net Income, OPEX, Assets, and Equity.</p>
+                    <p className="text-[var(--muted)]">Legacy summary of ledger lines. This endpoint is not an authoritative financial report.</p>
+                    <p role="note" className="mt-2 text-sm text-amber-700">The summary can include draft and forecast entries and does not convert foreign-currency amounts. Use the appropriate reports for financial figures.</p>
                  </div>
                  <div className="bg-[#1A1B26] text-[#A9B1D6] rounded-xl p-5 overflow-x-auto border border-[#292E42]">
 <pre className="font-mono text-[13px] leading-relaxed">

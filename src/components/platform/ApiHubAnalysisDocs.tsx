@@ -5,7 +5,8 @@ export function ApiHubDocShiftingMetrics({ model }: { model: ReturnType<typeof u
  return (<div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                  <div>
                    <h2 className="text-2xl font-bold font-display mb-2 flex items-center gap-2">Shifting Telemetry & Metric Audits</h2>
-                   <p className="text-[var(--muted)] font-medium text-xs leading-relaxed">This call allows external systems to query the state of a business workspace without fetching thousands of raw lines. It dynamically outputs targeted vectors shifting based on workspace type (e.g., ARR for SaaS, Cap Rate/NOI for Real Estate, COGS margin for Retail, or run-rate burn modeling for personal portfolios).</p>
+                   <p className="text-[var(--muted)] font-medium text-xs leading-relaxed">This call returns business-type telemetry based on ledger data.</p>
+                   <p role="note" className="mt-2 text-sm text-amber-700">Some shifting metrics use assumptions or fallback values rather than measured figures. The field named net operating cash flow is revenue minus expense, not a cash-flow statement. Use the appropriate reports for financial decisions.</p>
                  </div>
                  <div className="bg-[#1A1B26] text-[#A9B1D6] rounded-xl p-5 overflow-x-auto border border-[#292E42]">
 <pre className="font-mono text-[13px] leading-relaxed">
@@ -238,6 +239,7 @@ export function ApiHubDocMathDepreciation({ model }: { model: ReturnType<typeof 
 <pre className="font-mono text-[13px] leading-relaxed">
 {docLang === 'curl' ? `curl -X POST "https://api.ledgerflow.io/api/v1/math/depreciation" \\
   -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
   -d '{
     "type": "double_declining_balance",
     "costCents": 5000000,
@@ -280,6 +282,7 @@ export function ApiHubDocMathInventory({ model }: { model: ReturnType<typeof use
 <pre className="font-mono text-[13px] leading-relaxed">
 {docLang === 'curl' ? `curl -X POST "https://api.ledgerflow.io/api/v1/math/inventory/wac" \\
   -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
   -d '{
     "currentQty": 100,
     "currentValueCents": 500000,
@@ -320,6 +323,7 @@ export function ApiHubDocMathAmortization({ model }: { model: ReturnType<typeof 
 <pre className="font-mono text-[13px] leading-relaxed">
 {docLang === 'curl' ? `curl -X POST "https://api.ledgerflow.io/api/v1/math/amortization" \\
   -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
   -d '{
     "principalCents": 10000000,
     "annualInterestRate": 0.05,

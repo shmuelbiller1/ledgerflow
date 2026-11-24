@@ -1,10 +1,11 @@
 import ReportSchedule from '../reporting/ReportSchedule';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDialog } from '../../hooks/useDialog';
-import { useAuthStore } from '../../stores/useAuthStore';
+import { currentIdentity, useAuthStore } from '../../stores/useAuthStore';
+import { identityScope } from '../../lib/serverAction';
 import { openingRowsCsv } from '../../lib/partyOpeningBalance';
 import type { OpenItemRow } from '../../lib/openItemImport';
 import { formatCurrency } from '../../lib/utils';
@@ -42,8 +43,20 @@ async function callOpenItems(mode: 'preview' | 'confirm', body: { workspaceId: s
   }
 }
 
-export default function OpeningDocumentsDialog({ side, onClose }: { side: 'customer' | 'vendor'; onClose: () => void }) {
+export default function OpeningDocumentsDialog(props: { side: 'customer' | 'vendor'; onClose: () => void }) {
+  // A checked file is valid only for the person, books and document side that checked it.
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const identity = useAuthStore(() => currentIdentity());
+  return <ScopedOpeningDocumentsDialog key={JSON.stringify([identity, workspaceId, props.side])} {...props} />;
+}
+
+function ScopedOpeningDocumentsDialog({ side, onClose }: { side: 'customer' | 'vendor'; onClose: () => void }) {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
+  const signedIn = useAuthStore(s => Boolean(s.user));
+  const mounted = useRef(false);
+  const inFlight = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const captureScope = () => identityScope(currentIdentity, () => useAuthStore.getState().currentWorkspaceId);
   const currency = workspace?.currency || 'USD';
   const startDate = workspace?.openingBalanceDate;
   const { dialogProps, titleId } = useDialog(onClose, true);
@@ -61,26 +74,37 @@ export default function OpeningDocumentsDialog({ side, onClose }: { side: 'custo
   const pastedLine = (r: OpenItemRow) => current?.lines[r.line - 2] ?? r.line;
 
   const preview = async () => {
-    if (!file.csv || busy || !workspace) return;
+    if (!file.csv || busy || inFlight.current || !workspace) return;
+    const scope = captureScope();
+    if (!scope.uid || scope.workspaceId !== workspace.id) return;
+    const isCurrent = () => mounted.current && scope.isCurrent();
+    inFlight.current = true;
     setBusy('preview');
     setError(null);
     try {
       const result = await callOpenItems('preview', { workspaceId: workspace.id, side, csv: file.csv });
+      if (!isCurrent()) return;
       if (result.status !== 'success') { setChecked(null); setError(result.message || 'The lines could not be checked'); return; }
       setChecked({ csv: file.csv, lines: file.lines, rows: result.rows || [], openTotalCents: result.openTotalCents || 0 });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (isCurrent()) setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(null);
+      inFlight.current = false;
+      if (isCurrent()) setBusy(null);
     }
   };
 
   const add = async () => {
-    if (!current || !ok.length || problems || busy || !workspace) return;
+    if (!current || !ok.length || problems || busy || inFlight.current || !workspace) return;
+    const scope = captureScope();
+    if (!scope.uid || scope.workspaceId !== workspace.id) return;
+    const isCurrent = () => mounted.current && scope.isCurrent();
+    inFlight.current = true;
     setBusy('confirm');
     setError(null);
     try {
       const result = await callOpenItems('confirm', { workspaceId: workspace.id, side, csv: current.csv });
+      if (!isCurrent()) return;
       if (result.status !== 'success') {
         setError(result.message || 'Nothing was added');
         if (result.rows?.length) setChecked({ ...current, rows: result.rows });
@@ -90,9 +114,10 @@ export default function OpeningDocumentsDialog({ side, onClose }: { side: 'custo
       toast.success(`${added} opening ${word}${added === 1 ? '' : 's'} added`);
       if (added) onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (isCurrent()) setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(null);
+      inFlight.current = false;
+      if (isCurrent()) setBusy(null);
     }
   };
 
@@ -115,6 +140,8 @@ export default function OpeningDocumentsDialog({ side, onClose }: { side: 'custo
               placeholder={side === 'customer' ? 'Acme Ltd\tINV-0912\t2026-08-14\t2026-09-13\t1,250.00' : 'Paper Co\tB-77\t2026-08-20\t2026-09-19\t310.00'}
               className="w-full px-3 py-2 font-mono text-xs bg-[var(--ink)] border border-[var(--line)] rounded-lg text-[var(--text)]" />
           </label>
+          {!signedIn && <p className="text-xs text-[var(--muted)]">Sign in to check and import opening documents.</p>}
+          <p className="text-xs text-[var(--muted)]">Saving can stop after some lines are added. If an answer is lost or an import fails, check the books before trying again and remove already saved lines from the file.</p>
           {error && <p role="alert" className="text-xs text-rose-700">{error}</p>}
           {current && rows.length > 0 && (
             <ReportSchedule
@@ -150,11 +177,11 @@ export default function OpeningDocumentsDialog({ side, onClose }: { side: 'custo
           )}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} className="px-3 py-2 text-[var(--muted)] hover:underline">Cancel</button>
-            <button type="button" onClick={() => void preview()} disabled={!file.csv || !!busy || !!current}
+            <button type="button" onClick={() => void preview()} disabled={!signedIn || !file.csv || !!busy || !!current}
               className="px-4 py-2 rounded-lg border border-[var(--line)] text-[var(--text)] font-semibold disabled:opacity-50">
               {busy === 'preview' ? 'Checking…' : 'Check'}
             </button>
-            <button type="button" onClick={() => void add()} disabled={!current || !ok.length || !!problems || !!busy}
+            <button type="button" onClick={() => void add()} disabled={!signedIn || !current || !ok.length || !!problems || !!busy}
               className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold disabled:opacity-50">
               {busy === 'confirm' ? 'Adding…' : `Add ${ok.length} opening ${word}${ok.length === 1 ? '' : 's'}`}
             </button>

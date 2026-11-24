@@ -1,5 +1,5 @@
 import './helpers/dom';
-import test, { afterEach, beforeEach } from 'node:test';
+import test, { afterEach, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
@@ -28,4 +28,24 @@ test('a guest sees the branding but cannot change it', () => {
   render(<BrandingProfilesSettings />);
   assert.ok(screen.getByText('Only owners and accountants can change branding.'));
   assert.equal(screen.queryByRole('button', { name: 'Edit label branding' }), null);
+});
+
+
+test('owners can inspect profiles but cannot submit an unsavable draft', async () => {
+  const { fireEvent } = await import('@testing-library/react');
+  render(<BrandingProfilesSettings />);
+  assert.ok(screen.getByText(/Label branding cannot be saved or applied to PDFs yet/));
+  assert.ok(screen.getByText(/Label-specific branding is not yet applied to PDFs/));
+  fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'world:entity' } });
+  assert.ok(screen.getByText('Entity footer'));
+  fireEvent.click(screen.getByRole('button', { name: /Edit this label/ }));
+  assert.ok(screen.getByRole('form', { name: 'Edit branding profile' }));
+  assert.equal((screen.getByRole('button', { name: 'Save branding' }) as HTMLButtonElement).disabled, true);
+  const fetchMock = mock.method(globalThis, 'fetch', async () => { throw new Error('unexpected network request'); });
+  try {
+    fireEvent.change(screen.getByLabelText('Footer on every page'), { target: { value: 'Draft footer' } });
+    fireEvent.submit(screen.getByRole('form', { name: 'Edit branding profile' }));
+    assert.equal(fetchMock.mock.callCount(), 0);
+    assert.equal((screen.getByLabelText('Footer on every page') as HTMLTextAreaElement).value, 'Draft footer');
+  } finally { fetchMock.mock.restore(); }
 });

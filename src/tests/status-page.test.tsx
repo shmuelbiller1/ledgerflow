@@ -80,9 +80,28 @@ describe('Status page', () => {
     assert.ok(screen.getByText('Working'));
   });
 
-  test('says so when the server does not answer', async () => {
+  test('says so when status cannot be loaded', async () => {
     stubFetch(503, {});
     render(<StatusPage />);
-    assert.ok(await screen.findByText('The server is not answering'));
+    assert.ok(await screen.findByText('Status is unavailable'));
+  });
+
+  test('configuration presence is not presented as a live provider health check', async () => {
+    stubFetch(200, { state: 'operational', checkedAt: '2026-10-02T12:00:00Z', components: [
+      { id: 'api', name: 'Server', state: 'operational', detail: 'Answering.' },
+      { id: 'payments', name: 'Card payments of invoices', state: 'operational', detail: 'Set up.' },
+    ] });
+    render(<StatusPage />);
+    assert.ok(await screen.findByText('No problems reported by available checks'));
+    assert.ok(screen.getByText('Set up (not live-tested)'));
+    assert.ok(screen.getByText('1/1 checks reporting operational'));
+    assert.match(screen.getByText(/checked for configuration only/).textContent || '', /not live provider availability/);
+  });
+
+  test('malformed status responses do not crash the page or report success', async () => {
+    stubFetch(200, { state: 'operational', checkedAt: '2026-10-02T12:00:00Z', components: null });
+    render(<StatusPage />);
+    assert.ok(await screen.findByText('Status is unavailable'));
+    assert.equal(screen.queryByText('No problems reported by available checks'), null);
   });
 });

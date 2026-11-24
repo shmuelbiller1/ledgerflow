@@ -17,7 +17,7 @@ import { WorkspacePolicyDialog } from './WorkspacePolicyDialog';
 import { StressTestPanel } from './StressTestPanel';
 import type { SystemCommandCenterModel } from './SystemCommandCenter';
 export function SystemCommandCenterView(model: SystemCommandCenterModel) {
- const { overlay2DialogProps, overlay2TitleId, telemetry, loading, lexiconOverrides, setLexiconOverride, showBulkSuccess, setShowBulkSuccess, activeMainTab, setActiveMainTab } = model;
+ const { overlay2DialogProps, overlay2TitleId, telemetry, loading, telemetryError, lexiconOverrides, setLexiconOverride, showBulkSuccess, setShowBulkSuccess, activeMainTab, setActiveMainTab } = model;
  return (
     <div className="w-full space-y-12 max-w-[1600px] mx-auto pb-12 px-4">
       {/* Header section matching upgraded architecture */}
@@ -33,10 +33,10 @@ export function SystemCommandCenterView(model: SystemCommandCenterModel) {
 
         <div className="flex items-center gap-4">
           <div className="p-4 bg-[var(--surface)] border border-[var(--line)] rounded-[32px] flex items-center gap-3 shadow-3xs">
-            <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
+            <div className={cn("w-3 h-3 rounded-full", telemetry ? "bg-emerald-500" : "bg-amber-500")} />
             <div>
-              <p className="text-[8px] font-bold text-[var(--muted)] uppercase tracking-widest leading-none">Diagnostic Socket</p>
-              <p className="text-xs font-bold text-emerald-600 uppercase mt-0.5 tracking-wider">ONLINE</p>
+              <p className="text-[8px] font-bold text-[var(--muted)] uppercase tracking-widest leading-none">Admin telemetry</p>
+              <p className="text-xs font-bold text-[var(--muted)] uppercase mt-0.5 tracking-wider">{telemetry ? 'Telemetry loaded' : 'Telemetry unavailable'}</p>
             </div>
           </div>
         </div>
@@ -52,7 +52,7 @@ export function SystemCommandCenterView(model: SystemCommandCenterModel) {
           <AlertOctagon aria-hidden="true" size={40} className="text-rose-500 opacity-60" />
           <div className="text-center">
             <h2 className="text-sm font-black text-[var(--text)] uppercase tracking-wider">Interface Refused</h2>
-            <p className="text-xs text-[var(--muted)] mt-1">Unable to construct reliable stream channel to backend metrics.</p>
+            <p role="alert" className="text-xs text-[var(--muted)] mt-1">{telemetryError || 'Unable to load backend metrics.'}</p>
           </div>
         </div>
       ) : (
@@ -172,7 +172,7 @@ export function SystemCommandCenterView(model: SystemCommandCenterModel) {
               </div>
               <h2 id={overlay2TitleId} className="text-xl font-black text-[var(--text)] uppercase tracking-tight">Ledger Synchronized</h2>
               <p className="text-xs text-[var(--muted)] mt-2 uppercase tracking-wide leading-relaxed">
-                Successfully propagated global cost coefficients, spend multipliers, and private api key surcharges to all {telemetry?.tenants?.length || 0} active workspaces securely.
+                The synchronization operation completed for the listed workspaces.
               </p>
               <button
                 type="button"

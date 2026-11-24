@@ -63,6 +63,8 @@ for (const width of [1280, 390]) for (const theme of ['light', 'dark'] as const)
       })).toBe(2);
       if (screen === 'pnl' || screen === 'reports-picker') await expect(main.getByLabel('Reporting period start date')).toHaveValue('2026-09-01');
       if (screen === 'balance-sheet') await expect(main.getByRole('heading', { name: 'Assets', exact: true })).toBeVisible();
+      // In guest mode the watch-list request is refused. Capture the settled refusal, not its loading state.
+      if (screen === 'tasks') await expect(main.getByText('Records I watch (unavailable)')).toBeVisible();
       if (screen === 'purchase-orders') {
         const lines = main.getByRole('button', { name: `Lines of ${order.poNumber}` });
         await lines.click();

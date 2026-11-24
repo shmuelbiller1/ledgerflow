@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { formatDate } from '../../lib/utils';
 import type { EstimateSignature } from '../../lib/estimateSignature';
 import { runCommand } from '../../lib/runCommand';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 /**
  * Y-20 on Sales → Estimates: "Ask to sign" makes the estimate's private signing link (the server
@@ -11,23 +12,41 @@ import { runCommand } from '../../lib/runCommand';
  */
 export function EstimateSignLink({ workspaceId, estimate }: { workspaceId: string; estimate: { id: string; number?: string } }) {
   const [busy, setBusy] = useState(false);
-  const [link, setLink] = useState('');
+  const uid = useAuthStore(s => s.user?.uid || '');
+  const [result, setResult] = useState<{ scope: string; link: string } | null>(null);
+  const scope = JSON.stringify([workspaceId, estimate.id, uid]);
+  const currentScope = useRef(scope);
+  useLayoutEffect(() => { currentScope.current = scope; }, [scope]);
+  const alive = useRef(false);
+  const pending = useRef(false);
+  useLayoutEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const link = result?.scope === scope ? result.link : '';
+  const stillCurrent = () => alive.current && currentScope.current === scope && useAuthStore.getState().currentWorkspaceId === workspaceId && useAuthStore.getState().user?.uid === uid;
   const ask = async () => {
+    if (pending.current) return;
+    pending.current = true;
     setBusy(true);
     try {
       const body = await runCommand<{ token?: string }>({
         path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/estimates/${encodeURIComponent(estimate.id)}/sign-link`,
         method: 'POST',
       }) ?? {};
+      if (!stillCurrent()) return;
+      if (typeof body.token !== 'string' || !body.token.trim()) {
+        throw new Error('The server accepted the request but returned no link. Refresh the estimate before trying again.');
+      }
       const url = `${window.location.origin}/e/${body.token}`;
-      setLink(url);
-      let copied = true;
-      await navigator.clipboard?.writeText(url).catch(() => { copied = false; });
-      toast.success(copied ? 'Signing link copied: send it to the customer' : 'Signing link ready: copy it below and send it to the customer');
+      setResult({ scope, link: url });
+      let copied = false;
+      if (navigator.clipboard?.writeText) {
+        try { await navigator.clipboard.writeText(url); copied = true; } catch { copied = false; }
+      }
+      if (stillCurrent()) toast.success(copied ? 'Signing link copied: send it to the customer' : 'Signing link ready: copy it below and send it to the customer');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      if (stillCurrent()) toast.error(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(false);
+      pending.current = false;
+      if (alive.current) setBusy(false);
     }
   };
   return (

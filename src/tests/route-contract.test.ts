@@ -46,6 +46,11 @@ describe('Route Contract Guard Suite (§0c Route Contract)', () => {
       '/api/v1/telemetry/errors' // Error logging fallback endpoint
     ]);
 
+    // Admin routes are registered directly on the app, not under a router prefix. Inspect their
+    // actual registrations rather than allowing every path under /admin or allow-listing callers.
+    const adminSource = fs.readFileSync(path.join(srcDir, 'server/routes/adminRoutes.ts'), 'utf8');
+    const adminGetRoutes = new Set(Array.from(adminSource.matchAll(/app\.get\(\s*["'](\/api\/v1\/admin\/[^"']+)["']/g), match => match[1]));
+
     // Known server route prefixes
     const knownRoutePrefixes = [
       '/api/ai',
@@ -85,7 +90,7 @@ describe('Route Contract Guard Suite (§0c Route Contract)', () => {
     const missingRoutes: string[] = [];
 
     for (const endpoint of apiEndpoints) {
-      if (allowList.has(endpoint)) continue;
+      if (allowList.has(endpoint) || adminGetRoutes.has(endpoint)) continue;
 
       const matchesKnown = knownRoutePrefixes.some(prefix => endpoint.startsWith(prefix));
       if (!matchesKnown) {

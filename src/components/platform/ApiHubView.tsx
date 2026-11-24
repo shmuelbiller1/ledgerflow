@@ -240,6 +240,7 @@ fetch("https://api.ledgerflow.io/api/v1/logs?workspaceId=${currentWorkspace?.id 
 <pre className="font-mono text-[13px] leading-relaxed">
 {docLang === 'curl' ? `curl -X POST "https://api.ledgerflow.io/api/v1/math/inventory/eoq" \\
   -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
   -d '{
     "annualDemand": 10000,
     "costPerOrderCents": 50000,

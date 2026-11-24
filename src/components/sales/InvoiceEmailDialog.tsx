@@ -28,6 +28,7 @@ async function authorized(path: string, init?: { method?: 'POST' | 'PUT'; body?:
 
 export default function InvoiceEmailDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
+  const uid = useAuthStore(s => s.user?.uid || '');
   const customer = useLedgerStore(s => s.customers).find(c => c.id === invoice.customerId);
   useLedgerCollections('customers');
   const overdue = !!invoice.dueDate && invoice.status !== 'paid' && invoice.status !== 'draft';
@@ -42,19 +43,25 @@ export default function InvoiceEmailDialog({ invoice, onClose }: { invoice: Invo
   const canSign = isApproverRole(useCurrentRole());
   const [to, setTo] = useState(() => String(invoice.metadata?.sentTo || customer?.email || ''));
   const [template, setTemplate] = useState<'invoice' | 'reminder'>(overdue && invoice.status !== 'pending' ? 'reminder' : 'invoice');
-  const [events, setEvents] = useState<LogEvent[] | null>(null);
+  const [log, setLog] = useState<{ key: string; events?: LogEvent[]; error?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
   const { dialogProps, titleId } = useDialog(onClose);
   const base = `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/emails`;
+  const logKey = JSON.stringify([base, invoice.id, uid, version]);
+  const events = log?.key === logKey ? log.events : undefined;
+  const logError = log?.key === logKey ? log.error : undefined;
 
   useEffect(() => {
     let cancelled = false;
     authorized(`${base}/log/${encodeURIComponent(invoice.id)}`)
-      .then(data => { if (!cancelled) setEvents(data.events || []); })
-      .catch(() => { if (!cancelled) setEvents([]); });
+      .then(data => {
+        if (!Array.isArray(data?.events)) throw new Error('The server returned an invalid send log.');
+        if (!cancelled) setLog({ key: logKey, events: data.events });
+      })
+      .catch(err => { if (!cancelled) setLog({ key: logKey, error: err instanceof Error ? err.message : 'The send log could not be loaded.' }); });
     return () => { cancelled = true; };
-  }, [base, invoice.id, version]);
+  }, [base, invoice.id, logKey]);
 
   const send = async () => {
     setBusy(true);
@@ -113,7 +120,12 @@ export default function InvoiceEmailDialog({ invoice, onClose }: { invoice: Invo
 
           <div className="border-t border-[var(--line)] pt-3">
             <p className="mb-2 text-xs font-semibold text-[var(--muted)]">Emails for this invoice</p>
-            {events === null ? <p className="text-xs text-[var(--muted)]">Loading…</p>
+            {logError ? (
+              <div role="alert" className="text-xs text-[var(--neg)]">
+                <p>Could not load the send log: {logError}</p>
+                <button type="button" onClick={() => setVersion(v => v + 1)} className="min-h-11 underline">Retry loading send log</button>
+              </div>
+            ) : !events ? <p className="text-xs text-[var(--muted)]">Loading…</p>
               : events.length === 0 ? <p className="text-xs text-[var(--muted)]">None yet.</p>
               : (
                 <ul className="max-h-48 space-y-1 overflow-auto text-xs">

@@ -1,6 +1,6 @@
 import { runCommand } from '../../lib/runCommand';
 import { useDialog } from '../../hooks/useDialog';
-import React, { useEffect, useState, useId } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useId } from 'react';
 import { toast } from 'sonner';
 import { Bell, CheckCheck, X, FileText, CreditCard, Landmark, Users, MailWarning, Settings2, ArrowRight, MessageCircleQuestion } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -10,7 +10,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { loadNotificationPrefs, markNotificationsRead, saveNotificationPrefs } from '../../hooks/useNotificationFeed';
 import { NOTIFICATION_TYPES, typesForRole, wantsNotification } from '../../lib/notifications';
-import { EMAIL_MODE_LABEL, EMAIL_MODES, emailMode, type NotificationEmailMode } from '../../lib/notificationEmail';
+import { EMAIL_MODE_LABEL, EMAIL_MODES, type NotificationEmailMode } from '../../lib/notificationEmail';
 import type { NotificationPrefs } from '../../lib/notifications';
 import { recordFromNotice } from '../../lib/watches';
 import { groupNotificationsByType } from '../../lib/feedbackTriage';
@@ -32,41 +32,66 @@ function KindIcon({ kind }: { kind: string }) {
 }
 
 function Preferences({ onDone }: { onDone: () => void }) {
-  const preferencesId = useId();
   const uid = useAuthStore(s => s.user?.uid) || '';
+  const isGuest = useAuthStore(s => s.isGuest);
+  return <PreferencesForUser key={JSON.stringify([uid, isGuest])} uid={uid} isGuest={isGuest} onDone={onDone} />;
+}
+
+function PreferencesForUser({ uid, isGuest, onDone }: { uid: string; isGuest: boolean; onDone: () => void }) {
+  const preferencesId = useId();
   const role = useCurrentRole();
   const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
   const [saving, setSaving] = useState(false);
   // S-18: whether notices also come by email (kept by the server)
   const [mail, setMail] = useState<NotificationEmailMode | null>(null);
   const [mailLoaded, setMailLoaded] = useState<NotificationEmailMode | null>(null);
+  const [error, setError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const alive = useRef(false);
+  const pending = useRef(false);
+  useLayoutEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   useEffect(() => {
     let cancelled = false;
+    if (!uid) return;
     loadNotificationPrefs(uid)
       .then(p => { if (!cancelled) setPrefs(p); })
-      .catch(() => { if (!cancelled) setPrefs({}); });
-    void runCommand<{ mode?: string }>({ path: '/api/v1/account/notification-email' })
-      .then(data => { if (!cancelled) { setMail(emailMode(data.mode)); setMailLoaded(emailMode(data.mode)); } })
-      .catch(() => { if (!cancelled) { setMail('off'); setMailLoaded('off'); } });
+      .catch(() => { if (!cancelled) setError('In-app notification choices could not be loaded.'); });
+    if (!isGuest) void runCommand<{ mode?: string }>({ path: '/api/v1/account/notification-email' })
+      .then(data => {
+        if (!EMAIL_MODES.includes(data?.mode as NotificationEmailMode)) throw new Error('Invalid email choice');
+        if (!cancelled) { setMail(data.mode as NotificationEmailMode); setMailLoaded(data.mode as NotificationEmailMode); }
+      })
+      .catch(() => { if (!cancelled) setError('Email notification choices could not be loaded.'); });
     return () => { cancelled = true; };
-  }, [uid]);
+  }, [uid, isGuest, attempt]);
 
+  const stillCurrent = () => alive.current && useAuthStore.getState().user?.uid === uid && useAuthStore.getState().isGuest === isGuest;
   const save = async () => {
-    if (!prefs) return;
+    if (!uid || !prefs || (!isGuest && (!mail || !mailLoaded)) || error || pending.current) return;
+    pending.current = true;
     setSaving(true);
+    setSaveError('');
+    let savedInApp = false;
     try {
       await saveNotificationPrefs(uid, prefs);
-      if (mail && mail !== mailLoaded) {
+      savedInApp = true;
+      if (!stillCurrent()) return;
+      if (!isGuest && mail && mail !== mailLoaded) {
         await runCommand({ path: '/api/v1/account/notification-email', method: 'PUT', body: { mode: mail } });
+        if (!stillCurrent()) return;
         setMailLoaded(mail);
       }
       toast.success('Notification choices saved.');
       onDone();
     } catch {
-      toast.error('Could not save your choices.');
+      if (stillCurrent()) {
+        setSaveError(savedInApp ? 'In-app choices were saved, but the email choice could not be confirmed. Your selections remain here; retry or reload to check.' : 'Could not confirm that your choices were saved. Your selections remain here; retry or reload to check.');
+      }
     } finally {
-      setSaving(false);
+      pending.current = false;
+      if (stillCurrent()) setSaving(false);
     }
   };
 
@@ -74,7 +99,9 @@ function Preferences({ onDone }: { onDone: () => void }) {
   return (
     <div className="p-5 space-y-3">
       <p className="text-xs text-[var(--muted)]">Choose what you're told about in this app. This applies to all your workspaces.</p>
-      {prefs === null ? <p className="text-xs text-[var(--muted)]">Loading…</p> : (
+      {error && <p role="alert" className="text-xs text-rose-600">{error} <button type="button" className="min-h-11 underline" onClick={() => { setError(''); setPrefs(null); setMail(null); setMailLoaded(null); setAttempt(a => a + 1); }}>Retry loading choices</button></p>}
+      {saveError && <p role="alert" className="text-xs text-rose-600">{saveError}</p>}
+      {prefs === null ? <p className="text-xs text-[var(--muted)]">{error ? 'In-app choices unavailable.' : 'Loading…'}</p> : (
         <ul className="space-y-2">
           {types.map(type => (
             <li key={type}>
@@ -88,6 +115,7 @@ function Preferences({ onDone }: { onDone: () => void }) {
           {types.length === 0 && <li className="text-xs text-[var(--muted)]">Your role doesn't receive notifications.</li>}
         </ul>
       )}
+      {isGuest && <p className="text-xs text-[var(--muted)]">Email notification choices are unavailable in guest mode.</p>}
       {mail !== null && (
         <label htmlFor={`${preferencesId}-mail`} className="block text-sm text-[var(--text)]">
           <span className="block text-xs font-semibold text-[var(--muted)] mb-1">By email too</span>
@@ -98,7 +126,7 @@ function Preferences({ onDone }: { onDone: () => void }) {
         </label>
       )}
       <div className="flex gap-2">
-        <button type="button" disabled={saving || prefs === null} onClick={save}
+        <button type="button" disabled={saving || !!error || prefs === null || (!isGuest && (mail === null || mailLoaded === null))} onClick={save}
           className="px-4 py-2 rounded-lg bg-[var(--brass)] text-[var(--ink)] text-sm font-bold disabled:opacity-50">Save</button>
         <button type="button" onClick={onDone} className="px-3 py-2 rounded-lg border border-[var(--line)] text-sm text-[var(--text)]">Back</button>
       </div>

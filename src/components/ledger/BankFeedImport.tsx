@@ -44,6 +44,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
   const [rawTransactions, setRawTransactions] = useState<BankFeedRow[]>([]);
   const [mappedTransactions, setMappedTransactions] = useState<BankFeedRow[]>([]);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [checkedStatement, setCheckedStatement] = useState(false);
   // AF-001: the statement's own bank account takes the other side of each row; it was a placeholder id
   // that is in no chart of accounts, so every imported entry pointed at an account that does not exist
   // the same open-account test as the category mapping below (CodeRabbit on #457)
@@ -71,6 +72,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
   const handleUpload = async () => {
     if (!file || !user) return;
     setIsUploading(true);
+    setCheckedStatement(false);
     
     const formData = new FormData();
     formData.append('file', file);
@@ -256,7 +258,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
   };
 
   const handleConfirm = () => {
-    if (!user) return;
+    if (!user || !checkedStatement) return;
     const bankAccount = bankAccounts.find(a => a.id === bankAccountId);
     if (!bankAccount) {
       toast.error('Choose the bank account this statement belongs to.');
@@ -325,6 +327,15 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
         </div>
 
         <div className="flex-1 overflow-auto p-4 md:p-8 bg-[var(--ink)]">
+          <p role="note" className="mb-4 text-sm text-[var(--text)]">
+            CSV parsing can omit invalid rows or replace unrecognized dates without warning. Compare every row, amount, and date with the original statement before importing; do not rely on the preview as a complete copy.
+          </p>
+          {rawTransactions.length > 0 && (
+            <label className="mb-4 flex items-start gap-2 text-sm text-[var(--text)]">
+              <input type="checkbox" checked={checkedStatement} onChange={e => setCheckedStatement(e.target.checked)} />
+              I compared the preview with the original statement, including row count, amounts, and dates.
+            </label>
+          )}
           {!rawTransactions.length ? (
             <div 
               {...getRootProps()} 
@@ -467,7 +478,7 @@ columns={[
           </button>
           <button 
             onClick={handleConfirm}
-            disabled={!selectedIndices.size || isMapping || !bankAccountId}
+            disabled={!selectedIndices.size || isMapping || !bankAccountId || !checkedStatement}
             className="px-10 py-3 btn-tonal rounded-[32px] font-black uppercase tracking-[0.2em] text-xs hover:brightness-110 disabled:opacity-30 disabled:grayscale transition-all shadow-xl shadow-ledger-accent/20"
            aria-label="Import selected rows">
             Import {selectedIndices.size} rows

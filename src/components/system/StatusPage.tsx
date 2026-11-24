@@ -38,10 +38,20 @@ const STATE_STYLE: Record<ComponentState, string> = {
 };
 
 const HEADLINE: Record<SystemStatus['state'], string> = {
-  operational: 'Everything is working',
+  operational: 'No problems reported by available checks',
   degraded: 'Some parts have problems',
-  down: `${BRAND_NAME} is not working right now`,
+  down: 'Service checks report an outage',
 };
+
+// These server checks report configuration presence, not provider availability or a successful transaction.
+const CONFIGURATION_ONLY = new Set(['signin', 'email', 'payments', 'banks']);
+function validStatus(value: unknown): value is SystemStatus {
+  if (!value || typeof value !== 'object') return false;
+  const status = value as Partial<SystemStatus>;
+  return ['operational', 'degraded', 'down'].includes(String(status.state)) &&
+    typeof status.checkedAt === 'string' && Number.isFinite(Date.parse(status.checkedAt)) &&
+    Array.isArray(status.components) && status.components.every(c => c && typeof c.id === 'string' && typeof c.name === 'string' && typeof c.detail === 'string' && Object.hasOwn(STATE_LABEL, c.state));
+}
 
 /** Renders the public system health status page and refreshes health checks while visible. */
 export default function StatusPage() {
@@ -54,9 +64,10 @@ export default function StatusPage() {
     let alive = true;
     const started = performance.now();
     // a public page: no session exists here, and `token: null` says so rather than leaving it to chance
-    runCommand<SystemStatus>({ path: '/api/v1/public/status', token: null })
+    runCommand<unknown>({ path: '/api/v1/public/status', token: null })
       .then(data => {
         if (!alive) return;
+        if (!validStatus(data)) throw new Error('Invalid status response');
         setLatencyMs(Math.max(1, Math.round(performance.now() - started)));
         setStatus(data);
         setUnreachable(false);
@@ -69,7 +80,8 @@ export default function StatusPage() {
   useVisibilityPolling(() => setCheck(n => n + 1), 60_000);
 
   const overall: SystemStatus['state'] | null = unreachable ? 'down' : status?.state ?? null;
-  const workingCount = status?.components.filter(c => c.state === 'operational').length ?? 0;
+  const workingCount = status?.components.filter(c => c.state === 'operational' && !CONFIGURATION_ONLY.has(c.id)).length ?? 0;
+  const checkedCount = status?.components.filter(c => !CONFIGURATION_ONLY.has(c.id)).length ?? 0;
 
   return (
     <main className="min-h-screen bg-gray-50 text-gray-900 py-12 px-4">
@@ -78,6 +90,7 @@ export default function StatusPage() {
           <p className="text-sm font-semibold text-gray-700">{BRAND_NAME}</p>
           <h1 className="text-2xl font-bold">System status</h1>
           <p className="text-xs text-gray-700">Automatic health check every 60 seconds · No sign-in required</p>
+          <p className="text-xs text-gray-700">Sign-in, email, card payments and bank feeds are checked for configuration only, not live provider availability. Scheduled jobs report their most recent recorded run.</p>
         </header>
 
         <section aria-live="polite" className="bg-white rounded-xl border border-gray-200 p-6">
@@ -87,7 +100,7 @@ export default function StatusPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className={`text-lg font-semibold ${overall === 'operational' ? 'text-emerald-800' : overall === 'degraded' ? 'text-amber-800' : 'text-red-800'}`}>
-                  {unreachable ? 'The server is not answering' : HEADLINE[overall]}
+                  {unreachable ? 'Status is unavailable' : HEADLINE[overall]}
                 </p>
                 {status && !unreachable && (
                   <p className="text-sm text-gray-700 mt-1">
@@ -98,7 +111,7 @@ export default function StatusPage() {
               </div>
               {status && !unreachable && (
                 <span className="text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-800 tabular-nums">
-                  {workingCount}/{status.components.length} working
+                  {workingCount}/{checkedCount} checks reporting operational
                 </span>
               )}
             </div>
@@ -113,7 +126,7 @@ export default function StatusPage() {
                   <p className="font-medium">{c.name}</p>
                   <p className="text-sm text-gray-700">{c.detail}</p>
                 </div>
-                <span className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-semibold ${STATE_STYLE[c.state]}`}>{STATE_LABEL[c.state]}</span>
+                <span className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-semibold ${STATE_STYLE[c.state]}`}>{CONFIGURATION_ONLY.has(c.id) && c.state === 'operational' ? 'Set up (not live-tested)' : STATE_LABEL[c.state]}</span>
               </li>
             ))}
           </ul>

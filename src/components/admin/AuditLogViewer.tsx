@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useId } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import { History, Search, User, Building, Calendar, ChevronDown, ChevronUp, Filter, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { auditDescription, auditTime } from '../../lib/auditFormat';
 import { auth } from '../../firebase';
 import { Labelled } from '../ui/Labelled';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 const fetchWithAuth = async (url: string, options: RequestInit & { headers?: Record<string, string> } = {}) => {
   const token = await auth.currentUser?.getIdToken();
@@ -21,56 +22,49 @@ const INITIAL_FILTERS = {
     limit: 50
   };
 
+type AuditLog = import('../../lib/auditFormat').DisplayAuditLog & { id: string; action: string; userEmail?: string; workspaceId?: string; userId?: string; before?: Record<string, unknown>; after?: Record<string, unknown> };
+async function readAuditLogs(filters: typeof INITIAL_FILTERS): Promise<AuditLog[]> {
+  const params = new URLSearchParams({ ...filters, limit: String(filters.limit) });
+  const res = await fetchWithAuth(`/api/v1/admin/audit-logs?${params}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data?.logs) || data.logs.some((log: { id?: unknown; action?: unknown }) => !log || typeof log.id !== 'string' || typeof log.action !== 'string')) throw new Error('Invalid audit log response');
+  return data.logs;
+}
+
 export default function AuditLogViewer() {
+  const uid = useAuthStore(s => s.user?.uid || '');
+  return <AuditLogViewerForUser key={uid} />;
+}
+
+function AuditLogViewerForUser() {
   const filterId = useId();
-  const [logs, setLogs] = useState<(import("../../lib/auditFormat").DisplayAuditLog & { id: string; action: string; userEmail?: string; workspaceId?: string; userId?: string; before?: Record<string, unknown>; after?: Record<string, unknown> })[]>([]);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
-
-  const fetchLogs = async () => {
-    try {
-      const queryParams = new URLSearchParams(filters as unknown as string | Record<string, string> | URLSearchParams | string[][] | undefined).toString();
-      const res = await fetchWithAuth(`/api/v1/admin/audit-logs?${queryParams}`);
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data.logs || []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch audit logs:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [error, setError] = useState('');
+  const sequence = useRef(0);
 
   useEffect(() => {
-    let mounted = true;
-    
-    async function init() {
-      try {
-        const queryParams = new URLSearchParams(INITIAL_FILTERS as unknown as string | Record<string, string> | URLSearchParams | string[][] | undefined).toString();
-        const res = await fetchWithAuth(`/api/v1/admin/audit-logs?${queryParams}`);
-        if (res.ok && mounted) {
-          const data = await res.json();
-          setLogs(data.logs || []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch audit logs:', err);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    }
-
-    void init();
-    
-    return () => {
-      mounted = false;
-    };
+    let live = true;
+    const seq = sequence;
+    const request = ++seq.current;
+    void readAuditLogs(INITIAL_FILTERS).then(logs => {
+      if (live && request === seq.current) setLogs(logs);
+    }).catch(err => { if (live && request === seq.current) setError(err instanceof Error ? err.message : 'Request failed'); })
+      .finally(() => { if (live && request === seq.current) setLoading(false); });
+    return () => { live = false; seq.current++; };
   }, []);
 
   const handleApplyFilter = () => {
+    const request = ++sequence.current;
     setLoading(true);
-    void fetchLogs();
+    setError('');
+    void readAuditLogs(filters).then(logs => {
+      if (request === sequence.current) setLogs(logs);
+    }).catch(err => { if (request === sequence.current) setError(err instanceof Error ? err.message : 'Request failed'); })
+      .finally(() => { if (request === sequence.current) setLoading(false); });
   };
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -195,7 +189,7 @@ export default function AuditLogViewer() {
             <History aria-hidden="true" size={16} className="text-[var(--muted)]" />
             <h2 className="text-[12px] font-black uppercase tracking-widest text-[var(--text)]">Institutional Audit Trail</h2>
           </div>
-          <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest">Showing {logs.length} most recent operations</span>
+          {!loading && !error && <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest">Showing {logs.length} returned operations (limited list)</span>}
         </div>
 
         <div className="divide-y divide-[var(--line)]">
@@ -204,6 +198,8 @@ export default function AuditLogViewer() {
               <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-900 rounded-full animate-spin" />
               <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest">Retrieving logs...</span>
             </div>
+          ) : error ? (
+            <div role="alert" className="p-6 text-rose-700">Could not load audit records: {error}. Apply the filter to retry.</div>
           ) : logs.length === 0 ? (
             <div className="p-20 text-center text-[var(--muted)]">
               <p className="text-sm font-medium">No audit records match your current criteria.</p>
@@ -274,10 +270,6 @@ export default function AuditLogViewer() {
                               <div className="flex justify-between py-1.5 border-b border-dashed border-slate-100">
                                 <span className="text-[9px] font-bold text-[var(--muted)] uppercase">Actor UID</span>
                                 <span className="text-[9px] font-mono text-slate-600">{log.userId}</span>
-                              </div>
-                              <div className="flex justify-between py-1.5 border-b border-dashed border-slate-100">
-                                <span className="text-[9px] font-bold text-[var(--muted)] uppercase">Environment</span>
-                                <span className="text-[9px] font-bold text-slate-600">PRODUCTION</span>
                               </div>
                             </div>
                           </div>

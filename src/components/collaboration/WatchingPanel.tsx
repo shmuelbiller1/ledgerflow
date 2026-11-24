@@ -31,28 +31,38 @@ interface WatchesAnswer {
 
 export default function WatchingPanel() {
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
+  const uid = useAuthStore(s => s.user?.uid || '');
   const openRecord = useUIStore(s => s.openRecord);
   const workspaceId = workspace?.id || '';
-  const [watches, setWatches] = useState<Watch[] | null>(null);
+  const [list, setList] = useState<{ key: string; watches?: Watch[]; error?: string } | null>(null);
+  const [version, setVersion] = useState(0);
   const [type, setType] = useState<RecordType | ''>('');
   const [id, setId] = useState('');
   const choices = useRecordChoices(type, workspace?.currency || 'USD');
+  const listKey = JSON.stringify([workspaceId, uid, version]);
+  const watches = list?.key === listKey ? list.watches : undefined;
+  const loadError = list?.key === listKey ? list.error : undefined;
 
   useEffect(() => {
     if (!workspaceId) return;
     let live = true;
-    call(workspaceId, '').then(data => { if (live) setWatches(data.watches || []); }).catch(() => { if (live) setWatches([]); });
+    call(workspaceId, '').then(data => {
+      if (!Array.isArray(data?.watches)) throw new Error('The server returned an invalid watch list.');
+      if (live) setList({ key: listKey, watches: data.watches });
+    }).catch(err => { if (live) setList({ key: listKey, error: commandErrorMessage(err, uiLanguageNow()) }); });
     return () => { live = false; };
-  }, [workspaceId]);
+  }, [workspaceId, listKey]);
 
   if (!workspace) return null;
   const watch = async () => {
+    if (!watches || !type || !id) return;
     const label = choices.find(c => c.id === id)?.label || id;
     try {
       const data = await call(workspaceId, '', 'POST', { record: { type, id, label } });
       const created = data.watch;
       if (!created) throw new Error('The watch was saved but the server did not send it back. Reload to see it.');
-      setWatches(list => [created, ...(list || []).filter(w => w.id !== created.id)]);
+      if (useAuthStore.getState().currentWorkspaceId !== workspaceId || useAuthStore.getState().user?.uid !== uid) return;
+      setList(previous => previous?.key === listKey ? { key: listKey, watches: [created, ...(previous.watches || []).filter(w => w.id !== created.id)] } : previous);
       setType(''); setId('');
       toast.success(`Watching ${label}: you are told once a day when it changes`);
     } catch (err) { toast.error(commandErrorMessage(err, uiLanguageNow())); }
@@ -60,14 +70,16 @@ export default function WatchingPanel() {
   const stop = async (w: Watch) => {
     try {
       await call(workspaceId, `/${encodeURIComponent(w.id)}`, 'DELETE');
-      setWatches(list => (list || []).filter(x => x.id !== w.id));
+      if (useAuthStore.getState().currentWorkspaceId !== workspaceId || useAuthStore.getState().user?.uid !== uid) return;
+      setList(previous => previous?.key === listKey ? { key: listKey, watches: (previous.watches || []).filter(x => x.id !== w.id) } : previous);
     } catch (err) { toast.error(commandErrorMessage(err, uiLanguageNow())); }
   };
 
   return (
     <details className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-sm">
-      <summary className="cursor-pointer font-semibold text-[var(--text)]">Records I watch ({watches ? watches.length : '…'})</summary>
+      <summary className="cursor-pointer font-semibold text-[var(--text)]">Records I watch ({watches ? watches.length : loadError ? 'unavailable' : '…'})</summary>
       <p className="mt-2 text-xs text-[var(--muted)]">Once a day you are told about any of these that changed, or was deleted, since you were last told.</p>
+      {loadError && <div role="alert" className="mt-2 text-xs text-[var(--neg)]">Could not load watched records: {loadError} <button type="button" className="min-h-11 underline" onClick={() => setVersion(v => v + 1)}>Retry loading watched records</button></div>}
       <ul className="mt-2 divide-y divide-[var(--line)]">
         {watches && watches.length === 0 && <li className="py-2 text-[var(--muted)]">You are not watching anything.</li>}
         {(watches || []).map(w => (
@@ -92,7 +104,7 @@ export default function WatchingPanel() {
             </select>
           </label>
         )}
-        <button type="button" disabled={!type || !id} onClick={() => void watch()} className="rounded-lg border border-[var(--line)] px-3 py-1.5 font-semibold text-[var(--text)] disabled:opacity-50">Watch it</button>
+        <button type="button" disabled={!type || !id || !watches} onClick={() => void watch()} className="rounded-lg border border-[var(--line)] px-3 py-1.5 font-semibold text-[var(--text)] disabled:opacity-50">Watch it</button>
       </div>
     </details>
   );

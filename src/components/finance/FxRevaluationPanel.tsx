@@ -1,7 +1,8 @@
 import { runCommand } from '../../lib/runCommand';
-import React, { useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { useAuthStore } from '../../stores/useAuthStore';
+import { currentIdentity, useAuthStore } from '../../stores/useAuthStore';
+import { identityScope } from '../../lib/serverAction';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { CLOSE_ROLES } from '../../lib/periodLock';
@@ -12,8 +13,8 @@ import { RowTable } from '../ui/RowTable';
  * The month-end currency revaluation (R-07), shown in the currency tool.
  *
  * Nothing here does arithmetic: the panel asks the server for the plan (`/revaluation/preview`, which
- * posts nothing), shows the same numbers it computed, and only runs `period.fxrevaluation` or
- * `period.fxrevaluationundo` when the person presses the matching button. That is also why there is
+ * posts nothing), shows the same numbers it computed, and runs `period.fxrevaluation` only when the
+ * person presses the matching button. Undo is paused pending the historical-balance fix. That is also why there is
  * no date to choose by default — the plan uses today's rate and the entry reverses the next day, so
  * the documents keep their own rates.
  */
@@ -67,7 +68,16 @@ function newOperationId(): string {
 }
 
 export function FxRevaluationPanel() {
+  const workspaceId = useAuthStore(s => s.currentWorkspaceId);
+  const identity = useAuthStore(() => currentIdentity());
+  return <ScopedFxRevaluationPanel key={JSON.stringify([identity, workspaceId])} />;
+}
+
+function ScopedFxRevaluationPanel() {
   const id = useId();
+  const mounted = useRef(false);
+  const inFlight = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId) || '';
   const base = useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD';
   // the pair that may close a period is the pair that may post a period entry
@@ -79,7 +89,6 @@ export function FxRevaluationPanel() {
   const [manualRates, setManualRates] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const operationId = useRef<string | null>(null);
   const historical = valuationDate < today;
 
@@ -89,13 +98,20 @@ export function FxRevaluationPanel() {
     return Number.isFinite(rate) && rate > 0 ? [[currency, rate]] : [];
   }));
 
-  const run = async (kind: 'preview' | 'run' | 'undo') => {
+  const run = async (kind: 'preview' | 'run') => {
+    if (busy || inFlight.current) return;
+    const scope = identityScope(currentIdentity, () => useAuthStore.getState().currentWorkspaceId);
+    if (!scope.uid || !workspaceId || scope.workspaceId !== workspaceId) {
+      setError('Sign in and select a workspace first.');
+      return;
+    }
+    const isCurrent = () => mounted.current && scope.isCurrent();
+    inFlight.current = true;
     setBusy(true);
     setError('');
-    setSuccess('');
     try {
-      const date = kind === 'undo' ? plan?.date || valuationDate : valuationDate;
-      const rates = kind === 'undo' || !historical ? undefined : requestRates();
+      const date = valuationDate;
+      const rates = !historical ? undefined : requestRates();
       let path: string;
       let body: Record<string, unknown>;
       let headers: Record<string, string> | undefined;
@@ -105,24 +121,11 @@ export function FxRevaluationPanel() {
       } else {
         operationId.current ||= newOperationId();
         headers = { 'Idempotency-Key': operationId.current };
-        if (kind === 'run') {
-          path = '/api/v1/commands/period.fxrevaluation';
-          body = { workspaceId, input: { date, ...(rates ? { rates } : {}) } };
-        } else {
-          path = '/api/v1/commands/period.fxrevaluationundo';
-          body = { workspaceId, input: { date } };
-        }
+        path = '/api/v1/commands/period.fxrevaluation';
+        body = { workspaceId, input: { date, ...(rates ? { rates } : {}) } };
       }
       const response = await ask(path, body, headers);
-      if (kind === 'undo') {
-        operationId.current = null;
-        setPlan(null);
-        setRateCurrencies([]);
-        setManualRates({});
-        setSuccess('The revaluation is reversed.');
-        toast.success('The revaluation is reversed.');
-        return;
-      }
+      if (!isCurrent()) return;
       const result = kind === 'run' && response && typeof response === 'object'
         ? (response as Record<string, unknown>).data
         : response;
@@ -138,11 +141,14 @@ export function FxRevaluationPanel() {
       if (kind === 'preview' && data.lines.length === 0 && data.unpriced.length === 0) toast.info(data.summary);
       if (kind === 'run') toast.success(data.posted ? `Posted. It reverses on ${data.reversalDate}.` : data.summary);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'The revaluation could not be run';
-      setError(message);
-      toast.error(message);
+      if (isCurrent()) {
+        const message = err instanceof Error ? err.message : 'The revaluation could not be run';
+        setError(message);
+        toast.error(message);
+      }
     } finally {
-      setBusy(false);
+      inFlight.current = false;
+      if (isCurrent()) setBusy(false);
     }
   };
 
@@ -153,7 +159,6 @@ export function FxRevaluationPanel() {
     setRateCurrencies([]);
     setManualRates({});
     setError('');
-    setSuccess('');
   };
 
   const setRate = (currency: string, value: string) => {
@@ -161,7 +166,6 @@ export function FxRevaluationPanel() {
     setManualRates(previous => ({ ...previous, [currency]: value }));
     setPlan(null);
     setError('');
-    setSuccess('');
   };
 
   const money = (cents: number, currency?: string) => formatCurrency(cents, currency || base);
@@ -176,6 +180,7 @@ export function FxRevaluationPanel() {
             ? `For ${valuationDate}, enter that day’s rate for each open foreign currency. The entry is dated ${valuationDate} and reverses on the next day, so your invoices and bills keep their booked rates.`
             : `What the open ${base} balances look like at today’s rates: each document’s own open amount times today’s rate, against what is in the books. The difference goes to an unrealized FX gain/loss account, and the entry reverses the next day. Only an owner or an accountant posts it.`}
         </p>
+        <p className="text-xs text-[var(--neg)]">Undo is temporarily unavailable while historical balance handling is reviewed. Check the date and rates carefully before posting.</p>
       </div>
 
       <div className="space-y-1">
@@ -206,7 +211,6 @@ export function FxRevaluationPanel() {
       )}
 
       {error && <p role="alert" className="text-xs text-[var(--neg)]">{error}</p>}
-      {success && <p role="status" className="text-xs text-[var(--pos)]">{success}</p>}
 
       {plan && (
         <div className="space-y-2 text-xs">
@@ -269,16 +273,17 @@ export function FxRevaluationPanel() {
           </button>
         )}
         {plan?.posted && (
-          <button type="button" disabled={busy || !canRun} onClick={() => run('undo')}
-            title="Reverses it now instead of waiting for tomorrow"
+          <button type="button" disabled
+            title="Unavailable while historical balance handling is reviewed"
             className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs font-bold text-[var(--text)] disabled:opacity-50">
             Undo it
           </button>
         )}
         {plan?.posted && (
-          <p className="text-xs text-[var(--muted)]">
-            Posted for {plan.date}: entry <code className="font-mono">{String(plan.transactionId || '').slice(0, 8)}</code>, reversing on {plan.reversalDate}.
-          </p>
+          <div className="text-xs text-[var(--muted)]">
+            <p>Posted for {plan.date}: entry <code className="font-mono">{String(plan.transactionId || '').slice(0, 8)}</code>, reversing on {plan.reversalDate}.</p>
+            <p>Undo is temporarily unavailable: undoing an older revaluation can change historical balances. Ask your accountant to review the books before making a correction.</p>
+          </div>
         )}
         {!canRun && <p className="text-xs text-[var(--muted)]">An owner or an accountant can post this; you can see what it would do.</p>}
       </div>

@@ -176,7 +176,7 @@ describe('G-5, G-12, G-14, G-15, G-16, G-20: Settings, shortcuts, status, custom
     assert.ok(screen.getByRole('heading', { name: 'Modules' }));
     assert.ok(screen.getByText('12 of 12 active'));
     assert.ok(screen.getByText('Speed Dial Shortcuts'));
-    await waitFor(() => assert.ok(screen.getByText('2/2 working')));
+    await waitFor(() => assert.ok(screen.getByText('2/2 checks reporting operational')));
     await waitFor(() => assert.ok(screen.getByText('Total billed')));
     cleanup();
 
