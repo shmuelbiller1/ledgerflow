@@ -12,7 +12,7 @@ function fixture(files, fn) {
     for (const [name, contents] of Object.entries(files)) {
       const file=path.join(dir,name); fs.mkdirSync(path.dirname(file),{recursive:true}); fs.writeFileSync(file,contents);
     }
-    const report=JSON.parse(execFileSync(process.execPath,[script,dir],{encoding:'utf8'}));
+    const report=JSON.parse(execFileSync(process.execPath,[script],{cwd:dir,encoding:'utf8'}));
     fn(report);
   } finally { fs.rmSync(dir,{recursive:true,force:true}); }
 }

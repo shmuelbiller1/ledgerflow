@@ -154,7 +154,7 @@ jobs:
         run: |
           set +e
           set -o pipefail
-          node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs scripts/ci-cancellation.test.mjs scripts/ci-change-scope.test.mjs scripts/ci-doc-tests.test.mjs scripts/ci-build-inputs.test.mjs scripts/ci-timing.test.mjs scripts/watch-hung-tests.test.mjs scripts/archive-llama-probe.test.mjs scripts/archive-fixers.test.mjs 2>&1 | tee test-shard.log
+          node --test scripts/import-edges.test.mjs scripts/code-atlas.test.mjs scripts/receipt-fixtures.test.mjs scripts/ci-cancellation.test.mjs scripts/ci-change-scope.test.mjs scripts/ci-doc-tests.test.mjs scripts/ci-build-inputs.test.mjs scripts/ci-timing.test.mjs scripts/watch-hung-tests.test.mjs scripts/archive-llama-probe.test.mjs scripts/archive-fixers.test.mjs scripts/api-ui-parity.test.mjs 2>&1 | tee test-shard.log
           status=$?
           if [ "$status" -ne 0 ]; then
             node scripts/ci-annotate-test-failures.mjs

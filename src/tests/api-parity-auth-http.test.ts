@@ -4,12 +4,13 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { apiAuthenticate } from '../server/auth/apiAuthenticate';
 let server: Server;
 let url: string;
 before(async () => {
   const app = express();
-  app.get('/probe', apiAuthenticate, (_req, res) => res.json({ reachedHandler: true }));
+  app.get('/probe', rateLimit({ windowMs: 60_000, limit: 10 }), apiAuthenticate, (_req, res) => res.json({ reachedHandler: true }));
   await new Promise<void>((resolve, reject) => { server = app.listen(0, '127.0.0.1', error => error ? reject(error) : resolve()); });
   url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/probe`;
 });

@@ -115,7 +115,8 @@ const screens: FinalQueueScreen[] = [
   { id: 'estimates', url: '/#estimates', ready: (main) => main.getByRole('heading', { name: /Estimates & Quotes/ }), figures: ['EST-2026-0060', '306.90'], grid: true },
   { id: 'taxes', url: '/#taxes', ready: (main) => main.getByRole('heading', { name: /Tax Reserve Estimator/ }), figures: ['Sales tax 8%'] },
   { id: 'api-hub', url: '/#api-hub', ready: (main) => main.getByRole('heading', { name: /API Platform/ }) },
-  { id: 'admin-panel', url: '/#system-command-center', ready: (main) => main.getByRole('heading', { name: /Admin Panel/ }) },
+  // Guest books cannot authenticate to admin telemetry; pin the refusal, not a loading shell or fabricated data.
+  { id: 'admin-panel', url: '/#system-command-center', ready: (main) => main.getByRole('heading', { name: /Admin Panel/ }), figures: ['Interface Refused'] },
   // Settings sections
   settings('import', /Import Data/),
   // a rule row is the store-loaded wait: the audit used to race the hydration, and the group

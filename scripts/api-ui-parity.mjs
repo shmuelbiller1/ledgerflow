@@ -3,12 +3,12 @@
 import ts from 'typescript';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 
-const root = path.resolve(process.argv[2] || '.');
+// Scan the current checkout only; fixtures run the script with their own working directory.
+const root = process.cwd();
 const rel = f => path.relative(root, f).split(path.sep).join('/');
 const extensions = /\.(?:[cm]?[jt]sx?)$/;
-const testFile = p => /(?:^|\/)(?:tests?|__tests__|fixtures?|__fixtures__)(?:\/|$)|(?:\.|\/)(?:test|spec)\.[cm]?[jt]sx?$/.test(p);
+const testFile = p => p.split('/').some(part => /^(?:tests?|__tests__|fixtures?|__fixtures__)$/.test(part)) || /(?:^|\.)(?:test|spec)\.[cm]?[jt]sx?$/.test(p.split('/').at(-1));
 function walk(dir) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir, { withFileTypes: true }).sort((a,b) => a.name.localeCompare(b.name)).flatMap(d => {
@@ -282,12 +282,12 @@ for(const sf of frontendSources) visit(sf,n=>{
 callers.sort((a,b)=>a.file.localeCompare(b.file)||a.line-b.line);
 function match(route, caller) {
  if(!caller.path || !caller.path.startsWith('/api') || !caller.method || (route.method!=='ALL' && route.method!==caller.method)) return false;
- const a=route.path.replace(/\?.*$/,'').replace(/\/$/,'').split('/');
- const b=caller.path.replace(/\?.*$/,'').replace(/\/$/,'').split('/');
+ const a=route.path.split('?',1)[0].replace(/\/$/,'').split('/');
+ const b=caller.path.split('?',1)[0].replace(/\/$/,'').split('/');
  if(a.length!==b.length) return false;
  return a.every((seg,i)=> { if(seg.startsWith(':')) return b[i].length>0; if(!b[i].includes('{dynamic}')) return seg===b[i]; const parts=b[i].split('{dynamic}'); return seg.startsWith(parts[0]) && seg.endsWith(parts.at(-1)); });
 }
-const dynamicPath = p => p.replace(/\?.*$/, '').includes('{dynamic}');
+const dynamicPath = p => p.split('?',1)[0].includes('{dynamic}');
 const matchesByCaller=new Map(callers.map(c=>[c,[]]));
 for(const r of routes) {
  const matches=callers.filter(c=>match(r,c));
@@ -300,7 +300,23 @@ for(const c of callers) {
  c.status=!c.path || !c.path.startsWith('/api') || !c.method ? 'unresolved' : c.candidate_routes.length ? (dynamicPath(c.path)?'possible_dynamic_match':'matched_static') : dynamicPath(c.path)?'unresolved_dynamic':'no_static_route_found';
 }
 const strip = r => ({method:r.method,expression:r.expression,file:r.file,line:r.line});
-let revision=null; try { revision=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim(); } catch {}
-const counts=(xs,key)=>Object.fromEntries([...new Set(xs.map(x=>x[key]))].sort().map(k=>[k,xs.filter(x=>x[key]===k).length]));
+// Revision is optional: read standard checkout metadata without executing a PATH-resolved program.
+// A worktree with a .git file or an unreadable/nonstandard ref is reported as unknown.
+let revision=null;
+try {
+ const gitDir=path.join(root,'.git');
+ const head=fs.readFileSync(path.join(gitDir,'HEAD'),'utf8').trim();
+ if (/^[a-f0-9]{40}$/i.test(head)) revision=head;
+ else if (head.startsWith('ref: ')) {
+  const ref=head.slice(5);
+  if (/^refs\/[a-zA-Z0-9._/-]+$/.test(ref) && !ref.split('/').includes('..')) {
+   let value;
+   try { value=fs.readFileSync(path.join(gitDir,ref),'utf8').trim(); }
+   catch { value=fs.readFileSync(path.join(gitDir,'packed-refs'),'utf8').split('\n').find(line=>line.endsWith(` ${ref}`))?.split(' ')[0]; }
+   if (value && /^[a-f0-9]{40}$/i.test(value)) revision=value;
+  }
+ }
+} catch {}
+const counts=(xs,key)=>Object.fromEntries([...new Set(xs.map(x=>x[key]))].sort((a,b)=>a<b?-1:a>b?1:0).map(k=>[k,xs.filter(x=>x[key]===k).length]));
 const report={schema_version:1,revision,revision_scope:'HEAD plus current working-tree changes; revision alone does not identify the audited tree',regenerate:'node scripts/api-ui-parity.mjs > audit/api-ui-parity.json',scope:{backend_source_files:backend.length,backend_production_source_files:backendProduction.length,src_source_files:allSrc.length,frontend_production_source_files:frontend.length,server_entry_included:fs.existsSync(entry),extensions:'JS/JSX/TS/TSX including mjs/cjs/mts/cts',exclusions:'Tests, fixtures, server sources and *.generated.* excluded from frontend caller scan; backend test/fixture sources excluded from route scan.'},methodology:{route_detection:'Express verb registrations and statically traceable router mounts from server.ts; direct register functions, nested routers, simple router factories and literal route-helper arguments followed.',caller_detection:'fetch, axios.<verb>, and runCommand (including imported aliases); direct wrapper call sites supply literal arguments where possible; method defaults to GET where known. Derived records retain both transport and call-site evidence.',interpretation:'Static matches are path/method evidence only, not proof of a reachable UI or working contract. Dynamic pathname segments are possible matches only; query interpolation does not make a pathname dynamic; absence is not proof of an orphan or defect.',limitations:['Dynamic paths, variable request objects, custom transports, command names, loop-generated routes, middleware routing, conditional mounts, reachability and API schemas are not fully resolved; unresolved verb registrations are restricted to mounted or router-named receivers to avoid non-Express .get/.post calls.','Parameter and factory tracing is approximate and does not model runtime control flow, auth, route ordering, HTTP semantics or Vercel deployment. Middleware dispatch (including sandbox report/balance proxies) is not expanded; review middleware_mounts_for_review.','This scan excludes tests/fixtures and does not establish actual UI screen reachability, correctness, or coverage. Review unresolved and unmounted registrations manually.']},summary:{resolved_route_registrations:routes.length,route_status:counts(routes,'status'),caller_records:callers.length,transport_sites:new Set(callers.map(c=>c.file+':'+c.line)).size,caller_status:counts(callers,'status'),unresolved_route_registrations:unresolvedRouterRoutes.length,unmounted_route_registrations:unmounted.length, middleware_mounts_for_review:middlewareMounts.filter(x=>mounted.has(x.receiver)).length},routes,callers,unresolved_route_registrations:unresolvedRouterRoutes.map(strip),unmounted_route_registrations:unmounted,middleware_mounts_for_review:middlewareMounts.filter(x=>mounted.has(x.receiver)).map(({receiver,...x})=>x)};
 process.stdout.write(JSON.stringify(report,null,2)+'\n');
