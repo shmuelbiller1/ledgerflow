@@ -6,7 +6,7 @@ import type { RequestUser } from '../server/auth/requestUser';
 
 const url = process.env.LF_TEST_DATABASE_URL;
 
-test('record-compute accepts a viewer, clamps inputs, records each legacy request, and refuses outsiders', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, async t => {
+test('record-compute accepts a viewer, clamps inputs, replays a retried legacy request once, and refuses outsiders', { skip: !url && 'LF_TEST_DATABASE_URL not set' }, async t => {
   process.env.DATABASE_URL = url;
   const { getDb } = await import('../server/db/firestore');
   const { billingRouter } = await import('../server/routes/billingRoutes');
@@ -39,9 +39,9 @@ test('record-compute accepts a viewer, clamps inputs, records each legacy reques
   await ref.create({ uid: 'owner', members: ['viewer'], roles: { viewer: 'viewer' }, concurrentUserLimit: 0,
     status: 'pending_deletion', apiQuotaTotalCentsUsed: 2, totalQueriesThisMonth: 4, computeHardnessScore: 5, computeCreditBalance: 20 });
   const input = { algorithmName: 'MODEL_TEST', complexityFormat: 'O(n)', weightScore: '-13.9', executionTimeMs: -90_000 };
-  const post = async (body: unknown, uid = 'viewer', path = '/billing/record-compute') => {
+  const post = async (body: unknown, uid = 'viewer', path = '/billing/record-compute', key = 'legacy-repeat') => {
     const response = await fetch(`${origin}${path}`, { method: 'POST', headers: {
-      'content-type': 'application/json', 'x-test-uid': uid, 'idempotency-key': 'legacy-repeat',
+      'content-type': 'application/json', 'x-test-uid': uid, 'idempotency-key': key,
     }, body: JSON.stringify(body) });
     return { status: response.status, json: await response.json() };
   };
@@ -63,7 +63,13 @@ test('record-compute accepts a viewer, clamps inputs, records each legacy reques
   assert.match(first.json.traceRecord.id, /^[A-Za-z0-9]{20}$/);
   assert.equal((await db.collection('billingLedgerTraces').doc(first.json.traceRecord.id).get()).data()?.id, first.json.traceRecord.id);
   assert.match(first.json.traceRecord.hash, /^[0-9a-f]{64}$/);
-  const again = await post({ workspaceId, ...input });
+  // AUP-32: the same request retried with the same key is metered once and answers the first result
+  const retried = await post({ workspaceId, ...input });
+  assert.equal(retried.status, 200, JSON.stringify(retried.json));
+  assert.equal(retried.json.traceRecord.id, first.json.traceRecord.id);
+  assert.equal((await traces()).size, 1);
+  assert.equal((await ref.get()).data()?.apiQuotaTotalCentsUsed, 3);
+  const again = await post({ workspaceId, ...input }, 'viewer', '/billing/record-compute', 'legacy-second');
   assert.equal(again.status, 200);
   assert.notEqual(again.json.traceRecord.id, first.json.traceRecord.id);
   assert.deepEqual(again.json.updatedMetrics, { apiQuotaTotalCentsUsed: 4, totalQueriesThisMonth: 6, computeHardnessScore: 31, computeCreditBalance: 0 });
@@ -75,7 +81,7 @@ test('record-compute accepts a viewer, clamps inputs, records each legacy reques
   assert.equal(preview.status, 200, JSON.stringify(preview.json));
   assert.match(preview.json.preview.title, /MODEL_TEST/);
   assert.equal((await traces()).size, 2);
-  const run = () => post({ workspaceId, input }, 'viewer', named);
+  const run = () => post({ workspaceId, input }, 'viewer', named, 'named-run');
   const parallel = await Promise.all([run(), run()]);
   assert.deepEqual(parallel.map(reply => reply.status), [200, 200], JSON.stringify(parallel));
   assert.deepEqual(parallel.map(reply => reply.json.replayed).toSorted(), [false, true]);
@@ -83,7 +89,7 @@ test('record-compute accepts a viewer, clamps inputs, records each legacy reques
   assert.deepEqual(parallel[0].json.data.updatedMetrics, { apiQuotaTotalCentsUsed: 5, totalQueriesThisMonth: 7, computeHardnessScore: 44, computeCreditBalance: 0 });
   assert.equal((await traces()).size, 3);
   assert.equal((await db.collection('auditLogs').where('workspaceId', '==', workspaceId).where('action', '==', 'COMPUTE_RECORDED').get()).size, 3);
-  assert.equal((await post({ workspaceId, input: { ...input, weightScore: 50 } }, 'viewer', named)).status, 409);
+  assert.equal((await post({ workspaceId, input: { ...input, weightScore: 50 } }, 'viewer', named, 'named-run')).status, 409);
   assert.equal((await post({ workspaceId, input }, 'outsider', named)).json.code, 'NOT_A_MEMBER');
   assert.equal((await traces()).size, 3);
 
@@ -93,7 +99,7 @@ test('record-compute accepts a viewer, clamps inputs, records each legacy reques
   const namedRefusal = await post({ workspaceId, input: legacyFields }, 'viewer', named);
   assert.equal(namedRefusal.status, 400);
   assert.equal(namedRefusal.json.code, 'INVALID_INPUT');
-  const legacy = await post({ workspaceId, ...legacyFields });
+  const legacy = await post({ workspaceId, ...legacyFields }, 'viewer', '/billing/record-compute', 'legacy-fields');
   assert.equal(legacy.status, 200, JSON.stringify(legacy.json));
   assert.equal(legacy.json.traceRecord.algorithmName, 17);
   assert.equal(legacy.json.traceRecord.complexityFormat, null);

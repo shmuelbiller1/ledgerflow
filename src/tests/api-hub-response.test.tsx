@@ -203,11 +203,11 @@ test('project create playground and documentation warn about uncertain retries',
   function Sandbox() { return <ApiHubSandbox model={useApiHubModel()} />; }
   const sandbox = render(<Sandbox />);
   fireEvent.change(screen.getByLabelText('Select API Route'), { target: { value: 'POST_v1_projects' } });
-  assert.ok(screen.getByText(/Repeating the request can create another project/));
+  assert.ok(screen.getByText(/a retry with the same key returns the first project/));
   sandbox.unmount();
   function Docs() { return <ApiHubDocPostProject model={useApiHubModel()} />; }
   render(<Docs />);
-  assert.ok(screen.getByText(/an idempotency header does not make this endpoint safe to retry/));
+  assert.ok(screen.getByText(/a retry with the same key (for example after a lost response) returns the first project/));
 });
 
 test('API Hub warns about non-authoritative legacy metrics and shifting assumptions', () => {

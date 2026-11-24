@@ -226,7 +226,8 @@ billingRouter.post("/record-compute", async (req: express.Request, res: express.
   }
   return executeCommand(req, res, {
     definition: legacyBillingRecordComputeCommand, workspaceId, input: { algorithmName, complexityFormat, weightScore, executionTimeMs },
-    legacyRoute: true, legacyOperationId: 'ignore',
+    // AUP-32: an Idempotency-Key the caller sends is honoured, so a retried call is metered once
+    legacyRoute: true,
     formatResponse: outcome => {
       if (outcome.ok) return { status: 200, body: { status: "success", ...(outcome.data as Record<string, unknown>) } };
       if (outcome.code === 'NOT_A_MEMBER') return { status: 403, body: { status: "error", message: "FORBIDDEN: User does not belong to this workspace." } };

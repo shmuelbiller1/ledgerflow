@@ -248,7 +248,7 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                 {/* POST PROJECT inputs */}
                 {sandboxEndpoint === 'POST_v1_projects' && (
                   <div className="space-y-3 animate-in fade-in duration-150">
-                    <p role="note" className="text-xs text-amber-700">This creates a real project. Repeating the request can create another project, even after a lost response. Check the project list before retrying.</p>
+                    <p role="note" className="text-xs text-amber-700">This creates a real project. Send an Idempotency-Key header: a retry with the same key returns the first project instead of making another.</p>
                     <div className="space-y-1">
                       <Labelled labelClassName="text-[9px] font-black uppercase text-[var(--muted)]" label="Venture/Project Name">
                         <input

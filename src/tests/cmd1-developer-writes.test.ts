@@ -69,7 +69,7 @@ describe('Developer API compatibility (database)', { skip: !url && 'LF_TEST_DATA
     assert.equal(credits, expected);
   }
 
-  test('projects accept scoped-key fallback, refuse unnamed projects, and do not replay a legacy operation header', async () => {
+  test('projects accept scoped-key fallback, refuse unnamed projects, and replay a retry with the same key (AUP-26)', async () => {
     const path = '/api/v1/projects';
     assert.deepEqual(await post(path, {}), { status: 400, body: { status: 'error', message: "Missing required fields: 'name'" } });
     const input = { name: 'Fit-out', budgetLimitCents: '12300' };
@@ -79,7 +79,11 @@ describe('Developer API compatibility (database)', { skip: !url && 'LF_TEST_DATA
     assert.deepEqual(first, { status: 201, body: { status: 'success', message: 'Project resource created successfully.', project: {
       id, workspaceId: ws, name: 'Fit-out', code: '', description: '', budgetLimitCents: 12300, managerEmail: '', status: 'active', createdAt,
     } } });
-    const again = await post(path, input);
+    const retried = await post(path, input);
+    assert.equal(retried.status, 201);
+    assert.equal((retried.body.project as { id: string }).id, id, 'the same key replays the first project');
+    assert.equal(await count('projects'), 1);
+    const again = await post(path, input, 'second-project');
     assert.equal(again.status, 201);
     assert.notEqual((again.body.project as { id: string }).id, id);
     const audits = (await db.collection('auditLogs').where('workspaceId', '==', ws).where('action', '==', 'PROJECT_CREATED').get()).docs;
