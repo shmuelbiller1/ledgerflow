@@ -291,10 +291,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
 
   // I-07: closing with unsaved edits asks first
   const [dirty, setDirty] = useState(false);
-  // F-9/P2-63: refresh, back and closing the tab cannot be intercepted by the dialog, so they ask here
-  // Gitar #1033: a saved or discarded invoice clears the draft but `dirty` stays true on a modal that
-  // is unmounted by its screen (Sales.tsx), and a dialog kept mounted while closed would arm it too —
-  // so the guard is armed only for an open form with edits.
+  // F-9/P2-63: refresh, back and closing the tab ask here; armed only for an open form with edits (Gitar #1033)
   useUnsavedChangesGuard(dirty, 'You have unsaved changes to this invoice. Leave anyway?', isOpen);
   // EU-B3: the open form is kept in this browser until it is saved or discarded (files are not kept)
   const draftValue = { invoice, items, memo, terms };
@@ -310,7 +307,6 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
     valid: (v: unknown): v is typeof draftValue => typeof v === 'object' && v !== null && typeof (v as { invoice?: unknown }).invoice === 'object' && (v as { invoice?: unknown }).invoice !== null && Array.isArray((v as { items?: unknown }).items),
   });
   const requestClose = () => {
-    // the form is closed on purpose now, so it has nothing unsaved to protect (Gitar #1033)
     if (!dirty || safeConfirm('Discard your changes to this invoice?')) { draft.clear(); setDirty(false); onClose(); }
   };
 
