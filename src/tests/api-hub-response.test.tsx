@@ -210,17 +210,17 @@ test('project create playground and documentation warn about uncertain retries',
   assert.ok(screen.getByText(/an idempotency header does not make this endpoint safe to retry/));
 });
 
-test('API Hub warns about non-authoritative legacy metrics and shifting assumptions', () => {
+test('API Hub says the metrics are posted, book-currency figures and unsupported ones are null (AUP-28/29)', () => {
   function Sandbox() { return <ApiHubSandbox model={useApiHubModel()} />; }
   const sandbox = render(<Sandbox />);
   fireEvent.change(screen.getByLabelText('Select API Route'), { target: { value: 'GET_v1_metrics' } });
-  assert.ok(screen.getByText(/Shifting metrics can include assumptions and fallback values/));
+  assert.ok(screen.getByText(/one the books cannot support is null, not estimated/));
   sandbox.unmount();
   function Summary() { return <ApiHubDocGetMetrics model={useApiHubModel()} />; }
   const summary = render(<Summary />);
-  assert.ok(screen.getByText(/summary can include draft and forecast entries/));
+  assert.ok(screen.getByText(/Drafts, forecasts and voided entries are left out/));
   summary.unmount();
   function Shifting() { return <ApiHubDocShiftingMetrics model={useApiHubModel()} />; }
   render(<Shifting />);
-  assert.ok(screen.getByText(/Some shifting metrics use assumptions or fallback values/));
+  assert.ok(screen.getByText(/a figure the books cannot support .* is null rather than estimated/));
 });

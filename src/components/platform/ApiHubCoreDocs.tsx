@@ -306,8 +306,8 @@ export function ApiHubDocGetMetrics({ model }: { model: ReturnType<typeof useApi
  return (<div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                  <div>
                     <h2 className="text-2xl font-bold font-display mb-2 flex items-center gap-2">Fetch Core Analytics</h2>
-                    <p className="text-[var(--muted)]">Legacy summary of ledger lines. This endpoint is not an authoritative financial report.</p>
-                    <p role="note" className="mt-2 text-sm text-amber-700">The summary can include draft and forecast entries and does not convert foreign-currency amounts. Use the appropriate reports for financial figures.</p>
+                    <p className="text-[var(--muted)]">A quick summary of the books: posted entries only, in your book currency, the same figures as GET /metrics.</p>
+                    <p role="note" className="mt-2 text-sm text-amber-700">Drafts, forecasts and voided entries are left out and foreign-currency lines are converted at their own rate. For period figures use the reports.</p>
                  </div>
                  <div className="bg-[#1A1B26] text-[#A9B1D6] rounded-xl p-5 overflow-x-auto border border-[#292E42]">
 <pre className="font-mono text-[13px] leading-relaxed">

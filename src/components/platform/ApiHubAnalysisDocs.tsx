@@ -6,7 +6,7 @@ export function ApiHubDocShiftingMetrics({ model }: { model: ReturnType<typeof u
                  <div>
                    <h2 className="text-2xl font-bold font-display mb-2 flex items-center gap-2">Shifting Telemetry & Metric Audits</h2>
                    <p className="text-[var(--muted)] font-medium text-xs leading-relaxed">This call returns business-type telemetry based on ledger data.</p>
-                   <p role="note" className="mt-2 text-sm text-amber-700">Some shifting metrics use assumptions or fallback values rather than measured figures. The field named net operating cash flow is revenue minus expense, not a cash-flow statement. Use the appropriate reports for financial decisions.</p>
+                   <p role="note" className="mt-2 text-sm text-amber-700">Every figure is computed from posted entries in your book currency; a figure the books cannot support (churn, lifetime value, a ratio without its inputs, runway with no spending) is null rather than estimated. netIncomeCents is revenue minus expenses; netOperatingCashFlowCents repeats it for older integrations and is not a cash-flow statement.</p>
                  </div>
                  <div className="bg-[#1A1B26] text-[#A9B1D6] rounded-xl p-5 overflow-x-auto border border-[#292E42]">
 <pre className="font-mono text-[13px] leading-relaxed">
@@ -34,6 +34,7 @@ fetch("https://api.ledgerflow.io/api/v1/metrics?workspaceId=${currentWorkspace?.
   "coreMetrics": {
     "grossRevenueCents": 12500000,
     "operatingExpenseCents": 6400000,
+    "netIncomeCents": 6100000,
     "netOperatingCashFlowCents": 6100000,
     "totalLiquidAssetsCents": 32000000,
     "totalLiabilitiesCents": 8000000,
@@ -44,8 +45,8 @@ fetch("https://api.ledgerflow.io/api/v1/metrics?workspaceId=${currentWorkspace?.
     "metrics": {
       "arrCents": 150000000,
       "mrrCents": 12500000,
-      "ltvCents": 250000000,
-      "churnPercentage": 5.0,
+      "ltvCents": null,
+      "churnPercentage": null,
       "grossMarginPercentage": 48.8
     }
   },
