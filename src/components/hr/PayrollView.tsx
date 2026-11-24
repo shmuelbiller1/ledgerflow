@@ -764,6 +764,8 @@ const PayrollViewContent: React.FC = () => {
 
 export const PayrollView: React.FC = () => {
   const uid = useAuthStore(state => state.user?.uid), workspace = useAuthStore(state => state.currentWorkspaceId);
+  const role = useCurrentRole();
+  if (role === 'viewer') return <section className="p-4 text-[var(--text)]"><h1 className="text-xl font-bold">Payroll</h1><p className="mt-2">Payroll records are restricted to book writers. Ask an authorized person for payroll details.</p></section>;
   return <PayrollViewContent key={`${uid}:${workspace}`} />;
 };
 

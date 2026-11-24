@@ -61,7 +61,7 @@ describe('Time off on the Payroll screen', () => {
     useLedgerStore.setState({ employees: [ann], payRuns: runs as PayRun[], accounts: [] } as never);
     markComponentCollectionsLoaded('employees', 'payRuns');
     render(<PayrollView />);
-    fireEvent.click(screen.getByRole('button', { name: /Employee Directory/ }));
+    if (role === 'owner') fireEvent.click(screen.getByRole('button', { name: /Employee Directory/ }));
   };
 
   test('the directory shows the balance; recording time off saves it on the employee', async () => {
@@ -85,11 +85,10 @@ describe('Time off on the Payroll screen', () => {
     await waitFor(() => assert.ok(screen.getByText(/14 hours available/)));
   });
 
-  test('a viewer sees the balance but cannot change it', () => {
+  test('a viewer cannot see a colleague’s payroll details even if stale data is in the store', () => {
     open('viewer');
-    fireEvent.click(screen.getByRole('button', { name: 'Time off of Ann' }));
-    assert.equal((screen.getByRole('button', { name: 'Record' }) as HTMLButtonElement).disabled, true);
-    assert.equal((screen.getByRole('button', { name: 'Save allowance' }) as HTMLButtonElement).disabled, true);
-    assert.equal(screen.queryByRole('button', { name: /Remove the time off/ }), null);
+    assert.ok(screen.getByText(/Payroll records are restricted/));
+    assert.equal(screen.queryByText('21.5 h'), null);
+    assert.equal(screen.queryByRole('button', { name: 'Time off of Ann' }), null);
   });
 });

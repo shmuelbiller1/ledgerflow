@@ -428,6 +428,8 @@ export interface UniformFixtureInput {
     payments: Array<{
       paymentMethod: UniformPaymentMethod;
       amountCents: number;
+      /** E-33: the payment's own day (YYYYMMDD) for D120 field 1322; falls back to the document's issue date. */
+      date?: string;
     }>;
   }>;
   inventory: Array<{
