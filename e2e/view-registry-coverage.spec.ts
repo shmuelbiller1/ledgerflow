@@ -119,7 +119,7 @@ test.describe('View Registry & Navigation Coverage Suite', () => {
     { label: 'Asset Depreciation Ledger', componentName: 'DepreciationLedgerReportView' },
     { label: 'Bank Clearance Summary', componentName: 'BankClearanceReportView' },
     { label: 'Withholding Report (Form 856)', componentName: 'Form856ReportView' },
-    { label: 'Uniform Structure (research)', componentName: 'UniformStructureReportView' },
+    { label: 'Uniform Structure File (BKMVDATA + INI)', componentName: 'UniformStructureReportView' },
     { label: 'Expense Policy Check', componentName: 'ExpensePolicyReportView' },
     { label: 'Inventory Cycle Count', componentName: 'CycleCountReportView' },
     { label: 'Vendor Scorecard', componentName: 'VendorScorecardReportView' },
