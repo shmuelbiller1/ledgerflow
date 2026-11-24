@@ -2,7 +2,8 @@
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { describeError } from '../lib/errorRemedies';
-import { errorReference } from '../lib/utils';
+import { errorReference, OperationType } from '../lib/utils';
+import type { OperationType as FirestoreOperationType } from '../lib/firebaseUtils';
 
 describe('Error remedies', () => {
   test('common causes get a plain title and what to do', () => {
@@ -36,10 +37,11 @@ describe('error references (F-22)', () => {
     const { toast } = await import('sonner');
     const { handleFirestoreError } = await import('../lib/firebaseUtils');
     const shown = t.mock.method(toast, 'error', () => '');
+    const create = OperationType.CREATE as unknown as FirestoreOperationType;
     // the handler re-throws after reporting (a boundary's job); the toast is what matters here
     t.mock.method(console, 'error', () => {});
     try {
-      handleFirestoreError(Object.assign(new Error('weird'), { requestId: 'req-abc' }), 'create', '/invoices/1');
+      handleFirestoreError(Object.assign(new Error('weird'), { requestId: 'req-abc' }), create, '/invoices/1');
     } catch { /* reported, then rethrown */ }
     assert.equal(shown.mock.callCount(), 1, 'one toast');
     const description = shown.mock.calls[0].arguments[1] as { description?: string };
@@ -48,7 +50,7 @@ describe('error references (F-22)', () => {
 
     shown.mock.resetCalls();
     try {
-      handleFirestoreError(new Error('weird'), 'create', '/invoices/1');
+      handleFirestoreError(new Error('weird'), create, '/invoices/1');
     } catch { /* reported, then rethrown */ }
     const withoutId = shown.mock.calls[0].arguments[1] as { description?: string };
     assert.doesNotMatch(String(withoutId.description), /Reference/, 'no invented reference');

@@ -11,9 +11,14 @@ import { useEffect } from 'react';
  * `message` is stored on `returnValue` for the browsers that still read it; the visible prompt is
  * the browser's own, so the words are never custom-painted here.
  */
-export function useUnsavedChangesGuard(dirty: boolean, message: string = 'You have unsaved changes. Leave anyway?'): void {
+export function useUnsavedChangesGuard(
+  dirty: boolean,
+  message: string = 'You have unsaved changes. Leave anyway?',
+  /** A dialog that stays mounted while closed has no unsaved work to protect; leave it unarmed. */
+  active: boolean = true,
+): void {
   useEffect(() => {
-    if (!dirty || typeof window === 'undefined') return;
+    if (!dirty || !active || typeof window === 'undefined') return;
     const handler = (event: BeforeUnloadEvent) => {
       // preventDefault is what makes the browser show its leave-site prompt; returnValue is the
       // older contract some browsers still require. Both are set, neither paints a custom dialog.
@@ -22,5 +27,5 @@ export function useUnsavedChangesGuard(dirty: boolean, message: string = 'You ha
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [dirty, message]);
+  }, [dirty, message, active]);
 }

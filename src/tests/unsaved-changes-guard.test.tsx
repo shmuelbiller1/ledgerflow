@@ -53,6 +53,20 @@ describe('useUnsavedChangesGuard', () => {
     assert.equal(leaveAttempt(), false, 'after the form is clean nothing is intercepted');
   });
 
+  test('a dialog kept mounted while closed does not arm the guard (Gitar #1033)', () => {
+    function ClosedDialog({ open }: { open: boolean }) {
+      const [text, setText] = useState('typed but closed');
+      useUnsavedChangesGuard(text !== '', 'unsaved', open);
+      return open ? <input aria-label="Memo" value={text} onChange={e => setText(e.target.value)} /> : null;
+    }
+    render(<ClosedDialog open={false} />);
+    assert.equal(leaveAttempt(), false, 'closed: nothing to protect');
+
+    const view = render(<ClosedDialog open />);
+    assert.equal(leaveAttempt(), true, 'open and typed: it asks');
+    view.unmount();
+  });
+
   test('an unmounted form leaves no listener behind', () => {
     const view = render(<GuardedForm />);
     fireEvent.change(screen.getByLabelText('Memo'), { target: { value: 'typed' } });

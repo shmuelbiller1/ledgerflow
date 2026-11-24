@@ -134,22 +134,40 @@ describe('Live lists fetch only what changed', () => {
     assert.equal(fake.removedChannels, 1);
   });
 
-  test('a channel that reached an error reloads in full instead of staying stale (F-13)', async () => {
+  test('changes made while the socket was down are caught up when it subscribes again (F-13, Gitar #1033)', async () => {
     const fake = fakeDatabase();
     fake.put('payments', 'a', { workspaceId: 'w1', date: '2026-01-01' });
     const seen: string[][] = [];
+    const fullLoads = () => fake.selects.filter(s => !s.delta).length;
     const unsubscribe = onSnapshot(
       query(collection(fake.db, 'payments'), where('workspaceId', '==', 'w1'), orderBy('date', 'desc')),
       snap => seen.push(snap.docs.map(d => d.id)));
     await settle();
     assert.deepEqual(seen.at(-1), ['a']);
+    const loadsAfterFirst = fullLoads();
+    assert.equal(loadsAfterFirst, 1, 'the initial load');
 
-    // someone else adds a row while the realtime channel is dead: no event ever arrives
-    fake.put('payments', 'b', { workspaceId: 'w1', date: '2026-02-01' });
+    // the socket dies; the row lands *after* that, so the reload at failure time cannot see it
     fake.fireChannelStatus('CHANNEL_ERROR');
     await settle();
-    assert.deepEqual(seen.at(-1), ['b', 'a'], 'the list caught up with a full reload');
-    assert.equal(fake.selects.filter(s => !s.delta).length, 2, 'one reload after the first load');
+    fake.put('payments', 'b', { workspaceId: 'w1', date: '2026-02-01' });
+    assert.deepEqual(seen.at(-1), ['a'], 'no event arrives for a row written during the outage');
+
+    // realtime-js reports SUBSCRIBED again once it rejoins: that is when the catch-up read runs
+    fake.fireChannelStatus('SUBSCRIBED');
+    await settle();
+    assert.deepEqual(seen.at(-1), ['b', 'a'], 'the list caught up on reconnect');
+    assert.equal(fullLoads() - loadsAfterFirst, 2, 'one at the failure and one on reconnect');
+
+    // a further failure after being subscribed reloads once more, not on every retry
+    fake.fireChannelStatus('CHANNEL_ERROR');
+    fake.fireChannelStatus('TIMED_OUT');
+    fake.fireChannelStatus('CLOSED');
+    await settle();
+    assert.equal(fullLoads() - loadsAfterFirst, 3, 'one reload per outage, however many statuses it reports');
+    fake.fireChannelStatus('SUBSCRIBED');
+    await settle();
+    assert.equal(fullLoads() - loadsAfterFirst, 4, 'and one when it comes back');
     unsubscribe();
   });
 

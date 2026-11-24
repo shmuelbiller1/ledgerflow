@@ -759,17 +759,21 @@ export function onSnapshot<T = DocumentData>(target: SnapshotTarget<T>, ...args:
     }
     schedule();
   };
+  // F-13: the library retries a healthy socket on its own, but a channel that reaches a failure state
+  // (an error, a timeout, or closed by the server) would otherwise leave this list silently stale —
+  // nothing else triggers a read. Gitar was right that reloading at the moment of failure cannot see
+  // what other people changed *while the socket was down*: the catch-up reload must run when the
+  // channel is subscribed again. One reload on the way down is still worth it (the read can fail for
+  // reasons other than the socket), but only once per outage, and never repeatedly on each retry.
+  let channelDown = false;
   const channel = client.channel(`lf-${table}-${++channelCounter}`)
     .on('postgres_changes', { event: '*', schema: 'public', table, ...(filter ? { filter } : {}) }, onRealtime)
     .subscribe(status => {
-      // F-13: the library retries a healthy socket on its own, but a channel that reached a
-      // terminal state (an error, a timeout, or closed by the server) would otherwise leave this
-      // list silently stale — nothing else triggers a read. Reload in full so the rows catch up;
-      // the next realtime event or local write resumes the cheap delta path.
       const state = String(status);
       if (state === 'CHANNEL_ERROR' || state === 'CLOSED' || state === 'TIMED_OUT') {
-        wantFull = true;
-        schedule();
+        if (!channelDown) { channelDown = true; wantFull = true; schedule(); }
+      } else if (state === 'SUBSCRIBED' && channelDown) {
+        channelDown = false; wantFull = true; schedule();
       }
     });
 

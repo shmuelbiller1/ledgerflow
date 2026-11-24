@@ -175,7 +175,9 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
     if (!formDirty || safeConfirm('Discard your changes to this journal entry?')) { draft.clear(); onClose(); }
   };
   // refresh, back and closing the tab cannot be intercepted by the dialog, so they ask here
-  useUnsavedChangesGuard(formDirty, 'You have unsaved changes to this journal entry. Leave anyway?');
+  // Gitar #1033: Ledger.tsx keeps this dialog mounted and toggles `isOpen`, so the guard must be
+  // armed only while it is actually open.
+  useUnsavedChangesGuard(formDirty, 'You have unsaved changes to this journal entry. Leave anyway?', isOpen);
   const { dialogProps, titleId } = useDialog(requestClose, isOpen);
 
   const transactions = useLedgerStore(s => s.transactions);
