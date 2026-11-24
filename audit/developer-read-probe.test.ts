@@ -270,11 +270,11 @@ describe('developer read endpoints in a local app', { skip: !enabled && 'require
     assert.equal((await callApi(base, 'POST', '/api/v1/transactions/reset', { token: ownerToken, body: { workspaceId: ws, confirmReset: true } })).status, 409);
     assert.equal((await db.collection('transactions').where('workspaceId', '==', ws).get()).size, before, 'a real workspace must not be emptied');
   });
-  it('OBSERVATION: shifting metrics report a fabricated monthly burn for zero expenses', async () => {
+  it('AUP-29 (fixed): zero expenses give a zero monthly burn, not an invented one', async () => {
     const result = await read(`/api/v1/metrics?workspaceId=${ws}`);
     assert.equal(result.status, 200);
     const body = result.json as { coreMetrics: { operatingExpenseCents: number }; shiftingMetrics: { metrics: { monthlyBurnCents: number } } };
     assert.equal(body.coreMetrics.operatingExpenseCents, 0);
-    assert.equal(body.shiftingMetrics.metrics.monthlyBurnCents, 400000);
+    assert.equal(body.shiftingMetrics.metrics.monthlyBurnCents, 0);
   });
 });
