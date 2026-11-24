@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { workspaceScope } from '../lib/serverAction';
-import { openingCutoff, type ServerOpening } from '../lib/serverBalances';
+import { openingCutoff, openingDayFingerprint, type ServerOpening } from '../lib/serverBalances';
 import type { Transaction } from '../types';
 import { runCommand } from '../lib/runCommand';
 
 /**
  * L-123 step 3: the server's account balances through the oldest loaded day (src/lib/serverBalances.ts), read again
- * when the workspace, that day or the number of loaded entries changes. Null until it arrives, when nothing is
+ * when the workspace, that day, the number of loaded entries, or any entry dated on that day changes (AUP-22: the
+ * server's answer holds that day's entries, and entriesAfter leaves them out, so an edit there must re-read it). Null until it arrives, when nothing is
  * loaded, or when the server cannot be reached: the screen then sums the loaded entries alone, as before.
  */
 export function useServerOpening(transactions: Transaction[]): ServerOpening | null {
@@ -17,7 +18,8 @@ export function useServerOpening(transactions: Transaction[]): ServerOpening | n
   const closedThrough = useLedgerStore(s => s.entriesClosedThrough);
   const asOf = useMemo(() => openingCutoff(transactions || []) || closedThrough || '', [transactions, closedThrough]);
   const count = (transactions || []).length;
-  const key = workspaceId && asOf ? `${workspaceId}|${asOf}|${count}` : '';
+  const cutoffDay = useMemo(() => openingDayFingerprint(transactions || [], asOf), [transactions, asOf]);
+  const key = workspaceId && asOf ? `${workspaceId}|${asOf}|${count}|${cutoffDay}` : '';
   const [answer, setAnswer] = useState<{ key: string; opening: ServerOpening | null } | null>(null);
 
   useEffect(() => {

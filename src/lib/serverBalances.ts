@@ -39,6 +39,23 @@ export function openingCutoff(transactions: Transaction[]): string {
   return oldest || closedThroughFallback;
 }
 
+/**
+ * AUP-22: what the entries dated on the opening day say — id, status, version and line amounts — so an edit to one
+ * of them (same count, same date) is noticed and the server's opening is read again. Entries after that day are
+ * summed locally (entriesAfter) and need no re-read.
+ */
+export function openingDayFingerprint(transactions: Transaction[], asOf: string): string {
+  if (!asOf) return '';
+  const parts: string[] = [];
+  for (const tx of transactions) {
+    if (!tx || typeof tx !== 'object' || transactionDate(tx) !== asOf) continue;
+    const t = tx as Transaction & { updatedAt?: unknown; version?: unknown };
+    const lines = (t.lines || []).map(l => `${l.accountId}:${l.amountCents}`).join(',');
+    parts.push(`${t.id}|${t.status || ''}|${String(t.updatedAt ?? t.version ?? '')}|${lines}`);
+  }
+  return parts.sort().join(';');
+}
+
 /** The loaded entries the server's answer does not hold: dated after its day. */
 export function entriesAfter(transactions: Transaction[], asOf: string): Transaction[] {
   return transactions.filter(tx => tx && typeof tx === 'object' && transactionDate(tx) > asOf);
