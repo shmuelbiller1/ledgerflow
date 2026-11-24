@@ -38,13 +38,10 @@ describe('legacy bank CSV upload observations', { skip: !enabled && 'requires LF
     const res = await fetch(`${base}/api/upload-bank-csv`, { method: 'POST', headers: { Authorization: `Bearer ${auth}`, 'X-LedgerFlow-Request': '1' }, body: form });
     return { status: res.status, body: await res.json() };
   }
-  it('OBSERVATION: invalid amount is omitted and invalid date is replaced, with no row warning', async () => {
-    const beforeDate = new Date().toISOString().slice(0, 10);
+  it('AUP-30 (fixed): a file with an unreadable amount or date is refused and names each row', async () => {
     const result = await upload('Date,Description,Amount\n2026-01-01,Valid,10.00\n2026-01-02,Bad amount,banana\nnot-a-date,Bad date,5.00\n', token);
-    const afterDate = new Date().toISOString().slice(0, 10);
-    assert.equal(result.status, 200, JSON.stringify(result));
-    assert.equal(result.body.length, 2); assert.deepEqual(result.body.map((r: { description: string }) => r.description), ['Valid', 'Bad date']);
-    assert.equal(result.body[0].amountCents, 1000); assert.ok([beforeDate, afterDate].includes(result.body[1].date));
+    assert.equal(result.status, 422, JSON.stringify(result));
+    assert.deepEqual(result.body.rejected.map((r: { row: number }) => r.row), [2, 3]);
     assert.equal((await db.collection('transactions').where('workspaceId', '==', ws).get()).size, 0, 'upload itself does not write ledger entries');
   });
   it('refuses an outsider using the selected workspace', async () => {
