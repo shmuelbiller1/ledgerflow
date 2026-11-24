@@ -1,3 +1,4 @@
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import React, { useMemo, useState } from 'react';
 import { Contact } from 'lucide-react';
 import { toast } from 'sonner';
@@ -37,7 +38,7 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
   const capped = useMemo(
     () => (['bills', 'creditNotes', 'customers', 'invoices', 'payments', 'vendorCredits', 'vendors'] as const)
-      .filter(key => truncated[key]),
+      .filter(key => isCollectionCapped(truncated, key)),
     [truncated],
   );
   const isTruncated = capped.length > 0;
@@ -114,7 +115,7 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
       emptyMessage={reportText('r.no-customers-or-vendors-match-the-search', 'No customers or vendors match the search.')}
       sumKeys={['receivableCents', 'payableCents', 'netCents']}
       getRowId={(r) => r.key}
-      cappedCollections={capped}
+      cappedCollections={serverRows ? [] : capped}
       cappedWhat={reportText('r.this-contact-balance-summary', 'this contact balance summary')}
       cappedTestId="contact-balance-summary-capped"
     />

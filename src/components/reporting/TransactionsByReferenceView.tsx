@@ -1,3 +1,4 @@
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import React, { useMemo, useState } from 'react';
 import { Hash } from 'lucide-react';
 import { toast } from 'sonner';
@@ -31,7 +32,7 @@ export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate
   const truncated = useLedgerStore(s => s.truncatedCollections);
   // L-123 step 5b: what the list was built from, so a capped list is named rather than implied
   const capped = useMemo(
-    () => (['bills', 'invoices', 'transactions'] as const).filter(key => truncated[key]),
+    () => (['bills', 'invoices', 'transactions'] as const).filter(key => isCollectionCapped(truncated, key)),
     [truncated],
   );
 
@@ -93,7 +94,7 @@ export const TransactionsByReferenceView: React.FC<{ startDate?: string; endDate
         emptyMessage={reportText('r.no-entries-with-a-reference-in-this-period', 'No entries with a reference in this period.')}
         sumKeys={['amountCents']}
         getRowId={(r) => r.transactionId}
-        cappedCollections={capped}
+        cappedCollections={source === 'server' ? [] : capped}
         cappedWhat={reportText('r.these-references', 'these references')}
         cappedTestId="transactions-by-reference-capped"
       />

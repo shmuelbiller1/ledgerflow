@@ -38,7 +38,7 @@ export default function DepreciationLedgerReportView() {
         <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.to', 'To')}<input type="date" value={to} onChange={e => setTo(e.target.value)} className={field} /></label>
       </div>
       {ledger && <RangeReportSourceNote source={ledger.source} testId="depreciation-ledger-source" what={reportText('r.these-figures', 'these figures')} />}
-      <CappedCollectionsNote testId="depreciation-ledger-capped" keys={['assets', 'transactions']} what={reportText('r.this-ledger', 'this ledger')} />
+      {ledger?.source !== 'server' && <CappedCollectionsNote testId="depreciation-ledger-capped" keys={['assets', 'transactions']} what={reportText('r.this-ledger', 'this ledger')} />}
       {from > to && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{reportText('r.the-period-starts-after-it-ends', 'The period starts after it ends.')}</p>}
       {loading && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       {!loading && from <= to && rows.length === 0 && <ReportEmptyState

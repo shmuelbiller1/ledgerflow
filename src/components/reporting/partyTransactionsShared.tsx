@@ -2,7 +2,7 @@ import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import React, { useState, useMemo } from 'react';
 import { LucideIcon } from 'lucide-react';
 import type { LedgerState } from '../../stores/useLedgerStore';
-import type { LedgerKey } from '../../lib/ledgerCollections';
+import { isCollectionCapped, type LedgerKey } from '../../lib/ledgerCollections';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { PartyReportLayout, ColumnDef } from './PartyReportLayout';
@@ -106,7 +106,7 @@ export function TransactionsByPartyView<P, D1, D2>({
   useLedgerCollections(...collections);
   // R-11 / #926: the lists this list is built from, named when one of them was capped in this browser
   const capped = useMemo(
-    () => collections.filter(key => truncatedCollections[key]),
+    () => collections.filter(key => isCollectionCapped(truncatedCollections, key)),
     [collections, truncatedCollections],
   );
   const [searchTerm, setSearchTerm] = useState('');

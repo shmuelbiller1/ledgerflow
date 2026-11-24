@@ -76,7 +76,7 @@ test('a share is printed with two decimals at most', () => {
   assert.equal(formatSplitPercentage(Number.NaN), '—');
 });
 
-test('the screen helper and ProjectSchema agree on the same share (no drift)', () => {
+test('the screen helper and ProjectSchema agree on range; only decimals differ, on purpose', () => {
   // each percentage in this table is either fine for both or refused by both
   for (const percentage of [0, -1, 0.01, 12.5, 12.34, 100, 100.01, 250]) {
     const schemaOk = splitRules.safeParse([{ partnerId: 'p1', percentage }]).success;
@@ -84,6 +84,10 @@ test('the screen helper and ProjectSchema agree on the same share (no drift)', (
       p.kind === 'out-of-range' || p.kind === 'too-many-decimals');
     assert.equal(screenOk, schemaOk, `percentage ${percentage}: screen ${screenOk}, schema ${schemaOk}`);
   }
+  // the one deliberate difference: the screen keeps shares to two decimals, the schema does not limit
+  // decimals (older stored rules may have more), so 12.345 is refused on screen but still accepted on save
+  assert.equal(splitRules.safeParse([{ partnerId: 'p1', percentage: 12.345 }]).success, true);
+  assert.equal(splitRuleProblems([rule('p1', 12.345)]).some(p => p.kind === 'too-many-decimals'), true);
   // a set summing to 120 is refused by both, by different words
   assert.equal(splitRules.safeParse([{ partnerId: 'p1', percentage: 70 }, { partnerId: 'p2', percentage: 50 }]).success, false);
   assert.equal(splitRuleProblems([rule('p1', 70), rule('p2', 50)])[0]?.kind, 'total-not-100');

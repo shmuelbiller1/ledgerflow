@@ -1,3 +1,4 @@
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import { usePageSyncedState } from '../../hooks/usePageSyncedState';
 import React, { useState, useMemo } from 'react';
 import { Users } from 'lucide-react';
@@ -28,7 +29,7 @@ export const CustomerBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ as
   const [searchTerm, setSearchTerm] = useState('');
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
   const capped = useMemo(
-    () => (['creditNotes', 'customers', 'invoices', 'payments'] as const).filter(key => truncated[key]),
+    () => (['creditNotes', 'customers', 'invoices', 'payments'] as const).filter(key => isCollectionCapped(truncated, key)),
     [truncated],
   );
   const isTruncated = capped.length > 0;

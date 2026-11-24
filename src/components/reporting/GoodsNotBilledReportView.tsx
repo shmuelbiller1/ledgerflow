@@ -1,3 +1,4 @@
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import React from 'react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -54,7 +55,7 @@ export default function GoodsNotBilledReportView() {
           1,000 purchase orders, so a short list must not read as the whole picture. */}
       <CappedCollectionsNote
         testId="goods-not-billed-capped"
-        keys={(['bills', 'estimates', 'invoices', 'transactions'] as const).filter(key => truncated[key])}
+        keys={(['bills', 'estimates', 'invoices', 'transactions'] as const).filter(key => isCollectionCapped(truncated, key))}
         what={reportText('r.these-four-lists', 'these four lists')}
       />
       {ordersCapped && <p role="note" data-testid="goods-not-billed-orders-capped" className="text-xs text-[var(--muted)]">
