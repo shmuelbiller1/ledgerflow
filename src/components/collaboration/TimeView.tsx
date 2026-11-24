@@ -3,7 +3,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { runCommand, commandErrorMessage } from '../../lib/runCommand';
 import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -43,6 +43,29 @@ async function call(workspaceId: string, path: string, method: 'GET' | 'POST' | 
  * accountants approve or send it back and keep the hourly rates; approved billable time becomes a
  * draft invoice for its customer (src/lib/timeEntries.ts, src/server/services/timeService.ts).
  */
+
+/** AUP-08: an invoice made for these hours whose "mark invoiced" step has not succeeded yet, kept across remounts and reloads. */
+const PENDING_KEY = 'lf.time.pendingInvoice';
+type PendingInvoice = { id: string; number: string };
+function pendingStore(): Record<string, PendingInvoice> {
+  try { const raw = localStorage.getItem(PENDING_KEY); const v = raw ? JSON.parse(raw) : {}; return v && typeof v === 'object' ? v : {}; } catch { return {}; }
+}
+function writePending(all: Record<string, PendingInvoice>): void {
+  try { localStorage.setItem(PENDING_KEY, JSON.stringify(all)); } catch {
+    // best-effort: in private mode or with a full store the invoice's own timeEntryKey still finds it
+  }
+}
+function readPendingTimeInvoice(workspaceId: string, hours: string): PendingInvoice | undefined {
+  const found = pendingStore()[`${workspaceId}|${hours}`];
+  return found && typeof found.id === 'string' ? found : undefined;
+}
+function rememberPendingTimeInvoice(workspaceId: string, hours: string, invoice: PendingInvoice): void {
+  writePending({ ...pendingStore(), [`${workspaceId}|${hours}`]: invoice });
+}
+function forgetPendingTimeInvoice(workspaceId: string, hours: string): void {
+  const all = pendingStore(); delete all[`${workspaceId}|${hours}`]; writePending(all);
+}
+
 export default function TimeView() {
   // the log-time form offers the customers and projects it labels time with
   const listText = useListText();
@@ -53,9 +76,9 @@ export default function TimeView() {
   const role = useCurrentRole();
   const customers = useLedgerStore(s => s.customers);
   const projects = useLedgerStore(s => s.projects);
+  const invoices = useLedgerStore(s => s.invoices);
   const { addEntity } = useEntityOperations();
   const { people } = useHandOvers();
-  const unlinked = useRef(new Map<string, { id: string; number: string }>());
   const [entries, setEntries] = useState<TimeEntry[] | null>(null);
   const [rates, setRates] = useState<TimeRates | undefined>(undefined);
   const [canApprove, setCanApprove] = useState(false);
@@ -124,11 +147,14 @@ export default function TimeView() {
     if (!billFor || lines.length === 0) return;
     setBusy(true);
     const hours = billable.map(e => e.id).sort().join(',');
-    const pending = unlinked.current.get(hours);
+    // AUP-08: the invoice made for these hours is found again after a remount or reload, both from this
+    // browser's note and from the invoice itself (it names the time it was made from), so no second one is made
+    const pending = readPendingTimeInvoice(workspaceId, hours)
+      ?? (invoices || []).filter(inv => inv.metadata?.timeEntryKey === hours && inv.status !== 'void').map(inv => ({ id: inv.id, number: String(inv.number || '') }))[0];
     try {
       if (pending) {
         await call(workspaceId, '/invoiced', 'POST', { entryIds: billable.map(e => e.id), invoiceId: pending.id });
-        unlinked.current.delete(hours);
+        forgetPendingTimeInvoice(workspaceId, hours);
         setEntries(list => (list || []).map(e => (billable.some(b => b.id === e.id) ? { ...e, status: 'invoiced', invoiceId: pending.id } : e)));
         toast.success(`Time linked to draft invoice ${pending.number}.`);
         return;
@@ -142,16 +168,16 @@ export default function TimeView() {
       const today = getLocalDateISO();
       const ref = await addEntity('invoices', {
         number, customerId: billFor, customerName: customerName(billFor), date: today, dueDate: calculateDueDate(today, 'net_30'),
-        amountCents: billTotal, amountPaidCents: 0, status: 'draft', currency, items: lines, metadata: { fromTime: true },
+        amountCents: billTotal, amountPaidCents: 0, status: 'draft', currency, items: lines, metadata: { fromTime: true, timeEntryKey: hours },
       });
       if (!ref) return;
-      unlinked.current.set(hours, { id: ref.id, number });
+      rememberPendingTimeInvoice(workspaceId, hours, { id: ref.id, number });
       try {
         await call(workspaceId, '/invoiced', 'POST', { entryIds: billable.map(e => e.id), invoiceId: ref.id });
       } catch (err) {
         throw new Error(`Draft invoice ${number} was saved, but the time was not marked as invoiced (${commandErrorMessage(err, uiLanguageNow())}). Press "Make a draft invoice" again to link it; no second invoice is made.`, { cause: err });
       }
-      unlinked.current.delete(hours);
+      forgetPendingTimeInvoice(workspaceId, hours);
       setEntries(list => (list || []).map(e => (billable.some(b => b.id === e.id) ? { ...e, status: 'invoiced', invoiceId: ref.id } : e)));
       toast.success(`Draft invoice ${number} for ${formatCurrency(billTotal, currency)} made from ${lines.length} time ${lines.length === 1 ? 'entry' : 'entries'}. Review it in Sales, then send it.`);
     } catch (err) { toast.error(commandErrorMessage(err, uiLanguageNow())); } finally { setBusy(false); }

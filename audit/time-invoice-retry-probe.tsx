@@ -1,4 +1,4 @@
-/** Audit probe EXPECTS the currently unsafe behavior; not a regression test for the desired fix.
+/** AUP-08 (fixed): this probe now expects the safe behaviour; the regression lives in src/tests/aup08-time-invoice-remount.test.tsx.
  * Fault injection records accepted write requests in a mock; no live accounting database is used. */
 import '../src/tests/helpers/dom';
 import test, { afterEach } from 'node:test';
@@ -11,9 +11,9 @@ import { useLedgerStore } from '../src/stores/useLedgerStore';
 import { makeCustomer } from '../src/tests/fixtures';
 import { getSupabase } from '../src/lib/db/client';
 
-afterEach(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
+afterEach(async () => { cleanup(); localStorage.clear(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
 
-test('audit reproduction: remount after a failed time link can issue a second invoice-create request', async t => {
+test('AUP-08 (fixed): remount after a failed time link does not issue a second invoice-create request', async t => {
   const workspace = setComponentWorkspace('owner');
   useLedgerStore.setState({ customers: [makeCustomer({ id: 'c1', name: 'Acme' })], projects: [] });
   let creates = 0;
@@ -40,5 +40,5 @@ test('audit reproduction: remount after a failed time link can issue a second in
   render(<TimeView />);
   await chooseAndBill();
   await waitFor(() => assert.equal(links, 2));
-  assert.equal(creates, 2, 'second create is sent because retry state was only held in component memory');
+  assert.equal(creates, 1, 'the retry links the invoice already made');
 });
