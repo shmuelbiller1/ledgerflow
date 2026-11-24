@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 import fs from 'fs';
+import packageJson from './package.json';
 import { BRAND } from './src/config/brand';
 
 export default defineConfig({
@@ -190,7 +191,11 @@ export default defineConfig({
     })
   ],
   define: {
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+    // The app version as a build-time constant: screens that show it (e.g. the Uniform
+    // Structure file's software-version field) must not import package.json at runtime —
+    // that would spawn a chunk in the initial modulepreload list and bloat app-[hash].js.
+    __APP_VERSION__: JSON.stringify(packageJson.version),
   },
   esbuild: {
     target: 'esnext'
