@@ -19,7 +19,7 @@ test('Inbox filing sends the entry version and does not patch a switched cache w
   markComponentCollectionsLoaded('transactions', 'accounts');
   const accounts = expenseAccounts('fuel', 'hosting', 'meals');
   const transaction = (id: string, workspaceId: string, status: string, accountId: string) => makeTransaction({
-    id, workspaceId, status, date: '2026-11-10', description: 'Acme Hosting', payee: 'Acme Hosting', totalAmountCents: 4000,
+    id, workspaceId, status: status as 'completed' | 'draft', date: '2026-11-10', description: 'Acme Hosting', payee: 'Acme Hosting', totalAmountCents: 4000,
     updatedAt: '2026-11-12T00:00:00.000Z', lines: [{ accountId, amountCents: 4000 }, { accountId: 'bank', amountCents: -4000 }],
   });
   useLedgerStore.setState({ accounts, transactions: [1, 2, 3, 4].map(i => transaction(`h${i}`, ws.id, 'completed', 'hosting')).concat(transaction('shared-id', ws.id, 'draft', 'uncategorized')) });
