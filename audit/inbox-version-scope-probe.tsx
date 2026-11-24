@@ -1,4 +1,4 @@
-/** Fault-injection observation of the existing Inbox behavior, not a desired-regression test. No real writes. */
+/** AUP-21: Inbox filing sends each entry's version and never patches books switched to meanwhile. Mocked API; no real writes. */
 import '../src/tests/helpers/dom';
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,7 +14,7 @@ import { getSupabase } from '../src/lib/db/client';
 
 after(async () => { cleanup(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
 
-test('mocked Inbox filing drops an available version and can patch a switched cache with the same ID', async t => {
+test('Inbox filing sends the entry version and does not patch a switched cache with the same ID', async t => {
   const ws = setComponentWorkspace('owner');
   markComponentCollectionsLoaded('transactions', 'accounts');
   const accounts = expenseAccounts('fuel', 'hosting', 'meals');
@@ -37,13 +37,13 @@ test('mocked Inbox filing drops an available version and can patch a switched ca
   await screen.findByText('same as the last 4 times → Hosting');
   fireEvent.click(screen.getByRole('button', { name: 'Accept all with a rule or history' }));
   await waitFor(() => assert.ok(payload));
-  assert.equal(payload!.updates[0].expectedUpdatedAt, undefined, 'existing UI omitted its available optimistic version');
+  assert.equal(payload!.updates[0].expectedUpdatedAt, '2026-11-12T00:00:00.000Z', 'the update names the version it was made from');
   const other = transaction('shared-id', 'other-workspace', 'draft', 'meals');
   await act(async () => {
     useAuthStore.setState({ currentWorkspaceId: 'other-workspace', workspaces: [{ ...ws, id: 'other-workspace' }] });
     useLedgerStore.setState({ transactions: [other] });
   });
   await act(async () => { finish(Response.json({ status: 'ok' })); await pending; });
-  await waitFor(() => assert.equal(useLedgerStore.getState().transactions[0].lines?.[0].accountId, 'hosting'));
-  assert.equal(useLedgerStore.getState().transactions[0].workspaceId, 'other-workspace');
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(useLedgerStore.getState().transactions[0].lines?.[0].accountId, 'meals', 'the other books keep their own entry');
 });
